@@ -1,4 +1,14 @@
-# M0 Work Order
+# M0 Work Order — **COMPLETE (2026-07-16)**
+
+All seven PRs merged (#2, #3, #5, #6, #7, #8, #10 on GitHub); Q1 residue
+ratified into DESIGN.md; CI green at ε ∈ {1e-6, 1e-9, 1e-12} plus the
+`interval` feature lane. Running state and per-PR outcomes:
+`docs/M0-LOG.md`. Carried into M1: K's numeric value (multi-ε
+experiments), the `Body<Interval>` instantiation test, the validator's
+M1 items (arity rules, orphan-vertex vs `mvfs`, D5 provenance check),
+and the half-edge design (wants the missing Mäntylä chapters).
+
+---
 
 Read `DESIGN.md` first — it is the ratified contract (D1–D9). This file is
 the implementation sequence for M0 and the working agreements for how to

@@ -398,8 +398,11 @@ persisted decision log**:
 
 - Evaluation code (evaluators, derivatives, transforms, measurements) is
   fully generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (inari), `Dual<f64>` (num-dual), `Dual<Interval>` (in-house
-  wrapper, see crate table).
+  `Interval` (inari `DecInterval`, behind the `interval` feature),
+  `Dual<f64>` and `Dual<Interval>` (one in-house generic `Dual<T>` —
+  num-dual was demoted to a dev-only test oracle at M0 because its
+  std-backed transcendentals cannot satisfy the value-channel
+  bit-identity contract; see crate table).
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign (+ margin), generic over `T`. No raw
   `<` on control-flow paths — this code-style discipline is the one
@@ -439,13 +442,38 @@ last-ulp accuracy; no order-implicit reductions (`Sum`/`Product`).
 (`CAD_TOLERANCE_EPS`) and exhaustively recorded env errors — loud
 through a test, never a panic. **Angular tolerance eliminated** (D4 ¶1
 revision).
-Still open (settle in the remaining M0 PRs): comparison/signum semantics
-of the `Dual<Interval>` wrapper (PR 5); the meaning of indeterminate at
-plain `f64` and the ambiguity constant K's value (PR 3 fixes the
-semantics — sliver band, provisional K = 10 — value pending multi-ε
-experiments); where genericity stops structurally (`Body<T>` =
-scalar-free topology + geometry arenas over `T`; an interval replay
-materializes interval-valued geometry — PR 7).
+**All Q1 residue settled at M0 close (2026-07-16):**
+- **Interval scalar** (PR #7): inari `DecInterval` with the *decoration
+  as the poison channel* (`decoration < Def ⇒ Indeterminate(Invalid)` —
+  silent domain clamps never decide); `Bounds` certification trait with
+  poison-visible NaN brackets for empty AND NaI (failing certification
+  outranks 1788 representational honesty); tight `pown` powi override
+  (containment of the true value is the interval contract); the sliver
+  band is *terminal* for a subdivision driver (an enclosure wholly
+  inside (ε, Kε) never refines — escalate as a genuine sliver).
+  f64 `powi(NaN, 0)` propagates NaN (un-laundered to match; `∞⁰ = 1`
+  stays — ∞ is not f64 poison).
+- **`Dual<Interval>` comparison/signum semantics** (PR #9/#10): resolved
+  by *value-part delegation* — `Decide` classifies the value only, the
+  derivative never influences a branch (tangent-space data does not
+  decide base-space topology). Kink conventions: f64 tangents are
+  branch-consistent with the value channel (the dual differentiates the
+  program as evaluated — abs′(0) = +1, ties keep self); the interval
+  instantiation carries the *Clarke subdifferential enclosure* (straddle
+  hulls) — the set-valued subgradient treatment lives at the certified
+  tier (cf. the GSD06 discrete-exactness philosophy, see references).
+- **Genericity boundary** (PR #8): `Body<T>` = scalar-free topology
+  arenas + `T`-valued geometry arenas; topology contains no `T` and
+  never branches on it; keys are *body-lineage-scoped* (a foreign key
+  may silently resolve — the flip side, key identity across
+  same-history builds, is what lets an interval replay share topology
+  with the f64 build). A non-generic `Topology` split was considered
+  and rejected (cross-instantiation topology comparison is expressible
+  as a plain function because keys don't carry `T`).
+- **Still open, deliberately**: only the ambiguity constant K's numeric
+  value (semantics ratified — sliver band, provisional K = 10, a policy
+  dial not a correctness parameter; value pending multi-ε experiments
+  during M1+).
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
@@ -530,7 +558,7 @@ not the modeling core. Candidates, all verified active unless noted:
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | `im` is unmaintained with an open soundness advisory — use the `imbl` fork |
 | Interval arithmetic | `inari` | MIT | IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Probe (issue #4): transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64 (build with x86-64-v3; aarch64 unflagged); planned in-house replacement post-M7 (see Roadmap) |
 | Robust predicates | `robust` (georust) | MIT/Apache | Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
-| Dual numbers / forward AD | `num-dual` | MIT/Apache | generic `DualNum<F>`, arbitrary nesting, simba `RealField`. **Dual-over-interval does not exist off the shelf** — we write a `DualNum` newtype over `inari::Interval` in-house (comparison semantics for zero-straddling intervals is a design decision — see Q1: indeterminate comparisons surface as `Indeterminate`, not a guess) |
+| Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code) |
 | 2-D polygon booleans | `i_overlay` | MIT/Apache | robust integer-snapping booleans (now inside georust `geo`); useful for trim-loop ops in UV |
 | Display triangulation | `earcut` (georust) | MIT/Apache | cheap ear-clipping for viz only |
@@ -551,7 +579,11 @@ tax; useful as a *test oracle* for comparing our boolean results).
 Local copies live in `references/` (git-ignored). Currently on hand:
 `the-nurbs-book.pdf` (full 2nd-edition scan, verified),
 `mantyla-solid-modeling-ch4-6.pdf` (chapters 4–6: representation schemes —
-decomposition / constructive / boundary models), and `hoffmann/` (Hoffmann,
+decomposition / constructive / boundary models),
+`grinspun-schroder-desbrun-GSD06-discrete-differential-geometry.pdf`
+(DDG course notes — Evan-suggested during PR #9's subgradient
+conversation; the discrete-exactness philosophy is the frame for how
+M6's stackup design should treat kinks/subdifferentials), and `hoffmann/` (Hoffmann,
 *Geometric and Solid Modeling*, complete: front + chapters 1–7 + bib,
 recovered via the Internet Archive — the Purdue page is gone). **Note:**
 the Euler-operator and half-edge implementation chapters (later in the
