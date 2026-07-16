@@ -9,6 +9,8 @@ members = ["crates/geom-core"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.97.0"
+# Nothing is publishable until the project has its name (Q9).
+publish = false
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
@@ -17,3 +19,19 @@ rust-version = "1.97.0"
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+
+# D9: the kernel never panics on any input — every failure is a typed error.
+# The panic family is linted from line one (L5); CI's `-D warnings` makes
+# these hard errors there. Test code may allow the unwrap/expect/panic lints
+# per-module (`#[allow(...)]` on `mod tests` / `#![allow(...)]` in
+# integration-test files) — panicking is a test's failure mechanism.
+# `indexing_slicing` (also a panic source) is deliberately deferred until
+# real evaluation code exists to judge the noise against (L5).
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+unreachable = "warn"
+dbg_macro = "warn"

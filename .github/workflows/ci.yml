@@ -5,9 +5,15 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # The toolchain (channel + rustfmt/clippy components) comes from
-# rust-toolchain.toml. dtolnay/rust-toolchain honors that file, so we pin
-# nothing here — the pinned compiler (D9 / L2) is the single source of truth.
+# rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
+# rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
+# its components on the first cargo invocation. The pinned compiler (D9 / L2)
+# has a single source of truth — the toolchain file.
 
 jobs:
   fmt:

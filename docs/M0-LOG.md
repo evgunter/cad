@@ -44,6 +44,20 @@ design conversation.
   (`-D warnings` flag), not `#![deny(warnings)]` in source, so local
   iteration isn't blocked by e.g. an unused import mid-edit.
 
+- **L5 — Clippy lint posture** (set while the codebase is empty, on PR 1
+  review's recommendation): panic-family lints (`unwrap_used`,
+  `expect_used`, `panic`, `todo`, `unimplemented`, `unreachable`,
+  `dbg_macro`) at `warn` workspace-wide — CI's `-D warnings` makes them
+  hard errors there, mechanically enforcing D9's no-panic rule. Test
+  code allows the unwrap/expect/panic lints per-module (panicking is a
+  test's failure mechanism). `clippy::pedantic` as a group is
+  deliberately *not* enabled (too noisy; targeted lints get added
+  individually when they earn their keep). `indexing_slicing` (a real
+  panic source) deferred until evaluation code exists to judge noise
+  against — revisit at PR 6.
+- **L6 — `publish = false`** in `workspace.package` until Q9's name
+  lands.
+
 ## State snapshot
 
 - **Current**: PR 1 (workspace scaffolding) in progress on
