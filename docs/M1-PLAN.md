@@ -161,10 +161,22 @@ notes, never the scan.
      banned at tier 2: two faces glued along their entire shared
      boundary is exactly the incidence structure of a legitimate
      two-hemisphere ball, so a zero-volume lamina is a *geometric*
-     defect — caught by the geometric tier that arrives with real
-     surfaces (M2+: D4 ¶2 residual certification, non-degeneracy),
-     which is named now as the taxonomy's third layer but is out of M1
-     scope. Watertightness (every edge exactly two antiparallel
+     defect. No bespoke lamina rule exists at the geometric tier
+     either (M2+, named now as the taxonomy's third layer, out of M1
+     scope): fold-back edges die under the ratified predicate
+     discipline — intrinsic variants by their transversality/
+     separation margins (D2), conventional variants (whose
+     descriptions are true even when degenerate, e.g. a height-0
+     extrude's `MappedCurve`s) by the **material wedge-angle
+     predicate** — wedge ∈ (0, 2π) bounded away from the ends by the
+     derived threshold θ = ε/r; wedge = π is the legal smooth
+     `Seam`/conventional-split case — enforced at the operation (D4
+     ¶3 typed error) and rechecked by the geometric validator.
+     Residual gap, stated: coincident faces sharing *no* edge (e.g.
+     two coincident closed shells) are invisible to edge-local checks
+     — that is global self-intersection/minimum-clearance, deferred
+     to M3 (partial, via booleans) and M6 (interval clearance) per the
+     roadmap. Watertightness (every edge exactly two antiparallel
      half-edges, vertex orbits single cycles) is structural — tier 1 —
      in the half-edge representation. Finished bodies must pass
      tier 2; tier-1-only states are visible solely inside operation

@@ -54,6 +54,31 @@ Evan's review (2026-07-16), first round:
   geometric defect for the M2+ geometric tier. Plan text corrected
   in-branch; tier 2 bans empty loops + valence-1 vertices only.
 
+Second round (chat, 2026-07-16):
+- **"Debug builds validate after every op" clarified**: each operator
+  debug-asserts its tier-1 postcondition — a per-call check of the
+  ch. 9 soundness theorem against our transcription of the surgeries,
+  never a semantic gate (tier 1 holds for every legitimate intermediate
+  by construction). Wording folded into D1.
+- **Body-as-materialized-evaluation ratified into D1** (Evan's framing:
+  is the mutability semantically a cache of the immutable
+  representation? — yes in authority terms; "cache" kept out of the
+  ratified text at Evan's discretion since bodies are long-lived and
+  replay is not lazy): Body is never authoritative; coherence =
+  bit-identical replay (D9); mutation is evaluator-internal linear
+  state only; imported bodies' authority = adopted descriptions +
+  import record (D7).
+- **No bespoke lamina ban at the geometric tier either** (Evan probed
+  why laminae need banning at all): intrinsic edge variants die by
+  their D2 margins, but conventional variants (e.g. a height-0
+  extrude's true-by-construction `MappedCurve`s) do NOT — the kill is
+  the **material wedge-angle predicate** (wedge ∈ (0, 2π) bounded away
+  from the ends by θ = ε/r; π = legal smooth seam), enforced at the
+  operation (D4 ¶3) and rechecked by the M2+ geometric validator.
+  Honest residual gap stated in the plan: coincident faces sharing no
+  edge (zero-thickness voids between shells) are edge-locally
+  invisible — global self-intersection/clearance, M3 partial / M6 full.
+
 ## Log decisions
 
 (none yet)
