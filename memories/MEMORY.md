@@ -5,3 +5,4 @@
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main
 - [Multi-agent capabilities](multi-agent-capabilities.md) — nested subagent spawning verified; worktree isolation for parallel implementers; custom agent types go in .claude/agents/
+- [Orchestration model](orchestration-model.md) — top-level agent orchestrates/meta-reviews, subagents code+review; continue until real design forks; commit crucial state before stopping (orchestrator-only)
