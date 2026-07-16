@@ -270,17 +270,36 @@ impl Real for Interval {
 }
 
 /// Bound extraction (certification/driver scope — see [`Bounds`]):
-/// the enclosure's exact endpoints. Poison surfaces honestly: NaI yields
-/// NaN from both accessors; the empty enclosure yields the IEEE 1788
-/// canonical reversed pair (+∞, −∞). Either bracket fails every
-/// downstream `residual ≤ ε` certification loudly (D4 ¶2).
+/// the enclosure's exact endpoints. Poison surfaces honestly: NaI **and**
+/// the empty enclosure both yield NaN from both accessors, so either
+/// bracket fails every downstream `residual ≤ ε` certification loudly
+/// (D4 ¶2) — `NaN ≤ ε` is false under every comparison direction.
+///
+/// The empty enclosure deliberately does NOT surface as IEEE 1788's
+/// canonical reversed pair (+∞, −∞): that pair's *upper* accessor is −∞,
+/// which would PASS a `residual.hi() ≤ ε` certification check for a
+/// residual that was poisoned to empty — the exact laundering D4 ¶2
+/// exists to prevent. Empty and NaI are therefore indistinguishable
+/// through `Bounds`, on purpose: failing certification outranks
+/// IEEE 1788 representational honesty. (Code that needs to tell them
+/// apart is driver/diagnostic code, which sees the decoration through
+/// [`Decide::sign_within`]'s [`MarginDiag::Invalid`], not through this
+/// trait.)
 impl Bounds for Interval {
     fn lo(self) -> f64 {
-        self.0.inf()
+        if self.0.is_empty() {
+            f64::NAN
+        } else {
+            self.0.inf()
+        }
     }
 
     fn hi(self) -> f64 {
-        self.0.sup()
+        if self.0.is_empty() {
+            f64::NAN
+        } else {
+            self.0.sup()
+        }
     }
 }
 
@@ -442,6 +461,30 @@ mod tests {
             iv(f64::INFINITY, f64::INFINITY).0.is_nai(),
             "[+inf, +inf] encloses no real"
         );
+    }
+
+    /// The `Bounds` poison contract: empty and NaI both surface as NaN
+    /// brackets — deliberately indistinguishable (doc on the impl) — and
+    /// neither can ever pass a D4 ¶2 `residual.hi() ≤ ε` certification.
+    #[test]
+    fn bounds_poison_is_nan_and_never_certifies() {
+        let empty = iv(-4.0, -1.0).sqrt();
+        assert!(empty.0.is_empty());
+        let nai = Interval::from_f64(f64::NAN);
+        assert!(nai.0.is_nai());
+
+        let eps = 1e-9;
+        for (x, what) in [(empty, "empty"), (nai, "NaI")] {
+            assert!(x.lo().is_nan(), "{what}: lo must be NaN");
+            assert!(x.hi().is_nan(), "{what}: hi must be NaN");
+            // The never-certifies pin: NOT the ordinary `hi > eps` check —
+            // the point is that the certification comparison itself comes
+            // back false, so `residual.hi() <= eps` can never pass.
+            let certifies = x.hi() <= eps;
+            assert!(!certifies, "{what}: a poisoned bracket must never certify");
+            let certifies_lo = x.lo() <= eps;
+            assert!(!certifies_lo, "{what}: nor through the lower bound");
+        }
     }
 
     #[test]

@@ -247,10 +247,15 @@ pub trait Real:
 /// be asserted contained).
 ///
 /// Poison surfaces honestly rather than narrowing: a poisoned `f64` yields
-/// NaN from both accessors; the interval scalar yields NaN for the
-/// ill-formed interval and the reversed pair (+∞, −∞) for the empty one.
-/// Certification treats any such bracket as failed (`NaN ≤ ε` is false —
-/// the D4 ¶2 fail-loud path), never as data.
+/// NaN from both accessors, and the interval scalar yields NaN from both
+/// accessors for **both** the ill-formed interval (NaI) and the empty one.
+/// Empty and NaI are deliberately indistinguishable through this trait:
+/// IEEE 1788's canonical empty pair (+∞, −∞) would let `hi() ≤ ε` PASS for
+/// a poisoned-to-empty residual, and failing certification outranks
+/// representational honesty. A NaN bracket fails every downstream
+/// `residual ≤ ε` certification loudly (`NaN ≤ ε` is false under every
+/// comparison direction — the D4 ¶2 fail-loud path): certification treats
+/// such a bracket as failed, never as data.
 pub trait Bounds: Real {
     /// The lower end of the bracket (the value itself at `f64`; the
     /// enclosure's infimum at the interval scalar).
