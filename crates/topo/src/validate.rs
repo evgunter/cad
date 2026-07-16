@@ -1440,6 +1440,30 @@ mod tests {
     }
 
     #[test]
+    fn orphaned_empty_loop_vertex_is_reported() {
+        let mut t = mvfs_state();
+        // Repoint the empty loop at a fresh lone vertex: the original
+        // lone vertex loses its only anchor (no half-edges start at it
+        // and no empty loop holds it any more) — the mvfs-state
+        // counterpart of orphaning a vertex.
+        let p2 = t.body.add_point(anchor());
+        let v2 = t.body.add_vertex(
+            Vertex {
+                point: p2,
+                emanating: None,
+            },
+            prov(),
+        );
+        t.body.get_loop_mut(t.lone_loop).unwrap().boundary = LoopBoundary::Empty { vertex: v2 };
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![ValidationError::OrphanEntity {
+                entity: EntityId::Vertex(t.vertex),
+            }])
+        );
+    }
+
+    #[test]
     fn vertex_in_two_empty_loops_is_multiply_owned() {
         let mut t = mvfs_state();
         // A second empty loop claiming the same lone vertex: empty-loop
