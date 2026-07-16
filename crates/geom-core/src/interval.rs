@@ -367,6 +367,12 @@ mod tests {
         Interval::from_bounds(lo, hi)
     }
 
+    /// A named unary trait operation (for the monotonicity tables).
+    type UnaryOp = fn(Interval) -> Interval;
+
+    /// A named binary trait operation (for the monotonicity tables).
+    type BinaryOp = fn(Interval, Interval) -> Interval;
+
     /// The fixed pure band (zero = 1e-9, escalate = 1e-8) used by the
     /// decision tables — identical to `predicate.rs`'s `band_1e9`.
     fn band_1e9() -> Band {
@@ -387,10 +393,22 @@ mod tests {
 
     #[test]
     fn from_f64_embeds_finite_points_exactly() {
-        for x in [0.0, -0.0, 1.0, -2.5, 1e-308, -1e300, f64::MAX] {
+        for x in [1.0, -2.5, 1e-308, -1e300, f64::MAX] {
             let p = Interval::from_f64(x);
             assert_eq!(p.lo().to_bits(), x.to_bits(), "lo of point {x:e}");
             assert_eq!(p.hi().to_bits(), x.to_bits(), "hi of point {x:e}");
+            assert_eq!(p.0.decoration(), Decoration::Com);
+        }
+        // Zero embeds exactly as a VALUE, but not bit-for-bit: inari
+        // canonicalizes endpoint representation (it stores the lower bound
+        // negated, so `inf()` of the point zero surfaces as -0.0). The
+        // sign of a floating-point zero is a representation artifact, not
+        // geometry (same stance as `crate::predicate`'s boundary table),
+        // so value equality is the honest assertion here.
+        for z in [0.0f64, -0.0] {
+            let p = Interval::from_f64(z);
+            assert_eq!(p.lo(), 0.0, "lo of point {z:?}");
+            assert_eq!(p.hi(), 0.0, "hi of point {z:?}");
             assert_eq!(p.0.decoration(), Decoration::Com);
         }
     }
@@ -428,11 +446,17 @@ mod tests {
 
     #[test]
     fn constants_are_exact_points_and_one_ulp_enclosures() {
-        for (c, x) in [(Interval::zero(), 0.0), (Interval::one(), 1.0)] {
-            assert_eq!(c.lo().to_bits(), x.to_bits());
-            assert_eq!(c.hi().to_bits(), x.to_bits());
-            assert_eq!(c.0.decoration(), Decoration::Com);
-        }
+        // Value equality for zero (the sign of a zero endpoint is a
+        // representation artifact — see `from_f64_embeds_finite_points_
+        // exactly`); bit equality for one.
+        let zero = Interval::zero();
+        assert_eq!(zero.lo(), 0.0);
+        assert_eq!(zero.hi(), 0.0);
+        assert_eq!(zero.0.decoration(), Decoration::Com);
+        let one = Interval::one();
+        assert_eq!(one.lo().to_bits(), 1.0f64.to_bits());
+        assert_eq!(one.hi().to_bits(), 1.0f64.to_bits());
+        assert_eq!(one.0.decoration(), Decoration::Com);
 
         // fl(π) rounds DOWN (π = 3.14159265358979323846… > fl(π) =
         // 3.141592653589793), so the unique 1-ulp enclosure of the true π
@@ -746,7 +770,7 @@ mod tests {
             let outer = iv(s[0], s[3]);
             let inner = iv(s[1], s[2]);
 
-            let ops: &[(&str, fn(Interval) -> Interval)] = &[
+            let ops: &[(&str, UnaryOp)] = &[
                 ("sqrt", Real::sqrt),
                 ("abs", Real::abs),
                 ("sin", Real::sin),
@@ -781,7 +805,7 @@ mod tests {
             let (outer_a, inner_a) = (iv(a[0], a[3]), iv(a[1], a[2]));
             let (outer_b, inner_b) = (iv(b[0], b[3]), iv(b[1], b[2]));
 
-            let ops: &[(&str, fn(Interval, Interval) -> Interval)] = &[
+            let ops: &[(&str, BinaryOp)] = &[
                 ("add", |x, y| x + y),
                 ("sub", |x, y| x - y),
                 ("mul", |x, y| x * y),
