@@ -1,0 +1,72 @@
+//! Fixed-dimension linear algebra: vectors, points, matrices, and affine
+//! maps for the 2-D/3-D evaluation layer.
+//!
+//! Hand-rolled per `docs/DESIGN.md`'s layering table — small, fixed
+//! dimension, and generic over our own [`Real`](crate::real::Real) scalar
+//! trait. No external
+//! linear-algebra crate sits in the kernel core: the scalar abstraction
+//! (and with it the totality, determinism, and no-comparison disciplines)
+//! is ours to control.
+//!
+//! # The affine/linear distinction is load-bearing
+//!
+//! Euclidean 2-/3-space is an *affine* space: a set of points acted on
+//! simply transitively by its translation vector space (equivalently, its
+//! tangent space — canonically the same space at every point, since the
+//! space is flat). The types encode the two sides of that torsor structure
+//! separately, so category errors fail to typecheck:
+//!
+//! - [`Vec2`] / [`Vec3`] are the **linear side** — tangent vectors:
+//!   displacements, directions, normals, derivatives. They form a vector
+//!   space: addition, negation, right scalar multiplication, dot/cross.
+//! - [`Point2`] / [`Point3`] are the **affine side** — locations. Points
+//!   do not add or scale; the operations are `Point − Point = Vec`,
+//!   `Point ± Vec = Point`, and affine combinations ([`Point3::lerp`]).
+//!   `Point + Point` does not typecheck, by design.
+//! - [`Mat2`] / [`Mat3`] are **linear endomorphisms of the tangent
+//!   space**, stored column-major as named column fields.
+//! - [`Affine2`] / [`Affine3`] are **affine maps**: a linear part (the
+//!   map's differential, which is all a pushed-forward tangent vector
+//!   feels) plus a translation (which only points feel).
+//!
+//! # Deliberate omissions
+//!
+//! - **No array storage, no indexing, no `Index` impls.** Indexing has a
+//!   panic path on out-of-range input, and D9 forbids panic paths; named
+//!   fields (`x`, `y`, `z`, `c0`, …) make every component access total
+//!   and readable.
+//! - **No `PartialEq` / `PartialOrd` / `Hash` derives.** Comparison is
+//!   the predicate layer's job (M0 PR 3): geometric equality is a
+//!   tolerance decision, never a bit pattern — and the scalar `T` carries
+//!   no comparison surface anyway (see `real.rs` on why).
+//! - **No left scalar multiplication `s * v`.** That impl must live on
+//!   the *scalar* type (`impl Mul<Vec3<T>> for T`), which coherence
+//!   forbids for a generic scalar and which we decline to special-case
+//!   for `f64` (generic evaluation code could not use it). Write `v * s`.
+//! - **No `Display`.** `Debug` (a [`Real`](crate::real::Real) supertrait)
+//!   is the diagnostic
+//!   affordance; user-facing formatting belongs above the kernel.
+//!
+//! # Totality and determinism
+//!
+//! Every operation is **total** — no `Result`, no panic. Out-of-domain
+//! inputs ([`Vec3::normalize`] of the zero vector, [`Mat3::inverse`] of a
+//! singular matrix) produce poison values (NaN at `f64`) that flow through
+//! subsequent *arithmetic*; only the predicate layer turns numbers into
+//! *decisions*, and certified residual checks catch poisoned caches (D4
+//! ¶2). This is the crate-wide policy documented in `real.rs`.
+//!
+//! Every reduction — dot, cross, determinant, matrix products — has a
+//! **fixed, documented association order** (D9: deterministic evaluation;
+//! reassociating floating-point sums changes results). The order is stated
+//! in each operation's doc comment and is part of its contract.
+
+mod affine;
+mod mat;
+mod point;
+mod vec;
+
+pub use affine::{Affine2, Affine3};
+pub use mat::{Mat2, Mat3};
+pub use point::{Point2, Point3};
+pub use vec::{Vec2, Vec3};

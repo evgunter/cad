@@ -6,20 +6,23 @@
 //! numbers land in a later M0 PR), the single global [`Tolerance`] value, the
 //! trilean predicate machinery ([`Decide`] / [`Sign`] / [`Band`] — the
 //! single door from numbers to decisions), and the small fixed-dimension
-//! linear algebra that the geometry layers build upon (upcoming, M0
-//! PR 6). It carries the determinism charter (D9) from the first line —
-//! no panics on input, typed errors, transcendentals via `libm`,
-//! essentially no unsafe. See `docs/DESIGN.md` (decisions D4, D9, and
-//! open question Q1) for the design contract this crate implements.
+//! [`linalg`] layer — vectors, points, matrices, affine maps, generic
+//! over [`Real`] — that the geometry layers build upon. It carries the
+//! determinism charter (D9) from the first line — no panics on input,
+//! typed errors, transcendentals via `libm`, essentially no unsafe. See
+//! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the
+//! design contract this crate implements.
 
 #[cfg(feature = "interval")]
 pub mod interval;
+pub mod linalg;
 pub mod predicate;
 pub mod real;
 pub mod tolerance;
 
 #[cfg(feature = "interval")]
 pub use interval::Interval;
+pub use linalg::{Affine2, Affine3, Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     AMBIGUITY_K, Band, BandError, BandField, Decide, Indeterminate, MarginDiag, Sign,
 };

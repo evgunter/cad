@@ -404,10 +404,17 @@ persisted decision log**:
   function* returning a trilean sign (+ margin), generic over `T`. No raw
   `<` on control-flow paths — this code-style discipline is the one
   day-one commitment.
-- At `T = f64` predicates are total (margins within kε escalate per D4).
+- At `T = f64` predicates are total (margins within K·ε escalate per D4;
+  ratified in PR #5 as the *sliver band* — semantically indeterminate
+  even under exact arithmetic, provisional K = 10; K is a policy dial —
+  refusal rate and f64 noise headroom — not a correctness parameter:
+  soundness rests on escalate-never-guess, D4 ¶2 certification, and
+  interval replay, for any K > 1).
   At `T = Interval` an indeterminate predicate aborts the operation — in
-  Rust, predicates return `Result<bool, Indeterminate>` and construction
-  code propagates with `?` — unwinding to an outer **propagation driver**
+  Rust, predicates return `Result<Sign, Indeterminate>` (the trichotomy
+  is the primitive, ratified in PR #5; bool predicates are projections)
+  and construction code propagates with `?` — unwinding to an outer
+  **propagation driver**
   that splits the parameter box and re-runs (pure model ⇒ re-running
   sub-boxes is trivially correct and embarrassingly parallel). This is the
   operational form of "union over branches, pushing the distribution
