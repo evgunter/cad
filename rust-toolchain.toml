@@ -1,0 +1,5 @@
+# Pinned toolchain (D9 / L2): determinism starts with a pinned compiler —
+# same build + same inputs must give bit-identical outputs.
+[toolchain]
+channel = "1.97.0"
+components = ["rustfmt", "clippy"]

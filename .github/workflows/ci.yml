@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The toolchain (channel + rustfmt/clippy components) comes from
+# rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
+# rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
+# its components on the first cargo invocation. The pinned compiler (D9 / L2)
+# has a single source of truth — the toolchain file.
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
+  multi-eps:
+    name: test (eps = ${{ matrix.eps }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        eps: ["1e-6", "1e-9", "1e-12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # D4 ¶1: run the suite at several ε values to smoke out
+      # tolerance-sensitive algorithms. CAD_TOLERANCE_EPS gets wired to
+      # Tolerance initialization in PR 2 (L3); for now it just parameterizes
+      # the same test run so the matrix and the env var name land early.
+      - run: cargo test --workspace
+        env:
+          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
