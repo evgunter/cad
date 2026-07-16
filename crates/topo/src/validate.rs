@@ -36,6 +36,31 @@
 //! one notion of body validity per milestone, and speculative abstraction
 //! would only blur it.
 //!
+//! # Deliberately deferred to M1
+//!
+//! Three checks a reader might expect are **out of scope at M0, by
+//! decision** — not oversights:
+//!
+//! - **Emptiness / arity.** An owned zero-edge loop, a zero-face shell, and
+//!   a zero-shell solid all validate cleanly here. This is deliberate:
+//!   Mäntylä-style minimal bodies (`mvfs` and friends) transiently need
+//!   degenerate states, and it is M1's Euler operators that define which
+//!   degenerate states are legal — so the arity checks land there, with the
+//!   operators that give them meaning.
+//! - **The orphan-vertex rule.** The rule that every vertex be referenced
+//!   by ≥ 1 edge is M0-scoped and will be revisited at M1: `mvfs` creates a
+//!   one-vertex, zero-edge body that this very rule would reject, so M1 must
+//!   relax or restate it alongside the operator that produces such bodies.
+//! - **The D5 provenance invariant.** That every live topology entity has a
+//!   provenance entry, and no provenance entry outlives its entity, is
+//!   **not yet checked** by this harness. Today it is unrepresentable
+//!   through the public API (the builder records provenance at every
+//!   insertion, and M0 offers no removal), but M1's in-crate Euler
+//!   operators mutate the arenas directly, and `SecondaryMap` entries leak
+//!   after a primary key is removed — so the bidirectional check
+//!   (entity ⇒ provenance and provenance ⇒ entity) is named M1 harness
+//!   work.
+//!
 //! # All failures, not the first
 //!
 //! [`validate`] collects **every** failure before returning: a validator
@@ -419,6 +444,16 @@ mod tests {
         body.add_solid(Solid { shells: vec![sh] }, prov("tiny"));
         Tiny { body, p0, v0, sh }
     }
+
+    // TODO(PR 4 — `interval` feature): add a `Body::<Interval>`
+    // instantiation test (build `tiny()`'s shape and validate it over a
+    // second scalar type) once that feature merges. This is belt-and-braces,
+    // not a coverage gap: `validate<T: Real>` and every `Body<T>` method are
+    // generic, and Rust typechecks a generic fn body *without* instantiating
+    // it — so the scalar-free-topology claim (Q1) is already compiler-
+    // verified today, with `f64` as the sole instantiation. The extra test
+    // would only guard against an accidental future bound that `f64` happens
+    // to satisfy but an interval type would not.
 
     #[test]
     fn empty_body_validates_vacuously() {

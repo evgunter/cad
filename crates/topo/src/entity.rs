@@ -7,7 +7,7 @@
 //! a `VertexKey` to something expecting an `EdgeKey` fails to typecheck.
 //! Cross-arena confusion is a compile error, not a runtime surprise:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0308
 //! use geom_core::Point3;
 //! use topo::{Body, Edge, Provenance, Vertex};
 //!
@@ -77,7 +77,7 @@ new_key_type! {
 /// A `SolidKey` is not a `ShellKey` — a solid's shell list rejects keys of
 /// any other kind at compile time:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0308
 /// use topo::{Body, Provenance, Solid};
 ///
 /// let mut body = Body::<f64>::new();

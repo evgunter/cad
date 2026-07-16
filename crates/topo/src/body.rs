@@ -17,13 +17,25 @@
 //! and the reason this crate contains no `HashMap`/`HashSet` (whose
 //! iteration order is seeded per-process and would break replay).
 //!
-//! # Stale keys
+//! # Key validity: stale vs. foreign
 //!
 //! Arena lookups go through [`Body::get_solid`] and friends, which return
-//! `Option` — a stale or foreign key yields `None`, never a panic (D9).
-//! Slotmap's `Index` impl (`map[key]`) panics on stale keys and is not
-//! exposed: the arenas are private, and kernel code uses `.get()`-shaped
-//! accessors exclusively.
+//! `Option`. A **stale** key — one whose slot was removed, or whose
+//! generation was bumped when its slot was reused — yields `None`, never a
+//! panic (D9): generational indices make staleness detectable. Slotmap's
+//! `Index` impl (`map[key]`) panics on stale keys and is not exposed: the
+//! arenas are private, and kernel code uses `.get()`-shaped accessors
+//! exclusively.
+//!
+//! **Foreignness is different, and not protected against.** A key is
+//! meaningful only for the body — or its clone lineage — that minted it. A
+//! key minted by an *unrelated* body with a compatible slot history may
+//! silently resolve to `Some(arbitrary entity)` rather than `None`:
+//! generational indices guard against staleness, not foreignness (this is
+//! empirically demonstrable, not merely theoretical). Passing a key across
+//! body lineages is the documented hazard here, and the accessors cannot
+//! catch it. The flip side of this same coin is load-bearing — see the
+//! [`Body`] docs on lineage-scoped keys.
 
 use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
@@ -49,12 +61,26 @@ use crate::provenance::Provenance;
 /// comparison surface anyway. Deriving `PartialEq` would answer the wrong
 /// question silently, so no equality is offered at all.
 ///
+/// # Lineage-scoped keys (one coin, two faces)
+///
+/// A key's identity is meaningful only within the lineage of the body that
+/// minted it (see the [module docs](self) on stale-vs-foreign keys): a key
+/// crossing into an *unrelated* body is the documented hazard, silently
+/// resolvable to an arbitrary entity. The very same property is
+/// load-bearing in the other direction. Two bodies built from an identical
+/// construction history mint identical key sequences (D9 determinism), so
+/// an interval-arithmetic replay materializes a `Body<Interval>` whose
+/// topology keys match the `f64` build it mirrors **key for key** (Q1's
+/// pure-replay model). Lineage-scoped key identity is precisely what lets
+/// that replay cross-reference the two builds — a feature there, a hazard
+/// everywhere else.
+///
 /// # Typed lookups
 ///
 /// Every accessor takes the key type of its own arena, so cross-arena
 /// lookups fail to typecheck:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0308
 /// use geom_core::Point3;
 /// use topo::{Body, Provenance, Vertex};
 ///
@@ -200,60 +226,70 @@ impl<T: Real> Body<T> {
     }
 
     // ------------------------------------------------------------------
-    // Lookup. Total: a stale or foreign key yields `None`, never a panic.
+    // Lookup. Total: a stale key yields `None`, never a panic. A foreign
+    // key is NOT caught — it may resolve to an arbitrary entity (see the
+    // module docs on stale-vs-foreign keys).
     // ------------------------------------------------------------------
 
-    /// The solid at `key`, or `None` if the key is stale or foreign.
+    /// The solid at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     pub fn get_solid(&self, key: SolidKey) -> Option<&Solid> {
         self.solids.get(key)
     }
 
-    /// The shell at `key`, or `None` if the key is stale or foreign.
+    /// The shell at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     pub fn get_shell(&self, key: ShellKey) -> Option<&Shell> {
         self.shells.get(key)
     }
 
-    /// The face at `key`, or `None` if the key is stale or foreign.
+    /// The face at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     pub fn get_face(&self, key: FaceKey) -> Option<&Face> {
         self.faces.get(key)
     }
 
-    /// The loop at `key`, or `None` if the key is stale or foreign.
+    /// The loop at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly
     /// for uniformity and partly because `loop` is a Rust keyword.)
     pub fn get_loop(&self, key: LoopKey) -> Option<&Loop> {
         self.loops.get(key)
     }
 
-    /// The edge at `key`, or `None` if the key is stale or foreign.
+    /// The edge at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     pub fn get_edge(&self, key: EdgeKey) -> Option<&Edge> {
         self.edges.get(key)
     }
 
-    /// The vertex at `key`, or `None` if the key is stale or foreign.
+    /// The vertex at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     pub fn get_vertex(&self, key: VertexKey) -> Option<&Vertex> {
         self.vertices.get(key)
     }
 
-    /// The point at `key`, or `None` if the key is stale or foreign.
+    /// The point at `key`, or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
     pub fn get_point(&self, key: PointKey) -> Option<&Point3<T>> {
         self.points.get(key)
     }
 
-    /// The curve geometry at `key`, or `None` if the key is stale or
-    /// foreign.
+    /// The curve geometry at `key`, or `None` if the key is stale (a
+    /// foreign key is not caught — see the [module docs](self)).
     pub fn get_curve(&self, key: CurveKey) -> Option<&CurveGeom<T>> {
         self.curves.get(key)
     }
 
-    /// The surface geometry at `key`, or `None` if the key is stale or
-    /// foreign.
+    /// The surface geometry at `key`, or `None` if the key is stale (a
+    /// foreign key is not caught — see the [module docs](self)).
     pub fn get_surface(&self, key: SurfaceKey) -> Option<&SurfaceGeom<T>> {
         self.surfaces.get(key)
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
-    /// stale or foreign. Always `Some` for a live entity: the builder API
+    /// stale (a foreign key is not caught — see the [module docs](self)).
+    /// Always `Some` for a live entity: the builder API
     /// records provenance at every insertion, so an entity without
     /// provenance is unrepresentable.
     pub fn provenance(&self, entity: EntityId) -> Option<&Provenance> {
