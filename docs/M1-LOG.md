@@ -89,5 +89,9 @@ Second round (chat, 2026-07-16):
   (notes in `<main-checkout>/references/notes/`, persistent); topo
   crate surveyed; `docs/M1-PLAN.md` drafted (6-PR sequence, design PRs
   = 1, 2, 3, 5).
-- **Current**: M1-PLAN open as a design PR, awaiting Evan's
-  ratification. No implementation until sign-off.
+- **RATIFIED (2026-07-16)**: PR #15 signed off by Evan ("lgtm, per
+  local discussion") after two conversation rounds (typed `Loop`, CCW,
+  kfmrh sequencing, two/three-tier validity, D1 clarifications:
+  postcondition asserts + Body-never-authoritative, lamina story).
+- **Current**: PR 1 (half-edge restructure, `ev/m1-1-halfedge` off
+  main) starting — design PR, will await Evan's sign-off.
