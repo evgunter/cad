@@ -61,10 +61,12 @@
 //! reassociating floating-point sums changes results). The order is stated
 //! in each operation's doc comment and is part of its contract.
 
+mod affine;
 mod mat;
 mod point;
 mod vec;
 
+pub use affine::{Affine2, Affine3};
 pub use mat::{Mat2, Mat3};
 pub use point::{Point2, Point3};
 pub use vec::{Vec2, Vec3};
