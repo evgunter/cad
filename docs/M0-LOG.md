@@ -61,13 +61,29 @@ design conversation.
   against — revisit at PR 6.
 - **L6 — `publish = false`** in `workspace.package` until Q9's name
   lands.
+- **L7 — Evaluation-code discipline + CI tripwire** (from PR 2's
+  adversarial e2e review): the no-comparison enforcement is structural
+  for the convenient paths only; the residual channels (extra bounds
+  like `T: Real + PartialOrd`, `Debug` format-string gadgets,
+  `Any`/`TypeId` dispatch) are banned by a named style rule documented
+  in `real.rs`, and CI's `discipline` job greps for the extra-bound
+  pattern (`\bReal\s*\+`). When a legitimate `Real +` combination first
+  appears (likely PR 4's bound-extraction trait), refine to an
+  allowlist as a design decision. Optional escalation noted for later:
+  clippy `disallowed-methods` for `Any`/`TypeId` on scalars.
 
 ## State snapshot
 
-- **Current**: PR 1 (workspace scaffolding) in progress on
-  `ev/m0-1-workspace`; delegated to an Opus implementer; orchestrator to
-  review, then self-merge.
-- **Next**: PR 2 (Real trait + Tolerance) — orchestrator drafts the trait
-  surface design, Fable implements, PR opened for Evan's sign-off; PR 3
-  proceeds stacked while waiting.
+- **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green
+  incl. multi-ε matrix.
+- **Current**: PR 2 (`Real` + `Tolerance`) on `ev/m0-2-real-tolerance` —
+  implemented (Fable), adversarially e2e-reviewed (verdict: ratify with
+  wording amendments, all applied), opened as the first **design PR
+  awaiting Evan's sign-off**. On sign-off: ratify trait surface,
+  totality/NaN policy, evaluation-code discipline, and Tolerance
+  once-init semantics into DESIGN.md, then merge.
+- **Next**: PR 3 (trilean predicates) proceeds stacked on the PR 2
+  branch; design drafted (Sign/Band/Indeterminate + the noise-buffer vs
+  sliver-band fork for (ε, kε), recommending sliver-band with k = 10
+  provisional).
 - **Task tracker**: session tasks #1–#8 mirror the M0-PLAN PR sequence.
