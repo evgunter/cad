@@ -85,10 +85,15 @@ EdgeGeometry =
                                       -- extrude/sweep/revolve map
   | Seam         { surface, pcurves } -- same surface on both sides (closed-
                                       -- surface parameterization seam)
-  | Explicit     { curve, pcurves }   -- last resort: extensional data with a
-                                      -- designated-primary representation and
-                                      -- certified cross-residuals
 ```
+
+**Deliberately omitted: an `Explicit` (extensional) variant.** Taken as a
+challenge: every edge must have an intensional description, and the
+absence of an escape hatch keeps it from being reached for when not
+absolutely necessary. If a genuine need appears (STEP import is the likely
+forcing case — imported geometry arrives with no construction history),
+`Explicit` gets added *then*, with a designated-primary representation and
+certified cross-residuals, and its use confined to the import boundary.
 
 Validity of `Intersection` requires *transversality*: normals of S₁, S₂
 linearly independent along the locus (equivalently `T_pS₁ + T_pS₂ = ℝ³`),
@@ -327,6 +332,10 @@ effort), **Fornjot** (archived June 2026 — see below), **opencascade-rs**
 tax; useful as a *test oracle* for comparing our boolean results).
 
 ## Prior art / references
+
+Local copies live in `references/` (git-ignored). Currently on hand:
+`the-nurbs-book.pdf` (full scan), `mantyla-solid-modeling-ch4-6.pdf`
+(chapters 4–6 scan — the Euler-operator core).
 
 - **Mäntylä, *An Introduction to Solid Modeling*** — the Euler-operator
   B-rep reference; the `topo` layer is essentially this book.
