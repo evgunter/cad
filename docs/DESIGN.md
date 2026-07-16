@@ -275,6 +275,33 @@ adoption must *explain* the data. Export is the easy direction (projection
 from intensional to extensional); import is the inverse problem and is
 deferred accordingly (M7).
 
+### D8 (agreed 2026-07-15): The recipe is data
+
+A model document is an operation DAG — typed feature nodes referencing
+parameters and each other — plus a small expression sublanguage for
+derived quantities (`hole_x = width/2 - margin`). The kernel interprets
+the recipe at any scalar `T`; user-facing Rust is a *generator* of recipes
+(loops that make N holes run at the structural level). Consequences
+banked: the recipe is the save format; recipe node IDs are the substrate
+for D5 naming; every value-dependent branch stays inside kernel code where
+predicates are reified (Q1) — user models as generic Rust functions were
+rejected because `if width > 10.0` in user code would silently break
+interval replay; and structural parameters (hole *count*) are explicitly
+distinct from continuous ones (hole *diameter*), so parameter-driven
+topology change is stated, not emergent.
+
+### D9 (agreed 2026-07-15): Determinism policy and engineering charter
+
+- Same build + same inputs → bit-identical outputs. No hash-map iteration
+  order may influence geometry; parallelism only in fixed reduction
+  shapes.
+- Transcendentals via the pure-Rust `libm` crate: system libm sin/cos
+  differ across platforms in the last ulp — enough to flip a marginal
+  predicate.
+- The kernel never panics on any input: panics are bugs; every failure is
+  a typed error.
+- Essentially no unsafe Rust outside vetted dependencies.
+
 ### D5 (agreed): Persistent topological identity from birth
 
 Every topological entity carries a provenance record from the moment it is
@@ -417,49 +444,29 @@ audit its source properly before M5. Contrast ezpz, which sits *upstream*
 of the certified core (its output is just numbers that then pass through
 our construction and checks), so arm's-length dependency is principled.
 
-### Q6: Recipe representation (recommendation: operations-as-data)
+### Q6: Recipe representation — **resolved**, promoted to D8.
 
-Two concrete forms of "model = pure function from parameters to solid":
-(a) user models as Rust functions generic over `T`, or (b) **recipe as
-data** — an operation DAG built via a fluent Rust builder, interpreted by
-the kernel at any `T`, with a small expression sublanguage for derived
-quantities (`hole_x = width/2 - margin`); user Rust acts as a *generator*
-of recipes at the structural level (loops to make N holes).
-
-Recommendation: **(b)**. It yields the save format for free (the recipe is
-the document), stable node IDs as the substrate for D5 naming, keeps every
-branch inside kernel code where predicates are reified — user `if width >
-10.0` under (a) would silently break interval replay — and makes
-structural parameters (hole *count* vs. hole *diameter*) explicitly
-visible, so "topology changes with this parameter" is stated, not
-emergent. Shapes `kernel-ops` signatures from M2 on; ratify before M0.
-
-### Q7: Determinism policy and engineering charter
-
-Pure-replayable-function assumes reproducibility. Proposed commitments:
-same build + same inputs → bit-identical output; no hash-map iteration
-order ever influencing geometry; parallelism only in fixed reduction
-shapes; transcendentals via the pure-Rust `libm` crate for cross-platform
-reproducibility (system libm sin/cos differ in the last ulp across
-platforms — enough to flip a marginal predicate). Charter items: the
-kernel never panics on any input (panics are bugs; all failures typed);
-essentially no unsafe Rust outside vetted dependencies.
+### Q7: Determinism policy — **resolved**, promoted to D9.
 
 ### Q8: Definitional vs. approximating surfaces
 
 Most surfaces are *definitional* — primitives, extrude/revolve, even lofts
 (the produced NURBS *is* the definition; the recipe is provenance). Some
-*approximate* an intensional spec they cannot represent exactly: offsets
-(the offset of a NURBS is not a NURBS), some blends. Those get the edge-
-cache treatment: spec + fit + certified residual ≤ ε (D4 ¶2). Needed
+*approximate* an intensional spec they cannot represent exactly. The
+canonical case is the **offset**: `S_d(u,v) = S(u,v) + d·n(u,v)` — each
+point moved distance d along the unit normal. Analytic surfaces are closed
+under offsetting (plane→plane, cylinder r→r±d, sphere, torus, cone —
+another D3 payoff), but the offset of a NURBS is *not* a NURBS
+(normalizing the normal introduces a square root, breaking rationality),
+so the kernel must fit one — an approximating surface with intensional
+spec `Offset(S, d)`, a fit, and a certified residual ≤ ε (D4 ¶2), exactly
+mirroring fitted intersection curves. Some blends are the same. Needed
 before shelling/offset work (M5+), stated now.
 
-### Q9: Project license and name (user decision, blocks first `cargo new`)
+### Q9: Project license and name
 
-License recommendation: dual MIT OR Apache-2.0 (Rust convention,
-compatible with all chosen dependencies, maximizes contribution) unless
-there are product-strategy reasons for copyleft. Name: placeholder fine,
-pre-publish renames are cheap.
+License **resolved**: dual MIT OR Apache-2.0. Name: still pending —
+placeholder workspace acceptable; pre-publish renames are cheap.
 
 ### Deferred to their milestones (listed so they don't get lost)
 
