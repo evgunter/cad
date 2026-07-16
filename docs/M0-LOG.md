@@ -72,6 +72,34 @@ design conversation.
   allowlist as a design decision. Optional escalation noted for later:
   clippy `disallowed-methods` for `Any`/`TypeId` on scalars.
 
+## PR 2 design conversation (live)
+
+- Evan review 2026-07-16: (1) `sin_cos` as the primitive — agreed and
+  **implemented** (sin/cos are defaulted projections, overridable
+  bit-identically; f64 overrides for scalar performance); (2) εₐ
+  dimensional-honesty concern — orchestrator agrees and has **proposed
+  revising D4 ¶1 to a single ε** with angular thresholds always derived
+  per predicate as θ = ε/r (lever arm named at the call site;
+  `Band::angular_at(r)` replacing `Band::angular()`), **implementation
+  held pending Evan's confirmation** (it revises a ratified decision).
+  If confirmed: PR 2 drops `eps_angular` + its env var; PR 3 reworks
+  `Band::angular()`; DESIGN.md D4 ¶1 revised at ratification.
+
+## PR 4 pre-work (inari probe, 2026-07-16)
+
+Empirical findings (full report in issue #4): transcendentals require
+inari's `gmp` feature (MPFR-backed; without it they don't exist) →
+LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`) — **license fork filed
+as issue #4** (recommendation: cargo feature `interval`, default builds
+stay MIT/Apache + C-free). Hard CPU floor AVX+FMA (plan:
+`-C target-cpu=x86-64-v3` via `.cargo/config.toml`; aarch64 fine
+unflagged). Determinism excellent (bit-identical enclosures across
+CPUs/SIMD paths at pinned deps). Poison model differs from f64: partial
+out-of-domain **clamps** (only full misses go empty), violations
+signalled via `DecInterval` decorations → PR 4 wrapper builds on
+`DecInterval`; `from_f64(NaN)` mapped to empty explicitly. inari 2.0.0
+(2024-08-07, MIT itself) satisfies the dependency-age policy.
+
 ## State snapshot
 
 - **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green
