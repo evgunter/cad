@@ -15,7 +15,7 @@ pub mod linalg;
 pub mod real;
 pub mod tolerance;
 
-pub use linalg::{Point2, Point3, Vec2, Vec3};
+pub use linalg::{Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use real::Real;
 pub use tolerance::{
     Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError, ToleranceField,
