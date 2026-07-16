@@ -90,11 +90,11 @@ EdgeGeometry =
 **Deliberately omitted: an `Explicit` (extensional) variant.** Taken as an
 unconditional challenge: every edge must have an intensional description —
 there is no escape hatch, so it can't be reached for when not absolutely
-necessary. This holds even for imported geometry (see D7): the intensional
-variants other than `MappedCurve` are *intrinsic* — checkable properties
-of the geometry as it now stands, not of its history — so extensional
-input can be *adopted* by reconstructing the description it satisfies
-rather than admitted as second-class data. What import pressure-tests is
+necessary. This holds even for imported geometry (see D7): the intrinsic
+variants are checkable properties of the geometry as it now stands, and
+the conventional variants carry their own defining data — so extensional
+input can be *adopted* by reconstructing (or directly adopting) the
+description it satisfies rather than admitted as second-class data. What import pressure-tests is
 the **completeness of the variant taxonomy** (e.g. imported fillets force
 `TangencyLocus`), not the need for an extensional fallback.
 
@@ -116,11 +116,41 @@ within εₐ *along* the locus, separating quadratically *transverse* to it
 surfaces osculate over a patch and the "locus" is not a curve). The
 uniform pattern: **every variant is a validity predicate plus a margin**
 (Q1) — first-order (normal angle) for `Intersection`, second-order
-(relative transverse curvature) for `TangencyLocus`. In the intensional
-variants the invariant "the locus lies on both surfaces" holds *by
-definition*; only the numerical caches need certification. Vertices
-generalize the same way (intersection of three surfaces / endpoint of a
-locus, with a witness point).
+(relative transverse curvature) for `TangencyLocus`. Reconstructing a
+tangency locus from data is well-conditioned *despite* the tangency
+because its defining system includes the first-order (normal-alignment)
+equations, not just surface coincidence — the normal angle grows linearly
+with transverse distance, and the second-order margin is the
+implicit-function-theorem denominator for that jet system. (Order-k
+contact generalizes: defining equations from the k-jet, margin at order
+k+1.) In the intensional variants the invariant "the locus lies on both
+surfaces" holds *by definition*; only the numerical caches need
+certification. Vertices generalize the same way (intersection of three
+surfaces / endpoint of a locus, with a witness point).
+
+**Prefer-intrinsic rule.** Wherever an intrinsic description is
+certifiable, it *is* the stored description — including for native
+constructions: a fillet we build stores its boundary edges as
+`TangencyLocus`, with the rolling-ball construction demoted to supplying
+the witness and initial caches. Construction history lives in D5
+provenance, never in the geometry description, so native and imported
+bodies carry identical descriptions. The taxonomy is thus a dichotomy:
+**intrinsic variants** (`Intersection`, `TangencyLocus`) describe loci
+determined by their surfaces; **conventional variants** (`Seam`,
+`MappedCurve`) carry the defining data for loci the surfaces *under*-
+determine — parameterization seams (infinite-order contact; the seam's
+position is pure convention), face splits at smooth profile joins
+(iso-curve edges introduced by sketch entity boundaries; at a G2 join
+even `TangencyLocus` fails its margin, and rightly — nothing intrinsic
+distinguishes that curve from its neighbors), and user splits.
+`MappedCurve` does not reintroduce `Explicit` through the back door
+because of its shape: one authoritative source (`curve = map ∘ source`,
+pcurves derived as certified caches), never two peer representations
+needing cross-reconciliation. A locus in the ambiguous band — a dihedral
+within a few εₐ of tangent, certifiable as neither `Intersection` nor
+`TangencyLocus` — fails loudly at construction exactly as at import (D4);
+a conventional description is not an escape hatch from ill-conditioned
+geometry.
 
 This makes D5's provenance load-bearing rather than bookkeeping: the
 intensional description largely *is* the provenance.
@@ -195,8 +225,11 @@ need ~five quantities, not the SI lattice.
 Imported geometry is not second-class. Rather than adding an extensional
 escape hatch to `EdgeGeometry`, import **reconstructs** the intensional
 description that the extensional data satisfies. This is possible because
-the intensional variants (other than `MappedCurve`) are intrinsic to the
-current geometry, not historical. Pipeline sketch:
+the intrinsic variants are properties of the current geometry, not
+history, and the conventional variants (`Seam`, `MappedCurve`) carry
+their own defining data — for those, the imported curve isn't *evidence*
+of an intrinsic fact, it *is* the convention, adopted directly as the
+defining data. Pipeline sketch:
 
 1. **Surface recognition**: an imported NURBS within ε of an analytic
    surface is promoted to it (plane/cylinder/cone/sphere/torus
@@ -225,6 +258,14 @@ chosen interpretation true — a reported model change (e.g. max
 displacement), never a loosened certification. Data ambiguous at ε_in
 scale (multiple consistent interpretations) fails with a typed ambiguity
 error rather than a silent guess.
+
+**Non-goal: feature recognition.** Adoption recovers *what each locus
+is*, not *how the body was modeled*. Recognizing "these faces are a
+radius-r rolling-ball fillet" (design-intent / feature recognition — a
+hard, heuristic research problem) is not required for first-class
+validity; it would add only *editability*, and is out of scope for M7.
+Consistently: imported bodies carry no parameters, so error propagation
+(M6) has nothing to vary over them.
 
 Adoption reuses the kernel's own certification machinery — "is this curve
 within ε of the described locus" is exactly the check the `topo` validator
