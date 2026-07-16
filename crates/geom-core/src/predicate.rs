@@ -48,10 +48,44 @@
 //! evaluation-noise bound η — would accept some models this reading
 //! rejects, but it rests on per-predicate conditioning claims that cannot
 //! be verified until interval replay exists, and it makes the certified
-//! Zero region subtly smaller than the *defined* coincidence region.
+//! Zero region subtly smaller than the *defined* coincidence region. In
+//! fairness to that reading, its K = 1 + η/ε would be a *measurable*
+//! quantity — derived from an actual per-predicate noise bound — whereas
+//! the sliver band's K = [`AMBIGUITY_K`] = 10 is a semantic choice, an
+//! honest guess about how much clearance beyond ε sound geometry needs,
+//! pending the M0 multi-ε experiments. We take the design statement over
+//! the measured buffer here, but the buffer reading's K is the more
+//! principled *number* and that is not a point in this reading's favor.
 //! The consequence users see here: a model whose true margin lands in
 //! (ε, K·ε) fails loudly rather than building; the fix is to widen the
 //! feature or shrink ε.
+//!
+//! # Constructing bands, deciding predicates
+//!
+//! A [`Band`] is a parameter to [`Decide::sign_within`], not something a
+//! predicate constructs on the fly. The idiom: an **operation** builds its
+//! band(s) once, at operation entry — `Band::linear()?` /
+//! `Band::angular()?` — where the operation's own richer error enum can
+//! absorb a [`BandError`] (a misconfigured tolerance is the operation's
+//! problem to report), and then threads the `Band` down into the
+//! predicates it evaluates. Predicates and the classifier take the band as
+//! given and only ever return [`Indeterminate`].
+//!
+//! There is deliberately **no** `From<BandError> for Indeterminate`: a
+//! misconfigured band (K·ε overflowed, thresholds inverted) is not an
+//! indeterminate margin. They are different failures with different types
+//! — one is "this run's tolerance cannot form a band", the other is "this
+//! margin is too close to call". Consequently a `Band::linear()?` written
+//! inside a `fn … -> Result<_, Indeterminate>` does *not* compile: that is
+//! the type system pointing out that band construction belongs at the
+//! operation layer, above the predicate, not inside a function whose only
+//! error is the in-band verdict.
+//!
+//! Naming (see [`Indeterminate::with_predicate`]): a predicate's static
+//! name identifies the *decision* that classified the margin, and the leaf
+//! predicate function attaches it at its own definition site. Composite
+//! predicates do not rename — higher layers add context through their own
+//! typed error wrappers (D4 ¶3), never by overwriting the leaf's name.
 //!
 //! # Boundary and special-value semantics (f64)
 //!
@@ -90,11 +124,20 @@ pub const AMBIGUITY_K: f64 = 10.0;
 ///
 /// `Zero` is a *positive* claim of coincidence (|m| ≤ ε), not a failure
 /// to decide — the failure outcome is the typed [`Indeterminate`] error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// The variant order gives a derived [`Ord`]: `Negative < Zero <
+/// Positive`. This is a *post-decision* ordering — it compares
+/// already-made classifications, not the scalar values behind them. It is
+/// exactly the natural sign order (below zero < at zero < above zero), and
+/// it is the order the monotonicity property is stated against (a larger
+/// margin never classifies strictly lower). Comparing `Sign`s is never a
+/// back door to comparing scalars — the scalar has already passed through
+/// the [`Decide`] door and been reduced to one of three decisions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Sign {
     /// The margin is certifiably negative: m ≤ −`escalate`.
     Negative,
-    /// The margin is coincident with zero: |m| ≤ `zero` (= ε).
+    /// The margin is coincident with zero: |m| ≤ `zero`.
     Zero,
     /// The margin is certifiably positive: m ≥ `escalate`.
     Positive,
@@ -174,10 +217,23 @@ pub enum BandError {
         value: f64,
     },
     /// The thresholds are individually valid but `zero` ≥ `escalate`, so
-    /// the open ambiguity band (`zero`, `escalate`) would be empty and
-    /// the definite regions would meet or overlap. The band must be a
-    /// nonempty open interval — a zero-width band is a different design
-    /// (no escalation at all) and is deliberately not constructible.
+    /// the open ambiguity band (`zero`, `escalate`) is empty *over the
+    /// reals* and the definite regions would meet or overlap. The band
+    /// must be a nonempty open interval of real numbers — a
+    /// zero-or-negative-width band is a different design (no escalation at
+    /// all, or inverted) and is rejected.
+    ///
+    /// The nonemptiness this enforces is a statement about *real numbers*,
+    /// not representable ones. `Band::new(t, t.next_up())` is accepted: at
+    /// f64 the open interval `(t, t.next_up())` contains no representable
+    /// value — de-facto empty at f64, so no f64 margin ever classifies as
+    /// indeterminate against it — yet it is a mathematically nonempty
+    /// hairline band and a principled configuration. The interval
+    /// instantiation (M0 PR 4) can still be indeterminate over it: an
+    /// enclosure that straddles the hairline is not a single representable
+    /// point. Only the *exactly*-empty band (`zero` ≥ `escalate`, where
+    /// the reals themselves offer nothing between the thresholds) is
+    /// rejected here.
     Empty {
         /// The attempted coincidence threshold.
         zero: f64,
@@ -263,6 +319,11 @@ impl Band {
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
     /// global [`Tolerance`] and [`AMBIGUITY_K`].
     ///
+    /// Call this once at operation entry, not inside a predicate: the
+    /// operation's error enum absorbs the [`BandError`] via `?`, and the
+    /// resulting `Band` is passed down to [`Decide::sign_within`] (see the
+    /// calling-convention section of the [module docs](self)).
+    ///
     /// # Errors
     ///
     /// [`BandError`] only when K·ε is not a valid escalation threshold —
@@ -278,6 +339,10 @@ impl Band {
 
     /// The band for **angular** margins (radians): (εₐ, K·εₐ) from the
     /// run's global [`Tolerance`] and [`AMBIGUITY_K`].
+    ///
+    /// Constructed once at operation entry, like [`Band::linear`] — see
+    /// that method and the calling-convention section of the [module
+    /// docs](self).
     ///
     /// # Errors
     ///
@@ -318,7 +383,11 @@ impl Band {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MarginDiag {
     /// The classified `f64` margin, signed, exactly as submitted — it
-    /// landed strictly inside the ambiguity band.
+    /// landed strictly inside the ambiguity band. It is here for error
+    /// messages and margin telemetry, not to be branched on: recovering
+    /// the margin to make the sign decision the classifier refused defeats
+    /// the escalation contract (the whole point of the typed
+    /// [`Indeterminate`] is that no sound branch exists here).
     Value(f64),
     /// The margin was NaN: the computation that produced it was poisoned
     /// (see the totality/NaN policy in [`crate::real`]). A poisoned value
@@ -354,11 +423,19 @@ pub struct Indeterminate {
 }
 
 impl Indeterminate {
-    /// Attaches the calling predicate's static name (replacing any
-    /// previously attached one — the outermost, most user-meaningful
-    /// predicate wins). Named predicates in the geometry layers do
-    /// `m.sign_within(band).map_err(|e| e.with_predicate("side_of_plane"))`
-    /// so escalations name the *decision*, not just the numbers.
+    /// Attaches a predicate's static name, so an escalation names the
+    /// *decision* that classified the margin rather than just the numbers.
+    /// A leaf predicate attaches its own name at its definition site:
+    /// `m.sign_within(band).map_err(|e| e.with_predicate("side_of_plane"))`.
+    ///
+    /// By convention the name is the leaf's and stays the leaf's. A
+    /// composite predicate built on top of `side_of_plane` does *not*
+    /// rename the escalation — it adds its context through its own typed
+    /// error wrapper (D4 ¶3), leaving the innermost decision's name intact.
+    /// Mechanically this method replaces any name already present (so a
+    /// second `with_predicate` would let an outer layer win), but the
+    /// convention is that no outer layer calls it: overwriting the leaf's
+    /// name would erase which decision actually went indeterminate.
     pub fn with_predicate(self, name: &'static str) -> Self {
         Self {
             predicate: Some(name),
@@ -379,8 +456,8 @@ impl fmt::Display for Indeterminate {
                 f,
                 "margin {m:e} lies inside the ambiguity band (zero = {zero:e}, \
                  escalate = {escalate:e}) — distinct but too close to the coincidence \
-                 threshold to build sound geometry from; widen the feature or shrink \
-                 the tolerance (D4)"
+                 threshold to build sound geometry from; widen the feature, make it \
+                 exactly coincident, or shrink the tolerance (D4)"
             ),
             MarginDiag::Invalid => write!(
                 f,
@@ -478,16 +555,12 @@ mod tests {
     // binary's single designated global-touching test. The tolerance-
     // coupled constructors are covered in their own integration-test
     // binary (`tests/band_tolerance.rs`), i.e. their own process.
-
-    /// The classification order Negative < Zero < Positive, as an
-    /// integer, for monotonicity assertions.
-    fn rank(sign: Sign) -> i8 {
-        match sign {
-            Sign::Negative => -1,
-            Sign::Zero => 0,
-            Sign::Positive => 1,
-        }
-    }
+    //
+    // The spec-pinning test here is `f64_boundary_table`: it nails every
+    // closure choice at the exact thresholds. The proptests below are
+    // property checks over continuous generators, which (almost surely)
+    // never land a margin on an exact boundary — so they corroborate the
+    // structure but do not, and cannot, pin the boundary semantics.
 
     /// The fixed band used by the boundary table: exactly the default
     /// tolerance's linear band, but constructed purely.
@@ -732,7 +805,7 @@ mod tests {
             "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
              (zero = 1e-9, escalate = 1e-8) — distinct but too close to the \
              coincidence threshold to build sound geometry from; widen the \
-             feature or shrink the tolerance (D4)"
+             feature, make it exactly coincident, or shrink the tolerance (D4)"
         );
 
         let named = (-5e-9f64)
@@ -744,7 +817,8 @@ mod tests {
             "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
              the ambiguity band (zero = 1e-9, escalate = 1e-8) — distinct but \
              too close to the coincidence threshold to build sound geometry \
-             from; widen the feature or shrink the tolerance (D4)"
+             from; widen the feature, make it exactly coincident, or shrink \
+             the tolerance (D4)"
         );
 
         let invalid = f64::NAN
@@ -793,11 +867,18 @@ mod tests {
             }
         }
 
-        /// Monotonicity: under the classification order
-        /// Negative < Zero < Positive, a larger margin never classifies
-        /// strictly lower — so two definite-and-different outcomes can
-        /// never invert. (Indeterminate outcomes carry no order and are
-        /// skipped; band-respecting locations are checked separately.)
+        /// Monotonicity: under the classification order (`Sign`'s derived
+        /// `Ord`, Negative < Zero < Positive) a larger margin never
+        /// classifies strictly lower — so two definite-and-different
+        /// outcomes can never invert. (Indeterminate outcomes carry no
+        /// order and are skipped.)
+        ///
+        /// This is *implied* by `outcomes_respect_the_band`: that property
+        /// pins each outcome to one of three ordered, disjoint margin
+        /// regions (Negative below −escalate, Zero within ±zero, Positive
+        /// above escalate), and three ordered disjoint regions cannot
+        /// produce an inversion. It is kept as executable documentation of
+        /// the ordering, not as independent coverage.
         #[test]
         fn classification_is_monotone(
             zero in 1.0e-12..1.0e-3f64,
@@ -810,18 +891,23 @@ mod tests {
             let (m_lo, m_hi) = (lo * band.escalate(), hi * band.escalate());
             if let (Ok(s_lo), Ok(s_hi)) = (m_lo.sign_within(band), m_hi.sign_within(band)) {
                 prop_assert!(
-                    rank(s_lo) <= rank(s_hi),
+                    s_lo <= s_hi,
                     "inversion: sign_within({}) = {:?} > sign_within({}) = {:?}",
                     m_lo, s_lo, m_hi, s_hi
                 );
             }
         }
 
-        /// The Zero region is symmetric around 0 and covers exactly
-        /// |m| <= zero: any |t| < 1 scaled by the zero threshold lands in
-        /// it from both sides. (|t| < 1 implies fl(|t|·zero) <= zero: the
-        /// true product is < zero and rounding a value below zero cannot
-        /// exceed zero, since zero itself is representable.)
+        /// The Zero region contains a symmetric neighborhood of 0: any
+        /// |t| < 1 scaled by the zero threshold classifies as Zero from
+        /// both sides. (|t| < 1 implies fl(|t|·zero) <= zero: the true
+        /// product is < zero and rounding a value below zero cannot exceed
+        /// zero, since zero itself is representable.) This proves one
+        /// direction only — margins below the threshold are Zero. The
+        /// converse (Zero *implies* |m| <= zero, so the region is no
+        /// larger than the coincidence interval) is the Zero arm of
+        /// `outcomes_respect_the_band`; this property does not characterize
+        /// the region exactly on its own.
         #[test]
         fn zero_region_is_symmetric(
             zero in 1.0e-12..1.0e-3f64,
