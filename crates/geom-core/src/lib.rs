@@ -14,6 +14,4 @@ pub mod real;
 pub mod tolerance;
 
 pub use real::Real;
-pub use tolerance::{
-    Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError, ToleranceField,
-};
+pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};
