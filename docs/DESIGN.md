@@ -106,10 +106,21 @@ transversality margin (angle between normals) is a predicate-with-margin
 transversality get other variants: parameterization seams (`Seam`),
 tangential contact such as fillet–support contact curves (a future
 `TangencyLocus` variant — the fillet construction knows its contact locus
-directly). In the intensional variants the invariant "the locus lies on
-both surfaces" holds *by definition*; only the numerical caches need
-certification. Vertices generalize the same way (intersection of three
-surfaces / endpoint of a locus, with a witness point).
+directly, but *imported* fillets force the intrinsic form: along a fillet
+boundary edge the blend and support surfaces share tangent planes
+identically, so `Intersection`'s precondition fails everywhere on the
+locus). `TangencyLocus`'s intrinsic validity condition sits one
+differential order up: surfaces coincident within ε and normal-parallel
+within εₐ *along* the locus, separating quadratically *transverse* to it
+(relative normal curvature bounded away from zero — otherwise the
+surfaces osculate over a patch and the "locus" is not a curve). The
+uniform pattern: **every variant is a validity predicate plus a margin**
+(Q1) — first-order (normal angle) for `Intersection`, second-order
+(relative transverse curvature) for `TangencyLocus`. In the intensional
+variants the invariant "the locus lies on both surfaces" holds *by
+definition*; only the numerical caches need certification. Vertices
+generalize the same way (intersection of three surfaces / endpoint of a
+locus, with a witness point).
 
 This makes D5's provenance load-bearing rather than bookkeeping: the
 intensional description largely *is* the provenance.
@@ -138,13 +149,18 @@ No per-entity tolerances that grow as operations get sloppy (the Open
 CASCADE model, where errors snowball silently). "Define what something is"
 applied to error handling. Five commitments:
 
-1. **Two numbers, global constants**: a linear tolerance ε and an angular
-   tolerance εₐ, defined once in `geom-core` as a `Tolerance` value (a
-   single definition site, so promotion to per-model later is mechanical —
-   but per-model is deliberately rejected for now: any two bodies must be
-   boolean-combinable, and per-model ε recreates mixed-tolerance semantics
-   one level up). Exact values chosen empirically at M0; ε ≈ 1e-9 m gives
-   micron-to-kilometer coverage with ~4 orders of f64 headroom at km scale.
+1. **Two numbers, global per run**: a linear tolerance ε and an angular
+   tolerance εₐ, defined once in `geom-core` as a `Tolerance` value.
+   Compile-time constant vs. once-initialized at startup is an
+   implementation detail; the invariant is **one value per run, shared by
+   all bodies, never loosened mid-run** (per-model ε is deliberately
+   rejected: any two bodies must be boolean-combinable, and per-model ε
+   recreates mixed-tolerance semantics one level up). Per-run
+   initialization also enables running the test suite at several ε values
+   to smoke out tolerance-sensitive algorithms. Exact defaults chosen
+   empirically at M0; ε ≈ 1e-9 m gives micron-to-kilometer coverage with
+   ~4 orders of f64 headroom at km scale. Import does *not* motivate
+   loosening ε — see D7's input tolerance ε_in.
 2. **Every derived cache carries a certified residual bound** against its
    intensional description (D2): fitted intersection curves, projected
    pcurves, refit 3-D curves. Kernel invariant: `residual ≤ ε` for every
@@ -194,6 +210,21 @@ current geometry, not historical. Pipeline sketch:
 3. **Healing**: where no intensional description is satisfied within ε
    (gaps, sloppy source tolerances), repair (refit/nudge) or fail loudly
    with a typed error naming the unhealable entities (D4 ¶5).
+
+**Adoption tolerance ≠ kernel tolerance.** The generator's precision is
+unknown and usually worse than ε, so adoption takes a per-import *input
+tolerance* ε_in — defaulted from the STEP file's declared
+`uncertainty_measure_with_unit`, overridable per call. The two play
+different roles: **ε_in governs interpretation** (recognition and
+classification tests — what the extensional data is evidence of); **ε
+governs what gets built** — once classified, an adopted entity's caches
+are recomputed from its intensional description by our own algorithms and
+certified at ε like native geometry, so imported bodies are genuinely
+first-class. Healing may move geometry by up to O(ε_in) to make the
+chosen interpretation true — a reported model change (e.g. max
+displacement), never a loosened certification. Data ambiguous at ε_in
+scale (multiple consistent interpretations) fails with a typed ambiguity
+error rather than a silent guess.
 
 Adoption reuses the kernel's own certification machinery — "is this curve
 within ε of the described locus" is exactly the check the `topo` validator
