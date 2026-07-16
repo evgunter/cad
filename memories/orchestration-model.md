@@ -38,3 +38,28 @@ place (the orchestrator + committed logs) for design coherence.
 in-flight state; delegate implementation with detailed specs citing
 DESIGN.md decisions; review subagent output before merging; escalate to
 Evan only at genuine design forks.
+
+**Operational lessons (M0, 2026-07-16):**
+- Background implementer agents sometimes stop while waiting on their
+  *own* background tasks (long builds, clippy) — resume them with a
+  SendMessage nudge telling them to check the task's status and finish
+  in the FOREGROUND; instruct final verification steps to be foreground
+  from the start.
+- One implementer + one adversarial e2e reviewer + one fix pass per PR
+  worked extremely well: reviews that *write and run real consumer
+  programs* caught three correctness bugs code-reading missed
+  (poison-laundering at a certification door, interval enclosure
+  blowup from dependent multiplication, a false key-contract doc).
+  Orchestrator writes the design doc BEFORE the implementer prompt and
+  makes it binding; deviations must be reported, not improvised.
+- Isolated-worktree agents: their branch stays checked out in their
+  worktree after they finish — remove the worktree (or work inside it)
+  before checking the branch out elsewhere; warm build caches in a
+  finished agent's worktree are worth reusing for expensive deps
+  (gmp: user-level ~/.cache/gmp-mpfr-sys survives across worktrees).
+- A persistent gh-polling Monitor for PR comments/reviews/reactions
+  makes phone-review loops with Evan fast; expect it to echo your own
+  gh comments back (same account) — ignore those events.
+- Design-PR conversations move fastest when replies include a firm
+  recommendation, honest counterarguments, and an explicit "a 👍 here
+  is enough to proceed" affordance.
