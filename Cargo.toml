@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members = ["crates/geom-core"]
+
+# No root package: the project name is pending (Q9), so the workspace stays
+# nameless. Shared package metadata lives here and is inherited by members
+# via `package.<field>.workspace = true`.
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.97.0"
+
+# Workspace-wide lints, inherited by members via `[lints] workspace = true`.
+# D9 (determinism / engineering charter): our own code carries essentially no
+# unsafe (the exception budget lives in vetted dependencies, per L4). Public
+# API is documented.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
