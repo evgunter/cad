@@ -29,6 +29,13 @@ proptest = "1.11.0"
 # `gmp-mpfr-sys` C build — the license/toolchain fork that issue #4 resolved
 # by feature-gating: default builds stay MIT/Apache and C-free.
 inari = { version = "2.0.0", default-features = false }
+# DEV-ONLY derivative oracle for Dual<f64> tests (M0 PR 5). The crate table
+# originally slated num-dual as the Dual<f64> implementation; it was demoted
+# to a test oracle because its transcendentals route through std (not libm),
+# which cannot uphold the value-channel bit-identity contract — see
+# crates/geom-core/src/dual.rs module docs. MIT OR Apache-2.0; 0.14.1
+# released 2026-06-14, past the 2-week age policy.
+num-dual = "0.14.1"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
