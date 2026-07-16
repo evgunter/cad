@@ -23,6 +23,10 @@ design conversation.
   if review changes the design. Scaffolding-type PRs (1, 6) are
   self-merged after subagent review.
 - Merge commits only, per CLAUDE.md git workflow.
+- Reviews include hands-on e2e exercise (reviewers write/run real usage
+  demos against the API under review), per Evan's standing rule — see
+  `memories/review-and-dependency-policy.md`. Same memory: new
+  dependency versions want a ~2-week minimum release age.
 
 ## Log decisions
 
