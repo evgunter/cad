@@ -875,8 +875,7 @@ impl<T: Real> Body<T> {
             provenance.clone(),
         );
         let edge = self.mint_edge(curve, &provenance);
-        let (he_plus, he_minus) =
-            self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
+        let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
         // The two halves form the whole cycle: v → w → v.
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
@@ -1050,8 +1049,7 @@ impl<T: Real> Body<T> {
         let curve = self.add_curve(CurveGeom::Placeholder { anchor });
         let edge = self.mint_edge(curve, &provenance);
         let (new_loop, new_face) = self.mint_loop_and_face(surface, shell_key, &provenance);
-        let (he_plus, he_minus) =
-            self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
+        let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
         // association as Chords — he1's "side" is the new loop).
@@ -1240,5 +1238,866 @@ impl<T: Real> Body<T> {
             Ok(()),
             "{op} postcondition: result is not tier-1 valid (kernel bug)",
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::Point3;
+
+    use super::*;
+    use crate::fixtures::{NgonPillow, pillow, prov};
+    use crate::validate::validate;
+
+    fn p(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    /// All ten arena lengths — the atomicity tests' "body unchanged"
+    /// snapshot (topology and geometry alike).
+    fn snapshot(body: &Body<f64>) -> [usize; 10] {
+        [
+            body.solids().count(),
+            body.shells().count(),
+            body.faces().count(),
+            body.loops().count(),
+            body.half_edges().count(),
+            body.edges().count(),
+            body.vertices().count(),
+            body.points().count(),
+            body.curves().count(),
+            body.surfaces().count(),
+        ]
+    }
+
+    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
+    /// and asserts the body is untouched: identical arena counts and an
+    /// identical spot-checked half-edge (when one exists).
+    fn assert_err_and_unchanged(
+        body: &mut Body<f64>,
+        expected: &EulerOpError,
+        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
+    ) {
+        let counts_before = snapshot(body);
+        let probe = body.half_edges().next().map(|(k, he)| (k, he.clone()));
+        let err = op(body);
+        assert_eq!(&err, expected);
+        assert_eq!(snapshot(body), counts_before, "arena counts changed on Err");
+        if let Some((key, before)) = probe {
+            let after = body
+                .get_half_edge(key)
+                .expect("probe key must still resolve");
+            assert_eq!(after.edge, before.edge);
+            assert_eq!(after.start, before.start);
+            assert_eq!(after.parent_loop, before.parent_loop);
+            assert_eq!(after.next, before.next);
+            assert_eq!(after.prev, before.prev);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // mvfs
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn mvfs_creates_the_skeletal_body() {
+        let mut body = Body::<f64>::new();
+        let c = body.mvfs(Point3::new(1.0, 2.0, 3.0)).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        let vertex = body.get_vertex(c.vertex).unwrap();
+        assert_eq!(vertex.emanating, None);
+        assert_eq!(vertex.point, c.point);
+        let point = body.get_point(c.point).unwrap();
+        assert_eq!((point.x, point.y, point.z), (1.0, 2.0, 3.0));
+        let l = body.get_loop(c.r#loop).unwrap();
+        assert_eq!(l.boundary, LoopBoundary::Empty { vertex: c.vertex });
+        assert_eq!(l.face, c.face);
+        let face = body.get_face(c.face).unwrap();
+        assert_eq!(face.outer, c.r#loop);
+        assert!(face.rings.is_empty());
+        assert_eq!(face.shell, c.shell);
+        assert_eq!(face.surface, c.surface);
+        let shell = body.get_shell(c.shell).unwrap();
+        assert_eq!(shell.faces, vec![c.face]);
+        assert_eq!(shell.solid, c.solid);
+        assert_eq!(body.get_solid(c.solid).unwrap().shells, vec![c.shell]);
+
+        for id in [
+            EntityId::Solid(c.solid),
+            EntityId::Shell(c.shell),
+            EntityId::Face(c.face),
+            EntityId::Loop(c.r#loop),
+            EntityId::Vertex(c.vertex),
+        ] {
+            assert_eq!(body.provenance(id), Some(&Provenance::Mvfs), "for {id}");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // mev: Lone (segment), Fan strut, Fan split (direction pin)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn lone_mev_grows_a_segment() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let site = MevSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        let seg = body.mev(site, p(1.0)).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        // he_plus runs OLD vertex → NEW vertex (the documented deviation
+        // from Mäntylä's new → old).
+        assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, seed.vertex);
+        assert_eq!(body.half_edge_end(seg.he_plus), Some(seg.vertex));
+        assert_eq!(body.get_half_edge(seg.he_minus).unwrap().start, seg.vertex);
+        assert_eq!(body.half_edge_end(seg.he_minus), Some(seed.vertex));
+        // The empty loop became the two-half-edge cycle, anchored at
+        // he_plus.
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle { first: seg.he_plus }
+        );
+        assert_eq!(
+            body.loop_cycle(seg.he_plus),
+            Some(vec![seg.he_plus, seg.he_minus])
+        );
+        // Emanating rule: old vertex → he_plus, new vertex → he_minus.
+        assert_eq!(
+            body.get_vertex(seed.vertex).unwrap().emanating,
+            Some(seg.he_plus)
+        );
+        assert_eq!(
+            body.get_vertex(seg.vertex).unwrap().emanating,
+            Some(seg.he_minus)
+        );
+        // The created-keys struct names the real edge slots.
+        let edge = body.get_edge(seg.edge).unwrap();
+        assert_eq!(edge.he_plus, seg.he_plus);
+        assert_eq!(edge.he_minus, seg.he_minus);
+        assert_eq!(edge.curve, seg.curve);
+        assert_eq!(body.mate(seg.he_plus), Some(seg.he_minus));
+
+        // Typed provenance with the exact site.
+        for id in [
+            EntityId::Vertex(seg.vertex),
+            EntityId::Edge(seg.edge),
+            EntityId::HalfEdge(seg.he_plus),
+            EntityId::HalfEdge(seg.he_minus),
+        ] {
+            assert_eq!(
+                body.provenance(id),
+                Some(&Provenance::Mev { site }),
+                "for {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn strut_mev_splices_plus_then_minus_before_he1() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        // he1 == he2 at the old vertex: empty run, dangling strut.
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        // Documented splice: … → he_plus → he_minus → he1 → …, i.e. the
+        // loop walks v → w → v → (old segment).
+        assert_eq!(
+            body.loop_cycle(seg.he_plus),
+            Some(vec![
+                seg.he_plus,
+                seg.he_minus,
+                strut.he_plus,
+                strut.he_minus
+            ])
+        );
+        // The new vertex dangles: valence 1.
+        assert_eq!(
+            body.vertex_orbit(strut.he_minus),
+            Some(vec![strut.he_minus])
+        );
+        // The old vertex's orbit gained the strut's plus half.
+        assert_eq!(
+            body.vertex_orbit(strut.he_plus),
+            Some(vec![strut.he_plus, seg.he_plus])
+        );
+        assert_eq!(body.half_edge_end(strut.he_plus), Some(strut.vertex));
+        assert_eq!(body.half_edge_end(strut.he_minus), Some(seed.vertex));
+    }
+
+    /// Builds `mvfs + segment + three struts`: a central vertex `v` of
+    /// valence 4 whose clockwise orbit is `[pa, pb, pc, pd]` (each `p*`
+    /// the plus half of one spoke, minted in that order).
+    fn four_spoke_star() -> (Body<f64>, MvfsCreated, [MevCreated; 4]) {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let a = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        let strut_at = |body: &mut Body<f64>, x: f64| {
+            body.mev(
+                MevSite::Fan {
+                    he1: a.he_plus,
+                    he2: a.he_plus,
+                },
+                p(x),
+            )
+            .unwrap()
+        };
+        let b = strut_at(&mut body, 2.0);
+        let c = strut_at(&mut body, 3.0);
+        let d = strut_at(&mut body, 4.0);
+        // The construction's clockwise orbit at v (hand-derived from the
+        // strut splice, pinned here so the split test below stands on
+        // verified ground): pa, pb, pc, pd.
+        assert_eq!(
+            body.vertex_orbit(a.he_plus),
+            Some(vec![a.he_plus, b.he_plus, c.he_plus, d.he_plus])
+        );
+        (body, seed, [a, b, c, d])
+    }
+
+    #[test]
+    fn fan_mev_moves_the_clockwise_run_exclusive_of_he2() {
+        // THE direction-pinning test. At a valence-4 vertex with
+        // clockwise orbit [pa, pb, pc, pd], splitting Fan { he1: pb,
+        // he2: pd } must move exactly {pb, pc} — the run walked
+        // CLOCKWISE (next ∘ mate) from pb to pd. A counterclockwise walk
+        // would move the complementary asymmetric set {pb, pa}; the
+        // assertions below distinguish the two.
+        let (mut body, seed, [a, b, c, d]) = four_spoke_star();
+        let site = MevSite::Fan {
+            he1: b.he_plus,
+            he2: d.he_plus,
+        };
+        let split = body.mev(site, p(5.0)).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        let v = seed.vertex;
+        let w = split.vertex;
+        let start = |body: &Body<f64>, he| body.get_half_edge(he).unwrap().start;
+        // Moved: the clockwise run [pb, pc).. i.e. {pb, pc}.
+        assert_eq!(start(&body, b.he_plus), w);
+        assert_eq!(start(&body, c.he_plus), w);
+        // NOT moved: pa (which the CCW walk would have moved) and pd
+        // (exclusive end).
+        assert_eq!(start(&body, a.he_plus), v);
+        assert_eq!(start(&body, d.he_plus), v);
+        // The new edge runs old → new.
+        assert_eq!(start(&body, split.he_plus), v);
+        assert_eq!(body.half_edge_end(split.he_plus), Some(w));
+        // Full orbits after the split, hand-derived: at v the plus half
+        // replaces the moved run; at w the minus half precedes it.
+        assert_eq!(
+            body.vertex_orbit(split.he_plus),
+            Some(vec![split.he_plus, d.he_plus, a.he_plus])
+        );
+        assert_eq!(
+            body.vertex_orbit(split.he_minus),
+            Some(vec![split.he_minus, b.he_plus, c.he_plus])
+        );
+        // Emanating rule held on both vertices.
+        assert_eq!(body.get_vertex(v).unwrap().emanating, Some(split.he_plus));
+        assert_eq!(body.get_vertex(w).unwrap().emanating, Some(split.he_minus));
+    }
+
+    // ------------------------------------------------------------------
+    // mef: self-loop, Lone (circular edge), ring split
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn self_loop_mef_makes_a_one_edge_circular_face() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        // he1 == he2 at the new vertex: empty run, self-loop face.
+        let site = MefSite::Chords {
+            he1: seg.he_minus,
+            he2: seg.he_minus,
+        };
+        let circ = body.mef(site).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        // New face's outer loop: the self-cycled minus half alone.
+        assert_eq!(body.loop_cycle(circ.he_minus), Some(vec![circ.he_minus]));
+        assert_eq!(
+            body.get_loop(circ.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: circ.he_minus
+            }
+        );
+        assert_eq!(body.get_face(circ.face).unwrap().outer, circ.r#loop);
+        // Old loop: plus half spliced before he1, both ends at w.
+        assert_eq!(
+            body.loop_cycle(seg.he_plus),
+            Some(vec![seg.he_plus, circ.he_plus, seg.he_minus])
+        );
+        let w = seg.vertex;
+        assert_eq!(body.get_half_edge(circ.he_plus).unwrap().start, w);
+        assert_eq!(body.half_edge_end(circ.he_plus), Some(w));
+        // New face shares the old face's surface (M1 geometry policy).
+        assert_eq!(body.get_face(circ.face).unwrap().surface, seed.surface);
+        // Chords never touches emanating.
+        assert_eq!(body.get_vertex(w).unwrap().emanating, Some(seg.he_minus));
+        // Typed provenance with the exact site.
+        assert_eq!(
+            body.provenance(EntityId::Face(circ.face)),
+            Some(&Provenance::Mef { site })
+        );
+    }
+
+    #[test]
+    fn lone_mef_makes_a_circular_edge_from_a_lone_vertex() {
+        // Mäntylä Fig. 9.8(b): lone dot ⇒ circle through the dot — one
+        // self-loop edge, two one-half-edge loops, two faces.
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let circ = body
+            .mef(MefSite::Lone {
+                r#loop: seed.r#loop,
+            })
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        assert_eq!(body.vertices().count(), 1);
+        assert_eq!(body.edges().count(), 1);
+        assert_eq!(body.faces().count(), 2);
+        assert_eq!(body.loops().count(), 2);
+        assert_eq!(body.half_edges().count(), 2);
+        // Old loop keeps the plus half; the new face's outer loop gets
+        // the minus half (he1's "side", degenerately).
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: circ.he_plus
+            }
+        );
+        assert_eq!(
+            body.get_loop(circ.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: circ.he_minus
+            }
+        );
+        assert_eq!(body.loop_cycle(circ.he_plus), Some(vec![circ.he_plus]));
+        assert_eq!(body.loop_cycle(circ.he_minus), Some(vec![circ.he_minus]));
+        // The lone vertex gained its first half-edge (the one case where
+        // mef touches emanating); its orbit covers both halves.
+        assert_eq!(
+            body.get_vertex(seed.vertex).unwrap().emanating,
+            Some(circ.he_plus)
+        );
+        assert_eq!(
+            body.vertex_orbit(circ.he_plus),
+            Some(vec![circ.he_plus, circ.he_minus])
+        );
+        // Surface shared, shell joined.
+        let new_face = body.get_face(circ.face).unwrap();
+        assert_eq!(new_face.surface, seed.surface);
+        assert_eq!(new_face.shell, seed.shell);
+        assert_eq!(
+            body.get_shell(seed.shell).unwrap().faces,
+            vec![seed.face, circ.face]
+        );
+    }
+
+    /// The island keys added by [`pillow_with_island`].
+    struct Island {
+        v2: VertexKey,
+        v3: VertexKey,
+        /// Island face C's cycle: `c0: v2 → v3`, `c1: v3 → v2`.
+        c0: HalfEdgeKey,
+        c1: HalfEdgeKey,
+        /// Ring R's cycle (their mates): `r0: v3 → v2`, `r1: v2 → v3`.
+        r0: HalfEdgeKey,
+        r1: HalfEdgeKey,
+        /// The ring loop, an interior loop of the pillow's face A.
+        ring: LoopKey,
+        face_c: FaceKey,
+    }
+
+    /// Grafts a digon *island* into the pillow's face A: a floating
+    /// two-vertex face C inside A, whose boundary's mates form a RING of
+    /// A. The minimal tier-1-valid body with an interior loop (rings
+    /// cannot be built through Euler ops until PR 3's kemr, so the raw
+    /// builder supplies the fixture).
+    fn pillow_with_island() -> (NgonPillow, Island) {
+        let mut t = pillow();
+        let body = &mut t.body;
+        let null_he = HalfEdgeKey::default();
+
+        let p2 = body.add_point(p(10.0));
+        let p3 = body.add_point(p(11.0));
+        let v2 = body.add_vertex(
+            Vertex {
+                point: p2,
+                emanating: None,
+            },
+            prov(),
+        );
+        let v3 = body.add_vertex(
+            Vertex {
+                point: p3,
+                emanating: None,
+            },
+            prov(),
+        );
+        let cu2 = body.add_curve(CurveGeom::Placeholder { anchor: p(10.0) });
+        let cu3 = body.add_curve(CurveGeom::Placeholder { anchor: p(11.0) });
+        let e2 = body.add_edge(
+            Edge {
+                he_plus: null_he,
+                he_minus: null_he,
+                curve: cu2,
+            },
+            prov(),
+        );
+        let e3 = body.add_edge(
+            Edge {
+                he_plus: null_he,
+                he_minus: null_he,
+                curve: cu3,
+            },
+            prov(),
+        );
+        let half = |body: &mut Body<f64>, edge, start| {
+            body.add_half_edge(
+                HalfEdge {
+                    edge,
+                    start,
+                    parent_loop: LoopKey::default(),
+                    next: null_he,
+                    prev: null_he,
+                },
+                prov(),
+            )
+        };
+        let c0 = half(body, e2, v2);
+        let c1 = half(body, e3, v3);
+        let r0 = half(body, e2, v3);
+        let r1 = half(body, e3, v2);
+        let ring = body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Cycle { first: r0 },
+                face: t.face_a,
+            },
+            prov(),
+        );
+        let loop_c = body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Cycle { first: c0 },
+                face: FaceKey::default(),
+            },
+            prov(),
+        );
+        let surface_c = body.add_surface(SurfaceGeom::Placeholder { anchor: p(10.0) });
+        let face_c = body.add_face(
+            Face {
+                surface: surface_c,
+                outer: loop_c,
+                rings: vec![],
+                shell: t.shell,
+            },
+            prov(),
+        );
+        body.get_loop_mut(loop_c).unwrap().face = face_c;
+        body.get_shell_mut(t.shell).unwrap().faces.push(face_c);
+        body.get_face_mut(t.face_a).unwrap().rings.push(ring);
+        // Close the two digon cycles and the bijection.
+        for (a, b, parent) in [(c0, c1, loop_c), (r0, r1, ring)] {
+            for (x, y) in [(a, b), (b, a)] {
+                let he = body.get_half_edge_mut(x).unwrap();
+                he.next = y;
+                he.prev = y;
+                he.parent_loop = parent;
+            }
+        }
+        body.get_edge_mut(e2).unwrap().he_plus = c0;
+        body.get_edge_mut(e2).unwrap().he_minus = r0;
+        body.get_edge_mut(e3).unwrap().he_plus = c1;
+        body.get_edge_mut(e3).unwrap().he_minus = r1;
+        body.get_vertex_mut(v2).unwrap().emanating = Some(c0);
+        body.get_vertex_mut(v3).unwrap().emanating = Some(c1);
+
+        assert_eq!(validate(&t.body), Ok(()), "fixture must be tier-1 valid");
+        (
+            t,
+            Island {
+                v2,
+                v3,
+                c0,
+                c1,
+                r0,
+                r1,
+                ring,
+                face_c,
+            },
+        )
+    }
+
+    #[test]
+    fn mef_splits_a_ring_and_the_ring_stays_a_ring() {
+        let (mut t, island) = pillow_with_island();
+        let site = MefSite::Chords {
+            he1: island.r0,
+            he2: island.r1,
+        };
+        let split = t.body.mef(site).unwrap();
+        assert_eq!(validate(&t.body), Ok(()));
+
+        // he1's side (r0) became the NEW face's outer loop...
+        assert_eq!(
+            t.body.get_half_edge(island.r0).unwrap().parent_loop,
+            split.r#loop
+        );
+        assert_eq!(t.body.get_face(split.face).unwrap().outer, split.r#loop);
+        assert_eq!(
+            t.body.loop_cycle(split.he_minus),
+            Some(vec![split.he_minus, island.r0])
+        );
+        // ...while the old loop is STILL a ring of face A (mef does not
+        // reclassify rings; ring_move is PR 3), re-anchored at he_plus.
+        assert_eq!(t.body.get_face(t.face_a).unwrap().rings, vec![island.ring]);
+        assert_eq!(t.body.get_face(t.face_a).unwrap().outer, t.loop_a);
+        assert_eq!(
+            t.body.get_loop(island.ring).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: split.he_plus
+            }
+        );
+        assert_eq!(
+            t.body.loop_cycle(split.he_plus),
+            Some(vec![split.he_plus, island.r1])
+        );
+        // The new edge joins start(he1) = v3 to start(he2) = v2, plus
+        // half in the old loop.
+        assert_eq!(
+            t.body.get_half_edge(split.he_plus).unwrap().start,
+            island.v3
+        );
+        assert_eq!(t.body.half_edge_end(split.he_plus), Some(island.v2));
+        // Shared surface with face A (the split face), same shell.
+        assert_eq!(
+            t.body.get_face(split.face).unwrap().surface,
+            t.body.get_face(t.face_a).unwrap().surface
+        );
+        assert_eq!(t.body.get_face(split.face).unwrap().shell, t.shell);
+    }
+
+    // ------------------------------------------------------------------
+    // find_half_edge
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn find_half_edge_scans_outer_then_rings_in_cycle_order() {
+        let (t, island) = pillow_with_island();
+        // Outer loop of face A: a0 runs v0 → v1, a1 runs v1 → v0.
+        assert_eq!(
+            t.body
+                .find_half_edge(t.face_a, t.vertices[0], t.vertices[1]),
+            Some(t.hes_a[0])
+        );
+        assert_eq!(
+            t.body
+                .find_half_edge(t.face_a, t.vertices[1], t.vertices[0]),
+            Some(t.hes_a[1])
+        );
+        // Ring members are found through face A (scanned after the
+        // outer loop): r1 runs v2 → v3, r0 runs v3 → v2.
+        assert_eq!(
+            t.body.find_half_edge(t.face_a, island.v2, island.v3),
+            Some(island.r1)
+        );
+        assert_eq!(
+            t.body.find_half_edge(t.face_a, island.v3, island.v2),
+            Some(island.r0)
+        );
+        // The island's own face finds its halves (c0: v2 → v3,
+        // c1: v3 → v2).
+        assert_eq!(
+            t.body.find_half_edge(island.face_c, island.v2, island.v3),
+            Some(island.c0)
+        );
+        assert_eq!(
+            t.body.find_half_edge(island.face_c, island.v3, island.v2),
+            Some(island.c1)
+        );
+        // No such half-edge in this face: the pillow's rim pair does not
+        // appear in the island face.
+        assert_eq!(
+            t.body
+                .find_half_edge(island.face_c, t.vertices[0], t.vertices[1]),
+            None
+        );
+        // Totality: a stale face key is None, not a panic.
+        assert_eq!(
+            t.body
+                .find_half_edge(FaceKey::default(), island.v2, island.v3),
+            None
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Preconditions: every EulerOpError variant reachable and exact,
+    // with the body untouched on Err.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn stale_half_edge_key_is_rejected() {
+        let mut t = pillow();
+        let dead = t.body.add_half_edge(
+            HalfEdge {
+                edge: t.edges[0],
+                start: t.vertices[0],
+                parent_loop: t.loop_a,
+                next: t.hes_a[0],
+                prev: t.hes_a[0],
+            },
+            prov(),
+        );
+        t.body.half_edges.remove(dead);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::HalfEdge(dead),
+        };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mev(
+                MevSite::Fan {
+                    he1: dead,
+                    he2: dead,
+                },
+                p(9.0),
+            )
+            .unwrap_err()
+        });
+        // Same rejection through mef's addressing.
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Chords {
+                he1: dead,
+                he2: dead,
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn stale_loop_key_is_rejected() {
+        let mut t = pillow();
+        let dead = t.body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Empty {
+                    vertex: t.vertices[0],
+                },
+                face: t.face_a,
+            },
+            prov(),
+        );
+        t.body.loops.remove(dead);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Loop(dead),
+        };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mev(MevSite::Lone { r#loop: dead }, p(9.0))
+                .unwrap_err()
+        });
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Lone { r#loop: dead }).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn stale_anchor_point_is_rejected_as_stale_geometry() {
+        let mut t = pillow();
+        // Corrupt: v0's point is removed; mef needs its coordinates for
+        // the placeholder curve anchor.
+        let dead_point = t.body.points.remove(t.points[0]);
+        assert!(dead_point.is_some());
+        let expected = EulerOpError::StaleGeometry {
+            key: GeomRef::Point(t.points[0]),
+        };
+        // a0 starts at v0 (whose point is now gone); every earlier
+        // precondition (same loop, cycle walk, prevs, face, shell)
+        // passes, so the anchor resolution is what fires.
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Chords {
+                he1: t.hes_a[0],
+                he2: t.hes_a[1],
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn fan_start_mismatch_is_rejected() {
+        let mut t = pillow();
+        // a0 starts at v0, a1 at v1.
+        let expected = EulerOpError::FanStartMismatch {
+            he1: t.hes_a[0],
+            he2: t.hes_a[1],
+        };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mev(
+                MevSite::Fan {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                p(9.0),
+            )
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn broken_fan_orbit_is_rejected() {
+        let mut t = pillow();
+        // Corrupt the edge ↔ half-edge bijection so mate(a0) fails: the
+        // orbit walk from a0 breaks. a0 and b1 both start at v0.
+        t.body.get_edge_mut(t.edges[0]).unwrap().he_plus = t.hes_a[1];
+        let expected = EulerOpError::FanOrbitBroken {
+            he1: t.hes_a[0],
+            he2: t.hes_b[1],
+        };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mev(
+                MevSite::Fan {
+                    he1: t.hes_a[0],
+                    he2: t.hes_b[1],
+                },
+                p(9.0),
+            )
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn chords_in_different_loops_are_rejected() {
+        let mut t = pillow();
+        let expected = EulerOpError::NotSameLoop {
+            he1: t.hes_a[0],
+            he2: t.hes_b[0],
+        };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Chords {
+                he1: t.hes_a[0],
+                he2: t.hes_b[0],
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn broken_loop_cycle_is_rejected() {
+        let mut t = pillow();
+        // Tear a0's next into loop B: the cycle walk from a0 can never
+        // reach a1 (nor return to a0).
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = t.hes_b[0];
+        let expected = EulerOpError::LoopCycleBroken { r#loop: t.loop_a };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Chords {
+                he1: t.hes_a[0],
+                he2: t.hes_a[1],
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn non_empty_loop_is_rejected_by_lone_sites() {
+        let mut t = pillow();
+        let expected = EulerOpError::LoopNotEmpty { r#loop: t.loop_a };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mev(MevSite::Lone { r#loop: t.loop_a }, p(9.0))
+                .unwrap_err()
+        });
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Lone { r#loop: t.loop_a }).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn chords_claiming_an_empty_parent_loop_are_rejected() {
+        let mut t = pillow();
+        // Corrupt: a fresh empty loop, and a0/a1 claim it as parent.
+        let p2 = t.body.add_point(p(9.0));
+        let v2 = t.body.add_vertex(
+            Vertex {
+                point: p2,
+                emanating: None,
+            },
+            prov(),
+        );
+        let empty = t.body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Empty { vertex: v2 },
+                face: t.face_a,
+            },
+            prov(),
+        );
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = empty;
+        t.body.get_half_edge_mut(t.hes_a[1]).unwrap().parent_loop = empty;
+        let expected = EulerOpError::LoopNotCycle { r#loop: empty };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Chords {
+                he1: t.hes_a[0],
+                he2: t.hes_a[1],
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn every_error_displays() {
+        // Exhaustive Display smoke test (one per variant; a new variant
+        // extends this list by compiler guidance at the match in
+        // Display).
+        let he = HalfEdgeKey::default();
+        let lp = LoopKey::default();
+        let errors = [
+            EulerOpError::StaleKey {
+                key: EntityId::HalfEdge(he),
+            },
+            EulerOpError::StaleGeometry {
+                key: GeomRef::Point(PointKey::default()),
+            },
+            EulerOpError::FanStartMismatch { he1: he, he2: he },
+            EulerOpError::FanOrbitBroken { he1: he, he2: he },
+            EulerOpError::NotSameLoop { he1: he, he2: he },
+            EulerOpError::LoopCycleBroken { r#loop: lp },
+            EulerOpError::LoopNotEmpty { r#loop: lp },
+            EulerOpError::LoopNotCycle { r#loop: lp },
+        ];
+        for error in errors {
+            assert!(!error.to_string().is_empty());
+        }
     }
 }
