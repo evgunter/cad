@@ -28,8 +28,9 @@
 //!   from std — that is fine; the rule governs generic evaluation code.)
 //! - **No bound extraction** (`to_f64`, `lo`/`hi`, `midpoint`): evaluation
 //!   code must not be able to silently collapse an interval to a number.
-//!   Certification/rendering code that legitimately needs bounds will get a
-//!   separate scalar-specific trait when the interval type lands.
+//!   Certification/driver code that legitimately needs bounds goes through
+//!   the separate [`Bounds`] trait (landed with the interval scalar, M0
+//!   PR 4), whose restricted scope is a named style rule — see its docs.
 //! - **No `exp`/`ln`/`pow(float)`**: nothing in M0–M4 needs them (analytic
 //!   geometry and NURBS are algebraic/trigonometric). Cheap to add later,
 //!   impossible to remove.
@@ -134,7 +135,12 @@ pub trait Real:
     /// The multiplication order is fixed by the squaring algorithm (see
     /// [`powi_by_squaring`]), so results are deterministic but — for
     /// `|n| ≥ 4` — not necessarily bit-identical to naive repeated
-    /// multiplication (different rounding association).
+    /// multiplication (different rounding association). Interval
+    /// instantiations may override this method with a dedicated integer
+    /// power for a **tight enclosure of the true value** — their contract
+    /// is containment of the real power, not reproduction of f64's
+    /// multiplication association (squaring an enclosure that straddles
+    /// zero is not tight: `[-1, 2]·[-1, 2] = [-2, 4]` but `x² ∈ [0, 4]`).
     ///
     /// For negative exponents the reciprocal-of-power rule means extreme
     /// magnitudes can overflow before inverting — e.g. `powi(2.0, -1074)`
@@ -210,6 +216,61 @@ pub trait Real:
     /// operation for geometry values, not control flow; ties keep `self`;
     /// **NaN propagates** (either input NaN ⇒ NaN).
     fn max(self, other: Self) -> Self;
+}
+
+/// Bound extraction for **certification and driver code** — deliberately a
+/// separate trait, never folded into [`Real`].
+///
+/// [`Real`] omits bound extraction so evaluation code cannot silently
+/// collapse an interval to a number (see the [module docs](self)); this
+/// trait is the separate door those docs promised. Its scope is a named
+/// style rule under the evaluation-code discipline (L7 in
+/// `docs/M0-LOG.md`): `Bounds` may appear only in **certification and
+/// driver code** — residual certification, the subdivision driver,
+/// rendering/telemetry — never in evaluation signatures. Code that needs
+/// it writes `T: Bounds` as the parameter's sole bound (it is a subtrait,
+/// so [`Real`]'s operations come with it); an *extra* bound tacked onto an
+/// evaluation type parameter is exactly the escape hatch the discipline's
+/// CI grep exists to catch.
+///
+/// # Semantics
+///
+/// `[lo(), hi()]` brackets every real number the scalar stands for. For
+/// `f64` the bracket is the value itself (`lo` = `hi`); for the interval
+/// scalar it is the enclosure of the **true** value of the computation —
+/// not of any particular `f64` evaluation of it. A libm-computed `f64` can
+/// land *outside* a tight enclosure of a transcendental result (libm is
+/// 1–4 ulp off; the enclosure is correctly rounded), so certification code
+/// bounds *residual quantities* computed at interval type and never
+/// asserts "f64 value ∈ enclosure" for transcendental results (exact
+/// operations — `+`, `·`, `sqrt` — are correctly rounded at `f64` and may
+/// be asserted contained).
+///
+/// Poison surfaces honestly rather than narrowing: a poisoned `f64` yields
+/// NaN from both accessors; the interval scalar yields NaN for the
+/// ill-formed interval and the reversed pair (+∞, −∞) for the empty one.
+/// Certification treats any such bracket as failed (`NaN ≤ ε` is false —
+/// the D4 ¶2 fail-loud path), never as data.
+pub trait Bounds: Real {
+    /// The lower end of the bracket (the value itself at `f64`; the
+    /// enclosure's infimum at the interval scalar).
+    fn lo(self) -> f64;
+
+    /// The upper end of the bracket (the value itself at `f64`; the
+    /// enclosure's supremum at the interval scalar).
+    fn hi(self) -> f64;
+}
+
+/// `f64` brackets itself exactly: `lo` = `hi` = the value. NaN stays NaN —
+/// poison surfaces through the bracket, never silently narrows away.
+impl Bounds for f64 {
+    fn lo(self) -> f64 {
+        self
+    }
+
+    fn hi(self) -> f64 {
+        self
+    }
 }
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
@@ -457,6 +518,18 @@ mod tests {
         assert_eq!(<f64 as Real>::powi(-3.0, 3), -27.0);
         assert_eq!(<f64 as Real>::powi(0.0, -1), f64::INFINITY);
         assert!(<f64 as Real>::powi(f64::NAN, 1).is_nan());
+    }
+
+    #[test]
+    fn bounds_for_f64_is_the_identity_bracket() {
+        for x in [0.0, -0.0, 1.5, -1e300, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(Bounds::lo(x).to_bits(), x.to_bits());
+            assert_eq!(Bounds::hi(x).to_bits(), x.to_bits());
+        }
+        // Poison surfaces: a NaN value yields a NaN bracket, which every
+        // downstream certification comparison fails loudly (D4 ¶2).
+        assert!(Bounds::lo(f64::NAN).is_nan());
+        assert!(Bounds::hi(f64::NAN).is_nan());
     }
 
     #[test]
