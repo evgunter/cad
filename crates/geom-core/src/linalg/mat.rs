@@ -77,10 +77,10 @@ impl<T: Real> Mat2<T> {
         Self::from_cols(Vec2::new(c, s), Vec2::new(-s, c))
     }
 
-    /// The inverse via the adjugate: `(1/det)·[[c1.y, −c1.x], [−c0.y,
-    /// c0.x]]` (columns as written), with `det` computed bit-identically
-    /// to [`Mat2::determinant`], one reciprocal `1/det`, and one multiply
-    /// per entry (fixed order, D9).
+    /// The inverse via the adjugate: columns `(c1.y, −c0.y)` and
+    /// `(−c1.x, c0.x)`, each scaled by `1/det` — with `det` computed
+    /// bit-identically to [`Mat2::determinant`], one reciprocal `1/det`,
+    /// and one multiply per entry (fixed order, D9).
     ///
     /// **Total.** A singular map divides by a zero determinant: entries
     /// become non-finite (±∞, or NaN where a zero adjugate entry meets
@@ -321,6 +321,18 @@ mod tests {
         assert!(z2.c1.x.is_nan() && z2.c1.y.is_nan());
     }
 
+    #[test]
+    fn rotation_about_zero_axis_is_all_nan() {
+        // Documented contract: `rotation_about` normalizes internally, so
+        // a zero axis poisons the whole matrix (normalize(0) is all-NaN
+        // and every Rodrigues entry consumes an axis component) — visible
+        // poison instead of a silently wrong rotation.
+        let r = Mat3::rotation_about(Vec3::new(0.0f64, 0.0, 0.0), 1.0);
+        for c in [r.c0, r.c1, r.c2] {
+            assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
+        }
+    }
+
     proptest! {
         /// transpose ∘ transpose is the identity *bit-exactly*: transpose
         /// is pure field shuffling, no arithmetic anywhere.
@@ -438,6 +450,23 @@ mod tests {
         fn rotation_inverse_is_transpose_within_bound(axis in vec3(), theta in angle()) {
             let r = Mat3::rotation_about(axis, theta);
             assert_mat3_entrywise_close(r.inverse(), r.transpose(), 1e-12);
+        }
+
+        /// 2-D analogue of the above: for a 2-D rotation the adjugate is
+        /// exactly the transpose's entries (pure field shuffles of ±s and
+        /// c — no arithmetic), so the only error is det = c² + s² ≈ 1
+        /// within ~4e-15 (rotation2 budget) entering through the one
+        /// reciprocal and one multiply per entry: ≤ ~5e-15 per entry.
+        /// Asserted at 1e-13 (slack for the unmodeled constants).
+        #[test]
+        fn rotation2_inverse_is_transpose_within_bound(theta in angle()) {
+            let r = Mat2::<f64>::rotation(theta);
+            let inv = r.inverse();
+            let t = r.transpose();
+            prop_assert!((inv.c0.x - t.c0.x).abs() <= 1e-13);
+            prop_assert!((inv.c0.y - t.c0.y).abs() <= 1e-13);
+            prop_assert!((inv.c1.x - t.c1.x).abs() <= 1e-13);
+            prop_assert!((inv.c1.y - t.c1.y).abs() <= 1e-13);
         }
     }
 }

@@ -109,6 +109,25 @@ DecInterval newtype, decoration < def ⇒ poison, pown override for
 tight powers, `Bounds` certification trait, x86-64-v3 floor via
 .cargo/config.toml, separate CI job with m4 + caching.
 
+## PR 3 + PR 6 completion (2026-07-16)
+
+- **PR 3 merged** (#5) with Evan's sign-off ("lgtm"); trichotomy +
+  sliver-band/K framing ratified into DESIGN.md's Q1 text (rode the PR 6
+  branch).
+- **PR 6** e2e review verdict: mergeable, no correctness defects (all
+  documented association orders verified against code; Rodrigues checked
+  by hand; affine/linear split held under compile-fail probing). SHOULDs
+  applied by orchestrator: Mat2::inverse doc columns fixed, zero-axis
+  rotation poison test, normalize underflow doc, Mat2
+  inverse≈transpose test.
+- **M2 watchlist from the PR 6 review** (add only on consumer demand):
+  `project`/`reject` on Vec (D9 hazard if call sites pick their own
+  association — add WITH a documented order at first M2 use);
+  rotation-about-axis-through-point Affine3 constructor (revolve);
+  **orthonormal-basis-from-normal is a value-branch** — under Q1
+  discipline it belongs behind a predicate or a branchless construction,
+  a design decision at the M2 boundary, not a quick helper.
+
 ## State snapshot
 
 - **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green
@@ -121,12 +140,17 @@ tight powers, `Bounds` certification trait, x86-64-v3 floor via
   (refusal rate + f64 noise headroom), not a correctness parameter** —
   soundness (escalate-never-guess, certification, interval replay) holds
   for any K > 1.
-- **PR 3** (trilean predicates): implemented + e2e-reviewed (verdict
-  ratify, amendments applied) on `ev/m0-3-predicates`, εₐ restructure
-  merged in; PR to be opened once PR 2 merges (description drafted in
-  orchestrator scratchpad).
-- **PR 6** (linalg): Fable implementer running in an isolated worktree,
-  branch `ev/m0-6-linalg` off the PR 2 branch (affine/linear
-  point-vector distinction, column-field matrices, total ops with
-  poison propagation — pinned design in the agent prompt).
+- **Done**: PR 3 (trilean predicates) **merged to main** (#5,
+  2026-07-16) with Evan's sign-off.
+- **Current**: PR 6 (linalg) on `ev/m0-6-linalg` — implemented (Fable,
+  isolated worktree), e2e-reviewed (mergeable, no correctness defects),
+  review fixes applied, main merged in; PR opening now (non-design →
+  self-merge after CI).
+- **In flight**: PR 4 (Interval over inari) — Fable implementer in an
+  isolated worktree on `ev/m0-4-interval` (off the PR 3 branch), design
+  per orchestrator scratchpad + issue #4 resolution; local gmp build
+  contingent on a user-local m4 bootstrap (no sudo on this box), CI is
+  the arbiter via the new `interval` job.
+- **Next**: PR 5 (duals) design draft after PR 4's Bounds/decoration
+  surface settles; PR 7 (arenas + Body<T>) after PR 6 merges.
 - **Task tracker**: session tasks #1–#8 mirror the M0-PLAN PR sequence.

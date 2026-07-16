@@ -88,7 +88,9 @@ impl<T: Real> Vec2<T> {
     /// (`real.rs`): poison flows through values, and the predicate layer /
     /// residual certification is where it is caught. Components beyond
     /// ~1e154 overflow `norm_squared` to ∞ and collapse the result toward
-    /// zero — far outside the session box (D4 ¶4), same posture as
+    /// zero; symmetrically, components below ~1e-162 underflow
+    /// `norm_squared` to 0 and blow the result up to ±∞ (not NaN). Both
+    /// ends are far outside the session box (D4 ¶4), same posture as
     /// `powi`'s extreme-exponent note.
     pub fn normalize(self) -> Self {
         self / self.norm()
@@ -178,7 +180,9 @@ impl<T: Real> Vec3<T> {
     /// **Total.** The zero vector yields all-NaN components (0/0), and a
     /// poisoned input propagates poison — per the crate's totality policy
     /// (`real.rs`). Components beyond ~1e154 overflow `norm_squared` to ∞
-    /// and collapse the result toward zero — far outside the session box
+    /// and collapse the result toward zero; symmetrically, components
+    /// below ~1e-162 underflow `norm_squared` to 0 and blow the result up
+    /// to ±∞ (not NaN). Both ends are far outside the session box
     /// (D4 ¶4), same posture as `powi`'s extreme-exponent note.
     pub fn normalize(self) -> Self {
         self / self.norm()
