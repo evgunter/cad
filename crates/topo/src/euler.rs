@@ -31,10 +31,16 @@
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
 //!   count deltas match its Euler vector and that the whole body still
-//!   passes tier-1 [`crate::validate::validate`]. A firing postcondition
-//!   is a kernel bug by definition (the per-call instance of the ch. 9
-//!   soundness theorem failing against our transcription), never an
-//!   input failure — this is the one legitimate panic site in the crate.
+//!   passes tier-1 [`crate::validate::validate`]. **On tier-1-valid
+//!   input** a firing postcondition is a kernel bug by definition (the
+//!   per-call instance of the ch. 9 soundness theorem failing against
+//!   our transcription). The conditional matters while the raw builder
+//!   is still public (until PR 5): corruption the preconditions don't
+//!   detect — e.g. consistently swapped `parent_loop`s — can pass every
+//!   check, mutate, and fire the postcondition, so debug builds CAN
+//!   panic here on tier-1-invalid input reached through the raw
+//!   builder; release builds return `Ok` with garbage instead (the
+//!   documented garbage-in contract above).
 //!
 //! # Geometry policy at M1
 //!
@@ -660,7 +666,8 @@ impl<T: Real> Body<T> {
     /// from `he1` reaches `he2` ([`EulerOpError::LoopCycleBroken`]);
     /// both `prev` links resolve (`StaleKey`); the loop's face and the
     /// face's shell resolve (`StaleKey`); `start(he1)` and its point
-    /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`]). `Lone`:
+    /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`]);
+    /// `start(he2)` resolves (`StaleKey`). `Lone`:
     /// the loop resolves; it is empty ([`EulerOpError::LoopNotEmpty`]);
     /// its vertex and point resolve; its face and shell resolve.
     ///
@@ -957,6 +964,14 @@ impl<T: Real> Body<T> {
             });
         }
         let anchor = self.resolve_vertex_point(u1)?;
+        // he_minus is minted with start = u2; reject a dangling start
+        // vertex rather than propagate it (symmetric with mev's check
+        // on its shared start vertex).
+        if !self.vertices.contains_key(u2) {
+            return Err(EulerOpError::StaleKey {
+                key: EntityId::Vertex(u2),
+            });
+        }
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented on `mef`): curve, edge, loop, face,
@@ -1216,10 +1231,14 @@ impl<T: Real> Body<T> {
 
     /// D1's ratified postcondition-assert clause: after a successful
     /// operator, the arena deltas must match the op's Euler vector and
-    /// the body must be tier-1 valid. A failure here is a kernel bug (a
-    /// per-call violation of the ch. 9 soundness theorem by our
-    /// transcription), never an input failure — the one legitimate
-    /// panic site (debug builds only).
+    /// the body must be tier-1 valid. On tier-1-valid input a failure
+    /// here is a kernel bug (a per-call violation of the ch. 9
+    /// soundness theorem by our transcription). On tier-1-INVALID
+    /// input it can also fire — undetected raw-builder corruption can
+    /// pass the preconditions and surface here — so until PR 5 demotes
+    /// the raw builder this debug-only panic is publicly reachable;
+    /// release builds return garbage instead (module docs, operator
+    /// contracts).
     #[cfg(debug_assertions)]
     fn assert_euler_postcondition(
         &self,
@@ -1241,13 +1260,16 @@ impl<T: Real> Body<T> {
     }
 }
 
+// Deviation from the PR 2 spec's optional clause, recorded in-tree:
+// random-op-sequence property tests are deliberately deferred to PR 4,
+// whose make/kill roundtrip properties own the sequence generator.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
 
     use super::*;
-    use crate::fixtures::{NgonPillow, pillow, prov};
+    use crate::fixtures::{NgonPillow, deep_snapshot, pillow, prov};
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -2131,6 +2153,127 @@ mod tests {
             })
             .unwrap_err()
         });
+    }
+
+    #[test]
+    fn chords_with_dangling_second_start_vertex_are_rejected() {
+        let mut t = pillow();
+        // Corrupt: a1's start vertex (v1) is removed; every earlier
+        // precondition (resolution, same loop, cycle walk, prevs, face,
+        // shell, anchor at v0) passes, so the start(he2) liveness check
+        // is what fires.
+        t.body.vertices.remove(t.vertices[1]);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Vertex(t.vertices[1]),
+        };
+        assert_err_and_unchanged(&mut t.body, &expected, |body| {
+            body.mef(MefSite::Chords {
+                he1: t.hes_a[0],
+                he2: t.hes_a[1],
+            })
+            .unwrap_err()
+        });
+    }
+
+    /// One construction: digon pillow + strut + self-loop face. With
+    /// `with_failures`, four failing calls (each a different
+    /// precondition) are interleaved between the successful ones.
+    fn build_with_optional_failures(
+        body: &mut Body<f64>,
+        with_failures: bool,
+    ) -> (MvfsCreated, MevCreated, MefCreated, MevCreated, MefCreated) {
+        let seed = body.mvfs(p(0.0)).unwrap();
+        if with_failures {
+            // Stale loop key.
+            let err = body
+                .mev(
+                    MevSite::Lone {
+                        r#loop: LoopKey::default(),
+                    },
+                    p(9.0),
+                )
+                .unwrap_err();
+            assert!(matches!(err, EulerOpError::StaleKey { .. }));
+        }
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        if with_failures {
+            // Fan halves starting at different vertices.
+            let err = body
+                .mev(
+                    MevSite::Fan {
+                        he1: seg.he_plus,
+                        he2: seg.he_minus,
+                    },
+                    p(9.0),
+                )
+                .unwrap_err();
+            assert!(matches!(err, EulerOpError::FanStartMismatch { .. }));
+        }
+        let split = body
+            .mef(MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            })
+            .unwrap();
+        if with_failures {
+            // Lone site on a loop that is a cycle now.
+            let err = body
+                .mef(MefSite::Lone {
+                    r#loop: seed.r#loop,
+                })
+                .unwrap_err();
+            assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }));
+        }
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        if with_failures {
+            // Chords across the two digon loops.
+            let err = body
+                .mef(MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: split.he_plus,
+                })
+                .unwrap_err();
+            assert!(matches!(err, EulerOpError::NotSameLoop { .. }));
+        }
+        let circ = body
+            .mef(MefSite::Chords {
+                he1: strut.he_minus,
+                he2: strut.he_minus,
+            })
+            .unwrap();
+        assert_eq!(validate(body), Ok(()));
+        (seed, seg, split, strut, circ)
+    }
+
+    #[test]
+    fn failed_ops_leave_the_key_sequence_pure() {
+        // The error half of D9's lineage-replay contract: a failing
+        // operator consumes NO key slots, so a construction interleaved
+        // with failing calls mints the exact key sequence of the same
+        // construction without them — and the final bodies are deeply
+        // identical (every arena entry, every payload, every provenance
+        // record), not merely equal in counts.
+        let mut with_errs = Body::<f64>::new();
+        let mut without_errs = Body::<f64>::new();
+        let created_a = build_with_optional_failures(&mut with_errs, true);
+        let created_b = build_with_optional_failures(&mut without_errs, false);
+        assert_eq!(created_a, created_b);
+        assert_eq!(deep_snapshot(&with_errs), deep_snapshot(&without_errs));
     }
 
     #[test]
