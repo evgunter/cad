@@ -12,6 +12,17 @@ rust-version = "1.97.0"
 # Nothing is publishable until the project has its name (Q9).
 publish = false
 
+# Shared dependency versions, inherited by members via `<dep>.workspace = true`.
+# Policy (memories/review-and-dependency-policy.md): versions must have been
+# released on crates.io for at least ~2 weeks before adoption.
+[workspace.dependencies]
+# D9: transcendentals via the pure-Rust libm crate — system libms differ
+# across platforms in the last ulp. 0.2.16 released 2026-01-24.
+libm = "0.2.16"
+# Property testing from day one (M0-PLAN working agreements). 1.11.0 released
+# 2026-03-24.
+proptest = "1.11.0"
+
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
 # unsafe (the exception budget lives in vetted dependencies, per L4). Public

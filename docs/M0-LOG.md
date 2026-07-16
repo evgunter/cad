@@ -23,6 +23,10 @@ design conversation.
   if review changes the design. Scaffolding-type PRs (1, 6) are
   self-merged after subagent review.
 - Merge commits only, per CLAUDE.md git workflow.
+- Reviews include hands-on e2e exercise (reviewers write/run real usage
+  demos against the API under review), per Evan's standing rule — see
+  `memories/review-and-dependency-policy.md`. Same memory: new
+  dependency versions want a ~2-week minimum release age.
 
 ## Log decisions
 
@@ -57,13 +61,70 @@ design conversation.
   against — revisit at PR 6.
 - **L6 — `publish = false`** in `workspace.package` until Q9's name
   lands.
+- **L7 — Evaluation-code discipline + CI tripwire** (from PR 2's
+  adversarial e2e review): the no-comparison enforcement is structural
+  for the convenient paths only; the residual channels (extra bounds
+  like `T: Real + PartialOrd`, `Debug` format-string gadgets,
+  `Any`/`TypeId` dispatch) are banned by a named style rule documented
+  in `real.rs`, and CI's `discipline` job greps for the extra-bound
+  pattern (`\bReal\s*\+`). When a legitimate `Real +` combination first
+  appears (likely PR 4's bound-extraction trait), refine to an
+  allowlist as a design decision. Optional escalation noted for later:
+  clippy `disallowed-methods` for `Any`/`TypeId` on scalars.
+
+## PR 2 design conversation (resolved 2026-07-16)
+
+- Evan review: (1) `sin_cos` as the primitive — agreed and
+  **implemented** (sin/cos are defaulted projections, overridable
+  bit-identically; f64 overrides for scalar performance); (2) εₐ
+  dimensional-honesty concern — orchestrator proposed **revising D4 ¶1
+  to a single ε** with angular thresholds always derived per predicate
+  as θ = ε/r (lever arm named at the call site). **Evan confirmed**
+  (👍 + "current plan sounds good"); implemented: PR 2 dropped
+  `eps_angular` + its env var (+ `ToleranceField`), PR 3 replaced
+  `Band::angular()` with `Band::angular_at(lever_arm)` (new
+  `BandError::InvalidLeverArm`), DESIGN.md revised (D4 ¶1, D2's εₐ
+  mentions, deferred list, Q1 residue-status block). Awaiting Evan's
+  explicit merge sign-off on the final PR 2 state.
+
+## PR 4 pre-work (inari probe, 2026-07-16)
+
+Empirical findings (full report in issue #4): transcendentals require
+inari's `gmp` feature (MPFR-backed; without it they don't exist) →
+LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`) — **license fork filed
+as issue #4** (recommendation: cargo feature `interval`, default builds
+stay MIT/Apache + C-free). Hard CPU floor AVX+FMA (plan:
+`-C target-cpu=x86-64-v3` via `.cargo/config.toml`; aarch64 fine
+unflagged). Determinism excellent (bit-identical enclosures across
+CPUs/SIMD paths at pinned deps). Poison model differs from f64: partial
+out-of-domain **clamps** (only full misses go empty), violations
+signalled via `DecInterval` decorations → PR 4 wrapper builds on
+`DecInterval`; `from_f64(NaN)` mapped to empty explicitly. inari 2.0.0
+(2024-08-07, MIT itself) satisfies the dependency-age policy.
+**Issue #4 resolved (2026-07-16)**: option (a) — `interval` cargo
+feature gates `inari/gmp`; default builds stay MIT/Apache + C-free;
+post-M7 roadmap entry added to DESIGN.md for an in-house replacement
+that drops LGPL. PR 4 design drafted (orchestrator scratchpad):
+DecInterval newtype, decoration < def ⇒ poison, pown override for
+tight powers, `Bounds` certification trait, x86-64-v3 floor via
+.cargo/config.toml, separate CI job with m4 + caching.
 
 ## State snapshot
 
-- **Current**: PR 1 (workspace scaffolding) in progress on
-  `ev/m0-1-workspace`; delegated to an Opus implementer; orchestrator to
-  review, then self-merge.
-- **Next**: PR 2 (Real trait + Tolerance) — orchestrator drafts the trait
-  surface design, Fable implements, PR opened for Evan's sign-off; PR 3
-  proceeds stacked while waiting.
+- **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green
+  incl. multi-ε matrix.
+- **Current**: PR 2 (`Real` + `Tolerance`) on `ev/m0-2-real-tolerance` —
+  implemented (Fable), adversarially e2e-reviewed (verdict: ratify with
+  wording amendments, all applied), opened as the first **design PR
+  awaiting Evan's sign-off**. On sign-off: ratify trait surface,
+  totality/NaN policy, evaluation-code discipline, and Tolerance
+  once-init semantics into DESIGN.md, then merge.
+- **PR 3** (trilean predicates): implemented + e2e-reviewed (verdict
+  ratify, amendments applied) on `ev/m0-3-predicates`, εₐ restructure
+  merged in; PR to be opened once PR 2 merges (description drafted in
+  orchestrator scratchpad).
+- **PR 6** (linalg): Fable implementer running in an isolated worktree,
+  branch `ev/m0-6-linalg` off the PR 2 branch (affine/linear
+  point-vector distinction, column-field matrices, total ops with
+  poison propagation — pinned design in the agent prompt).
 - **Task tracker**: session tasks #1–#8 mirror the M0-PLAN PR sequence.
