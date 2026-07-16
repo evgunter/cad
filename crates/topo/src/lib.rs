@@ -7,11 +7,13 @@
 //! shell, face, loop, half-edge, edge, vertex — plus geometry arenas,
 //! plus a D5 provenance record per entity from birth. M1 PR 1 landed the
 //! half-edge structure itself (adjacency, orientation conventions, the
-//! tier-1 structural validator); PR 2 adds the first Euler operators —
+//! tier-1 structural validator); PR 2 added the first Euler operators —
 //! [`Body::mvfs`], [`Body::mev`], [`Body::mef`] (see [`euler`]) — the
-//! sanctioned construction path. The raw builder placeholder remains
-//! public until PR 5, when the operator set is complete enough for it to
-//! retreat to `pub(crate)`.
+//! sanctioned construction path; PR 3 adds the ring/genus operators —
+//! [`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`] — and the non-Euler
+//! [`Body::ring_move`] helper (see [`euler_ring`]). The raw builder
+//! placeholder remains public until PR 5, when the operator set is
+//! complete enough for it to retreat to `pub(crate)`.
 //!
 //! # Orientation conventions
 //!
@@ -86,6 +88,7 @@
 pub mod body;
 pub mod entity;
 pub mod euler;
+pub mod euler_ring;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
@@ -98,6 +101,7 @@ pub use entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{EulerOpError, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 pub use provenance::Provenance;
 pub use validate::{ValidationError, validate};

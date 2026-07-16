@@ -4,9 +4,11 @@
 //! [`Body::mev`], and [`Body::mef`] (Mäntylä ch. 9 semantics, ch. 11
 //! surgeries re-derived under our orientation convention), plus the
 //! addressing helper [`Body::find_half_edge`]. The ring/genus operators
-//! (`kemr`, `mekr`, `kfmrh`) are M1 PR 3; the kill-direction duals are
-//! PR 4; the raw-insertion builder retreats behind these operators at
-//! PR 5.
+//! ([`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`]) and the `ring_move`
+//! helper live in the sibling module [`crate::euler_ring`] (M1 PR 3) and
+//! share this module's contracts and [`EulerOpError`]; the
+//! kill-direction duals are PR 4; the raw-insertion builder retreats
+//! behind these operators at PR 5.
 //!
 //! # Operator contracts (uniform across all ops)
 //!
@@ -338,34 +340,107 @@ pub enum EulerOpError {
         /// The half-edge the walk never reached.
         he2: HalfEdgeKey,
     },
-    /// [`MefSite::Chords`]'s half-edges belong to different loops; `mef`
-    /// splits one loop (joining two loops of a face is `mekr`, PR 3;
-    /// joining two faces' loops is not an Euler op at all).
+    /// The two half-edge arguments belong to different loops where one
+    /// loop is required: [`MefSite::Chords`] splits one loop, and
+    /// [`Body::kemr`] kills an edge occurring twice in one loop (joining
+    /// two loops of a face is [`Body::mekr`]; joining two faces' loops
+    /// is not an Euler op at all).
     NotSameLoop {
         /// The first half-edge.
         he1: HalfEdgeKey,
         /// The second half-edge, in a different loop.
         he2: HalfEdgeKey,
     },
-    /// The cycle walk from `he1` failed to close, or closed without
-    /// visiting `he2` (despite the matching parent loop) —
+    /// A cycle walk failed to close, or closed without visiting the
+    /// half-edge it had to reach (despite matching parent-loop keys) —
     /// tier-1-invalid input.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
     },
-    /// A `Lone` site named a loop that is not [`LoopBoundary::Empty`] —
-    /// the lone-vertex operators only apply to empty loops.
+    /// A site named a loop that must be [`LoopBoundary::Empty`] but is
+    /// not: the `Lone` sites of `mev`/`mef`, and the `Empty*` sites of
+    /// [`Body::mekr`], apply to empty loops only.
     LoopNotEmpty {
         /// The non-empty loop.
         r#loop: LoopKey,
     },
-    /// [`MefSite::Chords`]'s shared parent loop is [`LoopBoundary::Empty`]
-    /// — half-edges claiming an empty parent are tier-1-invalid input
-    /// (an empty loop reaches no half-edges).
+    /// A loop that a half-edge argument claims as parent is
+    /// [`LoopBoundary::Empty`] — tier-1-invalid input (an empty loop
+    /// reaches no half-edges).
     LoopNotCycle {
         /// The empty loop claimed as parent.
         r#loop: LoopKey,
+    },
+    /// [`Body::kemr`]'s half-edges are not the two halves of one edge:
+    /// the keys are equal, their `edge` fields differ, or the edge does
+    /// not claim exactly them in its two slots (the last is a corrupt
+    /// bijection — tier-1-invalid input).
+    NotSameEdge {
+        /// The first half-edge.
+        he1: HalfEdgeKey,
+        /// The second half-edge.
+        he2: HalfEdgeKey,
+    },
+    /// The operation would leave two [`LoopBoundary::Empty`] loops
+    /// holding the same lone vertex, which tier 1 forbids (a vertex is
+    /// the lone vertex of *exactly one* empty loop). Fired by
+    /// [`Body::kemr`] when both split components are empty and would
+    /// anchor at one vertex (a segment loop whose edge is a self-loop)
+    /// and by [`Body::mekr`]'s `BothEmpty` site when the two lone
+    /// vertices coincide. Believed unreachable through valid operator
+    /// sequences (the offending inputs are already tier-1-invalid);
+    /// checked defensively.
+    EmptyAnchorsCollide {
+        /// The vertex both empty loops would anchor at.
+        vertex: VertexKey,
+    },
+    /// [`Body::mekr`]'s target and ring anchors name the same loop —
+    /// `mekr` joins two *distinct* loops of a face.
+    SameLoop {
+        /// The loop named by both anchors.
+        r#loop: LoopKey,
+    },
+    /// [`Body::mekr`]'s two loops belong to different faces — `mekr`
+    /// merges loops of a single face.
+    NotSameFace {
+        /// The target-side loop.
+        target: LoopKey,
+        /// The ring-side loop, in a different face.
+        ring: LoopKey,
+    },
+    /// A loop named as a ring is its face's outer loop:
+    /// [`Body::mekr`]'s ring argument and [`Body::ring_move`]'s ring
+    /// must be interior loops (members of [`crate::Face::rings`]).
+    RingIsOuter {
+        /// The loop that is an outer loop, not a ring.
+        r#loop: LoopKey,
+    },
+    /// [`Body::kfmrh`]'s two face arguments are the same face — the
+    /// connected sum needs two distinct faces.
+    SameFace {
+        /// The face passed twice.
+        face: FaceKey,
+    },
+    /// The two faces lie in different shells. For [`Body::kfmrh`] this
+    /// is the **deferred cross-shell case**: applied across shells the
+    /// operator merges them instead of adding genus (Mäntylä §9.2.4's
+    /// "KFSMR" reading), and multi-shell solids arrive with M3's
+    /// splitting/booleans — until then cross-shell `kfmrh` is a typed
+    /// error by ratified plan. [`Body::ring_move`] likewise only
+    /// reparents within one shell.
+    CrossShell {
+        /// The first face (kfmrh's `f1` / ring_move's source face).
+        f1: FaceKey,
+        /// The second face, in a different shell.
+        f2: FaceKey,
+    },
+    /// [`Body::kfmrh`]'s `f2` still has rings: the operator demotes
+    /// `f2`'s *outer* loop and kills the face, so the caller must move
+    /// rings off `f2` first (via [`Body::ring_move`]).
+    FaceHasRings {
+        /// The face with rings.
+        face: FaceKey,
     },
 }
 
@@ -390,24 +465,64 @@ impl fmt::Display for EulerOpError {
             ),
             Self::NotSameLoop { he1, he2 } => write!(
                 f,
-                "mef: half-edges {he1:?} and {he2:?} belong to different loops"
+                "half-edges {he1:?} and {he2:?} belong to different loops \
+                 (one loop required)"
             ),
             Self::LoopCycleBroken { r#loop } => write!(
                 f,
-                "mef: loop {loop:?}'s cycle walk never reaches the second \
+                "loop {loop:?}'s cycle walk never reaches the second \
                  half-edge (malformed body)",
                 loop = r#loop
             ),
             Self::LoopNotEmpty { r#loop } => write!(
                 f,
-                "lone-vertex site: loop {loop:?} is not an empty loop",
+                "empty-loop site: loop {loop:?} is not an empty loop",
                 loop = r#loop
             ),
             Self::LoopNotCycle { r#loop } => write!(
                 f,
-                "mef: the half-edges' parent loop {loop:?} is an empty loop \
-                 (malformed body)",
+                "a half-edge argument claims parent loop {loop:?}, which is \
+                 an empty loop (malformed body)",
                 loop = r#loop
+            ),
+            Self::NotSameEdge { he1, he2 } => write!(
+                f,
+                "kemr: half-edges {he1:?} and {he2:?} are not the two halves \
+                 of one edge"
+            ),
+            Self::EmptyAnchorsCollide { vertex } => write!(
+                f,
+                "the operation would leave two empty loops holding the same \
+                 lone vertex {vertex:?} (tier 1 allows exactly one)"
+            ),
+            Self::SameLoop { r#loop } => write!(
+                f,
+                "mekr: both anchors name loop {loop:?} (two distinct loops \
+                 of one face required)",
+                loop = r#loop
+            ),
+            Self::NotSameFace { target, ring } => write!(
+                f,
+                "mekr: loops {target:?} and {ring:?} belong to different \
+                 faces"
+            ),
+            Self::RingIsOuter { r#loop } => write!(
+                f,
+                "loop {loop:?} is its face's outer loop, not a ring",
+                loop = r#loop
+            ),
+            Self::SameFace { face } => {
+                write!(f, "kfmrh: both arguments name face {face:?}")
+            }
+            Self::CrossShell { f1, f2 } => write!(
+                f,
+                "faces {f1:?} and {f2:?} lie in different shells \
+                 (cross-shell kfmrh merges shells — deferred to M3)"
+            ),
+            Self::FaceHasRings { face } => write!(
+                f,
+                "kfmrh: face {face:?} still has rings (move them off with \
+                 ring_move first)"
             ),
         }
     }
@@ -419,7 +534,7 @@ impl std::error::Error for EulerOpError {}
 /// postcondition's Euler-vector check.
 #[cfg(debug_assertions)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ArenaCounts {
+pub(crate) struct ArenaCounts {
     solids: usize,
     shells: usize,
     faces: usize,
@@ -432,16 +547,23 @@ struct ArenaCounts {
 #[cfg(debug_assertions)]
 impl ArenaCounts {
     /// The counts shifted by an op's Euler vector
-    /// `(Δsolids, Δshells, Δfaces, Δloops, Δhalf-edges, Δedges, Δvertices)`.
-    fn plus(self, delta: (usize, usize, usize, usize, usize, usize, usize)) -> Self {
+    /// `(Δsolids, Δshells, Δfaces, Δloops, Δhalf-edges, Δedges,
+    /// Δvertices)`. Deltas are signed since PR 3's kill-direction
+    /// components; an (impossible) underflow saturates to `usize::MAX`,
+    /// which the postcondition assert then reports loudly.
+    fn plus(
+        self,
+        delta: (isize, isize, isize, isize, isize, isize, isize),
+    ) -> Self {
+        let shift = |count: usize, d: isize| count.checked_add_signed(d).unwrap_or(usize::MAX);
         Self {
-            solids: self.solids + delta.0,
-            shells: self.shells + delta.1,
-            faces: self.faces + delta.2,
-            loops: self.loops + delta.3,
-            half_edges: self.half_edges + delta.4,
-            edges: self.edges + delta.5,
-            vertices: self.vertices + delta.6,
+            solids: shift(self.solids, delta.0),
+            shells: shift(self.shells, delta.1),
+            faces: shift(self.faces, delta.2),
+            loops: shift(self.loops, delta.3),
+            half_edges: shift(self.half_edges, delta.4),
+            edges: shift(self.edges, delta.5),
+            vertices: shift(self.vertices, delta.6),
         }
     }
 }
@@ -1098,7 +1220,7 @@ impl<T: Real> Body<T> {
 
     /// Resolves a half-edge argument, copying out its fields
     /// ([`EulerOpError::StaleKey`] if it does not resolve).
-    fn resolve_half_edge(&self, he: HalfEdgeKey) -> Result<HalfEdge, EulerOpError> {
+    pub(crate) fn resolve_half_edge(&self, he: HalfEdgeKey) -> Result<HalfEdge, EulerOpError> {
         self.get_half_edge(he)
             .cloned()
             .ok_or(EulerOpError::StaleKey {
@@ -1106,10 +1228,10 @@ impl<T: Real> Body<T> {
             })
     }
 
-    /// Resolves a vertex's point coordinates (for `mef`'s placeholder
-    /// curve anchor): [`EulerOpError::StaleKey`] on the vertex,
-    /// [`EulerOpError::StaleGeometry`] on the point.
-    fn resolve_vertex_point(&self, vertex: VertexKey) -> Result<Point3<T>, EulerOpError> {
+    /// Resolves a vertex's point coordinates (for `mef`'s/`mekr`'s
+    /// placeholder curve anchor): [`EulerOpError::StaleKey`] on the
+    /// vertex, [`EulerOpError::StaleGeometry`] on the point.
+    pub(crate) fn resolve_vertex_point(&self, vertex: VertexKey) -> Result<Point3<T>, EulerOpError> {
         let vertex_data = self.get_vertex(vertex).ok_or(EulerOpError::StaleKey {
             key: EntityId::Vertex(vertex),
         })?;
@@ -1122,7 +1244,7 @@ impl<T: Real> Body<T> {
 
     /// Mints an edge with provisional half-edge slots (the halves are
     /// minted next by [`Body::mint_halves`], which patches the slots).
-    fn mint_edge(&mut self, curve: CurveKey, provenance: &Provenance) -> EdgeKey {
+    pub(crate) fn mint_edge(&mut self, curve: CurveKey, provenance: &Provenance) -> EdgeKey {
         self.add_edge(
             Edge {
                 // Provisional: the halves do not exist yet; patched by
@@ -1140,7 +1262,7 @@ impl<T: Real> Body<T> {
     /// edge ↔ half-edge bijection. Each half is described by its
     /// `(start vertex, parent loop)` pair; `next`/`prev` are left
     /// provisional (null keys) for the caller's splice.
-    fn mint_halves(
+    pub(crate) fn mint_halves(
         &mut self,
         edge: EdgeKey,
         plus: (VertexKey, LoopKey),
@@ -1206,7 +1328,7 @@ impl<T: Real> Body<T> {
     /// Writes the mutual `next`/`prev` link `a → b`. Both keys were
     /// pre-validated (or freshly minted) by the caller; the lookups
     /// cannot fail on the operator paths.
-    fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
+    pub(crate) fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
         if let Some(he) = self.get_half_edge_mut(a) {
             he.next = b;
         }
@@ -1217,7 +1339,7 @@ impl<T: Real> Body<T> {
 
     /// Captures the topology-arena lengths for the debug postcondition.
     #[cfg(debug_assertions)]
-    fn arena_counts(&self) -> ArenaCounts {
+    pub(crate) fn arena_counts(&self) -> ArenaCounts {
         ArenaCounts {
             solids: self.solids.len(),
             shells: self.shells.len(),
@@ -1240,10 +1362,10 @@ impl<T: Real> Body<T> {
     /// release builds return garbage instead (module docs, operator
     /// contracts).
     #[cfg(debug_assertions)]
-    fn assert_euler_postcondition(
+    pub(crate) fn assert_euler_postcondition(
         &self,
         before: ArenaCounts,
-        delta: (usize, usize, usize, usize, usize, usize, usize),
+        delta: (isize, isize, isize, isize, isize, isize, isize),
         op: &str,
     ) {
         debug_assert_eq!(
@@ -2283,6 +2405,7 @@ mod tests {
         // Display).
         let he = HalfEdgeKey::default();
         let lp = LoopKey::default();
+        let fc = FaceKey::default();
         let errors = [
             EulerOpError::StaleKey {
                 key: EntityId::HalfEdge(he),
@@ -2296,6 +2419,19 @@ mod tests {
             EulerOpError::LoopCycleBroken { r#loop: lp },
             EulerOpError::LoopNotEmpty { r#loop: lp },
             EulerOpError::LoopNotCycle { r#loop: lp },
+            EulerOpError::NotSameEdge { he1: he, he2: he },
+            EulerOpError::EmptyAnchorsCollide {
+                vertex: VertexKey::default(),
+            },
+            EulerOpError::SameLoop { r#loop: lp },
+            EulerOpError::NotSameFace {
+                target: lp,
+                ring: lp,
+            },
+            EulerOpError::RingIsOuter { r#loop: lp },
+            EulerOpError::SameFace { face: fc },
+            EulerOpError::CrossShell { f1: fc, f2: fc },
+            EulerOpError::FaceHasRings { face: fc },
         ];
         for error in errors {
             assert!(!error.to_string().is_empty());
