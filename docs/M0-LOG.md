@@ -128,6 +128,41 @@ tight powers, `Bounds` certification trait, x86-64-v3 floor via
   discipline it belongs behind a predicate or a branchless construction,
   a design decision at the M2 boundary, not a quick helper.
 
+## PR 4 / PR 7 / PR 5 state (2026-07-16, late)
+
+- **PR 4 opened as #7** (design PR, awaiting Evan): e2e review verdict
+  "sound design, one real hole at the certification door" — the hole
+  (an empty enclosure's Bounds sentinel hi = −∞ PASSES `residual ≤ ε`
+  certification) is fixed: empty → (NaN, NaN), deliberately
+  indistinguishable from NaI through Bounds. Poison channel survived
+  160 adversarial laundering attempts (decoration monotonicity confirmed
+  at type level; the only laundering door is Bounds-extract →
+  from_bounds-rebuild, closed by scope rule). Also: f64 `powi(NaN, 0)`
+  now propagates NaN (was 1 — the only poison-laundering point in the
+  f64 scalar; `(±∞)⁰ = 1` stays, ∞ is not f64 poison); driver
+  termination rule documented (an Enclosure wholly inside the open
+  sliver band is TERMINAL — subdivision never refines it; escalate as a
+  genuine sliver); CI split so only the `interval` job builds the gmp C
+  stack (+ ~/.cache/gmp-mpfr-sys cached). CI green incl. interval job.
+- **PR 7 reviewed** ("ratify the boundary") and opening as a design PR:
+  blocker fixed (key contract: stale ⇒ None, but *foreign* keys can
+  silently resolve — keys are body-lineage-scoped; the flip side is
+  load-bearing: replay shares keys across instantiations); M1 scope
+  statements added (emptiness/arity deferral, orphan-vertex vs mvfs,
+  D5 provenance harness check). The review's structural alternative
+  (non-generic `Topology` inside `Body<T>`) goes to Evan as a
+  considered rejection.
+- **PR 5 in flight** (Fable, isolated worktree, `ev/m0-5-duals` off the
+  PR 4 branch). **Deviation from the crate table to be ratified in its
+  PR**: num-dual's transcendentals are std-backed, so implementing our
+  `Real` on its types would break the ratified bit-identical
+  value-channel contract (libm) — instead one in-house generic
+  `Dual<T>` (f64 and Interval instantiations from the same code),
+  num-dual demoted to dev-dependency derivative oracle. Kink
+  conventions (abs'(0) = +1; interval hull jacobians) via a sealed
+  helper trait; `Decide` for duals = value-part delegation (derivative
+  never branches) — resolving the last unsettled Q1 residue item.
+
 ## State snapshot
 
 - **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green
@@ -146,11 +181,13 @@ tight powers, `Bounds` certification trait, x86-64-v3 floor via
   isolated worktree), e2e-reviewed (mergeable, no correctness defects),
   review fixes applied, main merged in; PR opening now (non-design →
   self-merge after CI).
-- **In flight**: PR 4 (Interval over inari) — Fable implementer in an
-  isolated worktree on `ev/m0-4-interval` (off the PR 3 branch), design
-  per orchestrator scratchpad + issue #4 resolution; local gmp build
-  contingent on a user-local m4 bootstrap (no sudo on this box), CI is
-  the arbiter via the new `interval` job.
-- **Next**: PR 5 (duals) design draft after PR 4's Bounds/decoration
-  surface settles; PR 7 (arenas + Body<T>) after PR 6 merges.
+- **Awaiting Evan sign-off (all CI-green)**: PR 4 = #7, PR 7 = #8,
+  PR 5 = #9 (stacked on #7; e2e-reviewed "ratify all three", the
+  powi(2) tightness fix applied — dependent-mult derivative enclosures
+  no longer blow up; regression test pins [-inf,inf] -> [0.45, 1]).
+  Merge order: #7 first, #9 retargets to main, #8 anytime.
+- **M0 exit after**: the three sign-offs + merges, final DESIGN.md
+  ratification sweep (crate-table num-dual row, PR 4/5/7 residue
+  items), memory updates (cad-project-state -> M0 done), exit-criteria
+  check (all seven merged, multi-eps CI green).
 - **Task tracker**: session tasks #1–#8 mirror the M0-PLAN PR sequence.
