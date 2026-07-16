@@ -1,5 +1,5 @@
 //! The tolerance-coupled band constructors ([`Band::linear`] /
-//! [`Band::angular`]) against the run's global [`Tolerance`].
+//! [`Band::angular_at`]) against the run's global [`Tolerance`].
 //!
 //! This lives in its own integration-test binary — i.e. its own process —
 //! per the funnel-test discipline (see `src/tolerance.rs`'s test module):
@@ -17,7 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{AMBIGUITY_K, Band, Decide, MarginDiag, Sign, Tolerance};
+use geom_core::{AMBIGUITY_K, Band, BandError, BandField, Decide, MarginDiag, Sign, Tolerance};
 
 #[test]
 fn bands_track_the_global_tolerance() {
@@ -28,10 +28,36 @@ fn bands_track_the_global_tolerance() {
     assert_eq!(band.zero(), tolerance.eps);
     assert_eq!(band.escalate(), AMBIGUITY_K * tolerance.eps);
 
-    // ...and angular() is exactly (eps_a, K*eps_a).
-    let angular = Band::angular().expect("the run's eps_angular is sane");
-    assert_eq!(angular.zero(), tolerance.eps_angular);
-    assert_eq!(angular.escalate(), AMBIGUITY_K * tolerance.eps_angular);
+    // ...and angular_at derives its threshold per lever arm as eps/r —
+    // there is no global angular tolerance (D4 ¶1, revised 2026-07-16).
+    // At the unit lever arm (r = 1) the derived angle is exactly eps, so
+    // the angular band coincides with the linear one.
+    let unit = Band::angular_at(1.0).expect("the run's eps is sane, so eps/1 forms a band");
+    assert_eq!(unit.zero(), tolerance.eps);
+    assert_eq!(unit.escalate(), AMBIGUITY_K * tolerance.eps);
+    assert_eq!(unit, band);
+
+    // A curvature-style lever arm r = 1/kappa_rel scales the threshold:
+    // zero = eps/r, escalate = K*(eps/r).
+    let kappa_rel = 4.0;
+    let arm = 1.0 / kappa_rel;
+    let curved = Band::angular_at(arm).expect("eps/arm is a sane finite threshold");
+    assert_eq!(curved.zero(), tolerance.eps / arm);
+    assert_eq!(curved.escalate(), AMBIGUITY_K * (tolerance.eps / arm));
+
+    // Overflow residue: a lever arm tiny enough that eps/arm is finite but
+    // K*(eps/arm) overflows surfaces as the existing InvalidValue-on-
+    // escalate error (routed through Band::new), not a silently bad band.
+    // arm = eps / (MAX/2) makes eps/arm ~ MAX/2 — finite, well above the
+    // MAX/K threshold — so escalate = K*(MAX/2) overflows to +inf.
+    let tiny_arm = tolerance.eps / (f64::MAX / 2.0);
+    assert_eq!(
+        Band::angular_at(tiny_arm),
+        Err(BandError::InvalidValue {
+            field: BandField::Escalate,
+            value: f64::INFINITY,
+        })
+    );
 
     // Classification tracks the run's eps: margins placed relative to
     // eps land in the same region at every matrix value. (0.5, 3, 20 are
