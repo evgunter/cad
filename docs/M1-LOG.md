@@ -79,6 +79,39 @@ Second round (chat, 2026-07-16):
   edge (zero-thickness voids between shells) are edge-locally
   invisible — global self-intersection/clearance, M3 partial / M6 full.
 
+## PR 1 (half-edge restructure) — 2026-07-16
+
+- Implemented per binding spec (Fable, isolated worktree); ratified
+  decisions (typed `LoopBoundary`, CCW-from-outside) baked in.
+- **Orbit step under our convention**: `next(mate(he))` walks CLOCKWISE
+  around a vertex viewed from outside; `mate(prev(he))` is the CCW
+  inverse. Derivation in entity.rs, pinned by a hand-computed prism-rim
+  test; independently re-derived by the e2e reviewer (abstract sector
+  argument + numeric cube corner) — full agreement, no mirrored
+  sentence found anywhere.
+- **e2e review verdict: mergeable, no blockers.** Sharpest probe: an
+  antiparallelism-preserving mate-swap is caught ONLY by vertex-orbit
+  closure — pass 6 is the load-bearing watertightness check, and it
+  held. Bounded walks held under a 6000-half-edge torn-link attack
+  (3 errors, ~104 ms, no hang). Accepted structures = oriented
+  2-complexes with single-cycle vertex fans (orientability is automatic
+  given antiparallel mates).
+- **Deviations to ratify in the PR** (both endorsed by review):
+  (1) `pub get_*_mut` patching accessors — the reference structure is
+  cyclic in every direction, so pure `add_*` insertion cannot close any
+  valid body (without key forging); both halves of the raw builder
+  retreat to `pub(crate)` at PR 5. No ratified invariant broken today
+  (D5 unrepresentability, lineage determinism intact).
+  (2) `outer ∉ rings` — a GWB deviation beyond what PR #15 pre-ratified
+  (flout ∈ floops there); listed for explicit sign-off.
+- SHOULD fixes applied post-review: shell-partition/edge-adjacency
+  coherence gap named in the validator's PR 5 deferral note (an edge's
+  two faces in different shells passes tier 1; per-shell E–P closes
+  it); fixtures module-doc coordinate claim corrected; "cannot by pure
+  insertion" phrasing made honest (slotmap key-forging caveat).
+- Process conventions add: implementer agents push branches early and
+  often (before review) — Evan follows work-in-progress remotely.
+
 ## Log decisions
 
 (none yet)
