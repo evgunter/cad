@@ -1,25 +1,43 @@
-//! Topology entities and their typed arena keys.
+//! Topology entities and their typed arena keys — the half-edge B-rep
+//! (M1, replacing M0's placeholder adjacency).
 //!
-//! The six entity kinds of the manifold B-rep (D1 in `docs/DESIGN.md`):
-//! [`Solid`], [`Shell`], [`Face`], [`Loop`], [`Edge`], [`Vertex`]. Each
-//! kind has its own key type minted by slotmap's `new_key_type!`, so a key
-//! into one arena is a *different type* from a key into another — handing
-//! a `VertexKey` to something expecting an `EdgeKey` fails to typecheck.
-//! Cross-arena confusion is a compile error, not a runtime surprise:
+//! The seven entity kinds of the manifold B-rep (D1 in `docs/DESIGN.md`):
+//! [`Solid`], [`Shell`], [`Face`], [`Loop`], [`HalfEdge`], [`Edge`],
+//! [`Vertex`]. Each kind has its own key type minted by slotmap's
+//! `new_key_type!`, so a key into one arena is a *different type* from a
+//! key into another — handing a `VertexKey` to something expecting an
+//! `EdgeKey` fails to typecheck. Cross-arena confusion is a compile
+//! error, not a runtime surprise:
 //!
 //! ```compile_fail,E0308
-//! use geom_core::Point3;
-//! use topo::{Body, Edge, Provenance, Vertex};
+//! use topo::{HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
 //!
-//! let mut body = Body::<f64>::new();
-//! let p = body.add_point(Point3::new(0.0, 0.0, 0.0));
-//! let v = body.add_vertex(Vertex { point: p }, Provenance::Primordial { op: "doc" });
-//! // A `PointKey` is not a `CurveKey`: an edge's `curve` field will not
-//! // accept a key into the point arena. This example must NOT compile.
-//! let _ = body.add_edge(
-//!     Edge { start: v, end: v, curve: p },
-//!     Provenance::Primordial { op: "doc" },
-//! );
+//! // A `VertexKey` is not an `EdgeKey`: a half-edge's `edge` field will
+//! // not accept a key into the vertex arena. This example must NOT
+//! // compile.
+//! let _ = HalfEdge {
+//!     edge: VertexKey::default(),
+//!     start: VertexKey::default(),
+//!     parent_loop: LoopKey::default(),
+//!     next: HalfEdgeKey::default(),
+//!     prev: HalfEdgeKey::default(),
+//! };
+//! ```
+//!
+//! And the other way around — a `HalfEdgeKey` is not a key into any other
+//! arena either:
+//!
+//! ```compile_fail,E0308
+//! use topo::{Edge, HalfEdgeKey};
+//!
+//! // A `HalfEdgeKey` is not a `CurveKey`: an edge's `curve` field will
+//! // not accept a key into the half-edge arena. This example must NOT
+//! // compile.
+//! let _ = Edge {
+//!     he_plus: HalfEdgeKey::default(),
+//!     he_minus: HalfEdgeKey::default(),
+//!     curve: HalfEdgeKey::default(),
+//! };
 //! ```
 //!
 //! # Scalar-free by construction (Q1)
@@ -32,15 +50,95 @@
 //! named predicates (Q1); an entity is the *record* of those decisions,
 //! so it needs no numbers of its own.
 //!
-//! # Deliberately thin skeletons (M0 scope fence)
+//! # The half-edge structure in one paragraph
 //!
-//! Each entity carries only the uncontroversial **containment spine**:
-//! Solid → Shells → Faces → Loops, plus Edge/Vertex existence and their
-//! geometry references. The half-edge structure — orientation bits,
-//! traversal direction, radial links — is *deliberately absent*: M1
-//! settles it against the still-sought Mäntylä Euler-operator chapters
-//! (and Hoffmann's boundary-rep chapter), and pre-deciding it now would be
-//! design-by-guess. Each entity's docs name what M1 adds.
+//! An [`Edge`] is an undirected piece of curve; each of its two sides is
+//! a directed [`HalfEdge`]. A half-edge belongs to exactly one [`Loop`]
+//! (one connected boundary curve of a [`Face`]), where `next`/`prev`
+//! links chain the loop's half-edges into a circular cycle. The edge's
+//! two half-edges traverse it in **opposite directions** (antiparallel),
+//! one per adjacent face — which is exactly what makes neighboring faces'
+//! boundary orientations mutually consistent. A half-edge stores only its
+//! *start* vertex; its end vertex is **derived**, never stored:
+//! `end(he) = start(next(he))`. The mate of a half-edge (the other half
+//! of its edge) is likewise **computed** ([`crate::Body::mate`]), never
+//! stored. This is Mäntylä's GWB structure (ch. 10) adapted to arenas —
+//! with two deliberate deviations documented below (typed empty loops,
+//! outer loop excluded from `rings`) and one global mirror (orientation).
+//!
+//! # Orientation conventions (ratified at M1 — the single source of truth)
+//!
+//! This section discharges the DESIGN.md deferred item
+//! *"orientation/sense conventions (M1 — classic bug-farm territory,
+//! document as conventions once)"*. This is that once. There is **one**
+//! rule; everything else is a corollary, never an independent choice:
+//!
+//! > **The interior-left rule.** Walking a loop in `next` order, with
+//! > the face's outward normal pointing toward the viewer, the face
+//! > interior lies to the **left** of every half-edge.
+//!
+//! Corollaries:
+//!
+//! - **Outer loops run counterclockwise** viewed from outside (i.e. from
+//!   the tip of the outward normal); **rings (interior loops) run
+//!   clockwise** viewed the same way. Both follow from interior-left —
+//!   they are not separate conventions.
+//! - **The two half-edges of an edge are antiparallel**: the two faces
+//!   adjacent to an edge lie on opposite sides of it, so interior-left
+//!   forces their loops to traverse the edge in opposite directions —
+//!   `end(he) = start(mate(he))` and vice versa.
+//! - **Vertex orbits.** The half-edges *starting* at a vertex `v` are
+//!   visited **clockwise** (viewed from outside, outward normal toward
+//!   the viewer) by the step `next(mate(he))`, and **counterclockwise**
+//!   by its inverse `mate(prev(he))`. Derivation from the rule (do not
+//!   trust transcription — rederive on paper if in doubt): stand at the
+//!   normal's tip looking down at `v`. For a half-edge `he` leaving `v`,
+//!   interior-left places `he`'s face in the angular sector
+//!   *counterclockwise* of `he`. Its mate ends at `v` inside the
+//!   neighboring face across `he`'s edge — the sector *clockwise* of
+//!   `he` — and `next(mate(he))` is that face's half-edge leaving `v`,
+//!   which runs along the clockwise-most edge of that sector. So each
+//!   `next ∘ mate` step advances one face clockwise around `v`. The two
+//!   steps are mutual inverses (`mate(prev(next(mate(he)))) = he` since
+//!   `prev ∘ next = id` and `mate ∘ mate = id`); both are exercised and
+//!   direction-tested in the validator's fixtures.
+//! - **`Edge::he_plus` defines the edge's intrinsic direction**: the
+//!   edge "points" the way its plus half traverses it. **Forward
+//!   contract for M2:** when real curve geometry attaches, the curve's
+//!   parameter direction MUST agree with `he_plus` — increasing curve
+//!   parameter runs from `start(he_plus)` to `end(he_plus)`. Pcurves and
+//!   any per-face traversal senses are then derived, never stored as
+//!   peer conventions.
+//!
+//! ## Warning: GWB/Mäntylä diagrams are MIRRORED
+//!
+//! Mäntylä's GWB — our primary source for ch. 9–11 — orients face
+//! boundaries **clockwise** viewed from outside (stated at §11.5). We
+//! ratified counterclockwise. Every figure, argument order, and traversal
+//! idiom transcribed from the book must be consciously mirrored; in
+//! particular GWB's vertex-orbit idiom `adj = mate(adj)->nxt` is stated
+//! for *his* convention. **Never transcribe a figure's orientation
+//! directly** — rederive from the interior-left rule and test by
+//! construction.
+//!
+//! # Deviations from GWB, deliberate
+//!
+//! - **Typed empty loops.** GWB represents a loop with no edges (the
+//!   `mvfs` state) as a placeholder half-edge whose edge pointer is NIL,
+//!   which makes every half-edge consumer handle a null case and makes
+//!   `mate` partial. We put the emptiness where it belongs — in the loop,
+//!   as [`LoopBoundary::Empty`] — so a [`HalfEdge`] always describes a
+//!   real edge segment and **all its fields are non-optional**.
+//! - **`Face::outer` is excluded from `Face::rings`** (GWB's `flout` is
+//!   a member of `floops`); exactly-once loop ownership becomes a plain
+//!   partition check.
+//! - **No per-solid edge/vertex lists.** GWB's solids carry direct
+//!   doubly-linked lists of their edges and vertices; ch. 10 §10.5 names
+//!   them redundant conveniences. Arenas plus traversal replace them.
+//! - **Upward back-pointers on the spine** (`Loop::face`, `Face::shell`,
+//!   `Shell::solid`) are kept — §10.5 marks the loop back-pointer
+//!   load-bearing for the Euler operators — and the validator checks
+//!   ownership and back-pointers in both directions.
 
 use slotmap::new_key_type;
 
@@ -59,6 +157,9 @@ new_key_type! {
     /// Typed key into a body's loop arena.
     pub struct LoopKey;
 
+    /// Typed key into a body's half-edge arena.
+    pub struct HalfEdgeKey;
+
     /// Typed key into a body's edge arena.
     pub struct EdgeKey;
 
@@ -68,14 +169,14 @@ new_key_type! {
 
 /// A solid: a connected volume bounded by one or more shells.
 ///
-/// M0 carries only the shell list. M1 adds the outer-shell/cavity-shell
-/// distinction (which shell bounds the material from outside versus which
-/// bound internal voids) once orientation conventions are settled against
-/// the Euler-operator references — that distinction is an orientation
-/// question, and orientation is exactly what the M0 skeleton defers.
+/// The outer-shell/cavity-shell distinction (which shell bounds material
+/// from outside versus which bound internal voids) arrives with M3's
+/// splitting/booleans, when multi-shell solids first become
+/// constructible; until then every solid has exactly one shell in
+/// practice, though the structure does not enforce that.
 ///
-/// A `SolidKey` is not a `ShellKey` — a solid's shell list rejects keys of
-/// any other kind at compile time:
+/// A `SolidKey` is not a `ShellKey` — a solid's shell list rejects keys
+/// of any other kind at compile time:
 ///
 /// ```compile_fail,E0308
 /// use topo::{Body, Provenance, Solid};
@@ -91,99 +192,190 @@ new_key_type! {
 #[derive(Clone, Debug)]
 pub struct Solid {
     /// The shells bounding this solid, each owned by exactly this solid
-    /// (validated).
+    /// (validated, together with the shells' `solid` back-pointers).
     pub shells: Vec<ShellKey>,
 }
 
 /// A shell: one connected, closed boundary surface of a solid.
 ///
-/// M0 carries only the face list. M1 adds orientation coherence — the
-/// consistent outward (or void-inward) sense of the member faces — and
-/// the closedness/watertightness checks that give "shell" its geometric
-/// meaning; both need the half-edge structure the M0 skeleton defers.
+/// Closedness/watertightness in the half-edge representation is
+/// *structural*: every edge has exactly two antiparallel half-edges and
+/// every vertex orbit is a single cycle — both are tier-1 validator
+/// checks. The per-shell Euler–Poincaré count and tier-2 "finished
+/// solid" rules land in M1 PR 5.
 #[derive(Clone, Debug)]
 pub struct Shell {
     /// The faces of this shell, each owned by exactly this shell
-    /// (validated).
+    /// (validated, together with the faces' `shell` back-pointers).
     pub faces: Vec<FaceKey>,
+    /// Back-pointer to the owning solid (validated against
+    /// [`Solid::shells`]).
+    pub solid: SolidKey,
 }
 
-/// A face: a bounded region of a surface, delimited by loops.
+/// A face: a bounded region of a surface, delimited by one outer loop
+/// and zero or more interior loops (rings).
 ///
-/// M0 carries the surface reference and the loop list. M1 adds the
-/// orientation bit (whether the face normal agrees with the surface
-/// normal — `same_sense` in kernel argot) and the outer-loop/inner-loop
-/// (hole) distinction; both are orientation conventions deferred with the
-/// half-edge structure. Per-loop pcurve caches (D2) arrive with real
-/// surface geometry at M2.
+/// `outer` being non-optional bakes in "every face has at least one
+/// loop": the face `mvfs` creates is born with an [`LoopBoundary::Empty`]
+/// outer loop, never with no loop at all.
+///
+/// **Which loop is outer is a designation, not a derivable fact.** On a
+/// closed surface the boundary curve alone does not distinguish "outside"
+/// from "inside" — the designation is maintained by the operators (`mvfs`
+/// designates the loop it creates; `lmef` designates the new face's
+/// loop; ring reclassification is a deliberately separate helper, PR 3)
+/// and the validator can only check its *consistency* (ownership
+/// partition, `outer ∉ rings`), never recompute it.
+///
+/// Deviation from GWB, deliberate: `outer` is **excluded** from `rings`
+/// (GWB keeps `flout` as a member of `floops`), so "every loop owned
+/// exactly once across all faces, counting outer and rings" is a plain
+/// partition check with no self-overlap special case.
 #[derive(Clone, Debug)]
 pub struct Face {
     /// The surface this face is a region of (D2: faces reference
     /// surfaces).
     pub surface: SurfaceKey,
-    /// The boundary loops, each owned by exactly this face (validated).
-    /// Which loop is the outer boundary is an M1 orientation question.
-    pub loops: Vec<LoopKey>,
+    /// The outer boundary loop (see the type docs: a maintained
+    /// designation). Not a member of `rings`.
+    pub outer: LoopKey,
+    /// The interior loops (rings), each owned by exactly this face
+    /// (validated). Rings run clockwise viewed from outside, per the
+    /// interior-left rule (module docs).
+    pub rings: Vec<LoopKey>,
+    /// Back-pointer to the owning shell (validated against
+    /// [`Shell::faces`]).
+    pub shell: ShellKey,
 }
 
-/// A loop: one closed boundary curve of a face, as a cycle of edges.
+/// The boundary state of a loop: a genuine cycle of half-edges, or the
+/// *empty loop* degenerate state — a lone vertex, no edges at all.
 ///
-/// M0 stores the edges as an **ordered `Vec` placeholder** — deliberately
-/// *without* per-edge traversal direction. A real loop must know which way
-/// it walks each edge (the same edge is walked in opposite directions by
-/// its two adjacent faces' loops); that datum is the heart of the
-/// half-edge structure M1 settles against the Euler-operator references,
-/// and faking it now with a bare bool would pre-decide the representation.
-/// M1 replaces this with the half-edge ring (orientation bits, radial
-/// links to the mate loop across each edge).
+/// The empty loop is Mäntylä's load-bearing degenerate state: it is what
+/// `mvfs` creates (the skeletal body's one face bounds nothing but a
+/// vertex) and what `kemr` can strand (an empty ring). GWB encodes it as
+/// a placeholder half-edge with a NIL edge pointer; we ratified the
+/// **typed** representation instead — the emptiness lives here in the
+/// loop, so [`HalfEdge`] needs no nullable fields and
+/// [`crate::Body::mate`] is total on live half-edges. Illegal states
+/// ("a half-edge that is not half of any edge") are unrepresentable.
+///
+/// Named `Cycle`, not `Ring`: "ring" already means *interior loop of a
+/// face* in this codebase (and in Mäntylä), and a cycle bounds outer
+/// loops and rings alike.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoopBoundary {
+    /// The empty loop: a lone vertex, no edges. The vertex's `emanating`
+    /// must be `None` (validated) — an empty loop's vertex has no
+    /// half-edges.
+    Empty {
+        /// The lone vertex this loop consists of.
+        vertex: VertexKey,
+    },
+    /// A circular cycle of half-edges, entered at an arbitrary
+    /// representative. The full cycle is reached by following
+    /// [`HalfEdge::next`]; the validator checks that the walk closes and
+    /// that every member points back via
+    /// [`HalfEdge::parent_loop`].
+    Cycle {
+        /// A representative half-edge of the cycle (which one is
+        /// arbitrary and carries no meaning).
+        first: HalfEdgeKey,
+    },
+}
+
+/// A loop: one connected boundary of a face — either a cycle of
+/// half-edges or an empty loop (see [`LoopBoundary`]).
 #[derive(Clone, Debug)]
 pub struct Loop {
-    /// The edges of the cycle, in walk order (direction of walk per edge
-    /// is M1's half-edge data). Each edge must be referenced by at least
-    /// one loop (validated); the manifold "exactly two loops per interior
-    /// edge" pairing is M1 watertightness.
-    pub edges: Vec<EdgeKey>,
+    /// The boundary state (cycle or lone vertex).
+    pub boundary: LoopBoundary,
+    /// Back-pointer to the owning face (validated against
+    /// [`Face::outer`]/[`Face::rings`]).
+    pub face: FaceKey,
 }
 
-/// An edge: a bounded piece of a curve between two vertices.
+/// A half-edge: one directed side of an edge, belonging to exactly one
+/// loop.
 ///
-/// M0 carries the endpoint vertices and the curve reference. M1 adds the
-/// half-edge pair (one directed half per adjacent loop, with radial links)
-/// once the representation is settled; per-face pcurve caches with
-/// certified residuals (D2/D4 ¶2) arrive with real curve geometry at M2.
-/// `start`/`end` name the curve's own parameter direction; which way a
-/// loop walks the edge is the loop's (M1) business.
+/// All fields are non-optional — the typed empty-loop state
+/// ([`LoopBoundary::Empty`]) is what makes GWB's nullable placeholder
+/// unnecessary (see the [module docs](self)). The end vertex is derived,
+/// never stored: `end(he) = start(next(he))`
+/// ([`crate::Body::half_edge_end`]). The mate (other half of `edge`) is
+/// computed, never stored ([`crate::Body::mate`]).
+#[derive(Clone, Debug)]
+pub struct HalfEdge {
+    /// The edge this half-edge is one side of. The edge points back via
+    /// exactly one of its two slots (validated bijection).
+    pub edge: EdgeKey,
+    /// The vertex this half-edge starts at (walking the loop in `next`
+    /// order).
+    pub start: VertexKey,
+    /// Back-pointer to the loop whose cycle this half-edge belongs to
+    /// (validated against the cycle reached from
+    /// [`LoopBoundary::Cycle`]).
+    pub parent_loop: LoopKey,
+    /// The next half-edge of the loop's circular cycle (`next`/`prev`
+    /// are mutual inverses, validated).
+    pub next: HalfEdgeKey,
+    /// The previous half-edge of the loop's circular cycle.
+    pub prev: HalfEdgeKey,
+}
+
+/// An edge: a bounded, undirected piece of a curve, realized as two
+/// antiparallel half-edges.
+///
+/// Endpoint vertices are no longer stored (M0's `start`/`end` are gone):
+/// they are derived from the half-edges —
+/// `start(he_plus)`/`end(he_plus)` — so there is exactly one place the
+/// incidence lives.
+///
+/// **`he_plus` defines the edge's intrinsic direction**, and the M2
+/// forward contract fixes the geometry to it: the referenced curve's
+/// parameter direction must agree with `he_plus` (increasing parameter
+/// runs `start(he_plus) → end(he_plus)`). See the orientation section of
+/// the [module docs](self).
 #[derive(Clone, Debug)]
 pub struct Edge {
-    /// The vertex at the curve-parameter start of the edge. A closed edge
-    /// (full circle) has `start == end`.
-    pub start: VertexKey,
-    /// The vertex at the curve-parameter end of the edge.
-    pub end: VertexKey,
+    /// The positively-oriented half: defines the edge's intrinsic
+    /// direction.
+    pub he_plus: HalfEdgeKey,
+    /// The negatively-oriented half: traverses the edge opposite to
+    /// `he_plus` (antiparallel, validated).
+    pub he_minus: HalfEdgeKey,
     /// The curve this edge is a piece of (D2: edges reference curves).
     pub curve: CurveKey,
 }
 
-/// A vertex: a point of the model where edges end.
+/// A vertex: a point of the model where edges end (or a lone vertex of
+/// an empty loop).
 ///
-/// M0 carries only the point reference. M1 may add edge back-references
-/// (the vertex→edge star) if the Euler operators want them; D2's
-/// vertex-geometry taxonomy (a vertex as the intersection of three
-/// surfaces, with a witness) is deferred with the rest of the intensional
-/// descriptions.
+/// `emanating` is the **only `Option` in the topology structure**, and
+/// its two states are a meaningful dichotomy, not a nullable link:
+/// `Some(he)` names one half-edge starting here (which one is arbitrary;
+/// the full set is the vertex orbit, [`crate::Body::vertex_orbit`]);
+/// `None` means this is a *lone vertex* — the vertex of exactly one
+/// [`LoopBoundary::Empty`] loop, with no half-edges at all. The validator
+/// enforces the equivalence in both directions.
 #[derive(Clone, Debug)]
 pub struct Vertex {
     /// The point this vertex sits at (D2: vertices reference points).
     pub point: PointKey,
+    /// One half-edge starting at this vertex, or `None` for a lone
+    /// vertex (see the type docs).
+    pub emanating: Option<HalfEdgeKey>,
 }
 
-/// A topology entity reference with its kind — the type-erased form of the
-/// six typed keys, for reporting and provenance lookup.
+/// A topology entity reference with its kind — the type-erased form of
+/// the seven typed keys, for reporting and provenance lookup.
 ///
 /// Typed keys keep arenas confusion-free, but error reporting and
 /// D5-provenance lookup want "any entity" as one value; this closed enum
-/// (all six kinds, no more — D3 style) is that sum. It never grants arena
-/// access — resolving one still requires matching back to the typed key.
+/// (all seven kinds, no more — D3 style) is that sum. It never grants
+/// arena access — resolving one still requires matching back to the
+/// typed key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntityId {
     /// A solid.
@@ -194,6 +386,8 @@ pub enum EntityId {
     Face(FaceKey),
     /// A loop.
     Loop(LoopKey),
+    /// A half-edge.
+    HalfEdge(HalfEdgeKey),
     /// An edge.
     Edge(EdgeKey),
     /// A vertex.
@@ -207,6 +401,7 @@ impl core::fmt::Display for EntityId {
             Self::Shell(k) => write!(f, "shell {k:?}"),
             Self::Face(k) => write!(f, "face {k:?}"),
             Self::Loop(k) => write!(f, "loop {k:?}"),
+            Self::HalfEdge(k) => write!(f, "half-edge {k:?}"),
             Self::Edge(k) => write!(f, "edge {k:?}"),
             Self::Vertex(k) => write!(f, "vertex {k:?}"),
         }

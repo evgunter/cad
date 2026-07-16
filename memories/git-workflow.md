@@ -23,6 +23,11 @@ by Evan): PRs that ratify open design questions in DESIGN.md are design
 conversations per docs/M0-PLAN.md — wait for Evan's sign-off before
 merging; routine implementation self-merges. See [[cad-working-style]].
 
+**Push early, push often (added 2026-07-16, M1):** implementer agents
+push their branches to origin early and often — after each meaningful
+commit, before review — because Evan follows work-in-progress remotely.
+Don't sit on local commits until the work is "ready".
+
 **Stacked-PR gotcha (learned M0, 2026-07-16):** deleting a merged PR's
 branch while another open PR still targets it makes GitHub auto-CLOSE
 the stacked PR, and a PR whose base branch was deleted cannot be

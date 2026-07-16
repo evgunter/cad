@@ -2,9 +2,10 @@
 //! arenas plus `T`-valued geometry arenas (Q1's genericity boundary).
 //!
 //! A body is a plain value (D1): cheaply cloneable, serializable later,
-//! validatable now. It owns nine slotmap arenas — six topology kinds, each
-//! with its own key type, and three geometry kinds — plus one D5
-//! provenance `SecondaryMap` per topology kind.
+//! validatable now. It owns ten slotmap arenas — seven topology kinds,
+//! each with its own key type, and three geometry kinds — plus one D5
+//! provenance `SecondaryMap` per topology kind (**uniform across all
+//! seven** — half-edges carry provenance like everything else).
 //!
 //! # Determinism (D9)
 //!
@@ -16,6 +17,17 @@
 //! filled them is itself deterministic** — true under the replay model,
 //! and the reason this crate contains no `HashMap`/`HashSet` (whose
 //! iteration order is seeded per-process and would break replay).
+//!
+//! # Bounded traversal (D9: the kernel never hangs)
+//!
+//! The half-edge structure is walked through *derived* accessors —
+//! [`Body::mate`], [`Body::half_edge_end`], [`Body::loop_cycle`],
+//! [`Body::vertex_orbit`] — all total: `Option`-returning on stale keys,
+//! never panicking. The two walks are **bounded**: they cap iteration at
+//! the half-edge arena length and surface non-closure as `None` instead
+//! of spinning. This matters because the validator consumes them on
+//! possibly-malformed bodies — an infinite loop on corrupt input would
+//! be a D9-charter violation just as surely as a panic.
 //!
 //! # Key validity: stale vs. foreign
 //!
@@ -41,11 +53,34 @@ use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, Loop, LoopKey, Shell, ShellKey, Solid, SolidKey,
-    Vertex, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
+    Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 use crate::provenance::Provenance;
+
+/// Outcome of a bounded half-edge traversal (crate-internal; the public
+/// wrappers collapse the failure cases to `None`).
+///
+/// The validator needs the three-way distinction: `Broken` means the walk
+/// hit a link that does not resolve or a mate that does not exist —
+/// always accompanied by a reference/bijection error from an earlier
+/// pass, so the walk itself stays silent about it — while `Overrun`
+/// means every link resolved but the walk failed to return to its start
+/// within the arena bound (a corruption with no more-local witness, so it
+/// gets its own error variant).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Walk {
+    /// The walk returned to its starting half-edge; the members are in
+    /// walk order, starting with the start itself.
+    Closed(Vec<HalfEdgeKey>),
+    /// A link failed to resolve mid-walk (stale key, or a mate that
+    /// does not exist).
+    Broken,
+    /// Every link resolved but the walk did not return to its start
+    /// within the arena-length bound.
+    Overrun,
+}
 
 /// A manifold B-rep body: topology arenas (scalar-free) plus geometry
 /// arenas over the scalar type `T` (Q1's genericity boundary, D1's
@@ -86,7 +121,10 @@ use crate::provenance::Provenance;
 ///
 /// let mut body = Body::<f64>::new();
 /// let p = body.add_point(Point3::new(0.0, 0.0, 0.0));
-/// let v = body.add_vertex(Vertex { point: p }, Provenance::Primordial { op: "doc" });
+/// let v = body.add_vertex(
+///     Vertex { point: p, emanating: None },
+///     Provenance::Primordial { op: "doc" },
+/// );
 /// // A `VertexKey` is not a `ShellKey`: this example must NOT compile.
 /// let _ = body.get_shell(v);
 /// ```
@@ -97,6 +135,7 @@ pub struct Body<T: Real> {
     pub(crate) shells: SlotMap<ShellKey, Shell>,
     pub(crate) faces: SlotMap<FaceKey, Face>,
     pub(crate) loops: SlotMap<LoopKey, Loop>,
+    pub(crate) half_edges: SlotMap<HalfEdgeKey, HalfEdge>,
     pub(crate) edges: SlotMap<EdgeKey, Edge>,
     pub(crate) vertices: SlotMap<VertexKey, Vertex>,
     // Geometry arenas — the only `T`-carrying storage.
@@ -105,10 +144,12 @@ pub struct Body<T: Real> {
     pub(crate) surfaces: SlotMap<SurfaceKey, SurfaceGeom<T>>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
+    // Uniform across all seven topology kinds — half-edges included.
     pub(crate) solid_provenance: SecondaryMap<SolidKey, Provenance>,
     pub(crate) shell_provenance: SecondaryMap<ShellKey, Provenance>,
     pub(crate) face_provenance: SecondaryMap<FaceKey, Provenance>,
     pub(crate) loop_provenance: SecondaryMap<LoopKey, Provenance>,
+    pub(crate) half_edge_provenance: SecondaryMap<HalfEdgeKey, Provenance>,
     pub(crate) edge_provenance: SecondaryMap<EdgeKey, Provenance>,
     pub(crate) vertex_provenance: SecondaryMap<VertexKey, Provenance>,
 }
@@ -121,6 +162,7 @@ impl<T: Real> Body<T> {
             shells: SlotMap::with_key(),
             faces: SlotMap::with_key(),
             loops: SlotMap::with_key(),
+            half_edges: SlotMap::with_key(),
             edges: SlotMap::with_key(),
             vertices: SlotMap::with_key(),
             points: SlotMap::with_key(),
@@ -130,27 +172,42 @@ impl<T: Real> Body<T> {
             shell_provenance: SecondaryMap::new(),
             face_provenance: SecondaryMap::new(),
             loop_provenance: SecondaryMap::new(),
+            half_edge_provenance: SecondaryMap::new(),
             edge_provenance: SecondaryMap::new(),
             vertex_provenance: SecondaryMap::new(),
         }
     }
 
     // ------------------------------------------------------------------
-    // Raw insertion — M1-placeholder builder API.
+    // Raw insertion — placeholder builder API until PR 5.
     //
     // M1's Euler operators become the ONLY sanctioned construction path
     // (D1: topology is built exclusively through validity-preserving
-    // Euler ops); these raw insertions then retreat behind them. They are
-    // `pub` at M0 — not `pub(crate)` — because construction has to be
-    // exercisable from integration tests, doctests, and e2e review demos,
-    // all of which sit outside the crate. Raw insertion makes NO validity
-    // promises: it can build arbitrarily malformed bodies by design —
-    // judging the result is `topo::validate`'s job.
+    // Euler ops); these raw insertions then retreat behind them (the
+    // `pub(crate)` demotion is PR 5). They are `pub` for now — not
+    // `pub(crate)` — because construction has to be exercisable from
+    // integration tests, doctests, and e2e review demos, all of which sit
+    // outside the crate. Raw insertion makes NO validity promises: it can
+    // build arbitrarily malformed bodies by design — judging the result
+    // is `topo::validate`'s job.
+    //
+    // The half-edge structure is cyclic (next/prev cycles, the edge ↔
+    // half-edge bijection, spine back-pointers), so pure insertion in
+    // any order cannot close a coherent body — not without forging
+    // slotmap keys (`KeyData::from_ffi` plus deterministic minting makes
+    // the forge reliable, but it is a hack, not an API) or a batch-graph
+    // constructor. The raw builder therefore pairs each `add_*` with a
+    // `get_*_mut` patching accessor: insert with provisional keys (e.g.
+    // `Default::default()` null keys, which never resolve), then patch
+    // the cycles closed.
+    // Both halves of the builder retreat to `pub(crate)` together at
+    // PR 5 — the Euler operators never need external patching because
+    // each operator is itself a complete surgery.
     // ------------------------------------------------------------------
 
     /// Inserts a point (vertex geometry), returning its key.
     ///
-    /// M1-placeholder raw insertion (see the builder-API note in the
+    /// Placeholder raw insertion (see the builder-API note in the
     /// source): no validity promises.
     pub fn add_point(&mut self, point: Point3<T>) -> PointKey {
         self.points.insert(point)
@@ -158,21 +215,21 @@ impl<T: Real> Body<T> {
 
     /// Inserts curve geometry, returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_curve(&mut self, curve: CurveGeom<T>) -> CurveKey {
         self.curves.insert(curve)
     }
 
     /// Inserts surface geometry, returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_surface(&mut self, surface: SurfaceGeom<T>) -> SurfaceKey {
         self.surfaces.insert(surface)
     }
 
     /// Inserts a vertex with its birth provenance (D5), returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises (the referenced
+    /// Placeholder raw insertion: no validity promises (the referenced
     /// point may dangle — the validator reports it).
     pub fn add_vertex(&mut self, vertex: Vertex, provenance: Provenance) -> VertexKey {
         let key = self.vertices.insert(vertex);
@@ -180,9 +237,21 @@ impl<T: Real> Body<T> {
         key
     }
 
+    /// Inserts a half-edge with its birth provenance (D5), returning its
+    /// key.
+    ///
+    /// Placeholder raw insertion: no validity promises. Because
+    /// `next`/`prev` form cycles, callers typically insert with
+    /// provisional keys and patch via [`Body::get_half_edge_mut`].
+    pub fn add_half_edge(&mut self, half_edge: HalfEdge, provenance: Provenance) -> HalfEdgeKey {
+        let key = self.half_edges.insert(half_edge);
+        self.half_edge_provenance.insert(key, provenance);
+        key
+    }
+
     /// Inserts an edge with its birth provenance (D5), returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_edge(&mut self, edge: Edge, provenance: Provenance) -> EdgeKey {
         let key = self.edges.insert(edge);
         self.edge_provenance.insert(key, provenance);
@@ -191,7 +260,7 @@ impl<T: Real> Body<T> {
 
     /// Inserts a loop with its birth provenance (D5), returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_loop(&mut self, loop_: Loop, provenance: Provenance) -> LoopKey {
         let key = self.loops.insert(loop_);
         self.loop_provenance.insert(key, provenance);
@@ -200,7 +269,7 @@ impl<T: Real> Body<T> {
 
     /// Inserts a face with its birth provenance (D5), returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_face(&mut self, face: Face, provenance: Provenance) -> FaceKey {
         let key = self.faces.insert(face);
         self.face_provenance.insert(key, provenance);
@@ -209,7 +278,7 @@ impl<T: Real> Body<T> {
 
     /// Inserts a shell with its birth provenance (D5), returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_shell(&mut self, shell: Shell, provenance: Provenance) -> ShellKey {
         let key = self.shells.insert(shell);
         self.shell_provenance.insert(key, provenance);
@@ -218,11 +287,60 @@ impl<T: Real> Body<T> {
 
     /// Inserts a solid with its birth provenance (D5), returning its key.
     ///
-    /// M1-placeholder raw insertion: no validity promises.
+    /// Placeholder raw insertion: no validity promises.
     pub fn add_solid(&mut self, solid: Solid, provenance: Provenance) -> SolidKey {
         let key = self.solids.insert(solid);
         self.solid_provenance.insert(key, provenance);
         key
+    }
+
+    // ------------------------------------------------------------------
+    // Raw mutation — the patching half of the placeholder builder (see
+    // the raw-insertion note above for why cyclic references force it).
+    // Total like the lookups: stale keys yield `None`. No validity
+    // promises; retreats to `pub(crate)` with the rest at PR 5.
+    // ------------------------------------------------------------------
+
+    /// Mutable access to the solid at `key` (raw-builder patching; see
+    /// the source note on cyclic references). `None` if the key is stale.
+    pub fn get_solid_mut(&mut self, key: SolidKey) -> Option<&mut Solid> {
+        self.solids.get_mut(key)
+    }
+
+    /// Mutable access to the shell at `key` (raw-builder patching).
+    /// `None` if the key is stale.
+    pub fn get_shell_mut(&mut self, key: ShellKey) -> Option<&mut Shell> {
+        self.shells.get_mut(key)
+    }
+
+    /// Mutable access to the face at `key` (raw-builder patching).
+    /// `None` if the key is stale.
+    pub fn get_face_mut(&mut self, key: FaceKey) -> Option<&mut Face> {
+        self.faces.get_mut(key)
+    }
+
+    /// Mutable access to the loop at `key` (raw-builder patching).
+    /// `None` if the key is stale.
+    pub fn get_loop_mut(&mut self, key: LoopKey) -> Option<&mut Loop> {
+        self.loops.get_mut(key)
+    }
+
+    /// Mutable access to the half-edge at `key` (raw-builder patching).
+    /// `None` if the key is stale.
+    pub fn get_half_edge_mut(&mut self, key: HalfEdgeKey) -> Option<&mut HalfEdge> {
+        self.half_edges.get_mut(key)
+    }
+
+    /// Mutable access to the edge at `key` (raw-builder patching).
+    /// `None` if the key is stale.
+    pub fn get_edge_mut(&mut self, key: EdgeKey) -> Option<&mut Edge> {
+        self.edges.get_mut(key)
+    }
+
+    /// Mutable access to the vertex at `key` (raw-builder patching).
+    /// `None` if the key is stale.
+    pub fn get_vertex_mut(&mut self, key: VertexKey) -> Option<&mut Vertex> {
+        self.vertices.get_mut(key)
     }
 
     // ------------------------------------------------------------------
@@ -255,6 +373,12 @@ impl<T: Real> Body<T> {
     /// for uniformity and partly because `loop` is a Rust keyword.)
     pub fn get_loop(&self, key: LoopKey) -> Option<&Loop> {
         self.loops.get(key)
+    }
+
+    /// The half-edge at `key`, or `None` if the key is stale (a foreign
+    /// key is not caught — see the [module docs](self)).
+    pub fn get_half_edge(&self, key: HalfEdgeKey) -> Option<&HalfEdge> {
+        self.half_edges.get(key)
     }
 
     /// The edge at `key`, or `None` if the key is stale (a foreign key is
@@ -298,8 +422,130 @@ impl<T: Real> Body<T> {
             EntityId::Shell(k) => self.shell_provenance.get(k),
             EntityId::Face(k) => self.face_provenance.get(k),
             EntityId::Loop(k) => self.loop_provenance.get(k),
+            EntityId::HalfEdge(k) => self.half_edge_provenance.get(k),
             EntityId::Edge(k) => self.edge_provenance.get(k),
             EntityId::Vertex(k) => self.vertex_provenance.get(k),
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Derived half-edge accessors. All total (D9): stale keys and
+    // structural corruption yield `None`, never a panic; the walks are
+    // bounded (see the module docs on bounded traversal).
+    // ------------------------------------------------------------------
+
+    /// The mate of `he`: the other half of `he`'s edge. **Computed, never
+    /// stored** — the edge node is the single source of the pairing.
+    ///
+    /// Returns `None` if `he` is stale, if `he.edge` does not resolve, or
+    /// if the edge does not claim `he` in either slot (a corrupt
+    /// bijection — the validator reports it as its own error). On a
+    /// *corrupt* body the returned key is whatever the edge's other slot
+    /// holds and may itself be stale; callers resolve it like any key.
+    pub fn mate(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+        let half_edge = self.half_edges.get(he)?;
+        let edge = self.edges.get(half_edge.edge)?;
+        if edge.he_plus == he {
+            Some(edge.he_minus)
+        } else if edge.he_minus == he {
+            Some(edge.he_plus)
+        } else {
+            None
+        }
+    }
+
+    /// The end vertex of `he`, derived as `start(next(he))` — end
+    /// vertices are never stored (see [`HalfEdge`]). `None` if `he` or
+    /// its `next` is stale.
+    pub fn half_edge_end(&self, he: HalfEdgeKey) -> Option<VertexKey> {
+        let half_edge = self.half_edges.get(he)?;
+        let next = self.half_edges.get(half_edge.next)?;
+        Some(next.start)
+    }
+
+    /// The full cycle of `he`'s loop in `next` order, starting at `he`.
+    ///
+    /// **Bounded** (D9): the walk caps at the half-edge arena length and
+    /// returns `None` if the cycle fails to close within the bound, if a
+    /// link is stale, or if `he` itself is stale — it never spins on a
+    /// corrupted body.
+    pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
+        match self.loop_walk(he) {
+            Walk::Closed(members) => Some(members),
+            Walk::Broken | Walk::Overrun => None,
+        }
+    }
+
+    /// The orbit of half-edges starting at `he`'s start vertex, walked
+    /// **clockwise** viewed from outside (outward normal toward the
+    /// viewer), starting at `he`.
+    ///
+    /// The step is `next(mate(he))` — under OUR counterclockwise
+    /// interior-left convention this advances one face *clockwise* around
+    /// the vertex; the inverse step `mate(prev(he))` walks the orbit
+    /// counterclockwise. Derivation and the GWB-is-mirrored warning:
+    /// [`crate::entity`] module docs (orientation conventions).
+    ///
+    /// **Bounded** (D9): caps at the half-edge arena length; `None` on
+    /// stale keys, a broken mate (corrupt edge ↔ half-edge bijection), or
+    /// non-closure within the bound. On a *valid* body the orbit always
+    /// closes and visits exactly the half-edges starting at the vertex
+    /// (the validator's manifoldness check).
+    pub fn vertex_orbit(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
+        match self.orbit_walk(he) {
+            Walk::Closed(members) => Some(members),
+            Walk::Broken | Walk::Overrun => None,
+        }
+    }
+
+    /// Bounded loop-cycle walk with the three-way outcome the validator
+    /// needs (see [`Walk`]). Step: `next`.
+    pub(crate) fn loop_walk(&self, first: HalfEdgeKey) -> Walk {
+        self.bounded_walk(first, |body, he| {
+            body.half_edges.get(he).map(|half_edge| half_edge.next)
+        })
+    }
+
+    /// Bounded vertex-orbit walk with the three-way outcome the validator
+    /// needs (see [`Walk`]). Step: `next(mate(he))` — the clockwise
+    /// orbit; see [`Body::vertex_orbit`].
+    pub(crate) fn orbit_walk(&self, first: HalfEdgeKey) -> Walk {
+        self.bounded_walk(first, |body, he| {
+            let mate = body.mate(he)?;
+            body.half_edges.get(mate).map(|half_edge| half_edge.next)
+        })
+    }
+
+    /// The shared bounded-walk engine: iterates `step` from `first` until
+    /// it returns to `first` (`Closed`), a link fails to resolve
+    /// (`Broken`), or the member count exceeds the half-edge arena length
+    /// (`Overrun` — a valid cycle can never be longer than the arena).
+    fn bounded_walk(
+        &self,
+        first: HalfEdgeKey,
+        step: impl Fn(&Self, HalfEdgeKey) -> Option<HalfEdgeKey>,
+    ) -> Walk {
+        if !self.half_edges.contains_key(first) {
+            return Walk::Broken;
+        }
+        let cap = self.half_edges.len();
+        let mut members = vec![first];
+        let mut current = first;
+        loop {
+            let Some(next) = step(self, current) else {
+                return Walk::Broken;
+            };
+            if !self.half_edges.contains_key(next) {
+                return Walk::Broken;
+            }
+            if next == first {
+                return Walk::Closed(members);
+            }
+            if members.len() == cap {
+                return Walk::Overrun;
+            }
+            members.push(next);
+            current = next;
         }
     }
 
@@ -327,6 +573,11 @@ impl<T: Real> Body<T> {
     /// All loops, in slot-index order (deterministic per D9).
     pub fn loops(&self) -> impl Iterator<Item = (LoopKey, &Loop)> {
         self.loops.iter()
+    }
+
+    /// All half-edges, in slot-index order (deterministic per D9).
+    pub fn half_edges(&self) -> impl Iterator<Item = (HalfEdgeKey, &HalfEdge)> {
+        self.half_edges.iter()
     }
 
     /// All edges, in slot-index order (deterministic per D9).
@@ -366,10 +617,7 @@ impl<T: Real> Default for Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-
-    fn prov(op: &'static str) -> Provenance {
-        Provenance::Primordial { op }
-    }
+    use crate::fixtures::{mvfs_state, pillow, prov};
 
     fn origin() -> Point3<f64> {
         Point3::origin()
@@ -382,6 +630,7 @@ mod tests {
         assert_eq!(body.shells().count(), 0);
         assert_eq!(body.faces().count(), 0);
         assert_eq!(body.loops().count(), 0);
+        assert_eq!(body.half_edges().count(), 0);
         assert_eq!(body.edges().count(), 0);
         assert_eq!(body.vertices().count(), 0);
         assert_eq!(body.points().count(), 0);
@@ -391,98 +640,91 @@ mod tests {
 
     #[test]
     fn insertion_roundtrips_through_lookup() {
-        let mut body = Body::<f64>::new();
-        let p = body.add_point(Point3::new(1.0, 2.0, 3.0));
-        let v = body.add_vertex(Vertex { point: p }, prov("t"));
-        let c = body.add_curve(CurveGeom::Placeholder { anchor: origin() });
-        let e = body.add_edge(
-            Edge {
-                start: v,
-                end: v,
-                curve: c,
-            },
-            prov("t"),
-        );
-        let lp = body.add_loop(Loop { edges: vec![e] }, prov("t"));
-        let s = body.add_surface(SurfaceGeom::Placeholder { anchor: origin() });
-        let f = body.add_face(
-            Face {
-                surface: s,
-                loops: vec![lp],
-            },
-            prov("t"),
-        );
-        let sh = body.add_shell(Shell { faces: vec![f] }, prov("t"));
-        let so = body.add_solid(Solid { shells: vec![sh] }, prov("t"));
+        // The pillow fixture exercises every adder and patcher; read the
+        // whole containment structure back through the lookups.
+        let t = pillow();
+        let body = &t.body;
 
-        // Every lookup resolves and the containment spine reads back.
-        assert_eq!(body.get_vertex(v).unwrap().point, p);
-        let edge = body.get_edge(e).unwrap();
-        assert_eq!((edge.start, edge.end, edge.curve), (v, v, c));
-        assert_eq!(body.get_loop(lp).unwrap().edges, vec![e]);
-        let face = body.get_face(f).unwrap();
-        assert_eq!(face.surface, s);
-        assert_eq!(face.loops, vec![lp]);
-        assert_eq!(body.get_shell(sh).unwrap().faces, vec![f]);
-        assert_eq!(body.get_solid(so).unwrap().shells, vec![sh]);
-        assert!(body.get_point(p).is_some());
-        assert!(body.get_curve(c).is_some());
-        assert!(body.get_surface(s).is_some());
+        let v0 = body.get_vertex(t.vertices[0]).unwrap();
+        assert_eq!(v0.point, t.points[0]);
+        assert_eq!(v0.emanating, Some(t.hes_a[0]));
+
+        let a0 = body.get_half_edge(t.hes_a[0]).unwrap();
+        assert_eq!(a0.edge, t.edges[0]);
+        assert_eq!(a0.start, t.vertices[0]);
+        assert_eq!(a0.parent_loop, t.loop_a);
+        assert_eq!(a0.next, t.hes_a[1]);
+        assert_eq!(a0.prev, t.hes_a[1]);
+
+        let e0 = body.get_edge(t.edges[0]).unwrap();
+        assert_eq!(e0.he_plus, t.hes_a[0]);
+        assert_eq!(e0.he_minus, t.hes_b[0]);
+        assert_eq!(e0.curve, t.curves[0]);
+
+        let loop_a = body.get_loop(t.loop_a).unwrap();
+        assert_eq!(
+            loop_a.boundary,
+            crate::entity::LoopBoundary::Cycle { first: t.hes_a[0] }
+        );
+        assert_eq!(loop_a.face, t.face_a);
+
+        let face_a = body.get_face(t.face_a).unwrap();
+        assert_eq!(face_a.outer, t.loop_a);
+        assert!(face_a.rings.is_empty());
+        assert_eq!(face_a.shell, t.shell);
+
+        let shell = body.get_shell(t.shell).unwrap();
+        assert_eq!(shell.faces, vec![t.face_a, t.face_b]);
+        assert_eq!(shell.solid, t.solid);
+        assert_eq!(body.get_solid(t.solid).unwrap().shells, vec![t.shell]);
     }
 
     #[test]
     fn stale_key_lookup_is_none_not_panic() {
         let mut body = Body::<f64>::new();
-        let sh = body.add_shell(Shell { faces: vec![] }, prov("t"));
+        let sh = body.add_shell(
+            Shell {
+                faces: vec![],
+                solid: SolidKey::default(),
+            },
+            prov(),
+        );
         // Unit tests may reach into the pub(crate) arenas; removal has no
-        // public API at M0 (bodies are values, operators never shrink them
-        // — M1's kill-side Euler ops introduce sanctioned removal).
+        // public API yet (bodies are values, and only M1 PR 4's kill-side
+        // Euler ops introduce sanctioned removal).
         body.shells.remove(sh);
         assert!(body.get_shell(sh).is_none());
+        assert!(body.get_shell_mut(sh).is_none());
         // Reusing the freed slot bumps the version: the stale key stays
         // stale even though the slot is occupied again (generational keys,
         // D1).
-        let sh2 = body.add_shell(Shell { faces: vec![] }, prov("t"));
+        let sh2 = body.add_shell(
+            Shell {
+                faces: vec![],
+                solid: SolidKey::default(),
+            },
+            prov(),
+        );
         assert!(body.get_shell(sh).is_none());
         assert!(body.get_shell(sh2).is_some());
     }
 
     #[test]
     fn provenance_is_recorded_at_birth_for_every_kind() {
-        let mut body = Body::<f64>::new();
-        let p = body.add_point(origin());
-        let v = body.add_vertex(Vertex { point: p }, prov("v"));
-        let c = body.add_curve(CurveGeom::Placeholder { anchor: origin() });
-        let e = body.add_edge(
-            Edge {
-                start: v,
-                end: v,
-                curve: c,
-            },
-            prov("e"),
-        );
-        let lp = body.add_loop(Loop { edges: vec![e] }, prov("l"));
-        let s = body.add_surface(SurfaceGeom::Placeholder { anchor: origin() });
-        let f = body.add_face(
-            Face {
-                surface: s,
-                loops: vec![lp],
-            },
-            prov("f"),
-        );
-        let sh = body.add_shell(Shell { faces: vec![f] }, prov("sh"));
-        let so = body.add_solid(Solid { shells: vec![sh] }, prov("so"));
-
+        // The pillow fixture inserts every topology kind (half-edges
+        // included — D5 provenance is uniform across all seven arenas).
+        let t = pillow();
         let cases = [
-            (EntityId::Vertex(v), "v"),
-            (EntityId::Edge(e), "e"),
-            (EntityId::Loop(lp), "l"),
-            (EntityId::Face(f), "f"),
-            (EntityId::Shell(sh), "sh"),
-            (EntityId::Solid(so), "so"),
+            EntityId::Vertex(t.vertices[0]),
+            EntityId::HalfEdge(t.hes_a[0]),
+            EntityId::Edge(t.edges[0]),
+            EntityId::Loop(t.loop_a),
+            EntityId::Face(t.face_a),
+            EntityId::Shell(t.shell),
+            EntityId::Solid(t.solid),
         ];
-        for (id, op) in cases {
-            assert_eq!(body.provenance(id), Some(&prov(op)), "for {id}");
+        for id in cases {
+            assert_eq!(t.body.provenance(id), Some(&prov()), "for {id}");
         }
     }
 
@@ -490,11 +732,23 @@ mod tests {
     fn clone_is_independent() {
         let mut body = Body::<f64>::new();
         let p = body.add_point(origin());
-        body.add_vertex(Vertex { point: p }, prov("t"));
+        body.add_vertex(
+            Vertex {
+                point: p,
+                emanating: None,
+            },
+            prov(),
+        );
 
         let mut cloned = body.clone();
         let p2 = cloned.add_point(Point3::new(1.0, 0.0, 0.0));
-        let v2 = cloned.add_vertex(Vertex { point: p2 }, prov("t2"));
+        let v2 = cloned.add_vertex(
+            Vertex {
+                point: p2,
+                emanating: None,
+            },
+            prov(),
+        );
 
         // The clone grew; the original did not (deep copy, no aliasing).
         assert_eq!(cloned.vertices().count(), 2);
@@ -505,7 +759,117 @@ mod tests {
         assert!(cloned.get_vertex(v2).is_some());
         assert!(body.get_vertex(v2).is_none());
         // Provenance maps are independent too.
-        assert_eq!(cloned.provenance(EntityId::Vertex(v2)), Some(&prov("t2")));
+        assert_eq!(cloned.provenance(EntityId::Vertex(v2)), Some(&prov()));
         assert_eq!(body.provenance(EntityId::Vertex(v2)), None);
+    }
+
+    // ------------------------------------------------------------------
+    // Derived accessors: mate / end / loop cycle / vertex orbit.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn mate_is_a_computed_involution() {
+        let t = pillow();
+        // e0's halves are a0 (v0 → v1 in face A) and b0 (v1 → v0 in
+        // face B).
+        assert_eq!(t.body.mate(t.hes_a[0]), Some(t.hes_b[0]));
+        assert_eq!(t.body.mate(t.hes_b[0]), Some(t.hes_a[0]));
+        // Involution over all four half-edges.
+        for he in t.hes_a.iter().chain(&t.hes_b) {
+            let mate = t.body.mate(*he).unwrap();
+            assert_eq!(t.body.mate(mate), Some(*he));
+            assert_ne!(mate, *he);
+        }
+    }
+
+    #[test]
+    fn mate_is_none_on_stale_or_unclaiming_edge() {
+        let mut t = pillow();
+        assert_eq!(t.body.mate(HalfEdgeKey::default()), None);
+        // Repoint e0's plus slot away from a0: e0 no longer claims a0, so
+        // a0 has no mate (a corrupt bijection the validator reports).
+        t.body.get_edge_mut(t.edges[0]).unwrap().he_plus = t.hes_a[1];
+        assert_eq!(t.body.mate(t.hes_a[0]), None);
+    }
+
+    #[test]
+    fn half_edge_end_is_derived_from_next() {
+        let t = pillow();
+        // a0 runs v0 → v1; its end is the start of its next (a1).
+        assert_eq!(t.body.half_edge_end(t.hes_a[0]), Some(t.vertices[1]));
+        assert_eq!(t.body.half_edge_end(t.hes_a[1]), Some(t.vertices[0]));
+        assert_eq!(t.body.half_edge_end(HalfEdgeKey::default()), None);
+    }
+
+    #[test]
+    fn loop_cycle_walks_in_next_order() {
+        let t = pillow();
+        assert_eq!(
+            t.body.loop_cycle(t.hes_a[0]),
+            Some(vec![t.hes_a[0], t.hes_a[1]])
+        );
+        // Starting elsewhere in the same cycle rotates the result.
+        assert_eq!(
+            t.body.loop_cycle(t.hes_a[1]),
+            Some(vec![t.hes_a[1], t.hes_a[0]])
+        );
+        assert_eq!(t.body.loop_cycle(HalfEdgeKey::default()), None);
+    }
+
+    #[test]
+    fn vertex_orbit_visits_the_half_edges_starting_at_the_vertex() {
+        let t = pillow();
+        // Half-edges starting at v0: a0 (face A) and b1 (face B). Orbit
+        // step next(mate(a0)) = next(b0) = b1.
+        assert_eq!(
+            t.body.vertex_orbit(t.hes_a[0]),
+            Some(vec![t.hes_a[0], t.hes_b[1]])
+        );
+        // Both members start at v0.
+        for he in t.body.vertex_orbit(t.hes_a[0]).unwrap() {
+            assert_eq!(t.body.get_half_edge(he).unwrap().start, t.vertices[0]);
+        }
+        assert_eq!(t.body.vertex_orbit(HalfEdgeKey::default()), None);
+    }
+
+    #[test]
+    fn walks_are_bounded_on_corrupt_bodies() {
+        // Overrun: point a0's next into loop B's cycle — the walk from a0
+        // can never return to a0, and must terminate as None rather than
+        // spin (D9: the kernel never hangs on any input).
+        let mut t = pillow();
+        let b0 = t.hes_b[0];
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = b0;
+        assert_eq!(t.body.loop_cycle(t.hes_a[0]), None);
+        assert_eq!(t.body.vertex_orbit(t.hes_a[1]), None);
+
+        // Broken: a stale link mid-walk is also None, not a panic.
+        let mut t = pillow();
+        let dead = t.body.add_half_edge(
+            HalfEdge {
+                edge: t.edges[0],
+                start: t.vertices[0],
+                parent_loop: t.loop_a,
+                next: t.hes_a[0],
+                prev: t.hes_a[0],
+            },
+            prov(),
+        );
+        t.body.half_edges.remove(dead);
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = dead;
+        assert_eq!(t.body.loop_cycle(t.hes_a[0]), None);
+    }
+
+    #[test]
+    fn mvfs_state_reads_back() {
+        let t = mvfs_state();
+        let vertex = t.body.get_vertex(t.vertex).unwrap();
+        assert_eq!(vertex.emanating, None);
+        let loop_ = t.body.get_loop(t.lone_loop).unwrap();
+        assert_eq!(
+            loop_.boundary,
+            crate::entity::LoopBoundary::Empty { vertex: t.vertex }
+        );
+        assert_eq!(loop_.face, t.face);
     }
 }
