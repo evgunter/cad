@@ -612,6 +612,28 @@ mod tests {
         assert!(Interval::from_f64(f64::NAN).powi(0).0.is_nai());
     }
 
+    /// The subtler n = 0 laundering channel: a *clamped* (Trv) value has a
+    /// plausible enclosure, and x⁰ collapses it to the exact point [1, 1] —
+    /// if pown reset the decoration, the upstream domain violation would
+    /// vanish into the most innocent-looking value there is. inari
+    /// preserves Trv through pown; pin it, decision refusal included.
+    #[test]
+    fn trv_clamp_survives_zero_exponent_and_still_refuses() {
+        let x = iv(-1.0, 4.0).sqrt().powi(0);
+        assert_eq!((x.lo(), x.hi()), (1.0, 1.0));
+        assert_eq!(x.0.decoration(), Decoration::Trv);
+
+        let band = band_1e9();
+        assert_eq!(
+            x.sign_within(band),
+            Err(Indeterminate {
+                margin: MarginDiag::Invalid,
+                band,
+                predicate: None,
+            })
+        );
+    }
+
     #[test]
     fn min_max_are_interval_envelopes_and_propagate_poison() {
         // Disjoint: min/max select whole intervals.
