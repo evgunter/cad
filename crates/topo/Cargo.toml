@@ -1,0 +1,15 @@
+[package]
+name = "topo"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+geom-core = { path = "../geom-core" }
+slotmap = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

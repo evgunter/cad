@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/geom-core"]
+members = ["crates/geom-core", "crates/topo"]
 
 # No root package: the project name is pending (Q9), so the workspace stays
 # nameless. Shared package metadata lives here and is inherited by members
@@ -22,6 +22,10 @@ libm = "0.2.16"
 # Property testing from day one (M0-PLAN working agreements). 1.11.0 released
 # 2026-03-24.
 proptest = "1.11.0"
+# D1: typed generational arenas (`new_key_type!` per entity kind) for the
+# topology store; `SecondaryMap` carries D5 provenance. Zlib license.
+# 1.1.1 released 2025-12-06.
+slotmap = "1.1.1"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
