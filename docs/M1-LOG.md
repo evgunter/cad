@@ -38,6 +38,22 @@ design conversation.
   2026-07-16, notes as above).
 - L7 allowlist moment (first legitimate `Real +` bound) still pending.
 
+## PR #15 (M1-PLAN) design conversation
+
+Evan's review (2026-07-16), first round:
+- **Typed `Loop` state ratified** over Mäntylä's nullable-placeholder
+  half-edge ("significantly better") — PR 1 implements the typed
+  representation; the placeholder alternative is dead.
+- **CCW-from-outside orientation ratified** (no strong opinion; our
+  proposal stands). GWB-diagram mirroring hazard remains flagged.
+- **kfmrh sequencing ratified** (cross-shell typed error until M3).
+- Two-tier validity: elaboration requested; provided on the PR.
+  Refinement made while elaborating: **laminae are not topologically
+  bannable at tier 2** (two faces glued along their whole boundary ≡ a
+  two-hemisphere ball's incidence structure); zero-volume laminae are a
+  geometric defect for the M2+ geometric tier. Plan text corrected
+  in-branch; tier 2 bans empty loops + valence-1 vertices only.
+
 ## Log decisions
 
 (none yet)

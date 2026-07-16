@@ -152,14 +152,23 @@ notes, never the scan.
 
 5. **Validator completion + validity tiers** *(design PR)*. The
    DESIGN.md "concrete invariant checklist (M1)" item:
-   - **Two-tier validity** (the design conversation): tier 1
+   - **Two-tier validity** (ratified in PR #15's conversation): tier 1
      "euler-valid" accepts every Euler-reachable state (empty loops,
-     struts, laminae legal — they are mandatory intermediates); tier 2
-     "closed solid" additionally requires watertightness — every edge
-     exactly two half-edges, mates antiparallel, vertex orbits single
-     cycles (manifoldness), no empty loops/struts/laminae. Finished
-     bodies must pass tier 2; recipes may hold tier-1 states only
-     mid-construction.
+     struts, laminae legal — they are mandatory intermediates) and is
+     what debug builds check after every op; tier 2 "closed solid"
+     additionally bans construction scaffolding: no empty loops, no
+     valence-1 vertices (struts). Laminae are deliberately **not**
+     banned at tier 2: two faces glued along their entire shared
+     boundary is exactly the incidence structure of a legitimate
+     two-hemisphere ball, so a zero-volume lamina is a *geometric*
+     defect — caught by the geometric tier that arrives with real
+     surfaces (M2+: D4 ¶2 residual certification, non-degeneracy),
+     which is named now as the taxonomy's third layer but is out of M1
+     scope. Watertightness (every edge exactly two antiparallel
+     half-edges, vertex orbits single cycles) is structural — tier 1 —
+     in the half-edge representation. Finished bodies must pass
+     tier 2; tier-1-only states are visible solely inside operation
+     implementations.
    - **Euler–Poincaré counting per shell**: `v − e + f − r = 2(1 − h)`
      with `h` a derived non-negative integer (parity + bound checked);
      global sum consistency.
