@@ -181,8 +181,13 @@ tight powers, `Bounds` certification trait, x86-64-v3 floor via
   isolated worktree), e2e-reviewed (mergeable, no correctness defects),
   review fixes applied, main merged in; PR opening now (non-design →
   self-merge after CI).
-- **Awaiting Evan sign-off**: PR 4 (#7) and PR 7 (opening now) — the
-  last two design PRs. PR 5 (duals) implementing, stacked on PR 4.
-- **M0 exit after**: PR 4 + PR 7 sign-offs, PR 5 through review +
-  sign-off, final DESIGN.md ratification sweep + memory updates.
+- **Awaiting Evan sign-off (all CI-green)**: PR 4 = #7, PR 7 = #8,
+  PR 5 = #9 (stacked on #7; e2e-reviewed "ratify all three", the
+  powi(2) tightness fix applied — dependent-mult derivative enclosures
+  no longer blow up; regression test pins [-inf,inf] -> [0.45, 1]).
+  Merge order: #7 first, #9 retargets to main, #8 anytime.
+- **M0 exit after**: the three sign-offs + merges, final DESIGN.md
+  ratification sweep (crate-table num-dual row, PR 4/5/7 residue
+  items), memory updates (cad-project-state -> M0 done), exit-criteria
+  check (all seven merged, multi-eps CI green).
 - **Task tracker**: session tasks #1–#8 mirror the M0-PLAN PR sequence.
