@@ -61,6 +61,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use inari::{DecInterval, Decoration};
 
+use crate::dual::KinkJacobian;
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, Real};
 
@@ -381,6 +382,140 @@ impl Decide for Interval {
                 predicate: None,
             })
         }
+    }
+}
+
+/// Replaces `x`'s decoration with `min(x.decoration(), floor)` — the
+/// derivative channel's honesty floor for the kink selectors below: a
+/// tangent selected or hulled by comparing *values* is only as
+/// trustworthy as those values, so their decoration caps it. Poison
+/// shapes pass through unchanged (NaI stays NaI; an empty interval can
+/// only carry `Trv`/`Ill`, which `set_dec` preserves).
+fn cap_decoration(x: DecInterval, floor: Decoration) -> DecInterval {
+    match x.interval() {
+        Some(bare) => DecInterval::set_dec(bare, x.decoration().min(floor)),
+        None => DecInterval::NAI,
+    }
+}
+
+/// The convex hull of two decorated tangents, decorated with the *minimum*
+/// of their decorations — deliberately NOT IEEE 1788's set-operation
+/// convention (which would drop to `Trv` unconditionally): the hull here
+/// is not a set operation on unrelated intervals but the subgradient
+/// convention for a tie region (see [`KinkJacobian`]), and each branch's
+/// tangent keeps its own computation history. Poison first: either
+/// operand NaI ⇒ NaI, either empty ⇒ empty (1788's "empty absorbs into
+/// the hull" would *drop* a poisoned tangent — the opposite of poison
+/// propagation).
+fn tangent_hull(x: DecInterval, y: DecInterval) -> DecInterval {
+    if x.is_nai() || y.is_nai() {
+        return DecInterval::NAI;
+    }
+    if x.is_empty() || y.is_empty() {
+        return DecInterval::EMPTY;
+    }
+    match (x.interval(), y.interval()) {
+        (Some(bare_x), Some(bare_y)) => DecInterval::set_dec(
+            bare_x.convex_hull(bare_y),
+            x.decoration().min(y.decoration()),
+        ),
+        // Unreachable (NaI was handled above), but total per D9 — poison,
+        // never a panic.
+        _ => DecInterval::NAI,
+    }
+}
+
+/// Interval kink selectors (see [`KinkJacobian`] in `crate::dual` for the
+/// contract, and `crate::dual`'s module docs for the ratified
+/// conventions). All three are *value* computations — honest enclosures
+/// of subgradients — never decisions: no `Indeterminate` is produced
+/// here, and raw endpoint comparisons are allowed because this is scalar-
+/// implementation code (Q1's allowance, same as [`Real::min`] at `f64`).
+///
+/// **Decoration convention (pinned under test, revisitable at M6):** each
+/// selector's output decoration is capped by the decoration of the
+/// *value(s)* that steered it — a sign factor read off a domain-violated
+/// (`Trv`) value is itself only `Trv`-trustworthy, and a tangent chosen
+/// by comparing `Trv` values likewise. In the clean (`Com`) case this is
+/// a no-op. Nothing in M0 branches on derivative decorations ([`Decide`]
+/// for duals classifies values only; `Bounds` is not implemented for
+/// duals), so this convention is about honest bookkeeping, not behavior.
+impl KinkJacobian for Interval {
+    /// `[1, 1]` when the value enclosure lies in `[0, ∞)` (including the
+    /// point zero — matching `f64`'s `+1`-at-zero subgradient pick; an
+    /// endpoint `-0.0` compares `≥ 0`), `[−1, −1]` in `(−∞, 0]`, and the
+    /// honest straddle hull `[−1, 1]` otherwise. Empty/NaI propagates.
+    /// Decoration: the value's own (the factor is exact; its
+    /// trustworthiness is exactly the value's).
+    fn abs_sign_factor(self) -> Self {
+        if self.0.is_nai() {
+            return Self(DecInterval::NAI);
+        }
+        if self.0.is_empty() {
+            return Self(DecInterval::EMPTY);
+        }
+        let factor = if self.0.inf() >= 0.0 {
+            inari::const_interval!(1.0, 1.0)
+        } else if self.0.sup() <= 0.0 {
+            inari::const_interval!(-1.0, -1.0)
+        } else {
+            inari::const_interval!(-1.0, 1.0)
+        };
+        Self(DecInterval::set_dec(factor, self.0.decoration()))
+    }
+
+    /// Strict separation selects (`self` certainly below keeps its own
+    /// tangent, `other` certainly below takes the other's); any overlap —
+    /// including a single shared endpoint, and in particular equal point
+    /// values with different tangents — hulls both tangents
+    /// ([`tangent_hull`]). Strictness is deliberate: with touching
+    /// enclosures the minimum can sit *at* the tie, where the true
+    /// one-sided derivatives are both branches' — only strict separation
+    /// certifies a single branch. Empty/NaI **values** poison the tangent
+    /// (both channels of a poisoned `min` are poison, mirroring `f64`'s
+    /// NaN guard); the result's decoration is capped by the deciding
+    /// values' ([`cap_decoration`]).
+    fn min_deriv(self, self_deriv: Self, other: Self, other_deriv: Self) -> Self {
+        if self.0.is_nai() || other.0.is_nai() {
+            return Self(DecInterval::NAI);
+        }
+        if self.0.is_empty() || other.0.is_empty() {
+            return Self(DecInterval::EMPTY);
+        }
+        let chosen = if self.0.sup() < other.0.inf() {
+            self_deriv.0
+        } else if other.0.sup() < self.0.inf() {
+            other_deriv.0
+        } else {
+            tangent_hull(self_deriv.0, other_deriv.0)
+        };
+        Self(cap_decoration(
+            chosen,
+            self.0.decoration().min(other.0.decoration()),
+        ))
+    }
+
+    /// [`KinkJacobian::min_deriv`] mirrored: strict separation selects the
+    /// certainly-greater argument's tangent, any overlap hulls. Same
+    /// poison and decoration conventions.
+    fn max_deriv(self, self_deriv: Self, other: Self, other_deriv: Self) -> Self {
+        if self.0.is_nai() || other.0.is_nai() {
+            return Self(DecInterval::NAI);
+        }
+        if self.0.is_empty() || other.0.is_empty() {
+            return Self(DecInterval::EMPTY);
+        }
+        let chosen = if self.0.inf() > other.0.sup() {
+            self_deriv.0
+        } else if other.0.inf() > self.0.sup() {
+            other_deriv.0
+        } else {
+            tangent_hull(self_deriv.0, other_deriv.0)
+        };
+        Self(cap_decoration(
+            chosen,
+            self.0.decoration().min(other.0.decoration()),
+        ))
     }
 }
 
@@ -843,6 +978,78 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The kink selectors' decoration convention (see the
+    /// [`KinkJacobian`] impl above): outputs are capped by the deciding
+    /// values' decorations, poison propagates shape-correctly. These pins
+    /// live here (not in `crate::dual`'s tests) because they read the
+    /// wrapped `DecInterval` directly.
+    #[test]
+    fn kink_selector_decorations() {
+        let trv_value = iv(-1.0, 4.0).sqrt(); // [0, 2], Trv (clamped)
+        let clean = iv(1.0, 2.0);
+        let tangent = iv(3.0, 3.0);
+
+        // abs factor: the value's own decoration rides on the factor.
+        let factor = trv_value.abs_sign_factor();
+        assert_eq!((factor.lo(), factor.hi()), (1.0, 1.0));
+        assert_eq!(factor.0.decoration(), Decoration::Trv);
+        let factor = clean.abs_sign_factor();
+        assert_eq!(factor.0.decoration(), Decoration::Com);
+        // Straddle keeps a clean input's decoration too (the hull is a
+        // convention, not a domain violation).
+        let factor = iv(-1.0, 2.0).abs_sign_factor();
+        assert_eq!((factor.lo(), factor.hi()), (-1.0, 1.0));
+        assert_eq!(factor.0.decoration(), Decoration::Com);
+        // Poison shapes: NaI in, NaI out; empty in, empty out.
+        assert!(Interval::from_f64(f64::NAN).abs_sign_factor().0.is_nai());
+        let empty = iv(-4.0, -1.0).sqrt();
+        assert!(empty.abs_sign_factor().0.is_empty());
+        assert!(!empty.abs_sign_factor().0.is_nai());
+
+        // min_deriv: a Trv value on either side caps the selected tangent.
+        let selected = trv_value.min_deriv(tangent, iv(10.0, 11.0), iv(9.0, 9.0));
+        assert_eq!((selected.lo(), selected.hi()), (3.0, 3.0));
+        assert_eq!(selected.0.decoration(), Decoration::Trv);
+        // Clean separation keeps the chosen tangent's decoration.
+        let selected = clean.min_deriv(tangent, iv(10.0, 11.0), iv(9.0, 9.0));
+        assert_eq!(selected.0.decoration(), Decoration::Com);
+        // The hull's decoration is the min of the tangents' (deliberately
+        // NOT 1788's unconditional Trv for set ops — doc on tangent_hull):
+        // a Trv tangent hulled with a Com one yields Trv.
+        let trv_tangent = iv(-1.0, 4.0).sqrt();
+        let hulled = clean.min_deriv(trv_tangent, iv(1.0, 3.0), tangent);
+        assert_eq!((hulled.lo(), hulled.hi()), (0.0, 3.0));
+        assert_eq!(hulled.0.decoration(), Decoration::Trv);
+        let hulled = clean.min_deriv(tangent, iv(1.0, 3.0), tangent);
+        assert_eq!(hulled.0.decoration(), Decoration::Com);
+        // Poisoned VALUES poison the tangent outright (both-channel
+        // poison, mirroring f64's NaN guard in the value channel's min).
+        assert!(
+            Interval::from_f64(f64::NAN)
+                .min_deriv(tangent, clean, tangent)
+                .0
+                .is_nai()
+        );
+        assert!(empty.min_deriv(tangent, clean, tangent).0.is_empty());
+        // A poisoned TANGENT inside the hull region propagates poison.
+        assert!(clean.min_deriv(empty, iv(1.0, 3.0), tangent).0.is_empty());
+        assert!(
+            clean
+                .min_deriv(Interval::from_f64(f64::NAN), iv(1.0, 3.0), tangent)
+                .0
+                .is_nai()
+        );
+
+        // max_deriv mirrors: certainly-greater selects.
+        let selected = iv(5.0, 6.0).max_deriv(tangent, clean, iv(9.0, 9.0));
+        assert_eq!((selected.lo(), selected.hi()), (3.0, 3.0));
+        let other_selected = clean.max_deriv(tangent, iv(5.0, 6.0), iv(9.0, 9.0));
+        assert_eq!((other_selected.lo(), other_selected.hi()), (9.0, 9.0));
+        // Overlap hulls.
+        let hulled = iv(1.0, 3.0).max_deriv(tangent, iv(2.0, 4.0), iv(9.0, 9.0));
+        assert_eq!((hulled.lo(), hulled.hi()), (3.0, 9.0));
     }
 
     proptest! {
