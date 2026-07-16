@@ -79,8 +79,11 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 ///   exactly representable (a point interval, a constant dual number).
 /// - Deterministic per D9: same build + same inputs → bit-identical
 ///   outputs, on every platform.
-/// - Overriding a defaulted method ([`Real::sin_cos`]) is only permitted if
-///   the override is bit-identical to the default; this is under test.
+/// - Overriding a defaulted method ([`Real::sin`], [`Real::cos`]) is only
+///   permitted if the override is bit-identical to the corresponding
+///   projection of the required [`Real::sin_cos`] primitive; this is under
+///   test. (The expected reason to override is scalar performance — skipping
+///   the discarded component — not a different numeric result.)
 ///
 /// The `Copy` bound is deliberate: all planned instantiations are `Copy`,
 /// and evaluation code is arithmetic-dense and reference-noise hostile. The
@@ -140,20 +143,39 @@ pub trait Real:
     /// is a design conversation, not a bugfix.
     fn powi(self, n: i32) -> Self;
 
-    /// The sine (argument in radians).
-    fn sin(self) -> Self;
-
-    /// The cosine (argument in radians).
-    fn cos(self) -> Self;
-
-    /// Computes sine and cosine together.
+    /// The sine and cosine together (argument in radians) — **the
+    /// primitive**.
     ///
-    /// The default is exactly `(self.sin(), self.cos())`; implementations
-    /// may override (e.g. to share argument reduction) **only if the
-    /// override is bit-identical to the default** — cross-instantiation
-    /// consistency outranks speed, and this is verified by test.
-    fn sin_cos(self) -> (Self, Self) {
-        (self.sin(), self.cos())
+    /// This pair, not the individual projections, is the required operation:
+    /// it is the point on the unit circle at angle `self`, the restriction to
+    /// the reals of the complex exponential `e^{iθ}`. The planned scalars make
+    /// the pair the natural unit of work — a dual number's `sin` needs `cos x`
+    /// for its derivative part anyway, and an interval computes both
+    /// enclosures independently either way — so requiring the pair and
+    /// projecting `sin`/`cos` out of it costs those types nothing while
+    /// keeping the two components mutually consistent by construction.
+    fn sin_cos(self) -> (Self, Self);
+
+    /// The sine (argument in radians) — the first projection of
+    /// [`Real::sin_cos`].
+    ///
+    /// Defaults to `self.sin_cos().0`. Implementations may override **only
+    /// bit-identically to that projection** (verified by test); the sole
+    /// sanctioned reason is scalar performance — skipping the discarded
+    /// cosine — never a different numeric result.
+    fn sin(self) -> Self {
+        self.sin_cos().0
+    }
+
+    /// The cosine (argument in radians) — the second projection of
+    /// [`Real::sin_cos`].
+    ///
+    /// Defaults to `self.sin_cos().1`. Implementations may override **only
+    /// bit-identically to that projection** (verified by test); the sole
+    /// sanctioned reason is scalar performance — skipping the discarded sine —
+    /// never a different numeric result.
+    fn cos(self) -> Self {
+        self.sin_cos().1
     }
 
     /// The tangent (argument in radians).
@@ -259,19 +281,30 @@ impl Real for f64 {
         powi_by_squaring(self, n)
     }
 
+    fn sin_cos(self) -> (Self, Self) {
+        // Deliberately two separate libm calls, not libm::sincos: the
+        // bit-identity-with-the-projections contract is what matters, and
+        // `(libm::sin, libm::cos)` satisfies it by construction. libm has a
+        // fused `sincos`, but revisit only with evidence that a fused
+        // override is both bit-identical and worth the audit burden.
+        (libm::sin(self), libm::cos(self))
+    }
+
+    /// Overrides the [`Real::sin`] projection so scalar sine does not pay for
+    /// a discarded cosine. Trivially bit-identical to the projection: f64's
+    /// [`Real::sin_cos`] *is* the two libm calls `(libm::sin, libm::cos)`, so
+    /// this is exactly its first component (under test).
     fn sin(self) -> Self {
         libm::sin(self)
     }
 
+    /// Overrides the [`Real::cos`] projection so scalar cosine does not pay
+    /// for a discarded sine. Trivially bit-identical to the projection: f64's
+    /// [`Real::sin_cos`] *is* the two libm calls `(libm::sin, libm::cos)`, so
+    /// this is exactly its second component (under test).
     fn cos(self) -> Self {
         libm::cos(self)
     }
-
-    // sin_cos: default implementation (libm sin + libm cos). libm has a
-    // fused `sincos`, but the bit-identity-with-default contract is what
-    // matters and the default satisfies it by construction; revisit only
-    // with evidence that a fused override is both bit-identical and worth
-    // the audit burden.
 
     fn tan(self) -> Self {
         libm::tan(self)
@@ -510,11 +543,13 @@ mod tests {
             prop_assert!((s * s + c * c - 1.0).abs() < 1e-14);
         }
 
-        /// sin_cos must be bit-identical to (sin, cos) — the override rule.
-        /// Tautological today (f64 keeps the default `sin_cos`, so this
-        /// compares the default against its own components); it exists as a
-        /// tripwire against a future override or an edit to the default that
-        /// breaks the bit-identity contract.
+        /// f64's *overridden* `sin`/`cos` must be bit-identical to the
+        /// projections of the required `sin_cos` primitive — the tested
+        /// direction of the override contract. This is not tautological: f64
+        /// overrides `sin`/`cos` (separate scalar libm calls) rather than
+        /// inheriting the projection defaults, so the test genuinely verifies
+        /// those overrides match `sin_cos`'s components, guarding against an
+        /// override or an edit to `sin_cos` that breaks bit-identity.
         #[test]
         fn sin_cos_bit_identical_to_components(x in -1.0e6..1.0e6f64) {
             let (s, c) = Real::sin_cos(x);
