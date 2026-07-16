@@ -444,8 +444,14 @@ pub enum MarginDiag {
     /// held them: the enclosure straddles a decision boundary, or lies
     /// inside the ambiguity band, so no sign is certifiable at this width.
     /// Q1's subdivision driver responds by splitting the parameter box and
-    /// re-evaluating at a tighter enclosure. Like [`MarginDiag::Value`],
-    /// this is diagnostic data, never something to branch on.
+    /// re-evaluating at a tighter enclosure — with one **terminal** case:
+    /// an enclosure lying wholly inside one open sliver band
+    /// (`zero`, `escalate`), or its mirror on the negative side, is not
+    /// refinable by subdivision at all (the band is semantically
+    /// indeterminate at any width, even for a point — module docs); the
+    /// driver escalates it as a genuine D4 ¶3 sliver, not a resolution
+    /// failure. Like [`MarginDiag::Value`], this is diagnostic data, never
+    /// something to branch on.
     Enclosure {
         /// The enclosure's lower bound (−∞ for a half-unbounded one).
         lo: f64,
@@ -457,7 +463,11 @@ pub enum MarginDiag {
     /// a domain violation somewhere in the computation (see the
     /// totality/NaN policy in [`crate::real`]). A poisoned value carries
     /// no sign information at all — this is not "too close to call", it is
-    /// "the question was never validly posed".
+    /// "the question was never validly posed". For the subdivision driver
+    /// the causes differ in curability: a domain-clamp `Invalid` (a `Trv`
+    /// decoration from a partially out-of-domain enclosure) may cure under
+    /// subdivision as the violating sub-box shrinks away, whereas a NaI
+    /// `Invalid` (ill-formed from construction) never cures.
     Invalid,
 }
 

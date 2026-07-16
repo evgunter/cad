@@ -31,8 +31,10 @@
 //!
 //! An enclosure brackets the TRUE value. A libm-computed `f64` of the same
 //! expression can land *outside* a tight enclosure of a transcendental
-//! result (libm is 1–4 ulp off; the enclosure's endpoints are correctly
-//! rounded). Certification code therefore bounds *residual quantities*
+//! result (libm makes no correct-rounding guarantee — its divergence from
+//! std reaches 4 ulps in the census; no faithful-rounding violation was
+//! found in 5.6M samples, but none is promised — while the enclosure's
+//! endpoints are correctly rounded). Certification code therefore bounds *residual quantities*
 //! evaluated at interval type and never asserts "f64 value ∈ enclosure"
 //! for transcendental results; the same rule binds this module's tests.
 //! Exact single operations (`+`, `−`, `·`, `/`, `sqrt`) are correctly
@@ -87,6 +89,14 @@ impl Interval {
     /// per the module-level policy, not an error value to branch around.
     /// Half-unbounded enclosures (`[0, +∞]`) are valid and carry
     /// decoration [`Decoration::Dac`] (`Com` requires boundedness).
+    ///
+    /// **Laundering warning.** A [`Bounds`]-extract → `from_bounds`-rebuild
+    /// round trip mid-pipeline discards the decoration history: a `Trv`
+    /// (domain-violated) enclosure re-enters as a fresh `Com`, scrubbed of
+    /// its poison — the one genuine laundering door around the decoration
+    /// channel. `from_bounds` exists to materialize the driver's parameter
+    /// sub-boxes; it is never for reconstructing values that came out of
+    /// [`Bounds`] mid-computation.
     pub fn from_bounds(lo: f64, hi: f64) -> Self {
         match DecInterval::try_from((lo, hi)) {
             Ok(x) => Self(x),
@@ -337,6 +347,17 @@ impl Bounds for Interval {
 /// design statement about sound geometry, not a noise model (the ratified
 /// reading in `crate::predicate`'s module docs), so certifying the point
 /// changes nothing.
+///
+/// **Driver termination rule.** The second consequence generalizes: an
+/// [`MarginDiag::Enclosure`] lying **wholly inside one open sliver band**
+/// `(zero, escalate)` — or its mirror `(-escalate, -zero)` — is
+/// **terminal**. No subdivision refines it: the band is semantically
+/// indeterminate at *any* width, down to a point, so the driver escalates
+/// it as a genuine D4 ¶3 sliver, never retries it as a resolution
+/// failure. [`MarginDiag::Invalid`] outcomes split for the driver too: a
+/// domain-clamp `Invalid` (`Trv` from partial clamping) may cure under
+/// subdivision — the violating sub-box shrinks away — while a NaI
+/// `Invalid` never cures.
 impl Decide for Interval {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         if self.0.decoration() < Decoration::Def {

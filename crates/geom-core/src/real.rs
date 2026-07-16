@@ -243,8 +243,11 @@ pub trait Real:
 /// `f64` the bracket is the value itself (`lo` = `hi`); for the interval
 /// scalar it is the enclosure of the **true** value of the computation —
 /// not of any particular `f64` evaluation of it. A libm-computed `f64` can
-/// land *outside* a tight enclosure of a transcendental result (libm is
-/// 1–4 ulp off; the enclosure is correctly rounded), so certification code
+/// land *outside* a tight enclosure of a transcendental result (libm makes
+/// no correct-rounding guarantee — its divergence from std reaches 4 ulps
+/// in the census; no faithful-rounding violation was found in 5.6M
+/// samples, but none is promised — while the enclosure is correctly
+/// rounded), so certification code
 /// bounds *residual quantities* computed at interval type and never
 /// asserts "f64 value ∈ enclosure" for transcendental results (exact
 /// operations — `+`, `·`, `sqrt` — are correctly rounded at `f64` and may
