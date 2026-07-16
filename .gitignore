@@ -1,3 +1,4 @@
 /target
 /references/
 *.local.*
+.claude/worktrees
