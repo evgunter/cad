@@ -53,7 +53,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # No --all-features here: that would compile the gmp-mpfr-sys C
+      # stack (GMP+MPFR from source, minutes of build) into this job; the
+      # `interval` job owns that feature's clippy pass with its own cache.
+      - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
     name: test
@@ -63,6 +66,36 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
+
+  interval:
+    name: test (interval)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The `interval` feature builds inari's bundled GMP+MPFR from C
+      # source (gmp-mpfr-sys), whose autotools configure needs m4.
+      - name: install m4
+        run: sudo apt-get update && sudo apt-get install -y m4
+      - uses: dtolnay/rust-toolchain@stable
+      # Distinct cache key: the GMP/MPFR C build takes minutes and its
+      # artifacts live in target/, so this job must not share (and evict)
+      # the default-feature jobs' caches. gmp-mpfr-sys also caches its
+      # compiled C libraries under ~/.cache/gmp-mpfr-sys — cache that too,
+      # so the C build survives even a target-cache eviction.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval
+          cache-directories: ~/.cache/gmp-mpfr-sys
+      # This job owns the interval feature's clippy pass (the default
+      # clippy job deliberately skips --all-features to stay C-free).
+      - run: cargo clippy --workspace --all-targets --features interval -- -D warnings
+      - run: cargo test --workspace --features interval
+      # One multi-ε row at interval type (D4 ¶1): the interval band test
+      # re-derives every assertion from the run's ε, so this genuinely
+      # exercises a different band.
+      - run: cargo test --workspace --features interval
+        env:
+          CAD_TOLERANCE_EPS: 1e-6
 
   multi-eps:
     name: test (eps = ${{ matrix.eps }})

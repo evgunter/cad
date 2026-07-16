@@ -26,6 +26,20 @@ proptest = "1.11.0"
 # topology store; `SecondaryMap` carries D5 provenance. Zlib license.
 # 1.1.1 released 2025-12-06.
 slotmap = "1.1.1"
+# Interval arithmetic (Q1's certified scalar), behind geom-core's `interval`
+# feature — never a default dependency. inari itself is MIT (2.0.0 released
+# 2024-08-07, well past the 2-week age policy; probe-vetted in issue #4),
+# but its `gmp` feature (required for transcendentals) pulls the LGPL
+# `gmp-mpfr-sys` C build — the license/toolchain fork that issue #4 resolved
+# by feature-gating: default builds stay MIT/Apache and C-free.
+inari = { version = "2.0.0", default-features = false }
+# DEV-ONLY derivative oracle for Dual<f64> tests (M0 PR 5). The crate table
+# originally slated num-dual as the Dual<f64> implementation; it was demoted
+# to a test oracle because its transcendentals route through std (not libm),
+# which cannot uphold the value-channel bit-identity contract — see
+# crates/geom-core/src/dual.rs module docs. MIT OR Apache-2.0; 0.14.1
+# released 2026-06-14, past the 2-week age policy.
+num-dual = "0.14.1"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no

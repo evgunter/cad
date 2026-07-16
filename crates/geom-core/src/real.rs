@@ -28,8 +28,9 @@
 //!   from std — that is fine; the rule governs generic evaluation code.)
 //! - **No bound extraction** (`to_f64`, `lo`/`hi`, `midpoint`): evaluation
 //!   code must not be able to silently collapse an interval to a number.
-//!   Certification/rendering code that legitimately needs bounds will get a
-//!   separate scalar-specific trait when the interval type lands.
+//!   Certification/driver code that legitimately needs bounds goes through
+//!   the separate [`Bounds`] trait (landed with the interval scalar, M0
+//!   PR 4), whose restricted scope is a named style rule — see its docs.
 //! - **No `exp`/`ln`/`pow(float)`**: nothing in M0–M4 needs them (analytic
 //!   geometry and NURBS are algebraic/trigonometric). Cheap to add later,
 //!   impossible to remove.
@@ -128,13 +129,22 @@ pub trait Real:
 
     /// Raises `self` to an integer power by exponentiation by squaring;
     /// `n < 0` computes the reciprocal of `self.powi(|n|)`, and `n == 0`
-    /// yields [`Real::one`] for every input (including NaN — totality over
-    /// accuracy at the domain edge, per the module-level policy).
+    /// yields [`Real::one`] for every **non-poisoned** input. Poison
+    /// propagates through every exponent, *including `n == 0`* — NaN at
+    /// `f64`, empty/NaI at intervals: `x⁰ = 1` is a statement about
+    /// numbers, and a poisoned value is not a number (the module-level
+    /// policy — poison flows through values, and laundering it into an
+    /// exact 1 would erase the upstream failure).
     ///
     /// The multiplication order is fixed by the squaring algorithm (see
     /// [`powi_by_squaring`]), so results are deterministic but — for
     /// `|n| ≥ 4` — not necessarily bit-identical to naive repeated
-    /// multiplication (different rounding association).
+    /// multiplication (different rounding association). Interval
+    /// instantiations may override this method with a dedicated integer
+    /// power for a **tight enclosure of the true value** — their contract
+    /// is containment of the real power, not reproduction of f64's
+    /// multiplication association (squaring an enclosure that straddles
+    /// zero is not tight: `[-1, 2]·[-1, 2] = [-2, 4]` but `x² ∈ [0, 4]`).
     ///
     /// For negative exponents the reciprocal-of-power rule means extreme
     /// magnitudes can overflow before inverting — e.g. `powi(2.0, -1074)`
@@ -212,10 +222,77 @@ pub trait Real:
     fn max(self, other: Self) -> Self;
 }
 
+/// Bound extraction for **certification and driver code** — deliberately a
+/// separate trait, never folded into [`Real`].
+///
+/// [`Real`] omits bound extraction so evaluation code cannot silently
+/// collapse an interval to a number (see the [module docs](self)); this
+/// trait is the separate door those docs promised. Its scope is a named
+/// style rule under the evaluation-code discipline (L7 in
+/// `docs/M0-LOG.md`): `Bounds` may appear only in **certification and
+/// driver code** — residual certification, the subdivision driver,
+/// rendering/telemetry — never in evaluation signatures. Code that needs
+/// it writes `T: Bounds` as the parameter's sole bound (it is a subtrait,
+/// so [`Real`]'s operations come with it); an *extra* bound tacked onto an
+/// evaluation type parameter is exactly the escape hatch the discipline's
+/// CI grep exists to catch.
+///
+/// # Semantics
+///
+/// `[lo(), hi()]` brackets every real number the scalar stands for. For
+/// `f64` the bracket is the value itself (`lo` = `hi`); for the interval
+/// scalar it is the enclosure of the **true** value of the computation —
+/// not of any particular `f64` evaluation of it. A libm-computed `f64` can
+/// land *outside* a tight enclosure of a transcendental result (libm makes
+/// no correct-rounding guarantee — its divergence from std reaches 4 ulps
+/// in the census; no faithful-rounding violation was found in 5.6M
+/// samples, but none is promised — while the enclosure is correctly
+/// rounded), so certification code
+/// bounds *residual quantities* computed at interval type and never
+/// asserts "f64 value ∈ enclosure" for transcendental results (exact
+/// operations — `+`, `·`, `sqrt` — are correctly rounded at `f64` and may
+/// be asserted contained).
+///
+/// Poison surfaces honestly rather than narrowing: a poisoned `f64` yields
+/// NaN from both accessors, and the interval scalar yields NaN from both
+/// accessors for **both** the ill-formed interval (NaI) and the empty one.
+/// Empty and NaI are deliberately indistinguishable through this trait:
+/// IEEE 1788's canonical empty pair (+∞, −∞) would let `hi() ≤ ε` PASS for
+/// a poisoned-to-empty residual, and failing certification outranks
+/// representational honesty. A NaN bracket fails every downstream
+/// `residual ≤ ε` certification loudly (`NaN ≤ ε` is false under every
+/// comparison direction — the D4 ¶2 fail-loud path): certification treats
+/// such a bracket as failed, never as data.
+pub trait Bounds: Real {
+    /// The lower end of the bracket (the value itself at `f64`; the
+    /// enclosure's infimum at the interval scalar).
+    fn lo(self) -> f64;
+
+    /// The upper end of the bracket (the value itself at `f64`; the
+    /// enclosure's supremum at the interval scalar).
+    fn hi(self) -> f64;
+}
+
+/// `f64` brackets itself exactly: `lo` = `hi` = the value. NaN stays NaN —
+/// poison surfaces through the bracket, never silently narrows away.
+impl Bounds for f64 {
+    fn lo(self) -> f64 {
+        self
+    }
+
+    fn hi(self) -> f64 {
+        self
+    }
+}
+
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
-/// `n == 0` yields one. Total for every input; the multiplication order is
-/// fixed (deterministic per D9).
+/// `n == 0` yields one **unconditionally** — the generic default takes the
+/// shortcut without inspecting the base (it cannot: [`Real`] deliberately
+/// exposes no poison test), so poison-aware implementations guard `n == 0`
+/// before delegating (f64's NaN guard; the interval scalar overrides the
+/// whole method). Total for every input; the multiplication order is fixed
+/// (deterministic per D9).
 pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
     let mut result = T::one();
     let mut acc = base;
@@ -277,7 +354,15 @@ impl Real for f64 {
         f64::abs(self)
     }
 
+    /// [`powi_by_squaring`] behind a poison guard: `NaN⁰` is NaN, not 1 —
+    /// the generic `n == 0` shortcut would launder f64's only poison
+    /// representation into an exact 1 (the trait's poison-propagation
+    /// clause). `(±∞)⁰` stays 1: ±∞ is not f64 poison — infinite margins
+    /// are maximally definite (PR 3) — so only NaN takes the guard.
     fn powi(self, n: i32) -> Self {
+        if n == 0 && self.is_nan() {
+            return f64::NAN;
+        }
         powi_by_squaring(self, n)
     }
 
@@ -444,10 +529,16 @@ mod tests {
     }
 
     #[test]
-    fn powi_zero_exponent_is_one_for_every_input() {
-        for x in [0.0, -0.0, 2.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+    fn powi_zero_exponent_is_one_except_for_poison() {
+        // The ±∞ rows are the deliberate carve-out: infinity is not f64
+        // poison (infinite margins are maximally definite, PR 3), so
+        // (±∞)⁰ = 1 like every other non-poisoned input.
+        for x in [0.0, -0.0, 2.5, f64::INFINITY, f64::NEG_INFINITY] {
             assert_eq!(<f64 as Real>::powi(x, 0), 1.0);
         }
+        // NaN — f64's poison — propagates through n = 0 instead of
+        // laundering into an exact 1 (trait poison-propagation clause).
+        assert!(<f64 as Real>::powi(f64::NAN, 0).is_nan());
     }
 
     #[test]
@@ -457,6 +548,18 @@ mod tests {
         assert_eq!(<f64 as Real>::powi(-3.0, 3), -27.0);
         assert_eq!(<f64 as Real>::powi(0.0, -1), f64::INFINITY);
         assert!(<f64 as Real>::powi(f64::NAN, 1).is_nan());
+    }
+
+    #[test]
+    fn bounds_for_f64_is_the_identity_bracket() {
+        for x in [0.0, -0.0, 1.5, -1e300, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(Bounds::lo(x).to_bits(), x.to_bits());
+            assert_eq!(Bounds::hi(x).to_bits(), x.to_bits());
+        }
+        // Poison surfaces: a NaN value yields a NaN bracket, which every
+        // downstream certification comparison fails loudly (D4 ¶2).
+        assert!(Bounds::lo(f64::NAN).is_nan());
+        assert!(Bounds::hi(f64::NAN).is_nan());
     }
 
     #[test]

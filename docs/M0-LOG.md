@@ -99,7 +99,7 @@ unflagged). Determinism excellent (bit-identical enclosures across
 CPUs/SIMD paths at pinned deps). Poison model differs from f64: partial
 out-of-domain **clamps** (only full misses go empty), violations
 signalled via `DecInterval` decorations → PR 4 wrapper builds on
-`DecInterval`; `from_f64(NaN)` mapped to empty explicitly. inari 2.0.0
+`DecInterval`; `from_f64(NaN)` mapped to NaI explicitly. inari 2.0.0
 (2024-08-07, MIT itself) satisfies the dependency-age policy.
 **Issue #4 resolved (2026-07-16)**: option (a) — `interval` cargo
 feature gates `inari/gmp`; default builds stay MIT/Apache + C-free;
