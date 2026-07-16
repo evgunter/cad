@@ -7,8 +7,17 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Interval scalar over inari (M0 PR 4, issue #4): pulls the LGPL
+# `gmp-mpfr-sys` C build via `inari/gmp` (required for transcendentals), so
+# it is opt-in — the default build stays MIT/Apache and C-free. On x86-64
+# this feature additionally requires AVX+FMA at runtime; the repo-wide
+# `-C target-cpu=x86-64-v3` floor in `.cargo/config.toml` guarantees it.
+interval = ["dep:inari", "inari/gmp"]
+
 [dependencies]
 libm = { workspace = true }
+inari = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
