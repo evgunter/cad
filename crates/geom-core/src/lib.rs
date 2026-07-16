@@ -17,6 +17,4 @@ pub mod tolerance;
 
 pub use linalg::{Affine2, Affine3, Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use real::Real;
-pub use tolerance::{
-    Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError, ToleranceField,
-};
+pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};

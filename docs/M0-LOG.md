@@ -72,18 +72,20 @@ design conversation.
   allowlist as a design decision. Optional escalation noted for later:
   clippy `disallowed-methods` for `Any`/`TypeId` on scalars.
 
-## PR 2 design conversation (live)
+## PR 2 design conversation (resolved 2026-07-16)
 
-- Evan review 2026-07-16: (1) `sin_cos` as the primitive — agreed and
+- Evan review: (1) `sin_cos` as the primitive — agreed and
   **implemented** (sin/cos are defaulted projections, overridable
   bit-identically; f64 overrides for scalar performance); (2) εₐ
-  dimensional-honesty concern — orchestrator agrees and has **proposed
-  revising D4 ¶1 to a single ε** with angular thresholds always derived
-  per predicate as θ = ε/r (lever arm named at the call site;
-  `Band::angular_at(r)` replacing `Band::angular()`), **implementation
-  held pending Evan's confirmation** (it revises a ratified decision).
-  If confirmed: PR 2 drops `eps_angular` + its env var; PR 3 reworks
-  `Band::angular()`; DESIGN.md D4 ¶1 revised at ratification.
+  dimensional-honesty concern — orchestrator proposed **revising D4 ¶1
+  to a single ε** with angular thresholds always derived per predicate
+  as θ = ε/r (lever arm named at the call site). **Evan confirmed**
+  (👍 + "current plan sounds good"); implemented: PR 2 dropped
+  `eps_angular` + its env var (+ `ToleranceField`), PR 3 replaced
+  `Band::angular()` with `Band::angular_at(lever_arm)` (new
+  `BandError::InvalidLeverArm`), DESIGN.md revised (D4 ¶1, D2's εₐ
+  mentions, deferred list, Q1 residue-status block). Awaiting Evan's
+  explicit merge sign-off on the final PR 2 state.
 
 ## PR 4 pre-work (inari probe, 2026-07-16)
 
@@ -99,6 +101,13 @@ out-of-domain **clamps** (only full misses go empty), violations
 signalled via `DecInterval` decorations → PR 4 wrapper builds on
 `DecInterval`; `from_f64(NaN)` mapped to empty explicitly. inari 2.0.0
 (2024-08-07, MIT itself) satisfies the dependency-age policy.
+**Issue #4 resolved (2026-07-16)**: option (a) — `interval` cargo
+feature gates `inari/gmp`; default builds stay MIT/Apache + C-free;
+post-M7 roadmap entry added to DESIGN.md for an in-house replacement
+that drops LGPL. PR 4 design drafted (orchestrator scratchpad):
+DecInterval newtype, decoration < def ⇒ poison, pown override for
+tight powers, `Bounds` certification trait, x86-64-v3 floor via
+.cargo/config.toml, separate CI job with m4 + caching.
 
 ## State snapshot
 
@@ -110,8 +119,12 @@ signalled via `DecInterval` decorations → PR 4 wrapper builds on
   awaiting Evan's sign-off**. On sign-off: ratify trait surface,
   totality/NaN policy, evaluation-code discipline, and Tolerance
   once-init semantics into DESIGN.md, then merge.
-- **Next**: PR 3 (trilean predicates) proceeds stacked on the PR 2
-  branch; design drafted (Sign/Band/Indeterminate + the noise-buffer vs
-  sliver-band fork for (ε, kε), recommending sliver-band with k = 10
-  provisional).
+- **PR 3** (trilean predicates): implemented + e2e-reviewed (verdict
+  ratify, amendments applied) on `ev/m0-3-predicates`, εₐ restructure
+  merged in; PR to be opened once PR 2 merges (description drafted in
+  orchestrator scratchpad).
+- **PR 6** (linalg): Fable implementer running in an isolated worktree,
+  branch `ev/m0-6-linalg` off the PR 2 branch (affine/linear
+  point-vector distinction, column-field matrices, total ops with
+  poison propagation — pinned design in the agent prompt).
 - **Task tracker**: session tasks #1–#8 mirror the M0-PLAN PR sequence.
