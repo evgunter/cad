@@ -375,11 +375,7 @@ impl<T: Real> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn kemr(
-        &mut self,
-        he1: HalfEdgeKey,
-        he2: HalfEdgeKey,
-    ) -> Result<KemrResult, EulerOpError> {
+    pub fn kemr(&mut self, he1: HalfEdgeKey, he2: HalfEdgeKey) -> Result<KemrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -390,12 +386,9 @@ impl<T: Real> Body<T> {
         if he1 == he2 || he2_data.edge != edge {
             return Err(EulerOpError::NotSameEdge { he1, he2 });
         }
-        let edge_data = self
-            .get_edge(edge)
-            .cloned()
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?;
+        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
         let claims_both = (edge_data.he_plus == he1 && edge_data.he_minus == he2)
             || (edge_data.he_plus == he2 && edge_data.he_minus == he1);
         if !claims_both {
@@ -615,12 +608,9 @@ impl<T: Real> Body<T> {
             key: EntityId::Face(f1),
         })?;
         let f1_shell = f1_data.shell;
-        let f2_data = self
-            .get_face(f2)
-            .cloned()
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Face(f2),
-            })?;
+        let f2_data = self.get_face(f2).cloned().ok_or(EulerOpError::StaleKey {
+            key: EntityId::Face(f2),
+        })?;
         if f1 == f2 {
             return Err(EulerOpError::SameFace { face: f1 });
         }
@@ -816,7 +806,13 @@ impl<T: Real> Body<T> {
         self.link_half_edges(he_plus, ring);
         self.link_half_edges(ring_last, he_minus);
         self.link_half_edges(he_minus, target);
-        self.mekr_finish(target_loop, ring_loop, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(
+            target_loop,
+            ring_loop,
+            face_key,
+            (u, w),
+            (he_plus, he_minus),
+        );
 
         Ok(MekrResult {
             edge,
@@ -1319,7 +1315,8 @@ mod tests {
         // Point the loop's representative at a half kemr will kill (any
         // cycle member is a legal `first`, so this is a tier-1-valid
         // rewording of the same loop).
-        body.get_loop_mut(seed.r#loop).unwrap().boundary = LoopBoundary::Cycle { first: e1.he_plus };
+        body.get_loop_mut(seed.r#loop).unwrap().boundary =
+            LoopBoundary::Cycle { first: e1.he_plus };
         assert_eq!(validate(&body), Ok(()));
         body.kemr(e1.he_plus, e1.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1373,7 +1370,9 @@ mod tests {
         // The old loop survives as the segment cycle, first := next(he2).
         assert_eq!(
             body.get_loop(seed.r#loop).unwrap().boundary,
-            LoopBoundary::Cycle { first: seg.he_minus }
+            LoopBoundary::Cycle {
+                first: seg.he_minus
+            }
         );
         assert_eq!(
             body.loop_cycle(seg.he_minus),
@@ -1402,7 +1401,9 @@ mod tests {
         );
         assert_eq!(
             body.get_loop(result.ring).unwrap().boundary,
-            LoopBoundary::Cycle { first: seg.he_minus }
+            LoopBoundary::Cycle {
+                first: seg.he_minus
+            }
         );
         assert_eq!(body.get_vertex(strut.vertex).unwrap().emanating, None);
         assert_eq!(body.get_face(seed.face).unwrap().outer, seed.r#loop);
@@ -1561,7 +1562,9 @@ mod tests {
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kemr(dead, e1.he_minus).unwrap_err()
         });
-        assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(e1.he_plus, dead).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kemr(e1.he_plus, dead).unwrap_err()
+        });
     }
 
     #[test]
@@ -1653,7 +1656,10 @@ mod tests {
         );
         // Direction: he_plus runs target anchor vertex → ring anchor
         // vertex (v1 → v2, the killed e1's direction).
-        assert_eq!(body.get_half_edge(restore.he_plus).unwrap().start, e0.vertex);
+        assert_eq!(
+            body.get_half_edge(restore.he_plus).unwrap().start,
+            e0.vertex
+        );
         assert_eq!(body.half_edge_end(restore.he_plus), Some(e1.vertex));
         // Counts + E–P ledger restored: v − e + f − r = 4 − 3 + 1 − 0
         // = 2 = 2(1 − 0), genus 0, one shell.
@@ -2092,7 +2098,9 @@ mod tests {
             },
             prov(),
         );
-        let surface = t.body.add_surface(SurfaceGeom::Placeholder { anchor: p(9.0) });
+        let surface = t
+            .body
+            .add_surface(SurfaceGeom::Placeholder { anchor: p(9.0) });
         let lp = t.body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex: v },
