@@ -113,12 +113,14 @@ tight powers, `Bounds` certification trait, x86-64-v3 floor via
 
 - **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green
   incl. multi-ε matrix.
-- **Current**: PR 2 (`Real` + `Tolerance`) on `ev/m0-2-real-tolerance` —
-  implemented (Fable), adversarially e2e-reviewed (verdict: ratify with
-  wording amendments, all applied), opened as the first **design PR
-  awaiting Evan's sign-off**. On sign-off: ratify trait surface,
-  totality/NaN policy, evaluation-code discipline, and Tolerance
-  once-init semantics into DESIGN.md, then merge.
+- **Done**: PR 2 (`Real` + `Tolerance`) **merged to main** (#3,
+  2026-07-16) with Evan's sign-off after the design conversation
+  (sin_cos primitive; εₐ eliminated — D4 ¶1 revised in-branch; Q1
+  residue ratified into DESIGN.md). Evan's lingering K concern answered
+  on the PR and folded into PR 3's description: **K is a policy dial
+  (refusal rate + f64 noise headroom), not a correctness parameter** —
+  soundness (escalate-never-guess, certification, interval replay) holds
+  for any K > 1.
 - **PR 3** (trilean predicates): implemented + e2e-reviewed (verdict
   ratify, amendments applied) on `ev/m0-3-predicates`, εₐ restructure
   merged in; PR to be opened once PR 2 merges (description drafted in
