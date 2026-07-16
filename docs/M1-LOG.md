@@ -112,6 +112,55 @@ Second round (chat, 2026-07-16):
 - Process conventions add: implementer agents push branches early and
   often (before review) — Evan follows work-in-progress remotely.
 
+## PR 2 (Euler ops: mvfs/mev/mef + cube) — 2026-07-16
+
+- Implemented per binding spec (Fable, isolated worktree). Site-enum
+  addressing (`MevSite::{Fan,Lone}`, `MefSite::{Chords,Lone}`) — the
+  typed-`Empty` consequence; atomic ops (preconditions fully resolve,
+  mutation phase infallible); typed `Provenance::{Mvfs,Mev,Mef}`
+  (Primordial stays on the raw path until PR 5); debug postconditions
+  (per-op Euler-vector deltas + full tier-1 validate).
+- Conventions fixed: Fan run = CW orbit walk [he1..he2) (pinned by
+  asymmetric valence-4/5 tests, incl. a wrapping run); mev `he_plus` =
+  old→new (documented deviation from Mäntylä's new→old); mef `he_plus`
+  = start(he1)→start(he2) with he1's side becoming the new face's
+  outer; `emanating` unconditionally overwritten (branch-free,
+  replay-deterministic); mef shares the split face's SurfaceKey and
+  mints a Placeholder curve anchored at start(he1).
+- **Mäntylä erratum found (Program 11.6)**: the book prints lmev's two
+  addhe calls PLUS-half first, which breaks both he1==he2 cases
+  (strut: broken v→v half; mvfs-placeholder: `he2->vtx` clobbered
+  before read). MINUS-first is coherent; order immaterial when
+  he1≠he2. Verified against the scan at 300 dpi; the reading notes
+  carry a dated erratum. Our implementation is unaffected — it
+  computes final link states functionally instead of sequencing addhe.
+- **e2e review verdict: mergeable, no blockers.** Independent cube
+  re-derivation (different construction order): all six faces CCW from
+  outside by explicit signed-area projection; mates antiparallel in
+  coordinates on all 12 edges. **Key-sequence purity under errors
+  demonstrated** (the D9 lineage-replay contract's error half): four
+  interleaved failing calls consume zero key slots, deep snapshots
+  byte-identical. 15 error paths deep-compared body-unchanged;
+  release-mode corruption gives typed errors or documented
+  garbage-out, never panic/hang (3000-strut torn body: milliseconds).
+- Fixes applied post-review: postcondition/D9 doc honesty (debug
+  postconditions ARE reachable via public raw-builder corruption until
+  PR 5 — the no-panic promise is conditional on tier-1-valid input in
+  debug builds; taxonomy fact to ratify at PR 5's demotion);
+  no-proptest deviation recorded in-tree (PR 4 owns the sequence
+  generator); mef start(he2) liveness check added (symmetry);
+  reviewer's key-purity test + deep-snapshot helper added to the
+  shipped suite.
+- Cost note: debug validate-after-every-op makes construction O(n²) in
+  debug (3000-op body ~5 min debug vs ~20 ms release) — fine at M1
+  scale; revisit before M2's swept bodies if debug CI builds big
+  fixtures.
+- Carried to PR 3's spec: deep-snapshot atomicity helper (counts are
+  weak for kills); provenance SecondaryMap entries must be removed
+  with killed entities (PR 5's bidirectional check will catch leaks);
+  ratify the ring-side association convention (GWB's h2-analog);
+  `Cycle::first` re-anchoring on survivor loops is the delhe hazard.
+
 ## Log decisions
 
 (none yet)
@@ -126,5 +175,7 @@ Second round (chat, 2026-07-16):
   local discussion") after two conversation rounds (typed `Loop`, CCW,
   kfmrh sequencing, two/three-tier validity, D1 clarifications:
   postcondition asserts + Body-never-authoritative, lamina story).
-- **Current**: PR 1 (half-edge restructure, `ev/m1-1-halfedge` off
-  main) starting — design PR, will await Evan's sign-off.
+- **Current**: PR 1 merged as #16 (Evan sign-off after the
+  deviation-alternatives discussion). PR 2 (`ev/m1-2-euler-makes`,
+  stacked on PR 1) implemented + e2e-reviewed + fix pass applied —
+  design PR opening next; PR 3 spec is the orchestrator's next action.

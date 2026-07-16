@@ -5,11 +5,13 @@
 //! A B-rep body is a plain value: typed generational arenas
 //! (slotmap-style, D1) for the seven manifold topology kinds — solid,
 //! shell, face, loop, half-edge, edge, vertex — plus geometry arenas,
-//! plus a D5 provenance record per entity from birth. M1 PR 1 lands the
+//! plus a D5 provenance record per entity from birth. M1 PR 1 landed the
 //! half-edge structure itself (adjacency, orientation conventions, the
-//! tier-1 structural validator); the Euler operators that make it the
-//! exclusive construction path are the following PRs, so the raw
-//! builder placeholder is still how bodies are assembled here.
+//! tier-1 structural validator); PR 2 adds the first Euler operators —
+//! [`Body::mvfs`], [`Body::mev`], [`Body::mef`] (see [`euler`]) — the
+//! sanctioned construction path. The raw builder placeholder remains
+//! public until PR 5, when the operator set is complete enough for it to
+//! retreat to `pub(crate)`.
 //!
 //! # Orientation conventions
 //!
@@ -83,6 +85,7 @@
 
 pub mod body;
 pub mod entity;
+pub mod euler;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
@@ -94,6 +97,7 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
+pub use euler::{EulerOpError, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 pub use provenance::Provenance;
 pub use validate::{ValidationError, validate};

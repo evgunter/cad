@@ -31,8 +31,8 @@ use geom_core::Point3;
 
 use crate::body::Body;
 use crate::entity::{
-    Edge, EdgeKey, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey, Shell,
-    ShellKey, Solid, SolidKey, Vertex, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
+    Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 use crate::provenance::Provenance;
@@ -40,6 +40,73 @@ use crate::provenance::Provenance;
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
     Provenance::Primordial { op: "fixture" }
+}
+
+/// A deep, order-sensitive snapshot of a body: one line per arena entry
+/// (all ten arenas, in slot-index order) carrying the **full payload**
+/// plus the entity's D5 provenance record.
+///
+/// For atomicity and lineage-purity tests where counts-only comparison
+/// is too weak: two snapshots compare equal iff the bodies are
+/// key-for-key, field-for-field, provenance-for-provenance identical.
+/// (PR 4's kill operators will need exactly this — a kill that removes
+/// the wrong entity or leaks a provenance record still preserves
+/// counts.) Payloads are compared through their `Debug` forms, which
+/// for these types print every field.
+pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
+    let mut lines = Vec::new();
+    for (k, e) in body.solids() {
+        lines.push(format!(
+            "solid {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::Solid(k))
+        ));
+    }
+    for (k, e) in body.shells() {
+        lines.push(format!(
+            "shell {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::Shell(k))
+        ));
+    }
+    for (k, e) in body.faces() {
+        lines.push(format!(
+            "face {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::Face(k))
+        ));
+    }
+    for (k, e) in body.loops() {
+        lines.push(format!(
+            "loop {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::Loop(k))
+        ));
+    }
+    for (k, e) in body.half_edges() {
+        lines.push(format!(
+            "half-edge {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::HalfEdge(k))
+        ));
+    }
+    for (k, e) in body.edges() {
+        lines.push(format!(
+            "edge {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::Edge(k))
+        ));
+    }
+    for (k, e) in body.vertices() {
+        lines.push(format!(
+            "vertex {k:?}: {e:?} prov={:?}",
+            body.provenance(EntityId::Vertex(k))
+        ));
+    }
+    for (k, e) in body.points() {
+        lines.push(format!("point {k:?}: {e:?}"));
+    }
+    for (k, e) in body.curves() {
+        lines.push(format!("curve {k:?}: {e:?}"));
+    }
+    for (k, e) in body.surfaces() {
+        lines.push(format!("surface {k:?}: {e:?}"));
+    }
+    lines
 }
 
 /// A distinct-per-index placeholder coordinate (`u32` round trip keeps
