@@ -163,6 +163,33 @@ tight powers, `Bounds` certification trait, x86-64-v3 floor via
   helper trait; `Decide` for duals = value-part delegation (derivative
   never branches) — resolving the last unsettled Q1 residue item.
 
+## M0 EXIT (2026-07-16)
+
+All seven PRs merged: #2 (scaffolding), #3 (Real+Tolerance), #5
+(predicates), #6 (linalg), #7 (Interval), #8 (topo/Body<T>), #10 (duals;
+continuation of #9 after a base-branch-deletion auto-close). Exit
+criteria: Q1 residue fully ratified into DESIGN.md (only K's numeric
+value remains open, deliberately); CI green on main at ε ∈ {1e-6, 1e-9,
+1e-12} + the interval lane. Evan sign-offs on every design PR; two
+mid-flight design revisions Evan initiated (sin_cos primitive; εₐ
+elimination → derived angular thresholds) and one he prompted via
+review question (subgradient framing → GSD06 into references/).
+
+**Carried into M1** (all documented at their sites):
+- K's numeric value (multi-ε experiments; semantics ratified).
+- `Body<Interval>` instantiation test (TODO in topo's validate.rs).
+- Validator M1 items: arity/emptiness rules, orphan-vertex vs `mvfs`,
+  bidirectional D5 provenance check; Euler–Poincaré + watertightness +
+  residual certification plug in per validate.rs docs.
+- Half-edge/orientation design — wants the missing Mäntylä Euler-op
+  chapters (or Hoffmann's boundary-rep chapter) before starting.
+- The L7 allowlist moment (first legitimate `Real +` bound) has NOT
+  arrived — `Decide`/`Bounds`/`KinkJacobian` are all supertrait-shaped.
+- M2 watchlist (from PR 6 review): project/reject with documented
+  association, axis-through-point rotation, orthonormal-basis-as-
+  predicate-question; Real-surface: floor/rem for angle periodization,
+  copysign.
+
 ## State snapshot
 
 - **Done**: PR 1 (workspace scaffolding) merged to main (#2), CI green

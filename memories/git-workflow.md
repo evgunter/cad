@@ -22,3 +22,10 @@ the careful writeup in the PR description; merge with a merge commit
 by Evan): PRs that ratify open design questions in DESIGN.md are design
 conversations per docs/M0-PLAN.md — wait for Evan's sign-off before
 merging; routine implementation self-merges. See [[cad-working-style]].
+
+**Stacked-PR gotcha (learned M0, 2026-07-16):** deleting a merged PR's
+branch while another open PR still targets it makes GitHub auto-CLOSE
+the stacked PR, and a PR whose base branch was deleted cannot be
+reopened — a fresh PR must be opened (losing thread continuity).
+Retarget stacked PRs to main BEFORE deleting the base branch, or just
+don't delete branches (private remote; cheap to keep).

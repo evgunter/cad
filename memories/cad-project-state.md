@@ -1,27 +1,41 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0 is next
-metadata: 
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0 complete (2026-07-16), M1 (topology + Euler ops) next
+metadata:
   node_type: memory
   type: project
   originSessionId: 11974b46-1641-48d9-9802-fdf44dcb6927
 ---
 
-Greenfield B-rep CAD kernel in Rust (branch mngr/cad). **docs/DESIGN.md is
-the authoritative, ratified design contract** — read it before any design
-or implementation work; do not re-litigate settled decisions D1–D9
-(arenas+Euler ops; intensional edge geometry with prefer-intrinsic rule;
-closed surface enum; single per-run tolerance, fail-loud; provenance from
-birth; canonical units; import-is-adoption; recipe-as-data; determinism
-charter). Q1 residue (Real trait surface, Dual<Interval> semantics, k·ε
-indeterminacy threshold, Body<T> genericity boundary) is deliberately
-deferred to the first M0 PRs as design-in-code discussions.
+Greenfield B-rep CAD kernel in Rust (repo evgunter/cad). **docs/DESIGN.md
+is the authoritative, ratified design contract** — read it before any
+design or implementation work; do not re-litigate settled decisions
+D1–D9 (arenas+Euler ops; intensional edge geometry with prefer-intrinsic
+rule; closed surface enum; single per-run tolerance, fail-loud;
+provenance from birth; canonical units; import-is-adoption;
+recipe-as-data; determinism charter).
 
-As of 2026-07-15: no code yet; M0 (geom-core: Real trait, intervals,
-tolerance, predicates, arenas, validation harness) is next. docs/M0-PLAN.md
-has the PR sequence. License: dual MIT OR Apache-2.0. Project name still
-undecided — placeholder acceptable. `references/` (git-ignored) holds The
-NURBS Book (full scan), Mäntylä ch. 4–6 (Euler-operator chapters MISSING —
-fuller copy still sought before M1), and Hoffmann complete (recovered via
-Wayback). Scanned PDFs need poppler (installed) and are read visually,
-page by page. See [[cad-working-style]].
+**M0 complete (2026-07-16)** — all seven PRs merged with Evan sign-offs
+on the design PRs: `geom-core` (comparison-free `Real` at f64 /
+feature-gated inari `Interval` / in-house `Dual<T>`; once-per-run
+`Tolerance` with a single ε — εₐ was ELIMINATED, angular thresholds
+derive as ε/lever-arm; trilean `Decide` predicates, sliver-band
+semantics with provisional K = 10; hand-rolled linalg) and `topo`
+(`Body<T>` = scalar-free topology arenas + T-valued geometry arenas;
+validation harness). All Q1 residue ratified; only K's numeric value
+stays open (multi-ε experiments). Key operational facts: the `interval`
+cargo feature quarantines LGPL (gmp-mpfr-sys) per issue #4 — default
+builds stay MIT/Apache + C-free; x86-64 floored at `x86-64-v3` via
+.cargo/config.toml; CI's `discipline` job greps `Real +` bounds (L7).
+`docs/M0-LOG.md` holds the L-decision log, per-PR outcomes, and the
+carried-into-M1 list (validator items, Body<Interval> test, M2
+watchlist).
+
+**M1 next**: topology + Euler operators; build a cube by hand;
+watertightness + Euler–Poincaré checks. The Mäntylä Euler-operator
+chapters are still MISSING from references/ (only ch. 4–6 on hand;
+fuller copy sought) — Hoffmann complete is the fallback. Also in
+references/: The NURBS Book (full), GSD06 DDG course notes (for M6
+kink/subgradient design). Scanned PDFs read visually (poppler
+installed). License dual MIT OR Apache-2.0; name still pending (Q9).
+See [[cad-working-style]], [[orchestration-model]].
