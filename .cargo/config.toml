@@ -1,0 +1,12 @@
+# Repo-wide CPU floor for x86-64 builds: x86-64-v3 (AVX2 + FMA + BMI).
+#
+# inari's directed-rounding kernels use inline assembly that requires AVX
+# and FMA (probe findings, issue #4) — without the flag an interval build
+# either fails to compile or cannot round correctly. aarch64 needs no
+# flags (its rounding-mode story is fine unflagged). This floors ALL
+# x86-64 builds, not just `--features interval` ones — a deliberate,
+# documented decision from issue #4: one instruction set per run keeps
+# f64 and interval artifacts of the same build consistent (D9), and
+# pre-AVX2 x86-64 hardware (pre-2013) is out of scope for a CAD kernel.
+[target.'cfg(target_arch = "x86_64")']
+rustflags = ["-C", "target-cpu=x86-64-v3"]

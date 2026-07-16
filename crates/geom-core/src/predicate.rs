@@ -427,9 +427,10 @@ impl Band {
 /// classifier saw, in a shape that stays honest across scalar types.
 ///
 /// Closed enum by design (the set of scalar instantiations is closed, per
-/// D3's closed-enum philosophy). An `Enclosure { lo, hi }` variant is
-/// anticipated for the interval instantiation (M0 PR 4) — an in-crate,
-/// compatible addition when that scalar type lands.
+/// D3's closed-enum philosophy): [`MarginDiag::Value`] is what `f64`
+/// classification saw, [`MarginDiag::Enclosure`] what interval
+/// classification saw (M0 PR 4), and [`MarginDiag::Invalid`] the poison
+/// outcome either scalar can produce.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MarginDiag {
     /// The classified `f64` margin, signed, exactly as submitted — it
@@ -439,10 +440,34 @@ pub enum MarginDiag {
     /// the escalation contract (the whole point of the typed
     /// [`Indeterminate`] is that no sound branch exists here).
     Value(f64),
-    /// The margin was NaN: the computation that produced it was poisoned
-    /// (see the totality/NaN policy in [`crate::real`]). A poisoned value
-    /// carries no sign information at all — this is not "too close to
-    /// call", it is "the question was never validly posed".
+    /// The classified enclosure's bounds, exactly as the interval scalar
+    /// held them: the enclosure straddles a decision boundary, or lies
+    /// inside the ambiguity band, so no sign is certifiable at this width.
+    /// Q1's subdivision driver responds by splitting the parameter box and
+    /// re-evaluating at a tighter enclosure — with one **terminal** case:
+    /// an enclosure lying wholly inside one open sliver band
+    /// (`zero`, `escalate`), or its mirror on the negative side, is not
+    /// refinable by subdivision at all (the band is semantically
+    /// indeterminate at any width, even for a point — module docs); the
+    /// driver escalates it as a genuine D4 ¶3 sliver, not a resolution
+    /// failure. Like [`MarginDiag::Value`], this is diagnostic data, never
+    /// something to branch on.
+    Enclosure {
+        /// The enclosure's lower bound (−∞ for a half-unbounded one).
+        lo: f64,
+        /// The enclosure's upper bound (+∞ for a half-unbounded one).
+        hi: f64,
+    },
+    /// The margin was poisoned: NaN at `f64`, or — at the interval scalar
+    /// (M0 PR 4) — an empty/ill-formed enclosure or a decoration recording
+    /// a domain violation somewhere in the computation (see the
+    /// totality/NaN policy in [`crate::real`]). A poisoned value carries
+    /// no sign information at all — this is not "too close to call", it is
+    /// "the question was never validly posed". For the subdivision driver
+    /// the causes differ in curability: a domain-clamp `Invalid` (a `Trv`
+    /// decoration from a partially out-of-domain enclosure) may cure under
+    /// subdivision as the violating sub-box shrinks away, whereas a NaI
+    /// `Invalid` (ill-formed from construction) never cures.
     Invalid,
 }
 
@@ -451,8 +476,8 @@ pub enum MarginDiag {
 ///
 /// At `f64` this means the margin landed in the ambiguity band (or was
 /// NaN — see [`MarginDiag`]); at the interval instantiation (M0 PR 4) it
-/// will mean the enclosure straddles a decision boundary, and Q1's
-/// subdivision driver responds by splitting the parameter box and
+/// means the enclosure straddles a decision boundary or was poisoned, and
+/// Q1's subdivision driver responds by splitting the parameter box and
 /// re-running. Construction code propagates it with `?`.
 ///
 /// Fields are public: this is honest diagnostic data (the achieved
@@ -509,11 +534,18 @@ impl fmt::Display for Indeterminate {
                  threshold to build sound geometry from; widen the feature, make it \
                  exactly coincident, or shrink the tolerance (D4)"
             ),
+            MarginDiag::Enclosure { lo, hi } => write!(
+                f,
+                "enclosure [{lo:e}, {hi:e}] cannot be classified against the band \
+                 (zero = {zero:e}, escalate = {escalate:e}) — it straddles a decision \
+                 boundary or lies inside the ambiguity band; subdivide the parameter \
+                 box for a tighter enclosure, or widen the feature (D4, Q1)"
+            ),
             MarginDiag::Invalid => write!(
                 f,
-                "margin is invalid (NaN) — a poisoned computation can never take a \
-                 branch; band (zero = {zero:e}, escalate = {escalate:e}) — check the \
-                 operation's inputs upstream (D4)"
+                "margin is invalid (NaN or a poisoned enclosure) — a poisoned \
+                 computation can never take a branch; band (zero = {zero:e}, \
+                 escalate = {escalate:e}) — check the operation's inputs upstream (D4)"
             ),
         }
     }
@@ -906,10 +938,31 @@ mod tests {
             .with_predicate("transversality");
         assert_eq!(
             invalid.to_string(),
-            "predicate 'transversality' indeterminate: margin is invalid (NaN) \
-             — a poisoned computation can never take a branch; band \
-             (zero = 1e-9, escalate = 1e-8) — check the operation's inputs \
-             upstream (D4)"
+            "predicate 'transversality' indeterminate: margin is invalid (NaN \
+             or a poisoned enclosure) — a poisoned computation can never take \
+             a branch; band (zero = 1e-9, escalate = 1e-8) — check the \
+             operation's inputs upstream (D4)"
+        );
+
+        // The interval variant's wording (the variant itself is not
+        // feature-gated — it is constructed here directly; the interval
+        // scalar that produces it organically lives behind the `interval`
+        // feature and has its own tests).
+        let enclosure = Indeterminate {
+            margin: MarginDiag::Enclosure {
+                lo: -2e-9,
+                hi: 5e-9,
+            },
+            band,
+            predicate: Some("side_of_plane"),
+        };
+        assert_eq!(
+            enclosure.to_string(),
+            "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
+             cannot be classified against the band (zero = 1e-9, escalate = 1e-8) \
+             — it straddles a decision boundary or lies inside the ambiguity \
+             band; subdivide the parameter box for a tighter enclosure, or \
+             widen the feature (D4, Q1)"
         );
     }
 
