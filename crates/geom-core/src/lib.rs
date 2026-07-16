@@ -19,6 +19,4 @@ pub use predicate::{
     AMBIGUITY_K, Band, BandError, BandField, Decide, Indeterminate, MarginDiag, Sign,
 };
 pub use real::Real;
-pub use tolerance::{
-    Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError, ToleranceField,
-};
+pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};
