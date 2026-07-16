@@ -1526,6 +1526,64 @@ mod tests {
         assert_eq!(body.get_vertex(w).unwrap().emanating, Some(split.he_minus));
     }
 
+    #[test]
+    fn fan_mev_splices_across_two_loops() {
+        // GWB's two-face mev form: he1 and he2 start at the same vertex
+        // but sit in DIFFERENT loops (the new halves land in different
+        // loops too — he_plus in he1's, he_minus in he2's).
+        // Build the digon pillow through the ops (as in the module
+        // doctest): at the seed vertex v the orbit is [p, hp2] with p in
+        // the new face's loop and hp2 in the old loop.
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        let split = body
+            .mef(MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            })
+            .unwrap();
+        assert_eq!(
+            body.vertex_orbit(seg.he_plus),
+            Some(vec![seg.he_plus, split.he_plus])
+        );
+
+        let fan = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: split.he_plus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        // The run [seg.he_plus] moved to the new vertex.
+        assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, fan.vertex);
+        // Each new half landed in its addressing half-edge's loop.
+        assert_eq!(
+            body.get_half_edge(fan.he_plus).unwrap().parent_loop,
+            split.r#loop, // seg.he_plus's loop (the mef moved it there)
+        );
+        assert_eq!(
+            body.get_half_edge(fan.he_minus).unwrap().parent_loop,
+            seed.r#loop, // split.he_plus's loop
+        );
+        // v's orbit swapped the moved half for the new plus half.
+        assert_eq!(
+            body.vertex_orbit(fan.he_plus),
+            Some(vec![fan.he_plus, split.he_plus])
+        );
+    }
+
     // ------------------------------------------------------------------
     // mef: self-loop, Lone (circular edge), ring split
     // ------------------------------------------------------------------
