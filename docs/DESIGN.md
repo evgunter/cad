@@ -371,11 +371,14 @@ tax; useful as a *test oracle* for comparing our boolean results).
 ## Prior art / references
 
 Local copies live in `references/` (git-ignored). Currently on hand:
-`the-nurbs-book.pdf` (full 2nd-edition scan, verified) and
+`the-nurbs-book.pdf` (full 2nd-edition scan, verified),
 `mantyla-solid-modeling-ch4-6.pdf` (chapters 4–6: representation schemes —
-decomposition / constructive / boundary models). **Note:** the
-Euler-operator and half-edge implementation chapters (later in the book)
-are *not* in the Mäntylä scan — a fuller copy is still sought before M1.
+decomposition / constructive / boundary models), and `hoffmann/` (Hoffmann,
+*Geometric and Solid Modeling*, complete: front + chapters 1–7 + bib,
+recovered via the Internet Archive — the Purdue page is gone). **Note:**
+the Euler-operator and half-edge implementation chapters (later in the
+book) are *not* in the Mäntylä scan — a fuller copy is still sought before
+M1.
 
 - **Mäntylä, *An Introduction to Solid Modeling*** — the Euler-operator
   B-rep reference; the `topo` layer is essentially this book.
