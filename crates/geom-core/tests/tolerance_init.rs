@@ -28,7 +28,7 @@ fn explicit_init_commits_once_and_ignores_env() {
     // never consulted on this path)...
     assert_eq!(Tolerance::get(), tolerance);
     // ...and no env error is recorded.
-    assert_eq!(Tolerance::env_init_error(), None);
+    assert!(Tolerance::env_init_errors().is_empty());
 
     // A second init fails with a typed error carrying current + attempted.
     let attempted = Tolerance {

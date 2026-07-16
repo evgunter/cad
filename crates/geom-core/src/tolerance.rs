@@ -19,11 +19,12 @@
 //!   ([`ENV_EPS`] / [`ENV_EPS_ANGULAR`]): well-formed values win, absent
 //!   variables fall back to the compiled defaults, and a malformed or
 //!   invalid value falls back to the defaults **while recording the
-//!   failure**, retrievable via [`Tolerance::env_init_error`]. Loudness is
-//!   restored structurally: a regular `#[test]` in this crate asserts the
-//!   recorded error is `None`, so a typo'd ε in a CI matrix row fails
-//!   visibly through the normal test mechanism (no library panic per D9,
-//!   no silent config swallow per D4).
+//!   failure**. Every rejected variable is recorded (ε first, then εₐ),
+//!   retrievable via [`Tolerance::env_init_errors`]. Loudness is restored
+//!   structurally: a regular `#[test]` in this crate asserts the recorded
+//!   slice is empty, so a typo'd ε in a CI matrix row fails visibly through
+//!   the normal test mechanism (no library panic per D9, no silent config
+//!   swallow per D4).
 
 use core::fmt;
 use std::sync::OnceLock;
@@ -141,8 +142,9 @@ pub enum ToleranceEnvErrorKind {
 ///
 /// This is *recorded*, not raised — [`Tolerance::get`] stays total and
 /// falls back to the compiled defaults; retrieve it via
-/// [`Tolerance::env_init_error`]. A test in this crate asserts it is
-/// `None`, which is what makes a malformed CI env value fail loudly.
+/// [`Tolerance::env_init_errors`]. A test in this crate asserts the
+/// recorded slice is empty, which is what makes a malformed CI env value
+/// fail loudly.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToleranceEnvError {
     /// The environment variable that was rejected.
@@ -175,11 +177,12 @@ impl fmt::Display for ToleranceEnvError {
 impl std::error::Error for ToleranceEnvError {}
 
 /// The once-per-run global state: the committed tolerance plus, when the
-/// commitment came from `get()`'s env path, any recorded env failure.
+/// commitment came from `get()`'s env path, every recorded env failure (ε
+/// first, then εₐ; empty when nothing was rejected).
 #[derive(Debug)]
 struct Global {
     tolerance: Tolerance,
-    env_error: Option<ToleranceEnvError>,
+    env_errors: Vec<ToleranceEnvError>,
 }
 
 static GLOBAL: OnceLock<Global> = OnceLock::new();
@@ -193,10 +196,10 @@ fn env_lookup(key: &str) -> Option<String> {
 
 fn global() -> &'static Global {
     GLOBAL.get_or_init(|| {
-        let (tolerance, env_error) = resolve_from_env(env_lookup);
+        let (tolerance, env_errors) = resolve_from_env(env_lookup);
         Global {
             tolerance,
-            env_error,
+            env_errors,
         }
     })
 }
@@ -240,15 +243,16 @@ fn resolve_var(
 /// `OnceLock` wrapper above is a thin shell over this.
 ///
 /// Each variable resolves independently (a bad ε does not discard a good
-/// εₐ). If both variables are bad, the recorded error is the ε one
-/// (resolution order: ε, then εₐ) — one recorded error is enough to fail
-/// the run loudly.
+/// εₐ). Every rejected variable is recorded, in resolution order (ε first,
+/// then εₐ): a CI row with both vars typo'd surfaces both at once rather
+/// than one rerun at a time.
 fn resolve_from_env(
     lookup: impl Fn(&str) -> Option<String>,
-) -> (Tolerance, Option<ToleranceEnvError>) {
+) -> (Tolerance, Vec<ToleranceEnvError>) {
     let (eps, eps_err) = resolve_var(&lookup, ENV_EPS, DEFAULT_EPS);
     let (eps_angular, angular_err) = resolve_var(&lookup, ENV_EPS_ANGULAR, DEFAULT_EPS_ANGULAR);
-    (Tolerance { eps, eps_angular }, eps_err.or(angular_err))
+    let env_errors = eps_err.into_iter().chain(angular_err).collect();
+    (Tolerance { eps, eps_angular }, env_errors)
 }
 
 impl Tolerance {
@@ -281,6 +285,11 @@ impl Tolerance {
     ///   env self-initialization — carrying both the current and the
     ///   attempted value. There is no way to change the tolerance after
     ///   commitment (D4 ¶1: never loosened mid-run).
+    ///
+    /// When `init` is used it should be called during single-threaded
+    /// startup, before any [`Tolerance::get`]; racing `init` against a first
+    /// `get` is safe (a single commit wins, the loser gets a typed error),
+    /// but which value wins is scheduling-dependent.
     pub fn init(tolerance: Tolerance) -> Result<(), ToleranceError> {
         tolerance.validate()?;
         let mut installed = false;
@@ -288,7 +297,7 @@ impl Tolerance {
             installed = true;
             Global {
                 tolerance,
-                env_error: None,
+                env_errors: Vec::new(),
             }
         });
         if installed {
@@ -307,24 +316,25 @@ impl Tolerance {
     /// from the environment ([`ENV_EPS`], [`ENV_EPS_ANGULAR`]); absent
     /// variables fall back to [`DEFAULT_EPS`] / [`DEFAULT_EPS_ANGULAR`],
     /// and malformed or invalid values fall back to the defaults while
-    /// recording the failure (see [`Tolerance::env_init_error`]).
+    /// recording the failure (see [`Tolerance::env_init_errors`]).
     pub fn get() -> Tolerance {
         global().tolerance
     }
 
-    /// Any failure recorded by `get()`'s env self-initialization.
+    /// Every failure recorded by `get()`'s env self-initialization, in
+    /// resolution order (ε first, then εₐ).
     ///
     /// Forces initialization (as if by [`Tolerance::get`]) if it has not
-    /// happened yet, so the answer is definitive. `None` means the
+    /// happened yet, so the answer is definitive. An empty slice means the
     /// committed tolerance involved no rejected env value — in particular,
     /// initialization via [`Tolerance::init`] never consults the
     /// environment and records nothing.
     ///
-    /// The crate's test suite asserts this is `None`, which is what makes
+    /// The crate's test suite asserts this is empty, which is what makes
     /// a typo'd tolerance in a CI matrix row fail loudly (through the
     /// normal test mechanism rather than a library panic, per D9).
-    pub fn env_init_error() -> Option<&'static ToleranceEnvError> {
-        global().env_error.as_ref()
+    pub fn env_init_errors() -> &'static [ToleranceEnvError] {
+        &global().env_errors
     }
 }
 
@@ -337,7 +347,7 @@ mod tests {
     // everything here goes through the *pure* `resolve_from_env` /
     // `validate` paths — except the single test at the bottom, which is the
     // only test in this binary allowed to touch the global `OnceLock`
-    // (`get` / `env_init_error` / a necessarily-failing late `init`). The
+    // (`get` / `env_init_errors` / a necessarily-failing late `init`). The
     // successful-`init` path lives in its own integration-test binary
     // (`tests/tolerance_init.rs`), i.e. its own process.
 
@@ -361,13 +371,13 @@ mod tests {
                 eps_angular: DEFAULT_EPS_ANGULAR
             }
         );
-        assert_eq!(err, None);
+        assert!(err.is_empty());
     }
 
     #[test]
     fn env_well_formed_values_win() {
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, "1e-6")]));
-        assert_eq!(err, None);
+        assert!(err.is_empty());
         assert_eq!(
             t,
             Tolerance {
@@ -380,7 +390,7 @@ mod tests {
             (ENV_EPS, "2.5e-8"),
             (ENV_EPS_ANGULAR, "0.0000001"),
         ]));
-        assert_eq!(err, None);
+        assert!(err.is_empty());
         assert_eq!(
             t,
             Tolerance {
@@ -402,11 +412,11 @@ mod tests {
         );
         assert_eq!(
             err,
-            Some(ToleranceEnvError {
+            vec![ToleranceEnvError {
                 var: ENV_EPS,
                 raw: "bogus".to_string(),
                 kind: ToleranceEnvErrorKind::Unparsable,
-            })
+            }]
         );
 
         // Empty string and stray whitespace are malformed too (parsed
@@ -414,7 +424,9 @@ mod tests {
         for raw in ["", " 1e-6", "1e-6 "] {
             let (t, err) = resolve_from_env(table(&[(ENV_EPS_ANGULAR, raw)]));
             assert_eq!(t.eps_angular, DEFAULT_EPS_ANGULAR);
-            let err = err.expect("malformed value must be recorded");
+            let [err] = &err[..] else {
+                panic!("malformed value must be recorded (exactly one error)");
+            };
             assert_eq!(err.var, ENV_EPS_ANGULAR);
             assert_eq!(err.kind, ToleranceEnvErrorKind::Unparsable);
         }
@@ -425,7 +437,9 @@ mod tests {
         for raw in ["inf", "-inf", "NaN"] {
             let (t, err) = resolve_from_env(table(&[(ENV_EPS, raw)]));
             assert_eq!(t.eps, DEFAULT_EPS);
-            let err = err.expect("non-finite value must be recorded");
+            let [err] = &err[..] else {
+                panic!("non-finite value must be recorded (exactly one error)");
+            };
             assert_eq!(err.var, ENV_EPS);
             assert!(
                 matches!(err.kind, ToleranceEnvErrorKind::Invalid { .. }),
@@ -440,14 +454,16 @@ mod tests {
         for raw in ["-1e-9", "0", "-0.0"] {
             let (t, err) = resolve_from_env(table(&[(ENV_EPS, raw)]));
             assert_eq!(t.eps, DEFAULT_EPS);
-            let err = err.expect("non-positive value must be recorded");
+            let [err] = &err[..] else {
+                panic!("non-positive value must be recorded (exactly one error)");
+            };
             assert_eq!(err.var, ENV_EPS);
             assert!(matches!(err.kind, ToleranceEnvErrorKind::Invalid { .. }));
         }
     }
 
     #[test]
-    fn env_fields_resolve_independently_and_eps_error_wins() {
+    fn env_fields_resolve_independently_and_both_errors_recorded() {
         // A bad eps does not discard a good eps_angular.
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, "junk"), (ENV_EPS_ANGULAR, "1e-7")]));
         assert_eq!(
@@ -457,9 +473,13 @@ mod tests {
                 eps_angular: 1e-7
             }
         );
-        assert_eq!(err.expect("error must be recorded").var, ENV_EPS);
+        let [err] = &err[..] else {
+            panic!("exactly one error must be recorded");
+        };
+        assert_eq!(err.var, ENV_EPS);
 
-        // Both bad: the recorded error is the eps one (resolution order).
+        // Both bad: both errors are recorded, in resolution order (ε first,
+        // then εₐ).
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, "junk"), (ENV_EPS_ANGULAR, "junk")]));
         assert_eq!(
             t,
@@ -468,7 +488,11 @@ mod tests {
                 eps_angular: DEFAULT_EPS_ANGULAR
             }
         );
-        assert_eq!(err.expect("error must be recorded").var, ENV_EPS);
+        let [eps_err, angular_err] = &err[..] else {
+            panic!("both errors must be recorded, got {err:?}");
+        };
+        assert_eq!(eps_err.var, ENV_EPS);
+        assert_eq!(angular_err.var, ENV_EPS_ANGULAR);
     }
 
     // `init` with an *invalid* value is rejected before the global
@@ -534,13 +558,18 @@ mod tests {
     fn global_get_env_sanity_and_once_semantics() {
         let t = Tolerance::get();
 
-        // Env sanity: a malformed/invalid tolerance env var fails the run
-        // here, loudly, with the recorded error in the message.
-        let env_error = Tolerance::env_init_error();
+        // Env sanity: any malformed/invalid tolerance env var fails the run
+        // here, loudly, with every recorded error in the message (one per
+        // line, ε before εₐ).
+        let env_errors = Tolerance::env_init_errors();
         assert!(
-            env_error.is_none(),
-            "tolerance environment override was rejected: {}",
-            env_error.map_or_else(String::new, ToString::to_string)
+            env_errors.is_empty(),
+            "tolerance environment override(s) were rejected:\n{}",
+            env_errors
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
         );
 
         // Consistency: the global value is exactly what the pure resolver

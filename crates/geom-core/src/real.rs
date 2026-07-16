@@ -11,10 +11,21 @@
 //! - **No [`PartialOrd`] / [`PartialEq`] bounds and no comparison methods.**
 //!   Q1's one day-one discipline is that every topology-determining branch
 //!   goes through a named trilean predicate (M0 PR 3). Omitting comparisons
-//!   from `Real` makes that discipline *structural*: generic evaluation code
-//!   cannot write `a < b` — it does not typecheck. (Concrete-`f64` code
-//!   still has `<` from std; kernel style rules cover that, but all generic
-//!   code is safe by construction.)
+//!   from `Real` makes the *convenient* paths fail to typecheck: generic
+//!   evaluation code cannot write raw `<`, `==`, `.sort()`, or numeric
+//!   casts on a scalar. It is not an airtight cage — safe escape channels
+//!   remain: adding an extra bound like `+ PartialOrd` to a type parameter
+//!   (compiles at `f64`, dies at the interval instantiation), `Debug`
+//!   format-string gadgets (the `Debug` supertrait is a deliberate
+//!   diagnostic affordance and the main leak channel), and `Any`/`TypeId`
+//!   type-branching enabled by the `'static` bound. These are closed by a
+//!   named kernel style rule, **evaluation-code discipline**: type
+//!   parameters in evaluation code carry no bounds beyond geom-core's
+//!   scalar traits, and no `format!`/`Debug`-string inspection or
+//!   `TypeId`/`Any` dispatch on scalar values. The residue channels are
+//!   banned by this rule and are loud in review; CI greps for the
+//!   extra-bound pattern as a tripwire. (Concrete-`f64` code still has `<`
+//!   from std — that is fine; the rule governs generic evaluation code.)
 //! - **No bound extraction** (`to_f64`, `lo`/`hi`, `midpoint`): evaluation
 //!   code must not be able to silently collapse an interval to a number.
 //!   Certification/rendering code that legitimately needs bounds will get a
@@ -27,6 +38,10 @@
 //!   dual number's value part diverge from the plain-`f64` computation;
 //!   cross-instantiation consistency (the same recipe evaluated at different
 //!   scalar types must agree on the shared part) outranks last-ulp accuracy.
+//!   For the same reason `mul_add`/FMA is excluded: hardware-fused multiply-
+//!   add versus a soft multiply-then-add rounds differently across
+//!   instantiations and platforms, breaking cross-instantiation consistency
+//!   and D9 determinism.
 //! - **No [`core::iter::Sum`] / [`core::iter::Product`] bounds**: D9 allows
 //!   parallelism only in fixed reduction shapes, so summation order must be
 //!   explicit (a fold) at call sites; the trait offers no order-implicit
@@ -117,6 +132,12 @@ pub trait Real:
     /// [`powi_by_squaring`]), so results are deterministic but — for
     /// `|n| ≥ 4` — not necessarily bit-identical to naive repeated
     /// multiplication (different rounding association).
+    ///
+    /// For negative exponents the reciprocal-of-power rule means extreme
+    /// magnitudes can overflow before inverting — e.g. `powi(2.0, -1074)`
+    /// yields `0.0` where the true value is the minimum subnormal. This is
+    /// harmless within the session-boxed model range (D4 ¶4); changing it
+    /// is a design conversation, not a bugfix.
     fn powi(self, n: i32) -> Self;
 
     /// The sine (argument in radians).
@@ -490,6 +511,10 @@ mod tests {
         }
 
         /// sin_cos must be bit-identical to (sin, cos) — the override rule.
+        /// Tautological today (f64 keeps the default `sin_cos`, so this
+        /// compares the default against its own components); it exists as a
+        /// tripwire against a future override or an edit to the default that
+        /// breaks the bit-identity contract.
         #[test]
         fn sin_cos_bit_identical_to_components(x in -1.0e6..1.0e6f64) {
             let (s, c) = Real::sin_cos(x);
