@@ -26,6 +26,11 @@ design conversation.
   `<main-checkout>/references/notes/mantyla-ch{9,10,11}-*.md`
   (git-ignored, persistent) — implementer/reviewer prompts should point
   there, not at the scan.
+- Reviewer test suites are promoted into CI as
+  `crates/topo/tests/review_m1_prN.rs` after each fix pass (Evan, PR
+  #17): independent derivations are regression value; suites hit by
+  later API changes (e.g. PR 5's raw-builder demotion) migrate or get
+  pruned at that PR like any test.
 
 ## Carried in from M0 (docs/M0-LOG.md "M0 EXIT")
 
