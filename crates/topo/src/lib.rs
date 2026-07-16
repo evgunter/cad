@@ -58,13 +58,19 @@
 //! let sh = body.add_shell(Shell { faces: vec![f] }, prov());
 //! body.add_solid(Solid { shells: vec![sh] }, prov());
 //!
-//! assert_eq!(body.get_vertex(v0).map(|v| v.point), Some(p0));
+//! assert_eq!(topo::validate(&body), Ok(()));
+//!
+//! // A malformed body reports EVERY defect, typed:
+//! body.add_point(origin()); // orphan geometry — nothing should leak
+//! let errors = topo::validate(&body).unwrap_err();
+//! assert_eq!(errors.len(), 1);
 //! ```
 
 pub mod body;
 pub mod entity;
 pub mod geometry;
 pub mod provenance;
+pub mod validate;
 
 pub use body::Body;
 pub use entity::{
@@ -73,3 +79,4 @@ pub use entity::{
 };
 pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 pub use provenance::Provenance;
+pub use validate::{ValidationError, validate};
