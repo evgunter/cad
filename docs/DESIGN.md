@@ -54,28 +54,57 @@ detailed design under discussion.
   compositions of validity-preserving pure steps; debug builds check
   invariants after each step.
 
-### D2 (agreed): Topology and geometry separated; pcurves are primary
+### D2 (agreed, revised 2026-07-15): Topology and geometry separated; edge/vertex geometry is intensional where possible
 
 Topology and geometry live in separate arenas: faces reference surfaces,
 edges reference curves, vertices reference points.
 
-**What a pcurve is.** A surface is a map `S(u,v) → ℝ³`. A face is a region
-of that surface's 2-D parameter plane, and each of its boundary edges is
-therefore also a curve `P(t) → (u,v)` in that plane — the *pcurve*
+**Background: pcurves.** A surface is a map `S(u,v) → ℝ³`. A face is a
+region of that surface's 2-D parameter plane, and each of its boundary
+edges is therefore also a curve `P(t) → (u,v)` in that plane — the *pcurve*
 ("parameter-space curve"). An edge shared by two faces classically carries
 *three* representations: a 3-D curve `C(t)` plus one pcurve per adjacent
 face, with the consistency requirement `Sᵢ(Pᵢ(t)) ≈ C(t)`. Pcurves are not
-optional — point-in-face trimming tests, tessellation, and intersection
-marching all happen in (u,v) space. The redundancy among the three
-representations is a classic bug farm in every kernel.
+optional — trimming tests, tessellation, and intersection marching all
+happen in (u,v) space. The redundancy among the three peer representations
+is a classic bug farm in every kernel.
 
-**Our rule:** one representation per edge is *authoritative* and the others
-are derived, carrying a certified residual bound (see D4). Concretely: one
-adjacent face's pcurve is designated primary; the 3-D curve is the
-composition `S∘P` (cached, possibly refit); the other face's pcurve is
-derived by projection. Which side is primary is recorded explicitly. Note
-this still leaves genuinely redundant *data* in caches — the invariant is
-that there is never a question of which representation wins.
+**Our rule:** an edge's geometry is stored as an *intensional description*
+of what the locus **is**; all concrete representations (`C(t)`, both
+pcurves) are derived caches carrying certified residual bounds against the
+described locus (see D4). Sketch of the sum type:
+
+```text
+EdgeGeometry =
+  | Intersection { s1, s2, witness }  -- transverse surface–surface intersection;
+                                      -- the edge is the connected component of
+                                      -- S₁∩S₂ selected by the witness point
+                                      -- (also the marching seed)
+  | MappedCurve  { source, map }      -- pushforward of a lower-dim entity, e.g.
+                                      -- a sketch edge/vertex under an
+                                      -- extrude/sweep/revolve map
+  | Seam         { surface, pcurves } -- same surface on both sides (closed-
+                                      -- surface parameterization seam)
+  | Explicit     { curve, pcurves }   -- last resort: extensional data with a
+                                      -- designated-primary representation and
+                                      -- certified cross-residuals
+```
+
+Validity of `Intersection` requires *transversality*: normals of S₁, S₂
+linearly independent along the locus (equivalently `T_pS₁ + T_pS₂ = ℝ³`),
+so the implicit function theorem makes S₁∩S₂ locally a 1-manifold. The
+transversality margin (angle between normals) is a predicate-with-margin
+(Q1) and governs the conditioning of every derived cache. Cases that fail
+transversality get other variants: parameterization seams (`Seam`),
+tangential contact such as fillet–support contact curves (a future
+`TangencyLocus` variant — the fillet construction knows its contact locus
+directly). In the intensional variants the invariant "the locus lies on
+both surfaces" holds *by definition*; only the numerical caches need
+certification. Vertices generalize the same way (intersection of three
+surfaces / endpoint of a locus, with a witness point).
+
+This makes D5's provenance load-bearing rather than bookkeeping: the
+intensional description largely *is* the provenance.
 
 ### D3 (agreed): Analytic surfaces special-cased; NURBS as the general fallback
 
@@ -95,16 +124,45 @@ fallback: any exotic surface is at minimum representable, and any
 unimplemented analytic×analytic pair can fall back to the general path.
 Same design for curves (line / circle / ellipse / … / NURBS).
 
-### D4 (agreed in principle): Single strict tolerance; operations fail loudly
+### D4 (agreed, ratified 2026-07-15): Single strict global tolerance; operations fail loudly
 
 No per-entity tolerances that grow as operations get sloppy (the Open
-CASCADE model, where errors snowball silently). One kernel tolerance;
-derived geometry must meet it or the operation returns a typed error with
-diagnostics. "Define what something is" applied to error handling.
+CASCADE model, where errors snowball silently). "Define what something is"
+applied to error handling. Five commitments:
 
-Exact semantics (what carries a residual, what the error looks like, how
-tolerance relates to model scale/units) are under discussion — see
-[Open questions → Tolerance model](#q2-tolerance-model).
+1. **Two numbers, global constants**: a linear tolerance ε and an angular
+   tolerance εₐ, defined once in `geom-core` as a `Tolerance` value (a
+   single definition site, so promotion to per-model later is mechanical —
+   but per-model is deliberately rejected for now: any two bodies must be
+   boolean-combinable, and per-model ε recreates mixed-tolerance semantics
+   one level up). Exact values chosen empirically at M0; ε ≈ 1e-9 m gives
+   micron-to-kilometer coverage with ~4 orders of f64 headroom at km scale.
+2. **Every derived cache carries a certified residual bound** against its
+   intensional description (D2): fitted intersection curves, projected
+   pcurves, refit 3-D curves. Kernel invariant: `residual ≤ ε` for every
+   derived item in a valid body; the `topo` validator checks it.
+   "Certified" is initially a conservative numerical estimate, upgraded to
+   an interval-verified bound when Q1's machinery lands.
+3. **Failure is a typed, actionable error**: `ToleranceExceeded { entity,
+   achieved_residual, required, operation }` — consumable by humans and by
+   the error-propagation machinery. Geometry that can't meet ε
+   (near-tangent surfaces, sliver faces) almost always indicates a modeling
+   mistake or an unstable design; surfacing it beats absorbing it.
+4. **Fixed internal units — meters and radians — with a documented model
+   size range** (Parasolid session-box style); geometry outside the range
+   is rejected at construction. User-facing units are typed newtypes at the
+   API boundary only (see D6).
+5. **Strictness is enforced at the boundary, not relaxed inside**: future
+   STEP *import* gets a separate healing stage that repairs sloppy external
+   geometry to meet ε *before* it becomes a kernel body.
+
+### D6 (agreed): Canonical internal units; typed units at the API boundary
+
+Kernel-internal code is raw `T` in meters/radians by convention — no
+dimensional types inside. The public API uses hand-rolled newtypes
+(`Length`, `Angle`, …) that convert on entry. Hand-rolled rather than
+`uom`: uom's dimensional generics fight the scalar-type parameter and we
+need ~five quantities, not the SI lattice.
 
 ### D5 (agreed): Persistent topological identity from birth
 
@@ -173,20 +231,37 @@ precursor of the error-propagation feature.
 
 ## Open questions
 
-### Q1: Scalar genericity
+### Q1: Scalar genericity (direction settled 2026-07-15)
 
-How far does the generic scalar `T` reach, what is the trait, and how do
-algorithms that *branch* on geometric predicates behave under interval
-types (which lack a total order)? Current proposal under discussion:
-two-tier design — evaluation code fully generic; topology-determining
-decisions run concrete at `f64` but record *witnesses* (predicate + signed
-margin) that can be re-checked under intervals/duals for error propagation.
+Settled direction — **reified trilean predicates + a subdivision driver; no
+persisted decision log**:
 
-### Q2: Tolerance model
+- Evaluation code (evaluators, derivatives, transforms, measurements) is
+  fully generic over a `Real` trait we define. Instantiations: `f64`,
+  `Interval` (inari), `Dual<f64>` (num-dual), `Dual<Interval>` (in-house
+  wrapper, see crate table).
+- Every topology-determining branch goes through a *named predicate
+  function* returning a trilean sign (+ margin), generic over `T`. No raw
+  `<` on control-flow paths — this code-style discipline is the one
+  day-one commitment.
+- At `T = f64` predicates are total (margins within kε escalate per D4).
+  At `T = Interval` an indeterminate predicate aborts the operation — in
+  Rust, predicates return `Result<bool, Indeterminate>` and construction
+  code propagates with `?` — unwinding to an outer **propagation driver**
+  that splits the parameter box and re-runs (pure model ⇒ re-running
+  sub-boxes is trivially correct and embarrassingly parallel). This is the
+  operational form of "union over branches, pushing the distribution
+  forward into each": leaves of the subdivision take definite branch
+  paths; outcome probabilities are the distribution's measure on the
+  sub-boxes.
+- A persisted decision log (earlier proposal) is *dropped*: reified
+  predicates are the load-bearing part, and margin logging can be added
+  later as a pure diagnostic/optimization without restructuring.
 
-Precise semantics of "geometry fails to meet tolerance": which derived
-artifacts carry certified residual bounds, what the typed error contains,
-absolute vs. scale-relative tolerance, units policy. Under discussion.
+Still open: exact `Real` trait surface; comparison/signum semantics of the
+`Dual<Interval>` wrapper.
+
+### Q2: Tolerance model — **resolved**, folded into D4.
 
 ### Q3: Sketch constraint solver — build vs. bind
 
@@ -210,11 +285,19 @@ Leading answer: adopt **ezpz** at M6, with "roll our own LM solver on
 `levenberg-marquardt`/`faer` using ISOtope's math as tutorial" as the
 fallback if ezpz's product-driven roadmap diverges from our needs.
 
-### Q4: Units and model scale
+### Q4: Units and model scale — **resolved**, folded into D4 (¶4) and D6.
 
-An absolute tolerance implies a validity range for model size (Parasolid's
-"session box" approach). Decide units convention and document the supported
-size range, or adopt scale-relative tolerance. Interacts with Q2.
+### Q5: Depend on, vendor, or merely study `curvo` for NURBS algorithms
+
+The core invariants (certified residuals, trilean predicates, generic `T`,
+no hidden tolerance decisions) live *in the algorithms*, and an algorithm
+behind a foreign API can't uphold them — curvo uses its own internal
+epsilons and returns bare answers. Default stance: reference + test oracle
+(alongside opencascade-rs) from M3. But it's MIT, so vendoring specific
+algorithms and adapting them to carry our invariants is on the table;
+audit its source properly before M5. Contrast ezpz, which sits *upstream*
+of the certified core (its output is just numbers that then pass through
+our construction and checks), so arm's-length dependency is principled.
 
 ## Crate landscape (surveyed 2026-07)
 
@@ -227,7 +310,7 @@ not the modeling core. Candidates, all verified active unless noted:
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | `im` is unmaintained with an open soundness advisory — use the `imbl` fork |
 | Interval arithmetic | `inari` | MIT | IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard |
 | Robust predicates | `robust` (georust) | MIT/Apache | Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
-| Dual numbers / forward AD | `num-dual` | MIT/Apache | generic `DualNum<F>`, arbitrary nesting, simba `RealField`. **Dual-over-interval does not exist off the shelf** — we write a `DualNum` newtype over `inari::Interval` in-house (comparison semantics for zero-straddling intervals is a design decision — consistent with Q1's two-tier view) |
+| Dual numbers / forward AD | `num-dual` | MIT/Apache | generic `DualNum<F>`, arbitrary nesting, simba `RealField`. **Dual-over-interval does not exist off the shelf** — we write a `DualNum` newtype over `inari::Interval` in-house (comparison semantics for zero-straddling intervals is a design decision — see Q1: indeterminate comparisons surface as `Indeterminate`, not a guess) |
 | CDT / mesh refinement | `spade` | MIT/Apache | Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code) |
 | 2-D polygon booleans | `i_overlay` | MIT/Apache | robust integer-snapping booleans (now inside georust `geo`); useful for trim-loop ops in UV |
 | Display triangulation | `earcut` (georust) | MIT/Apache | cheap ear-clipping for viz only |
