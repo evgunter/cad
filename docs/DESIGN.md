@@ -111,7 +111,8 @@ boundary edge the blend and support surfaces share tangent planes
 identically, so `Intersection`'s precondition fails everywhere on the
 locus). `TangencyLocus`'s intrinsic validity condition sits one
 differential order up: surfaces coincident within ε and normal-parallel
-within εₐ *along* the locus, separating quadratically *transverse* to it
+within the derived angular threshold ε·κ_rel (D4 ¶1: lever arm
+r = 1/κ_rel) *along* the locus, separating quadratically *transverse* to it
 (relative normal curvature bounded away from zero — otherwise the
 surfaces osculate over a patch and the "locus" is not a curve). The
 uniform pattern: **every variant is a validity predicate plus a margin**
@@ -147,7 +148,8 @@ distinguishes that curve from its neighbors), and user splits.
 because of its shape: one authoritative source (`curve = map ∘ source`,
 pcurves derived as certified caches), never two peer representations
 needing cross-reconciliation. A locus in the ambiguous band — a dihedral
-within a few εₐ of tangent, certifiable as neither `Intersection` nor
+within a few derived angular thresholds of tangent (θ ≲ K·ε/r at the
+governing lever arm), certifiable as neither `Intersection` nor
 `TangencyLocus` — fails loudly at construction exactly as at import (D4);
 a conventional description is not an escape hatch from ill-conditioned
 geometry.
@@ -179,18 +181,29 @@ No per-entity tolerances that grow as operations get sloppy (the Open
 CASCADE model, where errors snowball silently). "Define what something is"
 applied to error handling. Five commitments:
 
-1. **Two numbers, global per run**: a linear tolerance ε and an angular
-   tolerance εₐ, defined once in `geom-core` as a `Tolerance` value.
-   Compile-time constant vs. once-initialized at startup is an
-   implementation detail; the invariant is **one value per run, shared by
-   all bodies, never loosened mid-run** (per-model ε is deliberately
-   rejected: any two bodies must be boolean-combinable, and per-model ε
-   recreates mixed-tolerance semantics one level up). Per-run
-   initialization also enables running the test suite at several ε values
-   to smoke out tolerance-sensitive algorithms. Exact defaults chosen
-   empirically at M0; ε ≈ 1e-9 m gives micron-to-kilometer coverage with
-   ~4 orders of f64 headroom at km scale. Import does *not* motivate
-   loosening ε — see D7's input tolerance ε_in.
+1. **One number, global per run** *(revised 2026-07-16 — originally "two
+   numbers" with a global angular tolerance εₐ)*: a linear tolerance ε,
+   defined once in `geom-core` as a `Tolerance` value. Compile-time
+   constant vs. once-initialized at startup is an implementation detail
+   (resolved: once-initialized, env-overridable per run — PR #3); the
+   invariant is **one value per run, shared by all bodies, never
+   loosened mid-run** (per-model ε is deliberately rejected: any two
+   bodies must be boolean-combinable, and per-model ε recreates
+   mixed-tolerance semantics one level up). Per-run initialization also
+   enables running the test suite at several ε values to smoke out
+   tolerance-sensitive algorithms.
+   **Angular thresholds are always derived, never a second global**: an
+   angle only means anything through the displacement it induces at a
+   lever arm (d = r·θ), so a fixed εₐ would silently privilege the
+   hidden length scale L* = ε/εₐ. Every angular predicate uses θ = ε/r
+   with its lever arm named at the call site — 1/κ_rel for tangency
+   classification (making "normal-parallel within θ" ⟺ "within ε of the
+   locus"), the face extent for parallelism decisions, the session-box
+   extent as the conservative universal arm.
+   Exact ε default chosen empirically at M0; ε ≈ 1e-9 m gives
+   micron-to-kilometer coverage with ~4 orders of f64 headroom at km
+   scale. Import does *not* motivate loosening ε — see D7's input
+   tolerance ε_in.
 2. **Every derived cache carries a certified residual bound** against its
    intensional description (D2): fitted intersection curves, projected
    pcurves, refit 3-D curves. Kernel invariant: `residual ≤ ε` for every
@@ -369,6 +382,12 @@ precursor of the error-propagation feature.
 - **M7** — STEP import as adoption (D7): analytic surface recognition,
   edge adoption, healing. Deliberately last — it is the inverse problem of
   everything above it.
+- **Post-M7 (noted 2026-07-16)** — replace `inari`'s gmp/MPFR-backed
+  interval transcendentals with an in-house rigorous implementation
+  (proven per-function error pads over `libm`, plus monotonicity/extremum
+  handling) so interval builds can drop the LGPL-3.0+ transitive
+  dependencies; until then the `interval` cargo feature quarantines the
+  copyleft obligation to interval-enabled builds only (issue #4).
 
 ## Open questions
 
@@ -399,12 +418,27 @@ persisted decision log**:
   predicates are the load-bearing part, and margin logging can be added
   later as a pure diagnostic/optimization without restructuring.
 
-Still open (code-sized, settle in first M0 PRs): exact `Real` trait
-surface; comparison/signum semantics of the `Dual<Interval>` wrapper; the
-meaning of indeterminate at plain `f64` (margin within k·ε — and the value
-of k); where genericity stops structurally (`Body<T>` = scalar-free
-topology + geometry arenas over `T`; an interval replay materializes
-interval-valued geometry).
+Residue status: **`Real` trait surface — settled** (PR #3, 2026-07-16):
+comparison-free by construction (no `PartialOrd`/`PartialEq` —
+structural for the convenient paths, plus an explicit *evaluation-code
+discipline* style rule and a CI tripwire for the residual channels:
+extra bounds, `Debug`-string gadgets, `Any`/`TypeId`); all operations
+total with poison propagation (NaN/empty) — poison flows through
+*values*, never through *decisions*; `sin_cos` is the primitive (sin/cos
+are projections, overridable only bit-identically); no fused operations
+(`hypot`, `mul_add`/FMA) — cross-instantiation consistency outranks
+last-ulp accuracy; no order-implicit reductions (`Sum`/`Product`).
+`Tolerance` is once-initialized per run with env self-init
+(`CAD_TOLERANCE_EPS`) and exhaustively recorded env errors — loud
+through a test, never a panic. **Angular tolerance eliminated** (D4 ¶1
+revision).
+Still open (settle in the remaining M0 PRs): comparison/signum semantics
+of the `Dual<Interval>` wrapper (PR 5); the meaning of indeterminate at
+plain `f64` and the ambiguity constant K's value (PR 3 fixes the
+semantics — sliver band, provisional K = 10 — value pending multi-ε
+experiments); where genericity stops structurally (`Body<T>` =
+scalar-free topology + geometry arenas over `T`; an interval replay
+materializes interval-valued geometry — PR 7).
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
@@ -472,8 +506,10 @@ placeholder workspace acceptable; pre-publish renames are cheap.
 
 Vertex-geometry taxonomy; orientation/sense conventions (M1 — classic
 bug-farm territory, document as conventions once); the validator's
-concrete invariant checklist (M1); profile/sketch input format (M2); εₐ's
-numeric value and the ambiguity constant k (M0 experiments); body-level
+concrete invariant checklist (M1); profile/sketch input format (M2); the
+ambiguity constant K's numeric value (M0 experiments; εₐ itself was
+eliminated by the D4 ¶1 revision of 2026-07-16 — angular thresholds are
+derived per predicate); body-level
 serialization beyond the recipe (post-STEP-export).
 
 ## Crate landscape (surveyed 2026-07)
@@ -485,7 +521,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | `im` is unmaintained with an open soundness advisory — use the `imbl` fork |
-| Interval arithmetic | `inari` | MIT | IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard |
+| Interval arithmetic | `inari` | MIT | IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Probe (issue #4): transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64 (build with x86-64-v3; aarch64 unflagged); planned in-house replacement post-M7 (see Roadmap) |
 | Robust predicates | `robust` (georust) | MIT/Apache | Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` | MIT/Apache | generic `DualNum<F>`, arbitrary nesting, simba `RealField`. **Dual-over-interval does not exist off the shelf** — we write a `DualNum` newtype over `inari::Interval` in-house (comparison semantics for zero-straddling intervals is a design decision — see Q1: indeterminate comparisons surface as `Indeterminate`, not a guess) |
 | CDT / mesh refinement | `spade` | MIT/Apache | Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code) |
