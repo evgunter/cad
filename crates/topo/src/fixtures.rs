@@ -17,8 +17,11 @@
 //!   lone vertex. Tier-1-legal by design.
 //!
 //! All geometry is placeholder (structural validation never reads scalar
-//! values); coordinates are chosen to match the documented geometric
-//! picture anyway, so orientation reasoning in tests can point at them.
+//! values). Coordinates are index-derived placeholders, **not** faithful
+//! positions (the prism's points are collinear, not an n-gon); the
+//! documented geometric pictures live in the doc comments here and in
+//! the topology itself, and that is what orientation reasoning in tests
+//! points at.
 
 // Test-support code: panicking is a test's failure mechanism (L5), and
 // fixture unwraps are on keys the fixture itself just minted.

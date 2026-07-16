@@ -78,7 +78,14 @@
 //! (`validate_closed` — no empty loops, no struts on finished solids),
 //! **Euler–Poincaré counting** per shell (`v − e + f − r = 2(1 − h)`),
 //! and the **bidirectional D5 provenance check** (kill-side operators,
-//! PR 4, are what first make provenance leaks reachable). Geometric
+//! PR 4, are what first make provenance leaks reachable). The E–P pass
+//! is also what closes the **shell-partition vs. edge-adjacency
+//! coherence** gap: tier 1 checks the ownership tree but never that an
+//! edge's two faces sit in the *same shell* — a cube with one side face
+//! moved to a second solid+shell (membership and back-pointers
+//! self-consistent) passes every pass here, and it is the per-shell
+//! count that fails on the split shell. Do not read passes 3–4 + 6 as a
+//! complete per-shell watertightness story until PR 5 lands. Geometric
 //! validation (D4 ¶2 residual certification) starts at M2.
 //!
 //! # All failures, not the first

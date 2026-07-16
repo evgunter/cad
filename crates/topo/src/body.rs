@@ -192,11 +192,14 @@ impl<T: Real> Body<T> {
     // is `topo::validate`'s job.
     //
     // The half-edge structure is cyclic (next/prev cycles, the edge ↔
-    // half-edge bijection, spine back-pointers), so no insertion order
-    // can produce a coherent body by pure insertion alone. The raw
-    // builder therefore pairs each `add_*` with a `get_*_mut` patching
-    // accessor: insert with provisional keys (e.g. `Default::default()`
-    // null keys, which never resolve), then patch the cycles closed.
+    // half-edge bijection, spine back-pointers), so pure insertion in
+    // any order cannot close a coherent body — not without forging
+    // slotmap keys (`KeyData::from_ffi` plus deterministic minting makes
+    // the forge reliable, but it is a hack, not an API) or a batch-graph
+    // constructor. The raw builder therefore pairs each `add_*` with a
+    // `get_*_mut` patching accessor: insert with provisional keys (e.g.
+    // `Default::default()` null keys, which never resolve), then patch
+    // the cycles closed.
     // Both halves of the builder retreat to `pub(crate)` together at
     // PR 5 — the Euler operators never need external patching because
     // each operator is itself a complete surgery.
