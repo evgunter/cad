@@ -1092,3 +1092,1207 @@ impl<T: Real> Body<T> {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::Point3;
+
+    use super::*;
+    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, Vertex};
+    use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+    use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
+    use crate::geometry::SurfaceGeom;
+    use crate::validate::validate;
+
+    fn p(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    /// The start vertices along a loop cycle from `he` — the structural
+    /// fingerprint the roundtrip tests compare (loop membership and
+    /// keys are asserted separately; this pins the *cycle order*).
+    fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
+        body.loop_cycle(he)
+            .unwrap()
+            .into_iter()
+            .map(|member| body.get_half_edge(member).unwrap().start)
+            .collect()
+    }
+
+    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
+    /// and asserts the body is DEEPLY untouched (every arena entry,
+    /// payload, and provenance record — counts alone are too weak for
+    /// kill-direction atomicity).
+    fn assert_err_deep_unchanged(
+        body: &mut Body<f64>,
+        expected: &EulerOpError,
+        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
+    ) {
+        let before = deep_snapshot(body);
+        let err = op(body);
+        assert_eq!(&err, expected);
+        assert_eq!(deep_snapshot(body), before, "body changed on Err");
+    }
+
+    /// mvfs + mev(Lone): the segment body (v0 —e0— v1, one loop
+    /// `[he_plus, he_minus]`).
+    fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        (body, seed, seg)
+    }
+
+    /// Segment + one strut at v1: cycle
+    /// `[e0+, strut+, strut−, e0−]` (v0→v1→v2→v1→v0).
+    fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
+        let (mut body, seed, seg) = segment();
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        (body, seed, seg, strut)
+    }
+
+    /// The 3-edge open chain v0–v1–v2–v3 in one loop: mvfs + segment +
+    /// two struts. Cycle pinned below; e1 is the middle edge whose two
+    /// halves have NON-empty sides on both flanks — kemr's general case.
+    fn chain3() -> (Body<f64>, MvfsCreated, [MevCreated; 3]) {
+        let (mut body, seed, e0) = segment();
+        let e1 = body
+            .mev(
+                MevSite::Fan {
+                    he1: e0.he_minus,
+                    he2: e0.he_minus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        let e2 = body
+            .mev(
+                MevSite::Fan {
+                    he1: e1.he_minus,
+                    he2: e1.he_minus,
+                },
+                p(3.0),
+            )
+            .unwrap();
+        // Pin the cycle the tests below stand on: out along the plus
+        // halves, back along the minus halves.
+        assert_eq!(
+            body.loop_cycle(e0.he_plus),
+            Some(vec![
+                e0.he_plus,
+                e1.he_plus,
+                e2.he_plus,
+                e2.he_minus,
+                e1.he_minus,
+                e0.he_minus
+            ])
+        );
+        (body, seed, [e0, e1, e2])
+    }
+
+    // ------------------------------------------------------------------
+    // kemr: general case, argument order, re-anchoring rules
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn kemr_general_case_splits_off_a_cycle_ring() {
+        let (mut body, seed, [e0, e1, e2]) = chain3();
+        let result = body.kemr(e1.he_plus, e1.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        // he1's side (strictly between the halves in next order): e2's
+        // halves → the ring, anchored at next(he1).
+        assert_eq!(
+            body.get_loop(result.ring).unwrap().boundary,
+            LoopBoundary::Cycle { first: e2.he_plus }
+        );
+        assert_eq!(
+            body.loop_cycle(e2.he_plus),
+            Some(vec![e2.he_plus, e2.he_minus])
+        );
+        for he in [e2.he_plus, e2.he_minus] {
+            assert_eq!(body.get_half_edge(he).unwrap().parent_loop, result.ring);
+        }
+        assert_eq!(body.get_loop(result.ring).unwrap().face, seed.face);
+        // he2's side keeps the old loop (still the outer), re-anchored
+        // at next(he2).
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle { first: e0.he_minus }
+        );
+        assert_eq!(
+            body.loop_cycle(e0.he_minus),
+            Some(vec![e0.he_minus, e0.he_plus])
+        );
+        let face = body.get_face(seed.face).unwrap();
+        assert_eq!(face.outer, seed.r#loop);
+        assert_eq!(face.rings, vec![result.ring]);
+        // Kill hygiene: dead keys and dead provenance, together.
+        assert!(body.get_half_edge(e1.he_plus).is_none());
+        assert!(body.get_half_edge(e1.he_minus).is_none());
+        assert!(body.get_edge(e1.edge).is_none());
+        assert_eq!(body.provenance(EntityId::HalfEdge(e1.he_plus)), None);
+        assert_eq!(body.provenance(EntityId::HalfEdge(e1.he_minus)), None);
+        assert_eq!(body.provenance(EntityId::Edge(e1.edge)), None);
+        // Geometry hygiene: the killed edge's curve was orphaned and
+        // removed with it.
+        assert_eq!(result.killed_curve, Some(e1.curve));
+        assert!(body.get_curve(e1.curve).is_none());
+        assert_eq!(body.curves().count(), 2);
+        // Result struct: dead keys with the EDGE's slot association
+        // (e1.he_plus was minted as the plus half).
+        assert_eq!(result.killed_edge, e1.edge);
+        assert_eq!(result.killed_he_plus, e1.he_plus);
+        assert_eq!(result.killed_he_minus, e1.he_minus);
+        // Emanating rule: u = v1 → next(he2), w = v2 → next(he1).
+        assert_eq!(
+            body.get_vertex(e0.vertex).unwrap().emanating,
+            Some(e0.he_minus)
+        );
+        assert_eq!(
+            body.get_vertex(e1.vertex).unwrap().emanating,
+            Some(e2.he_plus)
+        );
+        // D5: the ring records its birth; the argument keys in the
+        // record are historical (they are dead now) but compare fine.
+        assert_eq!(
+            body.provenance(EntityId::Loop(result.ring)),
+            Some(&Provenance::Kemr {
+                he1: e1.he_plus,
+                he2: e1.he_minus
+            })
+        );
+        // Counts: v4 e2, 2 loops (outer + ring), 4 halves, 1 face.
+        assert_eq!(body.vertices().count(), 4);
+        assert_eq!(body.edges().count(), 2);
+        assert_eq!(body.half_edges().count(), 4);
+        assert_eq!(body.loops().count(), 2);
+        assert_eq!(body.faces().count(), 1);
+    }
+
+    #[test]
+    fn kemr_argument_order_selects_the_ring_side() {
+        // Swapped arguments: the complementary side becomes the ring
+        // (GWB §11.5.1's "swap the arguments" advice, same association).
+        let (mut body, seed, [e0, e1, e2]) = chain3();
+        let result = body.kemr(e1.he_minus, e1.he_plus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        // he1 = e1.he_minus: its side is e0's halves → the ring,
+        // anchored at next(he1) = e0.he_minus.
+        assert_eq!(
+            body.get_loop(result.ring).unwrap().boundary,
+            LoopBoundary::Cycle { first: e0.he_minus }
+        );
+        // Old loop keeps e2's halves, re-anchored at next(he2).
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle { first: e2.he_plus }
+        );
+        // The loop's original Cycle::first (e0.he_plus) migrated into
+        // the ring — the unconditional re-anchor kept the survivor
+        // coherent.
+        assert_eq!(
+            body.get_half_edge(e0.he_plus).unwrap().parent_loop,
+            result.ring
+        );
+    }
+
+    #[test]
+    fn kemr_reanchors_a_cycle_first_that_pointed_at_a_killed_half() {
+        let (mut body, seed, [e0, e1, _e2]) = chain3();
+        // Point the loop's representative at a half kemr will kill (any
+        // cycle member is a legal `first`, so this is a tier-1-valid
+        // rewording of the same loop).
+        body.get_loop_mut(seed.r#loop).unwrap().boundary = LoopBoundary::Cycle { first: e1.he_plus };
+        assert_eq!(validate(&body), Ok(()));
+        body.kemr(e1.he_plus, e1.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        // The survivor loop's first is next(he2) — live, never the dead
+        // key.
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle { first: e0.he_minus }
+        );
+    }
+
+    #[test]
+    fn kemr_repoints_emanating_that_named_a_killed_half() {
+        let (mut body, _seed, [e0, e1, e2]) = chain3();
+        // Anchor both endpoint vertices at the doomed halves (tier-1
+        // legal: each starts at its vertex).
+        body.get_vertex_mut(e0.vertex).unwrap().emanating = Some(e1.he_plus);
+        body.get_vertex_mut(e1.vertex).unwrap().emanating = Some(e1.he_minus);
+        assert_eq!(validate(&body), Ok(()));
+        body.kemr(e1.he_plus, e1.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_vertex(e0.vertex).unwrap().emanating,
+            Some(e0.he_minus)
+        );
+        assert_eq!(
+            body.get_vertex(e1.vertex).unwrap().emanating,
+            Some(e2.he_plus)
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // kemr: the degenerate (empty-side) cases
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn kemr_strut_kill_plants_an_empty_ring() {
+        // Mäntylä §9.3 step (g): kill a strut edge; its dangling far
+        // vertex is stranded as an EMPTY RING — the hole anchor.
+        let (mut body, seed, seg, strut) = strutted();
+        let result = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_loop(result.ring).unwrap().boundary,
+            LoopBoundary::Empty {
+                vertex: strut.vertex
+            }
+        );
+        assert_eq!(body.get_vertex(strut.vertex).unwrap().emanating, None);
+        assert_eq!(body.get_face(seed.face).unwrap().rings, vec![result.ring]);
+        // The old loop survives as the segment cycle, first := next(he2).
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle { first: seg.he_minus }
+        );
+        assert_eq!(
+            body.loop_cycle(seg.he_minus),
+            Some(vec![seg.he_minus, seg.he_plus])
+        );
+        assert_eq!(
+            body.get_vertex(seg.vertex).unwrap().emanating,
+            Some(seg.he_minus)
+        );
+    }
+
+    #[test]
+    fn kemr_strut_kill_swapped_strands_the_outer_loop() {
+        // Same strut, swapped arguments: the OLD loop (here the outer)
+        // becomes the empty loop at the strut tip, and the ring takes
+        // the whole surviving cycle. Legal — outer is a maintained
+        // designation, not a derivable fact.
+        let (mut body, seed, seg, strut) = strutted();
+        let result = body.kemr(strut.he_minus, strut.he_plus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Empty {
+                vertex: strut.vertex
+            }
+        );
+        assert_eq!(
+            body.get_loop(result.ring).unwrap().boundary,
+            LoopBoundary::Cycle { first: seg.he_minus }
+        );
+        assert_eq!(body.get_vertex(strut.vertex).unwrap().emanating, None);
+        assert_eq!(body.get_face(seed.face).unwrap().outer, seed.r#loop);
+    }
+
+    #[test]
+    fn kemr_segment_kill_makes_two_empty_loops() {
+        // §9.9(c): killing a segment loop's edge strands BOTH endpoints
+        // as lone vertices — old loop at u = start(he1), ring at
+        // w = start(he2).
+        let (mut body, seed, seg) = segment();
+        let result = body.kemr(seg.he_plus, seg.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Empty {
+                vertex: seed.vertex
+            }
+        );
+        assert_eq!(
+            body.get_loop(result.ring).unwrap().boundary,
+            LoopBoundary::Empty { vertex: seg.vertex }
+        );
+        assert_eq!(body.get_vertex(seed.vertex).unwrap().emanating, None);
+        assert_eq!(body.get_vertex(seg.vertex).unwrap().emanating, None);
+        assert_eq!(body.half_edges().count(), 0);
+        assert_eq!(body.edges().count(), 0);
+        assert_eq!(body.curves().count(), 0);
+
+        // Swapped arguments anchor the other way — argument-order
+        // determinism of the anchor rule.
+        let (mut body2, seed2, seg2) = segment();
+        let result2 = body2.kemr(seg2.he_minus, seg2.he_plus).unwrap();
+        assert_eq!(validate(&body2), Ok(()));
+        assert_eq!(
+            body2.get_loop(seed2.r#loop).unwrap().boundary,
+            LoopBoundary::Empty {
+                vertex: seg2.vertex
+            }
+        );
+        assert_eq!(
+            body2.get_loop(result2.ring).unwrap().boundary,
+            LoopBoundary::Empty {
+                vertex: seed2.vertex
+            }
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // kemr: preconditions (typed error + body deeply unchanged)
+    // ------------------------------------------------------------------
+
+    /// One face whose single loop is the 2-cycle of a self-loop edge at
+    /// one vertex — the state whose kemr would strand two empty loops on
+    /// one vertex. Deliberately tier-1-INVALID (the vertex orbit is
+    /// split over the two halves), which is exactly why the check is
+    /// defensive rather than load-bearing.
+    fn self_loop_segment() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
+        let mut body = Body::<f64>::new();
+        let null_he = HalfEdgeKey::default();
+        let pt = body.add_point(p(0.0));
+        let v = body.add_vertex(
+            Vertex {
+                point: pt,
+                emanating: None,
+            },
+            prov(),
+        );
+        let curve = body.add_curve(CurveGeom::Placeholder { anchor: p(0.0) });
+        let edge = body.add_edge(
+            Edge {
+                he_plus: null_he,
+                he_minus: null_he,
+                curve,
+            },
+            prov(),
+        );
+        let half = |body: &mut Body<f64>| {
+            body.add_half_edge(
+                HalfEdge {
+                    edge,
+                    start: v,
+                    parent_loop: LoopKey::default(),
+                    next: null_he,
+                    prev: null_he,
+                },
+                prov(),
+            )
+        };
+        let h1 = half(&mut body);
+        let h2 = half(&mut body);
+        let solid = body.add_solid(Solid { shells: vec![] }, prov());
+        let shell = body.add_shell(
+            Shell {
+                faces: vec![],
+                solid,
+            },
+            prov(),
+        );
+        body.get_solid_mut(solid).unwrap().shells.push(shell);
+        let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: p(0.0) });
+        let lp = body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Cycle { first: h1 },
+                face: FaceKey::default(),
+            },
+            prov(),
+        );
+        let face = body.add_face(
+            Face {
+                surface,
+                outer: lp,
+                rings: vec![],
+                shell,
+            },
+            prov(),
+        );
+        body.get_loop_mut(lp).unwrap().face = face;
+        body.get_shell_mut(shell).unwrap().faces.push(face);
+        body.get_edge_mut(edge).unwrap().he_plus = h1;
+        body.get_edge_mut(edge).unwrap().he_minus = h2;
+        for (a, b) in [(h1, h2), (h2, h1)] {
+            let he = body.get_half_edge_mut(a).unwrap();
+            he.next = b;
+            he.prev = b;
+            he.parent_loop = lp;
+        }
+        body.get_vertex_mut(v).unwrap().emanating = Some(h1);
+        (body, h1, h2, v)
+    }
+
+    #[test]
+    fn kemr_rejects_colliding_empty_anchors() {
+        let (mut body, h1, h2, v) = self_loop_segment();
+        let expected = EulerOpError::EmptyAnchorsCollide { vertex: v };
+        assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(h1, h2).unwrap_err());
+    }
+
+    #[test]
+    fn kemr_rejects_stale_half_edges() {
+        let (mut body, _seed, [e0, e1, _e2]) = chain3();
+        let dead = body.add_half_edge(
+            HalfEdge {
+                edge: e0.edge,
+                start: e0.vertex,
+                parent_loop: LoopKey::default(),
+                next: e0.he_plus,
+                prev: e0.he_plus,
+            },
+            prov(),
+        );
+        body.half_edges.remove(dead);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::HalfEdge(dead),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kemr(dead, e1.he_minus).unwrap_err()
+        });
+        assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(e1.he_plus, dead).unwrap_err());
+    }
+
+    #[test]
+    fn kemr_rejects_non_mate_half_edges() {
+        let (mut body, _seed, [e0, e1, _e2]) = chain3();
+        // The same key twice.
+        let expected = EulerOpError::NotSameEdge {
+            he1: e0.he_plus,
+            he2: e0.he_plus,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kemr(e0.he_plus, e0.he_plus).unwrap_err()
+        });
+        // Halves of different edges.
+        let expected = EulerOpError::NotSameEdge {
+            he1: e0.he_plus,
+            he2: e1.he_minus,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kemr(e0.he_plus, e1.he_minus).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kemr_rejects_an_edge_that_does_not_claim_its_halves() {
+        // Corrupt bijection: both halves agree on the edge key, but the
+        // edge claims something else in one slot — tier-1-invalid input
+        // surfaced as the same typed error.
+        let (mut body, _seed, [e0, e1, _e2]) = chain3();
+        body.get_edge_mut(e1.edge).unwrap().he_plus = e0.he_plus;
+        let expected = EulerOpError::NotSameEdge {
+            he1: e1.he_plus,
+            he2: e1.he_minus,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kemr(e1.he_plus, e1.he_minus).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kemr_rejects_halves_in_different_loops() {
+        // The pillow's rim edges have their halves in the two cap
+        // loops; kemr needs an edge occurring twice in ONE loop.
+        let mut t = pillow();
+        let (he1, he2) = (t.hes_a[0], t.hes_b[0]);
+        let expected = EulerOpError::NotSameLoop { he1, he2 };
+        assert_err_deep_unchanged(&mut t.body, &expected, |b| b.kemr(he1, he2).unwrap_err());
+    }
+
+    // ------------------------------------------------------------------
+    // kemr ∘ mekr roundtrips, one per kemr output configuration.
+    // Restoration is asserted STRUCTURALLY (cycle-order fingerprints,
+    // memberships, counts, E–P) — keys differ by design (fresh
+    // edge/halves; kemr's ring dies again). The general isomorphism
+    // oracle is PR 4's proptest business.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn kemr_mekr_roundtrip_general_case() {
+        let (mut body, seed, [e0, e1, e2]) = chain3();
+        let original = starts(&body, e1.he_plus);
+        let kill = body.kemr(e1.he_plus, e1.he_minus).unwrap();
+        // Inverse anchors (module docs): target = next(he2), ring =
+        // next(he1) restores the original cycle order exactly.
+        let site = MekrSite::Cycles {
+            target: e0.he_minus,
+            ring: e2.he_plus,
+        };
+        let restore = body.mekr(site).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        assert_eq!(starts(&body, restore.he_plus), original);
+        assert!(body.get_loop(kill.ring).is_none());
+        assert_eq!(body.provenance(EntityId::Loop(kill.ring)), None);
+        assert_eq!(restore.killed_ring, kill.ring);
+        // One loop again — the seed loop — owning every half.
+        assert_eq!(
+            body.get_face(seed.face).unwrap().rings,
+            Vec::<LoopKey>::new()
+        );
+        for he in body.loop_cycle(restore.he_plus).unwrap() {
+            assert_eq!(body.get_half_edge(he).unwrap().parent_loop, seed.r#loop);
+        }
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: restore.he_plus
+            }
+        );
+        // Direction: he_plus runs target anchor vertex → ring anchor
+        // vertex (v1 → v2, the killed e1's direction).
+        assert_eq!(body.get_half_edge(restore.he_plus).unwrap().start, e0.vertex);
+        assert_eq!(body.half_edge_end(restore.he_plus), Some(e1.vertex));
+        // Counts + E–P ledger restored: v − e + f − r = 4 − 3 + 1 − 0
+        // = 2 = 2(1 − 0), genus 0, one shell.
+        assert_eq!(body.vertices().count(), 4);
+        assert_eq!(body.edges().count(), 3);
+        assert_eq!(body.half_edges().count(), 6);
+        assert_eq!(body.loops().count(), 1);
+        assert_eq!(body.faces().count(), 1);
+        assert_eq!(body.curves().count(), 3);
+        // Emanating rule after mekr: u → he_plus, w → he_minus.
+        assert_eq!(
+            body.get_vertex(e0.vertex).unwrap().emanating,
+            Some(restore.he_plus)
+        );
+        assert_eq!(
+            body.get_vertex(e1.vertex).unwrap().emanating,
+            Some(restore.he_minus)
+        );
+        // D5 on the fresh entities.
+        for id in [
+            EntityId::Edge(restore.edge),
+            EntityId::HalfEdge(restore.he_plus),
+            EntityId::HalfEdge(restore.he_minus),
+        ] {
+            assert_eq!(
+                body.provenance(id),
+                Some(&Provenance::Mekr { site }),
+                "for {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn kemr_mekr_roundtrip_empty_ring_case() {
+        let (mut body, seed, seg, strut) = strutted();
+        let original = starts(&body, strut.he_plus);
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let restore = body
+            .mekr(MekrSite::EmptyRing {
+                target: seg.he_minus,
+                ring: kill.ring,
+            })
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(starts(&body, restore.he_plus), original);
+        assert!(body.get_loop(kill.ring).is_none());
+        assert_eq!(
+            body.get_face(seed.face).unwrap().rings,
+            Vec::<LoopKey>::new()
+        );
+        assert_eq!(body.half_edge_end(restore.he_plus), Some(strut.vertex));
+        assert_eq!(
+            body.get_vertex(strut.vertex).unwrap().emanating,
+            Some(restore.he_minus)
+        );
+        assert_eq!(body.vertices().count(), 3);
+        assert_eq!(body.edges().count(), 2);
+        assert_eq!(body.loops().count(), 1);
+    }
+
+    #[test]
+    fn kemr_mekr_roundtrip_empty_target_case() {
+        let (mut body, seed, seg, strut) = strutted();
+        let original = starts(&body, strut.he_minus);
+        let kill = body.kemr(strut.he_minus, strut.he_plus).unwrap();
+        // The outer loop is now Empty (the target); the ring holds the
+        // whole surviving cycle.
+        let restore = body
+            .mekr(MekrSite::EmptyTarget {
+                target: seed.r#loop,
+                ring: seg.he_minus,
+            })
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(starts(&body, restore.he_plus), original);
+        assert!(body.get_loop(kill.ring).is_none());
+        // The surviving loop is the outer again, and it is a cycle.
+        assert_eq!(body.get_face(seed.face).unwrap().outer, seed.r#loop);
+        assert_eq!(
+            body.get_face(seed.face).unwrap().rings,
+            Vec::<LoopKey>::new()
+        );
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: restore.he_plus
+            }
+        );
+        // he_plus runs lone target vertex → ring anchor vertex.
+        assert_eq!(
+            body.get_half_edge(restore.he_plus).unwrap().start,
+            strut.vertex
+        );
+        assert_eq!(body.half_edge_end(restore.he_plus), Some(seg.vertex));
+    }
+
+    #[test]
+    fn kemr_mekr_roundtrip_both_empty_case() {
+        let (mut body, seed, seg) = segment();
+        let original = starts(&body, seg.he_plus);
+        let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
+        let restore = body
+            .mekr(MekrSite::BothEmpty {
+                target: seed.r#loop,
+                ring: kill.ring,
+            })
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(starts(&body, restore.he_plus), original);
+        assert!(body.get_loop(kill.ring).is_none());
+        assert_eq!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            LoopBoundary::Cycle {
+                first: restore.he_plus
+            }
+        );
+        assert_eq!(
+            body.get_vertex(seed.vertex).unwrap().emanating,
+            Some(restore.he_plus)
+        );
+        assert_eq!(
+            body.get_vertex(seg.vertex).unwrap().emanating,
+            Some(restore.he_minus)
+        );
+        assert_eq!(body.loops().count(), 1);
+        assert_eq!(body.half_edges().count(), 2);
+        assert_eq!(body.edges().count(), 1);
+    }
+
+    // ------------------------------------------------------------------
+    // mekr: preconditions
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn mekr_rejects_anchors_in_one_loop() {
+        let (mut body, seed, [e0, e1, _e2]) = chain3();
+        let expected = EulerOpError::SameLoop {
+            r#loop: seed.r#loop,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::Cycles {
+                target: e0.he_plus,
+                ring: e1.he_plus,
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn mekr_rejects_loops_of_different_faces() {
+        let mut t = pillow();
+        let (target, ring) = (t.hes_a[0], t.hes_b[0]);
+        let expected = EulerOpError::NotSameFace {
+            target: t.loop_a,
+            ring: t.loop_b,
+        };
+        assert_err_deep_unchanged(&mut t.body, &expected, |b| {
+            b.mekr(MekrSite::Cycles { target, ring }).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn mekr_rejects_a_ring_argument_naming_the_outer_loop() {
+        // Ring state (outer segment + cycle ring in one face), then the
+        // ROLES swapped: the outer loop as the loop to kill.
+        let (mut body, seed, [e0, e1, e2]) = chain3();
+        body.kemr(e1.he_plus, e1.he_minus).unwrap();
+        let expected = EulerOpError::RingIsOuter {
+            r#loop: seed.r#loop,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::Cycles {
+                target: e2.he_plus,
+                ring: e0.he_minus,
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn mekr_sites_require_their_boundary_shapes() {
+        let (mut body, seed, [e0, e1, _e2]) = chain3();
+        let kill = body.kemr(e1.he_plus, e1.he_minus).unwrap(); // cycle ring
+        // EmptyRing with a cycle ring loop.
+        let expected = EulerOpError::LoopNotEmpty { r#loop: kill.ring };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::EmptyRing {
+                target: e0.he_minus,
+                ring: kill.ring,
+            })
+            .unwrap_err()
+        });
+        // EmptyTarget with a cycle target loop.
+        let expected = EulerOpError::LoopNotEmpty {
+            r#loop: seed.r#loop,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::EmptyTarget {
+                target: seed.r#loop,
+                ring: e0.he_minus,
+            })
+            .unwrap_err()
+        });
+        // BothEmpty with cycle loops.
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::BothEmpty {
+                target: seed.r#loop,
+                ring: kill.ring,
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn mekr_rejects_stale_keys() {
+        let (mut body, _seed, [e0, e1, _e2]) = chain3();
+        body.kemr(e1.he_plus, e1.he_minus).unwrap();
+        // The killed plus half as an anchor: stale.
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::HalfEdge(e1.he_plus),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::Cycles {
+                target: e1.he_plus,
+                ring: e0.he_minus,
+            })
+            .unwrap_err()
+        });
+        // A null loop key as the ring.
+        let dead_loop = LoopKey::default();
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Loop(dead_loop),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.mekr(MekrSite::EmptyRing {
+                target: e0.he_minus,
+                ring: dead_loop,
+            })
+            .unwrap_err()
+        });
+    }
+
+    #[test]
+    fn mekr_rejects_colliding_lone_vertices() {
+        // Two empty loops of one face holding the SAME lone vertex —
+        // tier-1-invalid (MultiplyOwned), raw-built to pin the
+        // defensive check.
+        let mut t = mvfs_state();
+        let extra = t.body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Empty { vertex: t.vertex },
+                face: t.face,
+            },
+            prov(),
+        );
+        t.body.get_face_mut(t.face).unwrap().rings.push(extra);
+        let expected = EulerOpError::EmptyAnchorsCollide { vertex: t.vertex };
+        let target = t.lone_loop;
+        assert_err_deep_unchanged(&mut t.body, &expected, |b| {
+            b.mekr(MekrSite::BothEmpty {
+                target,
+                ring: extra,
+            })
+            .unwrap_err()
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Kill/lineage semantics under replay (D9)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn kill_lineage_semantics_are_pinned() {
+        // Build A: chain + balanced kemr∘mekr pair + one more mev.
+        let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
+        let kill_a = body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
+        let restore_a = body_a
+            .mekr(MekrSite::Cycles {
+                target: a0.he_minus,
+                ring: a2.he_plus,
+            })
+            .unwrap();
+        let extra_a = body_a
+            .mev(
+                MevSite::Fan {
+                    he1: a0.he_minus,
+                    he2: a0.he_minus,
+                },
+                p(9.0),
+            )
+            .unwrap();
+
+        // Build B: the identical history — deeply identical body and
+        // identical key sequence. D9's replay contract INCLUDES kills.
+        let (mut body_b, _seed_b, [b0, b1, b2]) = chain3();
+        let kill_b = body_b.kemr(b1.he_plus, b1.he_minus).unwrap();
+        let restore_b = body_b
+            .mekr(MekrSite::Cycles {
+                target: b0.he_minus,
+                ring: b2.he_plus,
+            })
+            .unwrap();
+        let extra_b = body_b
+            .mev(
+                MevSite::Fan {
+                    he1: b0.he_minus,
+                    he2: b0.he_minus,
+                },
+                p(9.0),
+            )
+            .unwrap();
+        assert_eq!(deep_snapshot(&body_a), deep_snapshot(&body_b));
+        assert_eq!((kill_a, restore_a, extra_a), (kill_b, restore_b, extra_b));
+
+        // Build C: the same history WITHOUT the pair.
+        let (mut body_c, _seed_c, [c0, _c1, _c2]) = chain3();
+        let extra_c = body_c
+            .mev(
+                MevSite::Fan {
+                    he1: c0.he_minus,
+                    he2: c0.he_minus,
+                },
+                p(9.0),
+            )
+            .unwrap();
+
+        // Kills consume and release slots: the roundtrip re-mints its
+        // entities in the recycled slots with BUMPED GENERATIONS, so the
+        // with-pair body is not deeply identical to the pair-free one.
+        // That is expected — a kill is part of the construction history,
+        // and D9 promises identical keys only for identical histories.
+        assert_ne!(deep_snapshot(&body_a), deep_snapshot(&body_c));
+        assert_ne!(restore_a.edge, a1.edge);
+        assert_ne!(restore_a.he_plus, a1.he_plus);
+        assert_ne!(restore_a.he_minus, a1.he_minus);
+        // But a BALANCED pair consumes exactly the slots it freed, so
+        // minting converges afterwards: the follow-up mev gets the same
+        // keys in both histories.
+        assert_eq!(extra_a, extra_c);
+    }
+
+    // ------------------------------------------------------------------
+    // kfmrh
+    // ------------------------------------------------------------------
+
+    /// The digon pillow built through the operators (the euler module's
+    /// doctest construction): two faces sharing two edges.
+    fn ops_pillow() -> (Body<f64>, MvfsCreated, MevCreated, MefCreated) {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        let split = body
+            .mef(MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            })
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        (body, seed, seg, split)
+    }
+
+    /// A `format!` fingerprint of one arena's full contents (keys +
+    /// payloads), for the "kfmrh touches no half-edge/vertex/edge"
+    /// assertions.
+    fn arena_lines<K: core::fmt::Debug, E: core::fmt::Debug>(
+        iter: impl Iterator<Item = (K, E)>,
+    ) -> Vec<String> {
+        iter.map(|(k, e)| format!("{k:?}: {e:?}")).collect()
+    }
+
+    #[test]
+    fn kfmrh_demotes_f2s_outer_to_a_ring_of_f1() {
+        let (mut body, seed, _seg, split) = ops_pillow();
+        let hes_before = arena_lines(body.half_edges());
+        let edges_before = arena_lines(body.edges());
+        let vertices_before = arena_lines(body.vertices());
+
+        let result = body.kfmrh(seed.face, split.face).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+
+        assert_eq!(result.ring, split.r#loop);
+        assert_eq!(result.killed_face, split.face);
+        // Shared surface (every mef face shares mvfs's): kept, and the
+        // op reports it kept it.
+        assert_eq!(result.killed_surface, None);
+        assert_eq!(body.surfaces().count(), 1);
+        // The loop SURVIVES — repointed and demoted, with its birth
+        // record intact (kfmrh mints nothing and rewrites no records).
+        let ring = body.get_loop(split.r#loop).unwrap();
+        assert_eq!(ring.face, seed.face);
+        assert!(matches!(
+            body.provenance(EntityId::Loop(split.r#loop)),
+            Some(Provenance::Mef { .. })
+        ));
+        let face = body.get_face(seed.face).unwrap();
+        assert_eq!(face.outer, seed.r#loop);
+        assert_eq!(face.rings, vec![split.r#loop]);
+        // The face died with its provenance; the shell dropped it.
+        assert!(body.get_face(split.face).is_none());
+        assert_eq!(body.provenance(EntityId::Face(split.face)), None);
+        assert_eq!(body.get_shell(seed.shell).unwrap().faces, vec![seed.face]);
+        // No half-edge, edge, or vertex was touched — a truly global
+        // manipulation (Mäntylä §9.2.4).
+        assert_eq!(arena_lines(body.half_edges()), hes_before);
+        assert_eq!(arena_lines(body.edges()), edges_before);
+        assert_eq!(arena_lines(body.vertices()), vertices_before);
+        // E–P at genus 1: v − e + f − r = 2 − 2 + 1 − 1 = 0 = 2(1 − 1).
+        // The digon pillow's caps glued into one face is torus-like
+        // incidence — geometrically degenerate, tier-1-legal.
+        assert_eq!(body.vertices().count(), 2);
+        assert_eq!(body.edges().count(), 2);
+        assert_eq!(body.faces().count(), 1);
+        assert_eq!(body.loops().count(), 2);
+    }
+
+    #[test]
+    fn kfmrh_accepts_an_empty_f2_outer_and_reaps_its_surface() {
+        // A same-shell face with an Empty outer is unreachable through
+        // the PR 1–3 operator set (mvfs seeds a fresh solid; PR 4's
+        // mfkrh will mint such faces), so the fixture grafts one in raw:
+        // pillow + face C with an Empty outer at a lone vertex and its
+        // OWN surface, same shell. Tier-1-valid.
+        let mut t = pillow();
+        let pt = t.body.add_point(p(9.0));
+        let v = t.body.add_vertex(
+            Vertex {
+                point: pt,
+                emanating: None,
+            },
+            prov(),
+        );
+        let surface = t.body.add_surface(SurfaceGeom::Placeholder { anchor: p(9.0) });
+        let lp = t.body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Empty { vertex: v },
+                face: FaceKey::default(),
+            },
+            prov(),
+        );
+        let face_c = t.body.add_face(
+            Face {
+                surface,
+                outer: lp,
+                rings: vec![],
+                shell: t.shell,
+            },
+            prov(),
+        );
+        t.body.get_loop_mut(lp).unwrap().face = face_c;
+        t.body.get_shell_mut(t.shell).unwrap().faces.push(face_c);
+        assert_eq!(validate(&t.body), Ok(()), "fixture must be tier-1 valid");
+
+        let result = t.body.kfmrh(t.face_a, face_c).unwrap();
+        assert_eq!(validate(&t.body), Ok(()));
+        // The Empty outer became an Empty RING of face A — §9.3 (g)'s
+        // hole-planting state, reached through kfmrh instead of kemr.
+        assert_eq!(
+            t.body.get_loop(lp).unwrap().boundary,
+            LoopBoundary::Empty { vertex: v }
+        );
+        assert_eq!(t.body.get_loop(lp).unwrap().face, t.face_a);
+        assert_eq!(t.body.get_face(t.face_a).unwrap().rings, vec![lp]);
+        // Face C's private surface was orphaned by the kill and removed
+        // (geometry hygiene).
+        assert_eq!(result.killed_surface, Some(surface));
+        assert!(t.body.get_surface(surface).is_none());
+    }
+
+    #[test]
+    fn kfmrh_rejects_same_face_and_cross_shell() {
+        let (mut body, seed, _seg, _split) = ops_pillow();
+        let expected = EulerOpError::SameFace { face: seed.face };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, seed.face).unwrap_err()
+        });
+        // A second mvfs is a second solid+shell in the same body:
+        // cross-shell kfmrh is the deferred M3 case (shell merge).
+        let other = body.mvfs(p(9.0)).unwrap();
+        let expected = EulerOpError::CrossShell {
+            f1: seed.face,
+            f2: other.face,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kfmrh_rejects_f2_with_rings() {
+        // Give face B (the mef face) a ring — strut + kemr inside its
+        // loop — then try to use it as f2.
+        let (mut body, seed, seg, split) = ops_pillow();
+        // seg.he_plus moved to the new face's loop at the mef.
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let expected = EulerOpError::FaceHasRings { face: split.face };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, split.face).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kfmrh_rejects_stale_faces() {
+        let (mut body, seed, _seg, split) = ops_pillow();
+        let dead = FaceKey::default();
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Face(dead),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(dead, split.face).unwrap_err()
+        });
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, dead).unwrap_err()
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // ring_move
+    // ------------------------------------------------------------------
+
+    /// Ops-built two-face body with an empty ring on face A (the seed
+    /// face): digon pillow + strut + kemr. Everything through public
+    /// operators.
+    fn pillow_with_ring() -> (Body<f64>, MvfsCreated, MefCreated, KemrResult) {
+        let (mut body, seed, seg, split) = ops_pillow();
+        // The OLD loop (face A) kept he2's side = {split.he_plus,
+        // seg.he_minus}; a strut before seg.he_minus lands in face A.
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(body.get_face(seed.face).unwrap().rings, vec![kill.ring]);
+        (body, seed, split, kill)
+    }
+
+    #[test]
+    fn ring_move_reparents_within_a_shell() {
+        let (mut body, seed, split, kill) = pillow_with_ring();
+        let birth = body.provenance(EntityId::Loop(kill.ring)).cloned();
+        let counts_before = (
+            body.loops().count(),
+            body.faces().count(),
+            body.half_edges().count(),
+        );
+
+        body.ring_move(kill.ring, split.face).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_face(seed.face).unwrap().rings,
+            Vec::<LoopKey>::new()
+        );
+        assert_eq!(body.get_face(split.face).unwrap().rings, vec![kill.ring]);
+        assert_eq!(body.get_loop(kill.ring).unwrap().face, split.face);
+        // NOT an Euler op: nothing created or killed…
+        assert_eq!(
+            (
+                body.loops().count(),
+                body.faces().count(),
+                body.half_edges().count(),
+            ),
+            counts_before
+        );
+        // …and no provenance changes — D5 records are BIRTH records;
+        // reparenting is not a re-birth.
+        assert_eq!(body.provenance(EntityId::Loop(kill.ring)).cloned(), birth);
+
+        // And back.
+        body.ring_move(kill.ring, seed.face).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(body.get_face(seed.face).unwrap().rings, vec![kill.ring]);
+    }
+
+    #[test]
+    fn ring_move_to_its_own_face_is_a_noop() {
+        let (mut body, seed, _split, kill) = pillow_with_ring();
+        let before = deep_snapshot(&body);
+        assert_eq!(body.ring_move(kill.ring, seed.face), Ok(()));
+        // Deeply untouched — in particular the rings order was not
+        // perturbed (no retain+push cycle), keeping replay byte-stable.
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn ring_move_rejects_outer_loops_stale_keys_and_cross_shell() {
+        let (mut body, seed, split, kill) = pillow_with_ring();
+        // The outer loop is not a ring.
+        let expected = EulerOpError::RingIsOuter {
+            r#loop: seed.r#loop,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.ring_move(seed.r#loop, split.face).unwrap_err()
+        });
+        // Stale ring key.
+        let dead_loop = LoopKey::default();
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Loop(dead_loop),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.ring_move(dead_loop, split.face).unwrap_err()
+        });
+        // Stale destination face.
+        let dead_face = FaceKey::default();
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Face(dead_face),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.ring_move(kill.ring, dead_face).unwrap_err()
+        });
+        // Cross-shell destination: a second solid's face.
+        let other = body.mvfs(p(9.0)).unwrap();
+        let expected = EulerOpError::CrossShell {
+            f1: seed.face,
+            f2: other.face,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.ring_move(kill.ring, other.face).unwrap_err()
+        });
+    }
+}
