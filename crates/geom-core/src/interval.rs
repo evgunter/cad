@@ -197,10 +197,13 @@ impl Real for Interval {
     /// problem). Deterministic either way (D9).
     ///
     /// Poison is never laundered: NaI and the empty enclosure propagate
-    /// through **every** exponent, *including `n == 0`* — a deliberate
-    /// divergence from `f64`'s `NaN⁰ = 1` totality choice, which that
-    /// scalar makes because NaN is its only poison representation; here
-    /// the poison channel is genuine and `∅⁰ = ∅` keeps it flowing.
+    /// through **every** exponent, *including `n == 0`* — in agreement
+    /// with `f64`, whose `powi` guards `n == 0` to propagate NaN (the
+    /// trait's poison-propagation clause; both scalars keep the poison
+    /// flowing). The one remaining `n == 0` divergence is ±∞, and it is
+    /// not powi's: `f64` keeps `(±∞)⁰ = 1` because infinity is not f64
+    /// poison, while here `from_f64(±∞)` is already NaI — the ratified
+    /// non-real mapping (module docs), decided at construction.
     fn powi(self, n: i32) -> Self {
         Self(self.0.powi(n))
     }
@@ -580,9 +583,9 @@ mod tests {
         let one = iv(-1.0, 2.0).powi(0);
         assert_eq!((one.lo(), one.hi()), (1.0, 1.0));
 
-        // Poison propagates through n = 0 — the documented divergence
-        // from f64's NaN⁰ = 1 (the interval scalar has a real poison
-        // channel and never launders it).
+        // Poison propagates through n = 0 — in agreement with f64, whose
+        // powi guards n = 0 to propagate NaN (both scalars refuse to
+        // launder poison into an exact 1).
         let empty = iv(-4.0, -1.0).sqrt();
         assert!(empty.powi(0).0.is_empty());
         assert!(Interval::from_f64(f64::NAN).powi(0).0.is_nai());

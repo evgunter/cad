@@ -129,8 +129,12 @@ pub trait Real:
 
     /// Raises `self` to an integer power by exponentiation by squaring;
     /// `n < 0` computes the reciprocal of `self.powi(|n|)`, and `n == 0`
-    /// yields [`Real::one`] for every input (including NaN — totality over
-    /// accuracy at the domain edge, per the module-level policy).
+    /// yields [`Real::one`] for every **non-poisoned** input. Poison
+    /// propagates through every exponent, *including `n == 0`* — NaN at
+    /// `f64`, empty/NaI at intervals: `x⁰ = 1` is a statement about
+    /// numbers, and a poisoned value is not a number (the module-level
+    /// policy — poison flows through values, and laundering it into an
+    /// exact 1 would erase the upstream failure).
     ///
     /// The multiplication order is fixed by the squaring algorithm (see
     /// [`powi_by_squaring`]), so results are deterministic but — for
@@ -280,8 +284,12 @@ impl Bounds for f64 {
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
-/// `n == 0` yields one. Total for every input; the multiplication order is
-/// fixed (deterministic per D9).
+/// `n == 0` yields one **unconditionally** — the generic default takes the
+/// shortcut without inspecting the base (it cannot: [`Real`] deliberately
+/// exposes no poison test), so poison-aware implementations guard `n == 0`
+/// before delegating (f64's NaN guard; the interval scalar overrides the
+/// whole method). Total for every input; the multiplication order is fixed
+/// (deterministic per D9).
 pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
     let mut result = T::one();
     let mut acc = base;
@@ -343,7 +351,15 @@ impl Real for f64 {
         f64::abs(self)
     }
 
+    /// [`powi_by_squaring`] behind a poison guard: `NaN⁰` is NaN, not 1 —
+    /// the generic `n == 0` shortcut would launder f64's only poison
+    /// representation into an exact 1 (the trait's poison-propagation
+    /// clause). `(±∞)⁰` stays 1: ±∞ is not f64 poison — infinite margins
+    /// are maximally definite (PR 3) — so only NaN takes the guard.
     fn powi(self, n: i32) -> Self {
+        if n == 0 && self.is_nan() {
+            return f64::NAN;
+        }
         powi_by_squaring(self, n)
     }
 
@@ -510,10 +526,16 @@ mod tests {
     }
 
     #[test]
-    fn powi_zero_exponent_is_one_for_every_input() {
-        for x in [0.0, -0.0, 2.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+    fn powi_zero_exponent_is_one_except_for_poison() {
+        // The ±∞ rows are the deliberate carve-out: infinity is not f64
+        // poison (infinite margins are maximally definite, PR 3), so
+        // (±∞)⁰ = 1 like every other non-poisoned input.
+        for x in [0.0, -0.0, 2.5, f64::INFINITY, f64::NEG_INFINITY] {
             assert_eq!(<f64 as Real>::powi(x, 0), 1.0);
         }
+        // NaN — f64's poison — propagates through n = 0 instead of
+        // laundering into an exact 1 (trait poison-propagation clause).
+        assert!(<f64 as Real>::powi(f64::NAN, 0).is_nan());
     }
 
     #[test]
