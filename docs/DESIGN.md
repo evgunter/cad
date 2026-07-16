@@ -39,7 +39,7 @@ detailed design under discussion.
 
 ## Decisions
 
-### D1 (agreed): ID-based arenas, immutable values, manifold-first, Euler operators
+### D1 (agreed; clarified 2026-07-16): ID-based arenas, immutable values, manifold-first, Euler operators
 
 - Topology entities (`Solid / Shell / Face / Loop / Edge / Vertex`) live in
   generational arenas (slotmap-style) and reference each other by typed IDs —
@@ -52,7 +52,23 @@ detailed design under discussion.
   `mev`, `mef`, `kemr`, …): a small closed set of primitives that provably
   preserve the Euler–Poincaré invariant. Higher-level operations are
   compositions of validity-preserving pure steps; debug builds check
-  invariants after each step.
+  invariants after each step (each operator debug-asserts its
+  postcondition — a per-call instance of the soundness theorem checked
+  against our implementation, never a semantic gate on legitimate
+  intermediate states).
+- **A `Body` is never authoritative** *(clarified 2026-07-16, ratified
+  via the M1-PLAN conversation)*: it is the materialized evaluation of
+  a construction (an Euler-operator sequence; at M4, a recipe) at some
+  scalar `T`, coherent iff bit-identical replay reproduces it (D9);
+  lineage-scoped keys and D5 provenance are the derivation's
+  fingerprints in the materialization. Mutation exists only as
+  evaluator-internal linear working state (`&mut` during an operator
+  sequence is exclusive, hence unobservable — linear use of a value);
+  a body at rest is a plain value, and modification means deriving a
+  successor body by further construction, never editing in place.
+  Nothing about a body is true that is not derivable from its
+  construction. (For imported bodies — M7 — the authoritative layer is
+  the adopted intensional descriptions plus the import record, per D7.)
 
 ### D2 (agreed, revised 2026-07-15): Topology and geometry separated; edge/vertex geometry is intensional where possible
 
