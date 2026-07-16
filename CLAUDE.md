@@ -28,6 +28,18 @@ Design decisions get discussed in chat, refined through Evan's pushback,
 then ratified into `docs/DESIGN.md` and committed — keep the doc synced.
 Details: `memories/cad-working-style.md`, `memories/evan-profile.md`.
 
+## Git workflow
+
+- Private remote; push branches freely and often.
+- **Merge-only, never rewrite history**: merge commits only (no squash,
+  no rebase, no force-push). Frequent, messy commits are fine — commits
+  are the record of actual work done.
+- The sanitized/logical documentation of a change lives in the **PR
+  description**, not in commit messages.
+- Agents own this codebase and merge their own PRs to main. Exception:
+  PRs that ratify open design questions (e.g. M0's Q1-residue PRs) are
+  design conversations — wait for Evan's sign-off before merging.
+
 ## Repo notes
 
 - `references/` (git-ignored) holds book scans (NURBS Book, Mäntylä ch.
