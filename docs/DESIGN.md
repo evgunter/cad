@@ -578,17 +578,18 @@ tax; useful as a *test oracle* for comparing our boolean results).
 
 Local copies live in `references/` (git-ignored). Currently on hand:
 `the-nurbs-book.pdf` (full 2nd-edition scan, verified),
-`mantyla-solid-modeling-ch4-6.pdf` (chapters 4–6: representation schemes —
-decomposition / constructive / boundary models),
+**`mantyla-1988-an-introduction-to-solid-modeling-full.pdf`** (the
+complete book, 424 pp., supplied by Evan 2026-07-16 and TOC-verified:
+ch. 9 Euler operators, ch. 10 half-edge data structure, ch. 11
+implementation incl. the low-level Lmev/Lmef/Lkemr set, ch. 12–15
+sweeping/geometric algorithms/splitting/booleans — M1 through M3's
+primary source; supersedes the old ch. 4–6 partial scan),
 `grinspun-schroder-desbrun-GSD06-discrete-differential-geometry.pdf`
 (DDG course notes — Evan-suggested during PR #9's subgradient
 conversation; the discrete-exactness philosophy is the frame for how
 M6's stackup design should treat kinks/subdifferentials), and `hoffmann/` (Hoffmann,
 *Geometric and Solid Modeling*, complete: front + chapters 1–7 + bib,
-recovered via the Internet Archive — the Purdue page is gone). **Note:**
-the Euler-operator and half-edge implementation chapters (later in the
-book) are *not* in the Mäntylä scan — a fuller copy is still sought before
-M1.
+recovered via the Internet Archive — the Purdue page is gone).
 
 - **Mäntylä, *An Introduction to Solid Modeling*** — the Euler-operator
   B-rep reference; the `topo` layer is essentially this book.

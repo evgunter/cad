@@ -32,10 +32,12 @@ carried-into-M1 list (validator items, Body<Interval> test, M2
 watchlist).
 
 **M1 next**: topology + Euler operators; build a cube by hand;
-watertightness + Euler–Poincaré checks. The Mäntylä Euler-operator
-chapters are still MISSING from references/ (only ch. 4–6 on hand;
-fuller copy sought) — Hoffmann complete is the fallback. Also in
-references/: The NURBS Book (full), GSD06 DDG course notes (for M6
-kink/subgradient design). Scanned PDFs read visually (poppler
-installed). License dual MIT OR Apache-2.0; name still pending (Q9).
-See [[cad-working-style]], [[orchestration-model]].
+watertightness + Euler–Poincaré checks. The **full Mäntylä book is now
+on hand** (supplied by Evan 2026-07-16, TOC-verified: ch. 9–11 Euler
+ops + half-edge + implementation; ch. 12–15 feed M2/M3) —
+`references/mantyla-1988-an-introduction-to-solid-modeling-full.pdf`.
+Also in references/: Hoffmann (complete), The NURBS Book (full), GSD06
+DDG course notes (for M6 kink/subgradient design). Scanned PDFs read
+visually (poppler installed). License dual MIT OR Apache-2.0; name
+still pending (Q9). See [[cad-working-style]],
+[[orchestration-model]].
