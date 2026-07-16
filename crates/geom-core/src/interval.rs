@@ -51,6 +51,12 @@
 //! vetted-dependency exception under L4; this crate's `forbid(unsafe_code)`
 //! is untouched.
 //!
+//! A `.cargo/config.toml` applies only to builds *rooted* in this repo, so
+//! external crates enabling the `interval` feature do **not** inherit the
+//! floor: each downstream consumer must replicate the
+//! `-C target-cpu=x86-64-v3` rustflag in its own `.cargo/config.toml` (or
+//! an equivalent `RUSTFLAGS`) to build the interval path on x86-64.
+//!
 //! # Non-real inputs
 //!
 //! `f64`'s NaN and ±∞ are not real numbers and have no enclosure;

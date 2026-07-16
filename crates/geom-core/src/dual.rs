@@ -295,15 +295,21 @@ impl<T: Real> Mul for Dual<T> {
 impl<T: Real> Div for Dual<T> {
     type Output = Self;
 
-    /// Quotient rule, association fixed as `(a'·b − a·b') / (b·b)` —
+    /// Quotient rule, association fixed as `(a'·b − a·b') / b.powi(2)` —
     /// the classic form, numerator fully evaluated before the single
-    /// division. `b = 0` poisons the derivative channel through the
-    /// division (±∞/NaN at `f64`, empty at intervals) exactly as it does
-    /// the value channel.
+    /// division. The denominator square is `powi(2)`, not `b·b`: at `f64`
+    /// that is bit-identical (`powi_by_squaring` reduces `powi(_, 2)` to
+    /// `1·(b·b)`, and `×1` is exact), while at `Dual<Interval>` it is
+    /// inari's tight `pown` — squaring a zero-straddling denominator by
+    /// dependent multiplication needlessly loses the `[0, ·]` lower bound
+    /// (the dependency problem), so the tight square keeps the enclosure
+    /// honest. `b = 0` poisons the derivative channel through the division
+    /// (±∞/NaN at `f64`, empty at intervals) exactly as it does the value
+    /// channel.
     fn div(self, rhs: Self) -> Self {
         Self {
             value: self.value / rhs.value,
-            deriv: (self.deriv * rhs.value - self.value * rhs.deriv) / (rhs.value * rhs.value),
+            deriv: (self.deriv * rhs.value - self.value * rhs.deriv) / rhs.value.powi(2),
         }
     }
 }
@@ -432,61 +438,91 @@ impl<T: KinkJacobian> Real for Dual<T> {
         )
     }
 
-    /// `(tan a, (1 + t·t)·a')` where `t` is the value-channel tangent —
-    /// the `1 + tan²` form of `sec²` reuses the already-computed value
-    /// instead of spending a second transcendental on `cos²`. Association
-    /// fixed as `(1 + t·t) · a'`. Near a pole the derivative grows with
-    /// `t²`, honestly.
+    /// `(tan a, (1 + t.powi(2))·a')` where `t` is the value-channel
+    /// tangent — the `1 + tan²` form of `sec²` reuses the already-computed
+    /// value instead of spending a second transcendental on `cos²`.
+    /// Association fixed as `(1 + t.powi(2)) · a'`. The square is `powi(2)`,
+    /// not `t·t`: bit-identical at `f64` (`powi_by_squaring` gives
+    /// `1·(t·t)`, `×1` exact) but the tight `pown` at `Dual<Interval>`,
+    /// where a zero-straddling tangent enclosure would otherwise lose its
+    /// `[0, ·]` floor under dependent multiplication (the dependency
+    /// problem). Near a pole the derivative grows with `t²`, honestly.
     fn tan(self) -> Self {
         let t = self.value.tan();
         Self {
             value: t,
-            deriv: (T::one() + t * t) * self.deriv,
+            deriv: (T::one() + t.powi(2)) * self.deriv,
         }
     }
 
-    /// `(asin a, a' / √(1 − a·a))`, association fixed as written. At the
-    /// domain edges `a = ±1` the denominator is zero — derivative channel
-    /// poison (the kink at the domain edge); beyond them `T::asin` and the
-    /// square root both poison, so both channels carry it.
+    /// `(asin a, a' / √(1 − a.powi(2)))`, association fixed as written. The
+    /// square is `powi(2)`, not `a·a`: bit-identical at `f64`
+    /// (`powi_by_squaring` gives `1·(a·a)`, `×1` exact) but the tight
+    /// `pown` at `Dual<Interval>`, where a zero-straddling value enclosure
+    /// squared by dependent multiplication would lose its `[0, ·]` floor
+    /// (the dependency problem) and slacken `1 − a²` — and hence the whole
+    /// derivative enclosure — for no reason. At the domain edges `a = ±1`
+    /// the denominator is zero — derivative channel poison (the kink at the
+    /// domain edge); beyond them `T::asin` and the square root both poison,
+    /// so both channels carry it.
     fn asin(self) -> Self {
-        let denom = (T::one() - self.value * self.value).sqrt();
+        let denom = (T::one() - self.value.powi(2)).sqrt();
         Self {
             value: self.value.asin(),
             deriv: self.deriv / denom,
         }
     }
 
-    /// `(acos a, −(a' / √(1 − a·a)))` — [`Real::asin`]'s derivative
-    /// negated (negation exact, placement documented).
+    /// `(acos a, −(a' / √(1 − a.powi(2))))` — [`Real::asin`]'s derivative
+    /// negated (negation exact, placement documented). Same tight-square
+    /// reasoning as [`Real::asin`]: `powi(2)` is bit-identical to `a·a` at
+    /// `f64` but keeps `1 − a²` tight for a zero-straddling enclosure at
+    /// `Dual<Interval>`.
     fn acos(self) -> Self {
-        let denom = (T::one() - self.value * self.value).sqrt();
+        let denom = (T::one() - self.value.powi(2)).sqrt();
         Self {
             value: self.value.acos(),
             deriv: -(self.deriv / denom),
         }
     }
 
-    /// `(atan a, a' / (1 + a·a))`, association fixed as written. Total on
-    /// all of ℝ like the value channel.
+    /// `(atan a, a' / (1 + a.powi(2)))`, association fixed as written.
+    /// Total on all of ℝ like the value channel. The square is `powi(2)`,
+    /// not `a·a`: bit-identical at `f64` (`powi_by_squaring` gives
+    /// `1·(a·a)`, `×1` exact) but the tight `pown` at `Dual<Interval>` —
+    /// this is the load-bearing case for the stackup loop this type exists
+    /// for. Over a value enclosure straddling zero, dependent `a·a` returns
+    /// a lower bound below `0` (the dependency problem), so `1 + a²` can
+    /// straddle zero, the division blows the derivative enclosure to
+    /// `[−∞, ∞]`; the tight `pown` keeps `a² ≥ 0`, hence `1 + a² ≥ 1`, and
+    /// the enclosure stays bounded.
     fn atan(self) -> Self {
         Self {
             value: self.value.atan(),
-            deriv: self.deriv / (T::one() + self.value * self.value),
+            deriv: self.deriv / (T::one() + self.value.powi(2)),
         }
     }
 
-    /// `(atan2(y, x), (x·y' − y·x') / (x·x + y·y))` with `self` = y,
-    /// association fixed as written (numerator fully evaluated, then one
-    /// division). At the origin the denominator is zero — derivative
-    /// poison, matching the value channel's own origin behavior (`f64`
-    /// returns the IEEE conventional angle but the derivative is honestly
-    /// undefined; intervals degrade their decoration).
+    /// `(atan2(y, x), (x·y' − y·x') / (x.powi(2) + y.powi(2)))` with
+    /// `self` = y, association fixed as written (numerator fully evaluated,
+    /// then one division). The denominator squares are `powi(2)`, not
+    /// `x·x`/`y·y`: bit-identical at `f64` (`powi_by_squaring` gives
+    /// `1·(x·x)`, `×1` exact) but the tight `pown` at `Dual<Interval>`.
+    /// This is load-bearing for the stackup loop: with dependent
+    /// multiplication, `x·x` and `y·y` each dip below zero over a
+    /// zero-straddling enclosure (the dependency problem), so their sum
+    /// `x² + y²` can straddle zero and blow the derivative enclosure to
+    /// `[−∞, ∞]`; the tight `pown` keeps each square `≥ 0`, so the sum
+    /// stays `≥ 0` and (away from the origin) bounded away from it. At the
+    /// origin the denominator is zero — derivative poison, matching the
+    /// value channel's own origin behavior (`f64` returns the IEEE
+    /// conventional angle but the derivative is honestly undefined;
+    /// intervals degrade their decoration).
     fn atan2(self, x: Self) -> Self {
         Self {
             value: self.value.atan2(x.value),
             deriv: (x.value * self.deriv - self.value * x.deriv)
-                / (x.value * x.value + self.value * self.value),
+                / (x.value.powi(2) + self.value.powi(2)),
         }
     }
 
@@ -765,11 +801,18 @@ mod tests {
         /// for the error model behind the bound). `tan` stays inside
         /// (−1.4, 1.4) — away from the ±π/2 poles where f‴ explodes —
         /// and `asin`/`acos` inside (−0.9, 0.9) for the same reason.
+        ///
+        /// The seed `d` is a random nonzero tangent (not the unit seed):
+        /// the chain rule multiplies the slope by `d`, so the check is
+        /// `deriv ≈ d·slope`. This is what catches a mutant that drops the
+        /// `·a'` seed factor from an op — a unit seed makes `d·slope` and
+        /// `slope` identical and hides it.
         #[test]
         fn unary_derivatives_match_central_differences(
             x_trig in -1.35..1.35f64,
             x_pos in 0.1..100.0f64,
             x_wide in -50.0..50.0f64,
+            d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
         ) {
             let cases: &[CdCase] = &[
                 ("sin", Real::sin, Real::sin, x_wide),
@@ -782,35 +825,39 @@ mod tests {
                 ("abs", Real::abs, Real::abs, x_pos + 1.0),
             ];
             for &(name, f, fd, x) in cases {
-                let dual = fd(Dual::variable(x)).deriv;
+                let dual = fd(Dual::new(x, d)).deriv;
                 let cd = central_diff(f, x);
                 prop_assert!(
-                    close_to_cd(dual, cd),
-                    "{}'({}) = {} but central difference = {}",
-                    name, x, dual, cd
+                    close_to_cd(dual, d * cd),
+                    "{}'({}) with seed {} = {} but d·(central difference) = {}",
+                    name, x, d, dual, d * cd
                 );
             }
         }
 
         /// powi's `n·xⁿ⁻¹` rule vs central differences, positive and
         /// negative exponents, base away from zero (negative exponents
-        /// are ill-conditioned there).
+        /// are ill-conditioned there). The random nonzero seed `d` makes
+        /// the check `deriv ≈ d·slope`, catching a mutant that drops the
+        /// `·a'` seed factor (a unit seed would hide it).
         #[test]
         fn powi_derivative_matches_central_differences(
             x in 0.2..3.0f64,
             neg in any::<bool>(),
             n in -6..=6i32,
+            d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
         ) {
             let x = if neg { -x } else { x };
-            let dual = Dual::variable(x).powi(n).deriv;
+            let dual = Dual::new(x, d).powi(n).deriv;
             let cd = central_diff(|t| <f64 as Real>::powi(t, n), x);
-            // Scale-aware bound: |x|⁻⁷ at x = 0.2 reaches ~8e4, so the
-            // absolute floor of close_to_cd is scaled by the expected
-            // magnitude (same 1e-6 relative headroom as everywhere else).
+            // close_to_cd's relative-to-|expected| bound already scales
+            // with magnitude: |x|⁻⁷ at x = 0.2 reaches ~8e4, and the
+            // 1e-6·(1 + |d·cd|) floor grows with the seeded expected value
+            // — the same headroom as everywhere else, so reuse the helper.
             prop_assert!(
-                (dual - cd).abs() <= 1e-6 * (1.0 + cd.abs()),
-                "d/dx x^{} at {} = {} but central difference = {}",
-                n, x, dual, cd
+                close_to_cd(dual, d * cd),
+                "d/dx x^{} at {} with seed {} = {} but d·(central difference) = {}",
+                n, x, d, dual, d * cd
             );
         }
 
@@ -834,9 +881,15 @@ mod tests {
         }
 
         /// Product, quotient, and composite rules through a nontrivial
-        /// rational-trig pipeline vs central differences.
+        /// rational-trig pipeline vs central differences. The random
+        /// nonzero seed `d` rides the whole chain (`deriv ≈ d·slope`), so
+        /// a mutant dropping the `·a'` seed factor from the `sin_cos`
+        /// inside is caught (a unit seed would hide it).
         #[test]
-        fn composite_derivative_matches_central_differences(x in -3.0..3.0f64) {
+        fn composite_derivative_matches_central_differences(
+            x in -3.0..3.0f64,
+            d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
+        ) {
             fn pipeline<T: Real>(x: T) -> T {
                 let (s, _) = x.sin_cos();
                 (x * x + T::one()) / (x * s + T::from_f64(2.5))
@@ -844,9 +897,13 @@ mod tests {
             // Keep the denominator away from zero (it is ≥ 2.5 − |x·sin x|
             // and can vanish near |x| ≈ 2.97): condition on margin.
             prop_assume!((x * Real::sin(x) + 2.5).abs() > 0.5);
-            let dual = pipeline(Dual::variable(x)).deriv;
+            let dual = pipeline(Dual::new(x, d)).deriv;
             let cd = central_diff(pipeline::<f64>, x);
-            prop_assert!(close_to_cd(dual, cd), "pipeline'({}) = {} vs cd {}", x, dual, cd);
+            prop_assert!(
+                close_to_cd(dual, d * cd),
+                "pipeline'({}) with seed {} = {} vs d·cd {}",
+                x, d, dual, d * cd
+            );
         }
     }
 
@@ -942,6 +999,36 @@ mod tests {
         let negative = Dual::variable(-1.0).sqrt();
         assert!(negative.value.is_nan());
         assert!(negative.deriv.is_nan());
+    }
+
+    /// asin/acos at exactly the domain edges ±1: both channels pinned. The
+    /// value channel lands on ±π/2 / {0, π} (within a couple ulps of the
+    /// libm result), while the derivative channel poisons to an *infinite*
+    /// tangent — the denominator √(1 − a²) is an EXACT zero (`a.powi(2)` is
+    /// exactly 1 at a = ±1, 1 − 1 = 0, √0 = +0), so a'/0 = ±∞. This is the
+    /// totality policy at a domain-edge kink: the vertical tangent is an
+    /// honest infinity, not an error (asin rises to a vertical slope at
+    /// both ends ⇒ +∞; acos falls to one ⇒ −∞), exactly as sqrt's edge
+    /// kink poisons its own tangent rather than trapping.
+    #[test]
+    fn asin_acos_at_unit_edges() {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        // asin: value ≈ ±π/2, derivative +∞ at both edges (increasing,
+        // vertical tangent). deriv seed +1 divided by exact +0.
+        let hi = Dual::variable(1.0).asin();
+        assert!(ulp_dist(hi.value, FRAC_PI_2) <= 1, "asin(1) value ≈ π/2");
+        assert_eq!(hi.deriv, f64::INFINITY, "asin'(1) = +∞");
+        let lo = Dual::variable(-1.0).asin();
+        assert!(ulp_dist(lo.value, -FRAC_PI_2) <= 1, "asin(-1) value ≈ -π/2");
+        assert_eq!(lo.deriv, f64::INFINITY, "asin'(-1) = +∞");
+        // acos: value ≈ 0 / π, derivative −∞ at both edges (decreasing) —
+        // asin's tangent negated.
+        let hi = Dual::variable(1.0).acos();
+        assert!(ulp_dist(hi.value, 0.0) <= 1, "acos(1) value ≈ 0");
+        assert_eq!(hi.deriv, f64::NEG_INFINITY, "acos'(1) = -∞");
+        let lo = Dual::variable(-1.0).acos();
+        assert!(ulp_dist(lo.value, PI) <= 1, "acos(-1) value ≈ π");
+        assert_eq!(lo.deriv, f64::NEG_INFINITY, "acos'(-1) = -∞");
     }
 
     // ------------------------------------------------------------------
@@ -1069,22 +1156,26 @@ mod tests {
             r in 0.5..3.0f64,
             cx in -2.0..2.0f64,
             cy in -2.0..2.0f64,
+            d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
         ) {
             // Keep the distance (the quotient's denominator) away from 0,
             // where D is nondifferentiable and the quotient ill-conditioned.
             prop_assume!(circle_distance(theta, r, cx, cy) > 0.1);
+            // Seed θ with a random nonzero tangent d (not the unit seed):
+            // the chain rule scales the analytic dD/dθ by d, so a mutant
+            // dropping a `·a'` seed factor anywhere on the θ path is caught.
             let dual = circle_distance(
-                Dual::variable(theta),
+                Dual::new(theta, d),
                 Dual::constant(r),
                 Dual::constant(cx),
                 Dual::constant(cy),
             );
-            let analytic = circle_distance_dtheta(theta, r, cx, cy);
+            let analytic = d * circle_distance_dtheta(theta, r, cx, cy);
             prop_assert_eq!(dual.value.to_bits(),
                 circle_distance(theta, r, cx, cy).to_bits());
             prop_assert!(
                 (dual.deriv - analytic).abs() <= 1e-10 * (1.0 + analytic.abs()),
-                "dD/dθ dual = {} vs analytic = {}",
+                "dD/dθ dual = {} vs d·analytic = {}",
                 dual.deriv, analytic
             );
         }
@@ -1198,11 +1289,17 @@ mod tests {
 
             /// Transcendentals: tolerance-based value comparison (std vs
             /// libm), tight-but-nonzero derivative bounds — see the
-            /// module docs for the per-op rationale.
+            /// module docs for the per-op rationale. Both duals carry the
+            /// same random nonzero seed `d` (not the unit seed), so the
+            /// derivatives compared are `d·slope` on each side — a mutant
+            /// dropping the `·a'` seed factor would break the agreement.
             #[test]
-            fn transcendental_derivatives_agree(x in -20.0..20.0f64) {
-                let a = Dual::variable(x);
-                let na = Nd::new(x, 1.0);
+            fn transcendental_derivatives_agree(
+                x in -20.0..20.0f64,
+                d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
+            ) {
+                let a = Dual::new(x, d);
+                let na = Nd::new(x, d);
                 let cases: &[(&str, Dual64, Nd, u64, u64)] = &[
                     ("sin", Real::sin(a), na.sin(), 16, 64),
                     ("cos", Real::cos(a), na.cos(), 16, 64),
@@ -1217,11 +1314,16 @@ mod tests {
 
             /// asin/acos on a domain bounded away from ±1 (both sides'
             /// derivative denominators √(1−x²) are ill-conditioned at the
-            /// edges, in different ways).
+            /// edges, in different ways). The shared random nonzero seed
+            /// `d` makes the compared derivatives `d·slope` on each side,
+            /// so a mutant dropping the `·a'` seed factor is caught.
             #[test]
-            fn inverse_trig_derivatives_agree(x in -0.95..0.95f64) {
-                let a = Dual::variable(x);
-                let na = Nd::new(x, 1.0);
+            fn inverse_trig_derivatives_agree(
+                x in -0.95..0.95f64,
+                d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
+            ) {
+                let a = Dual::new(x, d);
+                let na = Nd::new(x, d);
                 assert_ulps("asin value", Real::asin(a).value, na.asin().re, 16)?;
                 assert_ulps("asin deriv", Real::asin(a).deriv, na.asin().eps, 64)?;
                 assert_ulps("acos value", Real::acos(a).value, na.acos().re, 16)?;
@@ -1248,16 +1350,20 @@ mod tests {
             /// powi across positive and negative exponents; both sides
             /// use exponentiation-by-squaring shapes with different
             /// associations (ours pure squaring, num-dual `x^(n−3)·x·x·x`
-            /// over std's powi), so ulp allowances not bit-identity.
+            /// over std's powi), so ulp allowances not bit-identity. The
+            /// shared random nonzero seed `d` makes the compared
+            /// derivatives `d·n·xⁿ⁻¹` on each side, so a mutant dropping
+            /// the `·a'` seed factor is caught.
             #[test]
             fn powi_derivatives_agree(
                 x in 0.2..3.0f64,
                 neg in any::<bool>(),
                 n in -8..=8i32,
+                d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
             ) {
                 let x = if neg { -x } else { x };
-                let ours = Dual::variable(x).powi(n);
-                let theirs = Nd::new(x, 1.0).powi(n);
+                let ours = Dual::new(x, d).powi(n);
+                let theirs = Nd::new(x, d).powi(n);
                 assert_ulps("powi value", ours.value, theirs.re, 32)?;
                 assert_ulps("powi deriv", ours.deriv, theirs.eps, 64)?;
             }
@@ -1271,15 +1377,19 @@ mod tests {
                 r in 0.5..3.0f64,
                 cx in -2.0..2.0f64,
                 cy in -2.0..2.0f64,
+                d in prop_oneof![-1000.0..-0.001f64, 0.001..1000.0f64],
             ) {
                 prop_assume!(circle_distance(theta, r, cx, cy) > 0.1);
+                // Both sides seed θ with the same random nonzero d (not
+                // the unit seed): a mutant dropping a `·a'` seed factor on
+                // the θ path breaks the end-to-end agreement.
                 let ours = circle_distance(
-                    Dual::variable(theta),
+                    Dual::new(theta, d),
                     Dual::constant(r),
                     Dual::constant(cx),
                     Dual::constant(cy),
                 );
-                let (s, c) = Nd::new(theta, 1.0).sin_cos();
+                let (s, c) = Nd::new(theta, d).sin_cos();
                 let (nr, ncx, ncy) = (Nd::from_re(r), Nd::from_re(cx), Nd::from_re(cy));
                 let (dx, dy) = (nr * c - ncx, nr * s - ncy);
                 let theirs = (dx * dx + dy * dy).sqrt();
@@ -1529,6 +1639,32 @@ mod tests {
                 "constant-distance derivative enclosure [{dlo}, {dhi}] must contain 0"
             );
             assert!(dhi - dlo < 1e-12);
+        }
+
+        /// Regression (review: the dependency problem this whole type
+        /// exists to survive). Over a value enclosure that straddles zero,
+        /// atan's derivative denominator `1 + a²` must be squared *tightly*
+        /// (`powi(2)` = inari's pown), not by dependent multiplication:
+        /// `a·a` over `[−1, 1.1]` returns `[−1.1, 1.21]`, so `1 + a·a`
+        /// straddles zero and the division blows the derivative enclosure
+        /// to `[−∞, ∞]`. With the tight square `a² = [0, 1.21] ≥ 0`, hence
+        /// `1 + a² ≥ 1`, so d/da atan over the box `[−1, 1.1]` with unit
+        /// tangent is a bounded enclosure ⊂ `[0.4, 1.1]` (true range
+        /// `[1/2.21, 1] ≈ [0.4525, 1]`). atan2's `x² + y²` shares the fix;
+        /// this pins the representative case.
+        #[test]
+        fn atan_derivative_enclosure_bounded_over_straddling_box() {
+            let a = Dual::new(Interval::from_bounds(-1.0, 1.1), Interval::one());
+            let (dlo, dhi) = bounds_of(a.atan().deriv);
+            assert!(
+                dlo.is_finite() && dhi.is_finite(),
+                "atan' enclosure [{dlo}, {dhi}] must be finite \
+                 (dependent a·a would give [−∞, ∞])"
+            );
+            assert!(
+                0.4 <= dlo && dhi <= 1.1,
+                "atan' enclosure [{dlo}, {dhi}] must lie within [0.4, 1.1]"
+            );
         }
 
         /// The generic consumer at `DualInterval`: 3-4-5 exact in the
