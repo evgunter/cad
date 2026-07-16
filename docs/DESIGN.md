@@ -587,7 +587,13 @@ primary source; supersedes the old ch. 4–6 partial scan),
 `grinspun-schroder-desbrun-GSD06-discrete-differential-geometry.pdf`
 (DDG course notes — Evan-suggested during PR #9's subgradient
 conversation; the discrete-exactness philosophy is the frame for how
-M6's stackup design should treat kinks/subdifferentials), and `hoffmann/` (Hoffmann,
+M6's stackup design should treat kinks/subdifferentials),
+`vida-martin-varady-1994-survey-of-blending-methods-parametric-surfaces.pdf`
+(Computer-Aided Design 26(5) — the canonical blending survey, supplied
+by Evan 2026-07-16; primary source for M5's fillet scope-boxing:
+terminology/classification of blends, rolling-ball and trimline
+methods, the open problems that motivated D2's `TangencyLocus`
+treatment), and `hoffmann/` (Hoffmann,
 *Geometric and Solid Modeling*, complete: front + chapters 1–7 + bib,
 recovered via the Internet Archive — the Purdue page is gone).
 

@@ -37,7 +37,9 @@ on hand** (supplied by Evan 2026-07-16, TOC-verified: ch. 9–11 Euler
 ops + half-edge + implementation; ch. 12–15 feed M2/M3) —
 `references/mantyla-1988-an-introduction-to-solid-modeling-full.pdf`.
 Also in references/: Hoffmann (complete), The NURBS Book (full), GSD06
-DDG course notes (for M6 kink/subgradient design). Scanned PDFs read
-visually (poppler installed). License dual MIT OR Apache-2.0; name
+DDG course notes (for M6 kink/subgradient design), and the
+Vida–Martin–Várady 1994 blending survey (for M5 fillets — Evan-supplied,
+closing the known paywalled gap). Scanned PDFs read visually (poppler
+installed). License dual MIT OR Apache-2.0; name
 still pending (Q9). See [[cad-working-style]],
 [[orchestration-model]].
