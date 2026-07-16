@@ -21,3 +21,6 @@ inari = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Derivative oracle for Dual<f64> tests only — never a runtime dependency
+# (see the deviation note in src/dual.rs module docs).
+num-dual = { workspace = true }
