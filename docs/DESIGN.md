@@ -372,8 +372,12 @@ persisted decision log**:
   predicates are the load-bearing part, and margin logging can be added
   later as a pure diagnostic/optimization without restructuring.
 
-Still open: exact `Real` trait surface; comparison/signum semantics of the
-`Dual<Interval>` wrapper.
+Still open (code-sized, settle in first M0 PRs): exact `Real` trait
+surface; comparison/signum semantics of the `Dual<Interval>` wrapper; the
+meaning of indeterminate at plain `f64` (margin within k·ε — and the value
+of k); where genericity stops structurally (`Body<T>` = scalar-free
+topology + geometry arenas over `T`; an interval replay materializes
+interval-valued geometry).
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
@@ -412,6 +416,58 @@ algorithms and adapting them to carry our invariants is on the table;
 audit its source properly before M5. Contrast ezpz, which sits *upstream*
 of the certified core (its output is just numbers that then pass through
 our construction and checks), so arm's-length dependency is principled.
+
+### Q6: Recipe representation (recommendation: operations-as-data)
+
+Two concrete forms of "model = pure function from parameters to solid":
+(a) user models as Rust functions generic over `T`, or (b) **recipe as
+data** — an operation DAG built via a fluent Rust builder, interpreted by
+the kernel at any `T`, with a small expression sublanguage for derived
+quantities (`hole_x = width/2 - margin`); user Rust acts as a *generator*
+of recipes at the structural level (loops to make N holes).
+
+Recommendation: **(b)**. It yields the save format for free (the recipe is
+the document), stable node IDs as the substrate for D5 naming, keeps every
+branch inside kernel code where predicates are reified — user `if width >
+10.0` under (a) would silently break interval replay — and makes
+structural parameters (hole *count* vs. hole *diameter*) explicitly
+visible, so "topology changes with this parameter" is stated, not
+emergent. Shapes `kernel-ops` signatures from M2 on; ratify before M0.
+
+### Q7: Determinism policy and engineering charter
+
+Pure-replayable-function assumes reproducibility. Proposed commitments:
+same build + same inputs → bit-identical output; no hash-map iteration
+order ever influencing geometry; parallelism only in fixed reduction
+shapes; transcendentals via the pure-Rust `libm` crate for cross-platform
+reproducibility (system libm sin/cos differ in the last ulp across
+platforms — enough to flip a marginal predicate). Charter items: the
+kernel never panics on any input (panics are bugs; all failures typed);
+essentially no unsafe Rust outside vetted dependencies.
+
+### Q8: Definitional vs. approximating surfaces
+
+Most surfaces are *definitional* — primitives, extrude/revolve, even lofts
+(the produced NURBS *is* the definition; the recipe is provenance). Some
+*approximate* an intensional spec they cannot represent exactly: offsets
+(the offset of a NURBS is not a NURBS), some blends. Those get the edge-
+cache treatment: spec + fit + certified residual ≤ ε (D4 ¶2). Needed
+before shelling/offset work (M5+), stated now.
+
+### Q9: Project license and name (user decision, blocks first `cargo new`)
+
+License recommendation: dual MIT OR Apache-2.0 (Rust convention,
+compatible with all chosen dependencies, maximizes contribution) unless
+there are product-strategy reasons for copyleft. Name: placeholder fine,
+pre-publish renames are cheap.
+
+### Deferred to their milestones (listed so they don't get lost)
+
+Vertex-geometry taxonomy; orientation/sense conventions (M1 — classic
+bug-farm territory, document as conventions once); the validator's
+concrete invariant checklist (M1); profile/sketch input format (M2); εₐ's
+numeric value and the ambiguity constant k (M0 experiments); body-level
+serialization beyond the recipe (post-STEP-export).
 
 ## Crate landscape (surveyed 2026-07)
 
