@@ -87,13 +87,16 @@ EdgeGeometry =
                                       -- surface parameterization seam)
 ```
 
-**Deliberately omitted: an `Explicit` (extensional) variant.** Taken as a
-challenge: every edge must have an intensional description, and the
-absence of an escape hatch keeps it from being reached for when not
-absolutely necessary. If a genuine need appears (STEP import is the likely
-forcing case — imported geometry arrives with no construction history),
-`Explicit` gets added *then*, with a designated-primary representation and
-certified cross-residuals, and its use confined to the import boundary.
+**Deliberately omitted: an `Explicit` (extensional) variant.** Taken as an
+unconditional challenge: every edge must have an intensional description —
+there is no escape hatch, so it can't be reached for when not absolutely
+necessary. This holds even for imported geometry (see D7): the intensional
+variants other than `MappedCurve` are *intrinsic* — checkable properties
+of the geometry as it now stands, not of its history — so extensional
+input can be *adopted* by reconstructing the description it satisfies
+rather than admitted as second-class data. What import pressure-tests is
+the **completeness of the variant taxonomy** (e.g. imported fillets force
+`TangencyLocus`), not the need for an extensional fallback.
 
 Validity of `Intersection` requires *transversality*: normals of S₁, S₂
 linearly independent along the locus (equivalently `T_pS₁ + T_pS₂ = ℝ³`),
@@ -158,8 +161,10 @@ applied to error handling. Five commitments:
    is rejected at construction. User-facing units are typed newtypes at the
    API boundary only (see D6).
 5. **Strictness is enforced at the boundary, not relaxed inside**: future
-   STEP *import* gets a separate healing stage that repairs sloppy external
-   geometry to meet ε *before* it becomes a kernel body.
+   STEP *import* gets a separate adoption/healing stage (D7) that brings
+   external geometry up to kernel invariants *before* it becomes a kernel
+   body; entities that can't be adopted fail loudly in a typed import
+   error.
 
 ### D6 (agreed): Canonical internal units; typed units at the API boundary
 
@@ -168,6 +173,35 @@ dimensional types inside. The public API uses hand-rolled newtypes
 (`Length`, `Angle`, …) that convert on entry. Hand-rolled rather than
 `uom`: uom's dimensional generics fight the scalar-type parameter and we
 need ~five quantities, not the SI lattice.
+
+### D7 (agreed): Import is adoption, not admission
+
+Imported geometry is not second-class. Rather than adding an extensional
+escape hatch to `EdgeGeometry`, import **reconstructs** the intensional
+description that the extensional data satisfies. This is possible because
+the intensional variants (other than `MappedCurve`) are intrinsic to the
+current geometry, not historical. Pipeline sketch:
+
+1. **Surface recognition**: an imported NURBS within ε of an analytic
+   surface is promoted to it (plane/cylinder/cone/sphere/torus
+   recognition) — restoring D3's exactness benefits to imported bodies.
+2. **Edge adoption**: for each imported edge, verify the imported curve
+   lies within ε of the intersection of its two adjacent surfaces with an
+   adequate transversality margin, then rebuild it as
+   `Intersection { s1, s2, witness }` — the imported extensional curve is
+   demoted to witness point + initial cache. Seams and tangency loci are
+   recognized likewise.
+3. **Healing**: where no intensional description is satisfied within ε
+   (gaps, sloppy source tolerances), repair (refit/nudge) or fail loudly
+   with a typed error naming the unhealable entities (D4 ¶5).
+
+Adoption reuses the kernel's own certification machinery — "is this curve
+within ε of the described locus" is exactly the check the `topo` validator
+already runs on derived caches. Note this is strictly *stronger* than
+industry "shape healing" (which only patches data into self-consistency):
+adoption must *explain* the data. Export is the easy direction (projection
+from intensional to extensional); import is the inverse problem and is
+deferred accordingly (M7).
 
 ### D5 (agreed): Persistent topological identity from birth
 
@@ -233,6 +267,9 @@ precursor of the error-propagation feature.
   interval-based self-intersection / minimum-clearance checks over the
   parameter box. Sketch solver when sketches should become
   constraint-driven rather than programmatic.
+- **M7** — STEP import as adoption (D7): analytic surface recognition,
+  edge adoption, healing. Deliberately last — it is the inverse problem of
+  everything above it.
 
 ## Open questions
 
@@ -334,8 +371,11 @@ tax; useful as a *test oracle* for comparing our boolean results).
 ## Prior art / references
 
 Local copies live in `references/` (git-ignored). Currently on hand:
-`the-nurbs-book.pdf` (full scan), `mantyla-solid-modeling-ch4-6.pdf`
-(chapters 4–6 scan — the Euler-operator core).
+`the-nurbs-book.pdf` (full 2nd-edition scan, verified) and
+`mantyla-solid-modeling-ch4-6.pdf` (chapters 4–6: representation schemes —
+decomposition / constructive / boundary models). **Note:** the
+Euler-operator and half-edge implementation chapters (later in the book)
+are *not* in the Mäntylä scan — a fuller copy is still sought before M1.
 
 - **Mäntylä, *An Introduction to Solid Modeling*** — the Euler-operator
   B-rep reference; the `topo` layer is essentially this book.
