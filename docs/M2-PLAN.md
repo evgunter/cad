@@ -89,21 +89,35 @@ Implementer/reviewer prompts cite the notes, never the scan.
    **orthonormal-basis-from-normal is a value-branch** → per the M0
    review it enters as a predicate-guarded or branchless construction,
    a design point in this PR's writeup.
-2. **Profile format + arc generator** *(DESIGN FORK — wait for
-   Evan)*. The DESIGN.md deferred item "profile/sketch input format
-   (M2)". Proposal to present: a 2-D profile is data (D8-compatible —
-   recipes will carry it): a sketch plane (`Affine3` placement) plus
-   loops of segments `{ LineTo, ArcTo { center/radius form TBD } }`;
-   winding = topology conventions (outer CCW, holes CW in sketch
-   plane); closed loops only at M2 (open wires deferred with
-   rotational-wire sweeps); simplicity (non-self-intersection)
-   required and **checked with trilean predicates, fail-loud** — the
-   first real K-experiment data source. Arc discretization does NOT
-   happen here (profiles stay exact; arcs become circle-carrier edges
-   that sweep to cylinder/cone patches) — the ch. 12 arc *generator*
-   is superseded by exact analytic carriers; note the circle-closure
-   caveat (a full-circle loop needs ≥ 2 vertices under our edge
-   model).
+2. **Profile format + arc generator** *(fork RESOLVED with Evan in
+   the #24 conversation, 2026-07-16 — now self-merge grade with the
+   full writeup)*. The DESIGN.md deferred item "profile/sketch input
+   format (M2)". **Ratified**: (a) **vertex chain with bulge** — a
+   loop is a list of `{ pos: Point2<T>, bulge: T }` (bulge =
+   tan(θ/4) of the arc to the next vertex; 0 = line; DXF-compatible);
+   chosen for ZERO representation-consistency conditions (the D2
+   peer-representation lesson applied at the input boundary — command
+   lists carry radius/endpoint redundancy, carrier-interval segments
+   are the extensional bug farm as input); constructor sugar computes
+   bulges from human-friendly forms; closure by construction.
+   (b) **Closed carriers split into ≥ 2 vertices** (no single-edge
+   full circles): periodic carriers with identical endpoints
+   under-determine the parameter interval, so full-period edges would
+   need stored intervals, weakening the vertices-derive-bounds rule;
+   bulge cannot express θ = 2π anyway — representation and topology
+   agree. Cost: one seam vertex per hole; revisit on annoyance.
+   (c) **Winding is invisible to users**: nesting derives from
+   containment (trilean point-in-loop), winding is canonicalized
+   internally to the topology conventions — no winding concept in the
+   API surface, no winding errors. Fail-loud, trilean-checked:
+   non-simple loops (closed-form line/arc pairwise tests) and
+   nesting deeper than outer + holes (typed error at M2). Closed
+   loops only at M2; sketch plane = `Affine3` placement; `Profile<T>`
+   scalar-generic (D8: coordinates are parameter expressions) — the
+   first real K-experiment data source and the first end-to-end Q1
+   exercise. The ch. 12 arc *generator* (polyline discretization) is
+   superseded by exact circle carriers; discretization exists only at
+   tessellation time.
 3. **Geometry attachment + face equations + tier-3 start**
    *(self-merge grade)*. The M1 ops' documented signature slots get
    real geometry: sweep-level construction supplies curve/surface
