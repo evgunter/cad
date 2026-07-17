@@ -23,6 +23,16 @@ Evan's standing instructions for implementation work (given at M0 start,
   decision, plus important forks discovered during implementation.
   Design-conversation PRs (see [[git-workflow]]) are opened with full
   writeups and left for sign-off while work continues stacked on top.
+- **Self-merge escalation (Evan, 2026-07-16, PR #20)**: after M1 PRs 1–3
+  earned trust, high-confidence design PRs (dominant-argument
+  conventions, faithful elaborations of an already-ratified plan)
+  **self-merge with their full writeups**; Evan reviews the backlog
+  retroactively — "even when I have had a comment it's usually been
+  something that is patchable, not fatal." **Fundamental design forks
+  still wait for sign-off**: changes to ratified DESIGN.md decisions,
+  and genuinely open questions with multiple viable answers where
+  Evan's preference matters. When unsure which kind a decision is,
+  treat it as a fork.
 - **Keep an orchestrator log of design decisions made unilaterally**
   (M0's is `docs/M0-LOG.md`, L-numbered decisions) and generally maintain
   state-of-work knowledge in version control.

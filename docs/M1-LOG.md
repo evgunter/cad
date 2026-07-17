@@ -20,12 +20,28 @@ design conversation.
   PRs target `main`. Merge commits only.
 - Design PRs wait for Evan's sign-off; work continues stacked on top.
   Non-design PRs self-merge after subagent review + green CI.
+  **Revised after PR #20 (Evan, 2026-07-16)**: high-confidence design
+  PRs (dominant-argument conventions, faithful elaborations of the
+  ratified plan) now ALSO self-merge with their full writeups; Evan
+  reviews the backlog retroactively. Fundamental design forks (changes
+  to ratified DESIGN.md decisions; genuinely open multi-answer
+  questions) still wait for sign-off. Unsure ⇒ treat as a fork.
 - Reviews write and run real consumer programs against the API under
   review (standing rule, `memories/review-and-dependency-policy.md`).
 - Reference reading: Mäntylä ch. 9–11 notes live in
   `<main-checkout>/references/notes/mantyla-ch{9,10,11}-*.md`
   (git-ignored, persistent) — implementer/reviewer prompts should point
   there, not at the scan.
+- Reviewer test suites are promoted into CI as
+  `crates/topo/tests/review_m1_prN.rs` after each fix pass (Evan, PR
+  #17): independent derivations are regression value; suites hit by
+  later API changes (e.g. PR 5's raw-builder demotion) migrate or get
+  pruned at that PR like any test.
+- The M0 reviewers' demo crates were salvaged from the M0 session
+  scratchpad (archived at `references/review-artifacts-m0/`,
+  git-ignored, persistent) and promoted the same way as
+  `crates/{geom-core,topo}/tests/review_m0_prN.rs`; PR 7's suite was
+  ported at the invariant level across the M1 half-edge restructure.
 
 ## Carried in from M0 (docs/M0-LOG.md "M0 EXIT")
 
