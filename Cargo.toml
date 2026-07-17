@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/geom-core", "crates/topo"]
+members = [
+    "crates/geom-core",
+    "crates/geom-curves",
+    "crates/geom-surfaces",
+    "crates/topo",
+]
 
 # No root package: the project name is pending (Q9), so the workspace stays
 # nameless. Shared package metadata lives here and is inherited by members
