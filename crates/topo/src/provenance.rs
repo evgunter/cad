@@ -9,11 +9,13 @@
 //! Since M1 PR 2 the record is **typed per operator**: each Euler
 //! operator stamps everything it mints with its own variant carrying the
 //! site (argument keys) it was applied at — [`Provenance::Mvfs`],
-//! [`Provenance::Mev`], [`Provenance::Mef`], and (PR 3)
-//! [`Provenance::Kemr`], [`Provenance::Mekr`]. Operators that mint
-//! nothing (`kfmrh`, `ring_move`) have no variant: a provenance record
-//! is a **birth record**, written once when the entity is created and
-//! never rewritten — a loop that `kfmrh` demotes to a ring, or that
+//! [`Provenance::Mev`], [`Provenance::Mef`], (PR 3)
+//! [`Provenance::Kemr`], [`Provenance::Mekr`], and (PR 4)
+//! [`Provenance::Mfkrh`]. Operators that mint nothing (`kfmrh`,
+//! `ring_move`, and PR 4's `kvfs`/`kev`/`kef`) have no variant: a
+//! provenance record is a **birth record**, written once when the entity
+//! is created and never rewritten — a loop that `kfmrh` demotes to a
+//! ring, that `mfkrh` promotes back to an outer loop, or that
 //! `ring_move` reparents, keeps the record of the operation that
 //! *created* it. Symmetrically, kill-direction operators **remove** the
 //! records of the entities they kill (a `SecondaryMap` entry outliving
@@ -36,7 +38,7 @@
 //! a `Provenance` at every topology insertion, so an entity without
 //! provenance is unrepresentable.
 
-use crate::entity::HalfEdgeKey;
+use crate::entity::{HalfEdgeKey, LoopKey};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 
@@ -92,5 +94,15 @@ pub enum Provenance {
     Mekr {
         /// The site the operator was applied at (its argument keys).
         site: MekrSite,
+    },
+    /// Created by [`Body::mfkrh`](crate::Body::mfkrh): the new face (the
+    /// only topology entity `mfkrh` mints — the promoted loop survives
+    /// with its own birth record).
+    Mfkrh {
+        /// `mfkrh`'s argument — the ring promoted to the new face's
+        /// outer loop. A **surviving** key, unlike [`Provenance::Kemr`]'s
+        /// (the loop outlives the call), though later kills may of
+        /// course retire it; records are historical either way.
+        ring: LoopKey,
     },
 }

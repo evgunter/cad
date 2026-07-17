@@ -5,10 +5,11 @@
 //! surgeries re-derived under our orientation convention), plus the
 //! addressing helper [`Body::find_half_edge`]. The ring/genus operators
 //! ([`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`]) and the `ring_move`
-//! helper live in the sibling module [`crate::euler_ring`] (M1 PR 3) and
-//! share this module's contracts and [`EulerOpError`]; the
-//! kill-direction duals are PR 4; the raw-insertion builder retreats
-//! behind these operators at PR 5.
+//! helper live in the sibling module [`crate::euler_ring`] (M1 PR 3),
+//! the kill-direction duals ([`Body::kvfs`], [`Body::kev`],
+//! [`Body::kef`], [`Body::mfkrh`]) in [`crate::euler_kill`] (M1 PR 4);
+//! all share this module's contracts and [`EulerOpError`]. The
+//! raw-insertion builder retreats behind these operators at PR 5.
 //!
 //! # Operator contracts (uniform across all ops)
 //!
@@ -359,8 +360,9 @@ pub enum EulerOpError {
         r#loop: LoopKey,
     },
     /// A site named a loop that must be [`LoopBoundary::Empty`] but is
-    /// not: the `Lone` sites of `mev`/`mef`, and the `Empty*` sites of
-    /// [`Body::mekr`], apply to empty loops only.
+    /// not: the `Lone` sites of `mev`/`mef` and the `Empty*` sites of
+    /// [`Body::mekr`] apply to empty loops only, and [`Body::kvfs`]'s
+    /// skeletal face must have an empty outer loop.
     LoopNotEmpty {
         /// The non-empty loop.
         r#loop: LoopKey,
@@ -382,6 +384,36 @@ pub enum EulerOpError {
         /// The second half-edge.
         he2: HalfEdgeKey,
     },
+    /// A half-edge argument's own edge does not claim it in either slot,
+    /// so its mate cannot be resolved — a corrupt edge ↔ half-edge
+    /// bijection, tier-1-invalid input. Fired by the single-half-edge
+    /// kill operators ([`Body::kev`], [`Body::kef`]), whose mate is
+    /// computed rather than passed.
+    UnclaimedHalfEdge {
+        /// The half-edge its own edge does not claim.
+        he: HalfEdgeKey,
+        /// The edge that fails to claim it.
+        edge: EdgeKey,
+    },
+    /// [`Body::kev`]'s edge is a self-loop — both endpoints are one
+    /// vertex, so there is no far vertex to kill and no fan to merge.
+    /// `kev` requires distinct end vertices (Mäntylä §9.2.3); a
+    /// self-loop edge is killed by [`Body::kef`] (its two sides border
+    /// distinct faces) or [`Body::kemr`] (it occurs twice in one loop).
+    SelfLoopEdge {
+        /// The self-loop edge.
+        edge: EdgeKey,
+        /// The single vertex both its endpoints name.
+        vertex: VertexKey,
+    },
+    /// The clockwise vertex orbit walked from `he` failed to close —
+    /// tier-1-invalid input (fired by [`Body::kev`], which walks the far
+    /// vertex's whole fan; the mev-specific target-missing form is
+    /// [`EulerOpError::FanOrbitBroken`]).
+    OrbitBroken {
+        /// The half-edge whose start vertex's orbit is broken.
+        he: HalfEdgeKey,
+    },
     /// The operation would leave two [`LoopBoundary::Empty`] loops
     /// holding the same lone vertex, which tier 1 forbids (a vertex is
     /// the lone vertex of *exactly one* empty loop). Fired by
@@ -395,10 +427,14 @@ pub enum EulerOpError {
         /// The vertex both empty loops would anchor at.
         vertex: VertexKey,
     },
-    /// [`Body::mekr`]'s target and ring anchors name the same loop —
-    /// `mekr` joins two *distinct* loops of a face.
+    /// Two distinct loops are required but one loop was found:
+    /// [`Body::mekr`]'s target and ring anchors name the same loop
+    /// (`mekr` joins two *distinct* loops of a face), or
+    /// [`Body::kef`]'s edge occurs twice in one loop — killing such an
+    /// edge splits the loop instead of merging two faces, which is
+    /// [`Body::kemr`]'s job.
     SameLoop {
-        /// The loop named by both anchors.
+        /// The loop named twice.
         r#loop: LoopKey,
     },
     /// [`Body::mekr`]'s two loops belong to different faces — `mekr`
@@ -410,16 +446,22 @@ pub enum EulerOpError {
         ring: LoopKey,
     },
     /// A loop named as a ring is its face's outer loop:
-    /// [`Body::mekr`]'s ring argument and [`Body::ring_move`]'s ring
-    /// must be interior loops (members of [`crate::Face::rings`]).
+    /// [`Body::mekr`]'s ring argument, [`Body::ring_move`]'s ring, and
+    /// [`Body::mfkrh`]'s ring must be interior loops (members of
+    /// [`crate::Face::rings`]).
     RingIsOuter {
         /// The loop that is an outer loop, not a ring.
         r#loop: LoopKey,
     },
-    /// [`Body::kfmrh`]'s two face arguments are the same face — the
-    /// connected sum needs two distinct faces.
+    /// Two distinct faces are required but one face was found:
+    /// [`Body::kfmrh`]'s two face arguments are the same face (the
+    /// connected sum needs two distinct faces), or [`Body::kef`]'s
+    /// edge's two halves lie in different loops of ONE face — there is
+    /// no second face to kill. (Such an edge joins two loops of a face,
+    /// the configuration [`Body::mekr`] makes; kill it with
+    /// [`Body::kev`] if its endpoints are distinct.)
     SameFace {
-        /// The face passed twice.
+        /// The face named twice.
         face: FaceKey,
     },
     /// The two faces lie in different shells. For [`Body::kfmrh`] this
@@ -435,12 +477,31 @@ pub enum EulerOpError {
         /// The second face, in a different shell.
         f2: FaceKey,
     },
-    /// [`Body::kfmrh`]'s `f2` still has rings: the operator demotes
-    /// `f2`'s *outer* loop and kills the face, so the caller must move
-    /// rings off `f2` first (via [`Body::ring_move`]).
+    /// A face that must be ring-free still has rings: [`Body::kfmrh`]'s
+    /// `f2` and [`Body::kef`]'s dying face are demoted/killed whole, and
+    /// [`Body::kvfs`]'s single face must be the bare skeletal face — in
+    /// every case the caller must move rings off first (via
+    /// [`Body::ring_move`]; for `kef`, killing the mate half kills the
+    /// other side instead, which may already be ring-free).
     FaceHasRings {
         /// The face with rings.
         face: FaceKey,
+    },
+    /// [`Body::kvfs`]'s solid does not have exactly one shell — the
+    /// skeletal `mvfs` state it inverts has one.
+    SolidNotSingleShell {
+        /// The non-skeletal solid.
+        solid: SolidKey,
+        /// How many shells it has (≠ 1).
+        shells: usize,
+    },
+    /// [`Body::kvfs`]'s solid's shell does not have exactly one face —
+    /// the skeletal `mvfs` state it inverts has one.
+    ShellNotSingleFace {
+        /// The non-skeletal shell.
+        shell: ShellKey,
+        /// How many faces it has (≠ 1).
+        faces: usize,
     },
 }
 
@@ -490,6 +551,22 @@ impl fmt::Display for EulerOpError {
                 "kemr: half-edges {he1:?} and {he2:?} are not the two halves \
                  of one edge"
             ),
+            Self::UnclaimedHalfEdge { he, edge } => write!(
+                f,
+                "half-edge {he:?}'s edge {edge:?} does not claim it in either \
+                 slot, so its mate cannot be resolved (malformed body)"
+            ),
+            Self::SelfLoopEdge { edge, vertex } => write!(
+                f,
+                "kev: edge {edge:?} is a self-loop at vertex {vertex:?} — kev \
+                 needs distinct end vertices (kill a self-loop edge with kef \
+                 or kemr)"
+            ),
+            Self::OrbitBroken { he } => write!(
+                f,
+                "the clockwise vertex orbit from {he:?} fails to close \
+                 (malformed body)"
+            ),
             Self::EmptyAnchorsCollide { vertex } => write!(
                 f,
                 "the operation would leave two empty loops holding the same \
@@ -497,8 +574,9 @@ impl fmt::Display for EulerOpError {
             ),
             Self::SameLoop { r#loop } => write!(
                 f,
-                "mekr: both anchors name loop {loop:?} (two distinct loops \
-                 of one face required)",
+                "two distinct loops required, but both sides name loop \
+                 {loop:?} (mekr joins two loops of a face; kef on an edge \
+                 occurring twice in one loop is kemr's job)",
                 loop = r#loop
             ),
             Self::NotSameFace { target, ring } => write!(
@@ -511,9 +589,12 @@ impl fmt::Display for EulerOpError {
                 "loop {loop:?} is its face's outer loop, not a ring",
                 loop = r#loop
             ),
-            Self::SameFace { face } => {
-                write!(f, "kfmrh: both arguments name face {face:?}")
-            }
+            Self::SameFace { face } => write!(
+                f,
+                "two distinct faces required, but both sides name face \
+                 {face:?} (kfmrh sums two faces; kef on an edge interior to \
+                 one face has no face to kill — see kev)"
+            ),
             Self::CrossShell { f1, f2 } => write!(
                 f,
                 "faces {f1:?} and {f2:?} lie in different shells \
@@ -521,8 +602,18 @@ impl fmt::Display for EulerOpError {
             ),
             Self::FaceHasRings { face } => write!(
                 f,
-                "kfmrh: face {face:?} still has rings (move them off with \
-                 ring_move first)"
+                "face {face:?} still has rings and must be ring-free here \
+                 (move them off with ring_move first)"
+            ),
+            Self::SolidNotSingleShell { solid, shells } => write!(
+                f,
+                "kvfs: solid {solid:?} has {shells} shells, not the skeletal \
+                 single shell"
+            ),
+            Self::ShellNotSingleFace { shell, faces } => write!(
+                f,
+                "kvfs: shell {shell:?} has {faces} faces, not the skeletal \
+                 single face"
             ),
         }
     }

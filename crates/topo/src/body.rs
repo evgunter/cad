@@ -378,6 +378,20 @@ impl<T: Real> Body<T> {
         self.surfaces.remove(surface).is_some()
     }
 
+    /// Removes `point` from the point arena iff no vertex references it,
+    /// returning whether it was removed. Used by vertex-killing operators
+    /// (PR 4's `kev`/`kvfs`): with M1's per-vertex point minting the
+    /// killed vertex's point is always orphaned in practice, but the scan
+    /// is the rule — it keeps the op sound standalone if points are ever
+    /// shared. Deterministic (D9), same shape as
+    /// [`Body::remove_curve_if_orphaned`].
+    pub(crate) fn remove_point_if_orphaned(&mut self, point: PointKey) -> bool {
+        if self.vertices.values().any(|vertex| vertex.point == point) {
+            return false;
+        }
+        self.points.remove(point).is_some()
+    }
+
     // ------------------------------------------------------------------
     // Lookup. Total: a stale key yields `None`, never a panic. A foreign
     // key is NOT caught — it may resolve to an arbitrary entity (see the
