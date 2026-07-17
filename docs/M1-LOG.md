@@ -347,3 +347,47 @@ Second round (chat, 2026-07-16):
   complete (ch. 12/13 notes archived); M2-PLAN drafted and opening as
   a design PR for Evan's ratification. PR 6 finalization
   (orchestrator) after PR 5 merges.
+
+## M1 EXIT (2026-07-16)
+
+All six PRs merged: #16 (half-edge restructure), #17 (mvfs/mev/mef +
+the cube), #20 (kemr/mekr/kfmrh + ring_move + the holed box), #23
+(kill duals + roundtrip machinery), #25 (validator completion + tiers
++ raw-builder demotion), #26 (exit sweep — DESIGN.md ratifications).
+Plan ratified as #15; PRs 1–3 explicitly signed off by Evan; PRs 4–5
+self-merged under the PR #20 process update with zero-blocker
+adversarial reviews. Adjacent merges during the milestone: #18/#22
+(review-suite salvage/promotion, both milestones' corpora now in CI),
+#19 (issue #4 LGPL docs, issue closed), #21 (process update), #24 =
+M2-PLAN design PR (open, awaiting Evan).
+
+Exit criteria: verified (see M1-PLAN header). Highlights beyond the
+plan: an apparent erratum in Mäntylä Program 11.6 found and verified
+against the scan (the book's own ch. 12 sweep code depends on the
+corrected order); the first genus-2 body; the component-aware per-shell
+E–P replacing the naive form the plan guessed; replay-with-kills
+semantics pinned per-arena; watertightness demonstrated structural
+(orbit closure is the load-bearing check).
+
+**Carried into M2** (all in M2-PLAN):
+- K's numeric value — first predicate telemetry arrives with M2's
+  geometric predicates; report due at M2 exit.
+- Geometric tier (tier 3): D4 ¶2 residual certification starts with
+  Newell face equations; the material wedge-angle predicate.
+- The L7 allowlist moment (first legitimate `Real +` bound) — likely
+  M2 PR 1; `Real` gains floor/rem/copysign there.
+- M0 linalg watchlist: project/reject with documented association,
+  axis-through-point rotation, orthonormal-basis-from-normal as a
+  predicate question.
+- Debug-O(n²) per-op validation cost — watch when swept bodies grow.
+
+**Operational lessons (fold into memories):**
+- Reference material MUST land in the main checkout's `references/`
+  (git-ignored dirs don't propagate between worktrees — the NURBS
+  book and Hoffmann were stranded in the original design session's
+  worktree until consolidated 2026-07-16).
+- The reviewer-falsification pattern (assign the reviewer explicit
+  claims to break) caught a real doc self-contradiction (PR 4's
+  re-make taxonomy) and produced the PR 5 spec's E–P invariant —
+  worth keeping as standard practice for self-merging PRs, where the
+  review is the last gate.

@@ -73,3 +73,19 @@ Evan only at genuine design forks.
 - Design-PR conversations move fastest when replies include a firm
   recommendation, honest counterarguments, and an explicit "a 👍 here
   is enough to proceed" affordance.
+
+**Operational lessons (M1, 2026-07-16):**
+- **Assign reviewers explicit claims to falsify** (not just "review
+  this"): the falsification assignments caught a real doc
+  self-contradiction (PR 4's re-make taxonomy — the "impossible"
+  re-make existed), derived the corrected per-shell E–P invariant that
+  became PR 5's spec, and exhaustively attacked the component pass.
+  Essential for self-merging PRs where the review is the last gate.
+- Reviewer suites are promoted into CI after each fix pass
+  (independent derivations = regression value); details in
+  [[review-and-dependency-policy]].
+- Reference PDFs/notes go in the MAIN checkout's `references/` —
+  git-ignored directories don't propagate across worktrees.
+- Transient API-overload (529) kills background agents mid-task;
+  resume via SendMessage (transcript + worktree survive), with
+  exponential backoff between retries when the overload persists.
