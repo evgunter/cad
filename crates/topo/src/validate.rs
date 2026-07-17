@@ -96,32 +96,32 @@
 //!    (Face ≥ 1 loop and the loop shapes are already structural:
 //!    `Face::outer` is non-optional and [`LoopBoundary`] is total.)
 //! 10. **Shell-partition/edge-adjacency coherence.** For every edge, the
-//!    faces of its two halves' loops belong to the same shell
-//!    ([`ValidationError::EdgeAcrossShells`]). No Euler operator crosses
-//!    shells, so a violation is operator-unreachable — a tier-1
-//!    invariant (the gap named by the PR 1 review: the ownership tree
-//!    alone never compares an edge's two shells).
+//!     faces of its two halves' loops belong to the same shell
+//!     ([`ValidationError::EdgeAcrossShells`]). No Euler operator crosses
+//!     shells, so a violation is operator-unreachable — a tier-1
+//!     invariant (the gap named by the PR 1 review: the ownership tree
+//!     alone never compares an edge's two shells).
 //! 11. **Component-aware per-shell Euler–Poincaré** (the PR 4
-//!    correction — the naive per-body form is wrong for tier-1 bodies,
-//!    where `mfkrh` on a detached ring disconnects a shell's surface
-//!    while one shell entity remains). Per shell, the incidence complex
-//!    is partitioned into connected components: faces glue all their
-//!    loops (outer and rings); a cycle loop glues its edges' two sides
-//!    via mate; an empty loop glues its lone vertex; a dartless
-//!    empty-outer face is its own component with its vertex. Each
-//!    component is a closed oriented surface piece and must satisfy
-//!    `v − e + f − r = 2(1 − g)` with genus `g` a non-negative integer
-//!    — parity and the `g ≥ 0` bound are checked per component
-//!    ([`ValidationError::ComponentEulerViolation`], which carries the
-//!    counts). The per-shell sum identity `v − e + f − r = 2(c − Σgᵢ)`
-//!    follows; tier 2 additionally requires c = 1 per shell.
+//!     correction — the naive per-body form is wrong for tier-1 bodies,
+//!     where `mfkrh` on a detached ring disconnects a shell's surface
+//!     while one shell entity remains). Per shell, the incidence complex
+//!     is partitioned into connected components: faces glue all their
+//!     loops (outer and rings); a cycle loop glues its edges' two sides
+//!     via mate; an empty loop glues its lone vertex; a dartless
+//!     empty-outer face is its own component with its vertex. Each
+//!     component is a closed oriented surface piece and must satisfy
+//!     `v − e + f − r = 2(1 − g)` with genus `g` a non-negative integer
+//!     — parity and the `g ≥ 0` bound are checked per component
+//!     ([`ValidationError::ComponentEulerViolation`], which carries the
+//!     counts). The per-shell sum identity `v − e + f − r = 2(c − Σgᵢ)`
+//!     follows; tier 2 additionally requires c = 1 per shell.
 //! 12. **Bidirectional D5 provenance.** Every live entity in all seven
-//!    topology arenas has a provenance record
-//!    ([`ValidationError::MissingProvenance`]), and every provenance
-//!    entry's key resolves to a live entity
-//!    ([`ValidationError::LeakedProvenance`] — the `SecondaryMap` leak
-//!    a kill-side operator would cause by removing an entity without
-//!    its record).
+//!     topology arenas has a provenance record
+//!     ([`ValidationError::MissingProvenance`]), and every provenance
+//!     entry's key resolves to a live entity
+//!     ([`ValidationError::LeakedProvenance`] — the `SecondaryMap` leak
+//!     a kill-side operator would cause by removing an entity without
+//!     its record).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -190,11 +190,11 @@
 //! 9. arity floors, sweeping solids then shells;
 //! 10. edge-adjacency shell coherence, sweeping edges;
 //! 11. component Euler–Poincaré: shells in arena order; within a shell,
-//!    components in seed order, where a component's seed is its first
-//!    face in **face-arena order** (no hashing anywhere — D9);
+//!     components in seed order, where a component's seed is its first
+//!     face in **face-arena order** (no hashing anywhere — D9);
 //! 12. provenance: missing records (entities in arena order, kinds in
-//!    the pass-1 order solids → … → vertices), then leaked records
-//!    (`SecondaryMap` entries in slot order, same kind order).
+//!     the pass-1 order solids → … → vertices), then leaked records
+//!     (`SecondaryMap` entries in slot order, same kind order).
 //!
 //! [`validate_closed`] appends the tier-2 failures after all tier-1
 //! errors, in this order: empty loops (loop-arena order), valence-1
@@ -673,8 +673,7 @@ impl ComponentCounts {
     /// Whether `v − e + f − r = 2(1 − g)` holds for some integer
     /// `g ≥ 0`: the characteristic must be even and at most 2.
     fn satisfies_euler_poincare(&self) -> bool {
-        let chi =
-            self.vertices as i64 - self.edges as i64 + self.faces as i64 - self.rings as i64;
+        let chi = self.vertices as i64 - self.edges as i64 + self.faces as i64 - self.rings as i64;
         chi % 2 == 0 && chi <= 2
     }
 }
@@ -770,7 +769,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
         }
     }
 
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
@@ -1635,8 +1638,8 @@ mod tests {
     fn mvfs_state_validates_cleanly() {
         // The skeletal mvfs state (empty outer loop + lone vertex) is
         // tier-1-legal BY DESIGN: it is the state every Euler
-        // construction starts from. Tier 2 (PR 5) bans it on finished
-        // solids; tier 1 must accept it.
+        // construction starts from. Tier 2 (validate_closed) bans it on
+        // finished solids; tier 1 must accept it.
         let t = mvfs_state();
         assert_eq!(validate(&t.body), Ok(()));
     }

@@ -235,7 +235,11 @@ impl<T: Real> Body<T> {
     /// Crate-internal raw insertion: no validity promises. Because
     /// `next`/`prev` form cycles, callers typically insert with
     /// provisional keys and patch via [`Body::get_half_edge_mut`].
-    pub(crate) fn add_half_edge(&mut self, half_edge: HalfEdge, provenance: Provenance) -> HalfEdgeKey {
+    pub(crate) fn add_half_edge(
+        &mut self,
+        half_edge: HalfEdge,
+        provenance: Provenance,
+    ) -> HalfEdgeKey {
         let key = self.half_edges.insert(half_edge);
         self.half_edge_provenance.insert(key, provenance);
         key
@@ -287,10 +291,10 @@ impl<T: Real> Body<T> {
     }
 
     // ------------------------------------------------------------------
-    // Raw mutation — the patching half of the placeholder builder (see
-    // the raw-insertion note above for why cyclic references force it).
+    // Raw mutation — the patching half of the raw builder (see the
+    // raw-insertion note above for why cyclic references force it).
     // Total like the lookups: stale keys yield `None`. No validity
-    // promises; retreats to `pub(crate)` with the rest at PR 5.
+    // promises; `pub(crate)` with the rest since M1 PR 5.
     // ------------------------------------------------------------------
 
     /// Mutable access to the solid at `key` (raw-builder patching; see

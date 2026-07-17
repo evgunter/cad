@@ -29,12 +29,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Point3;
 use crate::{
     Body, CurveGeom, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
     LoopBoundary, LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated,
     Provenance, Shell, Solid, SurfaceGeom, Vertex, VertexKey, validate,
 };
+use geom_core::Point3;
 
 // ---------------------------------------------------------------------
 // Helpers
