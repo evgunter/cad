@@ -163,8 +163,16 @@
 //! cannot corrupt the counts, and a cross-shell edge is exactly what the
 //! per-shell count must still be computed *through* — the moved-face
 //! scenario is reported by pass 10 AND pass 11). Tier 2's connectivity
-//! check shares pass 11's gate and its component enumeration; its other
-//! two scans are ungated (they read single entities). Genuinely
+//! check shares pass 11's gate and its component enumeration. Its other
+//! two scans are ungated — the empty-loop scan reads single loops, but
+//! the strut scan is an AGGREGATE (it counts resolving `start`
+//! references over the half-edge arena), so on a corrupt in-crate body
+//! a pass-1 dangling `start` deflates its true vertex's derived valence
+//! and can echo as a spurious `ScaffoldingStrutVertex` alongside the
+//! pass-1 report. Accepted and pinned (see the promoted PR 5 review
+//! probe): such bodies are unreachable through the public API, whose
+//! every product is tier-1-valid, and gating the aggregate would cost
+//! genuine strut reports on bodies with unrelated defects. Genuinely
 //! independent facts still report independently — a corruption that
 //! breaks two invariants yields two errors.
 //!
@@ -672,6 +680,14 @@ struct ComponentCounts {
 impl ComponentCounts {
     /// Whether `v − e + f − r = 2(1 − g)` holds for some integer
     /// `g ≥ 0`: the characteristic must be even and at most 2.
+    ///
+    /// The `chi > 2` (negative-genus) arm is believed
+    /// defensive-unreachable: the PR 5 review could not construct it
+    /// even with gate-passing corruption — passes 3/4/6 force each
+    /// component to be a closed oriented surface (χ ≤ 2 automatic
+    /// within a coherent shell), and per-shell *cutting* (the
+    /// moved-face family) only ever produced odd χ. Kept as defense in
+    /// depth; untested until someone falsifies that derivation.
     fn satisfies_euler_poincare(&self) -> bool {
         let chi = self.vertices as i64 - self.edges as i64 + self.faces as i64 - self.rings as i64;
         chi % 2 == 0 && chi <= 2
@@ -745,7 +761,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
     // Valence = the number of half-edges starting at the vertex (a
     // self-loop contributes two). Re-derived here rather than threaded
     // out of pass 1: the count only reads resolving `start` references,
-    // so it is meaningful even on bodies with unrelated tier-1 errors.
+    // so it is meaningful even on bodies with unrelated tier-1 errors —
+    // with one documented echo: a dangling `start` (a pass-1 error)
+    // deflates its true vertex's count and can surface here as a
+    // spurious strut (module docs, cascade discipline; pinned by the
+    // promoted review probe; unreachable through the public API).
     let mut incidence: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
     for (_, he) in body.half_edges.iter() {
         if body.vertices.contains_key(he.start) {

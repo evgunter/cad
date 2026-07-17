@@ -130,6 +130,8 @@ mod review_m1_pr3;
 #[cfg(test)]
 mod review_m1_pr4;
 #[cfg(test)]
+mod review_m1_pr5_internal;
+#[cfg(test)]
 pub(crate) mod seqgen;
 pub mod validate;
 

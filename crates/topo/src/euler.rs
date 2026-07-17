@@ -39,9 +39,13 @@
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription) — and since PR 5's raw-builder demotion **every
-//!   publicly-constructible input is tier-1-valid**, because the
-//!   operators are the only public construction path and each preserves
-//!   tier 1. The D9 taxonomy consequence: these debug panics are
+//!   publicly-constructible input is tier-1-valid**, because the ten
+//!   operators plus the one public non-operator mutator
+//!   ([`Body::ring_move`]) are the only public mutation paths and each
+//!   preserves tier 1 (ring_move's case is the least obvious of the
+//!   eleven — it re-glues the per-shell component partition; the
+//!   separating-curve argument lives in its docs). The D9 taxonomy
+//!   consequence: these debug panics are
 //!   **unreachable by input** through the public API — reaching one
 //!   requires in-crate raw corruption (which is what the validator's
 //!   own tests do deliberately). Release builds carry no check either
