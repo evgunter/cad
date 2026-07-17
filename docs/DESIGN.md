@@ -39,12 +39,22 @@ detailed design under discussion.
 
 ## Decisions
 
-### D1 (agreed; clarified 2026-07-16): ID-based arenas, immutable values, manifold-first, Euler operators
+### D1 (agreed; clarified 2026-07-16; extended at M1 2026-07-16): ID-based arenas, immutable values, manifold-first, Euler operators
 
-- Topology entities (`Solid / Shell / Face / Loop / Edge / Vertex`) live in
-  generational arenas (slotmap-style) and reference each other by typed IDs —
-  never `Rc`/pointers. A B-rep is a plain value: cheaply cloneable (or
-  structurally shared), serializable, diffable, validatable.
+- Topology entities (`Solid / Shell / Face / Loop / HalfEdge / Edge /
+  Vertex`) live in generational arenas (slotmap-style) and reference
+  each other by typed IDs — never `Rc`/pointers. A B-rep is a plain
+  value: cheaply cloneable (or structurally shared), serializable,
+  diffable, validatable. *(Realized at M1 as Mäntylä's half-edge
+  structure in typed arenas: an `Edge` is two antiparallel half-edges,
+  the mate computed and never stored; the empty loop — `mvfs`'s state —
+  is a typed `LoopBoundary::Empty | Cycle` rather than GWB's nullable
+  placeholder half-edge, so every half-edge field is non-optional and
+  the sole `Option` in topology is the vertex's emanating half-edge
+  (ratified PR #15, implemented PR #16). A face's outer loop is
+  excluded from its ring list — `outer ∉ rings`, so rings coincide
+  exactly with the Euler–Poincaré r-term (a GWB deviation, ratified in
+  PR #16's conversation).)*
 - **Manifold solids only** at first. Non-manifold (radial-edge) roughly
   doubles topology complexity; add a non-manifold representation later only
   if sheet/wire bodies demand it.
@@ -55,7 +65,9 @@ detailed design under discussion.
   invariants after each step (each operator debug-asserts its
   postcondition — a per-call instance of the soundness theorem checked
   against our implementation, never a semantic gate on legitimate
-  intermediate states).
+  intermediate states). "Exclusively" is realized, not aspirational:
+  the operator set below is the only public construction path — raw
+  insertion exists solely as crate-internal test scaffolding.
 - **A `Body` is never authoritative** *(clarified 2026-07-16, ratified
   via the M1-PLAN conversation)*: it is the materialized evaluation of
   a construction (an Euler-operator sequence; at M4, a recipe) at some
@@ -69,6 +81,87 @@ detailed design under discussion.
   Nothing about a body is true that is not derivable from its
   construction. (For imported bodies — M7 — the authoritative layer is
   the adopted intensional descriptions plus the import record, per D7.)
+
+**Topology conventions (ratified 2026-07-16, PR #16).** One rule, from
+which everything else is a corollary — never an independent choice:
+walking any loop in `next` order with the face's outward normal toward
+the viewer, the face interior lies to the **left** of every half-edge.
+Corollaries: outer loops run counterclockwise viewed from outside and
+rings run clockwise; an edge's two half-edges are antiparallel
+(`end(he) = start(mate(he))`); `Edge::he_plus` defines the edge's
+intrinsic direction, with the forward contract that M2's curve
+geometry MUST agree — increasing curve parameter runs from
+`start(he_plus)` to `end(he_plus)`, pcurves and per-face traversal
+senses derived from that, never stored as peers; the vertex-orbit step
+`next(mate(he))` visits a vertex's outgoing half-edges **clockwise**
+viewed from outside (`mate(prev(he))` is the counterclockwise
+inverse). Named transcription hazard: GWB/Mäntylä's diagrams orient
+face boundaries clockwise viewed from outside — mirrored relative to
+us — so figures, argument orders, and traversal idioms from the book
+are never transcribed directly, only rederived from the interior-left
+rule and pinned by construction tests. The normative derivations live
+in the `crates/topo/src/entity.rs` module docs. (This discharges the
+deferred-list item "orientation/sense conventions — document as
+conventions once".)
+
+**The operator set (M1; ratified PR #15 and the per-PR sign-offs
+#16/#17/#20; kill duals #23).** Ten operators in five make/kill pairs —
+`mvfs`/`kvfs`, `mev`/`kev`, `mef`/`kef`, `kemr`/`mekr`,
+`kfmrh`/`mfkrh` — plus the `ring_move` reparenting helper, which is
+deliberately **not** an Euler operator (`mef` does not reclassify
+rings; ring reassignment is a separate non-Euler step, after GWB's
+`ringmv`). Addressing is by half-edge key plus per-op **site enums**
+whose variants are the degenerate cases (e.g. `MevSite::{Fan, Lone}`) —
+the typed-`Empty` consequence: degenerate sites live in the argument
+types, not behind null checks. GWB's id-scan layer is dropped
+entirely; arena keys are already the stable O(1) handles it existed to
+provide. The uniform per-op contract: **atomic** (typed-error
+preconditions fully resolve before an infallible mutation phase; a
+failed op consumes no key slots), **deterministic minting order**
+(documented per op — D9 lineage replay), and a **debug-asserted tier-1
+postcondition** (the per-call soundness-theorem instance of the clause
+above — never a semantic gate). Association convention, uniform: **the
+given/first half-edge's side is the new or affected thing** — `mef`'s
+`he1` side becomes the new face's outer loop, `kemr`'s `he1` side
+becomes the ring, `kef` kills the given half-edge's face, `kev` the
+vertex it points at. Cross-shell `kfmrh` (shell merge rather than
+genus) is a typed error until M3's splitting demands it (ratified
+PR #15).
+
+**Validity tiers (ratified 2026-07-16 in PR #15's conversation; the
+component-aware E–P form found and corrected in M1 PR 4).**
+
+1. **Tier 1 "euler-valid"** — the structural invariant of every
+   Euler-reachable state, construction scaffolding included (empty
+   loops, struts, self-loop edges, laminae are mandatory
+   intermediates); this is what each operator debug-asserts. The
+   checklist: referential integrity across all arenas; half-edge chain
+   coherence; mate involution/antiparallelism; vertex-orbit closure
+   (manifoldness — watertightness is structural in the half-edge
+   form); shell-partition/edge-adjacency coherence; arity floors;
+   bidirectional D5 provenance; and the **component-aware per-shell
+   Euler–Poincaré**: per connected component of a shell's incidence
+   complex, v − e + f − r = 2(1 − g) with g a non-negative integer,
+   summing per shell to 2(c − Σgᵢ) over its c components. The naive
+   per-body form is *wrong* for tier-1 bodies — `mfkrh` on a detached
+   ring disconnects a shell's surface while a single shell entity
+   remains (PR 4 finding).
+2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
+   empty loops, no valence-1 vertices, and c = 1 per shell. The third
+   ban is independent of the first two: a promoted detached cycle ring
+   disconnects a shell with neither an empty loop nor a strut present.
+   Finished bodies must pass tier 2; tier-1-only states are visible
+   solely inside operation implementations.
+3. **Tier 3 "geometric"** (M2+ — named now, not implemented): D4 ¶2
+   residual certification, plus the **material wedge-angle
+   predicate** — at every edge the material wedge ∈ (0, 2π), bounded
+   away from the ends by the derived threshold θ = ε/r; wedge = π is
+   the legal smooth-seam case (ratified in PR #15's conversation).
+   Laminae live here, not at tier 2: two faces glued along their whole
+   shared boundary is exactly a two-hemisphere ball's incidence
+   structure, so a zero-volume lamina is a geometric defect, not a
+   topological one. Global self-intersection / minimum clearance stays
+   deferred (M3 partial via booleans, M6 interval clearance).
 
 ### D2 (agreed, revised 2026-07-15): Topology and geometry separated; edge/vertex geometry is intensional where possible
 
@@ -328,8 +421,25 @@ topology change is stated, not emergent.
   differ across platforms in the last ulp — enough to flip a marginal
   predicate.
 - The kernel never panics on any input: panics are bugs; every failure is
-  a typed error.
+  a typed error. *(Honest M1 footnote: operator debug postconditions
+  are `debug_assert`s, but they are unreachable by input through the
+  public API — raw insertion is crate-internal — so a firing
+  postcondition is a kernel bug by definition. Corrupt in-crate states
+  get typed errors where cheaply detectable, or documented garbage-out
+  in release — never a hang; every traversal is bounded.)*
 - Essentially no unsafe Rust outside vetted dependencies.
+
+**Replay with kills (M1, pinned in PRs #20/#23):** the determinism
+contract holds with destructive operators in the history. Identical
+histories replay bit- and key-identically, kills included; a failed
+operator consumes no key slots (the lineage contract's error half —
+tested by interleaving failing calls into builds and deep-comparing
+snapshots). Convergence with a kill-free history is **per-arena**: a
+balanced kill/make pair (kemr∘mekr) re-converges the half-edge, edge,
+and curve arenas immediately and the loop arena one loop-mint later
+(recycled slot, bumped generation); an unbalanced kill history offsets
+the killed arenas' allocation cursors permanently — arenas the kill
+never touched stay aligned forever, killed arenas never re-align.
 
 ### D5 (agreed): Persistent topological identity from birth
 
@@ -340,6 +450,14 @@ the most user-visible unsolved problem in parametric CAD — but recording
 identity at birth is cheap, and retrofitting it onto anonymous entities is
 nearly impossible. The parametric layer (M4) builds its stable references
 on top of this record.
+
+Realized at M1 (PRs #17/#20/#23): provenance is a typed per-operator
+**birth record** — the operator plus its argument keys — carried by
+every entity of all seven topology arenas. Kills remove the record
+together with the entity; survivors keep theirs; reparenting or
+demotion (`ring_move`, `kfmrh`'s loop demotion) is not a re-birth. The
+validator enforces the record bidirectionally: every live entity has
+one, and no record outlives its entity.
 
 ## Layering
 
@@ -378,9 +496,11 @@ precursor of the error-propagation feature.
 
 ## Roadmap
 
-- **M0** — `geom-core`: scalar trait + intervals; arenas; validation harness.
+- **M0** — `geom-core`: scalar trait + intervals; arenas; validation
+  harness. *(Complete 2026-07-16.)*
 - **M1** — Topology + Euler operators; build a cube by hand; watertightness
-  and Euler checks pass.
+  and Euler checks pass. *(Complete 2026-07-16, pending the final exit
+  check.)*
 - **M2** — Analytic curves/surfaces; extrude/revolve from polyline+arc
   profiles; tessellation; STL export. *(First "it's a CAD kernel" milestone —
   verified via exported meshes; demo viewer deferred.)*
@@ -555,13 +675,14 @@ placeholder workspace acceptable; pre-publish renames are cheap.
 
 ### Deferred to their milestones (listed so they don't get lost)
 
-Vertex-geometry taxonomy; orientation/sense conventions (M1 — classic
-bug-farm territory, document as conventions once); the validator's
-concrete invariant checklist (M1); profile/sketch input format (M2); the
-ambiguity constant K's numeric value (M0 experiments; εₐ itself was
-eliminated by the D4 ¶1 revision of 2026-07-16 — angular thresholds are
-derived per predicate); body-level
-serialization beyond the recipe (post-STEP-export).
+Vertex-geometry taxonomy (M3, when intersections exist); profile/sketch
+input format (M2); the ambiguity constant K's numeric value (M2+ —
+topology is scalar-free and consults no predicate, so M1 generated no
+new evidence; εₐ itself was eliminated by the D4 ¶1 revision of
+2026-07-16 — angular thresholds are derived per predicate); body-level
+serialization beyond the recipe (post-STEP-export). *(Discharged at
+M1: orientation/sense conventions and the validator's concrete
+invariant checklist — both ratified into D1.)*
 
 ## Crate landscape (surveyed 2026-07)
 
@@ -614,7 +735,11 @@ treatment), and `hoffmann/` (Hoffmann,
 recovered via the Internet Archive — the Purdue page is gone).
 
 - **Mäntylä, *An Introduction to Solid Modeling*** — the Euler-operator
-  B-rep reference; the `topo` layer is essentially this book.
+  B-rep reference; the `topo` layer is essentially this book. One
+  erratum on record: our reading notes carry a dated erratum for
+  Program 11.6 — `lmev`'s printed `addhe` order (PLUS-half first)
+  breaks both `he1 == he2` cases; MINUS-first is coherent — found by
+  hand-trace during M1 PR 2 and verified against the scan.
 - **Hoffmann, *Geometric and Solid Modeling*** (free online, Purdue) —
   intersections, robustness.
 - **Piegl & Tiller, *The NURBS Book*** — canonical NURBS algorithms; needed
