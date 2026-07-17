@@ -212,6 +212,50 @@ Second round (chat, 2026-07-16):
   NIT-2's dead StaleGeometry precondition becomes testable when point
   removal exists.
 
+## PR 4 (kill duals: kvfs/kev/kef/mfkrh + roundtrip machinery) — 2026-07-16
+
+- Implemented per binding spec (Fable, isolated worktree); new
+  `euler_kill.rs` + test-support `iso.rs` (isomorphism oracle) +
+  `seqgen.rs` (random op-sequence generator, pub(crate) — PR 5's fuzz
+  source). Non-design PR (inverse-forced semantics), self-merged under
+  the PR #20 process update.
+- Splice derivations (kev fan-merge = exact undo of mev's four link
+  writes via the CW orbit; kef = tail-unswap + remnant reparent)
+  independently re-derived by the reviewer from euler.rs's pinned
+  surgeries — full agreement; the both-ends asymmetric valence-5 kill
+  is the strongest direction pin in the tree (promoted).
+- **Single-op re-make taxonomy** (review BLOCKER fixed a
+  self-contradiction between seqgen and euler_kill — euler_kill was
+  right): kef mate-alone IS re-makeable by `mef(Chords{b,b})` iff the
+  surviving singleton is the outer of a ring-free face; irreversible
+  iff the survivor is a ring or its face has rings; kev's
+  valence-1-side kill has NO single-op re-make (distinct coordinates
+  make the strut re-make wrong). Roundtrip skips narrowed to exactly
+  the irreversible subcases.
+- **mfkrh on a detached (non-handle) ring disconnects the shell's
+  surface** while one shell entity remains — naive per-shell h goes
+  negative; tier-1-legal and previously undetected by anything.
+  Component-aware per-shell E–P derived and ratified into M1-PLAN's
+  PR 5 bullet: per component v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per
+  shell Σ = 2(c − Σgᵢ); tier 2 adds c = 1 per shell (existing tier-2
+  bans do NOT imply it — a promoted detached cycle ring disconnects
+  with no empty loops or struts).
+- Deviations (review-endorsed): kvfs reaps the face's surface AND the
+  vertex's point (exact inverse of mvfs's mints; scan-based so sound
+  under future sharing); kef's same-face error path documented with
+  the kfmrh attribution + self-loop kill route (mfkrh then kef).
+- Review: 21-probe consumer suite (promoted as review_m1_pr4); oracle
+  survived all attacks beyond documented blind spots (hexagon-pillow
+  automorphisms, coordinate-degenerate determinism); genus-2 teardown
+  to empty arenas + empty provenance + zero geometry; kill-heavy key
+  purity; 300-strut cross-body-corruption battery in release — typed
+  errors, no panic/hang. seqgen covers all 9 entry points / 17 site
+  shapes; kvfs randomness thinness noted + weight raised (teardown
+  remains the deterministic backstop).
+- For PR 5: seqgen is the fuzz source; the component-formula probe is
+  the spec seed for the validator's E–P pass; two-Empty-loops-on-one-
+  vertex validator test still owed (PR 3 carry).
+
 ## Log decisions
 
 (none yet)
@@ -226,8 +270,9 @@ Second round (chat, 2026-07-16):
   local discussion") after two conversation rounds (typed `Loop`, CCW,
   kfmrh sequencing, two/three-tier validity, D1 clarifications:
   postcondition asserts + Body-never-authoritative, lamina story).
-- **Current**: PRs 1–2 merged (#16, #17); review-suite promotion #18
-  merged; issue #4 closed via docs PR #19. PR 3 (`ev/m1-3-rings`,
-  stacked on PR 2) implemented + e2e-reviewed + fix pass applied —
-  design PR opening next. M0 demo salvage/promotion in flight
-  separately. PR 4 spec is the orchestrator's next action.
+- **Current**: PRs 1–3 merged (#16, #17, #20); process update #21;
+  salvage PRs #18/#22; issue #4 closed via docs PR #19. PR 4
+  (`ev/m1-4-kills`, stacked on PR 3) implemented + e2e-reviewed + fix
+  pass applied — PR opening for self-merge. PR 5 spec is the
+  orchestrator's next action (component-aware E–P + validator
+  completion + raw-builder demotion).
