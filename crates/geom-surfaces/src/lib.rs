@@ -256,8 +256,9 @@ impl<T: Real> Surface<T> {
     /// The point at parameters `(u, v)` — each variant's formula and
     /// conventions are on the variant (the crate docs carry the shared
     /// frame/seam/unit rules). Evaluation order per variant is exactly
-    /// the documented formula with [`azimuth_frame`]'s fixed
-    /// associations; poison for [`Surface::Nurbs`].
+    /// the documented formula with the azimuth-frame helper's fixed
+    /// associations (`radial`/`tangential` from one `sin_cos`, crate
+    /// docs); poison for [`Surface::Nurbs`].
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
         match *self {
             Surface::Plane {

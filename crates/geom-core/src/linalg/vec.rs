@@ -704,4 +704,42 @@ mod tests {
         assert!(poisoned.0.x.is_nan());
         assert!(poisoned.1.x.is_nan());
     }
+
+    /// The basis construction at the interval scalar: instantiates, and
+    /// the orthonormality residuals (dot products, norm² − 1) enclose 0
+    /// for a point-enclosure unit input — the containment form of the
+    /// f64 properties above.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn orthonormal_basis_interval_residuals() {
+        use crate::interval::Interval;
+        use crate::real::Bounds;
+
+        let contains_zero =
+            |e: Interval| -> bool { e.lo() <= 0.0 && 0.0 <= e.hi() && !e.lo().is_nan() };
+        // An exactly-unit direction: (1, −2, 2)/3 — the exact integer
+        // triple, so |n|² − 1 itself encloses 0 tightly.
+        let n = Vec3::new(
+            Interval::from_f64(1.0) / Interval::from_f64(3.0),
+            Interval::from_f64(-2.0) / Interval::from_f64(3.0),
+            Interval::from_f64(2.0) / Interval::from_f64(3.0),
+        );
+        let (b1, b2) = n.orthonormal_basis();
+        assert!(contains_zero(b1.dot(b2)));
+        assert!(contains_zero(b1.dot(n)));
+        assert!(contains_zero(b2.dot(n)));
+        assert!(contains_zero(b1.norm_squared() - Interval::one()));
+        assert!(contains_zero(b2.norm_squared() - Interval::one()));
+        // A z-straddling enclosure crosses the seam: copysign's honest
+        // two-sided behavior widens rather than deciding — no poison,
+        // no branch, the enclosure just gets wide (and b1.z = −(s·x)
+        // spans both frames' values).
+        let straddle = Vec3::new(
+            Interval::from_f64(0.6),
+            Interval::from_f64(0.8),
+            Interval::from_bounds(-1e-12, 1e-12),
+        );
+        let (s1, _) = straddle.orthonormal_basis();
+        assert!(s1.z.lo() <= -0.59 && s1.z.hi() >= 0.59);
+    }
 }
