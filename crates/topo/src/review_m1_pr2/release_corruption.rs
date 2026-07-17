@@ -13,12 +13,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::{Body, EulerOpError, MefSite, MevSite};
 use geom_core::Point3;
-use topo::{Body, EulerOpError, MefSite, MevSite};
 // Only the release-profile garbage-out test validates; guard the import
 // so debug builds stay warning-free.
 #[cfg(not(debug_assertions))]
-use topo::validate;
+use crate::validate;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -26,9 +26,9 @@ fn p(x: f64) -> Point3<f64> {
 
 fn pillow() -> (
     Body<f64>,
-    topo::MvfsCreated,
-    topo::MevCreated,
-    topo::MefCreated,
+    crate::MvfsCreated,
+    crate::MevCreated,
+    crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
@@ -195,7 +195,7 @@ fn empty_body_error_paths() {
     assert!(
         body.mev(
             MevSite::Lone {
-                r#loop: topo::LoopKey::default()
+                r#loop: crate::LoopKey::default()
             },
             p(0.0)
         )
@@ -203,15 +203,15 @@ fn empty_body_error_paths() {
     );
     assert!(
         body.mef(MefSite::Lone {
-            r#loop: topo::LoopKey::default()
+            r#loop: crate::LoopKey::default()
         })
         .is_err()
     );
     assert!(
         body.mev(
             MevSite::Fan {
-                he1: topo::HalfEdgeKey::default(),
-                he2: topo::HalfEdgeKey::default(),
+                he1: crate::HalfEdgeKey::default(),
+                he2: crate::HalfEdgeKey::default(),
             },
             p(0.0),
         )
@@ -219,8 +219,8 @@ fn empty_body_error_paths() {
     );
     assert!(
         body.mef(MefSite::Chords {
-            he1: topo::HalfEdgeKey::default(),
-            he2: topo::HalfEdgeKey::default(),
+            he1: crate::HalfEdgeKey::default(),
+            he2: crate::HalfEdgeKey::default(),
         })
         .is_err()
     );

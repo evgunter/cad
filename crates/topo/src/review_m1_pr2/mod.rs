@@ -1,17 +1,32 @@
-//! Shared helpers for the promoted M1 PR 2 adversarial review suites
-//! (`review_m1_pr2_*.rs`). Adversarial e2e review artifact for M1 PR 2
-//! (2026-07-16); promoted per Evan's request (PR #17 thread).
+//! The promoted M1 PR 2 adversarial review suites (this module's
+//! shared helpers plus the five probe submodules). Adversarial e2e
+//! review artifact for M1 PR 2 (2026-07-16); promoted per Evan's
+//! request (PR #17 thread).
 //!
 //! These are **independent derivations** — do not "simplify" them to
 //! match shipped fixtures (e.g. `fixtures.rs::deep_snapshot`); the
-//! independence is the regression value. This directory is not a test
-//! crate; each `review_m1_pr2_*` test pulls it in via `mod`, so any
-//! given test binary may use only a subset of the helpers.
+//! independence is the regression value.
+//!
+//! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
+//! raw builder retreated to `pub(crate)`: the atomicity, degenerate-
+//! state, and release-corruption probes deliberately raw-build or
+//! raw-corrupt states no operator can reach, which integration tests
+//! can no longer do; the suite moved whole to keep its shared helpers
+//! (this file, formerly `review_m1_pr2_common/mod.rs`) in one place.
+//! Adaptations at the move: `use topo::…` became `use crate::…`, the
+//! per-file `mod review_m1_pr2_common;` includes became submodule
+//! declarations here; the probes are otherwise verbatim.
 
 #![allow(dead_code)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use topo::{Body, EntityId, LoopBoundary};
+mod atomicity;
+mod cube_independent;
+mod degenerates_and_sequences;
+mod fan_semantics;
+mod release_corruption;
+
+use crate::{Body, EntityId, LoopBoundary};
 
 /// A full deep snapshot of a body: every key in all 10 arenas with its
 /// Debug-formatted payload, plus the provenance record of every topology
@@ -89,7 +104,7 @@ pub fn deep_snapshot(body: &Body<f64>) -> String {
 }
 
 /// The coordinates of a half-edge's start vertex.
-pub fn start_xyz(body: &Body<f64>, he: topo::HalfEdgeKey) -> (f64, f64, f64) {
+pub fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {
     let v = body.get_half_edge(he).unwrap().start;
     let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     (p.x, p.y, p.z)
@@ -97,7 +112,7 @@ pub fn start_xyz(body: &Body<f64>, he: topo::HalfEdgeKey) -> (f64, f64, f64) {
 
 /// Walks a face's outer loop and returns the start coordinates of each
 /// half-edge in `next` order.
-pub fn face_polygon(body: &Body<f64>, face: topo::FaceKey) -> Vec<(f64, f64, f64)> {
+pub fn face_polygon(body: &Body<f64>, face: crate::FaceKey) -> Vec<(f64, f64, f64)> {
     let f = body.get_face(face).unwrap();
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
         panic!("face has an empty outer loop");
@@ -127,7 +142,9 @@ pub fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64, f64, f
 
 /// Euler-Poincare ledger check: v - e + f - r == 2(s - h), with r =
 /// number of ring loops (loops that are some face's ring) and s/h given
-/// by the caller (h = genus, not derivable structurally until PR 5).
+/// by the caller (h = genus; as reviewed, "not derivable structurally
+/// until PR 5" — the validator's component pass derives it now, but the
+/// probe keeps its independent caller-supplied form).
 pub fn euler_poincare_holds(body: &Body<f64>, shells: i64, genus: i64) -> bool {
     let v = body.vertices().count() as i64;
     let e = body.edges().count() as i64;

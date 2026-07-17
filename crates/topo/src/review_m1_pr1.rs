@@ -4,18 +4,25 @@
 //! Evan's request (PR #17 thread).
 //!
 //! Adversarial e2e review consumer program for M1 PR 1. Builds real
-//! bodies through the PUBLIC raw builder + patching accessors only — no
-//! crate-internal access — and attacks the validator, the bounded
-//! walks, and the orientation conventions.
+//! bodies through the raw builder + patching accessors only and attacks
+//! the validator, the bounded walks, and the orientation conventions.
+//! (As written, "the PUBLIC raw builder, no crate-internal access" —
+//! true at PR 1.)
+//!
+//! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
+//! raw builder retreated to `pub(crate)` — every probe here raw-builds,
+//! which integration tests can no longer do. Adaptations at the move:
+//! `use topo::…` became `use crate::…`; the probes are otherwise
+//! verbatim.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Point3;
-use topo::{
+use crate::{
     Body, CurveGeom, Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
     LoopBoundary, LoopKey, Provenance, Shell, ShellKey, Solid, SolidKey, SurfaceGeom, Vertex,
     VertexKey, validate,
 };
+use geom_core::Point3;
 
 fn prov() -> Provenance {
     Provenance::Primordial { op: "e2e-review" }
@@ -998,9 +1005,9 @@ fn null_keys_are_none_everywhere_no_panics() {
     assert!(b.get_half_edge(HalfEdgeKey::default()).is_none());
     assert!(b.get_edge(EdgeKey::default()).is_none());
     assert!(b.get_vertex(VertexKey::default()).is_none());
-    assert!(b.get_point(topo::PointKey::default()).is_none());
-    assert!(b.get_curve(topo::CurveKey::default()).is_none());
-    assert!(b.get_surface(topo::SurfaceKey::default()).is_none());
+    assert!(b.get_point(crate::PointKey::default()).is_none());
+    assert!(b.get_curve(crate::CurveKey::default()).is_none());
+    assert!(b.get_surface(crate::SurfaceKey::default()).is_none());
     assert!(b.mate(HalfEdgeKey::default()).is_none());
     assert!(b.half_edge_end(HalfEdgeKey::default()).is_none());
     assert!(b.loop_cycle(HalfEdgeKey::default()).is_none());
@@ -1035,15 +1042,19 @@ fn foreign_keys_resolve_arbitrarily_as_documented() {
 }
 
 // ---------------------------------------------------------------------
-// Known-gap probes (documenting what tier 1 does NOT catch).
+// Known-gap probes — the gap this probe documented is now CLOSED.
 // ---------------------------------------------------------------------
 
 /// A face moved to a second shell (in a second solid): the edge's two
-/// faces now sit in DIFFERENT shells/solids, yet the body still
-/// validates. Documents that shell-partition coherence is deferred to
-/// PR 5's per-shell Euler-Poincare counting.
+/// faces now sit in DIFFERENT shells/solids. As reviewed, this
+/// documented a GAP — the body still validated, with shell-partition
+/// coherence deferred to PR 5. **Adapted at the PR 5 move**: the
+/// deferred passes exist now, so the probe's assertion is inverted —
+/// the same corruption is reported by BOTH new passes (four
+/// `EdgeAcrossShells`, one odd-characteristic `ComponentEulerViolation`
+/// per shell) and by nothing else. The construction is verbatim.
 #[test]
-fn cross_shell_face_move_currently_validates_gap_probe() {
+fn cross_shell_face_move_gap_probe_now_caught() {
     let mut c = build_cube();
     let solid2 = c.body.add_solid(Solid { shells: vec![] }, prov());
     let shell2 = c.body.add_shell(
@@ -1060,10 +1071,33 @@ fn cross_shell_face_move_currently_validates_gap_probe() {
     let faces = &mut c.body.get_shell_mut(c.shell).unwrap().faces;
     faces.retain(|&k| k != f);
     c.body.get_shell_mut(shell2).unwrap().faces.push(f);
-    let result = validate(&c.body);
-    println!("cross-shell face move validates as: {result:?}");
-    // Documenting current behavior (gap): passes tier 1.
-    assert_eq!(result, Ok(()));
+    let errors = validate(&c.body).unwrap_err();
+    let crossings = errors
+        .iter()
+        .filter(|e| matches!(e, crate::ValidationError::EdgeAcrossShells { .. }))
+        .count();
+    let component_failures: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            crate::ValidationError::ComponentEulerViolation {
+                shell,
+                vertices,
+                edges,
+                faces,
+                rings,
+                ..
+            } => Some((
+                *shell,
+                *vertices as i64 - *edges as i64 + *faces as i64 - *rings as i64,
+            )),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(crossings, 4, "the moved face's four edges cross shells");
+    // χ = 8 − 12 + 5 = 1 on the mutilated shell; 4 − 4 + 1 = 1 on the
+    // lone-face shell — both odd, both reported.
+    assert_eq!(component_failures, vec![(c.shell, 1), (shell2, 1)]);
+    assert_eq!(errors.len(), 6, "and nothing else fires");
 }
 
 // ---------------------------------------------------------------------

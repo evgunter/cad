@@ -23,7 +23,7 @@
 //! Dropped as obsolete or duplicate:
 //!
 //! - the hand-built 6-face cube and its M0 entity shapes (superseded by
-//!   `tests/cube_by_hand.rs` and `tests/review_m1_pr1.rs`'s cube);
+//!   `tests/cube_by_hand.rs` and `src/review_m1_pr1.rs`'s cube);
 //! - the "empty loop validates silently at M0" observation (M1's typed
 //!   [`topo::LoopBoundary::Empty`] made emptiness first-class and
 //!   validated);
@@ -66,12 +66,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point3, Real};
-use topo::{
+use crate::{
     Body, CurveGeom, EdgeKey, EntityId, Face, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, PointKey, Provenance, Shell, ShellKey, Solid, SurfaceGeom, ValidationError, Vertex,
     validate,
 };
+use geom_core::{Point3, Real};
 
 fn prov() -> Provenance {
     Provenance::Primordial {
@@ -83,15 +83,15 @@ fn prov() -> Provenance {
 struct LoneEdge {
     body: Body<f64>,
     p: [PointKey; 2],
-    v: [topo::VertexKey; 2],
+    v: [crate::VertexKey; 2],
     he: [HalfEdgeKey; 2],
     edge: EdgeKey,
     lp: LoopKey,
-    face: topo::FaceKey,
+    face: crate::FaceKey,
     shell: ShellKey,
-    solid: topo::SolidKey,
-    curve: topo::CurveKey,
-    surface: topo::SurfaceKey,
+    solid: crate::SolidKey,
+    curve: crate::CurveKey,
+    surface: crate::SurfaceKey,
 }
 
 /// Build the minimal cyclic body through the public raw builder +
@@ -149,7 +149,7 @@ fn build_lone_edge() -> LoneEdge {
         prov(),
     );
     let edge = body.add_edge(
-        topo::Edge {
+        crate::Edge {
             he_plus: he0,
             he_minus: he1,
             curve,

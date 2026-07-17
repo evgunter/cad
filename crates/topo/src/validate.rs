@@ -1,19 +1,39 @@
-//! The structural validation harness: [`validate`] and
-//! [`ValidationError`].
+//! The structural validation harness: [`validate`] (tier 1),
+//! [`validate_closed`] (tier 2), and [`ValidationError`].
 //!
-//! M1 PR 1 validates **tier-1 structural coherence** of the half-edge
-//! representation — the referential and combinatorial soundness of the
-//! arena store, checkable without any geometry evaluation. Tier 1
-//! accepts every Euler-reachable state, construction scaffolding
-//! included (empty loops, struts, self-loop edges, laminae): those are
-//! mandatory intermediates, and it is the operators (PR 2+) and tier 2
-//! (PR 5's `validate_closed`) that layer "finished solid" rules on top.
+//! # The two validity tiers (ratified via the M1-PLAN conversation)
+//!
+//! **Tier 1 — "euler-valid"** ([`validate`]): the referential and
+//! combinatorial soundness of the arena store, checkable without any
+//! geometry evaluation. Tier 1 accepts every Euler-reachable state,
+//! construction scaffolding included (empty loops, struts, self-loop
+//! edges, laminae): those are mandatory intermediates, and each Euler
+//! operator debug-asserts tier 1 as its postcondition (D1).
 //! Watertightness in the half-edge representation is *structural* and
-//! therefore already tier 1: every edge has exactly two antiparallel
-//! half-edges (passes 3–4) and every vertex orbit is a single cycle
-//! (pass 6).
+//! therefore tier 1: every edge has exactly two antiparallel half-edges
+//! (passes 3–4) and every vertex orbit is a single cycle (pass 6).
 //!
-//! The check set (each check names its error variants):
+//! **Tier 2 — "closed solid"** ([`validate_closed`]): tier 1 plus the
+//! at-rest bans on construction scaffolding — no empty loops
+//! ([`ValidationError::ScaffoldingEmptyLoop`]), no valence-1 vertices
+//! (struts, [`ValidationError::ScaffoldingStrutVertex`]), and every
+//! shell's incidence complex connected (c = 1,
+//! [`ValidationError::ShellDisconnected`]). Finished bodies must pass
+//! tier 2; tier-1-only states are visible solely inside operation
+//! sequences. Two deliberate boundaries of the tier:
+//!
+//! - **Laminae are NOT banned.** Two faces glued along their entire
+//!   shared boundary is exactly the incidence structure of a legitimate
+//!   two-hemisphere ball, so a zero-volume lamina is a *geometric*
+//!   defect — killed at the M2+ geometric tier by the material
+//!   wedge-angle predicate (D4 ¶3), never by a topological rule here.
+//! - **c = 1 is not implied by the other two bans.** Promoting a
+//!   detached cycle ring (`mfkrh` on a ring that never plugged a
+//!   handle) disconnects the shell's surface with no empty loops and no
+//!   struts anywhere — the PR 4 finding — so the connectivity ban is
+//!   its own rule.
+//!
+//! # The tier-1 check set (each check names its error variants):
 //!
 //! 1. **Reference resolution.** Every topology key held by an entity
 //!    resolves in its arena ([`ValidationError::DanglingTopology`]), and
@@ -67,26 +87,53 @@
 //!    by at least one entity ([`ValidationError::OrphanGeometry`]) — an
 //!    **error**, not a warning: bodies are values built by operators,
 //!    and nothing should leak.
+//! 9. **Arity floors.** Every solid has at least one shell
+//!    ([`ValidationError::SolidWithoutShells`]) and every shell at least
+//!    one face ([`ValidationError::ShellWithoutFaces`]). These are
+//!    defined by the operator set (the M0 deferral, now discharged):
+//!    `mvfs` births solid + shell + face together and `kvfs` retires
+//!    them together — no operator ever strands a bare solid or shell.
+//!    (Face ≥ 1 loop and the loop shapes are already structural:
+//!    `Face::outer` is non-optional and [`LoopBoundary`] is total.)
+//! 10. **Shell-partition/edge-adjacency coherence.** For every edge, the
+//!     faces of its two halves' loops belong to the same shell
+//!     ([`ValidationError::EdgeAcrossShells`]). No Euler operator crosses
+//!     shells, so a violation is operator-unreachable — a tier-1
+//!     invariant (the gap named by the PR 1 review: the ownership tree
+//!     alone never compares an edge's two shells).
+//! 11. **Component-aware per-shell Euler–Poincaré** (the PR 4
+//!     correction — the naive per-body form is wrong for tier-1 bodies,
+//!     where `mfkrh` on a detached ring disconnects a shell's surface
+//!     while one shell entity remains). Per shell, the incidence complex
+//!     is partitioned into connected components: faces glue all their
+//!     loops (outer and rings); a cycle loop glues its edges' two sides
+//!     via mate; an empty loop glues its lone vertex; a dartless
+//!     empty-outer face is its own component with its vertex. Each
+//!     component is a closed oriented surface piece and must satisfy
+//!     `v − e + f − r = 2(1 − g)` with genus `g` a non-negative integer
+//!     — parity and the `g ≥ 0` bound are checked per component
+//!     ([`ValidationError::ComponentEulerViolation`], which carries the
+//!     counts). The per-shell sum identity `v − e + f − r = 2(c − Σgᵢ)`
+//!     follows; tier 2 additionally requires c = 1 per shell.
+//! 12. **Bidirectional D5 provenance.** Every live entity in all seven
+//!     topology arenas has a provenance record
+//!     ([`ValidationError::MissingProvenance`]), and every provenance
+//!     entry's key resolves to a live entity
+//!     ([`ValidationError::LeakedProvenance`] — the `SecondaryMap` leak
+//!     a kill-side operator would cause by removing an entity without
+//!     its record).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
 //! milestone, and speculative abstraction would only blur it.
 //!
-//! # Deliberately deferred to PR 5
+//! # Remaining deferrals (M2+)
 //!
-//! Named so they are not mistaken for oversights: **tier 2**
-//! (`validate_closed` — no empty loops, no struts on finished solids),
-//! **Euler–Poincaré counting** per shell (`v − e + f − r = 2(1 − h)`),
-//! and the **bidirectional D5 provenance check** (kill-side operators,
-//! PR 4, are what first make provenance leaks reachable). The E–P pass
-//! is also what closes the **shell-partition vs. edge-adjacency
-//! coherence** gap: tier 1 checks the ownership tree but never that an
-//! edge's two faces sit in the *same shell* — a cube with one side face
-//! moved to a second solid+shell (membership and back-pointers
-//! self-consistent) passes every pass here, and it is the per-shell
-//! count that fails on the split shell. Do not read passes 3–4 + 6 as a
-//! complete per-shell watertightness story until PR 5 lands. Geometric
-//! validation (D4 ¶2 residual certification) starts at M2.
+//! Named so they are not mistaken for oversights: **geometric
+//! validation** starts at M2 — D4 ¶2 residual certification (every
+//! derived cache within ε of its intensional description) and the
+//! geometric-tier predicates (the material wedge-angle rule that kills
+//! degenerate laminae). The structural story of M1 is complete here.
 //!
 //! # All failures, not the first
 //!
@@ -104,14 +151,35 @@
 //! whose cycle closed; antiparallelism needs both halves distinct and
 //! both ends derivable; orbit checks need a resolving `emanating` that
 //! starts at its vertex; back-pointer comparisons need an unambiguous
-//! (exactly-one) owner and a resolving stored key. Genuinely independent
-//! facts still report independently — a corruption that breaks two
-//! invariants yields two errors.
+//! (exactly-one) owner and a resolving stored key; the edge-adjacency
+//! comparison (pass 10) derives each half's shell through the
+//! *ownership partition* — never the stored back-pointers, whose
+//! defects are pass 7's report — and needs both ownership steps
+//! unambiguous. Pass 11 (component Euler–Poincaré) interprets the
+//! *counts* of a structurally coherent complex, so it has one coarse
+//! gate: it runs only when passes 1–7 reported nothing — any earlier
+//! structural defect voids the counting and already carries its own
+//! report (passes 8–10 do not gate it: orphan geometry and arity floors
+//! cannot corrupt the counts, and a cross-shell edge is exactly what the
+//! per-shell count must still be computed *through* — the moved-face
+//! scenario is reported by pass 10 AND pass 11). Tier 2's connectivity
+//! check shares pass 11's gate and its component enumeration. Its other
+//! two scans are ungated — the empty-loop scan reads single loops, but
+//! the strut scan is an AGGREGATE (it counts resolving `start`
+//! references over the half-edge arena), so on a corrupt in-crate body
+//! a pass-1 dangling `start` deflates its true vertex's derived valence
+//! and can echo as a spurious `ScaffoldingStrutVertex` alongside the
+//! pass-1 report. Accepted and pinned (see the promoted PR 5 review
+//! probe): such bodies are unreachable through the public API, whose
+//! every product is tier-1-valid, and gating the aggregate would cost
+//! genuine strut reports on bodies with unrelated defects. Genuinely
+//! independent facts still report independently — a corruption that
+//! breaks two invariants yields two errors.
 //!
 //! # Deterministic report order (D9)
 //!
-//! Errors arrive in a fixed, documented order — eight passes, each
-//! walking its arenas in slot-index order, checking an entity's
+//! Errors arrive in a fixed, documented order — twelve tier-1 passes,
+//! each walking its arenas in slot-index order, checking an entity's
 //! references in field-declaration order:
 //!
 //! 1. reference resolution, walking solids → shells → faces → loops →
@@ -126,7 +194,20 @@
 //! 6. orbit closure, sweeping vertices (foreign members in walk order);
 //! 7. ownership/back-pointers: outer-vs-rings (faces), then shells,
 //!    faces, loops;
-//! 8. orphan geometry, sweeping points → curves → surfaces.
+//! 8. orphan geometry, sweeping points → curves → surfaces;
+//! 9. arity floors, sweeping solids then shells;
+//! 10. edge-adjacency shell coherence, sweeping edges;
+//! 11. component Euler–Poincaré: shells in arena order; within a shell,
+//!     components in seed order, where a component's seed is its first
+//!     face in **face-arena order** (no hashing anywhere — D9);
+//! 12. provenance: missing records (entities in arena order, kinds in
+//!     the pass-1 order solids → … → vertices), then leaked records
+//!     (`SecondaryMap` entries in slot order, same kind order).
+//!
+//! [`validate_closed`] appends the tier-2 failures after all tier-1
+//! errors, in this order: empty loops (loop-arena order), valence-1
+//! vertices (vertex-arena order), disconnected shells (shell-arena
+//! order).
 
 use core::fmt;
 
@@ -135,7 +216,8 @@ use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
 use crate::entity::{
-    EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
+    EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
+    VertexKey,
 };
 
 /// A structural defect found by [`validate`]. Closed enum, D3 style:
@@ -317,6 +399,90 @@ pub enum ValidationError {
         /// The unreferenced geometry entry.
         geometry: GeomRef,
     },
+    /// A solid with no shells. Defined by the operator set: `mvfs`
+    /// births solid + shell + face together and `kvfs` retires them
+    /// together, so a bare solid is operator-unreachable (module docs,
+    /// check 9).
+    SolidWithoutShells {
+        /// The shell-less solid.
+        solid: SolidKey,
+    },
+    /// A shell with no faces. Operator-unreachable, like
+    /// [`SolidWithoutShells`](Self::SolidWithoutShells).
+    ShellWithoutFaces {
+        /// The face-less shell.
+        shell: ShellKey,
+    },
+    /// An edge whose two halves' loops belong to faces in *different
+    /// shells*. No Euler operator crosses shells, so this is
+    /// operator-unreachable — the shell-partition/edge-adjacency
+    /// coherence gap named by the PR 1 review (module docs, check 10).
+    EdgeAcrossShells {
+        /// The shell-crossing edge.
+        edge: EdgeKey,
+        /// The shell of the plus half's face.
+        shell_plus: ShellKey,
+        /// The shell of the minus half's face (≠ `shell_plus`).
+        shell_minus: ShellKey,
+    },
+    /// A connected component of a shell's incidence complex that fails
+    /// the Euler–Poincaré identity `v − e + f − r = 2(1 − g)` for every
+    /// non-negative integer genus `g` — i.e. its `v − e + f − r` is odd
+    /// or exceeds 2 (module docs, check 11). Carries the component's
+    /// counts so the report is self-contained.
+    ComponentEulerViolation {
+        /// The shell whose complex contains the component.
+        shell: ShellKey,
+        /// The component's seed: its first face in face-arena order
+        /// (the deterministic component identity — module docs).
+        seed: FaceKey,
+        /// Vertices in the component.
+        vertices: usize,
+        /// Edges in the component.
+        edges: usize,
+        /// Faces in the component.
+        faces: usize,
+        /// Rings (interior loops) across the component's faces.
+        rings: usize,
+    },
+    /// A live topology entity with no D5 provenance record — every
+    /// entity records its birth, so a missing record means the
+    /// `SecondaryMap` was corrupted (module docs, check 12).
+    MissingProvenance {
+        /// The record-less entity.
+        entity: EntityId,
+    },
+    /// A D5 provenance record whose entity is no longer live — the
+    /// `SecondaryMap` leak a kill would cause by removing an entity
+    /// without removing its record (module docs, check 12).
+    LeakedProvenance {
+        /// The dead entity the leaked record still names.
+        entity: EntityId,
+    },
+    /// **Tier 2 only.** An empty loop on a body validated as a closed
+    /// solid — construction scaffolding (the `mvfs`/`kemr` intermediate
+    /// state) that must be resolved before a body is finished.
+    ScaffoldingEmptyLoop {
+        /// The empty loop.
+        loop_: LoopKey,
+    },
+    /// **Tier 2 only.** A valence-1 vertex (the tip of a strut edge) on
+    /// a body validated as a closed solid — construction scaffolding.
+    ScaffoldingStrutVertex {
+        /// The valence-1 vertex.
+        vertex: VertexKey,
+    },
+    /// **Tier 2 only.** A shell whose incidence complex has more than
+    /// one connected component (c ≠ 1) on a body validated as a closed
+    /// solid. Not implied by the other two tier-2 bans: promoting a
+    /// detached cycle ring disconnects a shell with no empty loops and
+    /// no struts anywhere (module docs).
+    ShellDisconnected {
+        /// The disconnected shell.
+        shell: ShellKey,
+        /// How many components its complex has (≥ 2).
+        components: usize,
+    },
 }
 
 impl fmt::Display for ValidationError {
@@ -425,6 +591,60 @@ impl fmt::Display for ValidationError {
             Self::OrphanGeometry { geometry } => {
                 write!(f, "{geometry} is referenced by no entity")
             }
+            Self::SolidWithoutShells { solid } => {
+                write!(f, "solid {solid:?} has no shells (every solid has ≥ 1)")
+            }
+            Self::ShellWithoutFaces { shell } => {
+                write!(f, "shell {shell:?} has no faces (every shell has ≥ 1)")
+            }
+            Self::EdgeAcrossShells {
+                edge,
+                shell_plus,
+                shell_minus,
+            } => write!(
+                f,
+                "edge {edge:?}'s two halves lie in different shells \
+                 ({shell_plus:?} vs {shell_minus:?})"
+            ),
+            Self::ComponentEulerViolation {
+                shell,
+                seed,
+                vertices,
+                edges,
+                faces,
+                rings,
+            } => {
+                let chi = *vertices as i64 - *edges as i64 + *faces as i64 - *rings as i64;
+                write!(
+                    f,
+                    "shell {shell:?}'s component seeded at face {seed:?} violates \
+                     Euler–Poincaré: v − e + f − r = {vertices} − {edges} + {faces} \
+                     − {rings} = {chi}, which is not 2(1 − g) for any integer g ≥ 0"
+                )
+            }
+            Self::MissingProvenance { entity } => {
+                write!(f, "{entity} is live but has no D5 provenance record")
+            }
+            Self::LeakedProvenance { entity } => write!(
+                f,
+                "a D5 provenance record exists for {entity}, which is not live \
+                 (leaked past its entity's death)"
+            ),
+            Self::ScaffoldingEmptyLoop { loop_ } => write!(
+                f,
+                "loop {loop_:?} is an empty loop — construction scaffolding, \
+                 banned on a closed solid (tier 2)"
+            ),
+            Self::ScaffoldingStrutVertex { vertex } => write!(
+                f,
+                "vertex {vertex:?} has valence 1 (a strut tip) — construction \
+                 scaffolding, banned on a closed solid (tier 2)"
+            ),
+            Self::ShellDisconnected { shell, components } => write!(
+                f,
+                "shell {shell:?}'s incidence complex has {components} connected \
+                 components (a closed solid requires exactly 1, tier 2)"
+            ),
         }
     }
 }
@@ -448,18 +668,136 @@ fn count_owner<K: Key, O: Copy>(counts: &mut SecondaryMap<K, (usize, O)>, key: K
     counts.insert(key, (n + 1, owner));
 }
 
-/// Validates a body's tier-1 structural coherence, collecting **all**
-/// failures.
+/// The counts of one connected component of a shell's incidence complex
+/// (pass 11 — see the module docs for the glue rules).
+struct ComponentCounts {
+    vertices: usize,
+    edges: usize,
+    faces: usize,
+    rings: usize,
+}
+
+impl ComponentCounts {
+    /// Whether `v − e + f − r = 2(1 − g)` holds for some integer
+    /// `g ≥ 0`: the characteristic must be even and at most 2.
+    ///
+    /// The `chi > 2` (negative-genus) arm is believed
+    /// defensive-unreachable: the PR 5 review could not construct it
+    /// even with gate-passing corruption — passes 3/4/6 force each
+    /// component to be a closed oriented surface (χ ≤ 2 automatic
+    /// within a coherent shell), and per-shell *cutting* (the
+    /// moved-face family) only ever produced odd χ. Kept as defense in
+    /// depth; untested until someone falsifies that derivation.
+    fn satisfies_euler_poincare(&self) -> bool {
+        let chi = self.vertices as i64 - self.edges as i64 + self.faces as i64 - self.rings as i64;
+        chi % 2 == 0 && chi <= 2
+    }
+}
+
+/// Tier 1's full result: the error vector plus the per-shell component
+/// counts when the component pass ran (`None` when its gate — passes
+/// 1–7 clean — did not hold). Tier 2 reuses the counts for its c = 1
+/// check instead of re-enumerating.
+struct Tier1Report {
+    errors: Vec<ValidationError>,
+    /// `(shell, component count)` in shell-arena order.
+    shell_components: Option<Vec<(ShellKey, usize)>>,
+}
+
+/// Validates a body's **tier-1** ("euler-valid") structural coherence,
+/// collecting **all** failures.
 ///
-/// The check set, the report order, the cascade discipline, and the
-/// PR 5 deferrals are documented in the [module docs](self). The empty
-/// body validates vacuously.
+/// The check set, the report order, the cascade discipline, and the two
+/// validity tiers are documented in the [module docs](self). The empty
+/// body validates vacuously. Every Euler-reachable state passes;
+/// construction scaffolding is banned only by tier 2
+/// ([`validate_closed`]).
 ///
 /// # Errors
 ///
 /// A non-empty vector of every [`ValidationError`] found, in the
 /// documented deterministic order.
 pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+    let report = tier1(body);
+    if report.errors.is_empty() {
+        Ok(())
+    } else {
+        Err(report.errors)
+    }
+}
+
+/// Validates a body as a **tier-2 "closed solid"**: all of tier 1
+/// ([`validate`]) plus the at-rest bans on construction scaffolding —
+/// no empty loops, no valence-1 vertices (struts), and every shell's
+/// incidence complex connected (c = 1). See the [module docs](self) for
+/// the ratified tier semantics (laminae are deliberately *not* banned).
+///
+/// Tier-2 failures are appended after all tier-1 errors, in the
+/// documented order: empty loops (loop-arena order), valence-1 vertices
+/// (vertex-arena order), disconnected shells (shell-arena order). The
+/// connectivity check shares pass 11's gate (structural soundness of
+/// passes 1–7) and its component enumeration; a face-less shell is
+/// reported by the tier-1 arity floor alone (c = 0 is not double-
+/// reported here). The empty body validates vacuously.
+///
+/// # Errors
+///
+/// A non-empty vector of every [`ValidationError`] found, tier 1 first,
+/// in the documented deterministic order.
+pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+    let Tier1Report {
+        mut errors,
+        shell_components,
+    } = tier1(body);
+
+    // Tier 2, check 1: no empty loops (loop-arena order).
+    for (loop_key, loop_) in body.loops.iter() {
+        if matches!(loop_.boundary, LoopBoundary::Empty { .. }) {
+            errors.push(ValidationError::ScaffoldingEmptyLoop { loop_: loop_key });
+        }
+    }
+
+    // Tier 2, check 2: no valence-1 vertices (vertex-arena order).
+    // Valence = the number of half-edges starting at the vertex (a
+    // self-loop contributes two). Re-derived here rather than threaded
+    // out of pass 1: the count only reads resolving `start` references,
+    // so it is meaningful even on bodies with unrelated tier-1 errors —
+    // with one documented echo: a dangling `start` (a pass-1 error)
+    // deflates its true vertex's count and can surface here as a
+    // spurious strut (module docs, cascade discipline; pinned by the
+    // promoted review probe; unreachable through the public API).
+    let mut incidence: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
+    for (_, he) in body.half_edges.iter() {
+        if body.vertices.contains_key(he.start) {
+            count_ref(&mut incidence, he.start);
+        }
+    }
+    for (vertex_key, _) in body.vertices.iter() {
+        if incidence.get(vertex_key).copied().unwrap_or(0) == 1 {
+            errors.push(ValidationError::ScaffoldingStrutVertex { vertex: vertex_key });
+        }
+    }
+
+    // Tier 2, check 3: c = 1 per shell (shell-arena order), from the
+    // tier-1 component enumeration. c = 0 (a face-less shell) is the
+    // tier-1 arity floor's report, not a disconnection.
+    if let Some(per_shell) = shell_components {
+        for (shell, components) in per_shell {
+            if components >= 2 {
+                errors.push(ValidationError::ShellDisconnected { shell, components });
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// The tier-1 pass pipeline (see [`validate`] and the module docs).
+fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     let mut errors = Vec::new();
 
     // Reference/ownership counters, filled by pass 1 and consumed by the
@@ -915,6 +1253,11 @@ pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
         }
     }
 
+    // Pass 11's coarse gate, captured HERE — after the structural passes
+    // 1–7, before the passes that cannot corrupt the counts (module
+    // docs, cascade discipline).
+    let structurally_sound = errors.is_empty();
+
     // ------------------------------------------------------------------
     // Pass 8: orphan geometry, points → curves → surfaces.
     // ------------------------------------------------------------------
@@ -940,11 +1283,291 @@ pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
+    // ------------------------------------------------------------------
+    // Pass 9: arity floors, solids then shells (module docs, check 9).
+    // ------------------------------------------------------------------
+    for (solid_key, solid) in body.solids.iter() {
+        if solid.shells.is_empty() {
+            errors.push(ValidationError::SolidWithoutShells { solid: solid_key });
+        }
     }
+    for (shell_key, shell) in body.shells.iter() {
+        if shell.faces.is_empty() {
+            errors.push(ValidationError::ShellWithoutFaces { shell: shell_key });
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Pass 10: edge-adjacency shell coherence, sweeping edges. The
+    // half's shell is derived through the OWNERSHIP partition (loop's
+    // owning face, face's owning shell), not the stored back-pointers:
+    // a wrong back-pointer is pass 7's report and must not echo here.
+    // Gated per-edge on the halves resolving and both ownership steps
+    // being unambiguous (exactly one owner — anything else was reported
+    // in pass 1 or 7).
+    // ------------------------------------------------------------------
+    let shell_of = |he_key: HalfEdgeKey| -> Option<ShellKey> {
+        let he = body.half_edges.get(he_key)?;
+        let (1, face) = loop_owners.get(he.parent_loop).copied()? else {
+            return None;
+        };
+        let (1, shell) = face_owners.get(face).copied()? else {
+            return None;
+        };
+        Some(shell)
+    };
+    for (edge_key, edge) in body.edges.iter() {
+        let (Some(shell_plus), Some(shell_minus)) =
+            (shell_of(edge.he_plus), shell_of(edge.he_minus))
+        else {
+            continue;
+        };
+        if shell_plus != shell_minus {
+            errors.push(ValidationError::EdgeAcrossShells {
+                edge: edge_key,
+                shell_plus,
+                shell_minus,
+            });
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Pass 11: component-aware per-shell Euler–Poincaré (module docs,
+    // check 11), gated on passes 1–7 having reported nothing. Shells in
+    // arena order; a shell's component seeds in face-arena order.
+    // ------------------------------------------------------------------
+    let mut shell_components = None;
+    if structurally_sound {
+        // Per-shell face lists in face-arena order. Membership comes
+        // from the `face.shell` back-pointer, which the gate guarantees
+        // matches the ownership lists.
+        let mut shell_faces: SecondaryMap<ShellKey, Vec<FaceKey>> = SecondaryMap::new();
+        for (face_key, face) in body.faces.iter() {
+            if let Some(list) = shell_faces.get_mut(face.shell) {
+                list.push(face_key);
+            } else {
+                shell_faces.insert(face.shell, vec![face_key]);
+            }
+        }
+        let mut visited: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+        let mut per_shell = Vec::new();
+        for (shell_key, _) in body.shells.iter() {
+            let mut components = 0_usize;
+            let seeds = shell_faces.get(shell_key).map_or(&[][..], Vec::as_slice);
+            for &seed in seeds {
+                if visited.contains_key(seed) {
+                    continue;
+                }
+                components += 1;
+                // The walk is total but cannot fail under the gate; a
+                // `None` would mean a resolution failure passes 1–7
+                // somehow missed, and silence is then the safe echo rule.
+                if let Some(counts) = shell_component(body, shell_key, seed, &mut visited)
+                    && !counts.satisfies_euler_poincare()
+                {
+                    errors.push(ValidationError::ComponentEulerViolation {
+                        shell: shell_key,
+                        seed,
+                        vertices: counts.vertices,
+                        edges: counts.edges,
+                        faces: counts.faces,
+                        rings: counts.rings,
+                    });
+                }
+            }
+            per_shell.push((shell_key, components));
+        }
+        shell_components = Some(per_shell);
+    }
+
+    // ------------------------------------------------------------------
+    // Pass 12: bidirectional D5 provenance (module docs, check 12).
+    // Missing records first (entities in arena order, kinds in the
+    // pass-1 order), then leaked records (SecondaryMap slot order, same
+    // kind order).
+    // ------------------------------------------------------------------
+    for (k, _) in body.solids.iter() {
+        if !body.solid_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::Solid(k),
+            });
+        }
+    }
+    for (k, _) in body.shells.iter() {
+        if !body.shell_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::Shell(k),
+            });
+        }
+    }
+    for (k, _) in body.faces.iter() {
+        if !body.face_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::Face(k),
+            });
+        }
+    }
+    for (k, _) in body.loops.iter() {
+        if !body.loop_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::Loop(k),
+            });
+        }
+    }
+    for (k, _) in body.half_edges.iter() {
+        if !body.half_edge_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::HalfEdge(k),
+            });
+        }
+    }
+    for (k, _) in body.edges.iter() {
+        if !body.edge_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::Edge(k),
+            });
+        }
+    }
+    for (k, _) in body.vertices.iter() {
+        if !body.vertex_provenance.contains_key(k) {
+            errors.push(ValidationError::MissingProvenance {
+                entity: EntityId::Vertex(k),
+            });
+        }
+    }
+    for (k, _) in body.solid_provenance.iter() {
+        if !body.solids.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::Solid(k),
+            });
+        }
+    }
+    for (k, _) in body.shell_provenance.iter() {
+        if !body.shells.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::Shell(k),
+            });
+        }
+    }
+    for (k, _) in body.face_provenance.iter() {
+        if !body.faces.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::Face(k),
+            });
+        }
+    }
+    for (k, _) in body.loop_provenance.iter() {
+        if !body.loops.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::Loop(k),
+            });
+        }
+    }
+    for (k, _) in body.half_edge_provenance.iter() {
+        if !body.half_edges.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::HalfEdge(k),
+            });
+        }
+    }
+    for (k, _) in body.edge_provenance.iter() {
+        if !body.edges.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::Edge(k),
+            });
+        }
+    }
+    for (k, _) in body.vertex_provenance.iter() {
+        if !body.vertices.contains_key(k) {
+            errors.push(ValidationError::LeakedProvenance {
+                entity: EntityId::Vertex(k),
+            });
+        }
+    }
+
+    Tier1Report {
+        errors,
+        shell_components,
+    }
+}
+
+/// Collects one connected component of `shell`'s incidence complex by a
+/// bounded traversal from `seed`, marking every face it reaches in
+/// `visited` and returning the component's counts.
+///
+/// Glue rules (the ratified pass-11 partition — module docs): a face
+/// glues all its loops, outer and rings; a cycle loop contributes its
+/// half-edges' start vertices and edges, and glues across each edge via
+/// **mate** to the mate's face (followed only when that face is in the
+/// same shell — the per-shell filter is the point of the pass); an
+/// empty loop glues its lone vertex; a dartless empty-outer face is
+/// therefore its own component with its vertex. Traversal order does
+/// not affect the counts (they are set sizes); component *identity* is
+/// fixed by seed order (D9).
+///
+/// Total, never panicking (D9): every lookup is checked and the cycle
+/// walks are bounded. `None` is returned on any resolution failure —
+/// unreachable when the pass-11 gate held, and silent by the cascade
+/// rule (the cause was reported by passes 1–7).
+fn shell_component<T: Real>(
+    body: &Body<T>,
+    shell: ShellKey,
+    seed: FaceKey,
+    visited: &mut SecondaryMap<FaceKey, ()>,
+) -> Option<ComponentCounts> {
+    let mut component_vertices: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
+    let mut component_edges: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
+    let mut faces = 0_usize;
+    let mut rings = 0_usize;
+    let mut pending = vec![seed];
+    visited.insert(seed, ());
+    while let Some(face_key) = pending.pop() {
+        let face = body.faces.get(face_key)?;
+        faces += 1;
+        rings += face.rings.len();
+        for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
+            let loop_ = body.loops.get(loop_key)?;
+            match loop_.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    if !body.vertices.contains_key(vertex) {
+                        return None;
+                    }
+                    component_vertices.insert(vertex, ());
+                }
+                LoopBoundary::Cycle { first } => {
+                    let Walk::Closed(members) = body.loop_walk(first) else {
+                        return None;
+                    };
+                    for member in members {
+                        let he = body.half_edges.get(member)?;
+                        if !body.vertices.contains_key(he.start) {
+                            return None;
+                        }
+                        component_vertices.insert(he.start, ());
+                        if !body.edges.contains_key(he.edge) {
+                            return None;
+                        }
+                        component_edges.insert(he.edge, ());
+                        // Glue across the edge via mate.
+                        let mate = body.mate(member)?;
+                        let mate_he = body.half_edges.get(mate)?;
+                        let mate_loop = body.loops.get(mate_he.parent_loop)?;
+                        let mate_face = body.faces.get(mate_loop.face)?;
+                        if mate_face.shell == shell && !visited.contains_key(mate_loop.face) {
+                            visited.insert(mate_loop.face, ());
+                            pending.push(mate_loop.face);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Some(ComponentCounts {
+        vertices: component_vertices.len(),
+        edges: component_edges.len(),
+        faces,
+        rings,
+    })
 }
 
 #[cfg(test)]
@@ -956,8 +1579,12 @@ mod tests {
     use super::*;
     use crate::body::Body;
     use crate::entity::{Face, Loop, Shell, Solid, Vertex};
-    use crate::fixtures::{mvfs_state, ngon_pillow, pillow, prism, prov};
+    use crate::euler::{MefSite, MevSite};
+    use crate::fixtures::{
+        mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prism, prov,
+    };
     use crate::geometry::SurfaceGeom;
+    use crate::seqgen;
 
     fn anchor() -> Point3<f64> {
         Point3::origin()
@@ -1031,8 +1658,8 @@ mod tests {
     fn mvfs_state_validates_cleanly() {
         // The skeletal mvfs state (empty outer loop + lone vertex) is
         // tier-1-legal BY DESIGN: it is the state every Euler
-        // construction starts from. Tier 2 (PR 5) bans it on finished
-        // solids; tier 1 must accept it.
+        // construction starts from. Tier 2 (validate_closed) bans it on
+        // finished solids; tier 1 must accept it.
         let t = mvfs_state();
         assert_eq!(validate(&t.body), Ok(()));
     }
@@ -1126,6 +1753,10 @@ mod tests {
             prov(),
         );
         t.body.half_edges.remove(dead);
+        // Raw arena removal leaves the provenance record behind; remove
+        // it too so the dangling reference is this test's ONLY defect
+        // (the leak variant has its own test).
+        t.body.half_edge_provenance.remove(dead);
         t.body.get_half_edge_mut(t.hes_a[1]).unwrap().next = dead;
         // Loop A's walk breaks (silent: this very dangling is the cause),
         // e1's antiparallelism is underivable (skipped), v0's orbit
@@ -1143,6 +1774,8 @@ mod tests {
     fn dangling_empty_loop_vertex_is_reported() {
         let mut t = mvfs_state();
         t.body.vertices.remove(t.vertex);
+        // Provenance removed with the entity (leaks have their own test).
+        t.body.vertex_provenance.remove(t.vertex);
         assert_eq!(
             validate(&t.body),
             Err(vec![
@@ -1193,6 +1826,8 @@ mod tests {
             prov(),
         );
         t.body.shells.remove(dead);
+        // Provenance removed with the entity (leaks have their own test).
+        t.body.shell_provenance.remove(dead);
         t.body.get_face_mut(t.face).unwrap().shell = dead;
         assert_eq!(
             validate(&t.body),
@@ -1606,7 +2241,9 @@ mod tests {
         t.body.get_solid_mut(solid2).unwrap().shells.push(shell2);
         t.body.get_shell_mut(t.shell).unwrap().solid = solid2;
         t.body.get_face_mut(t.face_b).unwrap().shell = shell2;
-        // Pass 7 order: shells before faces.
+        // Pass 7 order: shells before faces. shell2's face list stayed
+        // empty (only face_b's back-pointer moved), so the pass-9 arity
+        // floor genuinely fires too.
         assert_eq!(
             validate(&t.body),
             Err(vec![
@@ -1620,6 +2257,7 @@ mod tests {
                     stored: EntityId::Shell(shell2),
                     owner: EntityId::Shell(t.shell),
                 },
+                ValidationError::ShellWithoutFaces { shell: shell2 },
             ])
         );
     }
@@ -1636,12 +2274,17 @@ mod tests {
         );
         // sh2 is not in any solid's shell list (ownership counts, not
         // back-pointers, define anchoring — and with zero owners the
-        // back-pointer comparison is skipped).
+        // back-pointer comparison is skipped). Being face-less, it also
+        // trips the pass-9 arity floor — two true statements, two
+        // errors, in pass order.
         assert_eq!(
             validate(&t.body),
-            Err(vec![ValidationError::OrphanEntity {
-                entity: EntityId::Shell(sh2),
-            }])
+            Err(vec![
+                ValidationError::OrphanEntity {
+                    entity: EntityId::Shell(sh2),
+                },
+                ValidationError::ShellWithoutFaces { shell: sh2 },
+            ])
         );
     }
 
@@ -1759,11 +2402,606 @@ mod tests {
             ValidationError::OrphanGeometry {
                 geometry: GeomRef::Point(t.points[0]),
             },
+            ValidationError::SolidWithoutShells { solid: t.solid },
+            ValidationError::ShellWithoutFaces { shell: t.shell },
+            ValidationError::EdgeAcrossShells {
+                edge: e,
+                shell_plus: t.shell,
+                shell_minus: t.shell,
+            },
+            ValidationError::ComponentEulerViolation {
+                shell: t.shell,
+                seed: t.face_a,
+                vertices: 2,
+                edges: 2,
+                faces: 1,
+                rings: 0,
+            },
+            ValidationError::MissingProvenance {
+                entity: EntityId::Face(t.face_a),
+            },
+            ValidationError::LeakedProvenance {
+                entity: EntityId::Face(t.face_a),
+            },
+            ValidationError::ScaffoldingEmptyLoop { loop_: t.loop_a },
+            ValidationError::ScaffoldingStrutVertex { vertex: v },
+            ValidationError::ShellDisconnected {
+                shell: t.shell,
+                components: 2,
+            },
         ];
         for err in &all {
             // Display and Error are wired up; content is human-oriented.
             assert!(!err.to_string().is_empty());
             let _: &dyn std::error::Error = err;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Pass 9: arity floors.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn solid_without_shells_is_reported() {
+        let mut t = pillow();
+        // Solids are containment roots — nothing anchors them, so a bare
+        // solid trips ONLY the arity floor.
+        let bare = t.body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![ValidationError::SolidWithoutShells { solid: bare }])
+        );
+    }
+
+    #[test]
+    fn shell_without_faces_is_reported() {
+        let mut t = pillow();
+        // Owned and back-pointed correctly — the missing faces are the
+        // only defect (contrast the orphan-shell test, where BOTH fire).
+        let sh2 = t.body.add_shell(
+            Shell {
+                faces: vec![],
+                solid: t.solid,
+            },
+            prov(),
+        );
+        t.body.get_solid_mut(t.solid).unwrap().shells.push(sh2);
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![ValidationError::ShellWithoutFaces { shell: sh2 }])
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Passes 10 + 11: edge-adjacency shell coherence and the
+    // component-aware per-shell Euler–Poincaré count.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn face_moved_to_second_shell_is_caught_twice() {
+        // The PR 1 review's named gap at pillow scale: move face B to a
+        // fresh solid+shell with membership and back-pointers fully
+        // self-consistent. Passes 1–7 accept it (they never compare an
+        // edge's two shells); pass 10 reports both shared edges, and
+        // pass 11 fails BOTH shells' components — a lone face cut from
+        // its mates has v − e + f − r = 2 − 2 + 1 − 0 = 1, odd.
+        // Documented order: pass 10 (edge arena order), then pass 11
+        // (shell arena order).
+        let mut t = pillow();
+        let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
+        let shell2 = t.body.add_shell(
+            Shell {
+                faces: vec![t.face_b],
+                solid: solid2,
+            },
+            prov(),
+        );
+        t.body.get_solid_mut(solid2).unwrap().shells.push(shell2);
+        t.body.get_shell_mut(t.shell).unwrap().faces = vec![t.face_a];
+        t.body.get_face_mut(t.face_b).unwrap().shell = shell2;
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![
+                ValidationError::EdgeAcrossShells {
+                    edge: t.edges[0],
+                    shell_plus: t.shell,
+                    shell_minus: shell2,
+                },
+                ValidationError::EdgeAcrossShells {
+                    edge: t.edges[1],
+                    shell_plus: t.shell,
+                    shell_minus: shell2,
+                },
+                ValidationError::ComponentEulerViolation {
+                    shell: t.shell,
+                    seed: t.face_a,
+                    vertices: 2,
+                    edges: 2,
+                    faces: 1,
+                    rings: 0,
+                },
+                ValidationError::ComponentEulerViolation {
+                    shell: shell2,
+                    seed: t.face_b,
+                    vertices: 2,
+                    edges: 2,
+                    faces: 1,
+                    rings: 0,
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn cube_face_moved_to_second_shell_is_caught() {
+        // The scenario exactly as the PR 1 review posed it: an
+        // operator-built cube with one side face moved to a second
+        // solid+shell. Four cross-shell edges (pass 10) plus two
+        // component violations (pass 11): the 5-face side keeps all 8
+        // vertices and all 12 edges (each moved edge still has its
+        // other face here), χ = 8 − 12 + 5 = 1; the lone face has
+        // χ = 4 − 4 + 1 = 1.
+        let t = ops_cube();
+        let mut body = t.body;
+        let front = t.mefs[1].face;
+        let old_shell = body.get_face(front).unwrap().shell;
+        let solid2 = body.add_solid(Solid { shells: vec![] }, prov());
+        let shell2 = body.add_shell(
+            Shell {
+                faces: vec![front],
+                solid: solid2,
+            },
+            prov(),
+        );
+        body.get_solid_mut(solid2).unwrap().shells.push(shell2);
+        body.get_shell_mut(old_shell)
+            .unwrap()
+            .faces
+            .retain(|&f| f != front);
+        body.get_face_mut(front).unwrap().shell = shell2;
+
+        let errors = validate(&body).unwrap_err();
+        let crossings = errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::EdgeAcrossShells { .. }))
+            .count();
+        assert_eq!(crossings, 4, "the moved face's four edges cross shells");
+        let violations: Vec<_> = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::ComponentEulerViolation {
+                    shell,
+                    vertices,
+                    edges,
+                    faces,
+                    rings,
+                    ..
+                } => Some((*shell, *vertices, *edges, *faces, *rings)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            violations,
+            vec![(old_shell, 8, 12, 5, 0), (shell2, 4, 4, 1, 0)]
+        );
+        assert_eq!(errors.len(), 6, "nothing else fires");
+    }
+
+    // ------------------------------------------------------------------
+    // Pass 12: bidirectional D5 provenance.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn missing_provenance_is_reported() {
+        let mut t = pillow();
+        t.body.face_provenance.remove(t.face_a);
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![ValidationError::MissingProvenance {
+                entity: EntityId::Face(t.face_a),
+            }])
+        );
+    }
+
+    #[test]
+    fn leaked_provenance_is_reported() {
+        // The provenance-leak fixture: remove an entity through the
+        // pub(crate) arena WITHOUT removing its record — the exact bug
+        // a kill-side operator would have if it forgot its kill-hygiene
+        // duty, and the reason the bidirectional check exists.
+        let mut t = pillow();
+        let extra = t.body.add_solid(Solid { shells: vec![] }, prov());
+        t.body.solids.remove(extra);
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![ValidationError::LeakedProvenance {
+                entity: EntityId::Solid(extra),
+            }])
+        );
+    }
+
+    #[test]
+    fn cross_pass_report_order_is_the_documented_one() {
+        // One body with independent defects in passes 9, 10, 11, and 12:
+        // the report arrives in exactly pass order. (The per-pass tests
+        // above pin intra-pass order; this pins the pass sequence.)
+        let mut t = pillow();
+        let bare = t.body.add_solid(Solid { shells: vec![] }, prov()); // pass 9
+        let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
+        let shell2 = t.body.add_shell(
+            Shell {
+                faces: vec![t.face_b],
+                solid: solid2,
+            },
+            prov(),
+        );
+        t.body.get_solid_mut(solid2).unwrap().shells.push(shell2);
+        t.body.get_shell_mut(t.shell).unwrap().faces = vec![t.face_a];
+        t.body.get_face_mut(t.face_b).unwrap().shell = shell2; // passes 10+11
+        let dead = t.body.add_solid(Solid { shells: vec![] }, prov());
+        t.body.solids.remove(dead); // pass 12
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![
+                ValidationError::SolidWithoutShells { solid: bare },
+                ValidationError::EdgeAcrossShells {
+                    edge: t.edges[0],
+                    shell_plus: t.shell,
+                    shell_minus: shell2,
+                },
+                ValidationError::EdgeAcrossShells {
+                    edge: t.edges[1],
+                    shell_plus: t.shell,
+                    shell_minus: shell2,
+                },
+                ValidationError::ComponentEulerViolation {
+                    shell: t.shell,
+                    seed: t.face_a,
+                    vertices: 2,
+                    edges: 2,
+                    faces: 1,
+                    rings: 0,
+                },
+                ValidationError::ComponentEulerViolation {
+                    shell: shell2,
+                    seed: t.face_b,
+                    vertices: 2,
+                    edges: 2,
+                    faces: 1,
+                    rings: 0,
+                },
+                ValidationError::LeakedProvenance {
+                    entity: EntityId::Solid(dead),
+                },
+            ])
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // The PR 3 carry: two empty loops on ONE vertex, in one face — the
+    // state `kemr`'s EmptyAnchorsCollide defends against. Pass 5's
+    // exclusive empty-loop ownership is the rule that catches it.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn two_empty_loops_on_one_vertex_in_one_face_are_multiply_owned() {
+        let mut t = mvfs_state();
+        let ring = t.body.add_loop(
+            Loop {
+                boundary: LoopBoundary::Empty { vertex: t.vertex },
+                face: t.face,
+            },
+            prov(),
+        );
+        t.body.get_face_mut(t.face).unwrap().rings.push(ring);
+        assert_eq!(
+            validate(&t.body),
+            Err(vec![ValidationError::MultiplyOwned {
+                child: EntityId::Vertex(t.vertex),
+                owners: 2,
+            }])
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 2: validate_closed. Closed bodies pass; every scaffolding
+    // state fails with exactly the right variants, in the documented
+    // tier-2 order.
+    // ------------------------------------------------------------------
+
+    fn p(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    #[test]
+    fn closed_fixtures_pass_tier_two() {
+        // Raw-built closed families…
+        assert_eq!(validate_closed(&pillow().body), Ok(()));
+        assert_eq!(validate_closed(&ngon_pillow(1).body), Ok(()));
+        assert_eq!(validate_closed(&prism(4).body), Ok(()));
+        // …and the operator-built acceptance bodies, genus 0 through 2.
+        assert_eq!(validate_closed(&ops_cube().body), Ok(()));
+        assert_eq!(validate_closed(&ops_holed_box().body), Ok(()));
+        assert_eq!(validate_closed(&ops_genus2()), Ok(()));
+    }
+
+    #[test]
+    fn empty_body_passes_both_tiers_vacuously() {
+        assert_eq!(validate(&Body::<f64>::new()), Ok(()));
+        assert_eq!(validate_closed(&Body::<f64>::new()), Ok(()));
+    }
+
+    #[test]
+    fn tier_two_rejects_the_skeletal_mvfs_state() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        assert_eq!(validate(&body), Ok(()), "tier 1 accepts the seed state");
+        // The lone vertex has valence 0, not 1, and the dartless
+        // empty-outer face is one component — the empty loop is the
+        // single tier-2 defect.
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![ValidationError::ScaffoldingEmptyLoop {
+                loop_: seed.r#loop,
+            }])
+        );
+    }
+
+    #[test]
+    fn tier_two_rejects_struts() {
+        // The segment body: BOTH endpoints have valence 1 (vertex-arena
+        // order).
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![
+                ValidationError::ScaffoldingStrutVertex {
+                    vertex: seed.vertex,
+                },
+                ValidationError::ScaffoldingStrutVertex { vertex: seg.vertex },
+            ])
+        );
+
+        // A strut hanging off a CLOSED pillow: exactly the tip (the
+        // base has valence 3).
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        body.mef(MefSite::Chords {
+            he1: seg.he_plus,
+            he2: seg.he_minus,
+        })
+        .unwrap();
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![ValidationError::ScaffoldingStrutVertex {
+                vertex: strut.vertex,
+            }])
+        );
+    }
+
+    #[test]
+    fn tier_two_rejects_planted_empty_rings() {
+        // Pillow + strut + kemr: the strut edge dies, its tip becomes
+        // an empty ring's lone vertex (valence 0 — no strut report),
+        // and the ring keeps the shell connected. One defect.
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        body.mef(MefSite::Chords {
+            he1: seg.he_plus,
+            he2: seg.he_minus,
+        })
+        .unwrap();
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![ValidationError::ScaffoldingEmptyLoop {
+                loop_: kill.ring,
+            }])
+        );
+    }
+
+    /// Pillow + a *detached digon* hanging on a promoted ring: plant an
+    /// empty ring, grow it to a two-edge cycle (mev + mef), then
+    /// `mfkrh` the ring into a face. The shell's surface is now TWO
+    /// closed components (pillow; digon pair) with **no empty loops and
+    /// no struts anywhere** — the PR 4 finding that made c = 1 its own
+    /// tier-2 rule. Returns (body, shell).
+    fn detached_digon_body() -> (Body<f64>, crate::entity::ShellKey) {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+            )
+            .unwrap();
+        body.mef(MefSite::Chords {
+            he1: seg.he_plus,
+            he2: seg.he_minus,
+        })
+        .unwrap();
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let grow = body
+            .mev(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .unwrap();
+        body.mef(MefSite::Chords {
+            he1: grow.he_plus,
+            he2: grow.he_minus,
+        })
+        .unwrap();
+        body.mfkrh(kill.ring).unwrap();
+        (body, seed.shell)
+    }
+
+    #[test]
+    fn tier_two_rejects_the_promoted_detached_ring() {
+        let (body, shell) = detached_digon_body();
+        // Tier 1 holds — both components are closed genus-0 pieces
+        // (χ = 2 each) — and neither of tier 2's other bans has
+        // anything to say. Only the connectivity rule fires.
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![ValidationError::ShellDisconnected {
+                shell,
+                components: 2,
+            }])
+        );
+    }
+
+    #[test]
+    fn tier_two_report_order_is_the_documented_one() {
+        // All three tier-2 defects at once: empty loops (loop-arena
+        // order), then struts (vertex-arena order), then disconnection
+        // (shell-arena order).
+        let (mut body, shell) = detached_digon_body();
+        // A strut off the pillow rim…
+        let anchor = body
+            .half_edges()
+            .map(|(k, _)| k)
+            .next()
+            .expect("pillow has half-edges");
+        let tail = body
+            .mev(
+                MevSite::Fan {
+                    he1: anchor,
+                    he2: anchor,
+                },
+                p(4.0),
+            )
+            .unwrap();
+        // …and a planted empty ring next to it.
+        let plant = body
+            .mev(
+                MevSite::Fan {
+                    he1: anchor,
+                    he2: anchor,
+                },
+                p(5.0),
+            )
+            .unwrap();
+        let ring2 = body.kemr(plant.he_plus, plant.he_minus).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![
+                ValidationError::ScaffoldingEmptyLoop { loop_: ring2.ring },
+                ValidationError::ScaffoldingStrutVertex {
+                    vertex: tail.vertex,
+                },
+                ValidationError::ShellDisconnected {
+                    shell,
+                    components: 2,
+                },
+            ])
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Fuzz wiring: seqgen drives random valid operator sequences, and
+    // the validator is asserted IN THE TEST — not via the operators'
+    // debug postconditions — so the whole harness is exercised in
+    // release builds too.
+    // ------------------------------------------------------------------
+
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 32,
+            ..ProptestConfig::default()
+        })]
+
+        #[test]
+        fn random_op_sequences_stay_tier1_valid_at_every_step(
+            decisions in proptest::collection::vec(
+                (any::<u32>(), any::<u32>()),
+                1..40,
+            )
+        ) {
+            let mut body = Body::<f64>::new();
+            let mut counter = 0_u32;
+            for (d1, d2) in decisions {
+                let choice = seqgen::choose_op(&body, d1, d2)
+                    .expect("an op always applies");
+                seqgen::apply(&mut body, choice, &mut counter);
+                prop_assert_eq!(validate(&body), Ok(()), "after {:?}", choice);
+            }
+        }
+
+        #[test]
+        fn random_sequences_then_teardown_validate_vacuously(
+            decisions in proptest::collection::vec(
+                (any::<u32>(), any::<u32>()),
+                1..40,
+            )
+        ) {
+            let mut body = Body::<f64>::new();
+            let mut counter = 0_u32;
+            for (d1, d2) in decisions {
+                let choice = seqgen::choose_op(&body, d1, d2)
+                    .expect("an op always applies");
+                seqgen::apply(&mut body, choice, &mut counter);
+            }
+            seqgen::teardown(&mut body);
+            // The torn-down body is empty; both tiers hold vacuously.
+            prop_assert_eq!(validate(&body), Ok(()));
+            prop_assert_eq!(validate_closed(&body), Ok(()));
         }
     }
 
@@ -1779,6 +3017,7 @@ mod tests {
         fn ngon_pillows_validate_cleanly(n in 1usize..=8) {
             let t = ngon_pillow(n);
             prop_assert_eq!(validate(&t.body), Ok(()));
+            prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), n);
             prop_assert_eq!(t.body.edges().count(), n);
             prop_assert_eq!(t.body.faces().count(), 2);
@@ -1794,6 +3033,7 @@ mod tests {
         fn prisms_validate_cleanly(n in 2usize..=8) {
             let t = prism(n);
             prop_assert_eq!(validate(&t.body), Ok(()));
+            prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), 2 * n);
             prop_assert_eq!(t.body.edges().count(), 3 * n);
             prop_assert_eq!(t.body.faces().count(), n + 2);

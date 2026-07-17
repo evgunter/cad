@@ -15,11 +15,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod review_m1_pr2_common;
-
+use super::{euler_poincare_holds, face_polygon, signed_area, start_xyz};
+use crate::{Body, LoopBoundary, MefSite, MevSite, validate};
 use geom_core::Point3;
-use review_m1_pr2_common::{euler_poincare_holds, face_polygon, signed_area, start_xyz};
-use topo::{Body, LoopBoundary, MefSite, MevSite, validate};
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -255,7 +253,7 @@ fn independent_cube_full_verification() {
         let pe_v = body.half_edge_end(edge.he_plus).unwrap();
         let ms = start_xyz(&body, edge.he_minus);
         let me_v = body.half_edge_end(edge.he_minus).unwrap();
-        let p_of = |v: topo::VertexKey| {
+        let p_of = |v: crate::VertexKey| {
             let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             (p.x, p.y, p.z)
         };
