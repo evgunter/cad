@@ -220,6 +220,116 @@ pub trait Real:
     /// operation for geometry values, not control flow; ties keep `self`;
     /// **NaN propagates** (either input NaN ⇒ NaN).
     fn max(self, other: Self) -> Self;
+
+    /// The largest integer ≤ `self` — the range-reduction primitive
+    /// (M2 PR 1; the M0-watchlist `floor`/`rem` item).
+    ///
+    /// Floor is an **exact** operation: the result is always exactly
+    /// representable and uniquely defined, so every conforming
+    /// implementation is bit-identical (like `sqrt`/`abs`, no libm
+    /// routing question arises). It is a *value* computation, never
+    /// control flow — it returns `Self`, not an integer type, so it
+    /// cannot drive a branch (the same enforcement shape as
+    /// [`Real::min`]).
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: IEEE `roundTowardNegative` to integral; NaN propagates,
+    ///   `±∞` stays `±∞` (not poison), `floor(-0.0) = -0.0`.
+    /// - `Interval`: the hull `[floor(lo), floor(hi)]` — floor spans
+    ///   integers ⇒ the hull is the honest enclosure (containment is the
+    ///   contract). The decoration degrades to `Def` when the enclosure
+    ///   spans a jump (defined everywhere, discontinuous on the box), so
+    ///   a downstream decision sees the discontinuity honestly;
+    ///   empty/NaI propagate.
+    /// - `Dual<T>`: value channel is `T::floor` verbatim; the derivative
+    ///   follows the ratified kink conventions — `floor` is locally
+    ///   constant, so the f64 tangent factor is 0 *including at
+    ///   integers* (branch-consistency: the derivative of the program as
+    ///   evaluated — the plateau's), while the interval instantiation
+    ///   carries the honest jump enclosure `[0, +∞]` over any box that
+    ///   spans an integer step (floor is nondecreasing, so all
+    ///   difference quotients are ≥ 0 and unbounded across a jump —
+    ///   the certified-tier analogue of `abs`'s straddle hull).
+    fn floor(self) -> Self;
+
+    /// The value with `self`'s magnitude and `sign`'s sign — the
+    /// branchless sign-transfer primitive (needed by the Pixar
+    /// orthonormal-basis construction, `Vec3::orthonormal_basis`).
+    ///
+    /// **Poison propagates through BOTH arguments** — deliberately
+    /// stricter than IEEE 754 `copySign`, which is a non-arithmetic bit
+    /// operation that would return `±|self|` for a NaN `sign`: a
+    /// poisoned sign means the sign is unknown, and laundering it into a
+    /// definite choice would defeat the module-level NaN policy. Either
+    /// input NaN ⇒ NaN (empty/NaI at intervals).
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: IEEE `copySign` behind the poison guard — an exact bit
+    ///   operation, bit-identical everywhere. The sign of a zero `sign`
+    ///   argument is its sign *bit*: `copysign(x, -0.0) = -|x|`.
+    /// - `Interval`: a `sign` enclosure strictly positive (`lo > 0`)
+    ///   yields `|self|`, strictly negative (`hi < 0`) yields `-|self|`;
+    ///   an enclosure containing zero yields the honest two-sided hull
+    ///   `[-sup|self|, sup|self|]` with the decoration capped at `Def`
+    ///   (the function is defined everywhere but discontinuous in `sign`
+    ///   at 0 — and the hull also covers f64's signed-zero behavior,
+    ///   which a one-sided choice at `lo ≥ 0` would not).
+    /// - `Dual<T>`: value channel is `T::copysign` verbatim; the
+    ///   derivative is `σ(sign)·abs′(self)·self′` per the kink
+    ///   conventions — the `sign` argument's own tangent is discarded
+    ///   (σ is locally constant, the same discard rule as `min`'s
+    ///   unchosen branch), and an interval `sign` straddling zero
+    ///   poisons the tangent to the entire line (the jump in `sign` has
+    ///   unbounded slope).
+    fn copysign(self, sign: Self) -> Self;
+
+    /// Range reduction into one period: `self − period·floor(self/period)`
+    /// — for `period > 0`, the representative of `self` modulo `period`
+    /// lying in `[0, period)` up to rounding (see below). The intended
+    /// use is periodic-parameter reduction: `θ.reduce_periodic(T::tau())`.
+    ///
+    /// **The compositional body IS the definition.** This is deliberately
+    /// a *projection* of [`Real::floor`] and the arithmetic ops — one
+    /// fixed formula, evaluated in exactly the written association
+    /// (divide, floor, multiply, subtract) — rather than a per-scalar
+    /// primitive (`rem_euclid` style), because that is what makes the
+    /// cross-instantiation contract hold with no per-type re-derivation:
+    /// the `Dual` value channel is bit-identical to the plain-`T` run *by
+    /// construction* (it executes the same four operations), the interval
+    /// instantiation contains the true reduced value *by composition* of
+    /// containments, and no comparison appears anywhere (`floor` is the
+    /// only nonsmooth ingredient, and it is comparison-free). A
+    /// remainder-based per-scalar definition would need all three
+    /// properties re-established per instantiation. Implementations may
+    /// override **only bit-identically** to this body (same clause as
+    /// [`Real::sin`]/[`Real::cos`]).
+    ///
+    /// **Honest rounding statement** (the seam blur): in floating point
+    /// the result can land a few ulps *outside* `[0, period)` — an input
+    /// a hair below a period multiple can round `self/period` up to the
+    /// integer, producing a slightly negative result; a hair above can
+    /// round it down, producing a result a hair above `period`. No
+    /// clamping is applied (that would be a comparison). Consumers that
+    /// need a topology-grade statement about the seam go through the
+    /// predicate layer, like every other decision.
+    ///
+    /// **What is promised across periods**: nothing bitwise. `2π` is not
+    /// representable, so `θ + k·fl(τ)` is a *different real parameter*
+    /// than `θ + k·τ`; reduced evaluations of `θ` and `θ + k·fl(τ)`
+    /// agree to rounding (a few ulps scaled by `k` and the derivative),
+    /// never bit-identically. At interval type the enclosure of the
+    /// reduction contains the true reduced value whenever the inputs
+    /// enclose theirs — the containment form of periodicity.
+    ///
+    /// Total: `period = 0` or poison in either operand poisons the
+    /// result through the division (NaN at `f64`, empty/NaI at
+    /// intervals); a negative `period` reduces into `(period, 0]`-ish by
+    /// the same formula (documented behavior, not an intended use).
+    fn reduce_periodic(self, period: Self) -> Self {
+        self - period * (self / period).floor()
+    }
 }
 
 /// Bound extraction for **certification and driver code** — deliberately a
@@ -438,6 +548,29 @@ impl Real for f64 {
             other
         }
     }
+
+    /// Std/hardware floor, not libm: IEEE 754 `roundTowardNegative` to
+    /// integral is an exact operation (the result is uniquely defined and
+    /// exactly representable), so it is bit-identical on every conforming
+    /// platform — D9-compliant, same posture as `sqrt`/`abs`. NaN
+    /// propagates; `±∞` stays (not poison); `floor(-0.0) = -0.0`.
+    fn floor(self) -> Self {
+        f64::floor(self)
+    }
+
+    /// IEEE `copySign` behind the trait's poison guard: either input NaN
+    /// ⇒ NaN (IEEE's own `copySign` is a non-arithmetic bit operation
+    /// that would launder a NaN `sign` into a definite choice — see the
+    /// trait docs). Otherwise an exact bit operation: the sign of a zero
+    /// `sign` argument is its sign bit. Raw `is_nan` inspection is
+    /// allowed inside scalar implementations (Q1), as in [`Real::min`].
+    fn copysign(self, sign: Self) -> Self {
+        if self.is_nan() || sign.is_nan() {
+            f64::NAN
+        } else {
+            f64::copysign(self, sign)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -582,6 +715,78 @@ mod tests {
         assert_eq!(Real::min(-0.0f64, 0.0).to_bits(), (-0.0f64).to_bits());
         assert_eq!(Real::max(0.0f64, -0.0).to_bits(), 0.0f64.to_bits());
         assert_eq!(Real::max(-0.0f64, 0.0).to_bits(), (-0.0f64).to_bits());
+    }
+
+    #[test]
+    fn floor_exactness_and_poison() {
+        // Exact integral rounding toward −∞ on every kind of input.
+        assert_eq!(<f64 as Real>::floor(2.7), 2.0);
+        assert_eq!(<f64 as Real>::floor(-2.3), -3.0);
+        assert_eq!(<f64 as Real>::floor(2.0), 2.0);
+        assert_eq!(<f64 as Real>::floor(-2.0), -2.0);
+        // Signed zeros are preserved (floor is exact, no sign laundering).
+        assert_eq!(<f64 as Real>::floor(0.5), 0.0);
+        assert_eq!(<f64 as Real>::floor(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(<f64 as Real>::floor(0.0).to_bits(), 0.0f64.to_bits());
+        // ±∞ are not poison and pass through; NaN propagates.
+        assert_eq!(<f64 as Real>::floor(f64::INFINITY), f64::INFINITY);
+        assert_eq!(<f64 as Real>::floor(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(<f64 as Real>::floor(f64::NAN).is_nan());
+        // Above 2^52 every f64 is integral: floor is the identity there.
+        assert_eq!(<f64 as Real>::floor(9.1e15), 9.1e15);
+    }
+
+    #[test]
+    fn copysign_transfers_sign_and_propagates_poison() {
+        assert_eq!(<f64 as Real>::copysign(3.0, -1.0), -3.0);
+        assert_eq!(<f64 as Real>::copysign(-3.0, 1.0), 3.0);
+        assert_eq!(<f64 as Real>::copysign(3.0, 1.0), 3.0);
+        // The sign of a zero `sign` argument is its sign BIT (documented).
+        assert_eq!(<f64 as Real>::copysign(3.0, -0.0), -3.0);
+        assert_eq!(<f64 as Real>::copysign(3.0, 0.0), 3.0);
+        // Zero magnitude takes the transferred sign bitwise.
+        assert_eq!(
+            <f64 as Real>::copysign(0.0, -1.0).to_bits(),
+            (-0.0f64).to_bits()
+        );
+        // ±∞ magnitude is not poison.
+        assert_eq!(
+            <f64 as Real>::copysign(f64::INFINITY, -1.0),
+            f64::NEG_INFINITY
+        );
+        // Poison propagates through BOTH arguments — the deliberate
+        // deviation from IEEE copySign (which would return ±3.0 here).
+        assert!(<f64 as Real>::copysign(f64::NAN, 1.0).is_nan());
+        assert!(<f64 as Real>::copysign(3.0, f64::NAN).is_nan());
+        // Contrast: the IEEE bit operation launders the NaN sign.
+        assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
+    }
+
+    #[test]
+    fn reduce_periodic_basics_and_poison() {
+        use core::f64::consts::TAU;
+        // In-range inputs are fixed points (floor(x/p) = 0 ⇒ x − p·0 = x,
+        // bit-exact for non-negative x).
+        assert_eq!(
+            <f64 as Real>::reduce_periodic(1.5, TAU).to_bits(),
+            1.5f64.to_bits()
+        );
+        // One period up/down reduces to within rounding of the in-range
+        // representative (fl(τ) arithmetic — value closeness, never
+        // bit-identity; see the trait docs).
+        assert!((<f64 as Real>::reduce_periodic(1.5 + TAU, TAU) - 1.5).abs() <= 1e-15);
+        assert!((<f64 as Real>::reduce_periodic(1.5 - TAU, TAU) - 1.5).abs() <= 1e-15);
+        // Many periods out: still lands within rounding of 1.5, with the
+        // documented k-scaled blur.
+        assert!((<f64 as Real>::reduce_periodic(1.5 + 1000.0 * TAU, TAU) - 1.5).abs() <= 1e-11);
+        // Exact-period multiples of an exactly representable period.
+        assert_eq!(<f64 as Real>::reduce_periodic(6.0, 2.0), 0.0);
+        assert_eq!(<f64 as Real>::reduce_periodic(-6.0, 2.0), 0.0);
+        assert_eq!(<f64 as Real>::reduce_periodic(-1.5, 2.0), 0.5);
+        // Poison: zero period (0·∞ NaN through the formula), NaN operands.
+        assert!(<f64 as Real>::reduce_periodic(1.0, 0.0).is_nan());
+        assert!(<f64 as Real>::reduce_periodic(f64::NAN, TAU).is_nan());
+        assert!(<f64 as Real>::reduce_periodic(1.0, f64::NAN).is_nan());
     }
 
     #[test]
@@ -782,6 +987,46 @@ mod tests {
             let r = Real::sqrt(x);
             prop_assert!(r >= 0.0);
             prop_assert!((r * r - x).abs() <= 1e-15 * x);
+        }
+
+        /// floor postconditions: integral, ≤ x, within 1 of x — and the
+        /// defining bracket floor(x) ≤ x < floor(x) + 1.
+        #[test]
+        fn floor_bracket(x in -1.0e9..1.0e9f64) {
+            let f = <f64 as Real>::floor(x);
+            prop_assert_eq!(f, f.trunc());
+            prop_assert!(f <= x && x < f + 1.0);
+        }
+
+        /// copysign postconditions: |result| = |x| bitwise in the
+        /// magnitude bits, sign = sign of the sign argument.
+        #[test]
+        fn copysign_magnitude_and_sign(
+            x in -1.0e9..1.0e9f64,
+            s in -1.0e9..1.0e9f64,
+        ) {
+            let r = <f64 as Real>::copysign(x, s);
+            prop_assert_eq!(Real::abs(r).to_bits(), Real::abs(x).to_bits());
+            prop_assert_eq!(r.is_sign_negative(), s.is_sign_negative());
+        }
+
+        /// reduce_periodic lands within the documented seam blur of
+        /// [0, period), and the input differs from the result by an
+        /// integer number of periods up to rounding.
+        #[test]
+        fn reduce_periodic_lands_in_period(
+            x in -1.0e6..1.0e6f64,
+            p in 1.0e-3..1.0e3f64,
+        ) {
+            let r = <f64 as Real>::reduce_periodic(x, p);
+            // Seam blur: a few roundings of the largest intermediate
+            // (p·floor(x/p) ≈ |x|), per the trait's honest statement.
+            let blur = 4.0 * f64::EPSILON * (x.abs() + p);
+            prop_assert!(r >= -blur, "r = {} below the blurred seam", r);
+            prop_assert!(r < p + blur, "r = {} above the blurred period", r);
+            // (x − r)/p is an integer up to the same rounding scale.
+            let k = (x - r) / p;
+            prop_assert!((k - k.round()).abs() <= 1e-6, "k = {}", k);
         }
 
         /// abs is even, non-negative, and value-preserving in magnitude.

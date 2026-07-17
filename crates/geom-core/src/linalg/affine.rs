@@ -101,6 +101,24 @@ impl<T: Real> Affine3<T> {
         Self::from_parts(Mat3::identity(), v)
     }
 
+    /// The rotation by `angle` radians (right-hand rule) about the axis
+    /// through `point` with direction `axis` — revolve's constructor
+    /// (the M0 watchlist item, landing with its first consumer).
+    ///
+    /// Semantically `T(q) ∘ R ∘ T(−q)` for `q` the displacement of
+    /// `point` from the coordinate origin; computed directly as
+    /// `linear = R` ([`Mat3::rotation_about`], which **normalizes the
+    /// axis internally** — a zero/poisoned axis yields an all-NaN map,
+    /// same contract) and `translation = q − R·q`, evaluated in exactly
+    /// that order (rotate `q` once, subtract componentwise — D9; the
+    /// composed triple-product form would round differently). Fixed
+    /// points: the axis line, up to rounding.
+    pub fn rotation_about_axis(point: Point3<T>, axis: Vec3<T>, angle: T) -> Self {
+        let linear = Mat3::rotation_about(axis, angle);
+        let q = point - Point3::origin();
+        Self::from_parts(linear, q - linear * q)
+    }
+
     /// Applies the map to a point: `linear·p + translation`, where `p`'s
     /// coordinates are read as the displacement from the coordinate
     /// origin (the chart identification), the linear part is applied
@@ -325,5 +343,59 @@ mod tests {
             prop_assert!((direct.y - differenced.y).abs() <= 1e-9);
             prop_assert!((direct.z - differenced.z).abs() <= 1e-9);
         }
+
+        /// rotation_about_axis fixes every point of its axis line (up to
+        /// rounding: coordinates ≤ 1e3 through ~10 roundings each side
+        /// ⇒ ~1e-12 budget, asserted at 1e-9) and agrees with the
+        /// composed conjugation T(q)·R·T(−q) it is documented to equal
+        /// (the two differ by reassociation rounding only).
+        #[test]
+        fn rotation_about_axis_fixes_axis_and_matches_conjugation(
+            p in point3(),
+            axis in vec3(),
+            theta in -10.0..10.0f64,
+            s in -3.0..3.0f64,
+            q in point3(),
+        ) {
+            let rot = Affine3::rotation_about_axis(p, axis, theta);
+            // Every point of the axis line is fixed.
+            let on_axis = p + axis * s;
+            let moved = rot.transform_point(on_axis);
+            prop_assert!((moved.x - on_axis.x).abs() <= 1e-9);
+            prop_assert!((moved.y - on_axis.y).abs() <= 1e-9);
+            prop_assert!((moved.z - on_axis.z).abs() <= 1e-9);
+            // Agreement with the explicit conjugation on arbitrary points.
+            let disp = p - Point3::origin();
+            let conjugated = Affine3::translation(disp)
+                * Affine3::from_parts(Mat3::rotation_about(axis, theta), Vec3::zero())
+                * Affine3::translation(-disp);
+            let ours = rot.transform_point(q);
+            let theirs = conjugated.transform_point(q);
+            prop_assert!((ours.x - theirs.x).abs() <= 1e-9);
+            prop_assert!((ours.y - theirs.y).abs() <= 1e-9);
+            prop_assert!((ours.z - theirs.z).abs() <= 1e-9);
+            // Distance to the axis point is preserved (rigidity).
+            prop_assert!((ours.distance(p) - q.distance(p)).abs() <= 1e-9);
+        }
+    }
+
+    /// rotation_about_axis worked example: quarter turn about the
+    /// vertical line through (1, 0, 0) maps the origin to (1, −1, 0)
+    /// (right-hand rule about +z), and poison flows from a zero axis.
+    #[test]
+    fn rotation_about_axis_worked_example_and_poison() {
+        let rot = Affine3::rotation_about_axis(
+            Point3::new(1.0f64, 0.0, 0.0),
+            Vec3::unit_z(),
+            core::f64::consts::FRAC_PI_2,
+        );
+        let image = rot.transform_point(Point3::origin());
+        assert!((image.x - 1.0).abs() <= 1e-15);
+        assert!((image.y - -1.0).abs() <= 1e-15);
+        assert!(image.z.abs() <= 1e-15);
+        // Zero axis: all-NaN map (Mat3::rotation_about's documented
+        // poison), translation poisoned through R·q.
+        let bad = Affine3::rotation_about_axis(Point3::new(1.0f64, 2.0, 3.0), Vec3::zero(), 1.0);
+        assert!(bad.translation.x.is_nan());
     }
 }

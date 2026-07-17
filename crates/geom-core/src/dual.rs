@@ -45,9 +45,9 @@
 //! pays off here: one `sin_cos` of the value serves the value *and*
 //! derivative channels of both trigonometric components.
 //!
-//! # Kink conventions (`abs`, `min`, `max`)
+//! # Kink conventions (`abs`, `min`, `max`, `floor`, `copysign`)
 //!
-//! The non-smooth trio needs sign/order decisions that [`Real`]
+//! The non-smooth operations need sign/order decisions that [`Real`]
 //! deliberately cannot express, so they live in a sealed crate-private
 //! helper trait ([`KinkJacobian`]) implemented per base scalar. The
 //! ratified conventions:
@@ -69,6 +69,23 @@
 //!   other the derivative is the **hull of both tangents** (the lattice
 //!   reading generalizes: a tie-region's derivative is the hull of both
 //!   branches).
+//! - **`floor`** (M2 PR 1): derivative factor 0 — floor is locally
+//!   constant. At `f64` the factor is 0 *including at integers*
+//!   (branch-consistency: the program as evaluated sits on a plateau;
+//!   floor is right-continuous, so the plateau at an integer `k` is
+//!   `[k, k+1)`'s), with NaN propagating. At `Interval`: `[0, 0]` when
+//!   the value enclosure certainly spans no integer step, and the honest
+//!   jump enclosure `[0, +∞]` when it may (floor is nondecreasing, so
+//!   difference quotients are ≥ 0 but unbounded across a jump — the
+//!   step-function analogue of `abs`'s straddle hull; `[0, 0]` there
+//!   would falsify the mean-value enclosure).
+//! - **`copysign`** (M2 PR 1): `d copysign(x, s) = σ(s)·abs′(x)·dx`,
+//!   with σ the transferred sign and `abs′` the `abs` convention above;
+//!   the `s` tangent is **discarded** (σ is locally constant in `s` — the
+//!   same locally-the-chosen-branch discard as `min`'s unchosen
+//!   argument). At `Interval` a `sign` enclosure straddling zero poisons
+//!   the tangent to the entire line: the sign flip is a jump of `2|x|`
+//!   over zero width, so no finite enclosure is honest.
 //!
 //! # Derivatives never branch (the Q1 residue, resolved)
 //!
@@ -202,6 +219,26 @@ pub(crate) trait KinkJacobian: Real {
     /// The tangent of `max(self, other)` — [`KinkJacobian::min_deriv`]
     /// mirrored (ties still keep `self`).
     fn max_deriv(self, self_deriv: Self, other: Self, other_deriv: Self) -> Self;
+
+    /// The Jacobian factor of `floor` at `self`: 0 on plateaus, per the
+    /// module-doc conventions. `f64` gives 0 everywhere (including at
+    /// integers — branch-consistency with the right-continuous plateau)
+    /// with NaN propagating; `Interval` gives `[0, 0]` when the value
+    /// enclosure certainly spans no integer step and the honest jump
+    /// enclosure `[0, +∞]` when it may, with empty/NaI propagating.
+    fn floor_jacobian_factor(self) -> Self;
+
+    /// The tangent of `copysign(self, sign)` given `self`'s tangent:
+    /// `σ(sign)·abs′(self)·self_deriv` per the module-doc conventions.
+    /// The `sign` argument's own tangent is deliberately not a parameter
+    /// — σ is locally constant in `sign`, so that tangent is discarded
+    /// (the same discard rule as `min`'s unchosen branch). `f64`:
+    /// either value NaN poisons; otherwise the signed `abs` factor
+    /// selects. `Interval`: a `sign` enclosure straddling zero yields
+    /// the entire line (the jump has unbounded slope); a sign-definite
+    /// enclosure selects `±abs_sign_factor(self)·self_deriv`, with the
+    /// result's decoration capped by the deciding values'.
+    fn copysign_deriv(self, self_deriv: Self, sign: Self) -> Self;
 }
 
 /// `f64` kink selectors: IEEE comparisons, exact and deterministic (D9).
@@ -246,6 +283,26 @@ impl KinkJacobian for f64 {
             self_deriv
         } else {
             other_deriv
+        }
+    }
+
+    /// 0 everywhere — floor is locally constant, and at an integer the
+    /// program as evaluated sits on the right-continuous plateau
+    /// (branch-consistency, module docs). NaN propagates.
+    fn floor_jacobian_factor(self) -> Self {
+        if self.is_nan() { f64::NAN } else { 0.0 }
+    }
+
+    /// `σ(sign)·abs′(self)·self_deriv`, associations fixed as written:
+    /// the transferred sign σ = `copysign(1, sign)` (a bit read — locally
+    /// constant, including at `sign = ±0`), times the `abs` factor (the
+    /// `+1`-at-zero convention), times the tangent. Either value NaN ⇒
+    /// NaN; a NaN tangent rides through the multiplications.
+    fn copysign_deriv(self, self_deriv: Self, sign: Self) -> Self {
+        if self.is_nan() || sign.is_nan() {
+            f64::NAN
+        } else {
+            f64::copysign(1.0, sign) * self.abs_sign_factor() * self_deriv
         }
     }
 }
@@ -383,6 +440,31 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self {
             value: self.value.abs(),
             deriv: self.value.abs_sign_factor() * self.deriv,
+        }
+    }
+
+    /// `(⌊a⌋, floor′(a)·a′)` with the factor from
+    /// [`KinkJacobian::floor_jacobian_factor`] (the module-doc step
+    /// convention: 0 on plateaus at `f64`, the jump enclosure `[0, +∞]`
+    /// over a step-spanning box at `Interval`). Association fixed as
+    /// `factor · a′`. The value channel is `T::floor` verbatim.
+    fn floor(self) -> Self {
+        Self {
+            value: self.value.floor(),
+            deriv: self.value.floor_jacobian_factor() * self.deriv,
+        }
+    }
+
+    /// `(copysign(a, s), σ(s)·abs′(a)·a′)` via
+    /// [`KinkJacobian::copysign_deriv`] (the module-doc convention: the
+    /// `s` tangent is discarded — σ is locally constant in `s`; an
+    /// interval `s` straddling zero poisons the tangent to the entire
+    /// line). The value channel is `T::copysign` verbatim, poison guard
+    /// included.
+    fn copysign(self, sign: Self) -> Self {
+        Self {
+            value: self.value.copysign(sign.value),
+            deriv: self.value.copysign_deriv(self.deriv, sign.value),
         }
     }
 
@@ -680,6 +762,7 @@ mod tests {
             ("asin", Real::asin, Real::asin),
             ("acos", Real::acos, Real::acos),
             ("atan", Real::atan, Real::atan),
+            ("floor", Real::floor, Real::floor),
         ]
     }
 
@@ -703,6 +786,12 @@ mod tests {
             ("atan2", Real::atan2, Real::atan2),
             ("min", Real::min, Real::min),
             ("max", Real::max, Real::max),
+            ("copysign", Real::copysign, Real::copysign),
+            (
+                "reduce_periodic",
+                Real::reduce_periodic,
+                Real::reduce_periodic,
+            ),
         ]
     }
 
@@ -986,6 +1075,85 @@ mod tests {
         let picked = Real::max(clean, nan_tangent);
         assert_eq!(picked.value, 2.0);
         assert!(picked.deriv.is_nan());
+    }
+
+    /// floor's step convention at f64: derivative exactly 0 on plateaus
+    /// AND at integers (branch-consistency — the program as evaluated
+    /// sits on the right-continuous plateau), NaN propagating.
+    #[test]
+    fn floor_step_convention_at_f64() {
+        // Plateau interior: value floors, tangent is an exact zero
+        // whatever the seed.
+        let d = Dual::new(2.7, 5.0).floor();
+        assert_eq!(d.value, 2.0);
+        assert_eq!(d.deriv.to_bits(), 0.0f64.to_bits());
+        // AT an integer: still the plateau's 0 (the ratified pick).
+        let at_int = Dual::new(3.0, 5.0).floor();
+        assert_eq!(at_int.value, 3.0);
+        assert_eq!(at_int.deriv.to_bits(), 0.0f64.to_bits());
+        // Negative side: floor(-2.3) = -3, tangent 0.
+        let neg = Dual::new(-2.3, 5.0).floor();
+        assert_eq!(neg.value, -3.0);
+        assert_eq!(neg.deriv.to_bits(), 0.0f64.to_bits());
+        // NaN value poisons both channels.
+        let poisoned = Dual::new(f64::NAN, 5.0).floor();
+        assert!(poisoned.value.is_nan());
+        assert!(poisoned.deriv.is_nan());
+        // A NaN tangent stays NaN through the 0-factor multiply (0·NaN).
+        assert!(Dual::new(2.5, f64::NAN).floor().deriv.is_nan());
+    }
+
+    /// copysign's kink conventions at f64: σ(s)·abs′(x) selects the
+    /// tangent factor; the sign argument's tangent is discarded (σ is
+    /// locally constant); NaN in either VALUE poisons both channels.
+    #[test]
+    fn copysign_kink_convention_at_f64() {
+        // Positive x, negative s: factor σ·abs′ = (−1)(+1) = −1.
+        let d = Real::copysign(Dual::new(3.0, 7.0), Dual::new(-2.0, 100.0));
+        assert_eq!(d.value, -3.0);
+        assert_eq!(d.deriv, -7.0);
+        // Negative x, negative s: (−1)(−1) = +1 — no flip.
+        let d = Real::copysign(Dual::new(-3.0, 7.0), Dual::new(-2.0, 0.0));
+        assert_eq!(d.value, -3.0);
+        assert_eq!(d.deriv, 7.0);
+        // Sign tangent discarded even when poisoned: σ is locally
+        // constant (the min-unchosen-branch discard rule).
+        let d = Real::copysign(Dual::new(3.0, 7.0), Dual::new(2.0, f64::NAN));
+        assert_eq!(d.value, 3.0);
+        assert_eq!(d.deriv, 7.0);
+        // x = 0 takes abs's +1-at-zero pick: factor σ·(+1).
+        let d = Real::copysign(Dual::new(0.0, 7.0), Dual::new(-1.0, 0.0));
+        assert_eq!(d.value.to_bits(), (-0.0f64).to_bits());
+        assert_eq!(d.deriv, -7.0);
+        // s = −0.0 transfers its sign BIT (documented) and σ = −1.
+        let d = Real::copysign(Dual::new(3.0, 7.0), Dual::new(-0.0, 0.0));
+        assert_eq!(d.value, -3.0);
+        assert_eq!(d.deriv, -7.0);
+        // NaN sign VALUE poisons both channels (the trait's both-argument
+        // poison guard, inherited verbatim in the value channel).
+        let d = Real::copysign(Dual::new(3.0, 7.0), Dual::new(f64::NAN, 0.0));
+        assert!(d.value.is_nan());
+        assert!(d.deriv.is_nan());
+        let d = Real::copysign(Dual::new(f64::NAN, 0.0), Dual::new(1.0, 0.0));
+        assert!(d.value.is_nan());
+        assert!(d.deriv.is_nan());
+    }
+
+    /// reduce_periodic differentiates through its compositional body:
+    /// away from period boundaries the derivative w.r.t. the input is
+    /// exactly the seed (slope 1 — floor contributes 0), and the
+    /// derivative w.r.t. the period is −floor(x/p) (the plateau index).
+    #[test]
+    fn reduce_periodic_derivatives() {
+        use core::f64::consts::TAU;
+        // d/dθ: slope 1 scaled by the seed.
+        let d = Real::reduce_periodic(Dual::new(1.5 + TAU, 3.0), Dual::constant(TAU));
+        assert!((d.value - 1.5).abs() <= 1e-15);
+        assert_eq!(d.deriv, 3.0);
+        // d/dp of (x mod p) = −⌊x/p⌋ away from kinks: x = 7, p = 2 ⇒ −3.
+        let d = Real::reduce_periodic(Dual::constant(7.0), Dual::variable(2.0));
+        assert_eq!(d.value, 1.0);
+        assert_eq!(d.deriv, -3.0);
     }
 
     /// sqrt's domain-edge kink: value 0 keeps the exact zero while the
@@ -1480,6 +1648,60 @@ mod tests {
             let a = di(1.0, 2.0, 1.0, 1.0);
             let b = di(2.0, 3.0, 9.0, 9.0);
             assert_eq!(bounds_of(Real::min(a, b).deriv), (1.0, 9.0));
+        }
+
+        /// floor at `Dual<Interval>`: `[0, 0]` tangents on plateaus
+        /// (including a point exactly at an integer), the honest jump
+        /// enclosure `[0, +∞]` scaled by the tangent over step-spanning
+        /// boxes.
+        #[test]
+        fn floor_tangent_plateau_vs_jump() {
+            // Plateau interior: exact-zero tangent.
+            let plateau = di(2.2, 2.8, 5.0, 5.0).floor();
+            assert_eq!(bounds_of(plateau.value), (2.0, 2.0));
+            assert_eq!(bounds_of(plateau.deriv), (0.0, 0.0));
+            // Point at an integer: still the plateau (f64-consistent).
+            let at_int = di(3.0, 3.0, 5.0, 5.0).floor();
+            assert_eq!(bounds_of(at_int.value), (3.0, 3.0));
+            assert_eq!(bounds_of(at_int.deriv), (0.0, 0.0));
+            // Step-spanning box: value hulls the two plateaus, tangent is
+            // the jump enclosure [0, +∞]·[5, 5] = [0, +∞].
+            let jump = di(2.5, 3.5, 5.0, 5.0).floor();
+            assert_eq!(bounds_of(jump.value), (2.0, 3.0));
+            assert_eq!(bounds_of(jump.deriv), (0.0, f64::INFINITY));
+            // A negative tangent flips the jump enclosure to [−∞, 0].
+            let jump_neg = di(2.5, 3.5, -5.0, -5.0).floor();
+            assert_eq!(bounds_of(jump_neg.deriv), (f64::NEG_INFINITY, 0.0));
+        }
+
+        /// copysign at `Dual<Interval>`: sign-definite enclosures select
+        /// `±abs′·x′`; a zero-containing sign hulls the value to
+        /// `[−sup|x|, sup|x|]` and poisons the tangent to the entire
+        /// line (the sign flip has unbounded slope).
+        #[test]
+        fn copysign_tangent_definite_vs_straddle() {
+            // Certainly negative sign: value −|x|, tangent −(+1)·x′.
+            let s_neg = Real::copysign(di(2.0, 3.0, 7.0, 7.0), di(-2.0, -1.0, 0.0, 0.0));
+            assert_eq!(bounds_of(s_neg.value), (-3.0, -2.0));
+            assert_eq!(bounds_of(s_neg.deriv), (-7.0, -7.0));
+            // Certainly positive sign, negative x: |x|, (+1)(−1)·x′.
+            let x_neg = Real::copysign(di(-3.0, -2.0, 7.0, 7.0), di(1.0, 2.0, 0.0, 0.0));
+            assert_eq!(bounds_of(x_neg.value), (2.0, 3.0));
+            assert_eq!(bounds_of(x_neg.deriv), (-7.0, -7.0));
+            // Zero-containing sign (including the exact point [0, 0]):
+            // two-sided value hull, entire-line tangent.
+            let straddle = Real::copysign(di(2.0, 3.0, 7.0, 7.0), di(-1.0, 1.0, 0.0, 0.0));
+            assert_eq!(bounds_of(straddle.value), (-3.0, 3.0));
+            assert_eq!(
+                bounds_of(straddle.deriv),
+                (f64::NEG_INFINITY, f64::INFINITY)
+            );
+            let at_zero = Real::copysign(di(2.0, 3.0, 7.0, 7.0), di(0.0, 0.0, 0.0, 0.0));
+            assert_eq!(bounds_of(at_zero.value), (-3.0, 3.0));
+            // Straddling x with definite sign: abs′ hulls to [−1, 1].
+            let x_straddle = Real::copysign(di(-1.0, 2.0, 7.0, 7.0), di(1.0, 1.0, 0.0, 0.0));
+            assert_eq!(bounds_of(x_straddle.value), (0.0, 2.0));
+            assert_eq!(bounds_of(x_straddle.deriv), (-7.0, 7.0));
         }
 
         /// Poison propagates through BOTH channels: a fully-out-of-domain

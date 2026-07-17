@@ -1,0 +1,20 @@
+[package]
+name = "geom-curves"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so every evaluator
+# instantiates at `Interval` — exercised by the feature-gated test
+# modules in CI's interval lane.
+interval = ["geom-core/interval"]
+
+[dependencies]
+geom-core = { path = "../geom-core" }
+
+[dev-dependencies]
+proptest = { workspace = true }
