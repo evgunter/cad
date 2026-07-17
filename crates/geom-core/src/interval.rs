@@ -57,6 +57,14 @@
 //! `-C target-cpu=x86-64-v3` rustflag in its own `.cargo/config.toml` (or
 //! an equivalent `RUSTFLAGS`) to build the interval path on x86-64.
 //!
+//! **Licensing obligation** (the second thing a downstream consumer of
+//! this feature inherits): the `interval` feature links LGPL-3.0+ code —
+//! `inari/gmp` pulls `gmp-mpfr-sys` and `rug` — so builds enabling it
+//! carry the corresponding LGPL compliance obligations. The kernel's own
+//! MIT OR Apache-2.0 dual license is unaffected in default builds, which
+//! have no LGPL dependencies (issue #4; an in-house replacement that
+//! drops the LGPL dependency is roadmapped post-M7 in `docs/DESIGN.md`).
+//!
 //! # Non-real inputs
 //!
 //! `f64`'s NaN and ±∞ are not real numbers and have no enclosure;

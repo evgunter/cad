@@ -17,6 +17,14 @@ Licensed under either of
 
 at your option.
 
+**Exception — the optional `interval` cargo feature**: enabling it links
+LGPL-3.0+ code (`gmp-mpfr-sys`/`rug`, pulled in via `inari/gmp` for
+interval transcendentals), so builds with that feature carry the
+corresponding LGPL compliance obligations. Default builds have no LGPL
+dependencies and no C build step (see issue #4; a post-M7 in-house
+replacement that drops the LGPL dependency is on the roadmap in
+`docs/DESIGN.md`).
+
 ### Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally
