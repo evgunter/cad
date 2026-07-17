@@ -7,6 +7,12 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Forwards geom-core's certified interval scalar so `Body<Interval>` is
+# instantiable — exercised by `tests/interval_body.rs` in CI's interval
+# lane (Q1's pure-replay model: same topology keys, interval geometry).
+interval = ["geom-core/interval"]
+
 [dependencies]
 geom-core = { path = "../geom-core" }
 slotmap = { workspace = true }

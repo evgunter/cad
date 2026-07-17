@@ -179,15 +179,12 @@ new_key_type! {
 /// of any other kind at compile time:
 ///
 /// ```compile_fail,E0308
-/// use topo::{Body, Provenance, Solid};
+/// use topo::{Solid, SolidKey};
 ///
-/// let mut body = Body::<f64>::new();
-/// let solid = body.add_solid(Solid { shells: vec![] }, Provenance::Primordial { op: "doc" });
 /// // This example must NOT compile: `shells` holds `ShellKey`s only.
-/// let _ = body.add_solid(
-///     Solid { shells: vec![solid] },
-///     Provenance::Primordial { op: "doc" },
-/// );
+/// let _ = Solid {
+///     shells: vec![SolidKey::default()],
+/// };
 /// ```
 #[derive(Clone, Debug)]
 pub struct Solid {
@@ -201,8 +198,10 @@ pub struct Solid {
 /// Closedness/watertightness in the half-edge representation is
 /// *structural*: every edge has exactly two antiparallel half-edges and
 /// every vertex orbit is a single cycle — both are tier-1 validator
-/// checks. The per-shell Euler–Poincaré count and tier-2 "finished
-/// solid" rules land in M1 PR 5.
+/// checks, as are the component-aware per-shell Euler–Poincaré count
+/// and the same-shell rule for an edge's two faces. Tier 2
+/// ([`crate::validate_closed`]) additionally requires the shell's
+/// incidence complex connected (c = 1) on finished solids.
 #[derive(Clone, Debug)]
 pub struct Shell {
     /// The faces of this shell, each owned by exactly this shell

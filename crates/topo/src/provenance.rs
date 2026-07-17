@@ -19,8 +19,8 @@
 //! `ring_move` reparents, keeps the record of the operation that
 //! *created* it. Symmetrically, kill-direction operators **remove** the
 //! records of the entities they kill (a `SecondaryMap` entry outliving
-//! its entity would be a leak; PR 5's bidirectional check makes such
-//! leaks loud). Together with deterministic
+//! its entity would be a leak; the validator's bidirectional provenance
+//! pass makes such leaks loud in both directions). Together with deterministic
 //! minting (D9), the provenance records are the derivation's fingerprints
 //! in the materialized body (D1: a `Body` is never authoritative — it is
 //! the evaluation of its construction, and provenance points back at that
@@ -53,9 +53,9 @@ use crate::euler_ring::MekrSite;
 /// is historical, not a live reference.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Provenance {
-    /// Created directly — by hand, by test scaffolding, or by the raw
-    /// builder placeholder (which retreats behind the Euler operators at
-    /// M1 PR 5) — rather than by an operator.
+    /// Created directly — by test scaffolding through the crate-internal
+    /// raw builder (`pub(crate)` since M1 PR 5; the Euler operators are
+    /// the only public construction path) — rather than by an operator.
     Primordial {
         /// A static label naming the creating context (e.g.
         /// `"test:tiny-body"`).

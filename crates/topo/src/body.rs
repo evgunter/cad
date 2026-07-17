@@ -117,16 +117,12 @@ pub(crate) enum Walk {
 ///
 /// ```compile_fail,E0308
 /// use geom_core::Point3;
-/// use topo::{Body, Provenance, Vertex};
+/// use topo::Body;
 ///
 /// let mut body = Body::<f64>::new();
-/// let p = body.add_point(Point3::new(0.0, 0.0, 0.0));
-/// let v = body.add_vertex(
-///     Vertex { point: p, emanating: None },
-///     Provenance::Primordial { op: "doc" },
-/// );
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
 /// // A `VertexKey` is not a `ShellKey`: this example must NOT compile.
-/// let _ = body.get_shell(v);
+/// let _ = body.get_shell(seed.vertex);
 /// ```
 #[derive(Clone, Debug)]
 pub struct Body<T: Real> {
@@ -179,17 +175,15 @@ impl<T: Real> Body<T> {
     }
 
     // ------------------------------------------------------------------
-    // Raw insertion — placeholder builder API until PR 5.
+    // Raw insertion — crate-internal since M1 PR 5.
     //
-    // M1's Euler operators become the ONLY sanctioned construction path
-    // (D1: topology is built exclusively through validity-preserving
-    // Euler ops); these raw insertions then retreat behind them (the
-    // `pub(crate)` demotion is PR 5). They are `pub` for now — not
-    // `pub(crate)` — because construction has to be exercisable from
-    // integration tests, doctests, and e2e review demos, all of which sit
-    // outside the crate. Raw insertion makes NO validity promises: it can
-    // build arbitrarily malformed bodies by design — judging the result
-    // is `topo::validate`'s job.
+    // The Euler operators are the ONLY public construction path (D1:
+    // topology is built exclusively through validity-preserving Euler
+    // ops). The raw builder survives as `pub(crate)` test scaffolding:
+    // the validator's malformed fixtures and the review artifacts need
+    // to build states no operator can reach. Raw insertion makes NO
+    // validity promises: it can build arbitrarily malformed bodies by
+    // design — judging the result is `topo::validate`'s job.
     //
     // The half-edge structure is cyclic (next/prev cycles, the edge ↔
     // half-edge bijection, spine back-pointers), so pure insertion in
@@ -199,39 +193,37 @@ impl<T: Real> Body<T> {
     // constructor. The raw builder therefore pairs each `add_*` with a
     // `get_*_mut` patching accessor: insert with provisional keys (e.g.
     // `Default::default()` null keys, which never resolve), then patch
-    // the cycles closed.
-    // Both halves of the builder retreat to `pub(crate)` together at
-    // PR 5 — the Euler operators never need external patching because
-    // each operator is itself a complete surgery.
+    // the cycles closed. The Euler operators never need external
+    // patching because each operator is itself a complete surgery.
     // ------------------------------------------------------------------
 
     /// Inserts a point (vertex geometry), returning its key.
     ///
-    /// Placeholder raw insertion (see the builder-API note in the
+    /// Crate-internal raw insertion (see the builder-API note in the
     /// source): no validity promises.
-    pub fn add_point(&mut self, point: Point3<T>) -> PointKey {
+    pub(crate) fn add_point(&mut self, point: Point3<T>) -> PointKey {
         self.points.insert(point)
     }
 
     /// Inserts curve geometry, returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_curve(&mut self, curve: CurveGeom<T>) -> CurveKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_curve(&mut self, curve: CurveGeom<T>) -> CurveKey {
         self.curves.insert(curve)
     }
 
     /// Inserts surface geometry, returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_surface(&mut self, surface: SurfaceGeom<T>) -> SurfaceKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_surface(&mut self, surface: SurfaceGeom<T>) -> SurfaceKey {
         self.surfaces.insert(surface)
     }
 
     /// Inserts a vertex with its birth provenance (D5), returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises (the referenced
+    /// Crate-internal raw insertion: no validity promises (the referenced
     /// point may dangle — the validator reports it).
-    pub fn add_vertex(&mut self, vertex: Vertex, provenance: Provenance) -> VertexKey {
+    pub(crate) fn add_vertex(&mut self, vertex: Vertex, provenance: Provenance) -> VertexKey {
         let key = self.vertices.insert(vertex);
         self.vertex_provenance.insert(key, provenance);
         key
@@ -240,10 +232,10 @@ impl<T: Real> Body<T> {
     /// Inserts a half-edge with its birth provenance (D5), returning its
     /// key.
     ///
-    /// Placeholder raw insertion: no validity promises. Because
+    /// Crate-internal raw insertion: no validity promises. Because
     /// `next`/`prev` form cycles, callers typically insert with
     /// provisional keys and patch via [`Body::get_half_edge_mut`].
-    pub fn add_half_edge(&mut self, half_edge: HalfEdge, provenance: Provenance) -> HalfEdgeKey {
+    pub(crate) fn add_half_edge(&mut self, half_edge: HalfEdge, provenance: Provenance) -> HalfEdgeKey {
         let key = self.half_edges.insert(half_edge);
         self.half_edge_provenance.insert(key, provenance);
         key
@@ -251,8 +243,8 @@ impl<T: Real> Body<T> {
 
     /// Inserts an edge with its birth provenance (D5), returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_edge(&mut self, edge: Edge, provenance: Provenance) -> EdgeKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_edge(&mut self, edge: Edge, provenance: Provenance) -> EdgeKey {
         let key = self.edges.insert(edge);
         self.edge_provenance.insert(key, provenance);
         key
@@ -260,8 +252,8 @@ impl<T: Real> Body<T> {
 
     /// Inserts a loop with its birth provenance (D5), returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_loop(&mut self, loop_: Loop, provenance: Provenance) -> LoopKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_loop(&mut self, loop_: Loop, provenance: Provenance) -> LoopKey {
         let key = self.loops.insert(loop_);
         self.loop_provenance.insert(key, provenance);
         key
@@ -269,8 +261,8 @@ impl<T: Real> Body<T> {
 
     /// Inserts a face with its birth provenance (D5), returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_face(&mut self, face: Face, provenance: Provenance) -> FaceKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_face(&mut self, face: Face, provenance: Provenance) -> FaceKey {
         let key = self.faces.insert(face);
         self.face_provenance.insert(key, provenance);
         key
@@ -278,8 +270,8 @@ impl<T: Real> Body<T> {
 
     /// Inserts a shell with its birth provenance (D5), returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_shell(&mut self, shell: Shell, provenance: Provenance) -> ShellKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_shell(&mut self, shell: Shell, provenance: Provenance) -> ShellKey {
         let key = self.shells.insert(shell);
         self.shell_provenance.insert(key, provenance);
         key
@@ -287,8 +279,8 @@ impl<T: Real> Body<T> {
 
     /// Inserts a solid with its birth provenance (D5), returning its key.
     ///
-    /// Placeholder raw insertion: no validity promises.
-    pub fn add_solid(&mut self, solid: Solid, provenance: Provenance) -> SolidKey {
+    /// Crate-internal raw insertion: no validity promises.
+    pub(crate) fn add_solid(&mut self, solid: Solid, provenance: Provenance) -> SolidKey {
         let key = self.solids.insert(solid);
         self.solid_provenance.insert(key, provenance);
         key
@@ -303,43 +295,43 @@ impl<T: Real> Body<T> {
 
     /// Mutable access to the solid at `key` (raw-builder patching; see
     /// the source note on cyclic references). `None` if the key is stale.
-    pub fn get_solid_mut(&mut self, key: SolidKey) -> Option<&mut Solid> {
+    pub(crate) fn get_solid_mut(&mut self, key: SolidKey) -> Option<&mut Solid> {
         self.solids.get_mut(key)
     }
 
     /// Mutable access to the shell at `key` (raw-builder patching).
     /// `None` if the key is stale.
-    pub fn get_shell_mut(&mut self, key: ShellKey) -> Option<&mut Shell> {
+    pub(crate) fn get_shell_mut(&mut self, key: ShellKey) -> Option<&mut Shell> {
         self.shells.get_mut(key)
     }
 
     /// Mutable access to the face at `key` (raw-builder patching).
     /// `None` if the key is stale.
-    pub fn get_face_mut(&mut self, key: FaceKey) -> Option<&mut Face> {
+    pub(crate) fn get_face_mut(&mut self, key: FaceKey) -> Option<&mut Face> {
         self.faces.get_mut(key)
     }
 
     /// Mutable access to the loop at `key` (raw-builder patching).
     /// `None` if the key is stale.
-    pub fn get_loop_mut(&mut self, key: LoopKey) -> Option<&mut Loop> {
+    pub(crate) fn get_loop_mut(&mut self, key: LoopKey) -> Option<&mut Loop> {
         self.loops.get_mut(key)
     }
 
     /// Mutable access to the half-edge at `key` (raw-builder patching).
     /// `None` if the key is stale.
-    pub fn get_half_edge_mut(&mut self, key: HalfEdgeKey) -> Option<&mut HalfEdge> {
+    pub(crate) fn get_half_edge_mut(&mut self, key: HalfEdgeKey) -> Option<&mut HalfEdge> {
         self.half_edges.get_mut(key)
     }
 
     /// Mutable access to the edge at `key` (raw-builder patching).
     /// `None` if the key is stale.
-    pub fn get_edge_mut(&mut self, key: EdgeKey) -> Option<&mut Edge> {
+    pub(crate) fn get_edge_mut(&mut self, key: EdgeKey) -> Option<&mut Edge> {
         self.edges.get_mut(key)
     }
 
     /// Mutable access to the vertex at `key` (raw-builder patching).
     /// `None` if the key is stale.
-    pub fn get_vertex_mut(&mut self, key: VertexKey) -> Option<&mut Vertex> {
+    pub(crate) fn get_vertex_mut(&mut self, key: VertexKey) -> Option<&mut Vertex> {
         self.vertices.get_mut(key)
     }
 
@@ -738,9 +730,9 @@ mod tests {
             },
             prov(),
         );
-        // Unit tests may reach into the pub(crate) arenas; removal has no
-        // public API yet (bodies are values, and only M1 PR 4's kill-side
-        // Euler ops introduce sanctioned removal).
+        // Unit tests may reach into the pub(crate) arenas; sanctioned
+        // removal is the kill-side Euler ops (bodies are values — raw
+        // removal here is deliberate test corruption).
         body.shells.remove(sh);
         assert!(body.get_shell(sh).is_none());
         assert!(body.get_shell_mut(sh).is_none());

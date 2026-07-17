@@ -8,8 +8,9 @@
 //! helper live in the sibling module [`crate::euler_ring`] (M1 PR 3),
 //! the kill-direction duals ([`Body::kvfs`], [`Body::kev`],
 //! [`Body::kef`], [`Body::mfkrh`]) in [`crate::euler_kill`] (M1 PR 4);
-//! all share this module's contracts and [`EulerOpError`]. The
-//! raw-insertion builder retreats behind these operators at PR 5.
+//! all share this module's contracts and [`EulerOpError`]. Since M1
+//! PR 5 the raw-insertion builder is `pub(crate)`: these operators are
+//! the **only** public construction path (D1).
 //!
 //! # Operator contracts (uniform across all ops)
 //!
@@ -34,16 +35,18 @@
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
 //!   count deltas match its Euler vector and that the whole body still
-//!   passes tier-1 [`crate::validate::validate`]. **On tier-1-valid
-//!   input** a firing postcondition is a kernel bug by definition (the
-//!   per-call instance of the ch. 9 soundness theorem failing against
-//!   our transcription). The conditional matters while the raw builder
-//!   is still public (until PR 5): corruption the preconditions don't
-//!   detect — e.g. consistently swapped `parent_loop`s — can pass every
-//!   check, mutate, and fire the postcondition, so debug builds CAN
-//!   panic here on tier-1-invalid input reached through the raw
-//!   builder; release builds return `Ok` with garbage instead (the
-//!   documented garbage-in contract above).
+//!   passes tier-1 [`crate::validate::validate`]. On tier-1-valid input
+//!   a firing postcondition is a kernel bug by definition (the per-call
+//!   instance of the ch. 9 soundness theorem failing against our
+//!   transcription) — and since PR 5's raw-builder demotion **every
+//!   publicly-constructible input is tier-1-valid**, because the
+//!   operators are the only public construction path and each preserves
+//!   tier 1. The D9 taxonomy consequence: these debug panics are
+//!   **unreachable by input** through the public API — reaching one
+//!   requires in-crate raw corruption (which is what the validator's
+//!   own tests do deliberately). Release builds carry no check either
+//!   way: on corrupt in-crate input they return `Ok` with garbage
+//!   instead (the documented garbage-in contract above).
 //!
 //! # Geometry policy at M1
 //!
@@ -1449,12 +1452,13 @@ impl<T: Real> Body<T> {
     /// operator, the arena deltas must match the op's Euler vector and
     /// the body must be tier-1 valid. On tier-1-valid input a failure
     /// here is a kernel bug (a per-call violation of the ch. 9
-    /// soundness theorem by our transcription). On tier-1-INVALID
-    /// input it can also fire — undetected raw-builder corruption can
-    /// pass the preconditions and surface here — so until PR 5 demotes
-    /// the raw builder this debug-only panic is publicly reachable;
-    /// release builds return garbage instead (module docs, operator
-    /// contracts).
+    /// soundness theorem by our transcription) — and with the raw
+    /// builder `pub(crate)` since PR 5, every publicly-constructible
+    /// input IS tier-1-valid, so this debug-only panic is unreachable
+    /// by input through the public API. It remains reachable from
+    /// in-crate raw corruption that slips past an op's preconditions
+    /// (e.g. consistently swapped `parent_loop`s); release builds
+    /// return garbage instead (module docs, operator contracts).
     #[cfg(debug_assertions)]
     pub(crate) fn assert_euler_postcondition(
         &self,

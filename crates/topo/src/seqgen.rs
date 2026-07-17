@@ -2,8 +2,9 @@
 //! machinery (test support, M1 PR 4).
 //!
 //! The proptest suite at the bottom drives the four properties the PR
-//! promises; the building blocks are `pub(crate)` so M1 PR 5's
-//! validator fuzzing can reuse the generator as its fuzz source:
+//! promises; the building blocks are `pub(crate)`, and PR 5's validator
+//! fuzzing (see `crate::validate`'s tests) reuses the generator as its
+//! fuzz source:
 //!
 //! - [`choose_op`] — walk the current body, enumerate every applicable
 //!   `(operator, site)` candidate deterministically, and pick one by a
@@ -142,10 +143,12 @@ impl Ledger {
     /// entity, so eq. 9.2's h stops meaning "genus of a connected
     /// closed surface" and starts double-counting components. A legal
     /// tier-1 intermediate (like empty loops and struts). The
-    /// component-aware per-shell form that PR 5's validator must
-    /// implement (per component v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per
-    /// shell the sum is 2(c − Σgᵢ)) is ratified in `docs/M1-PLAN.md`'s
-    /// PR 5 bullet, corrected by this PR.
+    /// component-aware per-shell form (per component
+    /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
+    /// 2(c − Σgᵢ)) was ratified in `docs/M1-PLAN.md`'s PR 5 bullet,
+    /// corrected by PR 4, and is implemented as the validator's pass 11
+    /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
+    /// because the generator tracks the operator algebra, not surfaces.
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let v = body.vertices().count() as i64;
         let e = body.edges().count() as i64;

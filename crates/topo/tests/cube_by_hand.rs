@@ -36,6 +36,7 @@
 use geom_core::Point3;
 use topo::{
     Body, EntityId, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, Provenance, validate,
+    validate_closed,
 };
 
 /// Every operator result of one cube construction, in call order.
@@ -182,10 +183,14 @@ fn cube_by_hand_validates_with_minimal_counts() {
     assert_eq!(body.curves().count(), 12);
     assert_eq!(body.surfaces().count(), 1);
     // Euler–Poincaré: v − e + f = 8 − 12 + 6 = 2 = 2(s − h) + r with
-    // s = 1, h = r = 0. (The per-shell validator pass is PR 5; the
-    // count check here is the acceptance criterion's explicit form.)
+    // s = 1, h = r = 0. (The validator's per-shell component pass now
+    // checks this internally; the count check here is the acceptance
+    // criterion's explicit form.)
     assert_eq!(8 - 12 + 6, 2);
     assert_eq!(validate(&body), Ok(()));
+    // The finished cube is a tier-2 closed solid: no scaffolding, one
+    // connected shell component.
+    assert_eq!(validate_closed(&body), Ok(()));
 
     // Every face's outer loop is a quad, and no face has rings.
     for (_, face) in body.faces() {

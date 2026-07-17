@@ -4,7 +4,8 @@
 //! [`canonical_form`] emits a deterministic textual form of a body;
 //! [`isomorphic`] compares two forms. The roundtrip property tests use
 //! it to assert that an operator followed by its exact inverse restores
-//! the body, and M1 PR 5's validator fuzzing can reuse it.
+//! the body; it remains available to any in-crate fuzzing that needs a
+//! structural oracle.
 //!
 //! # What "isomorphic" means here
 //!
