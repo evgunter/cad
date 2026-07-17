@@ -36,9 +36,20 @@
 //! history*: a history that includes a kemr∘mekr roundtrip re-mints the
 //! killed entities in **recycled slots with bumped generations**, so its
 //! keys differ from a history without the pair — that is expected, not
-//! a leak (pinned by test). Once the freed slots are consumed, minting
-//! converges again: entities created after a balanced kill/make pair get
-//! the same keys they would have gotten without it.
+//! a leak (pinned by test). Convergence with the pair-free history is
+//! **per-arena**, because a balanced kemr∘mekr pair is slot-balanced
+//! only per-arena: `mekr` immediately re-consumes the half-edge, edge,
+//! and curve slots `kemr` freed, but the pair's net effect on the LOOP
+//! arena is one freed slot (`kemr`'s ring, freed again by `mekr` and
+//! re-consumed by nothing in the pair). So half-edge/edge/curve minting
+//! converges right after the pair, while the loop arena converges one
+//! loop-mint later — the first loop-minting op (e.g. `mef`) lands its
+//! loop in the recycled slot with a bumped generation, and everything
+//! from the second loop-mint on agrees (pinned by test). An UNBALANCED
+//! kill history (a `kemr` with no inverse) offsets the killed arenas'
+//! allocation cursors permanently: arenas the kill never touched stay
+//! aligned with the kill-free history forever, killed arenas never
+//! re-align.
 //!
 //! # Which side becomes the ring (`kemr`'s association, ratified)
 //!
@@ -461,8 +472,12 @@ impl<T: Real> Body<T> {
             }
         }
         if let (Some(&first), Some(&last)) = (ring_side.first(), ring_side.last()) {
-            // last = prev(he2), first = next(he1): closing the ring cycle
-            // (self-link when the side has one member).
+            // last = prev(he2), first = next(he1): closing the ring cycle.
+            // When the side has ONE member this is a self-link (a
+            // one-half-edge loop). That configuration needs a self-loop
+            // half flanked by the killed halves on both sides — believed
+            // unreachable through M1 operator sequences and verified by
+            // derivation only (same for the old side below).
             self.link_half_edges(last, first);
         }
         // Close the old loop's cycle and re-anchor it (unconditional
@@ -535,10 +550,15 @@ impl<T: Real> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// Per site, in the documented order: anchors resolve
-    /// ([`EulerOpError::StaleKey`]); the two loops are distinct
-    /// ([`EulerOpError::SameLoop`]); each loop resolves (`StaleKey`) and
-    /// has the site's required boundary shape
+    /// The listing below is **`Cycles`-canonical**; the loop-key-
+    /// addressed sites (`EmptyTarget`, `BothEmpty`) necessarily resolve
+    /// the target loop (and check its boundary shape) *before* the
+    /// distinctness check. Each site's own order is fixed and
+    /// deterministic (the first failure wins).
+    ///
+    /// Anchors resolve ([`EulerOpError::StaleKey`]); the two loops are
+    /// distinct ([`EulerOpError::SameLoop`]); each loop resolves
+    /// (`StaleKey`) and has the site's required boundary shape
     /// ([`EulerOpError::LoopNotCycle`] /
     /// [`EulerOpError::LoopNotEmpty`]); both loops belong to one face
     /// ([`EulerOpError::NotSameFace`]) which resolves (`StaleKey`); the
@@ -1028,6 +1048,12 @@ impl<T: Real> Body<T> {
     /// The shared vertex-side preconditions: both anchor vertices
     /// resolve (their `emanating` is rewritten) and `u`'s point resolves
     /// (the placeholder-curve anchor). Returns the anchor coordinates.
+    ///
+    /// The [`EulerOpError::StaleGeometry`] arm is dead-but-defensive
+    /// today: nothing removes points until PR 5's kill-side completion
+    /// (operators only reap curves/surfaces), so through the public API
+    /// it is unreachable without key forging. Kept because the op must
+    /// stay sound standalone once point removal exists.
     fn check_anchors(&self, u: VertexKey, w: VertexKey) -> Result<Point3<T>, EulerOpError> {
         let anchor = self.resolve_vertex_point(u)?;
         if !self.vertices.contains_key(w) {
@@ -1995,10 +2021,77 @@ mod tests {
         assert_ne!(restore_a.edge, a1.edge);
         assert_ne!(restore_a.he_plus, a1.he_plus);
         assert_ne!(restore_a.he_minus, a1.he_minus);
-        // But a BALANCED pair consumes exactly the slots it freed, so
-        // minting converges afterwards: the follow-up mev gets the same
-        // keys in both histories.
+        // The pair re-consumed every half-edge/edge/curve slot it freed,
+        // so a follow-up mev — which mints NO loop — gets the same keys
+        // in both histories. (This deliberately does not witness the
+        // loop arena: the pair leaves one freed LOOP slot behind, and
+        // that boundary is pinned by pair_convergence_is_per_arena
+        // below.)
         assert_eq!(extra_a, extra_c);
+    }
+
+    #[test]
+    fn pair_convergence_is_per_arena() {
+        // A balanced kemr∘mekr pair is slot-balanced only PER-ARENA:
+        // mekr re-consumes the half-edge/edge/curve slots kemr freed,
+        // but kemr's ring-LOOP slot (freed again by mekr) is re-consumed
+        // by nothing in the pair. The previous test pins convergence via
+        // mev — the one make-op that mints no loop — so the loop-arena
+        // boundary needs this dedicated pin (review SHOULD, 2026-07-16).
+        let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
+        body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
+        body_a
+            .mekr(MekrSite::Cycles {
+                target: a0.he_minus,
+                ring: a2.he_plus,
+            })
+            .unwrap();
+        let (mut body_c, _seed_c, [c0, c1, c2]) = chain3();
+        // chain3 is deterministic, so the two histories share their
+        // pre-pair keys — the same mef sites address both bodies.
+        assert_eq!((a0, a1, a2), (c0, c1, c2));
+
+        // The FIRST loop-minting op after the pair: its loop lands in
+        // the recycled slot with a bumped generation (keys differ);
+        // every other minted key has already converged (face slots were
+        // never touched, curve/edge/half-edge slots were re-consumed by
+        // the pair).
+        let mef1_a = body_a
+            .mef(MefSite::Chords {
+                he1: a0.he_plus,
+                he2: a2.he_minus,
+            })
+            .unwrap();
+        let mef1_c = body_c
+            .mef(MefSite::Chords {
+                he1: c0.he_plus,
+                he2: c2.he_minus,
+            })
+            .unwrap();
+        assert_ne!(mef1_a.r#loop, mef1_c.r#loop);
+        assert_eq!(mef1_a.face, mef1_c.face);
+        assert_eq!(mef1_a.edge, mef1_c.edge);
+        assert_eq!(mef1_a.he_plus, mef1_c.he_plus);
+        assert_eq!(mef1_a.he_minus, mef1_c.he_minus);
+        assert_eq!(mef1_a.curve, mef1_c.curve);
+
+        // One loop-mint later the loop arena has converged too: the
+        // second mef agrees on every key.
+        let mef2_a = body_a
+            .mef(MefSite::Chords {
+                he1: a2.he_minus,
+                he2: a0.he_minus,
+            })
+            .unwrap();
+        let mef2_c = body_c
+            .mef(MefSite::Chords {
+                he1: c2.he_minus,
+                he2: c0.he_minus,
+            })
+            .unwrap();
+        assert_eq!(mef2_a, mef2_c);
+        assert_eq!(validate(&body_a), Ok(()));
+        assert_eq!(validate(&body_c), Ok(()));
     }
 
     // ------------------------------------------------------------------
