@@ -344,6 +344,41 @@ impl<T: Real> Body<T> {
     }
 
     // ------------------------------------------------------------------
+    // Kill-side geometry hygiene (crate-internal; M1 PR 3). The Euler
+    // operators own topology-arena removal directly (the arenas are
+    // pub(crate)); geometry removal goes through these guarded paths so
+    // that a kill never strands geometry (tier 1's OrphanGeometry) and
+    // never removes geometry something still references.
+    // ------------------------------------------------------------------
+
+    /// Removes `curve` from the curve arena iff no edge references it,
+    /// returning whether it was removed. Used by edge-killing operators
+    /// (`kemr`; PR 4's `kev`/`kef`): in Euler-built bodies every edge
+    /// owns its own placeholder curve, but the scan keeps the op sound
+    /// standalone. Deterministic (D9): a full sweep of the edge arena —
+    /// the outcome is a pure function of the arena contents. A stale
+    /// `curve` key is a no-op returning `false`.
+    pub(crate) fn remove_curve_if_orphaned(&mut self, curve: CurveKey) -> bool {
+        if self.edges.values().any(|edge| edge.curve == curve) {
+            return false;
+        }
+        self.curves.remove(curve).is_some()
+    }
+
+    /// Removes `surface` from the surface arena iff no face references
+    /// it, returning whether it was removed. Used by face-killing
+    /// operators (`kfmrh`; PR 4's `kef`): in M1 constructions all faces
+    /// share `mvfs`'s surface (so nothing is removed), but the scan
+    /// keeps the op sound standalone. Deterministic (D9), same shape as
+    /// [`Body::remove_curve_if_orphaned`].
+    pub(crate) fn remove_surface_if_orphaned(&mut self, surface: SurfaceKey) -> bool {
+        if self.faces.values().any(|face| face.surface == surface) {
+            return false;
+        }
+        self.surfaces.remove(surface).is_some()
+    }
+
+    // ------------------------------------------------------------------
     // Lookup. Total: a stale key yields `None`, never a panic. A foreign
     // key is NOT caught — it may resolve to an arbitrary entity (see the
     // module docs on stale-vs-foreign keys).

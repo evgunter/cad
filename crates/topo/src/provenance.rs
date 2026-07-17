@@ -9,7 +9,16 @@
 //! Since M1 PR 2 the record is **typed per operator**: each Euler
 //! operator stamps everything it mints with its own variant carrying the
 //! site (argument keys) it was applied at — [`Provenance::Mvfs`],
-//! [`Provenance::Mev`], [`Provenance::Mef`]. Together with deterministic
+//! [`Provenance::Mev`], [`Provenance::Mef`], and (PR 3)
+//! [`Provenance::Kemr`], [`Provenance::Mekr`]. Operators that mint
+//! nothing (`kfmrh`, `ring_move`) have no variant: a provenance record
+//! is a **birth record**, written once when the entity is created and
+//! never rewritten — a loop that `kfmrh` demotes to a ring, or that
+//! `ring_move` reparents, keeps the record of the operation that
+//! *created* it. Symmetrically, kill-direction operators **remove** the
+//! records of the entities they kill (a `SecondaryMap` entry outliving
+//! its entity would be a leak; PR 5's bidirectional check makes such
+//! leaks loud). Together with deterministic
 //! minting (D9), the provenance records are the derivation's fingerprints
 //! in the materialized body (D1: a `Body` is never authoritative — it is
 //! the evaluation of its construction, and provenance points back at that
@@ -27,13 +36,19 @@
 //! a `Provenance` at every topology insertion, so an entity without
 //! provenance is unrepresentable.
 
+use crate::entity::HalfEdgeKey;
 use crate::euler::{MefSite, MevSite};
+use crate::euler_ring::MekrSite;
 
 /// Why a topology entity exists (D5).
 ///
 /// The site payloads record the operator's argument keys — keys are
 /// body-lineage-scoped (see [`Body`](crate::Body)), so a provenance
-/// record is meaningful exactly where its entity is.
+/// record is meaningful exactly where its entity is. The recorded keys
+/// are the arguments **as they were at call time**: a kill-direction
+/// record (e.g. [`Provenance::Kemr`], which kills the very half-edges it
+/// was addressed by) may hold keys that no longer resolve — the record
+/// is historical, not a live reference.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Provenance {
     /// Created directly — by hand, by test scaffolding, or by the raw
@@ -59,5 +74,23 @@ pub enum Provenance {
     Mef {
         /// The site the operator was applied at (its argument keys).
         site: MefSite,
+    },
+    /// Created by [`Body::kemr`](crate::Body::kemr): the new ring loop
+    /// (the only entity `kemr` mints). The recorded half-edges are the
+    /// killed edge's two halves and no longer resolve (see the type
+    /// docs: records are historical).
+    Kemr {
+        /// `kemr`'s first argument — the half whose side became this
+        /// ring.
+        he1: HalfEdgeKey,
+        /// `kemr`'s second argument — the half whose side kept the old
+        /// loop.
+        he2: HalfEdgeKey,
+    },
+    /// Created by [`Body::mekr`](crate::Body::mekr): the new edge and
+    /// both half-edges.
+    Mekr {
+        /// The site the operator was applied at (its argument keys).
+        site: MekrSite,
     },
 }

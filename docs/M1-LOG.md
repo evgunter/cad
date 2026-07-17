@@ -166,6 +166,57 @@ Second round (chat, 2026-07-16):
   ratify the ring-side association convention (GWB's h2-analog);
   `Cycle::first` re-anchoring on survivor loops is the delhe hazard.
 
+## PR 3 (kemr/mekr/kfmrh + ring_move + the holed box) — 2026-07-16
+
+- Implemented per binding spec (Fable, isolated worktree); new
+  `euler_ring.rs` module. Ratified conventions: **he1's side becomes
+  the ring** (verified identical in content to GWB's h2-side
+  description — only the argument keying differs; nothing in PR 3
+  needed mirroring, all next-order constructions are
+  orientation-neutral); Empty anchors u = start(he1) / w = start(he2)
+  (valence-1 derivation); `EmptyAnchorsCollide` defensive error (both
+  trigger states verified tier-1-INVALID by the review); kfmrh
+  same-shell only (`CrossShell` reachable only via two solids until
+  M3 — nothing but mvfs mints shells); f2 must be ring-free
+  (`FaceHasRings`); geometry reaping — curve/surface removed iff
+  orphaned, deterministic full-arena scans, reported in results;
+  `ring_move` = pure reparenting, prominently NOT an Euler op;
+  provenance = birth records (kills remove records with entities;
+  survivors keep theirs; reparenting/demotion is not a re-birth).
+- **Four mekr sites, not three** (`Cycles`, `EmptyRing`, `EmptyTarget`,
+  `BothEmpty`): kemr's old-side-empty output forces `EmptyTarget` for
+  invertibility. `BothEmpty` deliberately accepts a ring as its
+  surviving target — ring-to-ring joins are in-contract.
+- **Acceptance**: the §9.3 box-with-through-hole (1 mvfs + 15 mev +
+  10 mef + 1 kemr + 1 kfmrh) passed on the first run, ledger
+  16−24+10−2 = 0 = 2(1−1). The review added an independently-routed
+  triangular side-face hole (genus 1, per-op ledger table) and the
+  **first genus-2 body** (double hole: v22 e33 f13 r4,
+  22−33+13−4 = −2 = 2(1−2)) — arbitrary genus needs nothing new.
+- **Replay-with-kills semantics pinned precisely** (review SHOULD fix
+  applied — the first-draft "balanced pairs converge" was overclaimed,
+  caught because the in-crate pin used mev, the one make-op minting no
+  loop): identical histories replay deep-identically (D9 holds);
+  balanced kemr∘mekr pairs converge PER-ARENA — halves/edges/curves
+  immediately, the loop arena one loop-mint later (recycled slot,
+  bumped generation); unbalanced kill histories diverge per-arena
+  permanently (allocation cursor offset). Docs and tests now state
+  exactly this.
+- e2e review verdict: mergeable, no blockers (1 SHOULD above, 3 NITs —
+  Cycles-canonical precondition listing note; two documented
+  unreachable-path notes). Kill hygiene held under attack: stale keys
+  None across re-mint cycles including provenance lookups; key purity
+  with five failing ring-op calls interleaved into a kill-heavy build —
+  byte-identical snapshots. Reviewer suite promoted as
+  `review_m1_pr3.rs` per convention.
+- For PR 4: mfkrh first makes Empty-outer faces operator-reachable;
+  the general isomorphism oracle for roundtrip proptests is still
+  wanted; `remove_curve_if_orphaned`/`remove_surface_if_orphaned` ready
+  for kev/kef.
+- For PR 5: add a validator test for two-Empty-loops-on-one-vertex;
+  NIT-2's dead StaleGeometry precondition becomes testable when point
+  removal exists.
+
 ## Log decisions
 
 (none yet)
@@ -180,7 +231,8 @@ Second round (chat, 2026-07-16):
   local discussion") after two conversation rounds (typed `Loop`, CCW,
   kfmrh sequencing, two/three-tier validity, D1 clarifications:
   postcondition asserts + Body-never-authoritative, lamina story).
-- **Current**: PR 1 merged as #16 (Evan sign-off after the
-  deviation-alternatives discussion). PR 2 (`ev/m1-2-euler-makes`,
-  stacked on PR 1) implemented + e2e-reviewed + fix pass applied —
-  design PR opening next; PR 3 spec is the orchestrator's next action.
+- **Current**: PRs 1–2 merged (#16, #17); review-suite promotion #18
+  merged; issue #4 closed via docs PR #19. PR 3 (`ev/m1-3-rings`,
+  stacked on PR 2) implemented + e2e-reviewed + fix pass applied —
+  design PR opening next. M0 demo salvage/promotion in flight
+  separately. PR 4 spec is the orchestrator's next action.
