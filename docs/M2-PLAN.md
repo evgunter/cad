@@ -56,9 +56,16 @@ Implementer/reviewer prompts cite the notes, never the scan.
   PR; reviewers write and run real consumer programs; reviewer suites
   promoted into CI per the standing convention.
 - High-confidence design PRs self-merge with full writeups (Evan
-  reviews retroactively); **fundamental forks wait** — in this plan,
-  PR 2 (profile format) and the pole-policy decision in PR 5 are
-  flagged as forks; the rest are expected to be self-merge grade.
+  reviews retroactively); **fundamental forks wait**. All forks
+  identified in this plan were resolved with Evan in the #24
+  conversation (2026-07-16): profile format (bulge chain, ≥2-vertex
+  closed carriers, winding invisible), revolve pole policy (axis
+  contact fully supported, partial/full split, sliver-band
+  rejection), D2 intensional EdgeGeometry landing at M2 (option (a)),
+  tessellation's certified-conservative export promise, and
+  no-automatic-face-merging — every PR is now self-merge grade,
+  subject to the standing rule that anything fork-shaped discovered
+  during implementation still waits.
 - Branches `ev/m2-<n>-<slug>`, stacked serially, merge commits only;
   orchestrator log `docs/M2-LOG.md` (L-numbering continues from M1).
 - D9 charter throughout. Geometry code is generic over `Real`; every
@@ -118,16 +125,28 @@ Implementer/reviewer prompts cite the notes, never the scan.
    exercise. The ch. 12 arc *generator* (polyline discretization) is
    superseded by exact circle carriers; discretization exists only at
    tessellation time.
-3. **Geometry attachment + face equations + tier-3 start**
-   *(self-merge grade)*. The M1 ops' documented signature slots get
-   real geometry: sweep-level construction supplies curve/surface
-   keys (ops accept geometry parameters; `Placeholder` variants
-   retire). Newell plane equations (translate-to-origin default) as
-   derived caches with **D4 ¶2 residual certification** — the first
-   certified caches (residual: max vertex distance from the fitted
-   plane ≤ ε); the validator's geometric pass begins (tier 3:
-   per-face residual; planar-face pcurves are trivial/rectangular at
-   M2 — general pcurve machinery deferred to M3 with real SSI).
+3. **D2's intensional `EdgeGeometry` + face equations + tier-3 start**
+   *(scope ratified with Evan in the #24 conversation, 2026-07-16 —
+   option (a): the intensional layer lands NOW, not as an M3
+   retrofit)*. The M1 ops' documented signature slots get real
+   geometry, and edge geometry is stored per D2's ratified rule:
+   the `EdgeGeometry` sum type (`Intersection { s1, s2, witness }` /
+   `MappedCurve { source, map }` / `Seam`) with carriers (Line/
+   Circle) demoted to **certified caches** against the description.
+   The **dihedral classification predicate** (the material
+   wedge-angle predicate, tier 3, arriving on schedule) classifies
+   each constructed edge: transverse ⇒ `Intersection` (intrinsic —
+   prefer-intrinsic rule active from the first native construction;
+   the sweep supplies only the witness); smooth join ⇒ conventional
+   (`MappedCurve`); sliver dihedral ⇒ typed error at construction
+   (D2's ratified text). Certification is cheap by D3: all M2 pairs
+   (plane×plane, plane×cylinder, revolve meridian pairs) are
+   closed-form, so cache-vs-both-surfaces residuals ≤ ε are directly
+   evaluable. Newell plane equations (translate-to-origin default)
+   as certified caches likewise; the validator's geometric pass
+   begins (tier 3: per-face and per-edge residuals; planar-face
+   pcurves trivial/rectangular at M2 — general pcurve machinery
+   deferred to M3 with real SSI).
 4. **Extrude** *(self-merge grade)*. Translational sweep re-derived
    under CCW from the ch. 12 notes (all mirror-check sites
    hand-verified); plane caps; plane side-faces for line segments,
@@ -135,22 +154,44 @@ Implementer/reviewer prompts cite the notes, never the scan.
    throughout. Acceptance: extruded L-profile and extruded
    profile-with-hole (genus 0 with rings), tier-1 after every op,
    tier-2 + tier-3 + component-E–P at rest.
-5. **Revolve** *(mostly self-merge grade; ONE FORK — pole policy)*.
-   Rotational sweep: partial revolutions (planar seam faces) and full
-   revolutions (seam via same-shell `kfmrh` + `loopglue`); sphere/
-   torus/cone patches from line/arc segments. **Fork for Evan:
-   profiles touching the axis** — recommendation: typed error at M2
-   (pole-touching profiles rejected; spheres arrive via M3 primitives
-   or the collapse-face fix when demanded), with the honest
-   counterargument that revolved spheres are natural test shapes.
-   Acceptance: washer (annulus revolve, torus-free genus 1), partial
-   revolve, full revolve of an offset square (torus-like, genus 1).
+5. **Revolve** *(fork RESOLVED with Evan in the #24 conversation,
+   2026-07-16 — axis contact fully supported; the original
+   reject-axis-contact recommendation was withdrawn as it would have
+   limited revolve to ring solids)*. Rotational sweep with the
+   partial/full case split: **partial revolutions (θ < 2π)** — axis
+   contact is unproblematic; axis-lying edges/vertices become
+   ordinary boundary entities shared by the start/end wedge faces;
+   **full revolutions (θ = 2π)** — seam via same-shell `kfmrh` +
+   `loopglue`, with two axis-contact classes handled as first-class
+   case analysis (Mäntylä Problem 12.2 done properly): edges ON the
+   axis are omitted (they sweep to nothing; endpoints land in cap
+   interiors), vertices ON the axis collapse to poles/apexes (cone
+   apex, sphere poles — the analytic surfaces are regular there;
+   only the revolution parameterization is singular, handled by
+   tessellation pole fans). **Axis-contact classification is a
+   trilean predicate**: exactly on-axis ⇒ the special class; within
+   the sliver band but nonzero ⇒ typed error (micro-radius revolve is
+   a genuine sliver); beyond ⇒ generic. Plus the half-plane check
+   (profile crossing to r < 0 ⇒ typed error). Sphere/torus/cone
+   patches from line/arc segments. Acceptance: **the ball**
+   (half-disc profile — axis edge omitted, two poles), **the cone**
+   (apex), the washer (genus 1), a partial revolve wedge (axis edge
+   as ordinary shared edge).
 6. **Tessellation** *(self-merge grade)*. Per-face triangulation:
    planar faces (with rings) via CDT in the face plane — `spade` per
    the ratified crate table; curved analytic faces via UV-grid
    sampling + CDT in parameter space. **Chordal tolerance is a new,
    per-call display parameter — deliberately NOT the kernel ε**
-   (documented distinction; D4 ¶1 unaffected). Watertightness across
+   (documented distinction; D4 ¶1 unaffected), and the bound is
+   **certified-conservative** (ratified 2026-07-16): analytic
+   closed-form sagitta bounds guarantee the mesh lies within the
+   requested chordal tolerance of the true surface — but this is an
+   export promise, explicitly not a kernel validity invariant.
+   **Coplanar side faces at collinear/smooth profile joins are NOT
+   merged** (ratified 2026-07-16): faces stay per-segment, the join
+   edge is a conventional split per D2's G2-join story, and the
+   surface KEY is shared when identical-by-construction.
+   Watertightness across
    shared edges: shared-edge chord points computed once from the
    edge's curve (deterministic, both faces consume the same points).
    Orientation: outward normals fall out of the loop conventions.
@@ -182,8 +223,9 @@ Implementer/reviewer prompts cite the notes, never the scan.
 
 ## Exit criteria
 
-Extruded and revolved parts (incl. a ringed profile and a genus-1
-revolve) built end-to-end from profile data through public ops only;
+Extruded and revolved parts (incl. a ringed profile, a genus-1
+revolve, **the ball, and the cone**) built end-to-end from profile
+data through public ops only;
 tier-1 validated after every op, tier-2 + tier-3 (residual
 certification + orientation/volume invariant) at rest; watertight STL
 exports verified externally; mass properties match closed forms within
