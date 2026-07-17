@@ -17,18 +17,28 @@
 //!
 //! # How the form is canonical
 //!
-//! Solids are visited in arena order, shells in solid-list order. Each
-//! shell's half-edges ("darts") are encoded by a breadth-first traversal
-//! that labels darts in first-visit order using only the structure maps
-//! (`next`, then mate); the encoding is computed **from every dart of
-//! the shell as the starting root, and the lexicographically minimal
-//! encoding wins**. Any structure-preserving relabeling of one body
-//! produces the same set of candidate encodings, so the minimum is a
-//! true invariant — no dependence on key values, on `Cycle::first`
-//! anchors, on `Vertex::emanating`, or on face/ring list order (rings
-//! and dartless faces are emitted in sorted order; ties can only occur
-//! between identically-emitted, i.e. interchangeable, entities). Cost is
-//! O(darts²) per shell — fine at test sizes.
+//! Solids are visited in arena order, shells in solid-list order. A
+//! shell's half-edges ("darts") fall into one or more connected
+//! components under `{next, mate}` — more than one whenever a face
+//! carries a detached ring (`kemr`'s ordinary output), so components
+//! are a first-class case, not a corruption. Each component is encoded
+//! by a breadth-first traversal labeling darts in first-visit order
+//! using only the structure maps (`next`, then mate), emitting per-dart
+//! `next`/mate/vertex labels plus a label-free **attachment token**
+//! (loop role and face fingerprint — how the dart's loop sits in the
+//! face structure), followed by the coordinates of the vertices the
+//! component introduces; the encoding is computed **from every dart of
+//! the component as the starting root, and the lexicographically
+//! minimal encoding wins**. Components are committed in ascending
+//! encoding order (greedy, resolved before face emission). Any
+//! structure-preserving relabeling of one body produces the same
+//! candidate sets, so the result is a true invariant — no dependence on
+//! key values, on `Cycle::first` anchors, on `Vertex::emanating`, or on
+//! face/ring list order (rings and dartless faces are emitted in sorted
+//! order). Ties between candidates require automorphic structure AND
+//! identical coordinates AND identical attachment fingerprints — the
+//! residual blind spot noted below. Cost is O(darts²) per shell plus
+//! the fingerprints — fine at test sizes.
 //!
 //! # Honest limits
 //!
@@ -56,13 +66,18 @@
 //! - **Point coordinates are compared bitwise** (via `Debug`): bodies
 //!   differing by a rigid motion — or by `-0.0` vs `0.0` — are NOT
 //!   isomorphic to this oracle. Geometric equivalence is out of scope.
+//! - **Coordinate-identical automorphic twins**: candidates that tie —
+//!   identical dart structure, identical coordinates, identical
+//!   attachment fingerprints — are broken by scan order. If two such
+//!   twins are nevertheless attached to structurally different places
+//!   (which their fingerprints failed to distinguish only because the
+//!   coordinates coincide), two isomorphic bodies could in principle
+//!   emit different face sections (and two non-isomorphic ones the
+//!   same). The generator mints distinct coordinates per vertex
+//!   precisely so this never triggers; bodies with geometrically
+//!   coincident symmetric substructures are out of the oracle's scope.
 //! - **Tier-1-valid input is assumed**; the traversal panics (test
-//!   failure) on bodies whose references do not resolve. If a shell's
-//!   dart graph is disconnected (unreachable through the operators),
-//!   the encoding falls back to restarting from the first unvisited
-//!   dart in scan order, which is deterministic but not
-//!   relabeling-invariant — documented heuristic, never hit by
-//!   operator-built bodies.
+//!   failure) on bodies whose references do not resolve.
 
 // Test-support code: panicking is a test's failure mechanism (L5).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -111,91 +126,44 @@ pub(crate) fn canonical_form(body: &Body<f64>) -> String {
     out
 }
 
-/// The lexicographically minimal encoding of one shell over all root
-/// darts (or the dartless encoding for shells with no half-edges).
+/// The canonical encoding of one shell: connected dart components are
+/// labeled greedily by minimal candidate encoding (see the module docs),
+/// then faces are emitted against the final labels.
 fn canonical_shell(body: &Body<f64>, shell: ShellKey) -> String {
     let darts = shell_darts(body, shell);
-    if darts.is_empty() {
-        return encode_shell(body, shell, &darts, None);
-    }
-    darts
-        .iter()
-        .map(|&root| encode_shell(body, shell, &darts, Some(root)))
-        .min()
-        .expect("darts is non-empty")
-}
 
-/// Every half-edge of the shell, in a deterministic (but key-dependent)
-/// scan order — used as the candidate-root list and the BFS-restart
-/// fallback order.
-fn shell_darts(body: &Body<f64>, shell: ShellKey) -> Vec<HalfEdgeKey> {
-    let shell_data = body.get_shell(shell).expect("shell resolves");
-    let mut darts = Vec::new();
-    for &face in &shell_data.faces {
-        let face_data = body.get_face(face).expect("face resolves");
-        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let loop_data = body.get_loop(loop_key).expect("loop resolves");
-            if let LoopBoundary::Cycle { first } = loop_data.boundary {
-                darts.extend(body.loop_cycle(first).expect("cycle closes"));
-            }
-        }
-    }
-    darts
-}
-
-/// One shell encoding from one root (or dartless). See the module docs
-/// for the labeling scheme.
-fn encode_shell(
-    body: &Body<f64>,
-    shell: ShellKey,
-    darts: &[HalfEdgeKey],
-    root: Option<HalfEdgeKey>,
-) -> String {
-    // --- Dart labels: BFS in first-visit order, successors next, mate.
+    // --- Greedy component labeling. A shell's darts can fall into
+    // several connected components under {next, mate}: a kemr-detached
+    // ring shares no edges with the rest of its face, so this is an
+    // ordinary operator-reachable state, not a corruption. Each
+    // component's encoding is minimized over its own roots, and the
+    // components are committed in ascending encoding order — both
+    // choices are relabeling-invariant.
     let mut label: SecondaryMap<HalfEdgeKey, usize> = SecondaryMap::new();
     let mut order: Vec<HalfEdgeKey> = Vec::new();
-    let visit_from = |start: HalfEdgeKey,
-                      label: &mut SecondaryMap<HalfEdgeKey, usize>,
-                      order: &mut Vec<HalfEdgeKey>| {
-        let mut queue = VecDeque::from([start]);
-        label.insert(start, order.len());
-        order.push(start);
-        while let Some(dart) = queue.pop_front() {
-            let dart_data = body.get_half_edge(dart).expect("dart resolves");
-            let mate = body.mate(dart).expect("mate resolves");
-            for successor in [dart_data.next, mate] {
-                if !label.contains_key(successor) {
-                    label.insert(successor, order.len());
-                    order.push(successor);
-                    queue.push_back(successor);
-                }
+    let mut vertex_label: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
+    let mut vertex_count = 0_usize;
+    let mut out = String::new();
+    while order.len() < darts.len() {
+        let mut best: Option<(String, Vec<HalfEdgeKey>, Vec<VertexKey>)> = None;
+        for &root in darts.iter().filter(|d| !label.contains_key(**d)) {
+            let candidate =
+                component_encoding(body, root, order.len(), vertex_count, &vertex_label);
+            if best.as_ref().is_none_or(|(text, _, _)| candidate.0 < *text) {
+                best = Some(candidate);
             }
         }
-    };
-    if let Some(root) = root {
-        visit_from(root, &mut label, &mut order);
-        // Disconnected-dart fallback (module docs): deterministic, not
-        // relabeling-invariant; unreachable through operator-built
-        // bodies.
-        while order.len() < darts.len() {
-            let next_unvisited = darts
-                .iter()
-                .copied()
-                .find(|d| !label.contains_key(*d))
-                .expect("count mismatch implies an unvisited dart");
-            visit_from(next_unvisited, &mut label, &mut order);
+        let (text, members, new_vertices) =
+            best.expect("an unlabeled dart exists while order is short");
+        for member in members {
+            label.insert(member, order.len());
+            order.push(member);
         }
-    }
-
-    // --- Vertex labels by first visit over dart order.
-    let mut vertex_label: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
-    let mut vertex_order: Vec<VertexKey> = Vec::new();
-    for &dart in &order {
-        let start = body.get_half_edge(dart).expect("dart resolves").start;
-        if !vertex_label.contains_key(start) {
-            vertex_label.insert(start, vertex_order.len());
-            vertex_order.push(start);
+        for vertex in new_vertices {
+            vertex_label.insert(vertex, vertex_count);
+            vertex_count += 1;
         }
+        out.push_str(&text);
     }
 
     // --- Loop first-visit order and per-loop minimal dart label.
@@ -219,18 +187,6 @@ fn encode_shell(
             face_order.push(face);
         }
     }
-
-    // --- Emission.
-    let mut out = String::new();
-    for (index, &dart) in order.iter().enumerate() {
-        let dart_data = body.get_half_edge(dart).expect("dart resolves");
-        let mate = body.mate(dart).expect("mate resolves");
-        let _ = writeln!(
-            out,
-            "  d{index}: n{} m{} v{}",
-            label[dart_data.next], label[mate], vertex_label[dart_data.start],
-        );
-    }
     for &face in &face_order {
         let _ = writeln!(out, "  face: {}", face_desc(body, face, &loop_min));
     }
@@ -248,10 +204,104 @@ fn encode_shell(
     for desc in dartless {
         let _ = writeln!(out, "  face*: {desc}");
     }
-    for (index, &vertex) in vertex_order.iter().enumerate() {
-        let _ = writeln!(out, "  v{index}: {}", vertex_coords(body, vertex));
-    }
     out
+}
+
+/// Every half-edge of the shell, in a deterministic (but key-dependent)
+/// scan order — the candidate-root list for [`canonical_shell`]'s
+/// greedy labeling (the scan order never reaches the output; only the
+/// minimal encodings do).
+fn shell_darts(body: &Body<f64>, shell: ShellKey) -> Vec<HalfEdgeKey> {
+    let shell_data = body.get_shell(shell).expect("shell resolves");
+    let mut darts = Vec::new();
+    for &face in &shell_data.faces {
+        let face_data = body.get_face(face).expect("face resolves");
+        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+            let loop_data = body.get_loop(loop_key).expect("loop resolves");
+            if let LoopBoundary::Cycle { first } = loop_data.boundary {
+                darts.extend(body.loop_cycle(first).expect("cycle closes"));
+            }
+        }
+    }
+    darts
+}
+
+/// One component's candidate encoding from one root: BFS in first-visit
+/// order (successors `next`, then mate), dart lines carrying the
+/// next/mate/vertex labels, followed by the coordinates of every vertex
+/// the component introduces. Labels are absolute (`dart_offset` /
+/// `vertex_offset` continue the shell-wide numbering); vertices already
+/// labeled by earlier components keep their committed labels.
+fn component_encoding(
+    body: &Body<f64>,
+    root: HalfEdgeKey,
+    dart_offset: usize,
+    vertex_offset: usize,
+    committed_vertices: &SecondaryMap<VertexKey, usize>,
+) -> (String, Vec<HalfEdgeKey>, Vec<VertexKey>) {
+    // BFS dart labeling within the component.
+    let mut local: SecondaryMap<HalfEdgeKey, usize> = SecondaryMap::new();
+    let mut members: Vec<HalfEdgeKey> = Vec::new();
+    let mut queue = VecDeque::from([root]);
+    local.insert(root, dart_offset);
+    members.push(root);
+    while let Some(dart) = queue.pop_front() {
+        let dart_data = body.get_half_edge(dart).expect("dart resolves");
+        let mate = body.mate(dart).expect("mate resolves");
+        for successor in [dart_data.next, mate] {
+            if !local.contains_key(successor) {
+                local.insert(successor, dart_offset + members.len());
+                members.push(successor);
+                queue.push_back(successor);
+            }
+        }
+    }
+    // Vertex labels: committed ones first, fresh ones in first-visit
+    // order.
+    let mut fresh: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
+    let mut new_vertices: Vec<VertexKey> = Vec::new();
+    let mut vertex_of = |start: VertexKey, new_vertices: &mut Vec<VertexKey>| {
+        if let Some(&committed) = committed_vertices.get(start) {
+            return committed;
+        }
+        if let Some(&assigned) = fresh.get(start) {
+            return assigned;
+        }
+        let assigned = vertex_offset + new_vertices.len();
+        fresh.insert(start, assigned);
+        new_vertices.push(start);
+        assigned
+    };
+    let mut text = String::new();
+    for &dart in &members {
+        let dart_data = body.get_half_edge(dart).expect("dart resolves");
+        let mate = body.mate(dart).expect("mate resolves");
+        let vertex = vertex_of(dart_data.start, &mut new_vertices);
+        // The attachment token (role + face fingerprint) breaks ties
+        // between automorphic roots whose symmetry only the FACE
+        // structure distinguishes (e.g. a self-loop edge with one half
+        // an outer loop and the other a ring): both label-free and
+        // structure-invariant, so it sharpens the candidate order
+        // without costing invariance.
+        let attachment = dart_attachment(body, dart_data.parent_loop);
+        let _ = writeln!(
+            text,
+            "  d{}: n{} m{} v{vertex} {attachment}",
+            local[dart], local[dart_data.next], local[mate],
+        );
+    }
+    // The component's own vertex coordinates close the candidate, so
+    // two structurally identical components at different coordinates
+    // compare (and sort) by their geometry too.
+    for &vertex in &new_vertices {
+        let _ = writeln!(
+            text,
+            "  v{}: {}",
+            fresh[vertex],
+            vertex_coords(body, vertex),
+        );
+    }
+    (text, members, new_vertices)
 }
 
 /// A face's emission: outer-loop token plus sorted ring tokens.
@@ -289,6 +339,66 @@ fn loop_token(
 fn vertex_coords(body: &Body<f64>, vertex: VertexKey) -> String {
     let point = body.get_vertex(vertex).expect("vertex resolves").point;
     format!("{:?}", body.get_point(point).expect("point resolves"))
+}
+
+/// A dart's attachment token: its loop's role on its face (`o`uter /
+/// `r`ing) plus the face's label-free fingerprint. Structure-invariant
+/// (no keys, no anchors): used inside component candidates to break
+/// automorphism ties by face attachment.
+fn dart_attachment(body: &Body<f64>, parent: LoopKey) -> String {
+    let face = body.get_loop(parent).expect("loop resolves").face;
+    let face_data = body.get_face(face).expect("face resolves");
+    let role = if face_data.outer == parent { 'o' } else { 'r' };
+    format!("{role} {}", face_sig(body, face))
+}
+
+/// A face's label-free fingerprint: the outer loop's signature plus the
+/// sorted ring signatures.
+fn face_sig(body: &Body<f64>, face: FaceKey) -> String {
+    let face_data = body.get_face(face).expect("face resolves");
+    let mut rings: Vec<String> = face_data
+        .rings
+        .iter()
+        .map(|&ring| loop_sig(body, ring))
+        .collect();
+    rings.sort();
+    format!(
+        "{{o={};r=[{}]}}",
+        loop_sig(body, face_data.outer),
+        rings.join(",")
+    )
+}
+
+/// A loop's label-free signature: the lone vertex's coordinates for an
+/// empty loop, or the rotation-minimal sequence of start-vertex
+/// coordinates around the cycle.
+fn loop_sig(body: &Body<f64>, loop_key: LoopKey) -> String {
+    match body.get_loop(loop_key).expect("loop resolves").boundary {
+        LoopBoundary::Empty { vertex } => format!("E({})", vertex_coords(body, vertex)),
+        LoopBoundary::Cycle { first } => {
+            let coords: Vec<String> = body
+                .loop_cycle(first)
+                .expect("cycle closes")
+                .into_iter()
+                .map(|dart| {
+                    let start = body.get_half_edge(dart).expect("dart resolves").start;
+                    vertex_coords(body, start)
+                })
+                .collect();
+            let len = coords.len();
+            let minimal = (0..len)
+                .map(|shift| {
+                    let mut rotated = Vec::with_capacity(len);
+                    for index in 0..len {
+                        rotated.push(coords[(shift + index) % len].clone());
+                    }
+                    rotated.join("→")
+                })
+                .min()
+                .expect("cycle is non-empty");
+            format!("C({minimal})")
+        }
+    }
 }
 
 #[cfg(test)]

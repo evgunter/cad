@@ -1470,6 +1470,33 @@ mod tests {
         );
     }
 
+    #[test]
+    fn kev_rejects_corrupt_loops_and_orbits() {
+        // LoopNotCycle: a half-edge whose parent loop claims to be
+        // empty (tier-1-invalid raw corruption).
+        let (mut body, seed, seg, _strut) = strutted();
+        body.get_loop_mut(seed.r#loop).unwrap().boundary = LoopBoundary::Empty {
+            vertex: seed.vertex,
+        };
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::LoopNotCycle {
+                r#loop: seed.r#loop,
+            },
+            |b| b.kev(seg.he_plus).unwrap_err(),
+        );
+        // OrbitBroken: the far vertex's orbit walk hits a corrupt mate
+        // bijection mid-fan (raw corruption two steps away from the
+        // argument).
+        let (mut body, _seed, seg, strut) = strutted();
+        body.get_edge_mut(strut.edge).unwrap().he_plus = strut.he_minus;
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::OrbitBroken { he: seg.he_minus },
+            |b| b.kev(seg.he_plus).unwrap_err(),
+        );
+    }
+
     // ------------------------------------------------------------------
     // kef: general / argument side / circular / mate-alone / lone
     // ------------------------------------------------------------------
@@ -1866,6 +1893,27 @@ mod tests {
                 key: EntityId::Loop(LoopKey::default()),
             },
             |b| b.mfkrh(LoopKey::default()).unwrap_err(),
+        );
+    }
+
+    #[test]
+    fn mfkrh_rejects_a_stale_anchor_point() {
+        // PR 3 noted the StaleGeometry arm becomes testable once point
+        // removal exists; it does now. Rip the ring vertex's point out
+        // through the raw arenas: the surface-anchor chain must fail
+        // loudly and atomically.
+        let (mut body, _split, kill) = pillow_with_empty_ring();
+        let LoopBoundary::Empty { vertex } = body.get_loop(kill.ring).unwrap().boundary else {
+            panic!("the planted ring is empty");
+        };
+        let point = body.get_vertex(vertex).unwrap().point;
+        body.points.remove(point);
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::StaleGeometry {
+                key: crate::entity::GeomRef::Point(point),
+            },
+            |b| b.mfkrh(kill.ring).unwrap_err(),
         );
     }
 
