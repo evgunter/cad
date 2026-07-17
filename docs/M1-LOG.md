@@ -31,6 +31,11 @@ design conversation.
   #17): independent derivations are regression value; suites hit by
   later API changes (e.g. PR 5's raw-builder demotion) migrate or get
   pruned at that PR like any test.
+- The M0 reviewers' demo crates were salvaged from the M0 session
+  scratchpad (archived at `references/review-artifacts-m0/`,
+  git-ignored, persistent) and promoted the same way as
+  `crates/{geom-core,topo}/tests/review_m0_prN.rs`; PR 7's suite was
+  ported at the invariant level across the M1 half-edge restructure.
 
 ## Carried in from M0 (docs/M0-LOG.md "M0 EXIT")
 
