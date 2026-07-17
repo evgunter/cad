@@ -1,7 +1,22 @@
-# M1 Work Order — Topology + Euler Operators
+# M1 Work Order — **COMPLETE (2026-07-16)**
 
-**Status: DRAFT — awaiting Evan's ratification.** No implementation
-until this plan is signed off (it is itself a design PR, like M0-PLAN).
+All six PRs merged: #16 (half-edge), #17 (mvfs/mev/mef + cube), #20
+(kemr/mekr/kfmrh + holed box), #23 (kill duals + roundtrip machinery),
+#25 (validator completion + tiers + raw-builder demotion), #26 (this
+exit sweep). Ratified by Evan: the plan (#15), PRs 1–3 explicitly;
+PRs 4–5 self-merged under the PR #20 process update with zero-blocker
+adversarial reviews. Exit criteria verified: cube and holed box built
+through public Euler ops only, passing tier 2 with component-aware
+Euler–Poincaré; make/kill roundtrip property tests green; bidirectional
+provenance live; `Body<Interval>` cube green in the interval lane; CI
+green at ε ∈ {1e-6, 1e-9, 1e-12}; conventions ratified into DESIGN.md.
+Running log and per-PR outcomes: `docs/M1-LOG.md`. Carried to M2: the
+K-value experiments (first predicates), the geometric tier (D4 ¶2 +
+wedge predicate), the debug-O(n²) validation cost watch.
+
+---
+
+*(Original work order below, as ratified.)*
 
 Read `DESIGN.md` first — it is the ratified contract; M1 leans on D1
 (arenas + Euler operators, manifold-first), D5 (provenance from birth),

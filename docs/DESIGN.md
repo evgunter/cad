@@ -135,10 +135,16 @@ component-aware E–P form found and corrected in M1 PR 4).**
    Euler-reachable state, construction scaffolding included (empty
    loops, struts, self-loop edges, laminae are mandatory
    intermediates); this is what each operator debug-asserts. The
-   checklist: referential integrity across all arenas; half-edge chain
-   coherence; mate involution/antiparallelism; vertex-orbit closure
-   (manifoldness — watertightness is structural in the half-edge
-   form); shell-partition/edge-adjacency coherence; arity floors;
+   checklist: referential integrity across all arenas (topology and
+   geometry — orphan geometry is an error); half-edge chain
+   coherence; mate involution/antiparallelism; vertex anchoring
+   (every vertex is referenced by ≥ 1 half-edge XOR is the lone
+   vertex of exactly one Empty loop — the restated M0 orphan-vertex
+   deferral, discharged); vertex-orbit closure (manifoldness —
+   watertightness is structural in the half-edge form); the
+   ownership/back-pointer partition (every loop/face/shell owned
+   exactly once, spine back-pointers matching); shell-partition/
+   edge-adjacency coherence; arity floors;
    bidirectional D5 provenance; and the **component-aware per-shell
    Euler–Poincaré**: per connected component of a shell's incidence
    complex, v − e + f − r = 2(1 − g) with g a non-negative integer,
@@ -151,7 +157,9 @@ component-aware E–P form found and corrected in M1 PR 4).**
    ban is independent of the first two: a promoted detached cycle ring
    disconnects a shell with neither an empty loop nor a strut present.
    Finished bodies must pass tier 2; tier-1-only states are visible
-   solely inside operation implementations.
+   solely inside operation *sequences* (a consumer holds scaffolding
+   bodies between public calls mid-construction; nothing at rest
+   crosses an API boundary without tier 2).
 3. **Tier 3 "geometric"** (M2+ — named now, not implemented): D4 ¶2
    residual certification, plus the **material wedge-angle
    predicate** — at every edge the material wedge ∈ (0, 2π), bounded
@@ -423,10 +431,16 @@ topology change is stated, not emergent.
 - The kernel never panics on any input: panics are bugs; every failure is
   a typed error. *(Honest M1 footnote: operator debug postconditions
   are `debug_assert`s, but they are unreachable by input through the
-  public API — raw insertion is crate-internal — so a firing
-  postcondition is a kernel bug by definition. Corrupt in-crate states
-  get typed errors where cheaply detectable, or documented garbage-out
-  in release — never a hang; every traversal is bounded.)*
+  public API — raw insertion is crate-internal, and the eleven public
+  mutators all preserve tier 1: the ten Euler operators by the
+  soundness theorem, and `ring_move` — the one public non-operator
+  mutator — by the separating-curve argument documented on the method
+  (a ring on a genus-0 component is a Jordan curve, so cross-component
+  moves re-partition into legal pieces; non-separating rings force
+  g ≥ 1). A firing postcondition is therefore a kernel bug by
+  definition. Corrupt in-crate states get typed errors where cheaply
+  detectable, or documented garbage-out in release — never a hang;
+  every traversal is bounded.)*
 - Essentially no unsafe Rust outside vetted dependencies.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
@@ -499,8 +513,7 @@ precursor of the error-propagation feature.
 - **M0** — `geom-core`: scalar trait + intervals; arenas; validation
   harness. *(Complete 2026-07-16.)*
 - **M1** — Topology + Euler operators; build a cube by hand; watertightness
-  and Euler checks pass. *(Complete 2026-07-16, pending the final exit
-  check.)*
+  and Euler checks pass. *(Complete 2026-07-16.)*
 - **M2** — Analytic curves/surfaces; extrude/revolve from polyline+arc
   profiles; tessellation; STL export. *(First "it's a CAD kernel" milestone —
   verified via exported meshes; demo viewer deferred.)*
@@ -609,7 +622,9 @@ revision).
 - **Still open, deliberately**: only the ambiguity constant K's numeric
   value (semantics ratified — sliver band, provisional K = 10, a policy
   dial not a correctness parameter; value pending multi-ε experiments
-  during M1+).
+  during M2+ — M1's topology is scalar-free and consulted no predicate,
+  so it generated no evidence; M2's geometric predicates are the first
+  data source).
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
