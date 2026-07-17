@@ -279,7 +279,7 @@ fn kemr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
 
 fn mekr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     let mut out = Vec::new();
-    for (face_key, face) in body.faces() {
+    for (_, face) in body.faces() {
         let loops: Vec<LoopKey> = core::iter::once(face.outer)
             .chain(face.rings.iter().copied())
             .collect();
@@ -321,7 +321,6 @@ fn mekr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
                 }
             }
         }
-        let _ = face_key;
     }
     out
 }
@@ -548,7 +547,6 @@ pub(crate) fn roundtrip(
         OpChoice::Kfmrh(f1, f2) => {
             let result = body.kfmrh(f1, f2).unwrap();
             body.mfkrh(result.ring).unwrap();
-            let _ = f1;
         }
         OpChoice::Kvfs(solid) => {
             // Record the lone vertex's coordinates for the re-make.
