@@ -20,6 +20,12 @@ design conversation.
   PRs target `main`. Merge commits only.
 - Design PRs wait for Evan's sign-off; work continues stacked on top.
   Non-design PRs self-merge after subagent review + green CI.
+  **Revised after PR #20 (Evan, 2026-07-16)**: high-confidence design
+  PRs (dominant-argument conventions, faithful elaborations of the
+  ratified plan) now ALSO self-merge with their full writeups; Evan
+  reviews the backlog retroactively. Fundamental design forks (changes
+  to ratified DESIGN.md decisions; genuinely open multi-answer
+  questions) still wait for sign-off. Unsure ⇒ treat as a fork.
 - Reviews write and run real consumer programs against the API under
   review (standing rule, `memories/review-and-dependency-policy.md`).
 - Reference reading: Mäntylä ch. 9–11 notes live in
