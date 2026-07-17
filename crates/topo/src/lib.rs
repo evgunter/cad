@@ -100,6 +100,8 @@ pub mod geometry;
 pub(crate) mod iso;
 pub mod provenance;
 #[cfg(test)]
+mod review_m1_pr4;
+#[cfg(test)]
 pub(crate) mod seqgen;
 pub mod validate;
 

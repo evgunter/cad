@@ -99,7 +99,9 @@
 //!   `MevSite::Lone`.
 //! - The mirror adjacency (`next(m) = he`) is `v`-valence-1: `v`'s only
 //!   edge was the killed one and the whole fan migrates to it. Handled
-//!   by the same unsplice (it is a `Fan` inverse, not a separate case).
+//!   by the same unsplice, not a separate surgery case — but note it is
+//!   the one `kev` site that undoes no single `mev` (see the re-make
+//!   taxonomy below).
 //!
 //! Re-anchoring rules (unconditional): the loop of `he` re-anchors at
 //! the first survivor after `he` in `next` order (`next(he)`, or
@@ -154,12 +156,18 @@
 //!   (`link(prev(m), next(m))`). Inverse of
 //!   `MefSite::Chords { he1 == he2 }` applied at `created.he_minus` —
 //!   the one-edge circular face dies.
-//! - **Mate's loop is `[m]` alone** (`next(m) = m`): the remnant closes
-//!   into itself (`link(prev(he), next(he))`) and becomes the surviving
-//!   loop's whole cycle. This is `kef` on the OTHER half of the same
+//! - **Mate's loop is `[m]` alone** (`next(m) = m`, which forces the
+//!   edge to be a self-loop): the remnant closes into itself
+//!   (`link(prev(he), next(he))`) and becomes the surviving loop's
+//!   whole cycle. This is `kef` on the OTHER half of the same
 //!   configuration (killing the big side of a circular-edge split);
-//!   the roundtrip re-make is a `Chords { he1 == he2 }` from the
-//!   surviving side.
+//!   the one-op re-make is a `Chords { he1 == he2 }` from the surviving
+//!   side — exact up to isomorphism iff the surviving singleton is the
+//!   outer of a ring-free face (the only shape `mef` itself creates —
+//!   face identities swap, which the oracle does not track). When the
+//!   survivor is a ring, or its face carries rings, the re-split lands
+//!   the big loop on the wrong side of the ring distribution and no
+//!   single op restores the original (see the taxonomy below).
 //! - **Both alone** (`[he]` and `[m]`, a self-loop edge): the surviving
 //!   loop becomes [`Empty`] at the one vertex, `emanating`
 //!   `None`. Inverse of `MefSite::Lone`.
@@ -211,7 +219,23 @@
 //!
 //! and in the kill∘make direction the re-make sites are derived from the
 //! pre-kill neighborhood (`kev` ↔ `mev(Fan{next(he), next(mate(he))})`
-//! etc.); the roundtrip property tests exercise both directions.
+//! etc.). The make∘kill direction is exact for every site; the
+//! kill∘make direction is exact for every site EXCEPT two subcases with
+//! no single-op re-make (the roundtrip property tests skip exactly
+//! these — precise statement and proof sketch in the seqgen
+//! test-support module):
+//!
+//! - `kev` from the valence-1 side of an edge whose far vertex carries
+//!   a fan (the mirror adjacency): the full-fan `mev` run is
+//!   inexpressible under the ratified empty-run convention, and the
+//!   strut re-make puts the fan at the wrong coordinates (given
+//!   distinct vertex coordinates — coordinate-coincident endpoints
+//!   would collapse the distinction, inside the oracle's documented
+//!   twin blind spot).
+//! - `kef` mate-alone where the surviving singleton loop is a ring or
+//!   its face carries rings (see the degenerate-case list above); the
+//!   bare-outer subcase IS one-op re-makeable and is exercised, not
+//!   skipped.
 //!
 //! # Example: grow and ungrow
 //!
@@ -300,7 +324,9 @@ pub struct KevResult {
     pub killed_he_plus: HalfEdgeKey,
     /// The killed edge's minus half (dead key).
     pub killed_he_minus: HalfEdgeKey,
-    /// The killed far vertex `end(he)` (dead key).
+    /// The killed far vertex (dead key). Recorded as the mate's start
+    /// vertex — equal to `end(he)` on tier-1-valid input (antiparallel
+    /// mates); on corrupt input it reports what was actually killed.
     pub killed_vertex: VertexKey,
     /// The killed edge's curve (dead key), iff orphaned and removed.
     pub killed_curve: Option<CurveKey>,
@@ -673,8 +699,10 @@ impl<T: Real> Body<T> {
     /// (`StaleKey`); the two halves lie in distinct loops
     /// ([`EulerOpError::SameLoop`] — the same-loop configuration is
     /// [`Body::kemr`]'s) of distinct faces ([`EulerOpError::SameFace`] —
-    /// two loops of one face is [`Body::mekr`]'s domain, killable by
-    /// [`Body::kev`]); both loops resolve (`StaleKey`) and are cycles
+    /// two loops of one face is what [`Body::kfmrh`] on adjacent faces
+    /// leaves behind; kill such an edge with [`Body::kev`], or via
+    /// [`Body::mfkrh`]-then-`kef` for the self-loop variant); both
+    /// loops resolve (`StaleKey`) and are cycles
     /// ([`EulerOpError::LoopNotCycle`]); both faces resolve
     /// (`StaleKey`); the dying face is ring-free
     /// ([`EulerOpError::FaceHasRings`]); its shell resolves

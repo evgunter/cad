@@ -23,26 +23,37 @@
 //! - [`Ledger`] — the running Euler–Poincaré tuple `(v, e, f, h, r, s)`,
 //!   checked against derived arena counts and eq. 9.2 after every op.
 //!
-//! # The two documented irreversible-by-one-op kill sites
+//! # The irreversible-by-one-op kill subcases (skipped in roundtrips)
 //!
 //! [`roundtrip`] skips (returns [`RoundtripOutcome::SkippedIrreversible`])
-//! two kill configurations that are valid kills but have **no
-//! single-op re-make**, because the required inverse site is not
-//! addressable:
+//! exactly the kill configurations that are valid kills but have **no
+//! single-op re-make** (the taxonomy was sharpened by the PR 4 review —
+//! the mate-alone `kef` kill is re-makeable more often than first
+//! claimed):
 //!
 //! - `kev(he)` where `start(he)` has valence 1 and `end(he)` carries a
 //!   fan (the "mirror" adjacency `next(mate(he)) == he`): restoring it
 //!   would need `mev` to move the survivor's ENTIRE fan to the new
 //!   vertex, but the full-orbit run is mev-inexpressible — the ratified
 //!   `he1 == he2` site means the EMPTY run (strut), so the full run has
-//!   no address. (Killing the same edge from the other half is the
-//!   strut kill, which IS exactly invertible.)
-//! - `kef(he)` where the mate's loop is `[mate]` alone and the dying
-//!   loop is bigger: restoring it would need `mef` to move the
-//!   surviving loop's ENTIRE cycle to the new loop — the same
-//!   full-cycle/empty-run collision (`he1 == he2` is ratified as the
-//!   one-edge circular face). Killing the same edge from the other half
-//!   is the circular-face kill, exactly invertible.
+//!   no address. The strut re-make from the same site instead leaves
+//!   the fan on the wrong-coordinate vertex, so with distinct vertex
+//!   coordinates (the generator's minting policy) no single op reaches
+//!   the original; coordinate-COINCIDENT endpoints would collapse that
+//!   distinction, but they sit inside the oracle's documented twin
+//!   blind spot and outside the generator's reach. (Killing the same
+//!   edge from the other half is the strut kill, which IS exactly
+//!   invertible.)
+//! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
+//!   is then necessarily a self-loop) AND the surviving singleton loop
+//!   is a ring — or the outer of a face that has rings. The one-op
+//!   re-make `mef(Chords{next(he), next(he)})` re-splits from the
+//!   surviving side, which necessarily leaves the big loop on the
+//!   survivor's face — the wrong side of the ring distribution. When
+//!   the survivor is the outer of a RING-FREE face (the only shape
+//!   `mef` itself creates), that same re-make IS exact up to
+//!   isomorphism — face identities swap and the oracle does not track
+//!   keys — and [`roundtrip`] performs it rather than skipping.
 //!
 //! Completeness is unharmed (the pre-kill bodies are still
 //! Euler-reachable — build the fan/cycle first and strut/cut last); the
@@ -130,8 +141,11 @@ impl Ledger {
     /// shell's surface into two components while keeping one shell
     /// entity, so eq. 9.2's h stops meaning "genus of a connected
     /// closed surface" and starts double-counting components. A legal
-    /// tier-1 intermediate (like empty loops and struts); M1 PR 5's
-    /// per-shell Euler–Poincaré design has to account for it.
+    /// tier-1 intermediate (like empty loops and struts). The
+    /// component-aware per-shell form that PR 5's validator must
+    /// implement (per component v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per
+    /// shell the sum is 2(c − Σgᵢ)) is ratified in `docs/M1-PLAN.md`'s
+    /// PR 5 bullet, corrected by this PR.
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let v = body.vertices().count() as i64;
         let e = body.edges().count() as i64;
@@ -191,7 +205,12 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
         (w(2, 1), mfkrh_candidates(body)),
         (w(2, 6), kev_candidates(body)),
         (w(2, 6), kef_candidates(body)),
-        (1, kvfs_candidates(body)),
+        // kvfs candidates are rare (a solid must be exactly skeletal),
+        // so give the row real weight when one exists — otherwise the
+        // random arm almost never rolls it (review SHOULD-3). Teardown
+        // still exercises kvfs deterministically at the end of every
+        // proptest case; this weight only adds mid-sequence coverage.
+        (4, kvfs_candidates(body)),
     ];
     let total: u32 = kinds
         .iter()
@@ -591,21 +610,32 @@ pub(crate) fn roundtrip(
             let mate = body.mate(he).expect("mate resolves");
             let mate_data = body.get_half_edge(mate).expect("resolves").clone();
             let (b, d) = (he_data.next, mate_data.next);
-            if d == mate && b != he {
-                // The mate-alone site: no single-mef re-make (module
-                // docs).
-                return RoundtripOutcome::SkippedIrreversible;
-            }
             let l2 = mate_data.parent_loop;
-            body.kef(he).unwrap();
-            let site = if b == he && d == mate {
-                MefSite::Lone { r#loop: l2 } // self-loop pair kill
-            } else if b == he {
-                MefSite::Chords { he1: d, he2: d } // circular-face kill
+            if d == mate && b != he {
+                // The mate-alone site (the killed edge is necessarily a
+                // self-loop). Re-makeable by one op iff the surviving
+                // singleton loop is the outer of a ring-free face —
+                // module docs; the re-make re-splits from the surviving
+                // side, so the survivor's face must be shaped like the
+                // face mef mints.
+                let survivor_face = body.get_loop(l2).expect("resolves").face;
+                let survivor_face_data = body.get_face(survivor_face).expect("resolves");
+                if survivor_face_data.outer != l2 || !survivor_face_data.rings.is_empty() {
+                    return RoundtripOutcome::SkippedIrreversible;
+                }
+                body.kef(he).unwrap();
+                body.mef(MefSite::Chords { he1: b, he2: b }).unwrap();
             } else {
-                MefSite::Chords { he1: b, he2: d } // general splice
-            };
-            body.mef(site).unwrap();
+                body.kef(he).unwrap();
+                let site = if b == he && d == mate {
+                    MefSite::Lone { r#loop: l2 } // self-loop pair kill
+                } else if b == he {
+                    MefSite::Chords { he1: d, he2: d } // circular-face kill
+                } else {
+                    MefSite::Chords { he1: b, he2: d } // general splice
+                };
+                body.mef(site).unwrap();
+            }
         }
     }
     let after = canonical_form(body);

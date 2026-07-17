@@ -457,9 +457,12 @@ pub enum EulerOpError {
     /// [`Body::kfmrh`]'s two face arguments are the same face (the
     /// connected sum needs two distinct faces), or [`Body::kef`]'s
     /// edge's two halves lie in different loops of ONE face — there is
-    /// no second face to kill. (Such an edge joins two loops of a face,
-    /// the configuration [`Body::mekr`] makes; kill it with
-    /// [`Body::kev`] if its endpoints are distinct.)
+    /// no second face to kill. (That configuration is what
+    /// [`Body::kfmrh`] on two ADJACENT faces leaves behind: the shared
+    /// edge's other half ends up in the demoted ring. Kill such an edge
+    /// with [`Body::kev`] when its endpoints are distinct; the
+    /// self-loop variant has no direct one-op killer — promote the ring
+    /// back out with [`Body::mfkrh`], then [`Body::kef`].)
     SameFace {
         /// The face named twice.
         face: FaceKey,
