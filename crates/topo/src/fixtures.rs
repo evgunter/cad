@@ -16,6 +16,10 @@
 //!   solid + shell + one face whose outer loop is `Empty`, holding a
 //!   lone vertex. Tier-1-legal by design.
 //!
+//! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
+//! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
+//! the kill-direction, oracle, and teardown tests.
+//!
 //! All geometry is placeholder (structural validation never reads scalar
 //! values). Coordinates are index-derived placeholders, **not** faithful
 //! positions (the prism's points are collinear, not an n-gon); the
@@ -34,6 +38,8 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
+use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 use crate::provenance::Provenance;
 
@@ -655,5 +661,146 @@ pub(crate) fn mvfs_state() -> MvfsState {
         face,
         shell,
         solid,
+    }
+}
+
+// ---------------------------------------------------------------------
+// Operator-built fixtures (M1 PR 4): the acceptance-test bodies rebuilt
+// through the public Euler operators, in-crate, for the kill-direction
+// unit tests, the isomorphism-oracle tests, and the teardown property
+// test (which needs crate access to the provenance maps). The
+// construction sequences mirror `tests/cube_by_hand.rs` and
+// `tests/box_with_hole.rs`.
+// ---------------------------------------------------------------------
+
+/// Key bundle for [`ops_cube`]: every operator result in call order.
+#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
+pub(crate) struct OpsCube {
+    pub body: Body<f64>,
+    pub seed: MvfsCreated,
+    /// `[e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd]` — the bottom chain
+    /// then the four verticals.
+    pub mevs: [MevCreated; 7],
+    /// `[f_bottom, f_front, f_right, f_back, f_left]`; the seed face
+    /// remains as the top.
+    pub mefs: [MefCreated; 5],
+}
+
+/// Builds the unit cube through the operators (1 mvfs + 7 mev + 5 mef,
+/// the §9.4.2-minimal sequence; same construction as the PR 2
+/// acceptance test).
+pub(crate) fn ops_cube() -> OpsCube {
+    let pt = Point3::new;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
+    let e_ab = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            pt(1.0, 0.0, 0.0),
+        )
+        .unwrap();
+    let strut = |body: &mut Body<f64>, at, x, y, z| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+            .unwrap()
+    };
+    let mef = |body: &mut Body<f64>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
+    let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
+    let he_dc = body
+        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
+        .unwrap();
+    let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
+    let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 1.0);
+    let e_bb = strut(&mut body, e_bc.he_plus, 1.0, 0.0, 1.0);
+    let e_cc = strut(&mut body, e_cd.he_plus, 1.0, 1.0, 1.0);
+    let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 1.0, 1.0);
+    let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
+    let f_right = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
+    let f_back = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
+    let f_left = mef(&mut body, e_dd.he_minus, f_front.he_plus);
+    OpsCube {
+        body,
+        seed,
+        mevs: [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
+        mefs: [f_bottom, f_front, f_right, f_back, f_left],
+    }
+}
+
+/// Key bundle for [`ops_holed_box`].
+#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
+pub(crate) struct OpsHoledBox {
+    pub body: Body<f64>,
+    pub seed: MvfsCreated,
+    pub box_mevs: [MevCreated; 7],
+    pub box_mefs: [MefCreated; 5],
+    pub strut: MevCreated,
+    pub kill: KemrResult,
+    pub rim_mevs: [MevCreated; 3],
+    pub mef_top: MefCreated,
+    pub tube_mevs: [MevCreated; 4],
+    pub tube_mefs: [MefCreated; 4],
+    pub plug: KfmrhResult,
+}
+
+/// Builds the box with a square through-hole (genus 1) through the
+/// operators — the §9.3-minimal 1 mvfs + 15 mev + 10 mef + 1 kemr +
+/// 1 kfmrh, same construction as the PR 3 acceptance test (on the unit
+/// cube instead of the 2×2×2 box; coordinates are scaled, structure
+/// identical).
+pub(crate) fn ops_holed_box() -> OpsHoledBox {
+    let pt = Point3::new;
+    let OpsCube {
+        mut body,
+        seed,
+        mevs,
+        mefs,
+    } = ops_cube();
+    let strut = |body: &mut Body<f64>, at, x, y, z| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+            .unwrap()
+    };
+    let mef = |body: &mut Body<f64>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let f_bottom = mefs[0];
+    let f_front = mefs[1];
+    // (f)–(g): plant the hole anchor P as an empty ring of the top face.
+    let hole_strut = strut(&mut body, f_front.he_plus, 0.25, 0.25, 1.0); // P
+    let kill = body.kemr(hole_strut.he_plus, hole_strut.he_minus).unwrap();
+    // (h)–(i): grow and close the rim P→Q→R→S; a membrane face covers
+    // the opening.
+    let s_pq = body
+        .mev(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0))
+        .unwrap(); // Q
+    let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0); // R
+    let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0); // S
+    let mef_top = mef(&mut body, s_pq.he_plus, s_rs.he_minus);
+    // (j)–(k): drop the verticals and cut the tube walls.
+    let e_pp = strut(&mut body, s_pq.he_plus, 0.25, 0.25, 0.0);
+    let e_qq = strut(&mut body, s_qr.he_plus, 0.75, 0.25, 0.0);
+    let e_rr = strut(&mut body, s_rs.he_plus, 0.75, 0.75, 0.0);
+    let e_ss = strut(&mut body, mef_top.he_minus, 0.25, 0.75, 0.0);
+    let w_front = mef(&mut body, e_pp.he_minus, e_qq.he_minus);
+    let w_right = mef(&mut body, e_qq.he_minus, e_rr.he_minus);
+    let w_back = mef(&mut body, e_rr.he_minus, e_ss.he_minus);
+    let he_pq_bottom = body
+        .find_half_edge(mef_top.face, e_pp.vertex, e_qq.vertex)
+        .unwrap();
+    let w_left = mef(&mut body, e_ss.he_minus, he_pq_bottom);
+    // (l): the connected sum — genus 1.
+    let plug = body.kfmrh(f_bottom.face, mef_top.face).unwrap();
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsHoledBox {
+        body,
+        seed,
+        box_mevs: mevs,
+        box_mefs: mefs,
+        strut: hole_strut,
+        kill,
+        rim_mevs: [s_pq, s_qr, s_rs],
+        mef_top,
+        tube_mevs: [e_pp, e_qq, e_rr, e_ss],
+        tube_mefs: [w_front, w_right, w_back, w_left],
+        plug,
     }
 }

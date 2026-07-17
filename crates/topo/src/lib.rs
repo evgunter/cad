@@ -9,9 +9,12 @@
 //! half-edge structure itself (adjacency, orientation conventions, the
 //! tier-1 structural validator); PR 2 added the first Euler operators —
 //! [`Body::mvfs`], [`Body::mev`], [`Body::mef`] (see [`euler`]) — the
-//! sanctioned construction path; PR 3 adds the ring/genus operators —
+//! sanctioned construction path; PR 3 added the ring/genus operators —
 //! [`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`] — and the non-Euler
-//! [`Body::ring_move`] helper (see [`euler_ring`]). The raw builder
+//! [`Body::ring_move`] helper (see [`euler_ring`]); PR 4 completes the
+//! ten-operator catalog with the kill-direction duals — [`Body::kvfs`],
+//! [`Body::kev`], [`Body::kef`], [`Body::mfkrh`] (see [`euler_kill`]) —
+//! plus the make/kill roundtrip property-test machinery. The raw builder
 //! placeholder remains public until PR 5, when the operator set is
 //! complete enough for it to retreat to `pub(crate)`.
 //!
@@ -88,11 +91,18 @@
 pub mod body;
 pub mod entity;
 pub mod euler;
+pub mod euler_kill;
 pub mod euler_ring;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
+#[cfg(test)]
+pub(crate) mod iso;
 pub mod provenance;
+#[cfg(test)]
+mod review_m1_pr4;
+#[cfg(test)]
+pub(crate) mod seqgen;
 pub mod validate;
 
 pub use body::Body;
@@ -101,6 +111,7 @@ pub use entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{EulerOpError, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler_kill::{KefResult, KevResult, KvfsResult, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 pub use provenance::Provenance;

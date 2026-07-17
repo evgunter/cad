@@ -181,9 +181,22 @@ notes, never the scan.
      in the half-edge representation. Finished bodies must pass
      tier 2; tier-1-only states are visible solely inside operation
      implementations.
-   - **Euler–Poincaré counting per shell**: `v − e + f − r = 2(1 − h)`
-     with `h` a derived non-negative integer (parity + bound checked);
-     global sum consistency.
+   - **Component-aware per-shell Euler–Poincaré** *(corrected in PR 4 —
+     the naive form is wrong for tier-1 bodies: `mfkrh` on a detached
+     ring disconnects a shell's surface while one shell entity
+     remains)*: per shell, partition the incidence complex into
+     connected components (faces glue all their loops, outer and rings;
+     a cycle loop glues its edges' two sides via mate; an empty loop
+     glues its lone vertex; a dartless empty-outer face is its own
+     component with its vertex); each component is a closed oriented
+     surface piece and must satisfy v − e + f − r = 2(1 − g) with g a
+     non-negative integer (parity checked per component); per shell the
+     sum reads v − e + f − r = 2(c − Σgᵢ) with c the component count.
+     The naive per-body h = s − (v−e+f−r)/2 equals Σgᵢ only when every
+     shell has c = 1. Tier 2 additionally requires c = 1 per shell
+     (note: reachable disconnections exist with NO empty loops or
+     struts — promote a detached cycle ring — so tier 2's existing bans
+     do not imply c = 1).
    - **Orphan-vertex rule restated** (M0 deferral): a vertex must be
      referenced by ≥1 half-edge *or* be the lone vertex of an empty
      loop.
