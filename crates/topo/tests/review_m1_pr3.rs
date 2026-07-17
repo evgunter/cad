@@ -264,6 +264,9 @@ struct HoleBuilt {
 /// coordinates on the from-plane; `drop_pts` the n far-plane points.
 /// Ledger is asserted after EVERY operator against the caller's
 /// running expectation (`start`, mutated in place).
+// Promotion adaptation (lint only, reviewer's signature kept verbatim):
+// the shipped crate denies clippy::too_many_arguments at 8/7.
+#[allow(clippy::too_many_arguments)]
 fn carve_hole(
     body: &mut Body<f64>,
     at: HalfEdgeKey,
