@@ -12,14 +12,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod review_m1_pr2_common;
-
-use geom_core::Point3;
-use review_m1_pr2_common::deep_snapshot;
-use topo::{
+use super::deep_snapshot;
+use crate::{
     Body, EntityId, EulerOpError, FaceKey, GeomRef, HalfEdgeKey, LoopKey, MefSite, MevSite,
     PointKey, VertexKey, validate,
 };
+use geom_core::Point3;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -29,9 +27,9 @@ fn p(x: f64) -> Point3<f64> {
 /// Returns (body, seed, seg, split).
 fn pillow() -> (
     Body<f64>,
-    topo::MvfsCreated,
-    topo::MevCreated,
-    topo::MefCreated,
+    crate::MvfsCreated,
+    crate::MevCreated,
+    crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
@@ -331,11 +329,11 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
 
     // StaleKey(shell): face with a null shell key.
     let (mut body, _, seg, split) = pillow();
-    body.get_face_mut(split.face).unwrap().shell = topo::ShellKey::default();
+    body.get_face_mut(split.face).unwrap().shell = crate::ShellKey::default();
     assert_err_deep_unchanged(
         &mut body,
         EulerOpError::StaleKey {
-            key: EntityId::Shell(topo::ShellKey::default()),
+            key: EntityId::Shell(crate::ShellKey::default()),
         },
         |b| {
             b.mef(MefSite::Chords {

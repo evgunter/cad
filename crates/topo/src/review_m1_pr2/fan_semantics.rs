@@ -9,8 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::{Body, MefSite, MevSite, validate};
 use geom_core::Point3;
-use topo::{Body, MefSite, MevSite, validate};
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)

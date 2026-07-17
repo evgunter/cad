@@ -20,7 +20,8 @@
 //! re-makeable when the survivor is a bare outer — the fix pass encoded
 //! the corrected taxonomy), exhaustive single-op-search proofs for the
 //! two genuinely irreversible kill subcases, the shell-component
-//! Euler–Poincaré formula that PR 5's validator will implement, oracle
+//! Euler–Poincaré formula that PR 5's validator now implements as
+//! pass 11 (this file's derivation was its spec seed), oracle
 //! automorphism/degeneracy attacks, a genus-2 teardown, and
 //! release-mode torn-body batteries.
 //!
@@ -1282,6 +1283,9 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Kev(_) => "kev",
                 OpChoice::Kef(_) => "kef",
                 OpChoice::Kvfs(_) => "kvfs",
+                // Added at PR 5's fix pass with the ring_move seqgen
+                // row (the coverage floor extends to all 11 mutators).
+                OpChoice::RingMove(..) => "ring_move",
             });
             apply(&mut body, choice, &mut counter);
             assert_eq!(validate(&body), Ok(()));
@@ -1302,6 +1306,7 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mekr_both_empty",
         "kfmrh",
         "mfkrh",
+        "ring_move",
         "kev",
         "kef",
         "kvfs",

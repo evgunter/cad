@@ -9,14 +9,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod review_m1_pr2_common;
-
-use geom_core::Point3;
-use review_m1_pr2_common::{euler_poincare_holds, face_polygon};
-use topo::{
+use super::{euler_poincare_holds, face_polygon};
+use crate::{
     Body, CurveGeom, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     MefSite, MevSite, Provenance, SurfaceGeom, Vertex, validate,
 };
+use geom_core::Point3;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -299,7 +297,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
     let loop_c = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: c0 },
-            face: topo::FaceKey::default(),
+            face: crate::FaceKey::default(),
         },
         prov(),
     );

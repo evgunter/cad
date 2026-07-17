@@ -2,15 +2,20 @@
 //! machinery (test support, M1 PR 4).
 //!
 //! The proptest suite at the bottom drives the four properties the PR
-//! promises; the building blocks are `pub(crate)` so M1 PR 5's
-//! validator fuzzing can reuse the generator as its fuzz source:
+//! promises; the building blocks are `pub(crate)`, and PR 5's validator
+//! fuzzing (see `crate::validate`'s tests) reuses the generator as its
+//! fuzz source:
 //!
 //! - [`choose_op`] — walk the current body, enumerate every applicable
 //!   `(operator, site)` candidate deterministically, and pick one by a
 //!   weighted choice driven entirely by the caller's decision integers
 //!   (proptest's seeded values). No ambient randomness: the same body
 //!   and decisions always pick the same op (D9-style determinism, which
-//!   also makes proptest shrinking meaningful).
+//!   also makes proptest shrinking meaningful). Since the PR 5 review,
+//!   the catalog includes the non-Euler `ring_move` — all **eleven**
+//!   public mutators are fuzzed, because ring_move is the demotion
+//!   claim's least obvious tier-1 preserver (separating-curve argument,
+//!   `crate::euler_ring`).
 //! - [`apply`] — execute a choice (coordinates for the vertex-minting
 //!   ops come from a caller-owned counter, so every vertex gets distinct
 //!   coordinates and canonical forms are sharp).
@@ -87,6 +92,12 @@ pub(crate) enum OpChoice {
     Kev(HalfEdgeKey),
     Kef(HalfEdgeKey),
     Kvfs(SolidKey),
+    /// The non-Euler public mutator (`ring_move(ring, to_face)`).
+    /// Included so the fuzz lane exercises all **eleven** public
+    /// mutators — ring_move's tier-1 preservation is the demotion
+    /// claim's least obvious case (the separating-curve argument; see
+    /// its docs in `crate::euler_ring`).
+    RingMove(LoopKey, FaceKey),
 }
 
 impl OpChoice {
@@ -104,6 +115,8 @@ impl OpChoice {
             Self::Kev(_) => [-1, -1, 0, 0, 0, 0],
             Self::Kef(_) => [0, -1, -1, 0, 0, 0],
             Self::Kvfs(_) => [-1, 0, -1, 0, 0, -1],
+            // NOT an Euler operator: pure reparenting, zero vector.
+            Self::RingMove(..) => [0, 0, 0, 0, 0, 0],
         }
     }
 }
@@ -142,10 +155,12 @@ impl Ledger {
     /// entity, so eq. 9.2's h stops meaning "genus of a connected
     /// closed surface" and starts double-counting components. A legal
     /// tier-1 intermediate (like empty loops and struts). The
-    /// component-aware per-shell form that PR 5's validator must
-    /// implement (per component v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per
-    /// shell the sum is 2(c − Σgᵢ)) is ratified in `docs/M1-PLAN.md`'s
-    /// PR 5 bullet, corrected by this PR.
+    /// component-aware per-shell form (per component
+    /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
+    /// 2(c − Σgᵢ)) was ratified in `docs/M1-PLAN.md`'s PR 5 bullet,
+    /// corrected by PR 4, and is implemented as the validator's pass 11
+    /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
+    /// because the generator tracks the operator algebra, not surfaces.
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let v = body.vertices().count() as i64;
         let e = body.edges().count() as i64;
@@ -203,6 +218,10 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
         (w(3, 1), mekr_candidates(body)),
         (2, kfmrh_candidates(body)),
         (w(2, 1), mfkrh_candidates(body)),
+        // The non-Euler public mutator rides along at modest weight:
+        // candidates exist whenever any face carries a ring, which kemr
+        // (always-on weight) produces steadily.
+        (w(2, 1), ring_move_candidates(body)),
         (w(2, 6), kev_candidates(body)),
         (w(2, 6), kef_candidates(body)),
         // kvfs candidates are rare (a solid must be exactly skeletal),
@@ -366,6 +385,23 @@ fn mfkrh_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
+/// Every genuine ring reparenting: each ring of each face, moved to
+/// every OTHER same-shell face (the same-face no-op is excluded — it
+/// exercises nothing). Deterministic double sweep of the face arena.
+fn ring_move_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+    let mut out = Vec::new();
+    for (from, face) in body.faces() {
+        for &ring in &face.rings {
+            for (to, target) in body.faces() {
+                if to != from && target.shell == face.shell {
+                    out.push(OpChoice::RingMove(ring, to));
+                }
+            }
+        }
+    }
+    out
+}
+
 fn kev_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     body.half_edges()
         .filter(|&(he, he_data)| body.half_edge_end(he) != Some(he_data.start))
@@ -478,6 +514,9 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32) {
         OpChoice::Kvfs(solid) => {
             body.kvfs(solid).unwrap();
         }
+        OpChoice::RingMove(ring, to_face) => {
+            body.ring_move(ring, to_face).unwrap();
+        }
     }
 }
 
@@ -534,6 +573,13 @@ pub(crate) fn roundtrip(
             let old_face = body.get_loop(ring).expect("ring resolves").face;
             let created = body.mfkrh(ring).unwrap();
             body.kfmrh(old_face, created.face).unwrap();
+        }
+        OpChoice::RingMove(ring, to_face) => {
+            // Self-paired: move there, move back. Exact up to ring-list
+            // order, which the canonical form sorts away (iso docs).
+            let old_face = body.get_loop(ring).expect("ring resolves").face;
+            body.ring_move(ring, to_face).unwrap();
+            body.ring_move(ring, old_face).unwrap();
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
         OpChoice::Kemr(he1, he2) => {

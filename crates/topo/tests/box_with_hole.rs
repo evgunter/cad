@@ -47,7 +47,7 @@
 use geom_core::Point3;
 use topo::{
     Body, EntityId, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
-    Provenance, validate,
+    Provenance, validate, validate_closed,
 };
 
 /// Every operator result of one holed-box construction, in call order.
@@ -187,6 +187,9 @@ fn holed_box_validates_with_minimal_counts_at_genus_one() {
     let mut body = Body::<f64>::new();
     let b = build_holed_box(&mut body);
     assert_eq!(validate(&body), Ok(()));
+    // Genus 1 is a tier-2 closed solid too: the rings are attached
+    // through the tube, so the shell is one component.
+    assert_eq!(validate_closed(&body), Ok(()));
 
     // The provably minimal counts (eq. 9.5 with v=16, f=10, h=1, r=2:
     // 15 mev, 10 mef, 1 mvfs, 1 kfmrh, 1 kemr).

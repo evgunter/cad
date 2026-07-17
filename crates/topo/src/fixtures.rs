@@ -12,9 +12,9 @@
 //!   halves in different faces' one-half-edge loops).
 //! - [`prism`] — 2 n-gon caps + n quads (v = 2n, e = 3n, f = n + 2);
 //!   every vertex has valence 3, exercising nontrivial vertex orbits.
-//! - [`mvfs_state`] — the skeletal body `mvfs` will create in PR 2:
-//!   solid + shell + one face whose outer loop is `Empty`, holding a
-//!   lone vertex. Tier-1-legal by design.
+//! - [`mvfs_state`] — the skeletal body `mvfs` creates: solid + shell +
+//!   one face whose outer loop is `Empty`, holding a lone vertex.
+//!   Tier-1-legal by design.
 //!
 //! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
 //! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
@@ -803,4 +803,97 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
         tube_mefs: [w_front, w_right, w_back, w_left],
         plug,
     }
+}
+
+/// Builds the genus-2 double-hole body: [`ops_holed_box`] plus a
+/// triangular through-hole carved front → back (the PR 4 review's
+/// recipe, compacted from `src/review_m1_pr4.rs`'s
+/// `genus_two_double_hole_body_tears_down_to_nothing` — the annotated
+/// original stays in the review artifact). Ledger check inside:
+/// v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2).
+pub(crate) fn ops_genus2() -> Body<f64> {
+    let pt = Point3::new;
+    let t = ops_holed_box();
+    let mut body = t.body;
+    let f_front = t.box_mefs[1].face;
+    let f_back = t.box_mefs[3].face;
+    let front_outer = body.get_face(f_front).unwrap().outer;
+    let LoopBoundary::Cycle { first: at } = body.get_loop(front_outer).unwrap().boundary else {
+        panic!("front outer is a cycle");
+    };
+    let rim_pts = [pt(0.3, 0.0, 0.3), pt(0.7, 0.0, 0.3), pt(0.5, 0.0, 0.7)];
+    let drop_pts = [pt(0.3, 1.0, 0.3), pt(0.7, 1.0, 0.3), pt(0.5, 1.0, 0.7)];
+    // Plant the rim anchor as an empty ring of the front face, then
+    // grow and close the triangular rim; a membrane face covers it.
+    let strut = body
+        .mev(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .unwrap();
+    let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    let mut rim: Vec<MevCreated> = vec![
+        body.mev(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+            .unwrap(),
+    ];
+    for rp in &rim_pts[2..] {
+        let prev = rim.last().unwrap().he_minus;
+        rim.push(
+            body.mev(
+                MevSite::Fan {
+                    he1: prev,
+                    he2: prev,
+                },
+                *rp,
+            )
+            .unwrap(),
+        );
+    }
+    let membrane = body
+        .mef(MefSite::Chords {
+            he1: rim[0].he_plus,
+            he2: rim.last().unwrap().he_minus,
+        })
+        .unwrap();
+    // Drop the verticals, cut the tube walls, and connect the sum.
+    let mut drops: Vec<MevCreated> = Vec::new();
+    for (i, dp) in drop_pts.iter().enumerate() {
+        let anchor = if i < rim.len() {
+            rim[i].he_plus
+        } else {
+            membrane.he_minus
+        };
+        drops.push(
+            body.mev(
+                MevSite::Fan {
+                    he1: anchor,
+                    he2: anchor,
+                },
+                *dp,
+            )
+            .unwrap(),
+        );
+    }
+    for i in 0..drops.len() - 1 {
+        body.mef(MefSite::Chords {
+            he1: drops[i].he_minus,
+            he2: drops[i + 1].he_minus,
+        })
+        .unwrap();
+    }
+    let he_first_far = body
+        .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
+        .unwrap();
+    body.mef(MefSite::Chords {
+        he1: drops.last().unwrap().he_minus,
+        he2: he_first_far,
+    })
+    .unwrap();
+    body.kfmrh(f_back, membrane.face).unwrap();
+    // Genus-2 checkpoint.
+    let v = body.vertices().count() as i64;
+    let e = body.edges().count() as i64;
+    let f = body.faces().count() as i64;
+    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
+    assert_eq!((v, e, f, r), (22, 33, 13, 4));
+    assert_eq!(v - e + f - r, -2, "genus 2");
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    body
 }

@@ -272,6 +272,60 @@ Second round (chat, 2026-07-16):
   the spec seed for the validator's E–P pass; two-Empty-loops-on-one-
   vertex validator test still owed (PR 3 carry).
 
+## PR 5 (validator completion + tiers + raw-builder demotion) — 2026-07-16
+
+- Implemented per binding spec (Fable, isolated worktree). Tier 1
+  grows to 12 passes: arity floors (`SolidWithoutShells`,
+  `ShellWithoutFaces`), edge-adjacency shell coherence
+  (`EdgeAcrossShells`), **component-aware per-shell Euler–Poincaré**
+  (`ComponentEulerViolation` with per-component counts; DFS over
+  faces in arena order, glue rules per the ratified bullet;
+  set-size counts, order-independent), bidirectional D5 provenance
+  (`MissingProvenance`/`LeakedProvenance`, all seven arenas).
+  `validate_closed()` exported: tier-1 first, then
+  `ScaffoldingEmptyLoop`, `ScaffoldingStrutVertex`,
+  `ShellDisconnected{components}` in documented order.
+- **Raw builder demoted to pub(crate)** — Euler ops + ring_move are
+  the only public mutators; debug postconditions are now
+  unreachable-by-input through the public API (the PR 2 taxonomy
+  hole closes; D9's no-panic claim is unconditional at the public
+  boundary). ring_move's tier-1 preservation rests on the
+  separating-curve argument (a ring on a genus-0 component is a
+  Jordan curve; non-separating rings force g ≥ 1) — named in the
+  demotion docs and exercised by seqgen after the review.
+- Suite migrations for the demotion: review_m1_pr1/pr3, review_m0_pr7
+  → src cfg(test) modules; review_m1_pr2 suite moved whole as a
+  directory module; pr1's gap probe INVERTED (the PR 1 review's
+  moved-face scenario now yields 4 EdgeAcrossShells + per-shell odd-χ
+  ComponentEulerViolations — the gap is closed and pinned).
+  cube/box acceptance tests now also assert validate_closed. Mid-PR
+  merge of origin/main (merge commit) absorbed the #18/#22 salvage
+  suites into the stack — without it the demotion would have broken
+  main's build on merge.
+- `Body<Interval>` cube test lands (new topo `interval` feature →
+  geom-core/interval): both tiers pass at T = Interval — the M0
+  carry closes.
+- **e2e review verdict: mergeable, zero blockers.** Component pass
+  survived exhaustive falsification (all ring_move/kfmrh/mfkrh
+  mutations to depth 2 over five adversarial fixtures incl. a
+  non-separating-ring pillow-torus and nested detached-genus);
+  reviewer's structural insight recorded: passes 3/4/6 force each
+  component to be a closed oriented surface, so χ = 2(1 − g) is
+  automatic within coherent shells — pass 11 fires only under
+  genuine shell-cutting. Multi-detachment counts exact
+  (ShellDisconnected{3}); the grown-digon witness for c = 1's
+  independence verified necessary (mfkrh on an EMPTY ring leaves an
+  empty loop). Demotion attack: no debug panic reachable through
+  any public path. Fixes: ring_move named + fuzzed (SHOULD-1),
+  provenance coverage 14/14 promoted (SHOULD-2), strut-scan
+  doc/gating corrected, reviewer suites promoted as review_m1_pr5.
+- For PR 6: DESIGN draft divergences to fold in — "visible solely
+  inside operation implementations" → "sequences"; tier-1 checklist
+  should name vertex anchoring (the discharged M0 orphan-vertex
+  deferral), the ownership/back-pointer partition, and orphan
+  geometry; the unreachable-by-input wording gets the ring_move
+  caveat.
+
 ## Log decisions
 
 (none yet)
@@ -286,9 +340,10 @@ Second round (chat, 2026-07-16):
   local discussion") after two conversation rounds (typed `Loop`, CCW,
   kfmrh sequencing, two/three-tier validity, D1 clarifications:
   postcondition asserts + Body-never-authoritative, lamina story).
-- **Current**: PRs 1–3 merged (#16, #17, #20); process update #21;
-  salvage PRs #18/#22; issue #4 closed via docs PR #19. PR 4
-  (`ev/m1-4-kills`, stacked on PR 3) implemented + e2e-reviewed + fix
-  pass applied — PR opening for self-merge. PR 5 spec is the
-  orchestrator's next action (component-aware E–P + validator
-  completion + raw-builder demotion).
+- **Current**: PRs 1–4 merged (#16, #17, #20, #23); process update
+  #21; salvage PRs #18/#22; issue #4 closed via docs PR #19. PR 5
+  (`ev/m1-5-validator`) implemented + e2e-reviewed (mergeable, zero
+  blockers) + fix pass applied — PR opening for self-merge. M2 reading
+  complete (ch. 12/13 notes archived); M2-PLAN drafted and opening as
+  a design PR for Evan's ratification. PR 6 finalization
+  (orchestrator) after PR 5 merges.

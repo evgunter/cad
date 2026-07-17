@@ -17,15 +17,24 @@
 //! −2), per-arena pair-convergence and unbalanced-kill divergence pins,
 //! shared-vs-private geometry reaping, and atomicity sweeps over every
 //! ring-op error path.
+//!
+//! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
+//! raw builder retreated to `pub(crate)`: two probes here
+//! (`raw_self_loop`, `raw_shared_curve_chain`) deliberately raw-build
+//! states no operator can reach, which integration tests can no longer
+//! do. Adaptations at the move: `use topo::…` became `use crate::…`;
+//! the probes are otherwise verbatim (the "everything here goes through
+//! the public API" claim above is historical — true when written,
+//! qualified by exactly this note now).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Point3;
-use topo::{
+use crate::{
     Body, CurveGeom, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
     LoopBoundary, LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated,
     Provenance, Shell, Solid, SurfaceGeom, Vertex, VertexKey, validate,
 };
+use geom_core::Point3;
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -251,12 +260,12 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
 #[allow(dead_code)]
 struct HoleBuilt {
     strut: MevCreated,
-    kill: topo::KemrResult,
+    kill: crate::KemrResult,
     rim: Vec<MevCreated>,
     membrane: MefCreated,
     drops: Vec<MevCreated>,
     walls: Vec<MefCreated>,
-    plug: topo::KfmrhResult,
+    plug: crate::KfmrhResult,
 }
 
 /// Carve an n-gon hole from face `f_from` (strut planted at the start
@@ -1297,7 +1306,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
 fn raw_shared_curve_chain() -> (
     Body<f64>,
     [HalfEdgeKey; 4], // a0 (v0→v1), a1 (v1→v2), b1 (v2→v1), b0 (v1→v0)
-    topo::CurveKey,
+    crate::CurveKey,
 ) {
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();

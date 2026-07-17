@@ -12,8 +12,9 @@
 //!
 //! - **Kill hygiene.** A killed entity's arena slot AND its D5
 //!   provenance `SecondaryMap` entry are removed together (a provenance
-//!   record outliving its entity is a leak — PR 5's bidirectional check
-//!   makes leaks loud). Killed keys returned in the result structs are
+//!   record outliving its entity is a leak — the validator's
+//!   bidirectional provenance pass makes leaks loud). Killed keys
+//!   returned in the result structs are
 //!   **dead**: they no longer resolve; they are returned for the
 //!   caller's records only.
 //! - **Geometry hygiene.** Killing an edge/face may orphan its
@@ -694,6 +695,26 @@ impl<T: Real> Body<T> {
     /// documented no-op (`Ok(())`, body untouched — the rings order is
     /// NOT perturbed, keeping replay byte-stable).
     ///
+    /// # Tier-1 preservation (the demotion claim's least obvious case)
+    ///
+    /// `ring_move` re-glues the per-shell component partition (a face
+    /// glues all its loops — validator pass 11), so unlike the Euler
+    /// operators its tier-1 preservation is not a per-surgery
+    /// Euler-vector fact. It holds anyway, by the separating-curve
+    /// argument (independently derived by the PR 5 review): validator
+    /// passes 3/4/6 force every component to be a closed oriented
+    /// surface, and on a genus-0 component every ring cycle is a
+    /// separating (Jordan) curve — so a cross-component move
+    /// re-partitions the complex into pieces that are again closed
+    /// surfaces with `χ = 2(1 − g)`, `g ≥ 0`; a NON-separating ring
+    /// forces its component's genus ≥ 1 before the move, and a move can
+    /// merge at most two components, so no move manufactures odd χ or
+    /// negative genus. Exercised continuously by the seqgen fuzz lane
+    /// (`ring_move` is a candidate mutator) and by the promoted review
+    /// sweeps (`tests/review_m1_pr5.rs`: every `ring_move` to depth 2
+    /// over adversarial fixtures, including the non-separating-ring
+    /// pillow-torus).
+    ///
     /// # Precondition check order
     ///
     /// The ring resolves ([`EulerOpError::StaleKey`]); its face
@@ -1049,11 +1070,13 @@ impl<T: Real> Body<T> {
     /// resolve (their `emanating` is rewritten) and `u`'s point resolves
     /// (the placeholder-curve anchor). Returns the anchor coordinates.
     ///
-    /// The [`EulerOpError::StaleGeometry`] arm is dead-but-defensive
-    /// today: nothing removes points until PR 5's kill-side completion
-    /// (operators only reap curves/surfaces), so through the public API
-    /// it is unreachable without key forging. Kept because the op must
-    /// stay sound standalone once point removal exists.
+    /// The [`EulerOpError::StaleGeometry`] arm is dead-but-defensive:
+    /// point removal exists (PR 4's `kev`/`kvfs` reap orphaned points),
+    /// but every reaped point's vertex dies with it, so a live vertex
+    /// with a stale point is still unreachable through the public API
+    /// without in-crate corruption (tier 1 would report it as
+    /// `DanglingGeometry`). Kept because the op must stay sound
+    /// standalone.
     fn check_anchors(&self, u: VertexKey, w: VertexKey) -> Result<Point3<T>, EulerOpError> {
         let anchor = self.resolve_vertex_point(u)?;
         if !self.vertices.contains_key(w) {

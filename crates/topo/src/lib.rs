@@ -11,12 +11,14 @@
 //! [`Body::mvfs`], [`Body::mev`], [`Body::mef`] (see [`euler`]) — the
 //! sanctioned construction path; PR 3 added the ring/genus operators —
 //! [`Body::kemr`], [`Body::mekr`], [`Body::kfmrh`] — and the non-Euler
-//! [`Body::ring_move`] helper (see [`euler_ring`]); PR 4 completes the
+//! [`Body::ring_move`] helper (see [`euler_ring`]); PR 4 completed the
 //! ten-operator catalog with the kill-direction duals — [`Body::kvfs`],
 //! [`Body::kev`], [`Body::kef`], [`Body::mfkrh`] (see [`euler_kill`]) —
-//! plus the make/kill roundtrip property-test machinery. The raw builder
-//! placeholder remains public until PR 5, when the operator set is
-//! complete enough for it to retreat to `pub(crate)`.
+//! plus the make/kill roundtrip property-test machinery; PR 5 completed
+//! the validator (validity tiers — [`validate`] accepts every
+//! Euler-reachable state, [`validate_closed`] the finished closed
+//! solids) and retired the raw-insertion builder to `pub(crate)`: **the
+//! Euler operators are the only public construction path** (D1).
 //!
 //! # Orientation conventions
 //!
@@ -51,41 +53,59 @@
 //!
 //! # Example
 //!
-//! Build the skeletal `mvfs` state — one solid, one shell, one face
-//! whose outer loop is an *empty loop* holding a lone vertex — by raw
-//! insertion, and validate it. (This is the state PR 2's `mvfs` operator
-//! mints in one call; the raw builder inserts with provisional null keys
-//! and patches, because the structure's references are cyclic.)
+//! Build the unit cube through the Euler operators — the §9.4.2-minimal
+//! sequence, 1 `mvfs` + 7 `mev` + 5 `mef` — and validate it at both
+//! tiers. Every intermediate state is tier-1 valid ([`validate`]); the
+//! finished cube is a tier-2 closed solid ([`validate_closed`]).
 //!
 //! ```
 //! use geom_core::Point3;
-//! use topo::{Body, Face, FaceKey, Loop, LoopBoundary, Provenance, Shell, Solid, SurfaceGeom, Vertex};
+//! use topo::{Body, MefSite, MevSite};
 //!
-//! let prov = || Provenance::Primordial { op: "example" };
-//!
+//! # fn run() -> Result<(), topo::EulerOpError> {
+//! let pt = Point3::new;
 //! let mut body = Body::<f64>::new();
-//! let p = body.add_point(Point3::new(0.0, 0.0, 0.0));
-//! let v = body.add_vertex(Vertex { point: p, emanating: None }, prov());
-//! let solid = body.add_solid(Solid { shells: vec![] }, prov());
-//! let shell = body.add_shell(Shell { faces: vec![], solid }, prov());
-//! body.get_solid_mut(solid).unwrap().shells.push(shell);
-//! let srf = body.add_surface(SurfaceGeom::Placeholder { anchor: Point3::new(0.0, 0.0, 0.0) });
-//! // The loop's face does not exist yet: insert with a provisional null
-//! // key (it never resolves), then patch once the face is minted.
-//! let lp = body.add_loop(
-//!     Loop { boundary: LoopBoundary::Empty { vertex: v }, face: FaceKey::default() },
-//!     prov(),
-//! );
-//! let f = body.add_face(Face { surface: srf, outer: lp, rings: vec![], shell }, prov());
-//! body.get_loop_mut(lp).unwrap().face = f;
-//! body.get_shell_mut(shell).unwrap().faces.push(f);
 //!
+//! // The seed: solid + shell + one face holding lone vertex A.
+//! let seed = body.mvfs(pt(0.0, 0.0, 0.0))?;
+//! // The bottom rim A → B → C → D, grown by three mev …
+//! let e_ab = body.mev(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0))?;
+//! let strut = |he| MevSite::Fan { he1: he, he2: he };
+//! let e_bc = body.mev(strut(e_ab.he_minus), pt(1.0, 1.0, 0.0))?;
+//! let e_cd = body.mev(strut(e_bc.he_minus), pt(0.0, 1.0, 0.0))?;
+//! // … and closed by a mef splitting off the bottom face.
+//! let he_dc = body.find_half_edge(seed.face, e_cd.vertex, e_bc.vertex).unwrap();
+//! let f_bot = body.mef(MefSite::Chords { he1: he_dc, he2: e_ab.he_plus })?;
+//! // Four vertical struts up from the rim …
+//! let e_aa = body.mev(strut(e_ab.he_plus), pt(0.0, 0.0, 1.0))?;
+//! let e_bb = body.mev(strut(e_bc.he_plus), pt(1.0, 0.0, 1.0))?;
+//! let e_cc = body.mev(strut(e_cd.he_plus), pt(1.0, 1.0, 1.0))?;
+//! let e_dd = body.mev(strut(f_bot.he_plus), pt(0.0, 1.0, 1.0))?;
+//! // … and four mef close the side faces (the seed face becomes the top).
+//! let chord = |he1, he2| MefSite::Chords { he1, he2 };
+//! let f_front = body.mef(chord(e_aa.he_minus, e_bb.he_minus))?;
+//! body.mef(chord(e_bb.he_minus, e_cc.he_minus))?;
+//! body.mef(chord(e_cc.he_minus, e_dd.he_minus))?;
+//! body.mef(chord(e_dd.he_minus, f_front.he_plus))?;
+//!
+//! assert_eq!(body.vertices().count(), 8);
+//! assert_eq!(body.edges().count(), 12);
+//! assert_eq!(body.faces().count(), 6);
+//! assert_eq!(topo::validate(&body), Ok(()));        // tier 1: euler-valid
+//! assert_eq!(topo::validate_closed(&body), Ok(())); // tier 2: closed solid
+//!
+//! // Mid-construction scaffolding is tier-1 legal but not tier-2: a
+//! // strut fails `validate_closed` with a typed, entity-named error.
+//! let scaffold = body.mev(strut(e_ab.he_plus), pt(2.0, 0.0, 0.0))?;
 //! assert_eq!(topo::validate(&body), Ok(()));
-//!
-//! // A malformed body reports EVERY defect, typed:
-//! body.add_point(Point3::new(1.0, 0.0, 0.0)); // orphan geometry — nothing should leak
-//! let errors = topo::validate(&body).unwrap_err();
-//! assert_eq!(errors.len(), 1);
+//! assert_eq!(
+//!     topo::validate_closed(&body),
+//!     Err(vec![topo::ValidationError::ScaffoldingStrutVertex {
+//!         vertex: scaffold.vertex,
+//!     }]),
+//! );
+//! # Ok(()) }
+//! # run().unwrap();
 //! ```
 
 pub mod body;
@@ -100,7 +120,17 @@ pub mod geometry;
 pub(crate) mod iso;
 pub mod provenance;
 #[cfg(test)]
+mod review_m0_pr7;
+#[cfg(test)]
+mod review_m1_pr1;
+#[cfg(test)]
+mod review_m1_pr2;
+#[cfg(test)]
+mod review_m1_pr3;
+#[cfg(test)]
 mod review_m1_pr4;
+#[cfg(test)]
+mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod validate;
@@ -115,4 +145,4 @@ pub use euler_kill::{KefResult, KevResult, KvfsResult, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
 pub use provenance::Provenance;
-pub use validate::{ValidationError, validate};
+pub use validate::{ValidationError, validate, validate_closed};
