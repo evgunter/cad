@@ -87,11 +87,66 @@ the counter stands at L7).
   linear ε — dimensional honesty); Def decorations classify, they
   are not poison; never sample normal() at the cone apex.
 
+## PR 2 (profile crate: bulge-chain sketches) — 2026-07-18
+
+- Implemented per binding spec (Fable, isolated worktree; overlapped
+  pipeline — implemented while PR 1 was under review, stacked).
+  Bulge-chain representation ratified in the #24 conversation:
+  ProfileVertex{pos, bulge}, closed by construction, winding
+  invisible (containment-derived roles, internal canonicalization).
+- **Spec conflict resolved toward the ratified record**: the
+  orchestrator's spec gloss said positive bulge "bows left"; true
+  DXF semantics (the ratified rationale) is positive = CCW sweep,
+  center left of chord, apex bowing right — for minor arcs.
+  Implementer chose true DXF; the reviewer independently re-derived
+  AutoCAD's bulge/center/apex formulas and confirmed exact agreement
+  (quarter-arc, major-arc via-point, two-arc circle). Import
+  compatibility holds; sagitta s = L·b/2 proven exact for ALL θ.
+- Canonical form (D9): outer first (CCW), holes in discovery order
+  (CW), lex-min starting vertex through an EXACT-order band
+  (min-subnormal — totality + transitivity over a tolerance band;
+  lex-min uniqueness is guaranteed because duplicate vertices die at
+  simplicity). Byte-invariant under rotation/reversal of every loop
+  (proptest + reviewer's symmetric/ulp-tied attacks); NOT invariant
+  under input loop reordering (documented).
+- Trilean predicate inventory (~15 named predicates, one decide
+  funnel, every margin meters through a stated lever arm — sagitta,
+  clearance r−|h| ≈ r·φ²/2, sliver width 2A/P, chordal defect with
+  its cos(θ/4) conditioning); exact tangency ⇒ TangentialContact;
+  in-band ⇒ Escalated naming the leaf predicate. Ray-parity
+  containment with a deterministic golden-angle retry schedule
+  (grazes refuse the ray; exhaustion is a typed error — reviewer
+  showed it requires exact 16-fold adversarial alignment).
+- K-hook: thread-local recording funnel + Probe scalar (delegating
+  f64 wrapper); bit-identical decisions by construction; one Cell
+  write per decision in production (verified by review); per-predicate
+  margin distributions ready for PR 7's K report.
+- **e2e review verdict: mergeable, zero blockers, 3 SHOULDs
+  (doc/error-typing), 4 NITs.** DXF independently verified; every
+  simplicity attack correctly rejected (lens-crossing arcs, cocircular
+  overlap, pinch, spike); enter-exit-same-arc parity hand-solved;
+  lever arms audited (sagitta exact; translate-to-origin shoelace
+  verified live at (1e8,1e8) with ε=1e-9). SHOULD-2's finding
+  recorded honestly: near-full arcs had a false-Zero regime in
+  arc_span (no wrong-accept path — every probe still rejected — but
+  one mislabeled error type); fixed in the fix pass. Reviewer suites
+  promoted as review_m2_pr2 (24 tests).
+- For PR 4: axis = ±plane normal by turn sign is PR 4's convention to
+  own and document; spans come from the stored bulge (θ = 4·atan|b|,
+  the sanctioned re-inspection), never endpoint atan2. For PR 3: the
+  smoothness handoff verified live — validated profiles present only
+  definitely-smooth (exact carrier tangency) or definitely-corner
+  joins; near-tangent joins die at profile validation.
+- Deferred, named: D4 ¶4 session-box enforcement at construction
+  sugar (first reachable-from-innocent-input site found here).
+
 ## State snapshot
 
 - **Done**: M2-PLAN ratified & merged (#24, all forks resolved in
-  conversation). PR 1 implemented + reviewed (zero blockers) + fix
-  pass; PR opening for self-merge. PR 2 (profiles) implementing on
-  the stacked branch (overlapped pipeline). M3 reading (Mäntylä
-  ch. 14–15) dispatched.
-- **Next**: PR 2 review ∥ PR 3 (EdgeGeometry) implementation.
+  conversation). PR 1 merged (zero blockers). PR 2 implemented +
+  reviewed (zero blockers) + fix pass applied; PR opening for
+  self-merge. PR 3 (EdgeGeometry) implementing on the stacked branch
+  (overlapped pipeline). M3 reading (Mäntylä ch. 14–15) nearly done.
+- **Next**: wind-down to orchestrator handoff after PR 3's
+  implementation report; next session picks up at PR 3 review ∥ PR 4
+  (extrude) implementation.

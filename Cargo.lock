@@ -347,6 +347,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "profile"
+version = "0.0.0"
+dependencies = [
+ "geom-core",
+ "geom-curves",
+ "proptest",
+]
+
+[[package]]
 name = "proptest"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

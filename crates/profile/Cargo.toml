@@ -1,0 +1,25 @@
+[package]
+name = "profile"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so validation runs at
+# `Interval` — exercised by the feature-gated test modules in CI's
+# interval lane.
+interval = ["geom-core/interval"]
+
+[dependencies]
+geom-core = { path = "../geom-core" }
+
+[dev-dependencies]
+proptest = { workspace = true }
+# The promoted M2 PR 2 reviewer consumer suite
+# (tests/review_m2_pr2_consumers.rs) is the PR 4/PR 3 composition
+# dry-run: it lowers validated arc segments onto geom-curves Circle
+# carriers; geom-curves is acyclic here (it does not depend on profile).
+geom-curves = { path = "../geom-curves" }
