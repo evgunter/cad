@@ -235,11 +235,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2};
         let len = p0.distance(p1);
         Self {
-            description: EdgeGeometry::MappedCurve(crate::edge_geometry::MappedCurve::ExtrudedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(p0 - Point3::origin()),
-                vec: p1 - p0,
-            }),
+            description: EdgeGeometry::MappedCurve(
+                crate::edge_geometry::MappedCurve::ExtrudedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(p0 - Point3::origin()),
+                    vec: p1 - p0,
+                },
+            ),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: (p1 - p0) / len,
@@ -267,13 +269,15 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
         Self {
-            description: EdgeGeometry::MappedCurve(crate::edge_geometry::MappedCurve::RevolvedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(p - Point3::origin()),
-                axis_origin: center,
-                axis_dir: Vec3::unit_z(),
-                angle: T::tau(),
-            }),
+            description: EdgeGeometry::MappedCurve(
+                crate::edge_geometry::MappedCurve::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(p - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: Vec3::unit_z(),
+                    angle: T::tau(),
+                },
+            ),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),

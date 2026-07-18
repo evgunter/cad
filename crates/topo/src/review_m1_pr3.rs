@@ -30,9 +30,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::{
-    Body, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
-    LoopBoundary, LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated,
-    Provenance, Shell, Solid, Vertex, VertexKey, validate,
+    Body, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated, Provenance, Shell,
+    Solid, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
 
@@ -209,7 +209,8 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
     let e_bb = strut(body, e_bc.he_plus, 2.0, 0.0, 2.0);
     let e_cc = strut(body, e_cd.he_plus, 2.0, 2.0, 2.0);
     let e_dd = strut(body, f_bottom.he_plus, 0.0, 2.0, 2.0);
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let f_front = mef(body, e_aa.he_minus, e_bb.he_minus);
     let f_right = mef(body, e_bb.he_minus, e_cc.he_minus);
     let f_back = mef(body, e_cc.he_minus, e_dd.he_minus);
@@ -1145,7 +1146,9 @@ fn unbalanced_kill_divergence_persists() {
         he2: es_a[0].he_minus,
     };
     let mev1_a = body_a.mev_line(site_a, Point3::new(9.0, 0.0, 0.0)).unwrap();
-    let mev2_a = body_a.mev_line(site_a, Point3::new(10.0, 0.0, 0.0)).unwrap();
+    let mev2_a = body_a
+        .mev_line(site_a, Point3::new(10.0, 0.0, 0.0))
+        .unwrap();
 
     // C: 3-chain, the same two mevs, no kill.
     let (mut body_c, _seed_c, es_c) = chain(3);
@@ -1154,7 +1157,9 @@ fn unbalanced_kill_divergence_persists() {
         he2: es_c[0].he_minus,
     };
     let mev1_c = body_c.mev_line(site_c, Point3::new(9.0, 0.0, 0.0)).unwrap();
-    let mev2_c = body_c.mev_line(site_c, Point3::new(10.0, 0.0, 0.0)).unwrap();
+    let mev2_c = body_c
+        .mev_line(site_c, Point3::new(10.0, 0.0, 0.0))
+        .unwrap();
 
     // Killed-arena keys diverge at the first mint (recycled slots)…
     assert_ne!(mev1_a.edge, mev1_c.edge);

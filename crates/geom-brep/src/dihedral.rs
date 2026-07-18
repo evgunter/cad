@@ -198,10 +198,7 @@ mod tests {
         assert_eq!(c, DihedralClass::Smooth);
         // A definitely-tilted plane through the same line: transverse.
         let tilt = std::f64::consts::FRAC_PI_4;
-        let s2 = plane(
-            Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            Vec3::unit_y(),
-        );
+        let s2 = plane(Vec3::new(tilt.sin(), 0.0, tilt.cos()), Vec3::unit_y());
         let c = classify_dihedral(&s2, &cyl, p, 10.0, band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }

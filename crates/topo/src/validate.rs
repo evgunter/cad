@@ -573,7 +573,10 @@ impl fmt::Display for ValidationError {
         match self {
             Self::Band { error } => write!(f, "tier 3: {error}"),
             Self::DanglingDescription { from, to } => {
-                write!(f, "{from}'s description references {to}, which does not resolve")
+                write!(
+                    f,
+                    "{from}'s description references {to}, which does not resolve"
+                )
             }
             Self::UncertifiableSurface { face } => write!(
                 f,
@@ -593,7 +596,11 @@ impl fmt::Display for ValidationError {
                 "vertex {vertex:?} lies definitely off planar face {face:?}'s stored \
                  plane (D4 \u{b6}2 residual)"
             ),
-            Self::PlanarFaceEscalated { face, vertex, cause } => write!(
+            Self::PlanarFaceEscalated {
+                face,
+                vertex,
+                cause,
+            } => write!(
                 f,
                 "vertex {vertex:?}'s residual against planar face {face:?}'s plane \
                  escalated: {cause}"
@@ -1012,8 +1019,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        if let Err(error) =
-            curve.recertify(p_start, p_end, |k| body.surfaces.get(k).copied(), band)
+        if let Err(error) = curve.recertify(p_start, p_end, |k| body.surfaces.get(k).copied(), band)
         {
             errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
@@ -1028,9 +1034,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
             geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
                 (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
             }
-            geom_brep::EdgeGeometry::Seam { surface } => {
-                surface == fs_plus && surface == fs_minus
-            }
+            geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
             geom_brep::EdgeGeometry::MappedCurve(_) => true,
         };
         if !adjacent {
@@ -1043,8 +1047,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
     // outer loop then rings; vertices in cycle order).
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(face.surface)
-        else {
+        let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
         for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
@@ -1125,7 +1128,11 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         }
     }
 
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /// The endpoint points of an edge in `he_plus` forward order, or `None`
@@ -2506,9 +2513,7 @@ mod tests {
         // orbit-closure check is exactly what catches it.
         let mut t = pillow();
         let v0 = t.vertices[0];
-        let curve = t
-            .body
-            .add_curve(crate::fixtures::test_curve(anchor()));
+        let curve = t.body.add_curve(crate::fixtures::test_curve(anchor()));
         let e2 = t.body.add_edge(
             crate::entity::Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -2683,12 +2688,8 @@ mod tests {
     fn orphan_geometry_is_reported_for_all_three_arenas() {
         let mut t = pillow();
         let p = t.body.add_point(anchor());
-        let c = t
-            .body
-            .add_curve(crate::fixtures::test_curve(anchor()));
-        let s = t
-            .body
-            .add_surface(crate::fixtures::test_surface(anchor()));
+        let c = t.body.add_curve(crate::fixtures::test_curve(anchor()));
+        let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
         assert_eq!(
             validate(&t.body),
             Err(vec![

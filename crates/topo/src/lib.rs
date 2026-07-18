@@ -134,6 +134,8 @@ mod review_m1_pr4;
 mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
+#[cfg(test)]
+mod tier3_tests;
 pub mod validate;
 
 pub use body::Body;

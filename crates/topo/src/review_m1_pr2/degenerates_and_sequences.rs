@@ -11,8 +11,8 @@
 
 use super::{euler_poincare_holds, face_polygon};
 use crate::{
-    Body, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
-    MefSite, MevSite, Provenance, Vertex, validate,
+    Body, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey, MefSite,
+    MevSite, Provenance, Vertex, validate,
 };
 use geom_core::Point3;
 
@@ -334,7 +334,9 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
     assert!(euler_poincare_holds(&body, 1, 0));
 
     // Split the RING loop: he1 = r0, he2 = r1.
-    let cut = body.mef_chord(MefSite::Chords { he1: r0, he2: r1 }).unwrap();
+    let cut = body
+        .mef_chord(MefSite::Chords { he1: r0, he2: r1 })
+        .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Ledger after: v4 e5 f4 r1 -> 4-5+4-1 = 2. OK.
     assert!(euler_poincare_holds(&body, 1, 0));

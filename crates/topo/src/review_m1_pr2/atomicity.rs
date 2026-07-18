@@ -130,7 +130,10 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
         EulerOpError::StaleKey {
             key: EntityId::Loop(null_loop),
         },
-        |b| b.mef_chord(MefSite::Lone { r#loop: null_loop }).unwrap_err(),
+        |b| {
+            b.mef_chord(MefSite::Lone { r#loop: null_loop })
+                .unwrap_err()
+        },
     );
     let _ = seed;
 }
@@ -175,7 +178,8 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
     // LoopNotEmpty on both Lone sites (the loops are cycles now).
     let cyc = seed.r#loop;
     assert_err_deep_unchanged(&mut body, EulerOpError::LoopNotEmpty { r#loop: cyc }, |b| {
-        b.mev_line(MevSite::Lone { r#loop: cyc }, p(9.0)).unwrap_err()
+        b.mev_line(MevSite::Lone { r#loop: cyc }, p(9.0))
+            .unwrap_err()
     });
     assert_err_deep_unchanged(&mut body, EulerOpError::LoopNotEmpty { r#loop: cyc }, |b| {
         b.mef_chord(MefSite::Lone { r#loop: cyc }).unwrap_err()

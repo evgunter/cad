@@ -374,10 +374,7 @@ mod tests {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         };
-        assert_eq!(
-            curvature_lever_arm(&plane, Point3::origin()),
-            f64::INFINITY
-        );
+        assert_eq!(curvature_lever_arm(&plane, Point3::origin()), f64::INFINITY);
         let n: Surface<f64> = Surface::Nurbs;
         assert!(implicit_residual(&n, Point3::origin()).is_nan());
         assert!(implicit_gradient(&n, Point3::origin()).x.is_nan());

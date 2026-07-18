@@ -120,11 +120,9 @@ impl<T: Decide> Body<T> {
         let he_plus = edge_data.he_plus;
         let he_minus = edge_data.he_minus;
         let plus_data = self.resolve_half_edge(he_plus)?;
-        let end_vertex = self
-            .half_edge_end(he_plus)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he_plus),
-            })?;
+        let end_vertex = self.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
+            key: EntityId::HalfEdge(he_plus),
+        })?;
         let p_start = self.resolve_vertex_point(plus_data.start)?;
         let p_end = self.resolve_vertex_point(end_vertex)?;
 
@@ -132,14 +130,16 @@ impl<T: Decide> Body<T> {
         // faces exist.
         let face_surface = |body: &Self, he: crate::entity::HalfEdgeKey| {
             let he_data = body.resolve_half_edge(he)?;
-            let loop_data =
-                body.get_loop(he_data.parent_loop)
-                    .ok_or(EulerOpError::StaleKey {
-                        key: EntityId::Loop(he_data.parent_loop),
-                    })?;
-            let face_data = body.get_face(loop_data.face).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Face(loop_data.face),
-            })?;
+            let loop_data = body
+                .get_loop(he_data.parent_loop)
+                .ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Loop(he_data.parent_loop),
+                })?;
+            let face_data = body
+                .get_face(loop_data.face)
+                .ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Face(loop_data.face),
+                })?;
             Ok::<SurfaceKey, EulerOpError>(face_data.surface)
         };
         let fs_plus = face_surface(self, he_plus)?;

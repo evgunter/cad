@@ -181,9 +181,7 @@ impl<T: Real> MappedCurve<T> {
     pub fn eval(&self, s: T) -> Point3<T> {
         match *self {
             MappedCurve::PlacedSegment { segment, place } => place_point(place, segment.eval(s)),
-            MappedCurve::ExtrudedPoint { point, place, vec } => {
-                place_point(place, point) + vec * s
-            }
+            MappedCurve::ExtrudedPoint { point, place, vec } => place_point(place, point) + vec * s,
             MappedCurve::RevolvedPoint {
                 point,
                 place,

@@ -627,12 +627,14 @@ impl<T: Decide> Body<T> {
                 self.resolve_half_edge(target)?.start,
                 self.resolve_half_edge(ring)?.start,
             ),
-            MekrSite::EmptyRing { target, ring } => {
-                (self.resolve_half_edge(target)?.start, anchor_of(self, ring)?)
-            }
-            MekrSite::EmptyTarget { target, ring } => {
-                (anchor_of(self, target)?, self.resolve_half_edge(ring)?.start)
-            }
+            MekrSite::EmptyRing { target, ring } => (
+                self.resolve_half_edge(target)?.start,
+                anchor_of(self, ring)?,
+            ),
+            MekrSite::EmptyTarget { target, ring } => (
+                anchor_of(self, target)?,
+                self.resolve_half_edge(ring)?.start,
+            ),
             MekrSite::BothEmpty { target, ring } => {
                 (anchor_of(self, target)?, anchor_of(self, ring)?)
             }
@@ -2288,9 +2290,7 @@ mod tests {
             },
             prov(),
         );
-        let surface = t
-            .body
-            .add_surface(crate::fixtures::test_surface(p(9.0)));
+        let surface = t.body.add_surface(crate::fixtures::test_surface(p(9.0)));
         let lp = t.body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex: v },

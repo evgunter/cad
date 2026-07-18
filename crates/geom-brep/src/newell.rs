@@ -81,7 +81,10 @@ impl core::fmt::Display for NewellError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::TooFewVertices { got } => {
-                write!(f, "newell: {got} vertices cannot determine a plane (need ≥ 3)")
+                write!(
+                    f,
+                    "newell: {got} vertices cannot determine a plane (need ≥ 3)"
+                )
             }
             Self::NotPlanar { vertex } => write!(
                 f,
@@ -110,7 +113,10 @@ impl std::error::Error for NewellError {}
 ///
 /// [`NewellError`] — arity, definite non-planarity, or escalation (the
 /// first failing vertex, in order).
-pub fn newell_plane<T: Decide>(points: &[Point3<T>], band: Band) -> Result<Surface<T>, NewellError> {
+pub fn newell_plane<T: Decide>(
+    points: &[Point3<T>],
+    band: Band,
+) -> Result<Surface<T>, NewellError> {
     if points.len() < 3 {
         return Err(NewellError::TooFewVertices { got: points.len() });
     }
@@ -174,7 +180,12 @@ mod tests {
             pt(0.0, 1.0, 0.0),
         ];
         let plane = newell_plane(&pts, band()).unwrap();
-        let Surface::Plane { origin, normal, u_ref } = plane else {
+        let Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = plane
+        else {
             panic!("newell returns a plane");
         };
         assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));

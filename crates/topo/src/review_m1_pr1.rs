@@ -18,9 +18,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::{
-    Body, Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
-    LoopBoundary, LoopKey, Provenance, Shell, ShellKey, Solid, SolidKey, Vertex,
-    VertexKey, validate,
+    Body, Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, Provenance, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
 
@@ -758,7 +757,9 @@ fn parent_loop_chain_confusion_is_caught() {
 #[test]
 fn empty_loop_vertex_with_incidence_is_caught() {
     let mut c = build_cube();
-    let surface = c.body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let surface = c
+        .body
+        .add_surface(crate::fixtures::test_surface(Point3::origin()));
     let lp = c.body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex: c.t[0] },
@@ -1111,7 +1112,9 @@ fn lmev_strut_surgery_sketch_validates() {
         },
         prov(),
     );
-    let curve = c.body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+    let curve = c
+        .body
+        .add_curve(crate::fixtures::test_curve(Point3::origin()));
     let ne = c.body.add_edge(
         Edge {
             he_plus: HalfEdgeKey::default(),

@@ -927,7 +927,11 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mev`].
-    pub fn mev_line(&mut self, site: MevSite, point: Point3<T>) -> Result<MevCreated, EulerOpError> {
+    pub fn mev_line(
+        &mut self,
+        site: MevSite,
+        point: Point3<T>,
+    ) -> Result<MevCreated, EulerOpError> {
         let old = match site {
             MevSite::Fan { he1, .. } => self.resolve_half_edge(he1)?.start,
             MevSite::Lone { r#loop } => {
@@ -1067,9 +1071,10 @@ impl<T: Decide> Body<T> {
     /// As [`Body::mef`].
     pub fn mef_chord(&mut self, site: MefSite) -> Result<MefCreated, EulerOpError> {
         let (u1, u2) = match site {
-            MefSite::Chords { he1, he2 } => {
-                (self.resolve_half_edge(he1)?.start, self.resolve_half_edge(he2)?.start)
-            }
+            MefSite::Chords { he1, he2 } => (
+                self.resolve_half_edge(he1)?.start,
+                self.resolve_half_edge(he2)?.start,
+            ),
             MefSite::Lone { r#loop } => {
                 let loop_data = self.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
                     key: EntityId::Loop(r#loop),
@@ -1546,8 +1551,14 @@ impl<T: Decide> Body<T> {
         let band = Band::linear().map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        EdgeCurve::certify(spec, p_start, p_end, |k| self.surfaces.get(k).copied(), band)
-            .map_err(|error| EulerOpError::Certification { error })
+        EdgeCurve::certify(
+            spec,
+            p_start,
+            p_end,
+            |k| self.surfaces.get(k).copied(),
+            band,
+        )
+        .map_err(|error| EulerOpError::Certification { error })
     }
 
     /// Precondition half of [`FaceSurface`] resolution: a `Shared` key
@@ -2586,7 +2597,8 @@ mod tests {
                 .unwrap_err()
         });
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Lone { r#loop: t.loop_a }).unwrap_err()
+            body.mef_chord(MefSite::Lone { r#loop: t.loop_a })
+                .unwrap_err()
         });
     }
 

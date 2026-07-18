@@ -204,9 +204,7 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
     let curves: Vec<CurveKey> = (0..n)
-        .map(|_| {
-            body.add_curve(test_curve(Point3::origin()))
-        })
+        .map(|_| body.add_curve(test_curve(Point3::origin())))
         .collect();
     let surface_a = body.add_surface(test_surface(Point3::origin()));
     let surface_b = body.add_surface(test_surface(Point3::origin()));
@@ -428,15 +426,11 @@ pub(crate) fn prism(n: usize) -> Prism {
     let bottom_points: Vec<PointKey> = (0..n)
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
-    let mut curve = || {
-        body.add_curve(test_curve(Point3::origin()))
-    };
+    let mut curve = || body.add_curve(test_curve(Point3::origin()));
     let curves_t: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_b: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_v: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
-    let mut surface = || {
-        body.add_surface(test_surface(Point3::origin()))
-    };
+    let mut surface = || body.add_surface(test_surface(Point3::origin()));
     let surface_top = surface();
     let surface_bottom = surface();
     let surface_side: Vec<SurfaceKey> = (0..n).map(|_| surface()).collect();
@@ -718,7 +712,8 @@ pub(crate) fn ops_cube() -> OpsCube {
         body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
@@ -774,7 +769,8 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
         body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let f_bottom = mefs[0];
     let f_front = mefs[1];
     // (f)–(g): plant the hole anchor P as an empty ring of the top face.
