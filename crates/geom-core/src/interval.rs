@@ -213,6 +213,55 @@ impl Real for Interval {
         Self(self.0.abs())
     }
 
+    /// The hull `[⌊lo⌋, ⌊hi⌋]` — floor spans integers ⇒ the hull is the
+    /// honest enclosure (containment is the contract; a step function
+    /// has no tighter interval image). Decoration per IEEE 1788 via
+    /// inari: a box spanning a jump degrades to `Def` (defined
+    /// everywhere on the box, discontinuous in it); a box whose infimum
+    /// sits exactly on an integer is `Dac`; a jump-free interior box
+    /// keeps `Com`. Empty/NaI propagate. Note `Def` still classifies
+    /// through [`Decide`] (the threshold is `< Def`): a spanned floor
+    /// step is honest discreteness, not a domain violation.
+    fn floor(self) -> Self {
+        Self(self.0.floor())
+    }
+
+    /// Sign transfer over enclosures: a `sign` enclosure strictly
+    /// positive (`lo > 0`) yields `|self|`, strictly negative (`hi < 0`)
+    /// yields `−|self|`, and an enclosure **containing zero** yields the
+    /// two-sided hull `[−sup|self|, sup|self|]` with the decoration
+    /// capped at `Def` (the function is defined everywhere but jumps at
+    /// `sign = 0`; the hull also covers f64's signed-zero behavior —
+    /// `copysign(x, ±0.0)` takes the zero's sign *bit*, so a one-sided
+    /// choice at `lo ≥ 0` would fail containment of an f64 replay seeing
+    /// `−0.0`). Strictness on both sides is deliberate for exactly that
+    /// reason. In the sign-definite cases the result's decoration is
+    /// capped by `sign`'s (the choice is only as trustworthy as the
+    /// enclosure that made it). Empty/NaI in either operand propagates.
+    /// Raw endpoint comparisons are scalar-implementation code (Q1's
+    /// allowance, as in [`Real::min`] at `f64`).
+    fn copysign(self, sign: Self) -> Self {
+        if self.0.is_nai() || sign.0.is_nai() {
+            return Self(DecInterval::NAI);
+        }
+        if self.0.is_empty() || sign.0.is_empty() {
+            return Self(DecInterval::EMPTY);
+        }
+        let mag = self.0.abs();
+        if sign.0.inf() > 0.0 {
+            Self(cap_decoration(mag, sign.0.decoration()))
+        } else if sign.0.sup() < 0.0 {
+            Self(cap_decoration(-mag, sign.0.decoration()))
+        } else {
+            // Zero-containing sign: hull of ±|self|, decoration ≤ Def.
+            let hulled = tangent_hull(mag, -mag);
+            Self(cap_decoration(
+                hulled,
+                sign.0.decoration().min(Decoration::Def),
+            ))
+        }
+    }
+
     /// **Overrides** the defaulted squaring algorithm with inari's
     /// dedicated integer power, per the override clause in
     /// [`Real::powi`]'s docs: the interval contract is a **tight
@@ -507,6 +556,72 @@ impl KinkJacobian for Interval {
             chosen,
             self.0.decoration().min(other.0.decoration()),
         ))
+    }
+
+    /// `[0, 0]` when the value enclosure certainly spans no integer step
+    /// (its floor image is a single integer — the box sits on one
+    /// plateau, where the derivative is exactly 0), and the honest jump
+    /// enclosure `[0, +∞]` when it may span one (floor is nondecreasing,
+    /// so every difference quotient over the box is ≥ 0, and across a
+    /// step they are unbounded — `[0, 0]` there would falsify the
+    /// mean-value enclosure `f(y) − f(x) ∈ factor·(y − x)` that makes
+    /// derivative enclosures certifiable). A point enclosure exactly at
+    /// an integer is on a plateau (`[0, 0]`), matching `f64`'s
+    /// branch-consistent 0 at integers. Empty/NaI propagates.
+    /// Decoration: the value's own on a plateau; capped at `Def` across
+    /// a jump (mirroring the value channel's floor decoration).
+    fn floor_jacobian_factor(self) -> Self {
+        if self.0.is_nai() {
+            return Self(DecInterval::NAI);
+        }
+        if self.0.is_empty() {
+            return Self(DecInterval::EMPTY);
+        }
+        let stepped = self.0.floor();
+        if stepped.inf() == stepped.sup() {
+            Self(DecInterval::set_dec(
+                inari::const_interval!(0.0, 0.0),
+                self.0.decoration(),
+            ))
+        } else {
+            Self(DecInterval::set_dec(
+                inari::const_interval!(0.0, f64::INFINITY),
+                self.0.decoration().min(Decoration::Def),
+            ))
+        }
+    }
+
+    /// Sign-definite `sign` selects `±abs_sign_factor(self)·self_deriv`
+    /// (σ applied as an exact negation — no extra rounding), decoration
+    /// capped by `sign`'s; a `sign` enclosure **containing zero** yields
+    /// the entire line, decorated ≤ `Def` — the sign flip is a jump of
+    /// `2·|self|` over zero width in `sign`, so no finite tangent
+    /// enclosure is honest (module-doc convention). The `sign` tangent
+    /// is not a parameter (discarded — σ is locally constant in `sign`
+    /// wherever it is not jumping, and the jump case is already the
+    /// entire line). Empty/NaI in either value poisons.
+    fn copysign_deriv(self, self_deriv: Self, sign: Self) -> Self {
+        if self.0.is_nai() || sign.0.is_nai() {
+            return Self(DecInterval::NAI);
+        }
+        if self.0.is_empty() || sign.0.is_empty() {
+            return Self(DecInterval::EMPTY);
+        }
+        if sign.0.inf() > 0.0 {
+            let t = self.abs_sign_factor() * self_deriv;
+            Self(cap_decoration(t.0, sign.0.decoration()))
+        } else if sign.0.sup() < 0.0 {
+            let t = -(self.abs_sign_factor() * self_deriv);
+            Self(cap_decoration(t.0, sign.0.decoration()))
+        } else {
+            Self(DecInterval::set_dec(
+                inari::Interval::ENTIRE,
+                self.0
+                    .decoration()
+                    .min(sign.0.decoration())
+                    .min(Decoration::Def),
+            ))
+        }
     }
 
     /// [`KinkJacobian::min_deriv`] mirrored: strict separation selects the
@@ -1066,6 +1181,149 @@ mod tests {
         assert_eq!((hulled.lo(), hulled.hi()), (3.0, 9.0));
     }
 
+    /// floor over enclosures: the hull of the endpoint floors, with the
+    /// IEEE 1788 decoration story — `Com` strictly inside a plateau,
+    /// `Dac` when the infimum sits on an integer, `Def` across a step
+    /// (defined everywhere, discontinuous on the box — still classifies
+    /// through `Decide`, whose poison threshold is `< Def`).
+    #[test]
+    fn floor_hull_and_decorations() {
+        // Strictly inside one plateau: a point integer result, Com.
+        let plateau = iv(2.2, 2.8).floor();
+        assert_eq!((plateau.lo(), plateau.hi()), (2.0, 2.0));
+        assert_eq!(plateau.0.decoration(), Decoration::Com);
+        // Infimum exactly on an integer: still a point, but Dac.
+        let at_edge = iv(3.0, 3.5).floor();
+        assert_eq!((at_edge.lo(), at_edge.hi()), (3.0, 3.0));
+        assert_eq!(at_edge.0.decoration(), Decoration::Dac);
+        // Across a step: the two-plateau hull, Def.
+        let stepped = iv(2.5, 3.5).floor();
+        assert_eq!((stepped.lo(), stepped.hi()), (2.0, 3.0));
+        assert_eq!(stepped.0.decoration(), Decoration::Def);
+        // Def still classifies: a stepped floor is honest discreteness,
+        // not a domain violation.
+        assert_eq!(stepped.sign_within(band_1e9()), Ok(Sign::Positive));
+        // Negative side.
+        let negative = iv(-2.3, -2.1).floor();
+        assert_eq!((negative.lo(), negative.hi()), (-3.0, -3.0));
+        // Poison propagates.
+        assert!(Interval::from_f64(f64::NAN).floor().0.is_nai());
+        assert!(iv(-4.0, -1.0).sqrt().floor().0.is_empty());
+    }
+
+    /// copysign over enclosures: strict sign-definiteness selects
+    /// `±|self|`; a zero-containing sign yields the two-sided hull with
+    /// decoration capped at `Def` (the jump), covering both f64
+    /// signed-zero behaviors.
+    #[test]
+    fn copysign_selects_or_hulls() {
+        // Certainly positive / certainly negative sign.
+        let pos = iv(-3.0, -2.0).copysign(iv(0.5, 1.0));
+        assert_eq!((pos.lo(), pos.hi()), (2.0, 3.0));
+        assert_eq!(pos.0.decoration(), Decoration::Com);
+        let neg = iv(2.0, 3.0).copysign(iv(-1.0, -0.5));
+        assert_eq!((neg.lo(), neg.hi()), (-3.0, -2.0));
+        // Zero-containing sign (strictness: [0, 1] contains zero): the
+        // two-sided hull, Def-capped — covers copysign(x, -0.0) = -|x|.
+        for s in [iv(-1.0, 1.0), iv(0.0, 1.0), iv(-1.0, 0.0), Interval::zero()] {
+            let hulled = iv(2.0, 3.0).copysign(s);
+            assert_eq!((hulled.lo(), hulled.hi()), (-3.0, 3.0));
+            assert_eq!(hulled.0.decoration(), Decoration::Def);
+        }
+        // Magnitude straddling zero: |[-1, 2]| = [0, 2], transferred.
+        let mag_straddle = iv(-1.0, 2.0).copysign(iv(-2.0, -1.0));
+        assert_eq!((mag_straddle.lo(), mag_straddle.hi()), (-2.0, 0.0));
+        // Poison propagates through both operands.
+        assert!(
+            Interval::from_f64(f64::NAN)
+                .copysign(iv(1.0, 2.0))
+                .0
+                .is_nai()
+        );
+        assert!(
+            iv(1.0, 2.0)
+                .copysign(Interval::from_f64(f64::NAN))
+                .0
+                .is_nai()
+        );
+        assert!(iv(1.0, 2.0).copysign(iv(-4.0, -1.0).sqrt()).0.is_empty());
+    }
+
+    /// reduce_periodic at interval type: containment of the true reduced
+    /// value by composition (the compositional body is the definition),
+    /// and honest widening across a seam-straddling box.
+    #[test]
+    fn reduce_periodic_containment() {
+        // A point well inside one period of an exact period: exact.
+        let r = Interval::from_f64(5.0).reduce_periodic(Interval::from_f64(2.0));
+        assert_eq!((r.lo(), r.hi()), (1.0, 1.0));
+        // θ + τ (computed at interval type with the τ enclosure) reduces
+        // to an enclosure containing θ = 1.5 — the containment form of
+        // periodicity.
+        let theta = Interval::from_f64(1.5);
+        let shifted = (theta + Interval::tau()).reduce_periodic(Interval::tau());
+        assert!(shifted.0.contains(1.5));
+        assert!(shifted.0.wid() < 1e-14);
+        // A box straddling a period boundary: floor spans an integer, so
+        // the reduction honestly widens toward the full period.
+        let straddle = iv(6.2, 6.4).reduce_periodic(Interval::tau());
+        assert!(straddle.0.contains(6.2) && straddle.0.contains(0.2 /* ≈ 6.4 − τ */));
+        // Decoration records the floor step (Def), not a domain violation.
+        assert_eq!(straddle.0.decoration(), Decoration::Def);
+        // Zero or poisoned period poisons.
+        assert!(
+            Interval::from_f64(1.0)
+                .reduce_periodic(Interval::zero())
+                .0
+                .is_empty()
+        );
+    }
+
+    /// The floor/copysign kink factors' decoration and poison behavior
+    /// (companion to `kink_selector_decorations` for the M2 additions).
+    #[test]
+    fn floor_and_copysign_kink_factors() {
+        // Plateau: exact zero factor, value's decoration (Com).
+        let f = iv(2.2, 2.8).floor_jacobian_factor();
+        assert_eq!((f.lo(), f.hi()), (0.0, 0.0));
+        assert_eq!(f.0.decoration(), Decoration::Com);
+        // Point at an integer: plateau (matches f64's 0-at-k pick).
+        let f = Interval::from_f64(3.0).floor_jacobian_factor();
+        assert_eq!((f.lo(), f.hi()), (0.0, 0.0));
+        // Step-spanning: the jump enclosure [0, +∞], Def-capped.
+        let f = iv(2.5, 3.5).floor_jacobian_factor();
+        assert_eq!((f.lo(), f.hi()), (0.0, f64::INFINITY));
+        assert_eq!(f.0.decoration(), Decoration::Def);
+        // Poison propagates.
+        assert!(
+            Interval::from_f64(f64::NAN)
+                .floor_jacobian_factor()
+                .0
+                .is_nai()
+        );
+        assert!(iv(-4.0, -1.0).sqrt().floor_jacobian_factor().0.is_empty());
+
+        // copysign_deriv: definite sign selects ±abs′·tangent…
+        let t = iv(2.0, 3.0).copysign_deriv(iv(7.0, 7.0), iv(1.0, 2.0));
+        assert_eq!((t.lo(), t.hi()), (7.0, 7.0));
+        let t = iv(2.0, 3.0).copysign_deriv(iv(7.0, 7.0), iv(-2.0, -1.0));
+        assert_eq!((t.lo(), t.hi()), (-7.0, -7.0));
+        // …a straddling magnitude hulls through abs′…
+        let t = iv(-1.0, 2.0).copysign_deriv(iv(7.0, 7.0), iv(1.0, 2.0));
+        assert_eq!((t.lo(), t.hi()), (-7.0, 7.0));
+        // …and a zero-containing sign is the entire line, Def-capped.
+        let t = iv(2.0, 3.0).copysign_deriv(iv(7.0, 7.0), iv(-1.0, 1.0));
+        assert_eq!((t.lo(), t.hi()), (f64::NEG_INFINITY, f64::INFINITY));
+        assert_eq!(t.0.decoration(), Decoration::Def);
+        // Poison in either deciding value poisons the tangent.
+        assert!(
+            iv(2.0, 3.0)
+                .copysign_deriv(iv(7.0, 7.0), Interval::from_f64(f64::NAN))
+                .0
+                .is_nai()
+        );
+    }
+
     proptest! {
         /// Inclusion monotonicity, unary: x ⊆ y ⇒ f(x) ⊆ f(y) — the
         /// defining property of interval extensions, over every unary
@@ -1092,6 +1350,7 @@ mod tests {
                 ("sq", |x| x.powi(2)),
                 ("cube", |x| x.powi(3)),
                 ("recip", |x| x.powi(-1)),
+                ("floor", Real::floor),
             ];
             for (name, f) in ops {
                 prop_assert!(
@@ -1123,6 +1382,8 @@ mod tests {
                 ("min", Real::min),
                 ("max", Real::max),
                 ("atan2", Real::atan2),
+                ("copysign", Real::copysign),
+                ("reduce_periodic", Real::reduce_periodic),
             ];
             for (name, f) in ops {
                 prop_assert!(
@@ -1146,8 +1407,20 @@ mod tests {
             prop_assert!((pa + pb).0.contains(a + b));
             prop_assert!((pa - pb).0.contains(a - b));
             prop_assert!((pa * pb).0.contains(a * b));
+            // floor and copysign are exact operations too.
+            prop_assert!(pa.floor().0.contains(<f64 as Real>::floor(a)));
+            prop_assert!(pa.copysign(pb).0.contains(<f64 as Real>::copysign(a, b)));
             prop_assume!(b.abs() > 1e-3); // keep a/b finite
             prop_assert!((pa / pb).0.contains(a / b));
+            // reduce_periodic composes exact ops only (÷, floor, ·, −),
+            // and containment composes through exact ops — so the f64
+            // reduction is contained in the interval reduction.
+            let (pos_b, abs_b) = (Interval::from_f64(b.abs()), b.abs());
+            prop_assert!(
+                pa.reduce_periodic(pos_b)
+                    .0
+                    .contains(<f64 as Real>::reduce_periodic(a, abs_b))
+            );
         }
 
         /// sqrt at nonnegative points contains the (exactly rounded)

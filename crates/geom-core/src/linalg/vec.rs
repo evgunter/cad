@@ -202,6 +202,101 @@ impl<T: Real> Vec3<T> {
     pub fn max(self, rhs: Self) -> Self {
         Self::new(self.x.max(rhs.x), self.y.max(rhs.y), self.z.max(rhs.z))
     }
+
+    /// The orthogonal projection of `self` onto the line spanned by
+    /// `onto`, evaluated exactly as
+    /// `onto * (self.dot(onto) / onto.norm_squared())` — the dot and the
+    /// squared norm in their fixed associations, **one** scalar division,
+    /// then the componentwise scale, in that order (D9).
+    ///
+    /// The association is part of the contract (the M2 watchlist's D9
+    /// hazard): call sites must use this method — never re-derive
+    /// `(v·n/n·n)·n` with their own grouping, which rounds differently.
+    /// `onto` need not be unit (the quotient normalizes); for a *known*
+    /// unit `onto` the division still happens, deliberately — one code
+    /// path, one rounding story.
+    ///
+    /// **Total.** A zero (or poisoned) `onto` yields all-poison
+    /// components through the 0/0 division, per the crate's totality
+    /// policy. Components of `onto` beyond ~1e154 overflow
+    /// `norm_squared` to ∞, collapsing the coefficient — and hence the
+    /// projection — to a silent zero (∞ is not f64 poison); the
+    /// symmetric underflow end blows it up instead. Both bands are far
+    /// outside the session box (D4 ¶4) — the same posture and
+    /// boundaries as [`Vec3::normalize`]'s doc note.
+    pub fn project_onto(self, onto: Self) -> Self {
+        onto * (self.dot(onto) / onto.norm_squared())
+    }
+
+    /// The orthogonal rejection of `self` from the line spanned by
+    /// `onto`: exactly `self - self.project_onto(onto)` (the
+    /// componentwise subtraction of [`Vec3::project_onto`]'s result —
+    /// the one sanctioned association, same D9 contract). The result is
+    /// orthogonal to `onto` up to rounding; `project + reject = self` up
+    /// to one rounding per component.
+    ///
+    /// **Total.** Poison propagates from [`Vec3::project_onto`].
+    pub fn reject_from(self, onto: Self) -> Self {
+        self - self.project_onto(onto)
+    }
+
+    /// An orthonormal basis completing `self` (a **unit** vector) to a
+    /// right-handed frame: returns `(b1, b2)` with `(b1, b2, self)`
+    /// orthonormal and right-handed (`b1 × b2 = self` up to rounding).
+    ///
+    /// This is the **branchless Pixar construction** (Duff, Burgess,
+    /// Christensen, Hery, Kensler, Liani, Villemin, *Building an
+    /// Orthonormal Basis, Revisited*, JCGT 6(1), 2017), the ratified
+    /// resolution of the M0 watchlist's "orthonormal-basis is a
+    /// value-branch" concern: there is **no value branch to guard** —
+    /// the construction is a fixed straight-line arithmetic sequence
+    /// whose only sign decision is [`Real::copysign`], a total value
+    /// operation. No predicate is needed because no branch exists;
+    /// evaluation is deterministic and bit-identical across
+    /// instantiations in the value channel by the same argument as any
+    /// other fixed formula.
+    ///
+    /// **Derivation.** For `s = ±1` matching the sign of `n.z`, the
+    /// reflection `R` through the plane bisecting `s·e_z` and `n` maps
+    /// `s·e_z ↦ n`; its other two (sign-adjusted) columns are then unit,
+    /// mutually orthogonal, and orthogonal to `n` by orthogonality of
+    /// the reflection. Writing `a = −1/(s + n.z)` collapses the
+    /// reflection's columns to the closed forms below (the paper's §3
+    /// algebra); the sign flip keeps the frame right-handed on both
+    /// hemispheres AND keeps `s + n.z` away from zero — the naive
+    /// single-branch formula divides by `1 + n.z`, which cancels
+    /// catastrophically near `n = −e_z` (the classic failure direction).
+    ///
+    /// Evaluation order (fixed, D9): `s = 1.copysign(n.z)`,
+    /// `a = −1/(s + n.z)`, `b = (n.x·n.y)·a`, then
+    /// `b1 = (1 + ((s·n.x)·n.x)·a, s·b, −(s·n.x))` and
+    /// `b2 = (b, s + (n.y·n.y)·a, −n.y)`, each component exactly as
+    /// parenthesized.
+    ///
+    /// **Discontinuity, documented honestly:** the frame flips across
+    /// the equator `n.z = 0` (`s` jumps) — the construction is
+    /// deterministic and well-conditioned everywhere on the sphere, but
+    /// not continuous as a function of `n` there (no continuous global
+    /// frame on the sphere exists — hairy-ball; the seam had to go
+    /// somewhere, and `copysign`'s kink conventions carry it honestly
+    /// through duals and intervals). Consumers wanting a *stable*
+    /// conventional frame across parameter changes store the frame
+    /// (`u_ref`) as data, per D2 — this constructor is for *making* that
+    /// data.
+    ///
+    /// **Precondition (conventional, unchecked):** `self` is unit. A
+    /// non-unit input yields a well-defined but non-orthonormal pair
+    /// (no poison, no check — same posture as unit-`dir` curve data;
+    /// tier-3 certification owns the invariant). A poisoned input
+    /// propagates poison.
+    pub fn orthonormal_basis(self) -> (Self, Self) {
+        let s = T::one().copysign(self.z);
+        let a = -T::one() / (s + self.z);
+        let b = (self.x * self.y) * a;
+        let b1 = Self::new(T::one() + ((s * self.x) * self.x) * a, s * b, -(s * self.x));
+        let b2 = Self::new(b, s + (self.y * self.y) * a, -self.y);
+        (b1, b2)
+    }
 }
 
 impl<T: Real> Add for Vec2<T> {
@@ -464,5 +559,192 @@ mod tests {
             prop_assert!((r.y - v.y).abs() <= 2.0 * f64::EPSILON * v.y.abs());
             prop_assert!((r.z - v.z).abs() <= 2.0 * f64::EPSILON * v.z.abs());
         }
+
+        /// project + reject decomposes v: the parts re-sum to v (up to
+        /// one rounding per component — reject IS v − project, so the
+        /// re-sum is a subtract-then-add round trip), the rejection is
+        /// orthogonal to the axis, and the projection is parallel to it.
+        /// Error budget for reject ⊥ onto with m = max component
+        /// magnitude: the projection coefficient v·n/|n|² is
+        /// O(1)-conditioned only when |n| is not tiny relative to v, so
+        /// both magnitudes share one generator scale; the residual
+        /// (v − proj)·n cancels values of order m²·(m²/m²) — a few
+        /// roundings of m² each, asserted at 1e3·EPSILON·m² for slack
+        /// across the 6-decade generator range.
+        #[test]
+        fn project_reject_decompose(v in vec3(), n in vec3()) {
+            let p = v.project_onto(n);
+            let r = v.reject_from(n);
+            let m = max_abs3(v).max(max_abs3(n));
+            let tol = 1e3 * f64::EPSILON * m * m;
+            // Orthogonality of the rejection (the load-bearing claim).
+            prop_assert!(r.dot(n).abs() <= tol * (1.0 + max_abs3(v) / max_abs3(n)));
+            // Parallelism of the projection: p × n ≈ 0.
+            let c = p.cross(n);
+            prop_assert!(max_abs3(c) <= tol * (1.0 + max_abs3(v) / max_abs3(n)));
+            // Recomposition: p + r = v up to one rounding per component.
+            let sum = p + r;
+            prop_assert!((sum.x - v.x).abs() <= 4.0 * f64::EPSILON * m);
+            prop_assert!((sum.y - v.y).abs() <= 4.0 * f64::EPSILON * m);
+            prop_assert!((sum.z - v.z).abs() <= 4.0 * f64::EPSILON * m);
+        }
+
+        /// Projecting onto the projection axis is idempotent (within
+        /// rounding), and projecting a vector already parallel to the
+        /// axis reproduces it.
+        #[test]
+        fn project_idempotent(v in vec3(), n in vec3()) {
+            let p = v.project_onto(n);
+            let pp = p.project_onto(n);
+            let m = max_abs3(v);
+            prop_assert!((pp.x - p.x).abs() <= 1e-12 * m);
+            prop_assert!((pp.y - p.y).abs() <= 1e-12 * m);
+            prop_assert!((pp.z - p.z).abs() <= 1e-12 * m);
+        }
+
+        /// The Pixar basis over random unit vectors: orthonormality
+        /// residuals within a few ulps and right-handedness
+        /// (b1 × b2 = n up to rounding). Error budget: every
+        /// intermediate is O(1) (unit input, |a| ≤ 1), each component
+        /// carries ≤ 4 roundings, dots of near-unit vectors ≤ ~6
+        /// roundings — everything sits within ~10·EPSILON ≈ 2.2e-15;
+        /// asserted at 1e-14 (input normalization error adds ~5·EPSILON).
+        #[test]
+        fn orthonormal_basis_properties(v in vec3()) {
+            let n = v.normalize();
+            let (b1, b2) = n.orthonormal_basis();
+            prop_assert!((b1.norm() - 1.0).abs() <= 1e-14);
+            prop_assert!((b2.norm() - 1.0).abs() <= 1e-14);
+            prop_assert!(b1.dot(b2).abs() <= 1e-14);
+            prop_assert!(b1.dot(n).abs() <= 1e-14);
+            prop_assert!(b2.dot(n).abs() <= 1e-14);
+            // Right-handedness: b1 × b2 reproduces n componentwise.
+            let c = b1.cross(b2);
+            prop_assert!((c.x - n.x).abs() <= 1e-14);
+            prop_assert!((c.y - n.y).abs() <= 1e-14);
+            prop_assert!((c.z - n.z).abs() <= 1e-14);
+        }
+
+        /// The value channel of the basis construction at `Dual<f64>` is
+        /// bit-identical to the plain-f64 run — the cross-instantiation
+        /// contract, exercised through a real linalg consumer (the
+        /// construction is a fixed formula over `Real` ops, so this
+        /// holds by composition; the test guards the claim against
+        /// future edits introducing a scalar-specific path).
+        #[test]
+        fn orthonormal_basis_dual_value_channel_bit_identical(v in vec3()) {
+            use crate::dual::Dual;
+            let n = v.normalize();
+            let (b1, b2) = n.orthonormal_basis();
+            let nd = Vec3::new(
+                Dual::variable(n.x),
+                Dual::variable(n.y),
+                Dual::variable(n.z),
+            );
+            let (d1, d2) = nd.orthonormal_basis();
+            for (ours, dual) in [
+                (b1.x, d1.x), (b1.y, d1.y), (b1.z, d1.z),
+                (b2.x, d2.x), (b2.y, d2.y), (b2.z, d2.z),
+            ] {
+                prop_assert_eq!(ours.to_bits(), dual.value.to_bits());
+            }
+        }
+    }
+
+    /// The classic failure directions ±z (where the naive `1/(1 + n.z)`
+    /// construction cancels catastrophically), the equator seam, and
+    /// near-pole continuity.
+    #[test]
+    fn orthonormal_basis_poles_and_equator() {
+        // Exactly +z and −z: exact frames (all arithmetic on 0s and 1s).
+        let (b1, b2) = Vec3::<f64>::unit_z().orthonormal_basis();
+        assert_eq!((b1.x, b1.y, b1.z), (1.0, 0.0, -0.0));
+        assert_eq!((b2.x, b2.y, b2.z), (0.0, 1.0, -0.0));
+        let (b1, b2) = (-Vec3::<f64>::unit_z()).orthonormal_basis();
+        assert_eq!((b1.x, b1.y, b1.z), (1.0, -0.0, -0.0));
+        assert_eq!((b2.x, b2.y, b2.z), (-0.0, -1.0, -0.0));
+        // Near −z (the killer for the naive formula): still orthonormal
+        // to a few ulps.
+        let n = Vec3::new(1e-9, -1e-9, -1.0).normalize();
+        let (b1, b2) = n.orthonormal_basis();
+        assert!((b1.norm() - 1.0).abs() <= 1e-14);
+        assert!((b2.norm() - 1.0).abs() <= 1e-14);
+        assert!(b1.dot(b2).abs() <= 1e-14);
+        assert!(b1.dot(n).abs() <= 1e-14);
+        assert!(b2.dot(n).abs() <= 1e-14);
+        // Continuity on each side of the equator seam: two nearby
+        // normals on the SAME side give nearby frames…
+        let above = Vec3::new(0.6, 0.8, 1e-12).normalize();
+        let above2 = Vec3::new(0.6, 0.8, 2e-12).normalize();
+        let (a1, _) = above.orthonormal_basis();
+        let (a1b, _) = above2.orthonormal_basis();
+        assert!((a1.x - a1b.x).abs() <= 1e-9);
+        assert!((a1.y - a1b.y).abs() <= 1e-9);
+        assert!((a1.z - a1b.z).abs() <= 1e-9);
+        // …while crossing the seam flips the frame (the documented
+        // discontinuity: s jumps from +1 to −1): above the equator
+        // b1.z = −(s·n.x) ≈ −0.6, below it ≈ +0.6.
+        assert!((a1.z - -0.6).abs() <= 1e-9, "a1.z = {}", a1.z);
+        let below = Vec3::new(0.6, 0.8, -1e-12).normalize();
+        let (c1, c2) = below.orthonormal_basis();
+        assert!((c1.z - 0.6).abs() <= 1e-9, "c1.z = {}", c1.z);
+        // Both sides are still perfectly valid right-handed frames.
+        let cross = c1.cross(c2);
+        assert!((cross.x - below.x).abs() <= 1e-14);
+        assert!((cross.y - below.y).abs() <= 1e-14);
+        assert!((cross.z - below.z).abs() <= 1e-14);
+    }
+
+    /// Poison propagation and the zero-`onto` totality outcome for
+    /// project/reject, and poison through the basis construction.
+    #[test]
+    fn project_reject_basis_poison() {
+        let v = Vec3::new(1.0f64, 2.0, 3.0);
+        let z = Vec3::<f64>::zero();
+        let p = v.project_onto(z);
+        assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
+        let r = v.reject_from(z);
+        assert!(r.x.is_nan() && r.y.is_nan() && r.z.is_nan());
+        let poisoned = Vec3::new(f64::NAN, 0.0, 1.0).orthonormal_basis();
+        assert!(poisoned.0.x.is_nan());
+        assert!(poisoned.1.x.is_nan());
+    }
+
+    /// The basis construction at the interval scalar: instantiates, and
+    /// the orthonormality residuals (dot products, norm² − 1) enclose 0
+    /// for a point-enclosure unit input — the containment form of the
+    /// f64 properties above.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn orthonormal_basis_interval_residuals() {
+        use crate::interval::Interval;
+        use crate::real::Bounds;
+
+        let contains_zero =
+            |e: Interval| -> bool { e.lo() <= 0.0 && 0.0 <= e.hi() && !e.lo().is_nan() };
+        // An exactly-unit direction: (1, −2, 2)/3 — the exact integer
+        // triple, so |n|² − 1 itself encloses 0 tightly.
+        let n = Vec3::new(
+            Interval::from_f64(1.0) / Interval::from_f64(3.0),
+            Interval::from_f64(-2.0) / Interval::from_f64(3.0),
+            Interval::from_f64(2.0) / Interval::from_f64(3.0),
+        );
+        let (b1, b2) = n.orthonormal_basis();
+        assert!(contains_zero(b1.dot(b2)));
+        assert!(contains_zero(b1.dot(n)));
+        assert!(contains_zero(b2.dot(n)));
+        assert!(contains_zero(b1.norm_squared() - Interval::one()));
+        assert!(contains_zero(b2.norm_squared() - Interval::one()));
+        // A z-straddling enclosure crosses the seam: copysign's honest
+        // two-sided behavior widens rather than deciding — no poison,
+        // no branch, the enclosure just gets wide (and b1.z = −(s·x)
+        // spans both frames' values).
+        let straddle = Vec3::new(
+            Interval::from_f64(0.6),
+            Interval::from_f64(0.8),
+            Interval::from_bounds(-1e-12, 1e-12),
+        );
+        let (s1, _) = straddle.orthonormal_basis();
+        assert!(s1.z.lo() <= -0.59 && s1.z.hi() >= 0.59);
     }
 }

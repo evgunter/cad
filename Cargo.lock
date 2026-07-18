@@ -95,6 +95,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "geom-curves"
+version = "0.0.0"
+dependencies = [
+ "geom-core",
+ "proptest",
+]
+
+[[package]]
+name = "geom-surfaces"
+version = "0.0.0"
+dependencies = [
+ "geom-core",
+ "geom-curves",
+ "proptest",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
