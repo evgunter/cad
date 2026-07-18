@@ -18,3 +18,7 @@ geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# The promoted M2 PR 1 reviewer suite (tests/review_m2_pr1*.rs) is a
+# cross-crate consumer program exercising curves and surfaces together;
+# geom-curves is acyclic here (it does not depend on geom-surfaces).
+geom-curves = { path = "../geom-curves" }
