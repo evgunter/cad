@@ -108,6 +108,7 @@
 //! # run().unwrap();
 //! ```
 
+pub mod attach;
 pub mod body;
 pub mod entity;
 pub mod euler;
@@ -140,9 +141,14 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{EulerOpError, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler::{EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
-pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+// The types that appear in this crate's own operator signatures, so a
+// consumer of the ops needs no direct geom-* imports for the common
+// path (the full geometry vocabulary still lives in those crates).
+pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+pub use geom_surfaces::Surface;
+pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use provenance::Provenance;
-pub use validate::{ValidationError, validate, validate_closed};
+pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

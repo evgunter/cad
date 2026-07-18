@@ -270,15 +270,15 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_core::Real;
+use geom_core::Decide;
 
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
 };
-use crate::euler::EulerOpError;
-use crate::geometry::{CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+use crate::euler::{EulerOpError, FaceSurface};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
@@ -374,7 +374,7 @@ pub struct MfkrhCreated {
     pub surface: SurfaceKey,
 }
 
-impl<T: Real> Body<T> {
+impl<T: Decide> Body<T> {
     /// KVFS — *kill vertex, face, solid*: the inverse of [`Body::mvfs`].
     /// Destroys a solid in EXACTLY the skeletal state `mvfs` creates:
     /// one shell, one face with no rings, an
@@ -895,10 +895,13 @@ impl<T: Real> Body<T> {
     /// loop of a NEW face in the same shell.
     ///
     /// The promoted loop survives with its key and D5 birth record; the
-    /// new face mints a fresh placeholder surface (exact restoration of
-    /// `kfmrh`'s killed face/surface is impossible and NOT promised —
-    /// [module docs](self), which also document the deterministic
-    /// surface-anchor rule). Promoting an [`LoopBoundary::Empty`] ring
+    /// new face's surface comes from the [`FaceSurface`] spec (M2
+    /// geometry policy, `crate::euler` module docs): `Inherit` shares
+    /// the demoting face's surface, `New` mints (pass
+    /// `Surface::Nurbs` for the honest "no description yet" state —
+    /// exact restoration of `kfmrh`'s killed surface is impossible and
+    /// NOT promised, [module docs](self)), `Shared` reuses an existing
+    /// key. Promoting an [`LoopBoundary::Empty`] ring
     /// yields an **empty-outer face** — the `mvfs`-face shape, now
     /// operator-reachable inside a larger body.
     ///
@@ -906,7 +909,8 @@ impl<T: Real> Body<T> {
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
     /// kill; genus is derived, not stored).
     ///
-    /// **Minting order** (D9, exact): surface, face. Nothing is killed.
+    /// **Minting order** (D9, exact): surface (only for
+    /// [`FaceSurface::New`]), face. Nothing is killed.
     /// The new face is appended to the shell's face list; the ring
     /// leaves its former face's ring list (`retain`, order-preserving
     /// for the others).
@@ -916,16 +920,18 @@ impl<T: Real> Body<T> {
     /// The ring resolves ([`EulerOpError::StaleKey`]); its face resolves
     /// (`StaleKey`); it is not that face's outer loop
     /// ([`EulerOpError::RingIsOuter`]); the face's shell resolves
-    /// (`StaleKey`); the surface-anchor chain resolves — the lone
-    /// vertex (empty ring) or `Cycle::first` and its start vertex
-    /// (cycle ring), plus the vertex's point (`StaleKey` /
-    /// [`EulerOpError::StaleGeometry`]).
+    /// (`StaleKey`); a [`FaceSurface::Shared`] key resolves
+    /// ([`EulerOpError::StaleGeometry`]).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mfkrh(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
+    pub fn mfkrh(
+        &mut self,
+        ring: LoopKey,
+        surface: FaceSurface<T>,
+    ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -934,7 +940,6 @@ impl<T: Real> Body<T> {
             key: EntityId::Loop(ring),
         })?;
         let old_face = ring_data.face;
-        let boundary = ring_data.boundary;
         let old_face_data = self.get_face(old_face).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(old_face),
         })?;
@@ -947,17 +952,13 @@ impl<T: Real> Body<T> {
                 key: EntityId::Shell(shell),
             });
         }
-        // The surface-anchor rule (module docs): the ring's lone
-        // vertex's point, or start(Cycle::first)'s point.
-        let anchor_vertex = match boundary {
-            LoopBoundary::Empty { vertex } => vertex,
-            LoopBoundary::Cycle { first } => self.resolve_half_edge(first)?.start,
-        };
-        let anchor = self.resolve_vertex_point(anchor_vertex)?;
+        // Geometry gate: a Shared surface key must resolve now (the M1
+        // surface-anchor rule retired with the placeholder surfaces).
+        self.check_face_surface(&surface)?;
 
         // ---- Mutation (infallible from here on). ----
-        // Minting order (documented above): surface, face.
-        let surface = self.add_surface(SurfaceGeom::Placeholder { anchor });
+        // Minting order (documented above): surface (for New), face.
+        let surface = self.mint_face_surface(surface, old_face_data.surface);
         let face = self.add_face(
             Face {
                 surface,

@@ -52,21 +52,43 @@
 //!   way: on corrupt in-crate input they return `Ok` with garbage
 //!   instead (the documented garbage-in contract above).
 //!
-//! # Geometry policy at M1
+//! # Geometry policy at M2 (PR 3 — the M0 placeholders retired)
 //!
-//! Real geometry attaches at M2; the ops keep the geometry arenas
-//! coherent with placeholders:
+//! Edge-minting operators take the new edge's geometry as an
+//! **uncertified spec** ([`geom_brep::EdgeCurveSpec`]: D2 intensional
+//! description + carrier cache + parameter interval) and run the D4 ¶2
+//! certification gate *before mutating*: the spec is certified against
+//! the edge's endpoint points and the body's surfaces
+//! (`EdgeCurve::certify`), and a failure is a typed
+//! [`EulerOpError::Certification`] with the body untouched (atomicity
+//! extends over the geometry gate). Face-minting operators take the new
+//! face's surface as a [`FaceSurface`] spec (inherit the split face's
+//! key / mint a new [`Surface`] / share an existing key).
 //!
 //! - `mvfs`/`mev` insert the given [`Point3`] as a new point (only
 //!   vertex-creating operators carry coordinates — Mäntylä ch. 11).
-//!   `mvfs` also mints a placeholder surface for its face and `mev` a
-//!   placeholder curve for its edge, both anchored at the given point.
-//! - `mef` mints a placeholder curve anchored at the coordinates of
-//!   `start(he1)`'s point (the lone vertex's point for
-//!   [`MefSite::Lone`]) — deterministic and documented, no geometric
-//!   meaning. The new face **shares** the old face's `SurfaceKey`: a
-//!   face split is two regions of one surface, so sharing is
-//!   semantically right, not a shortcut.
+//!   `mvfs`'s seed face gets the [`Surface::Nurbs`]
+//!   representable-unimplemented placeholder — the honest "no
+//!   description yet" state (a sweep's seed face becomes a cap whose
+//!   plane exists only later; attach it via
+//!   [`Body::set_face_surface`]). Legal mid-construction; the tier-3
+//!   validator rejects it at rest.
+//! - `mev`/`mef`/`mekr` certify their curve spec with `he_plus`'s
+//!   endpoints in the `he_plus` forward order (increasing carrier
+//!   parameter runs `start(he_plus) → end(he_plus)` — the ratified
+//!   contract).
+//! - Intrinsic (`Intersection`) descriptions typically attach **after**
+//!   the adjacent faces' surfaces exist (a swept edge is minted before
+//!   its side faces): mint with a conventional spec, then upgrade via
+//!   [`Body::set_edge_curve`], which also enforces
+//!   description-adjacency coherence. The operators themselves accept
+//!   any spec that certifies.
+//! - Chord-line sugar for polyhedral construction and the migrated M1
+//!   suites: [`Body::mev_line`], [`Body::mef_chord`],
+//!   [`Body::mekr_chord`] derive the spec from the site's endpoint
+//!   points ([`geom_brep::EdgeCurveSpec::line_between`]; self-loop
+//!   sites use the canonical scaffolding circle,
+//!   [`geom_brep::EdgeCurveSpec::self_loop_circle_at`]).
 //! - The new face joins the old face's shell (membership plus
 //!   back-pointer).
 //!
@@ -106,14 +128,15 @@
 //! let mut body = Body::<f64>::new();
 //! // The skeletal body: one face whose outer loop is a lone vertex.
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
-//! // Grow the lone vertex into a segment edge v → w.
-//! let seg = body.mev(
+//! // Grow the lone vertex into a segment edge v → w (chord-line sugar;
+//! // a sweep would pass its own EdgeCurveSpec).
+//! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
 //! )?;
 //! // Split the loop with a second v–w edge: the segment closes into a
 //! // two-edge, two-face pillow — the smallest closed manifold body.
-//! let split = body.mef(MefSite::Chords {
+//! let split = body.mef_chord(MefSite::Chords {
 //!     he1: seg.he_plus,
 //!     he2: seg.he_minus,
 //! })?;
@@ -133,15 +156,36 @@
 
 use core::fmt;
 
-use geom_core::{Point3, Real};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
+use geom_core::{Band, Decide, Point3, Real};
+use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+
+/// How a face-minting operator obtains the new face's surface (M2 PR 3
+/// — the sweep supplies each face's surface explicitly; op parameters,
+/// not post-hoc patching).
+#[derive(Clone, Copy, Debug)]
+pub enum FaceSurface<T: Real> {
+    /// Share the *affected* face's surface key: `mef`'s split face (a
+    /// face split is two regions of one surface — the M1 semantics,
+    /// still right for coplanar/cosurface splits) or `mfkrh`'s
+    /// demoting face.
+    Inherit,
+    /// Mint a new surface for the new face (the sweep's usual case —
+    /// e.g. a Newell-certified plane from `geom_brep::newell_plane`).
+    New(Surface<T>),
+    /// Share an existing surface key (identical-by-construction
+    /// surfaces keep one key — the ratified no-face-merging story's
+    /// sharing half). Must resolve, checked as a precondition.
+    Shared(SurfaceKey),
+}
 
 /// Where [`Body::mev`] acts: the site addressing for "make edge,
 /// vertex".
@@ -252,7 +296,9 @@ pub struct MvfsCreated {
     pub vertex: VertexKey,
     /// The new point carrying the given coordinates.
     pub point: PointKey,
-    /// The face's placeholder surface (M1 geometry policy).
+    /// The face's surface: the `Surface::Nurbs` "no description yet"
+    /// placeholder (module docs, geometry policy) — attach the real
+    /// surface via [`Body::set_face_surface`] before rest.
     pub surface: SurfaceKey,
 }
 
@@ -278,8 +324,8 @@ pub struct MevCreated {
     pub he_minus: HalfEdgeKey,
     /// The new point carrying the given coordinates.
     pub point: PointKey,
-    /// The edge's placeholder curve (M1 geometry policy; anchored at the
-    /// given point).
+    /// The edge's certified curve (the attachment-gated `EdgeCurve`
+    /// built from the given spec — M2 geometry policy, module docs).
     pub curve: CurveKey,
 }
 
@@ -290,8 +336,8 @@ pub struct MevCreated {
 /// lands in the new face's outer loop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MefCreated {
-    /// The new face (outer loop = `r#loop`; shares the old face's
-    /// surface; joins the old face's shell).
+    /// The new face (outer loop = `r#loop`; surface per the given
+    /// [`FaceSurface`]; joins the old face's shell).
     pub face: FaceKey,
     /// The new face's outer loop: `he1`'s side of the split plus
     /// `he_minus` (its `Cycle::first`).
@@ -303,8 +349,8 @@ pub struct MefCreated {
     pub he_plus: HalfEdgeKey,
     /// The minus half: `start(he2) → start(he1)`, in the new loop.
     pub he_minus: HalfEdgeKey,
-    /// The edge's placeholder curve (M1 geometry policy; anchored at
-    /// `start(he1)`'s coordinates).
+    /// The edge's certified curve (the attachment-gated `EdgeCurve`
+    /// built from the given spec — M2 geometry policy, module docs).
     pub curve: CurveKey,
 }
 
@@ -316,8 +362,28 @@ pub struct MefCreated {
 /// tier-1-invalid input: the operators assume euler-valid bodies and
 /// surface cheap-to-detect corruption as typed errors instead of
 /// producing garbage (never a panic or a hang, per D9).
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// (`Eq` was dropped at M2 PR 3: [`EulerOpError::Certification`]
+/// carries margin diagnostics with `f64` payloads.)
+#[derive(Clone, Debug, PartialEq)]
 pub enum EulerOpError {
+    /// The curve-geometry spec failed its D4 ¶2 certification at the
+    /// attachment gate (residual exceeded, sliver escalation,
+    /// unresolved/unimplemented described surface, …) — the typed
+    /// operation-time failure of D4 ¶3. The body is untouched.
+    Certification {
+        /// The certification failure.
+        error: CertifyError,
+    },
+    /// [`Body::set_edge_curve`]: an intrinsic (`Intersection`) or
+    /// `Seam` description's surface keys do not match the edge's two
+    /// adjacent faces' surfaces — the description does not describe
+    /// *this* edge's locus (D2: an intersection edge's surfaces are its
+    /// adjacent faces'; a seam's surface is on both sides).
+    DescriptionNotAdjacent {
+        /// The edge whose description is incoherent with its faces.
+        edge: EdgeKey,
+    },
     /// An argument key, or a key the operator must follow to do its
     /// work (a `prev` link, a spine parent, a start vertex), does not
     /// resolve.
@@ -325,8 +391,9 @@ pub enum EulerOpError {
         /// The unresolvable reference, wrapped with its kind.
         key: EntityId,
     },
-    /// A geometry key the operator must read (the anchor point for
-    /// `mef`'s placeholder curve) does not resolve.
+    /// A geometry key the operator must read (an endpoint vertex's
+    /// point for the certification gate, a `FaceSurface::Shared` key)
+    /// does not resolve.
     StaleGeometry {
         /// The unresolvable geometry reference.
         key: GeomRef,
@@ -518,6 +585,14 @@ pub enum EulerOpError {
 impl fmt::Display for EulerOpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Certification { error } => {
+                write!(f, "geometry attachment gate: {error}")
+            }
+            Self::DescriptionNotAdjacent { edge } => write!(
+                f,
+                "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
+                 its adjacent faces' surfaces (D2 adjacency coherence)"
+            ),
             Self::StaleKey { key } => {
                 write!(f, "euler op requires {key}, which does not resolve")
             }
@@ -666,7 +741,7 @@ impl ArenaCounts {
     }
 }
 
-impl<T: Real> Body<T> {
+impl<T: Decide> Body<T> {
     /// MVFS — *make vertex, face, solid*: the initialization operator.
     ///
     /// Creates the skeletal body from scratch: a new solid with one
@@ -681,8 +756,12 @@ impl<T: Real> Body<T> {
     /// boundary; multi-shell solids arrive at M3.)
     ///
     /// **Minting order** (D9, exact): point, surface, vertex, solid,
-    /// shell, loop, face. The placeholder surface is anchored at
-    /// `point`.
+    /// shell, loop, face. The seed face's surface is the
+    /// [`Surface::Nurbs`] representable-unimplemented placeholder —
+    /// the honest "no description yet" state (module docs, geometry
+    /// policy): a construction attaches the real surface via
+    /// [`Body::set_face_surface`] once it exists; a body reaching rest
+    /// with it fails tier 3.
     ///
     /// # Errors
     ///
@@ -693,7 +772,7 @@ impl<T: Real> Body<T> {
         let before = self.arena_counts();
 
         let point_key = self.add_point(point);
-        let surface = self.add_surface(SurfaceGeom::Placeholder { anchor: point });
+        let surface = self.add_surface(Surface::Nurbs);
         let vertex = self.add_vertex(
             Vertex {
                 point: point_key,
@@ -764,8 +843,14 @@ impl<T: Real> Body<T> {
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — arena deltas
     /// +1 vertex, +1 edge, +2 half-edges.
     ///
-    /// **Minting order** (D9, exact): point, curve (placeholder,
-    /// anchored at `point`), vertex, edge, `he_plus`, `he_minus`.
+    /// **Geometry** (module docs, M2 policy): `curve` is certified
+    /// against the endpoints **old vertex's point → `point`** (the
+    /// `he_plus` forward order — `he_plus` runs old → new) before any
+    /// mutation; failure is [`EulerOpError::Certification`], body
+    /// untouched. Chord-line sugar: [`Body::mev_line`].
+    ///
+    /// **Minting order** (D9, exact): point, curve (the certified
+    /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
     ///
     /// **Emanating rule** (deterministic, unconditional): after `mev`,
     /// the old vertex's `emanating` is `he_plus` and the new vertex's is
@@ -800,28 +885,65 @@ impl<T: Real> Body<T> {
     ///
     /// `Fan`: `he1` resolves, `he2` resolves ([`EulerOpError::StaleKey`]);
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]); the
-    /// start vertex resolves (`StaleKey`); the orbit from `he1` reaches
+    /// start vertex and its point resolve (`StaleKey` /
+    /// [`EulerOpError::StaleGeometry`]); the orbit from `he1` reaches
     /// `he2` ([`EulerOpError::FanOrbitBroken`]); both `prev` links
     /// resolve (`StaleKey`). `Lone`: the loop resolves (`StaleKey`); it
-    /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex resolves
-    /// (`StaleKey`).
+    /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
+    /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
+    /// the geometry gate: `curve` certifies
+    /// ([`EulerOpError::Certification`]).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mev(&mut self, site: MevSite, point: Point3<T>) -> Result<MevCreated, EulerOpError> {
+    pub fn mev(
+        &mut self,
+        site: MevSite,
+        point: Point3<T>,
+        curve: EdgeCurveSpec<T>,
+    ) -> Result<MevCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MevSite::Fan { he1, he2 } => self.mev_fan(site, he1, he2, point),
-            MevSite::Lone { r#loop } => self.mev_lone(site, r#loop, point),
+            MevSite::Fan { he1, he2 } => self.mev_fan(site, he1, he2, point, curve),
+            MevSite::Lone { r#loop } => self.mev_lone(site, r#loop, point, curve),
         }?;
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "mev");
         Ok(created)
+    }
+
+    /// [`Body::mev`] with the chord-line spec derived from the site:
+    /// the new edge's carrier is the straight chord from the old
+    /// vertex's point to `point`
+    /// ([`EdgeCurveSpec::line_between`] — the caller asserts the locus
+    /// *is* that chord; module docs, geometry policy). Coincident
+    /// endpoints fail certification loudly.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mev`].
+    pub fn mev_line(&mut self, site: MevSite, point: Point3<T>) -> Result<MevCreated, EulerOpError> {
+        let old = match site {
+            MevSite::Fan { he1, .. } => self.resolve_half_edge(he1)?.start,
+            MevSite::Lone { r#loop } => {
+                let loop_data = self.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Loop(r#loop),
+                })?;
+                match loop_data.boundary {
+                    LoopBoundary::Empty { vertex } => vertex,
+                    LoopBoundary::Cycle { .. } => {
+                        return Err(EulerOpError::LoopNotEmpty { r#loop });
+                    }
+                }
+            }
+        };
+        let p_old = self.resolve_vertex_point(old)?;
+        self.mev(site, point, EdgeCurveSpec::line_between(p_old, point))
     }
 
     /// MEF — *make edge, face*: split a loop (or an empty loop) with a
@@ -835,12 +957,19 @@ impl<T: Real> Body<T> {
     /// Euler vector: `(v 0, e +1, f +1, h 0, r 0, s 0)` — arena deltas
     /// +1 edge, +1 face, +1 loop, +2 half-edges.
     ///
-    /// **Minting order** (D9, exact): curve (placeholder, anchored at
-    /// `start(he1)`'s coordinates — the lone vertex's for
-    /// [`MefSite::Lone`]), edge, loop, face, `he_plus`, `he_minus`.
+    /// **Geometry** (module docs, M2 policy): `curve` is certified
+    /// against the endpoints `start(he1)`'s point → `start(he2)`'s
+    /// point (the `he_plus` forward order) before any mutation;
+    /// `surface` supplies the new face's surface per [`FaceSurface`]
+    /// (`Inherit` keeps the M1 face-split semantics — two regions of
+    /// one surface). Chord-line sugar: [`Body::mef_chord`].
     ///
-    /// The new face shares the old face's surface and joins its shell
-    /// (M1 geometry policy, module docs). `mef` does **not** reclassify
+    /// **Minting order** (D9, exact): surface (only for
+    /// [`FaceSurface::New`]), curve (the certified [`EdgeCurve`]),
+    /// edge, loop, face, `he_plus`, `he_minus`.
+    ///
+    /// The new face joins the old face's shell
+    /// (membership plus back-pointer). `mef` does **not** reclassify
     /// the old face's rings (they all stay on the old face — Mäntylä
     /// p. 192; the `ring_move` helper is PR 3), and it touches
     /// `emanating` only in the `Lone` case (the lone vertex gains
@@ -887,26 +1016,80 @@ impl<T: Real> Body<T> {
     /// both `prev` links resolve (`StaleKey`); the loop's face and the
     /// face's shell resolve (`StaleKey`); `start(he1)` and its point
     /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`]);
-    /// `start(he2)` resolves (`StaleKey`). `Lone`:
+    /// `start(he2)` and its point resolve (`StaleKey` /
+    /// `StaleGeometry`). `Lone`:
     /// the loop resolves; it is empty ([`EulerOpError::LoopNotEmpty`]);
     /// its vertex and point resolve; its face and shell resolve.
+    /// Then, for both sites, the geometry gates: a
+    /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`) and
+    /// `curve` certifies ([`EulerOpError::Certification`]).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mef(&mut self, site: MefSite) -> Result<MefCreated, EulerOpError> {
+    pub fn mef(
+        &mut self,
+        site: MefSite,
+        curve: EdgeCurveSpec<T>,
+        surface: FaceSurface<T>,
+    ) -> Result<MefCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MefSite::Chords { he1, he2 } => self.mef_chords(site, he1, he2),
-            MefSite::Lone { r#loop } => self.mef_lone(site, r#loop),
+            MefSite::Chords { he1, he2 } => self.mef_chords(site, he1, he2, curve, surface),
+            MefSite::Lone { r#loop } => self.mef_lone(site, r#loop, curve, surface),
         }?;
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, (0, 0, 1, 1, 2, 1, 0), "mef");
         Ok(created)
+    }
+
+    /// [`Body::mef`] with derived scaffolding geometry and
+    /// [`FaceSurface::Inherit`] — the polyhedral/migration sugar
+    /// (module docs, geometry policy):
+    ///
+    /// - distinct end vertices ⇒ the chord line between their points
+    ///   ([`EdgeCurveSpec::line_between`]);
+    /// - a self-loop site (`Lone`, `Chords` with `he1 == he2`, or both
+    ///   halves starting at one vertex) ⇒ the canonical scaffolding
+    ///   circle at the shared point
+    ///   ([`EdgeCurveSpec::self_loop_circle_at`]).
+    ///
+    /// The dispatch is **structural** (key equality, never a scalar
+    /// comparison); two *distinct* vertices at coincident coordinates
+    /// still take the chord path and fail certification loudly.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mef`].
+    pub fn mef_chord(&mut self, site: MefSite) -> Result<MefCreated, EulerOpError> {
+        let (u1, u2) = match site {
+            MefSite::Chords { he1, he2 } => {
+                (self.resolve_half_edge(he1)?.start, self.resolve_half_edge(he2)?.start)
+            }
+            MefSite::Lone { r#loop } => {
+                let loop_data = self.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Loop(r#loop),
+                })?;
+                match loop_data.boundary {
+                    LoopBoundary::Empty { vertex } => (vertex, vertex),
+                    LoopBoundary::Cycle { .. } => {
+                        return Err(EulerOpError::LoopNotEmpty { r#loop });
+                    }
+                }
+            }
+        };
+        let p1 = self.resolve_vertex_point(u1)?;
+        let spec = if u1 == u2 {
+            EdgeCurveSpec::self_loop_circle_at(p1)
+        } else {
+            let p2 = self.resolve_vertex_point(u2)?;
+            EdgeCurveSpec::line_between(p1, p2)
+        };
+        self.mef(site, spec, FaceSurface::Inherit)
     }
 
     /// Finds the half-edge running `from → to` in `face`, or `None`.
@@ -964,6 +1147,7 @@ impl<T: Real> Body<T> {
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
         point: Point3<T>,
+        curve: EdgeCurveSpec<T>,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let he1_data = self.resolve_half_edge(he1)?;
@@ -973,13 +1157,10 @@ impl<T: Real> Body<T> {
         if he2_start != v {
             return Err(EulerOpError::FanStartMismatch { he1, he2 });
         }
-        if !self.vertices.contains_key(v) {
-            // The op rewrites v's emanating; a dangling start vertex is
-            // tier-1-invalid input caught here.
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Vertex(v),
-            });
-        }
+        // The op rewrites v's emanating; a dangling start vertex (or
+        // point) is tier-1-invalid input caught here. The point is the
+        // certification's start endpoint (he_plus runs old → new).
+        let p_old = self.resolve_vertex_point(v)?;
         // The clockwise run [he1 .. he2): members of the next(mate(·))
         // orbit walk. The walk is bounded (D9) and resolves every member
         // it returns.
@@ -1004,13 +1185,16 @@ impl<T: Real> Body<T> {
                 });
             }
         }
+        // ---- Geometry gate (still no mutation): certify the spec
+        // against old point → new point (D4 ¶2 at attachment).
+        let certified = self.certify_edge_spec(curve, p_old, point)?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented on `mev`): point, curve, vertex,
         // edge, he_plus, he_minus.
         let provenance = Provenance::Mev { site };
         let point_key = self.add_point(point);
-        let curve = self.add_curve(CurveGeom::Placeholder { anchor: point });
+        let curve = self.add_curve(certified);
         let w = self.add_vertex(
             Vertex {
                 point: point_key,
@@ -1076,6 +1260,7 @@ impl<T: Real> Body<T> {
         site: MevSite,
         loop_key: LoopKey,
         point: Point3<T>,
+        curve: EdgeCurveSpec<T>,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions. ----
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
@@ -1084,16 +1269,14 @@ impl<T: Real> Body<T> {
         let LoopBoundary::Empty { vertex: v } = loop_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: loop_key });
         };
-        if !self.vertices.contains_key(v) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Vertex(v),
-            });
-        }
+        let p_old = self.resolve_vertex_point(v)?;
+        // ---- Geometry gate (still no mutation). ----
+        let certified = self.certify_edge_spec(curve, p_old, point)?;
 
         // ---- Mutation (infallible from here on). ----
         let provenance = Provenance::Mev { site };
         let point_key = self.add_point(point);
-        let curve = self.add_curve(CurveGeom::Placeholder { anchor: point });
+        let curve = self.add_curve(certified);
         let w = self.add_vertex(
             Vertex {
                 point: point_key,
@@ -1137,6 +1320,8 @@ impl<T: Real> Body<T> {
         site: MefSite,
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
+        curve: EdgeCurveSpec<T>,
+        surface: FaceSurface<T>,
     ) -> Result<MefCreated, EulerOpError> {
         // ---- Preconditions. ----
         let he1_data = self.resolve_half_edge(he1)?;
@@ -1177,27 +1362,26 @@ impl<T: Real> Body<T> {
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
-        let (surface, shell_key) = (face_data.surface, face_data.shell);
+        let (inherit_surface, shell_key) = (face_data.surface, face_data.shell);
         if !self.shells.contains_key(shell_key) {
             return Err(EulerOpError::StaleKey {
                 key: EntityId::Shell(shell_key),
             });
         }
-        let anchor = self.resolve_vertex_point(u1)?;
-        // he_minus is minted with start = u2; reject a dangling start
-        // vertex rather than propagate it (symmetric with mev's check
-        // on its shared start vertex).
-        if !self.vertices.contains_key(u2) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Vertex(u2),
-            });
-        }
+        let p1 = self.resolve_vertex_point(u1)?;
+        // he_minus is minted with start = u2; its point is the
+        // certification's end endpoint (he_plus runs u1 → u2).
+        let p2 = self.resolve_vertex_point(u2)?;
+        // ---- Geometry gates (still no mutation). ----
+        self.check_face_surface(&surface)?;
+        let certified = self.certify_edge_spec(curve, p1, p2)?;
 
         // ---- Mutation (infallible from here on). ----
-        // Minting order (documented on `mef`): curve, edge, loop, face,
-        // he_plus, he_minus.
+        // Minting order (documented on `mef`): surface (for New),
+        // curve, edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
-        let curve = self.add_curve(CurveGeom::Placeholder { anchor });
+        let surface = self.mint_face_surface(surface, inherit_surface);
+        let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (new_loop, new_face) = self.mint_loop_and_face(surface, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
@@ -1252,7 +1436,13 @@ impl<T: Real> Body<T> {
 
     /// [`MefSite::Lone`] — precondition block, then the circular-edge
     /// surgery ("circular edge from a lone vertex", Mäntylä Fig. 9.8b).
-    fn mef_lone(&mut self, site: MefSite, loop_key: LoopKey) -> Result<MefCreated, EulerOpError> {
+    fn mef_lone(
+        &mut self,
+        site: MefSite,
+        loop_key: LoopKey,
+        curve: EdgeCurveSpec<T>,
+        surface: FaceSurface<T>,
+    ) -> Result<MefCreated, EulerOpError> {
         // ---- Preconditions. ----
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(loop_key),
@@ -1261,27 +1451,27 @@ impl<T: Real> Body<T> {
             return Err(EulerOpError::LoopNotEmpty { r#loop: loop_key });
         };
         let face_key = loop_data.face;
-        if !self.vertices.contains_key(v) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Vertex(v),
-            });
-        }
         let anchor = self.resolve_vertex_point(v)?;
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
-        let (surface, shell_key) = (face_data.surface, face_data.shell);
+        let (inherit_surface, shell_key) = (face_data.surface, face_data.shell);
         if !self.shells.contains_key(shell_key) {
             return Err(EulerOpError::StaleKey {
                 key: EntityId::Shell(shell_key),
             });
         }
+        // ---- Geometry gates (still no mutation): the self-loop edge
+        // closes at the lone vertex — both endpoints are its point.
+        self.check_face_surface(&surface)?;
+        let certified = self.certify_edge_spec(curve, anchor, anchor)?;
 
         // ---- Mutation (infallible from here on). ----
-        // Same minting order as Chords: curve, edge, loop, face,
-        // he_plus, he_minus.
+        // Same minting order as Chords: surface (for New), curve,
+        // edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
-        let curve = self.add_curve(CurveGeom::Placeholder { anchor });
+        let surface = self.mint_face_surface(surface, inherit_surface);
+        let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (new_loop, new_face) = self.mint_loop_and_face(surface, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
@@ -1326,9 +1516,9 @@ impl<T: Real> Body<T> {
             })
     }
 
-    /// Resolves a vertex's point coordinates (for `mef`'s/`mekr`'s
-    /// placeholder curve anchor): [`EulerOpError::StaleKey`] on the
-    /// vertex, [`EulerOpError::StaleGeometry`] on the point.
+    /// Resolves a vertex's point coordinates (the certification gate's
+    /// endpoints): [`EulerOpError::StaleKey`] on the vertex,
+    /// [`EulerOpError::StaleGeometry`] on the point.
     pub(crate) fn resolve_vertex_point(
         &self,
         vertex: VertexKey,
@@ -1341,6 +1531,58 @@ impl<T: Real> Body<T> {
             .ok_or(EulerOpError::StaleGeometry {
                 key: GeomRef::Point(vertex_data.point),
             })
+    }
+
+    /// The attachment gate (D4 ¶2 at operation time): certifies an
+    /// [`EdgeCurveSpec`] against the new edge's endpoint points, with
+    /// surface keys resolved from this body's arena. Pure (no
+    /// mutation) — ops call it inside their precondition phase.
+    pub(crate) fn certify_edge_spec(
+        &self,
+        spec: EdgeCurveSpec<T>,
+        p_start: Point3<T>,
+        p_end: Point3<T>,
+    ) -> Result<EdgeCurve<T>, EulerOpError> {
+        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+            error: CertifyError::Band(e),
+        })?;
+        EdgeCurve::certify(spec, p_start, p_end, |k| self.surfaces.get(k).copied(), band)
+            .map_err(|error| EulerOpError::Certification { error })
+    }
+
+    /// Precondition half of [`FaceSurface`] resolution: a `Shared` key
+    /// must resolve now (so the mutation phase stays infallible);
+    /// `Inherit`/`New` have nothing to check.
+    pub(crate) fn check_face_surface(&self, spec: &FaceSurface<T>) -> Result<(), EulerOpError> {
+        match spec {
+            FaceSurface::Inherit | FaceSurface::New(_) => Ok(()),
+            FaceSurface::Shared(key) => {
+                if self.surfaces.contains_key(*key) {
+                    Ok(())
+                } else {
+                    Err(EulerOpError::StaleGeometry {
+                        key: GeomRef::Surface(*key),
+                    })
+                }
+            }
+        }
+    }
+
+    /// Mutation half of [`FaceSurface`] resolution: the new face's
+    /// surface key — `inherit` for `Inherit`, a fresh insertion for
+    /// `New` (part of the op's documented minting order), the given key
+    /// for `Shared` (pre-validated by
+    /// [`Body::check_face_surface`]).
+    pub(crate) fn mint_face_surface(
+        &mut self,
+        spec: FaceSurface<T>,
+        inherit: SurfaceKey,
+    ) -> SurfaceKey {
+        match spec {
+            FaceSurface::Inherit => inherit,
+            FaceSurface::New(surface) => self.add_surface(surface),
+            FaceSurface::Shared(key) => key,
+        }
     }
 
     /// Mints an edge with provisional half-edge slots (the halves are

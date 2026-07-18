@@ -186,13 +186,13 @@
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let mut body = Body::<f64>::new();
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
-//! let seg = body.mev(
+//! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
 //! )?;
 //! // A strut, then kill it: the far vertex is stranded as an EMPTY RING
 //! // of the face — Mäntylä §9.3 step (g), the hole-planting state.
-//! let strut = body.mev(
+//! let strut = body.mev_line(
 //!     MevSite::Fan { he1: seg.he_minus, he2: seg.he_minus },
 //!     Point3::new(2.0, 0.0, 0.0),
 //! )?;
@@ -202,7 +202,7 @@
 //!     LoopBoundary::Empty { vertex: strut.vertex },
 //! );
 //! // mekr absorbs the lone-vertex ring back with a new edge.
-//! let restore = body.mekr(MekrSite::EmptyRing {
+//! let restore = body.mekr_chord(MekrSite::EmptyRing {
 //!     target: seg.he_minus,
 //!     ring: kill.ring,
 //! })?;
@@ -213,14 +213,15 @@
 //! # run().unwrap();
 //! ```
 
-use geom_core::{Point3, Real};
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Decide, Point3};
 
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, VertexKey,
 };
 use crate::euler::EulerOpError;
-use crate::geometry::{CurveGeom, CurveKey, SurfaceKey};
+use crate::geometry::{CurveKey, SurfaceKey};
 use crate::provenance::Provenance;
 
 /// Where [`Body::mekr`] acts: the site addressing for "make edge, kill
@@ -327,8 +328,9 @@ pub struct MekrResult {
     /// The minus half: ring anchor vertex → target anchor vertex, also
     /// in the target loop.
     pub he_minus: HalfEdgeKey,
-    /// The edge's placeholder curve (M1 geometry policy; anchored at the
-    /// target anchor vertex's coordinates).
+    /// The edge's certified curve (the attachment-gated `EdgeCurve`
+    /// built from the given spec — M2 geometry policy,
+    /// `crate::euler` module docs).
     pub curve: CurveKey,
     /// The killed ring loop (dead key — no longer resolves).
     pub killed_ring: LoopKey,
@@ -351,7 +353,7 @@ pub struct KfmrhResult {
     pub killed_surface: Option<SurfaceKey>,
 }
 
-impl<T: Real> Body<T> {
+impl<T: Decide> Body<T> {
     /// KEMR — *kill edge, make ring*: remove an edge occurring twice in
     /// one loop, splitting the loop's cycle into two components; `he1`'s
     /// side becomes a new **ring** of the same face.
@@ -568,26 +570,81 @@ impl<T: Real> Body<T> {
     /// ([`EulerOpError::LoopCycleBroken`]); splice/anchor keys resolve
     /// (`StaleKey` / [`EulerOpError::StaleGeometry`]); `BothEmpty`'s
     /// lone vertices are distinct
-    /// ([`EulerOpError::EmptyAnchorsCollide`]).
+    /// ([`EulerOpError::EmptyAnchorsCollide`]). Then the geometry
+    /// gate: `curve` certifies against the anchors' points, u → w in
+    /// the `he_plus` forward order
+    /// ([`EulerOpError::Certification`]; `crate::euler` module docs,
+    /// M2 geometry policy). Chord sugar: [`Body::mekr_chord`].
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mekr(&mut self, site: MekrSite) -> Result<MekrResult, EulerOpError> {
+    pub fn mekr(
+        &mut self,
+        site: MekrSite,
+        curve: EdgeCurveSpec<T>,
+    ) -> Result<MekrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring),
-            MekrSite::EmptyRing { target, ring } => self.mekr_empty_ring(site, target, ring),
-            MekrSite::EmptyTarget { target, ring } => self.mekr_empty_target(site, target, ring),
-            MekrSite::BothEmpty { target, ring } => self.mekr_both_empty(site, target, ring),
+            MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve),
+            MekrSite::EmptyRing { target, ring } => self.mekr_empty_ring(site, target, ring, curve),
+            MekrSite::EmptyTarget { target, ring } => {
+                self.mekr_empty_target(site, target, ring, curve)
+            }
+            MekrSite::BothEmpty { target, ring } => self.mekr_both_empty(site, target, ring, curve),
         }?;
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, (0, 0, 0, -1, 2, 1, 0), "mekr");
         Ok(created)
+    }
+
+    /// [`Body::mekr`] with derived scaffolding geometry — the
+    /// polyhedral/migration sugar (see `crate::euler`'s geometry
+    /// policy): the chord line between the two anchor vertices' points
+    /// (`EdgeCurveSpec::line_between`), or the canonical scaffolding
+    /// circle when both anchors are one vertex (structural key
+    /// equality — `EdgeCurveSpec::self_loop_circle_at`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mekr`].
+    pub fn mekr_chord(&mut self, site: MekrSite) -> Result<MekrResult, EulerOpError> {
+        let anchor_of = |body: &Self, r#loop: LoopKey| -> Result<VertexKey, EulerOpError> {
+            let loop_data = body.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
+                key: EntityId::Loop(r#loop),
+            })?;
+            match loop_data.boundary {
+                LoopBoundary::Empty { vertex } => Ok(vertex),
+                LoopBoundary::Cycle { .. } => Err(EulerOpError::LoopNotEmpty { r#loop }),
+            }
+        };
+        let (u, w) = match site {
+            MekrSite::Cycles { target, ring } => (
+                self.resolve_half_edge(target)?.start,
+                self.resolve_half_edge(ring)?.start,
+            ),
+            MekrSite::EmptyRing { target, ring } => {
+                (self.resolve_half_edge(target)?.start, anchor_of(self, ring)?)
+            }
+            MekrSite::EmptyTarget { target, ring } => {
+                (anchor_of(self, target)?, self.resolve_half_edge(ring)?.start)
+            }
+            MekrSite::BothEmpty { target, ring } => {
+                (anchor_of(self, target)?, anchor_of(self, ring)?)
+            }
+        };
+        let p_u = self.resolve_vertex_point(u)?;
+        let spec = if u == w {
+            EdgeCurveSpec::self_loop_circle_at(p_u)
+        } else {
+            let p_w = self.resolve_vertex_point(w)?;
+            EdgeCurveSpec::line_between(p_u, p_w)
+        };
+        self.mekr(site, spec)
     }
 
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
@@ -781,6 +838,7 @@ impl<T: Real> Body<T> {
         site: MekrSite,
         target: HalfEdgeKey,
         ring: HalfEdgeKey,
+        curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.resolve_half_edge(target)?;
@@ -831,10 +889,13 @@ impl<T: Real> Body<T> {
         }
         let u = target_data.start;
         let w = ring_data.start;
-        let anchor = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(u, w)?;
+        // ---- Geometry gate (still no mutation): certify u → w (the
+        // he_plus forward order).
+        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, anchor);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
             if let Some(he) = self.get_half_edge_mut(moved) {
@@ -871,6 +932,7 @@ impl<T: Real> Body<T> {
         site: MekrSite,
         target: HalfEdgeKey,
         ring: LoopKey,
+        curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.resolve_half_edge(target)?;
@@ -907,10 +969,13 @@ impl<T: Real> Body<T> {
             });
         }
         let u = target_data.start;
-        let anchor = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(u, w)?;
+        // ---- Geometry gate (still no mutation): certify u → w (the
+        // he_plus forward order).
+        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, anchor);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Splice: … prev(target) → he_plus → he_minus → target … (the
         // strut shape, re-created; inverse of kemr's ring-side-empty
         // case).
@@ -935,6 +1000,7 @@ impl<T: Real> Body<T> {
         site: MekrSite,
         target: LoopKey,
         ring: HalfEdgeKey,
+        curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
@@ -970,10 +1036,13 @@ impl<T: Real> Body<T> {
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
         let w = ring_data.start;
-        let anchor = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(u, w)?;
+        // ---- Geometry gate (still no mutation): certify u → w (the
+        // he_plus forward order).
+        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, anchor);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         for &moved in &ring_members {
             if let Some(he) = self.get_half_edge_mut(moved) {
                 he.parent_loop = target;
@@ -1003,6 +1072,7 @@ impl<T: Real> Body<T> {
         site: MekrSite,
         target: LoopKey,
         ring: LoopKey,
+        curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
@@ -1030,10 +1100,13 @@ impl<T: Real> Body<T> {
             // input (see the module docs), checked defensively.
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
         }
-        let anchor = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(u, w)?;
+        // ---- Geometry gate (still no mutation): certify u → w (the
+        // he_plus forward order).
+        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, anchor);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         // The two halves form the whole cycle: u → w → u (the segment
         // loop — inverse of kemr's both-empty case).
         self.link_half_edges(he_plus, he_minus);
@@ -1066,9 +1139,10 @@ impl<T: Real> Body<T> {
         Ok(())
     }
 
-    /// The shared vertex-side preconditions: both anchor vertices
-    /// resolve (their `emanating` is rewritten) and `u`'s point resolves
-    /// (the placeholder-curve anchor). Returns the anchor coordinates.
+    /// The shared vertex-side preconditions: both anchor vertices and
+    /// their points resolve (`emanating` is rewritten; the points are
+    /// the certification gate's endpoints). Returns `(u's point, w's
+    /// point)`.
     ///
     /// The [`EulerOpError::StaleGeometry`] arm is dead-but-defensive:
     /// point removal exists (PR 4's `kev`/`kvfs` reap orphaned points),
@@ -1077,17 +1151,18 @@ impl<T: Real> Body<T> {
     /// without in-crate corruption (tier 1 would report it as
     /// `DanglingGeometry`). Kept because the op must stay sound
     /// standalone.
-    fn check_anchors(&self, u: VertexKey, w: VertexKey) -> Result<Point3<T>, EulerOpError> {
-        let anchor = self.resolve_vertex_point(u)?;
-        if !self.vertices.contains_key(w) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Vertex(w),
-            });
-        }
-        Ok(anchor)
+    fn check_anchors(
+        &self,
+        u: VertexKey,
+        w: VertexKey,
+    ) -> Result<(Point3<T>, Point3<T>), EulerOpError> {
+        let p_u = self.resolve_vertex_point(u)?;
+        let p_w = self.resolve_vertex_point(w)?;
+        Ok((p_u, p_w))
     }
 
-    /// `mekr`'s mint phase (documented minting order: curve, edge,
+    /// `mekr`'s mint phase (documented minting order: curve — the
+    /// certified `EdgeCurve` from the attachment gate — edge,
     /// `he_plus`, `he_minus`). Both halves land in the target loop;
     /// `next`/`prev` are provisional for the caller's splice.
     fn mekr_mint(
@@ -1096,10 +1171,10 @@ impl<T: Real> Body<T> {
         u: VertexKey,
         w: VertexKey,
         target_loop: LoopKey,
-        anchor: Point3<T>,
+        certified: geom_brep::EdgeCurve<T>,
     ) -> (CurveKey, EdgeKey, HalfEdgeKey, HalfEdgeKey) {
         let provenance = Provenance::Mekr { site };
-        let curve = self.add_curve(CurveGeom::Placeholder { anchor });
+        let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) =
             self.mint_halves(edge, (u, target_loop), (w, target_loop), &provenance);

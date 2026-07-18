@@ -218,6 +218,75 @@ pub struct EdgeCurveSpec<T: Real> {
     pub param_end: T,
 }
 
+impl<T: Real> EdgeCurveSpec<T> {
+    /// The straight-chord spec between two points: carrier the line
+    /// from `p0` to `p1` (arc-length parameters `0 … |p1 − p0|`),
+    /// description the honest pushforward form — `p0`'s trajectory
+    /// under the translation by `p1 − p0`
+    /// ([`crate::MappedCurve::ExtrudedPoint`] with the sketch origin
+    /// placed at `p0`).
+    ///
+    /// By calling this the caller asserts the edge's locus **is** the
+    /// straight chord; a construction whose edge follows any other
+    /// locus (an arc trajectory, a placed profile segment) builds its
+    /// spec explicitly. Coincident endpoints yield a poison carrier
+    /// that certification rejects loudly (typed, total).
+    pub fn line_between(p0: Point3<T>, p1: Point3<T>) -> Self {
+        use geom_core::{Affine3, Point2};
+        let len = p0.distance(p1);
+        Self {
+            description: EdgeGeometry::MappedCurve(crate::edge_geometry::MappedCurve::ExtrudedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(p0 - Point3::origin()),
+                vec: p1 - p0,
+            }),
+            carrier: Curve3::Line {
+                origin: p0,
+                dir: (p1 - p0) / len,
+            },
+            param_start: T::zero(),
+            param_end: len,
+        }
+    }
+
+    /// The canonical full-period self-loop spec at `p`: a unit circle
+    /// through `p` (center `p + x̂`, axis `ẑ`, parameters `0 … τ`),
+    /// described as `p`'s trajectory under a full revolution about
+    /// that center.
+    ///
+    /// **Scaffolding convention**: self-loop edges (both endpoints one
+    /// vertex — `mef`'s circular/lone sites) need *some* certified
+    /// closed carrier during construction sequences whose real geometry
+    /// arrives later (or never reaches rest — ring scaffolding is
+    /// typically consumed by `kemr`). This is that deterministic
+    /// choice: honest data (the carrier truly is this circle and truly
+    /// closes at `p`), deliberately arbitrary geometry — the stored
+    /// parameter interval `(0, τ)` is exactly the certified-cache case
+    /// the module docs cover.
+    pub fn self_loop_circle_at(p: Point3<T>) -> Self {
+        use geom_core::{Affine3, Point2, Vec3};
+        let center = p + Vec3::unit_x();
+        Self {
+            description: EdgeGeometry::MappedCurve(crate::edge_geometry::MappedCurve::RevolvedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(p - Point3::origin()),
+                axis_origin: center,
+                axis_dir: Vec3::unit_z(),
+                angle: T::tau(),
+            }),
+            carrier: Curve3::Circle {
+                center,
+                axis: Vec3::unit_z(),
+                radius: T::one(),
+                // u_ref points from the center back at p.
+                u_ref: Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
+            },
+            param_start: T::zero(),
+            param_end: T::tau(),
+        }
+    }
+}
+
 /// The certification record stored with a certified carrier: the
 /// schedule that ran and the worst distance residual it observed
 /// (meters). Byte-identical across replays of the same construction
@@ -608,20 +677,19 @@ mod tests {
     }
 
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
-        let len = p0.distance(p1);
-        EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::ExtrudedPoint {
-                point: Point2::new(0.0, 0.0),
-                place: Affine3::translation(p0 - Point3::origin()),
-                vec: p1 - p0,
-            }),
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: (p1 - p0) / len,
-            },
-            param_start: 0.0,
-            param_end: len,
-        }
+        EdgeCurveSpec::line_between(p0, p1)
+    }
+
+    #[test]
+    fn self_loop_circle_certifies_at_its_anchor() {
+        let p = Point3::new(-2.0, 0.5, 7.0);
+        let spec = EdgeCurveSpec::self_loop_circle_at(p);
+        EdgeCurve::certify(spec, p, p, |_| None, band()).unwrap();
+        // Coincident-endpoint LINE specs, by contrast, poison and are
+        // refused (typed, no panic) — the reason the circle convention
+        // exists.
+        let bad = EdgeCurveSpec::line_between(p, p);
+        assert!(EdgeCurve::certify(bad, p, p, |_| None, band()).is_err());
     }
 
     #[test]
