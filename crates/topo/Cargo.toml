@@ -11,10 +11,13 @@ workspace = true
 # Forwards geom-core's certified interval scalar so `Body<Interval>` is
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).
-interval = ["geom-core/interval"]
+interval = ["geom-core/interval", "geom-brep/interval"]
 
 [dependencies]
+geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
 slotmap = { workspace = true }
 
 [dev-dependencies]

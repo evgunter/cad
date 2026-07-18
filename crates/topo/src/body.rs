@@ -49,14 +49,16 @@
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
 
+use geom_brep::{EdgeCurve, EdgeGeometry};
 use geom_core::{Point3, Real};
+use geom_surfaces::Surface;
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
     Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
@@ -134,10 +136,11 @@ pub struct Body<T: Real> {
     pub(crate) half_edges: SlotMap<HalfEdgeKey, HalfEdge>,
     pub(crate) edges: SlotMap<EdgeKey, Edge>,
     pub(crate) vertices: SlotMap<VertexKey, Vertex>,
-    // Geometry arenas — the only `T`-carrying storage.
+    // Geometry arenas — the only `T`-carrying storage (real element
+    // types since M2 PR 3; see `crate::geometry`).
     pub(crate) points: SlotMap<PointKey, Point3<T>>,
-    pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
-    pub(crate) surfaces: SlotMap<SurfaceKey, SurfaceGeom<T>>,
+    pub(crate) curves: SlotMap<CurveKey, EdgeCurve<T>>,
+    pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
     // Uniform across all seven topology kinds — half-edges included.
@@ -205,17 +208,19 @@ impl<T: Real> Body<T> {
         self.points.insert(point)
     }
 
-    /// Inserts curve geometry, returning its key.
+    /// Inserts curve geometry (a certified [`EdgeCurve`] — certification
+    /// is the only way to build one), returning its key.
     ///
-    /// Crate-internal raw insertion: no validity promises.
-    pub(crate) fn add_curve(&mut self, curve: CurveGeom<T>) -> CurveKey {
+    /// Crate-internal raw insertion: no validity promises beyond what
+    /// the `EdgeCurve` itself carries.
+    pub(crate) fn add_curve(&mut self, curve: EdgeCurve<T>) -> CurveKey {
         self.curves.insert(curve)
     }
 
     /// Inserts surface geometry, returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises.
-    pub(crate) fn add_surface(&mut self, surface: SurfaceGeom<T>) -> SurfaceKey {
+    pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
         self.surfaces.insert(surface)
     }
 

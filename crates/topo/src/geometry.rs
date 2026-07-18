@@ -8,63 +8,29 @@
 //! `Body<Interval>` with **identical topology keys** and interval-valued
 //! geometry — topology never branches on the scalar type.
 //!
-//! # M0 placeholders
+//! # The real element types (M2 PR 3 — the M0 placeholders retired)
 //!
-//! Vertex geometry is real already: [`geom_core::Point3`], which exists
-//! since the linalg PR. Curve and surface geometry are **deliberately-stub
-//! one-variant enums** ([`CurveGeom`] / [`SurfaceGeom`]): the real variant
-//! taxonomies (line/circle/…/NURBS; plane/cylinder/…/NURBS) are M2's
-//! design work against D2/D3, but the arena plumbing, key discipline, and
-//! validator shape have to be real *now*. M2 replaces the placeholder
-//! variants with the real ones; the enums stay **closed** per D3
-//! (intersection dispatch needs compile-time exhaustiveness — no open
-//! trait objects).
+//! - **Points**: `geom_core::Point3<T>` (real since M0).
+//! - **Curves**: [`geom_brep::EdgeCurve<T>`] — D2's intensional
+//!   [`geom_brep::EdgeGeometry`] description plus its certified
+//!   `geom_curves::Curve3` carrier cache and certification record
+//!   (D4 ¶2). Constructible only through certification
+//!   (`EdgeCurve::certify`), so an uncertified carrier can never enter
+//!   the arena; the Euler operators run that gate at attachment and the
+//!   tier-3 validator re-runs it at rest.
+//! - **Surfaces**: `geom_surfaces::Surface<T>` — D3's closed analytic
+//!   enum. A face's surface arrives from its construction (operator
+//!   surface parameters, [`crate::FaceSurface`]; Newell-certified
+//!   planes via `geom_brep::newell_plane`) or, for `mvfs`'s seed face,
+//!   starts as the `Surface::Nurbs` representable-unimplemented
+//!   placeholder — the honest "no description yet" state, legal
+//!   mid-construction and rejected by the tier-3 validator if it
+//!   survives to rest (nothing can be certified against it at M2).
+//!
+//! The key types are **defined in `geom-brep`** (its descriptions
+//! reference surfaces by arena key — see `geom_brep::keys` for the
+//! layering rationale) and re-exported here unchanged; a key's lineage
+//! scoping and stale/foreign semantics are documented on
+//! [`Body`](crate::Body).
 
-use geom_core::{Point3, Real};
-use slotmap::new_key_type;
-
-new_key_type! {
-    /// Typed key into a body's point arena (vertex geometry).
-    pub struct PointKey;
-
-    /// Typed key into a body's curve arena (edge geometry).
-    pub struct CurveKey;
-
-    /// Typed key into a body's surface arena (face geometry).
-    pub struct SurfaceKey;
-}
-
-/// Edge geometry — M0 placeholder enum.
-///
-/// M2 replaces the variant set with the real curve taxonomy (D2's
-/// intensional descriptions over D3's closed analytic-plus-NURBS kinds);
-/// the enum stays closed per D3. The single M0 variant exists so the
-/// curve arena, its key discipline, and the validator are exercised for
-/// real before any curve evaluation exists.
-#[derive(Clone, Debug)]
-pub enum CurveGeom<T: Real> {
-    /// The M0 placeholder variant. Carries a point so the arena element
-    /// genuinely holds scalar values of type `T` (an interval replay
-    /// stores interval coordinates here); the point has **no geometric
-    /// meaning** — it is arena ballast, not a curve description.
-    Placeholder {
-        /// Scalar ballast; no geometric meaning at M0.
-        anchor: Point3<T>,
-    },
-}
-
-/// Face geometry — M0 placeholder enum.
-///
-/// M2 replaces the variant set with the real surface taxonomy
-/// (plane/cylinder/cone/sphere/torus/NURBS, D3); the enum stays closed
-/// per D3. See [`CurveGeom`] for why the placeholder exists at all.
-#[derive(Clone, Debug)]
-pub enum SurfaceGeom<T: Real> {
-    /// The M0 placeholder variant. Same role as
-    /// [`CurveGeom::Placeholder`]: keeps the surface arena genuinely
-    /// `T`-valued with no geometric meaning attached.
-    Placeholder {
-        /// Scalar ballast; no geometric meaning at M0.
-        anchor: Point3<T>,
-    },
-}
+pub use geom_brep::{CurveKey, PointKey, SurfaceKey};
