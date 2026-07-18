@@ -18,6 +18,9 @@
     clippy::panic,
     clippy::unreachable
 )]
+// The range-shaped assertions are the reviewer's derivation shapes —
+// kept verbatim per the do-not-simplify rule.
+#![allow(clippy::manual_range_contains)]
 
 use core::f64::consts::{FRAC_PI_6, TAU};
 

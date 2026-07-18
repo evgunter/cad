@@ -18,10 +18,13 @@
     clippy::panic,
     clippy::unreachable
 )]
+// The range-shaped assertions are the reviewer's derivation shapes —
+// kept verbatim per the do-not-simplify rule.
+#![allow(clippy::manual_range_contains)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_6, PI, TAU};
 
-use geom_core::{Affine3, Dual, Dual64, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Dual, Point2, Point3, Real, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
