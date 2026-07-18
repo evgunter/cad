@@ -48,7 +48,13 @@
 //!   per variant, and they poison the derived normal honestly**: where
 //!   `∂S/∂u = 0` (sphere poles, cone apex) the cross product vanishes
 //!   and `normalize` yields the scalar's poison — no branch, no
-//!   fabricated limit direction. The SURFACE is regular at a sphere
+//!   fabricated limit direction. (Exactly AT the singularity, that is;
+//!   in the underflow band just off it — cone: `v ≲ 3e-162` — the cross
+//!   product's `norm_squared` underflows to 0 and `normalize` yields
+//!   `±∞` components instead of NaN, ∞ not being f64 poison, with a
+//!   degraded-precision band just above; `Vec3::normalize`'s docs carry
+//!   the band boundaries. Both bands are far outside the session box,
+//!   D4 ¶4.) The SURFACE is regular at a sphere
 //!   pole (the chart isn't); the cone apex is a genuine surface
 //!   singularity (no tangent plane exists). Pole handling (tessellation
 //!   fans, revolve's pole vertices) is downstream case analysis on
@@ -134,6 +140,10 @@ pub enum Surface<T: Real> {
     ///   normal at `v = 0` is therefore poison (0-vector normalized),
     ///   which is the correct answer, not a limitation: any definite
     ///   vector would fabricate a tangent plane that does not exist.
+    ///   (NaN-poison holds exactly at `v = 0`; in the underflow band
+    ///   `0 < |v| ≲ 3e-162` the normalization instead yields `±∞`
+    ///   components — ∞ is not f64 poison — see the crate docs'
+    ///   singularity bullet and `Vec3::normalize`'s band notes.)
     ///   Away from the apex the chart normal is
     ///   `radial(u)·cos α − axis·sin α` for `v > 0` (tilted outward,
     ///   perpendicular to the generator) and its negation for `v < 0`.

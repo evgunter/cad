@@ -218,7 +218,12 @@ impl<T: Real> Vec3<T> {
     ///
     /// **Total.** A zero (or poisoned) `onto` yields all-poison
     /// components through the 0/0 division, per the crate's totality
-    /// policy.
+    /// policy. Components of `onto` beyond ~1e154 overflow
+    /// `norm_squared` to ∞, collapsing the coefficient — and hence the
+    /// projection — to a silent zero (∞ is not f64 poison); the
+    /// symmetric underflow end blows it up instead. Both bands are far
+    /// outside the session box (D4 ¶4) — the same posture and
+    /// boundaries as [`Vec3::normalize`]'s doc note.
     pub fn project_onto(self, onto: Self) -> Self {
         onto * (self.dot(onto) / onto.norm_squared())
     }
