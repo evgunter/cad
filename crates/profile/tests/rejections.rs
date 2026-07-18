@@ -1,0 +1,397 @@
+//! Rejection and escalation fixtures: every typed error variant hit by
+//! a closed-form profile, with the exact error asserted.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod common;
+
+use common::{
+    arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
+};
+use geom_core::MarginDiag;
+use profile::{ContactKind, EscalationSite, ProfileError, SegmentRef, SketchPlane};
+
+fn err(p: &profile::Profile<f64>) -> ProfileError {
+    p.validate(tol()).expect_err("fixture must be rejected")
+}
+
+fn sref(loop_index: usize, segment_index: usize) -> SegmentRef {
+    SegmentRef {
+        loop_index,
+        segment_index,
+    }
+}
+
+#[test]
+fn empty_profile_is_rejected() {
+    let p = profile::Profile::<f64>::new(SketchPlane::xy(), vec![]);
+    assert_eq!(err(&p), ProfileError::EmptyProfile);
+}
+
+#[test]
+fn single_vertex_loop_fails_arity() {
+    let p = profile(vec![chain(&[(0.0, 0.0, 1.0)])]);
+    assert_eq!(
+        err(&p),
+        ProfileError::TooFewVertices {
+            loop_index: 0,
+            count: 1,
+        }
+    );
+}
+
+#[test]
+fn repeated_vertex_is_a_degenerate_segment() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+    ])]);
+    assert_eq!(err(&p), ProfileError::DegenerateSegment(sref(0, 1)));
+}
+
+#[test]
+fn near_coincident_vertices_escalate() {
+    // Vertices 5ε apart: inside the sliver band — a typed escalation
+    // naming the distance predicate, not a guess either way.
+    let eps = tol().eps;
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 5.0 * eps, 0.0),
+        (0.0, 1.0, 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::Segment(sref(0, 1)));
+            assert_eq!(source.predicate, Some("vertex_separation"));
+        }
+        other => panic!("expected escalation, got {other:?}"),
+    }
+}
+
+#[test]
+fn sliver_arc_bulge_escalates() {
+    // A unit chord with sagitta 5ε: neither line nor sound arc.
+    let eps = tol().eps;
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 10.0 * eps), // sagitta = L·b/2 = 5ε
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (0.0, 1.0, 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
+            assert_eq!(source.predicate, Some("segment_straightness"));
+        }
+        other => panic!("expected escalation, got {other:?}"),
+    }
+}
+
+#[test]
+fn bowtie_is_a_crossing() {
+    let p = profile(vec![bowtie()]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 2),
+            kind: ContactKind::Crossing,
+        }
+    );
+}
+
+#[test]
+fn overlapping_loops_cross() {
+    let p = profile(vec![rect(0.0, 0.0, 2.0, 2.0), rect(1.0, 1.0, 2.0, 2.0)]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            kind: ContactKind::Crossing,
+            first,
+            second,
+        } => {
+            assert_eq!(first.loop_index, 0);
+            assert_eq!(second.loop_index, 1);
+        }
+        other => panic!("expected a crossing, got {other:?}"),
+    }
+}
+
+#[test]
+fn hole_crossing_outer_is_non_simple() {
+    let p = profile(vec![rect(0.0, 0.0, 4.0, 4.0), rect(3.0, 1.0, 3.0, 1.0)]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            kind: ContactKind::Crossing,
+            ..
+        } => {}
+        other => panic!("expected a crossing, got {other:?}"),
+    }
+}
+
+#[test]
+fn loops_touching_at_a_corner_are_non_simple() {
+    let p = profile(vec![rect(0.0, 0.0, 2.0, 2.0), rect(2.0, 2.0, 1.0, 1.0)]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            kind: ContactKind::Touch,
+            ..
+        } => {}
+        other => panic!("expected an endpoint contact, got {other:?}"),
+    }
+}
+
+#[test]
+fn vertex_on_segment_interior_is_non_simple() {
+    // (1, 0) is a loop vertex lying on segment 0's interior.
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (2.0, 0.0, 0.0),
+        (2.0, 2.0, 0.0),
+        (1.0, 0.0, 0.0),
+    ])]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 2),
+            kind: ContactKind::Touch,
+        }
+    );
+}
+
+#[test]
+fn collinear_spike_is_an_overlap() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (2.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+    ])]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 1),
+            kind: ContactKind::Overlap,
+        }
+    );
+}
+
+#[test]
+fn two_line_digon_is_an_overlap() {
+    let p = profile(vec![chain(&[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)])]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 1),
+            kind: ContactKind::Overlap,
+        }
+    );
+}
+
+#[test]
+fn doubled_arc_digon_is_an_overlap() {
+    // Out along an arc and back along the same arc: identical spans on
+    // one carrier (coincident apexes).
+    let p = profile(vec![chain(&[(0.0, 0.0, 1.0), (2.0, 0.0, -1.0)])]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 1),
+            kind: ContactKind::Overlap,
+        }
+    );
+}
+
+#[test]
+fn hole_outside_outer_means_two_outer_loops() {
+    let p = profile(vec![rect(0.0, 0.0, 2.0, 2.0), rect(5.0, 0.0, 1.0, 1.0)]);
+    assert_eq!(
+        err(&p),
+        ProfileError::MultipleOuterLoops {
+            outer_loops: vec![0, 1],
+        }
+    );
+}
+
+#[test]
+fn nesting_deeper_than_holes_is_rejected() {
+    let p = profile(vec![
+        rect(0.0, 0.0, 10.0, 10.0),
+        rect(1.0, 1.0, 8.0, 8.0),
+        rect(2.0, 2.0, 6.0, 6.0),
+    ]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NestingTooDeep {
+            loop_index: 2,
+            depth: 2,
+        }
+    );
+}
+
+#[test]
+fn internally_tangent_hole_is_a_tangential_contact() {
+    assert_eq!(
+        err(&tangent_hole()),
+        ProfileError::TangentialContact {
+            first: sref(0, 0),
+            second: sref(1, 0),
+        }
+    );
+}
+
+#[test]
+fn arc_kissing_a_line_is_a_tangential_contact() {
+    assert_eq!(
+        err(&arc_kisses_line()),
+        ProfileError::TangentialContact {
+            first: sref(0, 0),
+            second: sref(0, 3),
+        }
+    );
+}
+
+#[test]
+fn near_tangent_hole_escalates_on_the_internal_clearance() {
+    match err(&near_tangent_hole(tol().eps)) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
+            assert_eq!(source.predicate, Some("carrier_circles_internal"));
+            match source.margin {
+                MarginDiag::Value(m) => {
+                    // The clearance is −5ε (up to the cancellation ulp).
+                    let eps = tol().eps;
+                    assert!(
+                        (m + 5.0 * eps).abs() < 0.5 * eps,
+                        "margin {m:e} should be ≈ −5ε"
+                    );
+                }
+                other => panic!("expected an in-band value margin, got {other:?}"),
+            }
+        }
+        other => panic!("expected escalation, got {other:?}"),
+    }
+}
+
+#[test]
+fn nan_coordinates_poison_to_a_typed_error() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (f64::NAN, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::Escalated { source, .. } => {
+            assert_eq!(source.margin, MarginDiag::Invalid);
+        }
+        other => panic!("expected poison escalation, got {other:?}"),
+    }
+}
+
+#[test]
+fn nan_bulge_poisons_to_a_typed_error() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, f64::NAN),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
+            assert_eq!(source.margin, MarginDiag::Invalid);
+            assert_eq!(source.predicate, Some("segment_straightness"));
+        }
+        other => panic!("expected poison escalation, got {other:?}"),
+    }
+}
+
+#[test]
+fn infinite_coordinates_fail_loudly_without_panicking() {
+    for bad in [f64::INFINITY, f64::NEG_INFINITY] {
+        let p = profile(vec![chain(&[
+            (0.0, 0.0, 0.0),
+            (bad, 0.0, 0.0),
+            (1.0, 1.0, 0.0),
+        ])]);
+        // Whatever the classification path, it must be a typed error,
+        // never a panic and never an accept (∞ chords poison derived
+        // quantities like the unit direction).
+        assert!(p.validate(tol()).is_err());
+    }
+}
+
+#[test]
+fn garbage_fuzz_never_panics() {
+    // A deterministic little garbage battery: special values in every
+    // slot, including poison bulges on degenerate chains.
+    let specials = [
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+        f64::NAN,
+        f64::INFINITY,
+        1e300,
+        -5e-324,
+    ];
+    for (i, &a) in specials.iter().enumerate() {
+        for (j, &b) in specials.iter().enumerate() {
+            let p = profile(vec![chain(&[
+                (a, b, specials[(i + j) % specials.len()]),
+                (b, a, 1.0),
+                (1.0, 0.5, a),
+            ])]);
+            let _ = p.validate(tol());
+        }
+    }
+}
+
+#[test]
+fn error_display_is_actionable() {
+    let e = err(&tangent_hole());
+    let msg = e.to_string();
+    assert!(msg.contains("tangential contact"), "{msg}");
+    assert!(msg.contains("loop 0 segment 0"), "{msg}");
+    assert!(msg.contains("loop 1 segment 0"), "{msg}");
+
+    let e = err(&near_tangent_hole(tol().eps));
+    let msg = e.to_string();
+    assert!(msg.contains("carrier_circles_internal"), "{msg}");
+    assert!(msg.contains("ambiguity band"), "{msg}");
+}
+
+#[test]
+fn cw_and_ccw_inputs_reject_identically() {
+    // Winding is invisible to errors too: the bowtie reversed reports
+    // the same crossing (segment indices mirror deterministically).
+    let fwd = err(&profile(vec![bowtie()]));
+    let rev = err(&profile(vec![bowtie().reversed()]));
+    match (fwd, rev) {
+        (ProfileError::NonSimple { kind: k1, .. }, ProfileError::NonSimple { kind: k2, .. }) => {
+            assert_eq!(k1, ContactKind::Crossing);
+            assert_eq!(k2, ContactKind::Crossing);
+        }
+        other => panic!("expected two crossings, got {other:?}"),
+    }
+}
+
+#[test]
+fn concentric_circles_of_close_radii_escalate_as_sliver_annulus() {
+    // Radii 5ε apart, concentric: the loci sit inside each other's
+    // sliver band everywhere — the identity margin escalates.
+    let eps = tol().eps;
+    let p = profile(vec![
+        circle_h(0.0, 0.0, 1.0),
+        circle_h(0.0, 0.0, 1.0 + 5.0 * eps),
+    ]);
+    match err(&p) {
+        ProfileError::Escalated { source, .. } => {
+            assert_eq!(source.predicate, Some("carrier_circles_identity"));
+        }
+        other => panic!("expected identity escalation, got {other:?}"),
+    }
+}

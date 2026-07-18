@@ -183,3 +183,128 @@ impl<T: Real> LoopBuilder<T> {
         self.close_with_bulge(bulge)
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::Tolerance;
+
+    use super::*;
+    use crate::{Profile, SketchPlane};
+
+    fn p2(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    #[test]
+    fn bulge_from_via_quarter_circle() {
+        // Unit-circle quarter arc (1,0) → (0,1) through the apex.
+        let b = bulge_from_via(
+            p2(1.0, 0.0),
+            p2(
+                core::f64::consts::FRAC_1_SQRT_2,
+                core::f64::consts::FRAC_1_SQRT_2,
+            ),
+            p2(0.0, 1.0),
+        );
+        assert!((b - (core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-15);
+    }
+
+    #[test]
+    fn bulge_from_via_is_via_position_independent() {
+        // The inscribed-angle theorem: any via on the arc gives the
+        // same bulge. Points on the unit circle at 10° and 80°.
+        let at = |deg: f64| {
+            let (s, c) = deg.to_radians().sin_cos();
+            p2(c, s)
+        };
+        let b1 = bulge_from_via(p2(1.0, 0.0), at(10.0), p2(0.0, 1.0));
+        let b2 = bulge_from_via(p2(1.0, 0.0), at(80.0), p2(0.0, 1.0));
+        assert!((b1 - b2).abs() < 1e-14);
+    }
+
+    #[test]
+    fn bulge_from_via_semicircle_and_sign() {
+        // Through the lower apex: a counterclockwise semicircle,
+        // bulge +1.
+        let b = bulge_from_via(p2(0.0, 0.0), p2(1.0, -1.0), p2(2.0, 0.0));
+        assert!((b - 1.0).abs() < 1e-15);
+        // Mirrored via: clockwise, bulge −1.
+        let b = bulge_from_via(p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 0.0));
+        assert!((b + 1.0).abs() < 1e-15);
+    }
+
+    #[test]
+    fn bulge_from_via_degenerate_inputs_are_total() {
+        // Collinear between: a line.
+        assert_eq!(
+            bulge_from_via(p2(0.0, 0.0), p2(1.0, 0.0), p2(2.0, 0.0)),
+            0.0
+        );
+        // Collinear outside: tan(±π/2) — huge, for validation to
+        // reject; never a panic.
+        let b = bulge_from_via(p2(0.0, 0.0), p2(3.0, 0.0), p2(2.0, 0.0));
+        assert!(b.abs() > 1e12);
+    }
+
+    #[test]
+    fn bulge_from_center_quarter_arcs_both_ways() {
+        let b = bulge_from_center(p2(1.0, 0.0), p2(0.0, 1.0), p2(0.0, 0.0), ArcSweep::Ccw);
+        assert!((b - core::f64::consts::FRAC_PI_8.tan()).abs() < 1e-15);
+        // Clockwise from (1,0) to (0,1) is the long way round:
+        // θ = −3π/2, bulge = tan(−3π/8).
+        let b = bulge_from_center(p2(1.0, 0.0), p2(0.0, 1.0), p2(0.0, 0.0), ArcSweep::Cw);
+        assert!((b - (-3.0 * core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn builder_builds_the_two_arc_circle_by_all_three_forms() {
+        let tol = Tolerance { eps: 1e-9 };
+        let raw = ProfileLoop::builder(p2(-1.0, 0.0))
+            .arc_to(p2(1.0, 0.0), 1.0)
+            .close_with_bulge(1.0);
+        let via = ProfileLoop::builder(p2(-1.0, 0.0))
+            .arc_to_via(p2(0.0, -1.0), p2(1.0, 0.0))
+            .close_arc_via(p2(0.0, 1.0));
+        let center = ProfileLoop::builder(p2(-1.0, 0.0))
+            .arc_to_center(p2(1.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+            .close_arc_center(p2(0.0, 0.0), ArcSweep::Ccw);
+        for lp in [raw, via, center] {
+            assert_eq!(lp.vertices.len(), 2);
+            for v in &lp.vertices {
+                assert!((v.bulge - 1.0).abs() < 1e-12, "bulge {}", v.bulge);
+            }
+            let vp = Profile::new(SketchPlane::xy(), vec![lp])
+                .validate(tol)
+                .expect("the built circle must validate");
+            match vp.loops()[0].segments()[0].kind {
+                crate::SegmentKind::Arc { center, radius, .. } => {
+                    assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12);
+                    assert!((radius - 1.0).abs() < 1e-12);
+                }
+                crate::SegmentKind::Line => panic!("must classify as an arc"),
+            }
+        }
+    }
+
+    #[test]
+    fn builder_line_and_arc_mix() {
+        // A stadium: two straight sides, two semicircular caps.
+        let tol = Tolerance { eps: 1e-9 };
+        let lp = ProfileLoop::builder(p2(0.0, 0.0))
+            .line_to(p2(2.0, 0.0))
+            .arc_to_center(p2(2.0, 1.0), p2(2.0, 0.5), ArcSweep::Ccw)
+            .line_to(p2(0.0, 1.0))
+            .close_arc_center(p2(0.0, 0.5), ArcSweep::Ccw);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .expect("the stadium must validate");
+        let kinds: Vec<bool> = vp.loops()[0]
+            .segments()
+            .iter()
+            .map(|s| matches!(s.kind, crate::SegmentKind::Line))
+            .collect();
+        // Canonical start is (0, 0); chain: line, arc, line, arc.
+        assert_eq!(kinds, vec![true, false, true, false]);
+    }
+}
