@@ -182,6 +182,7 @@ fn probe_records_margin_distributions_without_changing_decisions() {
     for name in [
         "vertex_separation",
         "segment_straightness",
+        "arc_diameter_clearance",
         "carrier_circles_identity",
         "carrier_circles_internal",
         "arc_span",

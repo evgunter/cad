@@ -24,12 +24,19 @@
 //!   from vertex A to vertex B, `bulge` b = tan(θ/4) where θ is the
 //!   arc's signed included angle; b = 0 is a straight line segment.
 //!   **Positive b sweeps counterclockwise** about the arc's center
-//!   (θ > 0): the path *turns left* in chain order, the center lies to
-//!   the **left** of the chord A→B, and the arc's apex therefore bows to
-//!   the **right** of the chord (an arc bows away from its center).
-//!   Negative b is the mirror (clockwise sweep, center right, apex
-//!   left). The sign is *geometry, not winding*: it says which way this
-//!   one segment curves, independent of the loop's traversal role.
+//!   (θ > 0): the path *turns left* in chain order, and the arc's apex
+//!   bows to the **right** of the chord A→B — true for every θ (the
+//!   sagitta formula below is exact for all b). The center's side
+//!   depends on the arc class: for a **minor** arc (|b| < 1, |θ| < π)
+//!   the center lies to the **left** of the chord (a minor arc bows
+//!   away from its center); at |b| = 1 (a semicircle) the center is
+//!   *on* the chord; for a **major** arc (|b| > 1, |θ| > π) the
+//!   apothem L·(1 − b²)/(4b) changes sign and the center crosses to
+//!   the **same side as the apex** (the arc wraps more than half the
+//!   circle around it). Negative b is the mirror image of all of the
+//!   above (clockwise sweep, apex left). The sign is *geometry, not
+//!   winding*: it says which way this one segment curves, independent
+//!   of the loop's traversal role.
 //!   Closed forms used throughout, with L = |B − A|, û = (B − A)/L, and
 //!   n̂ = û rotated +90° (the left normal):
 //!   - signed sagitta (apex offset): apex = midpoint − n̂·(L·b/2);
@@ -68,7 +75,21 @@
 //! order, traversal senses) are documented on [`ValidatedProfile`]; the
 //! canonical form is invariant under input traversal order and
 //! starting-vertex rotation of every loop (under test — D9-load-bearing,
-//! since recipes replay this).
+//! since recipes replay this). It is **not** invariant under
+//! reordering the input's loop list: the outer is hoisted first, but
+//! holes keep their discovery (input) order — a D9 recipe replays the
+//! loop order it recorded, so reordering loops is a *different*
+//! recipe, deliberately.
+//!
+//! **Deferred (named): session-box enforcement (D4 ¶4).** Nothing in
+//! this crate rejects geometry outside the documented model size range
+//! — construction sugar can mint absurd carriers from near-degenerate
+//! input (e.g. [`bulge_from_via`] with a collinear-ish through-point
+//! yields a ~1e15 m radius arc that validates if simple). D4 ¶4 wants
+//! out-of-range geometry rejected at construction; that check is a
+//! kernel-wide boundary (shared with `topo`/`geom-curves`), not a
+//! per-crate ad-hoc test, and lands as its own design item — this is
+//! the first site where innocent input reaches the gap.
 //!
 //! # Totality
 //!

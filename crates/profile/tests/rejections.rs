@@ -278,6 +278,38 @@ fn near_tangent_hole_escalates_on_the_internal_clearance() {
 }
 
 #[test]
+fn near_full_arc_is_a_typed_rejection() {
+    // Half-gap delta sized so the diameter clearance 2r(1 - cos(delta/2))
+    // ~ delta^2/4 lands at 0.5 eps: within tolerance of a full circle
+    // (M2 PR 2 review SHOULD-2 fix). r = 1 keeps rounding noise (~1e-15)
+    // far below every CI row's eps.
+    let eps = tol().eps;
+    let delta = (2.0 * eps).sqrt();
+    let bulge = 1.0 / (delta / 2.0).tan();
+    let (s, c) = delta.sin_cos();
+    let p = profile(vec![chain(&[(c, s, bulge), (c, -s, 0.0)])]);
+    assert_eq!(err(&p), ProfileError::NearFullArc(sref(0, 0)));
+}
+
+#[test]
+fn almost_near_full_arc_escalates_on_diameter_clearance() {
+    // Same construction with clearance ~ 5 eps: inside the ambiguity
+    // band, so the gate escalates naming its predicate.
+    let eps = tol().eps;
+    let delta = (20.0 * eps).sqrt();
+    let bulge = 1.0 / (delta / 2.0).tan();
+    let (s, c) = delta.sin_cos();
+    let p = profile(vec![chain(&[(c, s, bulge), (c, -s, 0.0)])]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
+            assert_eq!(source.predicate, Some("arc_diameter_clearance"));
+        }
+        other => panic!("expected diameter-clearance escalation, got {other:?}"),
+    }
+}
+
+#[test]
 fn nan_coordinates_poison_to_a_typed_error() {
     let p = profile(vec![chain(&[
         (0.0, 0.0, 0.0),

@@ -43,6 +43,12 @@ pub enum ArcSweep {
 /// ill-defined — atan2(0, 0) = 0 at `f64`, so the result degrades to a
 /// line-ish bulge that validation judges on its merits. Total, never a
 /// panic; the sugar does not decide (no predicates in evaluation code).
+///
+/// **Session-box gap (deferred D4 ¶4 item — see the crate docs):** a
+/// *near*-collinear-outside `via` produces a finite but astronomically
+/// large bulge — a carrier of ~1e15 m radius that today validates if
+/// the loop is simple. Until kernel-wide session-box enforcement
+/// lands, callers own the sanity of through-points.
 pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T {
     let d1 = via - a;
     let d2 = b - via;

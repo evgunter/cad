@@ -82,6 +82,10 @@ pub(crate) enum SegIssue {
     /// tolerance (`vertex_separation` classified Zero — or Negative,
     /// unreachable for a true distance but mapped here defensively).
     Degenerate,
+    /// The arc is within tolerance of a full circle
+    /// (`arc_diameter_clearance` classified Zero — or Negative, only
+    /// reachable through rounding at the boundary).
+    NearFull,
     /// A classification landed in the ambiguity band or was poisoned.
     Escalated(Indeterminate),
 }
@@ -99,6 +103,18 @@ pub(crate) enum SegIssue {
 ///   half-chord L/2. Zero ⇒ line (the arc is chord-coincident at
 ///   tolerance); a definite sign ⇒ arc with that turn sense; in-band ⇒
 ///   a sliver arc, escalated.
+/// - **`arc_diameter_clearance`** (arcs only) — margin:
+///   2r − |a − apex| (meters): how far the arc's half-span chord sits
+///   below the carrier diameter, ≈ L²/(16r) for a near-full arc of
+///   endpoint chord L. Zero ⇒ the arc is within tolerance of a full
+///   circle — rejected as [`SegIssue::NearFull`] (the angular gap g
+///   satisfies r·g²/16 ≤ ε, so the complement is a sliver and
+///   `arc_span`'s chordal-defect margins would compress arc-length
+///   distances by cos(θ/4) ≤ √(ε/r) — false-coincidence territory;
+///   review finding, M2 PR 2 fix pass); in-band ⇒ escalated. This gate
+///   keeps `arc_span`'s Zero an honest positive claim — see its docs
+///   for the residual √(2rε/K) endpoint-zone bound that survives the
+///   gate.
 pub(crate) fn build_seg<T: Decide>(
     a: Point2<T>,
     b: Point2<T>,
@@ -125,11 +141,19 @@ pub(crate) fn build_seg<T: Decide>(
             let signed_radius = len * (T::one() + b2) / four_bulge;
             let center = mid + n * apothem;
             let apex = mid - n * sagitta;
+            let radius = signed_radius.abs();
+            let span_chord = a.distance(apex);
+            match decide("arc_diameter_clearance", radius + radius - span_chord, band)
+                .map_err(SegIssue::Escalated)?
+            {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(SegIssue::NearFull),
+            }
             SegKind::Arc(ArcGeom {
                 center,
-                radius: signed_radius.abs(),
+                radius,
                 apex,
-                span_chord: a.distance(apex),
+                span_chord,
                 turn,
             })
         }
@@ -170,9 +194,17 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 /// arc, Zero = at an endpoint, negative = on the complement arc.
 ///
 /// Conditioning, stated honestly: near an endpoint the margin moves as
-/// cos(|θ|/4)·(arc-length distance), so it degrades by 1/cos(θ/4) for
-/// near-full arcs (θ → 2π) — a near-full single arc is escalation-prone
-/// here; split it at another vertex.
+/// cos(|θ|/4)·(arc-length distance), so it degrades by 1/cos(θ/4) as
+/// θ → 2π. The `arc_diameter_clearance` gate at segment construction
+/// rejects arcs within band of a full circle, which bounds the
+/// compression: surviving arcs have cos(θ/4) ≥ √(Kε/2r), so a Zero
+/// here means the point is within ≈ √(2rε/K) of an endpoint *along the
+/// carrier* — a √(rε)-scale endpoint zone, not the raw ε, and the
+/// residual conditioning of chordal span testing (documented, not
+/// hidden). No wrong-accept path exists through the zone: Zero routes
+/// to endpoint-Touch contacts, which are errors for non-adjacent pairs
+/// and are discounted only within ε of the actual shared vertex
+/// (`contact_at_shared_vertex` is an uncompressed direct distance).
 fn arc_span<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
     decide("arc_span", g.span_chord - q.distance(g.apex), band)
 }

@@ -32,6 +32,7 @@
 //! |---|---|---|
 //! | `vertex_separation` | chord length | direct displacement |
 //! | `segment_straightness` | sagitta L·b/2 | half-chord (bulge → meters) |
+//! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
 //! | `arc_span` | chordal defect from apex | ×1/cos(θ/4) near full arcs |
@@ -60,9 +61,11 @@
 //! against the documented hairline band (`geom_core::BandError::Empty`
 //! docs): (min-subnormal, 2·min-subnormal), whose open interior
 //! contains no representable `f64` — comparisons are exact and total at
-//! `f64`, and a Zero (tie) can only mean bit-level coincidence, which
-//! validated loops cannot have in both coordinates. At the interval
-//! scalar an enclosure straddling the hairline escalates honestly.
+//! `f64`, and a Zero (tie) means the coordinates differ by at most one
+//! minimum subnormal (bit-identical, or exact ±min-subnormal
+//! neighbors), which validated loops cannot exhibit in both
+//! coordinates at once. At the interval scalar an enclosure straddling
+//! the hairline escalates honestly.
 
 use core::fmt;
 
@@ -161,6 +164,13 @@ pub enum ProfileError {
     /// Consecutive vertices coincide at tolerance: a zero-length
     /// segment.
     DegenerateSegment(SegmentRef),
+    /// An arc segment is within tolerance of a full circle (its
+    /// half-span chord reaches the carrier diameter at tolerance): the
+    /// complement gap is a sliver and span classification would not be
+    /// honest there (the `arc_diameter_clearance` predicate — M2 PR 2
+    /// review fix). Split the arc at another vertex; a full circle is
+    /// two arcs by construction.
+    NearFullArc(SegmentRef),
     /// Two segments meet where they may not (any contact other than
     /// adjacent segments' shared vertex).
     NonSimple {
@@ -235,6 +245,11 @@ impl fmt::Display for ProfileError {
             Self::DegenerateSegment(s) => write!(
                 f,
                 "{s} is degenerate: consecutive vertices coincide at tolerance"
+            ),
+            Self::NearFullArc(s) => write!(
+                f,
+                "{s} is within tolerance of a full circle — split the arc at another \
+                 vertex (a full circle is two arcs by construction)"
             ),
             Self::NonSimple {
                 first,
@@ -324,7 +339,12 @@ pub struct ValidatedSegment<T: Real> {
     /// input wound the other way). This is carried-through input data;
     /// **consumers select carriers by [`ValidatedSegment::kind`], never
     /// by re-inspecting the bulge** — a sub-tolerance bulge classifies
-    /// as `Line` while retaining its stored value.
+    /// as `Line` while retaining its stored value. One sanctioned
+    /// re-inspection: for an `Arc` segment the **parameter span is
+    /// θ = 4·atan|bulge|**, taken from the stored bulge (exact input
+    /// data; deriving the span from endpoint `atan2` angles instead is
+    /// seam-fragile for wide arcs at small ε) — PR 4's sweeps rely on
+    /// this.
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
@@ -374,7 +394,16 @@ impl<T: Real> ValidatedLoop<T> {
 ///
 /// The canonical form is invariant under the input's traversal
 /// direction and starting-vertex rotation of every loop (under test,
-/// byte-level).
+/// byte-level). Stated honestly, this is *decision* invariance: the
+/// output values are exact reindexings of the input, but the
+/// predicate margins deciding them are computed in
+/// rotation-dependent order (e.g. `loop_orientation` anchors its
+/// shoelace at the chain's first vertex), so a margin within an ulp
+/// of a band edge could in principle classify differently across
+/// rotations — a measure-zero configuration, stated rather than
+/// hidden. It is **not** invariant under reordering the input's loop
+/// *list*: holes keep discovery (input) order, and D9 recipes replay
+/// that order — see the crate docs.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -552,6 +581,7 @@ fn build_loop_segs<T: Decide>(
             };
             match issue {
                 SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull => ProfileError::NearFullArc(at),
                 SegIssue::Escalated(source) => ProfileError::Escalated {
                     site: EscalationSite::Segment(at),
                     source,
@@ -767,6 +797,7 @@ fn canonicalize_loop<T: Decide>(
             };
             match issue {
                 SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull => ProfileError::NearFullArc(at),
                 SegIssue::Escalated(source) => ProfileError::Escalated {
                     site: EscalationSite::Segment(at),
                     source,
