@@ -321,9 +321,13 @@ pub struct ValidatedSegment<T: Real> {
     /// End point.
     pub end: Point2<T>,
     /// The bulge, in canonical traversal (reversal negated it if the
-    /// input wound the other way).
+    /// input wound the other way). This is carried-through input data;
+    /// **consumers select carriers by [`ValidatedSegment::kind`], never
+    /// by re-inspecting the bulge** — a sub-tolerance bulge classifies
+    /// as `Line` while retaining its stored value.
     pub bulge: T,
-    /// The classified carrier.
+    /// The classified carrier — the decision sweeps consume (PR 4
+    /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
     pub kind: SegmentKind<T>,
 }
 
