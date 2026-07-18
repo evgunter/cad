@@ -177,8 +177,9 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
 }
 
 /// The local curvature lever arm of `s` at `p` (module docs): the
-/// smallest local radius of curvature, `+∞` for a plane (the `min`
-/// identity), poison for [`Surface::Nurbs`].
+/// smallest local radius of curvature, `f64::MAX` for a plane (the
+/// practical `min` identity — see the module docs for why not `+∞`),
+/// poison for [`Surface::Nurbs`].
 ///
 /// Per kind: sphere/cylinder — the radius; cone — the radial distance
 /// ρ of `p` from the axis (a conservative bound on the osculating
@@ -187,7 +188,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
 /// dominates a ring torus).
 pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     match *s {
-        Surface::Plane { .. } => T::from_f64(f64::INFINITY),
+        Surface::Plane { .. } => T::from_f64(f64::MAX),
         Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
         Surface::Cone { apex, axis, .. } => {
             let (_, w) = axial_radial(p, apex, axis);
@@ -368,13 +369,15 @@ mod tests {
     }
 
     #[test]
-    fn plane_arm_is_infinite_and_nurbs_poisons() {
+    fn plane_arm_is_max_finite_and_nurbs_poisons() {
         let plane: Surface<f64> = Surface::Plane {
             origin: Point3::origin(),
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         };
-        assert_eq!(curvature_lever_arm(&plane, Point3::origin()), f64::INFINITY);
+        // The practical min identity — finite so the interval lane's
+        // enclosure stays well-formed (module docs).
+        assert_eq!(curvature_lever_arm(&plane, Point3::origin()), f64::MAX);
         let n: Surface<f64> = Surface::Nurbs;
         assert!(implicit_residual(&n, Point3::origin()).is_nan());
         assert!(implicit_gradient(&n, Point3::origin()).x.is_nan());

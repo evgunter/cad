@@ -20,6 +20,20 @@
 //! solids) and retired the raw-insertion builder to `pub(crate)`: **the
 //! Euler operators are the only public construction path** (D1).
 //!
+//! **M2 PR 3 — real geometry.** The M0 placeholder geometry retired:
+//! the curve arena holds certified `geom_brep::EdgeCurve`s (D2
+//! intensional description + carrier cache + certification record) and
+//! the surface arena holds `geom_surfaces::Surface`s. Edge-minting
+//! operators take an uncertified `EdgeCurveSpec` and run the D4 ¶2
+//! certification gate before mutating (chord-line sugar:
+//! [`Body::mev_line`] / [`Body::mef_chord`] / [`Body::mekr_chord`] /
+//! [`Body::mfkrh_plug`]); face-minting operators take a
+//! [`FaceSurface`] spec; the two attachment setters
+//! ([`Body::set_face_surface`], [`Body::set_edge_curve`] — see
+//! [`attach`]) cover the construction-order cases mint-time attachment
+//! cannot reach. Tier 3 ([`validate_geometric`]) re-runs every
+//! certification at rest and adds the dihedral classification pass.
+//!
 //! # Orientation conventions
 //!
 //! Documented **once**, in the [`entity`] module docs: the interior-left
