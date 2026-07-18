@@ -1961,7 +1961,6 @@ mod tests {
     use crate::fixtures::{
         mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prism, prov,
     };
-    use crate::geometry::SurfaceGeom;
     use crate::seqgen;
 
     fn anchor() -> Point3<f64> {
@@ -1976,7 +1975,7 @@ mod tests {
         shell: crate::entity::ShellKey,
         vertex: VertexKey,
     ) -> LoopKey {
-        let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: anchor() });
+        let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex },
@@ -2509,7 +2508,7 @@ mod tests {
         let v0 = t.vertices[0];
         let curve = t
             .body
-            .add_curve(crate::geometry::CurveGeom::Placeholder { anchor: anchor() });
+            .add_curve(crate::fixtures::test_curve(anchor()));
         let e2 = t.body.add_edge(
             crate::entity::Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -2529,7 +2528,7 @@ mod tests {
                 },
                 prov(),
             );
-            let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: anchor() });
+            let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
             let lp = body.add_loop(
                 Loop {
                     boundary: LoopBoundary::Cycle { first: he },
@@ -2686,10 +2685,10 @@ mod tests {
         let p = t.body.add_point(anchor());
         let c = t
             .body
-            .add_curve(crate::geometry::CurveGeom::Placeholder { anchor: anchor() });
+            .add_curve(crate::fixtures::test_curve(anchor()));
         let s = t
             .body
-            .add_surface(SurfaceGeom::Placeholder { anchor: anchor() });
+            .add_surface(crate::fixtures::test_surface(anchor()));
         assert_eq!(
             validate(&t.body),
             Err(vec![
@@ -3132,7 +3131,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -3155,20 +3154,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -3193,20 +3192,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -3234,20 +3233,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -3257,14 +3256,14 @@ mod tests {
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let grow = body
-            .mev(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
         })
         .unwrap();
-        body.mfkrh(kill.ring).unwrap();
+        body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell)
     }
 
@@ -3297,7 +3296,7 @@ mod tests {
             .next()
             .expect("pillow has half-edges");
         let tail = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,
@@ -3307,7 +3306,7 @@ mod tests {
             .unwrap();
         // …and a planted empty ring next to it.
         let plant = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,

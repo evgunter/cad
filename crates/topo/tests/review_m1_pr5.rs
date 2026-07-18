@@ -47,14 +47,14 @@ fn pillow() -> (Body<f64>, topo::MvfsCreated, topo::MevCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0),
         )
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: seg.he_plus,
         he2: seg.he_minus,
     })
@@ -71,7 +71,7 @@ fn grow_and_promote_detached_digon(
     x: f64,
 ) -> topo::MfkrhCreated {
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: anchor_he,
                 he2: anchor_he,
@@ -81,14 +81,14 @@ fn grow_and_promote_detached_digon(
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(x, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(x, 2.0))
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: grow.he_plus,
         he2: grow.he_minus,
     })
     .unwrap();
-    body.mfkrh(kill.ring).unwrap()
+    body.mfkrh_plug(kill.ring).unwrap()
 }
 
 // ----------------------------------------------------------------------
@@ -149,7 +149,7 @@ fn nested_detachment_detached_component_with_genus() {
 
     // Plant an empty ring on the promoted face (strut + kemr)...
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: rim_he,
                 he2: rim_he,
@@ -160,10 +160,10 @@ fn nested_detachment_detached_component_with_genus() {
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // ...grow it to a digon cycle with an island face...
     let grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 4.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 4.0))
         .unwrap();
     let island = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
         })
@@ -205,14 +205,14 @@ fn two_solids_validate_independently() {
     for i in 0..2 {
         let seed = body.mvfs(pt(10.0 * f64::from(i), 0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 pt(10.0 * f64::from(i) + 1.0, 0.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -232,14 +232,14 @@ fn per_shell_disconnection_is_attributed_to_the_right_shell() {
     // Solid 1: clean pillow.
     let seed1 = body.mvfs(pt(0.0, 0.0)).unwrap();
     let seg1 = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed1.r#loop,
             },
             pt(1.0, 0.0),
         )
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: seg1.he_plus,
         he2: seg1.he_minus,
     })
@@ -247,14 +247,14 @@ fn per_shell_disconnection_is_attributed_to_the_right_shell() {
     // Solid 2: pillow + promoted detached digon.
     let seed2 = body.mvfs(pt(10.0, 0.0)).unwrap();
     let seg2 = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed2.r#loop,
             },
             pt(11.0, 0.0),
         )
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: seg2.he_plus,
         he2: seg2.he_minus,
     })
@@ -280,7 +280,7 @@ fn empty_outer_with_cycle_ring_is_tier1_legal() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -293,7 +293,7 @@ fn empty_outer_with_cycle_ring_is_tier1_legal() {
     assert_eq!(validate(&body), Ok(()), "both-empty kemr output is tier 1");
     // Grow the RING to a cycle: face now has Empty outer + cycle ring.
     let grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0))
         .unwrap();
     let outer_boundary = body
         .get_loop(body.get_face(seed.face).unwrap().outer)
@@ -335,7 +335,7 @@ fn ring_move_cross_component_stays_tier1_valid() {
     // Component A: pillow with an ATTACHED island: strut+kemr+grow+mef
     // (no mfkrh) => ring on a pillow face, island digon hanging on it.
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -345,9 +345,9 @@ fn ring_move_cross_component_stays_tier1_valid() {
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: grow.he_plus,
         he2: grow.he_minus,
     })
@@ -396,7 +396,7 @@ fn demotion_attack_battery_no_debug_panic() {
 
     // mev with he1/he2 at DIFFERENT vertices' fans (invalid Fan site).
     let other_he = seg.he_minus; // starts at v1, rim_he at v0
-    let r = body.mev(
+    let r = body.mev_line(
         MevSite::Fan {
             he1: rim_he,
             he2: other_he,
@@ -406,11 +406,11 @@ fn demotion_attack_battery_no_debug_panic() {
     assert!(r.is_err(), "cross-vertex fan must be rejected: {r:?}");
 
     // mev Lone on a CYCLE loop.
-    let r = body.mev(MevSite::Lone { r#loop: cube_outer }, pt(9.0, 9.0));
+    let r = body.mev_line(MevSite::Lone { r#loop: cube_outer }, pt(9.0, 9.0));
     assert!(r.is_err(), "{r:?}");
 
     // mef Chords with he1 == he2.
-    let r = body.mef(MefSite::Chords {
+    let r = body.mef_chord(MefSite::Chords {
         he1: rim_he,
         he2: rim_he,
     });
@@ -426,7 +426,7 @@ fn demotion_attack_battery_no_debug_panic() {
         first: other_loop_he,
     } = body.get_loop(promoted_outer).unwrap().boundary
     {
-        let r = body.mef(MefSite::Chords {
+        let r = body.mef_chord(MefSite::Chords {
             he1: rim_he,
             he2: other_loop_he,
         });
@@ -443,7 +443,7 @@ fn demotion_attack_battery_no_debug_panic() {
     assert!(r.is_err(), "{r:?}");
 
     // mfkrh on an OUTER loop.
-    let r = body.mfkrh(cube_outer);
+    let r = body.mfkrh_plug(cube_outer);
     assert!(r.is_err(), "outer is not a ring: {r:?}");
 
     // kev on a self-mated... on a pillow edge (distinct ends required).
@@ -465,7 +465,7 @@ fn demotion_attack_battery_no_debug_panic() {
     let _ = body.kev(foreign_he);
     let _ = body.kef(foreign_he);
     let _ = body.kemr(foreign_he, foreign_he);
-    let _ = body.mev(
+    let _ = body.mev_line(
         MevSite::Fan {
             he1: foreign_he,
             he2: foreign_he,
@@ -482,7 +482,7 @@ fn demotion_attack_battery_no_debug_panic() {
 fn stale_keys_yield_typed_errors() {
     let (mut body, _seed, seg) = pillow();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -497,7 +497,7 @@ fn stale_keys_yield_typed_errors() {
         body.kev(dead_he).unwrap_err(),
         body.kef(dead_he).unwrap_err(),
         body.kemr(dead_he, dead_he).unwrap_err(),
-        body.mev(
+        body.mev_line(
             MevSite::Fan {
                 he1: dead_he,
                 he2: dead_he,
@@ -505,7 +505,7 @@ fn stale_keys_yield_typed_errors() {
             pt(2.0, 2.0),
         )
         .unwrap_err(),
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: dead_he,
             he2: dead_he,
         })
@@ -569,7 +569,7 @@ fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth:
     // mfkrh sweep.
     for &lp in &loops {
         let mut clone = body.clone();
-        if clone.mfkrh(lp).is_ok() {
+        if clone.mfkrh_plug(lp).is_ok() {
             assert_eq!(
                 validate(&clone),
                 Ok(()),
@@ -584,7 +584,7 @@ fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth:
 fn pillow_torus() -> Body<f64> {
     let (mut body, _seed, seg) = pillow();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -594,10 +594,10 @@ fn pillow_torus() -> Body<f64> {
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
         .unwrap();
     let island = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
         })
@@ -631,7 +631,7 @@ fn exhaustive_mutator_sweep_attached_island_plus_detached() {
     let (mut body, _seed, seg) = pillow();
     // Attached island (live cycle ring on the pillow)...
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -641,9 +641,9 @@ fn exhaustive_mutator_sweep_attached_island_plus_detached() {
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: grow.he_plus,
         he2: grow.he_minus,
     })
@@ -673,7 +673,7 @@ fn exhaustive_mutator_sweep_empty_ring_states() {
     // mfkrh-on-empty-ring promotions are all in the sweep.
     let (mut body, _seed, seg) = pillow();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -694,7 +694,7 @@ fn exhaustive_mutator_sweep_empty_ring_states() {
 fn promoted_empty_ring_still_has_an_empty_loop() {
     let (mut body, seed, seg) = pillow();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -704,7 +704,7 @@ fn promoted_empty_ring_still_has_an_empty_loop() {
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // mfkrh on the EMPTY ring (if accepted).
-    let promoted = body.mfkrh(kill.ring);
+    let promoted = body.mfkrh_plug(kill.ring);
     match promoted {
         Ok(_) => {
             assert_eq!(validate(&body), Ok(()), "tier 1 accepts it");
@@ -734,7 +734,7 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -743,14 +743,14 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
         .unwrap();
     let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
     let _grow = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0))
         .unwrap();
     // face: Empty outer + 2-he strut cycle ring.
     assert_eq!(validate(&body), Ok(()));
 
     // Direct chain: promote the cycle ring.
     let mut chained = body.clone();
-    if chained.mfkrh(kill.ring).is_ok() {
+    if chained.mfkrh_plug(kill.ring).is_ok() {
         assert_eq!(validate(&chained), Ok(()), "promoted strut-cycle face");
         let errs = validate_closed(&chained).unwrap_err();
         assert!(
@@ -773,7 +773,7 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
             }
         }
         let mut clone = body.clone();
-        if clone.mfkrh(lp).is_ok() {
+        if clone.mfkrh_plug(lp).is_ok() {
             assert_eq!(validate(&clone), Ok(()), "mfkrh({lp:?})");
         }
     }

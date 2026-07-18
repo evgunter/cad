@@ -67,8 +67,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::{
-    Body, CurveGeom, EdgeKey, EntityId, Face, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
-    LoopKey, PointKey, Provenance, Shell, ShellKey, Solid, SurfaceGeom, ValidationError, Vertex,
+    Body, EdgeKey, EntityId, Face, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, PointKey, Provenance, Shell, ShellKey, Solid, ValidationError, Vertex,
     validate,
 };
 use geom_core::{Point3, Real};
@@ -104,12 +104,8 @@ fn build_lone_edge() -> LoneEdge {
 
     let p0 = body.add_point(Point3::new(0.0, 0.0, 0.0));
     let p1 = body.add_point(Point3::new(1.0, 0.0, 0.0));
-    let curve = body.add_curve(CurveGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
-    let surface = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
 
     let v0 = body.add_vertex(
         Vertex {
@@ -445,12 +441,8 @@ fn doubly_owned_face_is_caught() {
 fn orphan_geometry_reported_in_sweep_order() {
     let mut c = build_lone_edge();
     let p = c.body.add_point(Point3::origin());
-    let cv = c.body.add_curve(CurveGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
-    let s = c.body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let cv = c.body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+    let s = c.body.add_surface(crate::fixtures::test_surface(Point3::origin()));
     expect_errors(
         "orphan geometry (point, curve, surface)",
         &c.body,

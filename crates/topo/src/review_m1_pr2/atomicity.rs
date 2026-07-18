@@ -34,7 +34,7 @@ fn pillow() -> (
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -42,7 +42,7 @@ fn pillow() -> (
         )
         .unwrap();
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -75,7 +75,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
-            b.mev(
+            b.mev_line(
                 MevSite::Fan {
                     he1: null_he,
                     he2: seg.he_plus,
@@ -92,7 +92,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
-            b.mev(
+            b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: null_he,
@@ -108,7 +108,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
             key: EntityId::Loop(null_loop),
         },
         |b| {
-            b.mev(MevSite::Lone { r#loop: null_loop }, p(9.0))
+            b.mev_line(MevSite::Lone { r#loop: null_loop }, p(9.0))
                 .unwrap_err()
         },
     );
@@ -118,7 +118,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: null_he,
                 he2: null_he,
             })
@@ -130,7 +130,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
         EulerOpError::StaleKey {
             key: EntityId::Loop(null_loop),
         },
-        |b| b.mef(MefSite::Lone { r#loop: null_loop }).unwrap_err(),
+        |b| b.mef_chord(MefSite::Lone { r#loop: null_loop }).unwrap_err(),
     );
     let _ = seed;
 }
@@ -147,7 +147,7 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
             he2: seg.he_minus,
         },
         |b| {
-            b.mev(
+            b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
@@ -165,7 +165,7 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
             he2: split.he_plus,
         },
         |b| {
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: split.he_plus,
             })
@@ -175,10 +175,10 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
     // LoopNotEmpty on both Lone sites (the loops are cycles now).
     let cyc = seed.r#loop;
     assert_err_deep_unchanged(&mut body, EulerOpError::LoopNotEmpty { r#loop: cyc }, |b| {
-        b.mev(MevSite::Lone { r#loop: cyc }, p(9.0)).unwrap_err()
+        b.mev_line(MevSite::Lone { r#loop: cyc }, p(9.0)).unwrap_err()
     });
     assert_err_deep_unchanged(&mut body, EulerOpError::LoopNotEmpty { r#loop: cyc }, |b| {
-        b.mef(MefSite::Lone { r#loop: cyc }).unwrap_err()
+        b.mef_chord(MefSite::Lone { r#loop: cyc }).unwrap_err()
     });
 }
 
@@ -197,7 +197,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             key: EntityId::Vertex(VertexKey::default()),
         },
         |b| {
-            b.mev(
+            b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
@@ -217,7 +217,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             key: EntityId::HalfEdge(HalfEdgeKey::default()),
         },
         |b| {
-            b.mev(
+            b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -239,7 +239,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
         |b| {
             // seg.he_plus starts at seed.vertex; same loop as the mef
             // half spliced there... use self-loop chords at he_plus.
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
             })
@@ -260,7 +260,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             he2: split.he_plus,
         },
         |b| {
-            b.mev(
+            b.mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: split.he_plus,
@@ -283,7 +283,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             r#loop: split.r#loop,
         },
         |b| {
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: split.he_minus,
             })
@@ -302,7 +302,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             r#loop: seed2.r#loop,
         },
         |b| {
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: split.he_minus,
             })
@@ -319,7 +319,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             key: EntityId::Face(FaceKey::default()),
         },
         |b| {
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: split.he_minus,
             })
@@ -336,7 +336,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             key: EntityId::Shell(crate::ShellKey::default()),
         },
         |b| {
-            b.mef(MefSite::Chords {
+            b.mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: split.he_minus,
             })

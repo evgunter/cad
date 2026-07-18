@@ -1834,7 +1834,7 @@ mod tests {
         let site = MevSite::Lone {
             r#loop: seed.r#loop,
         };
-        let seg = body.mev(site, p(1.0)).unwrap();
+        let seg = body.mev_line(site, p(1.0)).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // he_plus runs OLD vertex → NEW vertex (the documented deviation
@@ -1889,7 +1889,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -1898,7 +1898,7 @@ mod tests {
             .unwrap();
         // he1 == he2 at the old vertex: empty run, dangling strut.
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -1940,7 +1940,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let a = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -1948,7 +1948,7 @@ mod tests {
             )
             .unwrap();
         let strut_at = |body: &mut Body<f64>, x: f64| {
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: a.he_plus,
                     he2: a.he_plus,
@@ -1983,7 +1983,7 @@ mod tests {
             he1: b.he_plus,
             he2: d.he_plus,
         };
-        let split = body.mev(site, p(5.0)).unwrap();
+        let split = body.mev_line(site, p(5.0)).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let v = seed.vertex;
@@ -2025,7 +2025,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -2033,7 +2033,7 @@ mod tests {
             )
             .unwrap();
         let split = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
@@ -2044,7 +2044,7 @@ mod tests {
         );
 
         let fan = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: split.he_plus,
@@ -2081,7 +2081,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -2093,7 +2093,7 @@ mod tests {
             he1: seg.he_minus,
             he2: seg.he_minus,
         };
-        let circ = body.mef(site).unwrap();
+        let circ = body.mef_chord(site).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // New face's outer loop: the self-cycled minus half alone.
@@ -2131,7 +2131,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let circ = body
-            .mef(MefSite::Lone {
+            .mef_chord(MefSite::Lone {
                 r#loop: seed.r#loop,
             })
             .unwrap();
@@ -2219,8 +2219,8 @@ mod tests {
             },
             prov(),
         );
-        let cu2 = body.add_curve(CurveGeom::Placeholder { anchor: p(10.0) });
-        let cu3 = body.add_curve(CurveGeom::Placeholder { anchor: p(11.0) });
+        let cu2 = body.add_curve(crate::fixtures::test_curve(p(10.0)));
+        let cu3 = body.add_curve(crate::fixtures::test_curve(p(11.0)));
         let e2 = body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -2267,7 +2267,7 @@ mod tests {
             },
             prov(),
         );
-        let surface_c = body.add_surface(SurfaceGeom::Placeholder { anchor: p(10.0) });
+        let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
         let face_c = body.add_face(
             Face {
                 surface: surface_c,
@@ -2319,7 +2319,7 @@ mod tests {
             he1: island.r0,
             he2: island.r1,
         };
-        let split = t.body.mef(site).unwrap();
+        let split = t.body.mef_chord(site).unwrap();
         assert_eq!(validate(&t.body), Ok(()));
 
         // he1's side (r0) became the NEW face's outer loop...
@@ -2437,7 +2437,7 @@ mod tests {
             key: EntityId::HalfEdge(dead),
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: dead,
                     he2: dead,
@@ -2448,7 +2448,7 @@ mod tests {
         });
         // Same rejection through mef's addressing.
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: dead,
                 he2: dead,
             })
@@ -2473,11 +2473,11 @@ mod tests {
             key: EntityId::Loop(dead),
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev(MevSite::Lone { r#loop: dead }, p(9.0))
+            body.mev_line(MevSite::Lone { r#loop: dead }, p(9.0))
                 .unwrap_err()
         });
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Lone { r#loop: dead }).unwrap_err()
+            body.mef_chord(MefSite::Lone { r#loop: dead }).unwrap_err()
         });
     }
 
@@ -2495,7 +2495,7 @@ mod tests {
         // precondition (same loop, cycle walk, prevs, face, shell)
         // passes, so the anchor resolution is what fires.
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: t.hes_a[0],
                 he2: t.hes_a[1],
             })
@@ -2512,7 +2512,7 @@ mod tests {
             he2: t.hes_a[1],
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: t.hes_a[0],
                     he2: t.hes_a[1],
@@ -2534,7 +2534,7 @@ mod tests {
             he2: t.hes_b[1],
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: t.hes_a[0],
                     he2: t.hes_b[1],
@@ -2553,7 +2553,7 @@ mod tests {
             he2: t.hes_b[0],
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: t.hes_a[0],
                 he2: t.hes_b[0],
             })
@@ -2569,7 +2569,7 @@ mod tests {
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = t.hes_b[0];
         let expected = EulerOpError::LoopCycleBroken { r#loop: t.loop_a };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: t.hes_a[0],
                 he2: t.hes_a[1],
             })
@@ -2582,11 +2582,11 @@ mod tests {
         let mut t = pillow();
         let expected = EulerOpError::LoopNotEmpty { r#loop: t.loop_a };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev(MevSite::Lone { r#loop: t.loop_a }, p(9.0))
+            body.mev_line(MevSite::Lone { r#loop: t.loop_a }, p(9.0))
                 .unwrap_err()
         });
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Lone { r#loop: t.loop_a }).unwrap_err()
+            body.mef_chord(MefSite::Lone { r#loop: t.loop_a }).unwrap_err()
         });
     }
 
@@ -2613,7 +2613,7 @@ mod tests {
         t.body.get_half_edge_mut(t.hes_a[1]).unwrap().parent_loop = empty;
         let expected = EulerOpError::LoopNotCycle { r#loop: empty };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: t.hes_a[0],
                 he2: t.hes_a[1],
             })
@@ -2633,7 +2633,7 @@ mod tests {
             key: EntityId::Vertex(t.vertices[1]),
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: t.hes_a[0],
                 he2: t.hes_a[1],
             })
@@ -2652,7 +2652,7 @@ mod tests {
         if with_failures {
             // Stale loop key.
             let err = body
-                .mev(
+                .mev_line(
                     MevSite::Lone {
                         r#loop: LoopKey::default(),
                     },
@@ -2662,7 +2662,7 @@ mod tests {
             assert!(matches!(err, EulerOpError::StaleKey { .. }));
         }
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -2672,7 +2672,7 @@ mod tests {
         if with_failures {
             // Fan halves starting at different vertices.
             let err = body
-                .mev(
+                .mev_line(
                     MevSite::Fan {
                         he1: seg.he_plus,
                         he2: seg.he_minus,
@@ -2683,7 +2683,7 @@ mod tests {
             assert!(matches!(err, EulerOpError::FanStartMismatch { .. }));
         }
         let split = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
@@ -2691,14 +2691,14 @@ mod tests {
         if with_failures {
             // Lone site on a loop that is a cycle now.
             let err = body
-                .mef(MefSite::Lone {
+                .mef_chord(MefSite::Lone {
                     r#loop: seed.r#loop,
                 })
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }));
         }
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_minus,
                     he2: seg.he_minus,
@@ -2709,7 +2709,7 @@ mod tests {
         if with_failures {
             // Chords across the two digon loops.
             let err = body
-                .mef(MefSite::Chords {
+                .mef_chord(MefSite::Chords {
                     he1: seg.he_plus,
                     he2: split.he_plus,
                 })
@@ -2717,7 +2717,7 @@ mod tests {
             assert!(matches!(err, EulerOpError::NotSameLoop { .. }));
         }
         let circ = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: strut.he_minus,
                 he2: strut.he_minus,
             })

@@ -1222,7 +1222,6 @@ mod tests {
     use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
-    use crate::geometry::SurfaceGeom;
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -1261,7 +1260,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -1276,7 +1275,7 @@ mod tests {
     fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
         let (mut body, seed, seg) = segment();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_minus,
                     he2: seg.he_minus,
@@ -1293,7 +1292,7 @@ mod tests {
     fn chain3() -> (Body<f64>, MvfsCreated, [MevCreated; 3]) {
         let (mut body, seed, e0) = segment();
         let e1 = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: e0.he_minus,
                     he2: e0.he_minus,
@@ -1302,7 +1301,7 @@ mod tests {
             )
             .unwrap();
         let e2 = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: e1.he_minus,
                     he2: e1.he_minus,
@@ -1596,7 +1595,7 @@ mod tests {
             },
             prov(),
         );
-        let curve = body.add_curve(CurveGeom::Placeholder { anchor: p(0.0) });
+        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
         let edge = body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -1628,7 +1627,7 @@ mod tests {
             prov(),
         );
         body.get_solid_mut(solid).unwrap().shells.push(shell);
-        let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: p(0.0) });
+        let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Cycle { first: h1 },
@@ -1757,7 +1756,7 @@ mod tests {
             target: e0.he_minus,
             ring: e2.he_plus,
         };
-        let restore = body.mekr(site).unwrap();
+        let restore = body.mekr_chord(site).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -1822,7 +1821,7 @@ mod tests {
         let original = starts(&body, strut.he_plus);
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let restore = body
-            .mekr(MekrSite::EmptyRing {
+            .mekr_chord(MekrSite::EmptyRing {
                 target: seg.he_minus,
                 ring: kill.ring,
             })
@@ -1852,7 +1851,7 @@ mod tests {
         // The outer loop is now Empty (the target); the ring holds the
         // whole surviving cycle.
         let restore = body
-            .mekr(MekrSite::EmptyTarget {
+            .mekr_chord(MekrSite::EmptyTarget {
                 target: seed.r#loop,
                 ring: seg.he_minus,
             })
@@ -1886,7 +1885,7 @@ mod tests {
         let original = starts(&body, seg.he_plus);
         let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
         let restore = body
-            .mekr(MekrSite::BothEmpty {
+            .mekr_chord(MekrSite::BothEmpty {
                 target: seed.r#loop,
                 ring: kill.ring,
             })
@@ -1924,7 +1923,7 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::Cycles {
+            b.mekr_chord(MekrSite::Cycles {
                 target: e0.he_plus,
                 ring: e1.he_plus,
             })
@@ -1941,7 +1940,7 @@ mod tests {
             ring: t.loop_b,
         };
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr(MekrSite::Cycles { target, ring }).unwrap_err()
+            b.mekr_chord(MekrSite::Cycles { target, ring }).unwrap_err()
         });
     }
 
@@ -1955,7 +1954,7 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::Cycles {
+            b.mekr_chord(MekrSite::Cycles {
                 target: e2.he_plus,
                 ring: e0.he_minus,
             })
@@ -1970,7 +1969,7 @@ mod tests {
         // EmptyRing with a cycle ring loop.
         let expected = EulerOpError::LoopNotEmpty { r#loop: kill.ring };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::EmptyRing {
+            b.mekr_chord(MekrSite::EmptyRing {
                 target: e0.he_minus,
                 ring: kill.ring,
             })
@@ -1981,7 +1980,7 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::EmptyTarget {
+            b.mekr_chord(MekrSite::EmptyTarget {
                 target: seed.r#loop,
                 ring: e0.he_minus,
             })
@@ -1989,7 +1988,7 @@ mod tests {
         });
         // BothEmpty with cycle loops.
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::BothEmpty {
+            b.mekr_chord(MekrSite::BothEmpty {
                 target: seed.r#loop,
                 ring: kill.ring,
             })
@@ -2006,7 +2005,7 @@ mod tests {
             key: EntityId::HalfEdge(e1.he_plus),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::Cycles {
+            b.mekr_chord(MekrSite::Cycles {
                 target: e1.he_plus,
                 ring: e0.he_minus,
             })
@@ -2018,7 +2017,7 @@ mod tests {
             key: EntityId::Loop(dead_loop),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr(MekrSite::EmptyRing {
+            b.mekr_chord(MekrSite::EmptyRing {
                 target: e0.he_minus,
                 ring: dead_loop,
             })
@@ -2043,7 +2042,7 @@ mod tests {
         let expected = EulerOpError::EmptyAnchorsCollide { vertex: t.vertex };
         let target = t.lone_loop;
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr(MekrSite::BothEmpty {
+            b.mekr_chord(MekrSite::BothEmpty {
                 target,
                 ring: extra,
             })
@@ -2061,13 +2060,13 @@ mod tests {
         let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
         let kill_a = body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
         let restore_a = body_a
-            .mekr(MekrSite::Cycles {
+            .mekr_chord(MekrSite::Cycles {
                 target: a0.he_minus,
                 ring: a2.he_plus,
             })
             .unwrap();
         let extra_a = body_a
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: a0.he_minus,
                     he2: a0.he_minus,
@@ -2081,13 +2080,13 @@ mod tests {
         let (mut body_b, _seed_b, [b0, b1, b2]) = chain3();
         let kill_b = body_b.kemr(b1.he_plus, b1.he_minus).unwrap();
         let restore_b = body_b
-            .mekr(MekrSite::Cycles {
+            .mekr_chord(MekrSite::Cycles {
                 target: b0.he_minus,
                 ring: b2.he_plus,
             })
             .unwrap();
         let extra_b = body_b
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: b0.he_minus,
                     he2: b0.he_minus,
@@ -2101,7 +2100,7 @@ mod tests {
         // Build C: the same history WITHOUT the pair.
         let (mut body_c, _seed_c, [c0, _c1, _c2]) = chain3();
         let extra_c = body_c
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: c0.he_minus,
                     he2: c0.he_minus,
@@ -2139,7 +2138,7 @@ mod tests {
         let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
         body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
         body_a
-            .mekr(MekrSite::Cycles {
+            .mekr_chord(MekrSite::Cycles {
                 target: a0.he_minus,
                 ring: a2.he_plus,
             })
@@ -2155,13 +2154,13 @@ mod tests {
         // never touched, curve/edge/half-edge slots were re-consumed by
         // the pair).
         let mef1_a = body_a
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: a0.he_plus,
                 he2: a2.he_minus,
             })
             .unwrap();
         let mef1_c = body_c
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: c0.he_plus,
                 he2: c2.he_minus,
             })
@@ -2176,13 +2175,13 @@ mod tests {
         // One loop-mint later the loop arena has converged too: the
         // second mef agrees on every key.
         let mef2_a = body_a
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: a2.he_minus,
                 he2: a0.he_minus,
             })
             .unwrap();
         let mef2_c = body_c
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: c2.he_minus,
                 he2: c0.he_minus,
             })
@@ -2202,7 +2201,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -2210,7 +2209,7 @@ mod tests {
             )
             .unwrap();
         let split = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
@@ -2291,7 +2290,7 @@ mod tests {
         );
         let surface = t
             .body
-            .add_surface(SurfaceGeom::Placeholder { anchor: p(9.0) });
+            .add_surface(crate::fixtures::test_surface(p(9.0)));
         let lp = t.body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex: v },
@@ -2354,7 +2353,7 @@ mod tests {
         let (mut body, seed, seg, split) = ops_pillow();
         // seg.he_plus moved to the new face's loop at the mef.
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -2397,7 +2396,7 @@ mod tests {
         // The OLD loop (face A) kept he2's side = {split.he_plus,
         // seg.he_minus}; a strut before seg.he_minus lands in face A.
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_minus,
                     he2: seg.he_minus,

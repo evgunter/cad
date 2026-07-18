@@ -33,7 +33,7 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
     let mut body = Body::<Interval>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let e_ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -41,10 +41,10 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
         )
         .unwrap();
     let strut = |body: &mut Body<Interval>, at, x, y, z| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<Interval>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let mef = |body: &mut Body<Interval>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
