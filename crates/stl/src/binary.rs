@@ -24,8 +24,9 @@ const HEADER: &[u8] = b"binary STL; CAD kernel M2 tessellation export";
 /// index, a triangle count exceeding `u32`, or an I/O failure.
 pub fn write_binary(mesh: &mesh::Mesh, out: &mut impl Write) -> Result<(), StlError> {
     let facets = facets(mesh)?;
-    let count = u32::try_from(facets.len())
-        .map_err(|_| StlError::TooManyTriangles { count: facets.len() })?;
+    let count = u32::try_from(facets.len()).map_err(|_| StlError::TooManyTriangles {
+        count: facets.len(),
+    })?;
 
     let mut header = [0u8; 80];
     header[..HEADER.len()].copy_from_slice(HEADER);

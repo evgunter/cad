@@ -158,9 +158,7 @@ impl core::fmt::Display for PropsError {
                 f,
                 "integral properties: face boundary outside the M2 iso-rectangle inventory ({what})"
             ),
-            Self::NappeSpanning => {
-                f.write_str("integral properties: cone face spans both nappes")
-            }
+            Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
             Self::DegenerateFace => {
                 f.write_str("integral properties: face parameter extent is degenerate (zero area)")
             }

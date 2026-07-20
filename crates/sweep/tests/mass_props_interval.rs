@@ -62,9 +62,12 @@ fn l_prism_interval_encloses_closed_forms() {
         p2(1.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    let body = extrude(&validated(vec![lp]), Extrusion::Distance(Interval::from_f64(1.0)))
-        .unwrap()
-        .body;
+    let body = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(Interval::from_f64(1.0)),
+    )
+    .unwrap()
+    .body;
     check(&body, "L-prism", 3.0, 14.0);
 }
 

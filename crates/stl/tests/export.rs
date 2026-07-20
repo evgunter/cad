@@ -173,7 +173,10 @@ fn binary_header_is_constant_and_not_solid() {
     let a = binary_of(&meshes()[0].1);
     let b = binary_of(&meshes()[2].1);
     assert_eq!(&a[..80], &b[..80], "header must be input-independent");
-    assert!(!a.starts_with(b"solid"), "binary header must not sniff as ascii");
+    assert!(
+        !a.starts_with(b"solid"),
+        "binary header must not sniff as ascii"
+    );
     let count = u32::from_le_bytes(a[80..84].try_into().unwrap()) as usize;
     assert_eq!(a.len(), 84 + count * 50, "binary facet record size");
 }

@@ -109,7 +109,10 @@ fn ball_matches_closed_forms() {
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
     let pappus = full_pappus_y(&t);
     let v = mass_properties(&t.body).unwrap().volume;
-    assert!((v - pappus).abs() < 1e-3 * v, "ball Pappus: {v} vs {pappus}");
+    assert!(
+        (v - pappus).abs() < 1e-3 * v,
+        "ball Pappus: {v} vs {pappus}"
+    );
 }
 
 #[test]
@@ -120,7 +123,10 @@ fn cone_matches_closed_forms() {
     check(&t.body, "cone", PI / 3.0, PI * (SQRT_2 + 1.0));
     let pappus = full_pappus_y(&t);
     let v = mass_properties(&t.body).unwrap().volume;
-    assert!((v - pappus).abs() < 1e-3 * v, "cone Pappus: {v} vs {pappus}");
+    assert!(
+        (v - pappus).abs() < 1e-3 * v,
+        "cone Pappus: {v} vs {pappus}"
+    );
 }
 
 #[test]
@@ -140,7 +146,10 @@ fn donut_matches_closed_forms() {
     check(&t.body, "donut", PI * PI, 4.0 * PI * PI);
     let pappus = full_pappus_y(&t);
     let v = mass_properties(&t.body).unwrap().volume;
-    assert!((v - pappus).abs() < 1e-3 * v, "donut Pappus: {v} vs {pappus}");
+    assert!(
+        (v - pappus).abs() < 1e-3 * v,
+        "donut Pappus: {v} vs {pappus}"
+    );
 }
 
 #[test]

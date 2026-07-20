@@ -89,9 +89,12 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     p2(-2.0, 2.0),
                 ]);
                 let hole = ProfileLoop::new(vec![v(1.0, 0.0, 1.0), v(-1.0, 0.0, 1.0)]);
-                extrude(&validated(vec![outer, hole]), Extrusion::Distance(Probe(1.0)))
-                    .unwrap()
-                    .body
+                extrude(
+                    &validated(vec![outer, hole]),
+                    Extrusion::Distance(Probe(1.0)),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
@@ -135,12 +138,8 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
         (
             "washer",
             run_shape(|| {
-                let lp = ProfileLoop::polygon([
-                    p2(1.0, 0.0),
-                    p2(2.0, 0.0),
-                    p2(2.0, 1.0),
-                    p2(1.0, 1.0),
-                ]);
+                let lp =
+                    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
                 revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
                     .unwrap()
                     .body
@@ -158,12 +157,8 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
         (
             "wedge",
             run_shape(|| {
-                let lp = ProfileLoop::polygon([
-                    p2(1.0, 0.0),
-                    p2(2.0, 0.0),
-                    p2(2.0, 1.0),
-                    p2(1.0, 1.0),
-                ]);
+                let lp =
+                    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
                 revolve(
                     &validated(vec![lp]),
                     axis_y(),
@@ -176,12 +171,8 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
         (
             "axis_wedge",
             run_shape(|| {
-                let lp = ProfileLoop::polygon([
-                    p2(0.0, 0.0),
-                    p2(1.0, 0.0),
-                    p2(1.0, 1.0),
-                    p2(0.0, 1.0),
-                ]);
+                let lp =
+                    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
                 revolve(
                     &validated(vec![lp]),
                     axis_y(),
@@ -194,12 +185,8 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
         (
             "near_full_wedge",
             run_shape(move || {
-                let lp = ProfileLoop::polygon([
-                    p2(1.0, 0.0),
-                    p2(2.0, 0.0),
-                    p2(2.0, 1.0),
-                    p2(1.0, 1.0),
-                ]);
+                let lp =
+                    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
                 revolve(
                     &validated(vec![lp]),
                     axis_y(),
@@ -246,7 +233,10 @@ fn dump_k_samples() {
             ));
         }
     }
-    assert_eq!(unnamed, 0, "<unnamed> must be unreachable from shipped decide paths");
+    assert_eq!(
+        unnamed, 0,
+        "<unnamed> must be unreachable from shipped decide paths"
+    );
     eprintln!("k_report: eps={eps:e}, {total} samples");
     match std::env::var("CAD_K_REPORT_OUT") {
         Ok(path) => {

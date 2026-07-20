@@ -47,7 +47,11 @@ pub fn loop_vector_area<T: Real>(
             Curve3::Nurbs => return Err(PropsError::Unimplemented),
         };
         // Reversed traversal flips the line integral's sign.
-        acc = if e.forward { acc + contrib } else { acc - contrib };
+        acc = if e.forward {
+            acc + contrib
+        } else {
+            acc - contrib
+        };
     }
     Ok(acc)
 }

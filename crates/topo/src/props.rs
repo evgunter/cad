@@ -83,7 +83,10 @@ impl fmt::Display for MassPropsError {
                 write!(f, "mass properties: face {face:?}: {source}")
             }
             Self::RingOnCurvedFace { face } => {
-                write!(f, "mass properties: curved face {face:?} carries interior rings")
+                write!(
+                    f,
+                    "mass properties: curved face {face:?} carries interior rings"
+                )
             }
             Self::Corrupt { what } => {
                 write!(f, "mass properties: corrupt body ({what})")
