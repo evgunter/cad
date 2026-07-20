@@ -207,6 +207,13 @@ Implementer/reviewer prompts cite the notes, never the scan.
    yet) lands alongside, keyed by topology keys — a named home so
    display attributes are never invented ad hoc; durable attachment
    across recompute is explicitly M4-naming's problem, not M2's.
+   **Per-face patch separability (added 2026-07-19, per the banked
+   content-keyed-cache-transfer principle)**: the mesh type keeps
+   per-face triangle patches individually addressable (the
+   back-references already give the association) so a future
+   content-keyed reuse layer can transfer unchanged faces' patches
+   across rebuilds without re-tessellation; no keying machinery in
+   M2 — just don't flatten the per-face structure away.
 7. **STL export + mass properties + M2 exit** *(self-merge grade)*.
    Binary + ASCII STL from the tessellation (D9: byte-identical
    output for identical inputs). Volume/surface area by the ch. 13

@@ -605,7 +605,9 @@ kernel exports these. None are research; all are load-bearing:
   design can extract. Ratified 2026-07-19 (GUI-DESIGN.md G1): the
   GUI's selection type and the recipe's entity references are **the
   same type** (a stable name), so the naming problem is solved once,
-  not twice.
+  not twice. Founding pillar ratified 2026-07-19: naming is
+  localized to reified predicate flips (see Banked principles
+  below).
 - **Appearance attributes (design-now, as an empty container).**
   Per-face/body display attributes (color, name, visibility) must
   live somewhere that survives recompute — which means they attach
@@ -668,6 +670,71 @@ usable-as-library; architecture to be ratified separately.
 - **Interchange breadth**: 3MF (supersedes STL for printing), DXF
   in/out (profiles, drawings), OBJ. Each small; STEP remains the
   only hard one.
+
+### Banked principles (ratified 2026-07-19, rounds 6–7 of the usability conversation)
+
+Cross-milestone commitments extracted from the "where do we get more
+for free / where is the danger" review; each lands at the milestone
+named.
+
+- **Naming is localized to reified predicate flips** *(pillar of the
+  pre-M4 naming doc)*. Topology is a function of the recipe and can
+  change only where a structural parameter (D8) changed or a trilean
+  predicate (Q1) flipped. Within a flip-free parameter region,
+  replay is history-identical and M0's lineage-scoped key identity
+  makes name resolution *provably* trivial; at a flip, the flipping
+  predicate itself names what changed and why. Resolution policy:
+  trivial where provable, loud typed failure carrying the flip's
+  diagnosis where not; re-binding cleverness only as ratified opt-in
+  policies. Margin-based pre-flip *warnings* ("this reference is
+  within K·ε of vanishing") are noted as a natural extension —
+  deliberately far-future.
+- **Content-keyed cache transfer** *(key shape lands with M2 PR 6;
+  service at editor-core)*. D9 bit-determinism makes any derived
+  artifact (certified residual, tessellation patch, BVH node) keyed
+  by the bit-content of its geometric inputs transferable across
+  rebuilds by equality check — the key *is* the correctness proof;
+  no dirty-flag invalidation logic. Finer-grained than (and
+  complementary to) feature-DAG memoization.
+- **Coincidence is resolved descriptively before numerically**
+  *(pre-M3; PROPOSED — awaiting Evan's confirmation after the
+  round-7 clarification)*. Ladder: (a) shared surface key —
+  coincidence by shared provenance; (b) equal intensional
+  descriptions — exact comparison of stored definitions, no
+  tolerance (D9 bit-identity extends this across independent
+  constructions sharing parameter expressions — intent expressed
+  through construction always lands in the exact tiers); (c) numeric
+  trilean classification reserved for genuinely unrelated
+  definitions, where sliver escalation of accidental
+  near-coincidence is correct behavior. Prevents: escalating the
+  stacked-boxes boolean as ill-conditioned when definitions match
+  exactly.
+- **The editor-core evaluation service is generic over `Real`** from
+  day one — M6's error-propagation UI rides the same memoization /
+  cancelation / per-node-result machinery as f64 rebuilds; no
+  parallel path, no retrofit.
+- **ε and persistence** *(rules for the first persisted document)*:
+  a document records the ε it was authored under; the application
+  pins the run's ε to the document's; an assembly whose referenced
+  documents disagree on ε is a typed error (D4's per-model-ε
+  rejection, enforced at the seam). **Changing ε is a recorded
+  `SetTolerance` document edit** (Evan's addition): apply = replay
+  at the new ε and structurally diff — D9 key identity makes "did
+  topology change" a free comparison, and the delta is reported as
+  exactly which predicates changed verdict (escalations included);
+  any change is a typed error requiring explicit user resolution.
+  Same diff machinery as the naming pillar — ε changes and
+  parameter changes are both "same recipe, different evaluation
+  context."
+- **Flags banked for later milestones**: mate solving at assemblies
+  needs witnesses/interval contraction on SE(3), not ℝⁿ — budget
+  for it, don't assume the sketch machinery drops in; recipe-level
+  provenance must carry **pattern indices** explicitly so references
+  into indexed families never degrade to positional guessing (naming
+  doc requirement); the Band 4 model corpus comes online **at M4**,
+  not with the GUI — rebuild latency is an architectural property
+  and must be measured while the architecture is still cheap to
+  change.
 
 ### Band 4 — product-grade infrastructure
 

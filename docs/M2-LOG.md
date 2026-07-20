@@ -345,6 +345,25 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   service) and the danger map (flip-handling semantics; boolean
   coincidence; ε-vs-persistence/assembly uniform-ε rules; SE(3)
   mate witnesses; pattern-index provenance; early corpus benchmark).
+- **GUI-DESIGN round 7 (same conversation)**: Evan ratified the
+  round-6 proposals — new **"Banked principles" subsection in
+  DESIGN.md's Beyond-the-kernel section**: naming-localized-to-
+  predicate-flips (naming-doc pillar; margin warnings noted
+  far-future), content-keyed cache transfer (M2 PR 6 amended: keep
+  per-face patches separable, no keying machinery yet),
+  scalar-generic editor-core evaluation, ε rules **plus Evan's
+  change-ε addition** (`SetTolerance` as a recorded DocEdit; apply =
+  replay + D9 structural diff; any predicate-verdict change = typed
+  error requiring explicit resolution — same diff machinery as the
+  naming pillar), SE(3)/pattern-index/corpus-at-M4 flags.
+  **Still PROPOSED pending Evan**: coincidence-resolved-
+  descriptively-before-numerically (his round-7 question answered
+  in-conversation: tiers (a) shared key and (b) exact description
+  equality ARE "knowing in advance" — D9 bit-identity extends (b)
+  across constructions sharing parameter expressions; tier (c)
+  numeric classification exists only for definitionally unrelated
+  geometry where advance knowledge is impossible in principle and
+  sliver escalation is correct).
 
 ## Reference acquisitions (2026-07-18)
 

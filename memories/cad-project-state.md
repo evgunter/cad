@@ -77,13 +77,17 @@ GQ1-witnesses apply to mates verbatim; axis-3 binding semantics
 RATIFIED in direction: Cargo.lock-style pinned-with-explicit-update,
 details at assembly design**). GQ1–GQ5 all closed; remaining pre-M4
 design work: GQ1 mechanism details + the selection-stability/naming
-design doc. **Pending Evan's pushback (proposed, unratified — see
-M2-LOG round 6)**: naming-localized-to-predicate-flips as the naming
-doc's pillar; content-keyed cache transfer (D9); intensional-
-equality-first boolean coincidence (pre-M3); scalar-generic
-editor-core evaluation; ε-recorded-in-document + uniform-ε-across-
-assembly rules; SE(3) mate-witness and pattern-index-provenance
-flags.
+design doc. **DESIGN.md "Banked principles" subsection (ratified
+2026-07-19 rounds 6–7)**: naming-localized-to-predicate-flips
+(naming-doc pillar), content-keyed cache transfer (M2 PR 6 keeps
+per-face patches separable), scalar-generic editor-core evaluation,
+ε recorded-in-document + uniform-across-assembly + **change-ε as a
+recorded SetTolerance edit (replay + D9 structural diff; any
+predicate-verdict change = typed error, explicit resolution)**,
+SE(3) mate-witness / pattern-index / corpus-at-M4 flags. **One item
+still PROPOSED pending Evan: descriptive-before-numeric coincidence
+(pre-M3)** — clarification given (exact tiers = knowing in advance;
+numeric tier only for definitionally unrelated geometry).
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across
