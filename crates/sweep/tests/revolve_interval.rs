@@ -8,7 +8,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Interval, Point2, Tolerance, Vec2};
+use geom_core::{Interval, Point2, Real, Tolerance, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
