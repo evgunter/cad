@@ -68,22 +68,10 @@ impl<T: Real> Vec2<T> {
         self.x * rhs.y - self.y * rhs.x
     }
 
-    /// The squared Euclidean norm: `x² + y²` via the tight square
-    /// [`Real::powi`]`(2)` per component, in [`Vec2::dot`]'s fixed
-    /// association order.
-    ///
-    /// Why `powi(2)` and not `self.dot(self)` (M2 PR 4): at `f64` and
-    /// the dual value channel the two are bit-identical (`powi(2)` is
-    /// one multiplication), but at the interval scalar plain
-    /// multiplication of a zero-straddling enclosure by *itself* yields
-    /// a spurious negative lower bound (the product does not know its
-    /// factors are one variable), and the downstream `sqrt` then
-    /// degrades the decoration to the poison channel — so the
-    /// `norm`/`distance` of any rounding-width difference would
-    /// escalate. The tight square keeps every term's true range
-    /// (non-negative), exactly the ratified `pown` rationale.
+    /// The squared Euclidean norm, `self.dot(self)` (same fixed
+    /// association as [`Vec2::dot`]).
     pub fn norm_squared(self) -> T {
-        self.x.powi(2) + self.y.powi(2)
+        self.dot(self)
     }
 
     /// The Euclidean norm, exactly `self.norm_squared().sqrt()` — no fused
@@ -174,13 +162,10 @@ impl<T: Real> Vec3<T> {
         )
     }
 
-    /// The squared Euclidean norm: `x² + y² + z²` via the tight square
-    /// [`Real::powi`]`(2)` per component, in [`Vec3::dot`]'s fixed
-    /// association order. See [`Vec2::norm_squared`] for why the tight
-    /// square replaces `self.dot(self)` (bit-identical at `f64` and the
-    /// dual value channel; interval-lane decoration honesty — M2 PR 4).
+    /// The squared Euclidean norm, `self.dot(self)` (same fixed
+    /// association as [`Vec3::dot`]).
     pub fn norm_squared(self) -> T {
-        self.x.powi(2) + self.y.powi(2) + self.z.powi(2)
+        self.dot(self)
     }
 
     /// The Euclidean norm, exactly `self.norm_squared().sqrt()` — no fused

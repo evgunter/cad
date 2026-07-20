@@ -13,7 +13,14 @@
 //! predicates (Q1); every failure is a typed error (D4 ¶3); everything
 //! is generic over [`geom_core::Real`] via the [`geom_core::Decide`]
 //! door and instantiates at `f64`, `Dual<f64>`, `Interval`, and
-//! `Dual<Interval>` (D8).
+//! `Dual<Interval>` (D8). **Interval-lane caveat (temporary)**: at
+//! `Interval`, certification of any inexact residual — every arc
+//! carrier, and any non-axis-aligned geometry — currently escalates as
+//! poison (PR 3 review B1: `norm`/`distance` square straddling-zero
+//! enclosures through plain interval multiplication and the `sqrt`
+//! degrades the decoration); until the geom-core fix pass lands,
+//! interval extrusion is exercised on exact-dyadic line profiles only,
+//! and the arc interval test is `#[ignore]`d with a B1 reference.
 //!
 //! # Direction conventions (normative, stated once — owned here)
 //!
