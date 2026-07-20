@@ -19,7 +19,7 @@
 use std::io::Write as _;
 
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
-use geom_core::{Point2, Real, Tolerance, Vec2};
+use geom_core::{Point2, Tolerance, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{mass_properties, validate, validate_closed, validate_geometric};
