@@ -559,11 +559,14 @@ layer and effectively a second project of comparable size to the
 kernel (Fornjot's postmortem and Zoo's app-team scale are the
 evidence); its architecture lives in **`docs/GUI-DESIGN.md`** (G1
 three-layer split ratified 2026-07-19: kernel / headless
-`editor-core` / interaction; GQ2 per-node-result-DAG and GQ3
-persist-all-edits ratified, GQ5 resolved via D6; still open: GQ1
-solver-replay boundary — witness-as-branch-selection rationale
-clarified, direction agreed in principle, details constrain M4 and
-must be resolved before M4 planning — plus GQ4/GQ6/GQ7).
+`editor-core` / interaction; **ratified**: GQ1 solver-replay
+boundary (witness = authoritative branch selection), GQ2
+per-node-result-DAG, GQ3 persist-all-edits, GQ5 typed quantities in
+the expression sublanguage (dimension-algebra extent banked for M4);
+GQ4 document scope has a concrete proposal awaiting sign-off;
+GQ6/GQ7 deliberately deferred to GUI time. Remaining pre-M4 design
+work: GQ1 mechanism details, GQ4 closure, and the
+selection-stability/naming design doc).
 
 ### Band 1 — kernel-side services an interactive client requires
 

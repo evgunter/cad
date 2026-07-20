@@ -100,7 +100,7 @@ recipe edit**. Two facts recorded from the ratifying conversation:
 
 ## Open questions
 
-### GQ1: The solver/replay boundary (pre-M4/M6 — constrains the recipe)
+### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
 
 If a sketch dimension is driven by a model parameter, replay at a new
 parameter value re-solves *inside* `build` — putting a Newton solver
@@ -135,13 +135,15 @@ large-parameter-jump witness landing near a basin boundary escalates
 on the same margin. The witness refreshes at every committed sketch
 edit, so it is always the user's most recent explicit choice.
 
-**Proposed mechanism (direction agreed in principle; details are the
-open part):** solver output demoted to witness; kernel certifies;
-interval replay runs interval-Newton **contraction seeded from the
-f64 witness** (existence/uniqueness in a box) instead of
-interval-solving from scratch. Concrete audit item: ezpz (Q3) must
-satisfy bit-identity (libm-only math, no hash-order effects) if its
-f64 path runs inside `build`.
+**Ratified (Evan, round 4: "the clear correct choice for us"):**
+solver output demoted to witness; kernel certifies; interval replay
+runs interval-Newton **contraction seeded from the f64 witness**
+(existence/uniqueness in a box) instead of interval-solving from
+scratch. Mechanism details (contraction specifics, the margin
+predicate's exact form) are M4/M6 design work under this committed
+direction. Concrete audit item: ezpz (Q3) must satisfy bit-identity
+(libm-only math, no hash-order effects) if its f64 path runs inside
+`build`.
 
 ### GQ2 (RATIFIED 2026-07-19 round 3): Partial-build semantics — per-node result DAG
 
@@ -165,21 +167,45 @@ Banked consequences: the edit schema enters Band 4's versioning
 discipline from the first persisted file; storage shape is
 **snapshot + edit log** (details at editor-core design time).
 
-### GQ4: Document scope (open — Evan unsure)
+### GQ4: Document scope (PROPOSED 2026-07-19 round 4 — awaiting Evan)
 
-Working assumption, *not* ratified: one part per document,
-references document-local; cross-document references arrive as a
-typed extension with assemblies (Band 3). The naming design doc must
-**flag every place it assumes reference locality** so the assumption
-stays cheap to revisit.
+Decided-now rather than deferred because the naming doc's central
+artifact — the stable-reference type — depends on it, and the
+extension shape is composition, not modification. Proposal:
 
-### GQ5 (RESOLVED 2026-07-19 round 3 — already answered by D6): Units
+- **One document = one part's recipe** — one parameter space + one
+  feature DAG. A recipe may evaluate to **multiple bodies** (the
+  kernel already permits it; booleans/multi-body workflows want it):
+  "part" ≠ "one solid."
+- **References are document-local**; the stable-ref type carries no
+  document component.
+- **Cross-document references arrive with assemblies (Band 3) as a
+  wrapper type** — (document identity × local ref) — composing the
+  existing ref type, never modifying it; nothing built pre-assembly
+  is touched.
+- The naming design doc proceeds assuming locality, with the wrapper
+  named as the sanctioned extension point.
 
-D6 decides it: expressions are raw meters/radians; unit strings
-(`25mm + t/2`) are parse-time sugar at the input boundary, converted
-on entry. One-line residue for GUI time: the user's display unit is
-presentation metadata (so a field round-trips as `25 mm`, not
-`0.025`), trivially decided then.
+### GQ5 (RATIFIED 2026-07-19 round 4, superseding round 3's raw-meters reading): Typed quantities in the expression sublanguage
+
+Round 3 read D6 as "expressions are raw meters, unit strings are
+parse-time sugar." Evan's round-4 revision, ratified: **the
+expression sublanguage carries typed quantities** — once display
+units are stored anywhere (round-tripping `25 mm` requires it), raw
+storage means the type system knows less than the data does;
+conversion errors must be impossible at the type level. This is
+D6 *applied* to the recipe layer, not a revision of it: D6's raw
+meters/radians still governs kernel-internal code; the expression
+language is user-facing recipe data — the API boundary — so typed
+quantities there are the newtype principle one layer up. Canonical
+values remain meters/radians underneath (units erase before kernel
+`T`; scalar genericity untouched); display unit is presentation
+metadata. **Banked M4 decision this creates**: the expression
+language's *dimension algebra* — same-kind add/sub and scalar
+multiply are obvious; products/ratios force choosing between a small
+dimension lattice and forbidding dimension-changing operations in
+v1 (D6's "~five quantities, not the SI lattice" stance suggests the
+restrictive answer). Fold into D8 at M4 planning.
 
 ### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
 

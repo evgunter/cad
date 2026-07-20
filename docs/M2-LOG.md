@@ -301,6 +301,20 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   D6 (expressions in raw meters/radians; unit strings are parse-time
   sugar; display unit = presentation metadata). GQ4 stays open
   (Evan unsure) — naming doc must flag every locality assumption.
+- **GUI-DESIGN round 4 (same conversation)**: **GQ1 RATIFIED**
+  (Evan: branch-selection framing is "the clear correct choice";
+  mechanism details remain M4/M6 work under the committed
+  direction). **GQ5 RE-RATIFIED, superseding round 3**: typed
+  quantities in the expression sublanguage (Evan's revision — stored
+  display units mean raw storage would know less than the data;
+  conversion errors type-level impossible; canonical meters/radians
+  underneath, units erase before kernel `T`; the dimension-algebra
+  extent is a banked M4 decision, fold into D8 then). **GQ4:
+  decide-now recommended; concrete proposal in the doc awaiting
+  Evan** (one document = one part recipe, possibly multi-body;
+  refs document-local, no document component in the stable-ref
+  type; cross-doc refs = assembly-era wrapper (doc identity × local
+  ref) — composition, never modification).
 
 ## Reference acquisitions (2026-07-18)
 

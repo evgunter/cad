@@ -61,16 +61,19 @@ before any GUI.** M2-PLAN PR 6 amended: mesh entity back-references +
 empty `Appearance` container. **docs/GUI-DESIGN.md exists
 (Evan-ratified 2026-07-19)**: G1 three-layer split (kernel /
 headless `editor-core` — now in the crate table — / interaction),
-edit-vocabulary-as-data, selection type = stable-name type. GQ2
-ratified (per-node result DAG, failures poison descendants only),
-GQ3 ratified (all edits persisted, snapshot+edit-log), GQ5 resolved
-via D6. **Pre-M4 blocker: GQ1 solver/replay boundary — rationale
-settled (witness = authoritative branch selection, not geometry;
+edit-vocabulary-as-data, selection type = stable-name type.
+Ratified: GQ1 (witness = authoritative branch selection;
 `solution(constraints, params, witness)` pure; bifurcation = typed
-error with distance-to-singularity margin), mechanism details open;
-plus GQ4 document scope (Evan unsure — naming doc must flag locality
-assumptions)**; selection stability / naming still needs its own
-pre-M4 design doc.
+error, distance-to-singularity margin; mechanism details are M4/M6
+work; ezpz bit-identity audit item), GQ2 (per-node result DAG,
+failures poison descendants only), GQ3 (all edits persisted,
+snapshot+edit-log), GQ5 (typed quantities in the expression
+sublanguage — supersedes the raw-meters reading; dimension-algebra
+extent banked for M4/D8). **Open: GQ4 document scope — concrete
+proposal in GUI-DESIGN.md awaiting Evan (one doc = one part recipe,
+multi-body OK; refs document-local; cross-doc = assembly-era
+wrapper)**; selection stability / naming still needs its own pre-M4
+design doc.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across
