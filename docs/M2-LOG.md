@@ -497,6 +497,90 @@ Reviewer ran eight falsification assignments as executed programs
   oracle; the reviewer's meridian_pappus_volume is a starting
   point.
 
+## PR 6 (mesh crate: tessellation) — 2026-07-20
+
+- Implemented per binding spec (Fable, isolated worktree; overlapped
+  pipeline — implemented while PR 5 was under review, stacked; the
+  branch also merged main mid-flight to pick up the #32 amendments,
+  which the spec had wrongly claimed were in its base). New crate
+  `crates/mesh`: `tessellate(&Body<f64>, δ) → Result<Mesh, _>`;
+  `Mesh` = positions + per-face `FacePatch`es (separable, ratified)
+  + `BoundaryPolyline`s with Edge/Vertex keys (+ per-triangle Face
+  keys — the full #32 back-reference chain); NO Appearance artifact
+  (ratified final). Files: types/chords/walk/curved/planar/
+  tessellate/validate.
+- **Per-triangle exact-form deviation certificates** — the export
+  promise is certified per emitted triangle (typed
+  `CertificateExceeded`, never an uncertified mesh): plane 0;
+  cylinder/sphere r − dist (exact for inward deviation; outward
+  bounded by the vertex-on-carrier ε residual — documented promise
+  is δ+ε); cone cosα·sinα·v_max·(1−cos(Δu/2)) (radial-sum
+  contraction, both nappes); torus (3/4)(R+2r)·L² (chart Hessian
+  bound, ~4× conservative). Sizing is a δ/2 heuristic; the
+  certificate is the guarantee (it caught a live cone mirror-nappe
+  bug during development). Honest δ-vs-ε: ε read exactly once (pole
+  vertex identification), never for sizing.
+- **Watertightness**: chord points once per edge (endpoints bitwise
+  vertex points), every polyline segment a CDT constraint in both
+  adjacent faces; the ratified pure-function invariant stated
+  verbatim in lib.rs (per-face tessellation = f(surface, loops,
+  per-edge chords, δ) — the incremental-retessellation memo-key
+  contract). Seam welds by identical 3-D ids at u=0/2π; poles enter
+  the CDT as repeated-id corner copies whose degenerate triangles
+  drop ⇒ valence-correct fans; `Surface::normal` never called
+  (winding from UV orientation + shoelace flip — the ∂u→0 pole
+  poison is unreachable).
+- **spade 2.15.1** (CDT): age/license policy pass; determinism
+  audited at source level (hashbrown confined to unused modules;
+  insertion order fixed: boundary walk then grid row-major;
+  panic-on-crossing pre-checked into a typed error).
+- Judgment calls: f64-only API (display/export layer; branch-heavy;
+  D8 replay reaches display through the f64 lane; interval
+  workspace rows still pass via feature passthrough); display-layer
+  comparisons deliberately NOT Q1 predicates (documented list —
+  none decide kernel topology; certificates + check_mesh + oracles
+  are the backstop).
+- **e2e review verdict: 1 BLOCKER, 1 SHOULD, 3 NITs — everything
+  else survived** (5 suites / 38 tests, promoted as
+  `review_m2_pr6_*`). Survived under execution: all four
+  certificate bounds independently re-derived + attacked with
+  from-scratch distance oracles (45 samples/triangle × 13 bodies ×
+  δ sweep — zero violations of δ+ε); check_mesh audited with six
+  hand-broken meshes (all rejected typed); debug↔release AND
+  ε-row {1e-6,1e-9,1e-12} meshes bitwise-identical; outward-shell
+  assumption verified unbreakable through the M2 public API; the
+  PR 5 Seam-doc spatial-definition finding independently confirmed.
+  BLOCKER: partial revolves θ ∈ (3π/2, 2π) with a pole junction in
+  a rim-anchored loop failed typed (`Triangulation`) — the
+  junction's meridian column unwrapped nearest prev_u, but past
+  3π/2 the wrong branch is closer; polygon self-crossed; the
+  crossing pre-check fired. Root-caused with fix direction by the
+  reviewer; the certificates' fail-loud posture held (never a bad
+  mesh). SHOULD: tessellation wall-clock ~quadratic in per-face
+  point count (spade insertion path) — documented, carried to PR 7
+  as fine-δ STL guidance. NITs: sphere certificate margin thin at
+  the equator; check_mesh combinatorial-only (doc); 0.1-rad closure
+  snap silent.
+- **Fix pass (tip 8233eeb)**: the final meridian traversal now
+  unwraps nearest the loop's closing anchor (`out[0].u`) — exact by
+  construction for every wedge angle (the anchor lies on that
+  meridian plane analytically); previously-passing shapes
+  byte-identical (old/new branches coincide there). Flipped test +
+  extended sweeps: θ ∈ {3π/2+0.01 … 2π−0.01} × {cone apex wedge,
+  dome-cap rim+pole loop} × δ, with exact analytic volume/area
+  oracles. Sphere grid sizes at δ_s/1.25 (margin factor, removes
+  the equator trap). Closure snap 0.1 rad → 1e-9 +
+  `debug_assert!` (release falls through to the typed error —
+  closed enum preserved). Perf + check_mesh doc notes added. Full
+  matrix green (64/64 suites per row).
+- For PR 7: consume `Mesh.positions` + `patches[].triangles`
+  (outward winding guaranteed); drop keys for STL;
+  `validate::{signed_volume, triangle_count, check_mesh}` public
+  (pre-flight); mesh bitwise-deterministic incl. debug/release ⇒
+  byte-identical STL needs only a deterministic writer; mass
+  properties via Pappus/divergence over the EXACT B-rep (per plan),
+  never the mesh fan; fine-δ exports pay the quadratic CDT cost.
+
 ## Design decisions with Evan, in-session (2026-07-19/20)
 
 - **`FullRevolveHoles` is permanent; voids are born only from
