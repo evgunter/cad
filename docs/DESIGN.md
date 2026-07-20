@@ -696,19 +696,30 @@ named.
   rebuilds by equality check — the key *is* the correctness proof;
   no dirty-flag invalidation logic. Finer-grained than (and
   complementary to) feature-DAG memoization.
-- **Coincidence is resolved descriptively before numerically**
-  *(pre-M3; PROPOSED — awaiting Evan's confirmation after the
-  round-7 clarification)*. Ladder: (a) shared surface key —
-  coincidence by shared provenance; (b) equal intensional
-  descriptions — exact comparison of stored definitions, no
-  tolerance (D9 bit-identity extends this across independent
-  constructions sharing parameter expressions — intent expressed
-  through construction always lands in the exact tiers); (c) numeric
-  trilean classification reserved for genuinely unrelated
-  definitions, where sliver escalation of accidental
-  near-coincidence is correct behavior. Prevents: escalating the
-  stacked-boxes boolean as ill-conditioned when definitions match
-  exactly.
+- **Coincidence is structural or declared, never inferred from
+  values** *(pre-M3; ratified round 8 — Evan's
+  explicit-intent revision of the round-6 proposal, which had a
+  latent defect: treating bit-equal descriptions as semantic
+  coincidence makes topology hinge on an UNMARGINED predicate — a
+  razor-thin equal-vs-one-ulp cliff with no escalation band,
+  exactly what Q1 forbids — and value equality is not evidence of
+  intent anyway)*. The ratified ladder: (a) **shared surface key** —
+  coincidence explicit by construction; (b) equal-but-independent
+  descriptions do **not** glue — if the user means flush, the recipe
+  must say so (share the surface, or an explicit recipe-level
+  relation declaration that makes it structural); description-
+  equality *detection* is a diagnostic/affordance only ("these
+  faces coincide exactly — declare the relation?"), never
+  semantics; (c) near-coincidence between unrelated definitions is
+  a typed sliver error whose resolution is an **explicit
+  repair/adoption operation** — D7's machinery applied natively:
+  reconcile geometry to make the coincidence definitional, moving
+  it by a reported amount, like import healing. Consequences:
+  undeclared-but-touching booleans fail loudly with a one-step
+  resolution instead of working by luck, and the naming pillar
+  stays airtight — topology depends only on recipe structure and
+  margined predicate verdicts, so predicate flips remain the *only*
+  topology-change sites.
 - **The editor-core evaluation service is generic over `Real`** from
   day one — M6's error-propagation UI rides the same memoization /
   cancelation / per-node-result machinery as f64 rebuilds; no

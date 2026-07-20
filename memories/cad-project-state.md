@@ -84,10 +84,13 @@ per-face patches separable), scalar-generic editor-core evaluation,
 ε recorded-in-document + uniform-across-assembly + **change-ε as a
 recorded SetTolerance edit (replay + D9 structural diff; any
 predicate-verdict change = typed error, explicit resolution)**,
-SE(3) mate-witness / pattern-index / corpus-at-M4 flags. **One item
-still PROPOSED pending Evan: descriptive-before-numeric coincidence
-(pre-M3)** — clarification given (exact tiers = knowing in advance;
-numeric tier only for definitionally unrelated geometry).
+SE(3) mate-witness / pattern-index / corpus-at-M4 flags, and
+**coincidence-is-structural-or-declared (pre-M3, Evan's strengthened
+form)**: bit-equal descriptions never glue (unmargined-predicate
+defect); coincidence intent is recipe data (shared key or declared
+relation), detection is affordance-only, near-coincidence resolves
+via explicit D7-style repair/adoption. All usability/GUI-conversation
+items ratified; nothing pending.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across

@@ -364,6 +364,23 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   numeric classification exists only for definitionally unrelated
   geometry where advance knowledge is impossible in principle and
   sliver escalation is correct).
+- **GUI-DESIGN round 8 (same conversation): coincidence principle
+  RATIFIED in Evan's strengthened form — "structural or declared,
+  never inferred from values."** Evan's explicit-intent revision
+  fixed a latent defect in the round-6 proposal: bit-equal-
+  descriptions-as-coincidence is an UNMARGINED predicate (equal vs.
+  one-ulp cliff, no escalation band — a Q1 violation), and value
+  equality is not evidence of intent. Final ladder: (a) shared key =
+  structural; (b) equal independent descriptions do NOT glue —
+  coincidence intent must be recipe data (shared surface or explicit
+  relation declaration); detection is diagnostic/affordance only;
+  (c) near-coincidence of unrelated definitions = typed sliver
+  error, resolved by an explicit repair/adoption operation (D7
+  machinery natively — reported displacement, like import healing).
+  Payoffs: no silent-guess gluing anywhere; naming pillar airtight
+  (predicate flips remain the only topology-change sites). **All
+  banked principles now ratified; nothing in the usability/GUI
+  conversation remains pending.**
 
 ## Reference acquisitions (2026-07-18)
 
