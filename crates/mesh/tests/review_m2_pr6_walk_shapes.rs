@@ -92,33 +92,11 @@ fn survives_cone_wedges_apex_junctions_below_three_half_pi() {
     }
 }
 
-#[test]
-fn finding_near_full_wedge_pole_junction_unwrap_fails() {
-    // FINDING (fail-loud, but a valid body is refused): for partial
-    // revolves with θ ∈ (3π/2, 2π), any face whose loop carries a
-    // pole/apex junction AND a rim (cone walls, sphere dome caps)
-    // fails with TessellateError::Triangulation. At the junction the
-    // outgoing meridian's column is unwrapped nearest prev_u
-    // (continuity) — but the loop must CLOSE at out[0].u, which is θ
-    // away; for θ > 3π/2 the wrong branch (2π − θ < π/2 away) wins,
-    // `unwrap_tie`'s tie band (frac ∈ [0.25, 0.75]) never engages,
-    // the 0.1-radian closure snap can't repair a ~2π defect, and the
-    // boundary polygon self-crosses — caught by the can_add_constraint
-    // pre-check. Boundary of the window verified: 3π/2 − 0.01 OK,
-    // 3π/2 + 0.01 fails; window persists across ε rows and profiles.
-    for theta in [1.5 * PI + 0.01, 2.0 * PI - 0.1] {
-        let body = rev(cone_profile(), Revolution::Partial(theta));
-        assert!(
-            matches!(
-                mesh::tessellate(&body, 0.1),
-                Err(mesh::TessellateError::Triangulation { .. })
-            ),
-            "cone wedge theta={theta} now tessellates — finding fixed? promote to survives_"
-        );
-    }
-    // Sphere dome cap (rim + pole junction in one loop): same window.
+/// Cylinder-plus-hemispherical-dome profile (r = 1, wall h = 1): the
+/// dome-cap face's loop carries a rim AND a pole junction.
+fn silo_profile() -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan();
-    let silo = ProfileLoop::new(vec![
+    ProfileLoop::new(vec![
         ProfileVertex {
             pos: p2(0.0, 0.0),
             bulge: 0.0,
@@ -135,12 +113,48 @@ fn finding_near_full_wedge_pole_junction_unwrap_fails() {
             pos: p2(0.0, 2.0),
             bulge: 0.0,
         },
-    ]);
-    let body = rev(silo, Revolution::Partial(2.0 * PI - 0.2));
-    assert!(matches!(
-        mesh::tessellate(&body, 0.1),
-        Err(mesh::TessellateError::Triangulation { .. })
-    ));
+    ])
+}
+
+#[test]
+fn survives_near_full_wedge_pole_junction_unwrap() {
+    // Formerly finding_near_full_wedge_pole_junction_unwrap_fails: for
+    // θ ∈ (3π/2, 2π) a loop with a pole/apex junction AND a rim used
+    // to unwrap the final meridian's column nearest prev_u, where the
+    // wrong branch (2π − θ < π/2 away) wins; the polygon self-crossed
+    // and the CDT constraint pre-check refused the body. Fixed: the
+    // final traversal's column contains the loop's closing vertex, so
+    // it unwraps nearest the closing anchor (out[0].u) — exact closure
+    // for every wedge angle. Sweep the formerly-failing window up to
+    // 2π − 0.01 with full acceptance oracles (watertight, certified
+    // chordal bound, exact volume band, byte-identical rebuild).
+    let thetas = [
+        1.5 * PI + 0.01,
+        4.72, // reviewer's verified failing boundary point
+        5.5,
+        2.0 * PI - 0.1,
+        2.0 * PI - 0.01,
+    ];
+    for theta in thetas {
+        // Cone wall (apex junction): V = θ/6; A = base sector θ/2 +
+        // lateral √2·θ/2 + two unit right-triangle caps.
+        let body = rev(cone_profile(), Revolution::Partial(theta));
+        let v_exact = theta / 6.0;
+        let a_exact = theta / 2.0 + core::f64::consts::SQRT_2 * theta / 2.0 + 1.0;
+        for delta in [0.25, 0.04] {
+            check_mesh_acceptance(&body, delta, Some((v_exact, a_exact)));
+        }
+
+        // Sphere dome cap (rim + pole junction in one loop): V =
+        // cylinder θ/2 + hemisphere θ/3; A = base sector θ/2 + wall θ
+        // + dome θ + two caps (unit square + quarter disc).
+        let body = rev(silo_profile(), Revolution::Partial(theta));
+        let v_exact = theta / 2.0 + theta / 3.0;
+        let a_exact = theta / 2.0 + theta + theta + 2.0 * (1.0 + PI / 4.0);
+        for delta in [0.25, 0.04] {
+            check_mesh_acceptance(&body, delta, Some((v_exact, a_exact)));
+        }
+    }
 }
 
 #[test]

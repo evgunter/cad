@@ -10,7 +10,12 @@
 //! per edge (never per point — so rectangle sides are bitwise straight
 //! and the CDT sees no sliver-generating wobble), and unwraps the
 //! periodic coordinate(s) by continuity (chord steps ≤ π/4 make branch
-//! choice unambiguous away from poles).
+//! choice unambiguous away from poles). One structural exception: a
+//! rim-anchored loop's **final** meridian contains the loop's closing
+//! vertex, so its column takes the branch nearest the first polygon
+//! entry (`out[0].u`) rather than continuity — exact closure by
+//! construction for every wedge angle (continuity would pick the wrong
+//! branch for θ > 3π/2, where the complement 2π − θ < π/2 is closer).
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
 //! sampled): a pole/apex is always an edge **endpoint** (valence 2). A
@@ -494,6 +499,13 @@ pub(crate) fn loop_polygon(
                 let anchor = out.first().map_or(prev_u, |e| e.u);
                 let ut = match &band_u {
                     Some(us) => us[k],
+                    // Final traversal: its column contains the loop's
+                    // closing vertex (`out[0]` lies on this meridian
+                    // plane), so the branch nearest the closing anchor
+                    // is exact by construction — continuity toward
+                    // `prev_u` would pick the wrong branch for wedge
+                    // angles θ > 3π/2 (the 2π − θ < π/2 shortcut).
+                    None if k == m - 1 => unwrap_near(u_raw, anchor),
                     None => unwrap_tie(u_raw, prev_u, anchor),
                 };
                 if let Some(vp) = jpole {
@@ -551,14 +563,24 @@ pub(crate) fn loop_polygon(
         }
     }
     // Closure: if the walk ends in a meridian, the first entry is that
-    // column's junction — snap it onto the column (wobble is
-    // rounding-scale; the guard keeps structural surprises loud).
-    if !no_rim
-        && matches!(travs[m - 1].kind, TravKind::Meridian { .. })
-        && !out.is_empty()
-        && (out[0].u - prev_u).abs() < 0.1
-    {
-        out[0].u = prev_u;
+    // column's junction. The anchor-branch unwrap above makes closure
+    // exact by construction — `out[0].u` and the final column are the
+    // same analytic azimuth reached through two float paths (vertex
+    // atan2 vs carrier-midpoint atan2), so any residue is
+    // rounding-scale (observed ≲ 1e-12 rad). Snap it onto the column
+    // so the polygon side is bitwise straight; anything larger is a
+    // structural defect — kept loud by the debug assertion, and in
+    // release the unsnapped self-crossing polygon is refused by the
+    // CDT constraint pre-check (typed `Triangulation` error).
+    if !no_rim && matches!(travs[m - 1].kind, TravKind::Meridian { .. }) && !out.is_empty() {
+        let residue = (out[0].u - prev_u).abs();
+        debug_assert!(
+            residue < 1e-9,
+            "loop closure residue {residue} rad exceeds rounding scale"
+        );
+        if residue < 1e-9 {
+            out[0].u = prev_u;
+        }
     }
     Ok(out)
 }

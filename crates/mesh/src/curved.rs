@@ -211,7 +211,15 @@ fn grid_steps(
             Ok((ceil_count(uspan, hu)?, ceil_count(vspan, hv)?))
         }
         ChartKind::Sphere { r } => {
-            let h = sagitta_angle(delta_s, r);
+            // Deliberate 1.25 sizing margin: near the equator a
+            // full-step grid triangle's true deviation approaches
+            // 2·δ_s = δ from below, so sizing at exactly δ_s would
+            // lean on ceil_count's step-shrink (span/⌈span/h⌉ < h) as
+            // the only slack. Targeting δ_s/1.25 buys real headroom
+            // cheaply (≈12% more steps per axis) and keeps future
+            // sizing tweaks from silently landing on the certificate
+            // boundary; the certificate remains the backstop.
+            let h = sagitta_angle(delta_s / 1.25, r);
             Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
         }
         ChartKind::Torus { major, minor } => {

@@ -105,6 +105,19 @@
 //! leak is cocircular tie-breaking, which is a function of insertion
 //! order and therefore fixed here).
 //!
+//! # Performance (documented characteristic)
+//!
+//! Wall-clock is **quadratic in per-face point count** on the CDT
+//! insertion path (`spade` point location during sequential insertion;
+//! measured on a washer body: ~19 ms at δ = 1e-4, ~1.2 s at 1e-6, over
+//! 11 minutes at 1e-9). Point counts scale like 1/√δ per axis, so each
+//! 100× tightening of δ costs ~100× more triangles and ~10⁴× more CDT
+//! time. Fine-tolerance STL export (PR 7) should expect this; the
+//! [`TessellateError::ResolutionOverflow`] 2²⁴ cap bounds *allocation*,
+//! not wall-clock — a δ well inside the cap can still take hours. A
+//! bulk-loading or hierarchy-hinted insertion is the known remedy if a
+//! real use case needs it.
+//!
 //! # Scalar policy (judgment call, reported in the PR)
 //!
 //! This crate is **f64-only**: it takes `&Body<f64>` and performs raw

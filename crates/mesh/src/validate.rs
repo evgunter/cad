@@ -47,6 +47,11 @@ pub enum MeshError {
 /// edge shared by exactly two triangles traversing it in opposite
 /// directions.
 ///
+/// The check is **combinatorial only** — it inspects indices, never
+/// positions: geometrically-zero-area slivers (distinct indices,
+/// coincident points) and globally-inverted shells both pass;
+/// [`signed_volume`] is the orientation backstop.
+///
 /// # Errors
 ///
 /// The first failure in deterministic order (triangles in patch order,
