@@ -140,13 +140,163 @@ the counter stands at L7).
 - Deferred, named: D4 ¶4 session-box enforcement at construction
   sugar (first reachable-from-innocent-input site found here).
 
-## State snapshot
+## PR 3 (EdgeGeometry + Newell + tier-3 start) — IMPLEMENTED, REVIEW PENDING — 2026-07-18
 
-- **Done**: M2-PLAN ratified & merged (#24, all forks resolved in
-  conversation). PR 1 merged (zero blockers). PR 2 implemented +
-  reviewed (zero blockers) + fix pass applied; PR opening for
-  self-merge. PR 3 (EdgeGeometry) implementing on the stacked branch
-  (overlapped pipeline). M3 reading (Mäntylä ch. 14–15) nearly done.
-- **Next**: wind-down to orchestrator handoff after PR 3's
-  implementation report; next session picks up at PR 3 review ∥ PR 4
-  (extrude) implementation.
+Implementation complete on `ev/m2-3-edgegeom` (stacked on PR 2, tip
+`7bf450a`, pushed; PR 2's fix pass merged in). All gates green
+(fmt/clippy/discipline; debug+release × default+interval; tests
+ε-parameterized). **Adversarial review NOT yet run** — the next
+orchestrator's first move. Implementation report highlights (binding
+facts for the reviewer spec, PR 4/5 specs, and the fix pass):
+
+- **New crate `geom-brep`**: `EdgeGeometry<T> = Intersection{s1, s2,
+  witness} | MappedCurve(..) | Seam{surface}` (no Explicit, D2);
+  geometry-arena key types moved here from topo (re-exported
+  unchanged); geom-brep never resolves keys (lookup closures injected
+  by Body — Q1 lineage scoping).
+- **MappedCurve payload** (source+map fused, incoherent pairings
+  unrepresentable): `PlacedSegment{segment, place}` (rims/meridians),
+  `ExtrudedPoint{point, place, vec}` (struts, s ∈ [0,1]),
+  `RevolvedPoint{point, place, axis_origin, axis_dir, angle}`.
+  `SketchSegment = Line{a,b} | Arc{a,b,bulge}` — structurally split;
+  no geom-brep→profile dependency (PR 4 maps ValidatedSegment
+  field-for-field). All descriptions evaluate over s ∈ [0,1] affinely
+  aligned with the carrier interval (certification enforces).
+- **`EdgeCurve` is certified-by-construction** (private fields; only
+  `EdgeCurve::certify` builds one — uncertified carriers
+  unrepresentable). Cert schedule: 9 dyadic samples, documented check
+  order (well-formedness → endpoint pinning → per-sample residuals →
+  Intersection witness on both surfaces); linearized meter margins
+  (plane (p−o)·n; quadrics (q²−r²)/2r; cone ρcosα−|h|sinα,
+  cancellation-free); transversality at interior samples only
+  (endpoints may sit on apex/poles). Parameter interval stored as a
+  certified cache — documented reconciliation with vertices-derive-
+  bounds (vertices stay authoritative via endpoint pinning; storing
+  keeps full-period edges total).
+- **Operator signatures**: `mev(site, point, curve)`, `mef(site,
+  curve, surface: FaceSurface)`, `mekr(site, curve)`, `mfkrh(ring,
+  surface)`; `FaceSurface = Inherit | New(Surface) | Shared(key)`;
+  ops need `T: Decide`; certification inside the atomic precondition
+  phase (`EulerOpError::Certification`, body untouched). Sugar:
+  `mev_line`/`mef_chord`/`mekr_chord`/`mfkrh_plug` (self-loop sites →
+  canonical circle, dispatch on vertex-key equality — structural).
+  Setters `topo::attach::{set_face_surface, set_edge_curve}` for the
+  mvfs seed cap + post-mint Intersection upgrades; `set_edge_curve`
+  enforces description-adjacency (`DescriptionNotAdjacent`). mvfs
+  seed face gets `Surface::Nurbs` (honest no-description; tier 3
+  refuses it at rest).
+- **Dihedral predicate** `classify_dihedral → Transverse | Smooth |
+  Indeterminate`: margin sinθ·r meters; implicit-form gradients only;
+  lever arm r = min(curvature arms, edge-chord extent); planes
+  contribute f64::MAX not +∞ (interval-lane poison bug found by test
+  and fixed — from_f64(∞) is NaI).
+- **Tier 3 `validate_geometric`** (gated on tiers 1–2): no Nurbs
+  surfaces at rest → per-edge re-certification + adjacency → planar
+  vertex residuals → interior dihedral samples definite. Tier 1
+  gained geometry-to-geometry referential integrity
+  (`DanglingDescription`; descriptions anchor surfaces against
+  orphan-removal). Documented not-checked: self-intersection, pcurves,
+  material wedge SIDE (0-vs-2π lamina needs M3 pcurves — M2
+  classifies the tangent-plane wedge only), prefer-intrinsic-as-
+  validity, curved-face boundary containment.
+- **Newell** translate-to-origin, certified, right-hand-of-next-order
+  contract; the 1e8-offset pin shows the naive cross-sum ~0.3 rad
+  wrong where translated Newell is exact.
+- **Suite migrations**: ~380 call sites moved to sugar mechanically;
+  two semantic rewrites (stale-anchor → stale-Shared-surface
+  atomicity; degenerate-pillow → explicit full-period carriers).
+  Full-period edges stay representable in topo (profile's ≥2-split is
+  input-layer). New: tests/geometric_cube.rs (8), in-crate
+  tier3_tests.rs (6), geom-brep 30 unit tests, interval lane extended.
+- **Judgment calls to ratify in review/PR**: provenance unchanged
+  (description IS the geometry-side provenance; no D5 duplication);
+  mef defers adjacency to set_edge_curve + tier 3; K-telemetry from
+  geom-brep/topo predicates is name-tagged but NOT wired to profile's
+  thread-local funnel (deliberate non-dependency; PR 7 unifies —
+  Probe-lane samples read <unnamed> until then).
+- **For PR 4/5** (recorded verbatim from the report): mint swept
+  edges as MappedCurve with real specs; upgrade corner joins to
+  Intersection via set_edge_curve after both side surfaces exist
+  (mint-time Intersection impossible — surfaces don't exist yet);
+  classify_dihedral chooses (smooth ⇒ keep MappedCurve; sliver ⇒
+  typed error); caps via set_face_surface + newell_plane (outer loop
+  in next order ⇒ outward); cosurface splits share keys
+  (Shared/Inherit); Seam{surface} is the u=0 iso-curve — PR 5 places
+  each revolved surface's u_ref on the closing meridian (PR 5 is the
+  first end-to-end Seam exerciser; topo-level Seam tests deliberately
+  deferred to it); near-apex dihedral honestly escalates (arms
+  collapse), apex/pole ENDPOINTS are fine (no gradient sampled).
+
+## Design decisions with Evan, in-session (2026-07-19)
+
+- **Rim edges upgrade to `Intersection` (Evan's call, resolving the
+  PR 4 judgment-call flag)**: cap–wall rim edges do NOT stay
+  `MappedCurve` — after both caps' planes are set, rims upgrade to
+  `Intersection{cap plane, side surface, witness}` via the same
+  `classify_dihedral` → `set_edge_curve` pattern as corner joins
+  (uniform for normal extrusion: every rim is definitely transverse).
+  Lands in the PR 4 fix pass; PR 5's spec inherits (revolve cap/wedge
+  rims likewise; full-period latitude rims depend on the B2
+  carrier-diameter lever-arm fix, in flight in the PR 3 fix pass).
+- **Prefer-intrinsic gets tier-3 teeth (orchestrator proposal, Evan
+  approved)**: at rest, every *definitely-transverse* edge must carry
+  `Intersection`; definitely-smooth keeps `MappedCurve` (conventional
+  split per D2); escalated dihedrals and `Seam` edges exempt — so
+  ε-tightening can escalate but never flip valid→invalid. Rationale:
+  an unenforced preference drifts silently — exactly the shape this
+  project exists to kill; cost ≈ 0 (tier 3 already samples dihedrals
+  per edge). Lands in the PR 4 fix pass (validator edit is in reach on
+  the stack); ratification text folds into the M2-exit DESIGN.md sweep
+  under D2, removing "prefer-intrinsic-as-validity" from tier 3's
+  documented not-checked list.
+- **Chordal-tolerance ≠ kernel-ε separation reconfirmed** by Evan
+  ahead of PR 6 (already ratified in the #24 conversation; recorded
+  here because he endorsed it explicitly in-session).
+
+## Reference acquisitions (2026-07-18)
+
+- Mäntylä ch. 14 notes (`mantyla-ch14-splitting-algorithm.md`) and
+  ch. 15 notes (`mantyla-ch15-boolean-set-operations.md`, pp.
+  263–300) in `<main-checkout>/references/notes/` — the M3 grounding.
+  Ch. 15 headline: boolean pipeline composes ch. 12/14 machinery
+  verbatim; ~half the special-case machinery is unprinted in the
+  book; suspected sign-convention erratum between Program 15.7 and
+  ch. 14's rule (a) — re-derive from first principles before porting;
+  results are pseudomanifolds (validator needs a 3′ mode).
+- **TOG 1986 paper acquired** (the ch. 15 notes' needed second
+  witness): `references/mantyla-1986-boolean-operations-2-manifolds-
+  tog.pdf` — real text layer (pdftotext works; no page rendering
+  needed).
+
+## State snapshot (handoff point, 2026-07-18)
+
+- **Merged to main**: M2-PLAN (#24); PR 1 (#27, analytic evaluators);
+  PR 2 (#28, profile crate). All zero-blocker reviews, suites
+  promoted.
+- **Implemented, review pending**: PR 3 on `ev/m2-3-edgegeom`
+  (pushed, gates green) — see the PR 3 section above; the reviewer
+  has not run.
+- **Next orchestrator's first moves**: (1) spec + launch PR 3's
+  adversarial reviewer (falsification targets: certification schedule
+  soundness incl. the 9-sample sufficiency for the M2 carrier/surface
+  pairs, the certified-by-construction claim from an external
+  consumer, dihedral lever-arm honesty, the stored-interval
+  reconciliation, suite-migration integrity — esp. the two semantic
+  rewrites — and the PR 4/5 handoff claims); (2) in parallel, spec +
+  launch PR 4 (extrude) stacked on `ev/m2-3-edgegeom` per the
+  overlapped pipeline, consuming the "For PR 4/5" facts above plus
+  PR 2's (axis = ±plane-normal by turn sign is PR 4's to own; spans
+  from stored bulge θ = 4·atan|b|, never endpoint atan2); (3) after
+  PR 3's review+fix: open its PR with full writeup, self-merge on
+  green (option-(a) scope is ratified; only genuinely fork-shaped
+  findings wait for Evan).
+- **Standing process**: overlapped pipeline (fix pass = the only
+  serialization point); high-confidence design PRs self-merge with
+  writeups, forks wait; reviewer suites promote into CI; M2-PLAN PR
+  sequence continues 4 (extrude) → 5 (revolve) → 6 (tessellation) →
+  7 (STL + mass properties + K report + M2 exit).
+- **Channels**: Evan may message via new GitHub issues or comments on
+  any PR/issue (re-arm the monitor each session); usage-limit
+  monitoring via the mngr events file (see orchestration-model
+  memory); `mngr` CLI itself currently broken (azure plugin
+  ImportError) — read events.jsonl directly.

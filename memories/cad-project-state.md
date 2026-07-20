@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0 and M1 complete (2026-07-16); M2 (analytic geometry, extrude/revolve, tessellation, STL) planned, awaiting ratification
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1 complete; M2 in progress (PRs 1–2 of 7 merged, PR 3 implemented awaiting review — see docs/M2-LOG.md state snapshot)
 metadata:
   node_type: memory
   type: project
@@ -29,12 +29,26 @@ docs/M0-LOG.md). Notable: Mäntylä Program 11.6 erratum on record
 adversarial-review corpus of both milestones runs in CI
 (`review_m{0,1}_pr*` suites).
 
-**M2 next**: analytic curves/surfaces, extrude/revolve from
-polyline+arc profiles, tessellation, STL export. `docs/M2-PLAN.md`
-drafted, PR #24 awaiting Evan's ratification; forks flagged there:
-profile format (bulge-chain recommendation) and revolve pole policy.
-K-value experiments run in M2 (first predicates in anger). Mäntylä
-ch. 12/13 notes archived in `<main-checkout>/references/notes/`.
+**M2 in progress** (ratified #24 — ALL forks resolved in that
+conversation: DXF bulge-chain profiles, winding invisible, full axis
+support for revolve incl. pole collapse, D2's intensional EdgeGeometry
+landing at M2 (option a), certified-conservative tessellation as an
+export promise, no auto face-merging). Of the 7-PR sequence: **PR 1
+merged (#27** — geom-curves/geom-surfaces closed-enum evaluators;
+Real gained floor/reduce_periodic/copysign; branchless Duff basis; L7
+allowlist moment resolved NOT-needed); **PR 2 merged (#28** — profile
+crate, trilean validation, exact-order-band canonical form, K-hook);
+**PR 3 implemented on `ev/m2-3-edgegeom`, adversarial review NOT yet
+run** — geom-brep crate (EdgeGeometry certified-by-construction,
+dihedral predicate, Newell, tier-3 validate_geometric, op signatures
+with FaceSurface/EdgeCurveSpec). **docs/M2-LOG.md's "State snapshot
+(handoff point)" is the resumption contract** — next moves: PR 3
+review ∥ PR 4 (extrude) implementation, overlapped pipeline.
+Remaining: 4 extrude, 5 revolve, 6 tessellation, 7 STL + K report +
+exit. Mäntylä ch. 12–15 notes all archived in
+`<main-checkout>/references/notes/`; the TOG 1986 boolean paper
+(M3's second witness, text-layer PDF) is at
+`references/mantyla-1986-boolean-operations-2-manifolds-tog.pdf`.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across
