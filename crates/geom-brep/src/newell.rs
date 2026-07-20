@@ -45,6 +45,25 @@
 //! [`NewellError::NotPlanar`]; an in-band or poisoned residual (e.g. a
 //! degenerate loop whose normal normalizes to poison) escalates
 //! (D4 ¶3) — total, never a panic.
+//!
+//! # What certification does NOT pin: the normal's direction on
+//! near-collinear input
+//!
+//! The residual contract is *positional*: every vertex within ε of the
+//! returned plane. For a **near-collinear** loop — all vertices within
+//! ε of a line — infinitely many planes satisfy that contract, and the
+//! returned normal's *direction* is determined by the sub-ε lateral
+//! noise: two inputs differing by a fraction of ε can receive
+//! near-opposite certified normals. This is inherent to
+//! under-determined data, not a defect of the method (exact
+//! collinearity escalates via the poison normal; the near-collinear
+//! band cannot, because the residuals honestly certify). Consumers
+//! reading the normal as an *orientation* (outward-normal contracts)
+//! must not feed near-collinear loops expecting a stable direction —
+//! the sweeps never do (validated profiles have definite area), and
+//! anything that might should treat the direction as data-quality-
+//! limited. (M2 PR 3 review, N3 — pinned by the promoted
+//! `fixed_n3_*` test.)
 
 use geom_core::{Band, Decide, Indeterminate, Point3, Sign, Vec3};
 use geom_surfaces::Surface;

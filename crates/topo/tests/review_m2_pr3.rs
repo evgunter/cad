@@ -3,9 +3,13 @@
 //! certification-layer attacks live in
 //! `geom-brep/tests/review_m2_pr3_certify.rs`).
 //!
-//! Convention: `finding_*` tests PIN CURRENT defective/questionable
-//! behavior (the fix pass flips their assertions); `survives_*` tests
-//! are attacks the implementation resisted and promote to CI verbatim.
+//! Convention: `survives_*` tests are attacks the implementation
+//! resisted, promoted to CI verbatim. `fixed_*` tests were the review's
+//! `finding_*` pins of defective behavior, FLIPPED by the fix pass to
+//! assert the corrected behavior (each keeps its finding lineage in its
+//! doc comment). `fixed_n4_*` are the fix pass's raw-operator
+//! precondition tests (N4: the sugar wrappers pre-resolve site keys, so
+//! the raw ops' own precondition paths were shadowed in coverage).
 //! `e2e_*` is the mini-extrude consumer program demanded by the spec.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -473,16 +477,18 @@ fn survives_nurbs_seed_gate_and_clear() {
 // Targets 1+2+8 combined — wrong-at-rest through the public API.
 // =====================================================================
 
-/// FINDING: tier 3 accepts a cube whose "planar" faces are bounded by
-/// an edge whose carrier is a half-circle bulging 0.5 m off one of its
-/// adjacent face planes. The planar-face pass checks VERTEX residuals
-/// only; MappedCurve descriptions carry no surface reference, so
-/// nothing ties an edge's carrier to its faces' surfaces. (The
-/// documented not-checked list names "face-boundary containment on
-/// CURVED surfaces (M3)" — but this is a PLANAR face, whose reader
-/// expects the planar pass to have teeth.)
+/// FIXED (was `finding_planar_face_arc_boundary_bulge_passes_tier3`,
+/// S3): tier 3 used to accept a cube whose "planar" face was bounded
+/// by an edge whose carrier is a half-circle bulging 0.5 m off that
+/// face's plane — the planar-face pass checked VERTEX residuals only.
+/// The fix: tier 3's check 5 re-uses the dihedral pass's interior
+/// carrier samples and classifies them against each ADJACENT PLANAR
+/// face's plane (linear cost, same schedule), reporting
+/// `PlanarBoundaryResidual` per edge–face pair. The arc lies in the
+/// bottom face's plane (z = 0, clean) but bulges off the front face's
+/// (y = 0): exactly one report, naming the front face and the edge.
 #[test]
-fn finding_planar_face_arc_boundary_bulge_passes_tier3() {
+fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     let t = common::geometric_cube::<f64>();
     let mut body = t.body;
     // The bottom front edge A(0,0,0) -> B(1,0,0): re-describe as the
@@ -508,23 +514,30 @@ fn finding_planar_face_arc_boundary_bulge_passes_tier3() {
         param_end: core::f64::consts::PI,
     };
     body.set_edge_curve(edge, spec).unwrap();
-    // The arc's apex is 0.5 m off the front face's plane (y = 0), yet:
+    // The arc's apex is 0.5 m off the front face's plane (y = 0): tier
+    // 3 reports exactly that face-boundary breach and nothing else
+    // (the bottom face's plane contains the whole arc).
+    let front = t.mefs[1].face;
     assert_eq!(
         validate_geometric(&body),
-        Ok(()),
-        "FINDING pinned: tier 3 accepts a planar face bounded by an arc \
-         bulging half a meter off its plane"
+        Err(vec![ValidationError::PlanarBoundaryResidual {
+            face: front,
+            edge
+        }]),
+        "the planar-boundary pass must name the bulged-off face"
     );
 }
 
-/// FINDING: the winding-aliasing hole is reachable through the PUBLIC
-/// setter and survives tier 3 at rest — a wrong-by-8-full-turns
-/// parameter cache on a cube edge is certified at attachment
-/// (set_edge_curve) and re-certified clean by validate_geometric (the
-/// same 9-sample schedule aliases both times). Wrong-but-certified,
-/// at rest, from outside.
+/// FIXED (was
+/// `finding_aliased_interval_survives_tier3_via_public_setter`, S1):
+/// the winding-aliasing hole was reachable through the PUBLIC setter —
+/// a wrong-by-8-full-turns parameter cache aliased the 9-sample
+/// schedule at attachment AND at tier 3. The fix: the circle winding
+/// bound (|t1 − t0| ≤ tau) refuses the whole 8k·tau alias family at
+/// the gate, so the wrong cache never enters the body; the honest
+/// half-circle interval still attaches and tier 3 stays clean.
 #[test]
-fn finding_aliased_interval_survives_tier3_via_public_setter() {
+fn fixed_aliased_interval_refused_at_public_setter() {
     use core::f64::consts::{PI, TAU};
     let t = common::geometric_cube::<f64>();
     let mut body = t.body;
@@ -547,28 +560,45 @@ fn finding_aliased_interval_survives_tier3_via_public_setter() {
         param_start: 0.0,
         param_end: t1,
     };
-    // Sanity: a 1-turn-wrong interval IS refused by the gate.
+    // A 1-turn-wrong interval is refused by the gate (as before —
+    // interior samples caught it; now the winding bound names it).
     assert!(matches!(
         body.set_edge_curve(edge, mk(PI + TAU)).unwrap_err(),
         EulerOpError::Certification { .. }
     ));
-    // The 8-turn-wrong interval passes the gate AND tier 3.
-    body.set_edge_curve(edge, mk(PI + 8.0 * TAU)).unwrap();
-    assert_eq!(
-        validate_geometric(&body),
-        Ok(()),
-        "FINDING pinned: aliased parameter cache is wrong-but-certified at rest"
+    // The 8-turn-wrong interval — the exact schedule alias — is now
+    // refused by the same typed gate, and the body is untouched.
+    assert!(matches!(
+        body.set_edge_curve(edge, mk(PI + 8.0 * TAU)).unwrap_err(),
+        EulerOpError::Certification {
+            error: geom_brep::CertifyError::WindingExceeded
+        }
+    ));
+    // The honest half-circle interval attaches through the gate. (Its
+    // apex genuinely bulges off the front face's plane, so tier 3's
+    // new planar-boundary pass — the S3 fix, previous test — reports
+    // that geometric fact; what matters here is that no certification/
+    // winding error remains: the S1 gate's job is the winding.)
+    body.set_edge_curve(edge, mk(PI)).unwrap();
+    let errs = validate_geometric(&body).unwrap_err();
+    assert!(
+        errs.iter()
+            .all(|e| matches!(e, ValidationError::PlanarBoundaryResidual { .. })),
+        "honest interval at rest: only the S3 boundary report remains: {errs:?}"
     );
 }
 
-/// FINDING: tier 3's dihedral pass is VACUOUS on self-loop edges (chord
-/// = 0 ⇒ margin = 0 ⇒ definitely Smooth): a circular scaffolding face
-/// whose surface is a plane a full meter away from its own boundary
-/// circle — and at a genuine 90-degree wedge to its neighbor — passes
-/// tier 3 clean. The same zero-arm fold that refuses full-period
-/// Intersection rims (geom-brep suite) here ACCEPTS garbage silently.
+/// FIXED (was `finding_self_loop_dihedral_is_vacuous_at_rest`, B2+S3):
+/// tier 3 used to be blind on self-loop edges (chord = 0 ⇒ margin = 0
+/// ⇒ vacuously Smooth, and no boundary containment at all): a circular
+/// scaffolding face claiming a plane a full meter away from its own
+/// boundary circle — at a genuine 90° wedge to its neighbor — passed
+/// clean. Now the extent arm is the carrier diameter (the 90° wedge
+/// classifies definitely Transverse — real teeth, no sliver report),
+/// and the planar-boundary pass reports the boundary circle lying off
+/// the claimed plane.
 #[test]
-fn finding_self_loop_dihedral_is_vacuous_at_rest() {
+fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::origin()).unwrap();
     let seg = body
@@ -609,16 +639,128 @@ fn finding_self_loop_dihedral_is_vacuous_at_rest() {
         .unwrap();
     // The circular face claims the y = 0 plane — its boundary circle
     // reaches y = ±1, a meter off; and its wedge against z = 0 is a
-    // true right angle. Both are invisible: chord 0 ⇒ Smooth.
+    // true right angle. The wedge now classifies definitely Transverse
+    // through the honest carrier-diameter arm (no vacuous Smooth, no
+    // sliver report), and the containment breach is reported by name.
     body.set_face_surface(circ.face, FaceSurface::New(y0))
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     assert_eq!(
         validate_geometric(&body),
-        Ok(()),
-        "FINDING pinned: self-loop edges make tier 3's dihedral and \
-         containment blind"
+        Err(vec![ValidationError::PlanarBoundaryResidual {
+            face: circ.face,
+            edge: circ.edge,
+        }]),
+        "tier 3 must see the self-loop boundary leave its claimed plane"
     );
+}
+
+// =====================================================================
+// N4 (fix pass) — raw-operator precondition coverage: the sugar
+// wrappers (`mev_line`, `mef_chord`) pre-resolve site keys/points
+// before delegating, so through-sugar tests exercised the sugar's own
+// resolution errors while the RAW operators' documented precondition
+// paths went unexercised. These call the raw ops directly with
+// well-formed specs and assert the documented first-failing
+// precondition, body untouched (deep snapshot).
+// =====================================================================
+
+/// Raw `mev` preconditions: stale Fan half-edge, Fan start mismatch,
+/// Lone on a non-empty loop — each the raw operator's own typed error,
+/// each leaving the body deep-equal.
+#[test]
+fn fixed_n4_raw_mev_precondition_paths() {
+    let (mut body, _seed, _mefs) = triangle_prism::<f64>();
+    let snapshot = |b: &Body<f64>| format!("{b:?}");
+    let before = snapshot(&body);
+    let p = Point3::new(9.0, 9.0, 9.0);
+    let spec = EdgeCurveSpec::line_between(Point3::origin(), p);
+
+    // Stale he1 (the raw Fan resolution path, not the sugar's).
+    let stale = topo::HalfEdgeKey::default();
+    let err = body
+        .mev(
+            MevSite::Fan {
+                he1: stale,
+                he2: stale,
+            },
+            p,
+            spec,
+        )
+        .unwrap_err();
+    assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
+    assert_eq!(snapshot(&body), before, "stale Fan mutated body");
+
+    // Fan halves starting at different vertices: FanStartMismatch.
+    let hes: Vec<_> = body.half_edges().map(|(k, he)| (k, he.start)).collect();
+    let (he1, s1) = hes[0];
+    let (he2, _) = hes
+        .iter()
+        .copied()
+        .find(|&(_, s)| s != s1)
+        .expect("prism has half-edges at distinct vertices");
+    let err = body.mev(MevSite::Fan { he1, he2 }, p, spec).unwrap_err();
+    assert!(
+        matches!(err, EulerOpError::FanStartMismatch { .. }),
+        "{err:?}"
+    );
+    assert_eq!(snapshot(&body), before, "fan mismatch mutated body");
+
+    // Lone on a non-empty (cycle) loop: LoopNotEmpty from the raw op.
+    let cycle_loop = body.get_half_edge(he1).unwrap().parent_loop;
+    let err = body
+        .mev(MevSite::Lone { r#loop: cycle_loop }, p, spec)
+        .unwrap_err();
+    assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");
+    assert_eq!(snapshot(&body), before, "lone-on-cycle mutated body");
+}
+
+/// Raw `mef` preconditions: stale Chords half-edge, Chords across two
+/// loops, Lone on a non-empty loop — each the raw operator's own typed
+/// error, each leaving the body deep-equal.
+#[test]
+fn fixed_n4_raw_mef_precondition_paths() {
+    let (mut body, _seed, _mefs) = triangle_prism::<f64>();
+    let snapshot = |b: &Body<f64>| format!("{b:?}");
+    let before = snapshot(&body);
+    let spec = EdgeCurveSpec::line_between(Point3::origin(), Point3::new(9.0, 9.0, 9.0));
+
+    // Stale he2 in a Chords site.
+    let he1 = body.half_edges().next().map(|(k, _)| k).unwrap();
+    let stale = topo::HalfEdgeKey::default();
+    let err = body
+        .mef(
+            MefSite::Chords { he1, he2: stale },
+            spec,
+            FaceSurface::Inherit,
+        )
+        .unwrap_err();
+    assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
+    assert_eq!(snapshot(&body), before, "stale Chords mutated body");
+
+    // Chords across two different loops: NotSameLoop.
+    let l1 = body.get_half_edge(he1).unwrap().parent_loop;
+    let hes: Vec<_> = body
+        .half_edges()
+        .map(|(k, he)| (k, he.parent_loop))
+        .collect();
+    let (he2, _) = hes
+        .iter()
+        .copied()
+        .find(|&(_, l)| l != l1)
+        .expect("prism has multiple loops");
+    let err = body
+        .mef(MefSite::Chords { he1, he2 }, spec, FaceSurface::Inherit)
+        .unwrap_err();
+    assert!(matches!(err, EulerOpError::NotSameLoop { .. }), "{err:?}");
+    assert_eq!(snapshot(&body), before, "cross-loop Chords mutated body");
+
+    // Lone on a non-empty (cycle) loop: LoopNotEmpty from the raw op.
+    let err = body
+        .mef(MefSite::Lone { r#loop: l1 }, spec, FaceSurface::Inherit)
+        .unwrap_err();
+    assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");
+    assert_eq!(snapshot(&body), before, "lone-on-cycle mutated body");
 }
 
 // =====================================================================
@@ -628,78 +770,47 @@ fn finding_self_loop_dihedral_is_vacuous_at_rest() {
 #[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
-    use geom_brep::CertCheck;
     use geom_core::{Interval, Real};
 
-    /// FINDING (BLOCKER): the mini-extrude e2e CANNOT run at the
-    /// interval scalar. The very first non-axis-aligned rim mint (the
-    /// B → C profile edge) is refused: `carrier(t1) = B + dir·len`
-    /// does not reproduce C's singleton exactly, the difference
-    /// enclosure straddles zero, `norm`'s `sqrt(dot(v,v))` squares the
-    /// straddle through plain interval Mul (negative lo), the sqrt
-    /// clamps to decoration Trv, and Decide reads that as poison:
-    /// `Escalated { EndpointEnd, margin: Invalid }`. Consequence: the
-    /// interval replay lane (Q1's pure-replay model) only works for
-    /// exactly-dyadic axis-aligned geometry — the existing interval
-    /// cube tests pass by that accident, and PR 4's extrude (any real
-    /// profile) will be uncertifiable at Interval until the distance
-    /// enclosures are computed poison-free (tight even powers /
-    /// pown-style squaring in `norm_squared`, or an at-zero clamp that
-    /// preserves the decoration).
+    /// FIXED (was `finding_interval_lane_refuses_non_dyadic_rims`,
+    /// BLOCKER B1): the mini-extrude e2e could not run at the interval
+    /// scalar — the very first non-axis-aligned rim mint was refused
+    /// because `norm`'s old `sqrt(dot(v,v))` squared a zero-straddling
+    /// difference enclosure through plain interval `Mul` (negative
+    /// lo), the sqrt clamped, and the decoration poisoned every
+    /// decision. With `norm_squared` computing tight per-component
+    /// squares, the FULL mini-extrude e2e now runs at `Interval`:
+    /// non-dyadic rims, Newell side planes, the seed-cap setter, tiers
+    /// 1–3 clean, and the prefer-intrinsic upgrade of all nine edges —
+    /// Q1's replay lane works for real (non-dyadic) geometry, which is
+    /// exactly what PR 4's extrude and PR 5's revolve need.
     #[test]
-    fn finding_interval_lane_refuses_non_dyadic_rims() {
-        let f = Interval::from_f64;
-        let b3 = Point3::new(f(1.0), f(0.0), f(0.0));
-        let c3 = Point3::new(f(0.3), f(0.8), f(0.0));
-        let mut body = Body::<Interval>::new();
-        let seed = body.mvfs(b3).unwrap();
-        // The rim spec exactly as the prism builder constructs it.
-        let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Line {
-                    a: Point2::new(f(1.0), f(0.0)),
-                    b: Point2::new(f(0.3), f(0.8)),
-                },
-                place: Affine3::identity(),
-            }),
-            carrier: Curve3::Line {
-                origin: b3,
-                dir: (c3 - b3) / b3.distance(c3),
-            },
-            param_start: Interval::from_f64(0.0),
-            param_end: b3.distance(c3),
-        };
-        let err = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                c3,
-                spec,
-            )
-            .unwrap_err();
+    fn fixed_interval_lane_runs_full_mini_extrude_e2e() {
+        let (mut body, _seed, _mefs) = triangle_prism::<Interval>();
+        assert_eq!(body.vertices().count(), 6);
+        assert_eq!(body.edges().count(), 9);
+        assert_eq!(body.faces().count(), 5);
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(validate_closed(&body), Ok(()));
+        assert_eq!(validate_geometric(&body), Ok(()));
+        // The prefer-intrinsic upgrade at the interval scalar.
+        common::upgrade_edges_to_intersections(&mut body);
+        assert_eq!(validate_geometric(&body), Ok(()));
         assert!(
-            matches!(
-                err,
-                EulerOpError::Certification {
-                    error: geom_brep::CertifyError::Escalated {
-                        check: CertCheck::EndpointEnd,
-                        ..
-                    }
-                }
-            ),
-            "FINDING pinned: interval lane refuses non-dyadic geometry: {err:?}"
+            body.curves()
+                .all(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
         );
     }
 
-    /// FINDING (same blocker, scaffolding side): the self-loop sugar —
-    /// `mef_chord` on a self-loop site attaches the canonical circle —
-    /// is refused at Interval even on fully dyadic coordinates (the
-    /// full-period endpoint at tau is inexact). Interval REPLAY of any
-    /// f64 history that used self-loop scaffolding therefore fails,
-    /// breaking Q1's replay-shares-topology story.
+    /// FIXED (was `finding_interval_lane_refuses_self_loop_scaffolding`,
+    /// B1's scaffolding side): the self-loop sugar — `mef_chord` on a
+    /// self-loop site attaches the canonical circle — was refused at
+    /// Interval even on fully dyadic coordinates (the full-period
+    /// endpoint at tau is inexact). It now certifies: interval REPLAY
+    /// of f64 histories that used self-loop scaffolding works, keeping
+    /// Q1's replay-shares-topology story intact.
     #[test]
-    fn finding_interval_lane_refuses_self_loop_scaffolding() {
+    fn fixed_interval_lane_certifies_self_loop_scaffolding() {
         let f = Interval::from_f64;
         let mut body = Body::<Interval>::new();
         let seed = body.mvfs(Point3::new(f(0.0), f(0.0), f(0.0))).unwrap();
@@ -717,17 +828,16 @@ mod interval_lane {
                 he2: seg.he_minus,
             })
             .unwrap(); // dyadic digon chord: certifies
-        // The self-loop site: the sugar's scaffolding circle poisons.
-        let err = body
+        // The self-loop site: the sugar's scaffolding circle now
+        // certifies at Interval (tight squares ⇒ clean [0, hi]
+        // residual enclosures ⇒ Zero, decoration intact).
+        let circ = body
             .mef_chord(MefSite::Chords {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
             })
-            .unwrap_err();
-        assert!(
-            matches!(err, EulerOpError::Certification { .. }),
-            "FINDING pinned: self-loop scaffolding dies at Interval: {err:?}"
-        );
-        let _ = split;
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let _ = (split, circ);
     }
 }
