@@ -58,11 +58,14 @@ assemblies/drawings-HLR/feature-breadth; product infra) and a "Tabled
 (far future)" section (interval-transcendentals reimplementation
 moved there from the roadmap). **Sequencing stance: usable-as-library
 before any GUI.** M2-PLAN PR 6 amended: mesh entity back-references +
-empty `Appearance` container. Open design threads: selection
-stability / naming resolution needs its own pre-M4 design doc; GUI
-architecture (abstract edit vocabulary vs. concrete interaction
-layer) under discussion with Evan — layering intent agreed, nothing
-else ratified.
+empty `Appearance` container. **docs/GUI-DESIGN.md exists
+(Evan-ratified 2026-07-19)**: G1 three-layer split (kernel /
+headless `editor-core` — now in the crate table — / interaction),
+edit-vocabulary-as-data, selection type = stable-name type. **Pre-M4
+blockers: GQ1 solver/replay boundary (proposed witness+certify) and
+GQ2 partial-build semantics (proposed per-node result DAG)** — plus
+GQ3–GQ7; selection stability / naming still needs its own pre-M4
+design doc.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across

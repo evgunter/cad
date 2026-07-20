@@ -485,7 +485,8 @@ Each layer depends only on the layers below it.
 | `kernel-ops` | Primitives; extrude/revolve/sweep (build B-reps directly, no booleans needed — hence early); then booleans; then fillets/shell/offset |
 | `model` | Parametric layer: parameter space, feature DAG, persistent naming; later the sketch constraint solver |
 | `mesh` / `interop` | Tessellation, STL export, STEP export (import much harder — deferred) |
-| `viewer` | Deferred (GUI last). When needed: thin wgpu tessellation viewer, or `rerun` for zero-effort demos |
+| `editor-core` | *(added 2026-07-19)* Headless document/editor layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
+| `viewer` | Deferred (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
 
 The API-first discipline falls out of this: layers 1–5 *are* the product,
 exercised entirely by tests and code-driven models (CadQuery/OpenSCAD-style
@@ -556,8 +557,11 @@ feature breadth yields a genuinely usable code-first tool years
 before an interactive application could exist. The GUI is a separate
 layer and effectively a second project of comparable size to the
 kernel (Fornjot's postmortem and Zoo's app-team scale are the
-evidence); its architecture is under active discussion and will be
-ratified into its own design doc, not this section.
+evidence); its architecture lives in **`docs/GUI-DESIGN.md`** (G1
+three-layer split ratified 2026-07-19: kernel / headless
+`editor-core` / interaction; GQ1–GQ7 open — GQ1 solver-replay
+boundary and GQ2 partial-build semantics constrain M4 and must be
+resolved before M4 planning).
 
 ### Band 1 — kernel-side services an interactive client requires
 
@@ -589,9 +593,10 @@ kernel exports these. None are research; all are load-bearing:
   before M4 planning**, with the explicit goal that our architecture
   (D5 birth provenance + D8 recipe node IDs + D9 replay) makes
   correct resolution *structurally* easy — as much "automatic" as the
-  design can extract. Direction under discussion: the GUI's selection
-  type and the recipe's entity references are **the same type** (a
-  stable name), so the naming problem is solved once, not twice.
+  design can extract. Ratified 2026-07-19 (GUI-DESIGN.md G1): the
+  GUI's selection type and the recipe's entity references are **the
+  same type** (a stable name), so the naming problem is solved once,
+  not twice.
 - **Appearance attributes (design-now, as an empty container).**
   Per-face/body display attributes (color, name, visibility) must
   live somewhere that survives recompute — which means they attach

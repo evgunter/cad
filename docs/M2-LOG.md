@@ -269,6 +269,22 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   GUI architecture (abstract edit-vocabulary layer vs. concrete
   interaction layer — discussion ongoing, nothing ratified beyond
   the layering intent).
+- **`docs/GUI-DESIGN.md` created (Evan-ratified in the same
+  conversation, second round)**: G1 three-layer architecture
+  (kernel / headless `editor-core` / interaction) with type-level
+  boundary rules (no arena keys past layer 2; transient state never
+  in the document; preview/commit structural; layer 3
+  headless-testable); G2 sketcher-as-nested-editor; micro-decisions
+  (expression-drag refuses with affordance — replaceable;
+  error presentation case-by-case over typed renderable values;
+  preview may degrade chordal tolerance, never ε). `editor-core`
+  added to DESIGN.md's crate table. **Pre-M4 blockers flagged: GQ1
+  (solver/replay boundary — proposed witness-plus-certification, the
+  `Intersection{witness}` pattern one level up; creates an ezpz
+  bit-identity audit item) and GQ2 (partial-build semantics —
+  proposed per-node result DAG)**; also GQ3 edit persistence, GQ4
+  document scope, GQ5 units-in-expressions (at M4), GQ6 toolkit
+  (re-survey at GUI time), GQ7 selection mechanics.
 
 ## Reference acquisitions (2026-07-18)
 
