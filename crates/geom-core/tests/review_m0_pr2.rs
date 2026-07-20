@@ -346,7 +346,7 @@ fn tolerance_child(mode: &str) {
         }
         // Explicit init first, then get; env must be ignored entirely.
         "init-then-get" => {
-            let mine = Tolerance { eps: 7e-7 };
+            let mine = Tolerance::with_eps(7e-7);
             assert_eq!(Tolerance::init(mine), Ok(()));
             assert_eq!(Tolerance::get(), mine, "env (1e-6) must be ignored");
             assert!(
@@ -354,7 +354,7 @@ fn tolerance_child(mode: &str) {
                 "init never consults the environment, records nothing"
             );
             // Second init: typed AlreadyInitialized with both values.
-            let attempted = Tolerance { eps: 1e-3 };
+            let attempted = Tolerance::with_eps(1e-3);
             assert_eq!(
                 Tolerance::init(attempted),
                 Err(ToleranceError::AlreadyInitialized {
@@ -368,7 +368,7 @@ fn tolerance_child(mode: &str) {
         "get-then-init" => {
             let committed = Tolerance::get();
             assert_eq!(committed.eps, 3e-8, "env value wins on first get");
-            let attempted = Tolerance { eps: 5e-5 };
+            let attempted = Tolerance::with_eps(5e-5);
             assert_eq!(
                 Tolerance::init(attempted),
                 Err(ToleranceError::AlreadyInitialized {
@@ -389,7 +389,7 @@ fn tolerance_child(mode: &str) {
         // following get() still resolves from env.
         "bad-init-then-get" => {
             assert_eq!(
-                Tolerance::init(Tolerance { eps: -1.0 }),
+                Tolerance::init(Tolerance::with_eps(-1.0)),
                 Err(ToleranceError::InvalidValue { value: -1.0 })
             );
             assert_eq!(

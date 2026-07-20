@@ -26,7 +26,7 @@
 //!
 //! A [`Band`] carries two thresholds: `zero` (the coincidence threshold —
 //! ε for a linear margin, or the derived angle ε/r for an angular margin at
-//! lever arm r) and `escalate` (= K·`zero`, with K = [`AMBIGUITY_K`]).
+//! lever arm r) and `escalate` (= K·`zero`, with K the run-configured multiplier [`Tolerance::get().k`](crate::tolerance::Tolerance), default [`DEFAULT_K`] = 10).
 //! Classification at `f64`:
 //!
 //! - |m| ≤ `zero` — **coincident**: [`Sign::Zero`].
@@ -52,7 +52,7 @@
 //! Zero region subtly smaller than the *defined* coincidence region. In
 //! fairness to that reading, its K = 1 + η/ε would be a *measurable*
 //! quantity — derived from an actual per-predicate noise bound — whereas
-//! the sliver band's K = [`AMBIGUITY_K`] = 10 is a semantic choice, an
+//! the sliver band's K (default [`DEFAULT_K`] = 10; run-configurable since M2 PR 7) is a semantic choice, an
 //! honest guess about how much clearance beyond ε sound geometry needs,
 //! pending the M0 multi-ε experiments. We take the design statement over
 //! the measured buffer here, but the buffer reading's K is the more
@@ -113,19 +113,19 @@ use core::fmt;
 use crate::real::Real;
 use crate::tolerance::Tolerance;
 
-/// The ambiguity multiplier K: a band's `escalate` threshold is K times
-/// its `zero` threshold (K·ε for [`Band::linear`], K·(ε/r) for
+/// The **default** ambiguity multiplier K = 10, re-exported from the
+/// tolerance module: a band's `escalate` threshold is K times its
+/// `zero` threshold (K·ε for [`Band::linear`], K·(ε/r) for
 /// [`Band::angular_at`] at lever arm r).
 ///
-/// **Provisional.** K = 10 is the starting constant for the sliver-band
-/// reading (see the [module docs](self)): the band is a semantic design
-/// statement, so K is a choice about how much clearance beyond ε sound
-/// geometry must have, not a measured noise figure. DESIGN.md defers the
-/// final value to the M0 multi-ε experiments. Single definition site by
-/// design; a `const`, not env-configurable — piggyback on the tolerance
-/// env mechanism ([`crate::tolerance::ENV_EPS`]) later only if the
-/// experiments demand per-run variation.
-pub const AMBIGUITY_K: f64 = 10.0;
+/// Since M2 PR 7 (Evan-directed) K is an ε-style once-per-run
+/// configured value — [`Tolerance::get().k`](Tolerance), overridable
+/// via [`crate::tolerance::ENV_K`] — exactly the growth path this
+/// constant's original doc anticipated ("piggyback on the tolerance
+/// env mechanism later only if the experiments demand per-run
+/// variation"). The default remains the ratified 10 (the M2 K report
+/// found no empirical pressure to move it — `docs/K-REPORT.md`).
+pub use crate::tolerance::DEFAULT_K;
 
 /// The definite outcome of a sign classification: which side of zero a
 /// margin certifiably lies on, at the tolerance's resolution.
@@ -339,7 +339,7 @@ impl Band {
     }
 
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
-    /// global [`Tolerance`] and [`AMBIGUITY_K`].
+    /// global [`Tolerance`] (its ε and its K).
     ///
     /// Call this once at operation entry, not inside a predicate: the
     /// operation's error enum absorbs the [`BandError`] via `?`, and the
@@ -401,12 +401,21 @@ impl Band {
         Self::from_zero_threshold(Tolerance::get().eps / lever_arm)
     }
 
-    /// The pure part of [`Band::linear`] / [`Band::angular_at`]: the band
-    /// (t, K·t) for a coincidence threshold t. Kept separate so the
-    /// scaling policy is unit-testable without touching the global
-    /// tolerance (the funnel-test discipline in `crate::tolerance`).
+    /// The shared part of [`Band::linear`] / [`Band::angular_at`]: the
+    /// band (t, K·t) for a coincidence threshold t, with K the run's
+    /// configured ambiguity multiplier ([`Tolerance::get().k`](Tolerance)
+    /// — ε-style once-per-run configuration since M2 PR 7; default
+    /// [`DEFAULT_K`] = 10). The pure scaling policy is
+    /// [`Band::from_thresholds`], unit-testable without the global.
     fn from_zero_threshold(zero: f64) -> Result<Self, BandError> {
-        Self::new(zero, AMBIGUITY_K * zero)
+        Self::from_thresholds(zero, Tolerance::get().k)
+    }
+
+    /// The pure scaling policy: the band (t, k·t) for a coincidence
+    /// threshold t and multiplier k (the funnel-test discipline in
+    /// `crate::tolerance` — testable without the global `OnceLock`).
+    fn from_thresholds(zero: f64, k: f64) -> Result<Self, BandError> {
+        Self::new(zero, k * zero)
     }
 
     /// The coincidence threshold: margins with |m| ≤ `zero` classify as
@@ -787,9 +796,9 @@ mod tests {
     /// global-coupled wrappers are tested in `tests/band_tolerance.rs`).
     #[test]
     fn from_zero_threshold_scales_by_ambiguity_k() {
-        let band = Band::from_zero_threshold(2.5e-7).unwrap();
+        let band = Band::from_thresholds(2.5e-7, DEFAULT_K).unwrap();
         assert_eq!(band.zero(), 2.5e-7);
-        assert_eq!(band.escalate(), AMBIGUITY_K * 2.5e-7);
+        assert_eq!(band.escalate(), DEFAULT_K * 2.5e-7);
 
         // The documented failure residue: a threshold within a factor K
         // of f64::MAX overflows the escalate product to infinity and is

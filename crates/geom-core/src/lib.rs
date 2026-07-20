@@ -31,7 +31,7 @@ pub use interval::Interval;
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{Affine2, Affine3, Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
-    AMBIGUITY_K, Band, BandError, BandField, Decide, Indeterminate, MarginDiag, Sign,
+    Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign,
 };
 pub use real::{Bounds, Real};
 pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};

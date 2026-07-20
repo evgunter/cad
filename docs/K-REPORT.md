@@ -81,6 +81,23 @@ CSVs in `docs/k-report-data/eps-{1e-6,1e-9,1e-12}.csv`
 (columns: shape, predicate, margin, band_zero, band_escalate,
 outcome).
 
+### Counterfactual K (Evan-requested, #41)
+
+Every `MarginSample` records the margin and `band_zero`, so outcome
+counts for ANY candidate K are derivable post hoc from the normalized
+ratios — no per-K reruns. For candidates K ∈ {3, 10, 30, 100}, over
+the samples with |m|/ε > 1 (the population a K converts):
+
+| ε row | would-be escalations (any K in {3,10,30,100}) | definites within a decade above the candidate | min |m|/ε |
+|-------|--:|--:|--:|
+| 1e-6  | 0 | 0 | 1e4  |
+| 1e-9  | 0 | 0 | 1e7  |
+| 1e-12 | 0 | 0 | 1e10 |
+
+Even K = 100 converts nothing at ε = 1e-6, and no definite margin sits
+within a decade of any candidate's boundary. The decision surface is
+completely flat across the candidate range on this corpus.
+
 ## Findings
 
 1. **The band is empty in practice.** Across 39 846 decisions ×
@@ -100,17 +117,26 @@ outcome).
    `(τ − θ)·r` on near-full partial revolves — a margin the USER
    controls (their θ), not evaluation noise. Even θ = τ − 0.01 clears
    Kε by 3 decades at ε = 1e-6.
-4. **What this corpus cannot show**: intersections/booleans (M3) are
-   where near-coincident geometry is *computed* rather than input;
-   the bimodal gap will narrow there. The M2 data is the clean-lane
-   baseline, not the adversarial case.
+4. **What this corpus cannot show** (scoping, per Evan): M2's native
+   constructions are a **well-conditioned corpus** — profile-validated
+   inputs, sweep-generated geometry, margins the modeler controls.
+   The expectation is that the strongest K evidence arrives at **D7
+   import-adoption time** (foreign geometry with real residuals and
+   near-coincidences not of our making), with M3's booleans/SSI
+   (computed intersections) the other pressure source. This report's
+   claims are scoped to the native-construction corpus accordingly.
 
 ## Draft recommendation
 
-**Keep K = 10.** The M2 telemetry gives no empirical pressure to move
-it in either direction: the band converted zero decisions at any
-tested ε, so the constant is currently free — and a free parameter
-should keep its ratified, documented value rather than churn.
+**Keep K = 10 as the default.** The M2 telemetry gives no empirical
+pressure to move it in either direction: the band converted zero
+decisions at any tested ε — and the counterfactual table shows every
+candidate in {3, 10, 30, 100} behaves identically on this corpus — so
+the value is currently free, and a free parameter should keep its
+ratified, documented default rather than churn. (Per Evan's #41
+direction, K is now ε-style per-run configuration —
+`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10 — so future
+corpora can probe alternatives without code changes.)
 Retaining a full decade of escalation headroom above ε remains the
 right *a-priori* posture for M3, where boolean/SSI margins will be
 computed quantities with real conditioning error; revisit with the

@@ -4,7 +4,7 @@
 //! The recording machinery (the [`MarginSample`] sink, the [`Probe`]
 //! scalar, and the [`decide`] funnel) started life in this crate (M2
 //! PR 2's K-experiment hook) and moved to `geom-core` next to
-//! `Band`/`Decide`/`AMBIGUITY_K` when PR 7 wired every crate's
+//! `Band`/`Decide`/the K configuration when PR 7 wired every crate's
 //! predicates to one recorder. This module remains as the
 //! compatibility surface for existing consumers (the promoted PR 2
 //! review suites among them); new code should reach for

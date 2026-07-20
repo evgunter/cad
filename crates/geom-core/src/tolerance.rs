@@ -48,6 +48,16 @@ pub const ENV_EPS: &str = "CAD_TOLERANCE_EPS";
 /// coverage with ~4 orders of f64 headroom at km scale.
 pub const DEFAULT_EPS: f64 = 1e-9;
 
+/// Environment variable consulted for the ambiguity multiplier K on
+/// `get()` self-initialization (Evan-directed at M2 PR 7: K joins ε as
+/// an ε-style once-per-run configured value; previously a hard const).
+pub const ENV_K: &str = "CAD_AMBIGUITY_K";
+
+/// Compiled default for the ambiguity multiplier K = 10 (the ratified
+/// M0 starting value; the M2 K report found no empirical pressure to
+/// move it — `docs/K-REPORT.md`).
+pub const DEFAULT_K: f64 = 10.0;
+
 /// The kernel's global tolerance (D4 ¶1, as revised 2026-07-16): one ε per
 /// run, shared by all bodies, never loosened mid-run.
 ///
@@ -71,6 +81,18 @@ pub const DEFAULT_EPS: f64 = 1e-9;
 pub struct Tolerance {
     /// Linear tolerance ε, in meters.
     pub eps: f64,
+    /// The ambiguity multiplier K (dimensionless, > 1): a band's
+    /// `escalate` threshold is K times its `zero` threshold (K·ε for
+    /// linear bands, K·(ε/r) for angular ones). One value per run,
+    /// never changed after commitment — exactly ε's invariant (D4 ¶1).
+    /// Configured like ε: [`Tolerance::init`] or the [`ENV_K`] env var
+    /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Evan-directed
+    /// at M2 PR 7; previously the hard `AMBIGUITY_K` const). Like ε, K
+    /// is expected to become per-model persisted configuration with a
+    /// recorded change operation in the document layer (the banked
+    /// SetTolerance/change-ε principle extends to K) — future work,
+    /// noted here only.
+    pub k: f64,
 }
 
 /// Typed error from [`Tolerance::init`] (D9: every failure is a typed
@@ -80,6 +102,15 @@ pub enum ToleranceError {
     /// The attempted `Tolerance`'s `eps` is not finite and strictly
     /// positive.
     InvalidValue {
+        /// The rejected value.
+        value: f64,
+    },
+    /// The attempted `Tolerance`'s `k` is not finite and strictly
+    /// greater than 1 (K ≤ 1 would make every band's open ambiguity
+    /// interval (ε, K·ε) empty over the reals — rejected here for the
+    /// same reason [`crate::predicate::BandError::Empty`] rejects it
+    /// per band).
+    InvalidK {
         /// The rejected value.
         value: f64,
     },
@@ -100,11 +131,15 @@ impl fmt::Display for ToleranceError {
                 f,
                 "invalid tolerance: eps = {value:e} (must be finite and > 0)"
             ),
+            Self::InvalidK { value } => write!(
+                f,
+                "invalid tolerance: k = {value:e} (must be finite and > 1)"
+            ),
             Self::AlreadyInitialized { current, attempted } => write!(
                 f,
-                "tolerance already initialized to eps = {:e}; attempted eps = {:e} \
-                 — one value per run (D4)",
-                current.eps, attempted.eps
+                "tolerance already initialized to eps = {:e}, k = {}; attempted \
+                 eps = {:e}, k = {} — one value per run (D4)",
+                current.eps, current.k, attempted.eps, attempted.k
             ),
         }
     }
@@ -203,12 +238,13 @@ fn resolve_var(
     lookup: &impl Fn(&str) -> Option<String>,
     var: &'static str,
     default: f64,
+    valid: impl Fn(f64) -> bool,
 ) -> (f64, Option<ToleranceEnvError>) {
     let Some(raw) = lookup(var) else {
         return (default, None);
     };
     match raw.parse::<f64>() {
-        Ok(value) if value.is_finite() && value > 0.0 => (value, None),
+        Ok(value) if value.is_finite() && valid(value) => (value, None),
         Ok(value) => (
             default,
             Some(ToleranceEnvError {
@@ -233,22 +269,33 @@ fn resolve_var(
 /// touching the process environment or the global `OnceLock`; the
 /// `OnceLock` wrapper above is a thin shell over this.
 ///
-/// Only ε is consulted today, so the returned `Vec` holds at most one
-/// error; it is a `Vec` (not an `Option`) to keep the recording shape
-/// stable as future run-global config vars are added.
+/// ε ([`ENV_EPS`], finite and > 0) and K ([`ENV_K`], finite and > 1)
+/// are consulted; the returned `Vec` holds at most one error per var.
 fn resolve_from_env(
     lookup: impl Fn(&str) -> Option<String>,
 ) -> (Tolerance, Vec<ToleranceEnvError>) {
-    let (eps, eps_err) = resolve_var(&lookup, ENV_EPS, DEFAULT_EPS);
-    let env_errors = eps_err.into_iter().collect();
-    (Tolerance { eps }, env_errors)
+    let (eps, eps_err) = resolve_var(&lookup, ENV_EPS, DEFAULT_EPS, |v| v > 0.0);
+    let (k, k_err) = resolve_var(&lookup, ENV_K, DEFAULT_K, |v| v > 1.0);
+    let env_errors = eps_err.into_iter().chain(k_err).collect();
+    (Tolerance { eps, k }, env_errors)
 }
 
 impl Tolerance {
-    /// Validates that `eps` is finite and strictly positive.
+    /// A tolerance with the given ε and the default K
+    /// ([`DEFAULT_K`]) — the pre-PR 7 construction shape, kept as the
+    /// ergonomic constructor for callers who only care about ε.
+    pub fn with_eps(eps: f64) -> Self {
+        Self { eps, k: DEFAULT_K }
+    }
+
+    /// Validates that `eps` is finite and strictly positive and `k`
+    /// finite and strictly greater than 1.
     fn validate(self) -> Result<(), ToleranceError> {
         if !(self.eps.is_finite() && self.eps > 0.0) {
             return Err(ToleranceError::InvalidValue { value: self.eps });
+        }
+        if !(self.k.is_finite() && self.k > 1.0) {
+            return Err(ToleranceError::InvalidK { value: self.k });
         }
         Ok(())
     }
@@ -347,7 +394,7 @@ mod tests {
     #[test]
     fn env_absent_yields_default_without_error() {
         let (t, err) = resolve_from_env(table(&[]));
-        assert_eq!(t, Tolerance { eps: DEFAULT_EPS });
+        assert_eq!(t, Tolerance::with_eps(DEFAULT_EPS));
         assert!(err.is_empty());
     }
 
@@ -355,17 +402,17 @@ mod tests {
     fn env_well_formed_value_wins() {
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, "1e-6")]));
         assert!(err.is_empty());
-        assert_eq!(t, Tolerance { eps: 1e-6 });
+        assert_eq!(t, Tolerance::with_eps(1e-6));
 
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, "2.5e-8")]));
         assert!(err.is_empty());
-        assert_eq!(t, Tolerance { eps: 2.5e-8 });
+        assert_eq!(t, Tolerance::with_eps(2.5e-8));
     }
 
     #[test]
     fn env_malformed_value_defaults_and_records() {
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, "bogus")]));
-        assert_eq!(t, Tolerance { eps: DEFAULT_EPS });
+        assert_eq!(t, Tolerance::with_eps(DEFAULT_EPS));
         assert_eq!(
             err,
             vec![ToleranceEnvError {
@@ -423,9 +470,9 @@ mod tests {
     #[test]
     fn init_rejects_invalid_values_without_initializing() {
         let cases = [
-            (Tolerance { eps: -1e-9 }, -1e-9),
-            (Tolerance { eps: f64::INFINITY }, f64::INFINITY),
-            (Tolerance { eps: 0.0 }, 0.0),
+            (Tolerance::with_eps(-1e-9), -1e-9),
+            (Tolerance::with_eps(f64::INFINITY), f64::INFINITY),
+            (Tolerance::with_eps(0.0), 0.0),
         ];
         for (t, value) in cases {
             assert_eq!(
@@ -435,7 +482,7 @@ mod tests {
         }
         // NaN separately (NaN != NaN defeats assert_eq on the error).
         let err =
-            Tolerance::init(Tolerance { eps: f64::NAN }).expect_err("NaN eps must be rejected");
+            Tolerance::init(Tolerance::with_eps(f64::NAN)).expect_err("NaN eps must be rejected");
         assert!(matches!(
             err,
             ToleranceError::InvalidValue { value } if value.is_nan()
@@ -474,7 +521,7 @@ mod tests {
 
         // init after get: typed AlreadyInitialized carrying current and
         // attempted (D4: the tolerance cannot change mid-run).
-        let attempted = Tolerance { eps: 123.0 };
+        let attempted = Tolerance::with_eps(123.0);
         assert_eq!(
             Tolerance::init(attempted),
             Err(ToleranceError::AlreadyInitialized {
@@ -485,5 +532,61 @@ mod tests {
 
         // get is stable: same value on every subsequent call.
         assert_eq!(Tolerance::get(), t);
+    }
+    #[test]
+    fn env_k_well_formed_value_wins() {
+        let (t, err) = resolve_from_env(table(&[(ENV_K, "30")]));
+        assert!(err.is_empty());
+        assert_eq!(
+            t,
+            Tolerance {
+                eps: DEFAULT_EPS,
+                k: 30.0
+            }
+        );
+
+        let (t, err) = resolve_from_env(table(&[(ENV_EPS, "1e-6"), (ENV_K, "3.5")]));
+        assert!(err.is_empty());
+        assert_eq!(t, Tolerance { eps: 1e-6, k: 3.5 });
+    }
+
+    #[test]
+    fn env_k_invalid_or_malformed_defaults_and_records() {
+        // K must be strictly greater than 1: 1.0, 0.5, and negatives
+        // fall back to the default and record.
+        for raw in ["1.0", "0.5", "-3"] {
+            let (t, err) = resolve_from_env(table(&[(ENV_K, raw)]));
+            assert_eq!(t.k, DEFAULT_K);
+            let [e] = &err[..] else {
+                panic!("expected exactly one recorded error for {raw:?}");
+            };
+            assert_eq!(e.var, ENV_K);
+        }
+        let (t, err) = resolve_from_env(table(&[(ENV_K, "ten")]));
+        assert_eq!(t.k, DEFAULT_K);
+        assert_eq!(
+            err,
+            vec![ToleranceEnvError {
+                var: ENV_K,
+                raw: "ten".to_string(),
+                kind: ToleranceEnvErrorKind::Unparsable,
+            }]
+        );
+    }
+
+    #[test]
+    fn invalid_k_is_rejected_by_validate() {
+        for k in [1.0, 0.0, -2.0, f64::NAN, f64::INFINITY] {
+            let attempted = Tolerance {
+                eps: DEFAULT_EPS,
+                k,
+            };
+            match attempted.validate() {
+                Err(ToleranceError::InvalidK { value }) => {
+                    assert!(value.is_nan() || value == k);
+                }
+                other => panic!("k = {k}: expected InvalidK, got {other:?}"),
+            }
+        }
     }
 }
