@@ -37,3 +37,15 @@ The `mngr` CLI was broken for a stretch of M2 (azure plugin
 ImportError; workaround was reading the usage events.jsonl directly —
 see [[orchestration-model]]'s checklist); verified working again
 2026-07-20. Check `mngr --help` before relying on it.
+
+**Login caveat (learned 2026-07-20, first execution):** a freshly
+`mngr create`d agent starts NOT logged in (per-agent interactive
+OAuth — an orchestrator cannot clear it). Fallback that worked, per
+Evan: start `claude` in a SEPARATE detached tmux session (not a
+window of your own session — `mngr stop <you>` would kill it),
+same cwd, with your own `CLAUDE_CONFIG_DIR` env exported — the
+login rides the config dir. Consequence: the successor's auth
+lives in the PREDECESSOR's agent state dir — do not clean that
+dir while the successor runs. Confirm the model from the banner
+capture ("Fable 5 · Claude Max") before sending the prompt; a
+send-keys message may need a second Enter to submit.
