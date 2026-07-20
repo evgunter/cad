@@ -530,6 +530,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sweep"
+version = "0.0.0"
+dependencies = [
+ "geom-brep",
+ "geom-core",
+ "geom-curves",
+ "geom-surfaces",
+ "profile",
+ "proptest",
+ "topo",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"

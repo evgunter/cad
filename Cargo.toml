@@ -6,6 +6,7 @@ members = [
     "crates/geom-curves",
     "crates/geom-surfaces",
     "crates/profile",
+    "crates/sweep",
     "crates/topo",
 ]
 

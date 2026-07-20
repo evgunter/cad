@@ -308,6 +308,104 @@ Reviewer ran eight falsification assignments as executed programs
   period spans escalate (PR 2 handoff's certification-side
   counterpart); attach surfaces before curved re-descriptions.
 
+## PR 4 (sweep crate: extrude) — 2026-07-19/20
+
+- Implemented per binding spec (Fable, isolated worktree; overlapped
+  pipeline — implemented while PR 3 was under review, stacked on its
+  unreviewed branch). New crate `crates/sweep`:
+  `extrude(&ValidatedProfile, Extrusion{Vector|Distance}) →
+  Extruded{solid, shell, top, bottom, side_faces, strut_edges}`
+  (key-bundle return for PR 6/7 addressing); closed typed
+  `ExtrudeError`; §12.3 sweep re-derived under CCW (all six
+  mirror-check sites recorded in the report, incl. the "seed face is
+  the swept face" mirror of the book's choice and the PR 5 grounding
+  for rsweep/lamina-opening/loopglue); holes via bridge `mev` +
+  `kemr` Empty ring + strut chain + closing `mef` + same-shell
+  `kfmrh` (the genus supplier).
+- Conventions owned and documented once (lib.rs): extrusion vector
+  trilean-classified (normal component = the meter margin; oblique ⇒
+  typed error, deferred — sheared arcs sweep elliptic cylinders,
+  outside D3); the +n cap carries canonical winding (reversal
+  involution iff w·n < 0); arc carrier axis = turn-signed plane
+  normal; spans θ = 4·atan|b| from stored bulge (never atan2).
+- Notable judgment calls: NO separate placement parameter (the
+  profile carries its plane — a second one would be a
+  representation-consistency condition, PR 2's ratified lesson); cap
+  Newell over vertices + exact-sagitta arc apexes (2-vertex loops
+  under-determine a plane from vertices alone); kemr/kfmrh not
+  mekr/mfkrh (the spec's parenthetical named the wrong duals).
+- **Plan correction (intrinsic math, not a fork)**: "genus 0 with
+  rings" in M2-PLAN PR 4 is impossible — a through-holed extrusion
+  has genus h (square + 2-vertex hole: v−e+f−r = 12−18+8−2 = 0 ⇒
+  g = 1). Reviewer confirmed independently for h ∈ {1,2,3} against
+  the tier-1 component E–P validator.
+- The implementer independently found B1 (before the PR 3 review
+  report arrived — convergent diagnosis) and applied the byte-
+  identical norm_squared patch, then reverted it per orchestrator
+  coordination (PR 3 fix pass owns the fix).
+
+### PR 4 adversarial review (2026-07-19/20) — verdict: MERGEABLE, zero blockers, 1 SHOULD + 1 doc-SHOULD + 2 NITs
+
+- Nine assignments, all executed (suites `review_m2_pr4*`, 26 tests):
+  Euler hand-traces re-derived from topo's actual association rules
+  (digon/2-arc-hole/multi-hole executed incl. bitwise hand-traced
+  cycles); orientation via three oracles (tiers, cap Newell, an
+  independent divergence-fan signed volume — exact +4.5 on the
+  all-planar L both directions); canonical reversal maps pinned
+  bitwise; dihedral band sweep at the strut arm never wrongly
+  definite; cap Newell survives 1e8-offset arcs at all ε; interval
+  post-revert honest; determinism incl. debug-vs-release byte-
+  identical dumps; sub-ε oblique vector used bitwise as-given (no
+  hidden snapping); genus-h confirmed.
+- **SHOULD-1**: wrap-cosurface sharing short-circuited by prev-join
+  precedence — a ≥3-arc same-carrier run crossing the canonical
+  start split one identical-by-construction cylinder into two keys
+  (convention violation, not corruption — body stayed tier-valid).
+- **doc-SHOULD-2**: the interval caveat was over-broad — even
+  rectilinear holed profiles refused pre-B1-fix (the hole-planting
+  bridge chord is diagonal ⇒ non-dyadic direction); the ring surgery
+  itself proven sound at Interval via an axis-aligned staircase.
+- **NIT-1 (routed to PR 3)**: powi(2) Dual DERIVATIVE channel is not
+  bitwise-equal to the dot form (subnormal + 2x-overflow witnesses,
+  executed) — value channel unconditionally bit-identical; tangents
+  never decide, so doc-scoping only. **NIT-2**: CosurfaceEscalated
+  unreachable from validated profiles (profile simplicity classifies
+  the same displacements first) — defense-in-depth, needed a doc note.
+
+### PR 4 fix pass (2026-07-20) — tip `03ff10b`, all items closed
+
+- **SHOULD-1 fixed by a third shape** (justified over both reviewer
+  proposals): precompute ALL n consecutive-pair cosurface predicates
+  (incl. the wrap pair) before minting any wall; share-with-faces[0]
+  when the forward chain reaches segment 0 through the wrap. No
+  re-keying, no arena mutation; 2-arc wrap behavior bit-preserved;
+  predicate decisions byte-identical (only evaluation order and
+  previously-short-circuited pairs changed, observable only on the
+  defense-in-depth CosurfaceEscalated edge).
+- **Interval lane un-gated**: B1 ignore + caveat removed; the pre-fix
+  honesty pins flipped to REQUIRE tier-valid builds (diagonal-bridge
+  holed profile and rotated non-dyadic placement both build through
+  tiers 1–3 at Interval, all ε rows).
+- **Evan's rim decision landed**: new phase 6 upgrades every rim
+  (both caps, outer + ring loops) to Intersection; witness =
+  carrier(mid) computed with the certification schedule's own
+  association (chord midpoints fail on arcs — the bulge height);
+  every rim in the whole suite classified definitely Transverse (no
+  Smooth, no escalation, all ε rows); new typed `SliverRim` error;
+  Smooth arm kept total (documented believed-unreachable).
+- **Evan's tier-3 enforcement landed**: `TransverseNotIntrinsic`
+  from the dihedral pass's existing per-sample classes (no second
+  classification); Smooth conventional; Seam exempt by kind;
+  escalation exempt (never flips valid→invalid); mixed sample sets
+  conservatively unenforced (documented). Fallout: honest body
+  upgrades across geometric_cube / interval_body / review_m2_pr3
+  suites (e.g. the cube pins exactly 12 TransverseNotIntrinsic
+  pre-upgrade, the prism e2e exactly 9); L-prism now asserts 18
+  Intersections (6 struts + 12 rims). No check weakened.
+- Suites permanent as `review_m2_pr4*`; the Dual-derivative pin kept
+  under `finding_` (it pins a true scope bound, not a defect). Full
+  matrix green foreground incl. debug-vs-release byte-identity.
+
 ## Design decisions with Evan, in-session (2026-07-19)
 
 - **Rim edges upgrade to `Intersection` (Evan's call, resolving the

@@ -1,0 +1,30 @@
+[package]
+name = "sweep"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so the sweep operations
+# run at `Interval` — exercised by the feature-gated test files in CI's
+# interval lane.
+interval = [
+    "geom-core/interval",
+    "geom-brep/interval",
+    "profile/interval",
+    "topo/interval",
+]
+
+[dependencies]
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
+profile = { path = "../profile" }
+topo = { path = "../topo" }
+
+[dev-dependencies]
+proptest = { workspace = true }
