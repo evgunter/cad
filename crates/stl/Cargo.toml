@@ -1,0 +1,31 @@
+# STL export from certified tessellations (M2 PR 7). Display/export
+# layer like `mesh`: f64-only, not scalar-generic.
+[package]
+name = "stl"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards the interval feature so the workspace-wide `--features
+# interval` lane builds uniformly (the writer itself is f64-only; the
+# feature only propagates to dependencies).
+interval = ["mesh/interval"]
+
+[dependencies]
+# The writer consumes `mesh::Mesh` only (positions + per-patch
+# triangles; back-reference keys are dropped) — deliberately the sole
+# dependency: STL is the end of the display pipeline.
+mesh = { path = "../mesh" }
+
+[dev-dependencies]
+# Building acceptance bodies end-to-end for the export tests and the
+# CI-facing acceptance-export example (examples compile against
+# dev-dependencies).
+geom-core = { path = "../geom-core" }
+profile = { path = "../profile" }
+sweep = { path = "../sweep" }
+topo = { path = "../topo" }

@@ -370,6 +370,22 @@ pub enum ValidationError {
         /// conventional.
         edge: EdgeKey,
     },
+    /// Tier 3: the body's exact-B-rep signed volume is **definitely
+    /// negative** — global orientation corruption (the +V invariant,
+    /// M2 PR 7). The margin is `V / A_total` (a length: the mean
+    /// boundary displacement of the volume defect), classified against
+    /// the run's linear band; `Zero` and escalated margins are exempt
+    /// (escalation never flips valid → invalid).
+    NegativeVolume,
+    /// Tier 3: the exact-B-rep volume for the +V invariant could not
+    /// be computed — a face's boundary fell outside the M2
+    /// iso-rectangle inventory or its closed-form classification
+    /// failed. At rest every M2-constructible body computes; this is
+    /// corruption surfaced loudly, not an exemption.
+    VolumeUncomputable {
+        /// The mass-properties failure.
+        source: crate::props::MassPropsError,
+    },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
     /// key twice yields two errors).
@@ -686,6 +702,15 @@ impl fmt::Display for ValidationError {
                  carries a conventional MappedCurve description — transverse edges must \
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
+            ),
+            Self::NegativeVolume => f.write_str(
+                "the body's exact-B-rep signed volume is definitely negative — global \
+                 orientation corruption (+V invariant; every closed body's outward-oriented \
+                 boundary encloses positive volume)",
+            ),
+            Self::VolumeUncomputable { source } => write!(
+                f,
+                "the exact-B-rep volume for the +V invariant could not be computed: {source}"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -1295,6 +1320,36 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
                 }
                 break;
             }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 7: the +V global orientation invariant (M2 PR 7).
+    // Exact-B-rep signed volume, classified through the dimensionally
+    // honest margin V / A_total — a *length*: the mean boundary
+    // displacement the volume defect corresponds to (raw ε against a
+    // volume in m³ would be dimensionally wrong; the total surface
+    // area is the lever arm, since displacing the whole boundary
+    // inward by ε changes V by ≈ ε·A). Definitely negative ⇒
+    // orientation corruption. `Zero` and escalated margins are exempt
+    // (the PR 4 posture: ε-tightening can escalate but never flips a
+    // valid body to invalid — this check is an orientation probe, not
+    // a thinness gate; V is monotone in the margin, so a genuinely
+    // positive volume never classifies `Negative` under a tighter ε).
+    // Gated on a clean report: on a geometrically corrupt body the
+    // volume is meaningless cascade noise (same discipline as the
+    // tier-2 gate above).
+    // ------------------------------------------------------------------
+    if errors.is_empty() {
+        match crate::props::mass_properties_with(body, band) {
+            Ok(props) => {
+                if let Ok(Sign::Negative) =
+                    decide("positive_volume", props.volume / props.surface_area, band)
+                {
+                    errors.push(ValidationError::NegativeVolume);
+                }
+            }
+            Err(source) => errors.push(ValidationError::VolumeUncomputable { source }),
         }
     }
 
