@@ -51,7 +51,7 @@ pub fn sagitta_angle(delta_s: f64, rho: f64) -> f64 {
     }
 }
 
-/// `ceil(span/step)` as a chord/grid count, with the [`MAX_STEPS`]
+/// `ceil(span/step)` as a chord/grid count, with the `MAX_STEPS` (2^24)
 /// sanity cap surfaced as a typed error and a floor of 1.
 pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
     let raw = (span / step).ceil();

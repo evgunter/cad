@@ -17,7 +17,7 @@
 //! pole junction between two meridians emits *two* polygon entries —
 //! one closing the incoming meridian's column, one opening the
 //! outgoing column — both mapping to the single pole mesh vertex; the
-//! collapsed side between them becomes the fan (see [`crate::curved`]).
+//! collapsed side between them becomes the fan (see the curved-face module).
 //! Two documented value-level resolutions (display-layer, backstopped
 //! by the per-triangle certificates and the mesh validator):
 //!
