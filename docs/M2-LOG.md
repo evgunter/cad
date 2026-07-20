@@ -621,7 +621,12 @@ Reviewer ran eight falsification assignments as executed programs
   tog.pdf` — real text layer (pdftotext works; no page rendering
   needed).
 
-## State snapshot (handoff point, 2026-07-18)
+## State snapshot (handoff point, 2026-07-18) — SUPERSEDED
+
+*(Historical. Everything below was consumed by the 2026-07-19/20
+session — PRs 3 (#31) and 4 (#33) are merged, PR 5 is
+implemented+reviewed, PR 6 is in flight; see the per-PR sections
+above. A fresh snapshot will be written at the next handoff.)*
 
 - **Merged to main**: M2-PLAN (#24); PR 1 (#27, analytic evaluators);
   PR 2 (#28, profile crate). All zero-blocker reviews, suites
