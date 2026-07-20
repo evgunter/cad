@@ -136,8 +136,11 @@
 //! residuals, description-adjacency coherence, the dihedral
 //! classification pass (the material wedge-angle predicate's first
 //! arrival: every edge classifies definitely — corner or smooth seam,
-//! never sliver), and planar-boundary containment (edge carrier samples
-//! against adjacent planar faces' planes — M2 PR 3 fix pass). The full
+//! never sliver) with its prefer-intrinsic enforcement
+//! (definitely-transverse edges must carry `Intersection` — D2,
+//! ratified 2026-07-19), and planar-boundary containment (edge carrier
+//! samples against adjacent planar faces' planes — M2 PR 3 fix
+//! pass). The full
 //! check list, gate, and the honest not-yet-checked list live on
 //! [`validate_geometric`].
 //!
@@ -217,7 +220,7 @@
 
 use core::fmt;
 
-use geom_brep::{CertifyError, classify_dihedral};
+use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
 use geom_core::{Band, BandError, Decide, Indeterminate, Real, Sign};
 use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
@@ -335,6 +338,24 @@ pub enum ValidationError {
         /// The classifier's diagnostic (from the first failing interior
         /// sample).
         cause: Indeterminate,
+    },
+    /// Tier 3: a **definitely-transverse** edge carries a conventional
+    /// (`MappedCurve`) description at rest — the prefer-intrinsic rule
+    /// with teeth (D2; ratified with Evan 2026-07-19, M2 PR 4 fix
+    /// pass). Enforced only when the dihedral pass classified **every**
+    /// interior sample definitely Transverse: definitely-smooth edges
+    /// keep their conventional descriptions (the D2 conventional
+    /// split), `Seam` edges are exempt by kind, and escalated dihedrals
+    /// already report [`ValidationError::SliverDihedral`] — so
+    /// ε-tightening can escalate an edge but never flips a valid body
+    /// to invalid through this check. (A mixed transverse/smooth sample
+    /// set — a tangency-crossing edge — is neither definitely
+    /// transverse nor definitely smooth as a whole and is not enforced
+    /// at M2.)
+    TransverseNotIntrinsic {
+        /// The definitely-transverse edge whose description is
+        /// conventional.
+        edge: EdgeKey,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -645,6 +666,13 @@ impl fmt::Display for ValidationError {
                 f,
                 "edge {edge:?}'s dihedral wedge cannot be classified definitely \
                  (sliver, D4 \u{b6}3): {cause}"
+            ),
+            Self::TransverseNotIntrinsic { edge } => write!(
+                f,
+                "edge {edge:?} is definitely transverse at every interior sample but \
+                 carries a conventional MappedCurve description — transverse edges must \
+                 be described intrinsically as the Intersection of their faces' surfaces \
+                 (prefer-intrinsic, D2)"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -991,7 +1019,14 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    edge's honest spatial extent (`geom_brep::edge_extent`: the chord
 ///    for open edges, the carrier diameter at closure for circle
 ///    carriers — so self-loop/full-period edges classify through a
-///    real arm, never vacuously; M2 PR 3 fix pass).
+///    real arm, never vacuously; M2 PR 3 fix pass). The same per-edge
+///    classifications feed the **prefer-intrinsic enforcement** (D2;
+///    ratified 2026-07-19, M2 PR 4 fix pass): an edge classifying
+///    definitely Transverse at every interior sample must carry an
+///    `Intersection` description
+///    ([`ValidationError::TransverseNotIntrinsic`]); definitely-smooth
+///    edges keep conventional descriptions, `Seam` edges are exempt by
+///    kind, and escalated edges report only their `SliverDihedral`.
 /// 5. **Planar-boundary containment** (same edge sweep, same samples;
 ///    M2 PR 3 fix pass): each interior carrier sample is checked
 ///    against each **adjacent planar** face's plane — the
@@ -1020,10 +1055,6 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   material sense at the edge, which curved-face orientation
 ///   machinery (M3 pcurves) unlocks; at M2 the dihedral pass classifies
 ///   the *tangent-plane* wedge only.
-/// - **Prefer-intrinsic preference** (D2): whether a transverse edge
-///   *should* have been stored as `Intersection` is a construction
-///   discipline, not a validity fact — conventional descriptions of
-///   transverse edges are legal.
 /// - **Face-boundary containment on curved surfaces** (a face's loops
 ///   actually bounding a region of its surface) — M3, with pcurves.
 ///   The **planar** case is now covered between vertices by check 5
@@ -1191,15 +1222,37 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         let samples: Vec<_> = (1..(geom_brep::CERT_SAMPLES - 1))
             .map(|i| curve.carrier().eval(curve.sample_param(i)))
             .collect();
-        // Check 4: dihedral.
+        // Check 4: dihedral — plus the prefer-intrinsic enforcement
+        // (D2; ratified 2026-07-19): reusing the SAME per-sample
+        // classifications (never classifying twice), an edge whose
+        // every interior sample is definitely Transverse must carry an
+        // `Intersection` description at rest. `Seam` is exempt by
+        // kind, definitely-smooth keeps `MappedCurve` (the D2
+        // conventional split), an escalation reports `SliverDihedral`
+        // and exempts the edge (ε-tightening escalates, it never flips
+        // valid → invalid), and a mixed sample set is enforced as
+        // neither.
+        let mut escalated = false;
+        let mut all_transverse = true;
         for &p in &samples {
-            if let Err(cause) = classify_dihedral(s_plus, s_minus, p, extent, band) {
-                errors.push(ValidationError::SliverDihedral {
-                    edge: edge_key,
-                    cause,
-                });
-                break;
+            match classify_dihedral(s_plus, s_minus, p, extent, band) {
+                Ok(DihedralClass::Transverse) => {}
+                Ok(DihedralClass::Smooth) => all_transverse = false,
+                Err(cause) => {
+                    errors.push(ValidationError::SliverDihedral {
+                        edge: edge_key,
+                        cause,
+                    });
+                    escalated = true;
+                    break;
+                }
             }
+        }
+        if !escalated
+            && all_transverse
+            && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+        {
+            errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
         }
         // Check 5: planar-boundary containment against each distinct
         // adjacent planar face.

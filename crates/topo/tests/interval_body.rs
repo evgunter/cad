@@ -90,13 +90,17 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
 
 #[test]
 fn interval_geometric_cube_passes_tier3() {
+    // Upgraded first (M2 PR 4 fix pass: prefer-intrinsic enforcement —
+    // the cube's transverse chords must carry Intersection at rest).
     let t = common::geometric_cube::<Interval>();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    let mut body = t.body;
+    common::upgrade_edges_to_intersections(&mut body);
+    assert_eq!(validate_geometric(&body), Ok(()));
     // Certification records are genuine enclosures: max residual
     // brackets are finite, tiny, and contain no poison.
-    for (_, curve) in t.body.curves() {
+    for (_, curve) in body.curves() {
         let r = curve.certificate().max_residual;
         assert!(r.lo().is_finite() && r.hi().is_finite());
         assert!(r.hi() < 1e-12, "residual enclosure too wide: {r:?}");

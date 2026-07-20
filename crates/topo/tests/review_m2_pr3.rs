@@ -166,7 +166,10 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
 /// The strongest single test of the PR: the promised PR 4 flow works
 /// end to end through the public API — mint with real sweep-shaped
 /// MappedCurve descriptions, Newell side/cap planes, then the
-/// prefer-intrinsic upgrade at rest, tiers 1–3 clean before AND after.
+/// prefer-intrinsic upgrade at rest, tiers 1–3 clean after. (Updated by
+/// the M2 PR 4 fix pass: prefer-intrinsic now has tier-3 teeth, so the
+/// PRE-upgrade body at rest honestly reports its nine transverse
+/// MappedCurve chords by name instead of passing.)
 #[test]
 fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     let (mut body, _seed, _mefs) = triangle_prism::<f64>();
@@ -176,9 +179,17 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     assert_eq!(body.surfaces().count(), 5);
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()));
-    assert_eq!(validate_geometric(&body), Ok(()));
-    // The prefer-intrinsic upgrade: every edge of the prism is a
-    // transverse plane-pair corner; all nine upgrade via set_edge_curve.
+    // Prefer-intrinsic enforcement (D2, ratified 2026-07-19): every
+    // prism edge is a definitely-transverse plane-pair corner, so at
+    // rest the un-upgraded body names all nine — and nothing else.
+    let errs = validate_geometric(&body).unwrap_err();
+    assert_eq!(errs.len(), 9, "{errs:?}");
+    assert!(
+        errs.iter()
+            .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
+        "{errs:?}"
+    );
+    // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::upgrade_edges_to_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
     assert!(
@@ -197,12 +208,16 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
 }
 
 /// The same consumer at the Dual lane: value channel takes the
-/// identical certified path (tangents never decide).
+/// identical certified path (tangents never decide). Both lanes get the
+/// prefer-intrinsic upgrade first (M2 PR 4 fix pass: transverse edges
+/// must carry Intersection at rest).
 #[test]
 fn e2e_prism_dual_lane_matches_f64() {
     use geom_core::Dual64;
-    let (f, _, _) = triangle_prism::<f64>();
-    let (d, _, _) = triangle_prism::<Dual64>();
+    let (mut f, _, _) = triangle_prism::<f64>();
+    let (mut d, _, _) = triangle_prism::<Dual64>();
+    common::upgrade_edges_to_intersections(&mut f);
+    common::upgrade_edges_to_intersections(&mut d);
     assert_eq!(validate_geometric(&d), Ok(()));
     let fr: Vec<f64> = f
         .curves()
@@ -491,6 +506,10 @@ fn survives_nurbs_seed_gate_and_clear() {
 fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     let t = common::geometric_cube::<f64>();
     let mut body = t.body;
+    // Upgrade the cube first (M2 PR 4 fix pass: transverse chords must
+    // carry Intersection at rest), so the arc corruption below is the
+    // only conventional description left in the body.
+    common::upgrade_edges_to_intersections(&mut body);
     // The bottom front edge A(0,0,0) -> B(1,0,0): re-describe as the
     // half-circle in the z = 0 plane bulging to y = −0.5 (a genuine,
     // honestly certified arc — description and carrier agree exactly).
@@ -515,15 +534,19 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     };
     body.set_edge_curve(edge, spec).unwrap();
     // The arc's apex is 0.5 m off the front face's plane (y = 0): tier
-    // 3 reports exactly that face-boundary breach and nothing else
-    // (the bottom face's plane contains the whole arc).
+    // 3 reports exactly that face-boundary breach — plus the
+    // prefer-intrinsic report for the same edge (the arc is a
+    // definitely-transverse edge carrying a MappedCurve description,
+    // which the M2 PR 4 enforcement names first in the shared edge
+    // sweep) — and nothing else (the bottom face's plane contains the
+    // whole arc).
     let front = t.mefs[1].face;
     assert_eq!(
         validate_geometric(&body),
-        Err(vec![ValidationError::PlanarBoundaryResidual {
-            face: front,
-            edge
-        }]),
+        Err(vec![
+            ValidationError::TransverseNotIntrinsic { edge },
+            ValidationError::PlanarBoundaryResidual { face: front, edge },
+        ]),
         "the planar-boundary pass must name the bulged-off face"
     );
 }
@@ -541,6 +564,9 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     use core::f64::consts::{PI, TAU};
     let t = common::geometric_cube::<f64>();
     let mut body = t.body;
+    // Upgrade first (M2 PR 4 fix pass — see the previous test) so the
+    // at-rest reports below stay scoped to the attacked edge.
+    common::upgrade_edges_to_intersections(&mut body);
     let edge = t.mevs[0].edge;
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
@@ -576,15 +602,22 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     ));
     // The honest half-circle interval attaches through the gate. (Its
     // apex genuinely bulges off the front face's plane, so tier 3's
-    // new planar-boundary pass — the S3 fix, previous test — reports
-    // that geometric fact; what matters here is that no certification/
-    // winding error remains: the S1 gate's job is the winding.)
+    // planar-boundary pass — the S3 fix, previous test — reports that
+    // geometric fact, and the M2 PR 4 prefer-intrinsic enforcement
+    // reports the transverse arc's conventional description; what
+    // matters here is that no certification/winding error remains: the
+    // S1 gate's job is the winding.)
     body.set_edge_curve(edge, mk(PI)).unwrap();
-    let errs = validate_geometric(&body).unwrap_err();
-    assert!(
-        errs.iter()
-            .all(|e| matches!(e, ValidationError::PlanarBoundaryResidual { .. })),
-        "honest interval at rest: only the S3 boundary report remains: {errs:?}"
+    assert_eq!(
+        validate_geometric(&body),
+        Err(vec![
+            ValidationError::TransverseNotIntrinsic { edge },
+            ValidationError::PlanarBoundaryResidual {
+                face: t.mefs[1].face,
+                edge,
+            },
+        ]),
+        "honest interval at rest: only the attacked edge's at-rest reports remain"
     );
 }
 
@@ -642,15 +675,26 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     // true right angle. The wedge now classifies definitely Transverse
     // through the honest carrier-diameter arm (no vacuous Smooth, no
     // sliver report), and the containment breach is reported by name.
+    // With the M2 PR 4 prefer-intrinsic enforcement, the transverse
+    // classification ALSO names every one of these edges for its
+    // conventional description (all three are definitely-transverse
+    // MappedCurve chords/circles by construction here — the two A–B
+    // chords sit on the z0/y0 corner, the self-loop on its right-angle
+    // wedge), in edge-arena order, before the boundary report.
     body.set_face_surface(circ.face, FaceSurface::New(y0))
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     assert_eq!(
         validate_geometric(&body),
-        Err(vec![ValidationError::PlanarBoundaryResidual {
-            face: circ.face,
-            edge: circ.edge,
-        }]),
+        Err(vec![
+            ValidationError::TransverseNotIntrinsic { edge: seg.edge },
+            ValidationError::TransverseNotIntrinsic { edge: split.edge },
+            ValidationError::TransverseNotIntrinsic { edge: circ.edge },
+            ValidationError::PlanarBoundaryResidual {
+                face: circ.face,
+                edge: circ.edge,
+            },
+        ]),
         "tier 3 must see the self-loop boundary leave its claimed plane"
     );
 }
@@ -780,10 +824,12 @@ mod interval_lane {
     /// lo), the sqrt clamped, and the decoration poisoned every
     /// decision. With `norm_squared` computing tight per-component
     /// squares, the FULL mini-extrude e2e now runs at `Interval`:
-    /// non-dyadic rims, Newell side planes, the seed-cap setter, tiers
-    /// 1–3 clean, and the prefer-intrinsic upgrade of all nine edges —
-    /// Q1's replay lane works for real (non-dyadic) geometry, which is
-    /// exactly what PR 4's extrude and PR 5's revolve need.
+    /// non-dyadic rims, Newell side planes, the seed-cap setter, the
+    /// prefer-intrinsic upgrade of all nine edges, and tiers 1–3 clean
+    /// after the upgrade (the M2 PR 4 enforcement names the nine
+    /// pre-upgrade conventional descriptions at rest) — Q1's replay
+    /// lane works for real (non-dyadic) geometry, which is exactly
+    /// what PR 4's extrude and PR 5's revolve need.
     #[test]
     fn fixed_interval_lane_runs_full_mini_extrude_e2e() {
         let (mut body, _seed, _mefs) = triangle_prism::<Interval>();
@@ -792,7 +838,16 @@ mod interval_lane {
         assert_eq!(body.faces().count(), 5);
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(validate_closed(&body), Ok(()));
-        assert_eq!(validate_geometric(&body), Ok(()));
+        // Prefer-intrinsic enforcement (M2 PR 4 fix pass): the interval
+        // lane classifies the nine transverse corners definitely too,
+        // and names their pre-upgrade conventional descriptions.
+        let errs = validate_geometric(&body).unwrap_err();
+        assert_eq!(errs.len(), 9, "{errs:?}");
+        assert!(
+            errs.iter()
+                .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
+            "{errs:?}"
+        );
         // The prefer-intrinsic upgrade at the interval scalar.
         common::upgrade_edges_to_intersections(&mut body);
         assert_eq!(validate_geometric(&body), Ok(()));

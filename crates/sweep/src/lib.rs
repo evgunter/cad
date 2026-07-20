@@ -13,14 +13,10 @@
 //! predicates (Q1); every failure is a typed error (D4 ¶3); everything
 //! is generic over [`geom_core::Real`] via the [`geom_core::Decide`]
 //! door and instantiates at `f64`, `Dual<f64>`, `Interval`, and
-//! `Dual<Interval>` (D8). **Interval-lane caveat (temporary)**: at
-//! `Interval`, certification of any inexact residual — every arc
-//! carrier, and any non-axis-aligned geometry — currently escalates as
-//! poison (PR 3 review B1: `norm`/`distance` square straddling-zero
-//! enclosures through plain interval multiplication and the `sqrt`
-//! degrades the decoration); until the geom-core fix pass lands,
-//! interval extrusion is exercised on exact-dyadic line profiles only,
-//! and the arc interval test is `#[ignore]`d with a B1 reference.
+//! `Dual<Interval>` (D8) — including inexact (non-dyadic, rotated,
+//! arc-carrying) geometry at `Interval`, since geom-core's
+//! tight-square `norm_squared` fix (M2 PR 3 fix pass, B1) keeps
+//! straddling-zero residual enclosures decorated through `sqrt`.
 //!
 //! # Direction conventions (normative, stated once — owned here)
 //!
@@ -66,9 +62,9 @@
 //! # What an extrusion stores (the D2 story, applied)
 //!
 //! - **Side struts** — `MappedCurve::ExtrudedPoint { point, place,
-//!   vec }`; **bottom rims** — `MappedCurve::PlacedSegment` at the
-//!   sketch placement; **top rims** — `PlacedSegment` at the placement
-//!   translated by `w` (PR 3's binding handoff).
+//!   vec }`; **bottom rims** minted as `MappedCurve::PlacedSegment` at
+//!   the sketch placement; **top rims** minted as `PlacedSegment` at
+//!   the placement translated by `w` (PR 3's binding handoff).
 //! - **Profile-corner joins**: once both side faces of a join exist,
 //!   the join (strut) edge upgrades to `Intersection { s1, s2,
 //!   witness }` via `topo`'s certified `set_edge_curve`
@@ -77,10 +73,17 @@
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
 //!   Smooth ⇒ the edge keeps its conventional `MappedCurve` description
 //!   (the ratified no-face-merging split, D2); Indeterminate ⇒
-//!   [`ExtrudeError::SliverJoin`] (escalate-never-guess). Cap–wall rim
-//!   edges keep their conventional `PlacedSegment` descriptions at M2
-//!   (prefer-intrinsic-as-validity is not yet a tier-3 check; the
-//!   upgrade path is exercised by the join edges).
+//!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
+//! - **Cap–wall rims upgrade too** (the ratified rim decision — Evan,
+//!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
+//!   (bottom and top, outer and ring loops) re-describes as
+//!   `Intersection { cap plane, side surface, witness }` through the
+//!   same `classify_dihedral` → `set_edge_curve` pattern, with the
+//!   witness minted as the **carrier's mid-parameter point** (the S2
+//!   witness contract). Every rim of a normal extrusion is definitely
+//!   transverse (cap ⊥ wall), matching tier 3's prefer-intrinsic
+//!   enforcement: at rest, definitely-transverse edges must carry
+//!   `Intersection`.
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
@@ -88,9 +91,14 @@
 //!   predicates `side_planes_cosurface` (margin: perpendicular distance
 //!   of the next chord's far endpoint from the previous carrier line)
 //!   and `side_cylinders_cosurface` (margin: center distance plus
-//!   radius difference, meters). Smooth joins across genuinely distinct
-//!   surfaces (line–arc tangency: plane–cylinder) keep distinct
-//!   surfaces and a conventional join edge.
+//!   radius difference, meters). All of a loop's consecutive-pair
+//!   decisions (including the wrap pair at the canonical start vertex)
+//!   are made **before any wall is minted**, so a same-carrier run that
+//!   crosses the canonical start still resolves to one key — its
+//!   `u_ref` comes from the run's first segment in sweep order, which
+//!   for a wrap-crossing run is segment 0. Smooth joins across
+//!   genuinely distinct surfaces (line–arc tangency: plane–cylinder)
+//!   keep distinct surfaces and a conventional join edge.
 //! - **Caps** via `geom_brep::newell_plane` over the loop vertices in
 //!   `next` order (outer loop in next order ⇒ outward normal).
 //!
