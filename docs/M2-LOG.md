@@ -315,6 +315,21 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   refs document-local, no document component in the stable-ref
   type; cross-doc refs = assembly-era wrapper (doc identity × local
   ref) — composition, never modification).
+- **GUI-DESIGN round 5 (same conversation): GQ4 RATIFIED** — the
+  round-4 proposal plus **Evan's uniformity-principle synthesis**:
+  B (global refs) discarded; C (one workspace) absorbed as "the
+  document boundary is a namespace/versioning seam, not a change of
+  formalism" — an assembly document is a recipe DAG of the same
+  shape (instantiate-part/mates/patterns as ordinary feature
+  nodes), so GQ1 applies to mates verbatim (same finite-discrete-
+  solutions structure), GQ2/GQ3/naming/undo transfer with zero new
+  machinery. Alternatives-considered record written into the doc
+  (three axes; axis-3 binding semantics deferred to assembly design
+  with Cargo.lock-style pinned-plus-explicit-update as the
+  unratified leading candidate; in-context modeling noted as
+  landing on the same wrapper-plus-pin extension point). **All
+  GQ1–GQ5 now closed; remaining pre-M4 design work: GQ1 mechanism
+  details + the selection-stability/naming doc.**
 
 ## Reference acquisitions (2026-07-18)
 

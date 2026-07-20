@@ -69,11 +69,14 @@ work; ezpz bit-identity audit item), GQ2 (per-node result DAG,
 failures poison descendants only), GQ3 (all edits persisted,
 snapshot+edit-log), GQ5 (typed quantities in the expression
 sublanguage — supersedes the raw-meters reading; dimension-algebra
-extent banked for M4/D8). **Open: GQ4 document scope — concrete
-proposal in GUI-DESIGN.md awaiting Evan (one doc = one part recipe,
-multi-body OK; refs document-local; cross-doc = assembly-era
-wrapper)**; selection stability / naming still needs its own pre-M4
-design doc.
+extent banked for M4/D8), GQ4 (one doc = one part recipe, multi-body
+OK; refs document-local; cross-doc = assembly-era wrapper; **Evan's
+uniformity principle: assemblies are recipe DAGs of the same
+formalism — doc boundary is a namespace/versioning seam, so
+GQ1-witnesses apply to mates verbatim; axis-3 binding semantics
+deferred, Cargo.lock-style pinning is the unratified leading
+candidate**). GQ1–GQ5 all closed; remaining pre-M4 design work: GQ1
+mechanism details + the selection-stability/naming design doc.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across

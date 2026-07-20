@@ -167,11 +167,11 @@ Banked consequences: the edit schema enters Band 4's versioning
 discipline from the first persisted file; storage shape is
 **snapshot + edit log** (details at editor-core design time).
 
-### GQ4: Document scope (PROPOSED 2026-07-19 round 4 — awaiting Evan)
+### GQ4 (RATIFIED 2026-07-19 round 5): Document scope — local refs + wrapper, assemblies in the same formalism
 
 Decided-now rather than deferred because the naming doc's central
 artifact — the stable-reference type — depends on it, and the
-extension shape is composition, not modification. Proposal:
+extension shape is composition, not modification. Ratified:
 
 - **One document = one part's recipe** — one parameter space + one
   feature DAG. A recipe may evaluate to **multiple bodies** (the
@@ -185,6 +185,52 @@ extension shape is composition, not modification. Proposal:
   is touched.
 - The naming design doc proceeds assuming locality, with the wrapper
   named as the sanctioned extension point.
+- **The uniformity principle (Evan's synthesis, the ratifying
+  addition): the document boundary is a namespace/versioning seam,
+  NOT a change of formalism.** An assembly document is a recipe DAG
+  of the *same shape* as a part document — its nodes are features
+  like any other (instantiate-part via wrapped ref, mates,
+  patterns) — so everything already built applies to assemblies
+  with zero new machinery: **GQ1 verbatim** (mates are a constraint
+  system with the same finite-discrete-solutions structure —
+  flipped-bracket instead of elbow-up — so witness-as-branch-
+  selection, certification, and bifurcation-as-typed-error transfer
+  unchanged), **GQ2** (a failed part suppresses its assembly
+  subtree; siblings complete), **GQ3** (assembly edits are persisted
+  `DocEdit`s), plus naming and undo.
+
+**Alternatives considered (recorded round 5).** The decision space
+is three axes: (1) ref type shape, (2) document granularity,
+(3) binding semantics — live vs. pinned-with-explicit-update.
+**B — globally-qualified refs from day one**: discarded — every
+local ref (the overwhelming majority) pays a doc field that is
+always "self" (the wrapper reappears *inside* the type, but
+everywhere); forces designing document identity blind, before the
+assembly design that gives it meaning; and muddies purity — under
+the ratified shape, `build`'s input stays (params, this document),
+with doc-identity resolution strictly above the kernel.
+**C — one workspace, no boundaries**: compelling shape (D8's
+code-generates-recipes already blurs file boundaries), absorbed as
+the uniformity principle above; rejected as literal architecture
+because it has no modularity seam — no unit of exchange, versioning,
+or parts-library attachment.
+**D — multi-part documents (part-studio)**: already contained in
+"one recipe, multiple bodies"; export/BOM part-labeling is metadata,
+not reference architecture.
+**E — assemblies embed by value**: the fully-pinned extreme of
+axis 3; absorbed as a pin option the wrapper can hold.
+**Axis 3 is deliberately deferred to assembly design** — it is the
+historical bleeding ground (external-reference hell, in-context
+fragility, circular updates) and must be decided with the assembly
+feature list in hand. Leading candidate (Q3-style, unratified):
+pinned-with-explicit-update — the Cargo.lock model: part as
+package, the wrapper holds the version pin, "update" is a recorded
+document edit (free under GQ3). The strongest future consumer,
+in-context modeling (a part referencing an assembly neighbor's
+face), lands on this same extension point: the industry lesson is
+that in-context refs must be mediated by an explicit
+captured-context object with pin/update semantics — the
+wrapper-plus-pin shape again, held by the part document.
 
 ### GQ5 (RATIFIED 2026-07-19 round 4, superseding round 3's raw-meters reading): Typed quantities in the expression sublanguage
 

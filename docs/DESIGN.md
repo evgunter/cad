@@ -561,11 +561,14 @@ evidence); its architecture lives in **`docs/GUI-DESIGN.md`** (G1
 three-layer split ratified 2026-07-19: kernel / headless
 `editor-core` / interaction; **ratified**: GQ1 solver-replay
 boundary (witness = authoritative branch selection), GQ2
-per-node-result-DAG, GQ3 persist-all-edits, GQ5 typed quantities in
-the expression sublanguage (dimension-algebra extent banked for M4);
-GQ4 document scope has a concrete proposal awaiting sign-off;
-GQ6/GQ7 deliberately deferred to GUI time. Remaining pre-M4 design
-work: GQ1 mechanism details, GQ4 closure, and the
+per-node-result-DAG, GQ3 persist-all-edits, GQ4 document scope
+(local refs + assembly-era wrapper; **assemblies are recipes of the
+same formalism** — the document boundary is a namespace/versioning
+seam, so GQ1–GQ3, naming, and undo apply to assemblies unchanged;
+binding semantics deferred to assembly design), GQ5 typed
+quantities in the expression sublanguage (dimension-algebra extent
+banked for M4); GQ6/GQ7 deliberately deferred to GUI time.
+Remaining pre-M4 design work: GQ1 mechanism details and the
 selection-stability/naming design doc).
 
 ### Band 1 — kernel-side services an interactive client requires
@@ -641,6 +644,13 @@ usable-as-library; architecture to be ratified separately.
   constraint problem, distinct from the 2-D sketch solver),
   cross-document references, interference checks (the latter falls
   out of M3 booleans / M6 clearance). Even hobbyist use wants this.
+  *Reference architecture ratified 2026-07-19 (GUI-DESIGN.md GQ4):
+  an assembly document is a recipe DAG of the same formalism —
+  instantiate-part (via the doc-identity × local-ref wrapper),
+  mates, and patterns are ordinary feature nodes, so the editor and
+  solver machinery (incl. mate witnesses per GQ1) transfers
+  unchanged; only binding semantics (live vs. pinned) waits for
+  assembly design.*
 - **Engineering drawings.** Dimensioned 2-D drawings require
   projection plus **hidden-line removal**; HLR on curved B-reps is
   SSI-grade (silhouette curves) and belongs on the difficulty
