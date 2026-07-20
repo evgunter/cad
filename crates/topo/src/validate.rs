@@ -133,11 +133,13 @@
 //! Tier 2 plus the geometric re-checks at rest: D4 ¶2 residual
 //! certification (every edge carrier re-certified against its
 //! intensional description and endpoints), planar-face plane-equation
-//! residuals, description-adjacency coherence, and the dihedral
+//! residuals, description-adjacency coherence, the dihedral
 //! classification pass (the material wedge-angle predicate's first
 //! arrival: every edge classifies definitely — corner or smooth seam,
-//! never sliver). The full check list, gate, and the honest
-//! not-yet-checked list live on [`validate_geometric`].
+//! never sliver), and planar-boundary containment (edge carrier samples
+//! against adjacent planar faces' planes — M2 PR 3 fix pass). The full
+//! check list, gate, and the honest not-yet-checked list live on
+//! [`validate_geometric`].
 //!
 //! # All failures, not the first
 //!
@@ -295,6 +297,30 @@ pub enum ValidationError {
         /// The vertex whose residual escalated.
         vertex: VertexKey,
         /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// Tier 3: an edge bounding a **planar** face has carrier samples
+    /// definitely off that face's plane (M2 PR 3 fix pass, S3): the
+    /// planar-face pass checks vertices, and this check gives the same
+    /// teeth to the boundary *between* vertices — an honestly certified
+    /// arc bulging off its face's plane is a face-boundary defect even
+    /// though every vertex residual passes. (Curved-face boundary
+    /// containment stays documented-deferred to M3 pcurves.)
+    PlanarBoundaryResidual {
+        /// The planar face whose boundary leaves its plane.
+        face: FaceKey,
+        /// The edge whose carrier samples lie off the plane.
+        edge: EdgeKey,
+    },
+    /// Tier 3: a planar-boundary sample residual escalated (in the
+    /// sliver band, or poisoned) — the escalation counterpart of
+    /// [`ValidationError::PlanarBoundaryResidual`].
+    PlanarBoundaryEscalated {
+        /// The planar face.
+        face: FaceKey,
+        /// The edge whose sample residual escalated.
+        edge: EdgeKey,
+        /// The classifier's diagnostic (first failing sample).
         cause: Indeterminate,
     },
     /// Tier 3: the dihedral classification at an edge escalated — the
@@ -603,6 +629,16 @@ impl fmt::Display for ValidationError {
             } => write!(
                 f,
                 "vertex {vertex:?}'s residual against planar face {face:?}'s plane \
+                 escalated: {cause}"
+            ),
+            Self::PlanarBoundaryResidual { face, edge } => write!(
+                f,
+                "edge {edge:?}'s carrier lies definitely off planar face {face:?}'s \
+                 stored plane between its vertices (face-boundary containment, D4 \u{b6}2)"
+            ),
+            Self::PlanarBoundaryEscalated { face, edge, cause } => write!(
+                f,
+                "edge {edge:?}'s carrier residual against planar face {face:?}'s plane \
                  escalated: {cause}"
             ),
             Self::SliverDihedral { edge, cause } => write!(
@@ -952,7 +988,20 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    ([`ValidationError::SliverDihedral`]; first failing sample
 ///    reported, one error per edge). Implicit-form gradients only —
 ///    chart normals are never sampled. The extent lever arm is the
-///    edge's chord length (`geom_brep::classify_dihedral`'s docs).
+///    edge's honest spatial extent (`geom_brep::edge_extent`: the chord
+///    for open edges, the carrier diameter at closure for circle
+///    carriers — so self-loop/full-period edges classify through a
+///    real arm, never vacuously; M2 PR 3 fix pass).
+/// 5. **Planar-boundary containment** (same edge sweep, same samples;
+///    M2 PR 3 fix pass): each interior carrier sample is checked
+///    against each **adjacent planar** face's plane — the
+///    between-vertices counterpart of check 3, so an honestly certified
+///    carrier that bulges off its planar face's surface is reported
+///    ([`ValidationError::PlanarBoundaryResidual`] /
+///    [`ValidationError::PlanarBoundaryEscalated`]; plus face first,
+///    then the minus face when distinct; first failing sample, one
+///    error per edge–face pair). Curved-face containment stays
+///    deferred (M3 — the not-yet-checked list).
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
@@ -977,6 +1026,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   transverse edges are legal.
 /// - **Face-boundary containment on curved surfaces** (a face's loops
 ///   actually bounding a region of its surface) — M3, with pcurves.
+///   The **planar** case is now covered between vertices by check 5
+///   (sample containment against adjacent planar faces); what remains
+///   deferred is containment against curved surfaces and the
+///   region-bounding statement itself (winding/orientation of loops on
+///   the surface).
 /// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
 ///   `u_ref ⊥ axis`): partially implied by the residual checks (a
 ///   non-unit frame breaks the carrier-vs-description comparisons),
@@ -1096,8 +1150,21 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
     }
 
     // ------------------------------------------------------------------
-    // Tier 3, check 4: dihedral classification at interior samples
-    // (edge-arena order; first failing sample, one error per edge).
+    // Tier 3, checks 4–5 (one edge sweep, samples shared):
+    //
+    // 4. Dihedral classification at interior samples (edge-arena order;
+    //    first failing sample, one error per edge), metered through the
+    //    edge's honest extent (`geom_brep::edge_extent` — the carrier
+    //    diameter for closed circle carriers, whose chord collapses; M2
+    //    PR 3 fix pass, B2 — self-loop edges no longer classify
+    //    vacuously Smooth).
+    // 5. Planar-boundary containment (M2 PR 3 fix pass, S3): the same
+    //    interior carrier samples are checked against each ADJACENT
+    //    face's surface when that surface is a plane — the
+    //    between-vertices counterpart of check 3 (plus face first, then
+    //    the minus face when distinct; first failing sample, one error
+    //    per edge-face pair). Curved-face containment stays deferred
+    //    (M3, pcurves — the not-yet-checked list).
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
         let Some(curve) = body.curves.get(edge.curve) else {
@@ -1106,7 +1173,8 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        let Some((fs_plus, fs_minus)) = edge_face_surfaces(body, edge.he_plus, edge.he_minus)
+        let Some(((f_plus, fs_plus), (f_minus, fs_minus))) =
+            edge_adjacent_faces(body, edge.he_plus, edge.he_minus)
         else {
             continue;
         };
@@ -1116,13 +1184,55 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
             continue;
         };
         let chord = p_start.distance(p_end);
-        for i in 1..(geom_brep::CERT_SAMPLES - 1) {
-            let p = curve.carrier().eval(curve.sample_param(i));
-            if let Err(cause) = classify_dihedral(s_plus, s_minus, p, chord, band) {
+        let (t0, t1) = curve.params();
+        let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
+        // The interior schedule samples, evaluated once (D9: the same
+        // parameters certification used) and shared by checks 4 and 5.
+        let samples: Vec<_> = (1..(geom_brep::CERT_SAMPLES - 1))
+            .map(|i| curve.carrier().eval(curve.sample_param(i)))
+            .collect();
+        // Check 4: dihedral.
+        for &p in &samples {
+            if let Err(cause) = classify_dihedral(s_plus, s_minus, p, extent, band) {
                 errors.push(ValidationError::SliverDihedral {
                     edge: edge_key,
                     cause,
                 });
+                break;
+            }
+        }
+        // Check 5: planar-boundary containment against each distinct
+        // adjacent planar face.
+        let mut adjacent = vec![(f_plus, fs_plus)];
+        if f_minus != f_plus {
+            adjacent.push((f_minus, fs_minus));
+        }
+        for (face_key, surface_key) in adjacent {
+            let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(surface_key)
+            else {
+                continue;
+            };
+            for &p in &samples {
+                let residual = (p - origin).dot(normal);
+                match residual
+                    .sign_within(band)
+                    .map_err(|e| e.with_predicate("planar_boundary_residual"))
+                {
+                    Ok(Sign::Zero) => continue,
+                    Ok(Sign::Positive | Sign::Negative) => {
+                        errors.push(ValidationError::PlanarBoundaryResidual {
+                            face: face_key,
+                            edge: edge_key,
+                        });
+                    }
+                    Err(cause) => {
+                        errors.push(ValidationError::PlanarBoundaryEscalated {
+                            face: face_key,
+                            edge: edge_key,
+                            cause,
+                        });
+                    }
+                }
                 break;
             }
         }
@@ -1155,13 +1265,27 @@ fn edge_face_surfaces<T: Real>(
     he_plus: HalfEdgeKey,
     he_minus: HalfEdgeKey,
 ) -> Option<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey)> {
-    let surface_of = |he: HalfEdgeKey| {
+    let ((_, s_plus), (_, s_minus)) = edge_adjacent_faces(body, he_plus, he_minus)?;
+    Some((s_plus, s_minus))
+}
+
+/// An edge's two adjacent faces with their surface keys (`he_plus`'s
+/// side, `he_minus`'s side), or `None` on unresolvable links.
+fn edge_adjacent_faces<T: Real>(
+    body: &Body<T>,
+    he_plus: HalfEdgeKey,
+    he_minus: HalfEdgeKey,
+) -> Option<(
+    (FaceKey, crate::geometry::SurfaceKey),
+    (FaceKey, crate::geometry::SurfaceKey),
+)> {
+    let face_of = |he: HalfEdgeKey| {
         let he_data = body.half_edges.get(he)?;
         let loop_data = body.loops.get(he_data.parent_loop)?;
         let face_data = body.faces.get(loop_data.face)?;
-        Some(face_data.surface)
+        Some((loop_data.face, face_data.surface))
     };
-    Some((surface_of(he_plus)?, surface_of(he_minus)?))
+    Some((face_of(he_plus)?, face_of(he_minus)?))
 }
 
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).

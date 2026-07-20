@@ -38,8 +38,11 @@
 //! `extent` is the caller-named feature extent for the curvature-free
 //! case (D4 ¶1's "face extent for parallelism decisions"): callers pass
 //! the local feature scale the decision turns on — this crate's
-//! certification and `topo`'s tier-3 validator pass the **edge's chord
-//! length** (always available, honestly local). `sin θ` is used rather
+//! certification and `topo`'s tier-3 validator pass the **edge's honest
+//! spatial extent** ([`crate::edge_extent`]: the chord for open edges,
+//! the carrier-derived point-set diameter for closed/near-closed circle
+//! carriers, whose chord dishonestly collapses — see that function's
+//! derivation). `sin θ` is used rather
 //! than θ itself: identical to first order where the band lives, exact
 //! at the π-coincidence case (antiparallel normals also classify
 //! Smooth — tangent *planes*, not oriented normals, are compared), and
@@ -48,6 +51,22 @@
 //! The margin is classified against the run's **linear** band (ε, K·ε):
 //! multiplying the angle through its arm in `T` is the profile crate's
 //! ratified pattern — no second band, no f64 extraction from `T`.
+//!
+//! # The collapsed-arm gate (M2 PR 3 fix pass)
+//!
+//! The margin `sin θ · r` decides the *wedge* only when the arm `r` is
+//! itself definitely positive. A collapsed arm (`r` coincident with
+//! zero — a zero/sub-ε extent, the cone-apex limit ρ → 0) maps **every**
+//! angle into the coincidence band, so classifying there would return a
+//! *definite* `Smooth` at what may be a true 90° corner — a definite
+//! wrong answer, worse than no answer. The classifier therefore decides
+//! the arm first (predicate `"dihedral_arm"`): definitely positive
+//! proceeds; coincident-with-zero **escalates** with
+//! [`geom_core::MarginDiag::Invalid`] (with no displacement scale the
+//! wedge question is not validly posed at this site — the same honest
+//! refusal as the poison gradient exactly *at* the apex); in-band or
+//! poisoned arms escalate through the ordinary decide door. "Arm too
+//! small to say" is always an escalation, never a classification.
 
 use geom_core::{Band, Decide, Indeterminate, Point3, Sign};
 use geom_surfaces::Surface;
@@ -86,13 +105,18 @@ pub(crate) fn decide<T: Decide>(
 /// run's linear band.
 ///
 /// `extent` is the caller-named arm for the curvature-free case —
-/// certification and the tier-3 validator pass the edge's chord length.
+/// certification and the tier-3 validator pass the edge's honest
+/// extent from [`crate::edge_extent`] (chord for open edges, carrier
+/// diameter at closure for circle carriers).
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] (predicate `"dihedral_wedge"`): the margin landed
+/// [`Indeterminate`]: predicate `"dihedral_wedge"` — the margin landed
 /// in the sliver band, or was poisoned (off-locus garbage, a surface
-/// singularity such as the cone apex, an unimplemented `Nurbs` kind) —
+/// singularity such as the cone apex, an unimplemented `Nurbs` kind);
+/// or predicate `"dihedral_arm"` — the folded lever arm is collapsed
+/// (coincident with zero, in-band, or poisoned), so no angle can
+/// classify at this site (the collapsed-arm gate, module docs) —
 /// escalate-never-guess, D4 ¶3.
 pub fn classify_dihedral<T: Decide>(
     s1: &Surface<T>,
@@ -107,6 +131,21 @@ pub fn classify_dihedral<T: Decide>(
     let arm = curvature_lever_arm(s1, p)
         .min(curvature_lever_arm(s2, p))
         .min(extent);
+    // The collapsed-arm gate (module docs): the wedge margin is only
+    // meaningful through a definitely-positive arm. A Zero (or, for a
+    // true magnitude, unreachable Negative) arm escalates as Invalid —
+    // "the question was never validly posed here" — and an in-band or
+    // poisoned arm escalates through `decide` itself via `?`.
+    match decide("dihedral_arm", arm, band)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("dihedral_arm"),
+            });
+        }
+    }
     let margin = sin_theta * arm;
     Ok(match decide("dihedral_wedge", margin, band)? {
         Sign::Positive => DihedralClass::Transverse,

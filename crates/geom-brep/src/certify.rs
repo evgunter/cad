@@ -38,9 +38,13 @@
 //! `geom-curves`' ratified convention stands: an edge's bounds are
 //! *derived from its vertices* — the authority is the vertex geometry.
 //! The [`EdgeCurve`] nevertheless **stores** the parameter interval,
-//! as a certified derived cache in exactly the carrier's sense: checks
-//! 1–2 of every certification pin `carrier(t₀)`/`carrier(t₁)` to the
-//! endpoint points within ε, at attachment and again at tier 3. Storing
+//! as a certified derived cache in exactly the carrier's sense: the
+//! endpoint-pinning checks of every certification pin
+//! `carrier(t₀)`/`carrier(t₁)` to the endpoint points within ε, the
+//! span checks enforce the ratified forward direction (t₁ > t₀) and —
+//! for circle carriers — the at-most-one-period winding bound, and the
+//! Intersection mid-parameter pin ties the interval's interior to the
+//! stored witness; all at attachment and again at tier 3. Storing
 //! the certified interval is what keeps periodic carriers total
 //! (a full-period scaffolding edge's `(0, τ)` is not recoverable from
 //! its coincident endpoints) and keeps bound recovery evaluation-free
@@ -64,6 +68,12 @@ pub const CERT_SAMPLES: u32 = 9;
 /// taxonomy, one variant per documented check.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CertCheck {
+    /// The stored parameter interval's span checks (forward direction;
+    /// circle-carrier winding bound) — named on escalations of those
+    /// decisions; their definite failures are the dedicated
+    /// [`CertifyError::IntervalNotForward`] /
+    /// [`CertifyError::WindingExceeded`] variants.
+    ParamSpan,
     /// `|carrier(t₀) − start point|` (check 1).
     EndpointStart,
     /// `|carrier(t₁) − end point|` (check 2).
@@ -76,6 +86,15 @@ pub enum CertCheck {
     WitnessSurface1,
     /// Intersection: the witness point's residual against `s2`.
     WitnessSurface2,
+    /// Intersection: `|carrier((t₀ + t₁)/2) − witness|` — the witness
+    /// **is** the edge's mid-parameter point (the M2 PR 3 fix-pass
+    /// sharpening of the witness contract): together with endpoint
+    /// pinning and the circle winding bound this pins *which* arc of
+    /// the intersection locus the interval traverses, and in which
+    /// direction — the component/side selection the 9 surface-residual
+    /// samples alone cannot see (every point of the wrong arc also
+    /// lies on both surfaces).
+    WitnessMidpoint,
     /// Intersection: the transversality margin at an interior sample
     /// (the dihedral displacement margin — must be definitely
     /// transverse).
@@ -122,6 +141,26 @@ pub enum CertifyError {
     /// A `Seam` description on a non-periodic surface (a plane) — no
     /// seam exists.
     SeamOnNonPeriodic,
+    /// The stored parameter interval is not forward (t₁ − t₀, metered
+    /// as arc length, is definitely ≤ 0 at tolerance): the ratified
+    /// vertices-derive-bounds convention — increasing parameter runs
+    /// start → end of `he_plus` — is violated by a decreasing interval,
+    /// and a **degenerate** (zero-span) interval is refused by the same
+    /// gate (M2 PR 3 fix pass, N1/N2: no M2 construction mints
+    /// zero-length edges — coincident-endpoint chords are already
+    /// refused as poison, and self-loop scaffolding carries the full
+    /// period — so a zero span is always a defect, not data).
+    IntervalNotForward,
+    /// A circle carrier's stored interval spans definitely more than
+    /// one full period (arc length `(t₁ − t₀)·r > τ·r` beyond
+    /// tolerance). This closes the 9-sample winding alias (M2 PR 3
+    /// fix pass, S1): the uniform schedule `s = i/8` is aliased exactly
+    /// by intervals wrong by `8kτ` (the per-sample discrepancy
+    /// `(Δ − θ)·i/8` vanishes mod τ iff `Δ = θ + 8kτ`), and with
+    /// `0 < Δt ≤ τ` enforced no `k ≠ 0` alias is representable — the
+    /// pointwise sample matches then pin the winding *within* the
+    /// period.
+    WindingExceeded,
     /// A residual definitely exceeded the escalation threshold: the
     /// cache does not represent the description (D4 ¶2's `residual ≤ ε`
     /// kernel invariant violated beyond doubt).
@@ -175,6 +214,19 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "certification: Seam described on a non-periodic surface (a plane has no \
                  seam)"
+            ),
+            Self::IntervalNotForward => write!(
+                f,
+                "certification: the stored parameter interval is not forward — increasing \
+                 parameter must run start → end of he_plus (the ratified \
+                 vertices-derive-bounds convention), and a degenerate zero-span interval \
+                 is refused by the same gate"
+            ),
+            Self::WindingExceeded => write!(
+                f,
+                "certification: a circle carrier's parameter interval spans more than one \
+                 full period — |t₁ − t₀| ≤ τ is required to close the sample-schedule \
+                 winding alias (8kτ family)"
             ),
             Self::ResidualExceeded { check, sample } => write!(
                 f,
@@ -337,20 +389,44 @@ impl<T: Decide> EdgeCurve<T> {
     /// 1. Implementedness: the carrier is not `Nurbs`; described
     ///    surfaces resolve and are not `Nurbs`; `Intersection`'s two
     ///    surfaces are distinct; `Seam`'s surface is periodic.
-    /// 2. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
+    /// 2. Interval span (M2 PR 3 fix pass): the stored interval is
+    ///    **forward** — its arc length `(t₁ − t₀)` (`·r` for circle
+    ///    carriers, metering radians into meters) is definitely
+    ///    positive ([`CertifyError::IntervalNotForward`] otherwise —
+    ///    decreasing *and* degenerate zero-span intervals refuse); for
+    ///    circle carriers additionally `(τ − Δt)·r` is not definitely
+    ///    negative ([`CertifyError::WindingExceeded`]) — at most one
+    ///    full period, which closes the 9-sample `8kτ` winding-alias
+    ///    family (see that variant's docs). In-band/poisoned span
+    ///    margins escalate under [`CertCheck::ParamSpan`].
+    /// 3. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
     ///    `|carrier(t₁) − end| ≤ ε`.
-    /// 3. Per-sample description residuals, samples i = 0…8 in order
+    /// 4. Per-sample description residuals, samples i = 0…8 in order
     ///    (per-sample check order as listed in [`CertCheck`]):
     ///    - `Intersection`: implicit residual vs `s1`, then `s2`; at
     ///      interior samples (i = 1…7) the transversality margin
-    ///      (definitely transverse required).
+    ///      (definitely transverse required), metered through the
+    ///      edge's honest extent ([`edge_extent`] — carrier diameter,
+    ///      not the collapsing chord, for closed circle carriers).
     ///    - `MappedCurve`: `|carrier(t_i) − description(i/8)|`.
     ///    - `Seam`: implicit residual, halfplane residual `|w·v_ref|`,
     ///      wrong-side excess `max(0, −w·u_ref)`.
-    /// 4. `Intersection`: the witness's implicit residuals vs both
-    ///    surfaces (the witness must lie on the locus it selects;
-    ///    *which component* it selects is unverifiable before marching
-    ///    exists — M3).
+    /// 5. `Intersection`: the witness's implicit residuals vs both
+    ///    surfaces, then the **mid-parameter pin**
+    ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`
+    ///    ([`CertCheck::WitnessMidpoint`]): the witness contract is
+    ///    that the stored witness IS the edge's mid-parameter point —
+    ///    constructors mint it as `carrier(mid)` (the upgrade helpers'
+    ///    chord midpoint) — which pins the traversed arc and winding
+    ///    direction between the pinned endpoints. Residual freedom
+    ///    after checks 2–5: for circle carriers the interval is
+    ///    determined up to a joint whole-period translation of both
+    ///    ends (geometrically invisible); for lines it is fully
+    ///    determined. *Which connected component* of the intersection
+    ///    locus the witness selects remains unverifiable before
+    ///    marching exists (M3) — the mid-pin verifies the carrier
+    ///    traverses the witness's arc, not that the witness sits on
+    ///    the component the modeler intended.
     ///
     /// # Errors
     ///
@@ -440,6 +516,53 @@ fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
     t0 + (t1 - t0) * frac
 }
 
+/// The honest spatial **extent** of an edge — the lever arm the
+/// dihedral/transversality classification meters angles through
+/// (D4 ¶1), replacing the bare chord (M2 PR 3 fix pass, B2).
+///
+/// # Derivation (the lever-arm rationale)
+///
+/// The extent an angular defect accumulates over is the **diameter of
+/// the edge's point set** — the farthest distance between two of its
+/// points. For open edges the chord `|end − start|` is that diameter
+/// (exactly, for lines and for circular arcs up to a half period). But
+/// for closed and near-closed edges the chord collapses to ~0 while the
+/// true extent stays the carrier's diameter — folding the raw chord in
+/// turned a full-period 90° rim into "definitely Smooth" (a definite
+/// wrong answer) and made tier 3's dihedral pass vacuous on self-loops.
+///
+/// Per carrier kind, this returns a **certified lower bound** on the
+/// point-set diameter (a lower bound is the safe direction: a smaller
+/// arm escalates more, never definitely misclassifies):
+///
+/// - **Line** — the chord (exact).
+/// - **Circle** (radius r, span Δt = t₁ − t₀): `max(chord,
+///   r·(1 − cos(Δt/2)))`. The second term is the arc's sagitta-style
+///   bulge height, an even, branch-free function of Δt with the two
+///   properties the fold needs: it never exceeds the true diameter
+///   (for |Δt| ≤ π, `1 − cos(u) ≤ 2·sin(u)` on `u ∈ [0, π/2]`, i.e.
+///   `tan(u/2) ≤ 2`, so it is below the chord's own `2r·sin(Δt/2)`;
+///   for |Δt| ∈ (π, τ] it is ≤ 2r, the diameter), and at closure
+///   (Δt → τ, chord → 0) it reaches the full carrier diameter `2r` —
+///   the honest extent of a full-period rim. The winding bound
+///   (|Δt| ≤ τ, [`CertifyError::WindingExceeded`]) keeps the cosine in
+///   its honest range.
+/// - **Nurbs** — the chord (nothing better exists; certification
+///   refuses Nurbs carriers loudly anyway).
+///
+/// Total and comparison-free (`max` is the [`Real`] lattice operation);
+/// used by certification's transversality check and re-used verbatim by
+/// `topo`'s tier-3 dihedral pass (same numbers at rest, D9).
+pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+    match *carrier {
+        Curve3::Circle { radius, .. } => {
+            let half_span = (t1 - t0) * T::from_f64(0.5);
+            chord.max(radius * (T::one() - half_span.cos()))
+        }
+        Curve3::Line { .. } | Curve3::Nurbs => chord,
+    }
+}
+
 /// Folds a residual into the running max and classifies it: must be
 /// coincident with zero (|r| ≤ ε). Positive/Negative beyond the band ⇒
 /// [`CertifyError::ResidualExceeded`]; in-band or poisoned ⇒
@@ -521,7 +644,44 @@ fn run_checks<T: Decide>(
     let mut max_residual = T::zero();
     let (t0, t1) = (spec.param_start, spec.param_end);
 
-    // ---- Check 2: endpoint pinning. ----
+    // ---- Check 2: interval span (forward direction; circle winding
+    // bound) — see the check-sequence docs. Spans are metered as arc
+    // length (radians × radius for circles) so they classify against
+    // the linear band like every other margin (dimensional honesty).
+    let span = t1 - t0;
+    let span_escalated = |cause: Indeterminate| CertifyError::Escalated {
+        check: CertCheck::ParamSpan,
+        sample: 0,
+        cause,
+    };
+    match &spec.carrier {
+        Curve3::Circle { radius, .. } => {
+            let arc = span * *radius;
+            match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
+            }
+            // Winding bound: the remaining headroom to one full period.
+            // Zero (exactly full period, the scaffolding/rim case) and
+            // Positive (a partial arc) both pass; definitely negative
+            // is the alias family.
+            let headroom = (T::tau() - span) * *radius;
+            match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
+                Sign::Positive | Sign::Zero => {}
+                Sign::Negative => return Err(CertifyError::WindingExceeded),
+            }
+        }
+        Curve3::Line { .. } => {
+            match decide("interval_span_forward", span, band).map_err(span_escalated)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
+            }
+        }
+        // Unreachable: check 1 rejected Nurbs carriers already.
+        Curve3::Nurbs => {}
+    }
+
+    // ---- Check 3: endpoint pinning. ----
     check_residual(
         "carrier_endpoint_start",
         CertCheck::EndpointStart,
@@ -539,9 +699,12 @@ fn run_checks<T: Decide>(
         &mut max_residual,
     )?;
 
-    // ---- Check 3: per-sample description residuals. ----
-    // The chord is the transversality extent arm (dihedral module docs).
+    // ---- Check 4: per-sample description residuals. ----
+    // The transversality extent arm is the edge's honest spatial
+    // extent — the chord where it is honest, the carrier-derived
+    // diameter for closed circle carriers ([`edge_extent`]'s docs).
     let chord = start.distance(end);
+    let extent = edge_extent(&spec.carrier, t0, t1, chord);
     for i in 0..CERT_SAMPLES {
         let p = spec.carrier.eval(sample_param(t0, t1, i));
         match &resolved {
@@ -563,7 +726,7 @@ fn run_checks<T: Decide>(
                     &mut max_residual,
                 )?;
                 if i > 0 && i < CERT_SAMPLES - 1 {
-                    match classify_dihedral(surf1, surf2, p, chord, band) {
+                    match classify_dihedral(surf1, surf2, p, extent, band) {
                         Ok(DihedralClass::Transverse) => {}
                         Ok(DihedralClass::Smooth) => {
                             return Err(CertifyError::NotTransverse { sample: i });
@@ -622,7 +785,9 @@ fn run_checks<T: Decide>(
         }
     }
 
-    // ---- Check 4: witness residuals (Intersection). ----
+    // ---- Check 5: witness residuals + mid-parameter pin
+    // (Intersection; see the check-sequence docs for the witness
+    // contract: the witness IS the edge's mid-parameter point). ----
     if let Resolved::Intersection {
         surf1,
         surf2,
@@ -642,6 +807,17 @@ fn run_checks<T: Decide>(
             CertCheck::WitnessSurface2,
             0,
             implicit_residual(surf2, *witness),
+            band,
+            &mut max_residual,
+        )?;
+        let mid = spec
+            .carrier
+            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            mid.distance(*witness),
             band,
             &mut max_residual,
         )?;

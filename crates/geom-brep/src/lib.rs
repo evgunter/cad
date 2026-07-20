@@ -39,7 +39,9 @@ pub mod implicit;
 pub mod keys;
 pub mod newell;
 
-pub use certify::{CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec};
+pub use certify::{
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
+};
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use implicit::{curvature_lever_arm, implicit_gradient, implicit_residual};
