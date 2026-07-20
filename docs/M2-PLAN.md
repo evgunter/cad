@@ -195,6 +195,38 @@ Implementer/reviewer prompts cite the notes, never the scan.
    shared edges: shared-edge chord points computed once from the
    edge's curve (deterministic, both faces consume the same points).
    Orientation: outward normals fall out of the loop conventions.
+   **Entity back-references (added 2026-07-19, per DESIGN.md's
+   "Beyond the kernel" §Band 1; Vertex keys added 2026-07-20 per the
+   PR #32 orchestrator review, Evan-agreed)**: the mesh type carries
+   per-triangle source-`Face` keys, per-segment source-`Edge` keys on
+   the boundary polylines, and per-polyline-endpoint source-`Vertex`
+   keys (chord points are already computed per edge and endpoints
+   already are the vertices, so all three associations are free at
+   construction — completing the picking chain triangle→face,
+   segment→edge, endpoint→vertex; vertex picking is what
+   sketch-on-face wants most). Rationale: viewport picking is cheap
+   to design in now and painful to retrofit; STL export simply drops
+   them.
+   **Appearance: deliberately NO M2 artifact (final, Evan
+   2026-07-20, superseding both the 2026-07-19 keyed-container text
+   and the orchestrator review's option (B))**: M2 ships nothing —
+   no container (arena keys are per-lineage and die on rebuild:
+   fake durability + consumer-migration debt) and no placeholder
+   type either, because the type's correct home is the document
+   layer (`editor-core`), which does not exist until M4-era work —
+   parking it in `topo`/`mesh` would model the exact layering
+   mistake it was meant to prevent. The ratified contract lives in
+   DESIGN.md Band 1: display attributes attach via *stable names*,
+   in the document layer, from M4; nothing attaches anywhere before
+   that (STL/tessellation ignore appearance; demos color
+   client-side).
+   **Per-face patch separability (added 2026-07-19, per the banked
+   content-keyed-cache-transfer principle)**: the mesh type keeps
+   per-face triangle patches individually addressable (the
+   back-references already give the association) so a future
+   content-keyed reuse layer can transfer unchanged faces' patches
+   across rebuilds without re-tessellation; no keying machinery in
+   M2 — just don't flatten the per-face structure away.
 7. **STL export + mass properties + M2 exit** *(self-merge grade)*.
    Binary + ASCII STL from the tessellation (D9: byte-identical
    output for identical inputs). Volume/surface area by the ch. 13
