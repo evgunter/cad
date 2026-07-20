@@ -107,46 +107,79 @@ parameter value re-solves *inside* `build` — putting a Newton solver
 inside D9's bit-identity boundary and Q1's trilean discipline (solver
 internals branch on convergence tests that are not predicates;
 interval-instantiating a constraint solver is research).
-**Proposed direction, unratified — the witness pattern one level
-up:** the solver's output is demoted to a **witness**; the recipe
-stores the solved assignment; the kernel *certifies* it (constraint
-residuals ≤ ε, D4 ¶2 style); interval replay runs interval-Newton
-**contraction seeded from the f64 witness** (existence/uniqueness in
-a box) instead of interval-solving from scratch — exactly
-`Intersection { witness }`'s shape. Concrete audit item this creates:
-ezpz (Q3) must satisfy bit-identity (libm-only math, no hash-order
-effects) if its f64 path runs inside `build`.
 
-### GQ2: Partial-build semantics (pre-M4 — API codomain)
+**Why a stored witness at all (clarified with Evan, 2026-07-19 round
+3): the constraints alone do not define the sketch.** A constraint
+system generically has a *finite set* of discrete solutions
+(reflections, elbow-up/elbow-down — 2^k-ish configurations all
+satisfying the constraints exactly); the user's drag selected one,
+and the constraint set does not record which. "Solve from scratch"
+delegates that choice to initial-guess heuristics — hidden state
+deciding topology, the disease D8/Q1 ban (and the root of every
+parametric system's "my sketch flipped" bug: a specification gap,
+not a solver bug). Decomposition: **authoritative geometry** = the
+constraints + D4 ¶2 certification (residuals ≤ ε — no drift is
+possible; any certified solution satisfies the constraints
+regardless of seed); **authoritative branch selection** = the
+witness. This is `Intersection { s1, s2, witness }` with a
+0-dimensional solution variety. Purity is preserved because the
+witness is recipe data (D8): replay computes
+`solution(constraints, params, witness)` — deterministic in all
+three; *continuation along the parameter path* (history-dependent)
+is excluded. As params vary at fixed witness, the implicit function
+theorem defines "the branch containing the witness's basin" until
+the constraint Jacobian degenerates — a genuine bifurcation,
+surfaced as a typed error with distance-to-singularity as the
+margin (the sliver-band pattern), never a silent flip; a
+large-parameter-jump witness landing near a basin boundary escalates
+on the same margin. The witness refreshes at every committed sketch
+edit, so it is always the user's most recent explicit choice.
+
+**Proposed mechanism (direction agreed in principle; details are the
+open part):** solver output demoted to witness; kernel certifies;
+interval replay runs interval-Newton **contraction seeded from the
+f64 witness** (existence/uniqueness in a box) instead of
+interval-solving from scratch. Concrete audit item: ezpz (Q3) must
+satisfy bit-identity (libm-only math, no hash-order effects) if its
+f64 path runs inside `build`.
+
+### GQ2 (RATIFIED 2026-07-19 round 3): Partial-build semantics — per-node result DAG
 
 `Result<Solid>` is all-or-nothing; a usable tool shows "feature 7
 failed, here is the body through feature 6, downstream suppressed."
-Proposed: evaluation returns a **per-node result DAG** (a value),
-the solid being the final node's success — fail-loud preserved
-(failures typed and mandatory to confront), last-good prefix free for
-the GUI. Hard to retrofit onto an all-or-nothing M4 API.
+**Ratified**: evaluation returns a **per-node result DAG** (a
+value), the solid being the final node's success — fail-loud
+preserved (failures typed and mandatory to confront), last-good
+prefix free for the GUI. **A failure poisons only its descendants**
+(typed "upstream failed" status); independent subgraphs — other
+bodies, sketches, datum geometry — complete normally (Evan's
+addition). Exact API shape is M4 design work; the codomain
+commitment is what is banked here.
 
-### GQ3: Edit-history persistence and edit-schema versioning
+### GQ3 (RATIFIED 2026-07-19 round 3): All edits persisted in v1
 
-Are `DocEdit`s persisted (session-spanning undo, macros, and
-collaboration all want serialized edits — dragging the edit schema
-into the Band 4 versioning discipline), or are only document states
-persisted with edits ephemeral? Cheap to decide before the first
-persisted file; expensive to flip.
+**Ratified**: `DocEdit`s are persisted from the first version —
+removing/disabling persistence later is far easier than adding it
+(and session-spanning undo, macros, and collaboration all want it).
+Banked consequences: the edit schema enters Band 4's versioning
+discipline from the first persisted file; storage shape is
+**snapshot + edit log** (details at editor-core design time).
 
-### GQ4: Document scope
+### GQ4: Document scope (open — Evan unsure)
 
-Working assumption to ratify: **one part per document; references are
-document-local**; cross-document references arrive as a typed
-extension with assemblies (Band 3). Stated so the naming design doc
-can assume locality instead of solving the general case prematurely.
+Working assumption, *not* ratified: one part per document,
+references document-local; cross-document references arrive as a
+typed extension with assemblies (Band 3). The naming design doc must
+**flag every place it assumes reference locality** so the assumption
+stays cheap to revisit.
 
-### GQ5: Units in the expression sublanguage (D8 ∩ D6, at M4)
+### GQ5 (RESOLVED 2026-07-19 round 3 — already answered by D6): Units
 
-A dimension field will receive `25mm + t/2`. Does the expression
-language type quantities, or do units convert at parse time with
-expressions in raw meters? The GUI consumes whatever M4 decides;
-deciding it *at* M4 (not after) is the point of this entry.
+D6 decides it: expressions are raw meters/radians; unit strings
+(`25mm + t/2`) are parse-time sugar at the input boundary, converted
+on entry. One-line residue for GUI time: the user's display unit is
+presentation metadata (so a field round-trips as `25 mm`, not
+`0.025`), trivially decided then.
 
 ### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
 

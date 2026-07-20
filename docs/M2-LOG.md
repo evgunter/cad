@@ -285,6 +285,22 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   proposed per-node result DAG)**; also GQ3 edit persistence, GQ4
   document scope, GQ5 units-in-expressions (at M4), GQ6 toolkit
   (re-survey at GUI time), GQ7 selection mechanics.
+- **GUI-DESIGN round 3 (same conversation)**: GQ1's *rationale*
+  settled — the witness is authoritative **branch selection**, not
+  authoritative geometry (constraint systems have finitely many
+  discrete solutions; "solve from scratch" delegates the choice to
+  initial-guess heuristics — hidden state deciding topology;
+  purity preserved because the witness is recipe data:
+  `solution(constraints, params, witness)`; Jacobian degeneration =
+  typed error with distance-to-singularity margin). Direction agreed
+  in principle, mechanism details still the open part. **GQ2
+  RATIFIED** (per-node result DAG; failures poison descendants only,
+  independent subgraphs complete — Evan's addition). **GQ3
+  RATIFIED** (all edits persisted in v1; snapshot + edit log; edit
+  schema enters versioning discipline day one). **GQ5 RESOLVED** via
+  D6 (expressions in raw meters/radians; unit strings are parse-time
+  sugar; display unit = presentation metadata). GQ4 stays open
+  (Evan unsure) — naming doc must flag every locality assumption.
 
 ## Reference acquisitions (2026-07-18)
 

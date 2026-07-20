@@ -61,11 +61,16 @@ before any GUI.** M2-PLAN PR 6 amended: mesh entity back-references +
 empty `Appearance` container. **docs/GUI-DESIGN.md exists
 (Evan-ratified 2026-07-19)**: G1 three-layer split (kernel /
 headless `editor-core` — now in the crate table — / interaction),
-edit-vocabulary-as-data, selection type = stable-name type. **Pre-M4
-blockers: GQ1 solver/replay boundary (proposed witness+certify) and
-GQ2 partial-build semantics (proposed per-node result DAG)** — plus
-GQ3–GQ7; selection stability / naming still needs its own pre-M4
-design doc.
+edit-vocabulary-as-data, selection type = stable-name type. GQ2
+ratified (per-node result DAG, failures poison descendants only),
+GQ3 ratified (all edits persisted, snapshot+edit-log), GQ5 resolved
+via D6. **Pre-M4 blocker: GQ1 solver/replay boundary — rationale
+settled (witness = authoritative branch selection, not geometry;
+`solution(constraints, params, witness)` pure; bifurcation = typed
+error with distance-to-singularity margin), mechanism details open;
+plus GQ4 document scope (Evan unsure — naming doc must flag locality
+assumptions)**; selection stability / naming still needs its own
+pre-M4 design doc.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across
