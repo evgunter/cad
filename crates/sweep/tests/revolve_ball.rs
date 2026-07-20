@@ -21,7 +21,7 @@ use geom_brep::EdgeGeometry;
 use geom_surfaces::Surface;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
-use sweep::{RevolvedKind, Revolution, revolve};
+use sweep::{Revolution, RevolvedKind, revolve};
 
 /// The half-disc: semicircle from (0, −1) through (1, 0) to (0, 1)
 /// (bulge tan(π/4) = 1), closed by the on-axis diameter. CCW.
@@ -48,9 +48,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert_eq!(t.body.surfaces().count(), 1);
     // Every face lies on the unit sphere centered at the origin.
     let (_, face) = t.body.faces().next().unwrap();
-    let Surface::Sphere { center, radius, .. } =
-        *t.body.get_surface(face.surface).unwrap()
-    else {
+    let Surface::Sphere { center, radius, .. } = *t.body.get_surface(face.surface).unwrap() else {
         panic!("ball face is a sphere");
     };
     assert!(center.distance(geom_core::Point3::origin()).abs() < 1e-12);
@@ -99,7 +97,10 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     let v = signed_volume_lifted(
         &t.body,
         &[
-            (t.walls[0][0].unwrap(), geom_core::Point3::new(0.0, 0.0, -1.0)),
+            (
+                t.walls[0][0].unwrap(),
+                geom_core::Point3::new(0.0, 0.0, -1.0),
+            ),
             (pi_walls[0].unwrap(), geom_core::Point3::new(0.0, 0.0, 1.0)),
         ],
     );

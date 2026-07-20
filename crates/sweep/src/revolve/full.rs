@@ -35,7 +35,7 @@ use super::axis::{AxisFrame, AxisRun, LoopClasses};
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{chain_spec, cosurface, strut_spec, wall_surface};
 use super::upgrade::{face_surface_key, upgrade_intersection, upgrade_meridian_seam};
-use super::{Revolved, RevolvedKind, RevolveError, SweptSeg};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
 /// (the module-doc convention; the sweep traverses reversed chains).
@@ -127,15 +127,16 @@ fn build_lamina<T: Decide>(
             })?
             .he_plus)
     };
-    let e_minus = |body: &Body<T>, he: topo::HalfEdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
-        let edge = he_edge(body, he)?;
-        Ok(body
-            .get_edge(edge)
-            .ok_or(topo::EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(edge),
-            })?
-            .he_minus)
-    };
+    let e_minus =
+        |body: &Body<T>, he: topo::HalfEdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
+            let edge = he_edge(body, he)?;
+            Ok(body
+                .get_edge(edge)
+                .ok_or(topo::EulerOpError::StaleKey {
+                    key: topo::EntityId::Edge(edge),
+                })?
+                .he_minus)
+        };
     // Copied-chain edges (the walls' mef edges), all present in the
     // lamina case (nothing is pinned). The defensive fallback to the
     // chain edge is unreachable; were it ever taken, the zip's own

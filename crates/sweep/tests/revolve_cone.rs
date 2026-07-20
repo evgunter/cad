@@ -2,12 +2,12 @@
 //! revolved fully about the y-axis. Exact profile: base edge
 //! (0,0)→(1,0) (⊥ axis ⇒ plane disc), slant edge (1,0)→(0,1)
 //! (oblique ⇒ cone, apex at (0,1)), closing edge (0,1)→(0,0) ON the
-//! axis (omitted). Two-band wire structure: V4 E6 F4 R0 — apex +
-//! disc-center (each valence 2: the angle-0 and angle-π meridians)
-//! + the base-rim corner at angles 0 and π; the base rim is two
-//! half-period arcs (`Intersection { plane, cone }`); the angle-0
-//! slant meridian is `Seam { cone }`, the angle-0 base meridian
-//! conventional (plane wall), the angle-π copies conventional.
+//! axis (omitted). Two-band wire structure: V4 E6 F4 R0 — the apex
+//! and the disc center (each valence 2: the angle-0 and angle-π
+//! meridians) plus the base-rim corner at angles 0 and π; the base
+//! rim is two half-period arcs (`Intersection { plane, cone }`); the
+//! angle-0 slant meridian is `Seam { cone }`, the angle-0 base
+//! meridian conventional (plane wall), the angle-π copies likewise.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,7 +19,7 @@ use geom_brep::EdgeGeometry;
 use geom_surfaces::Surface;
 use profile::ProfileLoop;
 use revolve_common::*;
-use sweep::{RevolvedKind, Revolution, revolve};
+use sweep::{Revolution, RevolvedKind, revolve};
 
 fn triangle() -> ProfileLoop<f64> {
     ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])

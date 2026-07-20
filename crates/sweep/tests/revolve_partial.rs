@@ -13,7 +13,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom_brep::EdgeGeometry;
 use profile::ProfileLoop;
 use revolve_common::*;
-use sweep::{RevolvedKind, Revolution, revolve};
+use sweep::{Revolution, RevolvedKind, revolve};
 
 /// The unit square with its left edge ON the axis. Canonical segments:
 /// 0 bottom (⊥ axis, plane), 1 right (∥ axis, cylinder), 2 top

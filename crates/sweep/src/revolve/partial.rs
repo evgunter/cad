@@ -18,8 +18,8 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::surfaces::{cap_points, chain_spec, cosurface, strut_spec, wall_surface};
-use super::{Revolved, RevolvedKind, RevolveError, SweptSeg};
 use super::upgrade::{face_surface_key, upgrade_intersection};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
 /// sign class of θ (`true` ⇔ θ definitely positive — module docs'
@@ -37,7 +37,14 @@ pub(super) fn build_partial<T: Decide>(
     let rot = Affine3::rotation_about_axis(frame.o3, frame.a3, theta);
     let place_end = rot * place;
     let n_end = rot.linear * frame.n3;
-    let axis_c = super::turn_axis(if reverse { Sign::Positive } else { Sign::Negative }, frame.a3);
+    let axis_c = super::turn_axis(
+        if reverse {
+            Sign::Positive
+        } else {
+            Sign::Negative
+        },
+        frame.a3,
+    );
 
     // World points: start chain, and end chain (pinned vertices are
     // fixed by the rotation — their end point IS the start point, so
@@ -263,7 +270,10 @@ pub(super) fn build_partial<T: Decide>(
 }
 
 /// An half-edge's edge key (total).
-pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> Result<EdgeKey, RevolveError> {
+pub(super) fn he_edge<T: Decide>(
+    body: &Body<T>,
+    he: topo::HalfEdgeKey,
+) -> Result<EdgeKey, RevolveError> {
     Ok(body
         .get_half_edge(he)
         .ok_or(topo::EulerOpError::StaleKey {

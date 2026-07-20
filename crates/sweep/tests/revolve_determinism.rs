@@ -9,11 +9,11 @@ mod revolve_common;
 
 use core::f64::consts::FRAC_PI_2;
 
-use geom_core::{Point2, Vec2};
 use geom_core::Tolerance;
+use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
-use sweep::{RevolveAxis, Revolution, revolve};
+use sweep::{Revolution, RevolveAxis, revolve};
 
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {
@@ -91,11 +91,7 @@ fn dual_value_channel_matches_f64_bitwise() {
         };
         let d = revolve(&dp, daxis, drev).unwrap();
         // Value channel bit-identity: compare every point coordinate.
-        let f_pts: Vec<f64> = f
-            .body
-            .points()
-            .flat_map(|(_, p)| [p.x, p.y, p.z])
-            .collect();
+        let f_pts: Vec<f64> = f.body.points().flat_map(|(_, p)| [p.x, p.y, p.z]).collect();
         let d_pts: Vec<f64> = d
             .body
             .points()

@@ -412,9 +412,7 @@ pub(super) fn analyze_contact<T: Real>(
         if !v.pinned {
             continue;
         }
-        let allowed = run.is_some_and(|r| {
-            (0..=r.len).any(|k| (r.start + k) % n == j)
-        });
+        let allowed = run.is_some_and(|r| (0..=r.len).any(|k| (r.start + k) % n == j));
         if !allowed {
             return Err(RevolveError::NonManifoldAxisContact {
                 loop_index,

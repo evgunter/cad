@@ -14,7 +14,7 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use geom_core::Vec2;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
-use sweep::{RevolveAxis, RevolveError, Revolution, revolve};
+use sweep::{Revolution, RevolveAxis, RevolveError, revolve};
 
 fn washer() -> ProfileLoop<f64> {
     ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
@@ -115,7 +115,12 @@ fn two_axis_runs_in_full_revolve_are_typed() {
 
 #[test]
 fn holed_full_revolve_is_typed() {
-    let hole = ProfileLoop::polygon([p2(1.25, 0.25), p2(1.75, 0.25), p2(1.75, 0.75), p2(1.25, 0.75)]);
+    let hole = ProfileLoop::polygon([
+        p2(1.25, 0.25),
+        p2(1.75, 0.25),
+        p2(1.75, 0.75),
+        p2(1.25, 0.75),
+    ]);
     let vp = validated(vec![washer(), hole]);
     let e = revolve(&vp, axis_y(), Revolution::Full).unwrap_err();
     assert!(matches!(e, RevolveError::FullRevolveHoles), "{e:?}");

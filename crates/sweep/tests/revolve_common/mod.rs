@@ -116,10 +116,7 @@ pub fn signed_volume(body: &Body<f64>) -> f64 {
 /// volume — the two-band sphere/cone patches, whose two meridians lie
 /// in one plane. The lift must be an interior surface point of that
 /// face (test-local geometric knowledge).
-pub fn signed_volume_lifted(
-    body: &Body<f64>,
-    lifts: &[(topo::FaceKey, Point3<f64>)],
-) -> f64 {
+pub fn signed_volume_lifted(body: &Body<f64>, lifts: &[(topo::FaceKey, Point3<f64>)]) -> f64 {
     let mut six_v = 0.0;
     for (fk, face) in body.faces() {
         let lift = lifts.iter().find(|(k, _)| *k == fk).map(|(_, q)| *q);

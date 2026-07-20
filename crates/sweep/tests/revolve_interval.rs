@@ -10,7 +10,7 @@
 
 use geom_core::{Interval, Point2, Tolerance, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
-use sweep::{RevolveAxis, Revolution, revolve};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {

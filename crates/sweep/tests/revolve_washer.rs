@@ -11,7 +11,7 @@ use geom_brep::EdgeGeometry;
 use geom_surfaces::Surface;
 use profile::ProfileLoop;
 use revolve_common::*;
-use sweep::{RevolvedKind, Revolution, revolve};
+use sweep::{Revolution, RevolvedKind, revolve};
 
 /// The rectangle x ∈ [1, 2], y ∈ [0, 1], counterclockwise.
 fn washer_profile() -> ProfileLoop<f64> {
@@ -34,7 +34,11 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     let mut planes = 0;
     for w in &t.walls[0] {
         let f = w.expect("no on-axis segments");
-        match t.body.get_surface(t.body.get_face(f).unwrap().surface).unwrap() {
+        match t
+            .body
+            .get_surface(t.body.get_face(f).unwrap().surface)
+            .unwrap()
+        {
             Surface::Cylinder { .. } => cylinders += 1,
             Surface::Plane { .. } => planes += 1,
             other => panic!("unexpected wall surface {other:?}"),
@@ -78,5 +82,57 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     // Orientation oracle: positive material volume (exact value
     // 2π·R̄·A = 2π·1.5·1 ≈ 9.42; chordal sampling only bounds it
     // loosely — the SIGN is the oracle).
+    assert!(signed_volume(&t.body) > 0.0);
+}
+
+#[test]
+fn donut_two_arc_profile_shares_one_torus() {
+    // A 2-vertex circle profile (two semicircular arcs on one carrier)
+    // off the axis: the cosurface run makes BOTH walls share one torus
+    // key; both rims are same-key joins (conventional `RevolvedPoint`
+    // survives — definitely smooth); both meridian arcs lie on the
+    // torus's u = 0 minor circle and carry `Seam { torus }`. Also the
+    // minimal (m = 2) exercise of the kfmrh + zip closure.
+    let lp = ProfileLoop::new(vec![
+        profile::ProfileVertex {
+            pos: p2(1.0, 0.5),
+            bulge: 1.0,
+        },
+        profile::ProfileVertex {
+            pos: p2(2.0, 0.5),
+            bulge: 1.0,
+        },
+    ]);
+    let vp = validated(vec![lp]);
+    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    assert_all_tiers(&t.body);
+    // V2 E4 F2 R0: v − e + f − r = 0 ⇒ genus 1.
+    assert_eq!(counts(&t.body), (2, 4, 2, 0));
+    // One shared torus surface.
+    assert_eq!(t.body.surfaces().count(), 1);
+    let k0 = t.body.get_face(t.walls[0][0].unwrap()).unwrap().surface;
+    let k1 = t.body.get_face(t.walls[0][1].unwrap()).unwrap().surface;
+    assert_eq!(k0, k1);
+    assert!(matches!(
+        t.body.get_surface(k0),
+        Some(Surface::Torus { .. })
+    ));
+    // Full-period rims stay conventional (same surface key each side).
+    for r in &t.rims[0] {
+        assert!(matches!(
+            description(&t.body, r.unwrap()),
+            EdgeGeometry::MappedCurve(_)
+        ));
+    }
+    // Both meridians are the torus's seam.
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
+        panic!("full revolve");
+    };
+    for m in meridians {
+        assert!(matches!(
+            description(&t.body, m.unwrap()),
+            EdgeGeometry::Seam { .. }
+        ));
+    }
     assert!(signed_volume(&t.body) > 0.0);
 }

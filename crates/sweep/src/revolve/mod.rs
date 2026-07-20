@@ -118,8 +118,10 @@ pub struct RevolveAxis<T: Real> {
 /// angle conventions, including why exactly-full must say `Full`).
 #[derive(Clone, Copy, Debug)]
 pub enum Revolution<T: Real> {
-    /// The full revolution: sweeps exactly +2π; the seam closes through
-    /// same-shell `kfmrh` plus the loopglue zip (no wedge caps).
+    /// The full revolution: sweeps exactly +2π (no wedge caps). A
+    /// closed off-axis profile closes its seam through same-shell
+    /// `kfmrh` plus the loopglue zip; an axis-touching profile sweeps
+    /// as a two-band wire (see [`RevolvedKind::Full`]).
     Full,
     /// A partial revolution by the **signed** angle θ (radians,
     /// right-hand rule about the placed axis direction);
@@ -516,7 +518,14 @@ pub(super) fn swept_segments<T: Decide>(
     for j in 0..n {
         let (s, a, b, bulge, canonical_vertex, canonical_segment) = if reverse {
             let s = &segs[n - 1 - j];
-            (s, s.end, s.start, T::zero() - s.bulge, (n - j) % n, n - 1 - j)
+            (
+                s,
+                s.end,
+                s.start,
+                T::zero() - s.bulge,
+                (n - j) % n,
+                n - 1 - j,
+            )
         } else {
             let s = &segs[j];
             (s, s.start, s.end, s.bulge, j, j)
