@@ -93,6 +93,34 @@ M2-LOG snapshots assume it):**
 - On any warning-driven or planned handoff: commit log + memories +
   in-flight branch status per the stopping rule above.
 
+**Operational lessons (M2, 2026-07-19/20):**
+- **The 64k output-token-per-response limit kills agents that draft
+  whole files in one Write** (or produce runaway derivations
+  in-context). One implementer died 3× before the fix. Bake OUTPUT
+  DISCIPLINE into every spec's header: ≤~150 lines per tool call;
+  skeleton first, one function/test per Edit; split code across
+  several source files; read big files chunked (offset/limit, ≤10-line
+  distillation per chunk); break a growing response with a small tool
+  call; derivations in scratchpad files; reports ≤150 dense lines.
+  If an agent dies to this repeatedly, RESUME may replay the same
+  giant response — kill it and respawn FRESH with the discipline in
+  the spec (the poisoned transcript is the problem).
+- Agents stopping "waiting on gate results" from a background chain
+  may re-stop after a generic nudge — tell them explicitly: kill the
+  chain, run each gate row as a separate SYNCHRONOUS foreground Bash
+  call, read each result before the next.
+- Finished agents can keep firing stale-waiter notifications; TaskStop
+  them once their report is delivered.
+- Convergent independent diagnosis (PR 4's implementer and PR 3's
+  reviewer both finding the interval norm poison) is strong evidence;
+  when two agents propose the same fix, have the second adopt the
+  first's exact patch text to make the stack merge trivial.
+- Mid-flight branch moves: when a reviewed branch gains commits,
+  message the reviewer with precisely what changed and what to
+  re-check; reviewers' executed-witness findings beat implementers'
+  derivations (the powi(2) subnormal case) — record the resolution,
+  scope the doc claim.
+
 **Operational lessons (M1, 2026-07-16):**
 - **Assign reviewers explicit claims to falsify** (not just "review
   this"): the falsification assignments caught a real doc
