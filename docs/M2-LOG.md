@@ -227,6 +227,32 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   deferred to it); near-apex dihedral honestly escalates (arms
   collapse), apex/pole ENDPOINTS are fine (no gradient sampled).
 
+## Design decisions with Evan, in-session (2026-07-19)
+
+- **Rim edges upgrade to `Intersection` (Evan's call, resolving the
+  PR 4 judgment-call flag)**: cap–wall rim edges do NOT stay
+  `MappedCurve` — after both caps' planes are set, rims upgrade to
+  `Intersection{cap plane, side surface, witness}` via the same
+  `classify_dihedral` → `set_edge_curve` pattern as corner joins
+  (uniform for normal extrusion: every rim is definitely transverse).
+  Lands in the PR 4 fix pass; PR 5's spec inherits (revolve cap/wedge
+  rims likewise; full-period latitude rims depend on the B2
+  carrier-diameter lever-arm fix, in flight in the PR 3 fix pass).
+- **Prefer-intrinsic gets tier-3 teeth (orchestrator proposal, Evan
+  approved)**: at rest, every *definitely-transverse* edge must carry
+  `Intersection`; definitely-smooth keeps `MappedCurve` (conventional
+  split per D2); escalated dihedrals and `Seam` edges exempt — so
+  ε-tightening can escalate but never flip valid→invalid. Rationale:
+  an unenforced preference drifts silently — exactly the shape this
+  project exists to kill; cost ≈ 0 (tier 3 already samples dihedrals
+  per edge). Lands in the PR 4 fix pass (validator edit is in reach on
+  the stack); ratification text folds into the M2-exit DESIGN.md sweep
+  under D2, removing "prefer-intrinsic-as-validity" from tier 3's
+  documented not-checked list.
+- **Chordal-tolerance ≠ kernel-ε separation reconfirmed** by Evan
+  ahead of PR 6 (already ratified in the #24 conversation; recorded
+  here because he endorsed it explicitly in-session).
+
 ## Reference acquisitions (2026-07-18)
 
 - Mäntylä ch. 14 notes (`mantyla-ch14-splitting-algorithm.md`) and
