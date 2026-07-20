@@ -122,7 +122,14 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             let (h, w) = axial_radial(p, center, axis);
             let rho = w.norm();
             let d = rho - major_radius;
-            (d * d + h * h - minor_radius * minor_radius) / (two * minor_radius)
+            // d and h straddle zero at legitimate on-locus points (the
+            // tube's top/bottom circle, the equatorial plane): tight
+            // squares via powi(2), not d·d/h·h — bit-identical at f64
+            // and the dual value channel, honest [0, hi] enclosures at
+            // the interval scalar (the norm_squared rationale, M2 PR 3
+            // fix pass). minor_radius is positive conventional data, so
+            // its plain square is already tight.
+            (d.powi(2) + h.powi(2) - minor_radius * minor_radius) / (two * minor_radius)
         }
         Surface::Nurbs => poison(),
     }

@@ -221,7 +221,13 @@ pub enum EdgeGeometry<T: Real> {
         /// The second surface.
         s2: SurfaceKey,
         /// A point on (within ε of) the intended component of the
-        /// intersection locus.
+        /// intersection locus — and, by the certification contract
+        /// (M2 PR 3 fix pass), **the edge's mid-parameter point**:
+        /// certification pins `carrier((t₀ + t₁)/2)` to this point
+        /// within ε, so the witness selects not just the component but
+        /// the traversed arc and winding between the endpoints.
+        /// Constructors mint it by evaluating the carrier at the
+        /// interval midpoint (for straight chords: the chord midpoint).
         witness: Point3<T>,
     },
     /// Conventional: a pushforward of a sketch entity under a sweep map
