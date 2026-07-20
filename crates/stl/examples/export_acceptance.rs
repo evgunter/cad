@@ -15,18 +15,16 @@ mod common;
 
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 
-const DELTA: f64 = 1e-2;
-
 fn main() {
     let outdir = std::env::args()
         .nth(1)
         .expect("usage: export_acceptance <outdir>");
     std::fs::create_dir_all(&outdir).expect("create outdir");
-    for (name, body) in common::acceptance_bodies() {
+    for (name, body, delta) in common::acceptance_bodies() {
         topo::validate_geometric(&body)
             .unwrap_or_else(|e| panic!("{name}: tier-3 validation failed: {e:?}"));
         let props = topo::mass_properties(&body).expect("mass properties");
-        let mesh = mesh::tessellate(&body, DELTA).expect("tessellate");
+        let mesh = mesh::tessellate(&body, delta).expect("tessellate");
         check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
         let v = signed_volume(&mesh);
         assert!(v > 0.0, "{name}: mesh signed volume must be positive");

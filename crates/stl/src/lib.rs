@@ -26,11 +26,17 @@
 //! # Normals
 //!
 //! Each facet normal is computed in f64 from the triangle's vertex
-//! winding (`(b−a)×(c−a)`, normalized), then cast to f32. Mesh
-//! triangles are non-degenerate by construction (the tessellator drops
-//! degenerates), so a zero cross product is a defect upstream — it is
-//! a typed [`StlError::DegenerateTriangle`], never a silently zeroed
-//! or guessed normal (fail loud, D4/D9).
+//! winding (`(b−a)×(c−a)`, normalized), then cast to f32. The
+//! tessellator drops index-degenerate triangles, so a zero cross
+//! product is a defect — it is a typed
+//! [`StlError::DegenerateTriangle`], never a silently zeroed or
+//! guessed normal (fail loud, D4/D9). Known live case (M2 PR 7
+//! finding): at coarse δ a cone's apex fan can emit triangles whose
+//! three points are exactly collinear along a generator (distinct
+//! indices, zero 3-D area — invisible to the id-degenerate drop and
+//! to the combinatorial `check_mesh`); the writer refuses those
+//! meshes, and the export tests pin the behavior — pick a finer δ
+//! (the acceptance set uses δ = 1e-2 for the cone).
 //!
 //! # Choosing δ for export
 //!
@@ -128,21 +134,34 @@ pub(crate) fn facets(mesh: &mesh::Mesh) -> Result<Vec<Facet>, StlError> {
                     return Err(StlError::IndexOutOfRange { index: i });
                 }
             }
-            let [a, b, c] = [
-                mesh.positions[tri[0] as usize],
-                mesh.positions[tri[1] as usize],
-                mesh.positions[tri[2] as usize],
+            // The normal is computed from the f64 vertices — the
+            // honest normal of the certified tessellation. (Computing
+            // it from the f32-narrowed vertices instead was tried and
+            // rejected: apex-fan slivers become EXACTLY collinear
+            // under f32 rounding at every practical δ, so an
+            // "as-written" normal doesn't exist for them; external
+            // checkers recomputing normals from the file's f32
+            // vertices may report small disagreements on such slivers
+            // — a narrowing artifact, not an orientation defect.)
+            let vertex = |i: u32| {
+                let p = mesh.positions[i as usize];
+                [p.x, p.y, p.z]
+            };
+            let [a, b, c] = [vertex(tri[0]), vertex(tri[1]), vertex(tri[2])];
+            let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+            let v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+            let cross = [
+                u[1] * v[2] - u[2] * v[1],
+                u[2] * v[0] - u[0] * v[2],
+                u[0] * v[1] - u[1] * v[0],
             ];
-            let u = b - a;
-            let v = c - a;
-            let cross = u.cross(v);
-            let len = cross.norm();
+            let len = (cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]).sqrt();
             if len == 0.0 || !len.is_finite() {
                 return Err(StlError::DegenerateTriangle { triangle: *tri });
             }
             out.push(Facet {
-                normal: [cross.x / len, cross.y / len, cross.z / len],
-                vertices: [[a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z]],
+                normal: [cross[0] / len, cross[1] / len, cross[2] / len],
+                vertices: [a, b, c],
             });
         }
     }

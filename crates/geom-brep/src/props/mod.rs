@@ -198,3 +198,74 @@ pub fn planar_face<T: Real>(
         area: va.norm(),
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
+        let d = b - a;
+        let len = d.norm();
+        LoopEdge {
+            carrier: Curve3::Line {
+                origin: a,
+                dir: d * (1.0 / len),
+            },
+            t0: 0.0,
+            t1: len,
+            forward: true,
+            start: 0,
+            end: 0,
+        }
+    }
+
+    /// Assemble the unit cube from six planar faces (outward CCW
+    /// loops): total flux/3 = +1, total area = 6; with every loop
+    /// reversed (an inside-out cube) the volume flips to −1 — the
+    /// sign the tier-3 +V invariant fires on.
+    #[test]
+    fn hand_built_cube_volume_sign_tracks_orientation() {
+        let p = Point3::new;
+        // Faces as (origin-on-plane, CCW-from-outside vertex cycles).
+        let faces: [[Point3<f64>; 4]; 6] = [
+            // bottom (z = 0, outward −z): CW seen from +z.
+            [p(0., 0., 0.), p(0., 1., 0.), p(1., 1., 0.), p(1., 0., 0.)],
+            // top (z = 1, outward +z).
+            [p(0., 0., 1.), p(1., 0., 1.), p(1., 1., 1.), p(0., 1., 1.)],
+            // front (y = 0, outward −y).
+            [p(0., 0., 0.), p(1., 0., 0.), p(1., 0., 1.), p(0., 0., 1.)],
+            // back (y = 1, outward +y).
+            [p(0., 1., 0.), p(0., 1., 1.), p(1., 1., 1.), p(1., 1., 0.)],
+            // left (x = 0, outward −x).
+            [p(0., 0., 0.), p(0., 0., 1.), p(0., 1., 1.), p(0., 1., 0.)],
+            // right (x = 1, outward +x).
+            [p(1., 0., 0.), p(1., 1., 0.), p(1., 1., 1.), p(1., 0., 1.)],
+        ];
+        let volume = |reverse: bool| -> (f64, f64) {
+            let mut flux = 0.0;
+            let mut area = 0.0;
+            for cycle in &faces {
+                let order: Vec<Point3<f64>> = if reverse {
+                    cycle.iter().rev().copied().collect()
+                } else {
+                    cycle.to_vec()
+                };
+                let mut edges = Vec::new();
+                for i in 0..4 {
+                    edges.push(line_edge(order[i], order[(i + 1) % 4]));
+                }
+                let c = planar_face(order[0], &[edges]).unwrap();
+                flux += c.flux;
+                area += c.area;
+            }
+            (flux / 3.0, area)
+        };
+        let (v_out, a_out) = volume(false);
+        assert!((v_out - 1.0).abs() < 1e-12, "outward cube volume {v_out}");
+        assert!((a_out - 6.0).abs() < 1e-12, "cube area {a_out}");
+        let (v_in, a_in) = volume(true);
+        assert!((v_in + 1.0).abs() < 1e-12, "inside-out cube volume {v_in}");
+        assert!((a_in - 6.0).abs() < 1e-12, "area is orientation-blind");
+    }
+}

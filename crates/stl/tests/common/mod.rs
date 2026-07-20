@@ -25,17 +25,26 @@ pub fn axis_y() -> RevolveAxis<f64> {
     }
 }
 
-/// The acceptance bodies, named, in fixed order (used by the export
-/// tests and mirrored by the CI example).
-pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>)> {
+/// The acceptance bodies, named, in fixed order, each with its export
+/// δ (used by the export tests and the CI example).
+///
+/// Per-body δ notes: the donut pays the quadratic CDT cost (mesh's
+/// documented perf characteristic — δ = 1e-2 is ~40 s and 143k
+/// triangles in debug), so it exports at a coarser δ; the cone must
+/// stay at δ ≤ 1e-2 because coarser apex fans emit exactly-collinear
+/// (zero-3D-area) triangles — distinct indices, so the tessellator's
+/// id-degenerate drop misses them — which the STL writer refuses with
+/// a typed `DegenerateTriangle` (fail loud; see
+/// `degenerate_apex_fan_is_refused_typed` in the export suite).
+pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
     vec![
-        ("l_prism", l_prism()),
-        ("holed_prism", holed_prism()),
-        ("ball", ball()),
-        ("cone", cone()),
-        ("washer", washer()),
-        ("donut", donut()),
-        ("wedge", wedge()),
+        ("l_prism", l_prism(), 1e-2),
+        ("holed_prism", holed_prism(), 1e-2),
+        ("ball", ball(), 1e-2),
+        ("cone", cone(), 1e-2),
+        ("washer", washer(), 1e-2),
+        ("donut", donut(), 8e-2),
+        ("wedge", wedge(), 1e-2),
     ]
 }
 

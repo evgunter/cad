@@ -8,8 +8,6 @@ mod common;
 use mesh::tessellate;
 use stl::{write_ascii, write_binary};
 
-const DELTA: f64 = 1e-2;
-
 fn fnv(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for &b in bytes {
@@ -19,17 +17,30 @@ fn fnv(bytes: &[u8]) -> u64 {
     h
 }
 
-fn binary_of(body: &topo::Body<f64>) -> Vec<u8> {
-    let mesh = tessellate(body, DELTA).unwrap();
+/// The acceptance meshes, tessellated once per process (the donut pays
+/// the documented quadratic CDT cost — see `common::acceptance_bodies`
+/// for the per-body δ) — the writers under test are pure functions of
+/// the mesh, so sharing it is sound.
+fn meshes() -> &'static [(&'static str, mesh::Mesh)] {
+    static MESHES: std::sync::OnceLock<Vec<(&'static str, mesh::Mesh)>> =
+        std::sync::OnceLock::new();
+    MESHES.get_or_init(|| {
+        common::acceptance_bodies()
+            .into_iter()
+            .map(|(name, body, delta)| (name, tessellate(&body, delta).unwrap()))
+            .collect()
+    })
+}
+
+fn binary_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_binary(&mesh, &mut out).unwrap();
+    write_binary(mesh, &mut out).unwrap();
     out
 }
 
-fn ascii_of(body: &topo::Body<f64>) -> Vec<u8> {
-    let mesh = tessellate(body, DELTA).unwrap();
+fn ascii_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_ascii(&mesh, &mut out).unwrap();
+    write_ascii(mesh, &mut out).unwrap();
     out
 }
 
@@ -37,14 +48,20 @@ fn ascii_of(body: &topo::Body<f64>) -> Vec<u8> {
 
 #[test]
 fn repeated_export_is_byte_identical() {
-    for (name, body) in common::acceptance_bodies() {
-        let a = binary_of(&body);
-        let b = binary_of(&body);
-        assert_eq!(fnv(&a), fnv(&b));
-        assert_eq!(a, b, "{name}: binary export not byte-identical");
-        let ta = ascii_of(&body);
-        let tb = ascii_of(&body);
-        assert_eq!(ta, tb, "{name}: ascii export not byte-identical");
+    // Repeat-call identity through the FULL pipeline: rebuild the
+    // body, retessellate, rewrite — bytes must match the cached
+    // pipeline's output exactly.
+    for (name, body, delta) in common::acceptance_bodies() {
+        let rebuilt = binary_of(&tessellate(&body, delta).unwrap());
+        let cached = meshes().iter().find(|(n, _)| *n == name).unwrap();
+        let a = binary_of(&cached.1);
+        assert_eq!(fnv(&a), fnv(&rebuilt));
+        assert_eq!(a, rebuilt, "{name}: binary export not byte-identical");
+        assert_eq!(
+            ascii_of(&cached.1),
+            ascii_of(&cached.1),
+            "{name}: ascii export not byte-identical"
+        );
     }
 }
 
@@ -54,11 +71,11 @@ fn repeated_export_is_byte_identical() {
 #[test]
 #[ignore]
 fn print_stl_hashes() {
-    for (name, body) in common::acceptance_bodies() {
+    for (name, mesh) in meshes() {
         println!(
             "STLHASH {name} bin={:016x} ascii={:016x}",
-            fnv(&binary_of(&body)),
-            fnv(&ascii_of(&body))
+            fnv(&binary_of(mesh)),
+            fnv(&ascii_of(mesh))
         );
     }
 }
@@ -131,9 +148,9 @@ fn parse_ascii(text: &str) -> Vec<[f32; 12]> {
 
 #[test]
 fn ascii_and_binary_triangle_sets_identical() {
-    for (name, body) in common::acceptance_bodies() {
-        let bin = parse_binary(&binary_of(&body));
-        let asc = parse_ascii(std::str::from_utf8(&ascii_of(&body)).unwrap());
+    for (name, mesh) in meshes() {
+        let bin = parse_binary(&binary_of(mesh));
+        let asc = parse_ascii(std::str::from_utf8(&ascii_of(mesh)).unwrap());
         assert_eq!(bin.len(), asc.len(), "{name}: facet counts differ");
         for (i, (b, a)) in bin.iter().zip(&asc).enumerate() {
             for k in 0..12 {
@@ -153,8 +170,8 @@ fn ascii_and_binary_triangle_sets_identical() {
 
 #[test]
 fn binary_header_is_constant_and_not_solid() {
-    let a = binary_of(&common::l_prism());
-    let b = binary_of(&common::ball());
+    let a = binary_of(&meshes()[0].1);
+    let b = binary_of(&meshes()[2].1);
     assert_eq!(&a[..80], &b[..80], "header must be input-independent");
     assert!(!a.starts_with(b"solid"), "binary header must not sniff as ascii");
     let count = u32::from_le_bytes(a[80..84].try_into().unwrap()) as usize;
@@ -166,8 +183,8 @@ fn normals_are_unit_and_outward_consistent() {
     // Winding-derived normals must be unit (f32 tolerance) and agree
     // with the mesh's positive signed volume via 13.7's flux form:
     // Σ (centroid · n̂) · area > 0.
-    for (name, body) in common::acceptance_bodies() {
-        let facets = parse_binary(&binary_of(&body));
+    for (name, mesh) in meshes() {
+        let facets = parse_binary(&binary_of(mesh));
         let mut flux = 0.0f64;
         for f in &facets {
             let n = [f64::from(f[0]), f64::from(f[1]), f64::from(f[2])];
@@ -194,6 +211,23 @@ fn normals_are_unit_and_outward_consistent() {
             flux += (c(0) / 3.0 * n[0] + c(1) / 3.0 * n[1] + c(2) / 3.0 * n[2]) * area2 / 2.0;
         }
         assert!(flux > 0.0, "{name}: outward flux must be positive");
+    }
+}
+
+/// Finding (M2 PR 7): at coarse δ the cone's apex fan emits triangles
+/// whose three points are exactly collinear on a generator (apex +
+/// two stacked meridian chord points — distinct position indices, so
+/// the tessellator's id-degenerate drop does not catch them, and
+/// `check_mesh` is combinatorial-only). The writer's non-degeneracy
+/// contract makes this a typed refusal, never a bad file. Pinned here
+/// so a future mesh-side fix flips this test loudly.
+#[test]
+fn coarse_cone_apex_fan_is_refused_typed() {
+    let mesh = tessellate(&common::cone(), 0.05).unwrap();
+    let mut out = Vec::new();
+    match write_binary(&mesh, &mut out) {
+        Err(stl::StlError::DegenerateTriangle { .. }) => {}
+        other => panic!("expected DegenerateTriangle at coarse delta, got {other:?}"),
     }
 }
 
