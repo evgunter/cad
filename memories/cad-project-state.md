@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1 complete; M2 in progress (PRs 1–2 of 7 merged, PR 3 implemented awaiting review — see docs/M2-LOG.md state snapshot)
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1 complete; M2 in progress (PRs 1–4 of 7 merged, PR 5 implemented+reviewed, PR 6 in flight — see docs/M2-LOG.md per-PR sections)
 metadata:
   node_type: memory
   type: project
@@ -38,14 +38,23 @@ merged (#27** — geom-curves/geom-surfaces closed-enum evaluators;
 Real gained floor/reduce_periodic/copysign; branchless Duff basis; L7
 allowlist moment resolved NOT-needed); **PR 2 merged (#28** — profile
 crate, trilean validation, exact-order-band canonical form, K-hook);
-**PR 3 implemented on `ev/m2-3-edgegeom`, adversarial review NOT yet
-run** — geom-brep crate (EdgeGeometry certified-by-construction,
-dihedral predicate, Newell, tier-3 validate_geometric, op signatures
-with FaceSurface/EdgeCurveSpec). **docs/M2-LOG.md's "State snapshot
-(handoff point)" is the resumption contract** — next moves: PR 3
-review ∥ PR 4 (extrude) implementation, overlapped pipeline.
-Remaining: 4 extrude, 5 revolve, 6 tessellation, 7 STL + K report +
-exit. Mäntylä ch. 12–15 notes all archived in
+**PR 3 merged (#31** — geom-brep crate: EdgeGeometry
+certified-by-construction, dihedral predicate with honest lever arms,
+Newell, tier-3 validate_geometric; review found 2 blockers (interval
+decoration poison in norm_squared; collapsed-arm ⇒ definite Smooth),
+both fixed; witness sharpened to mid-parameter point); **PR 4 merged
+(#33** — sweep crate: extrude with holes/genus-h, rim Intersection
+upgrades + tier-3 prefer-intrinsic enforcement per Evan's 2026-07-19
+in-session decisions); **PR 5 implemented + reviewed zero-blockers**
+on `ev/m2-5-revolve` (revolve: two-band wire case for axis contact,
+washer kfmrh+loopglue zip, Seam first exercised; fix pass/writeup in
+progress); **PR 6 (tessellation) implementer in flight** on
+`ev/m2-6-tessellate`. Remaining: 6 finish, 7 STL + mass properties
+(use Pappus/divergence, NOT the sign-only fan oracle) + K report +
+exit sweep (DESIGN.md ratifications incl. witness-midpoint under D2,
+prefer-intrinsic enforcement, genus-h plan correction). Per-PR
+sections of docs/M2-LOG.md are the running record; orchestrator
+handoff planned after PR 6 (see [[orchestrator-handoff]]). Mäntylä ch. 12–15 notes all archived in
 `<main-checkout>/references/notes/`; the TOG 1986 boolean paper
 (M3's second witness, text-layer PDF) is at
 `references/mantyla-1986-boolean-operations-2-manifolds-tog.pdf`.
@@ -100,7 +109,7 @@ results = typed errors (M3), expression language total-by-charter
 (M4), two-layer DOF diagnosis (structural + GQ1 margin, M6),
 bit-exact float persistence. All usability/GUI-conversation items
 ratified; nothing pending. PR #32 (branch mngr/plan-gui) carries the
-whole conversation — merge awaits Evan.
+whole conversation — merged (#32, Evan sign-off 2026-07-20).
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across

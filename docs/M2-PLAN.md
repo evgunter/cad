@@ -1,8 +1,10 @@
 # M2 Work Order — Analytic Geometry, Extrude/Revolve, Tessellation, STL
 
-**Status: DRAFT — awaiting Evan's ratification.** Milestone plans are
-fundamental forks under the PR #20 process rule: no implementation
-until sign-off.
+**Status: RATIFIED** (the #24 conversation, 2026-07-16/17 — all forks
+pre-resolved there); **amended** 2026-07-19/20 via #32 (PR 6:
+entity back-references incl. Vertex keys, per-face patch
+separability, Appearance fully deferred) and the corrections noted
+inline below.
 
 Read `DESIGN.md` first (D1 incl. the M1 conventions/tiers, D2, D3, D4,
 D8, D9, Q1). M2's goal (Roadmap): **analytic curves/surfaces;
@@ -152,7 +154,11 @@ Implementer/reviewer prompts cite the notes, never the scan.
    hand-verified); plane caps; plane side-faces for line segments,
    **cylinder patches for arc segments**; certified caches
    throughout. Acceptance: extruded L-profile and extruded
-   profile-with-hole (genus 0 with rings), tier-1 after every op,
+   profile-with-hole (*correction 2026-07-19: the original text said
+   "genus 0 with rings," which is impossible — a through-holed
+   extrusion has genus h; square + 2-vertex hole: v−e+f−r =
+   12−18+8−2 = 0 ⇒ g = 1; independently confirmed in the PR 4
+   review for h ∈ {1,2,3} — see M2-LOG*), tier-1 after every op,
    tier-2 + tier-3 + component-E–P at rest.
 5. **Revolve** *(fork RESOLVED with Evan in the #24 conversation,
    2026-07-16 — axis contact fully supported; the original

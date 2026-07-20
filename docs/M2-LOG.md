@@ -406,7 +406,118 @@ Reviewer ran eight falsification assignments as executed programs
   under `finding_` (it pins a true scope bound, not a defect). Full
   matrix green foreground incl. debug-vs-release byte-identity.
 
-## Design decisions with Evan, in-session (2026-07-19)
+## PR 5 (sweep crate: revolve) — 2026-07-20
+
+- Implemented per binding spec (Fable, fresh worktree off main — the
+  first attempt was killed 3× by the 64k output-token-per-response
+  limit; the fresh spec baked in the chunked-writes discipline that
+  fixed it, see the memories update). Files:
+  `sweep/src/revolve/{mod,axis,surfaces,partial,full,upgrade}.rs`.
+  API: `revolve(&ValidatedProfile, RevolveAxis{origin,dir},
+  Revolution::{Full|Partial(signed θ)}) → Revolved` (key bundle);
+  in-sketch axis, r = (p−origin)·ê_r, profile must sit in r ≥ 0;
+  θ > 0 sweeps toward −n (cap-outwardness derivation, never the
+  book's matrotate sign — mirror-check 4).
+- Owned conventions: shared azimuthal frame (every revolution
+  surface axis = +a₃, u_ref = u₃ anchored on the placed axis ⇒
+  u = 0 IS the profile half-plane, meridians are literally the
+  seam); full period minted bitwise-identical at the seam (zip
+  pairs by construction-record keys, never geometric matching);
+  plane-wall meridians keep MappedCurve (`SeamOnNonPeriodic`
+  refusal); rim carriers θ-signed for forward intervals.
+- **Washer op-sequence (the full.rs-referenced hand-trace)**:
+  mvfs → 3×mev chain → closing mef (start disc, transient Nurbs) →
+  4×mev full-period rim struts (interval (0,τ], endpoint = start
+  bitwise) → 4×mef walls (copied chain C₀..C₃; 2 cylinders + 2
+  plane annuli) → kfmrh(start_disc, seed) — copied chain demoted to
+  ring, THE genus supplier → zip: mekr(Cycles{E₃⁻@v0, C₀⁺@v0ʳ},
+  self_loop_circle_at) + kev(N₀⁺); for j=1..3 mef(E_{j−1}⁻, C_j⁺) +
+  kev(N_j⁺) + kef(C_{j−1}⁺); final kef(C₃⁺) → upgrades (cylinder
+  meridians → Seam, plane meridians conventional, 4 rims →
+  Intersection, witness = antipode). End V4 E8 F4 R0 ⇒ g = 1. Zip
+  null edges carry self_loop_circle_at scaffolding (endpoints pin —
+  distinct bitwise-coincident vertices, doc widened in the fix
+  pass). Op-for-op the book's loopglue with Inherit replacing temp
+  face −1 and explicit keys replacing list-head reliance.
+- **Two-band wire case (novel — the book's ball is broken at poles,
+  Problem 12.2 unsolved there)**: one-band wire sweeps leave poles
+  valence-1 (tier-2 ScaffoldingStrutVertex ban — ratified behavior
+  found by the body's own postcondition). Axis-touching full
+  revolves therefore sweep two π-bands: band 1 = ordinary π-sweep;
+  band 2 = per-interior-vertex rim-closing mefs carve the π..2π
+  walls out of the surviving wire face. Poles get valence 2 (angle-0
+  + angle-π meridians); angle-π meridians are conventional (not
+  Seam — u ≠ 0). Ball V2 E2 F2 g0 (one sphere key); cone V4 E6 F4
+  g0. Consequence for the exit sweep: the "minimal" V2/E1/F1 sphere
+  is unrepresentable at rest — a line in the D-doc sweep.
+- Axis-contact trilean classes (exact on-axis / sliver band typed
+  error / generic), half-plane check, surface catalog by trilean
+  parallel/perpendicular/on-axis classification; scope calls:
+  full-revolve-with-holes ⇒ typed `FullRevolveHoles` (per-hole seam
+  surgery unexercised by the acceptance set; revisit on demand);
+  `UnsupportedToroid` conservatively refuses arcs whose CARRIER
+  crosses the axis even when the arc stays clear (D3 ring-torus
+  rule upstream).
+- **e2e review verdict: MERGEABLE, zero blockers, 1 docs-SHOULD
+  (this section — the branch predated main's log sections), 2 NITs,
+  1 OBS.** All ten falsification assignments SURVIVED, executed:
+  two-band construction attacked across 5 wire shapes (4-segment
+  dome, split cylinder, megaphone, silo, ball) with band-pair
+  single-key assertions; washer zip lineage pinned (survivors =
+  exactly the 4 chain edges + 4 rims; wall loops hold their
+  meridian twice); forged Seams refused (SeamSide / 
+  SeamOnNonPeriodic) incl. under rotated placement + oblique axis;
+  witness bitwise = mid-parameter antipode, start-point witness
+  refused e2e; the implementer's volume oracle audited — found to
+  be sign-only (coned polyhedron), magnitude supplied by the
+  reviewer's independent Pappus line integral (<1e-6 rel) + a
+  revolved-mesh ball check; trilean bands exercised at every ε row
+  incl. a negative false-positive hunt; interval lane REQUIRED
+  tier-valid on all shapes + dome/donut/non-dyadic wedge; D9
+  debug↔release dumps byte-identical (the flagged-unasserted item,
+  done); all 14 error variants reachable or verified-honest
+  defensive; mirror-check-5 subsumption verified (the book's
+  opening exists only because plain rsweep needs a wire; the zip's
+  mekr+kev plays that role — final entity sets identical).
+- **Fix pass (tip 27219b0)**: NIT-1 radial_extent now folds
+  arc-interior radial extrema, comparison-free via copysign gating
+  (off-arc candidates negated, never win the max); NIT-2
+  self_loop_circle_at doc widened to the zip's
+  distinct-coincident-vertices shape; Seam variant doc aligned to
+  the SPATIAL definition (u_ref half-plane meridian — on
+  mirror-nappe cones chart u=0 is the spatial-π meridian; found by
+  the PR 6 implementer, certification was already spatial and
+  self-consistent); review suites promoted by merge
+  (review_m2_pr5 + interval, names kept); full matrix green.
+- For PR 6: wire bands are u∈(0,π)/(π,2π) patches (valence-2 poles
+  with TWO meridian boundaries); plane meridians are MappedCurve —
+  never key seam handling off edge kind alone; full-period rims are
+  self-loops — ONE chord-point set per edge. For PR 7: use
+  Pappus/divergence for mass properties, NOT the sign-only fan
+  oracle; the reviewer's meridian_pappus_volume is a starting
+  point.
+
+## Design decisions with Evan, in-session (2026-07-19/20)
+
+- **`FullRevolveHoles` is permanent; voids are born only from
+  booleans (Evan, 2026-07-20)**: PR 5's typed refusal of
+  full-revolving holed profiles is upgraded from a scope deferral to
+  a standing rule, with the invariant **sweeps emit single-shell
+  bodies**. Rationale: in a full revolve a hole's swept walls touch
+  nothing (no caps, no wedge faces) — the cavity boundary is a
+  disconnected interior shell, so direct support would mean revolve
+  emitting multi-shell bodies with internal voids, silently breaking
+  M2 machinery documented against the no-voids assumption
+  (tessellation's outward-shell orientation rule) a milestone before
+  M3's boolean/void machinery exists. `revolve(outer) −
+  revolve(hole-as-outer)` produces the same solid through the front
+  door. Ergonomics, if ever wanted: an M4 recipe-layer sugar node
+  ("revolve holed profile" ⇒ revolve + subtract) — sugar above the
+  kernel, never a new kernel emission mode. Ratify the invariant
+  into DESIGN.md at the M2-exit sweep; point the error text at the
+  boolean route once M3 lands. (`UnsupportedToroid` likewise stays:
+  it is a D3 ring-torus boundary, not a scope cut — spindle tori
+  have no representation to land in.)
 
 - **Rim edges upgrade to `Intersection` (Evan's call, resolving the
   PR 4 judgment-call flag)**: cap–wall rim edges do NOT stay
@@ -621,7 +732,12 @@ Reviewer ran eight falsification assignments as executed programs
   tog.pdf` — real text layer (pdftotext works; no page rendering
   needed).
 
-## State snapshot (handoff point, 2026-07-18)
+## State snapshot (handoff point, 2026-07-18) — SUPERSEDED
+
+*(Historical. Everything below was consumed by the 2026-07-19/20
+session — PRs 3 (#31) and 4 (#33) are merged, PR 5 is
+implemented+reviewed, PR 6 is in flight; see the per-PR sections
+above. A fresh snapshot will be written at the next handoff.)*
 
 - **Merged to main**: M2-PLAN (#24); PR 1 (#27, analytic evaluators);
   PR 2 (#28, profile crate). All zero-blocker reviews, suites

@@ -8,7 +8,9 @@ style, fail-loud.
 - `docs/DESIGN.md` — the **ratified design contract** (decisions D1–D9 +
   open questions). Do not re-litigate settled decisions; propose changes
   as revisions to the doc, discussed with Evan first.
-- `docs/M0-PLAN.md` — the current work order (PR sequence for M0).
+- The current milestone's work order and log (M2 at present:
+  `docs/M2-PLAN.md`, `docs/M2-LOG.md`); earlier milestones'
+  plans/logs are the historical record.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
 
