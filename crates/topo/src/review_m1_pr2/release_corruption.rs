@@ -33,7 +33,7 @@ fn pillow() -> (
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -41,7 +41,7 @@ fn pillow() -> (
         )
         .unwrap();
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -56,7 +56,7 @@ fn broken_orbit_yields_typed_error() {
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_minus;
     let err = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: split.he_plus,
@@ -74,7 +74,7 @@ fn torn_cycle_yields_typed_error() {
     let (mut body, _, seg, split) = pillow();
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
     let err = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: split.he_minus,
         })
@@ -96,7 +96,7 @@ fn large_torn_body_terminates_quickly() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -106,7 +106,7 @@ fn large_torn_body_terminates_quickly() {
     let mut last = seg;
     for i in 0..n {
         last = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -120,7 +120,7 @@ fn large_torn_body_terminates_quickly() {
     body.get_half_edge_mut(seg.he_plus).unwrap().next = seg.he_plus;
     let start = std::time::Instant::now();
     let err = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: target,
         })
@@ -153,7 +153,7 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
     body.get_half_edge_mut(he_a).unwrap().parent_loop = foreign;
     body.get_half_edge_mut(he_b).unwrap().parent_loop = foreign;
     // No panic, no hang; Ok(garbage) is within contract.
-    let result = body.mef(MefSite::Chords {
+    let result = body.mef_chord(MefSite::Chords {
         he1: he_a,
         he2: he_b,
     });
@@ -174,7 +174,7 @@ fn debug_postcondition_fires_on_corrupt_input() {
         let foreign = seed.r#loop;
         body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = foreign;
         body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = foreign;
-        let _ = body.mef(MefSite::Chords {
+        let _ = body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: split.he_minus,
         });
@@ -193,7 +193,7 @@ fn debug_postcondition_fires_on_corrupt_input() {
 fn empty_body_error_paths() {
     let mut body = Body::<f64>::new();
     assert!(
-        body.mev(
+        body.mev_line(
             MevSite::Lone {
                 r#loop: crate::LoopKey::default()
             },
@@ -202,13 +202,13 @@ fn empty_body_error_paths() {
         .is_err()
     );
     assert!(
-        body.mef(MefSite::Lone {
+        body.mef_chord(MefSite::Lone {
             r#loop: crate::LoopKey::default()
         })
         .is_err()
     );
     assert!(
-        body.mev(
+        body.mev_line(
             MevSite::Fan {
                 he1: crate::HalfEdgeKey::default(),
                 he2: crate::HalfEdgeKey::default(),
@@ -218,7 +218,7 @@ fn empty_body_error_paths() {
         .is_err()
     );
     assert!(
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: crate::HalfEdgeKey::default(),
             he2: crate::HalfEdgeKey::default(),
         })

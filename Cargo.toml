@@ -1,10 +1,12 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/geom-brep",
     "crates/geom-core",
     "crates/geom-curves",
     "crates/geom-surfaces",
     "crates/profile",
+    "crates/sweep",
     "crates/topo",
 ]
 

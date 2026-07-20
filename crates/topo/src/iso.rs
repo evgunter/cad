@@ -420,14 +420,14 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 pt(1.0, 0.0, 0.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -442,11 +442,11 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let circle = body
-            .mef(MefSite::Lone {
+            .mef_chord(MefSite::Lone {
                 r#loop: seed.r#loop,
             })
             .unwrap();
-        body.mev(
+        body.mev_line(
             MevSite::Fan {
                 he1: circle.he_plus,
                 he2: circle.he_minus,
@@ -484,14 +484,14 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 pt(2.0, 0.0, 0.0), // elsewhere
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -555,7 +555,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
             let seg = body
-                .mev(
+                .mev_line(
                     MevSite::Lone {
                         r#loop: seed.r#loop,
                     },
@@ -563,7 +563,7 @@ mod tests {
                 )
                 .unwrap();
             let split_faces = body
-                .mef(MefSite::Chords {
+                .mef_chord(MefSite::Chords {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
                 })
@@ -572,7 +572,7 @@ mod tests {
             // lives in the new face after mef; its mate in the old).
             let plant = |body: &mut Body<f64>, at, x| {
                 let strut = body
-                    .mev(MevSite::Fan { he1: at, he2: at }, pt(x, 0.0, 0.0))
+                    .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, 0.0, 0.0))
                     .unwrap();
                 body.kemr(strut.he_plus, strut.he_minus).unwrap()
             };
@@ -607,7 +607,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -616,7 +616,7 @@ mod tests {
             .unwrap();
         let plant = |body: &mut Body<f64>, x| {
             let strut = body
-                .mev(
+                .mev_line(
                     MevSite::Fan {
                         he1: seg.he_minus,
                         he2: seg.he_minus,

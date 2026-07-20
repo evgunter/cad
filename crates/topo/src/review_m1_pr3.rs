@@ -30,9 +30,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::{
-    Body, CurveGeom, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
-    LoopBoundary, LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated,
-    Provenance, Shell, Solid, SurfaceGeom, Vertex, VertexKey, validate,
+    Body, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated, Provenance, Shell,
+    Solid, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
 
@@ -183,7 +183,7 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
     let pt = Point3::new;
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
     let e_ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -191,7 +191,7 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
         )
         .unwrap(); // B
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
     let e_bc = strut(body, e_ab.he_minus, 2.0, 2.0, 0.0); // C
@@ -200,7 +200,7 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
         .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
         .unwrap();
     let f_bottom = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: he_dc,
             he2: e_ab.he_plus,
         })
@@ -209,7 +209,8 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
     let e_bb = strut(body, e_bc.he_plus, 2.0, 0.0, 2.0);
     let e_cc = strut(body, e_cd.he_plus, 2.0, 2.0, 2.0);
     let e_dd = strut(body, f_bottom.he_plus, 0.0, 2.0, 2.0);
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let f_front = mef(body, e_aa.he_minus, e_bb.he_minus);
     let f_right = mef(body, e_bb.he_minus, e_cc.he_minus);
     let f_back = mef(body, e_cc.he_minus, e_dd.he_minus);
@@ -291,7 +292,7 @@ fn carve_hole(
 
     // Strut, then kemr: the planted empty ring.
     let strut = body
-        .mev(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
         .unwrap();
     l.v += 1;
     l.e += 1;
@@ -323,7 +324,7 @@ fn carve_hole(
     // Grow the rim chain inside the ring.
     let mut rim: Vec<MevCreated> = Vec::new();
     let first_rim = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
         .unwrap();
     l.v += 1;
     l.e += 1;
@@ -332,7 +333,7 @@ fn carve_hole(
     for p in &rim_pts[2..] {
         let prev = rim.last().unwrap().he_minus;
         let next = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: prev,
                     he2: prev,
@@ -348,7 +349,7 @@ fn carve_hole(
 
     // Close the rim: membrane face (he1's side) + rim ring (old loop).
     let membrane = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: rim[0].he_plus,
             he2: rim.last().unwrap().he_minus,
         })
@@ -372,7 +373,7 @@ fn carve_hole(
             membrane.he_minus
         };
         let d = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,
@@ -390,7 +391,7 @@ fn carve_hole(
     let mut walls: Vec<MefCreated> = Vec::new();
     for i in 0..drops.len() - 1 {
         let w = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: drops[i].he_minus,
                 he2: drops[i + 1].he_minus,
             })
@@ -405,7 +406,7 @@ fn carve_hole(
         .expect("far edge of first wall still in the membrane loop");
     assert_eq!(he_first_far, walls[0].he_plus);
     let w_last = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: drops.last().unwrap().he_minus,
             he2: he_first_far,
         })
@@ -733,7 +734,7 @@ fn chain(n: usize) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let mut es = Vec::new();
     let first = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -744,7 +745,7 @@ fn chain(n: usize) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
     for i in 1..n {
         let prev = es.last().unwrap().he_minus;
         let e = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: prev,
                     he2: prev,
@@ -811,7 +812,7 @@ fn kemr_asymmetric_split_exact_membership_and_anchors() {
     // Roundtrip via the documented inverse anchors restores the exact
     // original cycle order (structurally; fresh keys expected).
     let restore = body
-        .mekr(MekrSite::Cycles {
+        .mekr_chord(MekrSite::Cycles {
             target: es[1].he_minus,
             ring: es[3].he_plus,
         })
@@ -900,9 +901,7 @@ fn raw_self_loop() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
         },
         prov.clone(),
     );
-    let curve = body.add_curve(CurveGeom::Placeholder {
-        anchor: Point3::new(0.0, 0.0, 0.0),
-    });
+    let curve = body.add_curve(crate::fixtures::test_curve(Point3::new(0.0, 0.0, 0.0)));
     let edge = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -940,9 +939,7 @@ fn raw_self_loop() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
         prov.clone(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::new(0.0, 0.0, 0.0),
-    });
+    let surface = body.add_surface(crate::fixtures::test_surface(Point3::new(0.0, 0.0, 0.0)));
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: h1 },
@@ -998,7 +995,7 @@ fn killed_keys_stay_dead_across_slot_recycling() {
     let seg = es[0];
     let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
     let restore = body
-        .mekr(MekrSite::BothEmpty {
+        .mekr_chord(MekrSite::BothEmpty {
             target: seed.r#loop,
             ring: kill.ring,
         })
@@ -1030,7 +1027,7 @@ fn killed_keys_stay_dead_across_slot_recycling() {
     // Second kill/re-mint cycle on the SAME slots: still coherent.
     let kill2 = body.kemr(restore.he_plus, restore.he_minus).unwrap();
     let restore2 = body
-        .mekr(MekrSite::BothEmpty {
+        .mekr_chord(MekrSite::BothEmpty {
             target: seed.r#loop,
             ring: kill2.ring,
         })
@@ -1056,13 +1053,13 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
     let seg_a = es_a[0];
     let kill_a = body_a.kemr(seg_a.he_plus, seg_a.he_minus).unwrap();
     let restore_a = body_a
-        .mekr(MekrSite::BothEmpty {
+        .mekr_chord(MekrSite::BothEmpty {
             target: seed_a.r#loop,
             ring: kill_a.ring,
         })
         .unwrap();
     let mev_a = body_a
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: restore_a.he_minus,
                 he2: restore_a.he_minus,
@@ -1071,7 +1068,7 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
         )
         .unwrap();
     let mef_a = body_a
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: restore_a.he_plus,
             he2: restore_a.he_minus,
         })
@@ -1081,7 +1078,7 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
     let (mut body_c, _seed_c, es_c) = chain(1);
     let seg_c = es_c[0];
     let mev_c = body_c
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg_c.he_minus,
                 he2: seg_c.he_minus,
@@ -1090,7 +1087,7 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
         )
         .unwrap();
     let mef_c = body_c
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg_c.he_plus,
             he2: seg_c.he_minus,
         })
@@ -1123,13 +1120,13 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
     // AFTER the freed loop slot is consumed, loop minting converges
     // again: a second mef gets fully identical keys in both histories.
     let mef2_a = body_a
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: mev_a.he_plus,
             he2: mev_a.he_minus,
         })
         .unwrap();
     let mef2_c = body_c
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: mev_c.he_plus,
             he2: mev_c.he_minus,
         })
@@ -1148,8 +1145,10 @@ fn unbalanced_kill_divergence_persists() {
         he1: es_a[0].he_minus,
         he2: es_a[0].he_minus,
     };
-    let mev1_a = body_a.mev(site_a, Point3::new(9.0, 0.0, 0.0)).unwrap();
-    let mev2_a = body_a.mev(site_a, Point3::new(10.0, 0.0, 0.0)).unwrap();
+    let mev1_a = body_a.mev_line(site_a, Point3::new(9.0, 0.0, 0.0)).unwrap();
+    let mev2_a = body_a
+        .mev_line(site_a, Point3::new(10.0, 0.0, 0.0))
+        .unwrap();
 
     // C: 3-chain, the same two mevs, no kill.
     let (mut body_c, _seed_c, es_c) = chain(3);
@@ -1157,8 +1156,10 @@ fn unbalanced_kill_divergence_persists() {
         he1: es_c[0].he_minus,
         he2: es_c[0].he_minus,
     };
-    let mev1_c = body_c.mev(site_c, Point3::new(9.0, 0.0, 0.0)).unwrap();
-    let mev2_c = body_c.mev(site_c, Point3::new(10.0, 0.0, 0.0)).unwrap();
+    let mev1_c = body_c.mev_line(site_c, Point3::new(9.0, 0.0, 0.0)).unwrap();
+    let mev2_c = body_c
+        .mev_line(site_c, Point3::new(10.0, 0.0, 0.0))
+        .unwrap();
 
     // Killed-arena keys diverge at the first mint (recycled slots)…
     assert_ne!(mev1_a.edge, mev1_c.edge);
@@ -1188,7 +1189,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
     let (mut body, seed, es) = chain(1);
     let seg = es[0];
     let strut_a = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
@@ -1198,7 +1199,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
         .unwrap();
     let ring_a = body.kemr(strut_a.he_plus, strut_a.he_minus).unwrap();
     let strut_b = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -1228,7 +1229,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
     // Join ring B into ring A: BothEmpty with a RING as the target —
     // the merged segment loop stays a ring of the face.
     let join = body
-        .mekr(MekrSite::BothEmpty {
+        .mekr_chord(MekrSite::BothEmpty {
             target: ring_a.ring,
             ring: ring_b.ring,
         })
@@ -1264,7 +1265,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
     // documented merged-cycle order he_plus → ring-from-anchor →
     // he_minus → target-from-anchor.
     let merge = body
-        .mekr(MekrSite::Cycles {
+        .mekr_chord(MekrSite::Cycles {
             target: seg.he_plus,
             ring: join.he_plus,
         })
@@ -1329,7 +1330,7 @@ fn raw_shared_curve_chain() -> (
             )
         })
         .collect();
-    let curve = body.add_curve(CurveGeom::Placeholder { anchor: p(0.0) });
+    let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
     let e0 = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -1371,7 +1372,7 @@ fn raw_shared_curve_chain() -> (
         prov.clone(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: p(0.0) });
+    let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: a0 },
@@ -1438,7 +1439,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     let (mut body, seed, es) = chain(1);
     let seg = es[0];
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -1454,14 +1455,12 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     let (mut body2, seed2, es2) = chain(1);
     let seg2 = es2[0];
     let split2 = body2
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg2.he_plus,
             he2: seg2.he_minus,
         })
         .unwrap();
-    let private = body2.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::new(5.0, 0.0, 0.0),
-    });
+    let private = body2.add_surface(crate::fixtures::test_surface(Point3::new(5.0, 0.0, 0.0)));
     body2.get_face_mut(split2.face).unwrap().surface = private;
     assert_eq!(validate(&body2), Ok(()));
     let reaped = body2.kfmrh(seed2.face, split2.face).unwrap();
@@ -1512,7 +1511,7 @@ fn kemr_error_paths_are_atomic() {
     // NotSameLoop: halves split across a mef.
     let (mut body, _seed, es) = chain(1);
     let seg = es[0];
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: seg.he_plus,
         he2: seg.he_minus,
     })
@@ -1563,13 +1562,13 @@ fn kemr_error_paths_are_atomic() {
     let (mut body, seed, es) = chain(1);
     let seg = es[0];
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
@@ -1614,7 +1613,7 @@ fn mekr_error_paths_are_atomic() {
             r#loop: seed.r#loop,
         },
         |b| {
-            b.mekr(MekrSite::Cycles {
+            b.mekr_chord(MekrSite::Cycles {
                 target: seg.he_plus,
                 ring: seg.he_minus,
             })
@@ -1625,13 +1624,13 @@ fn mekr_error_paths_are_atomic() {
     let (mut body, _seed, es) = chain(1);
     let seg = es[0];
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
@@ -1649,7 +1648,7 @@ fn mekr_error_paths_are_atomic() {
             ring,
         },
         |b| {
-            b.mekr(MekrSite::EmptyRing {
+            b.mekr_chord(MekrSite::EmptyRing {
                 target: split.he_minus,
                 ring,
             })
@@ -1666,7 +1665,7 @@ fn mekr_error_paths_are_atomic() {
             r#loop: seed.r#loop,
         },
         |b| {
-            b.mekr(MekrSite::EmptyTarget {
+            b.mekr_chord(MekrSite::EmptyTarget {
                 target: b_ring(b, seed.face),
                 ring: es[0].he_plus,
             })
@@ -1680,7 +1679,7 @@ fn mekr_error_paths_are_atomic() {
         &mut body,
         &EulerOpError::LoopNotEmpty { r#loop: kill.ring },
         |b| {
-            b.mekr(MekrSite::EmptyRing {
+            b.mekr_chord(MekrSite::EmptyRing {
                 target: es[0].he_minus,
                 ring: kill.ring,
             })
@@ -1696,7 +1695,7 @@ fn mekr_error_paths_are_atomic() {
         &mut body,
         &EulerOpError::LoopCycleBroken { r#loop: ring_loop },
         |b| {
-            b.mekr(MekrSite::Cycles {
+            b.mekr_chord(MekrSite::Cycles {
                 target: es[0].he_minus,
                 ring: es[2].he_plus,
             })
@@ -1728,7 +1727,7 @@ fn mekr_error_paths_are_atomic() {
             vertex: strut.vertex,
         },
         |b| {
-            b.mekr(MekrSite::BothEmpty {
+            b.mekr_chord(MekrSite::BothEmpty {
                 target: kill.ring,
                 ring: extra,
             })
@@ -1744,7 +1743,7 @@ fn mekr_error_paths_are_atomic() {
             key: EntityId::Loop(dead_loop),
         },
         |b| {
-            b.mekr(MekrSite::EmptyRing {
+            b.mekr_chord(MekrSite::EmptyRing {
                 target: es[0].he_plus,
                 ring: dead_loop,
             })
@@ -1762,7 +1761,7 @@ fn mekr_error_paths_are_atomic() {
             key: EntityId::HalfEdge(HalfEdgeKey::default()),
         },
         |b| {
-            b.mekr(MekrSite::EmptyRing {
+            b.mekr_chord(MekrSite::EmptyRing {
                 target: es[0].he_plus,
                 ring,
             })
@@ -1782,7 +1781,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     let (mut body, seed, es) = chain(1);
     let seg = es[0];
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -1825,7 +1824,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     // FaceHasRings: put a ring on f2 first (strut + kemr in the mef
     // face's loop), then try to kill it.
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: split.he_minus,
                 he2: split.he_minus,
@@ -1925,7 +1924,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                 .find_half_edge(b.seed.face, b.e_aa.vertex, b.e_bb.vertex)
                 .unwrap();
             assert!(matches!(
-                body.mekr(MekrSite::Cycles {
+                body.mekr_chord(MekrSite::Cycles {
                     target: he_top,
                     ring: {
                         let LoopBoundary::Cycle { first } =
@@ -1945,7 +1944,7 @@ fn failing_ring_ops_leave_lineage_pure() {
         }
         // One more op after the injections, to catch cursor drift.
         let post = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: b.e_ab.he_minus,
                     he2: b.e_ab.he_minus,

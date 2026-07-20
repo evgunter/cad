@@ -49,14 +49,16 @@
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
 
+use geom_brep::{EdgeCurve, EdgeGeometry};
 use geom_core::{Point3, Real};
+use geom_surfaces::Surface;
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
     Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
@@ -134,10 +136,11 @@ pub struct Body<T: Real> {
     pub(crate) half_edges: SlotMap<HalfEdgeKey, HalfEdge>,
     pub(crate) edges: SlotMap<EdgeKey, Edge>,
     pub(crate) vertices: SlotMap<VertexKey, Vertex>,
-    // Geometry arenas — the only `T`-carrying storage.
+    // Geometry arenas — the only `T`-carrying storage (real element
+    // types since M2 PR 3; see `crate::geometry`).
     pub(crate) points: SlotMap<PointKey, Point3<T>>,
-    pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
-    pub(crate) surfaces: SlotMap<SurfaceKey, SurfaceGeom<T>>,
+    pub(crate) curves: SlotMap<CurveKey, EdgeCurve<T>>,
+    pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
     // Uniform across all seven topology kinds — half-edges included.
@@ -205,17 +208,19 @@ impl<T: Real> Body<T> {
         self.points.insert(point)
     }
 
-    /// Inserts curve geometry, returning its key.
+    /// Inserts curve geometry (a certified [`EdgeCurve`] — certification
+    /// is the only way to build one), returning its key.
     ///
-    /// Crate-internal raw insertion: no validity promises.
-    pub(crate) fn add_curve(&mut self, curve: CurveGeom<T>) -> CurveKey {
+    /// Crate-internal raw insertion: no validity promises beyond what
+    /// the `EdgeCurve` itself carries.
+    pub(crate) fn add_curve(&mut self, curve: EdgeCurve<T>) -> CurveKey {
         self.curves.insert(curve)
     }
 
     /// Inserts surface geometry, returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises.
-    pub(crate) fn add_surface(&mut self, surface: SurfaceGeom<T>) -> SurfaceKey {
+    pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
         self.surfaces.insert(surface)
     }
 
@@ -361,17 +366,39 @@ impl<T: Real> Body<T> {
         self.curves.remove(curve).is_some()
     }
 
-    /// Removes `surface` from the surface arena iff no face references
+    /// Removes `surface` from the surface arena iff nothing references
     /// it, returning whether it was removed. Used by face-killing
-    /// operators (`kfmrh`; PR 4's `kef`): in M1 constructions all faces
-    /// share `mvfs`'s surface (so nothing is removed), but the scan
-    /// keeps the op sound standalone. Deterministic (D9), same shape as
+    /// operators (`kfmrh`, `kef`) and the surface-attachment setter.
+    /// References counted (M2 PR 3): faces' `surface` keys AND edge
+    /// descriptions' surface keys ([`Body::description_surfaces`]) — an
+    /// `Intersection`/`Seam` description keeps its surfaces alive
+    /// exactly like a face does, so removal can never dangle a
+    /// description. Deterministic (D9), same shape as
     /// [`Body::remove_curve_if_orphaned`].
     pub(crate) fn remove_surface_if_orphaned(&mut self, surface: SurfaceKey) -> bool {
         if self.faces.values().any(|face| face.surface == surface) {
             return false;
         }
+        if self
+            .curves
+            .values()
+            .any(|curve| Self::description_surfaces(curve).contains(&surface))
+        {
+            return false;
+        }
         self.surfaces.remove(surface).is_some()
+    }
+
+    /// The surface keys an edge description references: `Intersection`'s
+    /// two, `Seam`'s one, none for `MappedCurve` (which carries its own
+    /// defining data). Consulted by orphan hygiene and by the
+    /// validator's referential-integrity pass.
+    pub(crate) fn description_surfaces(curve: &EdgeCurve<T>) -> Vec<SurfaceKey> {
+        match *curve.description() {
+            EdgeGeometry::Intersection { s1, s2, .. } => vec![s1, s2],
+            EdgeGeometry::Seam { surface } => vec![surface],
+            EdgeGeometry::MappedCurve(_) => Vec::new(),
+        }
     }
 
     /// Removes `point` from the point arena iff no vertex references it,
@@ -446,13 +473,13 @@ impl<T: Real> Body<T> {
 
     /// The curve geometry at `key`, or `None` if the key is stale (a
     /// foreign key is not caught — see the [module docs](self)).
-    pub fn get_curve(&self, key: CurveKey) -> Option<&CurveGeom<T>> {
+    pub fn get_curve(&self, key: CurveKey) -> Option<&EdgeCurve<T>> {
         self.curves.get(key)
     }
 
     /// The surface geometry at `key`, or `None` if the key is stale (a
     /// foreign key is not caught — see the [module docs](self)).
-    pub fn get_surface(&self, key: SurfaceKey) -> Option<&SurfaceGeom<T>> {
+    pub fn get_surface(&self, key: SurfaceKey) -> Option<&Surface<T>> {
         self.surfaces.get(key)
     }
 
@@ -641,12 +668,12 @@ impl<T: Real> Body<T> {
     }
 
     /// All curve geometry, in slot-index order (deterministic per D9).
-    pub fn curves(&self) -> impl Iterator<Item = (CurveKey, &CurveGeom<T>)> {
+    pub fn curves(&self) -> impl Iterator<Item = (CurveKey, &EdgeCurve<T>)> {
         self.curves.iter()
     }
 
     /// All surface geometry, in slot-index order (deterministic per D9).
-    pub fn surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &SurfaceGeom<T>)> {
+    pub fn surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &Surface<T>)> {
         self.surfaces.iter()
     }
 }

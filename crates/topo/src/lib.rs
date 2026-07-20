@@ -20,6 +20,20 @@
 //! solids) and retired the raw-insertion builder to `pub(crate)`: **the
 //! Euler operators are the only public construction path** (D1).
 //!
+//! **M2 PR 3 — real geometry.** The M0 placeholder geometry retired:
+//! the curve arena holds certified `geom_brep::EdgeCurve`s (D2
+//! intensional description + carrier cache + certification record) and
+//! the surface arena holds `geom_surfaces::Surface`s. Edge-minting
+//! operators take an uncertified `EdgeCurveSpec` and run the D4 ¶2
+//! certification gate before mutating (chord-line sugar:
+//! [`Body::mev_line`] / [`Body::mef_chord`] / [`Body::mekr_chord`] /
+//! [`Body::mfkrh_plug`]); face-minting operators take a
+//! [`FaceSurface`] spec; the two attachment setters
+//! ([`Body::set_face_surface`], [`Body::set_edge_curve`] — see
+//! [`attach`]) cover the construction-order cases mint-time attachment
+//! cannot reach. Tier 3 ([`validate_geometric`]) re-runs every
+//! certification at rest and adds the dihedral classification pass.
+//!
 //! # Orientation conventions
 //!
 //! Documented **once**, in the [`entity`] module docs: the interior-left
@@ -69,24 +83,24 @@
 //! // The seed: solid + shell + one face holding lone vertex A.
 //! let seed = body.mvfs(pt(0.0, 0.0, 0.0))?;
 //! // The bottom rim A → B → C → D, grown by three mev …
-//! let e_ab = body.mev(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0))?;
+//! let e_ab = body.mev_line(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0))?;
 //! let strut = |he| MevSite::Fan { he1: he, he2: he };
-//! let e_bc = body.mev(strut(e_ab.he_minus), pt(1.0, 1.0, 0.0))?;
-//! let e_cd = body.mev(strut(e_bc.he_minus), pt(0.0, 1.0, 0.0))?;
+//! let e_bc = body.mev_line(strut(e_ab.he_minus), pt(1.0, 1.0, 0.0))?;
+//! let e_cd = body.mev_line(strut(e_bc.he_minus), pt(0.0, 1.0, 0.0))?;
 //! // … and closed by a mef splitting off the bottom face.
 //! let he_dc = body.find_half_edge(seed.face, e_cd.vertex, e_bc.vertex).unwrap();
-//! let f_bot = body.mef(MefSite::Chords { he1: he_dc, he2: e_ab.he_plus })?;
+//! let f_bot = body.mef_chord(MefSite::Chords { he1: he_dc, he2: e_ab.he_plus })?;
 //! // Four vertical struts up from the rim …
-//! let e_aa = body.mev(strut(e_ab.he_plus), pt(0.0, 0.0, 1.0))?;
-//! let e_bb = body.mev(strut(e_bc.he_plus), pt(1.0, 0.0, 1.0))?;
-//! let e_cc = body.mev(strut(e_cd.he_plus), pt(1.0, 1.0, 1.0))?;
-//! let e_dd = body.mev(strut(f_bot.he_plus), pt(0.0, 1.0, 1.0))?;
+//! let e_aa = body.mev_line(strut(e_ab.he_plus), pt(0.0, 0.0, 1.0))?;
+//! let e_bb = body.mev_line(strut(e_bc.he_plus), pt(1.0, 0.0, 1.0))?;
+//! let e_cc = body.mev_line(strut(e_cd.he_plus), pt(1.0, 1.0, 1.0))?;
+//! let e_dd = body.mev_line(strut(f_bot.he_plus), pt(0.0, 1.0, 1.0))?;
 //! // … and four mef close the side faces (the seed face becomes the top).
 //! let chord = |he1, he2| MefSite::Chords { he1, he2 };
-//! let f_front = body.mef(chord(e_aa.he_minus, e_bb.he_minus))?;
-//! body.mef(chord(e_bb.he_minus, e_cc.he_minus))?;
-//! body.mef(chord(e_cc.he_minus, e_dd.he_minus))?;
-//! body.mef(chord(e_dd.he_minus, f_front.he_plus))?;
+//! let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus))?;
+//! body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus))?;
+//! body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus))?;
+//! body.mef_chord(chord(e_dd.he_minus, f_front.he_plus))?;
 //!
 //! assert_eq!(body.vertices().count(), 8);
 //! assert_eq!(body.edges().count(), 12);
@@ -96,7 +110,7 @@
 //!
 //! // Mid-construction scaffolding is tier-1 legal but not tier-2: a
 //! // strut fails `validate_closed` with a typed, entity-named error.
-//! let scaffold = body.mev(strut(e_ab.he_plus), pt(2.0, 0.0, 0.0))?;
+//! let scaffold = body.mev_line(strut(e_ab.he_plus), pt(2.0, 0.0, 0.0))?;
 //! assert_eq!(topo::validate(&body), Ok(()));
 //! assert_eq!(
 //!     topo::validate_closed(&body),
@@ -108,6 +122,7 @@
 //! # run().unwrap();
 //! ```
 
+pub mod attach;
 pub mod body;
 pub mod entity;
 pub mod euler;
@@ -133,6 +148,8 @@ mod review_m1_pr4;
 mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
+#[cfg(test)]
+mod tier3_tests;
 pub mod validate;
 
 pub use body::Body;
@@ -140,9 +157,14 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{EulerOpError, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+pub use euler::{EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
-pub use geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+// The types that appear in this crate's own operator signatures, so a
+// consumer of the ops needs no direct geom-* imports for the common
+// path (the full geometry vocabulary still lives in those crates).
+pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+pub use geom_surfaces::Surface;
+pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use provenance::Provenance;
-pub use validate::{ValidationError, validate, validate_closed};
+pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

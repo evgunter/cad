@@ -1,0 +1,26 @@
+[package]
+name = "geom-brep"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so the certification
+# and classification layer runs at `Interval` — exercised by the
+# feature-gated test modules in CI's interval lane.
+interval = ["geom-core/interval"]
+
+[dependencies]
+geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
+# The geometry-arena key types live here (typed slotmap keys): the
+# intensional descriptions reference surfaces *by arena key* (D2), and
+# `topo`'s Body re-exports these same types for its geometry arenas.
+slotmap = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

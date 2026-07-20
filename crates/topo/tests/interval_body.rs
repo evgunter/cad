@@ -14,7 +14,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Point3, Real};
-use topo::{Body, MefSite, MevSite, validate, validate_closed};
+use topo::{Body, MefSite, MevSite, validate, validate_closed, validate_geometric};
+
+mod common;
 
 /// A point enclosure from exact `f64` coordinates ([`Real::from_f64`] is
 /// an exact embedding; these dyadic values are single points).
@@ -33,7 +35,7 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
     let mut body = Body::<Interval>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let e_ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -41,10 +43,11 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
         )
         .unwrap();
     let strut = |body: &mut Body<Interval>, at, x, y, z| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<Interval>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<Interval>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
@@ -75,4 +78,41 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
     assert_eq!((p.x.lo(), p.x.hi()), (1.0, 1.0));
     assert_eq!((p.y.lo(), p.y.hi()), (0.0, 0.0));
     assert_eq!((p.z.lo(), p.z.hi()), (1.0, 1.0));
+}
+
+// ---------------------------------------------------------------------
+// M2 PR 3: the GEOMETRIC cube at the interval scalar — containment
+// through certification. The same generic builder as the f64 lane
+// (pure-replay: identical operator sequence, enclosure coordinates);
+// every attachment gate and the full tier-3 pass classify their
+// residual enclosures definitely.
+// ---------------------------------------------------------------------
+
+#[test]
+fn interval_geometric_cube_passes_tier3() {
+    // Upgraded first (M2 PR 4 fix pass: prefer-intrinsic enforcement —
+    // the cube's transverse chords must carry Intersection at rest).
+    let t = common::geometric_cube::<Interval>();
+    assert_eq!(validate(&t.body), Ok(()));
+    assert_eq!(validate_closed(&t.body), Ok(()));
+    let mut body = t.body;
+    common::upgrade_edges_to_intersections(&mut body);
+    assert_eq!(validate_geometric(&body), Ok(()));
+    // Certification records are genuine enclosures: max residual
+    // brackets are finite, tiny, and contain no poison.
+    for (_, curve) in body.curves() {
+        let r = curve.certificate().max_residual;
+        assert!(r.lo().is_finite() && r.hi().is_finite());
+        assert!(r.hi() < 1e-12, "residual enclosure too wide: {r:?}");
+    }
+}
+
+#[test]
+fn interval_cube_upgrades_to_intersections() {
+    // The prefer-intrinsic upgrade in the interval lane: transversality
+    // margins classify Positive from genuine enclosures.
+    let t = common::geometric_cube::<Interval>();
+    let mut body = t.body;
+    common::upgrade_edges_to_intersections(&mut body);
+    assert_eq!(validate_geometric(&body), Ok(()));
 }

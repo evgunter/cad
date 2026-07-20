@@ -40,12 +40,37 @@ use crate::entity::{
 };
 use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult};
-use crate::geometry::{CurveGeom, CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
     Provenance::Primordial { op: "fixture" }
+}
+
+/// A certified scaffolding curve for raw-insertion fixtures (M2 PR 3:
+/// the curve arena holds certified `EdgeCurve`s and nothing else): the
+/// canonical self-loop circle at `anchor` — deterministic, honest data,
+/// no geometric claims about the fixture's topology (raw fixtures make
+/// no validity promises anyway; the anchor keeps snapshots
+/// per-call-site distinct like the M0 placeholder anchors did).
+pub(crate) fn test_curve(anchor: Point3<f64>) -> geom_brep::EdgeCurve<f64> {
+    let spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(anchor);
+    geom_brep::EdgeCurve::certify(
+        spec,
+        anchor,
+        anchor,
+        |_| None,
+        geom_core::Band::linear().unwrap(),
+    )
+    .unwrap()
+}
+
+/// A raw-fixture surface: the `Nurbs` "no description yet" state (the
+/// anchor argument is accepted for call-site symmetry with
+/// [`test_curve`] and ignored — surfaces carry no certification).
+pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom_surfaces::Surface<f64> {
+    geom_surfaces::Surface::Nurbs
 }
 
 /// A deep, order-sensitive snapshot of a body: one line per arena entry
@@ -179,18 +204,10 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
     let curves: Vec<CurveKey> = (0..n)
-        .map(|_| {
-            body.add_curve(CurveGeom::Placeholder {
-                anchor: Point3::origin(),
-            })
-        })
+        .map(|_| body.add_curve(test_curve(Point3::origin())))
         .collect();
-    let surface_a = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
-    let surface_b = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let surface_a = body.add_surface(test_surface(Point3::origin()));
+    let surface_b = body.add_surface(test_surface(Point3::origin()));
 
     // Vertices (emanating patched once half-edges exist).
     let vertices: Vec<VertexKey> = points
@@ -409,19 +426,11 @@ pub(crate) fn prism(n: usize) -> Prism {
     let bottom_points: Vec<PointKey> = (0..n)
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
-    let mut curve = || {
-        body.add_curve(CurveGeom::Placeholder {
-            anchor: Point3::origin(),
-        })
-    };
+    let mut curve = || body.add_curve(test_curve(Point3::origin()));
     let curves_t: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_b: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_v: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
-    let mut surface = || {
-        body.add_surface(SurfaceGeom::Placeholder {
-            anchor: Point3::origin(),
-        })
-    };
+    let mut surface = || body.add_surface(test_surface(Point3::origin()));
     let surface_top = surface();
     let surface_bottom = surface();
     let surface_side: Vec<SurfaceKey> = (0..n).map(|_| surface()).collect();
@@ -630,9 +639,7 @@ pub(crate) fn mvfs_state() -> MvfsState {
         prov(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let surface = body.add_surface(test_surface(Point3::origin()));
     let lone_loop = body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex },
@@ -694,7 +701,7 @@ pub(crate) fn ops_cube() -> OpsCube {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
     let e_ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -702,10 +709,11 @@ pub(crate) fn ops_cube() -> OpsCube {
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
@@ -758,10 +766,11 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
         mefs,
     } = ops_cube();
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let f_bottom = mefs[0];
     let f_front = mefs[1];
     // (f)–(g): plant the hole anchor P as an empty ring of the top face.
@@ -770,7 +779,7 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
     // (h)–(i): grow and close the rim P→Q→R→S; a membrane face covers
     // the opening.
     let s_pq = body
-        .mev(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0))
         .unwrap(); // Q
     let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0); // R
     let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0); // S
@@ -826,17 +835,17 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     // Plant the rim anchor as an empty ring of the front face, then
     // grow and close the triangular rim; a membrane face covers it.
     let strut = body
-        .mev(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let mut rim: Vec<MevCreated> = vec![
-        body.mev(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
             .unwrap(),
     ];
     for rp in &rim_pts[2..] {
         let prev = rim.last().unwrap().he_minus;
         rim.push(
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: prev,
                     he2: prev,
@@ -847,7 +856,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
         );
     }
     let membrane = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: rim[0].he_plus,
             he2: rim.last().unwrap().he_minus,
         })
@@ -861,7 +870,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
             membrane.he_minus
         };
         drops.push(
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,
@@ -872,7 +881,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
         );
     }
     for i in 0..drops.len() - 1 {
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: drops[i].he_minus,
             he2: drops[i + 1].he_minus,
         })
@@ -881,7 +890,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     let he_first_far = body
         .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: drops.last().unwrap().he_minus,
         he2: he_first_far,
     })

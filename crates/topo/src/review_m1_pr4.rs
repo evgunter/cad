@@ -54,7 +54,7 @@ fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -70,7 +70,7 @@ fn five_spoke_star() -> (Body<f64>, MvfsCreated, [MevCreated; 5]) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let a = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -78,7 +78,7 @@ fn five_spoke_star() -> (Body<f64>, MvfsCreated, [MevCreated; 5]) {
         )
         .unwrap();
     let strut_at = |body: &mut Body<f64>, x: f64| {
-        body.mev(
+        body.mev_line(
             MevSite::Fan {
                 he1: a.he_plus,
                 he2: a.he_plus,
@@ -112,7 +112,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let seed3 = b3.mvfs(p(0.0)).unwrap();
     let deep3 = deep_snapshot(&b3);
     let created = b3
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed3.r#loop,
             },
@@ -126,7 +126,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let (mut body, _seed, [a, _b, _c, _d, _e]) = five_spoke_star();
     let before = canonical_form(&body);
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: a.he_plus,
                 he2: a.he_plus,
@@ -142,7 +142,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star();
     let before = canonical_form(&body);
     let split = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: b.he_plus,
                 he2: d.he_plus,
@@ -159,7 +159,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star();
     let before = canonical_form(&body);
     let split = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: d.he_plus,
                 he2: b.he_plus,
@@ -175,14 +175,14 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     // vertex).
     let (mut body, _seed, seg) = segment();
     let split_faces = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
     let before = canonical_form(&body);
     let fan = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: split_faces.he_plus,
@@ -209,7 +209,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     };
     let cycle = body.loop_cycle(first).unwrap();
     let cut = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: cycle[0],
             he2: cycle[2],
         })
@@ -222,7 +222,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let (mut body, _seed, seg) = segment();
     let before = canonical_form(&body);
     let circ = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_plus,
         })
@@ -236,7 +236,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let seed = body.mvfs(p(0.0)).unwrap();
     let before = deep_snapshot(&body);
     let circ = body
-        .mef(MefSite::Lone {
+        .mef_chord(MefSite::Lone {
             r#loop: seed.r#loop,
         })
         .unwrap();
@@ -254,7 +254,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let rc = body.loop_cycle(first).unwrap();
     assert!(rc.len() >= 2);
     let cut = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: rc[0],
             he2: rc[1],
         })
@@ -269,13 +269,13 @@ fn mk_kill_roundtrip_every_mef_site_case() {
 fn body_with_cycle_ring() -> (Body<f64>, LoopKey) {
     let (mut body, _seed, seg) = segment();
     let _faces = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -284,7 +284,7 @@ fn body_with_cycle_ring() -> (Body<f64>, LoopKey) {
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
-    body.mev(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+    body.mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     (body, kill.ring)
@@ -304,7 +304,7 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
     let (mut body, seed, [a, b, c, d, e]) = five_spoke_star();
     let before = canonical_form(&body);
     let split = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: b.he_plus,
                 he2: d.he_plus,
@@ -372,7 +372,7 @@ fn some_single_op_reaches(body: &Body<f64>, target: &str, coords: &[Point3<f64>]
         for &he2 in &orbit {
             for &c in coords {
                 let mut probe = body.clone();
-                if probe.mev(MevSite::Fan { he1, he2 }, c).is_ok() {
+                if probe.mev_line(MevSite::Fan { he1, he2 }, c).is_ok() {
                     candidates.push(probe);
                 }
             }
@@ -387,12 +387,12 @@ fn some_single_op_reaches(body: &Body<f64>, target: &str, coords: &[Point3<f64>]
     for &l in &empties {
         for &c in coords {
             let mut probe = body.clone();
-            if probe.mev(MevSite::Lone { r#loop: l }, c).is_ok() {
+            if probe.mev_line(MevSite::Lone { r#loop: l }, c).is_ok() {
                 candidates.push(probe);
             }
         }
         let mut probe = body.clone();
-        if probe.mef(MefSite::Lone { r#loop: l }).is_ok() {
+        if probe.mef_chord(MefSite::Lone { r#loop: l }).is_ok() {
             candidates.push(probe);
         }
     }
@@ -405,7 +405,7 @@ fn some_single_op_reaches(body: &Body<f64>, target: &str, coords: &[Point3<f64>]
         for &he1 in &cycle {
             for &he2 in &cycle {
                 let mut probe = body.clone();
-                if probe.mef(MefSite::Chords { he1, he2 }).is_ok() {
+                if probe.mef_chord(MefSite::Chords { he1, he2 }).is_ok() {
                     candidates.push(probe);
                 }
             }
@@ -458,7 +458,7 @@ fn some_single_op_reaches(body: &Body<f64>, target: &str, coords: &[Point3<f64>]
                 };
                 for site in sites {
                     let mut probe = body.clone();
-                    if probe.mekr(site).is_ok() {
+                    if probe.mekr_chord(site).is_ok() {
                         candidates.push(probe);
                     }
                 }
@@ -469,7 +469,7 @@ fn some_single_op_reaches(body: &Body<f64>, target: &str, coords: &[Point3<f64>]
     let rings: Vec<LoopKey> = body.faces().flat_map(|(_, f)| f.rings.clone()).collect();
     for ring in rings {
         let mut probe = body.clone();
-        if probe.mfkrh(ring).is_ok() {
+        if probe.mfkrh_plug(ring).is_ok() {
             candidates.push(probe);
         }
     }
@@ -505,7 +505,7 @@ fn kef_mate_alone_has_a_single_op_remake_when_survivor_is_bare_outer() {
     // is the pre-kill structure up to face identity (oracle-equal).
     let (mut body, _seed, seg) = segment();
     let circ = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_minus,
             he2: seg.he_minus,
         })
@@ -515,7 +515,7 @@ fn kef_mate_alone_has_a_single_op_remake_when_survivor_is_bare_outer() {
     body.kef(circ.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     // The single-op re-make:
-    let remake = body.mef(MefSite::Chords { he1: b, he2: b }).unwrap();
+    let remake = body.mef_chord(MefSite::Chords { he1: b, he2: b }).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(
         canonical_form(&body),
@@ -532,7 +532,7 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
     // the ringed face — wrong body. Exhaustive single-op search.
     let (mut body, _seed, seg) = segment();
     let circ = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_minus,
             he2: seg.he_minus,
         })
@@ -540,7 +540,7 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
     // Plant an empty ring on the circular face B (via strut + kemr in
     // B's loop [circ−]).
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: circ.he_minus,
                 he2: circ.he_minus,
@@ -569,7 +569,7 @@ fn kev_mirror_has_no_single_op_remake() {
     // coordinate (including the killed vertex's).
     let (mut body, seed, seg) = segment();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
@@ -697,13 +697,13 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
     // Pillow + planted empty ring: v3 e2 f2 r1, h = 0.
     let (mut body, _seed, seg) = segment();
     let _faces = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: seg.he_plus,
@@ -717,7 +717,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
 
     // Promote the planted (non-handle) ring: the naive per-body genus
     // 2h = 2s − (v − e + f − r) goes NEGATIVE...
-    body.mfkrh(kill.ring).unwrap();
+    body.mfkrh_plug(kill.ring).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
     let v = body.vertices().count() as i64;
     let e = body.edges().count() as i64;
@@ -772,7 +772,7 @@ fn ngon_pillow(pts: &[Point3<f64>]) -> Body<f64> {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pts[0]).unwrap();
     let first = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -782,7 +782,7 @@ fn ngon_pillow(pts: &[Point3<f64>]) -> Body<f64> {
     let mut last = first;
     for &pt in &pts[2..] {
         last = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: last.he_minus,
                     he2: last.he_minus,
@@ -791,7 +791,7 @@ fn ngon_pillow(pts: &[Point3<f64>]) -> Body<f64> {
             )
             .unwrap();
     }
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: first.he_plus,
         he2: last.he_minus,
     })
@@ -834,9 +834,69 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
     // with genuinely tied candidates. Determinism + termination + self
     // consistency (two identical builds compare equal; two rotated
     // builds still compare equal since every candidate ties).
-    let same: Vec<Point3<f64>> = (0..6).map(|_| pt(7.0, 7.0, 7.0)).collect();
-    let a = ngon_pillow(&same);
-    let b = ngon_pillow(&same);
+    //
+    // M2 PR 3 revision: the chord-line SUGAR now refuses coincident
+    // endpoints loudly (a zero-length chord has no certifiable line
+    // carrier — the attachment gate at work), so the degenerate build
+    // attaches explicit full-period circle carriers through the shared
+    // point instead: every edge certifies honestly (its carrier truly
+    // closes at that point), and the ORACLE claim under test — topology
+    // and canonicalization are stable under coordinate ties — is
+    // unchanged.
+    let p7 = pt(7.0, 7.0, 7.0);
+    let degenerate_pillow = || {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p7).unwrap();
+        let circle = || geom_brep::EdgeCurveSpec::self_loop_circle_at(p7);
+        let first = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p7,
+                circle(),
+            )
+            .unwrap();
+        let mut last = first;
+        for _ in 2..6 {
+            last = body
+                .mev(
+                    MevSite::Fan {
+                        he1: last.he_minus,
+                        he2: last.he_minus,
+                    },
+                    p7,
+                    circle(),
+                )
+                .unwrap();
+        }
+        body.mef(
+            MefSite::Chords {
+                he1: first.he_plus,
+                he2: last.he_minus,
+            },
+            circle(),
+            crate::FaceSurface::Inherit,
+        )
+        .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        body
+    };
+    // The sugar path refuses the same degenerate build, typed (the
+    // fail-loud half of the revision).
+    let mut refused = Body::<f64>::new();
+    let seed = refused.mvfs(p7).unwrap();
+    assert!(matches!(
+        refused.mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop
+            },
+            p7
+        ),
+        Err(EulerOpError::Certification { .. })
+    ));
+    let a = degenerate_pillow();
+    let b = degenerate_pillow();
     assert!(isomorphic(&a, &b));
     let form = canonical_form(&a);
     assert_eq!(canonical_form(&a), form, "byte-stable on ties");
@@ -870,14 +930,14 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
     let build = |split: bool| {
         let (mut body, _seed, seg) = segment();
         let faces = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
             .unwrap();
         let plant = |body: &mut Body<f64>, at: HalfEdgeKey| {
             let strut = body
-                .mev(MevSite::Fan { he1: at, he2: at }, pt(9.0, 9.0, 9.0))
+                .mev_line(MevSite::Fan { he1: at, he2: at }, pt(9.0, 9.0, 9.0))
                 .unwrap();
             body.kemr(strut.he_plus, strut.he_minus).unwrap()
         };
@@ -913,17 +973,17 @@ fn carve_hole(
     drop_pts: &[Point3<f64>],
 ) {
     let strut = body
-        .mev(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let mut rim: Vec<MevCreated> = vec![
-        body.mev(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
             .unwrap(),
     ];
     for rp in &rim_pts[2..] {
         let prev = rim.last().unwrap().he_minus;
         rim.push(
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: prev,
                     he2: prev,
@@ -934,7 +994,7 @@ fn carve_hole(
         );
     }
     let membrane = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: rim[0].he_plus,
             he2: rim.last().unwrap().he_minus,
         })
@@ -947,7 +1007,7 @@ fn carve_hole(
             membrane.he_minus
         };
         drops.push(
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,
@@ -960,7 +1020,7 @@ fn carve_hole(
     let mut walls: Vec<crate::euler::MefCreated> = Vec::new();
     for i in 0..drops.len() - 1 {
         walls.push(
-            body.mef(MefSite::Chords {
+            body.mef_chord(MefSite::Chords {
                 he1: drops[i].he_minus,
                 he2: drops[i + 1].he_minus,
             })
@@ -970,7 +1030,7 @@ fn carve_hole(
     let he_first_far = body
         .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
         .unwrap();
-    body.mef(MefSite::Chords {
+    body.mef_chord(MefSite::Chords {
         he1: drops.last().unwrap().he_minus,
         he2: he_first_far,
     })
@@ -1028,17 +1088,17 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             assert!(body.kev(HalfEdgeKey::default()).is_err()); // stale
         }
         let split = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
             .unwrap();
         if with_failures {
             assert!(body.kef(HalfEdgeKey::default()).is_err()); // stale
-            assert!(body.mfkrh(LoopKey::default()).is_err()); // stale
+            assert!(body.mfkrh_plug(LoopKey::default()).is_err()); // stale
         }
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -1048,11 +1108,11 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             .unwrap();
         body.kev(strut.he_plus).unwrap();
         if with_failures {
-            assert!(body.mfkrh(seed.r#loop).is_err()); // outer, RingIsOuter
+            assert!(body.mfkrh_plug(seed.r#loop).is_err()); // outer, RingIsOuter
             assert!(body.kvfs(seed.solid).is_err());
         }
         let cut = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: split.he_minus,
                 he2: seg.he_plus,
             })
@@ -1094,7 +1154,7 @@ fn kvfs_slot_recycling_is_generation_safe() {
         }
     );
     assert_eq!(
-        body.mfkrh(first.r#loop).unwrap_err(),
+        body.mfkrh_plug(first.r#loop).unwrap_err(),
         EulerOpError::StaleKey {
             key: EntityId::Loop(first.r#loop)
         }
@@ -1112,7 +1172,7 @@ fn kvfs_slot_recycling_is_generation_safe() {
 fn kef_rejects_a_corrupt_edge_bijection() {
     let (mut body, _seed, seg) = segment();
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -1143,7 +1203,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -1153,7 +1213,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     let mut anchor = seg.he_minus;
     for i in 0..300 {
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,
@@ -1170,7 +1230,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
         let mut other = Body::<f64>::new();
         let s = other.mvfs(p(0.0)).unwrap();
         let sg = other
-            .mev(MevSite::Lone { r#loop: s.r#loop }, p(1.0))
+            .mev_line(MevSite::Lone { r#loop: s.r#loop }, p(1.0))
             .unwrap();
         sg.he_plus
     };
@@ -1209,7 +1269,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     }
     let loops: Vec<_> = body.loops().map(|(k, _)| k).collect();
     for l in loops {
-        let _ = body.clone().mfkrh(l);
+        let _ = body.clone().mfkrh_plug(l);
     }
     assert!(
         started.elapsed() < std::time::Duration::from_secs(30),
@@ -1424,7 +1484,7 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let circ = body
-        .mef(MefSite::Lone {
+        .mef_chord(MefSite::Lone {
             r#loop: seed.r#loop,
         })
         .unwrap();
@@ -1443,7 +1503,7 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
         EulerOpError::NotSameLoop { .. }
     ));
     // Escape hatch: promote the ring back to a face, then kef.
-    let promoted = body.mfkrh(circ.r#loop).unwrap();
+    let promoted = body.mfkrh_plug(circ.r#loop).unwrap();
     let _ = promoted;
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));

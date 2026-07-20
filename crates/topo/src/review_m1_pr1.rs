@@ -18,9 +18,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::{
-    Body, CurveGeom, Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop,
-    LoopBoundary, LoopKey, Provenance, Shell, ShellKey, Solid, SolidKey, SurfaceGeom, Vertex,
-    VertexKey, validate,
+    Body, Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, Provenance, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
 
@@ -119,9 +118,7 @@ fn build_cube() -> Cube {
         .collect();
 
     let mk_edge = |body: &mut Body<f64>| {
-        let curve = body.add_curve(CurveGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
         body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -174,9 +171,7 @@ fn build_cube() -> Cube {
     let loop_side: Vec<_> = (0..n).map(|i| mk_loop(&mut body, s_b[i])).collect();
 
     let mk_face = |body: &mut Body<f64>, outer: LoopKey| {
-        let surface = body.add_surface(SurfaceGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
                 surface,
@@ -357,9 +352,7 @@ fn ring_face_body_validates() {
     let v1 = lone(&mut body, 1.0);
 
     let mk_edge = |body: &mut Body<f64>| {
-        let curve = body.add_curve(CurveGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
         body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -410,9 +403,7 @@ fn ring_face_body_validates() {
     let loop_a_ring = mk_loop(&mut body, c2);
 
     let mk_face = |body: &mut Body<f64>, outer: LoopKey, rings: Vec<LoopKey>| {
-        let surface = body.add_surface(SurfaceGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
                 surface,
@@ -499,9 +490,7 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64) -> SolidKey {
         },
         prov(),
     );
-    let curve = body.add_curve(CurveGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
     let e = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -539,9 +528,7 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64) -> SolidKey {
         },
         prov(),
     );
-    let surface = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
     let f = body.add_face(
         Face {
             surface,
@@ -584,9 +571,7 @@ fn mvfs_skeletal_state_validates_externally() {
         prov(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex: v },
@@ -667,9 +652,7 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
         prov(),
     );
     let mk_edge = |body: &mut Body<f64>| {
-        let curve = body.add_curve(CurveGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
         body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -709,9 +692,7 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
     let loop_a = mk_loop(&mut body, a0);
     let loop_b = mk_loop(&mut body, b0);
     let mk_face = |body: &mut Body<f64>, outer: LoopKey| {
-        let surface = body.add_surface(SurfaceGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
                 surface,
@@ -776,9 +757,9 @@ fn parent_loop_chain_confusion_is_caught() {
 #[test]
 fn empty_loop_vertex_with_incidence_is_caught() {
     let mut c = build_cube();
-    let surface = c.body.add_surface(SurfaceGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let surface = c
+        .body
+        .add_surface(crate::fixtures::test_surface(Point3::origin()));
     let lp = c.body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex: c.t[0] },
@@ -881,9 +862,7 @@ fn long_corrupted_chain_terminates() {
         .collect();
     let es: Vec<_> = (0..n)
         .map(|_| {
-            let curve = body.add_curve(CurveGeom::Placeholder {
-                anchor: Point3::origin(),
-            });
+            let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
             body.add_edge(
                 Edge {
                     he_plus: null_he,
@@ -937,9 +916,7 @@ fn long_corrupted_chain_terminates() {
         prov(),
     );
     let mk_face = |body: &mut Body<f64>, outer: LoopKey| {
-        let surface = body.add_surface(SurfaceGeom::Placeholder {
-            anchor: Point3::origin(),
-        });
+        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
                 surface,
@@ -1135,9 +1112,9 @@ fn lmev_strut_surgery_sketch_validates() {
         },
         prov(),
     );
-    let curve = c.body.add_curve(CurveGeom::Placeholder {
-        anchor: Point3::origin(),
-    });
+    let curve = c
+        .body
+        .add_curve(crate::fixtures::test_curve(Point3::origin()));
     let ne = c.body.add_edge(
         Edge {
             he_plus: HalfEdgeKey::default(),
