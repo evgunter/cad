@@ -593,6 +593,18 @@ Reviewer ran eight falsification assignments as executed programs
   GUI-DESIGN GQ1 (the witness contract must pin which point).
   Orchestrator will fold final PR 6 amendment text into the
   implementer spec; branch synced with main at incorporation time.
+- **Appearance FINAL (Evan, 2026-07-20): full deferral — no M2
+  artifact at all**, superseding option (B). Evan's question ("what
+  does (B) buy over deferring?") exposed the flaw in (B)'s premise:
+  its only content beyond deferral is a grep-able tripwire type,
+  but the type's correct home is the document layer (`editor-core`),
+  which doesn't exist until M4-era work — landing it at M2 means
+  parking it in `topo`/`mesh`, modeling the exact layering mistake
+  it was meant to prevent. What survives is the contract, ratified
+  in DESIGN.md Band 1: display attributes attach in the document
+  layer, keyed by stable names, from M4, and nowhere in any form
+  before that. **PR 6 implementer spec: drop the appearance item
+  entirely** (back-references item unchanged, incl. Vertex keys).
 
 ## Reference acquisitions (2026-07-18)
 

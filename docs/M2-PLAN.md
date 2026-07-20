@@ -207,16 +207,18 @@ Implementer/reviewer prompts cite the notes, never the scan.
    sketch-on-face wants most). Rationale: viewport picking is cheap
    to design in now and painful to retrofit; STL export simply drops
    them.
-   **Appearance home (added 2026-07-19; revised 2026-07-20 to the
-   PR #32 orchestrator review's option (B), concurred by the design
-   session — flip is one line if Evan lands otherwise)**: a
-   **field-less named type** (`Appearance`, no fields, NO keyed
-   container at M2) — the "home" is the type + module + doc contract
-   ("display attributes attach here, keyed by *stable names*, from
-   M4"). Deliberately not arena-keyed: arena keys are per-lineage
-   and die on rebuild, so an arena-keyed container is fake
-   durability and a consumer-migration debt; nothing consumes
-   appearance before M4 (STL/tessellation ignore it; demos color
+   **Appearance: deliberately NO M2 artifact (final, Evan
+   2026-07-20, superseding both the 2026-07-19 keyed-container text
+   and the orchestrator review's option (B))**: M2 ships nothing —
+   no container (arena keys are per-lineage and die on rebuild:
+   fake durability + consumer-migration debt) and no placeholder
+   type either, because the type's correct home is the document
+   layer (`editor-core`), which does not exist until M4-era work —
+   parking it in `topo`/`mesh` would model the exact layering
+   mistake it was meant to prevent. The ratified contract lives in
+   DESIGN.md Band 1: display attributes attach via *stable names*,
+   in the document layer, from M4; nothing attaches anywhere before
+   that (STL/tessellation ignore appearance; demos color
    client-side).
    **Per-face patch separability (added 2026-07-19, per the banked
    content-keyed-cache-transfer principle)**: the mesh type keeps

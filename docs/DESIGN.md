@@ -608,15 +608,18 @@ kernel exports these. None are research; all are load-bearing:
   not twice. Founding pillar ratified 2026-07-19: naming is
   localized to reified predicate flips (see Banked principles
   below).
-- **Appearance attributes (design-now, as a field-less home).**
+- **Appearance attributes (contract-now, artifact-at-M4).**
   Per-face/body display attributes (color, name, visibility) must
   live somewhere that survives recompute — which means they attach
-  via the same stable-naming machinery, not arena keys. A field-less
-  named type lands early (M2) so a home exists — deliberately **no
-  keyed container until M4 naming supplies the stable name kind**
-  (an arena-keyed container would be fake durability: per-lineage
-  keys die on rebuild, and consumers would accumulate against the
-  wrong name kind — PR #32 orchestrator review, 2026-07-20).
+  via the same stable-naming machinery, not arena keys (an
+  arena-keyed container would be fake durability: per-lineage keys
+  die on rebuild, and consumers would accumulate against the wrong
+  name kind). The ratified contract (final, 2026-07-20): attributes
+  attach **in the document layer (`editor-core`), keyed by stable
+  names, from M4 — and nowhere, in any form, before that**. No M2
+  placeholder either: the type's only correct home is a crate that
+  doesn't exist until M4-era work, so an early artifact would sit in
+  the wrong layer and model the mistake this contract prevents.
 
 ### Band 2 — the interactive application (a second, kernel-sized project)
 

@@ -58,7 +58,11 @@ assemblies/drawings-HLR/feature-breadth; product infra) and a "Tabled
 (far future)" section (interval-transcendentals reimplementation
 moved there from the roadmap). **Sequencing stance: usable-as-library
 before any GUI.** M2-PLAN PR 6 amended: mesh entity back-references +
-empty `Appearance` container. **docs/GUI-DESIGN.md exists
+appearance FINAL 2026-07-20 = full deferral, NO M2 artifact (contract
+only, in DESIGN.md Band 1: attach in editor-core by stable names from
+M4; PR 6 also gained Vertex keys in the back-refs and per-face patch
+separability via the PR #32 orchestrator review).
+**docs/GUI-DESIGN.md exists
 (Evan-ratified 2026-07-19)**: G1 three-layer split (kernel /
 headless `editor-core` — now in the crate table — / interaction),
 edit-vocabulary-as-data, selection type = stable-name type.
