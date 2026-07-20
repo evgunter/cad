@@ -497,7 +497,27 @@ Reviewer ran eight falsification assignments as executed programs
   oracle; the reviewer's meridian_pappus_volume is a starting
   point.
 
-## Design decisions with Evan, in-session (2026-07-19)
+## Design decisions with Evan, in-session (2026-07-19/20)
+
+- **`FullRevolveHoles` is permanent; voids are born only from
+  booleans (Evan, 2026-07-20)**: PR 5's typed refusal of
+  full-revolving holed profiles is upgraded from a scope deferral to
+  a standing rule, with the invariant **sweeps emit single-shell
+  bodies**. Rationale: in a full revolve a hole's swept walls touch
+  nothing (no caps, no wedge faces) — the cavity boundary is a
+  disconnected interior shell, so direct support would mean revolve
+  emitting multi-shell bodies with internal voids, silently breaking
+  M2 machinery documented against the no-voids assumption
+  (tessellation's outward-shell orientation rule) a milestone before
+  M3's boolean/void machinery exists. `revolve(outer) −
+  revolve(hole-as-outer)` produces the same solid through the front
+  door. Ergonomics, if ever wanted: an M4 recipe-layer sugar node
+  ("revolve holed profile" ⇒ revolve + subtract) — sugar above the
+  kernel, never a new kernel emission mode. Ratify the invariant
+  into DESIGN.md at the M2-exit sweep; point the error text at the
+  boolean route once M3 lands. (`UnsupportedToroid` likewise stays:
+  it is a D3 ring-torus boundary, not a scope cut — spindle tori
+  have no representation to land in.)
 
 - **Rim edges upgrade to `Intersection` (Evan's call, resolving the
   PR 4 judgment-call flag)**: cap–wall rim edges do NOT stay
