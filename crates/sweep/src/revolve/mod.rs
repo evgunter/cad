@@ -1,0 +1,667 @@
+//! The revolve operation: a validated profile swept about an
+//! in-sketch-plane axis into a closed solid (M2 PR 5).
+//!
+//! # Conventions this module owns (normative, stated once)
+//!
+//! - **Axis.** [`RevolveAxis`] is a line **in sketch coordinates**:
+//!   `origin + dir·t`. With `d̂ = dir/|dir|` and `ê_r = (d̂.y, −d̂.x)`,
+//!   every sketch point gets a signed **radial coordinate**
+//!   `r(p) = (p − origin)·ê_r = (p − origin).perp_dot(d̂)` and an axial
+//!   coordinate `z(p) = (p − origin)·d̂`. The profile must lie in the
+//!   closed half-plane `r ≥ 0` (the half-plane check: a definite `r < 0`
+//!   anywhere is a typed error; the sliver band is a typed error too —
+//!   micro-radius revolve is a genuine sliver).
+//! - **Angle.** [`Revolution::Partial`] carries a **signed** angle θ in
+//!   radians, right-hand rule about the world axis direction
+//!   `a₃ = place·d̂`; `|θ|` must classify definitely inside `(0, 2π)`
+//!   (zero/sliver ⇒ typed error; `|θ| ≥ 2π` at tolerance ⇒ typed error —
+//!   an exactly-full revolve must say [`Revolution::Full`], which sweeps
+//!   `+2π`). Angular margins are metered in meters through the profile's
+//!   maximum radial extent (D4 ¶1 — the lever arm is named).
+//! - **Winding.** For θ > 0 the rotation carries the profile toward the
+//!   `−n` side of the sketch plane (velocity `a₃ × radial` at angle 0),
+//!   so the **start cap** (on the sketch plane) is outward-`+n` and
+//!   carries the profile's canonical winding; the sweep therefore
+//!   traverses the chains **reversed** for θ > 0 (the profile crate's
+//!   reversal involution — the exact mirror of extrude's `w·n < 0`
+//!   case), forward for θ < 0. [`Revolution::Full`] sweeps +2π and
+//!   reverses likewise.
+//! - **The shared azimuthal frame.** Every revolution surface minted by
+//!   one revolve call uses `axis = +a₃` and `u_ref = u₃ = place·ê_r`,
+//!   anchored on the placed axis line — so the `u = 0` iso-curve of
+//!   every wall is the **angle-0 meridian half-plane**, which is where
+//!   the profile sits. A full revolve's surviving meridian edges are
+//!   therefore exactly the `u = 0` iso-curves: they re-describe as
+//!   [`geom_brep::EdgeGeometry::Seam`] `{ surface }` — except meridians
+//!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
+//!   plane chart is not periodic, so `Seam` is malformed on it and the
+//!   edge honestly keeps its conventional `MappedCurve` description —
+//!   the same-surface split is definitely smooth, which tier 3's
+//!   prefer-intrinsic enforcement permits by the D2 conventional split).
+//!   Latitude rim **carriers** take the θ-signed axis (forward
+//!   intervals) with `u_ref` from the rim's own start point.
+//! - **Full period is definitionally the identity.** For
+//!   [`Revolution::Full`], rotated-copy coordinates are the original
+//!   coordinates **bitwise** and the copied chain's placement is the
+//!   sketch placement itself (a 2π rotation is the identity by
+//!   definition, not by trigonometry) — seam coincidences are exact,
+//!   and the seam zip pairs entities by construction-record keys, never
+//!   by geometric matching.
+//! - **Axis contact (the ratified case split).** Radial classification
+//!   is a named trilean per vertex: definitely zero ⇒ *on-axis*
+//!   (special class), definitely negative ⇒ typed error, sliver band ⇒
+//!   typed error. Partial revolves treat on-axis vertices/edges as
+//!   ordinary boundary entities shared by the wedge caps (no strut, no
+//!   wall). Full revolves OMIT on-axis edges (they sweep to nothing):
+//!   a profile whose axis contact is one contiguous run of on-axis
+//!   line segments opens into a **wire** whose tips become poles/
+//!   apexes; contact at an isolated vertex, or in two or more runs,
+//!   revolves to a non-manifold solid and is refused (D1). Holes are
+//!   supported for partial revolves (extrude-shaped); a full revolve
+//!   of a holed profile is refused as a typed error (M2 scope — the
+//!   per-hole seam surgery is mechanical but unexercised by the plan's
+//!   acceptance set; deviation recorded in the PR).
+//! - **Cone charts.** A cone wall is minted with `axis = +a₃`
+//!   regardless of which nappe the face occupies: the implicit
+//!   residual/gradient machinery is nappe-symmetric, so the axis sign
+//!   is pure chart convention.
+//!
+//! # What a revolve stores (the D2 story, applied)
+//!
+//! Meridian chain edges are `MappedCurve::PlacedSegment` (start chain at
+//! the sketch placement, end chain at the rotated placement); latitude
+//! edges are `MappedCurve::RevolvedPoint`. After all surfaces exist:
+//! wedge-cap meridians upgrade to `Intersection { cap, wall, witness }`,
+//! definitely-transverse latitude rims upgrade to
+//! `Intersection { wall₁, wall₂, witness }` (witness = carrier
+//! mid-parameter point — the S2 witness contract; for a full-period rim
+//! that is the start point's antipode), a partial revolve's on-axis
+//! edges upgrade to `Intersection { start cap, end cap }` when the caps
+//! are definitely transverse (θ ≠ π), and a full revolve's meridians
+//! become `Seam` on periodic walls. Cosurface runs (collinear segments,
+//! same-carrier tangent arcs) share one surface key, decided for the
+//! whole loop — including the wrap pair — before any wall is minted
+//! (the PR 4 SHOULD-1 lesson).
+//!
+//! # K-telemetry
+//!
+//! Every topology-determining comparison goes through the named
+//! [`decide`] funnel (predicate names on every escalation); wiring to
+//! the `profile` crate's recording funnel is PR 7's unification.
+
+mod axis;
+mod full;
+mod partial;
+mod surfaces;
+mod upgrade;
+
+use core::fmt;
+
+use geom_brep::NewellError;
+use geom_core::{Band, BandError, Decide, Indeterminate, Point2, Real, Sign, Vec2};
+use profile::ValidatedProfile;
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
+
+/// The revolve axis: a line in **sketch coordinates** (module docs).
+/// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
+/// the signed radial coordinate `(p − origin).perp_dot(dir/|dir|)`.
+#[derive(Clone, Copy, Debug)]
+pub struct RevolveAxis<T: Real> {
+    /// A point on the axis, sketch-plane meters.
+    pub origin: Point2<T>,
+    /// The axis direction (any definitely nonzero vector; normalized
+    /// internally — a zero/sliver direction is a typed error).
+    pub dir: Vec2<T>,
+}
+
+/// How far to revolve — the operation's third input (module docs:
+/// angle conventions, including why exactly-full must say `Full`).
+#[derive(Clone, Copy, Debug)]
+pub enum Revolution<T: Real> {
+    /// The full revolution: sweeps exactly +2π (no wedge caps). A
+    /// closed off-axis profile closes its seam through same-shell
+    /// `kfmrh` plus the loopglue zip; an axis-touching profile sweeps
+    /// as a two-band wire (see [`RevolvedKind::Full`]).
+    Full,
+    /// A partial revolution by the **signed** angle θ (radians,
+    /// right-hand rule about the placed axis direction);
+    /// `|θ|` must classify definitely inside `(0, 2π)`.
+    Partial(T),
+}
+
+/// Everything [`revolve`] built, keyed (the `Extruded` key-bundle
+/// shape): the body plus the handles downstream passes address it by.
+///
+/// Indexing convention: outer Vecs are per **canonical** loop (loop 0
+/// the outer, then holes — a full revolve has exactly one); inner Vecs
+/// are per canonical segment (`walls`) or canonical vertex (`rims`).
+/// `None` marks the axis-contact special classes: an on-axis segment
+/// has no wall (partial: the edge is shared by the wedge caps; full:
+/// omitted entirely), an on-axis vertex has no latitude edge (partial:
+/// fixed point; full: pole/apex).
+#[derive(Debug)]
+pub struct Revolved<T: Real> {
+    /// The built body — a closed solid passing tiers 1–3.
+    pub body: Body<T>,
+    /// The solid.
+    pub solid: SolidKey,
+    /// Its single shell.
+    pub shell: ShellKey,
+    /// Wall faces, per loop, per canonical segment (`None`: on-axis).
+    pub walls: Vec<Vec<Option<FaceKey>>>,
+    /// Latitude edges (partial: wedge arcs; full: full-period rims,
+    /// self-loops at the surviving meridian vertices), per loop, per
+    /// canonical vertex (`None`: on-axis vertex).
+    pub rims: Vec<Vec<Option<EdgeKey>>>,
+    /// The wedge caps and meridian edges — shaped by the case split.
+    pub kind: RevolvedKind,
+}
+
+/// The per-case keys of a [`Revolved`] (see the ratified case split in
+/// the module docs).
+#[derive(Debug)]
+pub enum RevolvedKind {
+    /// θ < 2π: wedge caps plus both meridian chains.
+    Partial {
+        /// The start cap — on the sketch plane; carries the profile's
+        /// canonical winding for θ > 0 (module docs).
+        start_cap: FaceKey,
+        /// The end cap — on the sketch plane rotated by θ.
+        end_cap: FaceKey,
+        /// Start-chain meridian edges, per loop, per canonical segment.
+        /// For an on-axis segment this is the shared axis edge (the
+        /// same key appears in `end_meridians`).
+        start_meridians: Vec<Vec<EdgeKey>>,
+        /// End-chain meridian edges, per loop, per canonical segment.
+        end_meridians: Vec<Vec<EdgeKey>>,
+    },
+    /// θ = 2π: no caps. The **lamina** case (no axis contact) sweeps
+    /// one full-period band: `walls`/`rims` carry the complete
+    /// revolution patches and full-period rim self-loops, `meridians`
+    /// the single seam chain, and every `pi_*` field is `None`. The
+    /// **wire** case (an on-axis run, omitted) sweeps two π-bands so
+    /// poles/apexes keep valence 2 (tier 2's strut ban): `walls`/
+    /// `rims` are the angle-0…π band, the `pi_*` fields the π…2π band.
+    Full {
+        /// Angle-0 meridian edges (the `u = 0` seam chain), per
+        /// canonical segment (`None`: omitted on-axis segment).
+        meridians: Vec<Option<EdgeKey>>,
+        /// Wire case: the π…2π band's wall faces, per canonical
+        /// segment.
+        pi_walls: Vec<Option<FaceKey>>,
+        /// Wire case: the angle-π meridian copies (conventional
+        /// `MappedCurve` — the π half-plane is not the seam), per
+        /// canonical segment.
+        pi_meridians: Vec<Option<EdgeKey>>,
+        /// Wire case: the π…2π latitude half-rims, per canonical
+        /// vertex.
+        pi_rims: Vec<Option<EdgeKey>>,
+    },
+}
+
+/// Typed failure of [`revolve`] (closed enum, D4 ¶3). Loop indices
+/// reference the **canonical** (validated) profile — loop 0 the outer,
+/// then holes; vertex/segment indices reference the canonical chain.
+#[derive(Clone, Debug, PartialEq)]
+pub enum RevolveError {
+    /// The run's tolerance could not form a classification band.
+    Band(BandError),
+    /// The axis direction has no definite length (zero or sliver).
+    DegenerateAxis,
+    /// The axis-direction classification escalated or was poisoned.
+    AxisEscalated {
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// The revolve angle is definitely degenerate: zero (or sliver) at
+    /// tolerance, metered at the profile's maximum radial extent.
+    DegenerateAngle,
+    /// A partial angle reached (or exceeded) the full period at
+    /// tolerance: an exactly-full revolve must say [`Revolution::Full`].
+    FullRangeAngle,
+    /// The angle classification escalated or was poisoned.
+    AngleEscalated {
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// A profile vertex lies definitely on the negative-`r` side of the
+    /// axis (the half-plane check).
+    VertexCrossesAxis {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the vertex.
+        vertex_index: usize,
+    },
+    /// A profile vertex's radial distance landed in the sliver band —
+    /// a micro-radius revolve is a genuine sliver (ratified case
+    /// split), surfaced as this typed error rather than escalated.
+    SliverRadius {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the vertex.
+        vertex_index: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// An arc segment's interior definitely dips into `r < 0` (span
+    /// beyond the half-period around an on-axis center, or an apex on
+    /// the negative side — the half-plane check for arc interiors).
+    ArcCrossesAxis {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the segment.
+        segment_index: usize,
+    },
+    /// A segment's axis-clearance classification escalated (a line's
+    /// radial/axial delta, or an arc's span/apex/center-radius margin,
+    /// in the sliver band or poisoned).
+    SliverAxisClearance {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the segment.
+        segment_index: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// An off-axis-centered arc whose carrier reaches (or crosses) the
+    /// axis: the swept torus would be horn/spindle, outside D3's ring
+    /// torus convention (`R > r > 0`).
+    UnsupportedToroid {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the segment.
+        segment_index: usize,
+    },
+    /// Full revolve of a profile whose axis contact is not a single
+    /// contiguous run of on-axis segments: an isolated on-axis vertex
+    /// (or a run-detached one) revolves to a non-manifold solid (D1).
+    NonManifoldAxisContact {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the offending vertex.
+        vertex_index: usize,
+    },
+    /// Full revolve of a profile with two or more disjoint on-axis
+    /// runs: the boundary would split into multiple shells (M3).
+    MultipleAxisRuns {
+        /// Canonical index of the loop.
+        loop_index: usize,
+    },
+    /// Full revolve of a holed profile — deferred M2 scope (module
+    /// docs; typed, not silently approximated).
+    FullRevolveHoles,
+    /// A cosurface-sharing predicate escalated at a join (the extrude
+    /// `CosurfaceEscalated` posture: defense-in-depth, believed
+    /// unreachable from validated profiles).
+    CosurfaceEscalated {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the join vertex.
+        vertex_index: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// The dihedral classification at a latitude (wall–wall) join
+    /// escalated: a sliver dihedral, certifiable as neither a corner
+    /// nor a smooth join (D2's ratified text).
+    SliverJoin {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the join vertex.
+        vertex_index: usize,
+        /// The classifier's diagnostic.
+        source: Indeterminate,
+    },
+    /// The dihedral classification at a cap–wall meridian rim (or a
+    /// partial revolve's cap–cap axis edge) escalated during the
+    /// upgrade pass.
+    SliverRim {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the rim's segment.
+        segment_index: usize,
+        /// The classifier's diagnostic.
+        source: Indeterminate,
+    },
+    /// A cap plane failed Newell certification (unreachable for
+    /// validated profiles — surfaced rather than trusted).
+    CapPlane {
+        /// The Newell failure.
+        source: NewellError,
+    },
+    /// An Euler operator or attachment gate refused — including every
+    /// D4 ¶2 certification failure
+    /// ([`EulerOpError::Certification`]).
+    Op {
+        /// The operator-layer failure.
+        source: EulerOpError,
+    },
+}
+
+impl fmt::Display for RevolveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Band(e) => write!(f, "revolve could not form a band: {e}"),
+            Self::DegenerateAxis => {
+                f.write_str("revolve axis direction has no definite length (zero or sliver)")
+            }
+            Self::AxisEscalated { source } => {
+                write!(f, "revolve axis classification escalated: {source}")
+            }
+            Self::DegenerateAngle => f.write_str(
+                "revolve angle is coincident with zero at tolerance (metered at the profile's \
+                 maximum radial extent)",
+            ),
+            Self::FullRangeAngle => f.write_str(
+                "partial revolve angle reaches the full period at tolerance: an exactly-full \
+                 revolve must use Revolution::Full",
+            ),
+            Self::AngleEscalated { source } => {
+                write!(f, "revolve angle classification escalated: {source}")
+            }
+            Self::VertexCrossesAxis {
+                loop_index,
+                vertex_index,
+            } => write!(
+                f,
+                "profile vertex at loop {loop_index} vertex {vertex_index} lies definitely on \
+                 the negative side of the revolve axis"
+            ),
+            Self::SliverRadius {
+                loop_index,
+                vertex_index,
+                source,
+            } => write!(
+                f,
+                "profile vertex at loop {loop_index} vertex {vertex_index} sits a sliver away \
+                 from the revolve axis (micro-radius revolve): {source}"
+            ),
+            Self::ArcCrossesAxis {
+                loop_index,
+                segment_index,
+            } => write!(
+                f,
+                "arc segment at loop {loop_index} segment {segment_index} definitely dips into \
+                 the negative side of the revolve axis"
+            ),
+            Self::SliverAxisClearance {
+                loop_index,
+                segment_index,
+                source,
+            } => write!(
+                f,
+                "axis-clearance classification at loop {loop_index} segment {segment_index} \
+                 escalated: {source}"
+            ),
+            Self::UnsupportedToroid {
+                loop_index,
+                segment_index,
+            } => write!(
+                f,
+                "arc at loop {loop_index} segment {segment_index} sweeps a horn/spindle torus \
+                 (carrier reaches the axis): outside D3's ring-torus convention"
+            ),
+            Self::NonManifoldAxisContact {
+                loop_index,
+                vertex_index,
+            } => write!(
+                f,
+                "full revolve: axis contact at loop {loop_index} vertex {vertex_index} is not \
+                 part of a single on-axis segment run — the solid would be non-manifold"
+            ),
+            Self::MultipleAxisRuns { loop_index } => write!(
+                f,
+                "full revolve: loop {loop_index} touches the axis in two or more disjoint \
+                 segment runs (multi-shell result, deferred to M3)"
+            ),
+            Self::FullRevolveHoles => f.write_str(
+                "full revolve of a holed profile is deferred M2 scope (typed refusal; use a \
+                 partial revolve or a solid profile)",
+            ),
+            Self::CosurfaceEscalated {
+                loop_index,
+                vertex_index,
+                source,
+            } => write!(
+                f,
+                "cosurface sharing at loop {loop_index} vertex {vertex_index} escalated: \
+                 {source}"
+            ),
+            Self::SliverJoin {
+                loop_index,
+                vertex_index,
+                source,
+            } => write!(
+                f,
+                "sliver dihedral at loop {loop_index} vertex {vertex_index}: the latitude join \
+                 is neither a definite corner nor definitely smooth: {source}"
+            ),
+            Self::SliverRim {
+                loop_index,
+                segment_index,
+                source,
+            } => write!(
+                f,
+                "sliver dihedral at loop {loop_index} segment {segment_index}'s cap rim: \
+                 {source}"
+            ),
+            Self::CapPlane { source } => write!(f, "revolve cap plane: {source}"),
+            Self::Op { source } => write!(f, "revolve operator step failed: {source}"),
+        }
+    }
+}
+
+impl std::error::Error for RevolveError {}
+
+impl From<EulerOpError> for RevolveError {
+    fn from(source: EulerOpError) -> Self {
+        Self::Op { source }
+    }
+}
+
+/// The one classification funnel of this module (the `geom-brep`
+/// pattern; K-telemetry name tags — PR 7 wires them to the recorder).
+pub(super) fn decide<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    margin.sign_within(band).map_err(|e| e.with_predicate(name))
+}
+
+/// A segment's carrier class in swept traversal order — the mirror of
+/// `extrude`'s `SweptKind` (kept module-local: the two sweeps share the
+/// shape but not yet a common home; PR 7-adjacent unification).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum SweptKind<T: Real> {
+    Line,
+    Arc {
+        center: Point2<T>,
+        radius: T,
+        /// Turn sense in swept traversal; never `Zero` (upstream
+        /// classification; a `Zero` would take the `Positive` arm).
+        turn: Sign,
+    },
+}
+
+/// One segment of a swept loop in swept traversal order (canonical, or
+/// reversed for θ > 0 — module docs), with canonical indices for error
+/// reporting. Mirror of `extrude`'s `SweptSeg`.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SweptSeg<T: Real> {
+    /// Start point, sketch coordinates; swept vertex `j` is segment
+    /// `j`'s start.
+    pub(super) a: Point2<T>,
+    /// End point.
+    pub(super) b: Point2<T>,
+    /// The bulge in swept traversal (negated by reversal).
+    pub(super) bulge: T,
+    pub(super) kind: SweptKind<T>,
+    /// Canonical index of the start vertex.
+    pub(super) canonical_vertex: usize,
+    /// Canonical index of the segment.
+    pub(super) canonical_segment: usize,
+}
+
+/// Builds the swept traversal of one canonical loop: forward, or
+/// reversed via the profile crate's reversal involution (endpoints
+/// swapped, bulge negated, turn flipped). Mirror of `extrude`'s
+/// `swept_segments`.
+pub(super) fn swept_segments<T: Decide>(
+    lp: &profile::ValidatedLoop<T>,
+    reverse: bool,
+) -> Vec<SweptSeg<T>> {
+    use profile::SegmentKind;
+    let segs = lp.segments();
+    let n = segs.len();
+    let mut out = Vec::with_capacity(n);
+    for j in 0..n {
+        let (s, a, b, bulge, canonical_vertex, canonical_segment) = if reverse {
+            let s = &segs[n - 1 - j];
+            (
+                s,
+                s.end,
+                s.start,
+                T::zero() - s.bulge,
+                (n - j) % n,
+                n - 1 - j,
+            )
+        } else {
+            let s = &segs[j];
+            (s, s.start, s.end, s.bulge, j, j)
+        };
+        let kind = match s.kind {
+            SegmentKind::Line => SweptKind::Line,
+            SegmentKind::Arc {
+                center,
+                radius,
+                turn,
+            } => SweptKind::Arc {
+                center,
+                radius,
+                turn: if reverse { turn.flip() } else { turn },
+            },
+        };
+        out.push(SweptSeg {
+            a,
+            b,
+            bulge,
+            kind,
+            canonical_vertex,
+            canonical_segment,
+        });
+    }
+    out
+}
+
+impl<T: Real> SweptSeg<T> {
+    /// The segment as a `geom-brep` sketch segment (the description's
+    /// authoritative source data).
+    pub(super) fn sketch_segment(&self) -> geom_brep::SketchSegment<T> {
+        match self.kind {
+            SweptKind::Line => geom_brep::SketchSegment::Line {
+                a: self.a,
+                b: self.b,
+            },
+            SweptKind::Arc { .. } => geom_brep::SketchSegment::Arc {
+                a: self.a,
+                b: self.b,
+                bulge: self.bulge,
+            },
+        }
+    }
+}
+
+/// The arc parameter span θ = 4·atan|bulge| (the sanctioned bulge
+/// re-inspection — never endpoint `atan2`; extrude's convention).
+pub(super) fn arc_span<T: Real>(bulge: T) -> T {
+    T::from_f64(4.0) * bulge.abs().atan()
+}
+
+/// The turn-signed carrier axis: `+normal` for a counterclockwise
+/// segment, `−normal` for a clockwise one (extrude's convention; `Zero`
+/// unreachable, kept total on the positive arm).
+pub(super) fn turn_axis<T: Real>(turn: Sign, normal: geom_core::Vec3<T>) -> geom_core::Vec3<T> {
+    match turn {
+        Sign::Positive | Sign::Zero => normal,
+        Sign::Negative => geom_core::Vec3::zero() - normal,
+    }
+}
+
+/// The arc apex (exact sagitta closed form: `midpoint − n̂·(L·b/2)`,
+/// n̂ the left normal of the chord direction) — an on-carrier interior
+/// point of the segment. Mirror of `extrude`'s `arc_apex`.
+pub(super) fn arc_apex<T: Real>(s: &SweptSeg<T>) -> Point2<T> {
+    let chord = s.b - s.a;
+    let len = chord.norm();
+    let u = chord.normalize();
+    let nhat = Vec2::new(T::zero() - u.y, u.x);
+    let mid = s.a.lerp(s.b, T::from_f64(0.5));
+    mid - nhat * (len * s.bulge * T::from_f64(0.5))
+}
+
+/// Revolves a validated profile about an in-sketch-plane axis into a
+/// closed solid.
+///
+/// The sketch placement is the profile's own; the axis and angle
+/// classify per the module docs' conventions (named trilean predicates
+/// throughout). On success the returned body passes tiers 1–3 — the
+/// caller re-validates at rest per the workspace convention.
+///
+/// # Errors
+///
+/// [`RevolveError`] — closed and typed: degenerate/sliver axis and
+/// angle, half-plane violations, sliver radii, unsupported toroids,
+/// non-manifold axis contact, sliver dihedrals, Newell failures, and
+/// every operator/certification refusal.
+pub fn revolve<T: Decide>(
+    profile: &ValidatedProfile<T>,
+    axis: RevolveAxis<T>,
+    revolution: Revolution<T>,
+) -> Result<Revolved<T>, RevolveError> {
+    let band = Band::linear().map_err(RevolveError::Band)?;
+    let place = profile.plane().placement;
+    let frame = axis::AxisFrame::build(place, &axis, band)?;
+
+    // ---- Angle classification (module docs), metered at the
+    // profile's maximum radial extent (the named lever arm). ----
+    let r_max = axis::radial_extent(profile, &frame);
+    let (theta, reverse, full) = match revolution {
+        Revolution::Full => (T::tau(), true, true),
+        Revolution::Partial(t) => {
+            let sign = decide("revolve_angle", t * r_max, band)
+                .map_err(|source| RevolveError::AngleEscalated { source })?;
+            let reverse = match sign {
+                Sign::Zero => return Err(RevolveError::DegenerateAngle),
+                Sign::Positive => true,
+                Sign::Negative => false,
+            };
+            let headroom = (T::tau() - t.abs()) * r_max;
+            match decide("revolve_angle_headroom", headroom, band)
+                .map_err(|source| RevolveError::AngleEscalated { source })?
+            {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(RevolveError::FullRangeAngle),
+            }
+            (t, reverse, false)
+        }
+    };
+
+    // ---- Swept traversals + axis-contact classification (canonical
+    // error indices carried through the reversal). ----
+    let loops: Vec<Vec<SweptSeg<T>>> = profile
+        .loops()
+        .iter()
+        .map(|lp| swept_segments(lp, reverse))
+        .collect();
+    let mut classes = Vec::with_capacity(loops.len());
+    for (li, segs) in loops.iter().enumerate() {
+        classes.push(axis::classify_loop(segs, &frame, li, band)?);
+    }
+
+    if full {
+        full::build_full(&frame, &loops, &classes, theta, band)
+    } else {
+        partial::build_partial(&frame, &loops, &classes, theta, reverse, band)
+    }
+}

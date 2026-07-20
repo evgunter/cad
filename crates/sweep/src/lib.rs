@@ -121,5 +121,7 @@
 //! unification.
 
 pub mod extrude;
+pub mod revolve;
 
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
+pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
