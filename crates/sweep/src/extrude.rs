@@ -34,10 +34,25 @@
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the raised loop's Newell
 //!    plane.
+//! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
+//!    rim edge (bottom and top, outer and ring loops) upgrades to
+//!    `Intersection { cap plane, side surface, witness }` through the
+//!    same `classify_dihedral` → `set_edge_curve` pattern as the corner
+//!    joins (the ratified rim decision — M2-LOG, 2026-07-19). The
+//!    witness is the **carrier's mid-parameter point** (the S2 witness
+//!    contract: for arc rims the chord midpoint lies off the carrier by
+//!    the sagitta, so `carrier(mid)` is the only honest mint); the
+//!    certified carrier and interval are kept verbatim. Every rim of a
+//!    normal extrusion is definitely transverse (cap plane ⊥ wall), so
+//!    Transverse ⇒ upgrade is the only reachable arm; Smooth keeps the
+//!    conventional description (kept total per the D2 split, believed
+//!    unreachable here); Indeterminate is the typed
+//!    [`ExtrudeError::SliverRim`].
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
-//! order, then side faces, then join classification. Two calls with
+//! order, then side faces, then join classification; finally rim
+//! upgrades per loop, per segment, bottom before top. Two calls with
 //! identical inputs replay byte-identically.
 
 use core::fmt;
@@ -125,6 +140,12 @@ pub enum ExtrudeError {
     },
     /// A cosurface-sharing predicate escalated at a join: the geometry
     /// is neither definitely one carrier nor definitely two.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): unreachable from
+    /// validated profiles, because profile simplicity classifies the
+    /// same displacements first — an in-band carrier near-identity
+    /// already escalated at the profile gate. Surfaced rather than
+    /// trusted.
     CosurfaceEscalated {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -145,6 +166,23 @@ pub enum ExtrudeError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
+    /// The dihedral classification at a cap–wall rim edge escalated
+    /// during the rim upgrade pass (module docs, step 6) — the rim's
+    /// counterpart of [`ExtrudeError::SliverJoin`].
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): a normal extrusion's
+    /// rims meet their walls at a right angle through definite lever
+    /// arms, so an escalation here means the inputs already carried
+    /// something a validated profile cannot — surfaced rather than
+    /// trusted.
+    SliverRim {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the rim's segment.
+        segment_index: usize,
+        /// The classifier's diagnostic.
+        source: Indeterminate,
+    },
     /// A cap plane failed Newell certification (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
@@ -153,6 +191,11 @@ pub enum ExtrudeError {
         source: NewellError,
     },
     /// A side-wall plane failed Newell certification.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): a validated segment's
+    /// swept quad is non-degenerate whenever the extrusion itself is
+    /// (already classified) — unreachable from validated profiles,
+    /// surfaced rather than trusted.
     SidePlane {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -203,6 +246,15 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "sliver dihedral at loop {loop_index} vertex {vertex_index}: the join is \
                  neither a definite corner nor definitely smooth: {source}"
+            ),
+            Self::SliverRim {
+                loop_index,
+                segment_index,
+                source,
+            } => write!(
+                f,
+                "sliver dihedral at loop {loop_index} segment {segment_index}'s cap-wall rim: \
+                 the rim is neither a definite corner nor definitely smooth: {source}"
             ),
             Self::CapPlane { source } => write!(f, "cap plane: {source}"),
             Self::SidePlane {
@@ -716,13 +768,15 @@ pub fn extrude<T: Decide>(
     // joins. ----
     let mut side_faces = Vec::with_capacity(loops.len());
     let mut strut_edges = Vec::with_capacity(loops.len());
+    let mut top_rims = Vec::with_capacity(loops.len());
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         let qs = &points[li];
-        let (faces, struts) = sweep_loop(
+        let swept = sweep_loop(
             &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band,
         )?;
-        side_faces.push(faces);
-        strut_edges.push(struts);
+        side_faces.push(swept.faces);
+        strut_edges.push(swept.struts);
+        top_rims.push(swept.top_rims);
     }
 
     // ---- Phase 5: the swept face survives as the top cap; attach its
@@ -734,7 +788,50 @@ pub fn extrude<T: Decide>(
         .collect();
     let top_plane =
         newell_plane(&raised, band).map_err(|source| ExtrudeError::CapPlane { source })?;
-    body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+    let top_surface = body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+
+    // ---- Phase 6: rim upgrades (module docs — the ratified rim
+    // decision). Both cap planes now exist, so every cap–wall rim edge
+    // re-describes as their `Intersection` through the certified
+    // setter: loops in canonical order, segments in swept order, the
+    // bottom rim before the top (D9 — fixed order). ----
+    for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
+        let qs = &points[li];
+        let n = segs.len();
+        for j in 0..n {
+            let wall = face_surface_key(&body, side_faces[li][j])?;
+            let q_from = qs[j];
+            let q_to = qs[(j + 1) % n];
+            let bottom_rim = body
+                .get_half_edge(base.hes[j])
+                .ok_or(EulerOpError::StaleKey {
+                    key: topo::EntityId::HalfEdge(base.hes[j]),
+                })?
+                .edge;
+            upgrade_rim(
+                &mut body,
+                bottom_rim,
+                bottom_surface,
+                wall,
+                q_from,
+                q_to,
+                li,
+                segs[j].canonical_segment,
+                band,
+            )?;
+            upgrade_rim(
+                &mut body,
+                top_rims[li][j],
+                top_surface,
+                wall,
+                q_from + w,
+                q_to + w,
+                li,
+                segs[j].canonical_segment,
+                band,
+            )?;
+        }
+    }
 
     #[cfg(debug_assertions)]
     debug_assert_eq!(
@@ -755,8 +852,8 @@ pub fn extrude<T: Decide>(
 }
 
 /// Sweeps one loop of the seed face: struts, side quads, join
-/// classification (module docs, steps 3–4). Returns the side faces and
-/// strut edges in swept order.
+/// classification (module docs, steps 3–4). Returns the side faces,
+/// strut edges, and top-rim edges in swept order.
 #[allow(clippy::too_many_arguments)] // one internal call site; the
 // arguments are the sweep's fixed context, not a configuration surface.
 fn sweep_loop<T: Decide>(
@@ -771,8 +868,30 @@ fn sweep_loop<T: Decide>(
     w: Vec3<T>,
     w_norm: T,
     band: Band,
-) -> Result<(Vec<FaceKey>, Vec<EdgeKey>), ExtrudeError> {
+) -> Result<LoopSwept, ExtrudeError> {
     let n = segs.len();
+
+    // Cosurface run structure, decided UP FRONT from the segments alone
+    // (deterministic — no body state): `pair[j]` says whether segment
+    // `j` continues segment `j − 1 mod n`'s carrier, so `pair[0]` is the
+    // wrap join at vertex 0. Deciding all n pairs before any face is
+    // minted is what lets a same-carrier run that CROSSES the canonical
+    // start vertex (…, n−1, 0) resolve to ONE surface key: with the
+    // lazy per-face checks, the prev join at j = n−1 returned before the
+    // wrap join could reconcile the run with `faces[0]` (M2 PR 4 review,
+    // SHOULD-1 — the run was split into two identical-by-construction
+    // cylinders).
+    let mut pair = Vec::with_capacity(n);
+    for j in 0..n {
+        let prev = &segs[(j + n - 1) % n];
+        pair.push(cosurface(prev, &segs[j], band).map_err(|source| {
+            ExtrudeError::CosurfaceEscalated {
+                loop_index,
+                vertex_index: segs[j].canonical_vertex,
+                source,
+            }
+        })?);
+    }
 
     // Struts: one raised vertex per loop vertex, in traversal order.
     let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
@@ -792,6 +911,7 @@ fn sweep_loop<T: Decide>(
     // new face the side wall; the last mef closes against the first top
     // rim (which replaced the consumed strut-minus navigation).
     let mut faces: Vec<FaceKey> = Vec::with_capacity(n);
+    let mut top_rims: Vec<EdgeKey> = Vec::with_capacity(n);
     let mut first_top = None;
     for j in 0..n {
         let he2 = match (j + 1 < n, first_top) {
@@ -804,7 +924,7 @@ fn sweep_loop<T: Decide>(
             (false, None) => struts[j].he_minus,
         };
         let surface = side_surface(
-            body, loop_index, segs, &faces, j, qs, place, normal, w, band,
+            body, loop_index, segs, &pair, &faces, j, qs, place, normal, w, band,
         )?;
         let top_q_from = qs[j] + w;
         let top_q_to = qs[(j + 1) % n] + w;
@@ -820,6 +940,7 @@ fn sweep_loop<T: Decide>(
             first_top = Some(mef.he_plus);
         }
         faces.push(mef.face);
+        top_rims.push(mef.edge);
     }
 
     // Join classification: strut j joins the side walls of segments
@@ -876,19 +997,39 @@ fn sweep_loop<T: Decide>(
         }
     }
 
-    Ok((faces, struts.iter().map(|m| m.edge).collect()))
+    Ok(LoopSwept {
+        faces,
+        struts: struts.iter().map(|m| m.edge).collect(),
+        top_rims,
+    })
 }
 
-/// The side wall's surface spec for segment `j`: `Shared` with the
-/// previous wall (or, on the wrap join, the first) when the cosurface
-/// predicates say one carrier; otherwise a freshly built plane
-/// (Newell over the quad corners in loop order — outward by the
-/// orientation contract) or cylinder (turn-signed axis, crate docs).
+/// One loop's sweep products, in swept order (see [`sweep_loop`]).
+struct LoopSwept {
+    /// Side-wall faces, one per segment.
+    faces: Vec<FaceKey>,
+    /// Strut edges, one per vertex.
+    struts: Vec<EdgeKey>,
+    /// Top-rim edges, one per segment (the side `mef`s' new edges).
+    top_rims: Vec<EdgeKey>,
+}
+
+/// The side wall's surface spec for segment `j`, from the precomputed
+/// cosurface run structure `pair` (see [`sweep_loop`]): `Shared` with
+/// the previous wall when segment `j` continues its carrier, `Shared`
+/// with `faces[0]` when `j` starts (or continues into) a run that
+/// reaches segment 0 through the wrap join — so a same-carrier run
+/// crossing the canonical start vertex resolves to ONE key, whose
+/// `u_ref` comes from segment 0, the run's first segment in sweep
+/// order; otherwise a freshly built plane (Newell over the quad corners
+/// in loop order — outward by the orientation contract) or cylinder
+/// (turn-signed axis, crate docs).
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,
     loop_index: usize,
     segs: &[SweptSeg<T>],
+    pair: &[bool],
     faces: &[FaceKey],
     j: usize,
     qs: &[Point3<T>],
@@ -898,21 +1039,18 @@ fn side_surface<T: Decide>(
     band: Band,
 ) -> Result<FaceSurface<T>, ExtrudeError> {
     let n = segs.len();
-    let escalated = |source: Indeterminate, seg: &SweptSeg<T>| ExtrudeError::CosurfaceEscalated {
-        loop_index,
-        vertex_index: seg.canonical_vertex,
-        source,
-    };
     if j > 0 {
-        if cosurface(&segs[j - 1], &segs[j], band).map_err(|e| escalated(e, &segs[j]))? {
+        // The prev join: segment j continues segment j − 1's carrier.
+        if pair[j] {
             let key = face_surface_key(body, faces[j - 1])?;
             return Ok(FaceSurface::Shared(key));
         }
-        // The wrap join: the last segment may continue the first
-        // segment's carrier (join at vertex 0).
-        if j == n - 1
-            && cosurface(&segs[n - 1], &segs[0], band).map_err(|e| escalated(e, &segs[0]))?
-        {
+        // The wrap run: segments j, j+1, …, n−1 chain onto segment 0
+        // through the wrap join (`pair[0]`), so segment j belongs to
+        // `faces[0]`'s carrier even though its prev join is fresh. (For
+        // j = n−1 the chain condition is vacuous and this is exactly
+        // the plain wrap join.)
+        if pair[0] && ((j + 1)..n).all(|k| pair[k]) {
             let key = face_surface_key(body, faces[0])?;
             return Ok(FaceSurface::Shared(key));
         }
@@ -936,8 +1074,13 @@ fn side_surface<T: Decide>(
         } => {
             // The carrier axis line is the arc's center extruded:
             // `place · (center, 0)` — the same computation the rim
-            // carrier makes, so cylinder and rim circle agree
-            // bit-identically.
+            // carrier makes, so cylinder and BOTTOM rim circle agree
+            // bit-identically. TOP rim centers are computed through
+            // `top_place = translation(w) ∘ place`, which associates
+            // differently than `c_world + w` — the agreement there is
+            // ulp-level, not bitwise (M2 PR 4 review, A7). Certified
+            // and deterministic either way: the residual gates bound
+            // the drift and identical inputs replay identical bits.
             let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
             Ok(FaceSurface::New(Surface::Cylinder {
                 origin: c_world,
@@ -946,6 +1089,89 @@ fn side_surface<T: Decide>(
                 u_ref: (qs[j] - c_world).normalize(),
             }))
         }
+    }
+}
+
+/// Upgrades one cap–wall rim edge to `Intersection { cap, wall,
+/// witness }` (module docs, step 6 — the ratified rim decision). The
+/// witness is minted as the **carrier's mid-parameter point** — the S2
+/// witness contract (`WitnessMidpoint`): for arc rims the chord
+/// midpoint lies off the carrier by the bulge height, so `carrier(mid)`
+/// is the only honest mint (for line rims it coincides with the chord
+/// midpoint to rounding). The certified carrier and parameter interval
+/// are kept verbatim; the re-description goes through `topo`'s
+/// certified `set_edge_curve` door. `classify_dihedral` at the witness
+/// decides, metered through the edge's honest extent
+/// ([`geom_brep::edge_extent`] — the carrier diameter for near-closed
+/// arc rims, whose chord collapses): Transverse upgrades (the only
+/// reachable arm for a normal extrusion — cap plane ⊥ wall); Smooth
+/// keeps the conventional description (kept total per the D2 split);
+/// Indeterminate is the typed [`ExtrudeError::SliverRim`].
+#[allow(clippy::too_many_arguments)] // two call sites in one loop; the
+// arguments are the upgrade's fixed context, not a configuration
+// surface.
+fn upgrade_rim<T: Decide>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    cap: SurfaceKey,
+    wall: SurfaceKey,
+    q_from: Point3<T>,
+    q_to: Point3<T>,
+    loop_index: usize,
+    segment_index: usize,
+    band: Band,
+) -> Result<(), ExtrudeError> {
+    let curve_key = body
+        .get_edge(edge)
+        .ok_or(EulerOpError::StaleKey {
+            key: topo::EntityId::Edge(edge),
+        })?
+        .curve;
+    let curve = body
+        .get_curve(curve_key)
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Curve(curve_key),
+        })?;
+    let carrier = *curve.carrier();
+    let (t0, t1) = curve.params();
+    // The mid-parameter point — the same association the certification
+    // schedule's middle sample uses (t₀ + (t₁ − t₀)·½, exact dyadic
+    // fraction), so the WitnessMidpoint residual is zero by
+    // construction.
+    let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+    let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
+    let s_cap = *body.get_surface(cap).ok_or(EulerOpError::StaleGeometry {
+        key: topo::GeomRef::Surface(cap),
+    })?;
+    let s_wall = *body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
+        key: topo::GeomRef::Surface(wall),
+    })?;
+    match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
+        Ok(DihedralClass::Transverse) => {
+            let spec = EdgeCurveSpec {
+                description: EdgeGeometry::Intersection {
+                    s1: cap,
+                    s2: wall,
+                    witness,
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            };
+            body.set_edge_curve(edge, spec)?;
+            Ok(())
+        }
+        // Believed unreachable for a normal extrusion (the cap plane is
+        // perpendicular to every wall along the rim); kept total per
+        // the D2 conventional split rather than papered over with a
+        // panic — tier 3's prefer-intrinsic enforcement exempts
+        // definitely-smooth edges, so a Smooth rim stays valid.
+        Ok(DihedralClass::Smooth) => Ok(()),
+        Err(source) => Err(ExtrudeError::SliverRim {
+            loop_index,
+            segment_index,
+            source,
+        }),
     }
 }
 

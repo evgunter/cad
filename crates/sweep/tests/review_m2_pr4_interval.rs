@@ -1,10 +1,12 @@
-//! M2 PR 4 adversarial review — interval lane (feature `interval`).
+//! M2 PR 4 adversarial review — interval lane (feature `interval`;
+//! from `review/m2-4`, promoted permanently as `review_m2_pr4_interval`).
 //!
 //! Companion of `review_m2_pr4.rs`: the interval scalar's extrusion
 //! paths beyond the acceptance tests' axis-aligned +n cases — the
 //! reversed direction, the ring path (kemr/kfmrh) on exact-dyadic
-//! data, and the pre-B1-fix honesty check on rotated (non-dyadic)
-//! placements.
+//! data, and (post-B1-fix, flipped by the M2 PR 4 fix pass from the
+//! review's honesty pins) REQUIRED tier-valid builds on the diagonal
+//! hole-planting bridge and on rotated (non-dyadic) placements.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -95,65 +97,50 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
 }
 
-/// FINDING (impact scoping for the PR 3 fix pass; honesty pin for
-/// PR 4): a fully dyadic, fully RECTILINEAR holed profile still
-/// refuses at the interval scalar pre-B1-fix, because the transient
-/// hole-planting BRIDGE chord (outer canonical start → hole canonical
-/// start) is diagonal — its normalized direction is non-dyadic, the
-/// endpoint-pinning residual `distance(eval(t_end), endpoint)` squares
-/// a straddling-zero enclosure, and B1 poisons the decoration
-/// (`carrier_endpoint_end` escalates as Invalid). The sweep crate-doc
-/// caveat says "exact-dyadic line profiles" work — this pins the true
-/// boundary: exact-dyadic AND axis-aligned INCLUDING the implicit
-/// bridge (see the staircase test above for the aligned counterpart).
-///
-/// The refusal is honest: typed `Op(Certification(Escalated))`, body
-/// discarded, no panic, no wrong-accept. Post-fix this build should
-/// succeed; the Ok arm then requires full tier validity, so the test
-/// stays green across the fix-pass merge.
+/// FIXED (was `finding_interval_diagonal_bridge_hits_b1_pre_fix`): a
+/// fully dyadic, fully RECTILINEAR holed profile used to refuse at the
+/// interval scalar, because the transient hole-planting BRIDGE chord
+/// (outer canonical start → hole canonical start) is diagonal — its
+/// normalized direction is non-dyadic, the endpoint-pinning residual
+/// `distance(eval(t_end), endpoint)` squared a straddling-zero
+/// enclosure, and B1 poisoned the decoration (`carrier_endpoint_end`
+/// escalated as Invalid). The refusal was honest (typed, atomic, no
+/// wrong-accept — the review's pin), and geom-core's tight-square fix
+/// (PR 3 fix pass) removed the poison: the build is now REQUIRED to
+/// succeed tier-valid — the diagonal-bridge holed profile is the
+/// interval lane's ring-path coverage beyond axis-aligned data.
 #[test]
-fn finding_interval_diagonal_bridge_hits_b1_pre_fix() {
+fn fixed_interval_diagonal_bridge_builds_tier_valid() {
     let outer = square(0.0, 0.0, 1.0);
     let hole = square(0.25, 0.25, 0.5);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![outer, hole])
         .validate(Tolerance::get())
         .unwrap();
-    match extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))) {
-        Err(e) => {
-            // Pre-fix: the typed certification escalation, surfaced
-            // through the operator layer.
-            assert!(
-                matches!(
-                    e,
-                    sweep::ExtrudeError::Op {
-                        source: topo::EulerOpError::Certification { .. }
-                    }
-                ),
-                "expected the B1 certification escalation, got {e:?}"
-            );
-        }
-        Ok(t) => {
-            // Post-fix: must be fully valid.
-            assert_eq!(validate(&t.body), Ok(()));
-            assert_eq!(validate_closed(&t.body), Ok(()));
-            assert_eq!(validate_geometric(&t.body), Ok(()));
-        }
-    }
+    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
+    assert_eq!(validate(&t.body), Ok(()));
+    assert_eq!(validate_closed(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body), Ok(()));
+    // Genus 1: the ring path ran end to end at the interval scalar.
+    let v = t.body.vertices().count() as isize;
+    let e = t.body.edges().count() as isize;
+    let f = t.body.faces().count() as isize;
+    let r: isize = t.body.faces().map(|(_, fc)| fc.rings.len() as isize).sum();
+    assert_eq!((v, e, f, r), (16, 24, 10, 2));
+    assert_eq!(v - e + f - r, 0);
 }
 
-/// Pre-B1-fix honesty on a rotated (non-dyadic) placement: the frame
-/// u = (2/3, 2/3, 1/3), v = (1/3, −2/3, 2/3) is exactly orthonormal in
-/// ℝ but not dyadic, so every world point is a nondegenerate enclosure
-/// and `norm`/`distance` hit PR 3 review B1 (straddling-zero squares
-/// poison the decoration through `sqrt`).
-///
-/// The contract this pins: the build REFUSES TYPED (escalation /
-/// certification report) — it must never panic and never return a
-/// body that fails tier 3. After the geom-core fix-pass merge the Ok
-/// arm becomes reachable and the test stays green (it then requires
-/// full tier validity).
+/// FIXED (was `interval_rotated_placement_refuses_honestly_pre_b1_fix`):
+/// the frame u = (2/3, 2/3, 1/3), v = (1/3, −2/3, 2/3) is exactly
+/// orthonormal in ℝ but not dyadic, so every world point is a
+/// nondegenerate enclosure and `norm`/`distance` used to hit PR 3
+/// review B1 (straddling-zero squares poisoned the decoration through
+/// `sqrt`); the pre-fix build refused typed (the review's honesty pin —
+/// no panic, no silently wrong certification). Post-fix, every residual
+/// enclosure classifies definitely through clean decorations and the
+/// rotated build is REQUIRED to succeed tier-valid — the interval
+/// lane's coverage of genuinely inexact (non-dyadic) placements.
 #[test]
-fn interval_rotated_placement_refuses_honestly_pre_b1_fix() {
+fn fixed_interval_rotated_placement_builds_tier_valid() {
     let third = Interval::from_f64(1.0) / Interval::from_f64(3.0);
     let two_thirds = Interval::from_f64(2.0) / Interval::from_f64(3.0);
     let u = Vec3::new(two_thirds, two_thirds, third);
@@ -168,26 +155,12 @@ fn interval_rotated_placement_refuses_honestly_pre_b1_fix() {
         v,
     );
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-    match Profile::new(plane, vec![lp]).validate(Tolerance::get()) {
-        Err(e) => {
-            // Typed refusal at the profile gate would also be honest
-            // (validation is 2-D and dyadic here, so this arm is not
-            // expected — but it is not wrong).
-            let _ = e;
-        }
-        Ok(vp) => match extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))) {
-            Err(e) => {
-                // The expected pre-fix outcome: typed, named, no panic.
-                let msg = format!("{e}");
-                assert!(!msg.is_empty());
-            }
-            Ok(t) => {
-                // Post-fix outcome: if it builds, it must be fully
-                // valid — never a silently wrong certification.
-                assert_eq!(validate(&t.body), Ok(()));
-                assert_eq!(validate_closed(&t.body), Ok(()));
-                assert_eq!(validate_geometric(&t.body), Ok(()));
-            }
-        },
-    }
+    let vp = Profile::new(plane, vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
+    assert_eq!(validate(&t.body), Ok(()));
+    assert_eq!(validate_closed(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(t.body.vertices().count(), 8);
 }

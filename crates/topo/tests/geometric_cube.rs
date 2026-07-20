@@ -24,7 +24,6 @@ fn geometric_cube_passes_all_three_tiers() {
     let t = geometric_cube::<f64>();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
     // 8 vertices, 12 edges, 6 faces; 6 planes + no leftover Nurbs.
     assert_eq!(t.body.vertices().count(), 8);
     assert_eq!(t.body.edges().count(), 12);
@@ -35,6 +34,21 @@ fn geometric_cube_passes_all_three_tiers() {
             .surfaces()
             .all(|(_, s)| matches!(s, Surface::Plane { .. }))
     );
+    // Prefer-intrinsic enforcement (D2, M2 PR 4 fix pass): every cube
+    // edge is a definitely-transverse plane-pair corner, so at rest the
+    // un-upgraded chords are named — all twelve, nothing else.
+    let errs = validate_geometric(&t.body).unwrap_err();
+    assert_eq!(errs.len(), 12, "{errs:?}");
+    assert!(
+        errs.iter()
+            .all(|e| matches!(e, topo::ValidationError::TransverseNotIntrinsic { .. })),
+        "{errs:?}"
+    );
+    // Upgraded (the construction-discipline the rule enforces), the
+    // cube passes all three tiers.
+    let mut body = t.body;
+    upgrade_edges_to_intersections(&mut body);
+    assert_eq!(validate_geometric(&body), Ok(()));
 }
 
 #[test]
@@ -160,10 +174,15 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // The value channel of a Dual build takes the identical certified
     // path: same construction succeeds, and every certificate's value
     // channel equals the f64 certificate bitwise (tangent data never
-    // influences a decision).
+    // influences a decision). Both lanes get the prefer-intrinsic
+    // upgrade first (M2 PR 4 fix pass: the transverse cube chords must
+    // carry Intersection at rest), so the compared certificates are the
+    // upgraded Intersection re-certifications.
     use geom_core::{Dual, Dual64};
-    let f = geometric_cube::<f64>();
-    let d = geometric_cube::<Dual64>();
+    let mut f = geometric_cube::<f64>();
+    let mut d = geometric_cube::<Dual64>();
+    upgrade_edges_to_intersections(&mut f.body);
+    upgrade_edges_to_intersections(&mut d.body);
     assert_eq!(validate_geometric(&d.body), Ok(()));
     let f_certs: Vec<f64> = f
         .body

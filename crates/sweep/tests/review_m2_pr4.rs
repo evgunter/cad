@@ -1,11 +1,15 @@
-//! M2 PR 4 adversarial review suite (`review/m2-4`, promotable as
-//! `review_m2_pr4`): falsification programs for the extrude operation,
-//! run against the public API only.
+//! M2 PR 4 adversarial review suite (from `review/m2-4`, promoted
+//! permanently as `review_m2_pr4`): falsification programs for the
+//! extrude operation, run against the public API only.
 //!
 //! Naming convention: `survives_*` tests pass as-is and pin behavior
-//! the review verified; `finding_*` tests pin defects (each carries a
-//! FINDING comment). All tests are ε-parameterized off the run's
-//! tolerance where the attacked band is ε-relative.
+//! the review verified; `fixed_*` tests were the review's `finding_*`
+//! pins of defective behavior, FLIPPED by the fix pass to assert the
+//! corrected behavior (each keeps its finding lineage in its doc
+//! comment); the remaining `finding_*` test pins a true-behavior scope
+//! bound (the Dual derivative channel), not a defect. All tests are
+//! ε-parameterized off the run's tolerance where the attacked band is
+//! ε-relative.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -656,25 +660,25 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     assert!(signed_volume(&t.body) > 0.0);
 }
 
-/// FINDING (SHOULD): prev-join precedence SHORT-CIRCUITS the wrap
+/// FIXED (was `finding_wrap_cosurface_run_split_into_two_keys`,
+/// SHOULD-1): prev-join precedence used to SHORT-CIRCUIT the wrap
 /// join, so a same-carrier run of ≥ 3 arcs crossing the canonical
-/// start vertex is split into TWO surface keys for ONE
+/// start vertex was split into TWO surface keys for ONE
 /// identical-by-construction cylinder — falsifying the crate-doc claim
 /// that smooth joins on the identical-by-construction surface "share
 /// the surface key" (and M2-PLAN PR 6's "the surface KEY is shared
 /// when identical-by-construction").
 ///
 /// Profile: unit circle cut by one chord, arcs split so the carrier
-/// run is [seg 2, seg 3, seg 0] across the wrap: seg 0 mints a fresh
-/// key at j = 0 (no lookback), segs 2–3 share a second key, and at
-/// j = n−1 the prev join fires first — `side_surface` returns before
-/// the wrap check can reconcile the run with faces[0].
-///
-/// The body is still tier-1/2/3 valid (the strut classifies Smooth via
-/// the dihedral of the two bitwise-identical cylinders), so this pins
-/// a convention violation, not corruption — severity SHOULD.
+/// run is [seg 2, seg 3, seg 0] across the wrap. The fix: all of a
+/// loop's consecutive-pair cosurface decisions (including the wrap
+/// pair) are made BEFORE any wall is minted, so a segment whose
+/// forward chain reaches segment 0 through the wrap shares `faces[0]`'s
+/// key at mint time — no re-keying, no reconciliation, and the run's
+/// `u_ref` stays with its first segment in sweep order (segment 0).
+/// The whole run now resolves to ONE cylinder key.
 #[test]
-fn finding_wrap_cosurface_run_split_into_two_keys() {
+fn fixed_wrap_cosurface_run_shares_one_key() {
     let sixth = (PI / 12.0).tan(); // 60° arc bulge = tan(60°/4)
     let quarter = FRAC_PI_8.tan();
     let (c60, s60) = (0.5, 3.0f64.sqrt() / 2.0);
@@ -689,49 +693,37 @@ fn finding_wrap_cosurface_run_split_into_two_keys() {
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].pos.x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5)).unwrap();
-    assert_all_tiers(&t.body); // still a valid body — severity calibration
+    assert_all_tiers(&t.body);
     let key = |j: usize| t.body.get_face(t.side_faces[0][j]).unwrap().surface;
-    // Segs 2 and 3 share (prev join)…
+    // The whole wrap-crossing run {2, 3, 0} shares ONE key…
     assert_eq!(key(2), key(3));
-    // …and seg 0 is on the SAME carrier (bitwise-identical cylinder
-    // payload)…
-    let (
-        Surface::Cylinder {
-            origin: o0,
-            axis: a0,
-            radius: r0,
-            ..
-        },
-        Surface::Cylinder {
-            origin: o2,
-            axis: a2,
-            radius: r2,
-            ..
-        },
-    ) = (
-        *t.body.get_surface(key(0)).unwrap(),
-        *t.body.get_surface(key(2)).unwrap(),
-    )
-    else {
+    assert_eq!(key(0), key(2), "the wrap-crossing run must share one key");
+    // …which is one cylinder (u_ref from segment 0, the run's first
+    // segment in sweep order: it points at the canonical start vertex).
+    let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(key(0)).unwrap() else {
         panic!("arc walls are cylinders");
     };
-    // (Identical to within derivation rounding — the centers/radii are
-    // derived from different endpoint/bulge data on the SAME carrier,
-    // so agreement is ulp-level, far below every ε; the cosurface
-    // predicate itself certified them one carrier.)
-    assert!(o0.distance(o2) < 1e-12);
-    assert!((r0 - r2).abs() < 1e-12);
-    assert_eq!(a0.z.to_bits(), a2.z.to_bits());
-    // FINDING: …but the keys are split — the wrap join never got the
-    // chance to share, because the prev join returned first.
-    assert_ne!(
-        key(0),
-        key(2),
-        "if this fails the defect was FIXED: fold the test into a \
-         survives_* assertion that the whole run shares one key"
-    );
-    // 2 caps + 1 plane + TWO cylinder keys for one carrier.
-    assert_eq!(t.body.surfaces().count(), 5);
+    assert!(origin.x.abs() < 1e-12 && origin.y.abs() < 1e-12);
+    assert!((radius - 1.0).abs() < 1e-12);
+    // 2 caps + 1 plane + ONE cylinder key for the run's carrier.
+    assert_eq!(t.body.surfaces().count(), 4);
+    // The in-run struts (walls 3|0 at vertex 0, walls 2|3 at vertex 3)
+    // are same-key smooth joins and stay conventional; the chord's two
+    // corners upgrade.
+    assert!(matches!(
+        description(&t.body, t.strut_edges[0][0]),
+        EdgeGeometry::MappedCurve(_)
+    ));
+    assert!(matches!(
+        description(&t.body, t.strut_edges[0][3]),
+        EdgeGeometry::MappedCurve(_)
+    ));
+    for j in [1usize, 2] {
+        assert!(matches!(
+            description(&t.body, t.strut_edges[0][j]),
+            EdgeGeometry::Intersection { .. }
+        ));
+    }
 }
 
 /// NEAR-cosurface honesty: geometry inside the band is refused typed at

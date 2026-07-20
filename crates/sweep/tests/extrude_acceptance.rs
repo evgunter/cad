@@ -159,13 +159,15 @@ fn extruded_l_profile_passes_all_tiers() {
             EdgeGeometry::Intersection { .. }
         ));
     }
-    // Rim edges keep their conventional PlacedSegment descriptions.
+    // Rim edges upgrade too (the ratified rim decision, M2 PR 4 fix
+    // pass): every edge of the L-prism is definitely transverse, so all
+    // 18 (6 struts + 12 rims) carry Intersection at rest.
     let intersections = t
         .body
         .curves()
         .filter(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
         .count();
-    assert_eq!(intersections, 6);
+    assert_eq!(intersections, 18);
     // Orientation: top cap outward along +z, bottom along −z.
     assert!(outward_normal(&t.body, t.top).z > 0.99);
     assert!(outward_normal(&t.body, t.bottom).z < -0.99);
@@ -255,12 +257,22 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
         .filter(|(_, s)| matches!(s, Surface::Cylinder { .. }))
         .count();
     assert_eq!(cylinders, 4);
-    // All eight joins are smooth: no strut upgrades anywhere.
-    assert!(
-        t.body
-            .curves()
-            .all(|(_, c)| matches!(c.description(), EdgeGeometry::MappedCurve(_)))
-    );
+    // All eight joins are smooth: no strut upgrades anywhere — the
+    // eight struts keep their conventional ExtrudedPoint descriptions.
+    for &edge in &t.strut_edges[0] {
+        assert!(matches!(
+            description(&t.body, edge),
+            EdgeGeometry::MappedCurve(_)
+        ));
+    }
+    // The sixteen cap-wall rims are all transverse and upgrade to
+    // Intersection (the ratified rim decision, M2 PR 4 fix pass).
+    let intersections = t
+        .body
+        .curves()
+        .filter(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
+        .count();
+    assert_eq!(intersections, 16);
     // Adjacent walls at each tangent join really are distinct surfaces.
     for j in 0..8 {
         let a = t.body.get_face(t.side_faces[0][j]).unwrap().surface;
