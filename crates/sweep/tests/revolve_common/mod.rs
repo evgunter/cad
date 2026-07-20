@@ -177,3 +177,60 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
     s.push_str(&format!("{:?} {:?} {:?}\n", t.walls, t.rims, t.kind));
     s
 }
+
+/// The kernel-coupled Pappus MAGNITUDE oracle, promoted from the PR 5
+/// review suite (M2 PR 7): `V = |θ|/2 · |∮ r² dz|` with r/z measured
+/// against the placed axis, the meridian line integral sampled densely
+/// (256 chords per edge) along each meridian edge's stored carrier in
+/// `he_plus` order. Independent of faces, loops, and the closed-form
+/// divergence formulation — the sanity cross-check for revolved
+/// bodies' exact mass properties (never the source of truth: it is a
+/// converging quadrature, not a closed form).
+pub fn meridian_pappus_volume(
+    body: &Body<f64>,
+    meridians: &[EdgeKey],
+    angle: f64,
+    axis_o: Point3<f64>,
+    axis_d: geom_core::Vec3<f64>,
+) -> f64 {
+    let d = axis_d.normalize();
+    let n = 256;
+    let mut integral = 0.0;
+    for &ek in meridians {
+        let e = body.get_edge(ek).unwrap();
+        let c = body.get_curve(e.curve).unwrap();
+        let (t0, t1) = c.params();
+        let mut prev = c.carrier().eval(t0);
+        for i in 1..=n {
+            let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(n));
+            let p = c.carrier().eval(t);
+            let r_mid = {
+                let m = prev.lerp(p, 0.5);
+                let w = m - axis_o;
+                let w_perp = w - d * w.dot(d);
+                w_perp.norm()
+            };
+            let dz = (p - axis_o).dot(d) - (prev - axis_o).dot(d);
+            integral += r_mid * r_mid * dz;
+            prev = p;
+        }
+    }
+    (angle.abs() / 2.0) * integral.abs()
+}
+
+/// [`meridian_pappus_volume`] for the canonical y-axis full revolves,
+/// taking the meridian chain out of the key bundle (omitted on-axis
+/// segments contribute nothing).
+pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
+    let sweep::RevolvedKind::Full { meridians, .. } = &t.kind else {
+        panic!("full revolve expected")
+    };
+    let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
+    meridian_pappus_volume(
+        &t.body,
+        &chain,
+        core::f64::consts::TAU,
+        Point3::origin(),
+        geom_core::Vec3::new(0.0, 1.0, 0.0),
+    )
+}
