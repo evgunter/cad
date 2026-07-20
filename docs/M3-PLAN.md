@@ -2,7 +2,13 @@
 
 **Status: DRAFT for ratification** (the #24 pattern: forks below carry firm
 recommendations; nothing merges without Evan's sign-off; the ratified plan
-becomes the binding record and PRs cite it).
+becomes the binding record and PRs cite it). **Fork resolution so far (the
+#42 conversation, 2026-07-20)**: F2 resolved with Evan's explicit-intent
+condition (invariant text under F2); F5 resolved — curved intersections
+deferred to M5 as a unit, M3 planar-only, no speculative curved-readiness
+abstraction; F8's ∅-as-typed-success confirmed; F1/F3/F4/F6/F7/F9 treated
+as ratified-with-the-plan per Evan (method commitments / forced by ratified
+principles). Awaiting final 👍 on this updated text.
 
 Read `DESIGN.md` first (D1 incl. tiers, D2, D4, D9, the Banked principles —
 especially coincidence "structural or declared, never inferred from values",
@@ -61,7 +67,15 @@ half-edge structure, is what the pipeline naturally produces, and is a typed
 edge with >2 faces, a shared-entity wedge fan — is unrepresentable and stays a
 typed error at the site that would have needed it. The round-9 ratification is
 thus sharpened, not revised: "non-manifold" means non-representable, and 3′ is
-the honest name for the representable touching class.
+the honest name for the representable touching class. **Evan's condition
+(#42, ratified into the invariant): touching is always backed by explicit
+intent.** Concretely: (i) operand coincidences are only ever structural
+(shared key) or declared (recipe data) — near-coincidence NEVER silently
+becomes contact (escalated typed error instead, per F6); (ii) result-side
+touching arises only from those intentional coincidences propagated through
+the boolean node, and the result carries machine-checkable declared-contact
+records that tier-3′ certifies; (iii) an *undeclared* contact discovered at
+validation is a hard error, never blessed.
 
 **F3 — the sign chain (method commitment).** One first-principles primitive
 `enters_material(dir, face) := sign(dot(dir, outward_normal))` (< 0 ⇒ into
@@ -96,6 +110,20 @@ bodies (which M2 produces natively from polyline profiles). Alternative
 considered: grafting the M2 closed-form pairs into M3's reduction — rejected as
 a scope trap (curved ON-neighborhoods reopen every classification table with
 none of the book's guidance; that IS the SSI milestone).
+**Resolved with Evan (#42, 2026-07-20): curved defers to M5 as a unit.** The
+dependency chain is fourfold and entirely M5-shaped: (a) intersection-locus
+representation — even a tilted plane×cylinder cut is an ellipse, outside
+`Line | Circle`; generic pairs are degree-4+ ⇒ NURBS caches + certified
+fitting (M5 "NURBS depth"); (b) general pcurves; (c) second-order sector
+classification (the `TangencyLocus` regime — curved sectors tie at first
+order exactly when surfaces are tangent); (d) certified marching numerics
+(the SSI contract). An `Ellipse`/conics analytic variant is a noted M5-era
+option (buys exact plane×quadric cuts under D3's closed-enum growth) but does
+not unlock booleans alone — (c)/(d) still gate. **And the inverse commitment:
+M3 builds NO speculative curved-readiness abstraction** beyond the thin
+face-intersection boundary — no generalized sector types, no curvature
+parameter slots; M5 refactors the boundary against real curved requirements
+rather than inheriting a guessed one.
 
 **F6 — coincidence discipline in the reduction (applying round 8).** The book
 conscripts near-coincident vertices into ON via EPS snapping; the paper's §7
