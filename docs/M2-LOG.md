@@ -853,3 +853,50 @@ above. A fresh snapshot will be written at the next handoff.)*
   monitoring via the mngr events file (see orchestration-model
   memory); `mngr` CLI itself currently broken (azure plugin
   ImportError) — read events.jsonl directly.
+
+## State snapshot (handoff point, 2026-07-20)
+
+- **Merged to main**: M2-PLAN (#24); PR 1 (#27); PR 2 (#28); PR 3
+  (#31, EdgeGeometry/tier-3 + fix pass); PR 4 (#33, extrude + rim
+  upgrades + tier-3 prefer-intrinsic enforcement); PR 5 (#37,
+  revolve incl. the two-band pole construction); PR 6 (#39,
+  certified tessellation + back-references); the GUI/usability
+  design PR (#32, Evan-signed); docs/memories PRs #30, #34–36, #38.
+  All reviews zero-blockers-after-fix-pass; all reviewer suites
+  promoted (`review_m2_pr1..6*`).
+- **Pipeline drained**: nothing in flight, no live background
+  agents, no unmerged work branches. This session's orchestrator
+  hands off here (context length), per [[orchestrator-handoff]].
+- **Successor's assignment: PR 7 (STL + mass properties + K report
+  + M2 exit)** per M2-PLAN's PR 7 entry + exit criteria. Inherited
+  facts, binding: mass properties via the ch. 13 Pappus/divergence
+  formulations over the EXACT B-rep — NEVER the mesh fan oracle
+  (sign-only, coned-polyhedron volume; PR 5 review OBS); the
+  reviewer's meridian_pappus_volume in review_m2_pr5 tests is a
+  starting point; byte-identical STL = mesh bitwise determinism
+  (verified incl. debug↔release and across ε rows) + a
+  deterministic writer; fine-δ tessellation is ~quadratic
+  wall-clock (documented, mesh lib.rs); external
+  watertight/manifold checker in CI if available, else
+  mesh::validate::check_mesh (combinatorial-only — signed_volume is
+  the orientation backstop). K report: unify the K-telemetry
+  channels (profile's thread-local funnel vs the name-tagged
+  geom-brep/topo/sweep predicates — M2-LOG PR 3 judgment call),
+  gather multi-ε margin distributions across the suites, write the
+  keep-K=10-or-revise recommendation.
+- **M2-exit DESIGN.md ratification sweep** (accumulated list):
+  witness = mid-parameter point under D2 (PR 3 S2); prefer-intrinsic
+  tier-3 enforcement under D2 + remove from not-checked (Evan
+  2026-07-19); sweeps emit single-shell bodies / voids only from
+  booleans + M4 sugar note (Evan 2026-07-20); genus-h plan
+  correction pointer (already inline in M2-PLAN); chordal-δ ≠
+  kernel-ε conventions (PR 6); parameterization/profile-format
+  conventions per the M2-PLAN exit list; the
+  minimal-sphere-unrepresentable-at-rest note (tier-2 valence-1
+  ban, PR 5); K outcome into Q1's residue.
+- **Standing process**: one implementer + one adversarial e2e
+  reviewer (falsification assignments, real consumer programs) +
+  one fix pass per PR; self-merge with full writeups on green CI;
+  only genuine design forks wait for Evan; OUTPUT DISCIPLINE header
+  in every agent spec (the 64k lesson — orchestration-model M2
+  lessons); monitors per the session-start checklist.

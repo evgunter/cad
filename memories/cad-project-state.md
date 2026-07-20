@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1 complete; M2 in progress (PRs 1–4 of 7 merged, PR 5 implemented+reviewed, PR 6 in flight — see docs/M2-LOG.md per-PR sections)
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1 complete; M2 at 6 of 7 PRs merged, pipeline drained — PR 7 (STL + mass properties + K report + exit sweep) remains; docs/M2-LOG.md's 2026-07-20 handoff snapshot is the resumption contract
 metadata:
   node_type: memory
   type: project
@@ -45,16 +45,18 @@ decoration poison in norm_squared; collapsed-arm ⇒ definite Smooth),
 both fixed; witness sharpened to mid-parameter point); **PR 4 merged
 (#33** — sweep crate: extrude with holes/genus-h, rim Intersection
 upgrades + tier-3 prefer-intrinsic enforcement per Evan's 2026-07-19
-in-session decisions); **PR 5 implemented + reviewed zero-blockers**
-on `ev/m2-5-revolve` (revolve: two-band wire case for axis contact,
-washer kfmrh+loopglue zip, Seam first exercised; fix pass/writeup in
-progress); **PR 6 (tessellation) implementer in flight** on
-`ev/m2-6-tessellate`. Remaining: 6 finish, 7 STL + mass properties
-(use Pappus/divergence, NOT the sign-only fan oracle) + K report +
-exit sweep (DESIGN.md ratifications incl. witness-midpoint under D2,
-prefer-intrinsic enforcement, genus-h plan correction). Per-PR
-sections of docs/M2-LOG.md are the running record; orchestrator
-handoff planned after PR 6 (see [[orchestrator-handoff]]). Mäntylä ch. 12–15 notes all archived in
+in-session decisions); **PR 5 merged (#37** — revolve:
+two-band wire case for axis contact poles, washer kfmrh+loopglue
+zip, Seam first exercised; voids-only-from-booleans decided by Evan
+2026-07-20); **PR 6 merged (#39** — mesh crate: certified
+per-triangle tessellation, watertight seams/poles, #32
+back-references; wedge-unwrap blocker fixed). **Remaining: PR 7
+only** — STL + mass properties (Pappus/divergence over the exact
+B-rep, NOT the sign-only fan oracle) + K report (unify telemetry
+channels first) + exit sweep (DESIGN.md ratifications — the
+accumulated list is in the M2-LOG 2026-07-20 handoff snapshot,
+the resumption contract). Per-PR sections of docs/M2-LOG.md are
+the record; handoff executed per [[orchestrator-handoff]]. Mäntylä ch. 12–15 notes all archived in
 `<main-checkout>/references/notes/`; the TOG 1986 boolean paper
 (M3's second witness, text-layer PDF) is at
 `references/mantyla-1986-boolean-operations-2-manifolds-tog.pdf`.
