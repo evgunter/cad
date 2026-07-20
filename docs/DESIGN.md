@@ -608,12 +608,15 @@ kernel exports these. None are research; all are load-bearing:
   not twice. Founding pillar ratified 2026-07-19: naming is
   localized to reified predicate flips (see Banked principles
   below).
-- **Appearance attributes (design-now, as an empty container).**
+- **Appearance attributes (design-now, as a field-less home).**
   Per-face/body display attributes (color, name, visibility) must
   live somewhere that survives recompute — which means they attach
-  via the same stable-naming machinery, not arena keys. An empty
-  typed container lands early (M2) so a home exists; durable
-  attachment semantics arrive with M4 naming.
+  via the same stable-naming machinery, not arena keys. A field-less
+  named type lands early (M2) so a home exists — deliberately **no
+  keyed container until M4 naming supplies the stable name kind**
+  (an arena-keyed container would be fake durability: per-lineage
+  keys die on rebuild, and consumers would accumulate against the
+  wrong name kind — PR #32 orchestrator review, 2026-07-20).
 
 ### Band 2 — the interactive application (a second, kernel-sized project)
 

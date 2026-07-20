@@ -400,6 +400,20 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   policy; replay-identity CI test). Residual risks acknowledged as
   execution-not-design: blend-corner geometry, tuning dials,
   rebuild latency (corpus defends), GUI scope.
+- **PR #32 orchestrator review incorporated (2026-07-20)**:
+  (1) Vertex keys added to the PR 6 mesh back-references
+  (Evan-agreed; completes triangle→face, segment→edge,
+  endpoint→vertex at zero construction cost). (2) Appearance
+  revised to the review's **option (B)** — field-less named type,
+  NO keyed container at M2; the home is type + module + doc
+  contract ("attach here, keyed by stable names, from M4") —
+  resolving the two-names tension (arena-keyed container = fake
+  durability + migration debt); design session concurs, Evan was
+  still weighing at review time — flip is one line if he lands
+  otherwise. (3) The PR 3 "S2" witness-aliasing lesson carried into
+  GUI-DESIGN GQ1 (the witness contract must pin which point).
+  Orchestrator will fold final PR 6 amendment text into the
+  implementer spec; branch synced with main at incorporation time.
 
 ## Reference acquisitions (2026-07-18)
 

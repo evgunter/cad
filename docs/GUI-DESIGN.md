@@ -143,7 +143,13 @@ scratch. Mechanism details (contraction specifics, the margin
 predicate's exact form) are M4/M6 design work under this committed
 direction. Concrete audit item: ezpz (Q3) must satisfy bit-identity
 (libm-only math, no hash-order effects) if its f64 path runs inside
-`build`.
+`build`. Mechanism note carried up from M2 PR 3's adversarial
+review (the "S2" lesson, via the PR #32 orchestrator, 2026-07-20):
+the witness contract must pin **which** point is the witness — a
+loose contract admits wrong-but-certified selections (M2 sharpened
+edge witnesses to the mid-parameter point for exactly this reason);
+the sketch-level witness has the same aliasing question and must
+answer it explicitly.
 
 ### GQ2 (RATIFIED 2026-07-19 round 3): Partial-build semantics — per-node result DAG
 

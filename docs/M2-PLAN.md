@@ -196,17 +196,28 @@ Implementer/reviewer prompts cite the notes, never the scan.
    edge's curve (deterministic, both faces consume the same points).
    Orientation: outward normals fall out of the loop conventions.
    **Entity back-references (added 2026-07-19, per DESIGN.md's
-   "Beyond the kernel" §Band 1)**: the mesh type carries per-triangle
-   source-`Face` keys and, for the boundary polylines, per-segment
-   source-`Edge` keys (chord points are already computed per edge, so
-   the association is free at construction). Rationale: viewport
-   picking (ray → triangle → topology entity) is cheap to design in
-   now and painful to retrofit; STL export simply drops them.
-   **Appearance placeholder (added 2026-07-19, same source)**: an
-   empty typed per-body attribute container (`Appearance`, no fields
-   yet) lands alongside, keyed by topology keys — a named home so
-   display attributes are never invented ad hoc; durable attachment
-   across recompute is explicitly M4-naming's problem, not M2's.
+   "Beyond the kernel" §Band 1; Vertex keys added 2026-07-20 per the
+   PR #32 orchestrator review, Evan-agreed)**: the mesh type carries
+   per-triangle source-`Face` keys, per-segment source-`Edge` keys on
+   the boundary polylines, and per-polyline-endpoint source-`Vertex`
+   keys (chord points are already computed per edge and endpoints
+   already are the vertices, so all three associations are free at
+   construction — completing the picking chain triangle→face,
+   segment→edge, endpoint→vertex; vertex picking is what
+   sketch-on-face wants most). Rationale: viewport picking is cheap
+   to design in now and painful to retrofit; STL export simply drops
+   them.
+   **Appearance home (added 2026-07-19; revised 2026-07-20 to the
+   PR #32 orchestrator review's option (B), concurred by the design
+   session — flip is one line if Evan lands otherwise)**: a
+   **field-less named type** (`Appearance`, no fields, NO keyed
+   container at M2) — the "home" is the type + module + doc contract
+   ("display attributes attach here, keyed by *stable names*, from
+   M4"). Deliberately not arena-keyed: arena keys are per-lineage
+   and die on rebuild, so an arena-keyed container is fake
+   durability and a consumer-migration debt; nothing consumes
+   appearance before M4 (STL/tessellation ignore it; demos color
+   client-side).
    **Per-face patch separability (added 2026-07-19, per the banked
    content-keyed-cache-transfer principle)**: the mesh type keeps
    per-face triangle patches individually addressable (the
