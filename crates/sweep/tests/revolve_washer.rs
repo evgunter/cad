@@ -1,0 +1,82 @@
+//! Acceptance (c): the washer — a rectangle off the axis revolved
+//! fully. Genus 1 via the same-shell `kfmrh` seam closure; component
+//! Euler–Poincaré verified; Seam/Intersection descriptions checked
+//! end-to-end from public ops.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod revolve_common;
+
+use geom_brep::EdgeGeometry;
+use geom_surfaces::Surface;
+use profile::ProfileLoop;
+use revolve_common::*;
+use sweep::{RevolvedKind, Revolution, revolve};
+
+/// The rectangle x ∈ [1, 2], y ∈ [0, 1], counterclockwise.
+fn washer_profile() -> ProfileLoop<f64> {
+    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
+}
+
+#[test]
+fn washer_full_revolve_is_genus_one_and_tier_valid() {
+    let vp = validated(vec![washer_profile()]);
+    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    assert_all_tiers(&t.body);
+    // V4 E8 F4 R0: component E–P v − e + f − r = 0 = 2(1 − g) ⇒ g = 1
+    // (the kfmrh genus supplier).
+    assert_eq!(counts(&t.body), (4, 8, 4, 0));
+    // One shell, one solid.
+    assert_eq!(t.body.solids().count(), 1);
+    assert_eq!(t.body.shells().count(), 1);
+    // Four walls: two cylinders (r = 1, r = 2) and two plane annuli.
+    let mut cylinders = 0;
+    let mut planes = 0;
+    for w in &t.walls[0] {
+        let f = w.expect("no on-axis segments");
+        match t.body.get_surface(t.body.get_face(f).unwrap().surface).unwrap() {
+            Surface::Cylinder { .. } => cylinders += 1,
+            Surface::Plane { .. } => planes += 1,
+            other => panic!("unexpected wall surface {other:?}"),
+        }
+    }
+    assert_eq!((cylinders, planes), (2, 2));
+    // Every rim is a full-period Intersection (definitely transverse
+    // plane × cylinder), witness at the antipode.
+    for r in &t.rims[0] {
+        let e = r.expect("no on-axis vertices");
+        assert!(matches!(
+            description(&t.body, e),
+            EdgeGeometry::Intersection { .. }
+        ));
+    }
+    // Meridians: cylinder walls carry Seam, plane walls keep the
+    // conventional MappedCurve (module-doc exception).
+    let RevolvedKind::Full {
+        meridians,
+        pi_walls,
+        pi_meridians,
+        pi_rims,
+    } = &t.kind
+    else {
+        panic!("full revolve");
+    };
+    // Lamina case: one full-period band, no π-band entities.
+    assert!(pi_walls.iter().all(Option::is_none));
+    assert!(pi_meridians.iter().all(Option::is_none));
+    assert!(pi_rims.iter().all(Option::is_none));
+    let mut seams = 0;
+    let mut mapped = 0;
+    for m in meridians {
+        match description(&t.body, m.expect("no omitted segments")) {
+            EdgeGeometry::Seam { .. } => seams += 1,
+            EdgeGeometry::MappedCurve(_) => mapped += 1,
+            other => panic!("unexpected meridian description {other:?}"),
+        }
+    }
+    assert_eq!((seams, mapped), (2, 2));
+    // Orientation oracle: positive material volume (exact value
+    // 2π·R̄·A = 2π·1.5·1 ≈ 9.42; chordal sampling only bounds it
+    // loosely — the SIGN is the oracle).
+    assert!(signed_volume(&t.body) > 0.0);
+}
