@@ -74,9 +74,16 @@ OK; refs document-local; cross-doc = assembly-era wrapper; **Evan's
 uniformity principle: assemblies are recipe DAGs of the same
 formalism — doc boundary is a namespace/versioning seam, so
 GQ1-witnesses apply to mates verbatim; axis-3 binding semantics
-deferred, Cargo.lock-style pinning is the unratified leading
-candidate**). GQ1–GQ5 all closed; remaining pre-M4 design work: GQ1
-mechanism details + the selection-stability/naming design doc.
+RATIFIED in direction: Cargo.lock-style pinned-with-explicit-update,
+details at assembly design**). GQ1–GQ5 all closed; remaining pre-M4
+design work: GQ1 mechanism details + the selection-stability/naming
+design doc. **Pending Evan's pushback (proposed, unratified — see
+M2-LOG round 6)**: naming-localized-to-predicate-flips as the naming
+doc's pillar; content-keyed cache transfer (D9); intensional-
+equality-first boolean coincidence (pre-M3); scalar-generic
+editor-core evaluation; ε-recorded-in-document + uniform-ε-across-
+assembly rules; SE(3) mate-witness and pattern-index-provenance
+flags.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across

@@ -330,6 +330,21 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   landing on the same wrapper-plus-pin extension point). **All
   GQ1–GQ5 now closed; remaining pre-M4 design work: GQ1 mechanism
   details + the selection-stability/naming doc.**
+- **GUI-DESIGN round 6 (same conversation)**: axis-3 binding
+  semantics **RATIFIED in direction** by Evan —
+  pinned-with-explicit-update (Cargo.lock model: wrapper holds the
+  pin, update is a recorded DocEdit, assemblies are self-contained
+  reproducible values); pin representation / update granularity /
+  conflict surfacing are assembly-design work. Also delivered
+  in-conversation (round 6, NOT yet ratified — awaiting Evan's
+  pushback): the "more for free" list (naming localized to reified
+  predicate flips via M0 key-identity — proposed pillar of the
+  naming doc; content-keyed cache transfer across rebuilds from D9
+  bit-determinism; intensional-equality-before-numeric-coincidence
+  as an M3 boolean principle; scalar-generic editor-core evaluation
+  service) and the danger map (flip-handling semantics; boolean
+  coincidence; ε-vs-persistence/assembly uniform-ε rules; SE(3)
+  mate witnesses; pattern-index provenance; early corpus benchmark).
 
 ## Reference acquisitions (2026-07-18)
 

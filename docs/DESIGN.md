@@ -565,7 +565,8 @@ per-node-result-DAG, GQ3 persist-all-edits, GQ4 document scope
 (local refs + assembly-era wrapper; **assemblies are recipes of the
 same formalism** — the document boundary is a namespace/versioning
 seam, so GQ1–GQ3, naming, and undo apply to assemblies unchanged;
-binding semantics deferred to assembly design), GQ5 typed
+binding semantics: Cargo.lock-style pinned-with-explicit-update,
+ratified in direction), GQ5 typed
 quantities in the expression sublanguage (dimension-algebra extent
 banked for M4); GQ6/GQ7 deliberately deferred to GUI time.
 Remaining pre-M4 design work: GQ1 mechanism details and the
@@ -649,8 +650,9 @@ usable-as-library; architecture to be ratified separately.
   instantiate-part (via the doc-identity × local-ref wrapper),
   mates, and patterns are ordinary feature nodes, so the editor and
   solver machinery (incl. mate witnesses per GQ1) transfers
-  unchanged; only binding semantics (live vs. pinned) waits for
-  assembly design.*
+  unchanged; binding semantics ratified in direction —
+  pinned-with-explicit-update, the Cargo.lock model (details at
+  assembly design).*
 - **Engineering drawings.** Dimensioned 2-D drawings require
   projection plus **hidden-line removal**; HLR on curved B-reps is
   SSI-grade (silhouette curves) and belongs on the difficulty

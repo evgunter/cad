@@ -219,13 +219,17 @@ or parts-library attachment.
 not reference architecture.
 **E — assemblies embed by value**: the fully-pinned extreme of
 axis 3; absorbed as a pin option the wrapper can hold.
-**Axis 3 is deliberately deferred to assembly design** — it is the
-historical bleeding ground (external-reference hell, in-context
-fragility, circular updates) and must be decided with the assembly
-feature list in hand. Leading candidate (Q3-style, unratified):
-pinned-with-explicit-update — the Cargo.lock model: part as
-package, the wrapper holds the version pin, "update" is a recorded
-document edit (free under GQ3). The strongest future consumer,
+**Axis 3 — binding semantics — RATIFIED in direction (2026-07-19
+round 6): pinned-with-explicit-update, the Cargo.lock model.** Part
+as package; the wrapper holds the version pin; "update" is a
+recorded document edit (free under GQ3); an assembly is therefore a
+self-contained reproducible value — never silently retargeted by
+edits to referenced documents. Axis 3 is the historical bleeding
+ground (external-reference hell, in-context fragility, circular
+updates); the pin model excises the whole class. Detailed semantics
+(pin representation — content hash vs. version id; update
+granularity; conflict surfacing) are assembly-design work under
+this committed direction. The strongest future consumer,
 in-context modeling (a part referencing an assembly neighbor's
 face), lands on this same extension point: the industry lesson is
 that in-context refs must be mediated by an explicit
