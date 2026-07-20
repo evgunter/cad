@@ -485,7 +485,8 @@ Each layer depends only on the layers below it.
 | `kernel-ops` | Primitives; extrude/revolve/sweep (build B-reps directly, no booleans needed — hence early); then booleans; then fillets/shell/offset |
 | `model` | Parametric layer: parameter space, feature DAG, persistent naming; later the sketch constraint solver |
 | `mesh` / `interop` | Tessellation, STL export, STEP export (import much harder — deferred) |
-| `viewer` | Deferred (GUI last). When needed: thin wgpu tessellation viewer, or `rerun` for zero-effort demos |
+| `editor-core` | *(added 2026-07-19)* Headless document/editor layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
+| `viewer` | Deferred (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
 
 The API-first discipline falls out of this: layers 1–5 *are* the product,
 exercised entirely by tests and code-driven models (CadQuery/OpenSCAD-style
@@ -531,12 +532,306 @@ precursor of the error-propagation feature.
 - **M7** — STEP import as adoption (D7): analytic surface recognition,
   edge adoption, healing. Deliberately last — it is the inverse problem of
   everything above it.
-- **Post-M7 (noted 2026-07-16)** — replace `inari`'s gmp/MPFR-backed
-  interval transcendentals with an in-house rigorous implementation
-  (proven per-function error pads over `libm`, plus monotonicity/extremum
-  handling) so interval builds can drop the LGPL-3.0+ transitive
-  dependencies; until then the `interval` cargo feature quarantines the
-  copyleft obligation to interval-enabled builds only (issue #4).
+- **Post-M7** — the usability program: see
+  [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
+  Licensing-hygiene work with no usability payoff is deliberately
+  *not* sequenced here — it lives in [Tabled](#tabled-far-future).
+
+## Beyond the kernel: the usability gap
+
+*(Added 2026-07-19, from the usability-scoping conversation with Evan.
+This is a **scoping section, not a milestone plan** — it names the
+work between "the M0–M7 kernel exists" and "a person can actually use
+this," so that none of it gets invented ad hoc or discovered late.
+Items marked **(design-now)** are cheap at design time and expensive
+to retrofit; each gets folded into the existing plans rather than
+waiting for a usability milestone. Several items below need their own
+design documents with D1–D9 rigor before they are plannable —
+flagged individually.)*
+
+**Sequencing stance (agreed 2026-07-19): "usable as a library" ships
+before any GUI work begins.** After M4 the kernel has parametric
+models, mass properties, and STEP export; adding language bindings
+(Python — the CadQuery/build123d audience), documentation, and
+feature breadth yields a genuinely usable code-first tool years
+before an interactive application could exist. The GUI is a separate
+layer and effectively a second project of comparable size to the
+kernel (Fornjot's postmortem and Zoo's app-team scale are the
+evidence); its architecture lives in **`docs/GUI-DESIGN.md`** (G1
+three-layer split ratified 2026-07-19: kernel / headless
+`editor-core` / interaction; **ratified**: GQ1 solver-replay
+boundary (witness = authoritative branch selection), GQ2
+per-node-result-DAG, GQ3 persist-all-edits, GQ4 document scope
+(local refs + assembly-era wrapper; **assemblies are recipes of the
+same formalism** — the document boundary is a namespace/versioning
+seam, so GQ1–GQ3, naming, and undo apply to assemblies unchanged;
+binding semantics: Cargo.lock-style pinned-with-explicit-update,
+ratified in direction), GQ5 typed
+quantities in the expression sublanguage (dimension-algebra extent
+banked for M4); GQ6/GQ7 deliberately deferred to GUI time.
+Remaining pre-M4 design work: GQ1 mechanism details and the
+selection-stability/naming design doc).
+
+### Band 1 — kernel-side services an interactive client requires
+
+The "any GUI is a thin client" claim (Vision) is true only if the
+kernel exports these. None are research; all are load-bearing:
+
+- **Incremental recompute.** "Caching is free — models are values"
+  is true semantically; interactive editing needs it *engineered*:
+  memoized feature-DAG evaluation keyed on input slices, invalidation
+  of only downstream features, partial re-tessellation. Target shape:
+  edit one parameter mid-DAG → new solid at interactive latency. D9
+  determinism is what makes the memo keys well-defined.
+- **Picking back-references (design-now — ratified into M2 PR 6).**
+  Tessellation output carries per-triangle source-`Face` keys and
+  per-boundary-polyline source-`Edge` keys, so a viewport ray hit
+  resolves to a topology entity. Cheap at tessellator-design time,
+  painful retrofit. Spatial indexing (BVH) for hit-testing sits on
+  top, client-side or in `mesh`.
+- **Cancelation and progress.** Long operations (booleans, fillets)
+  need cooperative yield points and progress reporting; pure-value
+  semantics makes abandonment safe, but the yield points must be
+  designed in, not bolted on.
+- **Selection stability across edits** — the user face of D5/M4's
+  persistent naming, and the single most usability-determining piece
+  of parametric CAD: the user fillets edge E, changes a parameter,
+  topology shifts, and E must re-resolve or fail with an actionable
+  typed error. M4's "builds stable references on top of the birth
+  record" sentence is months of work. **Needs its own design doc
+  before M4 planning**, with the explicit goal that our architecture
+  (D5 birth provenance + D8 recipe node IDs + D9 replay) makes
+  correct resolution *structurally* easy — as much "automatic" as the
+  design can extract. Ratified 2026-07-19 (GUI-DESIGN.md G1): the
+  GUI's selection type and the recipe's entity references are **the
+  same type** (a stable name), so the naming problem is solved once,
+  not twice. Founding pillar ratified 2026-07-19: naming is
+  localized to reified predicate flips (see Banked principles
+  below).
+- **Appearance attributes (contract-now, artifact-at-M4).**
+  Per-face/body display attributes (color, name, visibility) must
+  live somewhere that survives recompute — which means they attach
+  via the same stable-naming machinery, not arena keys (an
+  arena-keyed container would be fake durability: per-lineage keys
+  die on rebuild, and consumers would accumulate against the wrong
+  name kind). The ratified contract (final, 2026-07-20): attributes
+  attach **in the document layer (`editor-core`), keyed by stable
+  names, from M4 — and nowhere, in any form, before that**. No M2
+  placeholder either: the type's only correct home is a crate that
+  doesn't exist until M4-era work, so an early artifact would sit in
+  the wrong layer and model the mistake this contract prevents.
+
+### Band 2 — the interactive application (a second, kernel-sized project)
+
+Named here so its cost is never underestimated; sequenced after
+usable-as-library; architecture to be ratified separately.
+
+- **Viewport**: real-time tessellation with LOD, edge/silhouette
+  rendering, section views, snapping, navigation. A demo viewer is
+  ~10% of this.
+- **The interactive sketcher** — the largest single item: dragging,
+  dimension placement, constraint inference, and visual over-/under-
+  constraint feedback. Q3's ecosystem gap (no DOF-diagnosis /
+  graph-decomposition solver in Rust) becomes **user-facing** here
+  ("why is my sketch red?"), converting that solver from optional to
+  mandatory for the GUI milestone. Sketch-on-face and projecting
+  model edges into sketches are further consumers of M4 naming.
+- **Feature tree UI**: rollback, reorder, suppress, edit-in-place —
+  D8's recipe-as-DAG is exactly the right substrate.
+- **Error UX.** D4's fail-loud typed errors are correct for a kernel
+  and brutal in a GUI if presented raw; `ToleranceExceeded { entity,
+  … }` must become "this fillet fails *here*" with the entity
+  highlighted. The typed-error discipline is what makes this
+  *possible*; the presentation layer is real work.
+- **Direct manipulation** (drag a face → parameter change) is an
+  inverse problem on top of everything above; optional for v1 except
+  dragged sketch dimensions, which users assume.
+
+### Band 3 — missing subsystems (in no current milestone)
+
+- **Assemblies.** Multi-part documents, mates (a rigid-body-DOF
+  constraint problem, distinct from the 2-D sketch solver),
+  cross-document references, interference checks (the latter falls
+  out of M3 booleans / M6 clearance). Even hobbyist use wants this.
+  *Reference architecture ratified 2026-07-19 (GUI-DESIGN.md GQ4):
+  an assembly document is a recipe DAG of the same formalism —
+  instantiate-part (via the doc-identity × local-ref wrapper),
+  mates, and patterns are ordinary feature nodes, so the editor and
+  solver machinery (incl. mate witnesses per GQ1) transfers
+  unchanged; binding semantics ratified in direction —
+  pinned-with-explicit-update, the Cargo.lock model (details at
+  assembly design).*
+- **Engineering drawings.** Dimensioned 2-D drawings require
+  projection plus **hidden-line removal**; HLR on curved B-reps is
+  SSI-grade (silhouette curves) and belongs on the difficulty
+  ranking near fillets. Explicit near-term dodge: export STEP, make
+  drawings elsewhere.
+- **Feature breadth.** Post-M7 the kernel has extrude/revolve/sweep/
+  loft, booleans, shell, constant-radius fillets. Daily use assumes:
+  chamfers, variable-radius fillets, draft, hole features
+  (counterbore/countersink/tapped), linear/circular patterns and
+  mirror (D8's structural parameters are the substrate), datum
+  planes/axes, helixes, rib/text features. Individually small; the
+  long tail dominates "why can't I model my part."
+- **Interchange breadth**: 3MF (supersedes STL for printing), DXF
+  in/out (profiles, drawings), OBJ. Each small; STEP remains the
+  only hard one.
+
+### Banked principles (ratified 2026-07-19, rounds 6–9 of the usability conversation)
+
+Cross-milestone commitments extracted from the "where do we get more
+for free / where is the danger" review; each lands at the milestone
+named.
+
+- **Naming is localized to reified predicate flips** *(pillar of the
+  pre-M4 naming doc)*. Topology is a function of the recipe and can
+  change only where a structural parameter (D8) changed or a trilean
+  predicate (Q1) flipped. Within a flip-free parameter region,
+  replay is history-identical and M0's lineage-scoped key identity
+  makes name resolution *provably* trivial; at a flip, the flipping
+  predicate itself names what changed and why. Resolution policy:
+  trivial where provable, loud typed failure carrying the flip's
+  diagnosis where not; re-binding cleverness only as ratified opt-in
+  policies. Margin-based pre-flip *warnings* ("this reference is
+  within K·ε of vanishing") are noted as a natural extension —
+  deliberately far-future.
+- **Content-keyed cache transfer** *(key shape lands with M2 PR 6;
+  service at editor-core)*. D9 bit-determinism makes any derived
+  artifact (certified residual, tessellation patch, BVH node) keyed
+  by the bit-content of its geometric inputs transferable across
+  rebuilds by equality check — the key *is* the correctness proof;
+  no dirty-flag invalidation logic. Finer-grained than (and
+  complementary to) feature-DAG memoization.
+- **Coincidence is structural or declared, never inferred from
+  values** *(pre-M3; ratified round 8 — Evan's
+  explicit-intent revision of the round-6 proposal, which had a
+  latent defect: treating bit-equal descriptions as semantic
+  coincidence makes topology hinge on an UNMARGINED predicate — a
+  razor-thin equal-vs-one-ulp cliff with no escalation band,
+  exactly what Q1 forbids — and value equality is not evidence of
+  intent anyway)*. The ratified ladder: (a) **shared surface key** —
+  coincidence explicit by construction; (b) equal-but-independent
+  descriptions do **not** glue — if the user means flush, the recipe
+  must say so (share the surface, or an explicit recipe-level
+  relation declaration that makes it structural); description-
+  equality *detection* is a diagnostic/affordance only ("these
+  faces coincide exactly — declare the relation?"), never
+  semantics; (c) near-coincidence between unrelated definitions is
+  a typed sliver error whose resolution is an **explicit
+  repair/adoption operation** — D7's machinery applied natively:
+  reconcile geometry to make the coincidence definitional, moving
+  it by a reported amount, like import healing. Consequences:
+  undeclared-but-touching booleans fail loudly with a one-step
+  resolution instead of working by luck, and the naming pillar
+  stays airtight — topology depends only on recipe structure and
+  margined predicate verdicts, so predicate flips remain the *only*
+  topology-change sites.
+- **The editor-core evaluation service is generic over `Real`** from
+  day one — M6's error-propagation UI rides the same memoization /
+  cancelation / per-node-result machinery as f64 rebuilds; no
+  parallel path, no retrofit.
+- **ε and persistence** *(rules for the first persisted document)*:
+  a document records the ε it was authored under; the application
+  pins the run's ε to the document's; an assembly whose referenced
+  documents disagree on ε is a typed error (D4's per-model-ε
+  rejection, enforced at the seam). **Changing ε is a recorded
+  `SetTolerance` document edit** (Evan's addition): apply = replay
+  at the new ε and structurally diff — D9 key identity makes "did
+  topology change" a free comparison, and the delta is reported as
+  exactly which predicates changed verdict (escalations included);
+  any change is a typed error requiring explicit user resolution.
+  Same diff machinery as the naming pillar — ε changes and
+  parameter changes are both "same recipe, different evaluation
+  context."
+- **Fillet/blend validity is reified predicates, not try-and-fail**
+  *(pre-M5; shapes the M5 feature API)*. The industry's fillet
+  misery is mostly validity discovered by construction failure;
+  every classic failure is a margined predicate over the inputs —
+  r vs. 1/κ_max of the support (self-intersecting blend), r vs.
+  adjacent-face extent (face consumption), spine regularity, blend-
+  corner configuration — stated in the feature definition. Payoffs:
+  typed, diagnosable pre-construction errors; the predicates are Q1
+  predicates, so M6 can certify **fillet validity over a parameter
+  box** ("cannot break for r ∈ [2,5]") — a direct error-propagation
+  payoff no commercial kernel offers; corner reconfigurations become
+  enumerated predicate flips, extending the naming pillar to
+  fillets automatically. Same principle applies to shell/offset.
+- **SSI completeness is an interval obligation, not a marching
+  property** *(pre-M5)*. Residual certification audits only *found*
+  branches; the missed small loop is the classic silent disaster.
+  Contract: **marching finds, subdivision certifies exhaustiveness**
+  (interval exclusion proves each domain region intersection-free or
+  accounted for); the outcome is "every branch found" or a typed
+  failure, never silence. The cost knob slots into existing
+  structure: certification is an at-rest/tier obligation; preview
+  may march uncertified (parallel to preview's degraded chordal
+  tolerance).
+- **Non-manifold boolean results are typed errors** *(M3)*.
+  Legitimate booleans can produce vertex- or edge-touching results,
+  unrepresentable under D1 (the lower-dimensional sibling of the
+  coincidence principle's face case). Ratified: typed error naming
+  the touching entities. Silent splitting into separate manifold
+  bodies is rejected as inexplicit (changes body count without the
+  recipe saying so); any future split behavior is an explicit,
+  ratified operation the user invokes, never a fallback.
+- **The expression sublanguage is total and finite by charter**
+  *(M4; the anti-OpenSCAD guardrail)*. No recursion, no unbounded
+  iteration, no user-defined functions — anything Turing-ish lives
+  in the host-language generator layer (D8's split). Keeps interval/
+  dual replay trivial and schema versioning tractable; nearly
+  impossible to claw back once one persisted model uses a loop.
+- **Sketch DOF diagnosis is two named layers, never conflated**
+  *(M6; bounds the ezpz boundary — numbers only)*. The **structural
+  layer** (DOF counting, graph decomposition — exact, combinatorial,
+  float-free, deterministic) diagnoses over/under-constraint; the
+  known residue — generically-well-constrained but configuration-
+  degenerate sketches — is a Jacobian-rank fact at the witness,
+  caught by GQ1's bifurcation-margin predicate with its own honest
+  vocabulary ("degenerate configuration" ≠ "over-constrained").
+  "Solver didn't converge" is never reported as a diagnosis.
+- **Persisted floats round-trip bit-exactly** *(first persisted
+  file)*. Witnesses/parameters/caches are f64 under D9 replay;
+  standard shortest-round-trip formatting (Ryu — Rust serde default)
+  satisfies this for finite values; NaN/inf policy explicit (JSON
+  has neither); lossy formatters banned; enforced by a
+  save/load/replay-identity test in CI.
+- **Flags banked for later milestones**: mate solving at assemblies
+  needs witnesses/interval contraction on SE(3), not ℝⁿ — budget
+  for it, don't assume the sketch machinery drops in; recipe-level
+  provenance must carry **pattern indices** explicitly so references
+  into indexed families never degrade to positional guessing (naming
+  doc requirement); the Band 4 model corpus comes online **at M4**,
+  not with the GUI — rebuild latency is an architectural property
+  and must be measured while the architecture is still cheap to
+  change.
+
+### Band 4 — product-grade infrastructure
+
+- **Recipe schema versioning/migration from the first persisted
+  file** (D8 is the save format), autosave/crash recovery, and
+  embedded derived caches so opening a model isn't a full rebuild.
+- **Performance at scale**: hundreds of features / thousands of
+  faces; the parallel-evaluation story under D9's fixed reduction
+  shapes deserves early thought.
+- **A real-model corpus** as the usability regression suite: "these
+  N parts rebuild in < T seconds with identical topology" — the
+  usability analog of the mass-property suite.
+- **Docs and onboarding** for the API-as-product: tutorials,
+  examples, and Python bindings (see the sequencing stance above).
+
+## Tabled (far future)
+
+Deliberately unsequenced — kept off the roadmap so it never reads as
+preceding the usability program above.
+
+- **In-house rigorous interval transcendentals** *(moved from the
+  roadmap's post-M7 note, 2026-07-19)*: replace `inari`'s gmp/MPFR-
+  backed transcendentals with proven per-function error pads over
+  `libm` plus monotonicity/extremum handling, so interval builds can
+  drop the LGPL-3.0+ transitive dependencies. Until then the
+  `interval` cargo feature quarantines the copyleft obligation to
+  interval-enabled builds only (issue #4). Licensing hygiene, not
+  usability — do not schedule ahead of anything users can feel.
 
 ## Open questions
 
