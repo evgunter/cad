@@ -308,15 +308,21 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// described as `p`'s trajectory under a full revolution about
     /// that center.
     ///
-    /// **Scaffolding convention**: self-loop edges (both endpoints one
-    /// vertex — `mef`'s circular/lone sites) need *some* certified
-    /// closed carrier during construction sequences whose real geometry
-    /// arrives later (or never reaches rest — ring scaffolding is
-    /// typically consumed by `kemr`). This is that deterministic
-    /// choice: honest data (the carrier truly is this circle and truly
-    /// closes at `p`), deliberately arbitrary geometry — the stored
-    /// parameter interval `(0, τ)` is exactly the certified-cache case
-    /// the module docs cover.
+    /// **Scaffolding convention**: null edges at `p` need *some*
+    /// certified closed carrier during construction sequences whose
+    /// real geometry arrives later (or never reaches rest — ring
+    /// scaffolding is typically consumed by `kemr`). Two shapes
+    /// qualify: self-loop edges (both endpoints one vertex — `mef`'s
+    /// circular/lone sites), and null edges between two **distinct**
+    /// bitwise-coincident vertices (sweep's zip closure; the book's
+    /// `loopglue` does the same) — the endpoint-pin certification
+    /// holds either way, because the full-period parameter interval
+    /// makes both endpoint evaluations the *same* identity, forcing
+    /// bitwise coincidence. This is that deterministic choice: honest
+    /// data (the carrier truly is this circle and truly closes at
+    /// `p`), deliberately arbitrary geometry — the stored parameter
+    /// interval `(0, τ)` is exactly the certified-cache case the
+    /// module docs cover.
     pub fn self_loop_circle_at(p: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();

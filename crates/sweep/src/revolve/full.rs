@@ -117,7 +117,7 @@ fn build_lamina<T: Decide>(
     )?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (file
-    // docs; op-sequence hand-trace in M2-LOG PR 5). ----
+    // docs; see docs/M2-LOG.md PR 5 section). ----
     body.kfmrh(start_disc, seed.face)?;
     let c_plus = |body: &Body<T>, edge: EdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
         Ok(body
@@ -372,8 +372,8 @@ fn build_wire<T: Decide>(
 
     // ---- Phase 3: band 2 — one rim-closing mef per interior vertex
     // carves the π…2π walls out of the wire face; the wire face itself
-    // survives as segment 0's band-2 wall (file docs; op-sequence
-    // hand-trace in M2-LOG PR 5). ----
+    // survives as segment 0's band-2 wall (file docs; see
+    // docs/M2-LOG.md PR 5 section). ----
     let mut band2_faces: Vec<FaceKey> = vec![seed.face];
     let mut rims2: Vec<Option<EdgeKey>> = vec![None];
     for i in 1..k {

@@ -102,17 +102,49 @@ impl<T: Real> AxisFrame<T> {
 }
 
 /// The profile's maximum radial extent (meters): the fold of `|r|`
-/// over every loop vertex and every arc apex — the named lever arm the
-/// angle predicates meter through (D4 ¶1). Comparison-free (`max`
-/// lattice fold).
+/// over every loop vertex, every arc apex, and every **arc-interior
+/// radial extremum** — the named lever arm the angle predicates meter
+/// through (D4 ¶1).
+///
+/// An arc's `|r|` maximum can sit strictly inside the arc away from
+/// the apex: on the carrier, `r` is extremal at `c ± R·ê_r` (carrier
+/// angles 0 and π of the radial direction), and whichever of those
+/// two points lies on the arc is folded in. Membership is the chord
+/// half-plane test the arc classes use (the chord splits the carrier
+/// into exactly two arcs; ours is the one opposite the bulge normal),
+/// folded **comparison-free** via `copysign`: the candidate enters
+/// the `max` lattice with the membership margin's sign, so an
+/// off-arc candidate is negated and never wins (`r_max ≥ 0`). A zero
+/// margin means the extremum is an endpoint, already folded.
+///
+/// Never topology-determining — this only meters angle-sliver margins
+/// (`revolve_angle`, `revolve_angle_headroom`), so it stays outside
+/// the `decide` funnel; deterministic per D9 (a pure `max`/`copysign`
+/// fold, no branching on values).
 pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &AxisFrame<T>) -> T {
+    // Unit radial direction in sketch coordinates (the gradient of
+    // `frame.r`; same construction as `AxisFrame::build`'s `e_r`).
+    let e_r = Vec2::new(frame.dir_sk.y, T::zero() - frame.dir_sk.x);
     let mut r_max = T::zero();
     for lp in profile.loops() {
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
-            if matches!(s.kind, profile::SegmentKind::Arc { .. }) {
+            if let profile::SegmentKind::Arc { center, radius, .. } = s.kind {
                 let apex = apex_of(s.start, s.end, s.bulge);
                 r_max = r_max.max(frame.r(apex).abs());
+                // Arc-interior radial extrema: the carrier points
+                // c ± R·ê_r, each folded in iff on the arc. The arc is
+                // the chord side of sign −bulge (apex side; see
+                // `apex_of`), so with the chord normal
+                // n = (−chord.y, chord.x) the membership margin is
+                // −bulge·((p − a)·n) ≥ 0.
+                let chord = s.end - s.start;
+                let n = Vec2::new(T::zero() - chord.y, chord.x);
+                for dir in [T::one(), T::zero() - T::one()] {
+                    let p = center + e_r * (radius * dir);
+                    let margin = T::zero() - s.bulge * (p - s.start).dot(n);
+                    r_max = r_max.max(frame.r(p).abs().copysign(margin));
+                }
             }
         }
     }
@@ -421,4 +453,66 @@ pub(super) fn analyze_contact<T: Real>(
         }
     }
     Ok(run)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::Tolerance;
+    use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+
+    use super::*;
+
+    /// Circular-segment profile on the carrier centered at (2, 0) with
+    /// radius 1: an arc from carrier angle `phi_a` counterclockwise to
+    /// `phi_b`, closed by its chord. Axis = the sketch y-axis, so
+    /// `r(p) = p.x`.
+    fn segment_profile(phi_a: f64, phi_b: f64) -> ValidatedProfile<f64> {
+        let (cx, r) = (2.0, 1.0);
+        let at = |phi: f64| Point2::new(cx + r * phi.cos(), r * phi.sin());
+        let span = phi_b - phi_a; // counterclockwise, radians
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex {
+                pos: at(phi_a),
+                bulge: (span / 4.0).tan(),
+            },
+            ProfileVertex {
+                pos: at(phi_b),
+                bulge: 0.0,
+            },
+        ]);
+        Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tolerance::get())
+            .unwrap()
+    }
+
+    fn frame_y(vp: &ValidatedProfile<f64>) -> AxisFrame<f64> {
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        };
+        AxisFrame::build(vp.plane().placement, &axis, Band::linear().unwrap()).unwrap()
+    }
+
+    /// NIT-1 regression: an arc from −90° to 130° contains the carrier
+    /// angle-0 point (3, 0) — the interior radial maximum, r = 3 —
+    /// which is neither an endpoint (r = 2, ≈1.357) nor the apex (at
+    /// 20°, r = 2 + cos 20° ≈ 2.9397). The fold must report 3.
+    #[test]
+    fn radial_extent_sees_arc_interior_maximum() {
+        let vp = segment_profile(-90f64.to_radians(), 130f64.to_radians());
+        let ext = radial_extent(&vp, &frame_y(&vp));
+        assert!((ext - 3.0).abs() < 1e-9, "extent {ext}, want 3.0");
+    }
+
+    /// The membership gate: an arc from 30° to 150° does NOT contain
+    /// either carrier radial extremum (3, 0) or (1, 0); the fold stays
+    /// at the true maximum — the 30° endpoint, r = 2 + cos 30°.
+    #[test]
+    fn radial_extent_gates_off_arc_extremum() {
+        let vp = segment_profile(30f64.to_radians(), 150f64.to_radians());
+        let ext = radial_extent(&vp, &frame_y(&vp));
+        let want = 2.0 + 30f64.to_radians().cos();
+        assert!((ext - want).abs() < 1e-9, "extent {ext}, want {want}");
+    }
 }

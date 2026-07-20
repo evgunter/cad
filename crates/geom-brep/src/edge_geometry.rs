@@ -25,8 +25,9 @@
 //!   pushforward: one authoritative source (a sketch entity) and a map,
 //!   never two peer representations. `Seam` is a closed-chart
 //!   parameterization seam — pure convention, carried by the surface's
-//!   own `u_ref` (u = 0 is *the* seam, per `geom-surfaces`'
-//!   conventions).
+//!   own `u_ref` (the `u_ref`-half-plane meridian is *the* seam; see
+//!   [`EdgeGeometry::Seam`] for the spatial definition and the
+//!   mirror-nappe cone caveat).
 //!
 //! # `MappedCurve`'s payload at M2
 //!
@@ -235,8 +236,17 @@ pub enum EdgeGeometry<T: Real> {
     /// (profile-join splits, swept trajectories).
     MappedCurve(MappedCurve<T>),
     /// Conventional: the parameterization seam of a closed (periodic)
-    /// surface — the u = 0 iso-curve, whose position is carried by the
-    /// surface's own `u_ref` (seam placement is conventional data, D2).
+    /// surface — the **`u_ref`-half-plane meridian**, defined
+    /// spatially: the surface's locus in the closed half-plane spanned
+    /// by the axis and `u_ref` (certification meters the wrong-side
+    /// excess `max(0, −w·u_ref)`; seam placement is conventional data,
+    /// D2). On most walls that locus is also the chart's u = 0
+    /// iso-curve, but not always: a mirror-nappe cone (walls on
+    /// v < 0 — revolve always aims the chart axis at +a₃, so a
+    /// downward-opening cone sweeps its mirror nappe) has its u = 0
+    /// iso-curve on the spatial-π meridian, and the seam meridian is
+    /// chart u = π. The spatial definition is the one the kernel
+    /// certifies.
     /// Both of the edge's faces lie on this one surface. Pcurves (the
     /// classical second payload) are M3 derived caches, absent at M2.
     Seam {
