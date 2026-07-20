@@ -531,12 +531,149 @@ precursor of the error-propagation feature.
 - **M7** — STEP import as adoption (D7): analytic surface recognition,
   edge adoption, healing. Deliberately last — it is the inverse problem of
   everything above it.
-- **Post-M7 (noted 2026-07-16)** — replace `inari`'s gmp/MPFR-backed
-  interval transcendentals with an in-house rigorous implementation
-  (proven per-function error pads over `libm`, plus monotonicity/extremum
-  handling) so interval builds can drop the LGPL-3.0+ transitive
-  dependencies; until then the `interval` cargo feature quarantines the
-  copyleft obligation to interval-enabled builds only (issue #4).
+- **Post-M7** — the usability program: see
+  [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
+  Licensing-hygiene work with no usability payoff is deliberately
+  *not* sequenced here — it lives in [Tabled](#tabled-far-future).
+
+## Beyond the kernel: the usability gap
+
+*(Added 2026-07-19, from the usability-scoping conversation with Evan.
+This is a **scoping section, not a milestone plan** — it names the
+work between "the M0–M7 kernel exists" and "a person can actually use
+this," so that none of it gets invented ad hoc or discovered late.
+Items marked **(design-now)** are cheap at design time and expensive
+to retrofit; each gets folded into the existing plans rather than
+waiting for a usability milestone. Several items below need their own
+design documents with D1–D9 rigor before they are plannable —
+flagged individually.)*
+
+**Sequencing stance (agreed 2026-07-19): "usable as a library" ships
+before any GUI work begins.** After M4 the kernel has parametric
+models, mass properties, and STEP export; adding language bindings
+(Python — the CadQuery/build123d audience), documentation, and
+feature breadth yields a genuinely usable code-first tool years
+before an interactive application could exist. The GUI is a separate
+layer and effectively a second project of comparable size to the
+kernel (Fornjot's postmortem and Zoo's app-team scale are the
+evidence); its architecture is under active discussion and will be
+ratified into its own design doc, not this section.
+
+### Band 1 — kernel-side services an interactive client requires
+
+The "any GUI is a thin client" claim (Vision) is true only if the
+kernel exports these. None are research; all are load-bearing:
+
+- **Incremental recompute.** "Caching is free — models are values"
+  is true semantically; interactive editing needs it *engineered*:
+  memoized feature-DAG evaluation keyed on input slices, invalidation
+  of only downstream features, partial re-tessellation. Target shape:
+  edit one parameter mid-DAG → new solid at interactive latency. D9
+  determinism is what makes the memo keys well-defined.
+- **Picking back-references (design-now — ratified into M2 PR 6).**
+  Tessellation output carries per-triangle source-`Face` keys and
+  per-boundary-polyline source-`Edge` keys, so a viewport ray hit
+  resolves to a topology entity. Cheap at tessellator-design time,
+  painful retrofit. Spatial indexing (BVH) for hit-testing sits on
+  top, client-side or in `mesh`.
+- **Cancelation and progress.** Long operations (booleans, fillets)
+  need cooperative yield points and progress reporting; pure-value
+  semantics makes abandonment safe, but the yield points must be
+  designed in, not bolted on.
+- **Selection stability across edits** — the user face of D5/M4's
+  persistent naming, and the single most usability-determining piece
+  of parametric CAD: the user fillets edge E, changes a parameter,
+  topology shifts, and E must re-resolve or fail with an actionable
+  typed error. M4's "builds stable references on top of the birth
+  record" sentence is months of work. **Needs its own design doc
+  before M4 planning**, with the explicit goal that our architecture
+  (D5 birth provenance + D8 recipe node IDs + D9 replay) makes
+  correct resolution *structurally* easy — as much "automatic" as the
+  design can extract. Direction under discussion: the GUI's selection
+  type and the recipe's entity references are **the same type** (a
+  stable name), so the naming problem is solved once, not twice.
+- **Appearance attributes (design-now, as an empty container).**
+  Per-face/body display attributes (color, name, visibility) must
+  live somewhere that survives recompute — which means they attach
+  via the same stable-naming machinery, not arena keys. An empty
+  typed container lands early (M2) so a home exists; durable
+  attachment semantics arrive with M4 naming.
+
+### Band 2 — the interactive application (a second, kernel-sized project)
+
+Named here so its cost is never underestimated; sequenced after
+usable-as-library; architecture to be ratified separately.
+
+- **Viewport**: real-time tessellation with LOD, edge/silhouette
+  rendering, section views, snapping, navigation. A demo viewer is
+  ~10% of this.
+- **The interactive sketcher** — the largest single item: dragging,
+  dimension placement, constraint inference, and visual over-/under-
+  constraint feedback. Q3's ecosystem gap (no DOF-diagnosis /
+  graph-decomposition solver in Rust) becomes **user-facing** here
+  ("why is my sketch red?"), converting that solver from optional to
+  mandatory for the GUI milestone. Sketch-on-face and projecting
+  model edges into sketches are further consumers of M4 naming.
+- **Feature tree UI**: rollback, reorder, suppress, edit-in-place —
+  D8's recipe-as-DAG is exactly the right substrate.
+- **Error UX.** D4's fail-loud typed errors are correct for a kernel
+  and brutal in a GUI if presented raw; `ToleranceExceeded { entity,
+  … }` must become "this fillet fails *here*" with the entity
+  highlighted. The typed-error discipline is what makes this
+  *possible*; the presentation layer is real work.
+- **Direct manipulation** (drag a face → parameter change) is an
+  inverse problem on top of everything above; optional for v1 except
+  dragged sketch dimensions, which users assume.
+
+### Band 3 — missing subsystems (in no current milestone)
+
+- **Assemblies.** Multi-part documents, mates (a rigid-body-DOF
+  constraint problem, distinct from the 2-D sketch solver),
+  cross-document references, interference checks (the latter falls
+  out of M3 booleans / M6 clearance). Even hobbyist use wants this.
+- **Engineering drawings.** Dimensioned 2-D drawings require
+  projection plus **hidden-line removal**; HLR on curved B-reps is
+  SSI-grade (silhouette curves) and belongs on the difficulty
+  ranking near fillets. Explicit near-term dodge: export STEP, make
+  drawings elsewhere.
+- **Feature breadth.** Post-M7 the kernel has extrude/revolve/sweep/
+  loft, booleans, shell, constant-radius fillets. Daily use assumes:
+  chamfers, variable-radius fillets, draft, hole features
+  (counterbore/countersink/tapped), linear/circular patterns and
+  mirror (D8's structural parameters are the substrate), datum
+  planes/axes, helixes, rib/text features. Individually small; the
+  long tail dominates "why can't I model my part."
+- **Interchange breadth**: 3MF (supersedes STL for printing), DXF
+  in/out (profiles, drawings), OBJ. Each small; STEP remains the
+  only hard one.
+
+### Band 4 — product-grade infrastructure
+
+- **Recipe schema versioning/migration from the first persisted
+  file** (D8 is the save format), autosave/crash recovery, and
+  embedded derived caches so opening a model isn't a full rebuild.
+- **Performance at scale**: hundreds of features / thousands of
+  faces; the parallel-evaluation story under D9's fixed reduction
+  shapes deserves early thought.
+- **A real-model corpus** as the usability regression suite: "these
+  N parts rebuild in < T seconds with identical topology" — the
+  usability analog of the mass-property suite.
+- **Docs and onboarding** for the API-as-product: tutorials,
+  examples, and Python bindings (see the sequencing stance above).
+
+## Tabled (far future)
+
+Deliberately unsequenced — kept off the roadmap so it never reads as
+preceding the usability program above.
+
+- **In-house rigorous interval transcendentals** *(moved from the
+  roadmap's post-M7 note, 2026-07-19)*: replace `inari`'s gmp/MPFR-
+  backed transcendentals with proven per-function error pads over
+  `libm` plus monotonicity/extremum handling, so interval builds can
+  drop the LGPL-3.0+ transitive dependencies. Until then the
+  `interval` cargo feature quarantines the copyleft obligation to
+  interval-enabled builds only (issue #4). Licensing hygiene, not
+  usability — do not schedule ahead of anything users can feel.
 
 ## Open questions
 

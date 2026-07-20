@@ -252,6 +252,23 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
 - **Chordal-tolerance ≠ kernel-ε separation reconfirmed** by Evan
   ahead of PR 6 (already ratified in the #24 conversation; recorded
   here because he endorsed it explicitly in-session).
+- **Usability scoping ratified into DESIGN.md (Evan-requested,
+  2026-07-19, branch `mngr/plan-gui`)**: new "Beyond the kernel: the
+  usability gap" section (four bands: kernel-side client services /
+  the GUI as a second kernel-sized project / missing subsystems —
+  assemblies, drawings+HLR, feature breadth / product
+  infrastructure); sequencing stance **usable-as-a-library before
+  any GUI work**; the interval-transcendentals reimplementation
+  moved out of the roadmap into a new "Tabled (far future)" section
+  so licensing hygiene never reads as preceding usability. Two
+  design-now consequences amended into **M2-PLAN PR 6**: mesh
+  entity back-references (per-triangle Face keys, per-segment Edge
+  keys on boundary polylines) and an empty `Appearance` attribute
+  container. Flagged for future design docs: **selection stability
+  / persistent naming resolution (pre-M4, D1–D9 rigor)** and the
+  GUI architecture (abstract edit-vocabulary layer vs. concrete
+  interaction layer — discussion ongoing, nothing ratified beyond
+  the layering intent).
 
 ## Reference acquisitions (2026-07-18)
 

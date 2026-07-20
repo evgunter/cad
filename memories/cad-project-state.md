@@ -50,6 +50,20 @@ exit. Mäntylä ch. 12–15 notes all archived in
 (M3's second witness, text-layer PDF) is at
 `references/mantyla-1986-boolean-operations-2-manifolds-tog.pdf`.
 
+**Usability scoping (2026-07-19, branch `mngr/plan-gui`)**: DESIGN.md
+gained "Beyond the kernel: the usability gap" (kernel-side client
+services incl. incremental recompute + picking back-refs +
+cancelation + selection stability; GUI = second kernel-sized project;
+assemblies/drawings-HLR/feature-breadth; product infra) and a "Tabled
+(far future)" section (interval-transcendentals reimplementation
+moved there from the roadmap). **Sequencing stance: usable-as-library
+before any GUI.** M2-PLAN PR 6 amended: mesh entity back-references +
+empty `Appearance` container. Open design threads: selection
+stability / naming resolution needs its own pre-M4 design doc; GUI
+architecture (abstract edit vocabulary vs. concrete interaction
+layer) under discussion with Evan — layering intent agreed, nothing
+else ratified.
+
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across
 worktrees — NURBS book + Hoffmann were stranded in the original

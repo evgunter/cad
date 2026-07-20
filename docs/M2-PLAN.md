@@ -195,6 +195,18 @@ Implementer/reviewer prompts cite the notes, never the scan.
    shared edges: shared-edge chord points computed once from the
    edge's curve (deterministic, both faces consume the same points).
    Orientation: outward normals fall out of the loop conventions.
+   **Entity back-references (added 2026-07-19, per DESIGN.md's
+   "Beyond the kernel" §Band 1)**: the mesh type carries per-triangle
+   source-`Face` keys and, for the boundary polylines, per-segment
+   source-`Edge` keys (chord points are already computed per edge, so
+   the association is free at construction). Rationale: viewport
+   picking (ray → triangle → topology entity) is cheap to design in
+   now and painful to retrofit; STL export simply drops them.
+   **Appearance placeholder (added 2026-07-19, same source)**: an
+   empty typed per-body attribute container (`Appearance`, no fields
+   yet) lands alongside, keyed by topology keys — a named home so
+   display attributes are never invented ad hoc; durable attachment
+   across recompute is explicitly M4-naming's problem, not M2's.
 7. **STL export + mass properties + M2 exit** *(self-merge grade)*.
    Binary + ASCII STL from the tessellation (D9: byte-identical
    output for identical inputs). Volume/surface area by the ch. 13
