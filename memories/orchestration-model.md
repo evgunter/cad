@@ -74,6 +74,25 @@ Evan only at genuine design forks.
   recommendation, honest counterarguments, and an explicit "a 👍 here
   is enough to proceed" affordance.
 
+**Standing session-start checklist (made durable 2026-07-20; the
+M2-LOG snapshots assume it):**
+- Kill stale monitor processes from prior sessions first (`ps aux |
+  grep -E 'gh api|events.jsonl'` — orphaned pollers survive session
+  death), then arm TWO persistent Monitors:
+  1. **GitHub away-channel**: poll `gh api` for new issues + all
+     issue/PR comments on the repo (~60s interval) — Evan messages
+     through comments when not in-session; expect the monitor to
+     echo your own comments back (same account), ignore those.
+  2. **Usage-limit watch**: tail the newest line of
+     `~/.mngr/agents/<agent-id>/events/claude/usage/events.jsonl`
+     (each line has `rate_limits.five_hour.used_percentage` and
+     `.seven_day...`); alert at 90%/97%. The `mngr` CLI itself has
+     been broken (azure plugin ImportError) — read the file
+     directly. On a usage warning: flush state, write the handoff,
+     notify Evan.
+- On any warning-driven or planned handoff: commit log + memories +
+  in-flight branch status per the stopping rule above.
+
 **Operational lessons (M1, 2026-07-16):**
 - **Assign reviewers explicit claims to falsify** (not just "review
   this"): the falsification assignments caught a real doc
