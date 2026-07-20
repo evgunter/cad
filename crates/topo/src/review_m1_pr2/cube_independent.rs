@@ -34,7 +34,7 @@ fn independent_cube_full_verification() {
     // Top chain A'->B'->C'->D' : one segment + two struts.
     // h0: A'->B'
     let h0 = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -44,7 +44,7 @@ fn independent_cube_full_verification() {
     assert_eq!(validate(&body), Ok(()));
     // h1: B'->C'  (strut at B' = start of h0.he_minus)
     let h1 = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: h0.he_minus,
                 he2: h0.he_minus,
@@ -55,7 +55,7 @@ fn independent_cube_full_verification() {
     assert_eq!(validate(&body), Ok(()));
     // h2: C'->D'  (strut at C')
     let h2 = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: h1.he_minus,
                 he2: h1.he_minus,
@@ -75,7 +75,7 @@ fn independent_cube_full_verification() {
     // he_plus (A'->D') and the minus halves: A'->D'->C'->B' -- the
     // "everything else" lamina side.
     let f_top = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: h0.he_plus,
             he2: h2.he_minus,
         })
@@ -100,7 +100,7 @@ fn independent_cube_full_verification() {
     //   C': h1.he_minus (C'->B'),  B': h0.he_minus (B'->A').
     let strut = |body: &mut Body<f64>, at, x, y| {
         let c = body
-            .mev(MevSite::Fan { he1: at, he2: at }, pt(x, y, 0.0))
+            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, 0.0))
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         c
@@ -116,7 +116,7 @@ fn independent_cube_full_verification() {
     //  s_c- (C->C'), h1- (C'->B'), s_b+ (B'->B), s_b- (B->B'),
     //  h0- (B'->A')].
     let side = |body: &mut Body<f64>, he1, he2| {
-        let c = body.mef(MefSite::Chords { he1, he2 }).unwrap();
+        let c = body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
         assert_eq!(validate(body), Ok(()));
         c
     };

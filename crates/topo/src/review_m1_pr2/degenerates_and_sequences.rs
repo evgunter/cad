@@ -11,8 +11,8 @@
 
 use super::{euler_poincare_holds, face_polygon};
 use crate::{
-    Body, CurveGeom, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
-    MefSite, MevSite, Provenance, SurfaceGeom, Vertex, validate,
+    Body, Edge, EntityId, Face, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey, MefSite,
+    MevSite, Provenance, Vertex, validate,
 };
 use geom_core::Point3;
 
@@ -34,7 +34,7 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
 
     // Lone mev from the mvfs state: v2 e1 f1 -> 2-1+1 = 2.
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -46,7 +46,7 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
 
     // Strut (Fan he1==he2): v3 e2 f1 -> 3-2+1 = 2. Valence-1 vertex.
     let strut = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
@@ -65,7 +65,7 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
     // Self-loop mef (Chords he1==he2) at the strut tip: v3 e3 f2 ->
     // 3-3+2 = 2. One-edge circular face.
     let circ = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: strut.he_minus,
             he2: strut.he_minus,
         })
@@ -91,7 +91,7 @@ fn lone_mef_circular_edge_ledger() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let circ = body
-        .mef(MefSite::Lone {
+        .mef_chord(MefSite::Lone {
             r#loop: seed.r#loop,
         })
         .unwrap();
@@ -119,7 +119,7 @@ fn fan_mev_across_a_circular_edge() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let circ = body
-        .mef(MefSite::Lone {
+        .mef_chord(MefSite::Lone {
             r#loop: seed.r#loop,
         })
         .unwrap();
@@ -128,7 +128,7 @@ fn fan_mev_across_a_circular_edge() {
         Some(vec![circ.he_plus, circ.he_minus])
     );
     let f = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: circ.he_plus,
                 he2: circ.he_minus,
@@ -159,7 +159,7 @@ fn self_loop_chord_between_distinct_half_edges() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let g = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -167,7 +167,7 @@ fn self_loop_chord_between_distinct_half_edges() {
         )
         .unwrap();
     let t = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: g.he_plus,
                 he2: g.he_plus,
@@ -183,7 +183,7 @@ fn self_loop_chord_between_distinct_half_edges() {
         Some(vec![g.he_plus, g.he_minus, t.he_plus, t.he_minus])
     );
     let cut = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: g.he_plus,
             he2: t.he_plus,
         })
@@ -216,7 +216,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -224,7 +224,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
         )
         .unwrap();
     let split = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
@@ -253,8 +253,8 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
         },
         prov(),
     );
-    let cu2 = body.add_curve(CurveGeom::Placeholder { anchor: p(10.0) });
-    let cu3 = body.add_curve(CurveGeom::Placeholder { anchor: p(11.0) });
+    let cu2 = body.add_curve(crate::fixtures::test_curve(p(10.0)));
+    let cu3 = body.add_curve(crate::fixtures::test_curve(p(11.0)));
     let e2 = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -301,7 +301,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
         },
         prov(),
     );
-    let surface_c = body.add_surface(SurfaceGeom::Placeholder { anchor: p(10.0) });
+    let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
     let face_c = body.add_face(
         Face {
             surface: surface_c,
@@ -334,7 +334,9 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
     assert!(euler_poincare_holds(&body, 1, 0));
 
     // Split the RING loop: he1 = r0, he2 = r1.
-    let cut = body.mef(MefSite::Chords { he1: r0, he2: r1 }).unwrap();
+    let cut = body
+        .mef_chord(MefSite::Chords { he1: r0, he2: r1 })
+        .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Ledger after: v4 e5 f4 r1 -> 4-5+4-1 = 2. OK.
     assert!(euler_poincare_holds(&body, 1, 0));
@@ -365,7 +367,7 @@ fn tetrahedron_by_ops_with_orientation() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a).unwrap();
     let ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -373,7 +375,7 @@ fn tetrahedron_by_ops_with_orientation() {
         )
         .unwrap();
     let bc = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: ab.he_minus,
                 he2: ab.he_minus,
@@ -387,7 +389,7 @@ fn tetrahedron_by_ops_with_orientation() {
     // start(he1) = A->C; new loop [A->C, C->B, B->A] -- the BOTTOM
     // (CCW from below).
     let tri = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: bc.he_minus,
             he2: ab.he_plus,
         })
@@ -397,7 +399,7 @@ fn tetrahedron_by_ops_with_orientation() {
     // Apex strut from A in the top-side (old) loop: half starting at A
     // there is ab.he_plus.
     let s = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: ab.he_plus,
                 he2: ab.he_plus,
@@ -411,7 +413,7 @@ fn tetrahedron_by_ops_with_orientation() {
     // Face (A,B,D): run [s- (D->A), ab+ (A->B)) -> he1 = s.he_minus,
     // he2 = bc.he_plus (B->C). New edge D->B.
     let f_abd = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: s.he_minus,
             he2: bc.he_plus,
         })
@@ -421,7 +423,7 @@ fn tetrahedron_by_ops_with_orientation() {
     // Face (C,A,D): run [tri+ (C->A), s+ (A->D)) -> he1 = tri.he_plus,
     // he2 = f_abd.he_plus (D->B). New edge C->D.
     let f_cad = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: tri.he_plus,
             he2: f_abd.he_plus,
         })
@@ -468,7 +470,7 @@ fn triangular_prism_by_ops_with_orientation() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -476,7 +478,7 @@ fn triangular_prism_by_ops_with_orientation() {
         )
         .unwrap();
     let bc = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: ab.he_minus,
                 he2: ab.he_minus,
@@ -489,7 +491,7 @@ fn triangular_prism_by_ops_with_orientation() {
     // shoelace of A(0,0) C(.5,1) B(1,0) in (x,y) is negative => CW from
     // above = CCW from below.
     let bot = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: bc.he_minus,
             he2: ab.he_plus,
         })
@@ -499,7 +501,7 @@ fn triangular_prism_by_ops_with_orientation() {
     // Struts up at A, B, C in the top-side loop
     // [tri+ (C->A), ab+ (A->B), bc+ (B->C)].
     let sa = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: ab.he_plus,
                 he2: ab.he_plus,
@@ -508,7 +510,7 @@ fn triangular_prism_by_ops_with_orientation() {
         )
         .unwrap();
     let sb = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: bc.he_plus,
                 he2: bc.he_plus,
@@ -517,7 +519,7 @@ fn triangular_prism_by_ops_with_orientation() {
         )
         .unwrap();
     let sc = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: bot.he_plus,
                 he2: bot.he_plus,
@@ -533,7 +535,7 @@ fn triangular_prism_by_ops_with_orientation() {
     // [sa- (A'->A), ab+ (A->B), sb+ (B->B')) -- he1 = sa.he_minus,
     // he2 = sb.he_minus (B'->B). New edge A'->B'.
     let f_ab = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: sa.he_minus,
             he2: sb.he_minus,
         })
@@ -542,7 +544,7 @@ fn triangular_prism_by_ops_with_orientation() {
     // Side face B,C,C',B': run [sb- (B'->B), bc+ (B->C), sc+ (C->C')) --
     // he1 = sb.he_minus, he2 = sc.he_minus. New edge B'->C'.
     let f_bc = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: sb.he_minus,
             he2: sc.he_minus,
         })
@@ -551,7 +553,7 @@ fn triangular_prism_by_ops_with_orientation() {
     // Side face C,A,A',C': run [sc- (C'->C), tri+ (C->A), sa+ (A->A'))
     // -- he1 = sc.he_minus, he2 = f_ab.he_plus (A'->B'). New edge C'->A'.
     let f_ca = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: sc.he_minus,
             he2: f_ab.he_plus,
         })
@@ -603,10 +605,10 @@ fn two_disjoint_solids_in_one_body() {
     // Solid 1: digon pillow at the origin.
     let s1 = body.mvfs(p(0.0)).unwrap();
     let seg1 = body
-        .mev(MevSite::Lone { r#loop: s1.r#loop }, p(1.0))
+        .mev_line(MevSite::Lone { r#loop: s1.r#loop }, p(1.0))
         .unwrap();
     let _ = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg1.he_plus,
             he2: seg1.he_minus,
         })
@@ -617,10 +619,10 @@ fn two_disjoint_solids_in_one_body() {
     let s2 = body.mvfs(p(100.0)).unwrap();
     assert_eq!(validate(&body), Ok(()));
     let seg2 = body
-        .mev(MevSite::Lone { r#loop: s2.r#loop }, p(101.0))
+        .mev_line(MevSite::Lone { r#loop: s2.r#loop }, p(101.0))
         .unwrap();
     let _ = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: seg2.he_plus,
             he2: seg2.he_minus,
         })

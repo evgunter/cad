@@ -30,7 +30,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let g = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -38,7 +38,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, x: f64| {
-        body.mev(
+        body.mev_line(
             MevSite::Fan {
                 he1: g.he_plus,
                 he2: g.he_plus,
@@ -89,7 +89,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
     // {t2+, t3+, t4+}. The mirrored (CCW) bug would move {t2+, t1+}.
     // Run length 3 vs complement 2 -- fully asymmetric.
     let z = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: t2.he_plus,
                 he2: g.he_plus,
@@ -154,7 +154,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let ab = body
-        .mev(
+        .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -162,7 +162,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
         )
         .unwrap();
     let bc = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: ab.he_minus,
                 he2: ab.he_minus,
@@ -174,7 +174,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     // (A->B)... run [C->B, B->A) -- new edge C->A? start(he1)=C,
     // start(he2)=A: new edge C->A. Triangle lamina: two faces.
     let tri = body
-        .mef(MefSite::Chords {
+        .mef_chord(MefSite::Chords {
             he1: bc.he_minus,
             he2: ab.he_plus,
         })
@@ -220,7 +220,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     // run is [tri.he_minus] only (one spoke, from the NEW loop), he_plus
     // lands in tri.he_minus's loop, he_minus in ab.he_plus's loop.
     let f = body
-        .mev(
+        .mev_line(
             MevSite::Fan {
                 he1: tri.he_minus,
                 he2: ab.he_plus,

@@ -1,5 +1,6 @@
-//! The structural validation harness: [`validate`] (tier 1),
-//! [`validate_closed`] (tier 2), and [`ValidationError`].
+//! The validation harness: [`validate`] (tier 1), [`validate_closed`]
+//! (tier 2), [`validate_geometric`] (tier 3 — M2 PR 3), and
+//! [`ValidationError`].
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
@@ -127,13 +128,18 @@
 //! **not a trait**: there is exactly one notion of body validity per
 //! milestone, and speculative abstraction would only blur it.
 //!
-//! # Remaining deferrals (M2+)
+//! # Tier 3 — "geometric" ([`validate_geometric`], M2 PR 3)
 //!
-//! Named so they are not mistaken for oversights: **geometric
-//! validation** starts at M2 — D4 ¶2 residual certification (every
-//! derived cache within ε of its intensional description) and the
-//! geometric-tier predicates (the material wedge-angle rule that kills
-//! degenerate laminae). The structural story of M1 is complete here.
+//! Tier 2 plus the geometric re-checks at rest: D4 ¶2 residual
+//! certification (every edge carrier re-certified against its
+//! intensional description and endpoints), planar-face plane-equation
+//! residuals, description-adjacency coherence, the dihedral
+//! classification pass (the material wedge-angle predicate's first
+//! arrival: every edge classifies definitely — corner or smooth seam,
+//! never sliver), and planar-boundary containment (edge carrier samples
+//! against adjacent planar faces' planes — M2 PR 3 fix pass). The full
+//! check list, gate, and the honest not-yet-checked list live on
+//! [`validate_geometric`].
 //!
 //! # All failures, not the first
 //!
@@ -211,7 +217,9 @@
 
 use core::fmt;
 
-use geom_core::Real;
+use geom_brep::{CertifyError, classify_dihedral};
+use geom_core::{Band, BandError, Decide, Indeterminate, Real, Sign};
+use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
@@ -220,13 +228,114 @@ use crate::entity::{
     VertexKey,
 };
 
-/// A structural defect found by [`validate`]. Closed enum, D3 style:
-/// later PRs add variants (Euler–Poincaré, tier-2 closure, provenance)
-/// as compiler-guided extensions — every match site is forced to say
-/// what it does with the new failure kinds, which is exactly the
-/// loudness the house style wants.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// A structural or geometric defect found by the validators. Closed
+/// enum, D3 style: each tier's PRs add variants as compiler-guided
+/// extensions — every match site is forced to say what it does with the
+/// new failure kinds, which is exactly the loudness the house style
+/// wants. (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
+/// diagnostics with `f64` payloads.)
+#[derive(Clone, Debug, PartialEq)]
 pub enum ValidationError {
+    /// Tier 3: the run's tolerance could not produce a valid
+    /// classification band (absurd ε — see `Band::linear`). Reported
+    /// alone; no geometric check can run without a band.
+    Band {
+        /// The band-construction failure.
+        error: BandError,
+    },
+    /// An edge-curve *description* references a surface key that does
+    /// not resolve — the geometry-to-geometry half of referential
+    /// integrity (tier 1, pass 1; M2 PR 3: `Intersection`/`Seam`
+    /// descriptions name surfaces by arena key).
+    DanglingDescription {
+        /// The curve whose description holds the dangling reference.
+        from: GeomRef,
+        /// The dangling surface reference.
+        to: GeomRef,
+    },
+    /// Tier 3: a face's surface is the `Nurbs`
+    /// representable-unimplemented placeholder at rest — nothing can be
+    /// certified against it at M2 (`mvfs`'s "no description yet" seed
+    /// state must be replaced via `Body::set_face_surface` before
+    /// rest).
+    UncertifiableSurface {
+        /// The face with the unimplemented surface kind.
+        face: FaceKey,
+    },
+    /// Tier 3: an edge's carrier re-certification failed at rest — the
+    /// stored cache no longer satisfies D4 ¶2's `residual ≤ ε` against
+    /// its description and endpoints (or its certification is not
+    /// runnable: unimplemented kinds, unresolved described surfaces).
+    EdgeCertification {
+        /// The edge whose certification failed.
+        edge: EdgeKey,
+        /// The re-certification failure.
+        error: CertifyError,
+    },
+    /// Tier 3: an `Intersection`/`Seam` description's surface keys are
+    /// not the edge's two adjacent faces' surfaces (D2 adjacency
+    /// coherence — an intersection edge's surfaces are its faces').
+    DescriptionNotAdjacent {
+        /// The edge whose description is incoherent with its faces.
+        edge: EdgeKey,
+    },
+    /// Tier 3: a vertex of a planar face lies definitely off the face's
+    /// stored plane (the Newell-certified plane equation is a derived
+    /// cache; its residuals are re-checked at rest, D4 ¶2).
+    PlanarFaceResidual {
+        /// The planar face.
+        face: FaceKey,
+        /// The off-plane vertex.
+        vertex: VertexKey,
+    },
+    /// Tier 3: a planar-face vertex residual escalated (in the sliver
+    /// band, or poisoned) — indeterminate geometry at rest is a defect
+    /// (D4 ¶3's escalate-never-guess, applied by the validator).
+    PlanarFaceEscalated {
+        /// The planar face.
+        face: FaceKey,
+        /// The vertex whose residual escalated.
+        vertex: VertexKey,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// Tier 3: an edge bounding a **planar** face has carrier samples
+    /// definitely off that face's plane (M2 PR 3 fix pass, S3): the
+    /// planar-face pass checks vertices, and this check gives the same
+    /// teeth to the boundary *between* vertices — an honestly certified
+    /// arc bulging off its face's plane is a face-boundary defect even
+    /// though every vertex residual passes. (Curved-face boundary
+    /// containment stays documented-deferred to M3 pcurves.)
+    PlanarBoundaryResidual {
+        /// The planar face whose boundary leaves its plane.
+        face: FaceKey,
+        /// The edge whose carrier samples lie off the plane.
+        edge: EdgeKey,
+    },
+    /// Tier 3: a planar-boundary sample residual escalated (in the
+    /// sliver band, or poisoned) — the escalation counterpart of
+    /// [`ValidationError::PlanarBoundaryResidual`].
+    PlanarBoundaryEscalated {
+        /// The planar face.
+        face: FaceKey,
+        /// The edge whose sample residual escalated.
+        edge: EdgeKey,
+        /// The classifier's diagnostic (first failing sample).
+        cause: Indeterminate,
+    },
+    /// Tier 3: the dihedral classification at an edge escalated — the
+    /// wedge between its two faces' tangent planes is in the sliver
+    /// band (or unclassifiable: poison at a surface singularity, an
+    /// unimplemented kind). The material wedge-angle predicate's
+    /// at-rest form: every edge must classify definitely (transverse
+    /// corner or smooth seam), never sliver.
+    SliverDihedral {
+        /// The edge whose wedge cannot be classified definitely.
+        edge: EdgeKey,
+        /// The classifier's diagnostic (from the first failing interior
+        /// sample).
+        cause: Indeterminate,
+    },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
     /// key twice yields two errors).
@@ -488,6 +597,55 @@ pub enum ValidationError {
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Band { error } => write!(f, "tier 3: {error}"),
+            Self::DanglingDescription { from, to } => {
+                write!(
+                    f,
+                    "{from}'s description references {to}, which does not resolve"
+                )
+            }
+            Self::UncertifiableSurface { face } => write!(
+                f,
+                "face {face:?}'s surface is the Nurbs representable-unimplemented \
+                 placeholder — uncertifiable at rest (attach the real surface, M2)"
+            ),
+            Self::EdgeCertification { edge, error } => {
+                write!(f, "edge {edge:?} failed re-certification at rest: {error}")
+            }
+            Self::DescriptionNotAdjacent { edge } => write!(
+                f,
+                "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
+                 its adjacent faces' surfaces (D2 adjacency coherence)"
+            ),
+            Self::PlanarFaceResidual { face, vertex } => write!(
+                f,
+                "vertex {vertex:?} lies definitely off planar face {face:?}'s stored \
+                 plane (D4 \u{b6}2 residual)"
+            ),
+            Self::PlanarFaceEscalated {
+                face,
+                vertex,
+                cause,
+            } => write!(
+                f,
+                "vertex {vertex:?}'s residual against planar face {face:?}'s plane \
+                 escalated: {cause}"
+            ),
+            Self::PlanarBoundaryResidual { face, edge } => write!(
+                f,
+                "edge {edge:?}'s carrier lies definitely off planar face {face:?}'s \
+                 stored plane between its vertices (face-boundary containment, D4 \u{b6}2)"
+            ),
+            Self::PlanarBoundaryEscalated { face, edge, cause } => write!(
+                f,
+                "edge {edge:?}'s carrier residual against planar face {face:?}'s plane \
+                 escalated: {cause}"
+            ),
+            Self::SliverDihedral { edge, cause } => write!(
+                f,
+                "edge {edge:?}'s dihedral wedge cannot be classified definitely \
+                 (sliver, D4 \u{b6}3): {cause}"
+            ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
             }
@@ -796,6 +954,340 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
     }
 }
 
+/// Validates a body as a **tier-3 "geometric" solid** (M2 PR 3 — the
+/// tier's start): all of tier 2 ([`validate_closed`]), then the
+/// geometric re-checks at rest, in documented order:
+///
+/// 1. **Surface implementedness** (faces, arena order): no face's
+///    surface is the `Nurbs` representable-unimplemented placeholder
+///    ([`ValidationError::UncertifiableSurface`]) — nothing can be
+///    certified against it at M2.
+/// 2. **Carrier re-certification** (edges, arena order): every edge's
+///    stored [`geom_brep::EdgeCurve`] re-runs its full D4 ¶2
+///    certification — endpoint pinning against the edge's own vertices'
+///    points (`he_plus` forward order), description residuals at the
+///    fixed schedule, transversality for `Intersection` — with the same
+///    deterministic sampling as at attachment
+///    ([`ValidationError::EdgeCertification`]); then the
+///    **description-adjacency coherence** check: an
+///    `Intersection`/`Seam` description's surfaces must be exactly the
+///    edge's two faces' surfaces
+///    ([`ValidationError::DescriptionNotAdjacent`]).
+/// 3. **Planar-face residuals** (faces, arena order; per face the outer
+///    loop then rings in list order, vertices in cycle order): every
+///    vertex of a face whose surface is a plane lies within ε of that
+///    plane ([`ValidationError::PlanarFaceResidual`] /
+///    [`ValidationError::PlanarFaceEscalated`]) — the Newell-certified
+///    plane equations re-checked at rest.
+/// 4. **Dihedral classification** (edges, arena order): at the interior
+///    schedule samples (i = 1…7 — endpoints excluded: vertices may sit
+///    on surface singularities like the cone apex, where angular
+///    classification honestly poisons), the wedge between the edge's
+///    two faces' surfaces classifies **definitely** — transverse corner
+///    or smooth seam, never sliver
+///    ([`ValidationError::SliverDihedral`]; first failing sample
+///    reported, one error per edge). Implicit-form gradients only —
+///    chart normals are never sampled. The extent lever arm is the
+///    edge's honest spatial extent (`geom_brep::edge_extent`: the chord
+///    for open edges, the carrier diameter at closure for circle
+///    carriers — so self-loop/full-period edges classify through a
+///    real arm, never vacuously; M2 PR 3 fix pass).
+/// 5. **Planar-boundary containment** (same edge sweep, same samples;
+///    M2 PR 3 fix pass): each interior carrier sample is checked
+///    against each **adjacent planar** face's plane — the
+///    between-vertices counterpart of check 3, so an honestly certified
+///    carrier that bulges off its planar face's surface is reported
+///    ([`ValidationError::PlanarBoundaryResidual`] /
+///    [`ValidationError::PlanarBoundaryEscalated`]; plus face first,
+///    then the minus face when distinct; first failing sample, one
+///    error per edge–face pair). Curved-face containment stays
+///    deferred (M3 — the not-yet-checked list).
+///
+/// **Coarse gate** (the pass-11 philosophy): the geometric passes run
+/// only when tiers 1–2 are clean — structural defects void geometric
+/// interpretation and already carry their own reports. Requires
+/// `T: Decide` (geometric validation classifies; the structural tiers
+/// never do).
+///
+/// # What tier 3 does NOT yet check (deferred, named)
+///
+/// - **Global self-intersection / minimum clearance** — M3 partial (via
+///   booleans), M6 interval clearance.
+/// - **Pcurve consistency** — pcurves are M3 derived caches; none exist
+///   at M2.
+/// - **The material wedge side** (lamina/zero-volume detection, wedge
+///   0 vs 2π vs the legal π): distinguishing them needs the faces'
+///   material sense at the edge, which curved-face orientation
+///   machinery (M3 pcurves) unlocks; at M2 the dihedral pass classifies
+///   the *tangent-plane* wedge only.
+/// - **Prefer-intrinsic preference** (D2): whether a transverse edge
+///   *should* have been stored as `Intersection` is a construction
+///   discipline, not a validity fact — conventional descriptions of
+///   transverse edges are legal.
+/// - **Face-boundary containment on curved surfaces** (a face's loops
+///   actually bounding a region of its surface) — M3, with pcurves.
+///   The **planar** case is now covered between vertices by check 5
+///   (sample containment against adjacent planar faces); what remains
+///   deferred is containment against curved surfaces and the
+///   region-bounding statement itself (winding/orientation of loops on
+///   the surface).
+/// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
+///   `u_ref ⊥ axis`): partially implied by the residual checks (a
+///   non-unit frame breaks the carrier-vs-description comparisons),
+///   not independently certified yet.
+///
+/// # Errors
+///
+/// A non-empty vector of every failure found: tiers 1–2 verbatim if
+/// any, else the tier-3 failures in the documented order.
+pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+    // Coarse gate: structural tiers first, verbatim.
+    validate_closed(body)?;
+
+    let band = match Band::linear() {
+        Ok(band) => band,
+        Err(error) => return Err(vec![ValidationError::Band { error }]),
+    };
+    let mut errors = Vec::new();
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 1: surface implementedness (face-arena order).
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        if matches!(body.surfaces.get(face.surface), Some(Surface::Nurbs)) {
+            errors.push(ValidationError::UncertifiableSurface { face: face_key });
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 2: carrier re-certification + description adjacency
+    // (edge-arena order). Tier 1 guarantees every key below resolves;
+    // the `else` arms are unreachable and stay silent (cascade
+    // discipline — the structural report already fired, and the gate
+    // above means we never get here in that case).
+    // ------------------------------------------------------------------
+    for (edge_key, edge) in body.edges.iter() {
+        let Some(curve) = body.curves.get(edge.curve) else {
+            continue;
+        };
+        let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
+            continue;
+        };
+        if let Err(error) = curve.recertify(p_start, p_end, |k| body.surfaces.get(k).copied(), band)
+        {
+            errors.push(ValidationError::EdgeCertification {
+                edge: edge_key,
+                error,
+            });
+        }
+        let Some((fs_plus, fs_minus)) = edge_face_surfaces(body, edge.he_plus, edge.he_minus)
+        else {
+            continue;
+        };
+        let adjacent = match *curve.description() {
+            geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
+                (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
+            }
+            geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
+            geom_brep::EdgeGeometry::MappedCurve(_) => true,
+        };
+        if !adjacent {
+            errors.push(ValidationError::DescriptionNotAdjacent { edge: edge_key });
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 3: planar-face vertex residuals (face-arena order;
+    // outer loop then rings; vertices in cycle order).
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(face.surface) else {
+            continue;
+        };
+        for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
+            let Some(loop_) = body.loops.get(loop_key) else {
+                continue;
+            };
+            let LoopBoundary::Cycle { first } = loop_.boundary else {
+                continue; // tier 2 banned empty loops; unreachable
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue;
+            };
+            for he in cycle {
+                let Some(he_data) = body.half_edges.get(he) else {
+                    continue;
+                };
+                let vertex = he_data.start;
+                let Some(vertex_data) = body.vertices.get(vertex) else {
+                    continue;
+                };
+                let Some(&point) = body.points.get(vertex_data.point) else {
+                    continue;
+                };
+                let residual = (point - origin).dot(normal);
+                match residual
+                    .sign_within(band)
+                    .map_err(|e| e.with_predicate("planar_face_residual"))
+                {
+                    Ok(Sign::Zero) => {}
+                    Ok(Sign::Positive | Sign::Negative) => {
+                        errors.push(ValidationError::PlanarFaceResidual {
+                            face: face_key,
+                            vertex,
+                        });
+                    }
+                    Err(cause) => {
+                        errors.push(ValidationError::PlanarFaceEscalated {
+                            face: face_key,
+                            vertex,
+                            cause,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, checks 4–5 (one edge sweep, samples shared):
+    //
+    // 4. Dihedral classification at interior samples (edge-arena order;
+    //    first failing sample, one error per edge), metered through the
+    //    edge's honest extent (`geom_brep::edge_extent` — the carrier
+    //    diameter for closed circle carriers, whose chord collapses; M2
+    //    PR 3 fix pass, B2 — self-loop edges no longer classify
+    //    vacuously Smooth).
+    // 5. Planar-boundary containment (M2 PR 3 fix pass, S3): the same
+    //    interior carrier samples are checked against each ADJACENT
+    //    face's surface when that surface is a plane — the
+    //    between-vertices counterpart of check 3 (plus face first, then
+    //    the minus face when distinct; first failing sample, one error
+    //    per edge-face pair). Curved-face containment stays deferred
+    //    (M3, pcurves — the not-yet-checked list).
+    // ------------------------------------------------------------------
+    for (edge_key, edge) in body.edges.iter() {
+        let Some(curve) = body.curves.get(edge.curve) else {
+            continue;
+        };
+        let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
+            continue;
+        };
+        let Some(((f_plus, fs_plus), (f_minus, fs_minus))) =
+            edge_adjacent_faces(body, edge.he_plus, edge.he_minus)
+        else {
+            continue;
+        };
+        let (Some(s_plus), Some(s_minus)) =
+            (body.surfaces.get(fs_plus), body.surfaces.get(fs_minus))
+        else {
+            continue;
+        };
+        let chord = p_start.distance(p_end);
+        let (t0, t1) = curve.params();
+        let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
+        // The interior schedule samples, evaluated once (D9: the same
+        // parameters certification used) and shared by checks 4 and 5.
+        let samples: Vec<_> = (1..(geom_brep::CERT_SAMPLES - 1))
+            .map(|i| curve.carrier().eval(curve.sample_param(i)))
+            .collect();
+        // Check 4: dihedral.
+        for &p in &samples {
+            if let Err(cause) = classify_dihedral(s_plus, s_minus, p, extent, band) {
+                errors.push(ValidationError::SliverDihedral {
+                    edge: edge_key,
+                    cause,
+                });
+                break;
+            }
+        }
+        // Check 5: planar-boundary containment against each distinct
+        // adjacent planar face.
+        let mut adjacent = vec![(f_plus, fs_plus)];
+        if f_minus != f_plus {
+            adjacent.push((f_minus, fs_minus));
+        }
+        for (face_key, surface_key) in adjacent {
+            let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(surface_key)
+            else {
+                continue;
+            };
+            for &p in &samples {
+                let residual = (p - origin).dot(normal);
+                match residual
+                    .sign_within(band)
+                    .map_err(|e| e.with_predicate("planar_boundary_residual"))
+                {
+                    Ok(Sign::Zero) => continue,
+                    Ok(Sign::Positive | Sign::Negative) => {
+                        errors.push(ValidationError::PlanarBoundaryResidual {
+                            face: face_key,
+                            edge: edge_key,
+                        });
+                    }
+                    Err(cause) => {
+                        errors.push(ValidationError::PlanarBoundaryEscalated {
+                            face: face_key,
+                            edge: edge_key,
+                            cause,
+                        });
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// The endpoint points of an edge in `he_plus` forward order, or `None`
+/// on (tier-1-impossible) unresolvable links.
+fn edge_endpoints<T: Real>(
+    body: &Body<T>,
+    he_plus: HalfEdgeKey,
+) -> Option<(geom_core::Point3<T>, geom_core::Point3<T>)> {
+    let plus = body.half_edges.get(he_plus)?;
+    let end_vertex = body.half_edge_end(he_plus)?;
+    let p_start = *body.points.get(body.vertices.get(plus.start)?.point)?;
+    let p_end = *body.points.get(body.vertices.get(end_vertex)?.point)?;
+    Some((p_start, p_end))
+}
+
+/// The surface keys of an edge's two adjacent faces (`he_plus`'s side,
+/// `he_minus`'s side), or `None` on unresolvable links.
+fn edge_face_surfaces<T: Real>(
+    body: &Body<T>,
+    he_plus: HalfEdgeKey,
+    he_minus: HalfEdgeKey,
+) -> Option<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey)> {
+    let ((_, s_plus), (_, s_minus)) = edge_adjacent_faces(body, he_plus, he_minus)?;
+    Some((s_plus, s_minus))
+}
+
+/// An edge's two adjacent faces with their surface keys (`he_plus`'s
+/// side, `he_minus`'s side), or `None` on unresolvable links.
+fn edge_adjacent_faces<T: Real>(
+    body: &Body<T>,
+    he_plus: HalfEdgeKey,
+    he_minus: HalfEdgeKey,
+) -> Option<(
+    (FaceKey, crate::geometry::SurfaceKey),
+    (FaceKey, crate::geometry::SurfaceKey),
+)> {
+    let face_of = |he: HalfEdgeKey| {
+        let he_data = body.half_edges.get(he)?;
+        let loop_data = body.loops.get(he_data.parent_loop)?;
+        let face_data = body.faces.get(loop_data.face)?;
+        Some((loop_data.face, face_data.surface))
+    };
+    Some((face_of(he_plus)?, face_of(he_minus)?))
+}
+
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
 fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     let mut errors = Vec::new();
@@ -947,6 +1439,23 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                 from: EntityId::Edge(edge_key),
                 to: GeomRef::Curve(edge.curve),
             });
+        }
+    }
+    // Geometry-to-geometry references (M2 PR 3): an edge curve's
+    // description names surfaces by key (`Intersection`/`Seam`); those
+    // references must resolve, and they anchor their surfaces for the
+    // pass-8 orphan count exactly like a face's reference does (the
+    // removal guard `remove_surface_if_orphaned` honors the same rule).
+    for (curve_key, curve) in body.curves.iter() {
+        for surface in Body::description_surfaces(curve) {
+            if body.surfaces.contains_key(surface) {
+                count_ref(&mut surface_refs, surface);
+            } else {
+                errors.push(ValidationError::DanglingDescription {
+                    from: GeomRef::Curve(curve_key),
+                    to: GeomRef::Surface(surface),
+                });
+            }
         }
     }
     for (vertex_key, vertex) in body.vertices.iter() {
@@ -1583,7 +2092,6 @@ mod tests {
     use crate::fixtures::{
         mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prism, prov,
     };
-    use crate::geometry::SurfaceGeom;
     use crate::seqgen;
 
     fn anchor() -> Point3<f64> {
@@ -1598,7 +2106,7 @@ mod tests {
         shell: crate::entity::ShellKey,
         vertex: VertexKey,
     ) -> LoopKey {
-        let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: anchor() });
+        let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex },
@@ -2129,9 +2637,7 @@ mod tests {
         // orbit-closure check is exactly what catches it.
         let mut t = pillow();
         let v0 = t.vertices[0];
-        let curve = t
-            .body
-            .add_curve(crate::geometry::CurveGeom::Placeholder { anchor: anchor() });
+        let curve = t.body.add_curve(crate::fixtures::test_curve(anchor()));
         let e2 = t.body.add_edge(
             crate::entity::Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -2151,7 +2657,7 @@ mod tests {
                 },
                 prov(),
             );
-            let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: anchor() });
+            let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
             let lp = body.add_loop(
                 Loop {
                     boundary: LoopBoundary::Cycle { first: he },
@@ -2306,12 +2812,8 @@ mod tests {
     fn orphan_geometry_is_reported_for_all_three_arenas() {
         let mut t = pillow();
         let p = t.body.add_point(anchor());
-        let c = t
-            .body
-            .add_curve(crate::geometry::CurveGeom::Placeholder { anchor: anchor() });
-        let s = t
-            .body
-            .add_surface(SurfaceGeom::Placeholder { anchor: anchor() });
+        let c = t.body.add_curve(crate::fixtures::test_curve(anchor()));
+        let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
         assert_eq!(
             validate(&t.body),
             Err(vec![
@@ -2754,7 +3256,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -2777,20 +3279,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -2815,20 +3317,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -2856,20 +3358,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
             )
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
         })
         .unwrap();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -2879,14 +3381,14 @@ mod tests {
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let grow = body
-            .mev(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
             .unwrap();
-        body.mef(MefSite::Chords {
+        body.mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
         })
         .unwrap();
-        body.mfkrh(kill.ring).unwrap();
+        body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell)
     }
 
@@ -2919,7 +3421,7 @@ mod tests {
             .next()
             .expect("pillow has half-edges");
         let tail = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,
@@ -2929,7 +3431,7 @@ mod tests {
             .unwrap();
         // …and a planted empty ring next to it.
         let plant = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: anchor,
                     he2: anchor,

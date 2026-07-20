@@ -480,30 +480,30 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32) {
             body.mvfs(next_point(counter)).unwrap();
         }
         OpChoice::MevLone(l) => {
-            body.mev(MevSite::Lone { r#loop: l }, next_point(counter))
+            body.mev_line(MevSite::Lone { r#loop: l }, next_point(counter))
                 .unwrap();
         }
         OpChoice::MevFan(he1, he2) => {
-            body.mev(MevSite::Fan { he1, he2 }, next_point(counter))
+            body.mev_line(MevSite::Fan { he1, he2 }, next_point(counter))
                 .unwrap();
         }
         OpChoice::MefChords(he1, he2) => {
-            body.mef(MefSite::Chords { he1, he2 }).unwrap();
+            body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
         }
         OpChoice::MefLone(l) => {
-            body.mef(MefSite::Lone { r#loop: l }).unwrap();
+            body.mef_chord(MefSite::Lone { r#loop: l }).unwrap();
         }
         OpChoice::Kemr(he1, he2) => {
             body.kemr(he1, he2).unwrap();
         }
         OpChoice::Mekr(site) => {
-            body.mekr(site).unwrap();
+            body.mekr_chord(site).unwrap();
         }
         OpChoice::Kfmrh(f1, f2) => {
             body.kfmrh(f1, f2).unwrap();
         }
         OpChoice::Mfkrh(ring) => {
-            body.mfkrh(ring).unwrap();
+            body.mfkrh_plug(ring).unwrap();
         }
         OpChoice::Kev(he) => {
             body.kev(he).unwrap();
@@ -547,31 +547,31 @@ pub(crate) fn roundtrip(
         }
         OpChoice::MevLone(l) => {
             let created = body
-                .mev(MevSite::Lone { r#loop: l }, next_point(counter))
+                .mev_line(MevSite::Lone { r#loop: l }, next_point(counter))
                 .unwrap();
             body.kev(created.he_plus).unwrap();
         }
         OpChoice::MevFan(he1, he2) => {
             let created = body
-                .mev(MevSite::Fan { he1, he2 }, next_point(counter))
+                .mev_line(MevSite::Fan { he1, he2 }, next_point(counter))
                 .unwrap();
             body.kev(created.he_plus).unwrap();
         }
         OpChoice::MefChords(he1, he2) => {
-            let created = body.mef(MefSite::Chords { he1, he2 }).unwrap();
+            let created = body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
             body.kef(created.he_minus).unwrap();
         }
         OpChoice::MefLone(l) => {
-            let created = body.mef(MefSite::Lone { r#loop: l }).unwrap();
+            let created = body.mef_chord(MefSite::Lone { r#loop: l }).unwrap();
             body.kef(created.he_minus).unwrap();
         }
         OpChoice::Mekr(site) => {
-            let created = body.mekr(site).unwrap();
+            let created = body.mekr_chord(site).unwrap();
             body.kemr(created.he_plus, created.he_minus).unwrap();
         }
         OpChoice::Mfkrh(ring) => {
             let old_face = body.get_loop(ring).expect("ring resolves").face;
-            let created = body.mfkrh(ring).unwrap();
+            let created = body.mfkrh_plug(ring).unwrap();
             body.kfmrh(old_face, created.face).unwrap();
         }
         OpChoice::RingMove(ring, to_face) => {
@@ -607,11 +607,11 @@ pub(crate) fn roundtrip(
                     ring: result.ring,
                 },
             };
-            body.mekr(site).unwrap();
+            body.mekr_chord(site).unwrap();
         }
         OpChoice::Kfmrh(f1, f2) => {
             let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh(result.ring).unwrap();
+            body.mfkrh_plug(result.ring).unwrap();
         }
         OpChoice::Kvfs(solid) => {
             // Record the lone vertex's coordinates for the re-make.
@@ -649,7 +649,7 @@ pub(crate) fn roundtrip(
             } else {
                 MevSite::Fan { he1: b, he2: d } // general fan merge
             };
-            body.mev(site, w_coords).unwrap();
+            body.mev_line(site, w_coords).unwrap();
         }
         OpChoice::Kef(he) => {
             let he_data = body.get_half_edge(he).expect("resolves").clone();
@@ -670,7 +670,7 @@ pub(crate) fn roundtrip(
                     return RoundtripOutcome::SkippedIrreversible;
                 }
                 body.kef(he).unwrap();
-                body.mef(MefSite::Chords { he1: b, he2: b }).unwrap();
+                body.mef_chord(MefSite::Chords { he1: b, he2: b }).unwrap();
             } else {
                 body.kef(he).unwrap();
                 let site = if b == he && d == mate {
@@ -680,7 +680,7 @@ pub(crate) fn roundtrip(
                 } else {
                     MefSite::Chords { he1: b, he2: d } // general splice
                 };
-                body.mef(site).unwrap();
+                body.mef_chord(site).unwrap();
             }
         }
     }
@@ -736,14 +736,14 @@ pub(crate) fn teardown(body: &mut Body<f64>) {
         }
         // Cycle rings: promote to a face (kef will consume it next).
         if let Some(ring) = first_cycle_ring(body) {
-            body.mfkrh(ring).unwrap();
+            body.mfkrh_plug(ring).unwrap();
             continue;
         }
         // Empty rings: absorb with mekr, then kill the fresh edge (and
         // the stranded vertex) with kev — a compound step so the
         // potential still shrinks.
         if let Some(site) = first_empty_ring_site(body) {
-            let created = body.mekr(site).unwrap();
+            let created = body.mekr_chord(site).unwrap();
             body.kev(created.he_plus).unwrap();
             continue;
         }

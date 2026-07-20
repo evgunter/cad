@@ -85,6 +85,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 
 [[package]]
+name = "geom-brep"
+version = "0.0.0"
+dependencies = [
+ "geom-core",
+ "geom-curves",
+ "geom-surfaces",
+ "proptest",
+ "slotmap",
+]
+
+[[package]]
 name = "geom-core"
 version = "0.0.0"
 dependencies = [
@@ -546,7 +557,10 @@ dependencies = [
 name = "topo"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "geom-core",
+ "geom-curves",
+ "geom-surfaces",
  "proptest",
  "slotmap",
 ]

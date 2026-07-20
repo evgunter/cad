@@ -246,7 +246,7 @@
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let mut body = Body::<f64>::new();
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
-//! let seg = body.mev(
+//! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
 //! )?;
@@ -270,15 +270,15 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_core::Real;
+use geom_core::Decide;
 
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
 };
-use crate::euler::EulerOpError;
-use crate::geometry::{CurveKey, PointKey, SurfaceGeom, SurfaceKey};
+use crate::euler::{EulerOpError, FaceSurface};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
@@ -374,7 +374,7 @@ pub struct MfkrhCreated {
     pub surface: SurfaceKey,
 }
 
-impl<T: Real> Body<T> {
+impl<T: Decide> Body<T> {
     /// KVFS — *kill vertex, face, solid*: the inverse of [`Body::mvfs`].
     /// Destroys a solid in EXACTLY the skeletal state `mvfs` creates:
     /// one shell, one face with no rings, an
@@ -895,10 +895,13 @@ impl<T: Real> Body<T> {
     /// loop of a NEW face in the same shell.
     ///
     /// The promoted loop survives with its key and D5 birth record; the
-    /// new face mints a fresh placeholder surface (exact restoration of
-    /// `kfmrh`'s killed face/surface is impossible and NOT promised —
-    /// [module docs](self), which also document the deterministic
-    /// surface-anchor rule). Promoting an [`LoopBoundary::Empty`] ring
+    /// new face's surface comes from the [`FaceSurface`] spec (M2
+    /// geometry policy, `crate::euler` module docs): `Inherit` shares
+    /// the demoting face's surface, `New` mints (pass
+    /// `Surface::Nurbs` for the honest "no description yet" state —
+    /// exact restoration of `kfmrh`'s killed surface is impossible and
+    /// NOT promised, [module docs](self)), `Shared` reuses an existing
+    /// key. Promoting an [`LoopBoundary::Empty`] ring
     /// yields an **empty-outer face** — the `mvfs`-face shape, now
     /// operator-reachable inside a larger body.
     ///
@@ -906,7 +909,8 @@ impl<T: Real> Body<T> {
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
     /// kill; genus is derived, not stored).
     ///
-    /// **Minting order** (D9, exact): surface, face. Nothing is killed.
+    /// **Minting order** (D9, exact): surface (only for
+    /// [`FaceSurface::New`]), face. Nothing is killed.
     /// The new face is appended to the shell's face list; the ring
     /// leaves its former face's ring list (`retain`, order-preserving
     /// for the others).
@@ -916,16 +920,18 @@ impl<T: Real> Body<T> {
     /// The ring resolves ([`EulerOpError::StaleKey`]); its face resolves
     /// (`StaleKey`); it is not that face's outer loop
     /// ([`EulerOpError::RingIsOuter`]); the face's shell resolves
-    /// (`StaleKey`); the surface-anchor chain resolves — the lone
-    /// vertex (empty ring) or `Cycle::first` and its start vertex
-    /// (cycle ring), plus the vertex's point (`StaleKey` /
-    /// [`EulerOpError::StaleGeometry`]).
+    /// (`StaleKey`); a [`FaceSurface::Shared`] key resolves
+    /// ([`EulerOpError::StaleGeometry`]).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn mfkrh(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
+    pub fn mfkrh(
+        &mut self,
+        ring: LoopKey,
+        surface: FaceSurface<T>,
+    ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -934,7 +940,6 @@ impl<T: Real> Body<T> {
             key: EntityId::Loop(ring),
         })?;
         let old_face = ring_data.face;
-        let boundary = ring_data.boundary;
         let old_face_data = self.get_face(old_face).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(old_face),
         })?;
@@ -947,17 +952,13 @@ impl<T: Real> Body<T> {
                 key: EntityId::Shell(shell),
             });
         }
-        // The surface-anchor rule (module docs): the ring's lone
-        // vertex's point, or start(Cycle::first)'s point.
-        let anchor_vertex = match boundary {
-            LoopBoundary::Empty { vertex } => vertex,
-            LoopBoundary::Cycle { first } => self.resolve_half_edge(first)?.start,
-        };
-        let anchor = self.resolve_vertex_point(anchor_vertex)?;
+        // Geometry gate: a Shared surface key must resolve now (the M1
+        // surface-anchor rule retired with the placeholder surfaces).
+        self.check_face_surface(&surface)?;
 
         // ---- Mutation (infallible from here on). ----
-        // Minting order (documented above): surface, face.
-        let surface = self.add_surface(SurfaceGeom::Placeholder { anchor });
+        // Minting order (documented above): surface (for New), face.
+        let surface = self.mint_face_surface(surface, old_face_data.surface);
         let face = self.add_face(
             Face {
                 surface,
@@ -980,6 +981,20 @@ impl<T: Real> Body<T> {
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, (0, 0, 1, 0, 0, 0, 0), "mfkrh");
         Ok(MfkrhCreated { face, surface })
+    }
+
+    /// [`Body::mfkrh`] with [`FaceSurface::New`]`(Surface::Nurbs)` —
+    /// the new face is born with the honest "no description yet"
+    /// surface (`crate::euler`'s geometry policy; replace it via
+    /// [`Body::set_face_surface`] before rest). Mirrors the M1
+    /// fresh-surface semantics for the migrated suites and for
+    /// promotions whose real surface is not yet known.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mfkrh`].
+    pub fn mfkrh_plug(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
+        self.mfkrh(ring, FaceSurface::New(geom_surfaces::Surface::Nurbs))
     }
 }
 
@@ -1034,7 +1049,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -1049,7 +1064,7 @@ mod tests {
     fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
         let (mut body, seed, seg) = segment();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_minus,
                     he2: seg.he_minus,
@@ -1129,7 +1144,7 @@ mod tests {
         );
         // Two faces: kill the edge back and split instead.
         body.kev(seg.he_plus).unwrap();
-        body.mef(MefSite::Lone {
+        body.mef_chord(MefSite::Lone {
             r#loop: seed.r#loop,
         })
         .unwrap();
@@ -1257,7 +1272,7 @@ mod tests {
             let (fresh, _, _) = segment();
             canonical_form(&fresh)
         };
-        body.mev(
+        body.mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
@@ -1324,7 +1339,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let a = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -1332,7 +1347,7 @@ mod tests {
             )
             .unwrap();
         let strut_at = |body: &mut Body<f64>, x: f64| {
-            body.mev(
+            body.mev_line(
                 MevSite::Fan {
                     he1: a.he_plus,
                     he2: a.he_plus,
@@ -1359,7 +1374,7 @@ mod tests {
         let (mut body, seed, [a, b, c, d]) = four_spoke_star();
         let before = canonical_form(&body);
         let split = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: b.he_plus,
                     he2: d.he_plus,
@@ -1394,7 +1409,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let seg = body
-            .mev(
+            .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
@@ -1402,14 +1417,14 @@ mod tests {
             )
             .unwrap();
         let split = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
             .unwrap();
         let before = canonical_form(&body);
         let fan = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: split.he_plus,
@@ -1461,7 +1476,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let circ = body
-            .mef(MefSite::Lone {
+            .mef_chord(MefSite::Lone {
                 r#loop: seed.r#loop,
             })
             .unwrap();
@@ -1533,7 +1548,7 @@ mod tests {
     fn ops_pillow() -> (Body<f64>, MvfsCreated, MevCreated, MefCreated) {
         let (mut body, seed, seg) = segment();
         let split = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             })
@@ -1551,7 +1566,7 @@ mod tests {
         // Split the new face (loop [he_minus, seg.he_plus]) between its
         // two vertices.
         let cut = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: split.he_minus,
                 he2: seg.he_plus,
             })
@@ -1591,7 +1606,7 @@ mod tests {
             .unwrap()
             .face;
         let cut = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: split.he_minus,
                 he2: seg.he_plus,
             })
@@ -1611,7 +1626,7 @@ mod tests {
         let (mut body, _seed, seg) = segment();
         let before = canonical_form(&body);
         let circ = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
             })
@@ -1630,7 +1645,7 @@ mod tests {
         // re-make exists for this kill; validity is the contract.)
         let (mut body, seed, seg) = segment();
         let circ = body
-            .mef(MefSite::Chords {
+            .mef_chord(MefSite::Chords {
                 he1: seg.he_minus,
                 he2: seg.he_minus,
             })
@@ -1659,7 +1674,7 @@ mod tests {
         let before = canonical_form(&body);
         let before_counts = counts(&body);
         let circ = body
-            .mef(MefSite::Lone {
+            .mef_chord(MefSite::Lone {
                 r#loop: seed.r#loop,
             })
             .unwrap();
@@ -1708,7 +1723,7 @@ mod tests {
             prov(),
         );
         body.get_solid_mut(solid).unwrap().shells.push(shell);
-        let curve = body.add_curve(crate::geometry::CurveGeom::Placeholder { anchor: p(0.0) });
+        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
         let edge = body.add_edge(
             Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -1717,7 +1732,7 @@ mod tests {
             },
             prov(),
         );
-        let surface = body.add_surface(SurfaceGeom::Placeholder { anchor: p(0.0) });
+        let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
         let one_half_loop = |body: &mut Body<f64>| {
             let l = body.add_loop(
                 Loop {
@@ -1774,7 +1789,7 @@ mod tests {
         // seg.he_plus lives in the new face's loop after the mef; strut
         // + kemr plants a ring there.
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -1803,7 +1818,7 @@ mod tests {
     fn pillow_with_empty_ring() -> (Body<f64>, MefCreated, crate::euler_ring::KemrResult) {
         let (mut body, _seed, seg, split) = ops_pillow();
         let strut = body
-            .mev(
+            .mev_line(
                 MevSite::Fan {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
@@ -1822,7 +1837,7 @@ mod tests {
         // is an empty loop — and the body validates.
         let (mut body, split, kill) = pillow_with_empty_ring();
         let before_counts = counts(&body);
-        let created = body.mfkrh(kill.ring).unwrap();
+        let created = body.mfkrh_plug(kill.ring).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (0, 0, +1, −1, −1, 0): +1 face, +1 surface, all
@@ -1872,7 +1887,7 @@ mod tests {
     fn mfkrh_then_kfmrh_roundtrips() {
         let (mut body, split, kill) = pillow_with_empty_ring();
         let before = canonical_form(&body);
-        let created = body.mfkrh(kill.ring).unwrap();
+        let created = body.mfkrh_plug(kill.ring).unwrap();
         let plug = body.kfmrh(split.face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, kill.ring);
@@ -1890,7 +1905,7 @@ mod tests {
         let mut body = t.body;
         let before = canonical_form(&body);
         let bottom_face = t.box_mefs[0].face;
-        let created = body.mfkrh(t.plug.ring).unwrap();
+        let created = body.mfkrh_plug(t.plug.ring).unwrap();
         assert_eq!(validate(&body), Ok(()));
         // Euler–Poincaré at genus 0 with one ring left (the hole's top
         // rim): v − e + f − r = 16 − 24 + 11 − 1 = 2 = 2(1 − 0).
@@ -1913,35 +1928,34 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RingIsOuter { r#loop: outer },
-            |b| b.mfkrh(outer).unwrap_err(),
+            |b| b.mfkrh_plug(outer).unwrap_err(),
         );
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::StaleKey {
                 key: EntityId::Loop(LoopKey::default()),
             },
-            |b| b.mfkrh(LoopKey::default()).unwrap_err(),
+            |b| b.mfkrh_plug(LoopKey::default()).unwrap_err(),
         );
     }
 
     #[test]
-    fn mfkrh_rejects_a_stale_anchor_point() {
-        // PR 3 noted the StaleGeometry arm becomes testable once point
-        // removal exists; it does now. Rip the ring vertex's point out
-        // through the raw arenas: the surface-anchor chain must fail
-        // loudly and atomically.
+    fn mfkrh_rejects_a_stale_shared_surface() {
+        // The M1 surface-anchor chain retired with the placeholder
+        // surfaces (M2 PR 3); the geometry precondition is now the
+        // FaceSurface::Shared key. A stale key must fail loudly and
+        // atomically.
         let (mut body, _split, kill) = pillow_with_empty_ring();
-        let LoopBoundary::Empty { vertex } = body.get_loop(kill.ring).unwrap().boundary else {
-            panic!("the planted ring is empty");
-        };
-        let point = body.get_vertex(vertex).unwrap().point;
-        body.points.remove(point);
+        let stale = crate::geometry::SurfaceKey::default();
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::StaleGeometry {
-                key: crate::entity::GeomRef::Point(point),
+                key: crate::entity::GeomRef::Surface(stale),
             },
-            |b| b.mfkrh(kill.ring).unwrap_err(),
+            |b| {
+                b.mfkrh(kill.ring, crate::FaceSurface::Shared(stale))
+                    .unwrap_err()
+            },
         );
     }
 
@@ -2020,7 +2034,7 @@ mod tests {
         let run = || {
             let (mut body, _seed, seg, split) = ops_pillow();
             let cut = body
-                .mef(MefSite::Chords {
+                .mef_chord(MefSite::Chords {
                     he1: split.he_minus,
                     he2: seg.he_plus,
                 })
