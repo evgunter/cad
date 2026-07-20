@@ -42,7 +42,7 @@ pub fn loop_vector_area<T: Real>(
             } => {
                 let w = center - ref_point;
                 let chord = e.p1() - e.p0();
-                (w.cross(chord) + axis * (radius * radius * (e.t1 - e.t0))) * half
+                (w.cross(chord) + axis * (radius.powi(2) * (e.t1 - e.t0))) * half
             }
             Curve3::Nurbs => return Err(PropsError::Unimplemented),
         };

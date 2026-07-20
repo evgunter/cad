@@ -307,7 +307,7 @@ fn cone<T: Decide>(
         return Err(PropsError::NappeSpanning);
     }
     let half = T::from_f64(0.5);
-    let area = sin_a * du * ((hi * hi - lo * lo) * half).abs();
+    let area = sin_a * du * ((hi.powi(2) - lo.powi(2)) * half).abs();
     let va = loop_vector_area(edges, apex)?;
     let flux = (apex - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
@@ -360,7 +360,7 @@ fn sphere<T: Decide>(
                 let w = c_c - center;
                 require_zero(
                     "props_rim_fit",
-                    (w.norm_squared() + r_c * r_c).sqrt() - radius,
+                    (w.norm_squared() + r_c.powi(2)).sqrt() - radius,
                     band,
                 )?;
                 let sin_v = w.dot(axis) / radius;
@@ -405,7 +405,7 @@ fn sphere<T: Decide>(
         du = du_of_rims(&rims, radius, band)?;
         s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;
     }
-    let area = radius * radius * du * (hi - lo);
+    let area = radius.powi(2) * du * (hi - lo);
     let va = loop_vector_area(edges, center)?;
     let flux = s_f * (radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
@@ -476,7 +476,7 @@ fn torus<T: Decide>(
                 let cos_v = (r_c - major) / minor;
                 require_zero(
                     "props_rim_fit",
-                    ((sin_v * sin_v + cos_v * cos_v).sqrt() - T::one()) * minor,
+                    ((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one()) * minor,
                     band,
                 )?;
                 rims.push(Rim {
@@ -551,8 +551,14 @@ fn torus<T: Decide>(
     // Rim levels must sit at the interval ends.
     for rim in &rims {
         let (rs, rc) = rim.level;
-        let d0 = ((rs - s0) * (rs - s0) + (rc - c0) * (rc - c0)).sqrt();
-        let d1 = ((rs - s1) * (rs - s1) + (rc - c1) * (rc - c1)).sqrt();
+        // powi(2), not x*x: the interval square is tight and
+        // nonnegative, so the sqrt stays fully in-domain even when the
+        // difference encloses zero (an x*x interval product has a
+        // negative lower bound there, and the domain-clamped sqrt's
+        // decoration would poison the margin — found live on the
+        // interval-lane donut).
+        let d0 = ((rs - s0).powi(2) + (rc - c0).powi(2)).sqrt();
+        let d1 = ((rs - s1).powi(2) + (rc - c1).powi(2)).sqrt();
         require_zero("props_rim_level", d0.min(d1) * minor, band)?;
     }
     // s_f: the rim topologically adjacent to the anchor endpoint; the
