@@ -431,6 +431,180 @@ Reviewer ran eight falsification assignments as executed programs
 - **Chordal-tolerance ≠ kernel-ε separation reconfirmed** by Evan
   ahead of PR 6 (already ratified in the #24 conversation; recorded
   here because he endorsed it explicitly in-session).
+- **Usability scoping ratified into DESIGN.md (Evan-requested,
+  2026-07-19, branch `mngr/plan-gui`)**: new "Beyond the kernel: the
+  usability gap" section (four bands: kernel-side client services /
+  the GUI as a second kernel-sized project / missing subsystems —
+  assemblies, drawings+HLR, feature breadth / product
+  infrastructure); sequencing stance **usable-as-a-library before
+  any GUI work**; the interval-transcendentals reimplementation
+  moved out of the roadmap into a new "Tabled (far future)" section
+  so licensing hygiene never reads as preceding usability. Two
+  design-now consequences amended into **M2-PLAN PR 6**: mesh
+  entity back-references (per-triangle Face keys, per-segment Edge
+  keys on boundary polylines) and an empty `Appearance` attribute
+  container. Flagged for future design docs: **selection stability
+  / persistent naming resolution (pre-M4, D1–D9 rigor)** and the
+  GUI architecture (abstract edit-vocabulary layer vs. concrete
+  interaction layer — discussion ongoing, nothing ratified beyond
+  the layering intent).
+- **`docs/GUI-DESIGN.md` created (Evan-ratified in the same
+  conversation, second round)**: G1 three-layer architecture
+  (kernel / headless `editor-core` / interaction) with type-level
+  boundary rules (no arena keys past layer 2; transient state never
+  in the document; preview/commit structural; layer 3
+  headless-testable); G2 sketcher-as-nested-editor; micro-decisions
+  (expression-drag refuses with affordance — replaceable;
+  error presentation case-by-case over typed renderable values;
+  preview may degrade chordal tolerance, never ε). `editor-core`
+  added to DESIGN.md's crate table. **Pre-M4 blockers flagged: GQ1
+  (solver/replay boundary — proposed witness-plus-certification, the
+  `Intersection{witness}` pattern one level up; creates an ezpz
+  bit-identity audit item) and GQ2 (partial-build semantics —
+  proposed per-node result DAG)**; also GQ3 edit persistence, GQ4
+  document scope, GQ5 units-in-expressions (at M4), GQ6 toolkit
+  (re-survey at GUI time), GQ7 selection mechanics.
+- **GUI-DESIGN round 3 (same conversation)**: GQ1's *rationale*
+  settled — the witness is authoritative **branch selection**, not
+  authoritative geometry (constraint systems have finitely many
+  discrete solutions; "solve from scratch" delegates the choice to
+  initial-guess heuristics — hidden state deciding topology;
+  purity preserved because the witness is recipe data:
+  `solution(constraints, params, witness)`; Jacobian degeneration =
+  typed error with distance-to-singularity margin). Direction agreed
+  in principle, mechanism details still the open part. **GQ2
+  RATIFIED** (per-node result DAG; failures poison descendants only,
+  independent subgraphs complete — Evan's addition). **GQ3
+  RATIFIED** (all edits persisted in v1; snapshot + edit log; edit
+  schema enters versioning discipline day one). **GQ5 RESOLVED** via
+  D6 (expressions in raw meters/radians; unit strings are parse-time
+  sugar; display unit = presentation metadata). GQ4 stays open
+  (Evan unsure) — naming doc must flag every locality assumption.
+- **GUI-DESIGN round 4 (same conversation)**: **GQ1 RATIFIED**
+  (Evan: branch-selection framing is "the clear correct choice";
+  mechanism details remain M4/M6 work under the committed
+  direction). **GQ5 RE-RATIFIED, superseding round 3**: typed
+  quantities in the expression sublanguage (Evan's revision — stored
+  display units mean raw storage would know less than the data;
+  conversion errors type-level impossible; canonical meters/radians
+  underneath, units erase before kernel `T`; the dimension-algebra
+  extent is a banked M4 decision, fold into D8 then). **GQ4:
+  decide-now recommended; concrete proposal in the doc awaiting
+  Evan** (one document = one part recipe, possibly multi-body;
+  refs document-local, no document component in the stable-ref
+  type; cross-doc refs = assembly-era wrapper (doc identity × local
+  ref) — composition, never modification).
+- **GUI-DESIGN round 5 (same conversation): GQ4 RATIFIED** — the
+  round-4 proposal plus **Evan's uniformity-principle synthesis**:
+  B (global refs) discarded; C (one workspace) absorbed as "the
+  document boundary is a namespace/versioning seam, not a change of
+  formalism" — an assembly document is a recipe DAG of the same
+  shape (instantiate-part/mates/patterns as ordinary feature
+  nodes), so GQ1 applies to mates verbatim (same finite-discrete-
+  solutions structure), GQ2/GQ3/naming/undo transfer with zero new
+  machinery. Alternatives-considered record written into the doc
+  (three axes; axis-3 binding semantics deferred to assembly design
+  with Cargo.lock-style pinned-plus-explicit-update as the
+  unratified leading candidate; in-context modeling noted as
+  landing on the same wrapper-plus-pin extension point). **All
+  GQ1–GQ5 now closed; remaining pre-M4 design work: GQ1 mechanism
+  details + the selection-stability/naming doc.**
+- **GUI-DESIGN round 6 (same conversation)**: axis-3 binding
+  semantics **RATIFIED in direction** by Evan —
+  pinned-with-explicit-update (Cargo.lock model: wrapper holds the
+  pin, update is a recorded DocEdit, assemblies are self-contained
+  reproducible values); pin representation / update granularity /
+  conflict surfacing are assembly-design work. Also delivered
+  in-conversation (round 6, NOT yet ratified — awaiting Evan's
+  pushback): the "more for free" list (naming localized to reified
+  predicate flips via M0 key-identity — proposed pillar of the
+  naming doc; content-keyed cache transfer across rebuilds from D9
+  bit-determinism; intensional-equality-before-numeric-coincidence
+  as an M3 boolean principle; scalar-generic editor-core evaluation
+  service) and the danger map (flip-handling semantics; boolean
+  coincidence; ε-vs-persistence/assembly uniform-ε rules; SE(3)
+  mate witnesses; pattern-index provenance; early corpus benchmark).
+- **GUI-DESIGN round 7 (same conversation)**: Evan ratified the
+  round-6 proposals — new **"Banked principles" subsection in
+  DESIGN.md's Beyond-the-kernel section**: naming-localized-to-
+  predicate-flips (naming-doc pillar; margin warnings noted
+  far-future), content-keyed cache transfer (M2 PR 6 amended: keep
+  per-face patches separable, no keying machinery yet),
+  scalar-generic editor-core evaluation, ε rules **plus Evan's
+  change-ε addition** (`SetTolerance` as a recorded DocEdit; apply =
+  replay + D9 structural diff; any predicate-verdict change = typed
+  error requiring explicit resolution — same diff machinery as the
+  naming pillar), SE(3)/pattern-index/corpus-at-M4 flags.
+  **Still PROPOSED pending Evan**: coincidence-resolved-
+  descriptively-before-numerically (his round-7 question answered
+  in-conversation: tiers (a) shared key and (b) exact description
+  equality ARE "knowing in advance" — D9 bit-identity extends (b)
+  across constructions sharing parameter expressions; tier (c)
+  numeric classification exists only for definitionally unrelated
+  geometry where advance knowledge is impossible in principle and
+  sliver escalation is correct).
+- **GUI-DESIGN round 8 (same conversation): coincidence principle
+  RATIFIED in Evan's strengthened form — "structural or declared,
+  never inferred from values."** Evan's explicit-intent revision
+  fixed a latent defect in the round-6 proposal: bit-equal-
+  descriptions-as-coincidence is an UNMARGINED predicate (equal vs.
+  one-ulp cliff, no escalation band — a Q1 violation), and value
+  equality is not evidence of intent. Final ladder: (a) shared key =
+  structural; (b) equal independent descriptions do NOT glue —
+  coincidence intent must be recipe data (shared surface or explicit
+  relation declaration); detection is diagnostic/affordance only;
+  (c) near-coincidence of unrelated definitions = typed sliver
+  error, resolved by an explicit repair/adoption operation (D7
+  machinery natively — reported displacement, like import healing).
+  Payoffs: no silent-guess gluing anywhere; naming pillar airtight
+  (predicate flips remain the only topology-change sites). **All
+  banked principles now ratified; nothing in the usability/GUI
+  conversation remains pending.**
+- **GUI-DESIGN round 9 (same conversation): six further risk-
+  reduction principles ratified by Evan into Banked principles** —
+  (1) fillet/blend validity as reified margined predicates in the
+  feature definition (pre-M5; enables M6 fillet-valid-over-a-
+  parameter-box certification; extends the naming pillar to blend
+  corners); (2) SSI completeness contract — marching finds,
+  interval subdivision certifies exhaustiveness; certification is
+  an at-rest tier obligation, preview may march uncertified;
+  (3) non-manifold boolean results = typed errors at M3 (Evan chose
+  typed error; silent body-splitting rejected as inexplicit);
+  (4) expression sublanguage total/finite by charter (anti-OpenSCAD;
+  Turing-ish stays in the generator layer); (5) DOF diagnosis =
+  structural combinatorial layer + GQ1 singularity-margin layer,
+  never conflated ("degenerate configuration" ≠ "over-constrained";
+  ezpz boundary = numbers only); (6) bit-exact float persistence
+  (Ryu round-trip suffices for finite values; explicit NaN/inf
+  policy; replay-identity CI test). Residual risks acknowledged as
+  execution-not-design: blend-corner geometry, tuning dials,
+  rebuild latency (corpus defends), GUI scope.
+- **PR #32 orchestrator review incorporated (2026-07-20)**:
+  (1) Vertex keys added to the PR 6 mesh back-references
+  (Evan-agreed; completes triangle→face, segment→edge,
+  endpoint→vertex at zero construction cost). (2) Appearance
+  revised to the review's **option (B)** — field-less named type,
+  NO keyed container at M2; the home is type + module + doc
+  contract ("attach here, keyed by stable names, from M4") —
+  resolving the two-names tension (arena-keyed container = fake
+  durability + migration debt); design session concurs, Evan was
+  still weighing at review time — flip is one line if he lands
+  otherwise. (3) The PR 3 "S2" witness-aliasing lesson carried into
+  GUI-DESIGN GQ1 (the witness contract must pin which point).
+  Orchestrator will fold final PR 6 amendment text into the
+  implementer spec; branch synced with main at incorporation time.
+- **Appearance FINAL (Evan, 2026-07-20): full deferral — no M2
+  artifact at all**, superseding option (B). Evan's question ("what
+  does (B) buy over deferring?") exposed the flaw in (B)'s premise:
+  its only content beyond deferral is a grep-able tripwire type,
+  but the type's correct home is the document layer (`editor-core`),
+  which doesn't exist until M4-era work — landing it at M2 means
+  parking it in `topo`/`mesh`, modeling the exact layering mistake
+  it was meant to prevent. What survives is the contract, ratified
+  in DESIGN.md Band 1: display attributes attach in the document
+  layer, keyed by stable names, from M4, and nowhere in any form
+  before that. **PR 6 implementer spec: drop the appearance item
+  entirely** (back-references item unchanged, incl. Vertex keys).
 
 ## Reference acquisitions (2026-07-18)
 
