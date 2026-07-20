@@ -5,6 +5,7 @@ members = [
     "crates/geom-core",
     "crates/geom-curves",
     "crates/geom-surfaces",
+    "crates/mesh",
     "crates/profile",
     "crates/sweep",
     "crates/topo",
@@ -48,6 +49,10 @@ inari = { version = "2.0.0", default-features = false }
 # crates/geom-core/src/dual.rs module docs. MIT OR Apache-2.0; 0.14.1
 # released 2026-06-14, past the 2-week age policy.
 num-dual = "0.14.1"
+# Constrained Delaunay triangulation for tessellation (M2 PR 6; ratified
+# crate table). MIT OR Apache-2.0. 2.15.1 released 2026-03-24, well past the
+# 2-week age policy.
+spade = "2.15.1"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no

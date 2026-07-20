@@ -1,0 +1,33 @@
+[package]
+name = "mesh"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so the workspace-wide
+# `--features interval` lane builds uniformly. Tessellation itself is
+# f64-only by ratified judgment call (display/export operation — see the
+# crate docs); the feature only propagates to dependencies.
+interval = [
+    "geom-core/interval",
+    "geom-brep/interval",
+    "topo/interval",
+]
+
+[dependencies]
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
+topo = { path = "../topo" }
+# Constrained Delaunay triangulation (ratified crate table; version,
+# license, and release-age vetting in the workspace dependency table).
+spade = { workspace = true }
+
+[dev-dependencies]
+profile = { path = "../profile" }
+sweep = { path = "../sweep" }
