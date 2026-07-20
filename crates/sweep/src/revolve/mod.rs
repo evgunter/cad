@@ -86,8 +86,8 @@
 //! # K-telemetry
 //!
 //! Every topology-determining comparison goes through the named
-//! [`decide`] funnel (predicate names on every escalation); wiring to
-//! the `profile` crate's recording funnel is PR 7's unification.
+//! [`decide`] funnel, which delegates to the unified recorder funnel
+//! `geom_core::k_stats::decide` (M2 PR 7).
 
 mod axis;
 mod full;
@@ -460,18 +460,23 @@ impl From<EulerOpError> for RevolveError {
 }
 
 /// The one classification funnel of this module (the `geom-brep`
-/// pattern; K-telemetry name tags — PR 7 wires them to the recorder).
+/// pattern): delegates to the unified recorder funnel
+/// [`geom_core::k_stats::decide`] (M2 PR 7) — predicate names feed the
+/// margin-telemetry recorder on every decision.
 pub(super) fn decide<T: Decide>(
     name: &'static str,
     margin: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    margin.sign_within(band).map_err(|e| e.with_predicate(name))
+    geom_core::k_stats::decide(name, margin, band)
 }
 
 /// A segment's carrier class in swept traversal order — the mirror of
 /// `extrude`'s `SweptKind` (kept module-local: the two sweeps share the
-/// shape but not yet a common home; PR 7-adjacent unification).
+/// shape but not yet a common home; unify when a third sweep or a
+/// shared lowering layer gives the shape an owner — deliberately left
+/// module-local by M2 PR 7, whose funnel unification was the K
+/// recorder, not this enum).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum SweptKind<T: Real> {
     Line,

@@ -231,6 +231,19 @@ use crate::entity::{
     VertexKey,
 };
 
+/// The one classification funnel of this crate (the `geom-brep`
+/// pattern): delegates to the unified recorder funnel
+/// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
+/// for the margin-telemetry recorder, classifies through the
+/// sanctioned [`Decide`] door, and tags any escalation.
+pub(crate) fn decide<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    geom_core::k_stats::decide(name, margin, band)
+}
+
 /// A structural or geometric defect found by the validators. Closed
 /// enum, D3 style: each tier's PRs add variants as compiler-guided
 /// extensions — every match site is forced to say what it does with the
@@ -1157,10 +1170,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
                     continue;
                 };
                 let residual = (point - origin).dot(normal);
-                match residual
-                    .sign_within(band)
-                    .map_err(|e| e.with_predicate("planar_face_residual"))
-                {
+                match decide("planar_face_residual", residual, band) {
                     Ok(Sign::Zero) => {}
                     Ok(Sign::Positive | Sign::Negative) => {
                         errors.push(ValidationError::PlanarFaceResidual {
@@ -1267,10 +1277,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
             };
             for &p in &samples {
                 let residual = (p - origin).dot(normal);
-                match residual
-                    .sign_within(band)
-                    .map_err(|e| e.with_predicate("planar_boundary_residual"))
-                {
+                match decide("planar_boundary_residual", residual, band) {
                     Ok(Sign::Zero) => continue,
                     Ok(Sign::Positive | Sign::Negative) => {
                         errors.push(ValidationError::PlanarBoundaryResidual {
