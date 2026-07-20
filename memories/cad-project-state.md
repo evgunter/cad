@@ -89,8 +89,14 @@ SE(3) mate-witness / pattern-index / corpus-at-M4 flags, and
 form)**: bit-equal descriptions never glue (unmargined-predicate
 defect); coincidence intent is recipe data (shared key or declared
 relation), detection is affordance-only, near-coincidence resolves
-via explicit D7-style repair/adoption. All usability/GUI-conversation
-items ratified; nothing pending.
+via explicit D7-style repair/adoption. Round 9 added six more:
+fillet validity as reified predicates (pre-M5), SSI
+completeness-by-subdivision contract (pre-M5), non-manifold boolean
+results = typed errors (M3), expression language total-by-charter
+(M4), two-layer DOF diagnosis (structural + GQ1 margin, M6),
+bit-exact float persistence. All usability/GUI-conversation items
+ratified; nothing pending. PR #32 (branch mngr/plan-gui) carries the
+whole conversation — merge awaits Evan.
 
 Key operational facts: **reference PDFs and notes live in the MAIN
 checkout's `references/`** (git-ignored dirs don't propagate across

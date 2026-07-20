@@ -381,6 +381,25 @@ facts for the reviewer spec, PR 4/5 specs, and the fix pass):
   (predicate flips remain the only topology-change sites). **All
   banked principles now ratified; nothing in the usability/GUI
   conversation remains pending.**
+- **GUI-DESIGN round 9 (same conversation): six further risk-
+  reduction principles ratified by Evan into Banked principles** —
+  (1) fillet/blend validity as reified margined predicates in the
+  feature definition (pre-M5; enables M6 fillet-valid-over-a-
+  parameter-box certification; extends the naming pillar to blend
+  corners); (2) SSI completeness contract — marching finds,
+  interval subdivision certifies exhaustiveness; certification is
+  an at-rest tier obligation, preview may march uncertified;
+  (3) non-manifold boolean results = typed errors at M3 (Evan chose
+  typed error; silent body-splitting rejected as inexplicit);
+  (4) expression sublanguage total/finite by charter (anti-OpenSCAD;
+  Turing-ish stays in the generator layer); (5) DOF diagnosis =
+  structural combinatorial layer + GQ1 singularity-margin layer,
+  never conflated ("degenerate configuration" ≠ "over-constrained";
+  ezpz boundary = numbers only); (6) bit-exact float persistence
+  (Ryu round-trip suffices for finite values; explicit NaN/inf
+  policy; replay-identity CI test). Residual risks acknowledged as
+  execution-not-design: blend-corner geometry, tuning dials,
+  rebuild latency (corpus defends), GUI scope.
 
 ## Reference acquisitions (2026-07-18)
 

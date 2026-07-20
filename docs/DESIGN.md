@@ -671,7 +671,7 @@ usable-as-library; architecture to be ratified separately.
   in/out (profiles, drawings), OBJ. Each small; STEP remains the
   only hard one.
 
-### Banked principles (ratified 2026-07-19, rounds 6–7 of the usability conversation)
+### Banked principles (ratified 2026-07-19, rounds 6–9 of the usability conversation)
 
 Cross-milestone commitments extracted from the "where do we get more
 for free / where is the danger" review; each lands at the milestone
@@ -737,6 +737,58 @@ named.
   Same diff machinery as the naming pillar — ε changes and
   parameter changes are both "same recipe, different evaluation
   context."
+- **Fillet/blend validity is reified predicates, not try-and-fail**
+  *(pre-M5; shapes the M5 feature API)*. The industry's fillet
+  misery is mostly validity discovered by construction failure;
+  every classic failure is a margined predicate over the inputs —
+  r vs. 1/κ_max of the support (self-intersecting blend), r vs.
+  adjacent-face extent (face consumption), spine regularity, blend-
+  corner configuration — stated in the feature definition. Payoffs:
+  typed, diagnosable pre-construction errors; the predicates are Q1
+  predicates, so M6 can certify **fillet validity over a parameter
+  box** ("cannot break for r ∈ [2,5]") — a direct error-propagation
+  payoff no commercial kernel offers; corner reconfigurations become
+  enumerated predicate flips, extending the naming pillar to
+  fillets automatically. Same principle applies to shell/offset.
+- **SSI completeness is an interval obligation, not a marching
+  property** *(pre-M5)*. Residual certification audits only *found*
+  branches; the missed small loop is the classic silent disaster.
+  Contract: **marching finds, subdivision certifies exhaustiveness**
+  (interval exclusion proves each domain region intersection-free or
+  accounted for); the outcome is "every branch found" or a typed
+  failure, never silence. The cost knob slots into existing
+  structure: certification is an at-rest/tier obligation; preview
+  may march uncertified (parallel to preview's degraded chordal
+  tolerance).
+- **Non-manifold boolean results are typed errors** *(M3)*.
+  Legitimate booleans can produce vertex- or edge-touching results,
+  unrepresentable under D1 (the lower-dimensional sibling of the
+  coincidence principle's face case). Ratified: typed error naming
+  the touching entities. Silent splitting into separate manifold
+  bodies is rejected as inexplicit (changes body count without the
+  recipe saying so); any future split behavior is an explicit,
+  ratified operation the user invokes, never a fallback.
+- **The expression sublanguage is total and finite by charter**
+  *(M4; the anti-OpenSCAD guardrail)*. No recursion, no unbounded
+  iteration, no user-defined functions — anything Turing-ish lives
+  in the host-language generator layer (D8's split). Keeps interval/
+  dual replay trivial and schema versioning tractable; nearly
+  impossible to claw back once one persisted model uses a loop.
+- **Sketch DOF diagnosis is two named layers, never conflated**
+  *(M6; bounds the ezpz boundary — numbers only)*. The **structural
+  layer** (DOF counting, graph decomposition — exact, combinatorial,
+  float-free, deterministic) diagnoses over/under-constraint; the
+  known residue — generically-well-constrained but configuration-
+  degenerate sketches — is a Jacobian-rank fact at the witness,
+  caught by GQ1's bifurcation-margin predicate with its own honest
+  vocabulary ("degenerate configuration" ≠ "over-constrained").
+  "Solver didn't converge" is never reported as a diagnosis.
+- **Persisted floats round-trip bit-exactly** *(first persisted
+  file)*. Witnesses/parameters/caches are f64 under D9 replay;
+  standard shortest-round-trip formatting (Ryu — Rust serde default)
+  satisfies this for finite values; NaN/inf policy explicit (JSON
+  has neither); lossy formatters banned; enforced by a
+  save/load/replay-identity test in CI.
 - **Flags banked for later milestones**: mate solving at assemblies
   needs witnesses/interval contraction on SE(3), not ℝⁿ — budget
   for it, don't assume the sketch machinery drops in; recipe-level
