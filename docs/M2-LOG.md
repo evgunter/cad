@@ -581,7 +581,97 @@ Reviewer ran eight falsification assignments as executed programs
   properties via Pappus/divergence over the EXACT B-rep (per plan),
   never the mesh fan; fine-δ exports pay the quadratic CDT cost.
 
-## Design decisions with Evan, in-session (2026-07-19/20)
+## PR 7 (stl crate + mass properties + K report) — 2026-07-20/21
+
+- Implemented per binding spec (Fable, isolated worktree; branch
+  `ev/m2-7-stl` off post-#41 main, tip `2be24f2`). Layout:
+  `geom-brep/src/props/` (key-free per-face closed forms — the
+  geom-brep pattern, lookup closures injected); `topo/src/props.rs`
+  (`mass_properties(&Body<T>) → {volume, surface_area}`; living in
+  topo lets tier 3 consume it with zero new inter-crate edges); new
+  `crates/stl` (lib depends on mesh only); recorder moved to
+  `geom_core::k_stats`; harness `sweep/tests/k_report.rs`;
+  `scripts/check_admesh.sh` + CI `watertight` job; `docs/K-REPORT.md`
+  + raw CSVs.
+- **Closed forms** via per-face anchor split ∮p·n = ∮(p−c_f)·n +
+  c_f·A⃗_f with the vector area A⃗_f = (1/2)∮(p−ref)×dp exact per edge
+  (line + arc forms): plane flux = origin·A⃗ (rings by stored
+  winding); cylinder s_f·r·Area + o·A⃗; cone flux = apex·A⃗ (anchor at
+  apex needs no interior sign); sphere s_f·R·Area + c·A⃗ with Area =
+  R²Δu(sin v₁ − sin v₀); torus closed form confirmed numerically.
+  Iso-rectangle verification is STRUCTURAL from stored data only
+  (carrier axes, minted param spans, circle centers/radii; zero
+  atan2); anything outside the M2 inventory ⇒ typed PropsError, no
+  quadrature fallback. f64 ≤1e-12 rel on all acceptance shapes
+  (incl. donut 2π²Rr², τ−0.01 wedge, axis wedge); interval enclosures
+  contain analytic values at ≤1e-9 width; Pappus + mesh signed_volume
+  cross-checks as test oracles only (the sign-only fan prohibition
+  held).
+- **+V invariant** into tier 3 as check 7: margin V/A_total (a
+  length — mean boundary displacement; dimensionally honest lever),
+  Negative ⇒ NegativeVolume; Zero AND escalated exempt (orientation
+  probe, not thinness gate; never-flips posture); VolumeUncomputable
+  ⇒ invalid (every at-rest M2 body computes); gated on an
+  otherwise-clean tier-3 report.
+- **K unification**: funnel + Probe + MarginSample moved to
+  geom-core; profile::k_stats a re-export shim; geom-brep/sweep(×2)/
+  topo funnels delegate; zero sign_within call sites outside
+  geom-core; decisions bit-identical (one added Cell write before an
+  unchanged sign_within); `<unnamed>` unreachable (asserted over the
+  full harness corpus). **Evan's #41 addendum**: AMBIGUITY_K const →
+  run-configured `Tolerance.k` (env CAD_AMBIGUITY_K, default 10,
+  finite >1 validated, OnceLock; re-exec test proves K=25 reaches
+  Band::linear).
+- **K data** (docs/K-REPORT.md DRAFT): 13,282 samples/row ×
+  {1e-6,1e-9,1e-12}, 63 predicates; zero indeterminate/invalid, zero
+  escalation-band landings; bimodal margins (zero-side ≤8.9e-16,
+  min definite |m|/ε = 1e4); counterfactual K ∈ {3,10,30,100} all
+  decision-equivalent. Draft: keep K=10, scoped (native corpus
+  well-conditioned; D7 import is the future data source).
+- **STL**: streams mesh order exactly (no snap/dedup/reorder),
+  constant 80-byte header (never "solid"-prefixed), explicit
+  to_le_bytes, ASCII floats = shortest-round-trip Display;
+  byte-identity pinned across repeat builds, ε rows, debug↔release
+  (print_stl_hashes oracle), ASCII↔binary parse-back. admesh gate
+  check-only (no repair counted as success); dry-run clean on all 7
+  acceptance STLs.
+- **Implementer findings**: (1) coarse-δ cone apex fans emit
+  exactly-collinear triangles (distinct indices, zero area —
+  invisible to PR 6's id-degenerate drop and combinatorial
+  check_mesh; live at δ=0.05); writer refuses typed
+  (DegenerateTriangle); mesh-side fix deliberately deferred to a
+  PR 6 follow-up. (2) f32 narrowing makes sliver triangles exactly
+  collinear ⇒ as-written-vertex normals impossible; normals stay
+  f64-winding-derived; admesh "Normals fixed" un-gated with
+  rationale (reversed/backwards strict). (3) Third interval x·x
+  negative-lo poison occurrence (props_rim_level; same class as PR
+  3 B1 + torus sibling) — fixed with tight powi(2); banked as
+  memories/interval-square-poison.md.
+- Gates all green at 2be24f2: 777 tests/row × 3 ε rows, 884 × 2
+  interval lanes, clippy -D warnings both feature sets, fmt,
+  discipline grep, admesh dry-run. Deviations flagged: sequential
+  supervised gate script (10-min cap); param-spans-instead-of-bulge
+  re-inspection (satisfies the no-atan2 intent); per-body δ in
+  exact_vs_mesh (quadratic-CDT cost).
+- Adversarial review + fix pass: sections to follow.
+
+## M3-PLAN drafted and ratified mid-M2 (2026-07-20/21, PR #42)
+
+At Evan's prompting ("any reason not to get started on planning M3
+now?"), the M3 work order was drafted during PR 7's review window and
+**ratified same-day** (#42, merged b52d8df). Grounded in a new
+second-witness synthesis (`references/notes/m3-grounding-synthesis.md`:
+ch. 14/15 notes cross-examined against the TOG 1986 paper — which
+confirms our CCW/outward convention, supplies the unprinted srecledges
+machinery via its Tables II/III, but contradicts the book's rule (b)
+table; zero code listings, no proofs). Fork resolutions with Evan on
+#42: curved intersections defer to M5 as a unit (the ellipse-at-first-
+oblique-cut argument; no speculative curved-readiness abstraction in
+M3); non-manifold = non-representable while 3′ touching is typed
+success under the explicit-intent invariant (Evan's condition,
+three-part text in the plan); ∅ a typed success value. K dropped from
+the fork list (Evan: no approval needed; empirically reasonable value
+self-merges).
 
 - **`FullRevolveHoles` is permanent; voids are born only from
   booleans (Evan, 2026-07-20)**: PR 5's typed refusal of

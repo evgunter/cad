@@ -160,16 +160,74 @@ component-aware E–P form found and corrected in M1 PR 4).**
    solely inside operation *sequences* (a consumer holds scaffolding
    bodies between public calls mid-construction; nothing at rest
    crosses an API boundary without tier 2).
-3. **Tier 3 "geometric"** (M2+ — named now, not implemented): D4 ¶2
+3. **Tier 3 "geometric"** (implemented across M2 PRs 3–7): D4 ¶2
    residual certification, plus the **material wedge-angle
    predicate** — at every edge the material wedge ∈ (0, 2π), bounded
    away from the ends by the derived threshold θ = ε/r; wedge = π is
    the legal smooth-seam case (ratified in PR #15's conversation).
+   M2 classifies the tangent-plane wedge; the 0-vs-2π lamina side
+   distinction needs pcurves (M3+). Also at tier 3 (M2 additions):
+   **prefer-intrinsic enforcement** (definitely-transverse edges must
+   carry `Intersection` — see D2) and the **positive-volume
+   orientation invariant** (exact-B-rep signed volume
+   definitely-negative ⇒ invalid; margin V/A_total — a length, the
+   mean boundary displacement of the volume defect; zero and
+   escalated exempt: it is an orientation probe, not a thinness
+   gate, and ε-tightening never flips valid→invalid).
    Laminae live here, not at tier 2: two faces glued along their whole
    shared boundary is exactly a two-hemisphere ball's incidence
    structure, so a zero-volume lamina is a geometric defect, not a
    topological one. Global self-intersection / minimum clearance stays
    deferred (M3 partial via booleans, M6 interval clearance).
+
+**M2 structural conventions (ratified at the M2 exit sweep, 2026-07-20/21):**
+
+- **Sweeps emit single-shell bodies; voids are born only from booleans
+  (Evan, 2026-07-20).** `FullRevolveHoles` (revolve's typed refusal of
+  full-revolving holed profiles) is a standing rule, not a scope
+  deferral: a full-revolved hole's swept walls touch nothing — the
+  cavity boundary would be a disconnected interior shell, i.e. revolve
+  emitting multi-shell bodies with internal voids, silently breaking
+  machinery documented against the no-voids assumption a milestone
+  before M3's boolean/void support exists. The front door is
+  `revolve(outer) − revolve(hole-as-outer)` once M3 lands (the error
+  text should point there); an M4 recipe-layer sugar node may wrap
+  that composition — sugar above the kernel, never a new kernel
+  emission mode. (`UnsupportedToroid` is likewise permanent: a D3
+  ring-torus boundary — spindle tori have no representation — not a
+  scope cut.)
+- **The minimal sphere at rest is V2/E2/F2** (M2 PR 5): tier 2's
+  valence-1 ban makes the "minimal" V2/E1/F1 sphere unrepresentable at
+  rest — a one-band wire sweep leaves valence-1 poles, so axis-touching
+  full revolves sweep two π-bands, giving poles valence 2 (the angle-0
+  and angle-π meridians). A deliberate consequence of the tier
+  definitions, not a defect.
+- **Parameterization conventions (M2 PR 1, ratified-by-documentation;
+  authoritative text in the geom-curves/geom-surfaces crate docs):**
+  curve entities are complete loci (full circle, infinite line); an
+  edge's bounds derive from its vertices via the `he_plus`-forward
+  contract (increasing parameter runs start→end of `he_plus`;
+  certification enforces forward, nonzero, ≤ one-period spans, with
+  the stored interval a certified cache reconciled against
+  vertex authority by endpoint pinning). Shared azimuthal frame for
+  all revolution surfaces (axis = +a₃, v_ref = axis × u_ref, seam at
+  u_ref — for revolved bodies u = 0 IS the profile half-plane);
+  sphere uses latitude (not colatitude); cone v = slant length with
+  the apex a true chart singularity (poison normal, never sampled);
+  normals are the chart's ∂u × ∂v with no "outward" contract —
+  topology carries sense. `Seam` is defined SPATIALLY (the u_ref
+  half-plane meridian), which on mirror-nappe cones differs from
+  chart u = 0 (M2 PR 5/6 finding).
+- **Profile format (M2 PR 2, ratified in the #24 conversation):**
+  a profile loop is a vertex chain with bulge (b = tan(θ/4) of the
+  arc to the next vertex, DXF-compatible: positive = CCW sweep) —
+  zero representation-consistency conditions by construction; closed
+  carriers split into ≥ 2 vertices (full-period edges stay
+  representable in topo; the split is input-layer); winding is
+  invisible to users (roles derive from containment; canonicalized
+  internally). Downstream re-inspection of arc geometry uses the
+  stored bulge/carrier data (θ = 4·atan|b| or minted parameter
+  spans), never endpoint atan2.
 
 ### D2 (agreed, revised 2026-07-15): Topology and geometry separated; edge/vertex geometry is intensional where possible
 
@@ -271,6 +329,32 @@ governing lever arm), certifiable as neither `Intersection` nor
 a conventional description is not an escape hatch from ill-conditioned
 geometry.
 
+**Witness contract (sharpened at M2, PR 7 exit sweep; found by PR 3's
+review as finding S2).** "Selected by the witness point" is verifiable
+only if the witness is *pinned*: the stored witness IS the edge's
+mid-parameter point (witness = carrier(mid)), enforced by certification
+(`WitnessMidpoint`). This is a sharpening of the original text, not a
+revision — the witness still selects the connected component (that
+semantics activates with real SSI at M5); pinning it removes the aliasing
+freedom the review exhibited (any point on the component certified,
+including points encoding a wrong winding). Residual freedom is documented
+where it is geometrically invisible (circles: joint whole-period
+translation). Construction obligation on every op that mints an
+`Intersection`: compute the witness as carrier(mid) with the certification
+schedule's own association order.
+
+**Prefer-intrinsic is tier-3-enforced (ratified 2026-07-19 with Evan;
+landed in M2 PR 4's fix pass).** The prefer-intrinsic rule above is not
+advisory: at rest, every *definitely-transverse* edge must carry
+`Intersection` (`TransverseNotIntrinsic` otherwise); definitely-smooth
+joins keep their conventional `MappedCurve` (the D2 conventional-split
+story); escalated dihedrals and `Seam` edges are exempt — so ε-tightening
+can escalate but never flip a valid body to invalid. Mixed per-sample
+classifications are conservatively unenforced (documented). Rationale: an
+unenforced preference drifts silently — exactly the failure shape this
+document exists to kill; the check is nearly free because tier 3 already
+samples dihedrals per edge.
+
 This makes D5's provenance load-bearing rather than bookkeeping: the
 intensional description largely *is* the provenance.
 
@@ -321,6 +405,19 @@ applied to error handling. Five commitments:
    micron-to-kilometer coverage with ~4 orders of f64 headroom at km
    scale. Import does *not* motivate loosening ε — see D7's input
    tolerance ε_in.
+   **Chordal tolerance δ is not a tolerance in this sense (ratified at
+   M2, PR 6).** Tessellation/export take a per-call *display parameter*
+   δ (chordal deviation), deliberately distinct from ε: δ is chosen per
+   export, varies freely, and participates in no kernel validity
+   decision. The tessellation promise is **certified-conservative** —
+   closed-form sagitta/deviation bounds guarantee the mesh lies within
+   δ of the true surface (honestly δ+ε, since mesh vertices sit on
+   carriers only up to the certified residual; STL's f32 narrowing adds
+   ≤1 ulp per coordinate on top, documented in the writer) — but this
+   is an *export promise*, explicitly not a kernel invariant. The mesh
+   layer reads ε exactly once (pole vertex identification) and never
+   for sizing; display-layer comparisons are deliberately not Q1
+   predicates (none decide kernel topology).
 2. **Every derived cache carries a certified residual bound** against its
    intensional description (D2): fitted intersection curves, projected
    pcurves, refit 3-D curves. Kernel invariant: `residual ≤ ε` for every
@@ -914,12 +1011,23 @@ revision).
   with the f64 build). A non-generic `Topology` split was considered
   and rejected (cross-instantiation topology comparison is expressible
   as a plain function because keys don't carry `T`).
-- **Still open, deliberately**: only the ambiguity constant K's numeric
-  value (semantics ratified — sliver band, provisional K = 10, a policy
-  dial not a correctness parameter; value pending multi-ε experiments
-  during M2+ — M1's topology is scalar-free and consulted no predicate,
-  so it generated no evidence; M2's geometric predicates are the first
-  data source).
+- **K's numeric value: resolved at M2 exit (docs/K-REPORT.md; the M0
+  carry closed).** The M2 multi-ε telemetry (unified recorder in
+  `geom_core::k_stats`, PR 7; 13k+ samples/row at ε ∈ {1e-6, 1e-9,
+  1e-12} across 63 named predicates over the full acceptance pipeline)
+  found margin distributions extremely bimodal — zero-side |m| at
+  rounding scale (≤1e-15), definite-side |m| ≥ 10⁴·ε — with zero
+  escalation-band landings; counterfactually K ∈ {3, 10, 30, 100} are
+  decision-equivalent on this corpus. **K = 10 stays the default**, and
+  (Evan, #41, 2026-07-20) K is now ε-style per-run configuration
+  (`Tolerance.k`, env-overridable, one value per run, never changed
+  mid-run) rather than a compile-time constant — expected to join ε
+  under the banked change-ε/`SetTolerance` principle (per-model
+  persisted, recorded change op) at the document layer. Scope honesty:
+  a native-construction corpus is well-conditioned by design; the
+  discriminating K evidence is expected from D7 import adoption and
+  M3's boolean/SSI predicates, and the recommendation is explicitly
+  revisitable then (a policy dial, not a correctness parameter).
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
