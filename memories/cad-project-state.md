@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1/M2 COMPLETE (all 7 M2 PRs merged; K=10 kept, run-configurable); M3-PLAN RATIFIED (#42) with PR 1 implementation started — docs/M2-LOG.md's final snapshot is the resumption contract
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1/M2 COMPLETE (all 7 M2 PRs merged; K=10 kept, run-configurable); M3-PLAN RATIFIED (#42); M3 PR 1 implemented-unreviewed — docs/M3-LOG.md's 2026-07-21 handoff snapshot is the resumption contract
 metadata:
   node_type: memory
   type: project
@@ -64,8 +64,10 @@ cross-shell surgery, 6-PR sequence, planar-only (curved → M5 as a
 unit), grounded in `references/notes/m3-grounding-synthesis.md`
 (TOG 1986 second witness: confirms our CCW/outward convention,
 contradicts book's rule (b) — adjudicate from first principles).
-M3 PR 1 (Euler-inventory extensions, branch `ev/m3-1-surgery`)
-implementation started under the M2-exit orchestrator.
+M3 PR 1 (Euler-inventory extensions) implemented-unreviewed on
+`ev/m3-1-surgery` @ `4f95b5f` (stacked pre-fix-pass; merge main
+first) — docs/M3-LOG.md's 2026-07-21 handoff snapshot is the
+resumption contract with the successor's first moves.
 Per-PR sections of docs/M2-LOG.md are
 the record; handoffs per [[orchestrator-handoff]]. Mäntylä ch. 12–15 notes all archived in
 `<main-checkout>/references/notes/`; the TOG 1986 boolean paper
