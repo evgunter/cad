@@ -310,7 +310,12 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         // (ResidualExceeded, typed). That is the fail-loud backstop for
         // exactly the off-plane-construction concern this test probes —
         // pin it and stop here for such rows.
-        Err(SplitReduceError::Euler(topo::EulerOpError::Certification { .. })) => {
+        // (Fix pass MINOR-2: the refusal now carries the crossing site
+        // — edge + straddling endpoints — with the typed error nested.)
+        Err(SplitReduceError::CrossingInsertion {
+            source: topo::EulerOpError::Certification { .. },
+            ..
+        }) => {
             assert!(
                 band.zero() < 1e-10,
                 "certification refusal expected only at strict ε rows"

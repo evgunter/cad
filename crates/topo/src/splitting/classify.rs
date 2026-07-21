@@ -125,7 +125,16 @@ pub(super) fn insert_crossings<T: Decide>(
         };
         let (t0, t1) = curve.params();
         let t = t0 + (t1 - t0) * (d1 / (d1 - d2));
-        let created = body.split_edge(edge_key, t)?;
+        // Any refusal here (in practice the certification lane's
+        // strict-row ResidualExceeded) gets the crossing site attached;
+        // the typed Euler error stays nested whole.
+        let created =
+            body.split_edge(edge_key, t)
+                .map_err(|source| SplitReduceError::CrossingInsertion {
+                    edge: edge_key,
+                    endpoints: (u, v),
+                    source,
+                })?;
         sides.insert(created.vertex, PlaneSide::On);
         on_vertices.push(created.vertex);
     }

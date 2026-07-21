@@ -206,6 +206,20 @@ pub enum SplitReduceError {
         /// The vertex whose neighborhood could not be walked.
         vertex: VertexKey,
     },
+    /// `split_edge` refused while inserting the crossing vertex on an
+    /// edge whose endpoints straddle the plane — typically the
+    /// certification lane's `ResidualExceeded` re-certifying the
+    /// children of a large-coordinate crossing at a strict ε row. The
+    /// inner typed error is nested whole; this variant only adds the
+    /// crossing site.
+    CrossingInsertion {
+        /// The straddling edge being split.
+        edge: EdgeKey,
+        /// Its endpoint vertices (the strictly Above/Below pair).
+        endpoints: (VertexKey, VertexKey),
+        /// The underlying Euler refusal, untouched.
+        source: EulerOpError,
+    },
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
@@ -261,6 +275,15 @@ impl core::fmt::Display for SplitReduceError {
                 f,
                 "split_reduce: neighborhood of vertex {vertex:?} could not be walked \
                  (broken orbit or lone vertex)"
+            ),
+            Self::CrossingInsertion {
+                edge,
+                endpoints: (u, v),
+                source,
+            } => write!(
+                f,
+                "split_reduce: crossing insertion refused on edge {edge:?} (endpoints \
+                 {u:?}/{v:?} straddle the plane): {source}"
             ),
             Self::Euler(e) => write!(f, "split_reduce: euler operation refused: {e}"),
         }

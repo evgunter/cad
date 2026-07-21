@@ -32,7 +32,12 @@
 //!
 //! After rule (a), a remaining ON entry is an edge in the plane whose
 //! flanking sectors are not coplanar; its cyclic neighbor entries are
-//! never ON. The witnesses **contradict** on the two symmetric cases
+//! never ON. (One more inhabitant: a `WideBisector` duplicate whose
+//! bisector lies exactly in the plane also arrives here as On and is
+//! reclassified by the same table as if it were an edge entry — this
+//! matches the book, which stores duplicates indistinguishably in the
+//! same array, and is harmless: a duplicate only relays its sector's
+//! side into the run structure.) The witnesses **contradict** on the two symmetric cases
 //! (book Program 14.6: AOA→BELOW, BOB→ABOVE; TOG §3: AOA→ABOVE,
 //! BOB→BELOW; both: AOB→BELOW, BOA→BELOW). Derive from the stated
 //! purpose — nonmanifold configurations must come out as DISCONNECTED
@@ -43,27 +48,40 @@
 //! cyclically `[slantL: Above, tip: ON, slantR: Above, cap-bisector:
 //! Below]` (the cap face's corner is reflex — its convex-subdivision
 //! duplicate classifies Below). Above's material near the tip is two
-//! wedges meeting only along the tip edge; a manifold representation
-//! must give each wedge its own section face meeting its slant face in
-//! its OWN edge — the tip edge may not be shared, or it would carry
-//! four faces (slantL, sectionL, slantR, sectionR): non-manifold,
-//! unrepresentable in the half-edge structure. So the tip edge must
-//! leave the Above side: **AOA → BELOW** separates the runs
-//! (`{slantL}`, `{slantR}` — two null edges, two vertex copies, the
-//! wedges disconnect; the tip edge survives inside Below's coplanar
-//! top as an artifact edge, manifold). The paper's AOA→ABOVE merges
-//! one run `{slantL, tip, slantR}` — one copy, both wedges pinned to
-//! one vertex/edge: the 4-face edge. The book is right; TOG §3's list
-//! is the erratum.
+//! wedges whose face fans at the tip vertex are **disjoint**, and a
+//! half-edge vertex admits exactly one cyclic orbit — so one merged
+//! run, producing one vertex copy, cannot host both fans, regardless
+//! of how PR 3's joining later completes the section. That
+//! representability-at-the-vertex fact is why TOG's AOA→ABOVE is
+//! wrong: it merges one run `{slantL, tip, slantR}` ⇒ one copy pinned
+//! to both fans. (The "4-face tip edge" sometimes cited here is only
+//! one possible completion of that copy, not the forced one — with
+//! distinct section faces the completion carries coincident distinct
+//! edges instead, but the two-fan vertex remains either way.)
+//! **AOA → BELOW** separates the runs (`{slantL}`, `{slantR}` — two
+//! null edges, two vertex copies, one fan each; the tip edge survives
+//! inside Below's coplanar top as an artifact edge). The book is
+//! right; TOG §3's list is the erratum.
 //!
-//! **Touching-wedge fixture** (the mirror: notch cut from below,
-//! material above; entries `[slantL: Below, tip: ON, slantR: Below,
-//! cap-bisector: Above]`): Below's material is two wedges meeting at
-//! the tip edge. **BOB → ABOVE** isolates the tip edge into its own
-//! run (its null-edge pair gives it Above-side copies; the Below
-//! wedges separate); BOB→BELOW (paper) leaves the wedges joined
-//! through it — the same 4-face edge in Below. Book right again, by
-//! the mirror of the same argument.
+//! **Touching-wedge fixture** (notch cut from below, material above;
+//! entries `[slantL: Below, tip: ON, slantR: Below, cap-bisector:
+//! Above]`): NOT settled by mirroring the argument above — copies are
+//! minted only for ABOVE runs, so under either verdict both below
+//! wedge fans stay on the single old vertex at PR 2 exit, and the fan
+//! TOG's BOB→BELOW leaves there is contiguous and structurally
+//! buildable (no 4-face edge follows from it). Two independent
+//! arguments pick **BOB → ABOVE**: (i) **±n equivariance** — splitting
+//! by `(o, −n)` reads the same physical configuration as the
+//! tangent-edge AOA case, and the assignment of physical material to
+//! pieces cannot depend on the plane's orientation, so the table must
+//! pair BOB's verdict with AOA's: the book's BOB→ABOVE is the unique
+//! companion of AOA→BELOW (executed witness:
+//! `review_m3_pr2.rs::r1b_orientation_equivariance_pins_bob_from_aoa`).
+//! (ii) **Distinct-entity 3′ representability** — BOB→ABOVE gives the
+//! groove fin its own vertex copies, so the below piece's tip contact
+//! happens through distinct entities (a legal 3′ touching); TOG's
+//! BOB→BELOW instead leaves the fin sharing the old vertex with both
+//! material wedges — a shared-entity pinch, unrepresentable per F2.
 //!
 //! The mixed cases (AOB/BOA → BELOW, both witnesses agree) are a free
 //! convention — either side yields manifold results where the pieces
@@ -106,13 +124,15 @@ pub(super) fn apply_rule_a<T: Decide>(
         let (face, n_face) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let extent = face_extent(body, vertex, face)?;
-        match decide("split_sector_arm", extent, band) {
+        // Distinct K name from neighborhood.rs's `split_sector_arm`
+        // (the shorter-chord arm): this margin is the FACE extent.
+        match decide("split_sector_extent", extent, band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(sliver(geom_core::Indeterminate {
                     margin: geom_core::MarginDiag::Invalid,
                     band,
-                    predicate: Some("split_sector_arm"),
+                    predicate: Some("split_sector_extent"),
                 }));
             }
             Err(diag) => return Err(sliver(diag)),
