@@ -69,9 +69,7 @@
 
 use core::fmt;
 
-use geom_core::{
-    AMBIGUITY_K, Band, BandError, Decide, Indeterminate, Point2, Real, Sign, Tolerance, Vec2,
-};
+use geom_core::{Band, BandError, Decide, Indeterminate, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
@@ -456,7 +454,7 @@ impl<T: Decide> Profile<T> {
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
     pub fn validate(&self, tol: Tolerance) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps, AMBIGUITY_K * tol.eps).map_err(ProfileError::Band)?;
+        let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;

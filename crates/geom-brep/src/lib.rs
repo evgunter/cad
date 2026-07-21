@@ -38,6 +38,7 @@ pub mod edge_geometry;
 pub mod implicit;
 pub mod keys;
 pub mod newell;
+pub mod props;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
@@ -47,3 +48,4 @@ pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use implicit::{curvature_lever_arm, implicit_gradient, implicit_residual};
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
+pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};

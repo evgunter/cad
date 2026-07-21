@@ -17,6 +17,7 @@
 pub mod dual;
 #[cfg(feature = "interval")]
 pub mod interval;
+pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
 pub mod real;
@@ -27,9 +28,10 @@ pub use dual::DualInterval;
 pub use dual::{Dual, Dual64};
 #[cfg(feature = "interval")]
 pub use interval::Interval;
+pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{Affine2, Affine3, Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
-    AMBIGUITY_K, Band, BandError, BandField, Decide, Indeterminate, MarginDiag, Sign,
+    Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign,
 };
 pub use real::{Bounds, Real};
 pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};

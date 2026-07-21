@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn builder_builds_the_two_arc_circle_by_all_three_forms() {
-        let tol = Tolerance { eps: 1e-9 };
+        let tol = Tolerance::with_eps(1e-9);
         let raw = ProfileLoop::builder(p2(-1.0, 0.0))
             .arc_to(p2(1.0, 0.0), 1.0)
             .close_with_bulge(1.0);
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn builder_line_and_arc_mix() {
         // A stadium: two straight sides, two semicircular caps.
-        let tol = Tolerance { eps: 1e-9 };
+        let tol = Tolerance::with_eps(1e-9);
         let lp = ProfileLoop::builder(p2(0.0, 0.0))
             .line_to(p2(2.0, 0.0))
             .arc_to_center(p2(2.0, 1.0), p2(2.0, 0.5), ArcSweep::Ccw)

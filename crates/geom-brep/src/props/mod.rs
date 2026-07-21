@@ -1,0 +1,288 @@
+//! Per-face integral properties over the **exact** B-rep (M2 PR 7):
+//! closed-form face contributions to the divergence-theorem volume and
+//! the surface area. Key-free like the rest of this crate — the owning
+//! body flattens each face loop into [`LoopEdge`]s and injects them.
+//!
+//! # Formulation
+//!
+//! The solid volume is `V = (1/3)·Σ_faces ∮_face p·n dA` (divergence
+//! theorem; Mäntylä §13.3 generalized off the polyhedral case). Each
+//! face's flux integral splits against a per-surface **anchor point**
+//! `c_f` (plane origin, cylinder axis origin, cone apex, sphere/torus
+//! center):
+//!
+//! ```text
+//! ∮_f p·n dA  =  ∮_f (p − c_f)·n dA  +  c_f · A⃗_f
+//! ```
+//!
+//! - `A⃗_f = ∮_f n dA` is the **vector area**, a pure boundary integral
+//!   `(1/2)∮_{∂f}(p − ref)×dp` (Stokes) with exact per-carrier closed
+//!   forms ([line and circular-arc][mod@self#boundary-closed-forms]) —
+//!   automatically signed by the stored loop orientation (outward
+//!   CCW, D1), so no orientation data is needed for this term.
+//! - `∮_f (p − c_f)·n dA` has a per-surface closed form `s_f·K_f`
+//!   against the chart normal: 0 for planes (points of the plane) and
+//!   cones (generators through the apex), `radius·Area_f` for
+//!   cylinders and spheres, and an elementary trig form for tori.
+//!   `s_f = ±1` records whether the face's outward normal is the chart
+//!   normal or its negation, recovered from stored boundary data
+//!   (below).
+//!
+//! Areas of curved faces come from the chart Jacobians over the face's
+//! iso-parameter rectangle `[u0,u1]×[v0,v1]`; planar face area is
+//! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
+//! orientation).
+//!
+//! # Boundary closed forms
+//!
+//! With `ref` a fixed reference point, `w = start/end` the traversal
+//! endpoints on the carrier:
+//!
+//! - line: `(1/2)·(a − ref)×(b − ref)`;
+//! - circular arc (center C, unit axis n̂, radius R, angle t0→t1):
+//!   `(1/2)·[(C − ref)×(p1 − p0) + R²·(t1 − t0)·n̂]`
+//!
+//! (derived by splitting `p − ref = (C − ref) + (p − C)` and using
+//! `(p−C)×d(p−C) = R²·n̂·dt`). Reversed traversal negates the form.
+//!
+//! # Iso-rectangle verification and stored-data discipline
+//!
+//! Every curved-face quantity is extracted from **stored** data —
+//! carrier parameter intervals (angle-true for circle carriers; spans
+//! minted from `θ = 4·atan|bulge|` or the sweep angle at construction,
+//! the sanctioned re-inspection), stored circle centers/axes/radii,
+//! and carrier endpoint evaluations — never from endpoint `atan2`
+//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker). The
+//! boundary is structurally verified to be the M2 iso-parameter
+//! inventory: each carrier's kind, its rim/meridian role, and its
+//! **incidence on the surface** (rim centers on the axis with parallel
+//! carrier axes and fitted radii; meridians axial/through the apex/in
+//! their meridian plane at the surface's radii) are certified as
+//! consistency residuals through the crate's
+//! [`decide`](crate::dihedral) funnel, and a definite failure of any
+//! of them is a typed [`PropsError`] — scope-boxed fail-loud, no
+//! silent quadrature fallback. Outside that verification: the
+//! loop-local vertex **tags** are trusted as declared (the [`LoopEdge`]
+//! trust boundary), and the residuals certify carriers, not that the
+//! traversed arcs jointly close a loop.
+
+mod curved;
+mod loop_area;
+
+use geom_core::{Indeterminate, Point3, Real, Vec3};
+use geom_curves::Curve3;
+
+pub use curved::curved_face;
+pub use loop_area::loop_vector_area;
+
+/// One traversed boundary edge of a face loop: a key-free view of
+/// (carrier, certified `he_plus`-forward parameter interval, traversal
+/// direction within this loop, loop-local endpoint tags). The owning
+/// body flattens its half-edge cycles into these (traversal order;
+/// `start`/`end` are the traversal-order vertex tags — any small ints
+/// injective over the loop's vertices).
+///
+/// # Trust boundary: vertex tags
+///
+/// The tags must **faithfully identify shared vertices** — no residual
+/// can catch a tag lie, because a lie leaves the geometry unchanged.
+/// They are load-bearing: the torus `s_f` inference locates the rim
+/// topologically adjacent to a meridian's anchor endpoint through
+/// them, and lying tags silently flip the anchored flux term's sign
+/// (pinned by `torus_tag_contract_is_load_bearing`). `topo`'s
+/// flattening satisfies the contract by construction (first-seen
+/// traversal order over the half-edge cycle); callers constructing
+/// `LoopEdge`s by hand own it.
+#[derive(Clone, Copy, Debug)]
+pub struct LoopEdge<T: Real> {
+    /// The edge's carrier locus.
+    pub carrier: Curve3<T>,
+    /// Certified interval start (`he_plus`-forward, `t0 < t1`).
+    pub t0: T,
+    /// Certified interval end.
+    pub t1: T,
+    /// Whether this loop traverses the edge `t0 → t1` (`he_plus`) or
+    /// reversed (`he_minus`).
+    pub forward: bool,
+    /// Traversal-order start vertex tag (loop-local).
+    pub start: u32,
+    /// Traversal-order end vertex tag (loop-local).
+    pub end: u32,
+}
+
+impl<T: Real> LoopEdge<T> {
+    /// The carrier point at the interval start `t0` (the `he_plus`
+    /// start; **not** the traversal start when `forward` is false).
+    pub(crate) fn p0(&self) -> Point3<T> {
+        self.carrier.eval(self.t0)
+    }
+
+    /// The carrier point at the interval end `t1`.
+    pub(crate) fn p1(&self) -> Point3<T> {
+        self.carrier.eval(self.t1)
+    }
+
+    /// The vertex tag at the interval start `t0` (`he_plus` start).
+    pub(crate) fn tag_at_t0(&self) -> u32 {
+        if self.forward { self.start } else { self.end }
+    }
+}
+
+/// A face's closed-form contribution to the body integrals.
+#[derive(Clone, Copy, Debug)]
+pub struct FaceContribution<T: Real> {
+    /// `∮_face p·n dA` with `n` the face's **outward** unit normal —
+    /// the divergence-theorem flux; the body volume is `Σ flux / 3`.
+    pub flux: T,
+    /// The face's (unsigned) surface area.
+    pub area: T,
+}
+
+/// Typed failure of a per-face closed form (closed enum, D4 ¶3): the
+/// boundary is outside the M2 iso-rectangle inventory, a consistency
+/// residual is definitely nonzero, or a structural classification
+/// escalated. Never a silent fallback.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PropsError {
+    /// A carrier or surface is the unimplemented `Nurbs` placeholder.
+    Unimplemented,
+    /// The boundary shape is outside the M2 iso-rectangle inventory,
+    /// or a stored-data consistency residual is definitely nonzero.
+    /// The payload names the structural expectation that failed.
+    NotIsoRectangle {
+        /// Which structural expectation failed (static description).
+        what: &'static str,
+    },
+    /// A cone face's `v` range definitely spans both nappes — not a
+    /// face any M2 construction produces.
+    NappeSpanning,
+    /// The face's parameter extent is coincident with zero — a
+    /// degenerate (zero-area) face, refused rather than integrated.
+    DegenerateFace,
+    /// A structural classification landed in the ambiguity band or was
+    /// poisoned (D4 ¶3: escalate, never guess).
+    Escalated {
+        /// The escalation, with its predicate name attached.
+        cause: Indeterminate,
+    },
+}
+
+impl core::fmt::Display for PropsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unimplemented => {
+                f.write_str("integral properties: Nurbs carrier/surface is unimplemented (D3)")
+            }
+            Self::NotIsoRectangle { what } => write!(
+                f,
+                "integral properties: face boundary outside the M2 iso-rectangle inventory ({what})"
+            ),
+            Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
+            Self::DegenerateFace => {
+                f.write_str("integral properties: face parameter extent is degenerate (zero area)")
+            }
+            Self::Escalated { cause } => {
+                write!(f, "integral properties: classification escalated: {cause}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PropsError {}
+
+/// The flux and area of a **planar** face from its loops (outer +
+/// rings, all traversed as stored): `A⃗ = Σ_loops (1/2)∮(p−origin)×dp`,
+/// `flux = origin·A⃗` (the plane through `origin` makes
+/// `(p−origin)·n = 0`), `area = ‖A⃗‖` (rings subtract via their stored
+/// opposite winding; the loop orientation convention points `A⃗` along
+/// the face's outward normal). `origin` doubles as the translation
+/// reference (Mäntylä's far-from-origin conditioning remedy).
+///
+/// # Errors
+///
+/// [`PropsError::Unimplemented`] on a `Nurbs` carrier.
+pub fn planar_face<T: Real>(
+    origin: Point3<T>,
+    loops: &[Vec<LoopEdge<T>>],
+) -> Result<FaceContribution<T>, PropsError> {
+    let mut va = Vec3::zero();
+    for lp in loops {
+        va = va + loop_vector_area(lp, origin)?;
+    }
+    let flux = (origin - Point3::origin()).dot(va);
+    Ok(FaceContribution {
+        flux,
+        area: va.norm(),
+    })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
+        let d = b - a;
+        let len = d.norm();
+        LoopEdge {
+            carrier: Curve3::Line {
+                origin: a,
+                dir: d * (1.0 / len),
+            },
+            t0: 0.0,
+            t1: len,
+            forward: true,
+            start: 0,
+            end: 0,
+        }
+    }
+
+    /// Assemble the unit cube from six planar faces (outward CCW
+    /// loops): total flux/3 = +1, total area = 6; with every loop
+    /// reversed (an inside-out cube) the volume flips to −1 — the
+    /// sign the tier-3 +V invariant fires on.
+    #[test]
+    fn hand_built_cube_volume_sign_tracks_orientation() {
+        let p = Point3::new;
+        // Faces as (origin-on-plane, CCW-from-outside vertex cycles).
+        let faces: [[Point3<f64>; 4]; 6] = [
+            // bottom (z = 0, outward −z): CW seen from +z.
+            [p(0., 0., 0.), p(0., 1., 0.), p(1., 1., 0.), p(1., 0., 0.)],
+            // top (z = 1, outward +z).
+            [p(0., 0., 1.), p(1., 0., 1.), p(1., 1., 1.), p(0., 1., 1.)],
+            // front (y = 0, outward −y).
+            [p(0., 0., 0.), p(1., 0., 0.), p(1., 0., 1.), p(0., 0., 1.)],
+            // back (y = 1, outward +y).
+            [p(0., 1., 0.), p(0., 1., 1.), p(1., 1., 1.), p(1., 1., 0.)],
+            // left (x = 0, outward −x).
+            [p(0., 0., 0.), p(0., 0., 1.), p(0., 1., 1.), p(0., 1., 0.)],
+            // right (x = 1, outward +x).
+            [p(1., 0., 0.), p(1., 1., 0.), p(1., 1., 1.), p(1., 0., 1.)],
+        ];
+        let volume = |reverse: bool| -> (f64, f64) {
+            let mut flux = 0.0;
+            let mut area = 0.0;
+            for cycle in &faces {
+                let order: Vec<Point3<f64>> = if reverse {
+                    cycle.iter().rev().copied().collect()
+                } else {
+                    cycle.to_vec()
+                };
+                let mut edges = Vec::new();
+                for i in 0..4 {
+                    edges.push(line_edge(order[i], order[(i + 1) % 4]));
+                }
+                let c = planar_face(order[0], &[edges]).unwrap();
+                flux += c.flux;
+                area += c.area;
+            }
+            (flux / 3.0, area)
+        };
+        let (v_out, a_out) = volume(false);
+        assert!((v_out - 1.0).abs() < 1e-12, "outward cube volume {v_out}");
+        assert!((a_out - 6.0).abs() < 1e-12, "cube area {a_out}");
+        let (v_in, a_in) = volume(true);
+        assert!((v_in + 1.0).abs() < 1e-12, "inside-out cube volume {v_in}");
+        assert!((a_in - 6.0).abs() < 1e-12, "area is orientation-blind");
+    }
+}

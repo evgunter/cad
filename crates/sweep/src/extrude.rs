@@ -279,11 +279,12 @@ impl From<EulerOpError> for ExtrudeError {
 }
 
 /// The one classification funnel of this crate (the `geom-brep`
-/// pattern): names the predicate, classifies through the sanctioned
-/// [`Decide`] door, tags any escalation. PR 7 wires these names to the
-/// recording funnel.
+/// pattern): delegates to the unified recorder funnel
+/// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
+/// for the margin-telemetry recorder, classifies through the
+/// sanctioned [`Decide`] door, and tags any escalation.
 fn decide<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
-    margin.sign_within(band).map_err(|e| e.with_predicate(name))
+    geom_core::k_stats::decide(name, margin, band)
 }
 
 /// A segment's carrier class in swept traversal order (the canonical

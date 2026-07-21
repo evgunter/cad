@@ -85,17 +85,18 @@ pub enum DihedralClass {
     Smooth,
 }
 
-/// The one classification funnel of this crate: names the predicate,
+/// The one classification funnel of this crate: delegates to the
+/// unified recorder funnel [`geom_core::k_stats::decide`] (M2 PR 7),
+/// which names the predicate for the margin-telemetry recorder,
 /// classifies through the sanctioned [`Decide`] door, and tags any
-/// escalation. (The margin-telemetry recorder hook lives in the
-/// `profile` crate's `k_stats`; unifying the funnels is a PR 7 concern
-/// — decisions here are already name-tagged for it.)
+/// escalation. Kept as the crate-local wrapper so this remains the
+/// crate's single greppable decision site.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
     margin: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    margin.sign_within(band).map_err(|e| e.with_predicate(name))
+    geom_core::k_stats::decide(name, margin, band)
 }
 
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
