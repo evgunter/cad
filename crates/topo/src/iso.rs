@@ -69,14 +69,16 @@
 //!   isomorphic to this oracle. Geometric equivalence is out of scope.
 //! - **Coordinate-identical automorphic twins**: candidates that tie —
 //!   identical dart structure, identical coordinates, identical
-//!   attachment fingerprints — are broken by scan order. If two such
-//!   twins are nevertheless attached to structurally different places
-//!   (which their fingerprints failed to distinguish only because the
-//!   coordinates coincide), two isomorphic bodies could in principle
-//!   emit different face sections (and two non-isomorphic ones the
-//!   same). The generator mints distinct coordinates per vertex
-//!   precisely so this never triggers; bodies with geometrically
-//!   coincident symmetric substructures are out of the oracle's scope.
+//!   attachment fingerprints — are broken by scan order. Issue #60
+//!   showed the generator DOES reach such bodies (degenerate self-loop
+//!   chains whose darts share two vertices), and the tie let the face
+//!   section's cross-component outer/ring pairing leak scan order — a
+//!   false negative between isomorphic bodies. The attachment token
+//!   now also references the COMMITTED labels of the face's loops, so
+//!   once the first component commits, later twin components are
+//!   pinned to it and the pairing is invariant. Residual blind spot:
+//!   ties WITHIN one commit round between twins whose faces' loops are
+//!   all uncommitted are still broken by scan order.
 //! - **Tier-1-valid input is assumed**; the traversal panics (test
 //!   failure) on bodies whose references do not resolve.
 
@@ -144,12 +146,25 @@ fn canonical_shell(body: &Body<f64>, shell: ShellKey) -> String {
     let mut order: Vec<HalfEdgeKey> = Vec::new();
     let mut vertex_label: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
     let mut vertex_count = 0_usize;
+    // Loop → minimal committed dart label, filled as components commit;
+    // later components' attachment tokens reference it, pinning the
+    // cross-component pairing (issue #60: without this, coordinate-
+    // identical automorphic twin components tie and the FACE section's
+    // outer/ring pairing leaked scan order — a false negative between
+    // isomorphic bodies).
+    let mut committed_loop_min: SecondaryMap<LoopKey, usize> = SecondaryMap::new();
     let mut out = String::new();
     while order.len() < darts.len() {
         let mut best: Option<(String, Vec<HalfEdgeKey>, Vec<VertexKey>)> = None;
         for &root in darts.iter().filter(|d| !label.contains_key(**d)) {
-            let candidate =
-                component_encoding(body, root, order.len(), vertex_count, &vertex_label);
+            let candidate = component_encoding(
+                body,
+                root,
+                order.len(),
+                vertex_count,
+                &vertex_label,
+                &committed_loop_min,
+            );
             if best.as_ref().is_none_or(|(text, _, _)| candidate.0 < *text) {
                 best = Some(candidate);
             }
@@ -157,6 +172,13 @@ fn canonical_shell(body: &Body<f64>, shell: ShellKey) -> String {
         let (text, members, new_vertices) =
             best.expect("an unlabeled dart exists while order is short");
         for member in members {
+            let parent = body
+                .get_half_edge(member)
+                .expect("dart resolves")
+                .parent_loop;
+            if !committed_loop_min.contains_key(parent) {
+                committed_loop_min.insert(parent, order.len());
+            }
             label.insert(member, order.len());
             order.push(member);
         }
@@ -239,6 +261,7 @@ fn component_encoding(
     dart_offset: usize,
     vertex_offset: usize,
     committed_vertices: &SecondaryMap<VertexKey, usize>,
+    committed_loop_min: &SecondaryMap<LoopKey, usize>,
 ) -> (String, Vec<HalfEdgeKey>, Vec<VertexKey>) {
     // BFS dart labeling within the component.
     let mut local: SecondaryMap<HalfEdgeKey, usize> = SecondaryMap::new();
@@ -284,7 +307,7 @@ fn component_encoding(
         // an outer loop and the other a ring): both label-free and
         // structure-invariant, so it sharpens the candidate order
         // without costing invariance.
-        let attachment = dart_attachment(body, dart_data.parent_loop);
+        let attachment = dart_attachment(body, dart_data.parent_loop, committed_loop_min);
         let _ = writeln!(
             text,
             "  d{}: n{} m{} v{vertex} {attachment}",
@@ -343,14 +366,35 @@ fn vertex_coords(body: &Body<f64>, vertex: VertexKey) -> String {
 }
 
 /// A dart's attachment token: its loop's role on its face (`o`uter /
-/// `r`ing) plus the face's label-free fingerprint. Structure-invariant
-/// (no keys, no anchors): used inside component candidates to break
-/// automorphism ties by face attachment.
-fn dart_attachment(body: &Body<f64>, parent: LoopKey) -> String {
+/// `r`ing) plus the face's label-free fingerprint, plus the face's
+/// loops' COMMITTED minimal dart labels (`@{o=…;r=[…]}`, `?` for loops
+/// not yet committed). Structure-invariant (no keys, no anchors): the
+/// fingerprint breaks automorphism ties by face attachment; the
+/// committed-label references pin later components to the labeling
+/// already committed, so coordinate-identical twin components attached
+/// to different faces no longer tie (issue #60 — the tie let the FACE
+/// section's outer/ring pairing depend on scan order).
+fn dart_attachment(
+    body: &Body<f64>,
+    parent: LoopKey,
+    committed_loop_min: &SecondaryMap<LoopKey, usize>,
+) -> String {
     let face = body.get_loop(parent).expect("loop resolves").face;
     let face_data = body.get_face(face).expect("face resolves");
     let role = if face_data.outer == parent { 'o' } else { 'r' };
-    format!("{role} {}", face_sig(body, face))
+    let reference = |loop_key: LoopKey| {
+        committed_loop_min
+            .get(loop_key)
+            .map_or_else(|| "?".to_string(), ToString::to_string)
+    };
+    let mut ring_refs: Vec<String> = face_data.rings.iter().map(|&r| reference(r)).collect();
+    ring_refs.sort();
+    format!(
+        "{role} {} @{{o={};r=[{}]}}",
+        face_sig(body, face),
+        reference(face_data.outer),
+        ring_refs.join(",")
+    )
 }
 
 /// A face's label-free fingerprint: the outer loop's signature plus the
