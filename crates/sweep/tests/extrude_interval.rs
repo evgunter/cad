@@ -41,7 +41,7 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
     for &edge in &t.strut_edges[0] {
         let curve = t.body.get_edge(edge).unwrap().curve;
         assert!(matches!(
-            t.body.get_curve(curve).unwrap().description(),
+            t.body.get_curve_geom(curve).unwrap().certified().unwrap().description(),
             EdgeGeometry::Intersection { .. }
         ));
     }

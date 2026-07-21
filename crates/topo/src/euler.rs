@@ -580,6 +580,46 @@ pub enum EulerOpError {
         /// How many faces it has (≠ 1).
         faces: usize,
     },
+    /// An operation requiring a certified carrier met M3 null-edge
+    /// scaffolding ([`crate::null`]): the referenced curve entry is
+    /// [`crate::CurveGeom::NullScaffold`], which has no carrier by
+    /// type. Fired by [`Body::split_edge`] (nothing to split) and by
+    /// the sweep upgrade paths (nothing to upgrade).
+    NullScaffoldCurve {
+        /// The scaffolding curve entry.
+        curve: CurveKey,
+    },
+    /// [`Body::split_edge`]'s parameter is **definitely not interior**
+    /// to the edge's certified interval: one of the two sub-spans
+    /// `t − t₀` / `t₁ − t` classified non-positive (metered in meters,
+    /// like the certification span gate). Splitting at an endpoint (or
+    /// outside the interval) is refused — the split point must be a
+    /// genuinely interior locus point.
+    SplitParamNotInterior {
+        /// The edge whose interval excludes the parameter.
+        edge: EdgeKey,
+    },
+    /// [`Body::split_edge`]'s interiority test escalated: a sub-span
+    /// margin fell in the tolerance band (the split point is
+    /// indistinguishable from an endpoint at this ε) or was poisoned.
+    /// Q1 trilean discipline — in-band never silently rounds to either
+    /// verdict.
+    SplitParamEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The in-band/poisoned margin diagnostics.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::kfmrh`]'s two faces lie in different **solids**. The
+    /// cross-shell form (M3 PR 1) fuses two shells of one solid; fusing
+    /// across solids is the boolean pipeline's combine step (M3 PRs
+    /// 4–5), not an Euler surgery.
+    CrossSolid {
+        /// The first face.
+        f1: FaceKey,
+        /// The second face, in a different solid.
+        f2: FaceKey,
+    },
 }
 
 impl fmt::Display for EulerOpError {
@@ -699,6 +739,27 @@ impl fmt::Display for EulerOpError {
                 f,
                 "kvfs: shell {shell:?} has {faces} faces, not the skeletal \
                  single face"
+            ),
+            Self::NullScaffoldCurve { curve } => write!(
+                f,
+                "curve {curve:?} is M3 null-edge scaffolding (no carrier by \
+                 type); the operation requires a certified carrier"
+            ),
+            Self::SplitParamNotInterior { edge } => write!(
+                f,
+                "split_edge: the parameter is definitely not interior to \
+                 edge {edge:?}'s certified interval"
+            ),
+            Self::SplitParamEscalated { edge, diag } => write!(
+                f,
+                "split_edge: interiority test on edge {edge:?} escalated \
+                 ({diag})"
+            ),
+            Self::CrossSolid { f1, f2 } => write!(
+                f,
+                "kfmrh: faces {f1:?} and {f2:?} lie in different solids \
+                 (cross-solid fusion is the boolean combine step, not an \
+                 Euler surgery)"
             ),
         }
     }

@@ -1374,7 +1374,7 @@ mod tests {
         // Geometry hygiene: the killed edge's curve was orphaned and
         // removed with it.
         assert_eq!(result.killed_curve, Some(e1.curve));
-        assert!(body.get_curve(e1.curve).is_none());
+        assert!(body.get_curve_geom(e1.curve).is_none());
         assert_eq!(body.curves().count(), 2);
         // Result struct: dead keys with the EDGE's slot association
         // (e1.he_plus was minted as the plus half).

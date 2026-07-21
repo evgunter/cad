@@ -226,6 +226,8 @@ use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
+use crate::null::CurveGeom;
+
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
@@ -1136,7 +1138,9 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
     // above means we never get here in that case).
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
-        let Some(curve) = body.curves.get(edge.curve) else {
+        // Null scaffolding cannot reach the tier-3 passes: the coarse
+        // gate ran tier 2, which refuses null entities at rest.
+        let Some(curve) = body.curves.get(edge.curve).and_then(CurveGeom::certified) else {
             continue;
         };
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
@@ -1233,7 +1237,9 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
     //    (M3, pcurves — the not-yet-checked list).
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
-        let Some(curve) = body.curves.get(edge.curve) else {
+        // Null scaffolding cannot reach the tier-3 passes: the coarse
+        // gate ran tier 2, which refuses null entities at rest.
+        let Some(curve) = body.curves.get(edge.curve).and_then(CurveGeom::certified) else {
             continue;
         };
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {

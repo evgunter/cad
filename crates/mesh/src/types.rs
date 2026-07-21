@@ -84,6 +84,13 @@ pub enum TessellateError {
         /// The offending edge.
         edge: EdgeKey,
     },
+    /// An edge is M3 null-edge scaffolding (`topo::null` — no carrier
+    /// by type): the body is mid-surgery; tier 2 refuses null entities
+    /// at rest, and tessellation is defined on at-rest bodies.
+    NullScaffoldEdge {
+        /// The scaffolding edge.
+        edge: EdgeKey,
+    },
     /// A curved face carries interior rings — no M2 construction
     /// produces one (curved patches are swept UV rectangles); refused
     /// rather than guessed at.

@@ -102,7 +102,9 @@ fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> {
                 .unwrap(),
         );
         let ec = body
-            .get_curve(body.get_edge(he_data.edge).unwrap().curve)
+            .get_curve_geom(body.get_edge(he_data.edge).unwrap().curve)
+            .unwrap()
+            .certified()
             .unwrap();
         let (t0, t1) = ec.params();
         pts.push(ec.carrier().eval((t0 + t1) * 0.5));
@@ -123,7 +125,7 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
 /// The edge's stored description.
 fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body.get_curve(curve).unwrap().description()
+    *body.get_curve_geom(curve).unwrap().certified().unwrap().description()
 }
 
 /// Independent orientation oracle: signed volume by the ch. 13
@@ -185,12 +187,15 @@ fn dump(t: &Extruded<f64>) -> String {
         s.push_str(&format!("{k:?} {p:?}\n"));
     }
     for (k, c) in t.body.curves() {
-        s.push_str(&format!(
-            "{k:?} {:?} {:?} {:?}\n",
-            c.description(),
-            c.params(),
-            c.certificate()
-        ));
+        match c.certified() {
+            Some(c) => s.push_str(&format!(
+                "{k:?} {:?} {:?} {:?}\n",
+                c.description(),
+                c.params(),
+                c.certificate()
+            )),
+            None => s.push_str(&format!("{k:?} {c:?}\n")),
+        }
     }
     for (k, srf) in t.body.surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
@@ -815,7 +820,9 @@ fn survives_cosurface_bitwise_center_agreement() {
     let mut bottom_rims = 0;
     let mut top_rims = 0;
     for (_, c) in t.body.curves() {
-        if let geom_curves::Curve3::Circle { center, .. } = *c.carrier() {
+        if let Some(geom_curves::Curve3::Circle { center, .. }) =
+            c.certified().map(|c| *c.carrier())
+        {
             if center.z.to_bits() == origin.z.to_bits() {
                 assert_eq!(center.x.to_bits(), origin.x.to_bits());
                 assert_eq!(center.y.to_bits(), origin.y.to_bits());

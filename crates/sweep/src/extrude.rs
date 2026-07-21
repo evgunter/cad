@@ -1129,10 +1129,12 @@ fn upgrade_rim<T: Decide>(
         })?
         .curve;
     let curve = body
-        .get_curve(curve_key)
+        .get_curve_geom(curve_key)
         .ok_or(EulerOpError::StaleGeometry {
             key: topo::GeomRef::Curve(curve_key),
-        })?;
+        })?
+        .certified()
+        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
     let carrier = *curve.carrier();
     let (t0, t1) = curve.params();
     // The mid-parameter point — the same association the certification

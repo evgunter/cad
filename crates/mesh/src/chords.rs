@@ -93,8 +93,10 @@ pub(crate) fn compute_chords(
     let mut chords = HashMap::new();
     for (ek, edge) in body.edges() {
         let curve = body
-            .get_curve(edge.curve)
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            .get_curve_geom(edge.curve)
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .certified()
+            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let n = match *curve.carrier() {

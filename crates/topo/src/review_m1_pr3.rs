@@ -319,7 +319,7 @@ fn carve_hole(
         None
     );
     assert_eq!(kill.killed_curve, Some(strut.curve));
-    assert!(body.get_curve(strut.curve).is_none());
+    assert!(body.get_curve_geom(strut.curve).is_none());
 
     // Grow the rim chain inside the ring.
     let mut rim: Vec<MevCreated> = Vec::new();
@@ -1012,7 +1012,7 @@ fn killed_keys_stay_dead_across_slot_recycling() {
     assert!(body.get_edge(seg.edge).is_none());
     assert!(body.get_half_edge(seg.he_plus).is_none());
     assert!(body.get_half_edge(seg.he_minus).is_none());
-    assert!(body.get_curve(seg.curve).is_none());
+    assert!(body.get_curve_geom(seg.curve).is_none());
     assert!(body.get_loop(kill.ring).is_none());
     assert_eq!(body.provenance(EntityId::Edge(seg.edge)), None);
     assert_eq!(body.provenance(EntityId::HalfEdge(seg.he_plus)), None);
@@ -1422,14 +1422,14 @@ fn kemr_keeps_shared_curves_and_reaps_private_ones() {
     let kill1 = body.kemr(a1, b1).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(kill1.killed_curve, None);
-    assert!(body.get_curve(curve).is_some());
+    assert!(body.get_curve_geom(curve).is_some());
     assert_eq!(body.curves().count(), 1);
 
     // Kill e0 too: now the curve is orphaned — REAPED.
     let kill2 = body.kemr(a0, b0).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(kill2.killed_curve, Some(curve));
-    assert!(body.get_curve(curve).is_none());
+    assert!(body.get_curve_geom(curve).is_none());
     assert_eq!(body.curves().count(), 0);
 }
 
