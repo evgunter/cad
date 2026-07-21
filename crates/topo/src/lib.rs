@@ -180,7 +180,9 @@ pub use provenance::Provenance;
 pub use revert::RevertError;
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    NullEdgeRecord, PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError,
-    SplitReduction, classify_neighborhood, split_reduce, vertex_sides,
+    LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionPolygon,
+    SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart,
+    SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};
