@@ -76,9 +76,15 @@ Evan only at genuine design forks.
 
 **Standing session-start checklist (made durable 2026-07-20; the
 M2-LOG snapshots assume it):**
-- Kill stale monitor processes from prior sessions first (`ps aux |
-  grep -E 'gh api|events.jsonl'` — orphaned pollers survive session
-  death), then arm TWO persistent Monitors:
+- Stale-monitor check, corrected (Evan, 2026-07-21): monitor
+  processes do NOT outlast their session. The one observed case of
+  "orphaned pollers" was a same-session continuation — Evan had run
+  the `/clear` slash command, so the "new" orchestrator was the old
+  session with its monitors still legitimately running. A successor
+  created via tmux (fresh session) will never inherit pollers. So:
+  if you may be a post-/clear continuation, check `ps aux | grep -E
+  'gh api|events.jsonl'` and kill/reuse what you find; a fresh tmux
+  orchestrator can skip the hunt. Then arm TWO persistent Monitors:
   1. **GitHub away-channel (refined by Evan, 2026-07-21)**: poll
      `gh api` for new issues + all issue/PR comments on the repo
      (~60s interval) — Evan may ask questions through comments when
