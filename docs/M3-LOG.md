@@ -279,6 +279,24 @@ code blocker). All falsification targets HELD. Specifics:
   (shared tip edge post-reduction; its BOB mirror; no machine-readable
   one-sided-tangency flag).
 
+## Accumulating PR 6 (M3-exit sweep) obligations
+
+Beyond M3-PLAN's own PR 6 list (F1/F2/F5/F6/F7/F8 ratifications, tier
+table, voids documentation), the sweep has picked up:
+
+- **PERF-PLAN ratifications (Evan's Q-P1 sign-off, #49, 2026-07-21)**:
+  fold the §3.3 GPU boundary table and §2.2 deterministic-parallelism
+  idioms into DESIGN.md as a D9 addendum. PERF-PLAN itself is merged
+  and advisory; DESIGN.md stays the single contract.
+- **Sweeps-vs-voids invariant (chat, 2026-07-21, from the demo-tour
+  hole discussion)**: ratify explicitly — "sweeps produce genus, never
+  voids; voids are boolean-born; the extrude/full-revolve hole
+  asymmetry is an instance of the invariant, not an inconsistency"
+  (extruded holes = cap-to-cap tunnels, one shell; full-revolve holes
+  = closed inner shells = voids; partial revolve is extrude-shaped and
+  already supports holes). FullRevolveHoles' pointer to the boolean
+  route lands in PR 5 per F8.
+
 ## State snapshot (handoff point, 2026-07-21)
 
 - **Merged to main**: everything through M2 exit — M2 PRs 1–7 (#27,

@@ -618,7 +618,14 @@ precursor of the error-propagation feature.
 - **M3** — Intersections for analytic pairs; booleans; mass properties.
   *(First useful parts.)*
 - **M4** — Parametric model layer: parameter vector → feature DAG → solid;
-  provenance-based naming; replay. STEP export.
+  provenance-based naming; replay. STEP export. The naming layer also
+  **retires production bit-identity coincidence checking** (Evan, #53,
+  2026-07-21): once surfaces carry global identity, the "declared"
+  coincidence rung (M3's bit-fingerprint comparison of descriptions —
+  `merge_coplanar_faces`' declared rung, PR 4's oriented-plane-equality)
+  becomes a provenance-record lookup; the bit comparison leaves
+  production entirely, surviving at most as a debug assertion that the
+  records and the bits agree.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets.
 - **M6** — Error-propagation MVP: distributions over parameters;

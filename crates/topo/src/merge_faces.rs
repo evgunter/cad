@@ -133,6 +133,13 @@ impl std::error::Error for MergeCoplanarError {}
 /// declared coincidence cannot be certified, so the caller refuses to
 /// merge — the ladder's conservative direction (coincidence is never
 /// inferred), not a silent wrong answer.
+///
+/// **Retirement-scheduled (DESIGN.md roadmap, M4; Evan, #53)**: when
+/// provenance-based naming gives surfaces global identity, the
+/// declared rung becomes a record lookup and this bit comparison
+/// leaves production (at most a debug assertion that records and bits
+/// agree). A CI tripwire allowlists this file and blocks new
+/// consumers of the channel in the interim.
 fn scalar_repr_bits<T: Decide>(x: T) -> Option<(u64, u64, u64)> {
     let any: &dyn core::any::Any = &x;
     if let Some(v) = any.downcast_ref::<f64>() {
