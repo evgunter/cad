@@ -699,7 +699,39 @@ at tip, flipped by the fix pass):
   on the all-valid corpus (scoping sentence added to K-REPORT in the
   fix pass).
 
-### PR 7 fix pass — section to follow.
+### PR 7 fix pass (2026-07-21) — all findings closed, tip `69a396f`
+
+- Review suites promoted by merge (c4b1235, names kept; 6 suites).
+- **F1**: five new certified incidence residuals in props (all `props_*`
+  named, joining the K funnel; closed-form math untouched):
+  rim axis-parallel (‖n_c × â‖·r_c, lever = rim radius), rim
+  center-on-axis (‖w − â(w·â)‖ — kills the off-axis counterexamples
+  and the sphere w∦axis gap), cylinder meridian-on-surface (radial
+  offset at interval start), cone meridian-apex (apex-to-line
+  distance), torus meridian-plane ((n_c·ρ̂)·ρ, lever ρ ≈ R; n_c now
+  pinned ∥ τ̂). Sphere meridians needed nothing (center + radius
+  already complete). Review test flipped to require the exact typed
+  variant; module doc rewritten to state precisely what is and is not
+  certified. **Valid geometry proven untouched**: pre/post acceptance
+  STL exports + V/A values byte-identical; all 1e-12 closed-form pins
+  green at every ε row.
+- **F2** both stale tolerance-doc sites corrected (ENV_EPS + ENV_K);
+  **F4** `LoopEdge` "Trust boundary: vertex tags" doc section (tags
+  are trusted data; no residual catches a tag lie; torus s_f is the
+  load-bearing consumer; topo's flattening correct by construction).
+- K-REPORT gains the refusal-corpus scoping bullet (3 refusal-path
+  predicates never fire on the all-valid corpus; adversarial-corpus
+  data awaits D7/M3).
+- Full matrix green foreground (post-crash re-run): fmt, clippy -D
+  warnings both feature sets, 3 ε rows (78 suites each), interval
+  lane per package group, admesh dry-run (user-local dpkg extraction;
+  script unmodified).
+- Session note: a WSL host crash interrupted both the fix pass and
+  the parallel M3 PR 1 implementer mid-run and emptied 11 loose
+  objects in the shared git store; repaired by empty-object deletion
+  + re-fetch (fsck clean), both agents resumed from transcripts, no
+  work lost. Push-after-every-commit re-affirmed as non-optional
+  (the M3 branch had 3 unpushed commits at crash time).
 
 ## M3-PLAN drafted and ratified mid-M2 (2026-07-20/21, PR #42)
 
