@@ -9,3 +9,4 @@
 - [Orchestration model](orchestration-model.md) — top-level agent orchestrates/meta-reviews, subagents code+review; high-confidence design PRs self-merge (retroactive review), fundamental forks wait; commit crucial state before stopping (orchestrator-only); session-start monitors checklist
 - [Orchestrator handoff](orchestrator-handoff.md) — when and how to switch orchestrators: drain the pipeline, flush state, then mngr create/capture (confirm Fable)/start --message-file/capture again
 - [Review and dependency policy](review-and-dependency-policy.md) — reviews must run real e2e demos, not just read diffs; deps fine to add with ~2-week minimum release age
+- [Worktree disk hygiene](worktree-disk-hygiene.md) — each worktree's target/ is 4-8 GB and cargo can't safely share artifacts across parallel builds; remove merged-branch worktrees at every pipeline seam
