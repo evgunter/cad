@@ -653,7 +653,53 @@ Reviewer ran eight falsification assignments as executed programs
   supervised gate script (10-min cap); param-spans-instead-of-bulge
   re-inspection (satisfies the no-atan2 intent); per-body δ in
   exact_vs_mesh (quadratic-CDT cost).
-- Adversarial review + fix pass: sections to follow.
+### PR 7 adversarial review (2026-07-21) — verdict: MERGEABLE after fix pass; zero BLOCKERs, 1 SHOULD, 3 NITs
+
+Ten falsification assignments, all executed (review branch `review/m2-7`
+@ `a0ceddd`; six suites promotable as-is; one test intentionally failing
+at tip, flipped by the fix pass):
+
+- **F1 SHOULD**: the props iso-rectangle gate checks carrier SHAPE but
+  not incidence-on-surface — an off-axis "rim" with correct radius and
+  axis-parallel carrier is silently accepted (flux of a curve nowhere
+  on the surface); same class across cone/sphere/torus/meridian cases.
+  Unreachable via tier-3-validated bodies (re-certification pins
+  incidence) but `mass_properties` is public on unvalidated bodies ⇒
+  silent wrong volume there. **F2 NIT**: stale "single tolerance env
+  var" docs (ENV_K exists). **F3 NIT**: M2-LOG PR 7 section absent from
+  the impl branch (handled on `ev/m2-exit` — this section). **F4
+  NIT/OBS**: torus s_f vertex-tag contract is load-bearing (lying tags
+  flip the sign; trust boundary to be stated on `LoopEdge`).
+- **Survived (executed)**: every closed form vs an independent Simpson
+  oracle (incl. cone both-nappes no-s_f proof and a from-scratch torus
+  re-derivation) ≤1e-9 rel; public-op shapes vs the reviewer's OWN
+  closed forms ≤1e-12 (cup, frustum+bore, quarter-donut, pac-man,
+  two-hole plate, groove/bump washers); no legal path to a silent
+  wrong s_f; inventory-escape ⇒ typed + VolumeUncomputable; a mirrored
+  cube forged through PUBLIC Euler ops reaches NegativeVolume (the
+  check is stronger than the implementer's "no public path" claim —
+  claim corrected, check vindicated) incl. at 1e6 scale; gating
+  unmaskable; the thin-inverted-slab exemption boundary pinned
+  executable (V/A ∈ (ε,Kε) escalates and passes — the ratified
+  orientation-probe posture); base↔tip decision bit-identity (FNV
+  probe over 8 bodies incl. 143k-tri donut); powi-fix f64
+  bit-identity; zero sign_within sites outside geom-core; K=25
+  band-reach re-exec; K CSVs byte-reproduced from scratch at all 3 ε
+  rows with every reported number re-derived independently
+  (13,282/row, 63 predicates, 0 in-band; counterfactual table
+  confirmed); STL parsed by independent spec-derived parsers (byte
+  layout, LE, constant header, f32-cast identity, unit outward
+  normals, ASCII↔binary bit-agreement, subnormal round-trips);
+  determinism incl. debug↔release print_stl_hashes both profiles run
+  by the reviewer; admesh gate non-vacuous under 5 byte-level
+  mutation classes (a normal-only flip FAILS as "reversed" — cannot
+  hide under the un-gated "Normals fixed"); consumer e2e (vase +
+  bracket, public API only) through to external verification; full
+  gate matrix re-run green. OBS: 3 refusal-path predicates never fire
+  on the all-valid corpus (scoping sentence added to K-REPORT in the
+  fix pass).
+
+### PR 7 fix pass — section to follow.
 
 ## M3-PLAN drafted and ratified mid-M2 (2026-07-20/21, PR #42)
 
