@@ -37,7 +37,8 @@
 //! reclassified by the same table as if it were an edge entry — this
 //! matches the book, which stores duplicates indistinguishably in the
 //! same array, and is harmless: a duplicate only relays its sector's
-//! side into the run structure.) The witnesses **contradict** on the two symmetric cases
+//! side into the run structure.) The witnesses **contradict** on the
+//! two symmetric cases
 //! (book Program 14.6: AOA→BELOW, BOB→ABOVE; TOG §3: AOA→ABOVE,
 //! BOB→BELOW; both: AOB→BELOW, BOA→BELOW). Derive from the stated
 //! purpose — nonmanifold configurations must come out as DISCONNECTED
