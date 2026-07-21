@@ -1,14 +1,12 @@
 # M3 Work Order — Splitting, Booleans, Cross-Shell Surgery
 
-**Status: DRAFT for ratification** (the #24 pattern: forks below carry firm
-recommendations; nothing merges without Evan's sign-off; the ratified plan
-becomes the binding record and PRs cite it). **Fork resolution so far (the
-#42 conversation, 2026-07-20)**: F2 resolved with Evan's explicit-intent
-condition (invariant text under F2); F5 resolved — curved intersections
-deferred to M5 as a unit, M3 planar-only, no speculative curved-readiness
-abstraction; F8's ∅-as-typed-success confirmed; F1/F3/F4/F6/F7/F9 treated
-as ratified-with-the-plan per Evan (method commitments / forced by ratified
-principles). Awaiting final 👍 on this updated text.
+**Status: RATIFIED** (the #42 conversation, 2026-07-20 — Evan's sign-off on
+the full text). Fork resolutions: F2 with Evan's explicit-intent condition
+(invariant text under F2); F5 — curved intersections deferred to M5 as a
+unit, M3 planar-only, no speculative curved-readiness abstraction; F8's
+∅-as-typed-success confirmed; F1/F3/F4/F6/F7/F9 ratified-with-the-plan
+(method commitments / forced by already-ratified principles). This is the
+binding record; M3 PRs cite it.
 
 Read `DESIGN.md` first (D1 incl. tiers, D2, D4, D9, the Banked principles —
 especially coincidence "structural or declared, never inferred from values",
