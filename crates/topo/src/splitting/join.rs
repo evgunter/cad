@@ -91,6 +91,17 @@ pub enum SplitJoinError {
     /// pure-tangency residue (rule (b) adjudication record): the
     /// degenerate side has no real material, and no degenerate body is
     /// ever emitted.
+    ///
+    /// This refusal is orientation-DEPENDENT: it fires iff the pinched
+    /// pieces lie on the NEGATIVE side of the given plane normal (the
+    /// below side, where the book's machinery would need below-vertex
+    /// copies it cannot mint). The same solid under the flipped normal
+    /// may succeed: `split(S, n)` refuses exactly where
+    /// `swap(split(S, −n))` returns the same physical decomposition —
+    /// callers hitting this error can flip the plane normal and swap
+    /// the resulting above/below pieces as a workaround. Op SUCCESS is
+    /// thus not orientation-invariant; the piece-assignment
+    /// equivariance principle (PR 2) is unaffected.
     DegenerateSection {
         /// The completed null face.
         face: FaceKey,
@@ -379,6 +390,13 @@ impl<T: Decide> Sweep<T> {
             };
             body.mekr_chord(MekrSite::Cycles { target, ring })?;
         }
+        // Second-chord guard: when the two halves are already adjacent
+        // the second mef (and with it the laringmv site below) is
+        // skipped. Book-faithful (Program 14.10 places the guard here);
+        // no legal fixture reaching the skip was found in PR 3's
+        // review. WATCH ITEM for PR 4/5's join reuse: if a boolean-path
+        // fixture reaches this window, verify ring re-homing still
+        // happens where it must.
         if next(body, next(body, h1)?)? != h2 {
             let created = body.mef_chord(MefSite::Chords {
                 he1: h2,

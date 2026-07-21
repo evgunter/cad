@@ -409,9 +409,18 @@ fn one_sided_tangency_refused_typed() {
 /// pieces touching via coincident-but-distinct edges) additionally
 /// requires below-side vertex copies at the pinch — duplication the
 /// book's machinery (copies for ABOVE runs only) cannot mint. The
-/// zero-area net catches it and refuses typed; the same refusal hits
-/// the notched block under the FLIPPED plane (±n equivariance of the
-/// refusal — the physical configuration is the same).
+/// zero-area net catches it and refuses typed.
+///
+/// The refusal is orientation-DEPENDENT, not ±n-equivariant: it fires
+/// iff the pinched pieces lie on the NEGATIVE side of the given
+/// normal (the below side, where the book's machinery would need
+/// below-vertex copies it cannot mint). MIRRORED under (o, −n)
+/// SUCCEEDS; `split(S, n)` refuses exactly where `swap(split(S, −n))`
+/// returns the same physical decomposition (the flip-and-swap
+/// workaround). PR 2's equivariance principle — physical piece
+/// ASSIGNMENT is orientation-invariant — still holds; op SUCCESS is
+/// not. This test pins two BOB presentations that both place the
+/// pinch on the negative side: (MIRRORED, +n) and (NOTCHED, −n).
 #[test]
 fn bob_mirror_pinch_refuses_typed() {
     let fx = prism::<f64>(MIRRORED, 1.0);
@@ -424,8 +433,9 @@ fn bob_mirror_pinch_refuses_typed() {
         "got {err:?}"
     );
 
-    // Equivariance of the refusal: NOTCHED under (o, −n) is the same
-    // physical configuration and refuses identically.
+    // Second BOB presentation: NOTCHED under (o, −n) also places the
+    // pinch on the negative side of the normal and refuses identically.
+    // (NOT equivariance — MIRRORED under (o, −n) succeeds.)
     let fx = prism::<f64>(NOTCHED, 1.0);
     let flipped = SplitPlane {
         origin: Point3::new(0.0, 1.0, 0.0),
