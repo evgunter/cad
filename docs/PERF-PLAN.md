@@ -163,10 +163,21 @@ parallelizing surgery.
 
 ### 2.3 Micro level (profile-gated; mostly "not yet")
 
-- Cheap now: `[profile.dev.package.spade] opt-level = 2` (and libm,
-  inari) — dev-lane tessellation and interval tests get most of
-  release speed while keeping our own crates debuggable. Near-zero
-  cost, real dev-loop win.
+- Cheap now, **landed and measured** (#52/#54, 2026-07-21):
+  `[profile.dev.package]` opt-level 2 for `spade` + `mesh` is in main.
+  Two measured lessons narrowed the original recommendation: (i)
+  blanket opt-2 via CI profile env is net-SLOWER on core-crate PRs —
+  the per-push recompile of the changed crate graph plus all test
+  binaries costs more than the test time saved (#52, reverted); (ii)
+  per-package lib overrides capture only part of the win (91.7s →
+  37.4s on the worst test, not the whole-graph 15x) because generic
+  `T: Real` hot code monomorphizes into the CALLING crate's binaries,
+  which lib-level overrides can't reach — so overrides stay confined
+  to rarely-edited packages, and the full whole-graph speedup lives in
+  `scripts/test-fast.sh` as an opt-in local recipe where warm caches
+  absorb the build cost. The same monomorphization fact will apply to
+  any future "optimize the hot dep" plan: measure at the binary that
+  instantiates the generics, not the crate that defines them.
 - Later, evidence-gated: SoA layouts for batch predicate/cert
   sampling; LTO/PGO on release; SIMD in BVH traversal. All premature
   before the criterion harness (§5) exists to show a win.
@@ -368,16 +379,20 @@ developer run to re-check what CI checks better. Recommended shape:
 
 **Now (during M3) — three cheap things, nothing else:**
 
-1. **Criterion benchmark harness in CI as a trend line, not a gate**
-   (wall-clock gates on shared runners manufacture flaky tests).
-   Five scenarios: washer tessellation at δ ∈ {1e-4, 1e-6} (re-pins
-   the module-doc numbers), tier-2+3 validation of a revolved body,
-   mass props, extrude build, and — once M3 PR 5 lands — the
-   two-brick boolean. Archived per commit; regressions read off the
-   trend, not a threshold.
-2. **Dev-profile opt-level for hot deps** (`spade`, inari's backends,
-   `libm`): one Cargo.toml stanza, immediate dev-loop relief on
-   tessellation-heavy tests.
+1. **Criterion benchmark harness — post-merge only, never a PR gate**
+   (Evan, #49 review): runs on pushes to main (and optionally
+   path-filtered to fire only when perf-relevant crates changed), so
+   no PR waits on it and no shared-runner wall-clock flake can block
+   a merge; regressions are read off the archived per-commit trend,
+   not a threshold. Five scenarios: washer tessellation at
+   δ ∈ {1e-4, 1e-6} (re-pins the module-doc numbers), tier-2+3
+   validation of a revolved body, mass props, extrude build, and —
+   once M3 PR 5 lands — the two-brick boolean. Adding it can wait
+   until an optimization PR actually needs the baseline; the trend
+   only has to exist before the first change it would police.
+2. **Dev-profile opt-level for hot deps** — DONE, narrowed by
+   measurement to `spade` + `mesh` plus the local `test-fast.sh`
+   recipe (§2.3).
 3. **Ratify §2.2's parallelism idioms into DESIGN.md (D9)** — a
    paragraph, so the first rayon PR cites vocabulary instead of
    re-litigating determinism.
@@ -410,15 +425,14 @@ benchmark gates; micro-tuning validators or mass props.
 
 - **Q-P1**: Ratify the §3.3 GPU boundary table and §2.2 parallelism
   idioms into DESIGN.md (D9 addendum), or keep this doc advisory?
-- **Q-P2**: Idealized/realized as recommended (§4: selective, CI
-  differential pin, `shadow-exec` opt-in) — or do you want the
-  stronger form (shadow always-on in debug) despite §4.5's argument?
-- **Q-P3**: Preview lane semantics: is an *uncertified* degraded
-  preview (GPU or coarse-δ CPU) acceptable product behavior, given
-  fail-loud? (Precedent says yes — the ratified SSI preview stance —
-  but rendering a not-yet-validated body during a drag deserves an
-  explicit yes.)
-- **Q-P4**: Benchmark trend line in CI now (during M3) vs. deferring
-  the harness to M4's corpus work. Recommendation: now — it is an
-  afternoon, and M3's booleans are the first workload worth watching
-  from birth.
+- **Q-P2** — ANSWERED (Evan, #49, 2026-07-21): as recommended —
+  selective adoption, CI differential pin, `shadow-exec` opt-in
+  ("exactly the kind of thing I was thinking of"); no always-on
+  debug shadow.
+- **Q-P3** — ANSWERED (Evan, #49, 2026-07-21): degraded previews are
+  acceptable.
+- **Q-P4** — ANSWERED (Evan, #49, 2026-07-21): no pre-merge gate.
+  The harness runs post-merge on main (optionally path-filtered to
+  perf-relevant crates), and adding it is deferred until an
+  optimization PR needs the baseline — the trend must merely predate
+  the first change it would police.
