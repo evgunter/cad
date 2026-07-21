@@ -145,11 +145,11 @@ interval lane). Survived the WSL host crash mid-implementation
   open PR with full writeup incl. the four ratification flags,
   self-merge on green.
 - **Standing process**: per the conventions section above; Evan's
-  away-channel is GitHub comments (running thread: #41) [CORRECTED
-  2026-07-21, session 2: inbound only — watch for Evan's comments,
-  but do NOT post status updates to GitHub unless explicitly asked;
-  Evan doesn't review comments on old merged PRs. See
-  memories/orchestration-model.md]; only genuine
+  away-channel is GitHub comments (running thread: #41) [REFINED
+  2026-07-21, session 2: watch for Evan's inbound comments; outbound
+  status posts are likely missed unless he asked or is active in the
+  thread; questions for Evan go out as design-doc-editing PRs (or
+  issues) — see memories/orchestration-model.md]; only genuine
   design forks wait for Evan (M3-PLAN's forks are all resolved; F4's
   rule-(b) adjudication is a method commitment executed in PR 2, not
   a fork).
