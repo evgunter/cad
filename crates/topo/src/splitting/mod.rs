@@ -29,10 +29,10 @@
 //! 4. **Neighborhood classification** per ON vertex: the vertex orbit
 //!    becomes a typed sector array ([`SectorEntry`] — no parallel raw
 //!    arrays), wide/reflex sectors stored twice with a bisector entry
-//!    ([`neighborhood`] — the convex-subdivision derivation), rule (a)
+//!    (`neighborhood` — the convex-subdivision derivation), rule (a)
 //!    via the F3 primitive [`geom_brep::enters_material`] and rule (b)
 //!    per the F4 adjudication ([`rules`] — the derivation lives there).
-//! 5. **Null-edge insertion** ([`insert`]): an explicit transition-pair
+//! 5. **Null-edge insertion** (`insert`): an explicit transition-pair
 //!    run scan in worklist form (sidesteps the Program 14.7
 //!    head-rebinding erratum structurally), one
 //!    [`crate::Body::mev_null`] per ABOVE-run, orientation recorded as
@@ -90,8 +90,8 @@ pub enum SectorEntryKind {
     Edge,
     /// The duplicate entry of a wide (≥180°) sector, classified by the
     /// sector's interior bisector direction (convex subdivision — see
-    /// [`neighborhood`]). Shares its half-edge with the preceding
-    /// [`SectorEntryKind::Edge`] entry.
+    /// the `neighborhood` module docs). Shares its half-edge with the
+    /// preceding [`SectorEntryKind::Edge`] entry.
     WideBisector,
 }
 
@@ -99,7 +99,7 @@ pub enum SectorEntryKind {
 /// vertex orbit plus its (re)classification. Entry `k` implicitly names
 /// the sector between entry `k` and entry `k+1` (cyclic); that sector's
 /// face is `face(loop(mate(entries[k].he)))` under our orbit
-/// conventions (derived in [`neighborhood`]).
+/// conventions (derived in the `neighborhood` module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SectorEntry {
     /// The orbit half-edge (starts at the base vertex).
