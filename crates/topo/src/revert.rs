@@ -43,6 +43,13 @@
 //! untouched, both bodies remain usable (Problem 15.7's
 //! both-results-free, inherited by ∖'s use of revert).
 //!
+//! **Validity class**: a reverted body is **tier-2 currency** — every
+//! structural invariant and every certification survives the map — but
+//! deliberately NOT tier-3: it bounds the complement, so the +V
+//! invariant fails (exactly `NegativeVolume`, pinned by test). That is
+//! correct, not a defect: `revert(B)` is ∖'s transient operand, never
+//! an at-rest solid handed across the API.
+//!
 //! Serves ch. 15 `setopfinish` (difference reverts `B`'s kept
 //! component) and the `A ∖ B ≡ A ∩ revert(B)` oracle (M3 PR 5).
 
