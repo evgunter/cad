@@ -817,6 +817,19 @@ impl<T: Decide> Body<T> {
     /// reclassify the split face's rings and `kfmrh` requires `f2`
     /// ring-free.
     ///
+    /// **This op is also ch. 14's `laringmv`** (M3 PR 1 — ring
+    /// re-homing after splits change containment; serves ch. 14
+    /// `splitconnect` joining, M3 PR 3). Division of labor, ratified
+    /// with the M3 plan: the *containment decision* — which face a
+    /// ring now geometrically belongs to — is the **caller's**, made
+    /// in the splitting/boolean pipeline through PR 2's trilean
+    /// point-in-loop classification machinery. `ring_move` takes the
+    /// target face explicitly and validates only structural legality
+    /// (the ring's current owner, target in the same shell); it never
+    /// runs a geometric containment check itself, so a wrong target is
+    /// the caller's bug, surfaced by the designation-sensitive
+    /// consumers (tier-3 region checks, mass properties), not here.
+    ///
     /// Pure reparenting: the ring leaves its face's `rings`, joins
     /// `to_face.rings` (appended — deterministic order), and its `face`
     /// back-pointer is repointed. Moving a ring to its own face is a

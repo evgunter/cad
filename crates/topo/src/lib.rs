@@ -138,6 +138,7 @@ pub mod null;
 pub mod split;
 pub mod props;
 pub mod provenance;
+pub mod revert;
 #[cfg(test)]
 mod review_m0_pr7;
 #[cfg(test)]
@@ -174,4 +175,5 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use split::SplitEdgeCreated;
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
+pub use revert::RevertError;
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};
