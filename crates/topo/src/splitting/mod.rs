@@ -1,7 +1,12 @@
-//! Plane-splitting, part 1 (M3 PR 2): **reduction + vertex-neighborhood
-//! classification** — ch. 14's `splitgenerate` + `splitclassify`
-//! re-derived under our conventions, ending at null-edge insertion. The
-//! joining/finish half and the public `split` op are PR 3.
+//! Plane-splitting (M3 PRs 2 + 3): ch. 14 end to end, re-derived under
+//! our conventions. PR 2 built **reduction + vertex-neighborhood
+//! classification** (`splitgenerate` + `splitclassify`, this module +
+//! `classify`/`neighborhood`/`rules`/`insert`); PR 3 adds **joining**
+//! (`join` — `splitconnect`, with the total in-plane lexicographic
+//! `order` and the `containment` trilean for ring re-homing),
+//! **finish** (`finish` — `splitfinish`: section-face promotion,
+//! component distribution, the carve into two result bodies), the
+//! public [`split`] op, and **slicing** ([`plane_section`], `section`).
 //!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
@@ -39,9 +44,11 @@
 //!    F9 **data** (`NullEdge { below_end, above_end }`), ≥2 disjoint
 //!    ABOVE-runs handled and tested.
 //!
-//! The result ([`SplitReduction`]) is the annotated body ready for
-//! PR 3's joining: cached per-vertex sides, the ON set, and the minted
-//! null edges with their side attributes.
+//! The result ([`SplitReduction`]) is the annotated body the joining
+//! step consumes: cached per-vertex sides, the ON set, and the minted
+//! null edges with their side attributes. [`split`] composes
+//! reduce → join → finish; [`plane_section`] stops after join and
+//! reads the polygons off the scratch clone.
 
 mod classify;
 pub mod containment;

@@ -55,6 +55,10 @@ use geom_surfaces::Surface;
 /// One side of a split result: a real body, or the typed empty side
 /// (the plane missed the material on that side entirely — never an
 /// empty `Body` value).
+// The size skew against `Empty` is inherent (a Body is ~20 words of
+// arena headers) and the value is moved at most once out of `split`;
+// boxing would tax every real-result access to slim the rare Empty.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum SplitPart<T: Real> {
     /// The side's material, as an independent body.
@@ -364,11 +368,8 @@ fn classify_shell<T: Decide>(
                     .get_half_edge(he)
                     .ok_or(SplitFinishError::Corrupt)?
                     .start;
-                match sides.get(v) {
-                    Some(&s @ (PlaneSide::Above | PlaneSide::Below)) => {
-                        return Ok((s, has_real_face));
-                    }
-                    _ => {}
+                if let Some(&s @ (PlaneSide::Above | PlaneSide::Below)) = sides.get(v) {
+                    return Ok((s, has_real_face));
                 }
             }
         }

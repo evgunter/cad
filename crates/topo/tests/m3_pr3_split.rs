@@ -14,7 +14,7 @@ mod common;
 use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, PlaneSide, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
+    Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
     mass_properties, plane_section, split, validate_closed,
 };
 
