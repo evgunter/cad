@@ -34,6 +34,11 @@ gathered across M2's full pipeline.
   ```
 
 - Rows: ε ∈ {1e-6, 1e-9, 1e-12}. Raw CSVs: `docs/k-report-data/`.
+- Scope: the corpus is all-valid by construction, so refusal-path
+  predicates that only fire on invalid input never sample here (dead
+  on this corpus: `carrier_circles_internal`, `collinear_overlap`,
+  `extrusion_obliquity`) — refusal-path margin statistics await an
+  adversarial corpus (D7 / M3).
 - Normalization: the K-relevant statistic is `|margin| / band_zero`
   (how many ε the margin clears the coincidence threshold by).
   Flagged classes:

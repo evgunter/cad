@@ -108,6 +108,38 @@ fn require_extent<T: Decide>(margin: T, band: Band) -> Result<(), PropsError> {
     }
 }
 
+/// Rim incidence on its surface of revolution (M2 PR 7 review F1:
+/// shape checks alone — radius fit, definite axis class — accept
+/// circles nowhere on the surface). Certifies, with `w` the rim center
+/// minus the surface's axis origin:
+///
+/// - carrier axis **parallel** to the surface axis (the definite axis
+///   class only pins `n_c·â ≠ 0`): margin `‖n_c × â‖·r_c` — the
+///   tilt angle metered at the rim radius (lever arm `r_c`);
+/// - rim center **on the axis line**: margin `‖w − â(w·â)‖`, the
+///   center's perpendicular offset from the axis (already meters).
+///
+/// Together with the per-surface radius/level fit these pin the rim
+/// circle pointwise onto the surface.
+fn require_rim_incidence<T: Decide>(
+    w: Vec3<T>,
+    n_c: Vec3<T>,
+    r_c: T,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    require_zero(
+        "props_rim_axis_parallel",
+        n_c.cross(axis).norm() * r_c,
+        band,
+    )?;
+    require_zero(
+        "props_rim_center_on_axis",
+        (w - axis * w.dot(axis)).norm(),
+        band,
+    )
+}
+
 /// A classified rim: signed `u`-traversal direction (`d_u`), parameter
 /// span (`dt`, the face's `Δu` candidate), and its iso-level payload.
 struct Rim<T: Real> {
@@ -182,6 +214,16 @@ fn cylinder<T: Decide>(
                     dir.cross(axis).norm() * (e.t1 - e.t0),
                     band,
                 )?;
+                // Incidence: the (certified-axial) line lies on the
+                // cylinder iff one of its points does — radial distance
+                // of the interval start from the axis vs the radius
+                // (meters).
+                let w0 = e.p0() - origin;
+                require_zero(
+                    "props_meridian_on_surface",
+                    (w0 - axis * w0.dot(axis)).norm() - radius,
+                    band,
+                )?;
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
             }
@@ -198,6 +240,7 @@ fn cylinder<T: Decide>(
                     });
                 }
                 require_zero("props_rim_fit", r_c - radius, band)?;
+                require_rim_incidence(center - origin, n_c, r_c, axis, band)?;
                 let v = (center - origin).dot(axis);
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
@@ -264,6 +307,15 @@ fn cone<T: Decide>(
                     (dir.dot(axis).abs() - cos_a) * (e.t1 - e.t0),
                     band,
                 )?;
+                // Incidence: a line at the generator angle is a
+                // generator iff it passes through the apex — the
+                // apex-to-line distance `‖(apex − p) × dir‖` (`dir`
+                // unit, so meters directly).
+                require_zero(
+                    "props_meridian_apex",
+                    (apex - e.p0()).cross(dir).norm(),
+                    band,
+                )?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
@@ -281,6 +333,7 @@ fn cone<T: Decide>(
                 }
                 let v = (center - apex).dot(axis) / cos_a;
                 require_zero("props_rim_fit", r_c - v.abs() * sin_a, band)?;
+                require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
                     dt: e.t1 - e.t0,
@@ -363,6 +416,11 @@ fn sphere<T: Decide>(
                     (w.norm_squared() + r_c.powi(2)).sqrt() - radius,
                     band,
                 )?;
+                // Incidence: the fit above only fixes ‖w‖; the offset
+                // must also point ALONG the axis (w ∥ â) with the
+                // carrier axis parallel — together they place the
+                // circle on the sphere as the iso-v rim.
+                require_rim_incidence(w, n_c, r_c, axis, band)?;
                 let sin_v = w.dot(axis) / radius;
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
@@ -479,6 +537,7 @@ fn torus<T: Decide>(
                     ((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one()) * minor,
                     band,
                 )?;
+                require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
                     dt: e.t1 - e.t0,
@@ -495,6 +554,13 @@ fn torus<T: Decide>(
                     (rho - major).abs().max(h.abs()).max((r_c - minor).abs()),
                     band,
                 )?;
+                // Incidence: the minor circle's plane must CONTAIN the
+                // torus axis direction — its normal `n_c` has no radial
+                // component (the definite `n_c·τ̂` orientation check
+                // below only excludes n_c ⊥ τ̂). Margin
+                // `n_c·(w − âh) = (n_c·ρ̂)·ρ`: the tilt metered at the
+                // tube-center distance (lever arm ρ ≈ R, meters).
+                require_zero("props_meridian_plane", n_c.dot(w - axis * h), band)?;
                 meridians.push(Meridian {
                     n_c,
                     c_c,

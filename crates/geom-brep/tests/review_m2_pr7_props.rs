@@ -715,19 +715,15 @@ fn out_of_inventory_boundaries_refuse_typed() {
     ));
 }
 
-/// REVIEW FINDING (M2 PR 7): the structural iso-rectangle gate checks
-/// carrier SHAPE consistency (radius fits, axis classes) but not
-/// INCIDENCE on the surface — a boundary circle with the right radius
-/// and an axis-parallel carrier axis but an off-axis center (a curve
-/// nowhere on the cylinder) is accepted silently with a fabricated
-/// contribution, and a tilted circle through the axis class's definite
-/// branch likewise slips the "rim" role. Desired behavior per the
-/// module docs ("anything else is a typed PropsError"): refuse. This
-/// test asserts the desired behavior and FAILS at the PR 7 tip — fix
-/// pass material. (Unreachable through validated bodies: tier-3
-/// carrier re-certification pins boundary incidence; `mass_properties`
-/// is public on unvalidated bodies, where this is a silent wrong
-/// number.)
+/// REVIEW FINDING (M2 PR 7, fixed in the fix pass): the structural
+/// iso-rectangle gate checked carrier SHAPE consistency (radius fits,
+/// axis classes) but not INCIDENCE on the surface — a boundary circle
+/// with the right radius and an axis-parallel carrier axis but an
+/// off-axis center (a curve nowhere on the cylinder) was accepted
+/// silently with a fabricated contribution. The fix adds the
+/// `props_rim_center_on_axis` / `props_rim_axis_parallel` /
+/// per-surface meridian incidence residuals; the off-axis rim now
+/// refuses typed (`NotIsoRectangle`), matching the module docs.
 #[test]
 fn off_surface_boundaries_must_refuse_typed() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
@@ -755,7 +751,12 @@ fn off_surface_boundaries_must_refuse_typed() {
     };
     let edges = vec![rim(0.0, 0.0, true, 0), rim(1.0, 0.4, false, 1)];
     assert!(
-        curved_face(&s, &edges, band()).is_err(),
+        matches!(
+            curved_face(&s, &edges, band()),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_center_on_axis"
+            })
+        ),
         "off-surface rim (center off the axis) must be a typed refusal, \
          not a silently fabricated contribution"
     );
