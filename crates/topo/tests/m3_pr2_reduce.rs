@@ -313,3 +313,215 @@ fn rule_a_mirror_senses() {
     let (to_other, _, _) = bucket_entries(&fx.body, &plane_y1(), a, b);
     assert_eq!(to_other, vec![PlaneSide::Above]);
 }
+
+/// Mirror checks for the orbit conventions on an asymmetric solid: the
+/// sector CW-after a half-edge is `face(loop(mate(he)))` (the derived
+/// adjacency the classifier stands on — a mirrored kernel would put
+/// the cap face there instead), and `half_edge_end` is the final
+/// vertex. Checked at the V-notch tip where all three faces differ.
+#[test]
+fn orbit_sector_adjacency_mirror() {
+    let fx = prism::<f64>(NOTCHED, 1.0);
+    let body = &fx.body;
+    let tip = vertex_at(body, 4.0, 1.0, 0.0);
+    let anchor = body.get_vertex(tip).unwrap().emanating.unwrap();
+    let orbit = body.vertex_orbit(anchor).unwrap();
+    assert_eq!(orbit.len(), 3);
+    let sector_face_of = |he| {
+        let mate = body.mate(he).unwrap();
+        let l = body.get_half_edge(mate).unwrap().parent_loop;
+        body.get_loop(l).unwrap().face
+    };
+    for &he in &orbit {
+        // Final vertex (= start(next(he)), never stored) identifies
+        // each orbit edge.
+        let end = body.half_edge_end(he).unwrap();
+        let p = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
+        // Segment index 5 = (5,2)→(4,1) is slant R; 6 = (4,1)→(3,2)
+        // is slant L; the strut's CW sector is slant L's face and the
+        // slant edges' CW sectors are slant R / cap respectively.
+        let expected_face = match (p.x, p.y, p.z) {
+            (5.0, 2.0, 0.0) => fx.side_faces[5], // e_R: CW sector = slant R
+            (4.0, 1.0, 1.0) => fx.side_faces[6], // strut: CW sector = slant L
+            (3.0, 2.0, 0.0) => fx.bottom_face,   // e_L: CW sector = cap
+            other => panic!("unexpected orbit end {other:?}"),
+        };
+        assert_eq!(sector_face_of(he), expected_face);
+    }
+}
+
+/// Coplanar-face split of the whole cube top — rule (a) both senses on
+/// the same body (the sign-mirror test the ch. 14 notes demand): with
+/// n_SP = +z the top face's sectors go BELOW (no ABOVE run anywhere,
+/// zero null edges); with n_SP = −z everything flips ABOVE — and the
+/// convex top corners produce NO wide-sector duplicates (the
+/// checkwideness mirror's convex side; the notch tip is its reflex
+/// side).
+#[test]
+fn cube_coplanar_top_both_senses() {
+    let cube = common::geometric_cube::<f64>();
+    for (nz, expect) in [(1.0, PlaneSide::Below), (-1.0, PlaneSide::Above)] {
+        let plane = SplitPlane {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Vec3::new(0.0, 0.0, nz),
+        };
+        let red = split_reduce(&cube.body, &plane).unwrap();
+        assert_eq!(red.on_vertices.len(), 4);
+        assert!(red.null_edges.is_empty(), "one-sided: no separation");
+        // Every non-ON vertex is on the material side.
+        for (v, _) in cube.body.vertices() {
+            if !red.on_vertices.contains(&v) {
+                assert_eq!(red.sides[v], expect);
+            }
+        }
+        // Entry-level: a top corner's entries all carry the rule-(a)
+        // sense; convex corners mint no bisector duplicates.
+        let (sides, on) = topo::vertex_sides(&cube.body, &plane).unwrap();
+        let entries =
+            classify_neighborhood(&cube.body, &plane, &sides, on[0], Band::linear().unwrap())
+                .unwrap();
+        assert_eq!(entries.len(), 3);
+        assert!(
+            entries
+                .iter()
+                .all(|e| e.kind == topo::SectorEntryKind::Edge)
+        );
+        for e in &entries {
+            let end_side = sides[cube.body.half_edge_end(e.he).unwrap()];
+            if end_side == PlaneSide::On {
+                assert_eq!(e.class, expect, "rule (a) sense for n_z = {nz}");
+            }
+        }
+    }
+}
+
+/// F6 teeth: a vertex inside the sliver band (3ε off the plane at
+/// K = 10) is a typed escalation, never a snap — the book's EPS
+/// conscription engineered out.
+#[test]
+fn sliver_vertex_escalates() {
+    let eps = geom_core::Tolerance::get().eps;
+    let profile = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0 + 3.0 * eps),
+        (0.0, 1.0 + 3.0 * eps),
+    ];
+    let fx = prism::<f64>(&profile, 1.0);
+    match split_reduce(&fx.body, &plane_y1()) {
+        Err(SplitReduceError::SliverVertex { .. }) => {}
+        other => panic!("expected SliverVertex, got {other:?}"),
+    }
+}
+
+/// F5 teeth: any non-Plane face refuses with the typed
+/// curved-unsupported error before any classification.
+#[test]
+fn curved_face_refuses() {
+    let mut cube = common::geometric_cube::<f64>();
+    cube.body
+        .set_face_surface(
+            cube.seed.face,
+            topo::FaceSurface::New(geom_surfaces::Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 1.0),
+                axis: Vec3::new(1.0, 0.0, 0.0),
+                radius: 1.0,
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            }),
+        )
+        .unwrap();
+    let plane = plane_y1();
+    match split_reduce(&cube.body, &plane) {
+        Err(SplitReduceError::CurvedBooleanUnsupported { face }) => {
+            assert_eq!(face, cube.seed.face);
+        }
+        other => panic!("expected CurvedBooleanUnsupported, got {other:?}"),
+    }
+}
+
+/// Crossing surgery arrangement (mirror site: the split_edge argument
+/// pair — which side gets the new vertex): after reduction the x = 8
+/// bottom rim runs P1 → crossing → P2 as two chained edges through the
+/// ON vertex.
+#[test]
+fn crossing_split_arrangement() {
+    let fx = prism::<f64>(NOTCHED, 1.0);
+    let red = split_reduce(&fx.body, &plane_y1()).unwrap();
+    let crossing = *red
+        .on_vertices
+        .iter()
+        .find(|&&v| {
+            let p = *red
+                .body
+                .get_point(red.body.get_vertex(v).unwrap().point)
+                .unwrap();
+            p.x == 8.0 && p.y == 1.0 && p.z == 0.0
+        })
+        .unwrap();
+    let joins = |a: VertexKey, b: VertexKey| {
+        red.body.edges().any(|(_, e)| {
+            let s1 = red.body.get_half_edge(e.he_plus).unwrap().start;
+            let s2 = red.body.get_half_edge(e.he_minus).unwrap().start;
+            (s1 == a && s2 == b) || (s1 == b && s2 == a)
+        })
+    };
+    // The below child keeps the old (below-side) crossing vertex; the
+    // above child was carried to the null-edge ABOVE copy by the
+    // crossing vertex's own classification — read from the F9 record,
+    // not from any slot convention.
+    let copy = red
+        .null_edges
+        .iter()
+        .find(|r| r.at_vertex == crossing)
+        .unwrap()
+        .attr
+        .above_end;
+    assert!(joins(fx.bottom[1], crossing)); // (8,0,0) — below child
+    assert!(joins(copy, fx.bottom[2])); // (8,2,0) — above child, on the copy
+    assert!(joins(crossing, copy)); // the null edge itself
+    assert!(!joins(fx.bottom[1], fx.bottom[2]), "parent span is split");
+}
+
+/// The interval lane: the full notched-block reduction at
+/// `T = Interval` — every predicate margin is a singleton enclosure of
+/// the dyadic fixture values, so every verdict is definite and the
+/// census matches the f64 lane exactly (Q1's replay promise). The
+/// rule-(b) discriminating fixture is exercised at Interval through the
+/// tip-vertex census (2 null edges, distinct copies), per the F4
+/// requirement.
+#[cfg(feature = "interval")]
+#[test]
+fn interval_lane_notched_and_wedge() {
+    use geom_core::Interval;
+    for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 2usize)] {
+        let fx = prism::<Interval>(profile, 1.0);
+        let red = split_reduce(&fx.body, &plane_y1::<Interval>()).unwrap();
+        assert_eq!(red.on_vertices.len(), 10);
+        assert_eq!(red.null_edges.len(), 12);
+        // The V/Λ tip (profile corner index: NOTCHED 6, MIRRORED 2).
+        let tip_idx = if core::ptr::eq(profile, NOTCHED) {
+            6
+        } else {
+            2
+        };
+        for vs in [&fx.bottom, &fx.top] {
+            let tip = vs[tip_idx];
+            let at_tip: Vec<_> = red
+                .null_edges
+                .iter()
+                .filter(|r| r.at_vertex == tip)
+                .collect();
+            assert_eq!(at_tip.len(), tip_expected);
+            assert_ne!(at_tip[0].attr.above_end, at_tip[1].attr.above_end);
+        }
+        // Dangling census: none for the notch (tangent edge), one per
+        // Λ-tip vertex for the wedge.
+        let dangling = red.null_edges.iter().filter(|r| r.dangling).count();
+        let expected_dangling = if core::ptr::eq(profile, NOTCHED) {
+            0
+        } else {
+            2
+        };
+        assert_eq!(dangling, expected_dangling);
+    }
+}
