@@ -177,6 +177,38 @@ pub(super) fn apply_rule_b(
     Ok(())
 }
 
+/// The face-extent lever arm for the coplanarity/sense predicates: the
+/// farthest distance from the base vertex to any vertex of the face's
+/// loops — the largest displacement a normal-angle error can induce
+/// across this face (D4 ¶1's "face extent" arm, computed, named).
+fn face_extent<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    face: FaceKey,
+) -> Result<T, SplitReduceError> {
+    let corrupt = || SplitReduceError::CorruptOperand { vertex };
+    let p_base = *body
+        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
+        .ok_or_else(corrupt)?;
+    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let mut extent = T::zero();
+    let loops = core::iter::once(face_data.outer).chain(face_data.rings.iter().copied());
+    for loop_key in loops {
+        let loop_data = body.get_loop(loop_key).ok_or_else(corrupt)?;
+        let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+            continue; // an empty loop contributes no extent
+        };
+        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+            let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
+            let p = *body
+                .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
+                .ok_or_else(corrupt)?;
+            extent = extent.max((p - p_base).norm());
+        }
+    }
+    Ok(extent)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -232,36 +264,4 @@ mod tests {
         let err = apply_rule_b(VertexKey::default(), &mut e).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
-}
-
-/// The face-extent lever arm for the coplanarity/sense predicates: the
-/// farthest distance from the base vertex to any vertex of the face's
-/// loops — the largest displacement a normal-angle error can induce
-/// across this face (D4 ¶1's "face extent" arm, computed, named).
-fn face_extent<T: Decide>(
-    body: &Body<T>,
-    vertex: VertexKey,
-    face: FaceKey,
-) -> Result<T, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let p_base = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
-    let mut extent = T::zero();
-    let loops = core::iter::once(face_data.outer).chain(face_data.rings.iter().copied());
-    for loop_key in loops {
-        let loop_data = body.get_loop(loop_key).ok_or_else(corrupt)?;
-        let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-            continue; // an empty loop contributes no extent
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            let p = *body
-                .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
-                .ok_or_else(corrupt)?;
-            extent = extent.max((p - p_base).norm());
-        }
-    }
-    Ok(extent)
 }

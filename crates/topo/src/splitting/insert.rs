@@ -70,48 +70,6 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
     runs
 }
 
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::*;
-    use crate::entity::HalfEdgeKey;
-
-    fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
-        classes
-            .iter()
-            .map(|&class| SectorEntry {
-                he: HalfEdgeKey::default(),
-                kind: SectorEntryKind::Edge,
-                class,
-            })
-            .collect()
-    }
-
-    use PlaneSide::{Above as A, Below as B};
-
-    /// One-sided neighborhoods produce no runs (tangent vertex — no
-    /// surgery); mixed neighborhoods produce one run per maximal ABOVE
-    /// stretch, including the wrap-around and ≥2 disjoint runs
-    /// (Fig. 14.9 / the Program 14.7 erratum case).
-    #[test]
-    fn run_enumeration() {
-        assert_eq!(above_runs(&entries(&[A, A, A])), vec![]);
-        assert_eq!(above_runs(&entries(&[B, B])), vec![]);
-        // Single run, wrapping the seam: entries 3,0 are one run.
-        assert_eq!(
-            above_runs(&entries(&[A, B, B, A])),
-            vec![AboveRun { start: 3, len: 2 }]
-        );
-        // Two disjoint runs around one vertex.
-        assert_eq!(
-            above_runs(&entries(&[A, B, A, A, B, B])),
-            vec![AboveRun { start: 2, len: 2 }, AboveRun { start: 0, len: 1 },]
-        );
-        // Three runs, each a single entry.
-        assert_eq!(above_runs(&entries(&[A, B, A, B, A, B])).len(), 3);
-    }
-}
-
 /// Executes the insertion worklist (module docs): one null edge per
 /// run, F9 attributes recorded, the copy cached ON.
 pub(super) fn insert_null_edges<T: geom_core::Decide>(
@@ -168,4 +126,46 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::entity::HalfEdgeKey;
+
+    fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
+        classes
+            .iter()
+            .map(|&class| SectorEntry {
+                he: HalfEdgeKey::default(),
+                kind: SectorEntryKind::Edge,
+                class,
+            })
+            .collect()
+    }
+
+    use PlaneSide::{Above as A, Below as B};
+
+    /// One-sided neighborhoods produce no runs (tangent vertex — no
+    /// surgery); mixed neighborhoods produce one run per maximal ABOVE
+    /// stretch, including the wrap-around and ≥2 disjoint runs
+    /// (Fig. 14.9 / the Program 14.7 erratum case).
+    #[test]
+    fn run_enumeration() {
+        assert_eq!(above_runs(&entries(&[A, A, A])), vec![]);
+        assert_eq!(above_runs(&entries(&[B, B])), vec![]);
+        // Single run, wrapping the seam: entries 3,0 are one run.
+        assert_eq!(
+            above_runs(&entries(&[A, B, B, A])),
+            vec![AboveRun { start: 3, len: 2 }]
+        );
+        // Two disjoint runs around one vertex.
+        assert_eq!(
+            above_runs(&entries(&[A, B, A, A, B, B])),
+            vec![AboveRun { start: 2, len: 2 }, AboveRun { start: 0, len: 1 },]
+        );
+        // Three runs, each a single entry.
+        assert_eq!(above_runs(&entries(&[A, B, A, B, A, B])).len(), 3);
+    }
 }

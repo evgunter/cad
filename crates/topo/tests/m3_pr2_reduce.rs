@@ -108,7 +108,7 @@ fn notched_block_reduction() {
                 0.0 => PlaneSide::Below,
                 1.0 => PlaneSide::On,
                 2.0 => PlaneSide::Above,
-                _ => unreachable!(),
+                other => panic!("no fixture corner has y = {other}"),
             };
             assert_eq!(side, expect, "corner {i} at ({x},{y},{z})");
         }
