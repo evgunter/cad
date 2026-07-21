@@ -751,6 +751,46 @@ three-part text in the plan); ∅ a typed success value. K dropped from
 the fork list (Evan: no approval needed; empirically reasonable value
 self-merges).
 
+## M2 EXIT (2026-07-21) — exit-criteria walk (M2-PLAN final section)
+
+- **Extruded and revolved parts (incl. ringed profile, genus-1
+  revolve, the ball, the cone) end-to-end from profile data through
+  public ops only** — DONE: L-prism, holed extrusion (g=1), washer
+  (g=1), ball, cone, donut, partial/axis wedges; acceptance + review
+  suites across PRs 4–7.
+- **Tier-1 after every op; tier-2 + tier-3 (residual certification +
+  orientation/volume invariant) at rest** — DONE: tier 3 implemented
+  PRs 3–7 (residuals, dihedral classification, prefer-intrinsic
+  enforcement, planar-boundary containment, +V invariant with the
+  exemption boundary pinned executable).
+- **Watertight STL exports verified externally** — DONE: admesh
+  0.98.4 check-only CI gate (`watertight` job), all 7 acceptance STLs
+  clean; gate proven non-vacuous under 5 byte-level mutation classes.
+- **Mass properties match closed forms within certified bounds** —
+  DONE: f64 ≤1e-12 rel; interval enclosures contain analytic values
+  (width ≤1e-9); reviewer's independent closed forms and quadrature
+  agree.
+- **CI green at ε ∈ {1e-6, 1e-9, 1e-12} + interval lane** — DONE:
+  78 suites/row, 0 failures; interval lane green (geometry
+  evaluators instantiate at Interval throughout).
+- **K report delivered, outcome ratified into Q1 residue** — DONE:
+  docs/K-REPORT.md FINAL (keep K = 10; now run-configured
+  `Tolerance.k` per Evan's #41 direction); Q1 residue closed in this
+  branch's DESIGN.md edit.
+- **New conventions ratified into DESIGN.md at exit** — DONE in this
+  branch: witness-midpoint (D2), prefer-intrinsic teeth (D2 +
+  tier 3), M2 structural conventions (single-shell/voids, minimal
+  sphere, parameterizations, profile format), chordal-δ ≠ kernel-ε
+  (D4).
+- Carried out of M2: mesh-side collinear-apex-fan drop at coarse δ
+  (PR 6 follow-up; the STL writer refuses typed meanwhile);
+  refusal-path K telemetry awaits an adversarial corpus (D7/M3);
+  debug-O(n²) per-op validation cost watch continues.
+
+**M2 is COMPLETE** upon this branch + PR #43 merging.
+
+## Design decisions with Evan, in-session (2026-07-19/20)
+
 - **`FullRevolveHoles` is permanent; voids are born only from
   booleans (Evan, 2026-07-20)**: PR 5's typed refusal of
   full-revolving holed profiles is upgraded from a scope deferral to
