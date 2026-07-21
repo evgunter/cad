@@ -30,7 +30,7 @@ use geom_core::{Band, Decide, Sign, Vec3};
 use super::plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation};
 use super::reduce::face_plane;
 use super::sectors::{BoolSector, PairRecord, side_code};
-use super::tables::{eq15_3_lump, resolve_verdict, table_ii, table_iii_rule};
+use super::tables::{eq15_3_lump, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
@@ -143,57 +143,74 @@ fn flankers(idx: usize, at_start: bool, n: usize) -> (usize, usize) {
     }
 }
 
-fn find_record(records: &[PairRecord], a: usize, b: usize) -> Option<usize> {
-    records.iter().position(|r| r.a == a && r.b == b)
+/// A germ host: a record matching `(a, b)` that still CARRIES an On
+/// code (cancelled/rewritten records are never resurrected as germs).
+fn find_on_record(records: &[PairRecord], a: usize, b: usize) -> Option<usize> {
+    records.iter().position(|r| {
+        r.a == a && r.b == b && (on_bound(r.sa).is_some() || on_bound(r.sb).is_some())
+    })
 }
 
-/// A flanking sector's Table II key: its NONcoplanar bound's code vs
-/// the reference face — read from an existing record if present, else
-/// computed directly.
+/// A flanking sector's Table II key: the GEOMETRIC side code of its
+/// noncoplanar bound (per TOG: a wide flanker keys by its bisector,
+/// which is exactly the twin-shared bound) against the reference face.
+/// Always computed fresh — post-15.10 record codes are resolutions,
+/// and reading them would hide the ON (coplanar test sector) case.
 fn flank_key<T: Decide>(
-    records: &[PairRecord],
     own: &[BoolSector<T>],
     idx: usize,
     key_from_start: bool, // true: the noncoplanar bound is the START
     ref_normal: Vec3<T>,
-    a_side: bool,
-    ref_idx: usize,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    let (a, b) = if a_side { (idx, ref_idx) } else { (ref_idx, idx) };
-    if let Some(ri) = find_record(records, a, b) {
-        let codes = if a_side { records[ri].sa } else { records[ri].sb };
-        return Ok(if key_from_start { codes.0 } else { codes.1 });
-    }
     let s = &own[idx];
     let bound = if key_from_start { s.start } else { s.end };
     side_code(bound, ref_normal, s.arm, band)
 }
 
-/// Rewrites a record's own-side On code to the transition partner of
-/// its other code, and marks it surviving.
-fn mark_germ(rec: &mut PairRecord, a_side: bool) -> Result<(), BooleanError> {
-    let codes = if a_side { &mut rec.sa } else { &mut rec.sb };
-    match on_bound(*codes) {
-        Some(true) => codes.0 = codes.1.opposite(),
-        Some(false) => codes.1 = codes.0.opposite(),
-        None => {
+/// Rewrites EVERY On code of a surviving germ record to the transition
+/// partner of its side's other code (both sides — a germ record with a
+/// grazing subdivision-bisector bound on the opposite side gets that
+/// graze resolved to the transition too), and marks it surviving.
+fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
+    for codes in [&mut rec.sa, &mut rec.sb] {
+        match on_bound(*codes) {
+            Some(true) => codes.0 = codes.1.opposite(),
+            Some(false) => codes.1 = codes.0.opposite(),
+            None => {}
+        }
+        let clean = (codes.0 == SideCode::In && codes.1 == SideCode::Out)
+            || (codes.0 == SideCode::Out && codes.1 == SideCode::In);
+        if !clean {
             return Err(BooleanError::ClassificationInvariant {
-                what: "germ record lost its On bound",
+                what: "germ record without a clean In/Out transition after rewrite",
             });
         }
-    }
-    if codes.0 == SideCode::On || codes.1 == SideCode::On {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "germ record still On after rewrite (consecutive On bounds)",
-        });
     }
     rec.intersect = true;
     Ok(())
 }
 
-/// `srecledges` (module docs): edge-edge coincidences first (the
-/// 4-sector angular sort), then single on-edges (Table II/III).
+/// `srecledges` (module docs) — the UNIFIED on-direction event engine:
+/// every On code of a surviving record names a bound direction (a real
+/// edge chord or a subdivision bisector); directions are grouped into
+/// ray events (parallel-same across both solids), and each event is
+/// resolved EXACTLY ONCE:
+///
+/// - real edge in BOTH solids ⇒ **edge-edge coincidence**: angular sort
+///   of the four flanking sectors around the common line; mixed order ⇒
+///   germ; coplanar ties per Table I rules (all-pairwise ⇒ none; else
+///   the noncoplanar complement pair per Table III).
+/// - real edge in ONE solid ⇒ **edge-sector coincidence**: Table II on
+///   the two flanking test sectors' keys (per TOG, a wide flanker keys
+///   by its bisector — exactly the twin's shared bound), Rule cells per
+///   Table III.
+/// - bisector-only ⇒ a **subdivision artifact graze**: the wide sector
+///   is genuinely crossed iff its two halves' outer keys transition.
+///
+/// The event's germ is marked on ONE deterministic record; every other
+/// surviving record carrying an On in the event is cancelled (unless it
+/// was itself germ-marked by an earlier event).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_edges<T: Decide>(
     records: &mut Vec<PairRecord>,
@@ -206,180 +223,141 @@ pub(super) fn recl_edges<T: Decide>(
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
-    // ---- Phase E: edge-edge coincidences. ----
-    let mut done_ee: std::collections::BTreeSet<(usize, usize)> = Default::default();
-    for i in 0..records.len() {
-        let r = records[i];
-        if !r.intersect {
-            continue;
-        }
-        let (Some(a_at_start), Some(b_at_start)) = (on_bound(r.sa), on_bound(r.sb)) else {
-            continue;
-        };
-        let (fa_s, fa_e) = flankers(r.a, a_at_start, n_a);
-        let (fb_s, fb_e) = flankers(r.b, b_at_start, n_b);
-        if !done_ee.insert((fa_s, fb_s)) {
-            continue; // this coincident-edge event is already resolved
-        }
-        let da = if a_at_start {
-            a_sectors[r.a].start
-        } else {
-            a_sectors[r.a].end
-        };
-        let db = if b_at_start {
-            b_sectors[r.b].start
-        } else {
-            b_sectors[r.b].end
-        };
-        let arm = a_sectors[r.a].arm.min(b_sectors[r.b].arm);
-        // Opposite rays: not a coincident edge pair — each on-edge is a
-        // separate edge-sector event; leave to Phase S.
-        if !parallel_same_dir(da, db, arm, band)? {
-            done_ee.remove(&(fa_s, fb_s));
-            continue;
-        }
-        let axis = da.normalize();
-        // Representative = the flanking sector's noncoplanar bound,
-        // projected ⊥ the common line. start-holder's other bound = its
-        // end; end-holder's other bound = its start.
-        let rep = |s: &BoolSector<T>, other_is_end: bool| -> Vec3<T> {
-            let v = if other_is_end { s.end } else { s.start };
-            v - axis * v.dot(axis)
-        };
-        let wa = [rep(&a_sectors[fa_s], true), rep(&a_sectors[fa_e], false)];
-        let wb = [rep(&b_sectors[fb_s], true), rep(&b_sectors[fb_e], false)];
-        // Tie detection: coplanar (A, B) sector pairs = parallel reps
-        // (either direction).
-        let mut coplanar_pair: Option<(usize, usize)> = None;
-        let mut coplanar_count = 0;
-        for (ai, wa_i) in wa.iter().enumerate() {
-            for (bi, wb_i) in wb.iter().enumerate() {
-                let m = wa_i.cross(*wb_i).norm() * arm;
-                match decide("bool_ee_rep_parallel", m, band) {
-                    Ok(Sign::Zero) => {
-                        coplanar_count += 1;
-                        if coplanar_pair.is_none() {
-                            coplanar_pair = Some((ai, bi));
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(diag) => return Err(BooleanError::Escalated { diag }),
-                }
-            }
-        }
-        let combos = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)];
-        let intersects = if coplanar_count >= 4 {
-            false // Fig. 20a: all pairwise coplanar ⇒ no intersection
-        } else if let Some((ai, bi)) = coplanar_pair {
-            // Table I tie rule: the noncoplanar COMPLEMENT pair decides
-            // per Table III (orientation of the coplanar pair;
-            // comparison adjudged A-versus-B — flagged).
-            let a_idx = if ai == 0 { fa_s } else { fa_e };
-            let b_idx = if bi == 0 { fb_s } else { fb_e };
-            let rel = require_same(
-                &plane_of(a_body, &a_sectors[a_idx])?,
-                &plane_of(b_body, &b_sectors[b_idx])?,
-                arm,
-                band,
-            )?;
-            table_iii_rule(op, Operand::A, rel)
-        } else {
-            // Generic: mixed angular order around the axis.
-            let in_arc_1 = within_arc(wa[0], wa[1], wb[0], axis, arm, band)?;
-            let in_arc_2 = within_arc(wa[0], wa[1], wb[1], axis, arm, band)?;
-            in_arc_1 != in_arc_2
-        };
-        if intersects {
-            let gi = find_record(records, fa_s, fb_s).ok_or(
-                BooleanError::ClassificationInvariant {
-                    what: "edge-edge germ record (start-holders) missing",
-                },
-            )?;
-            mark_germ(&mut records[gi], true)?;
-            mark_germ(&mut records[gi], false)?;
-            for (a, b) in combos {
-                if let Some(j) = find_record(records, a, b) {
-                    if j != gi {
-                        records[j].intersect = false;
-                    }
-                }
-            }
-        } else {
-            for (a, b) in combos {
-                if let Some(j) = find_record(records, a, b) {
-                    records[j].intersect = false;
-                }
+    // ---- Collect on-bound mentions from surviving records. ----
+    #[derive(Clone, Copy)]
+    struct Mention<T2: geom_core::Real> {
+        a_side: bool,
+        start_holder: usize,
+        real: bool,
+        dir: geom_core::Vec3<T2>,
+    }
+    let mut mentions: Vec<Mention<T>> = Vec::new();
+    for r in records.iter().filter(|r| r.intersect) {
+        for a_side in [true, false] {
+            let codes = if a_side { r.sa } else { r.sb };
+            let Some(at_start) = on_bound(codes) else {
+                continue;
+            };
+            let (secs, idx, n) = if a_side {
+                (a_sectors, r.a, n_a)
+            } else {
+                (b_sectors, r.b, n_b)
+            };
+            let (f_s, _) = flankers(idx, at_start, n);
+            let real = if at_start {
+                secs[idx].start_edge
+            } else {
+                secs[idx].end_edge
+            };
+            let dir = if at_start { secs[idx].start } else { secs[idx].end };
+            if !mentions
+                .iter()
+                .any(|m| m.a_side == a_side && m.start_holder == f_s)
+            {
+                mentions.push(Mention {
+                    a_side,
+                    start_holder: f_s,
+                    real,
+                    dir,
+                });
             }
         }
     }
-
-    // ---- Phase S: single on-edges (one side On, other side clean). ----
-    let mut done_s: std::collections::BTreeSet<(bool, usize, usize)> = Default::default();
-    for i in 0..records.len() {
-        let r = records[i];
-        if !r.intersect {
+    // ---- Group mentions into ray events and resolve each once. ----
+    let mut used = vec![false; mentions.len()];
+    let mut marked: Vec<usize> = Vec::new();
+    for i in 0..mentions.len() {
+        if used[i] {
             continue;
         }
-        for a_side in [true, false] {
-            let (own_codes, other_codes) = if a_side { (r.sa, r.sb) } else { (r.sb, r.sa) };
-            let Some(at_start) = on_bound(own_codes) else {
+        used[i] = true;
+        let mut group = vec![mentions[i]];
+        for j in (i + 1)..mentions.len() {
+            if !used[j] && parallel_same_dir(mentions[i].dir, mentions[j].dir, T::one(), band)? {
+                used[j] = true;
+                group.push(mentions[j]);
+            }
+        }
+        if group.iter().filter(|m| m.a_side).count() > 1
+            || group.iter().filter(|m| !m.a_side).count() > 1
+        {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "two distinct same-solid bounds share one ray (degenerate operand)",
+            });
+        }
+        let a_m = group.iter().find(|m| m.a_side).copied();
+        let b_m = group.iter().find(|m| !m.a_side).copied();
+
+        let germ: Option<usize> = match (a_m, b_m) {
+            (Some(am), Some(bm)) if am.real && bm.real => resolve_edge_edge(
+                records,
+                a_sectors,
+                b_sectors,
+                a_body,
+                b_body,
+                op,
+                band,
+                am.start_holder,
+                bm.start_holder,
+            )?,
+            (Some(am), bm) if am.real => resolve_edge_sector(
+                records,
+                a_sectors,
+                b_sectors,
+                a_body,
+                b_body,
+                op,
+                band,
+                true,
+                am.start_holder,
+                bm.map(|m| m.start_holder),
+            )?,
+            (am, Some(bm)) if bm.real => resolve_edge_sector(
+                records,
+                a_sectors,
+                b_sectors,
+                a_body,
+                b_body,
+                op,
+                band,
+                false,
+                bm.start_holder,
+                am.map(|m| m.start_holder),
+            )?,
+            (am, bm) => resolve_bisector_graze(
+                records,
+                a_sectors,
+                b_sectors,
+                band,
+                am.map(|m| m.start_holder),
+                bm.map(|m| m.start_holder),
+            )?,
+        };
+        if let Some(g) = germ {
+            mark_germ(&mut records[g])?;
+            marked.push(g);
+        }
+        // Cancel every other surviving record mentioning the event.
+        let in_event = |a_side: bool, holder: usize| {
+            group
+                .iter()
+                .any(|m| m.a_side == a_side && m.start_holder == holder)
+        };
+        for (j, rec) in records.iter_mut().enumerate() {
+            if Some(j) == germ || marked.contains(&j) || !rec.intersect {
                 continue;
-            };
-            if on_bound(other_codes).is_some() {
-                continue; // both sides On: an unresolved edge-edge remnant
             }
-            let n_own = if a_side { n_a } else { n_b };
-            let own_idx = if a_side { r.a } else { r.b };
-            let ref_idx = if a_side { r.b } else { r.a };
-            let (f_s, f_e) = flankers(own_idx, at_start, n_own);
-            if !done_s.insert((a_side, f_s, ref_idx)) {
-                continue;
+            let mut hit = false;
+            if let Some(at_start) = on_bound(rec.sa) {
+                let (f_s, _) = flankers(rec.a, at_start, n_a);
+                hit |= in_event(true, f_s);
             }
-            let (own_sectors, ref_sector) = if a_side {
-                (a_sectors, &b_sectors[ref_idx])
-            } else {
-                (b_sectors, &a_sectors[ref_idx])
-            };
-            // Table II keys: start-holder's key from its END bound,
-            // end-holder's from its START bound.
-            let k1 = flank_key(records, own_sectors, f_s, false, ref_sector.normal, a_side, ref_idx, band)?;
-            let k2 = flank_key(records, own_sectors, f_e, true, ref_sector.normal, a_side, ref_idx, band)?;
-            let (v1, v2) = table_ii(k1, k2);
-            let comparison = if a_side { Operand::A } else { Operand::B };
-            // Orientation (needed only for Rule/NotRule cells): the
-            // On-keyed flanker is coplanar with the reference.
-            let mut relation = PlaneRelation::SameOriented;
-            if matches!(
-                (v1, v2),
-                (super::tables::TableIiVerdict::Rule | super::tables::TableIiVerdict::NotRule, _)
-                    | (_, super::tables::TableIiVerdict::Rule | super::tables::TableIiVerdict::NotRule)
-            ) {
-                let on_flanker = if k1 == SideCode::On { f_s } else { f_e };
-                let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
-                    (a_body, b_body)
-                } else {
-                    (b_body, a_body)
-                };
-                relation = require_same(
-                    &plane_of(own_body, &own_sectors[on_flanker])?,
-                    &plane_of(ref_body, ref_sector)?,
-                    own_sectors[on_flanker].arm.min(ref_sector.arm),
-                    band,
-                )?;
+            if let Some(at_start) = on_bound(rec.sb) {
+                let (f_s, _) = flankers(rec.b, at_start, n_b);
+                hit |= in_event(false, f_s);
             }
-            for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
-                let (ra, rb) = if a_side { (flank, ref_idx) } else { (ref_idx, flank) };
-                let rec_idx = find_record(records, ra, rb);
-                if resolve_verdict(verdict, op, comparison, relation) {
-                    let j = rec_idx.ok_or(BooleanError::ClassificationInvariant {
-                        what: "single-on-edge crossing without a flanking record",
-                    })?;
-                    mark_germ(&mut records[j], a_side)?;
-                } else if let Some(j) = rec_idx {
-                    if on_bound(if a_side { records[j].sa } else { records[j].sb }).is_some() {
-                        records[j].intersect = false;
-                    }
-                }
+            if hit {
+                rec.intersect = false;
             }
         }
     }
@@ -387,10 +365,10 @@ pub(super) fn recl_edges<T: Decide>(
     // ---- Postcondition: no surviving On codes. ----
     for r in records.iter() {
         if r.intersect
-            && (on_bound(r.sa).is_some()
-                || on_bound(r.sb).is_some()
-                || r.sa.0 == SideCode::On
-                || r.sb.0 == SideCode::On)
+            && (r.sa.0 == SideCode::On
+                || r.sa.1 == SideCode::On
+                || r.sb.0 == SideCode::On
+                || r.sb.1 == SideCode::On)
         {
             return Err(BooleanError::ClassificationInvariant {
                 what: "surviving record with an On code after srecledges",
@@ -398,6 +376,283 @@ pub(super) fn recl_edges<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
+/// angular sort and its Table I ties): around the common line, each
+/// solid's material occupies the dihedral wedge between its two
+/// flanking faces. A germ exists iff EXACTLY ONE of A's two flanking
+/// representatives (the noncoplanar bound / bisector of each flanking
+/// sector, projected ⊥ the line) lies inside B's wedge — with a
+/// representative lying ON a B-plane resolved by the coincidence
+/// ladder: overlapping-coplanar (same projected direction as that
+/// face's own representative) ⇒ the Eq. 15.3 lump decides (In ⇒
+/// inside), touching-anti-parallel ⇒ outside. The symmetric B-vs-A
+/// evaluation must agree (checked; disagreement is a typed invariant
+/// failure). For all-pairwise-coplanar configurations every membership
+/// resolves by lump and the rule reproduces Table I's verdicts; for
+/// generic (tie-free) configurations "exactly one inside" IS the mixed
+/// angular order. Limitation (flagged in the PR report): membership
+/// uses the convex-wedge test (In against both flanking planes);
+/// reflex dihedral wedges along a coincident edge are not yet
+/// discriminated — the A/B symmetry check refuses loudly if it bites.
+#[allow(clippy::too_many_arguments)]
+fn resolve_edge_edge<T: Decide>(
+    records: &[PairRecord],
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    a_body: &Body<T>,
+    b_body: &Body<T>,
+    op: BooleanOp,
+    band: Band,
+    fa_s: usize,
+    fb_s: usize,
+) -> Result<Option<usize>, BooleanError> {
+    let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
+    let fa_e = (fa_s + 1) % n_a;
+    let fb_e = (fb_s + 1) % n_b;
+    let axis = a_sectors[fa_s].start.normalize();
+    let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
+    let rep = |s: &BoolSector<T>, other_is_end: bool| -> Vec3<T> {
+        let v = if other_is_end { s.end } else { s.start };
+        (v - axis * v.dot(axis)).normalize()
+    };
+    let a_fl = [(fa_s, rep(&a_sectors[fa_s], true)), (fa_e, rep(&a_sectors[fa_e], false))];
+    let b_fl = [(fb_s, rep(&b_sectors[fb_s], true)), (fb_e, rep(&b_sectors[fb_e], false))];
+
+    // Membership of one flanker's rep inside the other solid's wedge.
+    let membership = |own_is_a: bool,
+                      own_idx: usize,
+                      w: Vec3<T>,
+                      other: &[(usize, Vec3<T>)]|
+     -> Result<bool, BooleanError> {
+        let (own_secs, other_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if own_is_a {
+            (a_sectors, b_sectors)
+        } else {
+            (b_sectors, a_sectors)
+        };
+        let (own_body, other_body): (&Body<T>, &Body<T>) = if own_is_a {
+            (a_body, b_body)
+        } else {
+            (b_body, a_body)
+        };
+        let mut inside = true;
+        for &(oi, ow) in other {
+            match side_code(w, other_secs[oi].normal, arm, band)? {
+                SideCode::In => {}
+                SideCode::Out => inside = false,
+                SideCode::On => {
+                    // On the flanking plane: overlap-tie or touch.
+                    let same = match decide("bool_dir_same", w.dot(ow) * arm, band) {
+                        Ok(Sign::Positive) => true,
+                        Ok(Sign::Negative) => false,
+                        Ok(Sign::Zero) => {
+                            return Err(BooleanError::ClassificationInvariant {
+                                what: "degenerate rep pair in edge-edge membership",
+                            });
+                        }
+                        Err(diag) => return Err(BooleanError::Escalated { diag }),
+                    };
+                    if !same {
+                        inside = false; // touching, not overlapping
+                    } else {
+                        let rel = require_same(
+                            &plane_of(own_body, &own_secs[own_idx])?,
+                            &plane_of(other_body, &other_secs[oi])?,
+                            arm,
+                            band,
+                        )?;
+                        let comparison = if own_is_a { Operand::A } else { Operand::B };
+                        if eq15_3_lump(op, comparison, rel) != SideCode::In {
+                            inside = false;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(inside)
+    };
+    let a_in = [
+        membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
+        membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
+    ];
+    let b_in = [
+        membership(false, b_fl[0].0, b_fl[0].1, &a_fl)?,
+        membership(false, b_fl[1].0, b_fl[1].1, &a_fl)?,
+    ];
+    let germ_a = a_in[0] != a_in[1];
+    let germ_b = b_in[0] != b_in[1];
+    if germ_a != germ_b {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "edge-edge membership disagreement between the two solids",
+        });
+    }
+    if !germ_a {
+        return Ok(None);
+    }
+    let combos = [
+        (fa_s, fb_s),
+        (fa_s, fb_e),
+        (fa_e, fb_s),
+        (fa_e, fb_e),
+    ];
+    combos
+        .iter()
+        .find_map(|&(a, b)| find_on_record(records, a, b))
+        .map(Some)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "edge-edge germ record missing among the flanking combos",
+        })
+}
+
+/// Edge-sector coincidence (module docs): Table II on the on-side
+/// flankers vs the reference sector. `other_holder` is the other
+/// solid's start-holder twin when the ray also grazes its bisector.
+#[allow(clippy::too_many_arguments)]
+fn resolve_edge_sector<T: Decide>(
+    records: &[PairRecord],
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    a_body: &Body<T>,
+    b_body: &Body<T>,
+    op: BooleanOp,
+    band: Band,
+    a_side: bool,
+    f_s: usize,
+    other_holder: Option<usize>,
+) -> Result<Option<usize>, BooleanError> {
+    let (own_secs, ref_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if a_side {
+        (a_sectors, b_sectors)
+    } else {
+        (b_sectors, a_sectors)
+    };
+    let n_own = own_secs.len();
+    let f_e = (f_s + 1) % n_own;
+    let ref_idx = match other_holder {
+        Some(h) => h,
+        None => {
+            let mut found = None;
+            for r in records.iter() {
+                let (own_i, other_i) = if a_side { (r.a, r.b) } else { (r.b, r.a) };
+                if (own_i == f_s || own_i == f_e)
+                    && on_bound(if a_side { r.sa } else { r.sb }).is_some()
+                {
+                    found = Some(other_i);
+                    break;
+                }
+            }
+            found.ok_or(BooleanError::ClassificationInvariant {
+                what: "on-edge event without a reference sector",
+            })?
+        }
+    };
+    let ref_sector = &ref_secs[ref_idx];
+    let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
+    let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    let (v1, v2) = table_ii(k1, k2);
+    let comparison = if a_side { Operand::A } else { Operand::B };
+    let mut relation = PlaneRelation::SameOriented;
+    if matches!(
+        (v1, v2),
+        (
+            super::tables::TableIiVerdict::Rule | super::tables::TableIiVerdict::NotRule,
+            _
+        ) | (
+            _,
+            super::tables::TableIiVerdict::Rule | super::tables::TableIiVerdict::NotRule
+        )
+    ) {
+        let on_flanker = if k1 == SideCode::On { f_s } else { f_e };
+        let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
+            (a_body, b_body)
+        } else {
+            (b_body, a_body)
+        };
+        relation = require_same(
+            &plane_of(own_body, &own_secs[on_flanker])?,
+            &plane_of(ref_body, ref_sector)?,
+            own_secs[on_flanker].arm.min(ref_sector.arm),
+            band,
+        )?;
+    }
+    for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
+        if resolve_verdict(verdict, op, comparison, relation) {
+            let (ra, rb) = if a_side { (flank, ref_idx) } else { (ref_idx, flank) };
+            // The germ may live on either twin of a subdivided
+            // reference; try the recorded twin then its partner.
+            let n_ref = ref_secs.len();
+            let alt = (ref_idx + n_ref - 1) % n_ref;
+            let g = find_on_record(records, ra, rb).or_else(|| {
+                let (ra2, rb2) = if a_side { (flank, alt) } else { (alt, flank) };
+                find_on_record(records, ra2, rb2)
+            });
+            return g.map(Some).ok_or(BooleanError::ClassificationInvariant {
+                what: "single-on-edge crossing without a flanking record",
+            });
+        }
+    }
+    Ok(None)
+}
+
+/// Bisector-only graze (module docs): the wide sector is crossed iff
+/// its halves' outer keys transition.
+fn resolve_bisector_graze<T: Decide>(
+    records: &[PairRecord],
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    band: Band,
+    a_holder: Option<usize>,
+    b_holder: Option<usize>,
+) -> Result<Option<usize>, BooleanError> {
+    let (a_side, f_s) = match (a_holder, b_holder) {
+        (Some(h), _) => (true, h),
+        (None, Some(h)) => (false, h),
+        (None, None) => return Ok(None),
+    };
+    let own_secs: &[BoolSector<T>] = if a_side { a_sectors } else { b_sectors };
+    let n_own = own_secs.len();
+    let f_e = (f_s + 1) % n_own;
+    let ref_idx = match if a_side { b_holder } else { a_holder } {
+        Some(h) => h,
+        None => {
+            let mut found = None;
+            for r in records.iter() {
+                let (own_i, other_i) = if a_side { (r.a, r.b) } else { (r.b, r.a) };
+                if (own_i == f_s || own_i == f_e)
+                    && on_bound(if a_side { r.sa } else { r.sb }).is_some()
+                {
+                    found = Some(other_i);
+                    break;
+                }
+            }
+            match found {
+                Some(f) => f,
+                None => return Ok(None),
+            }
+        }
+    };
+    let ref_sector = if a_side {
+        &b_sectors[ref_idx]
+    } else {
+        &a_sectors[ref_idx]
+    };
+    let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
+    let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    let crossing = matches!(
+        (k1, k2),
+        (SideCode::In, SideCode::Out) | (SideCode::Out, SideCode::In)
+    );
+    if !crossing {
+        return Ok(None);
+    }
+    let (ra, rb) = if a_side { (f_s, ref_idx) } else { (ref_idx, f_s) };
+    let g = find_on_record(records, ra, rb).or_else(|| {
+        let (ra2, rb2) = if a_side { (f_e, ref_idx) } else { (ref_idx, f_e) };
+        find_on_record(records, ra2, rb2)
+    });
+    g.map(Some).ok_or(BooleanError::ClassificationInvariant {
+        what: "bisector-graze crossing without a twin record",
+    })
 }
 
 fn parallel_same_dir<T: Decide>(
@@ -417,37 +672,6 @@ fn parallel_same_dir<T: Decide>(
         Ok(Sign::Positive) => Ok(true),
         Ok(_) => Ok(false),
         Err(diag) => Err(BooleanError::Escalated { diag }),
-    }
-}
-
-/// Whether `u` lies in the CCW arc from `p` to `q` around `axis`
-/// (definite verdicts only — ties were peeled off by the parallel
-/// pre-pass; a graze here escalates).
-fn within_arc<T: Decide>(
-    p: Vec3<T>,
-    q: Vec3<T>,
-    u: Vec3<T>,
-    axis: Vec3<T>,
-    arm: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let side = |x: Vec3<T>, y: Vec3<T>| -> Result<Sign, BooleanError> {
-        let m = x.normalize().cross(y.normalize()).dot(axis) * arm;
-        match decide("bool_ee_angular", m, band) {
-            Ok(s) => Ok(s),
-            Err(diag) => Err(BooleanError::Escalated { diag }),
-        }
-    };
-    let small = |a: Vec3<T>, b: Vec3<T>, x: Vec3<T>| -> Result<bool, BooleanError> {
-        Ok(side(a, x)? == Sign::Positive && side(x, b)? == Sign::Positive)
-    };
-    match side(p, q)? {
-        Sign::Positive => small(p, q, u),
-        Sign::Negative => Ok(!small(q, p, u)?),
-        Sign::Zero => Err(BooleanError::ClassificationInvariant {
-            what: "flanking sectors of one solid coplanar around the common line \
-                   (non-maximal operand escaped the gate)",
-        }),
     }
 }
 
@@ -502,30 +726,12 @@ mod tests {
         assert_eq!(flankers(3, true, 4), (3, 0));
     }
 
-    /// `within_arc` around +z: arc from +x CCW to +y (90°): +x+y in;
-    /// −x out; the >180° complement arc inverts.
-    #[test]
-    fn arc_membership() {
-        let band = Band::linear().unwrap();
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let y = Vec3::new(0.0, 1.0, 0.0);
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let mid = Vec3::new(1.0, 1.0, 0.0);
-        let out = Vec3::new(-1.0, -0.2, 0.0);
-        assert!(within_arc(x, y, mid, z, 1.0, band).unwrap());
-        assert!(!within_arc(x, y, out, z, 1.0, band).unwrap());
-        // Reflex arc y→x (270°): `out` is inside it, `mid` is not.
-        assert!(within_arc(y, x, out, z, 1.0, band).unwrap());
-        assert!(!within_arc(y, x, mid, z, 1.0, band).unwrap());
-    }
-
     /// `mark_germ` rewrites the On bound to the transition partner.
     #[test]
     fn germ_rewrite() {
         let mut r = rec(0, 0, (On, In), (Out, On));
-        mark_germ(&mut r, true).unwrap();
+        mark_germ(&mut r).unwrap();
         assert_eq!(r.sa, (Out, In));
-        mark_germ(&mut r, false).unwrap();
         assert_eq!(r.sb, (Out, In));
         assert!(r.intersect);
     }

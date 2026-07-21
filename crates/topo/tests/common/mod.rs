@@ -163,12 +163,18 @@ pub struct Prism<T: Real> {
 /// to N corners (reflex corners welcome). Every face gets its
 /// outward-CCW Newell plane, every edge a certified chord line.
 pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64) -> Prism<T> {
+    prism_z(profile, 0.0, height)
+}
+
+/// [`prism`] with an explicit z-range `[z0, z1]` (M3 PR 4: bricks at
+/// arbitrary heights for the boolean fixtures).
+pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -> Prism<T> {
     assert!(profile.len() >= 3);
     let n = profile.len();
     let c =
         |&(x, y): &(f64, f64), z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
-    let bot: Vec<Point3<T>> = profile.iter().map(|p| c(p, 0.0)).collect();
-    let top: Vec<Point3<T>> = profile.iter().map(|p| c(p, height)).collect();
+    let bot: Vec<Point3<T>> = profile.iter().map(|p| c(p, z0)).collect();
+    let top: Vec<Point3<T>> = profile.iter().map(|p| c(p, z1)).collect();
 
     let mut body = Body::<T>::new();
     let seed = body.mvfs(bot[0]).unwrap();

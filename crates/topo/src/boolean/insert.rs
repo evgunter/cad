@@ -275,4 +275,101 @@ mod tests {
             insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs).unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
     }
+
+    /// F12 guard: a 4-survivor set whose A-consecutive pair is NOT
+    /// B-cyclically adjacent refuses as the typed PairingMismatch —
+    /// the 15.11 consecutive-pairing invariant is never silently
+    /// assumed (a plus-sign-interleaved b-order: A pairs (0,1) but in
+    /// B-order the survivors interleave 0,2,1,3).
+    #[test]
+    fn f12_pairing_mismatch_guard() {
+        use SideCode::{In, Out};
+        let mk = |a: usize, b: usize, sa, sb| PairRecord {
+            a,
+            b,
+            sa,
+            sb,
+            intersect: true,
+        };
+        let mut abody = crate::fixtures::ops_cube().body;
+        let mut bbody = crate::fixtures::ops_cube().body;
+        let contact = VvContact {
+            a: VertexKey::default(),
+            b: VertexKey::default(),
+        };
+        // A-order: a = 0,1,2,3; B-order by b: r0(b=0), r2(b=1),
+        // r1(b=2), r3(b=3) — pair (r0, r1) is not B-adjacent.
+        let recs = vec![
+            mk(0, 0, (In, Out), (In, Out)),
+            mk(1, 2, (Out, In), (Out, In)),
+            mk(2, 1, (In, Out), (In, Out)),
+            mk(3, 3, (Out, In), (Out, In)),
+        ];
+        let err =
+            insert_null_pairs(&mut abody, &mut bbody, contact, &[], &[], &recs).unwrap_err();
+        assert!(matches!(err, BooleanError::PairingMismatch { .. }), "{err:?}");
+    }
+
+    /// F12 stress, mechanism level: a valid 4-survivor (two-pair)
+    /// neighborhood — two consecutive record pairs, each a strut pair
+    /// in BOTH solids — mints 4 dangling null edges and 2
+    /// correspondence pairs on real cube vertices, F9 attributes
+    /// carried as data, tier 1 preserved. (A geometric 4-crossing
+    /// operand fixture is not constructible from the prismatic corpus;
+    /// the runtime guards above defend the invariant — PR report.)
+    #[test]
+    fn f12_four_survivor_pairing() {
+        use SideCode::{In, Out};
+        let mk = |a: usize, b: usize, sa, sb| PairRecord {
+            a,
+            b,
+            sa,
+            sb,
+            intersect: true,
+        };
+        let mut abody = crate::fixtures::ops_cube().body;
+        let mut bbody = crate::fixtures::ops_cube().body;
+        let sectors_of = |body: &Body<f64>| {
+            let (vk, v) = body.vertices().next().unwrap();
+            let orbit = body.vertex_orbit(v.emanating.unwrap()).unwrap();
+            let secs: Vec<BoolSector<f64>> = orbit
+                .iter()
+                .map(|&he| BoolSector {
+                    he,
+                    start: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                    end: geom_core::Vec3::new(0.0, 1.0, 0.0),
+                    start_edge: true,
+                    end_edge: true,
+                    face: crate::entity::FaceKey::default(),
+                    normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    arm: 1.0,
+                })
+                .collect();
+            (vk, secs)
+        };
+        let (va, a_sectors) = sectors_of(&abody);
+        let (vb, b_sectors) = sectors_of(&bbody);
+        let contact = VvContact { a: va, b: vb };
+        // Two consecutive pairs, each pair a strut in both solids
+        // (identical sector indices within the pair), codes mirrored.
+        let recs = vec![
+            mk(0, 0, (Out, In), (Out, In)),
+            mk(0, 0, (In, Out), (In, Out)),
+            mk(1, 1, (Out, In), (Out, In)),
+            mk(1, 1, (In, Out), (In, Out)),
+        ];
+        let out =
+            insert_null_pairs(&mut abody, &mut bbody, contact, &a_sectors, &b_sectors, &recs)
+                .unwrap();
+        assert_eq!(out.pairs.len(), 2);
+        assert_eq!(out.edges.len(), 4);
+        assert!(out.edges.iter().all(|e| e.dangling));
+        for e in &out.edges {
+            assert_ne!(e.attr.below_end, e.attr.above_end);
+            // Out-run struts: the minted copy is the OUT/above end.
+            assert_eq!(e.attr.below_end, if e.operand == Operand::A { va } else { vb });
+        }
+        crate::validate::validate(&abody).unwrap();
+        crate::validate::validate(&bbody).unwrap();
+    }
 }
