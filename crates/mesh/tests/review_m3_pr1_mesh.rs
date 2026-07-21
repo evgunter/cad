@@ -50,6 +50,9 @@ fn tessellate_refuses_null_scaffold_typed() {
         format!("{:?}", mesh_before.positions),
         format!("{:?}", mesh_after.positions)
     );
-    assert_eq!(mesh::triangle_count(&mesh_before), mesh::triangle_count(&mesh_after));
-    mesh::check_mesh(&mesh_after).unwrap();
+    assert_eq!(
+        mesh::validate::triangle_count(&mesh_before),
+        mesh::validate::triangle_count(&mesh_after)
+    );
+    mesh::validate::check_mesh(&mesh_after).unwrap();
 }
