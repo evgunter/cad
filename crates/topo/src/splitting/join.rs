@@ -205,7 +205,7 @@ pub(super) fn split_connect<T: Decide>(
     for r in &red.null_edges {
         points.push(vertex_point(&red.body, r.attr.below_end)?);
     }
-    let sorted = order::sort_indices_by_point(&points, exact)
+    let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
         .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
 
     let mut st = Sweep {
@@ -313,10 +313,7 @@ impl<T: Decide> Sweep<T> {
     /// The up/down sense of a null-edge half — data from the vertex
     /// key (`start ∈ above_set` ⇒ down half).
     fn is_down<B: Decide>(&self, body: &Body<B>, he: HalfEdgeKey) -> Result<bool, SplitJoinError> {
-        let start = body
-            .get_half_edge(he)
-            .ok_or(SplitJoinError::Corrupt)?
-            .start;
+        let start = body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.start;
         Ok(self.above_set.contains_key(start))
     }
 
@@ -559,10 +556,7 @@ pub(super) fn loop_points_of<T: Decide>(
     l: LoopKey,
 ) -> Result<Vec<Point3<T>>, SplitJoinError> {
     let starts = loop_starts(body, l)?;
-    starts
-        .into_iter()
-        .map(|v| vertex_point(body, v))
-        .collect()
+    starts.into_iter().map(|v| vertex_point(body, v)).collect()
 }
 
 /// The face's plane normal (F5-gated: always a `Plane`).

@@ -20,15 +20,15 @@
 
 use geom_core::{Band, Point3, Vec3};
 
-use super::split_scratch;
 use super::SplitPlane;
+use super::split_scratch;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
 use crate::euler::{FaceSurface, MefSite, MevSite};
-use geom_brep::EdgeCurveSpec;
 use crate::euler_ring::MekrSite;
 use crate::props::mass_properties;
 use crate::validate::{validate, validate_closed};
+use geom_brep::EdgeCurveSpec;
 
 /// A geometric quad prism (profile in x–y, extruded +z; the
 /// tests/common builder's minimal in-crate copy): planar Newell
@@ -147,11 +147,7 @@ fn census<T: geom_core::Decide>(b: &Body<T>) -> (usize, usize, usize, usize, usi
 /// solid, cross-shell fusion), then the loopglue zip — per coincident
 /// vertex pair a scaffolding `mekr`/`mef` + `kev`, per doubled edge a
 /// `kef` — the ch. 12 machinery's ch. 14 call site.
-fn reglue_pair<T: geom_core::Decide>(
-    body: &mut Body<T>,
-    below_face: FaceKey,
-    above_face: FaceKey,
-) {
+fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, above_face: FaceKey) {
     let fused = body.kfmrh(below_face, above_face).unwrap();
     let ring = fused.ring; // the above loop, now a ring of below_face
     let outer = body.get_face(below_face).unwrap().outer;
@@ -194,9 +190,7 @@ fn reglue_pair<T: geom_core::Decide>(
     // The zip, derived from OUR op semantics (see the trace in the PR
     // writeup): pair 0 via mekr (kills the ring loop) + kev; pairs
     // n−1 … 1 via mef + kev + kef(rs[j+1 mod n]); final kef(rs[1]).
-    let self_loop = |body: &Body<T>, he| {
-        EdgeCurveSpec::self_loop_circle_at(point_of(body, he))
-    };
+    let self_loop = |body: &Body<T>, he| EdgeCurveSpec::self_loop_circle_at(point_of(body, he));
     let n0 = body
         .mekr(
             MekrSite::Cycles {
@@ -271,8 +265,7 @@ fn reassembly_oracle_generic_cube() {
     let reference = {
         let band = geom_core::Band::linear().unwrap();
         let mut b = operand.clone();
-        let (mut sides, mut on) =
-            super::classify::classify_vertices(&b, &plane, band).unwrap();
+        let (mut sides, mut on) = super::classify::classify_vertices(&b, &plane, band).unwrap();
         super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on).unwrap();
         b
     };

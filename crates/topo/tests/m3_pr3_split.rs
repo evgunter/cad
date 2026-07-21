@@ -14,8 +14,8 @@ mod common;
 use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, PlaneSide, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
-    Surface, mass_properties, plane_section, split, validate_closed,
+    Body, PlaneSide, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
+    mass_properties, plane_section, split, validate_closed,
 };
 
 /// The split plane y = c, Above = +y.
@@ -111,7 +111,8 @@ fn holed_box_geometric() -> Body<f64> {
         body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef = |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    let mef =
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     // Bottom chain A→B→C→D, closed; verticals; sides (§9.4.2).
     let e_ab = body
         .mev_line(
@@ -236,14 +237,8 @@ fn generic_plane_asymmetric() {
 
     // D9: byte-identical replay (Debug dump of the full arenas).
     let again = split(&fx.body, &plane).unwrap();
-    assert_eq!(
-        format!("{above:?}"),
-        format!("{:?}", body_of(&again.above))
-    );
-    assert_eq!(
-        format!("{below:?}"),
-        format!("{:?}", body_of(&again.below))
-    );
+    assert_eq!(format!("{above:?}"), format!("{:?}", body_of(&again.above)));
+    assert_eq!(format!("{below:?}"), format!("{:?}", body_of(&again.below)));
 }
 
 /// (ii) Vertex-grazing plane: two profile vertices exactly ON, no
@@ -401,7 +396,10 @@ fn bob_mirror_pinch_refuses_typed() {
     let fx = prism::<f64>(MIRRORED, 1.0);
     let err = split(&fx.body, &plane_y(1.0)).unwrap_err();
     assert!(
-        matches!(err, SplitError::Join(SplitJoinError::DegenerateSection { .. })),
+        matches!(
+            err,
+            SplitError::Join(SplitJoinError::DegenerateSection { .. })
+        ),
         "got {err:?}"
     );
 
@@ -414,7 +412,10 @@ fn bob_mirror_pinch_refuses_typed() {
     };
     let err = split(&fx.body, &flipped).unwrap_err();
     assert!(
-        matches!(err, SplitError::Join(SplitJoinError::DegenerateSection { .. })),
+        matches!(
+            err,
+            SplitError::Join(SplitJoinError::DegenerateSection { .. })
+        ),
         "got {err:?}"
     );
 }
@@ -532,6 +533,43 @@ fn point_in_loop_trilean() {
         point_in_loop(body, top.outer, n, q(0.0, 0.0), band).unwrap(),
         LoopContainment::OnBoundary
     );
+}
+
+/// The interval lane: the acceptance fixtures replayed at `Interval` —
+/// declared/structural coincidences decide exactly (dyadic fixture
+/// coordinates ⇒ singleton enclosures), the splits land with the same
+/// structure as the f64 lane, and the degenerate refusals hold.
+#[cfg(feature = "interval")]
+#[test]
+fn interval_lane_acceptance() {
+    use geom_core::Interval;
+    // Generic asymmetric split.
+    let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)];
+    let fx = prism::<Interval>(&profile, 1.0);
+    let r = split(&fx.body, &plane_y::<Interval>(1.0)).unwrap();
+    let (above, below) = (body_of(&r.above), body_of(&r.below));
+    assert_eq!(validate_closed(above), Ok(()));
+    assert_eq!(validate_closed(below), Ok(()));
+    assert_eq!(census(below), (1, 6, 12, 8));
+    assert_eq!(census(above), (1, 7, 15, 10));
+
+    // The notched block: three disconnected Above prisms, as at f64.
+    let fx = prism::<Interval>(NOTCHED, 1.0);
+    let r = split(&fx.body, &plane_y::<Interval>(1.0)).unwrap();
+    assert_eq!(body_of(&r.above).shells().count(), 3);
+    assert_eq!(body_of(&r.below).shells().count(), 1);
+
+    // Slicing: three polygons, corners on the plane (containment).
+    let s = plane_section(&fx.body, &plane_y::<Interval>(1.0)).unwrap();
+    assert_eq!(s.polygons.len(), 3);
+
+    // One-sided tangency refuses typed on this lane too.
+    let fx = prism::<Interval>(&[(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)], 1.0);
+    let err = split(&fx.body, &plane_y::<Interval>(1.0)).unwrap_err();
+    assert!(matches!(
+        err,
+        SplitError::Join(SplitJoinError::DegenerateSection { .. })
+    ));
 }
 
 /// ∅ sides are typed variants: a plane missing the body entirely, and

@@ -60,8 +60,7 @@ pub fn plane_section<T: geom_core::Decide>(
     let mut v_ref = None;
     let mut polygons = Vec::with_capacity(completed.len());
     for section in &completed {
-        let points =
-            loop_points_of(&red.body, section.below_loop).map_err(SplitError::Join)?;
+        let points = loop_points_of(&red.body, section.below_loop).map_err(SplitError::Join)?;
         if u_ref.is_none() && points.len() >= 2 {
             let u = (points[1] - points[0]).normalize();
             v_ref = Some(plane.normal.cross(u));

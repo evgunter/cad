@@ -99,7 +99,7 @@ impl std::error::Error for PointInLoopError {}
 /// three axes plus golden-angle-spread oblique members — for any unit
 /// plane normal, most members project to a definitely-nonzero in-plane
 /// direction (an all-graze outcome is the typed exhaustion error).
-const SCHEDULE: [[f64; 3]; 16] = [
+pub(super) const SCHEDULE: [[f64; 3]; 16] = [
     [1.0, 0.0, 0.0],
     [0.0, 1.0, 0.0],
     [0.0, 0.0, 1.0],

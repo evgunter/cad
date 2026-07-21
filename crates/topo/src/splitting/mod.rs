@@ -50,10 +50,10 @@ mod insert;
 mod join;
 mod neighborhood;
 mod order;
-pub mod rules;
-mod section;
 #[cfg(test)]
 mod reassembly;
+pub mod rules;
+mod section;
 
 use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
 
