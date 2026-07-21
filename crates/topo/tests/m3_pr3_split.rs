@@ -97,6 +97,87 @@ fn section_faces_with(body: &Body<f64>, o: Point3<f64>, n: Vec3<f64>) -> Vec<top
         .collect()
 }
 
+/// A geometric genus-1 box: outer 4×2×2, square 1×1 hole through z at
+/// (0.5..1.5)² — the box_with_hole construction (§9.3) followed by a
+/// plating pass that gives every face its own Newell plane from its
+/// outer loop (loops are CCW-from-outside by construction, so Newell
+/// yields outward normals).
+fn holed_box_geometric() -> Body<f64> {
+    use topo::{MefSite, MevSite};
+    let pt = Point3::new;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let strut = |body: &mut Body<f64>, at, x, y, z| {
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+            .unwrap()
+    };
+    let mef = |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    // Bottom chain A→B→C→D, closed; verticals; sides (§9.4.2).
+    let e_ab = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            pt(4.0, 0.0, 0.0),
+        )
+        .unwrap();
+    let e_bc = strut(&mut body, e_ab.he_minus, 4.0, 2.0, 0.0);
+    let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 2.0, 0.0);
+    let he_dc = body
+        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
+        .unwrap();
+    let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
+    let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 2.0);
+    let e_bb = strut(&mut body, e_bc.he_plus, 4.0, 0.0, 2.0);
+    let e_cc = strut(&mut body, e_cd.he_plus, 4.0, 2.0, 2.0);
+    let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 2.0, 2.0);
+    let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
+    let _f_right = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
+    let _f_back = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
+    let _f_left = mef(&mut body, e_dd.he_minus, f_front.he_plus);
+    // Hole: strut A'→P, kemr to plant the ring, grow P→Q→R→S, close,
+    // drop verticals, cut the tube walls, kfmrh the membrane.
+    let hole = strut(&mut body, f_front.he_plus, 0.5, 0.5, 2.0);
+    let kill = body.kemr(hole.he_plus, hole.he_minus).unwrap();
+    let s_pq = body
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(1.5, 0.5, 2.0))
+        .unwrap();
+    let s_qr = strut(&mut body, s_pq.he_minus, 1.5, 1.5, 2.0);
+    let s_rs = strut(&mut body, s_qr.he_minus, 0.5, 1.5, 2.0);
+    let mef_top = mef(&mut body, s_pq.he_plus, s_rs.he_minus);
+    let e_pp = strut(&mut body, s_pq.he_plus, 0.5, 0.5, 0.0);
+    let e_qq = strut(&mut body, s_qr.he_plus, 1.5, 0.5, 0.0);
+    let e_rr = strut(&mut body, s_rs.he_plus, 1.5, 1.5, 0.0);
+    let e_ss = strut(&mut body, mef_top.he_minus, 0.5, 1.5, 0.0);
+    let w_front = mef(&mut body, e_pp.he_minus, e_qq.he_minus);
+    let _w_right = mef(&mut body, e_qq.he_minus, e_rr.he_minus);
+    let _w_back = mef(&mut body, e_rr.he_minus, e_ss.he_minus);
+    let _w_left = mef(&mut body, e_ss.he_minus, w_front.he_plus);
+    body.kfmrh(f_bottom.face, mef_top.face).unwrap();
+    // Plating pass: every face gets its own outward Newell plane.
+    let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+    let band = geom_core::Band::linear().unwrap();
+    for f in faces {
+        let outer = body.get_face(f).unwrap().outer;
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("outer loops are cycles");
+        };
+        let pts: Vec<Point3<f64>> = body
+            .loop_cycle(first)
+            .unwrap()
+            .iter()
+            .map(|&he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+            })
+            .collect();
+        let plane = geom_brep::newell_plane(&pts, band).unwrap();
+        body.set_face_surface(f, topo::FaceSurface::New(plane))
+            .unwrap();
+    }
+    body
+}
+
 /// (i) Generic plane on an asymmetric pentagon prism: exact result
 /// censuses, tier 2 both sides, volume conservation, the section-face
 /// orientation mirror pin, and D9 byte-identical replay.
@@ -293,6 +374,164 @@ fn one_sided_tangency_refused_typed() {
         err,
         SplitError::Join(SplitJoinError::DegenerateSection { .. })
     ));
+}
+
+/// The BOB mirror (PR 2 carry-forward 1b), pinned HONESTLY: full split
+/// of the touching-wedge fixture **refuses typed** at the tip's
+/// zero-area 2-gon polygon — the below-side pinch is NOT realizable by
+/// the ch. 14 joining as it stands (a fork-shaped finding, reported in
+/// the PR writeup, not improvised around).
+///
+/// Why (derived): the BOB tip's ABOVE runs are `{tip edge}` and
+/// `{wide-cap bisector}` — the minted copies' null halves land in
+/// (slantL, slantR) and (cap, cap) respectively, so NO null edge
+/// bridges a slant face to a cap face at the tip. The tip slivers
+/// therefore close onto themselves as a 2-gon (above loop: the tip
+/// edge on its copies; below loop: the connecting edge on the old
+/// vertices) instead of merging into the two flanking section
+/// polygons, and the realization the adjudication promises (two below
+/// pieces touching via coincident-but-distinct edges) additionally
+/// requires below-side vertex copies at the pinch — duplication the
+/// book's machinery (copies for ABOVE runs only) cannot mint. The
+/// zero-area net catches it and refuses typed; the same refusal hits
+/// the notched block under the FLIPPED plane (±n equivariance of the
+/// refusal — the physical configuration is the same).
+#[test]
+fn bob_mirror_pinch_refuses_typed() {
+    let fx = prism::<f64>(MIRRORED, 1.0);
+    let err = split(&fx.body, &plane_y(1.0)).unwrap_err();
+    assert!(
+        matches!(err, SplitError::Join(SplitJoinError::DegenerateSection { .. })),
+        "got {err:?}"
+    );
+
+    // Equivariance of the refusal: NOTCHED under (o, −n) is the same
+    // physical configuration and refuses identically.
+    let fx = prism::<f64>(NOTCHED, 1.0);
+    let flipped = SplitPlane {
+        origin: Point3::new(0.0, 1.0, 0.0),
+        normal: Vec3::new(0.0, -1.0, 0.0),
+    };
+    let err = split(&fx.body, &flipped).unwrap_err();
+    assert!(
+        matches!(err, SplitError::Join(SplitJoinError::DegenerateSection { .. })),
+        "got {err:?}"
+    );
+}
+
+/// Slicing (§14.9): `plane_section` returns the section polygons
+/// without building bodies — the notched block yields THREE polygons
+/// with in-plane (u, v) coordinates; a missing plane yields the empty
+/// typed success; the operand is untouched.
+#[test]
+fn plane_section_slicing() {
+    let fx = prism::<f64>(NOTCHED, 1.0);
+    let before = format!("{:?}", fx.body);
+    let section = plane_section(&fx.body, &plane_y(1.0)).unwrap();
+    assert_eq!(format!("{:?}", fx.body), before, "operand untouched");
+    assert_eq!(section.polygons.len(), 3);
+    let (u, v) = (section.u_ref.unwrap(), section.v_ref.unwrap());
+    // The frame is in-plane and orthonormal (exact for these axes).
+    assert_eq!(u.dot(section.plane.normal), 0.0);
+    assert_eq!(v.dot(section.plane.normal), 0.0);
+    for poly in &section.polygons {
+        assert_eq!(poly.points.len(), poly.uv.len());
+        assert!(poly.points.len() >= 4);
+        for (p, q) in poly.points.iter().zip(&poly.uv) {
+            // Every corner lies ON the plane, and uv reproduces it.
+            assert_eq!(p.y, 1.0);
+            let back = section.plane.origin + u * q.x + v * q.y;
+            assert_eq!((back.x, back.y, back.z), (p.x, p.y, p.z));
+        }
+    }
+    // Total section area = the y = 1 material cross-section: the
+    // notched block's slice is x ∈ [0,4] ∪ [4,6] ∪ [7,8], z ∈ [0,1].
+    let mut total = 0.0;
+    for poly in &section.polygons {
+        let mut twice = 0.0;
+        for i in 0..poly.uv.len() {
+            let a = poly.uv[i];
+            let b = poly.uv[(i + 1) % poly.uv.len()];
+            twice += a.x * b.y - b.x * a.y;
+        }
+        total += (twice / 2.0).abs();
+    }
+    assert!((total - 7.0).abs() < 1e-12);
+
+    // A plane that misses the body: zero polygons, typed success.
+    let empty = plane_section(&fx.body, &plane_y(9.0)).unwrap();
+    assert!(empty.polygons.is_empty());
+    assert!(empty.u_ref.is_none());
+}
+
+/// Ring re-homing through the join (`laringmv`, the lkemr
+/// ring-placement mirror site): a genus-1 box (through-hole along z)
+/// split beside the hole — the top and bottom faces carry rings and
+/// are divided by the join, and each ring must land in the piece that
+/// geometrically contains it (decided by the trilean point-in-loop).
+#[test]
+fn ring_rehoming_genus_one() {
+    let body = holed_box_geometric();
+    assert_eq!(validate_closed(&body), Ok(()));
+    // Split at x = 3: the hole (x ∈ [0.5, 1.5]) is entirely below.
+    let plane = SplitPlane {
+        origin: Point3::new(3.0, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let result = split(&body, &plane).unwrap();
+    let (above, below) = (body_of(&result.above), body_of(&result.below));
+    assert_eq!(validate_closed(above), Ok(()));
+    assert_eq!(validate_closed(below), Ok(()));
+    // The hole went below: genus bookkeeping via census. Below: the
+    // holed slab [0,3] — V16 E24 F10 (8 outer + hole rim ×2 … as the
+    // holed box, x-cut): outer box 8 + 8 hole verts = 16; above: plain
+    // slab V8 E12 F6.
+    assert_eq!(census(above), (1, 6, 12, 8));
+    assert_eq!(census(below).0, 1);
+    assert_eq!(census(below).3, 16);
+    // Rings: below's top/bottom faces keep exactly one ring each;
+    // above has none.
+    let rings = |b: &Body<f64>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
+    assert_eq!(rings(below), 2);
+    assert_eq!(rings(above), 0);
+    // Volume: 4×2×2 box minus 1×1×2 hole = 14; above slab 1×2×2 = 4.
+    let (va, vb) = (
+        mass_properties(above).unwrap().volume,
+        mass_properties(below).unwrap().volume,
+    );
+    assert!((va - 4.0).abs() < 1e-12, "above {va}");
+    assert!((vb - 10.0).abs() < 1e-12, "below {vb}");
+}
+
+/// The trilean point-in-loop predicate itself (the F8 containment
+/// seed): In / Out / OnBoundary on a real face loop, plus the
+/// escalation posture on the interval lane is covered by the interval
+/// acceptance below.
+#[test]
+fn point_in_loop_trilean() {
+    use topo::{LoopContainment, point_in_loop};
+    let fx = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0);
+    let body = &fx.body;
+    let top = body.get_face(fx.top_face).unwrap();
+    let band = geom_core::Band::linear().unwrap();
+    let n = Vec3::new(0.0, 0.0, 1.0);
+    let q = |x: f64, y: f64| Point3::new(x, y, 1.0);
+    assert_eq!(
+        point_in_loop(body, top.outer, n, q(1.0, 1.0), band).unwrap(),
+        LoopContainment::In
+    );
+    assert_eq!(
+        point_in_loop(body, top.outer, n, q(5.0, 5.0), band).unwrap(),
+        LoopContainment::Out
+    );
+    assert_eq!(
+        point_in_loop(body, top.outer, n, q(2.0, 1.0), band).unwrap(),
+        LoopContainment::OnBoundary
+    );
+    assert_eq!(
+        point_in_loop(body, top.outer, n, q(0.0, 0.0), band).unwrap(),
+        LoopContainment::OnBoundary
+    );
 }
 
 /// ∅ sides are typed variants: a plane missing the body entirely, and
