@@ -11,11 +11,11 @@
 
 mod common;
 
-use common::prism;
+use common::{prism, upgrade_edges_to_intersections};
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
-    mass_properties, plane_section, split, validate_closed,
+    mass_properties, plane_section, split, validate_closed, validate_geometric,
 };
 
 /// The split plane y = c, Above = +y.
@@ -53,6 +53,15 @@ const MIRRORED: &[(f64, f64)] = &[
     (8.0, 2.0),
     (0.0, 2.0),
 ];
+
+/// Tier 3 on a clone with the prefer-intrinsic edge upgrade applied
+/// (tests/common's pass — the same route every M2 tier-3 fixture
+/// takes).
+fn assert_tier3_after_upgrade(body: &Body<f64>) {
+    let mut upgraded = body.clone();
+    upgrade_edges_to_intersections(&mut upgraded);
+    assert_eq!(validate_geometric(&upgraded), Ok(()));
+}
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
@@ -191,9 +200,16 @@ fn generic_plane_asymmetric() {
     let (above, below) = (body_of(&result.above), body_of(&result.below));
 
     // Tier 1 is validated inside every operator (debug asserts); tier 2
-    // at rest, both sides — including the per-shell E–P ledger.
+    // at rest, both sides — including the per-shell E–P ledger; tier 3
+    // where the geometry qualifies (manifold, coincidence-free within
+    // each body), after the prefer-intrinsic description upgrade (the
+    // M2 posture: tier 3's TransverseNotIntrinsic check wants
+    // Intersection descriptions, which the split's minted chord edges
+    // do not carry — documented in the PR writeup).
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
+    assert_tier3_after_upgrade(above);
+    assert_tier3_after_upgrade(below);
 
     // Census, derived by hand: below = quad prism (V8 E12 F6); above =
     // pentagon prism (V10 E15 F7). One shell each.
@@ -249,8 +265,13 @@ fn vertex_grazing_plane() {
     let fx = prism::<f64>(&profile, 1.0);
     let result = split(&fx.body, &plane_y(2.0)).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
+    // Tier 3 qualifies: each body alone is manifold and
+    // coincidence-free (the grazed corners coincide only ACROSS the
+    // two bodies).
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
+    assert_tier3_after_upgrade(above);
+    assert_tier3_after_upgrade(below);
     // Below = quad prism; above = triangle prism.
     assert_eq!(census(below), (1, 6, 12, 8));
     assert_eq!(census(above), (1, 5, 9, 6));
@@ -483,6 +504,8 @@ fn ring_rehoming_genus_one() {
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
+    assert_tier3_after_upgrade(above);
+    assert_tier3_after_upgrade(below);
     // The hole went below: genus bookkeeping via census. Below: the
     // holed slab [0,3] — V16 E24 F10 (8 outer + hole rim ×2 … as the
     // holed box, x-cut): outer box 8 + 8 hole verts = 16; above: plain
