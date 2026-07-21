@@ -1,0 +1,20 @@
+# Pre-GUI demo tour. Deliberately OUTSIDE the kernel workspace (the
+# empty [workspace] table below detaches it; the root manifest also
+# lists `demos` in workspace.exclude): viewer/demo tooling must never
+# become a workspace dependency. Builds the kernel crates by path.
+[package]
+name = "demo-tour"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+geom-core = { path = "../../crates/geom-core" }
+profile = { path = "../../crates/profile" }
+sweep = { path = "../../crates/sweep" }
+topo = { path = "../../crates/topo" }
+mesh = { path = "../../crates/mesh" }
+stl = { path = "../../crates/stl" }
