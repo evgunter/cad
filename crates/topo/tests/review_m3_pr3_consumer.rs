@@ -134,13 +134,14 @@ fn in_band_section_escalates_typed_not_misclassified() {
     let profile = [(2.0, 0.0), (2.0 + t, 0.0), (2.0 + t, 2.0), (2.0, 2.0)];
     let built = std::panic::catch_unwind(|| prism::<f64>(&profile, 1.0));
     let Ok(fx) = built else {
+        eprintln!("in-band probe: fixture build refused at ε={eps}");
         return; // build-stage refusal: honest, earlier.
     };
     match split(&fx.body, &plane_y(1.0)) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
-        Err(_) => {} // typed escalation: the honest posture.
+        Err(e) => eprintln!("in-band probe: typed refusal {e}"),
         Ok(_) => panic!("in-band sliver silently split at ε={eps}"),
     }
 }
