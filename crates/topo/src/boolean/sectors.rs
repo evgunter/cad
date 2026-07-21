@@ -129,9 +129,7 @@ pub(super) fn build_sectors<T: Decide>(
                 let straight_margin = u_start.dot(u_end) * arm;
                 match decide("bool_sector_straight", straight_margin, band) {
                     Ok(Sign::Negative) => Some(normal.cross(u_start)),
-                    Ok(Sign::Positive | Sign::Zero) if he == next_he => {
-                        Some(normal.cross(u_start))
-                    }
+                    Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(normal.cross(u_start)),
                     Ok(Sign::Positive | Sign::Zero) => {
                         return Err(invalid_escalation(band, "bool_sector_straight"));
                     }
@@ -253,10 +251,10 @@ fn within<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let c1 = s.start.cross(dir).dot(s.normal) * s.arm;
     let c2 = dir.cross(s.end).dot(s.normal) * s.arm;
-    let t1 = decide("bool_sector_within", c1, band)
-        .map_err(|diag| BooleanError::Escalated { diag })?;
-    let t2 = decide("bool_sector_within", c2, band)
-        .map_err(|diag| BooleanError::Escalated { diag })?;
+    let t1 =
+        decide("bool_sector_within", c1, band).map_err(|diag| BooleanError::Escalated { diag })?;
+    let t2 =
+        decide("bool_sector_within", c2, band).map_err(|diag| BooleanError::Escalated { diag })?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
@@ -265,7 +263,12 @@ fn within<T: Decide>(
 }
 
 /// Same-direction parallelism of two bound directions (unit-ish).
-fn parallel_same<T: Decide>(u: Vec3<T>, v: Vec3<T>, arm: T, band: Band) -> Result<bool, BooleanError> {
+fn parallel_same<T: Decide>(
+    u: Vec3<T>,
+    v: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
     let cross_margin = u.cross(v).norm() * arm;
     match decide("bool_dir_parallel", cross_margin, band) {
         Ok(Sign::Zero) => {}
@@ -293,10 +296,10 @@ fn sector_overlap<T: Decide>(
     }
     let arm = a.arm.min(b.arm);
     // Identical region (same or crossed bound pairing).
-    let straight = parallel_same(a.start, b.start, arm, band)?
-        && parallel_same(a.end, b.end, arm, band)?;
-    let crossed = parallel_same(a.start, b.end, arm, band)?
-        && parallel_same(a.end, b.start, arm, band)?;
+    let straight =
+        parallel_same(a.start, b.start, arm, band)? && parallel_same(a.end, b.end, arm, band)?;
+    let crossed =
+        parallel_same(a.start, b.end, arm, band)? && parallel_same(a.end, b.start, arm, band)?;
     Ok(straight || crossed)
 }
 

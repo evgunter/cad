@@ -65,10 +65,7 @@ impl ContactAcc {
 
 /// The F5/scaffolding gate for one operand (split_reduce's, with
 /// operand-tagged errors).
-pub(super) fn gate_planar<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
-) -> Result<(), BooleanError> {
+pub(super) fn gate_planar<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (face_key, face) in body.faces() {
         match body.get_surface(face.surface) {
             Some(geom_surfaces::Surface::Plane { .. }) => {}
@@ -172,7 +169,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
 fn edge_chord_len<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
     let e = body.get_edge(edge)?;
     let pa = *body.get_point(body.get_vertex(body.get_half_edge(e.he_plus)?.start)?.point)?;
-    let pb = *body.get_point(body.get_vertex(body.get_half_edge(e.he_minus)?.start)?.point)?;
+    let pb = *body.get_point(
+        body.get_vertex(body.get_half_edge(e.he_minus)?.start)?
+            .point,
+    )?;
     Some((pb - pa).norm())
 }
 
@@ -196,12 +196,12 @@ pub(super) fn sweep_direction<T: Decide>(
             let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
                 what: "post-gate face lost its plane",
             })?;
-            let edge = x
-                .get_edge(edge_key)
-                .cloned()
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "worklist edge vanished mid-sweep",
-                })?;
+            let edge =
+                x.get_edge(edge_key)
+                    .cloned()
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "worklist edge vanished mid-sweep",
+                    })?;
             let vert = |he| -> Option<(VertexKey, Point3<T>)> {
                 let vk = x.get_half_edge(he)?.start;
                 Some((vk, *x.get_point(x.get_vertex(vk)?.point)?))
@@ -394,18 +394,17 @@ fn requeue<T: Decide>(
     w: VertexKey,
     next_face: usize,
 ) -> Result<(), BooleanError> {
-    let emanating = x
-        .get_vertex(w)
-        .and_then(|v| v.emanating)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "split vertex without emanating half-edge",
-        })?;
-    let child = x
-        .get_half_edge(emanating)
-        .map(|h| h.edge)
-        .ok_or(BooleanError::ClassificationInvariant {
+    let emanating =
+        x.get_vertex(w)
+            .and_then(|v| v.emanating)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "split vertex without emanating half-edge",
+            })?;
+    let child = x.get_half_edge(emanating).map(|h| h.edge).ok_or(
+        BooleanError::ClassificationInvariant {
             what: "split child edge unresolvable",
-        })?;
+        },
+    )?;
     worklist.push_back((parent, next_face));
     worklist.push_back((child, next_face));
     Ok(())

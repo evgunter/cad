@@ -618,7 +618,15 @@ precursor of the error-propagation feature.
 - **M3** — Intersections for analytic pairs; booleans; mass properties.
   *(First useful parts.)*
 - **M4** — Parametric model layer: parameter vector → feature DAG → solid;
-  provenance-based naming; replay. STEP export.
+  provenance-based naming; replay. STEP export. *(Scheduled retirement,
+  M3 PR 4 / Evan #53/#57/#58: the production **bit-identity channel** —
+  `geom_core::bit_identity`, the one sanctioned `Real`-level `eq_bits`
+  seam behind the coincidence ladder's declared rung and
+  `oriented_plane_eq` — retires when provenance naming lands: a declared
+  coincidence becomes a provenance-record lookup (two descriptions share
+  recipe data), and the bit compare survives at most as a debug
+  assertion behind that lookup. The CI "bit-identity channel tripwire"
+  keeps the channel single-seamed until then.)*
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets.
 - **M6** — Error-propagation MVP: distributions over parameters;

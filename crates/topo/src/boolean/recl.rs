@@ -10,12 +10,9 @@
 //! - [`recl_edges`] — the unprinted `srecledges`, designed from TOG
 //!   §6.2.2: **edge-sector coincidence** (two flanking test sectors
 //!   keyed by their noncoplanar bound vs the reference sector, Table II
-//!   + Table III) and **edge-edge coincidence** (angular sort of the 4
-//!   flanking sectors around the common line; "mixed order" ⇒
-//!   intersection; coplanar ties per Table I rules: all-pairwise-
-//!   coplanar ⇒ none, else the noncoplanar complement pair decides per
-//!   Table III — the comparison direction for that tie is adjudged as
-//!   A-versus-B and flagged in the PR report).
+//!   plus Table III) and **edge-edge coincidence** (the derived
+//!   membership rule subsuming the angular sort and the Table I tie
+//!   rules — see `resolve_edge_edge`).
 //!
 //! Germ attribution (deterministic, symmetric): a crossing along an
 //! on-edge is recorded on the flanking sector holding the on-bound as
@@ -35,10 +32,7 @@ use super::{BooleanError, BooleanOp, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
 
-fn plane_of<T: Decide>(
-    body: &Body<T>,
-    s: &BoolSector<T>,
-) -> Result<PlaneDesc<T>, BooleanError> {
+fn plane_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> Result<PlaneDesc<T>, BooleanError> {
     face_plane(body, s.face).ok_or(BooleanError::ClassificationInvariant {
         what: "sector face lost its plane",
     })
@@ -213,7 +207,7 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// was itself germ-marked by an earlier event).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_edges<T: Decide>(
-    records: &mut Vec<PairRecord>,
+    records: &mut [PairRecord],
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
@@ -249,7 +243,11 @@ pub(super) fn recl_edges<T: Decide>(
             } else {
                 secs[idx].end_edge
             };
-            let dir = if at_start { secs[idx].start } else { secs[idx].end };
+            let dir = if at_start {
+                secs[idx].start
+            } else {
+                secs[idx].end
+            };
             if !mentions
                 .iter()
                 .any(|m| m.a_side == a_side && m.start_holder == f_s)
@@ -417,8 +415,14 @@ fn resolve_edge_edge<T: Decide>(
         let v = if other_is_end { s.end } else { s.start };
         (v - axis * v.dot(axis)).normalize()
     };
-    let a_fl = [(fa_s, rep(&a_sectors[fa_s], true)), (fa_e, rep(&a_sectors[fa_e], false))];
-    let b_fl = [(fb_s, rep(&b_sectors[fb_s], true)), (fb_e, rep(&b_sectors[fb_e], false))];
+    let a_fl = [
+        (fa_s, rep(&a_sectors[fa_s], true)),
+        (fa_e, rep(&a_sectors[fa_e], false)),
+    ];
+    let b_fl = [
+        (fb_s, rep(&b_sectors[fb_s], true)),
+        (fb_e, rep(&b_sectors[fb_e], false)),
+    ];
 
     // Membership of one flanker's rep inside the other solid's wedge.
     let membership = |own_is_a: bool,
@@ -490,12 +494,7 @@ fn resolve_edge_edge<T: Decide>(
     if !germ_a {
         return Ok(None);
     }
-    let combos = [
-        (fa_s, fb_s),
-        (fa_s, fb_e),
-        (fa_e, fb_s),
-        (fa_e, fb_e),
-    ];
+    let combos = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)];
     combos
         .iter()
         .find_map(|&(a, b)| find_on_record(records, a, b))
@@ -577,7 +576,11 @@ fn resolve_edge_sector<T: Decide>(
     }
     for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
         if resolve_verdict(verdict, op, comparison, relation) {
-            let (ra, rb) = if a_side { (flank, ref_idx) } else { (ref_idx, flank) };
+            let (ra, rb) = if a_side {
+                (flank, ref_idx)
+            } else {
+                (ref_idx, flank)
+            };
             // The germ may live on either twin of a subdivided
             // reference; try the recorded twin then its partner.
             let n_ref = ref_secs.len();
@@ -645,9 +648,17 @@ fn resolve_bisector_graze<T: Decide>(
     if !crossing {
         return Ok(None);
     }
-    let (ra, rb) = if a_side { (f_s, ref_idx) } else { (ref_idx, f_s) };
+    let (ra, rb) = if a_side {
+        (f_s, ref_idx)
+    } else {
+        (ref_idx, f_s)
+    };
     let g = find_on_record(records, ra, rb).or_else(|| {
-        let (ra2, rb2) = if a_side { (f_e, ref_idx) } else { (ref_idx, f_e) };
+        let (ra2, rb2) = if a_side {
+            (f_e, ref_idx)
+        } else {
+            (ref_idx, f_e)
+        };
         find_on_record(records, ra2, rb2)
     });
     g.map(Some).ok_or(BooleanError::ClassificationInvariant {

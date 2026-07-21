@@ -70,7 +70,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
     if survivors.is_empty() {
         return Ok(out); // touching without crossing: 3′ contact only
     }
-    if survivors.len() % 2 != 0 {
+    if !survivors.len().is_multiple_of(2) {
         return Err(BooleanError::ClassificationInvariant {
             what: "odd number of surviving crossing records at a vertex pair",
         });
@@ -116,7 +116,11 @@ pub(super) fn insert_null_pairs<T: Decide>(
         }
         // In B the pair is adjacent; the forward run goes from the
         // B-earlier record to the B-later one.
-        let (br0, br1) = if p1 == (p0 + 1) % n { (r0, r1) } else { (r1, r0) };
+        let (br0, br1) = if p1 == (p0 + 1) % n {
+            (r0, r1)
+        } else {
+            (r1, r0)
+        };
         let b_side_run = br0.sb.0;
         if br1.sb.1 != b_side_run {
             return Err(mismatch());
@@ -264,15 +268,10 @@ mod tests {
         };
         use SideCode::{In, Out};
         let recs = vec![mk((In, Out), (In, Out))];
-        let err =
-            insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs).unwrap_err();
+        let err = insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs).unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
-        let recs = vec![
-            mk((In, In), (In, Out)),
-            mk((Out, In), (Out, In)),
-        ];
-        let err =
-            insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs).unwrap_err();
+        let recs = vec![mk((In, In), (In, Out)), mk((Out, In), (Out, In))];
+        let err = insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs).unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
     }
 
@@ -305,9 +304,11 @@ mod tests {
             mk(2, 1, (In, Out), (In, Out)),
             mk(3, 3, (Out, In), (Out, In)),
         ];
-        let err =
-            insert_null_pairs(&mut abody, &mut bbody, contact, &[], &[], &recs).unwrap_err();
-        assert!(matches!(err, BooleanError::PairingMismatch { .. }), "{err:?}");
+        let err = insert_null_pairs(&mut abody, &mut bbody, contact, &[], &[], &recs).unwrap_err();
+        assert!(
+            matches!(err, BooleanError::PairingMismatch { .. }),
+            "{err:?}"
+        );
     }
 
     /// F12 stress, mechanism level: a valid 4-survivor (two-pair)
@@ -358,16 +359,20 @@ mod tests {
             mk(1, 1, (Out, In), (Out, In)),
             mk(1, 1, (In, Out), (In, Out)),
         ];
-        let out =
-            insert_null_pairs(&mut abody, &mut bbody, contact, &a_sectors, &b_sectors, &recs)
-                .unwrap();
+        let out = insert_null_pairs(
+            &mut abody, &mut bbody, contact, &a_sectors, &b_sectors, &recs,
+        )
+        .unwrap();
         assert_eq!(out.pairs.len(), 2);
         assert_eq!(out.edges.len(), 4);
         assert!(out.edges.iter().all(|e| e.dangling));
         for e in &out.edges {
             assert_ne!(e.attr.below_end, e.attr.above_end);
             // Out-run struts: the minted copy is the OUT/above end.
-            assert_eq!(e.attr.below_end, if e.operand == Operand::A { va } else { vb });
+            assert_eq!(
+                e.attr.below_end,
+                if e.operand == Operand::A { va } else { vb }
+            );
         }
         crate::validate::validate(&abody).unwrap();
         crate::validate::validate(&bbody).unwrap();

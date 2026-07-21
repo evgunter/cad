@@ -83,11 +83,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     band: Band,
 ) -> Result<VtxFacOut, BooleanError> {
     let vertex = contact.vertex;
-    let plane = face_plane(pierced_body, contact.face).ok_or(
-        BooleanError::ClassificationInvariant {
+    let plane =
+        face_plane(pierced_body, contact.face).ok_or(BooleanError::ClassificationInvariant {
             what: "pierced face lost its plane",
-        },
-    )?;
+        })?;
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -111,11 +110,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             Ok(_) => continue,
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
-        let sector_plane = face_plane(piercing_body, s.face).ok_or(
-            BooleanError::ClassificationInvariant {
+        let sector_plane =
+            face_plane(piercing_body, s.face).ok_or(BooleanError::ClassificationInvariant {
                 what: "sector face lost its plane",
-            },
-        )?;
+            })?;
         let rel = match super::oriented_plane_eq(&sector_plane, &plane, s.arm, band) {
             Ok(super::PlaneRelation::Distinct) => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -166,13 +164,15 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
-        let last = real.last().or(first);
+        let last = real.next_back().or(first);
         let (site, dangling) = match (first, last) {
             (Some(first), Some(last)) => {
-                let mate = piercing_body.mate(last.he).ok_or(BooleanError::CorruptOperand {
-                    operand: piercing,
-                    vertex,
-                })?;
+                let mate = piercing_body
+                    .mate(last.he)
+                    .ok_or(BooleanError::CorruptOperand {
+                        operand: piercing,
+                        vertex,
+                    })?;
                 let he2 = piercing_body
                     .get_half_edge(mate)
                     .ok_or(BooleanError::CorruptOperand {

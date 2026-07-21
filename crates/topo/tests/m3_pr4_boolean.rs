@@ -7,7 +7,7 @@
 
 mod common;
 
-use common::{prism_z, upgrade_edges_to_intersections as _};
+use common::prism_z;
 use geom_core::Decide;
 use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 
@@ -16,11 +16,7 @@ fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
 }
 
 fn counts<T: Decide>(b: &Body<T>) -> (usize, usize, usize) {
-    (
-        b.vertices().count(),
-        b.edges().count(),
-        b.faces().count(),
-    )
+    (b.vertices().count(), b.edges().count(), b.faces().count())
 }
 
 fn reduce_ok<T: Decide>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> BooleanReduction<T> {
@@ -54,7 +50,10 @@ fn two_bricks<T: Decide>(op: BooleanOp) {
     assert_eq!(struts, 6); // the six pierced-face ring struts
     // Determinism (D9): bitwise-identical record dumps on replay.
     let red2 = reduce_ok(op, &a, &b);
-    assert_eq!(format!("{:?}", red.contacts), format!("{:?}", red2.contacts));
+    assert_eq!(
+        format!("{:?}", red.contacts),
+        format!("{:?}", red2.contacts)
+    );
     assert_eq!(
         format!("{:?}", red.null_pairs),
         format!("{:?}", red2.null_pairs)
@@ -242,18 +241,17 @@ fn curved_operand_refuses() {
     // A genuinely curved body is not in the prismatic corpus; instead
     // gate on scaffolding: a mid-surgery operand refuses.
     let _ = cube;
-    let he = b
-        .vertices()
-        .next()
-        .and_then(|(_, v)| v.emanating)
-        .unwrap();
+    let he = b.vertices().next().and_then(|(_, v)| v.emanating).unwrap();
     b.mev_null(
         topo::MevSite::Fan { he1: he, he2: he },
         topo::NewVertexSide::Above,
     )
     .unwrap();
     let err = boolean_reduce(BooleanOp::Union, &a, &b).unwrap_err();
-    assert!(matches!(err, BooleanError::ScaffoldingOperand { .. }), "{err:?}");
+    assert!(
+        matches!(err, BooleanError::ScaffoldingOperand { .. }),
+        "{err:?}"
+    );
 }
 
 /// F7 gate: a non-maximal operand (declared-coplanar adjacent faces)
@@ -277,10 +275,18 @@ fn non_maximal_operand_refuses() {
     let he1 = cycle[0];
     let he2 = cycle[2];
     let p0 = *b
-        .get_point(b.get_vertex(b.get_half_edge(he1).unwrap().start).unwrap().point)
+        .get_point(
+            b.get_vertex(b.get_half_edge(he1).unwrap().start)
+                .unwrap()
+                .point,
+        )
         .unwrap();
     let p1 = *b
-        .get_point(b.get_vertex(b.get_half_edge(he2).unwrap().start).unwrap().point)
+        .get_point(
+            b.get_vertex(b.get_half_edge(he2).unwrap().start)
+                .unwrap()
+                .point,
+        )
         .unwrap();
     b.mef(
         topo::MefSite::Chords { he1, he2 },
@@ -289,7 +295,10 @@ fn non_maximal_operand_refuses() {
     )
     .unwrap();
     let err = boolean_reduce(BooleanOp::Union, &a, &b).unwrap_err();
-    assert!(matches!(err, BooleanError::NonMaximalFaces { .. }), "{err:?}");
+    assert!(
+        matches!(err, BooleanError::NonMaximalFaces { .. }),
+        "{err:?}"
+    );
 }
 
 // ---- Interval lane (the same scenarios at T = Interval). ----

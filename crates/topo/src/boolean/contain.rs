@@ -84,7 +84,10 @@ pub fn contfp<T: Decide>(
                 Ok(Sign::Zero) => return Ok(FaceContainment::OnVertex(*v)),
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(invalid(band, "bool_contact_vertex")));
+                    return Err(ContainError::Escalated(invalid(
+                        band,
+                        "bool_contact_vertex",
+                    )));
                 }
                 Err(diag) => return Err(ContainError::Escalated(diag)),
             }
@@ -98,8 +101,13 @@ pub fn contfp<T: Decide>(
             // (endpoint neighborhoods already decided above).
             let s0 = (q - *a).dot(ehat);
             let s1 = len - s0;
-            let interior = matches!(decide("bool_contact_edge_span", s0, band), Ok(Sign::Positive))
-                && matches!(decide("bool_contact_edge_span", s1, band), Ok(Sign::Positive));
+            let interior = matches!(
+                decide("bool_contact_edge_span", s0, band),
+                Ok(Sign::Positive)
+            ) && matches!(
+                decide("bool_contact_edge_span", s1, band),
+                Ok(Sign::Positive)
+            );
             if !interior {
                 continue;
             }
@@ -123,7 +131,10 @@ pub fn contfp<T: Decide>(
         LoopContainment::Out => return Ok(FaceContainment::Out),
         LoopContainment::In => {}
         LoopContainment::OnBoundary => {
-            return Err(ContainError::Escalated(invalid(band, "bool_contfp_boundary")));
+            return Err(ContainError::Escalated(invalid(
+                band,
+                "bool_contfp_boundary",
+            )));
         }
     }
     for &ring in &face_data.rings {
@@ -131,7 +142,10 @@ pub fn contfp<T: Decide>(
             LoopContainment::Out => {}
             LoopContainment::In => return Ok(FaceContainment::Out),
             LoopContainment::OnBoundary => {
-                return Err(ContainError::Escalated(invalid(band, "bool_contfp_boundary")));
+                return Err(ContainError::Escalated(invalid(
+                    band,
+                    "bool_contfp_boundary",
+                )));
             }
         }
     }

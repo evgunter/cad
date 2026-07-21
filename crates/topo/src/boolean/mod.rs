@@ -58,13 +58,13 @@
 //! tests pin both directions on brick fixtures.
 
 mod contain;
-pub(crate) mod reduce;
 pub(crate) mod insert;
-pub(crate) mod recl;
-pub(crate) mod sectors;
-pub(crate) mod vtxfac;
 pub mod plane_eq;
+pub(crate) mod recl;
+pub(crate) mod reduce;
+pub(crate) mod sectors;
 pub mod tables;
+pub(crate) mod vtxfac;
 
 use geom_core::{Band, BandError, Decide, Indeterminate, Real};
 
@@ -373,14 +373,21 @@ impl core::fmt::Display for BooleanError {
                  refusal, F12)"
             ),
             Self::ClassificationInvariant { what } => {
-                write!(f, "boolean_reduce: classification invariant violated: {what}")
+                write!(
+                    f,
+                    "boolean_reduce: classification invariant violated: {what}"
+                )
             }
             Self::CorruptOperand { operand, vertex } => write!(
                 f,
                 "boolean_reduce: neighborhood of vertex {vertex:?} in operand {operand:?} \
                  could not be walked"
             ),
-            Self::CrossingInsertion { operand, edge, source } => write!(
+            Self::CrossingInsertion {
+                operand,
+                edge,
+                source,
+            } => write!(
                 f,
                 "boolean_reduce: crossing insertion refused on edge {edge:?} of operand \
                  {operand:?}: {source}"

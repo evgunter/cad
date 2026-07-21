@@ -100,10 +100,8 @@ pub fn oriented_plane_eq<T: Decide>(
         if b1 == b2 {
             return Ok(PlaneRelation::SameOriented);
         }
-        if let Some(b2n) = bits_of(-p2.normal, -d2) {
-            if b1 == b2n {
-                return Ok(PlaneRelation::SameOpposite);
-            }
+        if bits_of(-p2.normal, -d2).is_some_and(|b2n| b1 == b2n) {
+            return Ok(PlaneRelation::SameOpposite);
         }
     }
 
@@ -228,6 +226,9 @@ mod tests {
         let k = geom_core::Tolerance::get().k;
         let p2 = plane([0.0, 0.0, 5.0 + 0.5 * k * eps], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &p2, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Undeclared(_) | PlaneEqError::Escalated(_)));
+        assert!(matches!(
+            err,
+            PlaneEqError::Undeclared(_) | PlaneEqError::Escalated(_)
+        ));
     }
 }
