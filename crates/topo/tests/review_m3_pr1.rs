@@ -951,13 +951,14 @@ fn f64_debug_channel_injectivity_probes() {
     );
 }
 
-/// TARGET 8 (the exploit): two adjacent faces carrying DIFFERENT
-/// bit-patterns (distinct NaN payloads) that the Debug channel cannot
-/// tell apart. merge_coplanar_faces' declared-equality is Debug-string
-/// equality on tier-2 (structurally validated, geometry-unexamined)
-/// input - so if this merges, the channel has laundered two unequal,
-/// geometrically meaningless descriptions into "the same declared
-/// plane". Pinned as a witness either way.
+/// TARGET 8 (the exploit, FIXED): two adjacent faces carrying
+/// DIFFERENT bit-patterns (distinct NaN payloads) that the old
+/// Debug-string channel could not tell apart. The fix pass replaced
+/// the declared-equality rung with per-component to_bits equality, so
+/// these MUST stay unmerged (the empty-groups arm); a merge here is a
+/// regression to the non-injective Debug channel. (Bit-IDENTICAL NaN
+/// planes still compare equal by design - declared coincidence of
+/// garbage; tier 3 refuses downstream.)
 #[test]
 fn merge_coplanar_nan_payload_debug_collision() {
     let mut cube = geometric_cube::<f64>();
@@ -1005,7 +1006,7 @@ fn merge_coplanar_nan_payload_debug_collision() {
     let before = dump(&cube.body);
     let outcome = cube.body.merge_coplanar_faces();
     match outcome {
-        Ok(o) if o.groups.is_empty() => {} // refused to see them as equal: fine
+        Ok(o) if o.groups.is_empty() => {} // bit-different: unmerged (required)
         Ok(o) => panic!(
             "BIT-DIFFERENT NaN descriptions merged as declared-equal: {o:?} \
              (Debug channel non-injectivity laundered them)"

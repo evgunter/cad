@@ -14,8 +14,8 @@
 //! **Coincidence discipline (the F6/round-8 ladder, applied)**: two
 //! adjacent faces merge iff their surfaces are the *same key*
 //! (structural) or *bit-identical `Plane` descriptions* (declared —
-//! exact bit equality via the D9 dump channel, no tolerance
-//! anywhere). A pair that is merely **numerically** coplanar — same
+//! exact per-component `to_bits` equality, no `Debug` strings and no
+//! tolerance anywhere). A pair that is merely **numerically** coplanar — same
 //! plane up to ε, different descriptions — is out of scope **by
 //! design**: coincidence is never inferred from values; such a pair
 //! stays unmerged (and PR 4's `NonMaximalFaces` gate will not see it
@@ -117,6 +117,37 @@ impl core::fmt::Display for MergeCoplanarError {
 }
 
 impl std::error::Error for MergeCoplanarError {}
+
+/// Bit-faithful identity of one scalar for the declared-equality rung:
+/// `f64` ⇒ `(to_bits, 0, 0)`; the interval scalar ⇒ its
+/// `(inf_bits, sup_bits, decoration)` triple (`Interval::repr_bits`,
+/// which — unlike `Bounds` — keeps NaI and empty apart); `Probe` ⇒ the
+/// bits of its inner `f64`. Both operands are the same `T`, so no
+/// cross-type tagging is needed.
+///
+/// **Deliberately localized** (per the PR 1 review): the clean
+/// long-term shape is a `Real`-level bit-equality door, deferred to
+/// PR 4's oriented-plane-equality work — extend *there*, not this
+/// downcast ladder. A scalar without an arm (e.g. `Dual`, which no
+/// `Body` instantiates) yields `None`: with no bit-identity channel,
+/// declared coincidence cannot be certified, so the caller refuses to
+/// merge — the ladder's conservative direction (coincidence is never
+/// inferred), not a silent wrong answer.
+fn scalar_repr_bits<T: Decide>(x: T) -> Option<(u64, u64, u64)> {
+    let any: &dyn core::any::Any = &x;
+    if let Some(v) = any.downcast_ref::<f64>() {
+        return Some((v.to_bits(), 0, 0));
+    }
+    if let Some(v) = any.downcast_ref::<geom_core::Probe>() {
+        return Some((v.0.to_bits(), 0, 0));
+    }
+    #[cfg(feature = "interval")]
+    if let Some(v) = any.downcast_ref::<geom_core::Interval>() {
+        let (lo, hi, dec) = v.repr_bits();
+        return Some((lo, hi, u64::from(dec)));
+    }
+    None
+}
 
 impl<T: Decide> Body<T> {
     /// Merges every maximal run of adjacent same-plane faces (module
@@ -220,15 +251,21 @@ impl<T: Decide> Body<T> {
 
     /// The F6 ladder's merge test: same surface key (structural), or
     /// both `Plane` with **bit-identical descriptions** (declared —
-    /// arising from shared recipe data). The comparison is the `Debug`
-    /// dump of the two `Plane` values — the same bit-faithful channel
-    /// the D9 determinism pins compare bodies through (`f64`'s `Debug`
-    /// is shortest-roundtrip, hence injective on bits; the scalar
+    /// arising from shared recipe data). The comparison is
+    /// per-component `to_bits` equality over the nine `Plane` scalars
+    /// (see [`scalar_repr_bits`]) — **never** `Debug` strings (`f64`'s
+    /// shortest-roundtrip `Debug` is injective on bits *except* NaN:
+    /// every payload/sign prints `"NaN"`, so bit-different NaN
+    /// descriptions would launder into "declared-equal"). The scalar
     /// types deliberately expose no generic `==` — the interval scalar
     /// bans `PartialEq` — and *no banded comparison belongs here by
-    /// design*: coincidence is never inferred from values). Non-plane
-    /// surfaces never merge, same-key included (curved maximality is
-    /// M5's).
+    /// design*: coincidence is never inferred from values.
+    ///
+    /// Accepted consequence: bit-**identical** NaN planes still
+    /// compare equal — a declared coincidence of garbage; tier 3
+    /// refuses such geometry downstream, so fail-loud is preserved.
+    /// Non-plane surfaces never merge, same-key included (curved
+    /// maximality is M5's).
     fn planes_declared_equal(&self, f1: FaceKey, f2: FaceKey) -> bool {
         let (Some(k1), Some(k2)) = (
             self.get_face(f1).map(|f| f.surface),
@@ -239,13 +276,34 @@ impl<T: Decide> Body<T> {
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
             return false;
         };
-        if !matches!(s1, Surface::Plane { .. }) || !matches!(s2, Surface::Plane { .. }) {
+        let (
+            Surface::Plane {
+                origin: o1,
+                normal: n1,
+                u_ref: u1,
+            },
+            Surface::Plane {
+                origin: o2,
+                normal: n2,
+                u_ref: u2,
+            },
+        ) = (*s1, *s2)
+        else {
             return false;
-        }
+        };
         if k1 == k2 {
             return true; // structural (and planar, checked above)
         }
-        format!("{s1:?}") == format!("{s2:?}")
+        let comps = |o: geom_core::Point3<T>, n: geom_core::Vec3<T>, u: geom_core::Vec3<T>| {
+            [o.x, o.y, o.z, n.x, n.y, n.z, u.x, u.y, u.z]
+        };
+        comps(o1, n1, u1)
+            .into_iter()
+            .zip(comps(o2, n2, u2))
+            .all(|(a, b)| match (scalar_repr_bits(a), scalar_repr_bits(b)) {
+                (Some(ba), Some(bb)) => ba == bb,
+                _ => false, // no bit channel for this scalar: never declared-equal
+            })
     }
 
     /// Merges one group into its first member (see the public op's
