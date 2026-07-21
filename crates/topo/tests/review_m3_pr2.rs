@@ -271,3 +271,143 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
     // Total: 2 crossings + 2 straight-corner vertices.
     assert_eq!(red.null_edges.len(), 4);
 }
+
+/// R5 — "crossing vertices are ON by construction": what the declared
+/// coincidence actually is, measured. Diagonal crossing edges at 1e5
+/// coordinate scale against a diagonal plane: the interpolated point is
+/// genuinely OFF the plane (extended-precision residual ≈ 5e-14 here —
+/// nonzero, so ON is a declaration, not a measurement), while the f64
+/// margin predicate itself often computes exactly 0 for its own
+/// construction (correlated rounding). The test (a) witnesses the
+/// nonzero true residual, (b) checks it stays below the coincidence
+/// threshold at the current ε row (declared and measured agree at sane
+/// scales), (c) proves via K-telemetry that the reduction never
+/// re-measures a constructed vertex, and (d) checks a consumer
+/// re-sweeping the reduced body reproduces ON.
+#[test]
+fn r5_crossing_vertex_on_is_declared_not_measured() {
+    // Plane x + 3y = 400000, normal (1,3,0)/√10; crossing edges hit it
+    // at non-dyadic parameters.
+    let profile = [
+        (99004.0, 98986.0),
+        (101007.0, 99000.0),
+        (101011.0, 101017.0),
+        (98993.0, 101003.0),
+    ];
+    let l = 10.0f64.sqrt();
+    let plane = SplitPlane {
+        origin: Point3::new(100000.0, 100000.0, 0.0),
+        normal: Vec3::new(1.0 / l, 3.0 / l, 0.0),
+    };
+    let fx = prism::<f64>(&profile, 1.0);
+    let n_operand_vertices = fx.body.vertices().count();
+
+    // (c) Telemetry (the Probe recording scalar): split_vertex_side ran
+    // exactly once per OPERAND vertex — constructed crossing vertices
+    // and null-edge copies are cached, never re-measured through the
+    // predicate.
+    {
+        use geom_core::k_stats::{Probe, start_recording, take_samples};
+        let fx_p = prism::<Probe>(&profile, 1.0);
+        let plane_p = SplitPlane {
+            origin: Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
+            normal: Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
+        };
+        start_recording();
+        let red_p = split_reduce(&fx_p.body, &plane_p).unwrap();
+        let samples = take_samples();
+        assert_eq!(red_p.on_vertices.len(), 4);
+        let sweeps = samples
+            .iter()
+            .filter(|s| s.predicate == "split_vertex_side")
+            .count();
+        assert_eq!(sweeps, n_operand_vertices, "no re-measurement anywhere");
+    }
+
+    let red = split_reduce(&fx.body, &plane).unwrap();
+
+    assert_eq!(red.on_vertices.len(), 4); // 2 crossing segments × 2 rims
+    // (a)+(b): extended-precision residual (two_prod/two_sum) of each
+    // stored crossing point.
+    let two_sum = |a: f64, b: f64| {
+        let s = a + b;
+        let bp = s - a;
+        (s, (a - (s - bp)) + (b - bp))
+    };
+    let two_prod = |a: f64, b: f64| {
+        let p = a * b;
+        (p, a.mul_add(b, -p))
+    };
+    let mut max_residual: f64 = 0.0;
+    for &v in &red.on_vertices {
+        assert_eq!(red.sides[v], PlaneSide::On, "declared ON");
+        let p = point_of(&red.body, v);
+        let (h1, e1) = two_prod(p.x - plane.origin.x, plane.normal.x);
+        let (h2, e2) = two_prod(p.y - plane.origin.y, plane.normal.y);
+        let (s, es) = two_sum(h1, h2);
+        let residual = s + (es + e1 + e2);
+        max_residual = max_residual.max(residual.abs());
+    }
+    assert!(
+        max_residual > 0.0,
+        "all constructed points exactly on-plane — the declared-ON \
+         question would be vacuous here"
+    );
+    let band = geom_core::Band::linear().unwrap();
+    assert!(
+        max_residual < band.zero(),
+        "constructed-point residual {max_residual:e} exceeds the \
+         coincidence threshold {:e}: declared ON is inconsistent with \
+         the band at this ε row",
+        band.zero()
+    );
+    // (d) A consumer CANNOT re-sweep the reduced body through the
+    // public gate: it now carries null scaffolding, and the operand
+    // gate refuses it typed (ScaffoldingOperand). The declared-ON cache
+    // in `red.sides` is therefore the only currency downstream — which
+    // is exactly the declared-coincidence design, pinned here.
+    match topo::vertex_sides(&red.body, &plane) {
+        Err(SplitReduceError::ScaffoldingOperand { .. }) => {}
+        other => panic!("expected ScaffoldingOperand refusal, got {other:?}"),
+    }
+}
+
+/// R6 — F6 sweep honesty at the current ε row: in-band on BOTH sides of
+/// the plane escalates typed; a definitely-off vertex (past the
+/// escalation threshold) is never conscripted into ON and produces a
+/// clean, null-edge-free reduction when nothing crosses.
+#[test]
+fn r6_band_honesty_both_sides_and_no_conscription() {
+    let eps = geom_core::Tolerance::get().eps;
+    let band = geom_core::Band::linear().unwrap();
+    // In-band below the plane (the shipped teeth only test above).
+    let profile = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0 - 3.0 * eps),
+        (0.0, 1.0 - 3.0 * eps),
+    ];
+    let fx = prism::<f64>(&profile, 1.0);
+    match split_reduce(&fx.body, &plane_y(1.0, 1.0)) {
+        Err(SplitReduceError::SliverVertex { vertex, diag }) => {
+            assert!(diag.predicate.is_some());
+            let p = point_of(&fx.body, vertex);
+            assert_eq!(p.y, 1.0 - 3.0 * eps);
+        }
+        other => panic!("expected SliverVertex, got {other:?}"),
+    }
+    // Definitely off (2× the escalation threshold): clean Below, no ON
+    // set, no surgery — never conscripted.
+    let off = 2.0 * band.escalate();
+    let profile = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0 - off),
+        (0.0, 1.0 - off),
+    ];
+    let fx = prism::<f64>(&profile, 1.0);
+    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0)).unwrap();
+    assert!(red.on_vertices.is_empty());
+    assert!(red.null_edges.is_empty());
+    assert!(red.sides.iter().all(|(_, &s)| s == PlaneSide::Below));
+}
