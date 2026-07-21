@@ -2404,9 +2404,10 @@ mod tests {
             b.kfmrh(seed.face, seed.face).unwrap_err()
         });
         // A second mvfs is a second solid+shell in the same body:
-        // cross-shell kfmrh is the deferred M3 case (shell merge).
+        // cross-SOLID kfmrh stays a typed error (M3 PR 1 lifted only
+        // the same-solid cross-shell case, as shell fusion).
         let other = body.mvfs(p(9.0)).unwrap();
-        let expected = EulerOpError::CrossShell {
+        let expected = EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
         };

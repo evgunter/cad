@@ -1794,12 +1794,13 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         &EulerOpError::SameFace { face: seed.face },
         |b| b.kfmrh(seed.face, seed.face).unwrap_err(),
     );
-    // CrossShell (two solids in one body — the only reachable
-    // cross-shell state at M1).
+    // CrossSolid (two solids in one body): since M3 PR 1 kfmrh accepts
+    // cross-shell faces of ONE solid (shell fusion); across solids it
+    // stays a typed error under the new name.
     let other = body.mvfs(Point3::new(9.0, 0.0, 0.0)).unwrap();
     assert_err_unchanged(
         &mut body,
-        &EulerOpError::CrossShell {
+        &EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
         },
