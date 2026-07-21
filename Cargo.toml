@@ -1,5 +1,8 @@
 [workspace]
 resolver = "3"
+# demos/ is a deliberately separate cargo project (pre-GUI visual demo
+# tour + STL viewer tooling); it must never join the kernel workspace.
+exclude = ["demos"]
 members = [
     "crates/geom-brep",
     "crates/geom-core",
