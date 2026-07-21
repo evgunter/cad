@@ -97,6 +97,24 @@ jobs:
         env:
           CAD_TOLERANCE_EPS: 1e-6
 
+  watertight:
+    name: watertight (admesh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # External STL verification (M2 PR 7): admesh 0.98.4 is
+      # apt-packaged; the check script accepts NO repair as success.
+      - name: install admesh
+        run: sudo apt-get update && sudo apt-get install -y admesh
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The example pre-flights our own validators (tier 1–3 incl. the
+      # +V invariant, check_mesh, signed_volume > 0) before writing.
+      - name: export acceptance STLs
+        run: cargo run -p stl --example export_acceptance -- target/stl-acceptance
+      - name: admesh check (watertight/manifold, no repair accepted)
+        run: scripts/check_admesh.sh target/stl-acceptance
+
   multi-eps:
     name: test (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest

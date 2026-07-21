@@ -597,6 +597,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "stl"
+version = "0.0.0"
+dependencies = [
+ "geom-core",
+ "mesh",
+ "profile",
+ "sweep",
+ "topo",
+]
+
+[[package]]
 name = "sweep"
 version = "0.0.0"
 dependencies = [

@@ -133,6 +133,7 @@ pub(crate) mod fixtures;
 pub mod geometry;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod props;
 pub mod provenance;
 #[cfg(test)]
 mod review_m0_pr7;
@@ -166,5 +167,6 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

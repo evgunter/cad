@@ -116,9 +116,9 @@
 //! # K-telemetry
 //!
 //! Decisions here are name-tagged through the same local funnel shape
-//! as `geom-brep`'s (predicate names on every escalation); wiring to
-//! the `profile` crate's thread-local recording funnel is PR 7's
-//! unification.
+//! as `geom-brep`'s, which delegates to the unified recorder funnel
+//! `geom_core::k_stats::decide` (M2 PR 7) — a `Probe`-lane run records
+//! every decision under its predicate name.
 
 pub mod extrude;
 pub mod revolve;

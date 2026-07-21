@@ -60,7 +60,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{AMBIGUITY_K, Band, BandError, BandField, Decide, Indeterminate, MarginDiag, Sign};
+use geom_core::{Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign};
 
 /// The review-run band: (ε, K·ε) at the ratified default ε = 1e-9,
 /// constructed purely (see the module docs).
@@ -216,8 +216,9 @@ fn display_messages_and_error_objects() {
 
 #[test]
 fn sign_and_margin_diag_consumer_semantics() {
-    // AMBIGUITY_K is public, read-only, and the ratified 10.
-    assert_eq!(AMBIGUITY_K, 10.0);
+    // The ratified default K is 10 (since M2 PR 7 the run value is
+    // ε-style configuration, `Tolerance::get().k`, defaulting to this).
+    assert_eq!(DEFAULT_K, 10.0);
     // Sign equality/copy semantics as a consumer sees them.
     let s = Sign::Positive;
     assert_eq!(s.flip().flip(), s);

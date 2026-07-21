@@ -18,7 +18,7 @@ use geom_core::{Tolerance, ToleranceError};
 
 #[test]
 fn explicit_init_commits_once_and_ignores_env() {
-    let tolerance = Tolerance { eps: 2.5e-9 };
+    let tolerance = Tolerance::with_eps(2.5e-9);
     assert_eq!(Tolerance::init(tolerance), Ok(()));
 
     // get() returns the explicitly installed value (env vars, if any, are
@@ -28,7 +28,7 @@ fn explicit_init_commits_once_and_ignores_env() {
     assert!(Tolerance::env_init_errors().is_empty());
 
     // A second init fails with a typed error carrying current + attempted.
-    let attempted = Tolerance { eps: 1e-6 };
+    let attempted = Tolerance::with_eps(1e-6);
     assert_eq!(
         Tolerance::init(attempted),
         Err(ToleranceError::AlreadyInitialized {
