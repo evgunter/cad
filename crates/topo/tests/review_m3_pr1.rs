@@ -1117,3 +1117,50 @@ fn interval_split_edge_lane() {
         .unwrap();
     assert_eq!(format!("{:?}", cube.body), format!("{:?}", cube2.body));
 }
+
+/// TARGET 2 (the last laundering door): set_edge_curve cannot promote
+/// a null edge into geometry - its endpoints are bitwise coincident,
+/// so ANY certified replacement fails the forward-span gate with a
+/// typed Certification error, and the body is untouched. Also pins
+/// mfkrh's FaceSurface::Inherit as a same-KEY share (the spec's
+/// same-key demand for section faces).
+#[test]
+fn null_edge_cannot_be_laundered_through_set_edge_curve() {
+    let mut cube = geometric_cube::<f64>();
+    let he = cube
+        .body
+        .get_vertex(cube.mevs[0].vertex)
+        .unwrap()
+        .emanating
+        .unwrap();
+    let created = cube
+        .body
+        .mev_null(MevSite::Fan { he1: he, he2: he }, NewVertexSide::Above)
+        .unwrap();
+    let before = dump(&cube.body);
+    let p = *cube
+        .body
+        .get_point(cube.body.get_vertex(created.vertex).unwrap().point)
+        .unwrap();
+    let err = cube
+        .body
+        .set_edge_curve(created.edge, line(p, pt(p.x + 1.0, p.y, p.z)))
+        .unwrap_err();
+    assert!(
+        matches!(err, EulerOpError::Certification { .. }),
+        "a null edge accepted a certified carrier: {err:?}"
+    );
+    assert_eq!(dump(&cube.body), before);
+    cube.body.kev(created.he_plus).unwrap();
+    // mfkrh Inherit = same surface key as the demoting face.
+    let (mut body, seed) = ops_cube_public();
+    let inner = plant_detached_box(&mut body, seed.face, pt(0.3, 0.3, 1.4));
+    body.movefac(seed.shell).unwrap();
+    let fused = body.kfmrh(seed.face, inner).unwrap();
+    let promoted = body.mfkrh(fused.ring, FaceSurface::Inherit).unwrap();
+    assert_eq!(
+        body.get_face(promoted.face).unwrap().surface,
+        body.get_face(seed.face).unwrap().surface,
+        "Inherit did not share the demoting face's surface key"
+    );
+}
