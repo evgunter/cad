@@ -32,6 +32,14 @@ its initial prompt.
    state, first moves, standing process, monitors to arm).
 5. Wait ~30 s, `mngr capture <successor-name>` again — confirm it has
    actually started before considering the handoff done.
+6. **Stop the predecessor's tmux session (Evan, 2026-07-21)**: after
+   the capture confirms the successor is running, the LAST step is
+   shutting down the old orchestrator's tmux session. Most sensible
+   form: the old orchestrator's handoff prompt instructs the
+   successor to stop the predecessor once the successor confirms it
+   has everything it needs to get to work; if something is missing,
+   the successor instead uses tmux `send-keys` to the predecessor's
+   session to ask for guidance before stopping it.
 
 The `mngr` CLI was broken for a stretch of M2 (azure plugin
 ImportError; workaround was reading the usage events.jsonl directly —
