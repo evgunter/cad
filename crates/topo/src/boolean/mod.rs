@@ -59,6 +59,7 @@
 
 mod contain;
 pub(crate) mod reduce;
+pub(crate) mod recl;
 pub(crate) mod sectors;
 pub mod plane_eq;
 pub mod tables;
