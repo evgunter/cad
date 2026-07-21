@@ -576,15 +576,15 @@ pub enum EulerOpError {
         /// The face named twice.
         face: FaceKey,
     },
-    /// The two faces lie in different shells. For [`Body::kfmrh`] this
-    /// is the **deferred cross-shell case**: applied across shells the
-    /// operator merges them instead of adding genus (Mäntylä §9.2.4's
-    /// "KFSMR" reading), and multi-shell solids arrive with M3's
-    /// splitting/booleans — until then cross-shell `kfmrh` is a typed
-    /// error by ratified plan. [`Body::ring_move`] likewise only
-    /// reparents within one shell.
+    /// The two faces lie in different shells where one shell is
+    /// required. Since M3 PR 1 [`Body::kfmrh`] **accepts** cross-shell
+    /// faces (same solid) as its shell-fusion form and no longer fires
+    /// this; [`Body::ring_move`] still only reparents within one shell
+    /// (cross-shell ring re-homing has no ch. 14/15 consumer — a ring
+    /// moves between faces of one shell after splits change
+    /// containment).
     CrossShell {
-        /// The first face (kfmrh's `f1` / ring_move's source face).
+        /// The first face (ring_move's source face).
         f1: FaceKey,
         /// The second face, in a different shell.
         f2: FaceKey,

@@ -133,6 +133,7 @@ pub(crate) mod fixtures;
 pub mod geometry;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod movefac;
 pub mod null;
 pub mod props;
 pub mod provenance;
