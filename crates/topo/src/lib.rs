@@ -124,6 +124,7 @@
 
 pub mod attach;
 pub mod body;
+pub mod boolean;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
