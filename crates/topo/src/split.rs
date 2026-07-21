@@ -124,6 +124,17 @@ impl<T: Decide> Body<T> {
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child).
     ///
+    /// # Tier-3 caveat (review F2)
+    ///
+    /// Splitting a circle rim of an iso-rectangle patch (e.g. a
+    /// plane×cylinder intersection rim on an extruded disc) leaves the
+    /// curved wall's loop no longer an iso-rectangle: mass properties
+    /// / tier 3 then refuse **typed** (`NotIsoRectangle`) on a body
+    /// that was tier-3 before the split. Honest and loud, but the
+    /// split knocks the body out of the props inventory until the
+    /// patch machinery generalizes (pinned in
+    /// `review_m3_pr1_sweep.rs::split_circle_carrier_intersection_edge`).
+    ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on

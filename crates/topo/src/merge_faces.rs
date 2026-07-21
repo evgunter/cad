@@ -153,9 +153,12 @@ impl<T: Decide> Body<T> {
     /// Merges every maximal run of adjacent same-plane faces (module
     /// docs: structural or declared coincidence only), killing shared
     /// edges (`kef`; intra-face duplicates via `kemr`, whose new ring
-    /// takes the plus half's side — a designation later re-homed by
-    /// the caller through `ring_move` once PR 2's containment exists)
-    /// and re-homing absorbed faces' rings onto the survivor.
+    /// takes the plus half's side — a **provisional designation, not
+    /// truth**: which loop is "the" ring is a containment question this
+    /// op does not ask, so a region-sensitive consumer must re-home the
+    /// ring via containment — PR 2+ machinery, `ring_move` the
+    /// mechanism. Until then the convention is simply not detected
+    /// wrong) and re-homing absorbed faces' rings onto the survivor.
     ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
