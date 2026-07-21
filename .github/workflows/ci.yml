@@ -36,6 +36,26 @@ jobs:
             echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
             exit 1
           fi
+      # Bit-identity coincidence checking is SCHEDULED FOR RETIREMENT
+      # (DESIGN.md roadmap, M4: provenance-based naming replaces the
+      # declared rung's bit fingerprint with a record lookup; Evan, #53).
+      # Until then, exactly the allowlisted sites below may use the
+      # repr_bits channel. A new consumer must (1) be added to the
+      # allowlist here AND (2) carry its own code-doc note that it is
+      # retirement-scheduled with M4 — the tripwire exists so no usage
+      # lands without that note (Evan, #53, 2026-07-21).
+      - name: bit-identity channel tripwire (M4 retirement)
+        run: |
+          allowed="crates/geom-core/src/interval.rs crates/topo/src/merge_faces.rs"
+          hits=$(grep -rln "repr_bits" crates/*/src || true)
+          bad=""
+          for f in $hits; do
+            case " $allowed " in *" $f "*) ;; *) bad="$bad $f";; esac
+          done
+          if [ -n "$bad" ]; then
+            echo "::error::new repr_bits (bit-identity) usage in:$bad — this channel is retirement-scheduled (DESIGN.md M4); allowlist it here AND add a retirement note in its docs, or use a provenance mechanism instead"
+            exit 1
+          fi
 
   fmt:
     name: rustfmt
