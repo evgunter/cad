@@ -177,6 +177,63 @@ pub(super) fn apply_rule_b(
     Ok(())
 }
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::entity::HalfEdgeKey;
+    use crate::splitting::SectorEntryKind;
+
+    fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
+        classes
+            .iter()
+            .map(|&class| SectorEntry {
+                he: HalfEdgeKey::default(),
+                kind: SectorEntryKind::Edge,
+                class,
+            })
+            .collect()
+    }
+
+    use PlaneSide::{Above as A, Below as B, On as O};
+
+    /// The adjudicated rule (b) table (module docs): BOB → ABOVE,
+    /// every other context → BELOW — pinned per row.
+    #[test]
+    fn rule_b_adjudicated_table() {
+        let cases = [
+            ([A, O, A], A, PlaneSide::Below), // AOA → BELOW (book, not paper)
+            ([B, O, B], B, PlaneSide::Above), // BOB → ABOVE (book, not paper)
+            ([A, O, B], A, PlaneSide::Below), // AOB → BELOW (both witnesses)
+            ([B, O, A], B, PlaneSide::Below), // BOA → BELOW (both witnesses)
+        ];
+        for (classes, keep, expect) in cases {
+            let mut e = entries(&classes);
+            apply_rule_b(VertexKey::default(), &mut e).unwrap();
+            assert_eq!(e[1].class, expect, "context {classes:?}");
+            assert_eq!(e[0].class, keep); // neighbors untouched
+        }
+    }
+
+    /// Rule (b) reads cyclic neighbors: an ON entry at the array seam
+    /// wraps.
+    #[test]
+    fn rule_b_wraps_cyclically() {
+        let mut e = entries(&[O, B, B]); // neighbors of entry 0: e[2]=B, e[1]=B
+        apply_rule_b(VertexKey::default(), &mut e).unwrap();
+        assert_eq!(e[0].class, PlaneSide::Above);
+    }
+
+    /// Consecutive ON entries are the loud invariant failure, never a
+    /// silent walk-on.
+    #[test]
+    fn consecutive_on_refuses() {
+        let mut e = entries(&[O, O, B]);
+        let err = apply_rule_b(VertexKey::default(), &mut e).unwrap_err();
+        assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
+    }
+}
+
 /// The face-extent lever arm for the coplanarity/sense predicates: the
 /// farthest distance from the base vertex to any vertex of the face's
 /// loops — the largest displacement a normal-angle error can induce
