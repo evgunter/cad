@@ -88,10 +88,11 @@ interval lane). Survived the WSL host crash mid-implementation
   NEVER merges (test proves same-geometry/different-description stays
   unmerged); kef absorption + kemr for duplicate edges; staged on a
   clone with tier-2 gates both sides; typed refusals; curved same-key
-  excluded (M5). Bit-equality via the f64 Debug (shortest-roundtrip)
-  dump channel because interval deliberately has no PartialEq —
-  deviation 3, needs a review nod; a `Real::eq_bits` door is the
-  cleaner long-term shape if PR 4's oriented-plane-equality wants it.
+  excluded (M5). Bit-equality originally via the f64 Debug
+  (shortest-roundtrip) dump channel because interval deliberately has
+  no PartialEq — deviation 3; the review REJECTED it with a working
+  NaN-payload exploit and the fix pass replaced it (see below); a
+  `Real`-level eq_bits door lands with PR 4's oriented-plane-equality.
 - Integration exemplar `crates/topo/tests/m3_pr1_surgery.rs`
   (cube_with_inner_box: strut→kemr→grow→mfkrh detached-component
   recipe; multi-shell lifecycle mev_null → mfkrh → movefac →
@@ -100,8 +101,50 @@ interval lane). Survived the WSL host crash mid-implementation
   CrossSolid boundary; kemr plus-side ring designation in merge (re-
   homed once containment exists); tier-1 null hooks minimal-by-design;
   the Debug-dump bit-equality channel.
-- Adversarial review + fix pass: NOT yet run — the next orchestrator's
-  first move.
+### PR 1 adversarial review + fix pass (2026-07-21, session 2)
+
+- Rebase-free re-baseline first: origin/main merged into the branch
+  (clean, `ba12c82`), full gate matrix re-verified green locally.
+- Review (Fable, warm worktree, suite on `review/m3-1`, 21 tests
+  promoted): every falsification target HELD with executed witnesses
+  except one — **F1 MAJOR: NaN-payload Debug collision**. The declared-
+  equality rung's Debug-string comparison is bit-injective EXCEPT NaN
+  (all payloads print "NaN"); bit-different NaN-payload Planes
+  (insertable via FaceSurface::New, nothing gates finiteness pre-tier-3)
+  merged as "declared-equal". Also flagged: the interval lane's channel
+  was inari's Debug impl — an external crate's formatting choice as
+  coincidence semantics. HELD highlights: connected-sum E–P derived
+  independently and asserted exactly (genus ladder); no null-scaffold
+  laundering path (set_edge_curve door closed by the forward-span gate);
+  bulge′ re-derived from bulge = tan(θ/4) and bit-compared; revert
+  involution bitwise on three body classes; movefac partition ==
+  pass-11 components (plus code-read of why); both no-new-op deviations
+  exercised e2e and sufficient. MINORs (doc'd in fix pass): circle-rim
+  split_edge knocks a body out of the props inventory (typed
+  NotIsoRectangle, now documented); bulge′ lane unreachable e2e until
+  PR 2 (coverage note added). NITs pinned as current behavior:
+  mev_null→kev roundtrip not byte-neutral (replay determinism
+  unaffected); face-island merge refuses coarsely (recheck in PR 5).
+- Fix pass (tip `6e6c576`): F1 fixed via per-component to_bits — new
+  `Interval::repr_bits` (bound-pair bits + decoration; identity channel,
+  not a comparison door) + module-private scalar_repr_bits dispatch;
+  no Debug strings in any decision path; bit-identical NaN planes still
+  compare equal (declared garbage; tier 3 refuses downstream —
+  documented). Unknown scalar types conservatively never declared-equal
+  (workspace panic-lint policy; PR 4's Real-level door is the extension
+  point). Witness flipped to pin unmerged-as-required. Pass 13 gained
+  the reviewer-proposed referential loop-key resolution check (typed
+  `StaleNullFaceLoop`; referential-only posture preserved). kemr ring
+  designation documented as "provisional designation, not truth".
+- Ratification flags with reviewer assessments (final form, in the PR
+  writeup): (a) CrossSolid boolean-combine boundary — RATIFY, PR 5's
+  spec must name the combine door; (b) kemr plus-side ring — ACCEPT
+  with the provisional-designation doc; (c) tier-1 minimal null hooks —
+  ACCEPT plus the pass-13 referential check (adopted); (d) Debug-dump
+  channel — REJECTED by exploit, replaced with repr_bits; Real-level
+  eq_bits lands with PR 4.
+- Gates at `6e6c576`: all rows green (discipline, fmt, clippy ×2,
+  default + 3 ε rows, interval ×2); review_m3_pr1 15/15.
 
 ## State snapshot (handoff point, 2026-07-21)
 
