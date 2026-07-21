@@ -146,6 +146,139 @@ interval lane). Survived the WSL host crash mid-implementation
 - Gates at `6e6c576`: all rows green (discipline, fmt, clippy ×2,
   default + 3 ε rows, interval ×2); review_m3_pr1 15/15.
 
+## PR 2 (split part 1: reduction + neighborhood classification) — 2026-07-21
+
+Branch `ev/m3-2-reduce` (stacked on `ev/m3-1-surgery` @ ba12c82).
+Implemented per binding spec; facts in the PR writeup. This section is
+the **rule-(b) adjudication record** (F4 — a named review deliverable)
+plus the wide-sector decision, both derivation-backed.
+
+### Rule (b) adjudication: the BOOK's table is correct; TOG §3 is the erratum
+
+Contradiction (synthesis §C): on the two symmetric ON-edge contexts the
+witnesses swap verdicts — book (Program 14.6 + its table): AOA→BELOW,
+BOB→ABOVE; TOG 1986 §3: AOA→ABOVE, BOB→BELOW; both agree AOB→BELOW,
+BOA→BELOW. Adjudicated from the rule's stated purpose (nonmanifold
+configurations must come out as DISCONNECTED pieces; no dangling
+faces/edges), on the two discriminating fixtures, executed at f64 (all
+ε rows) and Interval (`crates/topo/tests/m3_pr2_reduce.rs`):
+
+- **Tangent-edge** (V-notch cut into a block's top, tip edge in SP,
+  material below — Fig. 14.8's embedded form): tip-vertex entries are
+  cyclically [slantL: A, tip: ON, slantR: A, cap-bisector: B] (the cap
+  corner is reflex; its convex-subdivision duplicate classifies below).
+  Above's material is two wedges whose face fans at the tip vertex are
+  DISJOINT, and a half-edge vertex admits exactly one cyclic orbit — a
+  representability fact AT THE VERTEX: one merged run/one vertex copy
+  cannot host both fans, regardless of how PR 3's joining later
+  completes the section. That is why TOG's AOA→ABOVE is wrong (one run
+  {slantL, tip, slantR} ⇒ one copy pinned to both fans); the "4-face
+  tip edge" is only one possible completion of that copy, not the
+  forced consequence — with distinct section faces the completion has
+  coincident distinct edges but still the two-fan vertex.
+  **AOA→BELOW** yields two ABOVE runs ⇒ two null edges ⇒ two vertex
+  copies, one fan each; the tip edge survives inside Below's coplanar
+  top as an artifact edge (Fig. 14.2's own artifact-face story). Book
+  right. [Argument sharpened at the PR 2 fix pass — the pinned verdict
+  is unchanged.]
+- **Touching-wedge** (notch from below, material above): entries
+  [slantL: B, tip: ON, slantR: B, cap-bisector: A]. NOT settled by
+  mirroring the tangent-edge argument (the originally logged "mirror
+  argument" was false: copies are minted only for ABOVE runs, so at
+  PR 2 exit both below wedge fans stay on the single old vertex under
+  either verdict, and the fan TOG's BOB→BELOW leaves there is
+  contiguous and structurally buildable — no 4-face edge follows).
+  Replaced at the fix pass by two independent arguments, same verdict
+  **BOB→ABOVE**: (i) ±n EQUIVARIANCE — splitting by (o,−n) reads the
+  same physical configuration as the tangent-edge AOA case, and
+  physical piece-assignment cannot depend on plane orientation, so the
+  table must pair the verdicts: the book's BOB→ABOVE is the unique
+  companion of AOA→BELOW (executed witness:
+  `review_m3_pr2.rs::r1b_orientation_equivariance_pins_bob_from_aoa`).
+  (ii) distinct-entity 3′ representability — BOB→ABOVE gives the
+  groove fin its own vertex copies, so the below piece's tip contact
+  is through distinct entities (legal 3′ touching); TOG's BOB→BELOW
+  leaves the fin sharing the old vertex with both material wedges — a
+  shared-entity pinch, unrepresentable per F2. Book right.
+- Mixed cases: either verdict is manifold (the pieces don't touch);
+  BELOW kept (both witnesses agree; consistent with rule (a)'s
+  coplanar-edge-goes-below choice).
+
+Pinned table: **BELOW-ON-BELOW → ABOVE; every other context → BELOW**
+(`splitting/rules.rs::apply_rule_b`, unit-tested per row, fixtures
+tested at classification AND surgery level both lanes). Honest residue:
+a solid tangent to SP from one side only at an edge (no below material
+anywhere in the neighborhood) still gets surgery under AOA→BELOW and
+its Below piece degenerates to the bare tangent edge — PR 3's joining
+must detect/refuse the degenerate section polygon (the TOG table would
+skip surgery there but corrupts the embedded cases; representability
+outranks the cosmetic).
+
+Forward liabilities (recorded at the fix pass — NAMED PR 3 REVIEW
+TARGETS):
+- Post-reduction the tangent-tip EDGE is still shared by both slant
+  faces: reduction never duplicates edges, only vertices. "The wedges
+  disconnect" is a PR 3 joining outcome — untested until PR 3.
+- Mirrored fact for BOB→ABOVE: the tip edge rides the above-side
+  vertex copies while its two faces span below material.
+- The one-sided-tangency residue carries NO machine-readable flag in
+  `SplitReduction` (its null edges have `dangling == false`); PR 3
+  must detect "the below side has no real material" itself.
+
+### Wide/reflex sectors: convex subdivision (book), by derivation
+
+A planar sector's interior is the positive cone of its bounding
+directions iff its angle < 180° — endpoint verdicts then decide the
+whole sector; at ≥ 180° the cone argument fails, so split at an interior
+direction into two sub-180° virtual sectors (= the book's
+store-twice-with-bisector). TOG's alternative (complement-and-negate at
+180°, interior-vector sign beyond) answers point-membership, not
+side-classification, and carries no cone argument. Subdivision
+direction: definite reflex ⇒ −normalize(a+b) (true bisector); near-180°
+band ⇒ n×b (90° into the interior — valid across the band, since any
+interior direction with sub-angles < 180° is a legal subdivision). The
+wideness trilean has no escalation cliff (duplication is sound at every
+angle — documented posture); sin≈0 ambiguity (0 vs π vs 2π) is
+disambiguated by a cosine predicate, with the spike-corner case (θ≈0,
+distinct edges) escalating as a sliver.
+
+New K-tagged predicates: `enters_material`, `enters_material_arm`
+(geom-brep); `split_vertex_side`, `split_sector_coplanar`,
+`split_sector_reflex`, `split_sector_straight`, `split_bisector_side`,
+`split_sector_arm` (chord arm, neighborhood.rs), `split_sector_extent`
+(face extent, rules.rs — renamed from a `split_sector_arm` name
+collision at the fix pass) (topo).
+
+### Adversarial review + fix pass (2026-07-21)
+
+Review (branch `review/m3-2`, `crates/topo/tests/review_m3_pr2.rs`,
+10 tests): **CONCUR on the pinned rule-(b) table** — BOB→ABOVE, all
+other ON contexts →BELOW STANDS; the justification was amended (no
+code blocker). All falsification targets HELD. Specifics:
+- MAJOR-1 (doc): the tangent-edge argument sharpened to the two-fan
+  vertex representability fact (the "4-face edge" was one completion,
+  not forced), and the touching-wedge "mirror argument" replaced by
+  ±n equivariance + distinct-entity 3′ representability — amended
+  above in place; verdicts unchanged.
+- MINOR-1 (code): the two distinct margins sharing the K name
+  `split_sector_arm` split into `split_sector_arm` (chord arm) and
+  `split_sector_extent` (face extent).
+- MINOR-2 (code): the strict-row certification refusal of a
+  large-coordinate crossing now surfaces as
+  `SplitReduceError::CrossingInsertion { edge, endpoints, source }` —
+  crossing site attached, typed Euler error nested whole.
+- NIT-1 (doc): noted in rules.rs that a WideBisector duplicate can
+  carry On into rule (b) (bisector exactly in-plane) and is
+  table-reclassified as if an edge — book-consistent, harmless.
+- Accepted deviations: dev 3 (`ScaffoldingOperand` refusal of
+  mid-surgery operands) and dev 4 (rule (a) deterministic last-wins on
+  a shared entry) — both accepted WITH derivations; last-wins is safe
+  because genuine disagreement between adjacent coplanar sectors
+  requires an invalid pinched operand.
+- PR 3 carry-forwards: the three forward liabilities listed above
+  (shared tip edge post-reduction; its BOB mirror; no machine-readable
+  one-sided-tangency flag).
+
 ## State snapshot (handoff point, 2026-07-21)
 
 - **Merged to main**: everything through M2 exit — M2 PRs 1–7 (#27,

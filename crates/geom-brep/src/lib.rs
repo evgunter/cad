@@ -35,6 +35,7 @@
 pub mod certify;
 pub mod dihedral;
 pub mod edge_geometry;
+pub mod enters;
 pub mod implicit;
 pub mod keys;
 pub mod newell;
@@ -45,6 +46,7 @@ pub use certify::{
 };
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
+pub use enters::{EntersMaterial, enters_material};
 pub use implicit::{curvature_lever_arm, implicit_gradient, implicit_residual};
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
