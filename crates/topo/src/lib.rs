@@ -181,6 +181,6 @@ pub use revert::RevertError;
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     NullEdgeRecord, PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError,
-    SplitReduction, classify_neighborhood, split_reduce,
+    SplitReduction, classify_neighborhood, split_reduce, vertex_sides,
 };
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

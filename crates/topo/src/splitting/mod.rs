@@ -269,6 +269,25 @@ impl core::fmt::Display for SplitReduceError {
 
 impl std::error::Error for SplitReduceError {}
 
+/// The non-mutating prefix of the reduction — the F5 planar gate plus
+/// the cached vertex sweep — exposed so classification
+/// ([`classify_neighborhood`]) can be inspected/reviewed independently
+/// of surgery. Returns the per-vertex side cache and the ON set of the
+/// body **as given** (crossing vertices only exist after
+/// [`split_reduce`] inserts them).
+///
+/// # Errors
+///
+/// As the corresponding [`split_reduce`] stages.
+pub fn vertex_sides<T: geom_core::Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
+    let band = geom_core::Band::linear()?;
+    classify::gate_planar(body)?;
+    classify::classify_vertices(body, plane, band)
+}
+
 /// **`split_reduce`** — the reduction + neighborhood-classification
 /// half of plane splitting (module docs for the pipeline). Functional:
 /// `operand` is cloned and never touched; the annotated clone comes

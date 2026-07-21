@@ -144,6 +144,140 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
     }
 }
 
+/// Key bundle for a [`prism`] fixture.
+pub struct Prism<T: Real> {
+    pub body: Body<T>,
+    /// Bottom-rim vertices, one per profile corner (same order).
+    pub bottom: Vec<topo::VertexKey>,
+    /// Top-rim vertices, one per profile corner (same order).
+    pub top: Vec<topo::VertexKey>,
+    pub bottom_face: topo::FaceKey,
+    /// One side face per profile segment `i → i+1` (cyclic).
+    pub side_faces: Vec<topo::FaceKey>,
+    pub top_face: topo::FaceKey,
+}
+
+/// Builds a right prism over a simple polygon `profile` (x, y corners,
+/// **counterclockwise viewed from +z**, no repeats), extruded from
+/// z = 0 to z = `height` — the geometric_cube construction generalized
+/// to N corners (reflex corners welcome). Every face gets its
+/// outward-CCW Newell plane, every edge a certified chord line.
+pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64) -> Prism<T> {
+    assert!(profile.len() >= 3);
+    let n = profile.len();
+    let c =
+        |&(x, y): &(f64, f64), z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let bot: Vec<Point3<T>> = profile.iter().map(|p| c(p, 0.0)).collect();
+    let top: Vec<Point3<T>> = profile.iter().map(|p| c(p, height)).collect();
+
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(bot[0]).unwrap();
+    // Bottom rim chain v0 → v1 → … → v_{n-1}.
+    let mut chain = Vec::new();
+    chain.push(
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            bot[1],
+            line(bot[0], bot[1]),
+        )
+        .unwrap(),
+    );
+    for i in 2..n {
+        let at = chain[i - 2].he_minus;
+        chain.push(
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                bot[i],
+                line(bot[i - 1], bot[i]),
+            )
+            .unwrap(),
+        );
+    }
+    let bottom_vertices: Vec<_> = core::iter::once(seed.vertex)
+        .chain(chain.iter().map(|m| m.vertex))
+        .collect();
+    // Close the bottom face: outward −z ⇒ CCW from below = reversed
+    // profile order.
+    let he_last = body
+        .find_half_edge(seed.face, bottom_vertices[n - 1], bottom_vertices[n - 2])
+        .unwrap();
+    let rev: Vec<Point3<T>> = core::iter::once(bot[0])
+        .chain(bot[1..].iter().rev().copied())
+        .collect();
+    let f_bottom = body
+        .mef(
+            MefSite::Chords {
+                he1: he_last,
+                he2: chain[0].he_plus,
+            },
+            line(bot[n - 1], bot[0]),
+            FaceSurface::New(plane(&rev)),
+        )
+        .unwrap();
+    // Struts up from each bottom vertex. The chain edge from v_i has
+    // he_plus starting at v_i (i < n−1); the closing edge's he_plus
+    // starts at v_{n-1}.
+    let mut struts = Vec::new();
+    for i in 0..n {
+        let at = if i == 0 {
+            chain[0].he_plus
+        } else if i < n - 1 {
+            chain[i].he_plus
+        } else {
+            f_bottom.he_plus
+        };
+        struts.push(
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                top[i],
+                line(bot[i], top[i]),
+            )
+            .unwrap(),
+        );
+    }
+    // Side faces for segments 0..n−1; the last (n−1 → 0) closes against
+    // the first side face's top edge.
+    let mut side_faces = Vec::new();
+    let mut first_side_he_plus = None;
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let he2 = if i < n - 1 {
+            struts[j].he_minus
+        } else {
+            first_side_he_plus.unwrap()
+        };
+        let f = body
+            .mef(
+                MefSite::Chords {
+                    he1: struts[i].he_minus,
+                    he2,
+                },
+                line(top[i], top[j]),
+                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
+            )
+            .unwrap();
+        if i == 0 {
+            first_side_he_plus = Some(f.he_plus);
+        }
+        side_faces.push(f.face);
+    }
+    // The seed face survives as the top cap (outward +z ⇒ profile
+    // order viewed from above).
+    body.set_face_surface(seed.face, FaceSurface::New(plane(&top)))
+        .unwrap();
+
+    Prism {
+        body,
+        bottom: bottom_vertices,
+        top: struts.iter().map(|m| m.vertex).collect(),
+        bottom_face: f_bottom.face,
+        side_faces,
+        top_face: seed.face,
+    }
+}
+
 /// Re-describes every edge of a (planar-faced) body as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
 /// edge midpoint, carrier the straight chord — the prefer-intrinsic
