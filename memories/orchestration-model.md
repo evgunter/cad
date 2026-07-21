@@ -91,11 +91,12 @@ M2-LOG snapshots assume it):**
      through comments when not in-session, and he signs off with a
      👍 reaction ("a 👍 here is enough"), which a comments-only
      poller cannot see (learned when a #49 sign-off went unnoticed
-     until he commented; poll reactions.total_count on recent
-     comments and diff against a state file). Expect the monitor to
-     echo your own comments back (same account), ignore those; the
-     first reaction sweep floods with pre-existing reactions —
-     baseline noise, ignore. Outbound direction: status
+     until he commented). Scope per Evan (#56, 2026-07-21): do NOT
+     watch all reactions — only comments you explicitly requested a
+     👍 on. Mechanism: when posting a sign-off-request comment,
+     append its comment ID + label to a watchlist file the monitor
+     reads; the monitor polls exactly those IDs. Expect the monitor
+     to echo your own comments back (same account), ignore those. Outbound direction: status
      updates aren't wrong but Evan will likely MISS them — he only
      reviews comments he explicitly asked for, or on a thread he
      just used to ask a question (earlier sessions treated merged
