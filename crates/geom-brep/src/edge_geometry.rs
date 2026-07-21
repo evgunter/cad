@@ -102,6 +102,14 @@ impl<T: Real> SketchSegment<T> {
     /// since `|θ′/4| < π/2` and `θ ≠ 0`). Fixed evaluation order (D9);
     /// total — degenerate inputs yield degenerate data, caught by the
     /// caller's certification.
+    ///
+    /// **Coverage note (review F3)**: the arc lane is currently
+    /// unreachable from any at-rest public body — extrude/revolve
+    /// outputs are post-prefer-intrinsic, so every edge a caller can
+    /// `split_edge` carries an `Intersection` description, never a
+    /// `MappedCurve` over an `Arc`. The formula is verified by unit
+    /// tests only; do not assume e2e coverage until PR 2 splits the
+    /// pre-upgrade states and exposes mapped arcs at rest.
     pub fn restrict(&self, s0: T, s1: T) -> Self {
         match *self {
             SketchSegment::Line { .. } => SketchSegment::Line {

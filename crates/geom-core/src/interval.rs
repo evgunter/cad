@@ -118,6 +118,30 @@ impl Interval {
             Err(_) => Self(DecInterval::NAI),
         }
     }
+
+    /// The raw representation as bits — `(inf.to_bits(),
+    /// sup.to_bits(), decoration)` with the decoration mapped `Ill` =
+    /// 0, `Trv` = 1, `Def` = 2, `Dac` = 3, `Com` = 4. An **identity
+    /// channel, not a comparison door**: two intervals with equal
+    /// triples are the same stored value (same bound bits, same
+    /// decoration); no geometric meaning is implied, and this is
+    /// *never* a substitute for [`Decide`] classification (the
+    /// no-`PartialEq` rationale on the type stands). Serves
+    /// bit-faithful declared-coincidence checks (e.g.
+    /// `merge_coplanar_faces`' declared-equality rung) and D9
+    /// determinism pins. Unlike [`Bounds`], this does not collapse
+    /// NaI and empty: their decorations differ (`Ill` vs `Trv`).
+    #[must_use]
+    pub fn repr_bits(self) -> (u64, u64, u8) {
+        let dec = match self.0.decoration() {
+            Decoration::Ill => 0,
+            Decoration::Trv => 1,
+            Decoration::Def => 2,
+            Decoration::Dac => 3,
+            Decoration::Com => 4,
+        };
+        (self.0.inf().to_bits(), self.0.sup().to_bits(), dec)
+    }
 }
 
 impl Add for Interval {

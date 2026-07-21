@@ -76,13 +76,28 @@ Evan only at genuine design forks.
 
 **Standing session-start checklist (made durable 2026-07-20; the
 M2-LOG snapshots assume it):**
-- Kill stale monitor processes from prior sessions first (`ps aux |
-  grep -E 'gh api|events.jsonl'` — orphaned pollers survive session
-  death), then arm TWO persistent Monitors:
-  1. **GitHub away-channel**: poll `gh api` for new issues + all
-     issue/PR comments on the repo (~60s interval) — Evan messages
-     through comments when not in-session; expect the monitor to
-     echo your own comments back (same account), ignore those.
+- Stale-monitor check, corrected (Evan, 2026-07-21): monitor
+  processes do NOT outlast their session. The one observed case of
+  "orphaned pollers" was a same-session continuation — Evan had run
+  the `/clear` slash command, so the "new" orchestrator was the old
+  session with its monitors still legitimately running. A successor
+  created via tmux (fresh session) will never inherit pollers. So:
+  if you may be a post-/clear continuation, check `ps aux | grep -E
+  'gh api|events.jsonl'` and kill/reuse what you find; a fresh tmux
+  orchestrator can skip the hunt. Then arm TWO persistent Monitors:
+  1. **GitHub away-channel (refined by Evan, 2026-07-21)**: poll
+     `gh api` for new issues + all issue/PR comments on the repo
+     (~60s interval) — Evan may ask questions through comments when
+     not in-session; expect the monitor to echo your own comments
+     back (same account), ignore those. Outbound direction: status
+     updates aren't wrong but Evan will likely MISS them — he only
+     reviews comments he explicitly asked for, or on a thread he
+     just used to ask a question (earlier sessions treated merged
+     PR #41 as a standing status thread; those posts went unread).
+     **Questions for Evan SHOULD go out via GitHub**: preferred
+     form is a PR editing the relevant design doc to state the
+     question, updated in place with the answer once resolved (the
+     design-conversation-PR pattern); a GitHub issue also works.
   2. **Usage-limit watch**: tail the newest line of
      `~/.mngr/agents/<agent-id>/events/claude/usage/events.jsonl`
      (each line has `rate_limits.five_hour.used_percentage` and

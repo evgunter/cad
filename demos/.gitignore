@@ -1,0 +1,5 @@
+# Demo-local build/venv/output artifacts. Only the tour sources,
+# render scripts, and the rendered PNGs under renders/ are tracked.
+tour/target/
+out/
+.venv/

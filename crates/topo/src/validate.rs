@@ -130,11 +130,14 @@
 //!     its record).
 //! 13. **Null-entity referential coherence (M3 PR 1).** A null-scaffold
 //!     curve entry is referenced by at most one edge
-//!     ([`ValidationError::NullScaffoldShared`]) and a null-face record
+//!     ([`ValidationError::NullScaffoldShared`]), a null-face record
 //!     never outlives its face
-//!     ([`ValidationError::LeakedNullFaceRecord`]). Deliberately
-//!     minimal — attribute semantics are the surgery ops' contract, and
-//!     tier 2 bans null entities at rest outright (see `crate::null`).
+//!     ([`ValidationError::LeakedNullFaceRecord`]), and every loop key
+//!     a record names resolves
+//!     ([`ValidationError::StaleNullFaceLoop`]). Deliberately
+//!     minimal and referential-only — attribute semantics are the
+//!     surgery ops' contract, and tier 2 bans null entities at rest
+//!     outright (see `crate::null`).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -679,6 +682,19 @@ pub enum ValidationError {
         /// The dead face key still carrying a record.
         face: FaceKey,
     },
+    /// **Tier 1, pass 13 (M3 PR 1, review flag c).** A null-face
+    /// record names a loop key that does not resolve in the loop
+    /// arena — a loop-killing operator ran without scrubbing the
+    /// record (the same leak rule as `LeakedNullFaceRecord`, applied
+    /// to the record's named loops). Referential-only by the ratified
+    /// posture: *which* loops the record names is semantics, not
+    /// checked at tier 1.
+    StaleNullFaceLoop {
+        /// The face whose record is stale.
+        face: FaceKey,
+        /// The named loop key that no longer resolves.
+        named_loop: LoopKey,
+    },
     /// **Tier 2 (M3 PR 1).** A null edge at rest: the edge's curve
     /// entry is `crate::CurveGeom::NullScaffold` — mid-surgery
     /// scaffolding (ch. 14/15 splitting/boolean transients) that must
@@ -930,6 +946,12 @@ impl fmt::Display for ValidationError {
                 f,
                 "null-face record outlives its face {face:?} (F9 record leak — \
                  face kills must remove the record)"
+            ),
+            Self::StaleNullFaceLoop { face, named_loop } => write!(
+                f,
+                "null-face record on face {face:?} names loop {named_loop:?}, \
+                 which does not resolve (F9 record leak — loop kills must \
+                 scrub records naming the loop)"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
@@ -2208,8 +2230,9 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // null-scaffold curve entry is per-edge data, so it is referenced
     // by at most one edge (curve-arena order; zero references is pass
     // 8's orphan report); a null-face record never outlives its face
-    // (record slot order — the provenance-leak rule applied to F9
-    // records). Attribute *semantics* (which vertices/loops the
+    // and never names a dead loop (record slot order — the
+    // provenance-leak rule applied to F9 records and their named
+    // loops). Attribute *semantics* (which vertices/loops the
     // records name) are intentionally not tier-1 checks: Euler
     // surgery legitimately rewires neighborhoods mid-sequence, and
     // tier 2 refuses null entities at rest regardless.
@@ -2228,9 +2251,21 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
             }
         }
     }
-    for (face_key, _) in body.null_faces.iter() {
+    for (face_key, record) in body.null_faces.iter() {
         if !body.faces.contains_key(face_key) {
             errors.push(ValidationError::LeakedNullFaceRecord { face: face_key });
+        }
+        // Review flag (c): the record's named loops must also resolve —
+        // referential-only (a record naming killed loops is the same
+        // leak as a record outliving its face); which loops they are
+        // stays unexamined at tier 1.
+        for named_loop in record.loops() {
+            if !body.loops.contains_key(named_loop) {
+                errors.push(ValidationError::StaleNullFaceLoop {
+                    face: face_key,
+                    named_loop,
+                });
+            }
         }
     }
 

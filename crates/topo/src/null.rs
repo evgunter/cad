@@ -459,4 +459,55 @@ mod tests {
         assert_eq!(body.null_face_pair(f2), None);
         assert_eq!(validate(&body), Ok(()));
     }
+
+    /// Pass 13's loop-key resolution (review flag c): a null-face
+    /// record naming a killed loop is reported typed
+    /// (`StaleNullFaceLoop`), not passed silently. The stale record is
+    /// constructed through the crate-internal map (the public setter
+    /// refuses dead keys — asserted), modeling an op that killed a
+    /// named loop after the record was minted.
+    #[test]
+    fn stale_null_face_loop_record_reported() {
+        let cube = ops_cube();
+        let mut body = cube.body;
+        let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
+        let outer1 = body.get_face(f1).unwrap().outer;
+        let outer2 = body.get_face(f2).unwrap().outer;
+        // Kill f2's outer loop legitimately (kef of one of its edges:
+        // the argument half's face and loop die, the mate's survive).
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer2).unwrap().boundary else {
+            panic!("cube outer loops are cycles");
+        };
+        let killed = body.kef(first).unwrap();
+        assert_eq!(killed.killed_loop, outer2);
+        assert_eq!(validate(&body), Ok(()));
+        // The public door refuses the dead key...
+        assert_eq!(
+            body.set_null_face_pair(
+                f1,
+                NullFacePair::Split {
+                    above_loop: outer2,
+                    below_loop: outer1,
+                },
+            ),
+            Err(EulerOpError::StaleKey {
+                key: EntityId::Loop(outer2),
+            })
+        );
+        // ...so the stale state is built directly on the arena map.
+        body.null_faces.insert(
+            f1,
+            NullFacePair::Split {
+                above_loop: outer2,
+                below_loop: outer1,
+            },
+        );
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::StaleNullFaceLoop {
+                face: f1,
+                named_loop: outer2,
+            }])
+        );
+    }
 }

@@ -61,6 +61,11 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    # Test-speed handling lives in Cargo.toml as per-package opt-level
+    # overrides for the measured hot spot (spade + mesh) — blanket opt 2
+    # via profile env here was measured net-slower on core-crate PRs
+    # (#52/#53 timings) because every push recompiles the changed crate
+    # graph at opt 2.
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

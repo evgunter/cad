@@ -1,5 +1,8 @@
 [workspace]
 resolver = "3"
+# demos/ is a deliberately separate cargo project (pre-GUI visual demo
+# tour + STL viewer tooling); it must never join the kernel workspace.
+exclude = ["demos"]
 members = [
     "crates/geom-brep",
     "crates/geom-core",
@@ -78,3 +81,25 @@ todo = "warn"
 unimplemented = "warn"
 unreachable = "warn"
 dbg_macro = "warn"
+
+# Test-speed hot spot (measured 2026-07-21, test-timing advisory): the CDT
+# insertion path in `mesh` + the external `spade` crate dominates the suite
+# (one washer test: 91.7s at opt 0 vs ~1.2s optimized). Optimize exactly
+# those two packages; the rest of the workspace stays at opt 0 so per-PR
+# CI recompiles of the frequently-edited core crates stay cheap (blanket
+# opt 2 via CI env was measured net-SLOWER on core-crate PRs — see #52,
+# reverted by the PR that added this block). debug-assertions default ON
+# in dev — fail-loud postconditions keep their teeth. Integration tests
+# build the lib under `dev`, so these overrides cover the hot loops.
+[profile.dev.package.spade]
+opt-level = 2
+[profile.dev.package.mesh]
+opt-level = 2
+# Scope note: extending these overrides to the geom crates was measured
+# and rejected — the kernel's generic (T: Real) hot code monomorphizes
+# into the CALLING crate's binaries, so per-package lib overrides barely
+# move it (91.7s -> 37.4s -> 26.9s), and geom-core/geom-brep are edited
+# constantly (per-PR opt-2 recompiles = the #52 regression). The full
+# whole-graph win (suite 75s -> 4.9s) is available locally via
+# scripts/test-fast.sh where warm caches absorb the build cost. The
+# durable fix is spade bulk-loading (PERF-PLAN §2).
