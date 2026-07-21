@@ -58,6 +58,8 @@
 //! tests pin both directions on brick fixtures.
 
 mod contain;
+pub(crate) mod reduce;
+pub(crate) mod sectors;
 pub mod plane_eq;
 pub mod tables;
 
