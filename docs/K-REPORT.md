@@ -1,8 +1,10 @@
-# K report (DRAFT) — the ambiguity constant K = 10 under M2's telemetry
+# K report — the ambiguity constant K = 10 under M2's telemetry
 
-**Status: DRAFT** (M2 PR 7 deliverable; the recommendation below is the
-implementer's draft — the orchestrator finalizes it and ratifies the
-outcome into DESIGN.md's Q1 residue.)
+**Status: FINAL** (M2 PR 7 deliverable; orchestrator-finalized
+2026-07-21 after the adversarial review byte-reproduced the CSVs at all
+three ε rows and independently re-derived every reported number. The
+outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
+Per Evan on #41, the value needed no separate sign-off.)
 
 ## Background
 
@@ -131,7 +133,7 @@ completely flat across the candidate range on this corpus.
    (computed intersections) the other pressure source. This report's
    claims are scoped to the native-construction corpus accordingly.
 
-## Draft recommendation
+## Recommendation (final)
 
 **Keep K = 10 as the default.** The M2 telemetry gives no empirical
 pressure to move it in either direction: the band converted zero
