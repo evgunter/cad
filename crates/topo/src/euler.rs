@@ -354,6 +354,41 @@ pub struct MefCreated {
     pub curve: CurveKey,
 }
 
+/// The validated site data of a [`MevSite::Fan`] application — the
+/// output of the shared precondition block
+/// ([`Body::mev_fan_plan`]), consumed by the shared surgery
+/// ([`Body::mev_fan_execute`]). Crate-internal plumbing between
+/// [`Body::mev`] and [`Body::mev_null`].
+pub(crate) struct MevFanPlan<T: Real> {
+    /// The shared start vertex of `he1`/`he2`.
+    pub(crate) v: VertexKey,
+    /// `v`'s point (the certification gate's start endpoint; the
+    /// null lane's coincident-copy source).
+    pub(crate) p_old: Point3<T>,
+    /// The clockwise orbit run `[he1 .. he2)` to reassign.
+    pub(crate) run: Vec<HalfEdgeKey>,
+    /// `prev(he1)` (validated resolvable).
+    pub(crate) he1_prev: HalfEdgeKey,
+    /// `prev(he2)` (validated resolvable).
+    pub(crate) he2_prev: HalfEdgeKey,
+    /// `he1`'s parent loop.
+    pub(crate) he1_loop: LoopKey,
+    /// `he2`'s parent loop.
+    pub(crate) he2_loop: LoopKey,
+}
+
+/// What the shared mev surgery mints into the curve arena — a
+/// certified carrier ([`Body::mev`]) or the F9 null-scaffold entry
+/// ([`Body::mev_null`]). Selects the documented minting order (see
+/// [`Body::mev_fan_execute`]).
+pub(crate) enum MevCurveMint<T: Real> {
+    /// A certified carrier (the gate already ran).
+    Certified(EdgeCurve<T>),
+    /// A null-edge scaffolding entry; the payload declares which side
+    /// the new vertex faces.
+    Null(crate::null::NewVertexSide),
+}
+
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
 /// are atomic).
@@ -1216,6 +1251,29 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
+        let plan = self.mev_fan_plan(he1, he2)?;
+        // ---- Geometry gate (still no mutation): certify the spec
+        // against old point → new point (D4 ¶2 at attachment).
+        let certified = self.certify_edge_spec(curve, plan.p_old, point)?;
+        // ---- Mutation (infallible from here on). ----
+        Ok(self.mev_fan_execute(
+            he1,
+            he2,
+            plan,
+            point,
+            MevCurveMint::Certified(certified),
+            Provenance::Mev { site },
+        ))
+    }
+
+    /// [`MevSite::Fan`]'s precondition block, shared by [`Body::mev`]
+    /// and [`Body::mev_null`] (which replaces the geometry gate with a
+    /// null-scaffold mint). Pure — no mutation.
+    pub(crate) fn mev_fan_plan(
+        &self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    ) -> Result<MevFanPlan<T>, EulerOpError> {
         let he1_data = self.resolve_half_edge(he1)?;
         let (v, he1_prev, he1_loop) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
         let he2_data = self.resolve_half_edge(he2)?;
@@ -1251,23 +1309,43 @@ impl<T: Decide> Body<T> {
                 });
             }
         }
-        // ---- Geometry gate (still no mutation): certify the spec
-        // against old point → new point (D4 ¶2 at attachment).
-        let certified = self.certify_edge_spec(curve, p_old, point)?;
+        Ok(MevFanPlan {
+            v,
+            p_old,
+            run,
+            he1_prev,
+            he2_prev,
+            he1_loop,
+            he2_loop,
+        })
+    }
 
-        // ---- Mutation (infallible from here on). ----
-        // Minting order (documented on `mev`): point, curve, vertex,
-        // edge, he_plus, he_minus.
-        let provenance = Provenance::Mev { site };
+    /// The fan surgery (infallible mutation phase), shared by
+    /// [`Body::mev`] and [`Body::mev_null`]. The minting order follows
+    /// the payload: `Certified` mints point, curve, vertex (mev's
+    /// documented order); `Null` mints point, vertex, curve — the
+    /// scaffolding entry's F9 attribute names the new vertex, so the
+    /// vertex must exist first (mev_null's documented order).
+    pub(crate) fn mev_fan_execute(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+        plan: MevFanPlan<T>,
+        point: Point3<T>,
+        mint: MevCurveMint<T>,
+        provenance: Provenance,
+    ) -> MevCreated {
+        let MevFanPlan {
+            v,
+            p_old: _,
+            run,
+            he1_prev,
+            he2_prev,
+            he1_loop,
+            he2_loop,
+        } = plan;
         let point_key = self.add_point(point);
-        let curve = self.add_curve(certified);
-        let w = self.add_vertex(
-            Vertex {
-                point: point_key,
-                emanating: None, // patched below
-            },
-            provenance.clone(),
-        );
+        let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
             edge,
@@ -1310,14 +1388,14 @@ impl<T: Decide> Body<T> {
             vertex.emanating = Some(he_minus);
         }
 
-        Ok(MevCreated {
+        MevCreated {
             vertex: w,
             edge,
             he_plus,
             he_minus,
             point: point_key,
             curve,
-        })
+        }
     }
 
     /// [`MevSite::Lone`] — precondition block, then the segment surgery.
@@ -1329,6 +1407,27 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions. ----
+        let (v, p_old) = self.mev_lone_plan(loop_key)?;
+        // ---- Geometry gate (still no mutation). ----
+        let certified = self.certify_edge_spec(curve, p_old, point)?;
+        // ---- Mutation (infallible from here on). ----
+        Ok(self.mev_lone_execute(
+            loop_key,
+            v,
+            point,
+            MevCurveMint::Certified(certified),
+            Provenance::Mev { site },
+        ))
+    }
+
+    /// [`MevSite::Lone`]'s precondition block, shared by [`Body::mev`]
+    /// and [`Body::mev_null`]: the loop resolves and is empty; its
+    /// vertex and point resolve. Pure — no mutation. Returns the lone
+    /// vertex and its point.
+    pub(crate) fn mev_lone_plan(
+        &self,
+        loop_key: LoopKey,
+    ) -> Result<(VertexKey, Point3<T>), EulerOpError> {
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(loop_key),
         })?;
@@ -1336,20 +1435,22 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopNotEmpty { r#loop: loop_key });
         };
         let p_old = self.resolve_vertex_point(v)?;
-        // ---- Geometry gate (still no mutation). ----
-        let certified = self.certify_edge_spec(curve, p_old, point)?;
+        Ok((v, p_old))
+    }
 
-        // ---- Mutation (infallible from here on). ----
-        let provenance = Provenance::Mev { site };
+    /// The lone-site surgery (infallible mutation phase), shared by
+    /// [`Body::mev`] and [`Body::mev_null`]. Minting order per the
+    /// payload as on [`Body::mev_fan_execute`].
+    pub(crate) fn mev_lone_execute(
+        &mut self,
+        loop_key: LoopKey,
+        v: VertexKey,
+        point: Point3<T>,
+        mint: MevCurveMint<T>,
+        provenance: Provenance,
+    ) -> MevCreated {
         let point_key = self.add_point(point);
-        let curve = self.add_curve(certified);
-        let w = self.add_vertex(
-            Vertex {
-                point: point_key,
-                emanating: None, // patched below
-            },
-            provenance.clone(),
-        );
+        let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
         // The two halves form the whole cycle: v → w → v.
@@ -1365,14 +1466,53 @@ impl<T: Decide> Body<T> {
             vertex.emanating = Some(he_minus);
         }
 
-        Ok(MevCreated {
+        MevCreated {
             vertex: w,
             edge,
             he_plus,
             he_minus,
             point: point_key,
             curve,
-        })
+        }
+    }
+
+    /// Mints the new vertex and the curve entry per the payload's
+    /// documented order ([`Body::mev_fan_execute`]): `Certified` mints
+    /// curve, then vertex; `Null` mints vertex, then the scaffolding
+    /// entry whose F9 attribute names old (`v`) and new vertices per
+    /// the declared side.
+    fn mint_mev_vertex_and_curve(
+        &mut self,
+        point_key: crate::geometry::PointKey,
+        v: VertexKey,
+        mint: MevCurveMint<T>,
+        provenance: &Provenance,
+    ) -> (crate::geometry::CurveKey, VertexKey) {
+        let vertex = |point| Vertex {
+            point,
+            emanating: None, // patched by the caller's surgery
+        };
+        match mint {
+            MevCurveMint::Certified(certified) => {
+                let curve = self.add_curve(certified);
+                let w = self.add_vertex(vertex(point_key), provenance.clone());
+                (curve, w)
+            }
+            MevCurveMint::Null(side) => {
+                let w = self.add_vertex(vertex(point_key), provenance.clone());
+                let attr = match side {
+                    crate::null::NewVertexSide::Above => crate::null::NullEdge {
+                        below_end: v,
+                        above_end: w,
+                    },
+                    crate::null::NewVertexSide::Below => crate::null::NullEdge {
+                        below_end: w,
+                        above_end: v,
+                    },
+                };
+                (self.add_null_curve(attr), w)
+            }
+        }
     }
 
     // ------------------------------------------------------------------

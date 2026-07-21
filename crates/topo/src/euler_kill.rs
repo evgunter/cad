@@ -453,6 +453,9 @@ impl<T: Decide> Body<T> {
         // vertex, then orphaned geometry.
         self.faces.remove(face);
         self.face_provenance.remove(face);
+        // Null-face record hygiene (M3 PR 1): a record never outlives
+        // its face (crate::null).
+        self.null_faces.remove(face);
         self.loops.remove(loop_key);
         self.loop_provenance.remove(loop_key);
         self.shells.remove(shell);
@@ -867,6 +870,9 @@ impl<T: Decide> Body<T> {
         self.loop_provenance.remove(l1);
         self.faces.remove(f1);
         self.face_provenance.remove(f1);
+        // Null-face record hygiene (M3 PR 1): a record never outlives
+        // its face (crate::null).
+        self.null_faces.remove(f1);
         if let Some(shell_data) = self.get_shell_mut(shell) {
             shell_data.faces.retain(|&face| face != f1);
         }

@@ -17,9 +17,14 @@
 //! **Tier 2 — "closed solid"** ([`validate_closed`]): tier 1 plus the
 //! at-rest bans on construction scaffolding — no empty loops
 //! ([`ValidationError::ScaffoldingEmptyLoop`]), no valence-1 vertices
-//! (struts, [`ValidationError::ScaffoldingStrutVertex`]), and every
+//! (struts, [`ValidationError::ScaffoldingStrutVertex`]), every
 //! shell's incidence complex connected (c = 1,
-//! [`ValidationError::ShellDisconnected`]). Finished bodies must pass
+//! [`ValidationError::ShellDisconnected`]), and — since M3 PR 1 — no
+//! null entities ([`ValidationError::NullEdgeAtRest`] /
+//! [`ValidationError::NullFaceAtRest`]; see `crate::null`). A solid
+//! may hold **multiple shells** (M3 multi-shell results — voids,
+//! disjoint unions); tier 2 constrains each shell, never the count.
+//! Finished bodies must pass
 //! tier 2; tier-1-only states are visible solely inside operation
 //! sequences. Two deliberate boundaries of the tier:
 //!
@@ -123,6 +128,13 @@
 //!     ([`ValidationError::LeakedProvenance`] — the `SecondaryMap` leak
 //!     a kill-side operator would cause by removing an entity without
 //!     its record).
+//! 13. **Null-entity referential coherence (M3 PR 1).** A null-scaffold
+//!     curve entry is referenced by at most one edge
+//!     ([`ValidationError::NullScaffoldShared`]) and a null-face record
+//!     never outlives its face
+//!     ([`ValidationError::LeakedNullFaceRecord`]). Deliberately
+//!     minimal — attribute semantics are the surgery ops' contract, and
+//!     tier 2 bans null entities at rest outright (see `crate::null`).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -216,7 +228,10 @@
 //! [`validate_closed`] appends the tier-2 failures after all tier-1
 //! errors, in this order: empty loops (loop-arena order), valence-1
 //! vertices (vertex-arena order), disconnected shells (shell-arena
-//! order).
+//! order), null edges at rest (edge-arena order), null-face records at
+//! rest (record slot order) — the last two added at M3 PR 1 (null
+//! entities are surgery transients, banned at rest by name like the
+//! other scaffolding shapes).
 
 use core::fmt;
 
@@ -226,6 +241,7 @@ use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
+use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
 
 use crate::entity::{
@@ -644,6 +660,40 @@ pub enum ValidationError {
         /// How many components its complex has (≥ 2).
         components: usize,
     },
+    /// **Tier 1, pass 13 (M3 PR 1).** A null-scaffold curve entry
+    /// (`crate::CurveGeom::NullScaffold`) is referenced by more than
+    /// one edge: the F9 attribute is per-edge data, so sharing is a
+    /// corrupt state (each null edge mints its own entry; zero
+    /// references is pass 8's `OrphanGeometry` report).
+    NullScaffoldShared {
+        /// The multiply-referenced scaffolding entry.
+        curve: CurveKey,
+        /// How many edges reference it (≥ 2).
+        edges: usize,
+    },
+    /// **Tier 1, pass 13 (M3 PR 1).** A null-face record's face key
+    /// does not resolve — the `SecondaryMap` leak a face-killing
+    /// operator would cause by removing a marked face without its
+    /// record (the provenance-leak rule applied to F9 records).
+    LeakedNullFaceRecord {
+        /// The dead face key still carrying a record.
+        face: FaceKey,
+    },
+    /// **Tier 2 (M3 PR 1).** A null edge at rest: the edge's curve
+    /// entry is `crate::CurveGeom::NullScaffold` — mid-surgery
+    /// scaffolding (ch. 14/15 splitting/boolean transients) that must
+    /// be consumed before a body rests.
+    NullEdgeAtRest {
+        /// The scaffolding edge.
+        edge: EdgeKey,
+    },
+    /// **Tier 2 (M3 PR 1).** A null face at rest: the face carries an
+    /// F9 loop-role record (`crate::NullFacePair`) — mid-surgery
+    /// scaffolding that must be consumed before a body rests.
+    NullFaceAtRest {
+        /// The marked face.
+        face: FaceKey,
+    },
 }
 
 impl fmt::Display for ValidationError {
@@ -871,6 +921,26 @@ impl fmt::Display for ValidationError {
                 "shell {shell:?}'s incidence complex has {components} connected \
                  components (a closed solid requires exactly 1, tier 2)"
             ),
+            Self::NullScaffoldShared { curve, edges } => write!(
+                f,
+                "null-scaffold curve entry {curve:?} is referenced by {edges} \
+                 edges (the F9 attribute is per-edge data — sharing is corrupt)"
+            ),
+            Self::LeakedNullFaceRecord { face } => write!(
+                f,
+                "null-face record outlives its face {face:?} (F9 record leak — \
+                 face kills must remove the record)"
+            ),
+            Self::NullEdgeAtRest { edge } => write!(
+                f,
+                "edge {edge:?} is null-edge scaffolding at rest (tier 2 bans \
+                 unconsumed M3 surgery transients)"
+            ),
+            Self::NullFaceAtRest { face } => write!(
+                f,
+                "face {face:?} carries a null-face record at rest (tier 2 bans \
+                 unconsumed M3 surgery transients)"
+            ),
         }
     }
 }
@@ -1012,6 +1082,24 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
             if components >= 2 {
                 errors.push(ValidationError::ShellDisconnected { shell, components });
             }
+        }
+    }
+
+    // Tier 2, check 4 (M3 PR 1): no null entities at rest — null edges
+    // (edge-arena order) and null-face records (record slot order) are
+    // ch. 14/15 surgery transients, refused by name exactly like the
+    // other scaffolding shapes (see `crate::null`).
+    for (edge_key, edge) in body.edges.iter() {
+        if matches!(
+            body.curves.get(edge.curve),
+            Some(CurveGeom::NullScaffold(_))
+        ) {
+            errors.push(ValidationError::NullEdgeAtRest { edge: edge_key });
+        }
+    }
+    for (face_key, _) in body.null_faces.iter() {
+        if body.faces.contains_key(face_key) {
+            errors.push(ValidationError::NullFaceAtRest { face: face_key });
         }
     }
 
@@ -2112,6 +2200,37 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
             errors.push(ValidationError::LeakedProvenance {
                 entity: EntityId::Vertex(k),
             });
+        }
+    }
+
+    // Pass 13 (M3 PR 1): null-entity referential coherence — the
+    // deliberately *minimal* tier-1 hooks (see `crate::null`): a
+    // null-scaffold curve entry is per-edge data, so it is referenced
+    // by at most one edge (curve-arena order; zero references is pass
+    // 8's orphan report); a null-face record never outlives its face
+    // (record slot order — the provenance-leak rule applied to F9
+    // records). Attribute *semantics* (which vertices/loops the
+    // records name) are intentionally not tier-1 checks: Euler
+    // surgery legitimately rewires neighborhoods mid-sequence, and
+    // tier 2 refuses null entities at rest regardless.
+    for (curve_key, entry) in body.curves.iter() {
+        if matches!(entry, CurveGeom::NullScaffold(_)) {
+            let referers = body
+                .edges
+                .values()
+                .filter(|edge| edge.curve == curve_key)
+                .count();
+            if referers >= 2 {
+                errors.push(ValidationError::NullScaffoldShared {
+                    curve: curve_key,
+                    edges: referers,
+                });
+            }
+        }
+    }
+    for (face_key, _) in body.null_faces.iter() {
+        if !body.faces.contains_key(face_key) {
+            errors.push(ValidationError::LeakedNullFaceRecord { face: face_key });
         }
     }
 

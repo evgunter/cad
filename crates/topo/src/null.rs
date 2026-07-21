@@ -167,3 +167,288 @@ impl<T: Real> CurveGeom<T> {
         }
     }
 }
+
+impl<T: geom_core::Decide> Body<T> {
+    /// MEV, null-edge form — *make (null) edge, vertex*: the zero-length
+    /// `lmev` idiom of ch. 14/15 (`separ1`/`separ2`), minting a new
+    /// vertex **coincident with the site's old vertex** (its point is a
+    /// bitwise copy — structural coincidence, no comparison) joined by a
+    /// **null edge** whose curve entry is [`CurveGeom::NullScaffold`]
+    /// carrying the F9 side attribute (`new_side` declares which side
+    /// the new vertex faces; the old vertex takes the other).
+    ///
+    /// Serves ch. 14 `splitclassify` null-edge insertion and ch. 15
+    /// null-edge pairs (M3 PRs 2 and 4). Site semantics — fan split,
+    /// strut (`he1 == he2`, ch. 15's dangling null edge), lone — and
+    /// the surgery are exactly [`Body::mev`]'s; only the geometry lane
+    /// differs (no certification gate: there is no carrier to certify,
+    /// by type — the ratified F9 shape, module docs). Tier 1 accepts
+    /// the result; tier 2 refuses it at rest
+    /// ([`crate::ValidationError::NullEdgeAtRest`]).
+    ///
+    /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
+    /// `mev` (a null edge is an edge).
+    ///
+    /// **Minting order** (D9, exact — deviates from `mev`'s): point,
+    /// **vertex**, curve entry (the F9 attribute names the new vertex,
+    /// so the vertex must exist first), edge, `he_plus`, `he_minus`.
+    /// Emanating rule and splice positions: as [`Body::mev`].
+    ///
+    /// # Errors
+    ///
+    /// The site preconditions, exactly as [`Body::mev`] minus the
+    /// certification gate; the body is untouched on `Err`.
+    pub fn mev_null(
+        &mut self,
+        site: MevSite,
+        new_side: NewVertexSide,
+    ) -> Result<MevCreated, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+
+        let provenance = Provenance::MevNull { site, new_side };
+        let created = match site {
+            MevSite::Fan { he1, he2 } => {
+                let plan = self.mev_fan_plan(he1, he2)?;
+                let point = plan.p_old; // bitwise coincident copy
+                self.mev_fan_execute(
+                    he1,
+                    he2,
+                    plan,
+                    point,
+                    crate::euler::MevCurveMint::Null(new_side),
+                    provenance,
+                )
+            }
+            MevSite::Lone { r#loop } => {
+                let (v, p_old) = self.mev_lone_plan(r#loop)?;
+                self.mev_lone_execute(
+                    r#loop,
+                    v,
+                    p_old, // bitwise coincident copy
+                    crate::euler::MevCurveMint::Null(new_side),
+                    provenance,
+                )
+            }
+        };
+
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "mev_null");
+        Ok(created)
+    }
+
+}
+
+// The marker setters make no geometric decision, so they stay at the
+// `Real` bound (the tiers' posture: structural bookkeeping never
+// classifies).
+impl<T: Real> Body<T> {
+    /// Marks `face` as a null face with the given F9 loop-role
+    /// attribute (replacing any existing mark — the record is data the
+    /// splitting/boolean pipeline maintains as it builds the pair).
+    ///
+    /// Structural preconditions only: the face resolves, both role
+    /// loops resolve, and they are distinct. Whether the loops belong
+    /// to the face is deliberately **not** checked here or at tier 1 —
+    /// Euler surgery legitimately re-homes loops mid-sequence, and the
+    /// minting/consuming ops of PRs 2–5 own the record's currency
+    /// (module docs). Tier 2 refuses marked faces at rest
+    /// ([`crate::ValidationError::NullFaceAtRest`]).
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] if the face or a role loop does not
+    /// resolve; [`EulerOpError::SameLoop`] if the two role loops are
+    /// one loop. The body is untouched on `Err`.
+    pub fn set_null_face_pair(
+        &mut self,
+        face: FaceKey,
+        pair: NullFacePair,
+    ) -> Result<(), EulerOpError> {
+        if !self.faces.contains_key(face) {
+            return Err(EulerOpError::StaleKey {
+                key: EntityId::Face(face),
+            });
+        }
+        let [a, b] = pair.loops();
+        for l in [a, b] {
+            if !self.loops.contains_key(l) {
+                return Err(EulerOpError::StaleKey {
+                    key: EntityId::Loop(l),
+                });
+            }
+        }
+        if a == b {
+            return Err(EulerOpError::SameLoop { r#loop: a });
+        }
+        self.null_faces.insert(face, pair);
+        Ok(())
+    }
+
+    /// Removes `face`'s null-face mark, returning it (or `None` if the
+    /// face was not marked — total, like the accessor: clearing is the
+    /// consuming pipeline's bookkeeping, not a checked surgery).
+    pub fn clear_null_face_pair(&mut self, face: FaceKey) -> Option<NullFacePair> {
+        self.null_faces.remove(face)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::fixtures::{deep_snapshot, ops_cube};
+    use crate::validate::{ValidationError, validate, validate_closed};
+
+    /// A null strut (`he1 == he2`) on a cube vertex: coincident point
+    /// copy, F9 attribute recorded per side, tier 1 accepts, tier 2
+    /// refuses by name, and the scaffolding is killable by `kev`.
+    #[test]
+    fn mev_null_strut_lifecycle() {
+        let cube = ops_cube();
+        let mut body = cube.body;
+        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let strut = crate::MevSite::Fan { he1: he, he2: he };
+        let created = body.mev_null(strut, NewVertexSide::Above).unwrap();
+        // Coincident copy, bitwise.
+        let p_new = *body.get_point(created.point).unwrap();
+        let p_old = *body
+            .get_point(body.get_vertex(cube.seed.vertex).unwrap().point)
+            .unwrap();
+        assert_eq!(
+            (p_new.x.to_bits(), p_new.y.to_bits(), p_new.z.to_bits()),
+            (p_old.x.to_bits(), p_old.y.to_bits(), p_old.z.to_bits()),
+        );
+        // The F9 attribute names old-below / new-above.
+        let attr = *body
+            .get_curve_geom(created.curve)
+            .unwrap()
+            .null_scaffold()
+            .unwrap();
+        assert_eq!(
+            attr,
+            NullEdge {
+                below_end: cube.seed.vertex,
+                above_end: created.vertex,
+            }
+        );
+        // Tier 1 accepts; tier 2 refuses by name (strut + null edge).
+        assert_eq!(validate(&body), Ok(()));
+        let errs = validate_closed(&body).unwrap_err();
+        assert!(errs.contains(&ValidationError::NullEdgeAtRest {
+            edge: created.edge
+        }));
+        assert!(errs.contains(&ValidationError::ScaffoldingStrutVertex {
+            vertex: created.vertex
+        }));
+        // Provenance is the typed MevNull record.
+        assert_eq!(
+            body.provenance(crate::EntityId::Edge(created.edge)),
+            Some(&crate::Provenance::MevNull {
+                site: strut,
+                new_side: NewVertexSide::Above,
+            })
+        );
+        // Consumed by kev like any other edge; the scaffolding entry
+        // dies with it and tier 2 is restored.
+        body.kev(created.he_plus).unwrap();
+        assert_eq!(validate_closed(&body), Ok(()));
+    }
+
+    /// `Below` puts the new vertex on the below side.
+    #[test]
+    fn mev_null_below_side_attribute() {
+        let cube = ops_cube();
+        let mut body = cube.body;
+        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let created = body
+            .mev_null(crate::MevSite::Fan { he1: he, he2: he }, NewVertexSide::Below)
+            .unwrap();
+        let attr = *body
+            .get_curve_geom(created.curve)
+            .unwrap()
+            .null_scaffold()
+            .unwrap();
+        assert_eq!(attr.below_end, created.vertex);
+        assert_eq!(attr.above_end, cube.seed.vertex);
+    }
+
+    /// Precondition failures leave the body deeply untouched (the mev
+    /// error paths, exercised through the null lane).
+    #[test]
+    fn mev_null_atomic_on_error() {
+        let cube = ops_cube();
+        let mut body = cube.body;
+        let before = deep_snapshot(&body);
+        let err = body
+            .mev_null(
+                crate::MevSite::Fan {
+                    he1: crate::HalfEdgeKey::default(),
+                    he2: crate::HalfEdgeKey::default(),
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap_err();
+        assert!(matches!(err, EulerOpError::StaleKey { .. }));
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    /// Null-face records: set/clear roundtrip, tier-2 refusal by name,
+    /// structural preconditions, and kill-op hygiene through `kfmrh`.
+    #[test]
+    fn null_face_record_lifecycle() {
+        let cube = ops_cube();
+        let mut body = cube.body;
+        let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
+        let outer1 = body.get_face(f1).unwrap().outer;
+        let outer2 = body.get_face(f2).unwrap().outer;
+        // Distinctness is checked.
+        assert_eq!(
+            body.set_null_face_pair(
+                f1,
+                NullFacePair::Split {
+                    above_loop: outer1,
+                    below_loop: outer1,
+                },
+            ),
+            Err(EulerOpError::SameLoop { r#loop: outer1 })
+        );
+        // A valid record: tier 1 fine, tier 2 refuses by name.
+        body.set_null_face_pair(
+            f1,
+            NullFacePair::Boolean {
+                in_copy: outer1,
+                out_copy: outer2,
+            },
+        )
+        .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            validate_closed(&body),
+            Err(vec![ValidationError::NullFaceAtRest { face: f1 }])
+        );
+        assert_eq!(
+            body.null_face_pair(f1),
+            Some(&NullFacePair::Boolean {
+                in_copy: outer1,
+                out_copy: outer2,
+            })
+        );
+        // Clearing restores tier 2.
+        assert!(body.clear_null_face_pair(f1).is_some());
+        assert_eq!(validate_closed(&body), Ok(()));
+        // Kill-op hygiene: a record on kfmrh's dying face is removed
+        // with it (no LeakedNullFaceRecord).
+        body.set_null_face_pair(
+            f2,
+            NullFacePair::Split {
+                above_loop: outer1,
+                below_loop: outer2,
+            },
+        )
+        .unwrap();
+        body.kfmrh(f1, f2).unwrap();
+        assert_eq!(body.null_face_pair(f2), None);
+        assert_eq!(validate(&body), Ok(()));
+    }
+}

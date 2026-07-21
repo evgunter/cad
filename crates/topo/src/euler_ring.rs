@@ -726,6 +726,9 @@ impl<T: Decide> Body<T> {
         }
         self.faces.remove(f2);
         self.face_provenance.remove(f2);
+        // Null-face record hygiene (M3 PR 1): a record never outlives
+        // its face (crate::null).
+        self.null_faces.remove(f2);
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
