@@ -36,6 +36,25 @@ jobs:
             echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
             exit 1
           fi
+      # Bit-identity channel tripwire (M3 PR 4; Evan #53/#57/#58): the
+      # type-punning plumbing that lets generic code reach a scalar's
+      # bits (Any downcasts / TypeId dispatch) is sanctioned in exactly
+      # ONE seam — geom_core::bit_identity (plus interval.rs, which
+      # defines Interval::repr_bits over its own storage). Any other
+      # occurrence is a second bit channel and fails here. Callers go
+      # through the door's public fns (repr_bits/eq_bits), which need no
+      # punning at the call site. Scheduled retirement: when M4
+      # provenance naming lands, declared coincidence becomes a record
+      # lookup and this channel decays to a debug assertion (DESIGN.md
+      # M4 roadmap note).
+      - name: bit-identity channel tripwire
+        run: |
+          if grep -rnE 'downcast_ref|TypeId|core::any|std::any' crates/*/src \
+            | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
+            | grep -vE ':[0-9]+:\s*//'; then
+            echo "::error::bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"
+            exit 1
+          fi
 
   fmt:
     name: rustfmt

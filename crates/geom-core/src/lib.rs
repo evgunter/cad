@@ -14,6 +14,7 @@
 //! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the
 //! design contract this crate implements.
 
+pub mod bit_identity;
 pub mod dual;
 #[cfg(feature = "interval")]
 pub mod interval;
