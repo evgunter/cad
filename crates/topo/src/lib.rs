@@ -133,6 +133,7 @@ pub(crate) mod fixtures;
 pub mod geometry;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod merge_faces;
 pub mod movefac;
 pub mod null;
 pub mod split;
@@ -171,6 +172,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use split::SplitEdgeCreated;
 pub use props::{MassProperties, MassPropsError, mass_properties};
