@@ -86,8 +86,14 @@ fn arc_bulge_restriction_formula_derived_independently() {
     let expected = (theta * (s1 - s0) / 4.0).tan();
     assert_eq!(bp.to_bits(), expected.to_bits(), "bulge' formula mismatch");
     let (ea, eb) = (seg.eval(s0), seg.eval(s1));
-    assert_eq!((a.x.to_bits(), a.y.to_bits()), (ea.x.to_bits(), ea.y.to_bits()));
-    assert_eq!((b.x.to_bits(), b.y.to_bits()), (eb.x.to_bits(), eb.y.to_bits()));
+    assert_eq!(
+        (a.x.to_bits(), a.y.to_bits()),
+        (ea.x.to_bits(), ea.y.to_bits())
+    );
+    assert_eq!(
+        (b.x.to_bits(), b.y.to_bits()),
+        (eb.x.to_bits(), eb.y.to_bits())
+    );
     // Reparameterization law, sampled densely (float slack only).
     for i in 0..=16 {
         let s = f64::from(i) / 16.0;
@@ -150,8 +156,16 @@ fn split_circle_carrier_intersection_edge() {
         };
         let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);
         assert_eq!(
-            (witness.x.to_bits(), witness.y.to_bits(), witness.z.to_bits()),
-            (expected.x.to_bits(), expected.y.to_bits(), expected.z.to_bits()),
+            (
+                witness.x.to_bits(),
+                witness.y.to_bits(),
+                witness.z.to_bits()
+            ),
+            (
+                expected.x.to_bits(),
+                expected.y.to_bits(),
+                expected.z.to_bits()
+            ),
             "circle-carrier witness is not the bitwise mid-sample"
         );
     }
@@ -160,9 +174,8 @@ fn split_circle_carrier_intersection_edge() {
     // r = 1/sqrt(2)) sits inside the zero band although the raw
     // angular margin is above eps.
     let eps = Tolerance::get().eps;
-    let radius = match *parent.carrier() {
-        geom_curves::Curve3::Circle { radius, .. } => radius,
-        _ => unreachable!(),
+    let geom_curves::Curve3::Circle { radius, .. } = *parent.carrier() else {
+        panic!("circle carrier vanished");
     };
     assert!(radius < 1.0);
     let (c0, c1) = body
@@ -239,10 +252,10 @@ fn revert_curved_body_refuses_typed() {
     assert_eq!(format!("{body:?}"), before);
 }
 
-/// TARGETS 2+3 on swept bodies: a split then a null strut on the prism
-/// - split_edge keeps the prism tier-3; the null edge then closes the
-/// tier-3/mass-props doors until killed (the fail-loud lifecycle on a
-/// real consumer body, not a fixture).
+/// TARGETS 2+3 on swept bodies: a split then a null strut on the
+/// prism - split_edge keeps the prism tier-3; the null edge then
+/// closes the tier-3/mass-props doors until killed (the fail-loud
+/// lifecycle on a real consumer body, not a fixture).
 #[test]
 fn split_then_null_lifecycle_on_prism() {
     let out = extrude(&l_profile(), Extrusion::Distance(1.0)).unwrap();

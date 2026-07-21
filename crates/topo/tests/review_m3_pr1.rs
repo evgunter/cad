@@ -57,7 +57,11 @@ fn chi(body: &Body<f64>) -> isize {
 /// planes are NOT used: mef_chord mints placeholder surfaces) - fine
 /// for tiers 1-2 topology probes. Returns the promoted (detached
 /// component's) face.
-fn plant_detached_box(body: &mut Body<f64>, face: topo::FaceKey, base: Point3<f64>) -> topo::FaceKey {
+fn plant_detached_box(
+    body: &mut Body<f64>,
+    face: topo::FaceKey,
+    base: Point3<f64>,
+) -> topo::FaceKey {
     let host_he = {
         let topo::LoopBoundary::Cycle { first } = body
             .get_loop(body.get_face(face).unwrap().outer)
@@ -108,7 +112,8 @@ fn plant_detached_box(body: &mut Body<f64>, face: topo::FaceKey, base: Point3<f6
     let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus)).unwrap();
     body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus)).unwrap();
     body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus)).unwrap();
-    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus)).unwrap();
+    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus))
+        .unwrap();
     body.mfkrh_plug(planted.ring).unwrap().face
 }
 
@@ -125,8 +130,12 @@ fn ops_cube_public() -> (Body<f64>, topo::MvfsCreated) {
         )
         .unwrap();
     let fan = |he| MevSite::Fan { he1: he, he2: he };
-    let e_bc = body.mev_line(fan(e_ab.he_minus), pt(1.0, 1.0, 0.0)).unwrap();
-    let e_cd = body.mev_line(fan(e_bc.he_minus), pt(0.0, 1.0, 0.0)).unwrap();
+    let e_bc = body
+        .mev_line(fan(e_ab.he_minus), pt(1.0, 1.0, 0.0))
+        .unwrap();
+    let e_cd = body
+        .mev_line(fan(e_bc.he_minus), pt(0.0, 1.0, 0.0))
+        .unwrap();
     let he_dc = body
         .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
         .unwrap();
@@ -139,12 +148,15 @@ fn ops_cube_public() -> (Body<f64>, topo::MvfsCreated) {
     let e_aa = body.mev_line(fan(e_ab.he_plus), pt(0.0, 0.0, 1.0)).unwrap();
     let e_bb = body.mev_line(fan(e_bc.he_plus), pt(1.0, 0.0, 1.0)).unwrap();
     let e_cc = body.mev_line(fan(e_cd.he_plus), pt(1.0, 1.0, 1.0)).unwrap();
-    let e_dd = body.mev_line(fan(f_bot.he_plus), pt(0.0, 1.0, 1.0)).unwrap();
+    let e_dd = body
+        .mev_line(fan(f_bot.he_plus), pt(0.0, 1.0, 1.0))
+        .unwrap();
     let chord = |he1, he2| MefSite::Chords { he1, he2 };
     let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus)).unwrap();
     body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus)).unwrap();
     body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus)).unwrap();
-    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus)).unwrap();
+    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus))
+        .unwrap();
     (body, seed)
 }
 
@@ -172,11 +184,7 @@ fn movefac_three_component_partition_matches_pass11() {
         })
         .expect("pre-movefac body must report ShellDisconnected");
     assert_eq!(pass11_components, 3);
-    let faces_before: Vec<_> = body
-        .get_shell(seed.shell)
-        .unwrap()
-        .faces
-        .clone();
+    let faces_before: Vec<_> = body.get_shell(seed.shell).unwrap().faces.clone();
     let shells = body.movefac(seed.shell).unwrap();
     assert_eq!(shells.len(), pass11_components, "movefac != pass-11 count");
     assert_eq!(shells[0], seed.shell, "comp 0 must keep the shell");
@@ -311,7 +319,10 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
         .last()
         .unwrap();
     let handle = body.kfmrh(cube_bottom, inner_bottom).unwrap();
-    assert_eq!(handle.killed_shell, None, "same-shell form must not kill a shell");
+    assert_eq!(
+        handle.killed_shell, None,
+        "same-shell form must not kill a shell"
+    );
     assert_eq!(chi(&body), 0, "handle: genus 1");
     assert_eq!(validate(&body), Ok(()));
     // Genus addition: plant + distribute + fuse a second genus-0
@@ -319,7 +330,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     let inner2 = plant_detached_box(&mut body, seed.face, pt(0.6, 0.6, 1.3));
     let shells2 = body.movefac(seed.shell).unwrap();
     assert_eq!(shells2.len(), 2);
-    assert_eq!(chi(&body), 0 + 2);
+    assert_eq!(chi(&body), 2); // genus-1 (chi 0) + genus-0 (chi 2)
     let fused2 = body.kfmrh(seed.face, inner2).unwrap();
     assert_eq!(fused2.killed_shell, Some(shells2[1]));
     assert_eq!(chi(&body), 0, "genera add: 1 + 0 = 1");
@@ -352,9 +363,11 @@ fn null_scaffold_fail_loud_audit() {
     assert!(geom.null_scaffold().is_some());
     // Door 1: tier 2 refuses at rest, by name.
     let errs = validate_closed(&cube.body).unwrap_err();
-    assert!(errs
-        .iter()
-        .any(|e| matches!(e, ValidationError::NullEdgeAtRest { edge } if *edge == created.edge)));
+    assert!(
+        errs.iter().any(
+            |e| matches!(e, ValidationError::NullEdgeAtRest { edge } if *edge == created.edge)
+        )
+    );
     // Door 2: mass properties refuse, typed.
     let err = topo::mass_properties(&cube.body).unwrap_err();
     assert!(
@@ -374,18 +387,22 @@ fn null_scaffold_fail_loud_audit() {
     let topo::MergeCoplanarError::InputNotClosed { errors } = err else {
         panic!("expected InputNotClosed, got {err:?}");
     };
-    assert!(errors
-        .iter()
-        .any(|e| matches!(e, ValidationError::NullEdgeAtRest { .. })));
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::NullEdgeAtRest { .. }))
+    );
     assert_eq!(dump(&cube.body), before);
     // Door 6: revert carries the scaffold through UNCHANGED (still
     // typed scaffolding on the other side, still refused at rest).
     let reverted = cube.body.revert().unwrap();
-    assert!(reverted
-        .get_curve_geom(created.curve)
-        .unwrap()
-        .null_scaffold()
-        .is_some());
+    assert!(
+        reverted
+            .get_curve_geom(created.curve)
+            .unwrap()
+            .null_scaffold()
+            .is_some()
+    );
     assert!(validate_closed(&reverted).is_err());
     // Cleanup door: kev consumes the scaffold; every gate reopens.
     cube.body.kev(created.he_plus).unwrap();
@@ -474,8 +491,16 @@ fn split_edge_intersection_witness_bitwise_remint() {
         // (4/8), the certification schedule's middle sample.
         let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);
         assert_eq!(
-            (witness.x.to_bits(), witness.y.to_bits(), witness.z.to_bits()),
-            (expected.x.to_bits(), expected.y.to_bits(), expected.z.to_bits()),
+            (
+                witness.x.to_bits(),
+                witness.y.to_bits(),
+                witness.z.to_bits()
+            ),
+            (
+                expected.x.to_bits(),
+                expected.y.to_bits(),
+                expected.z.to_bits()
+            ),
             "witness is not the bitwise mid-sample"
         );
         // Children keep the parent's surface keys.
@@ -499,12 +524,12 @@ fn split_edge_interiority_band_edges() {
     let edge = cube.mevs[0].edge; // line, params [0, 1], scale 1 m
     let before = dump(&cube.body);
     for t in [
-        0.0,               // exactly the start
-        1.0,               // exactly the end
-        eps * 0.5,         // strictly inside the band at the start
-        1.0 - eps * 0.5,   // strictly inside the band at the end
-        -0.25,             // outside the interval entirely
-        1.25,              // beyond the end
+        0.0,             // exactly the start
+        1.0,             // exactly the end
+        eps * 0.5,       // strictly inside the band at the start
+        1.0 - eps * 0.5, // strictly inside the band at the end
+        -0.25,           // outside the interval entirely
+        1.25,            // beyond the end
     ] {
         let err = cube.body.split_edge(edge, t).unwrap_err();
         assert!(
@@ -590,7 +615,10 @@ fn ring_move_laringmv_roundtrip_and_noop() {
 }
 
 /// A face's outer-cycle vertex set (empty set for an empty loop).
-fn cycle_verts_of(body: &Body<f64>, face: topo::FaceKey) -> std::collections::BTreeSet<topo::VertexKey> {
+fn cycle_verts_of(
+    body: &Body<f64>,
+    face: topo::FaceKey,
+) -> std::collections::BTreeSet<topo::VertexKey> {
     let f = body.get_face(face).unwrap();
     match body.get_loop(f.outer).unwrap().boundary {
         topo::LoopBoundary::Cycle { first } => body
@@ -632,7 +660,8 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
             .find(|&he| body.get_half_edge(he).unwrap().start == v)
             .unwrap()
     };
-    let point_of = |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let point_of =
+        |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     // Radial strut a1 -> p, then the interior chain p -> q -> r -> s.
     let (pp, pq, pr, ps) = (
         pt(0.25, 0.25, 1.0),
@@ -643,7 +672,14 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
     let he_a1 = he_at(&cube.body, top, a1);
     let e_ap = cube
         .body
-        .mev(MevSite::Fan { he1: he_a1, he2: he_a1 }, pp, line(point_of(&cube.body, a1), pp))
+        .mev(
+            MevSite::Fan {
+                he1: he_a1,
+                he2: he_a1,
+            },
+            pp,
+            line(point_of(&cube.body, a1), pp),
+        )
         .unwrap();
     let fan = |he| MevSite::Fan { he1: he, he2: he };
     let e_pq = cube.body.mev(fan(e_ap.he_minus), pq, line(pp, pq)).unwrap();
@@ -669,10 +705,17 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
     let center = if cycle_verts_of(&cube.body, closing.face) == square {
         closing.face
     } else {
-        assert_eq!(cycle_verts_of(&cube.body, top), square, "no center square face");
+        assert_eq!(
+            cycle_verts_of(&cube.body, top),
+            square,
+            "no center square face"
+        );
         top
     };
-    assert_ne!(center, top, "construction assumes top keeps the annulus side");
+    assert_ne!(
+        center, top,
+        "construction assumes top keeps the annulus side"
+    );
     // Three more radial chords: b1->q, c1->r, d1->s (each splits the
     // annulus region; all quadrants get the bit-identical top plane).
     // The host face is found at runtime: whichever face's outer cycle
@@ -691,7 +734,11 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
         let he2 = he_at(&cube.body, host, inner);
         let spec = line(point_of(&cube.body, corner), point_of(&cube.body, inner));
         cube.body
-            .mef(MefSite::Chords { he1, he2 }, spec, FaceSurface::New(top_plane))
+            .mef(
+                MefSite::Chords { he1, he2 },
+                spec,
+                FaceSurface::New(top_plane),
+            )
             .unwrap();
     }
     // The center face gets a NUMERICALLY coplanar but descriptively
@@ -736,7 +783,10 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     assert_eq!(g.killed_edges.len(), 4, "4 radial edges must die");
     assert_eq!(g.rings_made.len(), 1, "the hole must become a kemr ring");
     assert_eq!(cube.body.faces().count(), 7); // 6 cube faces + center
-    assert!(cube.body.get_face(center).is_some(), "numeric center merged!");
+    assert!(
+        cube.body.get_face(center).is_some(),
+        "numeric center merged!"
+    );
     // The ring is the interior square's cycle, on the survivor.
     let ring = g.rings_made[0];
     assert_eq!(cube.body.get_face(g.kept).unwrap().rings, vec![ring]);
@@ -785,45 +835,55 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
 /// merge (and the Debug channel must distinguish -0.0 from 0.0).
 #[test]
 fn merge_coplanar_uref_and_signed_zero_teeth() {
-    let diagonal_split = |surface: fn(&geom_surfaces::Surface<f64>) -> geom_surfaces::Surface<f64>| {
-        let mut cube = geometric_cube::<f64>();
-        let top = cube.seed.face;
-        let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
-        let f = cube.body.get_face(top).unwrap();
-        let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary
-        else {
-            panic!("cycle");
+    let diagonal_split =
+        |surface: fn(&geom_surfaces::Surface<f64>) -> geom_surfaces::Surface<f64>| {
+            let mut cube = geometric_cube::<f64>();
+            let top = cube.seed.face;
+            let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
+            let f = cube.body.get_face(top).unwrap();
+            let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary
+            else {
+                panic!("cycle");
+            };
+            let find = |body: &Body<f64>, v| {
+                body.loop_cycle(first)
+                    .unwrap()
+                    .into_iter()
+                    .find(|&he| body.get_half_edge(he).unwrap().start == v)
+                    .unwrap()
+            };
+            let (he1, he2) = (find(&cube.body, a1), find(&cube.body, c1));
+            let pa = *cube
+                .body
+                .get_point(cube.body.get_vertex(a1).unwrap().point)
+                .unwrap();
+            let pc = *cube
+                .body
+                .get_point(cube.body.get_vertex(c1).unwrap().point)
+                .unwrap();
+            let top_surface = *cube
+                .body
+                .get_surface(cube.body.get_face(top).unwrap().surface)
+                .unwrap();
+            let variant = surface(&top_surface);
+            cube.body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    line(pa, pc),
+                    FaceSurface::New(variant),
+                )
+                .unwrap();
+            cube
         };
-        let find = |body: &Body<f64>, v| {
-            body.loop_cycle(first)
-                .unwrap()
-                .into_iter()
-                .find(|&he| body.get_half_edge(he).unwrap().start == v)
-                .unwrap()
-        };
-        let (he1, he2) = (find(&cube.body, a1), find(&cube.body, c1));
-        let pa = *cube
-            .body
-            .get_point(cube.body.get_vertex(a1).unwrap().point)
-            .unwrap();
-        let pc = *cube
-            .body
-            .get_point(cube.body.get_vertex(c1).unwrap().point)
-            .unwrap();
-        let top_surface = *cube
-            .body
-            .get_surface(cube.body.get_face(top).unwrap().surface)
-            .unwrap();
-        let variant = surface(&top_surface);
-        cube.body
-            .mef(MefSite::Chords { he1, he2 }, line(pa, pc), FaceSurface::New(variant))
-            .unwrap();
-        cube
-    };
     // Tooth 1: same origin and normal bits, u_ref swapped to another
     // in-plane direction - only the FRAME differs. Must stay unmerged.
     let mut uref = diagonal_split(|s| {
-        let geom_surfaces::Surface::Plane { origin, normal, u_ref } = *s else {
+        let geom_surfaces::Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = *s
+        else {
             panic!("plane");
         };
         let swapped = geom_core::Vec3::new(-u_ref.y, u_ref.x, u_ref.z);
@@ -839,7 +899,12 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
     // numerically equal everywhere, one sign bit apart. Must stay
     // unmerged, proving the Debug channel is bit- (not value-) equality.
     let mut zero = diagonal_split(|s| {
-        let geom_surfaces::Surface::Plane { origin, normal, u_ref } = *s else {
+        let geom_surfaces::Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = *s
+        else {
             panic!("plane");
         };
         assert_eq!(normal.x, 0.0, "test assumes a +z top normal");
@@ -869,13 +934,21 @@ fn f64_debug_channel_injectivity_probes() {
     ];
     for (a, b) in pairs {
         assert_ne!(a.to_bits(), b.to_bits());
-        assert_ne!(format!("{a:?}"), format!("{b:?}"), "Debug conflates {a} and {b}");
+        assert_ne!(
+            format!("{a:?}"),
+            format!("{b:?}"),
+            "Debug conflates {a} and {b}"
+        );
     }
     // The blind spot: distinct NaN payloads/signs print identically.
     let nan1 = f64::from_bits(0x7ff8_0000_0000_0001);
     let nan2 = f64::from_bits(0xfff8_0000_0000_0002);
     assert_ne!(nan1.to_bits(), nan2.to_bits());
-    assert_eq!(format!("{nan1:?}"), format!("{nan2:?}"), "NaNs print apart?");
+    assert_eq!(
+        format!("{nan1:?}"),
+        format!("{nan2:?}"),
+        "NaNs print apart?"
+    );
 }
 
 /// TARGET 8 (the exploit): two adjacent faces carrying DIFFERENT
@@ -891,8 +964,7 @@ fn merge_coplanar_nan_payload_debug_collision() {
     let top = cube.seed.face;
     let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
     let f = cube.body.get_face(top).unwrap();
-    let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary
-    else {
+    let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary else {
         panic!("cycle");
     };
     let find = |body: &Body<f64>, v| {
@@ -971,7 +1043,11 @@ fn merge_coplanar_full_plateau_atomicity() {
         }
         Err(e) => {
             eprintln!("full-plateau merge REFUSED: {e:?}");
-            assert_eq!(dump(&cube.body), before, "refusal mutated the operand: {e:?}");
+            assert_eq!(
+                dump(&cube.body),
+                before,
+                "refusal mutated the operand: {e:?}"
+            );
         }
     }
 }
