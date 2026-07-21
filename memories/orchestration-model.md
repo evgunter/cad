@@ -79,10 +79,16 @@ M2-LOG snapshots assume it):**
 - Kill stale monitor processes from prior sessions first (`ps aux |
   grep -E 'gh api|events.jsonl'` — orphaned pollers survive session
   death), then arm TWO persistent Monitors:
-  1. **GitHub away-channel**: poll `gh api` for new issues + all
-     issue/PR comments on the repo (~60s interval) — Evan messages
-     through comments when not in-session; expect the monitor to
-     echo your own comments back (same account), ignore those.
+  1. **GitHub away-channel (INBOUND ONLY — Evan, 2026-07-21)**: poll
+     `gh api` for new issues + all issue/PR comments on the repo
+     (~60s interval) — Evan may ask questions through comments when
+     not in-session; expect the monitor to echo your own comments
+     back (same account), ignore those. Do NOT post status updates
+     to GitHub unless Evan explicitly asks: he does not review
+     comments on old merged PRs (earlier sessions wrongly treated
+     #41 as a bidirectional status thread — that was a
+     miscalibration that propagated through handoffs). Replying in
+     a thread Evan is actively using to ask a question is fine.
   2. **Usage-limit watch**: tail the newest line of
      `~/.mngr/agents/<agent-id>/events/claude/usage/events.jsonl`
      (each line has `rate_limits.five_hour.used_percentage` and
