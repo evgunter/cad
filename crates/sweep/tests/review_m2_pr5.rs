@@ -59,7 +59,11 @@ fn dense_loop_points(body: &Body<f64>, lk: topo::LoopKey, m: usize) -> Vec<Point
         );
         let edge = body.get_edge(hd.edge).unwrap();
         let forward = edge.he_plus == he;
-        let ec = body.get_curve(edge.curve).unwrap();
+        let ec = body
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
         let (t0, t1) = ec.params();
         for i in 1..m {
             let s = i as f64 / m as f64;
@@ -133,7 +137,7 @@ fn azimuth_about(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
 fn seam_edges(body: &Body<f64>) -> Vec<(EdgeKey, topo::SurfaceKey)> {
     body.edges()
         .filter_map(|(k, e)| {
-            let c = body.get_curve(e.curve).unwrap();
+            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
             match *c.description() {
                 EdgeGeometry::Seam { surface } => Some((k, surface)),
                 _ => None,
@@ -151,7 +155,7 @@ fn assert_seams_on_u0(body: &Body<f64>) {
     for (ek, sk) in seams {
         let surface = body.get_surface(sk).unwrap();
         let e = body.get_edge(ek).unwrap();
-        let c = body.get_curve(e.curve).unwrap();
+        let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let (t0, t1) = c.params();
         for i in 1..8 {
             let t = t0 + (t1 - t0) * (i as f64 / 8.0);
@@ -194,7 +198,7 @@ fn meridian_pappus_volume(
     let mut integral = 0.0;
     for &ek in meridians {
         let e = body.get_edge(ek).unwrap();
-        let c = body.get_curve(e.curve).unwrap();
+        let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let (t0, t1) = c.params();
         let mut prev = c.carrier().eval(t0);
         for i in 1..=n {
@@ -477,7 +481,7 @@ fn survives_ball_pole_valence_and_volume() {
         panic!("full")
     };
     let e = t.body.get_edge(meridians[0].unwrap()).unwrap();
-    let c = t.body.get_curve(e.curve).unwrap();
+    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (t0, t1) = c.params();
     let nv = 64;
     let nu = 128;
@@ -575,7 +579,7 @@ fn survives_washer_zip_lineage_and_seam_state() {
         let start = t.body.get_half_edge(e.he_plus).unwrap().start;
         let end = t.body.half_edge_end(e.he_plus).unwrap();
         assert_eq!(start, end, "full-period rim is a self-loop");
-        let c = t.body.get_curve(e.curve).unwrap();
+        let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let (t0, t1) = c.params();
         assert_eq!(t0, 0.0);
         assert_eq!(t1, TAU, "rim spans exactly the full period");
@@ -693,7 +697,7 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
     let pi_edge = pi_meridians[0].unwrap();
     let sphere_key = wall_key(&t.body, t.walls[0][0].unwrap());
     let e = t.body.get_edge(pi_edge).unwrap();
-    let c = t.body.get_curve(e.curve).unwrap();
+    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (*c.carrier(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeGeometry::Seam {
@@ -789,7 +793,7 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
     let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
     for r in &t.rims[0] {
         let e = t.body.get_edge(r.unwrap()).unwrap();
-        let c = t.body.get_curve(e.curve).unwrap();
+        let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let EdgeGeometry::Intersection { witness, .. } = *c.description() else {
             panic!("washer rims are Intersections");
         };
@@ -831,7 +835,7 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let mut t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
     let rim = t.rims[0][0].unwrap();
     let e = t.body.get_edge(rim).unwrap();
-    let c = t.body.get_curve(e.curve).unwrap();
+    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let EdgeGeometry::Intersection { s1, s2, .. } = *c.description() else {
         panic!("intersection rim");
     };
@@ -1328,7 +1332,7 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
         Some(Surface::Plane { .. })
     ));
     let e = t.body.get_edge(plane_meridian).unwrap();
-    let c = t.body.get_curve(e.curve).unwrap();
+    let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (*c.carrier(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeGeometry::Seam { surface: plane_key },

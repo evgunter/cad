@@ -65,9 +65,13 @@ fn edge_data<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, Revo
         key: topo::EntityId::Edge(edge),
     })?;
     let curve = body
-        .get_curve(edge_rec.curve)
+        .get_curve_geom(edge_rec.curve)
         .ok_or(EulerOpError::StaleGeometry {
             key: topo::GeomRef::Curve(edge_rec.curve),
+        })?
+        .certified()
+        .ok_or(EulerOpError::NullScaffoldCurve {
+            curve: edge_rec.curve,
         })?;
     let carrier = *curve.carrier();
     let (t0, t1) = curve.params();

@@ -59,6 +59,7 @@ use crate::entity::{
     Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
@@ -139,8 +140,13 @@ pub struct Body<T: Real> {
     // Geometry arenas — the only `T`-carrying storage (real element
     // types since M2 PR 3; see `crate::geometry`).
     pub(crate) points: SlotMap<PointKey, Point3<T>>,
-    pub(crate) curves: SlotMap<CurveKey, EdgeCurve<T>>,
+    pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
     pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
+    // M3 PR 1 null-face annotations (F9): typed loop-role attributes on
+    // null (section-polygon) faces, parallel to the face arena like the
+    // provenance maps — a record never outlives its face (kill-op
+    // hygiene; the validator makes leaks loud). See `crate::null`.
+    pub(crate) null_faces: SecondaryMap<FaceKey, NullFacePair>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
     // Uniform across all seven topology kinds — half-edges included.
@@ -167,6 +173,7 @@ impl<T: Real> Body<T> {
             points: SlotMap::with_key(),
             curves: SlotMap::with_key(),
             surfaces: SlotMap::with_key(),
+            null_faces: SecondaryMap::new(),
             solid_provenance: SecondaryMap::new(),
             shell_provenance: SecondaryMap::new(),
             face_provenance: SecondaryMap::new(),
@@ -214,7 +221,18 @@ impl<T: Real> Body<T> {
     /// Crate-internal raw insertion: no validity promises beyond what
     /// the `EdgeCurve` itself carries.
     pub(crate) fn add_curve(&mut self, curve: EdgeCurve<T>) -> CurveKey {
-        self.curves.insert(curve)
+        self.curves.insert(CurveGeom::Certified(curve))
+    }
+
+    /// Inserts a null-edge scaffolding entry
+    /// ([`CurveGeom::NullScaffold`] — see [`crate::null`]), returning
+    /// its key.
+    ///
+    /// Crate-internal raw insertion: no validity promises (the attribute
+    /// vertices may dangle — scaffolding coherence is the minting op's
+    /// contract).
+    pub(crate) fn add_null_curve(&mut self, attr: NullEdge) -> CurveKey {
+        self.curves.insert(CurveGeom::NullScaffold(attr))
     }
 
     /// Inserts surface geometry, returning its key.
@@ -393,11 +411,16 @@ impl<T: Real> Body<T> {
     /// two, `Seam`'s one, none for `MappedCurve` (which carries its own
     /// defining data). Consulted by orphan hygiene and by the
     /// validator's referential-integrity pass.
-    pub(crate) fn description_surfaces(curve: &EdgeCurve<T>) -> Vec<SurfaceKey> {
-        match *curve.description() {
-            EdgeGeometry::Intersection { s1, s2, .. } => vec![s1, s2],
-            EdgeGeometry::Seam { surface } => vec![surface],
-            EdgeGeometry::MappedCurve(_) => Vec::new(),
+    pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
+        match curve {
+            CurveGeom::Certified(curve) => match *curve.description() {
+                EdgeGeometry::Intersection { s1, s2, .. } => vec![s1, s2],
+                EdgeGeometry::Seam { surface } => vec![surface],
+                EdgeGeometry::MappedCurve(_) => Vec::new(),
+            },
+            // Null scaffolding has no description and keeps no surface
+            // alive.
+            CurveGeom::NullScaffold(_) => Vec::new(),
         }
     }
 
@@ -471,9 +494,16 @@ impl<T: Real> Body<T> {
         self.points.get(key)
     }
 
-    /// The curve geometry at `key`, or `None` if the key is stale (a
-    /// foreign key is not caught — see the [module docs](self)).
-    pub fn get_curve(&self, key: CurveKey) -> Option<&EdgeCurve<T>> {
+    /// The curve-arena entry at `key` — a certified carrier or M3
+    /// null-edge scaffolding ([`CurveGeom`], the arena's element type
+    /// since M3 PR 1) — or `None` if the key is stale (a foreign key is
+    /// not caught — see the [module docs](self)).
+    ///
+    /// There is deliberately **no** accessor that silently narrows to a
+    /// certified [`EdgeCurve`]: consumers that need a real carrier
+    /// match on the sum (usually via [`CurveGeom::certified`]) and
+    /// decide loudly what a scaffolding entry means for them.
+    pub fn get_curve_geom(&self, key: CurveKey) -> Option<&CurveGeom<T>> {
         self.curves.get(key)
     }
 
@@ -667,9 +697,22 @@ impl<T: Real> Body<T> {
         self.points.iter()
     }
 
-    /// All curve geometry, in slot-index order (deterministic per D9).
-    pub fn curves(&self) -> impl Iterator<Item = (CurveKey, &EdgeCurve<T>)> {
+    /// All curve-arena entries (certified carriers and null-edge
+    /// scaffolding alike), in slot-index order (deterministic per D9).
+    pub fn curves(&self) -> impl Iterator<Item = (CurveKey, &CurveGeom<T>)> {
         self.curves.iter()
+    }
+
+    /// All null-face annotations (F9 — see [`crate::null`]), in
+    /// face-slot order (deterministic per D9).
+    pub fn null_faces(&self) -> impl Iterator<Item = (FaceKey, &NullFacePair)> {
+        self.null_faces.iter()
+    }
+
+    /// The F9 null-face annotation of `face`, or `None` if the face is
+    /// not marked (or the key is stale).
+    pub fn null_face_pair(&self, face: FaceKey) -> Option<&NullFacePair> {
+        self.null_faces.get(face)
     }
 
     /// All surface geometry, in slot-index order (deterministic per D9).

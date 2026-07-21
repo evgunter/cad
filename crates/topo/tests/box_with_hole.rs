@@ -359,7 +359,7 @@ fn holed_box_provenance_covers_live_entities_and_forgets_killed_ones() {
     assert_eq!(body.provenance(EntityId::Face(b.plug.killed_face)), None);
     // The strut's curve died with its edge (geometry hygiene).
     assert_eq!(b.kill.killed_curve, Some(b.strut.curve));
-    assert!(body.get_curve(b.strut.curve).is_none());
+    assert!(body.get_curve_geom(b.strut.curve).is_none());
 }
 
 /// A deep, order-sensitive snapshot through the PUBLIC API only (the

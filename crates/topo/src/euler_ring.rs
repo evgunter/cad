@@ -218,7 +218,7 @@ use geom_core::{Decide, Point3};
 
 use crate::body::Body;
 use crate::entity::{
-    EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, VertexKey,
+    EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
 };
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
@@ -337,8 +337,8 @@ pub struct MekrResult {
 }
 
 /// The outcome of one [`Body::kfmrh`] call: nothing created (the ring is
-/// the surviving demoted loop), one face — and possibly its orphaned
-/// surface — dead.
+/// the surviving demoted loop), one face — and, in the cross-shell form,
+/// one shell — dead, plus possibly the face's orphaned surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KfmrhResult {
     /// `f2`'s former outer loop, now a ring of `f1`. A **surviving**
@@ -351,6 +351,10 @@ pub struct KfmrhResult {
     /// face still references the surface (as in every M1 construction,
     /// where all faces share `mvfs`'s surface).
     pub killed_surface: Option<SurfaceKey>,
+    /// The killed shell (dead key) in the **cross-shell** form (M3
+    /// PR 1): `f2`'s shell, whose surviving faces were re-homed into
+    /// `f1`'s shell before it died. `None` in the same-shell form.
+    pub killed_shell: Option<ShellKey>,
 }
 
 impl<T: Decide> Body<T> {
@@ -652,28 +656,50 @@ impl<T: Decide> Body<T> {
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
     /// outer loop becomes a ring of `f1`; `f2` dies.
     ///
-    /// Semantics, the same-shell requirement (cross-shell deferred to
-    /// M3), and the no-rings-on-`f2` rule: [module docs](self). `f2`'s
-    /// outer may be `Empty` or `Cycle` — both legal. No half-edge,
-    /// vertex, or edge is touched.
+    /// Two forms, selected by where the faces live (M3 PR 1 lifted the
+    /// M1 cross-shell deferral — the ch. 12 glue / ch. 15 seam-zip call
+    /// site now exists):
+    ///
+    /// - **Same shell** (the M1 form): genus surgery — a handle (or a
+    ///   component merge within the shell, the PR 4 transient).
+    /// - **Cross-shell, same solid** (M3): shell **fusion** — `f2`'s
+    ///   shell's surviving faces are re-homed into `f1`'s shell and
+    ///   `f2`'s shell dies. Per-component E–P reading: the two
+    ///   incidence components join through the demoted ring (connected
+    ///   sum — genera add, χ₁+χ₂−2). Serves ch. 15 `setopfinish`'s
+    ///   seam zip and ch. 12 glue (M3 PR 5). Fusing across **solids**
+    ///   stays a typed error ([`EulerOpError::CrossSolid`]): combining
+    ///   bodies is the boolean pipeline's combine step, not an Euler
+    ///   surgery.
+    ///
+    /// The no-rings-on-`f2` rule: [module docs](self). `f2`'s outer may
+    /// be `Empty` or `Cycle` — both legal. No half-edge, vertex, or
+    /// edge is touched.
     ///
     /// Euler vector: `(v 0, e 0, f −1, h +1, r +1, s 0)` — arena delta
     /// −1 face (the "+1 ring" is the surviving loop's reclassification,
-    /// not a mint; genus is derived, not stored).
+    /// not a mint; genus is derived, not stored); the cross-shell form
+    /// is additionally `s −1` at the *shell* arena (the solid count is
+    /// unchanged — GWB's §9.2.4 "KFSMR" reading).
     ///
     /// **Minting order**: nothing is minted (the loop survives with its
-    /// D5 birth record — no provenance changes for survivors). **Kill
-    /// order** (D9, exact): the face `f2` (with its provenance entry),
-    /// then its surface iff orphaned
-    /// ([`Body::remove_surface_if_orphaned`]).
+    /// D5 birth record — no provenance changes for survivors; re-homed
+    /// faces keep their birth records — re-homing is not a re-birth).
+    /// **Kill order** (D9, exact): cross-shell form first re-homes
+    /// `f2`'s shell's surviving faces (appended to `f1`'s shell's list
+    /// in their surviving order) and kills the shell (with its
+    /// provenance); then, both forms, the face `f2` (with its
+    /// provenance and any F9 null-face record), then `f2`'s surface
+    /// iff orphaned ([`Body::remove_surface_if_orphaned`]).
     ///
     /// # Precondition check order
     ///
     /// `f1` resolves, `f2` resolves ([`EulerOpError::StaleKey`]); they
-    /// are distinct ([`EulerOpError::SameFace`]); same shell
-    /// ([`EulerOpError::CrossShell`]); the shell resolves (`StaleKey`);
-    /// `f2` has no rings ([`EulerOpError::FaceHasRings`]); `f2`'s outer
-    /// loop resolves (`StaleKey`).
+    /// are distinct ([`EulerOpError::SameFace`]); both shells resolve
+    /// (`StaleKey`); cross-shell only: one solid
+    /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
+    /// ([`EulerOpError::FaceHasRings`]); `f2`'s outer loop resolves
+    /// (`StaleKey`).
     ///
     /// # Errors
     ///
@@ -694,13 +720,22 @@ impl<T: Decide> Body<T> {
         if f1 == f2 {
             return Err(EulerOpError::SameFace { face: f1 });
         }
-        if f2_data.shell != f1_shell {
-            return Err(EulerOpError::CrossShell { f1, f2 });
-        }
-        if !self.shells.contains_key(f1_shell) {
-            return Err(EulerOpError::StaleKey {
+        let f2_shell = f2_data.shell;
+        let cross_shell = f2_shell != f1_shell;
+        let s1_solid = self
+            .get_shell(f1_shell)
+            .ok_or(EulerOpError::StaleKey {
                 key: EntityId::Shell(f1_shell),
-            });
+            })?
+            .solid;
+        let s2_data = self
+            .get_shell(f2_shell)
+            .cloned()
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Shell(f2_shell),
+            })?;
+        if cross_shell && s2_data.solid != s1_solid {
+            return Err(EulerOpError::CrossSolid { f1, f2 });
         }
         if !f2_data.rings.is_empty() {
             return Err(EulerOpError::FaceHasRings { face: f2 });
@@ -721,21 +756,55 @@ impl<T: Decide> Body<T> {
         if let Some(face) = self.get_face_mut(f1) {
             face.rings.push(ring);
         }
-        if let Some(shell) = self.get_shell_mut(f1_shell) {
-            shell.faces.retain(|&face| face != f2);
-        }
+        let killed_shell = if cross_shell {
+            // Shell fusion: f2's surviving faces re-home into f1's
+            // shell — appended in their surviving f2-shell list order
+            // (deterministic, D9) — then f2's shell dies.
+            let moved: Vec<FaceKey> = s2_data.faces.iter().copied().filter(|&f| f != f2).collect();
+            for &face in &moved {
+                if let Some(face_data) = self.get_face_mut(face) {
+                    face_data.shell = f1_shell;
+                }
+            }
+            if let Some(shell) = self.get_shell_mut(f1_shell) {
+                shell.faces.extend(moved);
+            }
+            if let Some(solid) = self.get_solid_mut(s2_data.solid) {
+                solid.shells.retain(|&s| s != f2_shell);
+            }
+            self.shells.remove(f2_shell);
+            self.shell_provenance.remove(f2_shell);
+            Some(f2_shell)
+        } else {
+            if let Some(shell) = self.get_shell_mut(f1_shell) {
+                shell.faces.retain(|&face| face != f2);
+            }
+            None
+        };
         self.faces.remove(f2);
         self.face_provenance.remove(f2);
+        // Null-face record hygiene (M3 PR 1): a record never outlives
+        // its face (crate::null).
+        self.null_faces.remove(f2);
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, -1, 0, 0, 0, 0), "kfmrh");
+        self.assert_euler_postcondition(
+            before,
+            if killed_shell.is_some() {
+                (0, -1, -1, 0, 0, 0, 0)
+            } else {
+                (0, 0, -1, 0, 0, 0, 0)
+            },
+            "kfmrh",
+        );
         Ok(KfmrhResult {
             ring,
             killed_face: f2,
             killed_surface,
+            killed_shell,
         })
     }
 
@@ -747,6 +816,19 @@ impl<T: Decide> Body<T> {
     /// (GWB's `lringmv`), needed because `mef` deliberately does not
     /// reclassify the split face's rings and `kfmrh` requires `f2`
     /// ring-free.
+    ///
+    /// **This op is also ch. 14's `laringmv`** (M3 PR 1 — ring
+    /// re-homing after splits change containment; serves ch. 14
+    /// `splitconnect` joining, M3 PR 3). Division of labor, ratified
+    /// with the M3 plan: the *containment decision* — which face a
+    /// ring now geometrically belongs to — is the **caller's**, made
+    /// in the splitting/boolean pipeline through PR 2's trilean
+    /// point-in-loop classification machinery. `ring_move` takes the
+    /// target face explicitly and validates only structural legality
+    /// (the ring's current owner, target in the same shell); it never
+    /// runs a geometric containment check itself, so a wrong target is
+    /// the caller's bug, surfaced by the designation-sensitive
+    /// consumers (tier-3 region checks, mass properties), not here.
     ///
     /// Pure reparenting: the ring leaves its face's `rings`, joins
     /// `to_face.rings` (appended — deterministic order), and its `face`
@@ -1374,7 +1456,7 @@ mod tests {
         // Geometry hygiene: the killed edge's curve was orphaned and
         // removed with it.
         assert_eq!(result.killed_curve, Some(e1.curve));
-        assert!(body.get_curve(e1.curve).is_none());
+        assert!(body.get_curve_geom(e1.curve).is_none());
         assert_eq!(body.curves().count(), 2);
         // Result struct: dead keys with the EDGE's slot association
         // (e1.he_plus was minted as the plus half).
@@ -2335,9 +2417,10 @@ mod tests {
             b.kfmrh(seed.face, seed.face).unwrap_err()
         });
         // A second mvfs is a second solid+shell in the same body:
-        // cross-shell kfmrh is the deferred M3 case (shell merge).
+        // cross-SOLID kfmrh stays a typed error (M3 PR 1 lifted only
+        // the same-solid cross-shell case, as shell fusion).
         let other = body.mvfs(p(9.0)).unwrap();
-        let expected = EulerOpError::CrossShell {
+        let expected = EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
         };

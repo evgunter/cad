@@ -77,7 +77,8 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
     // must.
     let (mut body, split) = coplanar_pillow();
     let curve_key = body.get_edge(split.edge).unwrap().curve;
-    *body.curves.get_mut(curve_key).unwrap() = test_curve(pt(50.0, 0.0, 0.0));
+    *body.curves.get_mut(curve_key).unwrap() =
+        crate::null::CurveGeom::Certified(test_curve(pt(50.0, 0.0, 0.0)));
     assert_eq!(validate(&body), Ok(()), "structurally still coherent");
     let errs = validate_geometric(&body).unwrap_err();
     assert!(

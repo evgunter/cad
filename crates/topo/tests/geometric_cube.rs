@@ -122,10 +122,10 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     let mut body = t.body;
     upgrade_edges_to_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
-    assert!(
-        body.curves()
-            .all(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
-    );
+    assert!(body.curves().all(|(_, c)| matches!(
+        c.certified().map(topo::EdgeCurve::description),
+        Some(EdgeGeometry::Intersection { .. })
+    )));
 
     // Teeth: an Intersection naming a NON-adjacent pair is refused by
     // the upgrade path (adjacency coherence).
@@ -163,7 +163,10 @@ fn certification_records_are_byte_identical_across_runs() {
     let dump = |t: &GeoCube<f64>| {
         t.body
             .curves()
-            .map(|(k, c)| format!("{k:?} {:?} {:?}\n", c.params(), c.certificate()))
+            .map(|(k, c)| {
+                let c = c.certified().unwrap();
+                format!("{k:?} {:?} {:?}\n", c.params(), c.certificate())
+            })
             .collect::<String>()
     };
     assert_eq!(dump(&a), dump(&b));
@@ -187,12 +190,12 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     let f_certs: Vec<f64> = f
         .body
         .curves()
-        .map(|(_, c)| c.certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
         .collect();
     let d_certs: Vec<Dual<f64>> = d
         .body
         .curves()
-        .map(|(_, c)| c.certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
         .collect();
     assert_eq!(f_certs.len(), d_certs.len());
     for (fv, dv) in f_certs.iter().zip(&d_certs) {

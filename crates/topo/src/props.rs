@@ -73,6 +73,13 @@ pub enum MassPropsError {
         /// What failed to resolve (static description).
         what: &'static str,
     },
+    /// An edge is M3 null-edge scaffolding (no carrier by type — see
+    /// `crate::null`): the body is mid-surgery, and mass properties are
+    /// defined on at-rest bodies only (tier 2 refuses null entities).
+    NullScaffoldEdge {
+        /// The scaffolding edge.
+        edge: crate::entity::EdgeKey,
+    },
 }
 
 impl fmt::Display for MassPropsError {
@@ -90,6 +97,13 @@ impl fmt::Display for MassPropsError {
             }
             Self::Corrupt { what } => {
                 write!(f, "mass properties: corrupt body ({what})")
+            }
+            Self::NullScaffoldEdge { edge } => {
+                write!(
+                    f,
+                    "mass properties: edge {edge:?} is null-edge scaffolding \
+                     (mid-surgery body; tier 2 refuses null entities at rest)"
+                )
             }
         }
     }
@@ -185,8 +199,11 @@ fn loop_edges<T: Decide>(body: &Body<T>, lk: LoopKey) -> Result<Vec<LoopEdge<T>>
         let Some(edge) = body.edges.get(he.edge) else {
             return Err(corrupt("edge key does not resolve"));
         };
-        let Some(curve) = body.curves.get(edge.curve) else {
+        let Some(entry) = body.curves.get(edge.curve) else {
             return Err(corrupt("curve key does not resolve"));
+        };
+        let Some(curve) = entry.certified() else {
+            return Err(MassPropsError::NullScaffoldEdge { edge: he.edge });
         };
         let Some(end) = body.half_edge_end(he_key) else {
             return Err(corrupt("half-edge mate does not resolve"));

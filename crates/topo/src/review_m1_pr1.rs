@@ -983,7 +983,7 @@ fn null_keys_are_none_everywhere_no_panics() {
     assert!(b.get_edge(EdgeKey::default()).is_none());
     assert!(b.get_vertex(VertexKey::default()).is_none());
     assert!(b.get_point(crate::PointKey::default()).is_none());
-    assert!(b.get_curve(crate::CurveKey::default()).is_none());
+    assert!(b.get_curve_geom(crate::CurveKey::default()).is_none());
     assert!(b.get_surface(crate::SurfaceKey::default()).is_none());
     assert!(b.mate(HalfEdgeKey::default()).is_none());
     assert!(b.half_edge_end(HalfEdgeKey::default()).is_none());

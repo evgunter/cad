@@ -192,15 +192,18 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::upgrade_edges_to_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
-    assert!(
-        body.curves()
-            .all(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
-    );
+    assert!(body.curves().all(|(_, c)| matches!(
+        c.certified().map(topo::EdgeCurve::description),
+        Some(EdgeGeometry::Intersection { .. })
+    )));
     // Determinism (D9): a replayed build is certificate-identical.
     let (body2, _, _) = triangle_prism::<f64>();
     let dump = |b: &Body<f64>| {
         b.curves()
-            .map(|(k, c)| format!("{k:?} {:?} {:?}\n", c.params(), c.certificate()))
+            .map(|(k, c)| {
+                let c = c.certified().unwrap();
+                format!("{k:?} {:?} {:?}\n", c.params(), c.certificate())
+            })
             .collect::<String>()
     };
     let (fresh, _, _) = triangle_prism::<f64>();
@@ -221,11 +224,11 @@ fn e2e_prism_dual_lane_matches_f64() {
     assert_eq!(validate_geometric(&d), Ok(()));
     let fr: Vec<f64> = f
         .curves()
-        .map(|(_, c)| c.certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
         .collect();
     let dr: Vec<f64> = d
         .curves()
-        .map(|(_, c)| c.certificate().max_residual.value)
+        .map(|(_, c)| c.certified().unwrap().certificate().max_residual.value)
         .collect();
     assert_eq!(fr.len(), dr.len());
     for (a, b) in fr.iter().zip(&dr) {
@@ -851,10 +854,10 @@ mod interval_lane {
         // The prefer-intrinsic upgrade at the interval scalar.
         common::upgrade_edges_to_intersections(&mut body);
         assert_eq!(validate_geometric(&body), Ok(()));
-        assert!(
-            body.curves()
-                .all(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
-        );
+        assert!(body.curves().all(|(_, c)| matches!(
+            c.certified().map(topo::EdgeCurve::description),
+            Some(EdgeGeometry::Intersection { .. })
+        )));
     }
 
     /// FIXED (was `finding_interval_lane_refuses_self_loop_scaffolding`,

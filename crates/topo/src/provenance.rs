@@ -105,4 +105,26 @@ pub enum Provenance {
         /// course retire it; records are historical either way.
         ring: LoopKey,
     },
+    /// Created by [`Body::mev_null`](crate::Body::mev_null) (M3 PR 1):
+    /// the new coincident vertex, the null edge, and both half-edges.
+    MevNull {
+        /// The site the operator was applied at (its argument keys).
+        site: MevSite,
+        /// The declared F9 side of the new vertex.
+        new_side: crate::null::NewVertexSide,
+    },
+    /// Created by [`Body::split_edge`](crate::Body::split_edge) (M3
+    /// PR 1): the new interior vertex, the new (second-child) edge, and
+    /// both its half-edges.
+    SplitEdge {
+        /// The edge that was split (a surviving key: it becomes the
+        /// first child).
+        edge: crate::entity::EdgeKey,
+    },
+    /// Created by [`Body::movefac`](crate::Body::movefac) (M3 PR 1):
+    /// a new shell minted to re-home one connected component.
+    Movefac {
+        /// The shell that was partitioned.
+        shell: crate::entity::ShellKey,
+    },
 }

@@ -133,8 +133,12 @@ pub(crate) mod fixtures;
 pub mod geometry;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod merge_faces;
+pub mod movefac;
+pub mod null;
 pub mod props;
 pub mod provenance;
+pub mod revert;
 #[cfg(test)]
 mod review_m0_pr7;
 #[cfg(test)]
@@ -149,6 +153,7 @@ mod review_m1_pr4;
 mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub mod split;
 #[cfg(test)]
 mod tier3_tests;
 pub mod validate;
@@ -167,6 +172,10 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup};
+pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
+pub use revert::RevertError;
+pub use split::SplitEdgeCreated;
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

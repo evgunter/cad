@@ -52,7 +52,12 @@ pub fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
 /// The edge's stored description.
 pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body.get_curve(curve).unwrap().description()
+    *body
+        .get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .description()
 }
 
 /// Probe points of a loop in `next` order: each start vertex plus
@@ -74,7 +79,11 @@ pub fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> 
         );
         let edge = body.get_edge(he_data.edge).unwrap();
         let forward = edge.he_plus == he;
-        let ec = body.get_curve(edge.curve).unwrap();
+        let ec = body
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
         let (t0, t1) = ec.params();
         for i in 1..8 {
             let s = f64::from(i) / 8.0;
@@ -155,12 +164,18 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
         s.push_str(&format!("{k:?} {p:?}\n"));
     }
     for (k, c) in t.body.curves() {
-        s.push_str(&format!(
-            "{k:?} {:?} {:?} {:?}\n",
-            c.description(),
-            c.params(),
-            c.certificate()
-        ));
+        // Sweep bodies carry certified carriers only (no M3 null
+        // scaffolding); dump the whole entry so a scaffolding entry
+        // would still show loudly rather than being skipped.
+        match c.certified() {
+            Some(c) => s.push_str(&format!(
+                "{k:?} {:?} {:?} {:?}\n",
+                c.description(),
+                c.params(),
+                c.certificate()
+            )),
+            None => s.push_str(&format!("{k:?} {c:?}\n")),
+        }
     }
     for (k, srf) in t.body.surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
@@ -198,7 +213,7 @@ pub fn meridian_pappus_volume(
     let mut integral = 0.0;
     for &ek in meridians {
         let e = body.get_edge(ek).unwrap();
-        let c = body.get_curve(e.curve).unwrap();
+        let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let (t0, t1) = c.params();
         let mut prev = c.carrier().eval(t0);
         for i in 1..=n {

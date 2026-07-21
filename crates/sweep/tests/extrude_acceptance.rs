@@ -109,8 +109,9 @@ fn loop_probe_points(body: &Body<f64>, r#loop: topo::LoopKey) -> Vec<Point3<f64>
                 .unwrap(),
         );
         let ec = body
-            .get_curve(body.get_edge(he_data.edge).unwrap().curve)
+            .get_curve_geom(body.get_edge(he_data.edge).unwrap().curve)
             .unwrap();
+        let ec = ec.certified().unwrap();
         let (t0, t1) = ec.params();
         pts.push(ec.carrier().eval((t0 + t1) * 0.5));
     }
@@ -131,7 +132,12 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
 /// The edge's stored description.
 fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body.get_curve(curve).unwrap().description()
+    *body
+        .get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .description()
 }
 
 #[test]
@@ -165,7 +171,12 @@ fn extruded_l_profile_passes_all_tiers() {
     let intersections = t
         .body
         .curves()
-        .filter(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
+        .filter(|(_, c)| {
+            matches!(
+                c.certified().map(topo::EdgeCurve::description),
+                Some(EdgeGeometry::Intersection { .. })
+            )
+        })
         .count();
     assert_eq!(intersections, 18);
     // Orientation: top cap outward along +z, bottom along −z.
@@ -270,7 +281,12 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     let intersections = t
         .body
         .curves()
-        .filter(|(_, c)| matches!(c.description(), EdgeGeometry::Intersection { .. }))
+        .filter(|(_, c)| {
+            matches!(
+                c.certified().map(topo::EdgeCurve::description),
+                Some(EdgeGeometry::Intersection { .. })
+            )
+        })
         .count();
     assert_eq!(intersections, 16);
     // Adjacent walls at each tangent join really are distinct surfaces.
@@ -477,12 +493,15 @@ fn rebuild_is_byte_identical() {
             s.push_str(&format!("{k:?} {p:?}\n"));
         }
         for (k, c) in t.body.curves() {
-            s.push_str(&format!(
-                "{k:?} {:?} {:?} {:?}\n",
-                c.description(),
-                c.params(),
-                c.certificate()
-            ));
+            match c.certified() {
+                Some(c) => s.push_str(&format!(
+                    "{k:?} {:?} {:?} {:?}\n",
+                    c.description(),
+                    c.params(),
+                    c.certificate()
+                )),
+                None => s.push_str(&format!("{k:?} {c:?}\n")),
+            }
         }
         for (k, srf) in t.body.surfaces() {
             s.push_str(&format!("{k:?} {srf:?}\n"));
@@ -536,12 +555,12 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     let f_res: Vec<f64> = f
         .body
         .curves()
-        .map(|(_, c)| c.certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
         .collect();
     let d_res: Vec<Dual<f64>> = d
         .body
         .curves()
-        .map(|(_, c)| c.certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
         .collect();
     assert_eq!(f_res.len(), d_res.len());
     for (fv, dv) in f_res.iter().zip(&d_res) {

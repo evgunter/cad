@@ -289,8 +289,10 @@ pub(crate) fn traversals(
             .get_edge(ek)
             .ok_or(TessellateError::MissingEntity { what: "edge" })?;
         let curve = body
-            .get_curve(edge.curve)
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            .get_curve_geom(edge.curve)
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .certified()
+            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
         let mut ids = chords
             .get(&ek)
             .ok_or(TessellateError::MissingEntity {

@@ -453,6 +453,9 @@ impl<T: Decide> Body<T> {
         // vertex, then orphaned geometry.
         self.faces.remove(face);
         self.face_provenance.remove(face);
+        // Null-face record hygiene (M3 PR 1): a record never outlives
+        // its face (crate::null).
+        self.null_faces.remove(face);
         self.loops.remove(loop_key);
         self.loop_provenance.remove(loop_key);
         self.shells.remove(shell);
@@ -867,6 +870,9 @@ impl<T: Decide> Body<T> {
         self.loop_provenance.remove(l1);
         self.faces.remove(f1);
         self.face_provenance.remove(f1);
+        // Null-face record hygiene (M3 PR 1): a record never outlives
+        // its face (crate::null).
+        self.null_faces.remove(f1);
         if let Some(shell_data) = self.get_shell_mut(shell) {
             shell_data.faces.retain(|&face| face != f1);
         }
@@ -893,6 +899,25 @@ impl<T: Decide> Body<T> {
     /// MFKRH — *make face, kill ring–hole*: the inverse of
     /// [`Body::kfmrh`]. Promotes a ring (cycle or empty) to the outer
     /// loop of a NEW face in the same shell.
+    ///
+    /// **This op is also the book's cross-shell `lmfkrh`** (M3 PR 1 —
+    /// the inverse *motion* of cross-shell [`Body::kfmrh`], serving
+    /// ch. 14 `splitfinish` / ch. 15 `setopfinish` section-face
+    /// promotion, M3 PRs 3 and 5): promoting a ring whose cycle is
+    /// detached from its face's component **splits the shell's surface
+    /// into two connected components** while the single shell entity
+    /// remains — the M2-deferred multi-shell transient, tier-1 legal
+    /// (component-aware E–P) and tier-2 refused until
+    /// [`Body::movefac`] distributes the components into real shells.
+    /// The shell-level split is deliberately movefac's job, not this
+    /// op's: `mfkrh` cannot re-home the component without walking it,
+    /// and pass 10 (edge-adjacency shell coherence) requires whole
+    /// components to move together. For the split/boolean pipeline's
+    /// section faces — where the promoted ring geometrically coincides
+    /// with the remaining loop — pass [`FaceSurface::Inherit`] (same
+    /// surface key as the demoting face; the pipeline re-plates the
+    /// section plane immediately after) or `Shared` with the section
+    /// plane's key.
     ///
     /// The promoted loop survives with its key and D5 birth record; the
     /// new face's surface comes from the [`FaceSurface`] spec (M2
