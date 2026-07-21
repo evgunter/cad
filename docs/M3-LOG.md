@@ -103,6 +103,79 @@ interval lane). Survived the WSL host crash mid-implementation
 - Adversarial review + fix pass: NOT yet run — the next orchestrator's
   first move.
 
+## PR 2 (split part 1: reduction + neighborhood classification) — 2026-07-21
+
+Branch `ev/m3-2-reduce` (stacked on `ev/m3-1-surgery` @ ba12c82).
+Implemented per binding spec; facts in the PR writeup. This section is
+the **rule-(b) adjudication record** (F4 — a named review deliverable)
+plus the wide-sector decision, both derivation-backed.
+
+### Rule (b) adjudication: the BOOK's table is correct; TOG §3 is the erratum
+
+Contradiction (synthesis §C): on the two symmetric ON-edge contexts the
+witnesses swap verdicts — book (Program 14.6 + its table): AOA→BELOW,
+BOB→ABOVE; TOG 1986 §3: AOA→ABOVE, BOB→BELOW; both agree AOB→BELOW,
+BOA→BELOW. Adjudicated from the rule's stated purpose (nonmanifold
+configurations must come out as DISCONNECTED pieces; no dangling
+faces/edges), on the two discriminating fixtures, executed at f64 (all
+ε rows) and Interval (`crates/topo/tests/m3_pr2_reduce.rs`):
+
+- **Tangent-edge** (V-notch cut into a block's top, tip edge in SP,
+  material below — Fig. 14.8's embedded form): tip-vertex entries are
+  cyclically [slantL: A, tip: ON, slantR: A, cap-bisector: B] (the cap
+  corner is reflex; its convex-subdivision duplicate classifies below).
+  Above's material is two wedges meeting only along the tip edge; each
+  wedge's section face must meet its slant face in its own edge, so a
+  shared tip edge would carry FOUR faces (slantL/R + sectionL/R) —
+  non-manifold, unrepresentable in the half-edge structure.
+  **AOA→BELOW** yields two ABOVE runs ⇒ two null edges ⇒ two vertex
+  copies: the wedges disconnect; the tip edge survives inside Below's
+  coplanar top as an artifact edge (manifold — Fig. 14.2's own
+  artifact-face story). TOG's AOA→ABOVE merges one run
+  {slantL, tip, slantR} ⇒ one copy pinning both wedges: the 4-face
+  edge. Book right.
+- **Touching-wedge** (the mirror: notch from below, material above):
+  entries [slantL: B, tip: ON, slantR: B, cap-bisector: A].
+  **BOB→ABOVE** isolates the tip edge into its own run (Above copies;
+  the Below wedges separate; the cap-bisector run becomes the dangling
+  null edge); TOG's BOB→BELOW leaves the wedges pinned. Book right by
+  the mirror argument.
+- Mixed cases: either verdict is manifold (the pieces don't touch);
+  BELOW kept (both witnesses agree; consistent with rule (a)'s
+  coplanar-edge-goes-below choice).
+
+Pinned table: **BELOW-ON-BELOW → ABOVE; every other context → BELOW**
+(`splitting/rules.rs::apply_rule_b`, unit-tested per row, fixtures
+tested at classification AND surgery level both lanes). Honest residue:
+a solid tangent to SP from one side only at an edge (no below material
+anywhere in the neighborhood) still gets surgery under AOA→BELOW and
+its Below piece degenerates to the bare tangent edge — PR 3's joining
+must detect/refuse the degenerate section polygon (the TOG table would
+skip surgery there but corrupts the embedded cases; representability
+outranks the cosmetic).
+
+### Wide/reflex sectors: convex subdivision (book), by derivation
+
+A planar sector's interior is the positive cone of its bounding
+directions iff its angle < 180° — endpoint verdicts then decide the
+whole sector; at ≥ 180° the cone argument fails, so split at an interior
+direction into two sub-180° virtual sectors (= the book's
+store-twice-with-bisector). TOG's alternative (complement-and-negate at
+180°, interior-vector sign beyond) answers point-membership, not
+side-classification, and carries no cone argument. Subdivision
+direction: definite reflex ⇒ −normalize(a+b) (true bisector); near-180°
+band ⇒ n×b (90° into the interior — valid across the band, since any
+interior direction with sub-angles < 180° is a legal subdivision). The
+wideness trilean has no escalation cliff (duplication is sound at every
+angle — documented posture); sin≈0 ambiguity (0 vs π vs 2π) is
+disambiguated by a cosine predicate, with the spike-corner case (θ≈0,
+distinct edges) escalating as a sliver.
+
+New K-tagged predicates: `enters_material`, `enters_material_arm`
+(geom-brep); `split_vertex_side`, `split_sector_coplanar`,
+`split_sector_reflex`, `split_sector_straight`, `split_bisector_side`,
+`split_sector_arm` (topo). Adversarial review + fix pass: pending.
+
 ## State snapshot (handoff point, 2026-07-21)
 
 - **Merged to main**: everything through M2 exit — M2 PRs 1–7 (#27,
