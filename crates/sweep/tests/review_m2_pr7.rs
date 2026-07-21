@@ -227,9 +227,7 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
     let (he1, he2) = (cycle[0], cycle[2]);
     let point_of = |body: &topo::Body<f64>, he| {
         let v = body.get_half_edge(he).unwrap().start;
-        *body
-            .get_point(body.get_vertex(v).unwrap().point)
-            .unwrap()
+        *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
     };
     let (a, b) = (point_of(&body, he1), point_of(&body, he2));
     body.mef(
