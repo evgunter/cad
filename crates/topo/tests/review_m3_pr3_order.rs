@@ -86,7 +86,10 @@ fn tilted_plane_interval_agrees_or_refuses_typed() {
 /// material either way (only above/below swap).
 #[test]
 fn orientation_flip_swaps_sides_only() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)], 1.0);
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
+        1.0,
+    );
     let plane = |sy: f64| SplitPlane {
         origin: Point3::new(0.0, 1.0, 0.0),
         normal: Vec3::new(0.0, sy, 0.0),

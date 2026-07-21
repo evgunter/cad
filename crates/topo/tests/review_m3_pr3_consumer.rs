@@ -37,7 +37,10 @@ fn audit_geometry(body: &Body<f64>) {
         assert!(body.get_curve_geom(e.curve).is_some(), "dangling curve key");
     }
     for (_, f) in body.faces() {
-        assert!(body.get_surface(f.surface).is_some(), "dangling surface key");
+        assert!(
+            body.get_surface(f.surface).is_some(),
+            "dangling surface key"
+        );
     }
     let mut live_p: Vec<_> = body.vertices().map(|(_, v)| v.point).collect();
     live_p.sort();
@@ -75,7 +78,10 @@ fn audit_geometry(body: &Body<f64>) {
 /// multi-shell landing).
 #[test]
 fn carve_leaves_no_orphans_and_no_dangling_keys() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)], 1.0);
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
+        1.0,
+    );
     let r = split(&fx.body, &plane_y(1.0)).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
@@ -176,7 +182,10 @@ fn vertex_only_contact_is_typed_empty() {
 /// gap has been closed and the writeup should say so.)
 #[test]
 fn tier3_needs_upgrade_pass_consumers_lack() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)], 1.0);
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
+        1.0,
+    );
     let r = split(&fx.body, &plane_y(1.0)).unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
@@ -213,6 +222,43 @@ fn single_solid_gate_split_vs_section() {
     assert_eq!(s.polygons.len(), 2);
 }
 
+/// `plane_section` ergonomics probe: is the (u, v) winding of the
+/// returned polygons DETERMINED (a consumer computing signed areas or
+/// offsets needs an orientation contract)? Executed answer, for the
+/// writeup: whatever this asserts is what consumers can rely on
+/// today; the acceptance suite only ever takes |area|.
+#[test]
+fn plane_section_winding_is_consistent() {
+    let notched = &[
+        (0.0, 0.0),
+        (8.0, 0.0),
+        (8.0, 2.0),
+        (7.0, 1.0),
+        (6.0, 1.0),
+        (5.0, 2.0),
+        (4.0, 1.0),
+        (3.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let fx = prism::<f64>(notched, 1.0);
+    let s = plane_section(&fx.body, &plane_y(1.0)).unwrap();
+    assert_eq!(s.polygons.len(), 3);
+    let mut signs = Vec::new();
+    for poly in &s.polygons {
+        let mut twice = 0.0;
+        for i in 0..poly.uv.len() {
+            let a = poly.uv[i];
+            let b = poly.uv[(i + 1) % poly.uv.len()];
+            twice += a.x * b.y - b.x * a.y;
+        }
+        signs.push(twice.signum());
+    }
+    assert!(
+        signs.iter().all(|&s| s == signs[0]),
+        "mixed winding across polygons of one section: {signs:?}"
+    );
+}
+
 /// A unit 2×2×1-ish quad prism (x offset by `x0`, spanning y ∈ [0, 2])
 /// added as a NEW solid of `body` — reassembly's builder,
 /// body-parameterized (public ops only).
@@ -240,8 +286,12 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
     for i in 2..n {
         let at = chain[i - 2].he_minus;
         chain.push(
-            body.mev(MevSite::Fan { he1: at, he2: at }, bot[i], line(bot[i - 1], bot[i]))
-                .unwrap(),
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                bot[i],
+                line(bot[i - 1], bot[i]),
+            )
+            .unwrap(),
         );
     }
     let bottom: Vec<_> = core::iter::once(seed.vertex)
@@ -273,8 +323,12 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
             f_bottom.he_plus
         };
         struts.push(
-            body.mev(MevSite::Fan { he1: at, he2: at }, top[i], line(bot[i], top[i]))
-                .unwrap(),
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                top[i],
+                line(bot[i], top[i]),
+            )
+            .unwrap(),
         );
     }
     let mut first_side_he_plus = None;

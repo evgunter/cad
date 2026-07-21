@@ -31,8 +31,7 @@ fn holed_box<T: geom_core::Decide>(w: f64, holes: &[f64]) -> Body<T> {
         body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
             .unwrap()
     };
-    let mef =
-        |body: &mut Body<T>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    let mef = |body: &mut Body<T>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let e_ab = body
         .mev_line(
             MevSite::Lone {

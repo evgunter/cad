@@ -29,9 +29,7 @@ mod common;
 
 use common::prism;
 use geom_core::{Point3, Vec3};
-use topo::{
-    Body, SplitPart, SplitPlane, mass_properties, split, validate_closed,
-};
+use topo::{Body, SplitPart, SplitPlane, mass_properties, split, validate_closed};
 
 /// The acceptance suite's touching-wedge fixture, verbatim.
 const MIRRORED: &[(f64, f64)] = &[

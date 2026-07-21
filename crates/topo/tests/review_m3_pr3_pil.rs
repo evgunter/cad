@@ -103,8 +103,8 @@ fn ray_exhausted_is_reachable() {
     let fx = prism::<f64>(&profile, 1.0);
     let top = fx.body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear().unwrap();
-    let err = point_in_loop(&fx.body, top.outer, n_z(), Point3::new(0.0, 0.0, 1.0), band)
-        .unwrap_err();
+    let err =
+        point_in_loop(&fx.body, top.outer, n_z(), Point3::new(0.0, 0.0, 1.0), band).unwrap_err();
     assert!(
         matches!(err, PointInLoopError::RayExhausted { .. }),
         "got {err:?}"
@@ -133,8 +133,9 @@ fn boundary_pre_pass_edges() {
     };
     assert_eq!(pil(1.0, 0.0), LoopContainment::OnBoundary);
     assert_eq!(pil(2.0, 2.0), LoopContainment::OnBoundary);
-    // 1e-7 m off the wall: decisively In at ε = 1e-9 (the pre-pass
-    // must not swallow it).
-    assert_eq!(pil(1.0, 1.0e-7), LoopContainment::In);
-    assert_eq!(pil(1.0, -1.0e-7), LoopContainment::Out);
+    // 100·K·ε off the wall: decisively In/Out at every ε row (the
+    // pre-pass must not swallow a clean margin).
+    let off = 1000.0 * geom_core::Tolerance::get().eps;
+    assert_eq!(pil(1.0, off), LoopContainment::In);
+    assert_eq!(pil(1.0, -off), LoopContainment::Out);
 }
