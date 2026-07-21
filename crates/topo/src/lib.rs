@@ -135,6 +135,7 @@ pub mod geometry;
 pub(crate) mod iso;
 pub mod movefac;
 pub mod null;
+pub mod split;
 pub mod props;
 pub mod provenance;
 #[cfg(test)]
@@ -170,6 +171,7 @@ pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
+pub use split::SplitEdgeCreated;
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

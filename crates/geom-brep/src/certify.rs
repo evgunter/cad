@@ -504,6 +504,56 @@ impl<T: Real> EdgeCurve<T> {
         sample_param(self.param_start, self.param_end, i)
     }
 
+    /// The two **uncertified child specs** of splitting this certified
+    /// carrier at interior parameter `t` (M3 PR 1, for `split_edge`):
+    /// the carrier is unchanged and the interval splits at `t`
+    /// (`[t₀, t]` / `[t, t₁]` — both forward for interior `t`, so the
+    /// forward-span gate is untouched); the description splits
+    /// honestly per kind — `MappedCurve` via
+    /// [`crate::MappedCurve::restrict`] at the interval fractions,
+    /// `Intersection` keeps its surfaces with each child's witness
+    /// re-minted as its own mid-parameter carrier point (the witness
+    /// contract, bitwise the certification schedule's middle sample),
+    /// `Seam` is unchanged (a sub-arc of the seam locus is on the seam
+    /// locus).
+    ///
+    /// The children are *specs*, not certified carriers: the caller
+    /// must run each through [`EdgeCurve::certify`] against its own
+    /// endpoints (D4 ¶2 — the restriction arithmetic is verified, not
+    /// trusted). Interiority of `t` is likewise the caller's trilean
+    /// obligation; this function is total arithmetic.
+    pub fn split_specs(&self, t: T) -> (EdgeCurveSpec<T>, EdgeCurveSpec<T>) {
+        let (t0, t1) = (self.param_start, self.param_end);
+        let span = t1 - t0;
+        let a = (t - t0) / span;
+        let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
+            let description = match self.description {
+                EdgeGeometry::Intersection { s1: k1, s2: k2, .. } => EdgeGeometry::Intersection {
+                    s1: k1,
+                    s2: k2,
+                    // The child's mid-parameter point, computed exactly
+                    // as the certification schedule's middle sample
+                    // (bitwise — zero WitnessMidpoint residual).
+                    witness: self
+                        .carrier
+                        .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                },
+                EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(mc.restrict(s0, s1)),
+                EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface },
+            };
+            EdgeCurveSpec {
+                description,
+                carrier: self.carrier,
+                param_start: ta,
+                param_end: tb,
+            }
+        };
+        (
+            child(T::zero(), a, t0, t),
+            child(a, T::one(), t, t1),
+        )
+    }
+
     /// This carrier's spec view (for re-certification).
     fn spec(&self) -> EdgeCurveSpec<T> {
         EdgeCurveSpec {

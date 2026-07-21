@@ -94,6 +94,28 @@ pub enum SketchSegment<T: Real> {
 }
 
 impl<T: Real> SketchSegment<T> {
+    /// The sub-segment covering `[s0, s1]` of this segment,
+    /// reparameterized to `[0, 1]` (M3 PR 1, for `split_edge`):
+    /// endpoints by [`SketchSegment::eval`]; an arc's bulge becomes
+    /// `tan(atan(bulge)·(s1 − s0))` — the sub-arc's `tan(θ′/4)` with
+    /// `θ′ = θ·(s1 − s0)` (finite and nonzero for `0 ≤ s0 < s1 ≤ 1`,
+    /// since `|θ′/4| < π/2` and `θ ≠ 0`). Fixed evaluation order (D9);
+    /// total — degenerate inputs yield degenerate data, caught by the
+    /// caller's certification.
+    pub fn restrict(&self, s0: T, s1: T) -> Self {
+        match *self {
+            SketchSegment::Line { .. } => SketchSegment::Line {
+                a: self.eval(s0),
+                b: self.eval(s1),
+            },
+            SketchSegment::Arc { bulge, .. } => SketchSegment::Arc {
+                a: self.eval(s0),
+                b: self.eval(s1),
+                bulge: (bulge.atan() * (s1 - s0)).tan(),
+            },
+        }
+    }
+
     /// The point at normalized parameter `s ∈ [0, 1]` (module docs).
     ///
     /// Line: `lerp(a, b, s)`. Arc: rotate `a` about the bulge-derived
@@ -175,6 +197,44 @@ pub enum MappedCurve<T: Real> {
 }
 
 impl<T: Real> MappedCurve<T> {
+    /// The sub-curve covering `[s0, s1]`, reparameterized to `[0, 1]`
+    /// (M3 PR 1, for `split_edge`): the restricted description is
+    /// again a pushforward of the same shape — the authoritative
+    /// source is restricted ([`SketchSegment::restrict`]) or the map's
+    /// start is advanced by composing the `s0` motion into `place`
+    /// (translation by `vec·s0` / rotation by `s0·angle`) with the
+    /// remaining sweep scaled to `s1 − s0`. In exact arithmetic
+    /// `restrict(s0, s1).eval(s) = eval(s0 + (s1 − s0)·s)`; the float
+    /// discrepancy is metered by the caller's re-certification of the
+    /// restricted spec (D4 ¶2 — nothing is trusted untested). Fixed
+    /// evaluation orders as written (D9).
+    pub fn restrict(&self, s0: T, s1: T) -> Self {
+        match *self {
+            MappedCurve::PlacedSegment { segment, place } => MappedCurve::PlacedSegment {
+                segment: segment.restrict(s0, s1),
+                place,
+            },
+            MappedCurve::ExtrudedPoint { point, place, vec } => MappedCurve::ExtrudedPoint {
+                point,
+                place: Affine3::translation(vec * s0) * place,
+                vec: vec * (s1 - s0),
+            },
+            MappedCurve::RevolvedPoint {
+                point,
+                place,
+                axis_origin,
+                axis_dir,
+                angle,
+            } => MappedCurve::RevolvedPoint {
+                point,
+                place: Affine3::rotation_about_axis(axis_origin, axis_dir, s0 * angle) * place,
+                axis_origin,
+                axis_dir,
+                angle: (s1 - s0) * angle,
+            },
+        }
+    }
+
     /// The described point at normalized parameter `s ∈ [0, 1]` — the
     /// authoritative locus the cached carrier is certified against
     /// (module docs). Total; fixed evaluation orders as documented per
