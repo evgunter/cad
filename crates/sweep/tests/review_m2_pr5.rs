@@ -59,7 +59,11 @@ fn dense_loop_points(body: &Body<f64>, lk: topo::LoopKey, m: usize) -> Vec<Point
         );
         let edge = body.get_edge(hd.edge).unwrap();
         let forward = edge.he_plus == he;
-        let ec = body.get_curve_geom(edge.curve).unwrap().certified().unwrap();
+        let ec = body
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
         let (t0, t1) = ec.params();
         for i in 1..m {
             let s = i as f64 / m as f64;

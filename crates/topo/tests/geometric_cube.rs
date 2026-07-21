@@ -122,13 +122,10 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     let mut body = t.body;
     upgrade_edges_to_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
-    assert!(
-        body.curves()
-            .all(|(_, c)| matches!(
-                c.certified().map(topo::EdgeCurve::description),
-                Some(EdgeGeometry::Intersection { .. })
-            ))
-    );
+    assert!(body.curves().all(|(_, c)| matches!(
+        c.certified().map(topo::EdgeCurve::description),
+        Some(EdgeGeometry::Intersection { .. })
+    )));
 
     // Teeth: an Intersection naming a NON-adjacent pair is refused by
     // the upgrade path (adjacency coherence).

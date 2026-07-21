@@ -30,7 +30,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey};
-use crate::null::CurveGeom;
 use crate::provenance::Provenance;
 
 /// Every key minted (and the one possibly killed) by one
@@ -151,11 +150,9 @@ impl<T: Decide> Body<T> {
             .ok_or(EulerOpError::StaleGeometry {
                 key: GeomRef::Curve(edge_data.curve),
             })?;
-        let curve = *entry
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve {
-                curve: edge_data.curve,
-            })?;
+        let curve = *entry.certified().ok_or(EulerOpError::NullScaffoldCurve {
+            curve: edge_data.curve,
+        })?;
         // Interiority (trilean, Q1): both sub-spans definitely
         // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();
@@ -219,10 +216,7 @@ impl<T: Decide> Body<T> {
         // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. The
         // prev is re-read AFTER splice 1 so the strut case
         // (next(hp) == hm ⇒ prev(hm) is now n⁺) chains correctly.
-        let hm_prev = self
-            .get_half_edge(hm)
-            .map(|he| he.prev)
-            .unwrap_or(n_plus); // unreachable: hm resolved above
+        let hm_prev = self.get_half_edge(hm).map(|he| he.prev).unwrap_or(n_plus); // unreachable: hm resolved above
         self.link_half_edges(hm_prev, n_minus);
         self.link_half_edges(n_minus, hm);
         // The parent's minus half now starts at w (the parent derives
@@ -243,10 +237,10 @@ impl<T: Decide> Body<T> {
             vertex.emanating = Some(n_plus);
         }
         let v_emanating = self.get_vertex(v).and_then(|vd| vd.emanating);
-        if v_emanating == Some(hm) {
-            if let Some(vertex) = self.get_vertex_mut(v) {
-                vertex.emanating = Some(n_minus);
-            }
+        if v_emanating == Some(hm)
+            && let Some(vertex) = self.get_vertex_mut(v)
+        {
+            vertex.emanating = Some(n_minus);
         }
 
         #[cfg(debug_assertions)]
@@ -314,7 +308,10 @@ mod tests {
             body.get_half_edge(created.he_plus).unwrap().start,
             created.vertex
         );
-        assert_eq!(body.half_edge_end(created.he_plus), Some(cube.mevs[0].vertex));
+        assert_eq!(
+            body.half_edge_end(created.he_plus),
+            Some(cube.mevs[0].vertex)
+        );
         // Provenance: typed SplitEdge birth records.
         assert_eq!(
             body.provenance(crate::EntityId::Edge(created.new_edge)),
@@ -414,8 +411,7 @@ mod tests {
         assert!((p.x - 3.0).abs() < 1e-12 && p.y.abs() < 1e-12);
         // The circular face's loop is now the two-edge digon.
         let f = body.get_face(circ.face).unwrap();
-        let crate::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
-        else {
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
             panic!("circular face lost its cycle");
         };
         assert_eq!(body.loop_cycle(first).unwrap().len(), 2);
@@ -486,7 +482,11 @@ mod tests {
     fn split_null_edge_is_refused() {
         let cube = ops_cube();
         let mut body = cube.body;
-        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let he = body
+            .get_vertex(cube.seed.vertex)
+            .unwrap()
+            .emanating
+            .unwrap();
         let null = body
             .mev_null(
                 MevSite::Fan { he1: he, he2: he },

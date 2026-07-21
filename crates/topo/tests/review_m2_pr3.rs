@@ -192,13 +192,10 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::upgrade_edges_to_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
-    assert!(
-        body.curves()
-            .all(|(_, c)| matches!(
-                c.certified().map(topo::EdgeCurve::description),
-                Some(EdgeGeometry::Intersection { .. })
-            ))
-    );
+    assert!(body.curves().all(|(_, c)| matches!(
+        c.certified().map(topo::EdgeCurve::description),
+        Some(EdgeGeometry::Intersection { .. })
+    )));
     // Determinism (D9): a replayed build is certificate-identical.
     let (body2, _, _) = triangle_prism::<f64>();
     let dump = |b: &Body<f64>| {
@@ -857,13 +854,10 @@ mod interval_lane {
         // The prefer-intrinsic upgrade at the interval scalar.
         common::upgrade_edges_to_intersections(&mut body);
         assert_eq!(validate_geometric(&body), Ok(()));
-        assert!(
-            body.curves()
-                .all(|(_, c)| matches!(
-                c.certified().map(topo::EdgeCurve::description),
-                Some(EdgeGeometry::Intersection { .. })
-            ))
-        );
+        assert!(body.curves().all(|(_, c)| matches!(
+            c.certified().map(topo::EdgeCurve::description),
+            Some(EdgeGeometry::Intersection { .. })
+        )));
     }
 
     /// FIXED (was `finding_interval_lane_refuses_self_loop_scaffolding`,

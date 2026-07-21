@@ -14,7 +14,7 @@
 //! **Coincidence discipline (the F6/round-8 ladder, applied)**: two
 //! adjacent faces merge iff their surfaces are the *same key*
 //! (structural) or *bit-identical `Plane` descriptions* (declared —
-//! equality of every field by exact scalar `==`, no tolerance
+//! exact bit equality via the D9 dump channel, no tolerance
 //! anywhere). A pair that is merely **numerically** coplanar — same
 //! plane up to ε, different descriptions — is out of scope **by
 //! design**: coincidence is never inferred from values; such a pair
@@ -95,7 +95,11 @@ impl core::fmt::Display for MergeCoplanarError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InputNotClosed { errors } => {
-                write!(f, "merge_coplanar_faces: input is not tier-2 ({} errors)", errors.len())
+                write!(
+                    f,
+                    "merge_coplanar_faces: input is not tier-2 ({} errors)",
+                    errors.len()
+                )
             }
             Self::ResultNotClosed { errors } => write!(
                 f,
@@ -137,9 +141,7 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
-    pub fn merge_coplanar_faces(
-        &mut self,
-    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+    pub fn merge_coplanar_faces(&mut self) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
@@ -307,8 +309,12 @@ impl<T: Decide> Body<T> {
                     continue;
                 };
                 if fp == rep && fm == rep {
-                    found = Some((edge_key, edge.he_plus, edge.he_minus,
-                        hp.parent_loop == hm.parent_loop));
+                    found = Some((
+                        edge_key,
+                        edge.he_plus,
+                        edge.he_minus,
+                        hp.parent_loop == hm.parent_loop,
+                    ));
                     break;
                 }
             }

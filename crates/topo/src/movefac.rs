@@ -64,9 +64,12 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions + read-only component labeling. ----
-        let shell_data = self.get_shell(shell).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Shell(shell),
-        })?;
+        let shell_data = self
+            .get_shell(shell)
+            .cloned()
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Shell(shell),
+            })?;
         let solid = shell_data.solid;
         if !self.solids.contains_key(solid) {
             return Err(EulerOpError::StaleKey {
@@ -84,9 +87,12 @@ impl<T: Decide> Body<T> {
             let mut pending = vec![seed];
             component.insert(seed, label);
             while let Some(face_key) = pending.pop() {
-                let face = self.get_face(face_key).cloned().ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Face(face_key),
-                })?;
+                let face = self
+                    .get_face(face_key)
+                    .cloned()
+                    .ok_or(EulerOpError::StaleKey {
+                        key: EntityId::Face(face_key),
+                    })?;
                 for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
                     let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
                         key: EntityId::Loop(loop_key),
@@ -312,10 +318,7 @@ mod tests {
         // Back to the pre-movefac shape: one shell, disconnected? No —
         // fusion re-glues through the demoted ring: ONE component.
         assert_eq!(validate_closed(&body), Ok(()));
-        assert_eq!(
-            body.get_face(seed_face).unwrap().rings,
-            vec![result.ring]
-        );
+        assert_eq!(body.get_face(seed_face).unwrap().rings, vec![result.ring]);
         // The re-homed digon face points at the surviving shell.
         let digon_partner = body
             .faces()

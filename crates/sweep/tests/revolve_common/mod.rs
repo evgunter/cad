@@ -52,7 +52,12 @@ pub fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
 /// The edge's stored description.
 pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body.get_curve_geom(curve).unwrap().certified().unwrap().description()
+    *body
+        .get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .description()
 }
 
 /// Probe points of a loop in `next` order: each start vertex plus
@@ -74,7 +79,11 @@ pub fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> 
         );
         let edge = body.get_edge(he_data.edge).unwrap();
         let forward = edge.he_plus == he;
-        let ec = body.get_curve_geom(edge.curve).unwrap().certified().unwrap();
+        let ec = body
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
         let (t0, t1) = ec.params();
         for i in 1..8 {
             let s = f64::from(i) / 8.0;

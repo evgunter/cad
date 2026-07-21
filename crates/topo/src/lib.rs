@@ -136,7 +136,6 @@ pub(crate) mod iso;
 pub mod merge_faces;
 pub mod movefac;
 pub mod null;
-pub mod split;
 pub mod props;
 pub mod provenance;
 pub mod revert;
@@ -154,6 +153,7 @@ mod review_m1_pr4;
 mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub mod split;
 #[cfg(test)]
 mod tier3_tests;
 pub mod validate;
@@ -174,8 +174,8 @@ pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
-pub use split::SplitEdgeCreated;
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
+pub use split::SplitEdgeCreated;
 pub use validate::{ValidationError, validate, validate_closed, validate_geometric};

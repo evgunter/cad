@@ -236,7 +236,6 @@ impl<T: geom_core::Decide> Body<T> {
         self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "mev_null");
         Ok(created)
     }
-
 }
 
 // The marker setters make no geometric decision, so they stay at the
@@ -307,7 +306,11 @@ mod tests {
     fn mev_null_strut_lifecycle() {
         let cube = ops_cube();
         let mut body = cube.body;
-        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let he = body
+            .get_vertex(cube.seed.vertex)
+            .unwrap()
+            .emanating
+            .unwrap();
         let strut = crate::MevSite::Fan { he1: he, he2: he };
         let created = body.mev_null(strut, NewVertexSide::Above).unwrap();
         // Coincident copy, bitwise.
@@ -335,9 +338,7 @@ mod tests {
         // Tier 1 accepts; tier 2 refuses by name (strut + null edge).
         assert_eq!(validate(&body), Ok(()));
         let errs = validate_closed(&body).unwrap_err();
-        assert!(errs.contains(&ValidationError::NullEdgeAtRest {
-            edge: created.edge
-        }));
+        assert!(errs.contains(&ValidationError::NullEdgeAtRest { edge: created.edge }));
         assert!(errs.contains(&ValidationError::ScaffoldingStrutVertex {
             vertex: created.vertex
         }));
@@ -360,9 +361,16 @@ mod tests {
     fn mev_null_below_side_attribute() {
         let cube = ops_cube();
         let mut body = cube.body;
-        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let he = body
+            .get_vertex(cube.seed.vertex)
+            .unwrap()
+            .emanating
+            .unwrap();
         let created = body
-            .mev_null(crate::MevSite::Fan { he1: he, he2: he }, NewVertexSide::Below)
+            .mev_null(
+                crate::MevSite::Fan { he1: he, he2: he },
+                NewVertexSide::Below,
+            )
             .unwrap();
         let attr = *body
             .get_curve_geom(created.curve)

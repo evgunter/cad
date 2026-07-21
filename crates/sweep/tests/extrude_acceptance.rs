@@ -132,7 +132,12 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
 /// The edge's stored description.
 fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body.get_curve_geom(curve).unwrap().certified().unwrap().description()
+    *body
+        .get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .description()
 }
 
 #[test]

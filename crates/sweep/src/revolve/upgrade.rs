@@ -70,7 +70,9 @@ fn edge_data<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, Revo
             key: topo::GeomRef::Curve(edge_rec.curve),
         })?
         .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve { curve: edge_rec.curve })?;
+        .ok_or(EulerOpError::NullScaffoldCurve {
+            curve: edge_rec.curve,
+        })?;
     let carrier = *curve.carrier();
     let (t0, t1) = curve.params();
     let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));

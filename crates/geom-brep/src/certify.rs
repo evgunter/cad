@@ -548,10 +548,7 @@ impl<T: Real> EdgeCurve<T> {
                 param_end: tb,
             }
         };
-        (
-            child(T::zero(), a, t0, t),
-            child(a, T::one(), t, t1),
-        )
+        (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
     }
 
     /// This carrier's spec view (for re-certification).
