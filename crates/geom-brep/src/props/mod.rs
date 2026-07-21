@@ -54,10 +54,17 @@
 //! and carrier endpoint evaluations — never from endpoint `atan2`
 //! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker). The
 //! boundary is structurally verified to be the M2 iso-parameter
-//! inventory (rim/meridian classification with consistency residuals
-//! through the crate's [`decide`](crate::dihedral) funnel); anything
-//! else is a typed [`PropsError`] — scope-boxed fail-loud, no silent
-//! quadrature fallback.
+//! inventory: each carrier's kind, its rim/meridian role, and its
+//! **incidence on the surface** (rim centers on the axis with parallel
+//! carrier axes and fitted radii; meridians axial/through the apex/in
+//! their meridian plane at the surface's radii) are certified as
+//! consistency residuals through the crate's
+//! [`decide`](crate::dihedral) funnel, and a definite failure of any
+//! of them is a typed [`PropsError`] — scope-boxed fail-loud, no
+//! silent quadrature fallback. Outside that verification: the
+//! loop-local vertex **tags** are trusted as declared (the [`LoopEdge`]
+//! trust boundary), and the residuals certify carriers, not that the
+//! traversed arcs jointly close a loop.
 
 mod curved;
 mod loop_area;
@@ -74,6 +81,18 @@ pub use loop_area::loop_vector_area;
 /// body flattens its half-edge cycles into these (traversal order;
 /// `start`/`end` are the traversal-order vertex tags — any small ints
 /// injective over the loop's vertices).
+///
+/// # Trust boundary: vertex tags
+///
+/// The tags must **faithfully identify shared vertices** — no residual
+/// can catch a tag lie, because a lie leaves the geometry unchanged.
+/// They are load-bearing: the torus `s_f` inference locates the rim
+/// topologically adjacent to a meridian's anchor endpoint through
+/// them, and lying tags silently flip the anchored flux term's sign
+/// (pinned by `torus_tag_contract_is_load_bearing`). `topo`'s
+/// flattening satisfies the contract by construction (first-seen
+/// traversal order over the half-edge cycle); callers constructing
+/// `LoopEdge`s by hand own it.
 #[derive(Clone, Copy, Debug)]
 pub struct LoopEdge<T: Real> {
     /// The edge's carrier locus.

@@ -201,8 +201,8 @@ impl std::error::Error for ToleranceEnvError {}
 /// commitment came from `get()`'s env path, every recorded env failure
 /// (empty when nothing was rejected).
 ///
-/// `env_errors` currently holds **at most one entry** — there is a single
-/// tolerance env var ([`ENV_EPS`]). The `Vec` shape is retained as a
+/// `env_errors` holds **at most one entry per tolerance env var** — at
+/// most two at present ([`ENV_EPS`] and [`ENV_K`]). The `Vec` shape is a
 /// stable surface for future run-global config vars, so adding one never
 /// changes [`Tolerance::env_init_errors`]'s signature.
 #[derive(Debug)]
@@ -350,9 +350,9 @@ impl Tolerance {
 
     /// Every failure recorded by `get()`'s env self-initialization.
     ///
-    /// Currently at most one entry — there is a single tolerance env var
-    /// ([`ENV_EPS`]); the slice shape is kept stable for future
-    /// run-global config vars.
+    /// At most one entry per tolerance env var — at most two at present
+    /// ([`ENV_EPS`] and [`ENV_K`]); the slice shape is kept stable for
+    /// future run-global config vars.
     ///
     /// Forces initialization (as if by [`Tolerance::get`]) if it has not
     /// happened yet, so the answer is definitive. An empty slice means the

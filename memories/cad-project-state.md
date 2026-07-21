@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1 complete; M2 at 6 of 7 PRs merged, pipeline drained — PR 7 (STL + mass properties + K report + exit sweep) remains; docs/M2-LOG.md's 2026-07-20 handoff snapshot is the resumption contract
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1/M2 COMPLETE (all 7 M2 PRs merged; K=10 kept, run-configurable); M3-PLAN RATIFIED (#42); M3 PR 1 implemented-unreviewed — docs/M3-LOG.md's 2026-07-21 handoff snapshot is the resumption contract
 metadata:
   node_type: memory
   type: project
@@ -50,13 +50,26 @@ two-band wire case for axis contact poles, washer kfmrh+loopglue
 zip, Seam first exercised; voids-only-from-booleans decided by Evan
 2026-07-20); **PR 6 merged (#39** — mesh crate: certified
 per-triangle tessellation, watertight seams/poles, #32
-back-references; wedge-unwrap blocker fixed). **Remaining: PR 7
-only** — STL + mass properties (Pappus/divergence over the exact
-B-rep, NOT the sign-only fan oracle) + K report (unify telemetry
-channels first) + exit sweep (DESIGN.md ratifications — the
-accumulated list is in the M2-LOG 2026-07-20 handoff snapshot,
-the resumption contract). Per-PR sections of docs/M2-LOG.md are
-the record; handoff executed per [[orchestrator-handoff]]. Mäntylä ch. 12–15 notes all archived in
+back-references; wedge-unwrap blocker fixed); **PR 7 merged (#43,
+2026-07-21** — stl crate with byte-identical writers + admesh CI
+gate; exact-B-rep mass properties (closed forms + certified
+incidence residuals; interval enclosures as certified bounds); +V
+tier-3 invariant; K telemetry unified into geom_core::k_stats;
+docs/K-REPORT.md FINAL: **keep K = 10**, now run-configured
+`Tolerance.k` / env CAD_AMBIGUITY_K per Evan). **M2 COMPLETE** —
+exit sweep merged (DESIGN.md: witness-midpoint, prefer-intrinsic
+teeth, M2 conventions block, chordal-δ ≠ ε, Q1 K residue closed).
+**M3-PLAN RATIFIED (#42, 2026-07-20/21)** — splitting/booleans/
+cross-shell surgery, 6-PR sequence, planar-only (curved → M5 as a
+unit), grounded in `references/notes/m3-grounding-synthesis.md`
+(TOG 1986 second witness: confirms our CCW/outward convention,
+contradicts book's rule (b) — adjudicate from first principles).
+M3 PR 1 (Euler-inventory extensions) implemented-unreviewed on
+`ev/m3-1-surgery` @ `4f95b5f` (stacked pre-fix-pass; merge main
+first) — docs/M3-LOG.md's 2026-07-21 handoff snapshot is the
+resumption contract with the successor's first moves.
+Per-PR sections of docs/M2-LOG.md are
+the record; handoffs per [[orchestrator-handoff]]. Mäntylä ch. 12–15 notes all archived in
 `<main-checkout>/references/notes/`; the TOG 1986 boolean paper
 (M3's second witness, text-layer PDF) is at
 `references/mantyla-1986-boolean-operations-2-manifolds-tog.pdf`.
