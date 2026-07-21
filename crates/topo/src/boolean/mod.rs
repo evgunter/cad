@@ -59,12 +59,14 @@
 
 mod contain;
 pub(crate) mod reduce;
+pub(crate) mod insert;
 pub(crate) mod recl;
 pub(crate) mod sectors;
+pub(crate) mod vtxfac;
 pub mod plane_eq;
 pub mod tables;
 
-use geom_core::{BandError, Indeterminate, Real};
+use geom_core::{Band, BandError, Decide, Indeterminate, Real};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -389,3 +391,78 @@ impl core::fmt::Display for BooleanError {
 }
 
 impl std::error::Error for BooleanError {}
+
+/// **`boolean_reduce`** — reduction + classification + paired
+/// null-edge insertion across two bodies (module docs for the
+/// pipeline). Functional: both operands are cloned and never touched;
+/// the annotated clones come back in [`BooleanReduction`]. Joining and
+/// result generation are PR 5.
+///
+/// Determinism (D9): gates, sweeps, contact processing, and
+/// per-neighborhood classification all run in arena/discovery order —
+/// no hash iteration anywhere.
+///
+/// # Errors
+///
+/// [`BooleanError`] — see each variant; the first failure wins and the
+/// operands are never mutated (the clones are dropped).
+pub fn boolean_reduce<T: Decide>(
+    op: BooleanOp,
+    a_operand: &Body<T>,
+    b_operand: &Body<T>,
+) -> Result<BooleanReduction<T>, BooleanError> {
+    let band = Band::linear()?;
+    reduce::gate_planar(a_operand, Operand::A)?;
+    reduce::gate_planar(b_operand, Operand::B)?;
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+
+    // Reduction sweep, both directions (A's edges first — D9 order).
+    let mut acc = reduce::ContactAcc::default();
+    reduce::sweep_direction(&mut a, &mut b, Operand::A, &mut acc, band)?;
+    reduce::sweep_direction(&mut b, &mut a, Operand::B, &mut acc, band)?;
+    let contacts = acc.finish();
+
+    let mut null_edges = Vec::new();
+    let mut null_pairs = Vec::new();
+    let mut pierce_rings = Vec::new();
+
+    // Vertex-on-face classification (sonva then sonvb, as 15.5).
+    for &c in &contacts.a_on_b {
+        let out = vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, band)?;
+        null_edges.extend(out.edges);
+        null_pairs.extend(out.pairs);
+        pierce_rings.extend(out.ring);
+    }
+    for &c in &contacts.b_on_a {
+        let out = vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, band)?;
+        null_edges.extend(out.edges);
+        null_pairs.extend(out.pairs);
+        pierce_rings.extend(out.ring);
+    }
+
+    // Vertex-vertex classification.
+    for &c in &contacts.vv {
+        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
+        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        recl::recl_sectors(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
+        recl::recl_edges(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
+        let out = insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records)?;
+        null_edges.extend(out.edges);
+        null_pairs.extend(out.pairs);
+    }
+
+    Ok(BooleanReduction {
+        op,
+        a,
+        b,
+        contacts,
+        null_edges,
+        null_pairs,
+        pierce_rings,
+    })
+}

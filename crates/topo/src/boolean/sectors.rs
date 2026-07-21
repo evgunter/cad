@@ -55,8 +55,7 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     pub start: Vec3<T>,
     /// CCW-last bound direction (this entry's own chord, or a bisector).
     pub end: Vec3<T>,
-    /// Whether `start` is a real edge chord (false: subdivision bisector).
-    pub start_edge: bool,
+    
     /// Whether `end` is a real edge chord.
     pub end_edge: bool,
     /// The sector's face and outward normal.
@@ -144,7 +143,6 @@ pub(super) fn build_sectors<T: Decide>(
                 he,
                 start: u_start,
                 end: u_end,
-                start_edge: true,
                 end_edge: true,
                 face,
                 normal,
@@ -157,7 +155,6 @@ pub(super) fn build_sectors<T: Decide>(
                     he,
                     start: b,
                     end: u_end,
-                    start_edge: false,
                     end_edge: true,
                     face,
                     normal,
@@ -167,7 +164,6 @@ pub(super) fn build_sectors<T: Decide>(
                     he,
                     start: u_start,
                     end: b,
-                    start_edge: true,
                     end_edge: false,
                     face,
                     normal,
@@ -388,7 +384,6 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: Vec3::new(start[0], start[1], start[2]),
             end: Vec3::new(end[0], end[1], end[2]),
-            start_edge: true,
             end_edge: true,
             face: FaceKey::default(),
             normal: Vec3::new(normal[0], normal[1], normal[2]),
