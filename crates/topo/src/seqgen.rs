@@ -906,6 +906,46 @@ mod tests {
         }
     }
 
+    /// Issue #60, distilled: the shrunken proptest vector whose final
+    /// step is a `kef` make/kill roundtrip on a degenerate self-loop
+    /// chain carrying two coordinate-identical detached ring twins.
+    /// The kef/mef surgery restores ring ownership exactly (raw keys
+    /// verified); the failure was the ISO ORACLE's scan-order tie-break
+    /// leaking into the face section's outer/ring pairing (a false
+    /// negative between isomorphic bodies) — fixed by the committed-
+    /// label references in `dart_attachment`. Fast deterministic
+    /// counterpart of the re-enabled `cc dda6d5e0…` regression entry.
+    #[test]
+    fn issue_60_kef_roundtrip_on_coincident_ring_twins() {
+        let decisions: Vec<Decision> = vec![
+            (0, 0, 14868277),
+            (472887944, 3650618882, 1063284414),
+            (3974652754, 53826561, 1194232959),
+            (3782466455, 750708255, 4131529245),
+            (1488373601, 4187241673, 3209066119),
+            (2687912414, 268335096, 2031319549),
+            (4224888891, 1920513483, 1450773358),
+            (2822490516, 3933833678, 313172872),
+            (3514019111, 1100428855, 3964918795),
+            (3436239477, 3172141881, 1592581843),
+            (3802339228, 1771633292, 3668445379),
+            (319016958, 3829296104, 758000795),
+            (325828484, 2991645150, 1544977337),
+            (488374670, 2078562704, 1362431087),
+            (2335041233, 1578878958, 801679061),
+            (3357132999, 2384639771, 1140201813),
+            (1045913028, 1493252069, 1090158457),
+            (2343923927, 76525332, 740650425),
+            (2655057477, 2335352993, 3173262319),
+            (1340868668, 3579545898, 3421628349),
+            (2695053902, 1905818496, 3424962875),
+            (3658407461, 1803296621, 3777469705),
+            (1666265687, 2248595257, 94376607),
+            (2980353478, 2061075975, 2860288224),
+        ];
+        run_properties(&decisions).unwrap();
+    }
+
     #[test]
     fn teardown_handles_the_genus_one_acceptance_body() {
         // Deterministic teardown of the holed box: genus, rings, and 24

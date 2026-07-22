@@ -131,6 +131,12 @@ impl Interval {
     /// `merge_coplanar_faces`' declared-equality rung) and D9
     /// determinism pins. Unlike [`Bounds`], this does not collapse
     /// NaI and empty: their decorations differ (`Ill` vs `Trv`).
+    ///
+    /// **Retirement-scheduled (DESIGN.md roadmap, M4)**: production
+    /// coincidence use of this channel is replaced by provenance-
+    /// record lookup when the naming layer lands; a CI tripwire
+    /// allowlists the current consumers and blocks new ones (#53).
+    /// Determinism pins in tests are unaffected.
     #[must_use]
     pub fn repr_bits(self) -> (u64, u64, u8) {
         let dec = match self.0.decoration() {

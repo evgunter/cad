@@ -124,6 +124,13 @@ impl std::error::Error for MergeCoplanarError {}
 /// ladder migrated there; this file no longer carries any bit-channel
 /// plumbing of its own). `None` = no bit channel for this scalar ⇒ the
 /// caller refuses to merge (the ladder's conservative direction).
+///
+/// **Retirement-scheduled (DESIGN.md roadmap, M4; Evan, #53)**: when
+/// provenance-based naming gives surfaces global identity, the
+/// declared rung becomes a record lookup and this bit comparison
+/// leaves production (at most a debug assertion that records and bits
+/// agree). A CI tripwire allowlists this file and blocks new
+/// consumers of the channel in the interim.
 fn scalar_repr_bits<T: Decide>(x: T) -> Option<geom_core::bit_identity::ScalarBits> {
     geom_core::bit_identity::repr_bits(&x)
 }

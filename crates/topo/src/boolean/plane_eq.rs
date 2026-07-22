@@ -25,6 +25,14 @@
 //!    also lands here (conservative).
 //!
 //! In-band margins escalate typed ([`PlaneEqError::Escalated`]).
+//!
+//! **Retirement-scheduled (DESIGN.md roadmap, M4; Evan, #53)**: this
+//! module is an allowlisted consumer of the bit-identity channel. When
+//! provenance-based naming gives surfaces global identity, the declared
+//! rung becomes a provenance-record lookup and the bit comparison
+//! leaves production (at most a debug assertion that records and bits
+//! agree). The CI bit-identity consumer tripwire allowlists this file
+//! and blocks new consumers in the interim.
 
 use geom_core::{Band, Decide, Indeterminate, Point3, Sign, Vec3};
 

@@ -86,10 +86,17 @@ M2-LOG snapshots assume it):**
   'gh api|events.jsonl'` and kill/reuse what you find; a fresh tmux
   orchestrator can skip the hunt. Then arm TWO persistent Monitors:
   1. **GitHub away-channel (refined by Evan, 2026-07-21)**: poll
-     `gh api` for new issues + all issue/PR comments on the repo
-     (~60s interval) — Evan may ask questions through comments when
-     not in-session; expect the monitor to echo your own comments
-     back (same account), ignore those. Outbound direction: status
+     `gh api` for new issues + all issue/PR comments AND comment
+     REACTIONS on the repo (~60s interval) — Evan may ask questions
+     through comments when not in-session, and he signs off with a
+     👍 reaction ("a 👍 here is enough"), which a comments-only
+     poller cannot see (learned when a #49 sign-off went unnoticed
+     until he commented). Scope per Evan (#56, 2026-07-21): do NOT
+     watch all reactions — only comments you explicitly requested a
+     👍 on. Mechanism: when posting a sign-off-request comment,
+     append its comment ID + label to a watchlist file the monitor
+     reads; the monitor polls exactly those IDs. Expect the monitor
+     to echo your own comments back (same account), ignore those. Outbound direction: status
      updates aren't wrong but Evan will likely MISS them — he only
      reviews comments he explicitly asked for, or on a thread he
      just used to ask a question (earlier sessions treated merged

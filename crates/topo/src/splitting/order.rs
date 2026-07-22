@@ -30,6 +30,13 @@
 //! honestly — the replay contract: both lanes sort identically or the
 //! interval lane refuses typed.
 //!
+//! Interval-lane coverage, honestly: any split whose crossings share
+//! an in-plane u-coordinate arrived at through INEXACT arithmetic
+//! refuses typed (the **`split_join_order_u`** hairline straddles) —
+//! in practice the interval lane splits axis-aligned planes over
+//! dyadic geometry, and tilted planes refuse. Documented contract,
+//! not a bug.
+//!
 //! Ties (both coordinates Zero — distinct null edges at one point,
 //! e.g. the two tip-vertex runs of the Fig. 14.2 notch) keep
 //! **insertion order** (the reduction's deterministic discovery

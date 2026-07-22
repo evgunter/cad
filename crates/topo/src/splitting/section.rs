@@ -6,6 +6,15 @@
 //! and discards it (our functional pipeline never mutates the operand,
 //! so the book's "delete the inserted vertices to restore S" step
 //! vanishes). The first real sectioning feature.
+//!
+//! # Gate asymmetry vs `split`
+//!
+//! `plane_section` never reaches the finish stage, so it BYPASSES the
+//! single-solid gate: a multi-solid body is sliced whole — every solid
+//! the plane crosses contributes polygons, and they all land in one
+//! `polygons` vec (no per-solid attribution). This is deliberate for a
+//! read-only query; [`super::split`] on the same body refuses typed
+//! with `NotSingleSolid`.
 
 use geom_core::{Point2, Point3, Real, Vec3};
 
@@ -45,11 +54,26 @@ pub struct Section<T: Real> {
 /// Computes the section polygons of `operand` against `plane` without
 /// building the result bodies (module docs).
 ///
+/// # Winding contract
+///
+/// Polygons are consistently CCW in `(u, v)`: each polygon's signed
+/// area (shoelace over `uv`) is positive. Consumers computing signed
+/// areas or offsets may rely on this orientation.
+///
+/// # Frame semantics
+///
+/// `u_ref` is the normalized first chord of the first polygon's
+/// below loop (deterministic data, not an arbitrary axis);
+/// `v_ref = normal × u_ref`. Both are `None` iff `polygons` is empty
+/// (the plane misses the body — a typed success). `uv` coordinates
+/// are `((p − origin)·u_ref, (p − origin)·v_ref)`.
+///
 /// # Errors
 ///
 /// [`SplitError`] — the reduce/join stages' typed refusals pass
-/// through unchanged (a degenerate tangency section refuses here
-/// exactly as it does in [`super::split`]).
+/// through unchanged: in particular a pure-tangency section REFUSES
+/// (`DegenerateSection`, exactly as [`super::split`] does) rather
+/// than reporting a degenerate zero-area trace.
 pub fn plane_section<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,

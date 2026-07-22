@@ -279,6 +279,112 @@ code blocker). All falsification targets HELD. Specifics:
   (shared tip edge post-reduction; its BOB mirror; no machine-readable
   one-sided-tangency flag).
 
+## PR 3 (split part 2: joining, finish, sectioning) — 2026-07-21
+
+Implementation writeup: the PR description (per process conventions).
+This section records the adversarial review + fix pass.
+
+### Adversarial review + fix pass (2026-07-21)
+
+Review (branch `review/m3-3`, 5 suites / 21 tests promoted:
+`review_m3_pr3_{bob,consumer,order,pil,rings}.rs`): **MERGEABLE, no
+code blocker**. One MAJOR (wording), four MINOR/NIT doc items, one
+genuine pre-existing bug unearthed en route (issue #60, main-side).
+
+**MAJOR-1 — the corrected BOB statement (executed fact, was misstated
+as ±n equivariance)**: the `DegenerateSection` refusal is
+orientation-DEPENDENT. It fires iff the pinched pieces lie on the
+NEGATIVE side of the given normal; MIRRORED under (o, −n) SUCCEEDS;
+`split(S, n)` refuses exactly where `swap(split(S, −n))` returns the
+same physical decomposition (flip-and-swap workaround, now on the
+error variant's docs). PR 2's equivariance principle — physical
+piece-ASSIGNMENT is orientation-invariant — still holds; op SUCCESS is
+not orientation-invariant. `bob_mirror_pinch_refuses_typed` pins two
+BOB presentations (MIRRORED, +n) and (NOTCHED, −n), both with the
+pinch on the negative side — its docs no longer claim equivariance.
+
+Held falsification targets (all green): carve referential integrity
+(no orphans/dangling keys post-carve); tiny-real-sliver not wrongly
+refused vs in-band tangency escalating typed; vertex-only contact =
+typed empty; single-solid gate `split` vs `plane_section` asymmetry
+witnessed; `plane_section` winding consistency; two-hole box ring
+re-homing both ways (+ interval lane); split through a hole = two
+section polygons; MIRRORED-flipped-plane success + NOTCHED orientation
+table (the BOB asymmetry, executed); concave-loop containment in/out,
+ray graze deterministic retries, ray exhaustion reachable, boundary
+pre-pass edges; tilted-plane f64/replay + interval agrees-or-refuses
+typed; orientation flip swaps sides only.
+
+Judgment calls (b)–(f), reviewer outcomes and fix-pass disposition:
+- (b) interval-lane order coverage: **accept** — inexact-arithmetic
+  shared-u crossings refuse typed (`split_join_order_u` hairline); in
+  practice the interval lane splits axis planes over dyadic geometry,
+  tilted planes refuse. Documented contract (order.rs), not a bug.
+- (c) `plane_section` single-solid-gate bypass: **accept** — slices
+  every solid into one polygon set; deliberate for a query; asymmetry
+  vs `split`'s `NotSingleSolid` documented (section.rs).
+- (d) winding/tangency/frame contract: **accept** — pinned in docs:
+  polygons consistently CCW in (u, v) (+1 signed area); tangency
+  refuses typed rather than reporting a degenerate trace; u_ref =
+  normalized first chord, v_ref = n × u_ref, None iff empty.
+- (e) reassembly oracle scope: **accept with doc narrowing** —
+  crossing-mode census reference is the only implemented mode
+  (pristine-operand mode for through-vertex sections marked future);
+  `carve` is OUTSIDE the oracle's net, stated plainly; compensating
+  coverage: the review's referential-integrity audit + acceptance
+  censuses.
+- (f) tier-3 consumers: **accept for the PR 3 gate, at PR 6** —
+  split's output cannot currently feed tier-3 (no Intersection
+  descriptions / no public upgrade op); recorded as a PR 6 obligation
+  below.
+
+Also: join.rs's second-chord guard (the laringmv skip window) is
+book-faithful (Program 14.10 placement) but no legal fixture reached
+it in this review — commented as a WATCH ITEM for PR 4/5's join reuse.
+
+**BOB fork status**: awaiting Evan. Default recommendation (B) —
+typed-refusal-now, revisit at PR 6 — under the reviewer's two
+conditions: (1) this MAJOR-1 wording fix (done), (2) the PR 4 charter
+check on boolean BOB-routing (already sent to the PR 4 implementer).
+
+**Issue #60 (pre-existing on main, fixed here)**: presented as the kef
+make/kill roundtrip swapping ring ownership between the two re-made
+faces. Diagnosis DEVIATED from that presumption: key-level dumps show
+the kef/mef surgery restores raw ring ownership exactly; the real bug
+was the iso ORACLE — coordinate-identical automorphic ring-twin
+components tie in candidate encoding, the tie broke by scan order, and
+a kef+mef roundtrip changes the shell face-list order, so isomorphic
+bodies emitted canonical forms with the face section's outer/ring
+pairing flipped (false negative). Fixed in iso.rs: `dart_attachment`
+now references the committed minimal dart labels of the face's loops,
+pinning later components to the committed labeling. Regression vector
+re-enabled (gating); fast deterministic counterpart
+`issue_60_kef_roundtrip_on_coincident_ring_twins` added; full seqgen
+suite green.
+
+## Accumulating PR 6 (M3-exit sweep) obligations
+
+Beyond M3-PLAN's own PR 6 list (F1/F2/F5/F6/F7/F8 ratifications, tier
+table, voids documentation), the sweep has picked up:
+
+- **PERF-PLAN ratifications (Evan's Q-P1 sign-off, #49, 2026-07-21)**:
+  fold the §3.3 GPU boundary table and §2.2 deterministic-parallelism
+  idioms into DESIGN.md as a D9 addendum. PERF-PLAN itself is merged
+  and advisory; DESIGN.md stays the single contract.
+- **Tier-3 upgrade path for split output (PR 3 review, judgment call
+  (f))**: split's results cannot feed tier-3 validation today — by
+  PR 6, split must either emit Intersection descriptions on the
+  entities it mints or a public upgrade op must exist; the PR 3 gate
+  accepted this deferral explicitly.
+- **Sweeps-vs-voids invariant (chat, 2026-07-21, from the demo-tour
+  hole discussion)**: ratify explicitly — "sweeps produce genus, never
+  voids; voids are boolean-born; the extrude/full-revolve hole
+  asymmetry is an instance of the invariant, not an inconsistency"
+  (extruded holes = cap-to-cap tunnels, one shell; full-revolve holes
+  = closed inner shells = voids; partial revolve is extrude-shaped and
+  already supports holes). FullRevolveHoles' pointer to the boolean
+  route lands in PR 5 per F8.
+
 ## State snapshot (handoff point, 2026-07-21)
 
 - **Merged to main**: everything through M2 exit — M2 PRs 1–7 (#27,

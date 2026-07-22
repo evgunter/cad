@@ -36,20 +36,38 @@ jobs:
             echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
             exit 1
           fi
-      # Bit-identity channel tripwire (M3 PR 4; Evan #53/#57/#58): the
+      # Bit-identity coincidence checking is SCHEDULED FOR RETIREMENT
+      # (DESIGN.md roadmap, M4: provenance-based naming replaces the
+      # declared rung's bit fingerprint with a record lookup; Evan, #53).
+      # Until then, exactly the allowlisted sites below may CONSUME the
+      # channel (bit_identity::/repr_bits/eq_bits). A new consumer must
+      # (1) be added to the allowlist here AND (2) carry its own code-doc
+      # note that it is retirement-scheduled with M4 — the tripwire
+      # exists so no usage lands without that note (Evan, #53,
+      # 2026-07-21). Comment lines are excluded (docs may name the
+      # channel; code may not use it unlisted).
+      - name: bit-identity consumer tripwire (M4 retirement)
+        run: |
+          if grep -rnE 'bit_identity::|repr_bits|eq_bits' crates/*/src \
+            | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
+            | grep -vE '^crates/geom-core/src/interval\.rs:' \
+            | grep -vE '^crates/topo/src/merge_faces\.rs:' \
+            | grep -vE '^crates/topo/src/boolean/plane_eq\.rs:' \
+            | grep -vE ':[0-9]+:\s*//'; then
+            echo "::error::new bit-identity channel consumer above — this channel is retirement-scheduled (DESIGN.md M4); allowlist it here AND add a retirement note in its docs, or use a provenance mechanism instead"
+            exit 1
+          fi
+      # Complementary punning tripwire (M3 PR 4; Evan #53/#57/#58): the
       # type-punning plumbing that lets generic code reach a scalar's
       # bits (Any downcasts / TypeId dispatch) is sanctioned in exactly
-      # ONE seam — geom_core::bit_identity (plus interval.rs, which
-      # defines Interval::repr_bits over its own storage). Any other
-      # occurrence is a second bit channel and fails here. Callers go
-      # through the door's public fns (repr_bits/eq_bits), which need no
-      # punning at the call site. Scheduled retirement: when M4
-      # provenance naming lands, declared coincidence becomes a record
-      # lookup and this channel decays to a debug assertion (DESIGN.md
-      # M4 roadmap note).
-      - name: bit-identity channel tripwire
+      # ONE seam — geom_core::bit_identity. Any other occurrence is a
+      # second bit channel and fails here. Callers (including the
+      # allowlisted consumers above) go through the door's public fns
+      # (repr_bits/eq_bits), which need no punning at the call site.
+      # Same M4 retirement schedule as above.
+      - name: bit-identity punning tripwire
         run: |
-          if grep -rnE 'downcast_ref|TypeId|core::any|std::any' crates/*/src \
+          if grep -rnE 'downcast_ref|downcast_mut|TypeId|core::any|std::any' crates/*/src \
             | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
             | grep -vE ':[0-9]+:\s*//'; then
             echo "::error::bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"

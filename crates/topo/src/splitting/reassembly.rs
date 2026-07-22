@@ -13,8 +13,16 @@
 //! crossing vertices inserted** (reduction's `split_edge` residue):
 //! inverting an edge split needs a `join_edge` op (kill a degree-2
 //! vertex, re-certify the merged span) that does not exist and is out
-//! of PR 3 scope. A fixture whose section runs entirely through
-//! existing vertices/edges is compared against the pristine operand.
+//! of PR 3 scope. That crossing-mode reference is the ONLY mode this
+//! oracle implements: a pristine-operand comparison for sections that
+//! run entirely through existing vertices/edges is not built (future
+//! work if such fixtures join the net).
+//!
+//! Scope, plainly: `carve` is OUTSIDE this oracle's net — the oracle
+//! stops at the pre-carve seam, so the carve step is never round-trip
+//! certified here. Compensating coverage: the PR 3 review's
+//! referential-integrity audit of the carved bodies, plus the
+//! acceptance tests' per-body censuses.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
