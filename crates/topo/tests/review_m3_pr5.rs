@@ -24,6 +24,25 @@ fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
+/// The R2/R3 U-slab (nonconvex caps, two prongs).
+fn uslab() -> Body<f64> {
+    prism_z::<f64>(
+        &[
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
+        ],
+        0.0,
+        1.0,
+    )
+    .body
+}
+
 type BoolOp<T> = fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run: operands bitwise untouched, result tier-1+2 valid.
@@ -103,17 +122,23 @@ fn boss_and_pocket_on_minus_x_face() {
     assert_props(&body.body, 7.875, 25.0);
 }
 
-/// R1 witness, +x face: the identical pillar into the +x face refuses
-/// SeamOrientation (typed, deterministic, operands untouched) — for
-/// BOTH ∖ and ∪.
+/// R1 witness, +x face, FLIPPED by PR 5.5 (the ring-lane role rule):
+/// the identical pillar into the +x face now succeeds with exact
+/// oracles for BOTH ∖ and ∪ (formerly SeamOrientation).
 #[test]
 fn plus_x_face_cookie_refusals_pinned() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((1.5, 2.75), (0.75, 1.25), (0.75, 1.25));
-    let e = assert_typed_refusal(subtract, &a, &b);
-    assert!(e.contains("SeamOrientation"), "got {e}");
-    let e = assert_typed_refusal(union, &a, &b);
-    assert!(e.contains("SeamOrientation"), "got {e}");
+    let r = run(subtract, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    // vol = 8 − 0.5·0.25; area = 24 − .25 + 4·(0.5·0.5) + floor .25.
+    assert_props(&body.body, 7.875, 25.0);
+    let r = run(union, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    // vol = 8 + 0.75·0.25; area = 24 + 4·(0.5·0.75) + cap .25 − opening .25.
+    assert_props(&body.body, 8.1875, 25.5);
 }
 
 /// TWO pockets opened in ONE face of A by a single U-shaped B whose
@@ -183,12 +208,10 @@ fn pocket_orientation_matrix() {
             }
         }
     }
-    // REVIEW FINDING R1 (pinned): the cookie-cutter lane is
-    // ORIENTATION-DEPENDENT — SeamOrientation refusals on exactly
-    // {−z, +x, +y}; works (exact volume) on {+z, −x, −y}. Never a
-    // silent wrong body in any orientation. If the fix pass repairs
-    // the crossover, flip this to assert emptiness.
-    assert_eq!(refused, vec!["-z", "+x", "+y"], "R1 refusal set changed");
+    // R1 CLOSED (PR 5.5): all six orientations succeed with the exact
+    // volume/area — the ring-lane role rule replaced the handedness-
+    // correlated heuristic. Any refusal here is a regression.
+    assert_eq!(refused, Vec::<&str>::new(), "R1: all orientations exact");
 }
 
 /// Pocket crossing an EDGE of A (notch across the x=2 / z=2 edge):
@@ -222,35 +245,21 @@ fn fig151_noncoplanar_intersect_works() {
 }
 
 /// Flush rest (B standing ON A's top face, face-in-face-interior
-/// contact, zero overlap): must refuse typed/deterministically or —
-/// if it ever succeeds — produce the exact union volume. Silent wrong
-/// output is the falsification.
+/// contact, zero overlap): FLIPPED to a firm success (PR 5.5 — it
+/// already succeeded at PR 5's review as the "positive surprise"; the
+/// honesty envelope is now an assertion): the interior face-rest ∪
+/// goes through the SEAM pipeline and lands the fully-regularized
+/// single-shell result — exact volume AND area, interface patch
+/// consumed.
 #[test]
 fn flush_pillar_rest_union_honest() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (2.0, 3.0));
-    let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    match union(&a, &b) {
-        Err(_) => {
-            let msg = assert_typed_refusal(union, &a, &b);
-            eprintln!("flush pillar union refusal: {msg}");
-        }
-        Ok(BooleanResult::Body(body)) => {
-            // POSITIVE surprise (charter expected UnpairedLooseEnds):
-            // the interior face-rest ∪ goes through the SEAM pipeline
-            // and lands the fully-regularized single-shell result —
-            // exact volume AND area, interface patch consumed.
-            assert_eq!(validate_closed(&body.body), Ok(()));
-            assert_eq!(body.kind, BooleanResultKind::Seamed);
-            assert_eq!(body.body.shells().count(), 1);
-            let m = mass_properties(&body.body).unwrap();
-            assert_eq!(m.volume, 8.25, "flush union volume");
-            assert_eq!(m.surface_area, 26.0, "regularized area");
-        }
-        Ok(BooleanResult::Empty) => panic!("flush union cannot be empty"),
-    }
-    assert_eq!(format!("{a:?}"), a0);
-    assert_eq!(format!("{b:?}"), b0);
+    let r = run(union, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.shells().count(), 1);
+    assert_props(&body.body, 8.25, 26.0);
     // ∖ and ∩ on the same rest are regularized-correct.
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
@@ -260,8 +269,13 @@ fn flush_pillar_rest_union_honest() {
 }
 
 /// Corner-flush rest: the pillar's bottom rests flush at A's top-face
-/// corner, its bottom edges partly collinear with A's top edges.
-/// Honesty check: typed refusal or exact result — never silent wrong.
+/// corner, its bottom edges partly collinear with A's top edges —
+/// PR 5.5 re-adjudication: still a typed refusal, for the DOCUMENTED
+/// boundary-on-boundary reason (the two seam segments lying ON A's
+/// top-face edges have no facing chord partner — the on-edge germs
+/// need seam-runs along existing edges, not chords; `UnpairedLooseEnds
+/// { count: 4 }`, deterministic, operands untouched). The honesty form
+/// stays: if it ever succeeds it must be exact.
 #[test]
 fn corner_flush_pillar_union_honest() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
@@ -269,7 +283,7 @@ fn corner_flush_pillar_union_honest() {
     match union(&a, &b) {
         Err(_) => {
             let e = assert_typed_refusal(union, &a, &b);
-            eprintln!("corner-flush union refusal: {e}");
+            assert!(e.contains("UnpairedLooseEnds"), "got {e}");
         }
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
@@ -308,19 +322,33 @@ fn interior_column_union_works() {
     assert_props(&body.body, 15.03125, 39.0);
 }
 
-/// The pinned refusal lanes are DETERMINISTIC and operand-preserving
-/// (through-pillar / inset-leg / coplanar overlap / flush stack).
+/// The one still-refusing lane is DETERMINISTIC and operand-
+/// preserving: boundary-on-boundary seams (the full-overlap stack —
+/// the seam runs entirely along existing operand edges, so the
+/// on-edge germs have no facing chord partner). Through-pillar,
+/// inset-leg and the Fig 15.1 coplanar overlap FLIPPED to exact
+/// successes under PR 5.5 (asserted in their own tests).
 #[test]
 fn pinned_refusals_deterministic() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (-0.5, 2.5));
-    assert_typed_refusal(subtract, &a, &b);
+    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
+    let e = assert_typed_refusal(union, &a, &b);
+    assert!(e.contains("UnpairedLooseEnds"), "got {e}");
+}
+
+/// NEW NAMED ACCEPTANCE (PR 5.5): the Fig 15.1 coplanar-overlap ∩ —
+/// shared cap planes, seam partly on them — produces the exact
+/// [1,2]²×[0,1] cube (the angular strut spike order nests the
+/// corner-site chords).
+#[test]
+fn fig151_coplanar_overlap_intersect_exact() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
-    assert_typed_refusal(topo::intersect, &a, &b);
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    assert_typed_refusal(union, &a, &b);
+    let r = run(topo::intersect, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.shells().count(), 1);
+    assert_props(&body.body, 1.0, 6.0);
 }
 
 // =====================================================================
@@ -350,13 +378,15 @@ fn collinear_four_site_seam_subtract() {
     )
     .body;
     let b = brick::<f64>((-1.0, 4.0), (2.0, 2.5), (-0.5, 1.5));
-    // REVIEW FINDING R2 (pinned): four collinear sites on one germ
-    // line refuse typed — JoinDesync("every chord arc separates a
-    // loose scaffolding pair"). Honest (no silent bridge across the
-    // 1–2 gap), deterministic, operands untouched; capability gap for
-    // the resumption plan (the ssortnulledges/site-ordering family).
-    let e = assert_typed_refusal(subtract, &a, &b);
-    assert!(e.contains("JoinDesync"), "got {e}");
+    // R2 CLOSED (PR 5.5): the match-partner separation test (replacing
+    // the record-sibling proxy) lets adjacent-site chords capture a
+    // whole partner pair together; the 1–2 gap is still never bridged
+    // (facing + nearest). Base + stubs shell and two floating tips.
+    let r = run(subtract, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.shells().count(), 3);
+    assert_props(&body.body, 6.0, 30.0);
 }
 
 /// The SAME U-slab cut across only ONE prong (two sites per germ
@@ -381,13 +411,14 @@ fn single_prong_cut_nonconvex_cap_subtract() {
     )
     .body;
     let b = brick::<f64>((-1.0, 1.5), (2.0, 2.5), (-0.5, 1.5));
-    // REVIEW FINDING R3 (pinned): refuses SeamOrientation — the
-    // two-crossing-polygon disconnection family (same root as the
-    // through-pillar limitation, here WITHOUT any single-face ring).
-    // Typed, deterministic, operands untouched; ideal result would be
-    // 2 shells, vol 6.5, area 30.
-    let e = assert_typed_refusal(subtract, &a, &b);
-    assert!(e.contains("SeamOrientation"), "got {e}");
+    // R3 CLOSED (PR 5.5): the crossing-polygon disconnection family
+    // joins under the derived sense discipline — 2 shells (body +
+    // severed tip), exact mass properties.
+    let r = run(subtract, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.shells().count(), 2);
+    assert_props(&body.body, 6.5, 30.0);
 }
 
 // =====================================================================
@@ -534,6 +565,17 @@ fn revert_oracle_extended_corpus() {
             brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
             brick((0.25, 0.75), (0.25, 1.75), (0.25, 2.5)),
         ),
+        // PR 5.5's newly-working collinear-seam configurations.
+        (
+            "collinear-four-site",
+            uslab(),
+            brick((-1.0, 4.0), (2.0, 2.5), (-0.5, 1.5)),
+        ),
+        (
+            "single-prong-nonconvex",
+            uslab(),
+            brick((-1.0, 1.5), (2.0, 2.5), (-0.5, 1.5)),
+        ),
     ];
     for (name, a, b) in corpus {
         let direct = subtract(&a, &b).unwrap();
@@ -579,9 +621,11 @@ mod interval {
         let b = brick::<Interval>((1.0, 3.0), (1.0, 3.0), (-0.25, 1.25));
         let r = run(topo::intersect, &a, &b);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
-        // R1's refusal set holds on the interval lane too.
+        // R1's former refusal orientation now succeeds on the
+        // interval lane too (PR 5.5).
         let a = brick::<Interval>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<Interval>((1.5, 2.75), (0.75, 1.25), (0.75, 1.25));
-        assert_typed_refusal(subtract, &a, &b);
+        let r = run(subtract, &a, &b);
+        assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
     }
 }

@@ -120,7 +120,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
         let g1_faces = (a_sectors[r1.a].face, b_sectors[r1.b].face);
         let g0_dir = germ_dir(&a_sectors[r0.a], &b_sectors[r0.b], band)?;
         let g1_dir = germ_dir(&a_sectors[r1.a], &b_sectors[r1.b], band)?;
-        let a_rec = mint_directed(
+        let (a_rec, a_swapped) = mint_directed(
             a_body,
             Operand::A,
             contact.a,
@@ -128,8 +128,9 @@ pub(super) fn insert_null_pairs<T: Decide>(
             (r0.a, r0.sa, g0_faces, g0_dir),
             (r1.a, r1.sa, g1_faces, g1_dir),
             mismatch,
+            band,
         )?;
-        let b_rec = mint_directed(
+        let (b_rec, b_swapped) = mint_directed(
             b_body,
             Operand::B,
             contact.b,
@@ -137,7 +138,17 @@ pub(super) fn insert_null_pairs<T: Decide>(
             (r0.b, r0.sb, g0_faces, g0_dir),
             (r1.b, r1.sb, g1_faces, g1_dir),
             mismatch,
+            band,
         )?;
+        // Slot canonicalization (the joining's slot lock): germ slot i
+        // of the A and B records must be the SAME spatial germ; a
+        // degeneracy swap in one solid only would misalign them, so
+        // align B's array to A's (entries carry their halves — the
+        // germ↔half binding is untouched).
+        let mut b_rec = b_rec;
+        if a_swapped != b_swapped {
+            b_rec.germs.swap(0, 1);
+        }
         out.pairs.push(NullEdgePairRecord {
             a_edge: a_rec.edge,
             b_edge: b_rec.edge,
@@ -167,11 +178,29 @@ fn mint_directed<T: Decide>(
     g0: Germ<T>,
     g1: Germ<T>,
     mismatch: impl Fn() -> BooleanError,
-) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
-    let (gf, gt) = if run_degenerates(body, sectors, g0.0, g1.0)? {
-        (g1, g0)
+    band: Band,
+) -> Result<(BoolNullEdgeRecord<T>, bool), BooleanError> {
+    let swapped = run_degenerates(body, sectors, g0.0, g1.0)?;
+    let (gf, gt) = if swapped { (g1, g0) } else { (g0, g1) };
+    // Strut spike ORDER (PR 5.5, the sort half of ssortnulledges): a
+    // dangling strut's two halves splice consecutively into the loop
+    // as [he_plus, he_minus]; interleaved (crossing) chords at
+    // multi-germ corner sites wall pending pairs off, so the half the
+    // loop walk meets FIRST (he_plus) must face the germ angularly
+    // closest to the splice corner's arrival edge (the anchor bound;
+    // convex-sector dot comparison). Senses follow the facing by the
+    // sense theorem, so only the splice order moves. Run direction is
+    // untouched (a strut's reverse run spans the whole orbit).
+    let spike_from_first = if run_fan(sectors, gf.0, gt.0)?.is_empty() {
+        let e_dir = anchor_dir(body, sectors[gf.0].he)?;
+        let m = (gf.3 - gt.3).dot(e_dir);
+        match crate::validate::decide("bool_strut_order", m, band) {
+            Ok(Sign::Positive) => true,
+            Ok(_) => false,
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
+        }
     } else {
-        (g0, g1)
+        false
     };
     let (from, to, side, closing) = (gf.0, gt.0, gf.1.0, gt.1.1);
     // F12 guard 2: the closing germ must approach the run with the
@@ -182,7 +211,35 @@ fn mint_directed<T: Decide>(
     // Germ facings as data (module docs): he_plus faces the from-germ,
     // he_minus the to-germ (the mev splice contract).
     let meta = [(gf.2, gf.3), (gt.2, gt.3)];
-    mint_run(body, operand, vertex, sectors, from, to, side, meta)
+    let rec = mint_run(
+        body,
+        operand,
+        vertex,
+        sectors,
+        from,
+        to,
+        side,
+        meta,
+        spike_from_first,
+    )?;
+    Ok((rec, swapped))
+}
+
+/// The unit direction of an orbit half-edge away from its start
+/// vertex (the strut-order comparison's angular reference).
+fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, BooleanError> {
+    let corrupt = || BooleanError::ClassificationInvariant {
+        what: "strut anchor edge no longer resolves",
+    };
+    let hd = body.get_half_edge(he).ok_or_else(corrupt)?;
+    let p_of = |v: crate::entity::VertexKey| -> Result<geom_core::Point3<T>, BooleanError> {
+        body.get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+            .ok_or_else(corrupt)
+    };
+    let end = body.half_edge_end(he).ok_or_else(corrupt)?;
+    let d = p_of(end)? - p_of(hd.start)?;
+    Ok(d.normalize())
 }
 
 /// The germ's outgoing direction: the unit intersection direction of
@@ -299,6 +356,7 @@ fn mint_run<T: Decide>(
     to: usize,
     run_side: SideCode,
     germ_meta: [((FaceKey, FaceKey), Vec3<T>); 2],
+    spike_from_first: bool,
 ) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
     let hes = run_fan(sectors, from, to)?;
     let successor = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
@@ -341,29 +399,32 @@ fn mint_run<T: Decide>(
             });
         }
     };
-    let created = body.mev_null(site, new_side)?;
     // Side attributes per the PR 5.5 sense theorem (join module docs):
     // the half FACING a germ is UP (starts at `below_end`) iff that
     // germ's own forward-wedge code is Out. Non-dangling: he_plus
     // (old → new) faces the from-germ whose forward code is the run
-    // side, so `created` is the below end exactly for In-runs. Dangling
-    // struts swap the facing (he_minus at the from-germ), so the
-    // labels swap with it — the attribute is derived sense data, never
-    // a mint-slot echo.
-    let created_below = match new_side {
-        NewVertexSide::Below => !dangling,
-        NewVertexSide::Above => dangling,
+    // side, so `created` is the below end exactly for In-runs.
+    // Dangling struts in the default spike order swap the facing
+    // (he_minus at the from-germ), so the SIDE swaps with it; the
+    // angular `spike_from_first` order restores the non-dangling
+    // facing. The attribute is derived sense data, never a mint-slot
+    // echo; the mint side follows so the body's scaffold attribute and
+    // the pipeline record stay one datum.
+    let attr_side = match (new_side, dangling && !spike_from_first) {
+        (side, false) => side,
+        (NewVertexSide::Below, true) => NewVertexSide::Above,
+        (NewVertexSide::Above, true) => NewVertexSide::Below,
     };
-    let attr = if created_below {
-        NullEdge {
+    let created = body.mev_null(site, attr_side)?;
+    let attr = match attr_side {
+        NewVertexSide::Below => NullEdge {
             below_end: created.vertex,
             above_end: vertex,
-        }
-    } else {
-        NullEdge {
+        },
+        NewVertexSide::Above => NullEdge {
             below_end: vertex,
             above_end: created.vertex,
-        }
+        },
     };
     let germ = |i: usize, he: crate::entity::HalfEdgeKey| super::HalfGerm {
         he,
@@ -373,10 +434,12 @@ fn mint_run<T: Decide>(
     };
     // Germ ↔ half facing: for a fan the mev splice puts he_plus at the
     // from-germ cut and he_minus at the to-germ cut; a strut's spike
-    // splices [he_plus, he_minus] into one corner with the from-germ on
-    // the he_minus side (the corner walk arrives through the to-germ) —
-    // pinned empirically by the joining fixtures.
-    let germs = if dangling {
+    // splices [he_plus, he_minus] into one corner, and which germ the
+    // loop-first half (he_plus) faces is the angular spike order
+    // decided at the mint site (`spike_from_first`; the default — the
+    // corner walk arriving through the to-germ — was pinned
+    // empirically by the joining fixtures).
+    let germs = if dangling && !spike_from_first {
         [germ(0, created.he_minus), germ(1, created.he_plus)]
     } else {
         [germ(0, created.he_plus), germ(1, created.he_minus)]

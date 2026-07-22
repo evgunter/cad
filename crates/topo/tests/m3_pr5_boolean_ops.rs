@@ -173,30 +173,20 @@ fn two_bricks_union() {
 // sharing both cap planes; the Eq. 15.3 lanes live through join.
 // ---------------------------------------------------------------
 
-/// KNOWN LIMITATION, pinned honestly (PR 5 report, deviation): the
-/// Fig. 15.1 coplanar-overlap ∩ — whose seam runs ALONG existing
-/// operand edges and around face corners (the Eq. 15.3 lanes) —
-/// currently REFUSES TYPED at the joining stage rather than producing
-/// the [1,2]²×[0,1] cube. The classification, germ matching, facing
-/// and cap joins are all correct (the four cap seam edges join); the
-/// residual is the bridging of polygon fragments across corner-merged
-/// sliver faces — the `ssortnulledges`-order question the grounding
-/// synthesis flagged as possibly load-bearing. Operands stay
-/// untouched; no corrupt body is ever emitted. Landing zone: the PR 5
-/// fix pass / PR 6.
+/// The Fig. 15.1 coplanar-overlap ∩ (the deferred PR 5 acceptance
+/// item, landed by PR 5.5): the seam runs partly ALONG the shared cap
+/// planes; the angular strut spike order (the sort half of
+/// `ssortnulledges`, `bool_strut_order`) nests the corner-site chords
+/// so the joining completes and the [1,2]²×[0,1] cube comes out with
+/// exact mass properties.
 #[test]
 fn coplanar_overlap_intersect() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
-    let before = (format!("{a:?}"), format!("{b:?}"));
-    let err = topo::intersect(&a, &b).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::JoinDesync { .. } | BooleanError::Join(_)),
-        "typed joining refusal, got {err:?}"
-    );
-    // Fail-loud contract: operands bitwise untouched, no partial body.
-    assert_eq!(format!("{a:?}"), before.0);
-    assert_eq!(format!("{b:?}"), before.1);
+    let r = run(topo::intersect, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_props(&body.body, 1.0, 6.0);
 }
 
 // ---------------------------------------------------------------
@@ -325,51 +315,33 @@ fn boss_union() {
     assert_tier3_posture(&body.body);
 }
 
-/// KNOWN LIMITATION (narrowed by the PR 5 review — the double-ring
-/// configs are NOT the whole refusal family; see the `ops` module's
-/// "Known limitations" section for the full honest envelope): the
-/// double-ring single-face-seam configurations — a pillar piercing
-/// BOTH caps (tunnel) and the inset-leg union — refuse TYPED at the
-/// seam zip: the two kept section loops arrive PARALLEL where the
-/// glue needs antiparallel cycles (the cross-solid loop-orientation
-/// relation the book pins via its he1/he2 null-edge insertion
-/// convention is not yet enforced through this pipeline's structural
-/// join). Review R1 adds that even SINGLE-ring pockets/bosses refuse
-/// `SeamOrientation` on a handedness-correlated half of face
-/// orientations (works {+z,−x,−y}, refuses {−z,+x,+y}); R2/R3 add
-/// multi-collinear-site JoinDesync and crossing-polygon
-/// disconnection. The blocker-class SILENT wrong-component results
-/// these fixtures originally exposed are FIXED (geometric role
-/// resolution); every remaining failure is a loud refusal, operands
-/// untouched. Landing zone: PR 5.5 (the cross-solid ordering/
-/// orientation discipline).
+/// The double-ring single-face-seam family, landed by PR 5.5's seam
+/// discipline (derived senses + per-solid ring-lane role rule): the
+/// through-pillar tunnel — a pillar piercing BOTH caps — subtracts to
+/// the genus-1 body with exact mass properties.
 #[test]
-fn through_pillar_subtract_refuses_typed() {
+fn through_pillar_subtract() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (-0.5, 2.5));
-    let err = subtract(&a, &b).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            BooleanError::SeamOrientation { .. } | BooleanError::JoinDesync { .. }
-        ),
-        "typed refusal, got {err:?}"
-    );
+    let r = run(subtract, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.shells().count(), 1);
+    // vol = 8 − 0.5·0.5·2; area = 24 − 2·0.25 + tunnel walls 4·(0.5·2).
+    assert_props(&body.body, 7.5, 27.5);
 }
 
-/// Same limitation family as [`through_pillar_subtract_refuses_typed`].
+/// Same family as [`through_pillar_subtract`]: the inset-leg union.
 #[test]
-fn inset_leg_union_refuses_typed() {
+fn inset_leg_union() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 1.5));
     let b = brick::<f64>((0.5, 1.0), (0.5, 1.0), (0.0, 1.25));
-    let err = union(&a, &b).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            BooleanError::SeamOrientation { .. } | BooleanError::JoinDesync { .. }
-        ),
-        "typed refusal, got {err:?}"
-    );
+    let r = run(union, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    // vol = 2·2·0.5 + 0.5·0.5·1.0; area = slab 2·4 + rim 4 − foot .25
+    // + leg walls 4·(0.5·1.0) + leg bottom .25.
+    assert_props(&body.body, 2.25, 14.0);
 }
 
 // ---------------------------------------------------------------
@@ -412,6 +384,17 @@ fn subtract_equals_intersect_revert_oracle() {
             brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
             brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
         ),
+        // PR 5.5's newly-working seam families.
+        (
+            "plus-x-pocket",
+            brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
+            brick((1.5, 2.5), (0.75, 1.25), (0.75, 1.25)),
+        ),
+        (
+            "through-pillar",
+            brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
+            brick((0.75, 1.25), (0.75, 1.25), (-0.5, 2.5)),
+        ),
     ];
     for (name, a, b) in corpus {
         let direct = subtract(&a, &b).unwrap();
@@ -440,21 +423,23 @@ fn subtract_equals_intersect_revert_oracle() {
 
 #[test]
 fn merge_ladder_fires_only_on_declared_planes() {
-    // Full-overlap stacked bricks route through the collinear-seam
-    // lanes, which are within the pinned coplanar-join limitation —
-    // verify the DECLARED and UNDECLARED variants behave identically
-    // typed-or-body-wise, and if bodies come back, that only the
-    // declared variant merges. Presently both refuse typed (the
-    // documented limitation); this test pins that the declared-plane
-    // sharing changes NOTHING silently.
+    // Full-overlap stacked bricks: the whole seam runs ALONG existing
+    // operand edges (boundary-on-boundary coincidence), the one family
+    // still outside PR 5.5's joining envelope — the on-edge germs have
+    // no facing chord partner and the join refuses typed
+    // (UnpairedLooseEnds; ops module "Known limitations"). Verify the
+    // DECLARED and UNDECLARED variants behave identically
+    // typed-or-body-wise; if this starts succeeding, extend this test
+    // to assert the declared-rung merge census per the F7 contract.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
     let undeclared = union(&a, &b);
     assert!(
         undeclared.is_err(),
-        "stacked-full union currently refuses typed (collinear-seam \
-         limitation); if this starts succeeding, extend this test to \
-         assert the declared-rung merge census per the F7 contract"
+        "stacked-full union currently refuses typed (boundary-on-\
+         boundary seam limitation); if this starts succeeding, extend \
+         this test to assert the declared-rung merge census per the F7 \
+         contract"
     );
 }
 

@@ -216,7 +216,17 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 )
             }
         };
-        let created = piercing_body.mev_null(site, NewVertexSide::Above)?;
+        // Sense theorem (join module docs): the half facing the run's
+        // START germ (forward code Out) must be the UP half — for the
+        // dangling splice that half is he_minus (starts at the copy),
+        // so the SIDE swaps with the facing (mint side flipped to keep
+        // the body scaffold attribute and the record one datum).
+        let side = if dangling {
+            NewVertexSide::Below
+        } else {
+            NewVertexSide::Above
+        };
+        let created = piercing_body.mev_null(site, side)?;
         let Some(&((gs, ds), (ge, de))) = run_germs.last() else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "run germ bookkeeping desynchronized",
@@ -227,20 +237,15 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         } else {
             (created.he_plus, created.he_minus)
         };
-        // Sense theorem (join module docs): the half facing the run's
-        // START germ (forward code Out) must be the UP half — for the
-        // dangling splice that half is he_minus (starts at the copy),
-        // so the side labels swap with the facing.
-        let attr = if dangling {
-            NullEdge {
+        let attr = match side {
+            NewVertexSide::Below => NullEdge {
                 below_end: created.vertex,
                 above_end: vertex,
-            }
-        } else {
-            NullEdge {
+            },
+            NewVertexSide::Above => NullEdge {
                 below_end: vertex,
                 above_end: created.vertex,
-            }
+            },
         };
         let rec = BoolNullEdgeRecord {
             operand: piercing,

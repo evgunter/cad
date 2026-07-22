@@ -5,8 +5,9 @@
 //! the SAME loose end — realized through PR 4's explicit
 //! [`NullEdgePairRecord`](super::NullEdgePairRecord) correspondence
 //! keys and the **germ facings** ([`HalfGerm`]) recorded at insertion
-//! (F9: correspondence as data, never correlated array order —
-//! `ssortnulledges` stays engineered out).
+//! (F9: correspondence as data, never correlated array order — the
+//! book's `ssortnulledges` ordering/orientation discipline is
+//! enforced as the derived sense data below, not as a sort).
 //!
 //! # Matching is germ identity, not slots or senses (the below-copy
 //! # audit)
@@ -30,6 +31,55 @@
 //! membership of the IN/OUT end-vertex sets built from the F9
 //! attributes (`in_copy` = the loop through IN ends), and the germ
 //! facings identify halves regardless of which side was minted.
+//!
+//! # The seam-orientation discipline (PR 5.5 — the derived form of
+//! # the book's ssortnulledges / he1↔he2 crossover)
+//!
+//! Derived from the ratified conventions (outward normals, loops
+//! CCW-from-outside: a half-edge with tangent `t` on a face with
+//! normal `n` has interior to its LEFT, `n×t` pointing in), each step
+//! mirror-checked in the M3-LOG PR 5.5 record:
+//!
+//! 1. **Required end state.** On the germ line of face pair (fA, fB),
+//!    the boundary of fA's region inside B runs `tA(in) = nA×nB`
+//!    (check: `nA×(nA×nB) ∝ proj(−nB)`, the into-B direction);
+//!    `tA(out)`, `tB(in)`, `tB(out)` follow by the A↔B and in↔out
+//!    mirrors, giving `tA(x) = −tB(x)`. Section loops are mates of
+//!    region boundaries, so for every op — ∩ (IN,IN), ∪ (OUT,OUT),
+//!    ∖ (A-OUT, revert(B-IN)) — the kept loops are antiparallel at
+//!    the zip **iff each solid's section loops attach to its own
+//!    regions geometrically-CCW-consistently**. Op-independent.
+//! 2. **The sense theorem.** The half FACING germ `g` is UP (starts
+//!    at `below_end`) iff `g`'s own-solid forward-wedge code is Out;
+//!    geometrically, with the orbit-forward direction `w = σ·n_own×d`
+//!    (σ the fixed orbit handedness, shared by both solids), UP ⟺
+//!    `σ·det[n_own, d, n_other] > 0`. Mirror checks: a strut's two
+//!    germs share the line with `d1 = −d0` ⇒ opposite senses; the two
+//!    facing germs of one polygon side ⇒ opposite senses within each
+//!    solid (the neighbor test); `det[nA,d,nB] = −det[nB,d,nA]` ⇒
+//!    **sense_A(g) = ¬sense_B(g) at every germ** — the cross-solid
+//!    anti-correlation. Insertion mints attributes to this rule
+//!    (struts included — their facing swap swaps the labels with it),
+//!    so the attributes ARE the discipline; nothing rebinds later.
+//! 3. **What the join controls.** Surgery never reverses existing
+//!    halves, and chords close cycles forced by arc endpoints, so the
+//!    directed cycles after every join are fixed by the senses alone:
+//!    per polygon side the IN copies are chorded `up-site → down-site`
+//!    on the region side (that direction CCW-bounds the IN region —
+//!    the same determinant as step 2), and the section face receives
+//!    the antiparallel copies. Role order moves only FACE identity:
+//!    which cycle becomes the mef's new face vs stays with the old.
+//!    That is orientation-neutral for outer-loop splits and mekr
+//!    merges, and load-bearing exactly for RING splits, where the
+//!    remainder becomes the old face's ring (a hole boundary must
+//!    anti-enclose): the run must take the cycle opposite the face's
+//!    residual-material side — [`choose_roles`]' derived rule.
+//! 4. **Consistency theorem.** With (2) as data, (3)'s ring rule per
+//!    solid, and matching that consumes the SAME germ in both solids
+//!    ([`find_match`]'s slot lock), every completed polygon pair has
+//!    A's IN loop antiparallel to B's IN loop, and the zip assertion
+//!    ([`BooleanError::SeamOrientation`]) is a theorem with a runtime
+//!    witness, not a hope.
 //!
 //! # The fixpoint sweep and lockstep discipline
 //!
@@ -209,10 +259,9 @@ pub(super) fn bool_connect<T: Decide>(
             open[m.cand].b[m.cand_slot].0.he,
         );
         // Still-loose halves (choose_roles' separation constraint —
-        // a role order must not wall a pending site off from its
+        // a role order must not wall a pending half off from its match
         // partner). The chosen halves themselves are being consumed.
-        let mut a_loose = loose_siblings(&open, Operand::A);
-        let mut b_loose = loose_siblings(&open, Operand::B);
+        let (mut a_loose, mut b_loose) = loose_partners(&open, red, band)?;
         a_loose.remove(ea);
         a_loose.remove(ra);
         b_loose.remove(eb);
@@ -417,35 +466,87 @@ fn find_match<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// Still-unused null-edge halves of one solid, each mapped to its
-/// record's OTHER loose half (or None when it is the record's last).
-fn loose_siblings<T: geom_core::Real>(
+/// Still-unused null-edge halves, each mapped to its geometric MATCH
+/// PARTNER's half in the same solid: the nearest mutually-facing loose
+/// germ with the same face pair — [`find_match`]'s own criteria,
+/// static in the germ geometry, so a captured partner PAIR can still
+/// join (same face) while splitting a pair walls one side off. Germ
+/// meta is shared between the solids, so the (record, slot) partner
+/// relation is computed once (A-clone points — coincident copies) and
+/// translated per solid. A loose half with no partner maps to `None`
+/// (conservatively separated wherever captured).
+type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
+
+fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
-    operand: Operand,
-) -> SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>> {
-    let mut set = SecondaryMap::new();
-    for r in open {
-        let side = match operand {
-            Operand::A => &r.a,
-            Operand::B => &r.b,
-        };
-        let loose: Vec<HalfEdgeKey> = side
-            .iter()
-            .filter(|(_, used)| !used)
-            .map(|(g, _)| g.he)
-            .collect();
-        match loose.as_slice() {
-            [one] => {
-                set.insert(*one, None);
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<(LooseMap, LooseMap), BooleanError> {
+    use geom_core::Sign;
+    let desync = |what| BooleanError::JoinDesync { what };
+    let escalate = |diag| BooleanError::Escalated { diag };
+    let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
+        let v = red
+            .a
+            .get_half_edge(he)
+            .ok_or(desync("germ half no longer resolves"))?
+            .start;
+        red.a
+            .get_vertex(v)
+            .and_then(|vd| red.a.get_point(vd.point).copied())
+            .ok_or(desync("germ vertex has no point"))
+    };
+    let loose: Vec<(usize, usize)> = open
+        .iter()
+        .enumerate()
+        .flat_map(|(i, r)| (0..2).filter(move |&s| !r.a[s].1).map(move |s| (i, s)))
+        .collect();
+    let mut a_map: LooseMap = SecondaryMap::new();
+    let mut b_map: LooseMap = SecondaryMap::new();
+    for &(i, s) in &loose {
+        let g = open[i].a[s].0;
+        let p = point_of(g.he)?;
+        let mut best: Option<(T, (usize, usize))> = None;
+        for &(j, t) in &loose {
+            if (j, t) == (i, s) {
+                continue;
             }
-            [x, y] => {
-                set.insert(*x, Some(*y));
-                set.insert(*y, Some(*x));
+            let g2 = open[j].a[t].0;
+            if g2.a_face != g.a_face || g2.b_face != g.b_face {
+                continue;
             }
-            _ => {}
+            let p2 = point_of(g2.he)?;
+            let chord = p2 - p;
+            let dist = chord.norm();
+            match decide("bool_join_nearest", dist, band).map_err(escalate)? {
+                Sign::Positive => {}
+                _ => continue,
+            }
+            let f1 = g.dir.dot(chord) / dist;
+            let f2 = g2.dir.dot(-chord) / dist;
+            if decide("bool_join_facing", f1, band).map_err(escalate)? != Sign::Positive
+                || decide("bool_join_facing", f2, band).map_err(escalate)? != Sign::Positive
+            {
+                continue;
+            }
+            best = match best {
+                None => Some((dist, (j, t))),
+                Some((bd, bm)) => match decide("bool_join_nearest", dist - bd, band)
+                    .map_err(escalate)?
+                {
+                    Sign::Negative => Some((dist, (j, t))),
+                    _ => Some((bd, bm)),
+                },
+            };
         }
+        let partner = best.map(|(_, jt)| jt);
+        a_map.insert(g.he, partner.map(|(j, t)| open[j].a[t].0.he));
+        b_map.insert(
+            open[i].b[s].0.he,
+            partner.map(|(j, t)| open[j].b[t].0.he),
+        );
     }
-    set
+    Ok((a_map, b_map))
 }
 
 /// Chooses the join role order for one solid (PR 5.5 — the enforced
@@ -505,7 +606,29 @@ fn choose_roles<T: Decide>(
         .ok_or(desync("role face no longer resolves"))?
         .outer;
     if l == outer {
-        return clean_dir(body, ea, ra, loose)?.ok_or(desync(
+        let picked = clean_dir(body, ea, ra, loose)?;
+        if picked.is_none() && std::env::var("SEAM_DEBUG").is_ok() {
+            let cyc = body
+                .get_loop(l)
+                .and_then(|ld| match ld.boundary {
+                    crate::entity::LoopBoundary::Cycle { first } => body.loop_cycle(first),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            eprintln!("BOTH-DIRTY outer split: ea={ea:?} ra={ra:?}");
+            for h in cyc {
+                let v = body.get_half_edge(h).map(|d| d.start);
+                let p = v
+                    .and_then(|v| body.get_vertex(v))
+                    .and_then(|vd| body.get_point(vd.point));
+                eprintln!(
+                    "  he {h:?} loose={:?} chosen={} p={p:?}",
+                    loose.get(h).copied(),
+                    h == ea || h == ra,
+                );
+            }
+        }
+        return picked.ok_or(desync(
             "every chord arc separates a loose scaffolding pair",
         ));
     }
@@ -598,10 +721,12 @@ fn clean_dir<T: Decide>(
     if loop_of(ea)? != loop_of(ra)? {
         return Ok(Some((ea, ra)));
     }
-    // A direction is BAD iff its arc SEPARATES some record's loose
-    // halves (captures exactly one of a loose pair, or a record's last
-    // loose half — the capture would wall it off from its partner
-    // site). Capturing a complete loose pair together is harmless.
+    // A direction is BAD iff its arc SEPARATES a loose half from its
+    // match partner (captures exactly one of a partner pair, or a
+    // half with no computable partner — the capture would wall it off
+    // on the new face where its partner cannot reach it). Capturing a
+    // complete partner pair together is harmless: they still share a
+    // face and join there.
     let separates = |from: HalfEdgeKey, to: HalfEdgeKey| -> Result<bool, BooleanError> {
         let mut inside: Vec<HalfEdgeKey> = Vec::new();
         let mut he = body
