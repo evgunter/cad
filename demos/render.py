@@ -26,6 +26,19 @@ BODIES = {
     "donut": {"color": (0.78, 0.42, 0.72), "view": (38, -50), "up": "y"},
     "pulley": {"color": (0.74, 0.68, 0.30), "view": (22, -55), "up": "y"},
     "wedge": {"color": (0.44, 0.68, 0.78), "view": (35, -40), "up": "y"},
+    # The boolean leg (M3 PR 5). voidbox_cutaway is exported only when
+    # the multi-shell cutaway subtract succeeds; missing STLs from this
+    # group are skipped with a warning (the tour narrates why).
+    "table": {"color": (0.62, 0.45, 0.28), "view": (12, -55), "up": "z",
+              "optional": True},
+    "openbox": {"color": (0.40, 0.60, 0.72), "view": (38, -125), "up": "z",
+                "optional": True},
+    "scoopbox": {"color": (0.46, 0.56, 0.76), "view": (38, -125), "up": "z",
+                 "optional": True},
+    "voidbox": {"color": (0.58, 0.58, 0.64), "view": (30, -55), "up": "z",
+                "optional": True},
+    "voidbox_cutaway": {"color": (0.58, 0.58, 0.64), "view": (28, -55),
+                        "up": "z", "optional": True},
 }
 
 LIGHT = np.array([0.35, -0.45, 0.82])  # camera side: views sit at azim ~ -50
@@ -111,10 +124,15 @@ def main():
     for name, cfg in BODIES.items():
         path = stl_dir / f"{name}.stl"
         if not path.exists():
+            if cfg.get("optional"):
+                print(f"skipping {name} (no {path} — see the tour narration)")
+                continue
             sys.exit(f"missing {path} — run the tour first")
         meshes[name] = read_binary_stl(path)
 
     for name, cfg in BODIES.items():
+        if name not in meshes:
+            continue
         fig = plt.figure(figsize=(5, 5), dpi=130)
         ax = fig.add_subplot(projection="3d")
         draw(ax, meshes[name], cfg)
@@ -125,12 +143,15 @@ def main():
         print(f"rendered {out_dir / f'{name}.png'} "
               f"({len(meshes[name])} triangles)")
 
-    fig = plt.figure(figsize=(10.5, 7), dpi=120)
-    for i, (name, cfg) in enumerate(BODIES.items(), start=1):
-        ax = fig.add_subplot(2, 3, i, projection="3d")
-        draw(ax, meshes[name], cfg)
+    present = [n for n in BODIES if n in meshes]
+    cols = 3
+    rows = -(-len(present) // cols)
+    fig = plt.figure(figsize=(10.5, 3.5 * rows), dpi=120)
+    for i, name in enumerate(present, start=1):
+        ax = fig.add_subplot(rows, cols, i, projection="3d")
+        draw(ax, meshes[name], BODIES[name])
         ax.set_title(name, fontsize=12, pad=0)
-    fig.suptitle("B-rep kernel demo tour — extrude / revolve highlights",
+    fig.suptitle("B-rep kernel demo tour — sweeps + M3 boolean ops",
                  fontsize=14)
     fig.tight_layout(pad=0.2, rect=(0, 0, 1, 0.96))
     fig.savefig(out_dir / "montage.png", facecolor="white")
