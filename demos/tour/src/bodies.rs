@@ -139,6 +139,8 @@ pub fn stops() -> Vec<Stop> {
             story: "L-bracket with a filleted inner corner (polyline + tangent arc profile)",
             ops: "LoopBuilder (line_to/arc_to_via) -> Profile::validate -> extrude(Distance)",
             delta: 1e-2,
+            seamed: false,
+            note: None,
             body: bracket(),
         },
         Stop {
@@ -146,6 +148,8 @@ pub fn stops() -> Vec<Stop> {
             story: "plate with two circular holes — genus 2 (each hole: 2 rings, wall band)",
             ops: "polygon outer + two closed arc-carrier holes -> extrude(Distance)",
             delta: 1e-2,
+            seamed: false,
+            note: None,
             body: plate(),
         },
         Stop {
@@ -153,6 +157,8 @@ pub fn stops() -> Vec<Stop> {
             story: "solid vase — axis-touching profile, spherical belly zone + conical lip",
             ops: "LoopBuilder line/arc_to_via -> revolve(axis y, Full); sphere/cone/plane faces",
             delta: 2e-2,
+            seamed: false,
+            note: None,
             body: vase(),
         },
         Stop {
@@ -160,6 +166,8 @@ pub fn stops() -> Vec<Stop> {
             story: "torus — off-axis circle revolved; closed all-curved body, genus 1",
             ops: "two-vertex bulge-1 circle -> revolve(axis y, Full)",
             delta: 8e-2,
+            seamed: false,
+            note: None,
             body: donut(),
         },
         Stop {
@@ -167,6 +175,8 @@ pub fn stops() -> Vec<Stop> {
             story: "V-groove pulley — off-axis polyline revolved; cones, cylinders, annuli",
             ops: "7-gon profile -> revolve(axis y, Full), genus 1",
             delta: 2e-2,
+            seamed: false,
+            note: None,
             body: pulley(),
         },
         Stop {
@@ -174,6 +184,8 @@ pub fn stops() -> Vec<Stop> {
             story: "quarter wedge — partial 90 degree revolve with planar wedge caps",
             ops: "rectangle -> revolve(axis y, Partial(pi/2))",
             delta: 1e-2,
+            seamed: false,
+            note: None,
             body: wedge(),
         },
     ]

@@ -2,7 +2,8 @@
 
 A visual tour of what the kernel can do today, from a pure outside
 consumer's seat: six bodies built through the public `profile` /
-`sweep` APIs, narrated (operations used, topology census + genus,
+`sweep` APIs, then a boolean leg through the M3 PR 5 `union` /
+`subtract` ops — narrated (operations used, topology census + genus,
 validation tiers passed, exact-vs-meshed mass properties), exported as
 binary STL, and rendered to PNG.
 
@@ -35,6 +36,40 @@ Outputs: `demos/out/*.stl` (untracked), `demos/renders/*.png` (tracked
 | `donut` | full revolve of an off-axis circle — closed all-curved torus, genus 1 |
 | `pulley` | full revolve of an off-axis polyline — V-groove, center bore |
 | `wedge` | partial (90°) revolve — wedge caps, arc rims |
+
+### The boolean leg (M3 PR 5)
+
+All boolean operands are axis-aligned boxes from one shared builder
+(`slab`), so intended coincidences arise from bit-identical values.
+Every scene checks the op's result against an exact box-arithmetic
+volume oracle and narrates each attempted variant honestly.
+
+| stop | what it shows |
+| --- | --- |
+| die (blocked) | the intended 21-pocket subtract die; demonstrates the branch's cookie-cutter defect live (see below) — no STL |
+| `table` | tabletop ∪ 4 corner-straddling legs — 4 sequential Seamed union nodes; coplanar-touching and inset-overlap leg variants attempted and narrated |
+| `openbox` | subtract through-cut: cavity cutter overhanging top + one wall (the fully-interior top opening is cookie-cutter blocked, narrated) |
+| `voidbox` | inner box strictly inside, subtracted — kind `Voided`, TWO shells, the first legitimate voids; V = 8 − 1 = 7 exactly; a cutaway subtract of the two-shell body is attempted and its typed refusal narrated |
+
+Known-limitation narration baked into the tour (all PR 5/6 fix-pass
+feedback, demonstrated with exact numbers rather than claimed):
+
+- **Cookie-cutter seams** (the seam ring closes within a single face:
+  pocket, boss, through-pillar, inset leg) return the WRONG component
+  as a tier-1/2-legal body — silently; the tour's volume oracle
+  catches it. This blocks the die entirely (a pip pocket is
+  single-face by nature; spherical pips await M5's curved booleans,
+  and frustum pips would need taper — extrude is straight-only).
+- **Extrude operands**: `extrude` describes edges as `Intersection`
+  of adjacent surfaces; the ops' carve/merge stages leave those
+  references dangling (`Merge(InputNotClosed)` refusal), so the tour
+  re-describes operand edges as chord lines first.
+- **Coplanar touching-only union** (flush stacked boxes) refuses with
+  `Join(UnpairedLooseEnds)`; corner-flush shared-plane variants refuse
+  with `Join(RingHoming)` — PR 6 territory, narrated.
+- Boolean outputs carry chord descriptions on seam edges, so tier 3
+  runs on an `Intersection`-upgraded clone (the test suite's
+  documented posture; the honest upgrade op is a PR 6 obligation).
 
 The tour's coda feeds a self-intersecting (bowtie) profile to
 `Profile::validate` and prints the typed rejection — the fail-loud
