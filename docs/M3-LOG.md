@@ -503,6 +503,74 @@ table, voids documentation), the sweep has picked up:
   record is missing) must be designed and pinned at the 3′ gate, not
   assumed.
 
+## State snapshot (session 2 pause point, 2026-07-22)
+
+Supersedes the 2026-07-21 snapshot below (kept as historical record).
+
+- **Merged to main** (`318bdf7` + docs PRs after): M3 PRs 1–4 — #53
+  (surgery), #55 (split reduce), #61 (split join/finish + `split` +
+  `plane_section`), #62 (boolean reduce/classify) — each through the
+  full implement → adversarial-review → fix-pass cycle; process PRs
+  #46–#48, #50 (worktree hygiene), #52+#54 (CI test-speed, final
+  state: spade+mesh package overrides + scripts/test-fast.sh), #56
+  (PR 6 obligations), #57+#58 (bit-identity retirement + tripwire),
+  #59; PERF-PLAN #49 (ratified, Q-P1 answered: DESIGN.md folds at
+  PR 6); demo tour #51 (`demos/`). BOB fork RESOLVED on #61: option
+  (B), below-copy minting a COMMITTED PR 6 obligation.
+- **In flight at pause**: (1) PR 5 implementer (booleans part 2) on
+  `ev/m3-5-bool-finish` — public union/intersect/subtract + two-brick
+  bitwise acceptance landed; TWO BINDING ADDITIONS delivered mid-run
+  and absorbed per commit messages (`4672cd0`): the cookie-cutter
+  silent-wrong-component fix + fixture family with volume oracles,
+  and the extrude-operand description remap (extrude outputs
+  previously refused with Merge(InputNotClosed{DanglingDescription}));
+  final report pending at gates. (2) Demo agent DONE: boolean scenes
+  on `ev/demo-boolean-tour` @ `d5b6511` (based on the PR 5 branch; PR
+  deliberately NOT opened until PR 5 merges) — table/openbox/voidbox
+  work with renders; die honestly blocked on cookie-cutter with a
+  self-promoting assert; findings in memories/
+  boolean-consumer-findings.md on that branch.
+- **Next actions (Evan's pause instruction, 2026-07-22, final form:
+  usage limits near. OK to run: PR 5's adversarial reviewer, a SMALL
+  fix pass, and trivial completions — opening/merging PR 5 and the
+  demo PR on green. NOT OK: PR 6 (any part), and major PR 5 rework —
+  if the review finds major changes, record them in this log as the
+  resumption plan instead of executing)**. The reviewer charter,
+  accumulated: cookie-cutter family verification (exact-volume
+  oracles; suspects were Eq 15.1 seeds / lmfkrh ring-side / carve
+  classification); the extrude-operand path e2e (real profile→extrude
+  operands, no caller normalization); the reworked join internals
+  ("germ-keyed lockstep joining, facing+nearest, wild-strut binding,
+  geometric role resolution at quiescence" — new machinery, attack
+  hard); the below-copy audit under joining; the voided-split cutaway
+  refusal diagnosis (Join(RingHoming) — principled refusal of the
+  unbuilt cross-shell annulus assembly, or a masked wrong-loop bug?);
+  touching-union refusals honesty (UnpairedLooseEnds{8},
+  RingHoming — honest classification or the cookie-cutter bug in a
+  typed mask?); combine-door contract vs the CrossSolid boundary;
+  Eq 15.1 selection + revert lane; A∖B ≡ A∩revert(B) oracle scope;
+  voids/disjoint/Empty landings; F7 output stage on declared pairs;
+  D9 replay; interval lane; poison grep.
+- **After the pause** (resumption order): PR 5 fix pass (+ M3-LOG
+  record) → open PR 5 with full writeup, self-merge on green → open +
+  merge the demo PR (`ev/demo-boolean-tour`; check its listed call
+  sites against the fix pass: booleans.rs normalize/upgrade helpers,
+  die_blocked's assert, table/open_box narrations) → spec PR 6 (the
+  Accumulating PR 6 obligations section above is the charter) → M3
+  exit sweep.
+- **Operational notes**: the usage events.jsonl
+  (~/.mngr/agents/<id>/events/claude/usage/) went STALE mid-session
+  (last entry 14:26Z while the session ran 13+ h more) — the usage
+  monitor silently watched a dead file; successors should verify the
+  file's mtime before trusting it and prefer Evan's own meter. Evan
+  also notes (2026-07-22) the events file may not reflect FABLE-tier
+  limits at all even when fresh — treat it as advisory only; Evan's
+  in-chat warnings are the authoritative signal.
+  Monitors at pause: away-channel comments+issues + watchlisted
+  reactions (watchlist file in the session scratchpad), usage watch
+  (stale-file caveat). Sign-off watchlist mechanism: register comment
+  IDs when explicitly requesting a 👍.
+
 ## State snapshot (handoff point, 2026-07-21)
 
 - **Merged to main**: everything through M2 exit — M2 PRs 1–7 (#27,
