@@ -555,7 +555,16 @@ Supersedes the 2026-07-21 snapshot below (kept as historical record).
   record) → open PR 5 with full writeup, self-merge on green → open +
   merge the demo PR (`ev/demo-boolean-tour`; check its listed call
   sites against the fix pass: booleans.rs normalize/upgrade helpers,
-  die_blocked's assert, table/open_box narrations) → spec PR 6 (the
+  die_blocked's assert, table/open_box narrations) → **PR 5.5
+  (Evan-approved in chat, 2026-07-22): the collinear-seam family as
+  its own PR landing before PR 6** — Fig 15.1 coplanar-overlap ∩
+  (the deferred PR 5 acceptance item), double-ring single-face seams
+  (SeamOrientation), flush-stacked/corner-flush unions; diagnosis to
+  start from: the cross-solid processing-order/orientation discipline
+  the book buries in ssortnulledges (validate against the PR 5
+  review's assessment); full implement→review→fix cycle like any PR;
+  the demo's die/open-box/table pure variants and the F7
+  declared-rung verification unblock here → spec PR 6 (the
   Accumulating PR 6 obligations section above is the charter) → M3
   exit sweep.
 - **Operational notes**: the usage events.jsonl
