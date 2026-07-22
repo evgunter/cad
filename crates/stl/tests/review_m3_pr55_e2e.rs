@@ -9,9 +9,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::type_complexity)] // fixture tables read clearer inline
 
+use geom_core::Tolerance;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
-use geom_core::Tolerance;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, mass_properties, subtract, validate, validate_closed};
@@ -21,7 +21,9 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
-    Profile::new(plane, vec![lp]).validate(Tolerance::get()).unwrap()
+    Profile::new(plane, vec![lp])
+        .validate(Tolerance::get())
+        .unwrap()
 }
 
 /// A rectangular raw-extrude brick on an arbitrary sketch frame.
@@ -62,7 +64,14 @@ fn die_from_raw_extrudes_watertight_stl() {
             Point3::new(0.0, 0.0, 0.125),
             ey,
             ex, // normal -z
-            vec![(g[0], g[0]), (g[1], g[1]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0]), (g[0], g[1])],
+            vec![
+                (g[0], g[0]),
+                (g[1], g[1]),
+                (g[2], g[2]),
+                (g[0], g[2]),
+                (g[2], g[0]),
+                (g[0], g[1]),
+            ],
         ),
         (
             Point3::new(1.875, 0.0, 0.0),
@@ -74,7 +83,13 @@ fn die_from_raw_extrudes_watertight_stl() {
             Point3::new(0.125, 0.0, 0.0),
             ez,
             ey, // normal -x
-            vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0]), (g[1], g[1])],
+            vec![
+                (g[0], g[0]),
+                (g[2], g[2]),
+                (g[0], g[2]),
+                (g[2], g[0]),
+                (g[1], g[1]),
+            ],
         ),
         (
             Point3::new(0.0, 1.875, 0.0),
@@ -92,7 +107,14 @@ fn die_from_raw_extrudes_watertight_stl() {
     let mut pips = 0u32;
     for (origin, u, v, centers) in faces {
         for (cu, cv) in centers {
-            let pip = slab(origin, u, v, (cu - 0.125, cu + 0.125), (cv - 0.125, cv + 0.125), 0.625);
+            let pip = slab(
+                origin,
+                u,
+                v,
+                (cu - 0.125, cu + 0.125),
+                (cv - 0.125, cv + 0.125),
+                0.625,
+            );
             let r = subtract(&acc, &pip).unwrap();
             let BooleanResult::Body(bb) = r else {
                 panic!("pip subtract emptied the die");
@@ -112,7 +134,12 @@ fn die_from_raw_extrudes_watertight_stl() {
     check_mesh(&mesh).unwrap();
     let v = signed_volume(&mesh);
     assert!((v - 7.8359375).abs() < 1e-9, "mesh volume {v}");
-    let dir = std::env::var("REVIEW_STL_DIR").unwrap_or_else(|_| std::env::temp_dir().join("review_m3_pr55_stl").to_string_lossy().into_owned());
+    let dir = std::env::var("REVIEW_STL_DIR").unwrap_or_else(|_| {
+        std::env::temp_dir()
+            .join("review_m3_pr55_stl")
+            .to_string_lossy()
+            .into_owned()
+    });
     std::fs::create_dir_all(&dir).unwrap();
     let path = format!("{dir}/die21.stl");
     let mut file = std::fs::File::create(&path).unwrap();

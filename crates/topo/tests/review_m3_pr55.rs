@@ -63,8 +63,12 @@ fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3])
     for i in 2..n {
         let at = chain[i - 2].he_minus;
         chain.push(
-            body.mev(MevSite::Fan { he1: at, he2: at }, bot[i], line(bot[i - 1], bot[i]))
-                .unwrap(),
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                bot[i],
+                line(bot[i - 1], bot[i]),
+            )
+            .unwrap(),
         );
     }
     let bottom_vertices: Vec<_> = core::iter::once(seed.vertex)
@@ -96,8 +100,12 @@ fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3])
             f_bottom.he_plus
         };
         struts.push(
-            body.mev(MevSite::Fan { he1: at, he2: at }, top[i], line(bot[i], top[i]))
-                .unwrap(),
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                top[i],
+                line(bot[i], top[i]),
+            )
+            .unwrap(),
         );
     }
     let mut first_side_he_plus = None;
@@ -188,7 +196,11 @@ fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> S
     let e2 = op(a, b).map(|_| ()).unwrap_err();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
-    assert_eq!(format!("{e1:?}"), format!("{e2:?}"), "refusal deterministic");
+    assert_eq!(
+        format!("{e1:?}"),
+        format!("{e2:?}"),
+        "refusal deterministic"
+    );
     format!("{e1:?}")
 }
 
@@ -279,7 +291,11 @@ fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> (u32, u32,
 /// resolved per operand. With scoped lookups the theorem is clean.)
 #[test]
 fn b_sense_theorem_census() {
-    let ops = [topo::BooleanOp::Union, topo::BooleanOp::Intersect, topo::BooleanOp::Subtract];
+    let ops = [
+        topo::BooleanOp::Union,
+        topo::BooleanOp::Intersect,
+        topo::BooleanOp::Subtract,
+    ];
     let shear = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.5, 0.0, 1.0]];
     let sq = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
     let pil = [(0.75, 0.75), (1.25, 0.75), (1.25, 1.25), (0.75, 1.25)];
@@ -398,7 +414,14 @@ fn a_multi_spike_shared_corner_vertex() {
 /// a mis-nested chord would be off by O(0.1)).
 #[test]
 fn a_reflex_315_corner_tilted_cap() {
-    let reflex = [(0.0, 0.0), (2.0, 2.0), (-2.0, 2.0), (-2.0, -2.0), (2.0, -2.0), (2.0, 0.0)];
+    let reflex = [
+        (0.0, 0.0),
+        (2.0, 2.0),
+        (-2.0, 2.0),
+        (-2.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 0.0),
+    ];
     let sq = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     // B cap plane z = 1 + (x + 2y)/4 resp. z = 1 + (2x - y)/4.
     let shears = [
@@ -420,7 +443,10 @@ fn a_reflex_315_corner_tilted_cap() {
                 );
                 let r = run(subtract, &a, &b);
                 let vs = vol(&body_of(&r).body);
-                assert!((vs - (14.0 - 13.0 / 24.0)).abs() < 1e-12, "variant {k}: sub {vs}");
+                assert!(
+                    (vs - (14.0 - 13.0 / 24.0)).abs() < 1e-12,
+                    "variant {k}: sub {vs}"
+                );
             }
             Ok(BooleanResult::Empty) => panic!("variant {k}: nonempty overlap"),
             Err(_) => {
@@ -620,8 +646,18 @@ fn c_pocket_and_boss_same_face() {
 fn e_six_collinear_sites() {
     let w = prism_z::<f64>(
         &[
-            (0.0, 0.0), (5.0, 0.0), (5.0, 3.0), (4.0, 3.0), (4.0, 1.0), (3.0, 1.0),
-            (3.0, 3.0), (2.0, 3.0), (2.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0),
+            (0.0, 0.0),
+            (5.0, 0.0),
+            (5.0, 3.0),
+            (4.0, 3.0),
+            (4.0, 1.0),
+            (3.0, 1.0),
+            (3.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
         ],
         0.0,
         1.0,
@@ -640,9 +676,22 @@ fn e_six_collinear_sites() {
 fn e_eight_collinear_sites() {
     let comb = prism_z::<f64>(
         &[
-            (0.0, 0.0), (7.0, 0.0), (7.0, 3.0), (6.0, 3.0), (6.0, 1.0), (5.0, 1.0),
-            (5.0, 3.0), (4.0, 3.0), (4.0, 1.0), (3.0, 1.0), (3.0, 3.0), (2.0, 3.0),
-            (2.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0),
+            (0.0, 0.0),
+            (7.0, 0.0),
+            (7.0, 3.0),
+            (6.0, 3.0),
+            (6.0, 1.0),
+            (5.0, 1.0),
+            (5.0, 3.0),
+            (4.0, 3.0),
+            (4.0, 1.0),
+            (3.0, 1.0),
+            (3.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
         ],
         0.0,
         1.0,
@@ -663,34 +712,39 @@ fn e_eight_collinear_sites() {
 fn e_collinear_mixed_with_transversal() {
     let w = prism_z::<f64>(
         &[
-            (0.0, 0.0), (5.0, 0.0), (5.0, 3.0), (4.0, 3.0), (4.0, 1.0), (3.0, 1.0),
-            (3.0, 3.0), (2.0, 3.0), (2.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0),
+            (0.0, 0.0),
+            (5.0, 0.0),
+            (5.0, 3.0),
+            (4.0, 3.0),
+            (4.0, 1.0),
+            (3.0, 1.0),
+            (3.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
         ],
         0.0,
         1.0,
     )
     .body;
     let b = brick::<f64>((-1.0, 6.0), (0.5, 2.5), (0.25, 1.5));
-    // REVIEW FINDING (E-2): this mixed lane REFUSES
-    // Join(RingHoming(Escalated { predicate point_in_loop_boundary,
-    // margin Invalid })) — a typed POISON escalation out of the ring
-    // re-homing probe, deterministic and operand-preserving, never a
-    // wrong body. Undocumented refusing configuration inside the
-    // R2-generalization family (the ops docs' envelope claims R2
-    // closed; the mixed collinear+transversal channel cut is not).
-    // If a fix lands, this must flip to the exact oracle:
+    // REVIEW FINDING (E-2), CLOSED by the fix pass: the refusal was a
+    // typed poison escalation (Join(RingHoming(Escalated {
+    // point_in_loop_boundary, margin Invalid }))) from the ring
+    // re-homing probe — `point_in_loop`'s boundary pre-pass divided by
+    // a ZERO-LENGTH segment length (null scaffolding is legal in
+    // mid-join loops), NaN-poisoning the foot distance. Degenerate
+    // segments now measure the point distance exactly and the mixed
+    // lane lands the exact oracle:
     // removed = prongs 3 * (1 * 1.5 * 0.75) + base 5 * 0.5 * 0.75.
-    match subtract(&w, &b) {
-        Ok(BooleanResult::Body(bb)) => {
-            assert_eq!(validate_closed(&bb.body), Ok(()));
-            assert_eq!(vol(&bb.body), 11.0 - 3.375 - 1.875, "mixed lane EXACT");
-        }
-        Ok(BooleanResult::Empty) => panic!("nonempty"),
-        Err(_) => {
-            let e = assert_typed_refusal(subtract, &w, &b);
-            assert!(e.contains("RingHoming"), "got {e}");
-        }
-    }
+    let r = subtract(&w, &b).unwrap();
+    let BooleanResult::Body(bb) = r else {
+        panic!("nonempty");
+    };
+    assert_eq!(validate_closed(&bb.body), Ok(()));
+    assert_eq!(vol(&bb.body), 11.0 - 3.375 - 1.875, "mixed lane EXACT");
     // Neighbor variant: the same channel cut crossing the prongs
     // ENTIRELY (no collinear stub on the prong line).
     let b2 = brick::<f64>((-1.0, 6.0), (0.5, 3.5), (0.25, 1.5));
@@ -713,8 +767,14 @@ fn e_collinear_mixed_with_transversal() {
 fn e_uslab_all_ops() {
     let u = prism_z::<f64>(
         &[
-            (0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (2.0, 3.0), (2.0, 1.0), (1.0, 1.0),
-            (1.0, 3.0), (0.0, 3.0),
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
         ],
         0.0,
         1.0,
@@ -743,7 +803,12 @@ fn e_uslab_all_ops() {
 #[test]
 fn f_residual_probe_all_corners_on_boundary() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = prism_z::<f64>(&[(-1.0, 1.0), (1.0, -1.0), (3.0, 1.0), (1.0, 3.0)], 1.0, 3.0).body;
+    let b = prism_z::<f64>(
+        &[(-1.0, 1.0), (1.0, -1.0), (3.0, 1.0), (1.0, 3.0)],
+        1.0,
+        3.0,
+    )
+    .body;
     match subtract(&a, &b) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
@@ -779,8 +844,14 @@ fn f_ring_plus_transversal_same_face() {
     // (u, v) profile = (y, z) after the cyclic map (u,v,w) -> (w,u,v).
     let perm = [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
     let prof = [
-        (0.5, 1.5), (1.0, 1.5), (1.0, 2.5), (1.75, 2.5), (1.75, 1.5), (2.25, 1.5),
-        (2.25, 3.0), (0.5, 3.0),
+        (0.5, 1.5),
+        (1.0, 1.5),
+        (1.0, 2.5),
+        (1.75, 2.5),
+        (1.75, 1.5),
+        (2.25, 1.5),
+        (2.25, 3.0),
+        (0.5, 3.0),
     ];
     let b = tprism::<f64>(&prof, 0.5, 1.5, perm);
     // prong1 (ring): 1 x 0.5 x 0.5; prong2 (crossing): 1 x 0.25 x 0.5.
@@ -794,8 +865,14 @@ fn f_two_rings_same_face_from_one_operand() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let perm = [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
     let prof = [
-        (0.5, 1.5), (1.0, 1.5), (1.0, 2.5), (1.4, 2.5), (1.4, 1.5), (1.9, 1.5),
-        (1.9, 3.0), (0.5, 3.0),
+        (0.5, 1.5),
+        (1.0, 1.5),
+        (1.0, 2.5),
+        (1.4, 2.5),
+        (1.4, 1.5),
+        (1.9, 1.5),
+        (1.9, 3.0),
+        (0.5, 3.0),
     ];
     let b = tprism::<f64>(&prof, 0.5, 1.5, perm);
     sub_exact(&a, &b, 8.0 - 0.25 - 0.25);
@@ -816,11 +893,17 @@ fn g_boundary_on_boundary_refusals_sharp() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
     let e = assert_typed_refusal(union, &a, &b);
-    assert!(e.contains("UnpairedLooseEnds { count: 4 }"), "corner-flush: {e}");
+    assert!(
+        e.contains("UnpairedLooseEnds { count: 4 }"),
+        "corner-flush: {e}"
+    );
     // Stacked-full: B's bottom rim = A's top rim, all four on-edge.
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
     let e = assert_typed_refusal(union, &a, &b);
-    assert!(e.contains("UnpairedLooseEnds { count: 8 }"), "stacked-full: {e}");
+    assert!(
+        e.contains("UnpairedLooseEnds { count: 8 }"),
+        "stacked-full: {e}"
+    );
     // Perturbed corner-flush (pulled 1/16 inside): exact union.
     let b = brick::<f64>((0.0625, 0.5625), (0.0625, 0.5625), (2.0, 3.0));
     let r = run(union, &a, &b);
@@ -828,7 +911,11 @@ fn g_boundary_on_boundary_refusals_sharp() {
     // Perturbed stack (shrunk 1/16 per side): exact union.
     let b = brick::<f64>((0.0625, 1.9375), (0.0625, 1.9375), (2.0, 3.0));
     let r = run(union, &a, &b);
-    assert_eq!(vol(&body_of(&r).body), 8.0 + 1.875 * 1.875, "perturbed stack");
+    assert_eq!(
+        vol(&body_of(&r).body),
+        8.0 + 1.875 * 1.875,
+        "perturbed stack"
+    );
 }
 
 /// The documented refusal REASON checked against the data: on the
@@ -859,7 +946,10 @@ fn g_stacked_full_on_edge_germ_dump() {
     }
     // ALL germ lines lie along the shared rim's edge directions: the
     // on-edge class, exactly as documented.
-    assert_eq!(other, 0, "every germ on-edge (got {horizontal_axis} on-edge)");
+    assert_eq!(
+        other, 0,
+        "every germ on-edge (got {horizontal_axis} on-edge)"
+    );
     assert!(horizontal_axis > 0);
 }
 
@@ -873,18 +963,47 @@ fn g_stacked_full_on_edge_germ_dump() {
 pub fn die_pips() -> Vec<Body<f64>> {
     let g = [0.5, 1.0, 1.5];
     let layouts: [(usize, bool, Vec<(f64, f64)>); 6] = [
-        (2, true, vec![(g[1], g[1])]),                             // +z: 1
-        (2, false, vec![(g[0], g[0]), (g[1], g[1]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0]), (g[0], g[1])]), // -z: 6
-        (0, true, vec![(g[0], g[0]), (g[2], g[2])]),               // +x: 2
-        (0, false, vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0]), (g[1], g[1])]), // -x: 5
+        (2, true, vec![(g[1], g[1])]), // +z: 1
+        (
+            2,
+            false,
+            vec![
+                (g[0], g[0]),
+                (g[1], g[1]),
+                (g[2], g[2]),
+                (g[0], g[2]),
+                (g[2], g[0]),
+                (g[0], g[1]),
+            ],
+        ), // -z: 6
+        (0, true, vec![(g[0], g[0]), (g[2], g[2])]), // +x: 2
+        (
+            0,
+            false,
+            vec![
+                (g[0], g[0]),
+                (g[2], g[2]),
+                (g[0], g[2]),
+                (g[2], g[0]),
+                (g[1], g[1]),
+            ],
+        ), // -x: 5
         (1, true, vec![(g[0], g[0]), (g[1], g[1]), (g[2], g[2])]), // +y: 3
-        (1, false, vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0])]), // -y: 4
+        (
+            1,
+            false,
+            vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0])],
+        ), // -y: 4
     ];
     let mut pips = Vec::new();
     for (axis, positive, centers) in layouts {
         for (u, v) in centers {
             let (ur, vr) = ((u - 0.125, u + 0.125), (v - 0.125, v + 0.125));
-            let nr = if positive { (1.875, 2.5) } else { (-0.5, 0.125) };
+            let nr = if positive {
+                (1.875, 2.5)
+            } else {
+                (-0.5, 0.125)
+            };
             let (x, y, z) = match axis {
                 0 => (nr, ur, vr),
                 1 => (ur, nr, vr),
@@ -925,8 +1044,18 @@ mod interval {
         // Six collinear sites.
         let w = prism_z::<Interval>(
             &[
-                (0.0, 0.0), (5.0, 0.0), (5.0, 3.0), (4.0, 3.0), (4.0, 1.0), (3.0, 1.0),
-                (3.0, 3.0), (2.0, 3.0), (2.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0),
+                (0.0, 0.0),
+                (5.0, 0.0),
+                (5.0, 3.0),
+                (4.0, 3.0),
+                (4.0, 1.0),
+                (3.0, 1.0),
+                (3.0, 3.0),
+                (2.0, 3.0),
+                (2.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 3.0),
+                (0.0, 3.0),
             ],
             0.0,
             1.0,
@@ -961,5 +1090,8 @@ fn d_die_21_pips_exact() {
         assert!(vol(&acc) == expect, "pip {i}");
     }
     assert_eq!(vol(&acc), 8.0 - 21.0 * pip_vol); // 7.8359375
-    assert_eq!(mass_properties(&acc).unwrap().surface_area, 24.0 + 21.0 * 4.0 * 0.25 * 0.125);
+    assert_eq!(
+        mass_properties(&acc).unwrap().surface_area,
+        24.0 + 21.0 * 4.0 * 0.25 * 0.125
+    );
 }

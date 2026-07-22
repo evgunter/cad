@@ -58,11 +58,13 @@
 //! transversal boundary crossings; single-ring pockets/bosses on ALL
 //! six face orientations (PR 5's R1 closed); double-ring single-face
 //! seams (through-pillar tunnel, inset-leg union); multi-collinear-
-//! site seams (R2) and crossing-polygon disconnections (R3);
-//! interior-rest flush contacts (pillar standing on a face); and the
-//! Fig 15.1 coplanar-overlap ∩ (seam partly on shared cap planes) —
-//! the `join` module's derived sense/role discipline is the
-//! consistency theorem behind all of them.
+//! site seams (R2) and crossing-polygon disconnections (R3),
+//! including mixed collinear+transversal channel cuts (the PR 5.5
+//! review's E-2, closed by the degenerate-segment fix in
+//! `point_in_loop`); interior-rest flush contacts (pillar standing on
+//! a face); and the Fig 15.1 coplanar-overlap ∩ (seam partly on
+//! shared cap planes) — the `join` module's derived sense/role
+//! discipline is the consistency theorem behind all of them.
 //!
 //! Still refusing — typed, deterministic, operands untouched; never a
 //! silent wrong body:
@@ -75,6 +77,16 @@
 //!   existing edges) rather than chords, a mechanism this pipeline
 //!   does not yet have. Refusal:
 //!   `Join(UnpairedLooseEnds)`.
+//! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
+//!   seam through the VERTEX of a reflex boundary corner under a
+//!   tilted section plane (a 315°-corner pierced by a z-sheared
+//!   brick's cap) can refuse `SeamOrientation`. Root cause: the
+//!   angular strut spike order (`bool_strut_order`) is FORCED only on
+//!   sectors of width W ≤ π (which covers the whole crossing-minted
+//!   corpus class — edge-interior sites are exact half-planes);
+//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in
+//!   the unforced window. Face-interior and convex-corner crossings
+//!   of the same shape succeed exactly.
 
 use geom_core::{Band, Decide, MarginDiag, Real, Sign};
 

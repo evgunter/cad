@@ -53,14 +53,23 @@
 //!    at `below_end`) iff `g`'s own-solid forward-wedge code is Out;
 //!    geometrically, with the orbit-forward direction `w = σ·n_own×d`
 //!    (σ the fixed orbit handedness, shared by both solids), UP ⟺
-//!    `σ·det[n_own, d, n_other] > 0`. Mirror checks: a strut's two
-//!    germs share the line with `d1 = −d0` ⇒ opposite senses; the two
+//!    `σ·det[n_own, d, n_other] > 0`. Mirror checks: a CROSSING-lane
+//!    strut's two germs share the line with `d1 = −d0` ⇒ opposite
+//!    senses (pierce-lane RING struts carry perpendicular germ dirs
+//!    instead — their opposite senses come from the cross-solid
+//!    anti-correlation below, not the shared-line mirror); the two
 //!    facing germs of one polygon side ⇒ opposite senses within each
 //!    solid (the neighbor test); `det[nA,d,nB] = −det[nB,d,nA]` ⇒
 //!    **sense_A(g) = ¬sense_B(g) at every germ** — the cross-solid
 //!    anti-correlation. Insertion mints attributes to this rule
 //!    (struts included — their facing swap swaps the labels with it),
 //!    so the attributes ARE the discipline; nothing rebinds later.
+//!    The angular strut spike order (`bool_strut_order`, insert.rs)
+//!    is FORCED by nesting for sector widths W ≤ π — the whole
+//!    crossing-minted class (edge-interior sites are exact
+//!    half-planes); reflex corners W > 3π/2 with germ angle
+//!    θ ∈ (π/2, W−π) sit in an unforced window and can refuse
+//!    `SeamOrientation` (ops module "Known limitations").
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:
@@ -603,6 +612,10 @@ fn choose_roles<T: Decide>(
         .ok_or(desync("role face no longer resolves"))?
         .outer;
     if l == outer {
+        // Defensive guard (PR 5.5 review, MINOR (b)): no constructible
+        // both-arcs-dirty witness is known post-discipline (the
+        // partner-based separation test cleared every previously
+        // refusing fixture); kept as a loud backstop, never deleted.
         return clean_dir(body, ea, ra, loose)?
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
@@ -884,7 +897,10 @@ fn resolve_roles_geometric<T: Decide>(
     let roles = match probe(outer)? {
         Some(outer_in) => {
             // The two regions flank the seam: the other loop takes the
-            // opposite role (checked when it also resolves).
+            // opposite role (checked when it also resolves). Defensive
+            // guard (PR 5.5 review, MINOR (b)): no constructible
+            // agreeing-verdicts witness is known post-discipline; kept
+            // as a loud backstop, never deleted.
             if probe(ring)? == Some(outer_in) {
                 return Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
                     face,
