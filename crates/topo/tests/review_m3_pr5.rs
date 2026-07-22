@@ -148,13 +148,16 @@ fn two_pockets_one_face_subtract() {
     assert_props(&body.body, 8.0 - 0.25, 26.0);
 }
 
+/// One orientation-matrix row: face name + the pillar's x/y/z spans.
+type PillarRow = (&'static str, (f64, f64), (f64, f64), (f64, f64));
+
 /// The DECISIVE orientation matrix: the identical blind pocket cut
 /// into each of A's six faces. Any Ok must carry the exact volume
 /// (silent-wrong = falsified); refusals must be typed+deterministic.
 /// Maps how far the cookie-cutter fix actually reaches.
 #[test]
 fn pocket_orientation_matrix() {
-    let pillars: [(&str, (f64, f64), (f64, f64), (f64, f64)); 6] = [
+    let pillars: [PillarRow; 6] = [
         ("+z", (0.75, 1.25), (0.75, 1.25), (1.5, 2.5)),
         ("-z", (0.75, 1.25), (0.75, 1.25), (-0.5, 0.5)),
         ("+x", (1.5, 2.5), (0.75, 1.25), (0.75, 1.25)),

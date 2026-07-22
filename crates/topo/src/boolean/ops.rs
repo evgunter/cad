@@ -239,6 +239,13 @@ fn boolean_op<T: Decide>(
 /// refusing on an ulp-scale tie would make the gate noisier than the
 /// property it guards. A POISONED margin (NaN) still refuses loudly
 /// ([`BooleanError::Escalated`]) — poison never passes a gate.
+///
+/// Complement operands: a reverted body's flux volume is NEGATIVE
+/// (its true set volume is infinite — the A∖B ≡ A∩revert(B) oracle
+/// route feeds such operands legitimately), so each bound applies
+/// only when its reference operand's volume is certified POSITIVE
+/// (bounded solid); against a complement the set bound is vacuous
+/// and is skipped, never misread as a violation.
 fn volume_backstop<T: Decide>(
     op: BooleanOp,
     a: &Body<T>,
@@ -255,6 +262,22 @@ fn volume_backstop<T: Decide>(
             .volume)
     };
     let (va, vb, vr) = (vol(a)?, vol(b)?, vol(result)?);
+    // A bound applies only against a certified-bounded operand
+    // (positive flux volume); complement operands (certified negative)
+    // make it vacuous. Poison refuses; an in-band operand volume is a
+    // degenerate operand — no bound is certifiable from it, skip.
+    let bounded = |v: T| -> Result<bool, BooleanError> {
+        match v.sign_within(band) {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Zero | Sign::Negative) => Ok(false),
+            Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
+                Err(BooleanError::Escalated {
+                    diag: diag.with_predicate("volume_backstop"),
+                })
+            }
+            Err(_) => Ok(false),
+        }
+    };
     // `margin` ≥ 0 (within band) or the bound named by `which` is
     // violated: margin = bound − got for upper bounds, got − bound for
     // lower bounds.
@@ -274,17 +297,31 @@ fn volume_backstop<T: Decide>(
             Err(_) => Ok(()),
         }
     };
+    let (ba, bb) = (bounded(va)?, bounded(vb)?);
     match op {
         BooleanOp::Intersect => {
-            check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va)?;
-            check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb)
+            if ba {
+                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va)?;
+            }
+            if bb {
+                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb)?;
+            }
         }
         BooleanOp::Union => {
-            check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va)?;
-            check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb)
+            if ba {
+                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va)?;
+            }
+            if bb {
+                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb)?;
+            }
         }
-        BooleanOp::Subtract => check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va),
+        BooleanOp::Subtract => {
+            if ba {
+                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va)?;
+            }
+        }
     }
+    Ok(())
 }
 
 /// How one operand's keys map into the result body.
@@ -553,5 +590,11 @@ mod tests {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             volume_backstop(op, &cube, &cube, &cube, band).unwrap();
         }
+        // Complement operand (negative flux volume): its bound is
+        // vacuous and must be SKIPPED — A ∩ revert(B) legitimately
+        // exceeds vol(revert B); the A-side bound still applies.
+        let rev = quad_prism(&square, 0.5).revert().unwrap();
+        volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band).unwrap();
+        implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band).unwrap_err());
     }
 }

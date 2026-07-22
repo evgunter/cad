@@ -514,10 +514,15 @@ certified trilean (`sign_within` against the op's linear band — Q1's
 only legal comparison), refusing only on a CERTIFIED violating sign
 (in-band ties pass: dyadic-corpus sums are exact and the guarded bug
 class violates bounds macroscopically; a poisoned margin refuses
-`Escalated` — poison never passes a gate); wiring unit-tested by
+`Escalated` — poison never passes a gate); each bound applies only
+against a certified-BOUNDED operand (positive flux volume) —
+complement operands (revert(B) in the A∖B ≡ A∩revert(B) oracle
+route) carry negative flux volume and an infinite true volume, so
+their bound is vacuous and skipped (caught live: the review suite's
+revert corpus tripped the naive bound); wiring unit-tested by
 construction (`volume_backstop_wiring`, mismatched `quad_prism`
-bodies), and the full acceptance corpus runs green through the
-backstop; (3) this record; (4) review-suite promotion verified green
+bodies + the complement skip/apply pair), and the full acceptance
+corpus runs green through the backstop; (3) this record; (4) review-suite promotion verified green
 in the merged tree.
 
 ## Accumulating PR 6 (M3-exit sweep) obligations
