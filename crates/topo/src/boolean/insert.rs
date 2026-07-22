@@ -342,15 +342,28 @@ fn mint_run<T: Decide>(
         }
     };
     let created = body.mev_null(site, new_side)?;
-    let attr = match new_side {
-        NewVertexSide::Below => NullEdge {
+    // Side attributes per the PR 5.5 sense theorem (join module docs):
+    // the half FACING a germ is UP (starts at `below_end`) iff that
+    // germ's own forward-wedge code is Out. Non-dangling: he_plus
+    // (old → new) faces the from-germ whose forward code is the run
+    // side, so `created` is the below end exactly for In-runs. Dangling
+    // struts swap the facing (he_minus at the from-germ), so the
+    // labels swap with it — the attribute is derived sense data, never
+    // a mint-slot echo.
+    let created_below = match new_side {
+        NewVertexSide::Below => !dangling,
+        NewVertexSide::Above => dangling,
+    };
+    let attr = if created_below {
+        NullEdge {
             below_end: created.vertex,
             above_end: vertex,
-        },
-        NewVertexSide::Above => NullEdge {
+        }
+    } else {
+        NullEdge {
             below_end: vertex,
             above_end: created.vertex,
-        },
+        }
     };
     let germ = |i: usize, he: crate::entity::HalfEdgeKey| super::HalfGerm {
         he,
@@ -554,9 +567,12 @@ mod tests {
         assert!(out.edges.iter().all(|e| e.dangling));
         for e in &out.edges {
             assert_ne!(e.attr.below_end, e.attr.above_end);
-            // Out-run struts: the minted copy is the OUT/above end.
+            // Dangling Out-run struts: the strut facing swap (he_minus
+            // at the from-germ) swaps the side labels with it (PR 5.5
+            // sense theorem — join module docs), so the minted copy is
+            // the below end here, NOT an echo of the mint side.
             assert_eq!(
-                e.attr.below_end,
+                e.attr.above_end,
                 if e.operand == Operand::A { va } else { vb }
             );
         }
