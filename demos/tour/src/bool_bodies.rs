@@ -4,13 +4,16 @@
 //! curved-operand booleans are M5.
 //!
 //! Every scene carries an EXACT expected volume (box arithmetic), and
-//! the builders check the ops' results against it — the oracle that
-//! caught this branch's cookie-cutter defect (see [`die_blocked`]):
-//! when the seam ring closes within a SINGLE face of an operand
-//! (pocket, boss, through-pillar, inset leg), the finish stage keeps
-//! the wrong component and returns it as a tier-1/2-legal body —
-//! silently. The tour narrates each attempt honestly and ships the
-//! variants whose seams cross multiple faces (which are exact).
+//! the builders check the ops' results against it. This oracle first
+//! caught (pre-PR-5-fix-pass) a silent wrong-component defect on
+//! single-face seams; the fix pass resolved it — single-ring pockets
+//! now either return the EXACT body or REFUSE with a typed error, never
+//! a silent wrong body. What remains is orientation-dependent (review
+//! finding R1, see [`die_blocked`]): an identical single-face pip
+//! pocket succeeds on a brick's {+z, −x, −y} faces and refuses
+//! `SeamOrientation` on {−z, +x, +y}. The tour narrates each attempt
+//! honestly (working orientation vs. typed refusal) and ships the
+//! variants whose seams are exact.
 //!
 //! All boxes come from ONE helper (`slab`) so that wherever
 //! coincidence is intended (the table's coplanar attempts), the
@@ -95,47 +98,88 @@ fn describe(v: &Verdict, expected: f64) -> String {
 }
 
 // ---------------------------------------------------------------
-// Stop 7: the die — BLOCKED on this branch, demonstrated live.
+// Stop 7: the die — PARTIALLY blocked (R1 orientation-dependent), live.
 // ---------------------------------------------------------------
 
-/// The die needs pip pockets: a pip box pierces exactly ONE cube face,
-/// so its seam ring closes within that face — the cookie-cutter
-/// configuration, which this branch's finish stage gets silently wrong
-/// (it keeps the inverted cut-out fragment and discards the die).
-/// There is no planar design-around: a pocket interior to a face is
-/// single-face by nature, and raised pips (union boss) or through
-/// pillars are the same configuration. So the die stop demonstrates
-/// the defect with exact numbers instead of faking a die.
+/// The die needs pip pockets on all six faces. Post PR-5 fix-pass the
+/// single-ring pocket lane is ORIENTATION-DEPENDENT (review finding R1):
+/// an identical blind pip pocket SUCCEEDS with the exact volume on a
+/// brick's {+z, −x, −y} faces and REFUSES `SeamOrientation` on
+/// {−z, +x, +y} — a handedness-correlated HALF of face orientations
+/// (root cause: the cross-solid null-edge orientation discipline /
+/// `choose_roles`' prefer-mirror heuristic has no consistency theorem,
+/// which is PR 5.5's charter). A real die pips all six faces, so half
+/// still refuse — no full-die STL yet. Crucially, the refusals are now
+/// TYPED and LOUD: the pre-fix-pass silent wrong-component defect this
+/// branch first caught (it kept the inverted cut-out fragment) is fixed
+/// — every attempt is either an exact-volume `Seamed` body or a typed
+/// refusal. The self-promoting guard below asserts a {−z, +x, +y} pip
+/// STILL refuses, so the demo fails the day the full die is buildable —
+/// promote it then.
 pub fn die_blocked() {
-    println!("\n== die (blocked: the cookie-cutter defect, demonstrated) ==");
-    println!("   the recipe: [-1,1]^3 cube minus 21 pip pockets (21 subtract nodes),");
-    println!("   opposite faces summing to 7; pips as straight square pockets — the");
-    println!("   sweep inventory's extrude is straight-only (frustum taper is a typed");
-    println!("   refusal) and SPHERICAL pips await M5's curved booleans.");
+    println!("\n== die (partially blocked: orientation-dependent pip pockets) ==");
+    println!("   recipe: [-1,1]^3 cube minus 21 pip pockets, opposite faces summing to 7;");
+    println!("   pips as straight square pockets (extrude is straight-only; spherical pips");
+    println!("   await M5 curved booleans).");
     let cube = slab((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0));
-    // One pip: 0.34 square, 0.18 deep, protruding 0.25 out of the top.
-    let pip = slab((-0.17, 0.17), (-0.17, 0.17), (0.82, 1.25));
     let expected = 8.0 - 0.34 * 0.34 * 0.18;
-    let first = check(booleans::try_subtract(&cube, &pip), expected);
-    println!(
-        "   pip subtract (seam ring inside ONE face): {}",
-        describe(&first, expected)
-    );
+    // The R1 orientation matrix, live: the identical 0.34-square,
+    // 0.18-deep blind pip pocket on each of the six faces (single
+    // subtract from a fresh cube). Works on {+z, −x, −y}; refuses
+    // SeamOrientation on {−z, +x, +y}.
+    let pips: [(&str, Body<f64>); 6] = [
+        ("+z", slab((-0.17, 0.17), (-0.17, 0.17), (0.82, 1.25))),
+        ("-x", slab((-1.25, -0.82), (-0.17, 0.17), (-0.17, 0.17))),
+        ("-y", slab((-0.17, 0.17), (-1.25, -0.82), (-0.17, 0.17))),
+        ("-z", slab((-0.17, 0.17), (-0.17, 0.17), (-1.25, -0.82))),
+        ("+x", slab((0.82, 1.25), (-0.17, 0.17), (-0.17, 0.17))),
+        ("+y", slab((-0.17, 0.17), (0.82, 1.25), (-0.17, 0.17))),
+    ];
+    for (name, pip) in &pips {
+        let v = check(booleans::try_subtract(&cube, pip), expected);
+        println!("   pip pocket on {name}: {}", describe(&v, expected));
+    }
+    // The three working faces DO compose: a genuine three-face pocketed
+    // cube with exact volume (the promotion payload the day the other
+    // half lands).
+    let mut acc = cube.clone();
+    let mut exp = 8.0;
+    for (_, pip) in [&pips[0], &pips[1], &pips[2]] {
+        exp -= 0.34 * 0.34 * 0.18;
+        acc = match check(booleans::try_subtract(&acc, pip), exp) {
+            Verdict::Good(b, _) => b,
+            v => panic!(
+                "working-face pocket composition regressed: {}",
+                describe(&v, exp)
+            ),
+        };
+    }
+    let _ = acc;
+    println!("   the three working faces compose: cube with 3 pockets, V = {exp} exact");
+    // Through-pillar: a double-ring single-face seam (both {+z, −z}
+    // rings) — refuses SeamOrientation.
     let pillar = slab((-0.17, 0.17), (-0.17, 0.17), (-1.25, 1.25));
     let through = check(
         booleans::try_subtract(&cube, &pillar),
         8.0 - 0.34 * 0.34 * 2.0,
     );
     println!(
-        "   through-pillar subtract (two such rings): {}",
+        "   through-pillar (two single-face rings): {}",
         describe(&through, 8.0 - 0.34 * 0.34 * 2.0)
     );
-    println!("   verdict: pocket/boss/through-hole seams confined to single faces are a");
-    println!("   PR 5 fix-pass item — no die STL from this branch; the scenes below use");
-    println!("   seams that cross multiple faces, which are exact.");
+    println!("   verdict: single-ring pips WORK on {{+z, −x, −y}} and REFUSE SeamOrientation");
+    println!("   on {{−z, +x, +y}} (R1, orientation-dependent half) — no full-die STL until");
+    println!("   the refusing half lands (PR 5.5); refusals are typed and loud, never silent.");
+    // Self-promoting guard: a {−z, +x, +y} pip MUST still refuse. The
+    // day it succeeds, a full die is buildable — promote the die.
+    let refusing = check(booleans::try_subtract(&cube, &pips[3].1), expected); // −z
     assert!(
-        !matches!(first, Verdict::Good(..)),
-        "cookie-cutter subtract now works — promote the die to a real stop!"
+        matches!(
+            refusing,
+            Verdict::Refused(BooleanError::SeamOrientation { .. })
+        ),
+        "the −z single-ring pip no longer refuses SeamOrientation — the R1 refusing \
+         half is fixed and a full die is buildable: promote the die to a real stop!"
     );
 }
 
@@ -164,8 +208,9 @@ fn leg(cx: f64, cy: f64, z_top: f64) -> Body<f64> {
 ///  1. leg INSET under the top, its top face EXACTLY coplanar with the
 ///     underside (shared value `TOP_Z.0`) — the Eq 15.3 coplanar lane;
 ///  2. leg inset and overlapping 0.05 INTO the top (proper
-///     intersection) — but the seam ring still closes within the
-///     underside face (cookie-cutter);
+///     intersection) — but the seam ring closes within the −z
+///     underside face, a single-ring pocket on a REFUSING R1
+///     orientation ({−z, +x, +y}), so it refuses `SeamOrientation`;
 ///  3. legs straddling the top's CORNERS (shared values `TOP_X.1`
 ///     etc.), so each seam crosses the underside AND two side faces.
 ///
@@ -231,11 +276,12 @@ fn top_vol() -> f64 {
 // ---------------------------------------------------------------
 
 /// Open box: outer minus a cavity cutter protruding through the top.
-/// The fully-interior cutter (opening only through the top face) is
-/// the cookie-cutter configuration — attempted and narrated — so the
-/// shipped variant's cutter ALSO overhangs the +y wall: the seam
-/// crosses top, +y side, and underside-of-rim faces, and the result is
-/// an open scoop (container open on top, one wall cut down).
+/// The fully-interior cutter (opening only through the +z top face) is
+/// a single-ring pocket on a WORKING R1 orientation, so post-fix-pass
+/// it now succeeds — attempted and narrated. The SHIPPED variant's
+/// cutter ALSO overhangs the +y wall: the seam crosses top, +y side,
+/// and underside-of-rim faces (a multi-face through-cut), and the
+/// result is an open scoop (container open on top, one wall cut down).
 fn open_box() -> (Body<f64>, Option<String>) {
     let outer = slab((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.2));
     let interior = slab((-0.8, 0.8), (-0.8, 0.8), (0.25, 1.5));
@@ -248,10 +294,11 @@ fn open_box() -> (Body<f64>, Option<String>) {
         Verdict::Good(body, kind) => {
             assert_eq!(kind, BooleanResultKind::Seamed);
             let note = format!(
-                "the pure open box (cutter interior to the top face) is cookie-cutter \
-                 blocked: {}; SHIPPED variant: the cutter overhangs the +y wall too, a \
-                 multi-face through-cut — an open container with one wall scooped down \
-                 (volume exact {want_scoop})",
+                "the pure open box (cutter interior to the +z top face — a single-ring \
+                 pocket on a WORKING R1 orientation, {{+z, −x, −y}}) now succeeds \
+                 post-fix-pass: {}; SHIPPED variant: the cutter also overhangs the +y \
+                 wall, a multi-face through-cut — an open container with one wall scooped \
+                 down (volume exact {want_scoop})",
                 describe(&pure, want_box)
             );
             (body, Some(note))
