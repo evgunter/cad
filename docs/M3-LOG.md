@@ -342,10 +342,11 @@ Also: join.rs's second-chord guard (the laringmv skip window) is
 book-faithful (Program 14.10 placement) but no legal fixture reached
 it in this review — commented as a WATCH ITEM for PR 4/5's join reuse.
 
-**BOB fork status**: awaiting Evan. Default recommendation (B) —
-typed-refusal-now, revisit at PR 6 — under the reviewer's two
-conditions: (1) this MAJOR-1 wording fix (done), (2) the PR 4 charter
-check on boolean BOB-routing (already sent to the PR 4 implementer).
+**BOB fork status**: resolved — Evan adopted (B) on #61 (2026-07-21),
+with below-copy minting a COMMITTED PR 6 obligation (not a revisit;
+see the accumulating list). The reviewer's two conditions were met:
+(1) this MAJOR-1 wording fix (done), (2) the PR 4 charter check on
+boolean BOB-routing (executed in the PR 4 review — verdict there).
 
 **Issue #60 (pre-existing on main, fixed here)**: presented as the kef
 make/kill roundtrip swapping ring ownership between the two re-made
@@ -482,6 +483,12 @@ table, voids documentation), the sweep has picked up:
   = closed inner shells = voids; partial revolve is extrude-shaped and
   already supports holes). FullRevolveHoles' pointer to the boolean
   route lands in PR 5 per F8.
+- **Below-copy minting at BOB pinch vertices (committed, Evan #61
+  2026-07-21)**: PR 6 implements it as part of the tier-3′ work so the
+  split-lane negative-side pinch refusal surface disappears; end state
+  identical to the immediate-rework option, only sequencing differed.
+  Until then `DegenerateSection` + flip-and-swap is the documented
+  interim.
 - **Saddle fixture for the 15.11 pairing guard (PR 4 review)**: the
   F12 runtime guard (B-cyclic adjacency + run-side agreement) is
   stressed only by planar 4-crossing fixtures; build a saddle-vertex
