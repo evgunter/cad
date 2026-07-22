@@ -530,11 +530,12 @@ Supersedes the 2026-07-21 snapshot below (kept as historical record).
   work with renders; die honestly blocked on cookie-cutter with a
   self-promoting assert; findings in memories/
   boolean-consumer-findings.md on that branch.
-- **Next actions (Evan's pause instruction, 2026-07-22: launch PR 5's
-  adversarial reviewer when the implementer reports, then STOP — usage
-  limits near. Amendment: a VERY SMALL fix pass is OK; if the review
-  finds major changes, do NOT execute them — record them in this log
-  as the resumption plan instead)**. The reviewer charter,
+- **Next actions (Evan's pause instruction, 2026-07-22, final form:
+  usage limits near. OK to run: PR 5's adversarial reviewer, a SMALL
+  fix pass, and trivial completions — opening/merging PR 5 and the
+  demo PR on green. NOT OK: PR 6 (any part), and major PR 5 rework —
+  if the review finds major changes, record them in this log as the
+  resumption plan instead of executing)**. The reviewer charter,
   accumulated: cookie-cutter family verification (exact-volume
   oracles; suspects were Eq 15.1 seeds / lmfkrh ring-side / carve
   classification); the extrude-operand path e2e (real profile→extrude
