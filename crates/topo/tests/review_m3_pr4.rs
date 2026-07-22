@@ -74,6 +74,10 @@ fn census_two_bricks_independent() {
         let (dangling, run): (Vec<&topo::BoolNullEdgeRecord>, Vec<_>) =
             red.null_edges.iter().partition(|e| e.dangling);
         assert_eq!((dangling.len(), run.len()), (6, 6));
+        // Per-operand view (the PR 5 ergonomics accessor): 3 pierces
+        // each way ⇒ each clone carries 3 run edges + 3 ring struts.
+        assert_eq!(red.null_edges_of(topo::Operand::A).count(), 6);
+        assert_eq!(red.null_edges_of(topo::Operand::B).count(), 6);
         // F3 witness: every piercing-side run edge keeps the classified
         // vertex as its below (IN) end — the copy took the OUT side.
         for e in &run {

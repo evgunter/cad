@@ -73,7 +73,7 @@ use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::euler::EulerOpError;
 
 pub use contain::{FaceContainment, contfp};
-pub use plane_eq::{PlaneEqError, PlaneRelation, oriented_plane_eq};
+pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
@@ -227,6 +227,15 @@ pub struct BooleanReduction<T: Real> {
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
     pub pierce_rings: Vec<PierceRingRecord>,
+}
+
+impl<T: Real> BooleanReduction<T> {
+    /// The minted null edges of one operand's clone, insertion order —
+    /// PR 5 (joining) walks each solid's scaffolding separately; this
+    /// is the per-operand view of [`Self::null_edges`].
+    pub fn null_edges_of(&self, operand: Operand) -> impl Iterator<Item = &BoolNullEdgeRecord> {
+        self.null_edges.iter().filter(move |r| r.operand == operand)
+    }
 }
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
