@@ -549,6 +549,27 @@ EXIT=0). `memories/boolean-consumer-findings.md` updated: finding 1
 chord-normalization workaround still in place UNTESTED against PR 5's
 extrude-remap — re-check when PR 5.5 unblocks the pure variants.
 
+Follow-up #68 (same day, prompted by Evan noticing the openbox render
+looked unchanged): the pure open box — which #66 had left
+narration-only — promoted to the rendered `openbox` stop (V=2.368
+exact, verified open-top-only in the render); the scoop variant moved
+to its own `scoopbox` stop; README boolean-leg section reconciled
+(die row + limitation bullets were still pre-fix-pass); ci.yml gained
+the KEEP IN SYNC back-reference to scripts/ci-local.sh (#67 comment).
+
+**Post-5.5 demo refresh charter (Evan, #68 comment, 2026-07-22)** — for
+the demo update that lands with/after PR 5.5, low effort explicitly
+requested ("don't spend too much effort on this early demo"):
+- cut the `scoopbox` stop;
+- add whatever of the die WITH PIPS is buildable (the full pipped die
+  keeps its self-promoting trigger for whenever full support lands, if
+  5.5 doesn't get there);
+- voidbox: either cut it from the montage (keep it in the walkthrough)
+  or render with opacity < 1 — only do the opacity route if easy.
+Plus the standing PR 5.5 unblock items: table/open-box pure variants,
+F7 declared-rung verification, and the finding-2 extrude-remap
+workaround re-test.
+
 ## Accumulating PR 6 (M3-exit sweep) obligations
 
 Beyond M3-PLAN's own PR 6 list (F1/F2/F5/F6/F7/F8 ratifications, tier
