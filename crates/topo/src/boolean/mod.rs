@@ -405,6 +405,20 @@ pub enum BooleanError {
         /// The validator's findings.
         errors: Vec<ValidationError>,
     },
+    /// A `Seamed` result's volume violates a set-theoretic bound —
+    /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
+    /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
+    /// `mass_properties` (the review's volume-inequality backstop). A
+    /// certified violation is a wrong-component kernel bug surfaced
+    /// loudly, never a panic.
+    ResultVolumeImplausible {
+        /// Which inequality failed (e.g. "vol(A ∖ B) ≤ vol(A)").
+        which: &'static str,
+        /// The result volume, Debug-formatted (the scalar is generic).
+        got: String,
+        /// The violated operand-volume bound, Debug-formatted.
+        bound: String,
+    },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
@@ -521,6 +535,11 @@ impl core::fmt::Display for BooleanError {
                  kernel bug, no invalid body is returned",
                 errors.len(),
                 errors.first()
+            ),
+            Self::ResultVolumeImplausible { which, got, bound } => write!(
+                f,
+                "boolean op: result volume implausible — {which} violated (got {got}, bound \
+                 {bound}) — wrong-component kernel bug, no such body is returned"
             ),
             Self::UnrepresentableResult => write!(
                 f,

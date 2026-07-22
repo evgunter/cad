@@ -58,7 +58,7 @@ pub(crate) mod join;
 mod neighborhood;
 mod order;
 #[cfg(test)]
-mod reassembly;
+pub(crate) mod reassembly;
 pub mod rules;
 mod section;
 
