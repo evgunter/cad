@@ -33,6 +33,8 @@ BODIES = {
               "optional": True},
     "openbox": {"color": (0.40, 0.60, 0.72), "view": (38, -125), "up": "z",
                 "optional": True},
+    "scoopbox": {"color": (0.46, 0.56, 0.76), "view": (38, -125), "up": "z",
+                 "optional": True},
     "voidbox": {"color": (0.58, 0.58, 0.64), "view": (30, -55), "up": "z",
                 "optional": True},
     "voidbox_cutaway": {"color": (0.58, 0.58, 0.64), "view": (28, -55),

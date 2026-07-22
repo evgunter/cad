@@ -275,31 +275,44 @@ fn top_vol() -> f64 {
 // Stop 9: the open box.
 // ---------------------------------------------------------------
 
-/// Open box: outer minus a cavity cutter protruding through the top.
-/// The fully-interior cutter (opening only through the +z top face) is
-/// a single-ring pocket on a WORKING R1 orientation, so post-fix-pass
-/// it now succeeds — attempted and narrated. The SHIPPED variant's
-/// cutter ALSO overhangs the +y wall: the seam crosses top, +y side,
-/// and underside-of-rim faces (a multi-face through-cut), and the
-/// result is an open scoop (container open on top, one wall cut down).
+/// Open box: outer minus a fully-interior cavity cutter, opening only
+/// through the +z top face — a single-ring pocket on a WORKING R1
+/// orientation ({+z, −x, −y}). Refused before the PR 5 fix pass (the
+/// scoop variant below shipped in its place); a rendered stop since.
 fn open_box() -> (Body<f64>, Option<String>) {
     let outer = slab((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.2));
     let interior = slab((-0.8, 0.8), (-0.8, 0.8), (0.25, 1.5));
     let want_box = 4.8 - 1.6 * 1.6 * 0.95;
-    let pure = check(booleans::try_subtract(&outer, &interior), want_box);
+    match check(booleans::try_subtract(&outer, &interior), want_box) {
+        Verdict::Good(body, kind) => {
+            assert_eq!(kind, BooleanResultKind::Seamed);
+            let note = format!(
+                "the PURE open box: cutter interior to the +z top face — a single-ring \
+                 pocket on a WORKING R1 orientation ({{+z, −x, −y}}); refused before the \
+                 PR 5 fix pass, a rendered stop since (volume exact {want_box})"
+            );
+            (body, Some(note))
+        }
+        v => panic!("pure open-box subtract failed: {}", describe(&v, want_box)),
+    }
+}
 
+/// The scooped container: same outer box, but the cutter ALSO overhangs
+/// the +y wall — the seam crosses top, +y side, and underside-of-rim
+/// faces (a multi-face through-cut), a different seam class from
+/// `open_box`'s single-ring pocket, and the variant that shipped while
+/// the pure box was R1-refused.
+fn scoop_box() -> (Body<f64>, Option<String>) {
+    let outer = slab((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.2));
     let scoop_cutter = slab((-0.8, 0.8), (-0.8, 1.2), (0.25, 1.5));
     let want_scoop = 4.8 - 1.6 * 1.8 * 0.95;
     match check(booleans::try_subtract(&outer, &scoop_cutter), want_scoop) {
         Verdict::Good(body, kind) => {
             assert_eq!(kind, BooleanResultKind::Seamed);
             let note = format!(
-                "the pure open box (cutter interior to the +z top face — a single-ring \
-                 pocket on a WORKING R1 orientation, {{+z, −x, −y}}) now succeeds \
-                 post-fix-pass: {}; SHIPPED variant: the cutter also overhangs the +y \
-                 wall, a multi-face through-cut — an open container with one wall scooped \
-                 down (volume exact {want_scoop})",
-                describe(&pure, want_box)
+                "cutter overhangs the +y wall: a multi-face through-cut seam — a \
+                 different seam class from the single-ring openbox pocket (volume \
+                 exact {want_scoop})"
             );
             (body, Some(note))
         }
@@ -369,6 +382,7 @@ pub fn stops() -> Vec<Stop> {
     die_blocked();
     let (table_body, table_note) = table();
     let (open_body, open_note) = open_box();
+    let (scoop_body, scoop_note) = scoop_box();
     let (void_body, void_note) = void_box();
     let cutaway = void_box_cutaway(&void_body);
     let mut stops = vec![
@@ -383,12 +397,21 @@ pub fn stops() -> Vec<Stop> {
         },
         Stop {
             name: "openbox",
-            story: "an open container: cavity cutter subtracted through top and +y wall",
-            ops: "extrude 2 boxes -> 1 subtract node (Seamed multi-face through-cut)",
+            story: "an open box: interior cavity subtracted, open only through the top",
+            ops: "extrude 2 boxes -> 1 subtract node (Seamed single-ring pocket)",
             delta: 1e-2,
             seamed: true,
             note: open_note,
             body: open_body,
+        },
+        Stop {
+            name: "scoopbox",
+            story: "the scooped container: cavity cutter overhanging top and +y wall",
+            ops: "extrude 2 boxes -> 1 subtract node (Seamed multi-face through-cut)",
+            delta: 1e-2,
+            seamed: true,
+            note: scoop_note,
+            body: scoop_body,
         },
         Stop {
             name: "voidbox",
