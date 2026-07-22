@@ -44,11 +44,7 @@ type BoolOp<T> = fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError
 
 /// Runs one op functionally, checking the operands stayed bitwise
 /// untouched and the result passes tier 1 + 2.
-fn run<T: Decide>(
-    op: BoolOp<T>,
-    a: &Body<T>,
-    b: &Body<T>,
-) -> BooleanResult<T> {
+fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let out = op(a, b).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
@@ -90,7 +86,11 @@ fn assert_tier3_posture(body: &Body<f64>) {
 /// by design).
 fn generic_scenarios<T: Decide>() {
     let (a, b) = two_bricks::<T>();
-    for (op, faces) in [(topo::intersect as BoolOp<T>, 6), (union, 12), (subtract, 9)] {
+    for (op, faces) in [
+        (topo::intersect as BoolOp<T>, 6),
+        (union, 12),
+        (subtract, 9),
+    ] {
         let r = run(op, &a, &b);
         let body = body_of(&r);
         assert_eq!(body.kind, BooleanResultKind::Seamed);
