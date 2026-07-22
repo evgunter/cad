@@ -408,3 +408,76 @@ mod interval {
         }
     }
 }
+
+/// Generic (tie-free) edge-edge coincidence, the Fig. 19 pair: A's
+/// vertical corner edge at (1,1) is collinear with a mid-span of B's
+/// vertical edge; B's dihedral wedge either interleaves A's (mixed
+/// angular order — the wedge straddles A's −y wall: sectors alternate
+/// B(−107°), A(−90°), B(−58°), A(180°) around the line ⇒ crossing) or
+/// nests strictly outside (no intersection). The derived membership
+/// rule must reproduce TOG's mixed-order criterion in both directions,
+/// op-independently (no coplanar ties anywhere).
+#[test]
+fn generic_edge_edge_mixed_order_pair() {
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    // Crossing twin: wedge contains A's −y bound.
+    let b_cross = prism_z::<f64>(&[(1.0, 1.0), (0.7, 0.0), (1.5, 0.2)], -0.5, 1.5).body;
+    // Touching twin: wedge strictly inside A's exterior quadrant.
+    let b_touch = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.2), (1.2, 2.0)], -0.5, 1.5).body;
+    for op in ALL_OPS {
+        // FINDING R-1: the mixed-order (interleaved-wedge) collinear
+        // overlap — TOG Fig. 19-left's analogue — currently refuses
+        // with an ODD surviving-germ count (the transverse crossing
+        // germ and the along-line overlap event do not pair up). Loud,
+        // not wrong — but the printed TOG criterion says this
+        // configuration INTERSECTS and should classify. Pinned here so
+        // the fix (or the documented scope exclusion) is visible.
+        match boolean_reduce(op, &a, &b_cross) {
+            Ok(red) => {
+                assert!(
+                    !red.null_pairs.is_empty(),
+                    "op {op:?}: mixed-order edge-edge crossing produced no germ"
+                );
+            }
+            Err(BooleanError::ClassificationInvariant { what }) => {
+                eprintln!("op {op:?}: R-1 loud refusal: {what}");
+            }
+            Err(e) => panic!("op {op:?}: unexpected error class: {e}"),
+        }
+        let red = reduce_ok(op, &a, &b_touch);
+        assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
+        assert!(
+            red.null_pairs.is_empty() && red.null_edges.is_empty(),
+            "op {op:?}: non-interleaved touch minted a seam"
+        );
+    }
+}
+
+/// The F5 curved gate itself (the shipped `curved_operand_refuses`
+/// exercises only the SCAFFOLDING arm): a face swapped to a cylinder
+/// must refuse as CurvedBooleanUnsupported with the offending operand
+/// and face named.
+#[test]
+fn curved_face_gate_witness() {
+    use geom_core::{Point3, Vec3};
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
+    let (face, _) = b.faces().next().unwrap();
+    b.set_face_surface(
+        face,
+        topo::FaceSurface::New(geom_surfaces::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        }),
+    )
+    .unwrap();
+    match boolean_reduce(BooleanOp::Union, &a, &b) {
+        Err(BooleanError::CurvedBooleanUnsupported {
+            operand: topo::Operand::B,
+            face: f,
+        }) => assert_eq!(f, face),
+        other => panic!("expected CurvedBooleanUnsupported(B), got {other:?}"),
+    }
+}
