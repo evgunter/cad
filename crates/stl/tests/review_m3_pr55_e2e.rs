@@ -7,6 +7,7 @@
 //! the external admesh watertight gate (`scripts/check_admesh.sh`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::type_complexity)] // fixture tables read clearer inline
 
 use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume};

@@ -14,6 +14,7 @@
 //! Every Ok carries an EXACT dyadic volume oracle.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::type_complexity)] // fixture tables read clearer inline
 
 mod common;
 
