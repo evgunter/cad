@@ -342,10 +342,11 @@ Also: join.rs's second-chord guard (the laringmv skip window) is
 book-faithful (Program 14.10 placement) but no legal fixture reached
 it in this review — commented as a WATCH ITEM for PR 4/5's join reuse.
 
-**BOB fork status**: awaiting Evan. Default recommendation (B) —
-typed-refusal-now, revisit at PR 6 — under the reviewer's two
-conditions: (1) this MAJOR-1 wording fix (done), (2) the PR 4 charter
-check on boolean BOB-routing (already sent to the PR 4 implementer).
+**BOB fork status**: resolved — Evan adopted (B) on #61 (2026-07-21),
+with below-copy minting a COMMITTED PR 6 obligation (not a revisit;
+see the accumulating list). The reviewer's two conditions were met:
+(1) this MAJOR-1 wording fix (done), (2) the PR 4 charter check on
+boolean BOB-routing (executed in the PR 4 review — verdict there).
 
 **Issue #60 (pre-existing on main, fixed here)**: presented as the kef
 make/kill roundtrip swapping ring ownership between the two re-made
@@ -361,6 +362,104 @@ pinning later components to the committed labeling. Regression vector
 re-enabled (gating); fast deterministic counterpart
 `issue_60_kef_roundtrip_on_coincident_ring_twins` added; full seqgen
 suite green.
+
+## PR 4 (booleans part 1: reduction + classification) — 2026-07-21
+
+Implementation summary (condensed; full writeup in the PR
+description per process conventions): `boolean_reduce` — ch. 15
+§§15.4–15.6 re-derived, TOG 1986 as second witness for the unprinted
+on-edge machinery. Pipeline: gates (planar-only F5; no scaffolding
+operands; F7 maximal-faces via the coincidence ladder — structural or
+declared coincidence only, numeric coplanarity never triggers the
+precondition), all-pairs reduction sweep (both directions, contacts
+emitted as declared-contact records — the future 3′ declarations,
+never scanned-for after the fact), v-v sector classification
+(15.7–15.9 re-derived; 15.10 in full; TOG Tables II/III as typed
+decision tables; the derived edge-edge membership rule subsuming the
+angular sort + Table I ties), v-on-f classification via the ch. 14
+deltas + pierced-face ring insertion, and paired null-edge insertion
+with F9 attributes as data and explicit A↔B correspondence keys
+(F12; `ssortnulledges` engineered out, the 15.11 consecutive-pairing
+invariant guarded at runtime). The 15.7 sign INVERSION derived and
+mirror-pinned (printed `IN = +1` is coherent only for inward normals;
+under outward normals Enters ⇒ IN is the opposite sign).
+`oriented_plane_eq` (plane_eq.rs) replaces `vecequal`: declared rung
+through the one sanctioned `Real`-level bit door
+(`geom_core::bit_identity`), geometric trilean for definite-different,
+near-without-declaration ⇒ typed `Undeclared` (F6).
+
+### Adversarial review + fix pass (2026-07-21)
+
+Review (branch `review/m3-4`, suite promoted as `review_m3_pr4.rs`,
+15 witnesses): **every core derivation independently CONCURS** —
+Table III all 12 cells re-derived, the two corrected ∖ cells
+geometrically witnessed (resting + embedded-floor fixtures); the 15.7
+inversion; the edge-edge membership rule (with the R-1 carve-out,
+below — now fixed); the kemr insertion sequence. Independent censuses
+(two-brick, post-through-slab, notch-fill dense ties, mirrored
+resting sign chain, 4-crossing stress) all green, f64 + interval
+lanes.
+
+**MAJOR-1 (process) — consumer-level bit-identity fence restored**:
+the PR's ci.yml rewrite had quietly relaxed Evan's #53 invariant
+(EVERY new consumer of the bit-identity channel is allowlisted +
+retirement-noted) to a punning-only check ("one punning seam").
+Restored as TWO steps: (a) consumer grep
+(`bit_identity::|repr_bits|eq_bits`, comment lines excluded) with
+allowlist {bit_identity.rs, interval.rs, merge_faces.rs,
+plane_eq.rs}, step comment restating the rule (new consumer ⇒
+allowlist entry + retirement-scheduled doc note in that file); (b)
+the punning grep kept as a complementary check
+(`downcast_ref|downcast_mut|TypeId|core::any|std::any`, single seam =
+bit_identity.rs; `downcast_mut` added, stale comment fixed).
+plane_eq.rs got its missing retirement note; DESIGN.md's M4 entry
+restored to the every-consumer-acknowledged wording. Both directions
+witnessed by scratch files (an `eq_bits` caller in topo caught by
+(a); a `downcast_ref` caught by (b)).
+
+**R-1 (behavioral) — mixed-order collinear edge overlap: FIXED**
+(path taken: principled fix, well inside the time box). The
+reviewer's fixture (TOG Fig. 19-left analogue: brick corner edge
+collinear with a mid-span of a prism edge, dihedral wedges
+interleaved) refused with `ClassificationInvariant("odd number of
+surviving crossing records…")`. Diagnosis: the vertex pair hosts TWO
+on-direction events — the collinear-edge overlap along the shared
+line AND a transverse crossing whose direction coincides with the
+wide-sector subdivision bisector. `resolve_bisector_graze`'s (and
+`resolve_edge_sector`'s) fallback reference-sector search matched ANY
+On record on the wide-sector twins, so the graze event keyed against
+the OTHER event's face (keys (On,On) ⇒ "no crossing"), its true
+crossing records were cancelled, and one germ went missing — odd
+count. Fix (`find_ref_sector`, recl.rs): the reference search
+requires the candidate record's On bound to BE the event's ray (its
+start-holder equals the event's holder). The review test now asserts
+the derived classified census: per z-cap the section polyline
+(1,1)→(0.7,0)→(1,0.075) crosses A's boundary at 3 sites ⇒ 6 seam
+pairs (4 v-v + 2 v-f), op-independent, seam expected for ∪ per TOG's
+mixed-order criterion. Full workspace corpus green after the fix (no
+regressions).
+
+**Judgment calls 1–7**: 1–6 accepted as implemented; #7 (the F5
+curved gate's acceptance witnessed only through the scaffolding arm)
+needs-fix, folded — the reviewer's direct curved-face witness
+(cylinder-swapped face ⇒ `CurvedBooleanUnsupported` naming operand +
+face) lives in the promoted review suite (kept there rather than
+duplicated into the shipped acceptance, matching the review-suite
+precedent of PRs 1–3).
+
+**BOB-routing verdict (PR 3's charter check)**: HELD on the executed
+corpus — no below-copy minting anomaly on any routed fixture. The
+original caveat (the R-1 class refused before reaching routing) is
+now discharged in part: post-fix, the along-edge-seam fixture routes
+and validates in both lanes. A dedicated below-copy audit of
+along-edge seams under joining remains a PR 5 watch item (the joining
+PR inherits the seam machinery and must re-witness F9 sides there).
+
+**Small items** (fix pass): `PlaneDesc` re-exported at the boolean
+module root and crate root alongside `oriented_plane_eq` /
+`PlaneRelation`; `BooleanReduction::null_edges_of(operand)`
+per-operand accessor added (PR 5 ergonomics), exercised in the review
+census.
 
 ## Accumulating PR 6 (M3-exit sweep) obligations
 
@@ -384,6 +483,25 @@ table, voids documentation), the sweep has picked up:
   = closed inner shells = voids; partial revolve is extrude-shaped and
   already supports holes). FullRevolveHoles' pointer to the boolean
   route lands in PR 5 per F8.
+- **Below-copy minting at BOB pinch vertices (committed, Evan #61
+  2026-07-21)**: PR 6 implements it as part of the tier-3′ work so the
+  split-lane negative-side pinch refusal surface disappears; end state
+  identical to the immediate-rework option, only sequencing differed.
+  Until then `DegenerateSection` + flip-and-swap is the documented
+  interim.
+- **Saddle fixture for the 15.11 pairing guard (PR 4 review)**: the
+  F12 runtime guard (B-cyclic adjacency + run-side agreement) is
+  stressed only by planar 4-crossing fixtures; build a saddle-vertex
+  fixture (non-convex neighborhood where A-consecutive ≠ B-consecutive
+  pairing is geometrically realizable) that either witnesses the guard
+  firing or proves the configuration unreachable for tier-2 operands.
+- **Contact records are vertex-granularity (PR 4 review)**: the three
+  ON-sets record vertex pairs / vertex-on-face points only; the
+  tier-3′ certification must RECONSTRUCT edge-on-face and
+  coincident-edge SEGMENTS from their bounding vertex records — the
+  reconstruction rule (and its failure mode when a bounding vertex
+  record is missing) must be designed and pinned at the 3′ gate, not
+  assumed.
 
 ## State snapshot (handoff point, 2026-07-21)
 

@@ -118,21 +118,12 @@ impl core::fmt::Display for MergeCoplanarError {
 
 impl std::error::Error for MergeCoplanarError {}
 
-/// Bit-faithful identity of one scalar for the declared-equality rung:
-/// `f64` ⇒ `(to_bits, 0, 0)`; the interval scalar ⇒ its
-/// `(inf_bits, sup_bits, decoration)` triple (`Interval::repr_bits`,
-/// which — unlike `Bounds` — keeps NaI and empty apart); `Probe` ⇒ the
-/// bits of its inner `f64`. Both operands are the same `T`, so no
-/// cross-type tagging is needed.
-///
-/// **Deliberately localized** (per the PR 1 review): the clean
-/// long-term shape is a `Real`-level bit-equality door, deferred to
-/// PR 4's oriented-plane-equality work — extend *there*, not this
-/// downcast ladder. A scalar without an arm (e.g. `Dual`, which no
-/// `Body` instantiates) yields `None`: with no bit-identity channel,
-/// declared coincidence cannot be certified, so the caller refuses to
-/// merge — the ladder's conservative direction (coincidence is never
-/// inferred), not a silent wrong answer.
+/// Bit-faithful identity of one scalar for the declared-equality rung —
+/// since M3 PR 4 a thin alias for the sanctioned `Real`-level door
+/// [`geom_core::bit_identity::repr_bits`] (the PR 1 interim downcast
+/// ladder migrated there; this file no longer carries any bit-channel
+/// plumbing of its own). `None` = no bit channel for this scalar ⇒ the
+/// caller refuses to merge (the ladder's conservative direction).
 ///
 /// **Retirement-scheduled (DESIGN.md roadmap, M4; Evan, #53)**: when
 /// provenance-based naming gives surfaces global identity, the
@@ -140,20 +131,8 @@ impl std::error::Error for MergeCoplanarError {}
 /// leaves production (at most a debug assertion that records and bits
 /// agree). A CI tripwire allowlists this file and blocks new
 /// consumers of the channel in the interim.
-fn scalar_repr_bits<T: Decide>(x: T) -> Option<(u64, u64, u64)> {
-    let any: &dyn core::any::Any = &x;
-    if let Some(v) = any.downcast_ref::<f64>() {
-        return Some((v.to_bits(), 0, 0));
-    }
-    if let Some(v) = any.downcast_ref::<geom_core::Probe>() {
-        return Some((v.0.to_bits(), 0, 0));
-    }
-    #[cfg(feature = "interval")]
-    if let Some(v) = any.downcast_ref::<geom_core::Interval>() {
-        let (lo, hi, dec) = v.repr_bits();
-        return Some((lo, hi, u64::from(dec)));
-    }
-    None
+fn scalar_repr_bits<T: Decide>(x: T) -> Option<geom_core::bit_identity::ScalarBits> {
+    geom_core::bit_identity::repr_bits(&x)
 }
 
 impl<T: Decide> Body<T> {

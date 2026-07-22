@@ -124,6 +124,7 @@
 
 pub mod attach;
 pub mod body;
+pub mod boolean;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
@@ -160,6 +161,11 @@ mod tier3_tests;
 pub mod validate;
 
 pub use body::Body;
+pub use boolean::{
+    BoolNullEdgeRecord, BooleanError, BooleanOp, BooleanReduction, ContactRecords, FaceContainment,
+    NullEdgePairRecord, Operand, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneRelation, SideCode, VfContact, VvContact, boolean_reduce, contfp, oriented_plane_eq,
+};
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,

@@ -1,0 +1,447 @@
+//! Vertex-vertex classification, part 1: the typed sector arrays and
+//! the all-pairs intersecting-sector search (Programs 15.7–15.9
+//! re-derived under OUR conventions — nothing sign-copied).
+//!
+//! # Sector representation (derived, PR 2's geometry reused)
+//!
+//! The orbit visits half-edges leaving the base vertex CW-from-outside;
+//! the sector after orbit edge `he_i` (the corner of
+//! `face(loop(mate(he_i)))`) sweeps CCW around that face's outward
+//! normal **from `dir(he_{i+1})` to `dir(he_i)`**. We store each sector
+//! with explicit `start`/`end` bound VECTORS (start = the CCW-first
+//! bound = the next orbit chord), so `sectors[k].start ==
+//! sectors[k+1].end` — the shared-bound chain the reclassification
+//! neighbor propagation walks. Wide (≥ 180°) sectors are convexly
+//! subdivided at an interior direction (PR 2's derivation: the cone
+//! argument needs < 180°), pushed as two chained entries.
+//!
+//! # Side codes (the F3 chain — the 15.7 sign resolution)
+//!
+//! A bound direction's code against the other sector's face is
+//! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
+//! `Tangent ⇒ On`. Program 15.7's printed `IN = +1` (positive dot ⇒ IN)
+//! is coherent only for inward normals; under TOG §2's (and our)
+//! outward normals the derived mapping is the opposite — mirror-pinned
+//! by `mirror_check_side_codes`.
+//!
+//! # Intersection test (15.9 re-derived)
+//!
+//! Pair (a, b) intersects iff the face-plane intersection direction
+//! `±(n_a × n_b)` lies within both (convex) sectors — `within` =
+//! both boundary triples `(start × dir)·n`, `(dir × end)·n` not
+//! definitely negative (a Zero graze counts as within: boundary hits
+//! are exactly what must flow into the ON machinery). Coplanar pairs
+//! (`n_a × n_b` ≈ 0) go to `sector_overlap` — the unprinted procedure,
+//! designed here: overlap iff some bound of one lies strictly within
+//! the other, or the two sectors' bounds are pairwise parallel (the
+//! identical / identical-reversed region cases); touch-only sharing of
+//! a single bound is NOT overlap.
+
+use geom_brep::{EntersMaterial, enters_material};
+use geom_core::{Band, Decide, Sign, Vec3};
+
+use super::reduce::face_plane;
+use super::{BooleanError, Operand, SideCode};
+use crate::body::Body;
+use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::validate::decide;
+
+/// One (convex) sector of a vertex neighborhood.
+#[derive(Clone, Debug)]
+pub(super) struct BoolSector<T: geom_core::Real> {
+    /// The orbit half-edge the sector follows (CW-after `he`).
+    pub he: HalfEdgeKey,
+    /// CCW-first bound direction (the next orbit chord, or a bisector).
+    pub start: Vec3<T>,
+    /// CCW-last bound direction (this entry's own chord, or a bisector).
+    pub end: Vec3<T>,
+    /// Whether `start` is a real edge chord (false: subdivision bisector).
+    pub start_edge: bool,
+    /// Whether `end` is a real edge chord.
+    pub end_edge: bool,
+    /// The sector's face and outward normal.
+    pub face: FaceKey,
+    /// The face's outward unit normal.
+    pub normal: Vec3<T>,
+    /// The metering arm (shorter bounding chord, in meters).
+    pub arm: T,
+}
+
+fn corrupt(operand: Operand, vertex: VertexKey) -> BooleanError {
+    BooleanError::CorruptOperand { operand, vertex }
+}
+
+/// Builds the sector array of `vertex`'s neighborhood (module docs).
+pub(super) fn build_sectors<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<Vec<BoolSector<T>>, BooleanError> {
+    let anchor = body
+        .get_vertex(vertex)
+        .and_then(|v| v.emanating)
+        .ok_or_else(|| corrupt(operand, vertex))?;
+    let orbit = body
+        .vertex_orbit(anchor)
+        .ok_or_else(|| corrupt(operand, vertex))?;
+    let chord = |he: HalfEdgeKey| -> Result<Vec3<T>, BooleanError> {
+        let end = body
+            .half_edge_end(he)
+            .ok_or_else(|| corrupt(operand, vertex))?;
+        let p_base = *body
+            .get_point(
+                body.get_vertex(vertex)
+                    .ok_or_else(|| corrupt(operand, vertex))?
+                    .point,
+            )
+            .ok_or_else(|| corrupt(operand, vertex))?;
+        let p_end = *body
+            .get_point(
+                body.get_vertex(end)
+                    .ok_or_else(|| corrupt(operand, vertex))?
+                    .point,
+            )
+            .ok_or_else(|| corrupt(operand, vertex))?;
+        Ok(p_end - p_base)
+    };
+    let mut sectors = Vec::with_capacity(orbit.len() + 2);
+    for (i, &he) in orbit.iter().enumerate() {
+        let next_he = orbit[(i + 1) % orbit.len()];
+        let dir_end = chord(he)?; // this entry's own chord = CCW-last
+        let dir_start = chord(next_he)?; // next chord = CCW-first
+        let (face, normal) = sector_face(body, operand, vertex, he)?;
+        let arm = dir_end.norm().min(dir_start.norm());
+        match decide("bool_sector_arm", arm, band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(invalid_escalation(band, "bool_sector_arm")),
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
+        }
+        let (u_end, u_start) = (dir_end.normalize(), dir_start.normalize());
+        // Wideness (PR 2's derivation): sin θ = (start × end)·n metered
+        // at the arm; positive ⇒ convex; negative ⇒ reflex; zero-band ⇒
+        // disambiguate by cosine.
+        let reflex_margin = u_start.cross(u_end).dot(normal) * arm;
+        let bisec = match decide("bool_sector_reflex", reflex_margin, band) {
+            Ok(Sign::Positive) => None,
+            Ok(Sign::Negative) => Some(-((u_start + u_end).normalize())),
+            Ok(Sign::Zero) | Err(_) => {
+                let straight_margin = u_start.dot(u_end) * arm;
+                match decide("bool_sector_straight", straight_margin, band) {
+                    Ok(Sign::Negative) => Some(normal.cross(u_start)),
+                    Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(normal.cross(u_start)),
+                    Ok(Sign::Positive | Sign::Zero) => {
+                        return Err(invalid_escalation(band, "bool_sector_straight"));
+                    }
+                    Err(diag) => return Err(BooleanError::Escalated { diag }),
+                }
+            }
+        };
+        match bisec {
+            None => sectors.push(BoolSector {
+                he,
+                start: u_start,
+                end: u_end,
+                start_edge: true,
+                end_edge: true,
+                face,
+                normal,
+                arm,
+            }),
+            Some(b) => {
+                // Chained order (module docs): the end-sharing half
+                // first, then the start-sharing half.
+                sectors.push(BoolSector {
+                    he,
+                    start: b,
+                    end: u_end,
+                    start_edge: false,
+                    end_edge: true,
+                    face,
+                    normal,
+                    arm,
+                });
+                sectors.push(BoolSector {
+                    he,
+                    start: u_start,
+                    end: b,
+                    start_edge: true,
+                    end_edge: false,
+                    face,
+                    normal,
+                    arm,
+                });
+            }
+        }
+    }
+    Ok(sectors)
+}
+
+/// The sector's face + outward normal (post-F5: always a plane).
+pub(super) fn sector_face<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    vertex: VertexKey,
+    he: HalfEdgeKey,
+) -> Result<(FaceKey, Vec3<T>), BooleanError> {
+    let mate = body.mate(he).ok_or_else(|| corrupt(operand, vertex))?;
+    let parent = body
+        .get_half_edge(mate)
+        .ok_or_else(|| corrupt(operand, vertex))?
+        .parent_loop;
+    let face = body
+        .get_loop(parent)
+        .ok_or_else(|| corrupt(operand, vertex))?
+        .face;
+    let plane = face_plane(body, face).ok_or(BooleanError::ClassificationInvariant {
+        what: "post-gate sector face lost its plane",
+    })?;
+    Ok((face, plane.normal))
+}
+
+fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
+    BooleanError::Escalated {
+        diag: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some(predicate),
+        },
+    }
+}
+
+/// A bound direction's side code against a face — the F3 primitive
+/// applied (module docs; the 15.7 sign resolution).
+pub(super) fn side_code<T: Decide>(
+    dir: Vec3<T>,
+    face_normal: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    match enters_material(dir, face_normal, arm, band) {
+        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
+        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
+        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
+        Err(diag) => Err(BooleanError::Escalated { diag }),
+    }
+}
+
+/// One potentially-intersecting sector pair with its four side codes
+/// (the `sectors[]` record, typed).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct PairRecord {
+    /// Index into the A-side sector array.
+    pub a: usize,
+    /// Index into the B-side sector array.
+    pub b: usize,
+    /// A-sector (start, end) bound codes vs the B-sector's face.
+    pub sa: (SideCode, SideCode),
+    /// B-sector (start, end) bound codes vs the A-sector's face.
+    pub sb: (SideCode, SideCode),
+    /// Whether the pair still generates intersection geometry.
+    pub intersect: bool,
+}
+
+/// Whether `dir` lies within the convex sector (Zero grazes count —
+/// module docs). `strict` demands definite interior.
+fn within<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    strict: bool,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let c1 = s.start.cross(dir).dot(s.normal) * s.arm;
+    let c2 = dir.cross(s.end).dot(s.normal) * s.arm;
+    let t1 =
+        decide("bool_sector_within", c1, band).map_err(|diag| BooleanError::Escalated { diag })?;
+    let t2 =
+        decide("bool_sector_within", c2, band).map_err(|diag| BooleanError::Escalated { diag })?;
+    Ok(if strict {
+        t1 == Sign::Positive && t2 == Sign::Positive
+    } else {
+        t1 != Sign::Negative && t2 != Sign::Negative
+    })
+}
+
+/// Same-direction parallelism of two bound directions (unit-ish).
+fn parallel_same<T: Decide>(
+    u: Vec3<T>,
+    v: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let cross_margin = u.cross(v).norm() * arm;
+    match decide("bool_dir_parallel", cross_margin, band) {
+        Ok(Sign::Zero) => {}
+        Ok(_) => return Ok(false),
+        Err(diag) => return Err(BooleanError::Escalated { diag }),
+    }
+    match decide("bool_dir_same", u.dot(v) * arm, band) {
+        Ok(Sign::Positive) => Ok(true),
+        Ok(Sign::Negative) => Ok(false),
+        Ok(Sign::Zero) => Err(invalid_escalation(band, "bool_dir_same")),
+        Err(diag) => Err(BooleanError::Escalated { diag }),
+    }
+}
+
+/// `sectoroverlap` — coplanar sectors overlap test (module docs).
+fn sector_overlap<T: Decide>(
+    a: &BoolSector<T>,
+    b: &BoolSector<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    for (s, dir) in [(a, b.start), (a, b.end), (b, a.start), (b, a.end)] {
+        if within(s, dir, true, band)? {
+            return Ok(true);
+        }
+    }
+    let arm = a.arm.min(b.arm);
+    // Identical region (same or crossed bound pairing).
+    let straight =
+        parallel_same(a.start, b.start, arm, band)? && parallel_same(a.end, b.end, arm, band)?;
+    let crossed =
+        parallel_same(a.start, b.end, arm, band)? && parallel_same(a.end, b.start, arm, band)?;
+    Ok(straight || crossed)
+}
+
+/// The all-pairs search (15.7): every intersecting (A-sector, B-sector)
+/// pair becomes a [`PairRecord`] with its four side codes, in
+/// deterministic A-major order.
+pub(super) fn pair_search<T: Decide>(
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    band: Band,
+) -> Result<Vec<PairRecord>, BooleanError> {
+    let mut records = Vec::new();
+    for (i, sa) in a_sectors.iter().enumerate() {
+        for (j, sb) in b_sectors.iter().enumerate() {
+            let int = sa.normal.cross(sb.normal);
+            let arm = sa.arm.min(sb.arm);
+            let coplanar = match decide("bool_faces_parallel", int.norm() * arm, band) {
+                Ok(Sign::Zero) => true,
+                Ok(Sign::Positive) => false,
+                Ok(Sign::Negative) => {
+                    return Err(invalid_escalation(band, "bool_faces_parallel"));
+                }
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            };
+            let hit = if coplanar {
+                sector_overlap(sa, sb, band)?
+            } else {
+                let d = int.normalize();
+                (within(sa, d, false, band)? && within(sb, d, false, band)?)
+                    || (within(sa, -d, false, band)? && within(sb, -d, false, band)?)
+            };
+            if !hit {
+                continue;
+            }
+            let sa_codes = (
+                side_code(sa.start, sb.normal, arm, band)?,
+                side_code(sa.end, sb.normal, arm, band)?,
+            );
+            let sb_codes = (
+                side_code(sb.start, sa.normal, arm, band)?,
+                side_code(sb.end, sa.normal, arm, band)?,
+            );
+            records.push(PairRecord {
+                a: i,
+                b: j,
+                sa: sa_codes,
+                sb: sb_codes,
+                intersect: true,
+            });
+        }
+    }
+    Ok(records)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    fn band() -> Band {
+        Band::linear().unwrap()
+    }
+
+    /// The 15.7 sign resolution, mirror-pinned (F3): against a face
+    /// with outward normal +z (material below), a direction with
+    /// negative z ENTERS material ⇒ In; positive z ⇒ Out; in-plane ⇒
+    /// On. Program 15.7's printed IN=+1 would flip the first two — the
+    /// suspect side of ch. 15 erratum 4, resolved by derivation.
+    #[test]
+    fn mirror_check_side_codes() {
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let b = band();
+        assert_eq!(
+            side_code(Vec3::new(0.3, 0.0, -1.0), n, 1.0, b).unwrap(),
+            SideCode::In
+        );
+        assert_eq!(
+            side_code(Vec3::new(0.3, 0.0, 1.0), n, 1.0, b).unwrap(),
+            SideCode::Out
+        );
+        assert_eq!(
+            side_code(Vec3::new(1.0, 2.0, 0.0), n, 1.0, b).unwrap(),
+            SideCode::On
+        );
+    }
+
+    fn sector(start: [f64; 3], end: [f64; 3], normal: [f64; 3]) -> BoolSector<f64> {
+        BoolSector {
+            he: HalfEdgeKey::default(),
+            start: Vec3::new(start[0], start[1], start[2]),
+            end: Vec3::new(end[0], end[1], end[2]),
+            start_edge: true,
+            end_edge: true,
+            face: FaceKey::default(),
+            normal: Vec3::new(normal[0], normal[1], normal[2]),
+            arm: 1.0,
+        }
+    }
+
+    /// `within`: interior yes, exterior no, boundary graze counts
+    /// non-strictly and not strictly.
+    #[test]
+    fn within_convex_sector() {
+        let s = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+        let b = band();
+        let mid = Vec3::new(1.0, 1.0, 0.0).normalize();
+        assert!(within(&s, mid, true, b).unwrap());
+        assert!(!within(&s, Vec3::new(-1.0, -0.5, 0.0), false, b).unwrap());
+        assert!(within(&s, Vec3::new(1.0, 0.0, 0.0), false, b).unwrap());
+        assert!(!within(&s, Vec3::new(1.0, 0.0, 0.0), true, b).unwrap());
+    }
+
+    /// `sectoroverlap`: strict overlap yes; identical sectors yes;
+    /// touch-only bound sharing NO (flows to the ON machinery, not to a
+    /// fake coplanar pair).
+    #[test]
+    fn coplanar_overlap_cases() {
+        let b = band();
+        let s1 = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+        let deep = sector([0.5, 0.5, 0.0], [-0.5, 0.5, 0.0], [0.0, 0.0, 1.0]);
+        assert!(sector_overlap(&s1, &deep, b).unwrap());
+        assert!(sector_overlap(&s1, &s1.clone(), b).unwrap());
+        let touch = sector([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        assert!(!sector_overlap(&s1, &touch, b).unwrap());
+    }
+
+    /// The generic pair search on two orthogonal quarter-sector fans:
+    /// records carry transition codes.
+    #[test]
+    fn pair_search_generic_crossing() {
+        // A-sector in the xy-plane (normal +z), sweeping +x → +y CCW
+        // around +z; B-sector in the zx-plane (normal +y), sweeping
+        // +z → +x CCW around +y. They share the boundary ray +x.
+        let a = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+        let bsec = sector([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let recs = pair_search(&[a], &[bsec], band()).unwrap();
+        assert_eq!(recs.len(), 1);
+        let r = recs[0];
+        // A's start (+x) lies in B's face plane: On; A's end (+y) has
+        // dot(+y, n_b=+y) > 0: Exits ⇒ Out. B's start (+z): dot with
+        // n_a=+z > 0 ⇒ Out; B's end (+x): On.
+        assert_eq!(r.sa, (SideCode::On, SideCode::Out));
+        assert_eq!(r.sb, (SideCode::Out, SideCode::On));
+    }
+}

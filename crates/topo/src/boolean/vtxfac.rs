@@ -1,0 +1,349 @@
+//! `vtxfacclassify` — the vertex-on-face classifier the book never
+//! prints ("for space reasons", §15.6.1): the ch. 14 classifier with
+//! the three deltas, DESIGNED here:
+//!
+//! 1. **plane := the pierced face's plane**; classes are [`SideCode`]s
+//!    with OUT/IN derived from the F3 chain (a chord's class is its
+//!    signed elevation off the face plane against the OUTWARD normal —
+//!    `side_code`; 15.7's printed `IN = +1` is never consulted).
+//! 2. **On-sectors reclassify per Eq. 15.3** (op-dependent), behind
+//!    [`super::oriented_plane_eq`] — a coplanar sector must be
+//!    *declaredly* coplanar with the pierced face or the op refuses.
+//! 3. **The ring insertion** (the unprinted Euler sequence, designed):
+//!    in the pierced body,
+//!    `mev(Fan{anchor, anchor})` a **chord strut** from a deterministic
+//!    boundary vertex of the face to the pierce point (a real,
+//!    certified line edge, dangling — structurally legal mid-op), then
+//!    `kemr(chord.he_plus, chord.he_minus)` kills the chord and leaves
+//!    the pierce vertex as an **empty-loop ring** inside the face
+//!    (KemrResult: he1's strictly-between side is empty ⇒ the ring is
+//!    the lone new vertex — the dangling chord exists only between the
+//!    two ops), then one `mev_null` **strut per piercing-side run**
+//!    hangs the paired null edges off the ring vertex
+//!    (`MevSite::Lone` for the first, `Fan{he,he}` after). Dangling
+//!    ring null edges are the documented ch. 15 transient; joining
+//!    consumes them in PR 5. Tier 1 holds after every op (pinned by the
+//!    acceptance test).
+//!
+//! **On-edges** (an edge through the pierce vertex lying IN the face's
+//! plane): resolved by the flanking classes — `(In,·,In) → In`,
+//! `(Out,·,Out) → Out`, mixed → `In`. This deliberately DIVERGES from
+//! the split lane's F4 table (`BOB → ABOVE`): the split must mint
+//! copies to keep the two pieces' fans representable, but a boolean
+//! tangential contact is a *legal 3′ touching* (edge-on-face, both
+//! flanking faces the same side) already carried by the declared
+//! contact records — TOG Table II rows 5/9 (`(In,In)`/`(Out,Out)` ⇒
+//! no intersection) confirm no crossing is recorded. Mixed keeps the
+//! In side (both witnesses' choice for the split analogue). Flagged in
+//! the PR report for ratification.
+
+use geom_core::{Band, Decide, Sign};
+
+use super::plane_eq::PlaneEqError;
+use super::reduce::face_plane;
+use super::sectors::{build_sectors, side_code};
+use super::tables::eq15_3_lump;
+use super::{
+    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    PierceRingRecord, SideCode, VfContact,
+};
+use crate::body::Body;
+use crate::entity::HalfEdgeKey;
+use crate::euler::MevSite;
+use crate::null::{NewVertexSide, NullEdge};
+use crate::validate::decide;
+
+/// Output of one vertex-on-face classification.
+#[derive(Debug, Default)]
+pub(super) struct VtxFacOut {
+    /// Minted null edges (piercing-side runs + pierced-side ring struts).
+    pub edges: Vec<BoolNullEdgeRecord>,
+    /// Cross-body correspondence pairs.
+    pub pairs: Vec<NullEdgePairRecord>,
+    /// The ring insertion, if surgery happened.
+    pub ring: Option<PierceRingRecord>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Entry {
+    he: HalfEdgeKey,
+    is_edge: bool,
+    class: SideCode,
+}
+
+/// Classifies `contact.vertex` (in the piercing body) against
+/// `contact.face` (in the pierced body) and performs the paired
+/// insertion (module docs).
+pub(super) fn classify_vertex_on_face<T: Decide>(
+    piercing_body: &mut Body<T>,
+    pierced_body: &mut Body<T>,
+    piercing: Operand,
+    contact: VfContact,
+    op: BooleanOp,
+    band: Band,
+) -> Result<VtxFacOut, BooleanError> {
+    let vertex = contact.vertex;
+    let plane =
+        face_plane(pierced_body, contact.face).ok_or(BooleanError::ClassificationInvariant {
+            what: "pierced face lost its plane",
+        })?;
+    let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
+    let n = sectors.len();
+
+    // Entries = the bounds in orbit order (entry k = sector k's END
+    // bound: real chord or subdivision bisector), classed against the
+    // pierced face's plane via the F3 primitive.
+    let mut entries = Vec::with_capacity(n);
+    for s in &sectors {
+        entries.push(Entry {
+            he: s.he,
+            is_edge: s.end_edge,
+            class: side_code(s.end, plane.normal, s.arm, band)?,
+        });
+    }
+
+    // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
+    for (k, s) in sectors.iter().enumerate() {
+        let m = s.normal.cross(plane.normal).norm() * s.arm;
+        match decide("bool_sector_coplanar", m, band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => continue,
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
+        }
+        let sector_plane =
+            face_plane(piercing_body, s.face).ok_or(BooleanError::ClassificationInvariant {
+                what: "sector face lost its plane",
+            })?;
+        let rel = match super::oriented_plane_eq(&sector_plane, &plane, s.arm, band) {
+            Ok(super::PlaneRelation::Distinct) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "geometrically coplanar sector with definitely-distinct plane",
+                });
+            }
+            Ok(rel) => rel,
+            Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+            Err(PlaneEqError::Undeclared(diag)) => {
+                return Err(BooleanError::UndeclaredCoincidence { diag });
+            }
+        };
+        let lump = eq15_3_lump(op, piercing, rel);
+        entries[k].class = lump;
+        entries[(k + 1) % n].class = lump;
+    }
+
+    // On-edge resolution (module docs; the deliberate divergence).
+    for k in 0..n {
+        if entries[k].class == SideCode::On && entries[(k + 1) % n].class == SideCode::On {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "consecutive On entries after Eq. 15.3 lumping",
+            });
+        }
+    }
+    for k in 0..n {
+        if entries[k].class != SideCode::On {
+            continue;
+        }
+        let prev = entries[(k + n - 1) % n].class;
+        let next = entries[(k + 1) % n].class;
+        entries[k].class = match (prev, next) {
+            (SideCode::Out, SideCode::Out) => SideCode::Out,
+            _ => SideCode::In,
+        };
+    }
+
+    // Out-runs (the copy takes the OUT side — above ≙ OUT).
+    let runs = out_runs(&entries);
+    let mut out = VtxFacOut::default();
+    if runs.is_empty() {
+        return Ok(out); // tangential touch: 3′ contact only, no surgery
+    }
+
+    // Piercing-side null edges, one per run (PR 2's insertion pattern).
+    let mut run_edges = Vec::new();
+    for run in &runs {
+        let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
+        let mut real = members.filter(|e| e.is_edge);
+        let first = real.next();
+        let last = real.next_back().or(first);
+        let (site, dangling) = match (first, last) {
+            (Some(first), Some(last)) => {
+                let mate = piercing_body
+                    .mate(last.he)
+                    .ok_or(BooleanError::CorruptOperand {
+                        operand: piercing,
+                        vertex,
+                    })?;
+                let he2 = piercing_body
+                    .get_half_edge(mate)
+                    .ok_or(BooleanError::CorruptOperand {
+                        operand: piercing,
+                        vertex,
+                    })?
+                    .next;
+                (MevSite::Fan { he1: first.he, he2 }, false)
+            }
+            _ => {
+                let after = entries[(run.0 + run.1) % n];
+                (
+                    MevSite::Fan {
+                        he1: after.he,
+                        he2: after.he,
+                    },
+                    true,
+                )
+            }
+        };
+        let created = piercing_body.mev_null(site, NewVertexSide::Above)?;
+        let rec = BoolNullEdgeRecord {
+            operand: piercing,
+            at_vertex: vertex,
+            edge: created.edge,
+            attr: NullEdge {
+                below_end: vertex,
+                above_end: created.vertex,
+            },
+            dangling,
+        };
+        run_edges.push(rec);
+        out.edges.push(rec);
+    }
+
+    // Delta 3: the pierce ring in the pierced face (module docs).
+    let p = *piercing_body
+        .get_point(
+            piercing_body
+                .get_vertex(vertex)
+                .ok_or(BooleanError::CorruptOperand {
+                    operand: piercing,
+                    vertex,
+                })?
+                .point,
+        )
+        .ok_or(BooleanError::CorruptOperand {
+            operand: piercing,
+            vertex,
+        })?;
+    let pierced = piercing.other();
+    let face_data =
+        pierced_body
+            .get_face(contact.face)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "pierced face vanished",
+            })?;
+    let crate::entity::LoopBoundary::Cycle { first: anchor } = pierced_body
+        .get_loop(face_data.outer)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "pierced face outer loop vanished",
+        })?
+        .boundary
+    else {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "pierced face outer loop is not a cycle",
+        });
+    };
+    let u = pierced_body
+        .get_half_edge(anchor)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "anchor half-edge vanished",
+        })?
+        .start;
+    let p_u = *pierced_body
+        .get_point(
+            pierced_body
+                .get_vertex(u)
+                .ok_or(BooleanError::CorruptOperand {
+                    operand: pierced,
+                    vertex: u,
+                })?
+                .point,
+        )
+        .ok_or(BooleanError::CorruptOperand {
+            operand: pierced,
+            vertex: u,
+        })?;
+    // (1) chord strut u → pierce point (certified line, transient).
+    let chord = pierced_body.mev(
+        MevSite::Fan {
+            he1: anchor,
+            he2: anchor,
+        },
+        p,
+        geom_brep::EdgeCurveSpec::line_between(p_u, p),
+    )?;
+    // (2) detach as an empty-loop ring at the pierce vertex.
+    let kemr = pierced_body.kemr(chord.he_plus, chord.he_minus)?;
+    let w = chord.vertex;
+    out.ring = Some(PierceRingRecord {
+        operand: pierced,
+        face: contact.face,
+        ring_vertex: w,
+    });
+    // (3) one ring null-edge strut per piercing-side run; the declared
+    // `Above` copy is the +normal-side copy (provisional data the PR 5
+    // joining orients through the correspondence — flagged).
+    let mut ring_anchor: Option<HalfEdgeKey> = None;
+    for run_edge in &run_edges {
+        let site = match ring_anchor {
+            None => MevSite::Lone { r#loop: kemr.ring },
+            Some(he) => MevSite::Fan { he1: he, he2: he },
+        };
+        let created = pierced_body.mev_null(site, NewVertexSide::Above)?;
+        ring_anchor.get_or_insert(created.he_plus);
+        let rec = BoolNullEdgeRecord {
+            operand: pierced,
+            at_vertex: w,
+            edge: created.edge,
+            attr: NullEdge {
+                below_end: w,
+                above_end: created.vertex,
+            },
+            dangling: true,
+        };
+        out.edges.push(rec);
+        let (a_edge, b_edge, site) = match piercing {
+            Operand::A => (
+                run_edge.edge,
+                created.edge,
+                PairSite::VertexAOnFaceB(contact),
+            ),
+            Operand::B => (
+                created.edge,
+                run_edge.edge,
+                PairSite::VertexBOnFaceA(contact),
+            ),
+        };
+        out.pairs.push(NullEdgePairRecord {
+            a_edge,
+            b_edge,
+            site,
+        });
+    }
+    Ok(out)
+}
+
+/// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on
+/// [`SideCode`]; anchored at the first In entry; one-sided
+/// neighborhoods have none).
+fn out_runs(entries: &[Entry]) -> Vec<(usize, usize)> {
+    let n = entries.len();
+    let Some(anchor) = entries.iter().position(|e| e.class == SideCode::In) else {
+        return Vec::new();
+    };
+    let mut runs = Vec::new();
+    let mut k = 0;
+    while k < n {
+        let idx = (anchor + 1 + k) % n;
+        if entries[idx].class == SideCode::Out {
+            let start = idx;
+            let mut len = 0;
+            while k < n && entries[(anchor + 1 + k) % n].class == SideCode::Out {
+                len += 1;
+                k += 1;
+            }
+            runs.push((start, len));
+        } else {
+            k += 1;
+        }
+    }
+    runs
+}

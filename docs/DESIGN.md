@@ -620,12 +620,17 @@ precursor of the error-propagation feature.
 - **M4** — Parametric model layer: parameter vector → feature DAG → solid;
   provenance-based naming; replay. STEP export. The naming layer also
   **retires production bit-identity coincidence checking** (Evan, #53,
-  2026-07-21): once surfaces carry global identity, the "declared"
-  coincidence rung (M3's bit-fingerprint comparison of descriptions —
-  `merge_coplanar_faces`' declared rung, PR 4's oriented-plane-equality)
-  becomes a provenance-record lookup; the bit comparison leaves
-  production entirely, surviving at most as a debug assertion that the
-  records and the bits agree.
+  2026-07-21; M3 PR 4 / #57/#58): once surfaces carry global identity,
+  the "declared" coincidence rung (M3's bit-fingerprint comparison of
+  descriptions — `merge_coplanar_faces`' declared rung, PR 4's
+  `oriented_plane_eq` via the one sanctioned `Real`-level seam,
+  `geom_core::bit_identity`) becomes a provenance-record lookup; the bit
+  comparison leaves production entirely, surviving at most as a debug
+  assertion that the records and the bits agree. Until then the CI
+  bit-identity tripwires keep **every consumer of the channel
+  acknowledged**: a new consumer must be allowlisted in CI and carry its
+  own retirement-scheduled doc note, and the type-punning plumbing stays
+  confined to the single `bit_identity` seam.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets.
 - **M6** — Error-propagation MVP: distributions over parameters;
