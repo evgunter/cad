@@ -596,7 +596,8 @@ pub fn boolean_reduce<T: Decide>(
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         recl::recl_sectors(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
         recl::recl_edges(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
-        let out = insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records, band)?;
+        let out =
+            insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records, band)?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
     }

@@ -217,7 +217,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             }
         };
         let created = piercing_body.mev_null(site, NewVertexSide::Above)?;
-        let ((gs, ds), (ge, de)) = *run_germs.last().expect("pushed above");
+        let Some(&((gs, ds), (ge, de))) = run_germs.last() else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "run germ bookkeeping desynchronized",
+            });
+        };
         let (start_he, end_he) = if dangling {
             (created.he_minus, created.he_plus)
         } else {

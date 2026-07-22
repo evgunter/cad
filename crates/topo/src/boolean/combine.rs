@@ -35,7 +35,6 @@
 //! zip consumes (or, for fallback results — disjoint unions, voids —
 //! the finished multi-shell body itself).
 
-
 use slotmap::SecondaryMap;
 
 use super::BooleanError;
@@ -80,7 +79,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
     for (k, s) in src.surfaces.iter() {
-        surfaces.insert(k, dst.surfaces.insert(s.clone()));
+        surfaces.insert(k, dst.surfaces.insert(*s));
     }
 
     // ---- Topology arenas, pass 1: clone with source-internal keys
@@ -100,7 +99,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     let mut curves: SecondaryMap<CurveKey, CurveKey> = SecondaryMap::new();
     for (k, c) in src.curves.iter() {
         let mapped = match c {
-            CurveGeom::Certified(_) => c.clone(),
+            CurveGeom::Certified(_) => *c,
             CurveGeom::NullScaffold(attr) => {
                 let mut attr = *attr;
                 attr.below_end = *vertices.get(attr.below_end).ok_or_else(corrupt)?;
@@ -271,7 +270,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
         };
         let spec = geom_brep::EdgeCurveSpec {
             description,
-            carrier: curve.carrier().clone(),
+            carrier: *curve.carrier(),
             param_start: curve.params().0,
             param_end: curve.params().1,
         };
@@ -298,8 +297,5 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     let solid = dst.get_solid_mut(dst_solid).ok_or_else(corrupt)?;
     solid.shells.extend(shell_list);
 
-    Ok(GraftMap {
-        vertices,
-        faces,
-    })
+    Ok(GraftMap { vertices, faces })
 }

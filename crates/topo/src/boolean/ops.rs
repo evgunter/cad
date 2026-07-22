@@ -280,8 +280,7 @@ fn classify_shells<T: Decide>(
         'probe: for &face in &shell_data.faces {
             let face_data = body.get_face(face).ok_or_else(corrupt)?;
             for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-                let LoopBoundary::Cycle { first } =
-                    body.get_loop(l).ok_or_else(corrupt)?.boundary
+                let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary
                 else {
                     continue;
                 };

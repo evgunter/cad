@@ -389,7 +389,6 @@ impl<T: Decide> Sweep<T> {
         self.ends.push(half);
         Ok(None)
     }
-
 }
 
 impl ChordJoiner {

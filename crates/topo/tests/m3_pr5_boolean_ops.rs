@@ -39,10 +39,13 @@ fn census<T: geom_core::Real>(b: &Body<T>) -> (usize, usize, usize, usize, usize
     )
 }
 
+/// A public boolean op as a value.
+type BoolOp<T> = fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError>;
+
 /// Runs one op functionally, checking the operands stayed bitwise
 /// untouched and the result passes tier 1 + 2.
 fn run<T: Decide>(
-    op: fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError>,
+    op: BoolOp<T>,
     a: &Body<T>,
     b: &Body<T>,
 ) -> BooleanResult<T> {
@@ -87,14 +90,7 @@ fn assert_tier3_posture(body: &Body<f64>) {
 /// by design).
 fn generic_scenarios<T: Decide>() {
     let (a, b) = two_bricks::<T>();
-    for (op, faces) in [
-        (
-            topo::intersect as fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError>,
-            6,
-        ),
-        (union, 12),
-        (subtract, 9),
-    ] {
+    for (op, faces) in [(topo::intersect as BoolOp<T>, 6), (union, 12), (subtract, 9)] {
         let r = run(op, &a, &b);
         let body = body_of(&r);
         assert_eq!(body.kind, BooleanResultKind::Seamed);
@@ -111,10 +107,7 @@ fn generic_scenarios<T: Decide>() {
     assert_eq!(body_of(&r).kind, BooleanResultKind::Voided);
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<T>((2.0, 3.0), (2.0, 3.0), (2.0, 3.0));
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
 }
 
 #[test]
@@ -198,10 +191,7 @@ fn coplanar_overlap_intersect() {
     let before = (format!("{a:?}"), format!("{b:?}"));
     let err = topo::intersect(&a, &b).unwrap_err();
     assert!(
-        matches!(
-            err,
-            BooleanError::JoinDesync { .. } | BooleanError::Join(_)
-        ),
+        matches!(err, BooleanError::JoinDesync { .. } | BooleanError::Join(_)),
         "typed joining refusal, got {err:?}"
     );
     // Fail-loud contract: operands bitwise untouched, no partial body.
@@ -243,10 +233,7 @@ fn disjoint_operands() {
     assert_eq!(census(&body.body), (1, 2, 12, 12, 48, 24, 16));
     assert_props(&body.body, 2.0, 12.0);
     // ∩: the typed empty success.
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     // ∖: A untouched.
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
@@ -299,10 +286,7 @@ fn corner_kiss_operands() {
     // touching via distinct entities — F2's representable class).
     assert_ne!(c.a, c.b);
     // ∩: regularized empty. ∖: A, contacts dropped (B not in result).
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
@@ -428,18 +412,11 @@ fn subtract_equals_intersect_revert_oracle() {
         match (&direct, &via_revert) {
             (BooleanResult::Empty, BooleanResult::Empty) => {}
             (BooleanResult::Body(d), BooleanResult::Body(r)) => {
-                assert_eq!(
-                    census(&d.body),
-                    census(&r.body),
-                    "{name}: census equality"
-                );
+                assert_eq!(census(&d.body), census(&r.body), "{name}: census equality");
                 let md = mass_properties(&d.body).unwrap();
                 let mr = mass_properties(&r.body).unwrap();
                 assert_eq!(md.volume, mr.volume, "{name}: volume equality");
-                assert_eq!(
-                    md.surface_area, mr.surface_area,
-                    "{name}: area equality"
-                );
+                assert_eq!(md.surface_area, mr.surface_area, "{name}: area equality");
             }
             _ => panic!("{name}: oracle kinds diverge: {direct:?} vs {via_revert:?}"),
         }
@@ -479,10 +456,7 @@ fn tangential_rest_operands() {
     // Full-face coplanar rest (PR 4: ∩/∖ classify to contacts only).
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);

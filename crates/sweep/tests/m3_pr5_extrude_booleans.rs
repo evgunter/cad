@@ -28,8 +28,12 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
         geom_core::Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
         Point3::new(0.0, 0.0, z0) - Point3::origin(),
     ));
-    let validated = Profile::new(plane, vec![lp]).validate(Tolerance::get()).unwrap();
-    extrude(&validated, Extrusion::Distance(height)).unwrap().body
+    let validated = Profile::new(plane, vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    extrude(&validated, Extrusion::Distance(height))
+        .unwrap()
+        .body
 }
 
 /// The two-brick trace on extrude-built operands: all three ops, tier
@@ -39,10 +43,7 @@ fn extruded_two_bricks_all_ops() {
     let a = slab(0.0, 0.0, 2.0, 0.0, 2.0); // [0,2]³
     let b = slab(1.0, 1.0, 2.0, 1.0, 2.0); // [1,3]³
     for (op, volume) in [
-        (
-            topo::intersect as fn(&Body<f64>, &Body<f64>) -> _,
-            1.0_f64,
-        ),
+        (topo::intersect as fn(&Body<f64>, &Body<f64>) -> _, 1.0_f64),
         (union, 15.0),
         (subtract, 7.0),
     ] {

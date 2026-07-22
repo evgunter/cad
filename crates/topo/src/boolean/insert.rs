@@ -229,9 +229,11 @@ fn run_degenerates<T: Decide>(
     let Some((&first, &last)) = hes.first().zip(hes.last()) else {
         return Ok(false); // empty fan: a valid strut
     };
-    let mate = body.mate(last).ok_or(BooleanError::ClassificationInvariant {
-        what: "run edge without a mate",
-    })?;
+    let mate = body
+        .mate(last)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "run edge without a mate",
+        })?;
     let successor = body
         .get_half_edge(mate)
         .ok_or(BooleanError::ClassificationInvariant {
@@ -401,10 +403,28 @@ mod tests {
         };
         use SideCode::{In, Out};
         let recs = vec![mk((In, Out), (In, Out))];
-        let err = insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs, geom_core::Band::linear().unwrap()).unwrap_err();
+        let err = insert_null_pairs(
+            &mut a,
+            &mut b,
+            contact,
+            &[],
+            &[],
+            &recs,
+            geom_core::Band::linear().unwrap(),
+        )
+        .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
         let recs = vec![mk((In, In), (In, Out)), mk((Out, In), (Out, In))];
-        let err = insert_null_pairs(&mut a, &mut b, contact, &[], &[], &recs, geom_core::Band::linear().unwrap()).unwrap_err();
+        let err = insert_null_pairs(
+            &mut a,
+            &mut b,
+            contact,
+            &[],
+            &[],
+            &recs,
+            geom_core::Band::linear().unwrap(),
+        )
+        .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
     }
 
@@ -437,7 +457,16 @@ mod tests {
             mk(2, 1, (In, Out), (In, Out)),
             mk(3, 3, (Out, In), (Out, In)),
         ];
-        let err = insert_null_pairs(&mut abody, &mut bbody, contact, &[], &[], &recs, geom_core::Band::linear().unwrap()).unwrap_err();
+        let err = insert_null_pairs(
+            &mut abody,
+            &mut bbody,
+            contact,
+            &[],
+            &[],
+            &recs,
+            geom_core::Band::linear().unwrap(),
+        )
+        .unwrap_err();
         assert!(
             matches!(err, BooleanError::PairingMismatch { .. }),
             "{err:?}"

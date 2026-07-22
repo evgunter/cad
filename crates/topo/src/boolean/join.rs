@@ -114,7 +114,6 @@ impl SolidJoin {
             Err(desync("null half starts at a vertex of neither side set"))
         }
     }
-
 }
 
 /// A completed 2-loop null-face pair before role resolution.
@@ -224,10 +223,7 @@ pub(super) fn bool_connect<T: Decide>(
     }
 
     // Fixpoint (module docs).
-    loop {
-        let Some(m) = find_match(&open, red, &sa, &sb, band)? else {
-            break;
-        };
+    while let Some(m) = find_match(&open, red, &sa, &sb, band)? {
         let (ea, ra) = (
             open[m.entry].a[m.entry_a.1].0.he,
             open[m.cand].a[m.cand_a.1].0.he,
@@ -431,8 +427,7 @@ fn find_match<T: Decide>(
                     let f1 = rga.dir.dot(chord) / dist;
                     let f2 = ega.dir.dot(-chord) / dist;
                     if decide("bool_join_facing", f1, band).map_err(escalate)? != Sign::Positive
-                        || decide("bool_join_facing", f2, band).map_err(escalate)?
-                            != Sign::Positive
+                        || decide("bool_join_facing", f2, band).map_err(escalate)? != Sign::Positive
                     {
                         continue;
                     }
@@ -811,12 +806,10 @@ fn resolve_roles_geometric<T: Decide>(
         Some(outer_in) => {
             // The two regions flank the seam: the other loop takes the
             // opposite role (checked when it also resolves).
-            if let Some(ring_in) = probe(ring)? {
-                if ring_in == outer_in {
-                    return Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
-                        face,
-                    }));
-                }
+            if probe(ring)? == Some(outer_in) {
+                return Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
+                    face,
+                }));
             }
             if outer_in {
                 (outer, ring)
@@ -841,4 +834,3 @@ fn resolve_roles_geometric<T: Decide>(
     };
     Ok(roles)
 }
-
