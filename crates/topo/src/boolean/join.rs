@@ -531,20 +531,17 @@ fn loose_partners<T: Decide>(
             }
             best = match best {
                 None => Some((dist, (j, t))),
-                Some((bd, bm)) => match decide("bool_join_nearest", dist - bd, band)
-                    .map_err(escalate)?
-                {
-                    Sign::Negative => Some((dist, (j, t))),
-                    _ => Some((bd, bm)),
-                },
+                Some((bd, bm)) => {
+                    match decide("bool_join_nearest", dist - bd, band).map_err(escalate)? {
+                        Sign::Negative => Some((dist, (j, t))),
+                        _ => Some((bd, bm)),
+                    }
+                }
             };
         }
         let partner = best.map(|(_, jt)| jt);
         a_map.insert(g.he, partner.map(|(j, t)| open[j].a[t].0.he));
-        b_map.insert(
-            open[i].b[s].0.he,
-            partner.map(|(j, t)| open[j].b[t].0.he),
-        );
+        b_map.insert(open[i].b[s].0.he, partner.map(|(j, t)| open[j].b[t].0.he));
     }
     Ok((a_map, b_map))
 }
@@ -606,31 +603,8 @@ fn choose_roles<T: Decide>(
         .ok_or(desync("role face no longer resolves"))?
         .outer;
     if l == outer {
-        let picked = clean_dir(body, ea, ra, loose)?;
-        if picked.is_none() && std::env::var("SEAM_DEBUG").is_ok() {
-            let cyc = body
-                .get_loop(l)
-                .and_then(|ld| match ld.boundary {
-                    crate::entity::LoopBoundary::Cycle { first } => body.loop_cycle(first),
-                    _ => None,
-                })
-                .unwrap_or_default();
-            eprintln!("BOTH-DIRTY outer split: ea={ea:?} ra={ra:?}");
-            for h in cyc {
-                let v = body.get_half_edge(h).map(|d| d.start);
-                let p = v
-                    .and_then(|v| body.get_vertex(v))
-                    .and_then(|vd| body.get_point(vd.point));
-                eprintln!(
-                    "  he {h:?} loose={:?} chosen={} p={p:?}",
-                    loose.get(h).copied(),
-                    h == ea || h == ra,
-                );
-            }
-        }
-        return picked.ok_or(desync(
-            "every chord arc separates a loose scaffolding pair",
-        ));
+        return clean_dir(body, ea, ra, loose)?
+            .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
     // Ring lane: derived order from the residual-material side.
     let residual_in = residual_side_in(body, other_pristine, s, face, band)?;
@@ -697,9 +671,7 @@ fn residual_side_in<T: Decide>(
             super::solid_contain::SolidContainment::OnBoundary => continue,
         }
     }
-    Err(desync(
-        "ring-lane face has no classifiable residual vertex",
-    ))
+    Err(desync("ring-lane face has no classifiable residual vertex"))
 }
 
 /// The clean chord-arc role order, if any (doc at [`choose_roles`]):
