@@ -221,7 +221,7 @@ pub(super) fn split_connect<T: Decide>(
 
     let mut st = Sweep {
         ends: Vec::new(),
-        slivers: SecondaryMap::new(),
+        joiner: ChordJoiner::new(band),
         completed: Vec::new(),
         above_set,
         plane: red.plane,
@@ -252,7 +252,7 @@ pub(super) fn split_connect<T: Decide>(
         let mut joined = [false, false];
         for (slot, half) in [(0, up), (1, down)] {
             if let Some(end) = st.take_neighbor(&red.body, half)? {
-                st.join(&mut red.body, end, half)?;
+                st.joiner.join(&mut red.body, end, half)?;
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.
@@ -298,13 +298,44 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
     Ok(body.get_loop(l).ok_or(SplitJoinError::Corrupt)?.face)
 }
 
+/// The outcome of retiring a fully-joined null edge (`cut`):
+/// either the section polygon completed (a 2-loop null face remains,
+/// roles unresolved — the caller resolves them from its own role data)
+/// or two in-progress slivers were merged.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CutOutcome {
+    /// The kemr completion: `face` is the 2-loop null face, `ring` the
+    /// loop kemr demoted (the caller must not assume which side it is).
+    Completed {
+        /// The completed 2-loop null face.
+        face: FaceKey,
+        /// The loop kemr left as the ring.
+        ring: LoopKey,
+    },
+    /// An interior null edge: kef merged two slivers.
+    Merged,
+}
+
+/// The reusable chord-join core (ch. 14 Program 14.10's `join`/`cut`
+/// mechanics), shared between the split sweep and the boolean joining
+/// (M3 PR 5 — "the ch. 14 join reused"): chord `mef`/`mekr` insertion,
+/// ring re-homing (`laringmv`), and null-edge retirement. Role
+/// resolution and any side-specific certification stay with the
+/// callers — the core is side-agnostic.
+pub(crate) struct ChordJoiner {
+    /// Faces minted by `join`'s mefs — the sliver (section-polygon-in-
+    /// progress) faces `cut` may kill.
+    slivers: SecondaryMap<FaceKey, ()>,
+    /// The run band (ring re-homing containment).
+    band: Band,
+}
+
 /// The sweep state.
 struct Sweep<T: Decide> {
     /// Loose ends, in registration order (growable — no `ends[30]`).
     ends: Vec<HalfEdgeKey>,
-    /// Faces minted by `join`'s mefs — the sliver (section-polygon-in-
-    /// progress) faces `cut` may kill.
-    slivers: SecondaryMap<FaceKey, ()>,
+    /// The shared chord-join core.
+    joiner: ChordJoiner,
     /// Completed polygons, in completion order.
     completed: Vec<CompletedSection>,
     /// Minted above copies (role membership).
@@ -313,6 +344,16 @@ struct Sweep<T: Decide> {
     plane: SplitPlane<T>,
     /// The run band.
     band: Band,
+}
+
+impl ChordJoiner {
+    /// A fresh core.
+    pub(crate) fn new(band: Band) -> Self {
+        Self {
+            slivers: SecondaryMap::new(),
+            band,
+        }
+    }
 }
 
 impl<T: Decide> Sweep<T> {
@@ -349,9 +390,12 @@ impl<T: Decide> Sweep<T> {
         Ok(None)
     }
 
+}
+
+impl ChordJoiner {
     /// `join` (module docs): connect the old loose end `h1` and the
     /// new half `h2` with up to two chord edges.
-    fn join(
+    fn join<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         h1: HalfEdgeKey,
@@ -391,24 +435,28 @@ impl<T: Decide> Sweep<T> {
             body.mekr_chord(MekrSite::Cycles { target, ring })?;
         }
         // Second-chord guard: when the two halves are already adjacent
-        // the second mef (and with it the laringmv site below) is
-        // skipped. Book-faithful (Program 14.10 places the guard here);
-        // no legal fixture reaching the skip was found in PR 3's
-        // review. WATCH ITEM for PR 4/5's join reuse: if a boolean-path
-        // fixture reaches this window, verify ring re-homing still
-        // happens where it must.
+        // the second mef is skipped (the chord already exists).
         if next(body, next(body, h1)?)? != h2 {
             let created = body.mef_chord(MefSite::Chords {
                 he1: h2,
                 he2: next(body, h1)?,
             })?;
             self.slivers.insert(created.face, ());
-            // Ring re-homing (`laringmv`, the lkemr/ring-placement
-            // mirror site): only when the FIRST mef divided a face
-            // that still owns rings.
-            if let Some(newf) = newf {
-                self.rehome_rings(body, oldf, newf)?;
-            }
+        }
+        // Ring re-homing (`laringmv`, the lkemr/ring-placement mirror
+        // site): whenever the FIRST mef divided a face that still owns
+        // rings. PR 3 shipped this call *inside* the second-chord
+        // guard (Program 14.10's literal placement) and flagged the
+        // skip window as a watch item; the re-homing need depends only
+        // on the first mef having divided the face, not on whether the
+        // second chord was minted, so the call now runs unconditionally
+        // on `newf` (M3 PR 5 — the boolean joining reaches face-
+        // dividing joins with unrelated rings present). The book never
+        // re-homes after the second mef alone (its face is the sliver
+        // between the two chords, which bounds no ring-holding region);
+        // that placement is kept.
+        if let Some(newf) = newf {
+            self.rehome_rings(body, oldf, newf)?;
         }
         Ok(())
     }
@@ -416,7 +464,7 @@ impl<T: Decide> Sweep<T> {
     /// `laringmv(oldf, newf)`: move every ring of `oldf` that no
     /// longer lies inside `oldf`'s outer loop into `newf` — decided by
     /// the trilean containment predicate, never a raw comparison.
-    fn rehome_rings(
+    fn rehome_rings<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         oldf: FaceKey,
@@ -443,8 +491,14 @@ impl<T: Decide> Sweep<T> {
         Ok(())
     }
 
-    /// `cut` (module docs): retire a fully-joined null edge.
-    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey) -> Result<(), SplitJoinError> {
+    /// `cut` (module docs): retire a fully-joined null edge. The
+    /// completion outcome comes back unresolved — the caller assigns
+    /// roles from its own side data.
+    fn cut_core<T: Decide>(
+        &mut self,
+        body: &mut Body<T>,
+        edge: EdgeKey,
+    ) -> Result<CutOutcome, SplitJoinError> {
         let corrupt = || SplitJoinError::Corrupt;
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let loop_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<LoopKey, SplitJoinError> {
@@ -460,22 +514,10 @@ impl<T: Decide> Sweep<T> {
             // 2-loop null face.
             let face = body.get_loop(l_plus).ok_or_else(corrupt)?.face;
             let result = body.kemr(edge_data.he_plus, edge_data.he_minus)?;
-            let outer_loop = body.get_face(face).ok_or_else(corrupt)?.outer;
-            let (above_loop, below_loop) =
-                self.resolve_roles(body, face, outer_loop, result.ring)?;
-            self.certify_section_area(body, face, below_loop)?;
-            body.set_null_face_pair(
+            Ok(CutOutcome::Completed {
                 face,
-                NullFacePair::Split {
-                    above_loop,
-                    below_loop,
-                },
-            )?;
-            self.completed.push(CompletedSection {
-                face,
-                above_loop,
-                below_loop,
-            });
+                ring: result.ring,
+            })
         } else {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
@@ -491,8 +533,37 @@ impl<T: Decide> Sweep<T> {
             };
             let killed = body.kef(victim)?;
             self.slivers.remove(killed.killed_face);
+            Ok(CutOutcome::Merged)
         }
-        Ok(())
+    }
+}
+
+impl<T: Decide> Sweep<T> {
+    /// `cut` with the split lane's role resolution, area certification,
+    /// and F9 record-keeping layered on the shared core.
+    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey) -> Result<(), SplitJoinError> {
+        let corrupt = || SplitJoinError::Corrupt;
+        match self.joiner.cut_core(body, edge)? {
+            CutOutcome::Merged => Ok(()),
+            CutOutcome::Completed { face, ring } => {
+                let outer_loop = body.get_face(face).ok_or_else(corrupt)?.outer;
+                let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
+                self.certify_section_area(body, face, below_loop)?;
+                body.set_null_face_pair(
+                    face,
+                    NullFacePair::Split {
+                        above_loop,
+                        below_loop,
+                    },
+                )?;
+                self.completed.push(CompletedSection {
+                    face,
+                    above_loop,
+                    below_loop,
+                });
+                Ok(())
+            }
+        }
     }
 
     /// Resolve which of the null face's two loops is the above loop —
