@@ -14,6 +14,11 @@ concurrency:
 # rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
 # its components on the first cargo invocation. The pinned compiler (D9 / L2)
 # has a single source of truth — the toolchain file.
+#
+# KEEP IN SYNC with scripts/ci-local.sh (the local mirror of this matrix,
+# the merge gate whenever hosted Actions is unavailable): a job added,
+# removed, or changed here gets the same change there, and vice versa.
+# There is no structural enforcement — this pair of cross-references is it.
 
 jobs:
   discipline:

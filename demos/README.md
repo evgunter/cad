@@ -46,27 +46,34 @@ volume oracle and narrates each attempted variant honestly.
 
 | stop | what it shows |
 | --- | --- |
-| die (blocked) | the intended 21-pocket subtract die; demonstrates the branch's cookie-cutter defect live (see below) — no STL |
-| `table` | tabletop ∪ 4 corner-straddling legs — 4 sequential Seamed union nodes; coplanar-touching and inset-overlap leg variants attempted and narrated |
-| `openbox` | subtract through-cut: cavity cutter overhanging top + one wall (the fully-interior top opening is cookie-cutter blocked, narrated) |
+| die (live matrix) | the R1 orientation matrix run live: pip pockets succeed exact on {+z, −x, −y} and refuse typed `SeamOrientation` on {−z, +x, +y}; a real 3-pocket cube composes on the working faces; a −z pip guard fails loudly the day PR 5.5 lands the refusing half (full die then) — no STL |
+| `table` | tabletop ∪ 4 corner-straddling legs — 4 sequential Seamed union nodes; coplanar-touching and inset-overlap leg variants attempted and their typed refusals narrated |
+| `openbox` | the pure open box: fully-interior cavity cutter, open only through the top — a single-ring pocket on a working R1 orientation (refused pre-fix-pass, rendered since) |
+| `scoopbox` | subtract through-cut: cavity cutter overhanging top + one wall — a multi-face seam, the variant that shipped while the pure box was refused |
 | `voidbox` | inner box strictly inside, subtracted — kind `Voided`, TWO shells, the first legitimate voids; V = 8 − 1 = 7 exactly; a cutaway subtract of the two-shell body is attempted and its typed refusal narrated |
 
-Known-limitation narration baked into the tour (all PR 5/6 fix-pass
-feedback, demonstrated with exact numbers rather than claimed):
+Known-limitation narration baked into the tour (PR 5 review's ratified
+envelope, demonstrated with exact numbers rather than claimed):
 
-- **Cookie-cutter seams** (the seam ring closes within a single face:
-  pocket, boss, through-pillar, inset leg) return the WRONG component
-  as a tier-1/2-legal body — silently; the tour's volume oracle
-  catches it. This blocks the die entirely (a pip pocket is
-  single-face by nature; spherical pips await M5's curved booleans,
-  and frustum pips would need taper — extrude is straight-only).
+- **Orientation-dependent single-ring seams (R1)**: pockets/bosses whose
+  seam ring closes within one face succeed exactly on {+z, −x, −y}
+  faces and refuse typed `SeamOrientation` on {−z, +x, +y} — the
+  handedness-correlated half. Double-ring configurations
+  (through-pillar) refuse too. PR 5.5's charter; the die's −z guard and
+  the demo's pure variants promote when it lands. (The pre-fix-pass
+  SILENT wrong-component defect this narration replaced is resolved —
+  every failure is now a typed refusal.)
 - **Extrude operands**: `extrude` describes edges as `Intersection`
   of adjacent surfaces; the ops' carve/merge stages leave those
   references dangling (`Merge(InputNotClosed)` refusal), so the tour
-  re-describes operand edges as chord lines first.
-- **Coplanar touching-only union** (flush stacked boxes) refuses with
-  `Join(UnpairedLooseEnds)`; corner-flush shared-plane variants refuse
-  with `Join(RingHoming)` — PR 6 territory, narrated.
+  re-describes operand edges as chord lines first. (Whether PR 5's
+  extrude-operand remap made this workaround unnecessary is untested —
+  queued for the PR 5.5 demo unblock.)
+- **Touching/coplanar-overlap unions** (flush-stacked, corner-flush,
+  inset-overlap) refuse with typed Join-family errors
+  (`SeamOrientation` / `UnpairedLooseEnds` / `JoinDesync` by
+  configuration) — PR 5.5 territory, narrated live from the actual
+  results.
 - Boolean outputs carry chord descriptions on seam edges, so tier 3
   runs on an `Intersection`-upgraded clone (the test suite's
   documented posture; the honest upgrade op is a PR 6 obligation).
