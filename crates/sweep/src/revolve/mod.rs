@@ -415,8 +415,10 @@ impl fmt::Display for RevolveError {
                  segment runs (multi-shell result, deferred to M3)"
             ),
             Self::FullRevolveHoles => f.write_str(
-                "full revolve of a holed profile is deferred M2 scope (typed refusal; use a \
-                 partial revolve or a solid profile)",
+                "full revolve of a holed profile would enclose an inner void shell, and sweeps \
+                 produce genus, never voids (the sweeps-vs-voids invariant); voids are born \
+                 only from booleans — revolve the solid profile and subtract the hole body \
+                 (topo::subtract, M3), or use a partial revolve",
             ),
             Self::CosurfaceEscalated {
                 loop_index,

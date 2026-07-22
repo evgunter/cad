@@ -243,7 +243,7 @@ pub(super) struct PairRecord {
 
 /// Whether `dir` lies within the convex sector (Zero grazes count —
 /// module docs). `strict` demands definite interior.
-fn within<T: Decide>(
+pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,
     strict: bool,

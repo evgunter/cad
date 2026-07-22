@@ -264,7 +264,7 @@ pub(super) fn split_finish<T: Decide>(
 }
 
 /// The operand's single solid.
-fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
+pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
     let mut it = body.solids();
     let first = it.next();
     let extra = it.count();
@@ -381,7 +381,7 @@ fn classify_shell<T: Decide>(
 /// with every other shell's entities removed and orphaned geometry
 /// swept. Kept entities keep their keys (lineage-scoped identity —
 /// deterministic, replay-stable).
-fn carve<T: Decide>(
+pub(crate) fn carve<T: Decide>(
     src: &Body<T>,
     solid: SolidKey,
     keep: &[ShellKey],
@@ -487,6 +487,15 @@ fn carve<T: Decide>(
     let mut live_surfaces: SecondaryMap<crate::geometry::SurfaceKey, ()> = SecondaryMap::new();
     for (_, face) in body.faces() {
         live_surfaces.insert(face.surface, ());
+    }
+    // Description references keep surfaces alive exactly like faces do
+    // (the `remove_surface_if_orphaned` rule): an `Intersection`/`Seam`
+    // description on a surviving edge must never dangle (extrude-built
+    // operands carry them — M3 PR 5).
+    for (_, curve) in body.curves() {
+        for s in Body::description_surfaces(curve) {
+            live_surfaces.insert(s, ());
+        }
     }
     let orphan_surfaces: Vec<_> = body
         .surfaces

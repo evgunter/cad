@@ -461,6 +461,70 @@ module root and crate root alongside `oriented_plane_eq` /
 per-operand accessor added (PR 5 ergonomics), exercised in the review
 census.
 
+## PR 5 (booleans part 2: public ops) — review + fix pass — 2026-07-22
+
+**Adversarial review** (branch `review/m3-5`, suite promoted into the
+PR branch as `crates/topo/tests/review_m3_pr5.rs`: 18 f64 + 19
+interval-lane tests): **no code blocker** — nowhere a silent wrong
+body; every Ok the review probed carries an exact volume/area oracle,
+every failure is a typed, deterministic, operand-preserving refusal.
+Findings:
+
+- **R1 (orientation halves)**: the cookie-cutter lane is
+  ORIENTATION-DEPENDENT — the identical blind pocket succeeds with the
+  exact volume on a brick's {+z, −x, −y} faces and refuses
+  `SeamOrientation` on {−z, +x, +y} (pinned by
+  `pocket_orientation_matrix`), a handedness-correlated HALF of face
+  orientations. The PR's "fixed except for double-ring configs" claim
+  was an overclaim.
+- **R2**: multi-collinear-site seams (four crossing sites on one
+  line) refuse `JoinDesync`.
+- **R3**: crossing-polygon face disconnection refuses
+  `SeamOrientation`.
+- **R5 (contact-remap key lineage)**: recorded as a PR 6 obligation
+  below.
+
+**Honest limitation statement (reviewer's, for Evan's retroactive
+review; now ratified into the `ops` module's "Known limitations"
+docs)**: single-ring pockets/bosses refuse `SeamOrientation` on a
+handedness-correlated half of face orientations (works {+z, −x, −y},
+refuses {−z, +x, +y}); also refusing: multi-collinear-site seams
+(`JoinDesync`), crossing-polygon disconnection (`SeamOrientation`),
+coplanar-overlap ∩ (Fig 15.1), corner-flush. Working envelope:
+transversal crossings + interior-rest coplanar unions, all with exact
+oracles. All refusals typed/deterministic/operand-preserving. Root
+cause (one sentence): the cross-solid null-edge ordering/orientation
+discipline — `choose_roles`' prefer-mirror heuristic has no
+consistency theorem — which is PR 5.5's charter.
+
+**Merge rationale**: nothing silent-wrong anywhere probed; the working
+envelope is exact-oracle-verified; the refusal surface is honest and
+typed; the Fig 15.1 coplanar-overlap deferral is Evan-approved →
+PR 5.5. Mergeable under the pause instruction (small fix pass only).
+
+**Fix pass (usage-constrained, four items)**: (1) limitation statement
+corrected per R1 — `ops` module "Known limitations" section, the
+narrowed KNOWN LIMITATION test comment, a `choose_roles` KNOWN GAP
+note; (2) volume-inequality backstop at the op gate for `Seamed`
+results — vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
+vol(∖) ≤ vol A via the exact planar mass properties, new typed
+`BooleanError::ResultVolumeImplausible { which, got, bound }`, never a
+panic; comparison posture: each bound margin classified through the
+certified trilean (`sign_within` against the op's linear band — Q1's
+only legal comparison), refusing only on a CERTIFIED violating sign
+(in-band ties pass: dyadic-corpus sums are exact and the guarded bug
+class violates bounds macroscopically; a poisoned margin refuses
+`Escalated` — poison never passes a gate); each bound applies only
+against a certified-BOUNDED operand (positive flux volume) —
+complement operands (revert(B) in the A∖B ≡ A∩revert(B) oracle
+route) carry negative flux volume and an infinite true volume, so
+their bound is vacuous and skipped (caught live: the review suite's
+revert corpus tripped the naive bound); wiring unit-tested by
+construction (`volume_backstop_wiring`, mismatched `quad_prism`
+bodies + the complement skip/apply pair), and the full acceptance
+corpus runs green through the backstop; (3) this record; (4) review-suite promotion verified green
+in the merged tree.
+
 ## Accumulating PR 6 (M3-exit sweep) obligations
 
 Beyond M3-PLAN's own PR 6 list (F1/F2/F5/F6/F7/F8 ratifications, tier
@@ -502,6 +566,14 @@ table, voids documentation), the sweep has picked up:
   reconstruction rule (and its failure mode when a bounding vertex
   record is missing) must be designed and pinned at the 3′ gate, not
   assumed.
+- **Contact-remap key lineage (PR 5 review, R5)**: boolean results
+  drop contact records whose exact keys do not survive into the
+  result, but the geometric coincidence can PERSIST via minted copies
+  (seam-zip / merge-stage descendants of the recorded entities) — the
+  remap keeps only direct key lineage. The tier-3′ certification must
+  either carry records across the mint (a descendant map) or prove
+  the dropped-record configurations are re-derivable at the 3′ gate;
+  silent record loss over live coincidence is not acceptable there.
 
 ## State snapshot (session 2 pause point, 2026-07-22)
 
@@ -559,9 +631,17 @@ Supersedes the 2026-07-21 snapshot below (kept as historical record).
   (Evan-approved in chat, 2026-07-22): the collinear-seam family as
   its own PR landing before PR 6** — Fig 15.1 coplanar-overlap ∩
   (the deferred PR 5 acceptance item), double-ring single-face seams
-  (SeamOrientation), flush-stacked/corner-flush unions; diagnosis to
-  start from: the cross-solid processing-order/orientation discipline
-  the book buries in ssortnulledges (validate against the PR 5
+  (SeamOrientation), flush-stacked/corner-flush unions, PLUS the
+  PR 5 review's additions: R1 the orientation halves (single-ring
+  pockets/bosses refuse SeamOrientation on {−z, +x, +y}; matrix
+  pinned in review_m3_pr5.rs — flip `pocket_orientation_matrix`'s
+  refusal assertion when fixed), R2 multi-collinear-site JoinDesync,
+  R3 crossing-polygon disconnection; diagnosis to start from:
+  `choose_roles`' prefer-mirror heuristic carries no consistency
+  theorem relating the two solids' role orders to a derived
+  cross-solid orientation relation — the processing-order/orientation
+  discipline the book buries in ssortnulledges, to be enforced as
+  data through the germ-keyed join (validate against the PR 5
   review's assessment); full implement→review→fix cycle like any PR;
   the demo's die/open-box/table pure variants and the F7
   declared-rung verification unblock here → spec PR 6 (the

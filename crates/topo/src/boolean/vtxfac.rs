@@ -54,10 +54,10 @@ use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
 
 /// Output of one vertex-on-face classification.
-#[derive(Debug, Default)]
-pub(super) struct VtxFacOut {
+#[derive(Debug)]
+pub(super) struct VtxFacOut<T: geom_core::Real> {
     /// Minted null edges (piercing-side runs + pierced-side ring struts).
-    pub edges: Vec<BoolNullEdgeRecord>,
+    pub edges: Vec<BoolNullEdgeRecord<T>>,
     /// Cross-body correspondence pairs.
     pub pairs: Vec<NullEdgePairRecord>,
     /// The ring insertion, if surgery happened.
@@ -81,7 +81,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     contact: VfContact,
     op: BooleanOp,
     band: Band,
-) -> Result<VtxFacOut, BooleanError> {
+) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
     let plane =
         face_plane(pierced_body, contact.face).ok_or(BooleanError::ClassificationInvariant {
@@ -153,14 +153,37 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Out-runs (the copy takes the OUT side — above ≙ OUT).
     let runs = out_runs(&entries);
-    let mut out = VtxFacOut::default();
+    let mut out = VtxFacOut {
+        edges: Vec::new(),
+        pairs: Vec::new(),
+        ring: None,
+    };
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery
     }
 
     // Piercing-side null edges, one per run (PR 2's insertion pattern).
+    // Germ facings (F9 data): the run's two boundary transitions are
+    // its germs; both lie in the pierced face's plane, so the germ's
+    // face pair = (transition sector's face, pierced face) in operand
+    // order. Parity: the class after crossing forward — Out at the
+    // run's start germ, In at its end germ (site-shared with the ring
+    // strut below).
+    let germ_pair = |own: crate::entity::FaceKey| match piercing {
+        Operand::A => (own, contact.face),
+        Operand::B => (contact.face, own),
+    };
+    let mut run_germs = Vec::new();
     let mut run_edges = Vec::new();
     for run in &runs {
+        let s_start = &sectors[(run.0 + n - 1) % n];
+        let s_end = &sectors[(run.0 + run.1 - 1) % n];
+        let dir_start = pierce_germ_dir(s_start, plane.normal, band)?;
+        let dir_end = pierce_germ_dir(s_end, plane.normal, band)?;
+        run_germs.push((
+            (germ_pair(s_start.face), dir_start),
+            (germ_pair(s_end.face), dir_end),
+        ));
         let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
@@ -194,6 +217,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             }
         };
         let created = piercing_body.mev_null(site, NewVertexSide::Above)?;
+        let Some(&((gs, ds), (ge, de))) = run_germs.last() else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "run germ bookkeeping desynchronized",
+            });
+        };
+        let (start_he, end_he) = if dangling {
+            (created.he_minus, created.he_plus)
+        } else {
+            (created.he_plus, created.he_minus)
+        };
         let rec = BoolNullEdgeRecord {
             operand: piercing,
             at_vertex: vertex,
@@ -203,6 +236,20 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 above_end: created.vertex,
             },
             dangling,
+            germs: [
+                super::HalfGerm {
+                    he: start_he,
+                    a_face: gs.0,
+                    b_face: gs.1,
+                    dir: ds,
+                },
+                super::HalfGerm {
+                    he: end_he,
+                    a_face: ge.0,
+                    b_face: ge.1,
+                    dir: de,
+                },
+            ],
         };
         run_edges.push(rec);
         out.edges.push(rec);
@@ -282,7 +329,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // `Above` copy is the +normal-side copy (provisional data the PR 5
     // joining orients through the correspondence — flagged).
     let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for run_edge in &run_edges {
+    for (run_edge, ((gs, ds), (ge, de))) in run_edges.iter().zip(&run_germs) {
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
@@ -298,6 +345,20 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 above_end: created.vertex,
             },
             dangling: true,
+            germs: [
+                super::HalfGerm {
+                    he: created.he_minus,
+                    a_face: gs.0,
+                    b_face: gs.1,
+                    dir: *ds,
+                },
+                super::HalfGerm {
+                    he: created.he_plus,
+                    a_face: ge.0,
+                    b_face: ge.1,
+                    dir: *de,
+                },
+            ],
         };
         out.edges.push(rec);
         let (a_edge, b_edge, site) = match piercing {
@@ -319,6 +380,37 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         });
     }
     Ok(out)
+}
+
+/// The germ direction at a pierce-site transition: the unit
+/// intersection direction of the transition sector's face plane with
+/// the pierced plane, signed to lie within the sector (grazes count —
+/// an on-edge germ IS a bound). Ambiguity refuses loudly.
+fn pierce_germ_dir<T: Decide>(
+    s: &super::sectors::BoolSector<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<geom_core::Vec3<T>, BooleanError> {
+    let int = s.normal.cross(plane_normal);
+    match decide("bool_germ_line", int.norm() * s.arm, band) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "pierce transition on a coplanar sector",
+            });
+        }
+        Err(diag) => return Err(BooleanError::Escalated { diag }),
+    }
+    let d = int.normalize();
+    let plus = super::sectors::within(s, d, false, band)?;
+    let minus = super::sectors::within(s, -d, false, band)?;
+    match (plus, minus) {
+        (true, false) => Ok(d),
+        (false, true) => Ok(-d),
+        _ => Err(BooleanError::ClassificationInvariant {
+            what: "pierce germ direction not uniquely within its sector",
+        }),
+    }
 }
 
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on
