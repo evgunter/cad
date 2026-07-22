@@ -481,3 +481,41 @@ fn curved_face_gate_witness() {
         other => panic!("expected CurvedBooleanUnsupported(B), got {other:?}"),
     }
 }
+
+/// The two DERIVATION-CORRECTED ∖-column cells, executed geometrically
+/// (the A-versus-B rows where the shipped table diverges from TOG's
+/// print). Small operand-A resting on B (AonB⁻, opposite): the printed
+/// table would seam A∖B; the corrected rule must not. Small A embedded
+/// floor-to-floor in B (AonB⁺, identical): printed would seam A∖B;
+/// corrected must not (A∖B needs no crossings — A's boundary
+/// classifies uniformly). ∪ rows (both tables agree) must still seam.
+#[test]
+fn corrected_subtract_cells_geometric() {
+    // AonB⁻ (opposite): A rests on B's top face.
+    let a = brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0));
+    let b = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0));
+    let red = reduce_ok(BooleanOp::Subtract, &a, &b);
+    assert_eq!(red.contacts.a_on_b.len(), 4);
+    assert!(
+        red.null_edges.is_empty() && red.pierce_rings.is_empty(),
+        "corrected (∖, A-vs-B, opposite) = No-intersect violated"
+    );
+    let red = reduce_ok(BooleanOp::Union, &a, &b);
+    assert_eq!(red.pierce_rings.len(), 4, "∪ must still seam the rim");
+
+    // AonB⁺ (identical): A embedded floor-to-floor inside B.
+    let a = brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
+    let b = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0));
+    let red = reduce_ok(BooleanOp::Subtract, &a, &b);
+    assert_eq!(red.contacts.a_on_b.len(), 4);
+    assert!(
+        red.null_edges.is_empty() && red.pierce_rings.is_empty(),
+        "corrected (∖, A-vs-B, identical) = No-intersect violated"
+    );
+    // ∩ keeps A whole (A∩B = A): uniform In, no seam either.
+    let red = reduce_ok(BooleanOp::Intersect, &a, &b);
+    assert!(red.null_edges.is_empty());
+    // ∪ = B with A's coincident floor patch surviving: seams needed.
+    let red = reduce_ok(BooleanOp::Union, &a, &b);
+    assert_eq!(red.pierce_rings.len(), 4);
+}
