@@ -71,7 +71,7 @@ fn census_two_bricks_independent() {
         );
         assert_eq!(red.null_pairs.len(), 6);
         assert_eq!(red.pierce_rings.len(), 6);
-        let (dangling, run): (Vec<&topo::BoolNullEdgeRecord>, Vec<_>) =
+        let (dangling, run): (Vec<&topo::BoolNullEdgeRecord<f64>>, Vec<_>) =
             red.null_edges.iter().partition(|e| e.dangling);
         assert_eq!((dangling.len(), run.len()), (6, 6));
         // Per-operand view (the PR 5 ergonomics accessor): 3 pierces

@@ -41,7 +41,7 @@ use geom_brep::EdgeCurveSpec;
 /// A geometric quad prism (profile in x–y, extruded +z; the
 /// tests/common builder's minimal in-crate copy): planar Newell
 /// surfaces, certified chord-line carriers.
-fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
+pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
     let c = |&(x, y): &(f64, f64), z: f64| Point3::new(x, y, z);
     let bot: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 0.0)).collect();
     let top: Vec<Point3<f64>> = profile.iter().map(|p| c(p, height)).collect();

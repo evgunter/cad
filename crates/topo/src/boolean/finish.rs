@@ -68,11 +68,13 @@ pub(super) fn kept_side(op: BooleanOp, operand: Operand) -> SideCode {
 
 /// Promotes every completed null face of one solid; returns the
 /// per-face side map and, per pair, the (in_face, out_face) keys.
+type PromotedSides = (SecondaryMap<FaceKey, SideCode>, Vec<(FaceKey, FaceKey)>);
+
 fn promote_solid<T: Decide>(
     body: &mut Body<T>,
     completed: &[CompletedPolygonPair],
     operand: Operand,
-) -> Result<(SecondaryMap<FaceKey, SideCode>, Vec<(FaceKey, FaceKey)>), BooleanError> {
+) -> Result<PromotedSides, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut side_of: SecondaryMap<FaceKey, SideCode> = SecondaryMap::new();
     let mut in_out = Vec::with_capacity(completed.len());

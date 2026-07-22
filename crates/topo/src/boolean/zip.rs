@@ -111,12 +111,13 @@ pub(super) fn zip_seam<T: Decide>(
     // ---- The loopglue zip (the reassembly-oracle sequence, driven by
     // records): pair 0 via mekr (kills the ring loop) + kev; pairs
     // n−1 … 1 via mef + kev + kef(rs[j+1 mod n]); final kef(rs[1]). ----
-    let point_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = start_of(body, he)?;
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or_else(|| corr("seam vertex has no point"))
-    };
+    let point_of =
+        |body: &Body<T>, he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
+            let v = start_of(body, he)?;
+            body.get_vertex(v)
+                .and_then(|vd| body.get_point(vd.point).copied())
+                .ok_or_else(|| corr("seam vertex has no point"))
+        };
     let p0 = point_of(body, ob[0])?;
     let n0 = body.mekr(
         MekrSite::Cycles {

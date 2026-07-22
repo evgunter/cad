@@ -51,8 +51,37 @@
 //! through the combine door's graft map). Records referencing
 //! discarded entities are dropped — a contact between A and B is only
 //! meaningful in a result containing both sides.
+//!
+//! # Known limitations (PR 5 review — the honest envelope)
+//!
+//! The seam lane's WORKING envelope: transversal boundary crossings
+//! plus interior-rest coplanar unions, all verified against exact
+//! volume/area oracles. Outside it the ops REFUSE — every refusal
+//! typed, deterministic, operands untouched; never a silent wrong
+//! body. The refusing configurations (review findings R1–R3 plus the
+//! previously pinned pair):
+//!
+//! - **Single-ring pockets/bosses are orientation-dependent** (R1):
+//!   the identical blind pocket succeeds with the exact volume on a
+//!   brick's {+z, −x, −y} faces and refuses
+//!   [`BooleanError::SeamOrientation`] on {−z, +x, +y} — a
+//!   handedness-correlated HALF of face orientations, NOT "fixed
+//!   except for double-ring configs".
+//! - **Double-ring single-face seams** (through-pillar tunnel,
+//!   inset-leg union): `SeamOrientation`.
+//! - **Multi-collinear-site seams** (R2, four collinear crossing
+//!   sites on one line): [`BooleanError::JoinDesync`].
+//! - **Crossing-polygon face disconnection** (R3, crossing-polygon
+//!   operands whose seams disconnect a face): `SeamOrientation`.
+//! - **Coplanar-overlap ∩** (Fig 15.1, deferred acceptance item) and
+//!   **corner-flush** contacts: refuse.
+//!
+//! Root cause (one sentence): the cross-solid null-edge
+//! ordering/orientation discipline is not enforced — `choose_roles`'
+//! prefer-mirror heuristic carries no consistency theorem — which is
+//! exactly PR 5.5's charter (M3-LOG resumption entry).
 
-use geom_core::{Band, Decide, Real};
+use geom_core::{Band, Decide, MarginDiag, Real, Sign};
 
 use super::combine::{GraftMap, graft_solid};
 use super::finish::{contact_skip_set, kept_side, setopfinish};
@@ -65,6 +94,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, ShellKey, VertexKey};
+use crate::props::mass_properties_with;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{validate, validate_closed};
 
@@ -163,7 +193,7 @@ fn boolean_op<T: Decide>(
         return fallback(op, &red, a, b, band);
     }
 
-    let completed = bool_connect(&mut red, band)?;
+    let completed = bool_connect(&mut red, a, b, band)?;
     if completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",
@@ -183,11 +213,115 @@ fn boolean_op<T: Decide>(
         KeyView::Graft(&fin.graft),
     );
     gate(&body)?;
+    volume_backstop(op, a, b, &body, band)?;
     Ok(BooleanResult::Body(BooleanBody {
         body,
         kind: BooleanResultKind::Seamed,
         contacts,
     }))
+}
+
+/// The volume-inequality backstop at the op gate (PR 5 review): every
+/// `Seamed` result must satisfy the set-theoretic bounds
+/// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
+/// vol(∖) ≤ vol A — computed with the exact planar
+/// [`mass_properties_with`]. The min/max are decomposed into per-operand
+/// inequalities, so no operand-vs-operand comparison is needed.
+///
+/// Comparison posture: each bound margin is classified through the
+/// certified trilean (`sign_within` against the op's linear band) —
+/// the codebase's only legal comparison (Q1). Only a CERTIFIED
+/// violating sign refuses ([`BooleanError::ResultVolumeImplausible`]);
+/// `Zero` and in-band indeterminate margins PASS: on the planar
+/// corpus the flux sums are exact for dyadic fixtures (margin exactly
+/// 0 or macroscopic), and the bug class this backstop guards —
+/// wrong-component results — violates its bound by whole regions, so
+/// refusing on an ulp-scale tie would make the gate noisier than the
+/// property it guards. A POISONED margin (NaN) still refuses loudly
+/// ([`BooleanError::Escalated`]) — poison never passes a gate.
+///
+/// Complement operands: a reverted body's flux volume is NEGATIVE
+/// (its true set volume is infinite — the A∖B ≡ A∩revert(B) oracle
+/// route feeds such operands legitimately), so each bound applies
+/// only when its reference operand's volume is certified POSITIVE
+/// (bounded solid); against a complement the set bound is vacuous
+/// and is skipped, never misread as a violation.
+fn volume_backstop<T: Decide>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    result: &Body<T>,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let corrupt = || BooleanError::ClassificationInvariant {
+        what: "volume backstop: mass properties refused on a tier-valid planar body",
+    };
+    let vol = |body: &Body<T>| -> Result<T, BooleanError> {
+        Ok(mass_properties_with(body, band)
+            .map_err(|_| corrupt())?
+            .volume)
+    };
+    let (va, vb, vr) = (vol(a)?, vol(b)?, vol(result)?);
+    // A bound applies only against a certified-bounded operand
+    // (positive flux volume); complement operands (certified negative)
+    // make it vacuous. Poison refuses; an in-band operand volume is a
+    // degenerate operand — no bound is certifiable from it, skip.
+    let bounded = |v: T| -> Result<bool, BooleanError> {
+        match v.sign_within(band) {
+            Ok(Sign::Positive) => Ok(true),
+            Ok(Sign::Zero | Sign::Negative) => Ok(false),
+            Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
+                Err(BooleanError::Escalated {
+                    diag: diag.with_predicate("volume_backstop"),
+                })
+            }
+            Err(_) => Ok(false),
+        }
+    };
+    // `margin` ≥ 0 (within band) or the bound named by `which` is
+    // violated: margin = bound − got for upper bounds, got − bound for
+    // lower bounds.
+    let check = |which: &'static str, margin: T, got: T, bound: T| -> Result<(), BooleanError> {
+        match margin.sign_within(band) {
+            Ok(Sign::Negative) => Err(BooleanError::ResultVolumeImplausible {
+                which,
+                got: format!("{got:?}"),
+                bound: format!("{bound:?}"),
+            }),
+            Ok(Sign::Zero | Sign::Positive) => Ok(()),
+            Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
+                Err(BooleanError::Escalated {
+                    diag: diag.with_predicate("volume_backstop"),
+                })
+            }
+            Err(_) => Ok(()),
+        }
+    };
+    let (ba, bb) = (bounded(va)?, bounded(vb)?);
+    match op {
+        BooleanOp::Intersect => {
+            if ba {
+                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va)?;
+            }
+            if bb {
+                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb)?;
+            }
+        }
+        BooleanOp::Union => {
+            if ba {
+                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va)?;
+            }
+            if bb {
+                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb)?;
+            }
+        }
+        BooleanOp::Subtract => {
+            if ba {
+                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// How one operand's keys map into the result body.
@@ -280,8 +414,7 @@ fn classify_shells<T: Decide>(
         'probe: for &face in &shell_data.faces {
             let face_data = body.get_face(face).ok_or_else(corrupt)?;
             for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-                let LoopBoundary::Cycle { first } =
-                    body.get_loop(l).ok_or_else(corrupt)?.boundary
+                let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary
                 else {
                     continue;
                 };
@@ -417,4 +550,51 @@ fn finish_fallback<T: Decide>(
         kind,
         contacts,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::Band;
+
+    use super::volume_backstop;
+    use crate::boolean::{BooleanError, BooleanOp};
+    use crate::splitting::reassembly::quad_prism;
+
+    /// The backstop's refusal wiring, by construction: feed it a
+    /// "result" whose exact volume violates the op's bound (a half-height
+    /// prism vs the unit cube, both surface-certified geometric bodies)
+    /// and require the typed `ResultVolumeImplausible`; the non-strict
+    /// pass direction (result ≡ operand, margin exactly zero) must pass
+    /// all three ops.
+    #[test]
+    fn volume_backstop_wiring() {
+        let band = Band::linear().unwrap();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let cube = quad_prism(&square, 1.0);
+        let small = quad_prism(&square, 0.5);
+        let implausible = |e: BooleanError| {
+            assert!(
+                matches!(e, BooleanError::ResultVolumeImplausible { .. }),
+                "expected ResultVolumeImplausible, got {e:?}"
+            );
+        };
+        // vol(∪) ≥ max: a union "result" smaller than an operand.
+        implausible(volume_backstop(BooleanOp::Union, &cube, &cube, &small, band).unwrap_err());
+        // vol(∖) ≤ vol(A): a subtract "result" larger than A.
+        implausible(volume_backstop(BooleanOp::Subtract, &small, &cube, &cube, band).unwrap_err());
+        // vol(∩) ≤ min: an intersect "result" larger than an operand.
+        implausible(volume_backstop(BooleanOp::Intersect, &small, &cube, &cube, band).unwrap_err());
+        // Equal volumes: every bound is non-strict — all pass.
+        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+            volume_backstop(op, &cube, &cube, &cube, band).unwrap();
+        }
+        // Complement operand (negative flux volume): its bound is
+        // vacuous and must be SKIPPED — A ∩ revert(B) legitimately
+        // exceeds vol(revert B); the A-side bound still applies.
+        let rev = quad_prism(&square, 0.5).revert().unwrap();
+        volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band).unwrap();
+        implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band).unwrap_err());
+    }
 }

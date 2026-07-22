@@ -167,11 +167,33 @@ pub struct ContactRecords {
     pub b_on_a: Vec<VfContact>,
 }
 
+/// The **germ** a null-edge half faces (F9 as data, PR 5): every
+/// surviving crossing record — a section-polygon edge emanating from
+/// the classified vertex — lies on the intersection line of one A-face
+/// and one B-face, and each null edge's two halves are spliced facing
+/// its two germs. The joining step matches halves across sites by this
+/// identity (same face pair, opposite record parity — the book's
+/// he1↔he2 "opposite roles" test carried as data), never by slot
+/// position or dynamic face lookups.
+#[derive(Clone, Copy, Debug)]
+pub struct HalfGerm<T: Real> {
+    /// The half-edge facing this germ.
+    pub he: crate::entity::HalfEdgeKey,
+    /// The A-body face whose plane carries the germ line.
+    pub a_face: FaceKey,
+    /// The B-body face whose plane carries the germ line.
+    pub b_face: FaceKey,
+    /// The germ's outgoing direction along the line (unit; points away
+    /// from the site toward the polygon edge's other end) — the datum
+    /// the joining's mutual-facing test decides on (`bool_join_facing`).
+    pub dir: geom_core::Vec3<T>,
+}
+
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN
 /// copy, above ≙ OUT copy — identity derived from the F3 chain, never
-/// slot position).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BoolNullEdgeRecord {
+/// slot position) and its two germ facings.
+#[derive(Clone, Copy, Debug)]
+pub struct BoolNullEdgeRecord<T: Real> {
     /// Which operand's clone the keys index.
     pub operand: Operand,
     /// The classified vertex whose neighborhood minted this edge.
@@ -183,6 +205,9 @@ pub struct BoolNullEdgeRecord {
     /// A dangling strut (single-sector double crossing, or a pierced-
     /// face ring null edge).
     pub dangling: bool,
+    /// The two germ facings ([`HalfGerm`]), in mint order (the from-
+    /// germ first).
+    pub germs: [HalfGerm<T>; 2],
 }
 
 /// The site a corresponding null-edge pair was minted at.
@@ -235,7 +260,7 @@ pub struct BooleanReduction<T: Real> {
     /// The declared-contact records (the three ON-sets).
     pub contacts: ContactRecords,
     /// Every null edge minted, both operands, insertion order.
-    pub null_edges: Vec<BoolNullEdgeRecord>,
+    pub null_edges: Vec<BoolNullEdgeRecord<T>>,
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -246,7 +271,7 @@ impl<T: Real> BooleanReduction<T> {
     /// The minted null edges of one operand's clone, insertion order —
     /// PR 5 (joining) walks each solid's scaffolding separately; this
     /// is the per-operand view of [`Self::null_edges`].
-    pub fn null_edges_of(&self, operand: Operand) -> impl Iterator<Item = &BoolNullEdgeRecord> {
+    pub fn null_edges_of(&self, operand: Operand) -> impl Iterator<Item = &BoolNullEdgeRecord<T>> {
         self.null_edges.iter().filter(move |r| r.operand == operand)
     }
 }
@@ -380,10 +405,29 @@ pub enum BooleanError {
         /// The validator's findings.
         errors: Vec<ValidationError>,
     },
+    /// A `Seamed` result's volume violates a set-theoretic bound —
+    /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
+    /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
+    /// `mass_properties` (the review's volume-inequality backstop). A
+    /// certified violation is a wrong-component kernel bug surfaced
+    /// loudly, never a panic.
+    ResultVolumeImplausible {
+        /// Which inequality failed (e.g. "vol(A ∖ B) ≤ vol(A)").
+        which: &'static str,
+        /// The result volume, Debug-formatted (the scalar is generic).
+        got: String,
+        /// The violated operand-volume bound, Debug-formatted.
+        bound: String,
+    },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
     UnrepresentableResult,
+    /// Re-certifying a grafted edge description against the combined
+    /// body's surfaces refused (the combine door's remap lane —
+    /// bitwise-identical inputs make this unreachable for well-formed
+    /// grafts; loud, never a dangling reference).
+    GraftRecertify(geom_brep::CertifyError),
 }
 
 impl From<BandError> for BooleanError {
@@ -492,10 +536,19 @@ impl core::fmt::Display for BooleanError {
                 errors.len(),
                 errors.first()
             ),
+            Self::ResultVolumeImplausible { which, got, bound } => write!(
+                f,
+                "boolean op: result volume implausible — {which} violated (got {got}, bound \
+                 {bound}) — wrong-component kernel bug, no such body is returned"
+            ),
             Self::UnrepresentableResult => write!(
                 f,
                 "boolean op: the result would be unbounded (complement operands) — no boundary \
                  representation exists"
+            ),
+            Self::GraftRecertify(e) => write!(
+                f,
+                "boolean op: grafted edge description failed re-certification: {e}"
             ),
         }
     }
@@ -562,7 +615,8 @@ pub fn boolean_reduce<T: Decide>(
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         recl::recl_sectors(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
         recl::recl_edges(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
-        let out = insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records)?;
+        let out =
+            insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records, band)?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
     }

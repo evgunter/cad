@@ -61,9 +61,7 @@ use geom_core::{Band, Decide, Indeterminate, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
-use crate::splitting::containment::{
-    LoopContainment, PointInLoopError, point_in_loop,
-};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::validate::decide;
 use geom_surfaces::Surface;
 
@@ -149,7 +147,10 @@ impl core::fmt::Display for PointInSolidError {
                  at infinity to classify against"
             ),
             Self::CorruptFace { face } => {
-                write!(f, "point_in_solid: face {face:?} is not a walkable planar face")
+                write!(
+                    f,
+                    "point_in_solid: face {face:?} is not a walkable planar face"
+                )
             }
         }
     }
@@ -247,10 +248,10 @@ pub fn point_in_solid<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
-        match cast_ray(body, &faces, q, d, band)? {
-            Some(verdict) => return Ok(verdict),
-            None => {} // graze: next schedule member
+        if let Some(verdict) = cast_ray(body, &faces, q, d, band)? {
+            return Ok(verdict);
         }
+        // graze: next schedule member
     }
     Err(PointInSolidError::RayExhausted)
 }
@@ -275,16 +276,22 @@ fn cast_ray<T: Decide>(
             continue;
         }
         let t = (origin - q).dot(normal) / denom;
-        match decide("bool_point_in_solid_advance", t, band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Negative => continue,
-            Sign::Zero => return Ok(None), // crossing at q: graze
-        }
+        // In-face test FIRST: a plane hit outside the face region is
+        // no crossing at all — in particular a `t = 0` hit on a face
+        // plane through `q` (a corner-aligned query) must be skipped,
+        // not grazed, when the face itself is elsewhere.
         let p = q + d * t;
         match point_in_face(body, face, normal, p, band)? {
             Some(false) => continue,
             None => return Ok(None), // edge/vertex hit: graze
             Some(true) => {}
+        }
+        match decide("bool_point_in_solid_advance", t, band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Negative => continue,
+            // A genuine crossing at q contradicts the boundary
+            // pre-pass — graze, retry.
+            Sign::Zero => return Ok(None),
         }
         best = match best {
             None => Some((t, denom_sign)),
@@ -347,11 +354,8 @@ fn at_infinity_side<T: Decide>(
                 let (a, b, c) = (pts[0], pts[i], pts[i + 1]);
                 let cross = (b - a).cross(c - a);
                 six_v = six_v
-                    + cross.dot(Vec3::new(
-                        a.x + b.x + c.x,
-                        a.y + b.y + c.y,
-                        a.z + b.z + c.z,
-                    )) / T::from_f64(3.0);
+                    + cross.dot(Vec3::new(a.x + b.x + c.x, a.y + b.y + c.y, a.z + b.z + c.z))
+                        / T::from_f64(3.0);
                 double_area = double_area + cross.norm();
             }
         }
