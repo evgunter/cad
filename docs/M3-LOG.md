@@ -525,6 +525,30 @@ bodies + the complement skip/apply pair), and the full acceptance
 corpus runs green through the backstop; (3) this record; (4) review-suite promotion verified green
 in the merged tree.
 
+## Demo PR (boolean tour) — 2026-07-22
+
+The held-back `ev/demo-boolean-tour` branch opened + merged per the
+resumption order, after merging post-fix-pass main (clean, zero
+conflicts) and reconciling the flagged call sites. Notable: the die's
+self-promoting assert FIRED on merge — its pip targets +z, which is in
+R1's WORKING set, so the pocket subtract now succeeds exact
+(V=7.979192, Seamed) — and the die was promoted per the self-promoting
+contract: live 6-face R1 orientation matrix (+z/−x/−y exact, −z/+x/+y
+typed `SeamOrientation`), 3-pocket compose (V=7.937576 exact),
+through-pillar double-ring refusal kept, guard retargeted to a −z pip
+(fails loud when PR 5.5 lands the refusing half). open_box's pure
+interior-top cutter now succeeds (V=2.368 exact; narration updated);
+table narrations auto-track typed refusals; voidbox_cutaway's refusal
+shifted RingHoming → `JoinDesync` (narration-only). NO
+`ResultVolumeImplausible` sightings anywhere in the demo corpus.
+Renders: openbox + montage regenerated (fix pass retessellated the
+scoop seam; volume unchanged); all others byte-identical. Gates green
+(fmt, clippy -D warnings kernel+demo, test-fast 997 passed, demo run
+EXIT=0). `memories/boolean-consumer-findings.md` updated: finding 1
+(silent wrong component) RESOLVED with evidence; finding 2's
+chord-normalization workaround still in place UNTESTED against PR 5's
+extrude-remap — re-check when PR 5.5 unblocks the pure variants.
+
 ## Accumulating PR 6 (M3-exit sweep) obligations
 
 Beyond M3-PLAN's own PR 6 list (F1/F2/F5/F6/F7/F8 ratifications, tier
