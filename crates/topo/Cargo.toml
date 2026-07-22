@@ -8,6 +8,7 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+dbg-join = []
 # Forwards geom-core's certified interval scalar so `Body<Interval>` is
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).

@@ -35,7 +35,7 @@
 //! zip consumes (or, for fallback results — disjoint unions, voids —
 //! the finished multi-shell body itself).
 
-use geom_core::Real;
+
 use slotmap::SecondaryMap;
 
 use super::BooleanError;
@@ -59,7 +59,7 @@ pub(super) struct GraftMap {
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
 /// (module docs). `src` is consumed by value — its arenas are read in
 /// slot order; nothing of it survives as shared state.
-pub(super) fn graft_solid<T: Real>(
+pub(super) fn graft_solid<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     src: &Body<T>,
@@ -93,7 +93,10 @@ pub(super) fn graft_solid<T: Real>(
             dst.vertex_provenance.insert(dk, p.clone());
         }
     }
-    // Curves after vertices (a NullScaffold payload holds vertex keys).
+    // Curves after vertices (a NullScaffold payload holds vertex keys;
+    // a certified description may hold SURFACE keys — `Intersection`/
+    // `Seam` re-certify against the grafted surfaces below, once the
+    // topology is patched and endpoints resolve).
     let mut curves: SecondaryMap<CurveKey, CurveKey> = SecondaryMap::new();
     for (k, c) in src.curves.iter() {
         let mapped = match c {
@@ -221,6 +224,69 @@ pub(super) fn graft_solid<T: Real>(
             }
         };
         dst.null_faces.insert(dk, mapped);
+    }
+
+    // ---- Description surface-key remap (M3 PR 5, the extrude-operand
+    // finding): `Intersection`/`Seam` descriptions reference SURFACE
+    // KEYS, which are body-lineage-scoped — the grafted copies must
+    // reference the grafted surfaces. The remapped spec re-certifies
+    // against the destination lookup (bitwise-identical carrier,
+    // parameters, witness, and surface values ⇒ deterministic — D9);
+    // a refusal here is loud, never a dangling reference. ----
+    for (k, &dk) in curves.iter() {
+        let Some(CurveGeom::Certified(curve)) = src.curves.get(k) else {
+            continue;
+        };
+        let description = match *curve.description() {
+            geom_brep::EdgeGeometry::Intersection { s1, s2, witness } => {
+                geom_brep::EdgeGeometry::Intersection {
+                    s1: *surfaces.get(s1).ok_or_else(corrupt)?,
+                    s2: *surfaces.get(s2).ok_or_else(corrupt)?,
+                    witness,
+                }
+            }
+            geom_brep::EdgeGeometry::Seam { surface } => geom_brep::EdgeGeometry::Seam {
+                surface: *surfaces.get(surface).ok_or_else(corrupt)?,
+            },
+            geom_brep::EdgeGeometry::MappedCurve(_) => continue, // no surface keys
+        };
+        // Endpoints from the (already grafted) owning edge: he_plus
+        // runs start → end on the forward carrier.
+        let (src_edge_key, _) = src
+            .edges
+            .iter()
+            .find(|(_, e)| e.curve == k)
+            .ok_or_else(corrupt)?;
+        let dst_edge_key = *edges.get(src_edge_key).ok_or_else(corrupt)?;
+        let e = dst.edges.get(dst_edge_key).ok_or_else(corrupt)?;
+        let start_v = dst.half_edges.get(e.he_plus).ok_or_else(corrupt)?.start;
+        let end_v = dst
+            .half_edges
+            .get(dst.half_edges.get(e.he_plus).ok_or_else(corrupt)?.next)
+            .ok_or_else(corrupt)?
+            .start;
+        let point = |v: VertexKey| -> Result<geom_core::Point3<T>, BooleanError> {
+            let vd = dst.vertices.get(v).ok_or_else(corrupt)?;
+            dst.points.get(vd.point).copied().ok_or_else(corrupt)
+        };
+        let spec = geom_brep::EdgeCurveSpec {
+            description,
+            carrier: curve.carrier().clone(),
+            param_start: curve.params().0,
+            param_end: curve.params().1,
+        };
+        let band = geom_core::Band::linear().map_err(|_| corrupt())?;
+        let recert = geom_brep::EdgeCurve::certify(
+            spec,
+            point(start_v)?,
+            point(end_v)?,
+            |sk| dst.surfaces.get(sk).cloned(),
+            band,
+        )
+        .map_err(BooleanError::GraftRecertify)?;
+        if let Some(slot) = dst.curves.get_mut(dk) {
+            *slot = CurveGeom::Certified(recert);
+        }
     }
 
     // ---- Attach the shells to the destination solid (source order). ----

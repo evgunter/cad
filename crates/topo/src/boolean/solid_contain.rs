@@ -275,16 +275,22 @@ fn cast_ray<T: Decide>(
             continue;
         }
         let t = (origin - q).dot(normal) / denom;
-        match decide("bool_point_in_solid_advance", t, band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Negative => continue,
-            Sign::Zero => return Ok(None), // crossing at q: graze
-        }
+        // In-face test FIRST: a plane hit outside the face region is
+        // no crossing at all — in particular a `t = 0` hit on a face
+        // plane through `q` (a corner-aligned query) must be skipped,
+        // not grazed, when the face itself is elsewhere.
         let p = q + d * t;
         match point_in_face(body, face, normal, p, band)? {
             Some(false) => continue,
             None => return Ok(None), // edge/vertex hit: graze
             Some(true) => {}
+        }
+        match decide("bool_point_in_solid_advance", t, band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Negative => continue,
+            // A genuine crossing at q contradicts the boundary
+            // pre-pass — graze, retry.
+            Sign::Zero => return Ok(None),
         }
         best = match best {
             None => Some((t, denom_sign)),

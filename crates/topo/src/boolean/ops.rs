@@ -163,7 +163,7 @@ fn boolean_op<T: Decide>(
         return fallback(op, &red, a, b, band);
     }
 
-    let completed = bool_connect(&mut red, band)?;
+    let completed = bool_connect(&mut red, a, b, band)?;
     if completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",

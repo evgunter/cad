@@ -488,6 +488,15 @@ pub(crate) fn carve<T: Decide>(
     for (_, face) in body.faces() {
         live_surfaces.insert(face.surface, ());
     }
+    // Description references keep surfaces alive exactly like faces do
+    // (the `remove_surface_if_orphaned` rule): an `Intersection`/`Seam`
+    // description on a surviving edge must never dangle (extrude-built
+    // operands carry them — M3 PR 5).
+    for (_, curve) in body.curves() {
+        for s in Body::description_surfaces(curve) {
+            live_surfaces.insert(s, ());
+        }
+    }
     let orphan_surfaces: Vec<_> = body
         .surfaces
         .keys()

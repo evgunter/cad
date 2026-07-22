@@ -394,13 +394,15 @@ impl<T: Decide> Sweep<T> {
 
 impl ChordJoiner {
     /// `join` (module docs): connect the old loose end `h1` and the
-    /// new half `h2` with up to two chord edges.
+    /// new half `h2` with up to two chord edges; the minted chord
+    /// edges come back (the boolean joining records their germ — M3
+    /// PR 5).
     pub(crate) fn join<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         h1: HalfEdgeKey,
         h2: HalfEdgeKey,
-    ) -> Result<(), SplitJoinError> {
+    ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let corrupt = || SplitJoinError::Corrupt;
         let l1 = body.get_half_edge(h1).ok_or_else(corrupt)?.parent_loop;
         let l2 = body.get_half_edge(h2).ok_or_else(corrupt)?.parent_loop;
@@ -412,6 +414,7 @@ impl ChordJoiner {
             Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.prev)
         };
 
+        let mut chords = Vec::new();
         let mut newf = None;
         if l1 == l2 {
             if prev(body, prev(body, h1)?)? != h2 {
@@ -420,6 +423,7 @@ impl ChordJoiner {
                     he2: next(body, h2)?,
                 })?;
                 self.slivers.insert(created.face, ());
+                chords.push(created.edge);
                 newf = Some(created.face);
             }
         } else {
@@ -432,7 +436,8 @@ impl ChordJoiner {
             } else {
                 (h1, next(body, h2)?)
             };
-            body.mekr_chord(MekrSite::Cycles { target, ring })?;
+            let made = body.mekr_chord(MekrSite::Cycles { target, ring })?;
+            chords.push(made.edge);
         }
         // Second-chord guard: when the two halves are already adjacent
         // the second mef is skipped (the chord already exists).
@@ -442,6 +447,7 @@ impl ChordJoiner {
                 he2: next(body, h1)?,
             })?;
             self.slivers.insert(created.face, ());
+            chords.push(created.edge);
         }
         // Ring re-homing (`laringmv`, the lkemr/ring-placement mirror
         // site): whenever the FIRST mef divided a face that still owns
@@ -458,7 +464,7 @@ impl ChordJoiner {
         if let Some(newf) = newf {
             self.rehome_rings(body, oldf, newf)?;
         }
-        Ok(())
+        Ok(chords)
     }
 
     /// `laringmv(oldf, newf)`: move every ring of `oldf` that no
