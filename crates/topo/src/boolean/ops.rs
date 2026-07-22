@@ -51,6 +51,35 @@
 //! through the combine door's graft map). Records referencing
 //! discarded entities are dropped — a contact between A and B is only
 //! meaningful in a result containing both sides.
+//!
+//! # Known limitations (PR 5 review — the honest envelope)
+//!
+//! The seam lane's WORKING envelope: transversal boundary crossings
+//! plus interior-rest coplanar unions, all verified against exact
+//! volume/area oracles. Outside it the ops REFUSE — every refusal
+//! typed, deterministic, operands untouched; never a silent wrong
+//! body. The refusing configurations (review findings R1–R3 plus the
+//! previously pinned pair):
+//!
+//! - **Single-ring pockets/bosses are orientation-dependent** (R1):
+//!   the identical blind pocket succeeds with the exact volume on a
+//!   brick's {+z, −x, −y} faces and refuses
+//!   [`BooleanError::SeamOrientation`] on {−z, +x, +y} — a
+//!   handedness-correlated HALF of face orientations, NOT "fixed
+//!   except for double-ring configs".
+//! - **Double-ring single-face seams** (through-pillar tunnel,
+//!   inset-leg union): `SeamOrientation`.
+//! - **Multi-collinear-site seams** (R2, four collinear crossing
+//!   sites on one line): [`BooleanError::JoinDesync`].
+//! - **Crossing-polygon face disconnection** (R3, crossing-polygon
+//!   operands whose seams disconnect a face): `SeamOrientation`.
+//! - **Coplanar-overlap ∩** (Fig 15.1, deferred acceptance item) and
+//!   **corner-flush** contacts: refuse.
+//!
+//! Root cause (one sentence): the cross-solid null-edge
+//! ordering/orientation discipline is not enforced — `choose_roles`'
+//! prefer-mirror heuristic carries no consistency theorem — which is
+//! exactly PR 5.5's charter (M3-LOG resumption entry).
 
 use geom_core::{Band, Decide, Real};
 

@@ -512,6 +512,14 @@ fn loose_siblings<T: geom_core::Real>(
 /// still-loose scaffolding half — then the germ path is the other arc,
 /// so swap. Different loops keep the given order (the mekr lane). Both
 /// arcs dirty is a loud desync.
+///
+/// KNOWN GAP (PR 5 review, root cause of the refusal envelope in the
+/// `ops` module docs): the B side merely PREFERS to mirror A's swap —
+/// a heuristic with no consistency theorem tying the two solids'
+/// role orders to one cross-solid orientation relation, so downstream
+/// the kept section loops can arrive parallel (`SeamOrientation`) or
+/// the lockstep can desync (`JoinDesync`) on orientation-dependent
+/// configurations. Enforcing that discipline is PR 5.5's charter.
 fn choose_roles<T: Decide>(
     body: &Body<T>,
     ea: HalfEdgeKey,

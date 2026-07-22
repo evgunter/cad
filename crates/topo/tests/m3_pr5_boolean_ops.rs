@@ -325,17 +325,24 @@ fn boss_union() {
     assert_tier3_posture(&body.body);
 }
 
-/// KNOWN LIMITATION, pinned honestly (PR 5 report): the double-ring
-/// single-face-seam configurations — a pillar piercing BOTH caps
-/// (tunnel) and the inset-leg union — currently refuse TYPED at the
+/// KNOWN LIMITATION (narrowed by the PR 5 review — the double-ring
+/// configs are NOT the whole refusal family; see the `ops` module's
+/// "Known limitations" section for the full honest envelope): the
+/// double-ring single-face-seam configurations — a pillar piercing
+/// BOTH caps (tunnel) and the inset-leg union — refuse TYPED at the
 /// seam zip: the two kept section loops arrive PARALLEL where the
 /// glue needs antiparallel cycles (the cross-solid loop-orientation
 /// relation the book pins via its he1/he2 null-edge insertion
 /// convention is not yet enforced through this pipeline's structural
-/// join). The blocker-class SILENT wrong-component results these
-/// fixtures originally exposed are FIXED (geometric role resolution);
-/// what remains is a loud refusal, operands untouched. Landing zone:
-/// the PR 5 fix pass.
+/// join). Review R1 adds that even SINGLE-ring pockets/bosses refuse
+/// `SeamOrientation` on a handedness-correlated half of face
+/// orientations (works {+z,−x,−y}, refuses {−z,+x,+y}); R2/R3 add
+/// multi-collinear-site JoinDesync and crossing-polygon
+/// disconnection. The blocker-class SILENT wrong-component results
+/// these fixtures originally exposed are FIXED (geometric role
+/// resolution); every remaining failure is a loud refusal, operands
+/// untouched. Landing zone: PR 5.5 (the cross-solid ordering/
+/// orientation discipline).
 #[test]
 fn through_pillar_subtract_refuses_typed() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
