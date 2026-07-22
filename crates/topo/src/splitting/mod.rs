@@ -1,7 +1,12 @@
-//! Plane-splitting, part 1 (M3 PR 2): **reduction + vertex-neighborhood
-//! classification** — ch. 14's `splitgenerate` + `splitclassify`
-//! re-derived under our conventions, ending at null-edge insertion. The
-//! joining/finish half and the public `split` op are PR 3.
+//! Plane-splitting (M3 PRs 2 + 3): ch. 14 end to end, re-derived under
+//! our conventions. PR 2 built **reduction + vertex-neighborhood
+//! classification** (`splitgenerate` + `splitclassify`, this module +
+//! `classify`/`neighborhood`/`rules`/`insert`); PR 3 adds **joining**
+//! (`join` — `splitconnect`, with the total in-plane lexicographic
+//! `order` and the `containment` trilean for ring re-homing),
+//! **finish** (`finish` — `splitfinish`: section-face promotion,
+//! component distribution, the carve into two result bodies), the
+//! public [`split`] op, and **slicing** ([`plane_section`], `section`).
 //!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
@@ -39,14 +44,23 @@
 //!    F9 **data** (`NullEdge { below_end, above_end }`), ≥2 disjoint
 //!    ABOVE-runs handled and tested.
 //!
-//! The result ([`SplitReduction`]) is the annotated body ready for
-//! PR 3's joining: cached per-vertex sides, the ON set, and the minted
-//! null edges with their side attributes.
+//! The result ([`SplitReduction`]) is the annotated body the joining
+//! step consumes: cached per-vertex sides, the ON set, and the minted
+//! null edges with their side attributes. [`split`] composes
+//! reduce → join → finish; [`plane_section`] stops after join and
+//! reads the polygons off the scratch clone.
 
 mod classify;
+pub mod containment;
+mod finish;
 mod insert;
+mod join;
 mod neighborhood;
+mod order;
+#[cfg(test)]
+mod reassembly;
 pub mod rules;
+mod section;
 
 use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
 
@@ -56,7 +70,11 @@ use crate::euler::EulerOpError;
 use crate::null::NullEdge;
 use slotmap::SecondaryMap;
 
+pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
+pub use finish::{SplitFinishError, SplitPart, SplitResult};
+pub use join::SplitJoinError;
 pub use neighborhood::classify_neighborhood;
+pub use section::{Section, SectionPolygon, plane_section};
 
 /// The splitting plane: a point on the plane and its **unit** normal
 /// (conventional, unchecked — same posture as `Surface::Plane`). The
@@ -349,4 +367,90 @@ pub fn split_reduce<T: geom_core::Decide>(
         on_vertices,
         null_edges,
     })
+}
+
+/// Typed failure of the public [`split`] op (and [`plane_section`]):
+/// each stage's errors pass through whole.
+#[derive(Debug)]
+pub enum SplitError {
+    /// The reduction/classification stage refused (M3 PR 2's typed
+    /// surface, unchanged).
+    Reduce(SplitReduceError),
+    /// The joining stage refused (incl. the degenerate one-sided
+    /// tangency section).
+    Join(SplitJoinError),
+    /// The finish stage refused (incl. the degenerate-component net).
+    Finish(SplitFinishError),
+}
+
+impl From<SplitReduceError> for SplitError {
+    fn from(e: SplitReduceError) -> Self {
+        Self::Reduce(e)
+    }
+}
+
+impl From<SplitJoinError> for SplitError {
+    fn from(e: SplitJoinError) -> Self {
+        Self::Join(e)
+    }
+}
+
+impl From<SplitFinishError> for SplitError {
+    fn from(e: SplitFinishError) -> Self {
+        Self::Finish(e)
+    }
+}
+
+impl core::fmt::Display for SplitError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Reduce(e) => write!(f, "split: {e}"),
+            Self::Join(e) => write!(f, "split: {e}"),
+            Self::Finish(e) => write!(f, "split: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for SplitError {}
+
+/// Runs reduce + join on a scratch clone, returning the joined
+/// reduction and the completed sections (shared prefix of [`split`]
+/// and [`plane_section`]).
+pub(crate) fn split_scratch<T: geom_core::Decide>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+) -> Result<(SplitReduction<T>, Vec<join::CompletedSection>), SplitError> {
+    let band = geom_core::Band::linear().map_err(SplitReduceError::from)?;
+    let mut red = split_reduce(operand, plane)?;
+    let completed = join::split_connect(&mut red, band)?;
+    Ok((red, completed))
+}
+
+/// **`split`** — plane-splitting of a solid (ch. 14 end to end):
+/// reduce ([`split_reduce`]) → join (`splitconnect`) → finish
+/// (`splitfinish`), composed functionally. The operand is never
+/// touched; both sides come back as independent bodies
+/// ([`SplitResult`]), with a side the plane misses entirely as the
+/// typed [`SplitPart::Empty`] (never an empty body value).
+///
+/// Coplanar-artifact faces (operand faces IN the plane; cut faces as
+/// same-key coplanar pairs) are **left in place** —
+/// [`Body::merge_coplanar_faces`] is the caller's explicit opt-in
+/// (F7: merging is never silent).
+///
+/// Determinism (D9): every stage sweeps in arena/list order; the
+/// joining order is the total lexicographic sort (`order` module) —
+/// byte-identical replay is pinned by test.
+///
+/// # Errors
+///
+/// [`SplitError`], each stage's typed refusals passed through whole —
+/// including the one-sided-tangency degenerate section/side refusals
+/// (no degenerate body is ever emitted).
+pub fn split<T: geom_core::Decide>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+) -> Result<SplitResult<T>, SplitError> {
+    let (red, completed) = split_scratch(operand, plane)?;
+    Ok(finish::split_finish(red, &completed)?)
 }
