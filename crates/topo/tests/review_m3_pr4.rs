@@ -425,25 +425,35 @@ fn generic_edge_edge_mixed_order_pair() {
     // Touching twin: wedge strictly inside A's exterior quadrant.
     let b_touch = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.2), (1.2, 2.0)], -0.5, 1.5).body;
     for op in ALL_OPS {
-        // FINDING R-1: the mixed-order (interleaved-wedge) collinear
-        // overlap — TOG Fig. 19-left's analogue — currently refuses
-        // with an ODD surviving-germ count (the transverse crossing
-        // germ and the along-line overlap event do not pair up). Loud,
-        // not wrong — but the printed TOG criterion says this
-        // configuration INTERSECTS and should classify. Pinned here so
-        // the fix (or the documented scope exclusion) is visible.
-        match boolean_reduce(op, &a, &b_cross) {
-            Ok(red) => {
-                assert!(
-                    !red.null_pairs.is_empty(),
-                    "op {op:?}: mixed-order edge-edge crossing produced no germ"
-                );
-            }
-            Err(BooleanError::ClassificationInvariant { what }) => {
-                eprintln!("op {op:?}: R-1 loud refusal: {what}");
-            }
-            Err(e) => panic!("op {op:?}: unexpected error class: {e}"),
-        }
+        // FINDING R-1 (fixed in the review fix-pass): the mixed-order
+        // (interleaved-wedge) collinear overlap — TOG Fig. 19-left's
+        // analogue — used to refuse with an ODD surviving-germ count:
+        // `resolve_bisector_graze`'s reference-sector fallback matched
+        // ANY On record on the wide-sector twins, conflating the
+        // along-line overlap event with the transverse bisector-graze
+        // crossing and keying it against the wrong face (fix:
+        // `find_ref_sector` requires the start-holder match). The
+        // interleaved configuration intersects per TOG's mixed-order
+        // criterion. Derived census: on each z-cap of A (z=0, z=1) the
+        // section polyline (1,1)→(0.7,0)→(1,0.075) crosses A's
+        // boundary at three sites — the mixed-order corner vv pair at
+        // (1,1) (edge-edge germ along the shared line + transverse
+        // bisector-graze germ), the transverse edge-edge vv pair at
+        // (0.7,0) (B's wall edge in A's y=0 plane crossing A's cap
+        // edge), and the vertex-on-face pierce at (1,0.075) — six
+        // null-edge pairs total (4 vv + 2 vf), op-independently.
+        let red = reduce_ok(op, &a, &b_cross);
+        assert_eq!(
+            red.null_pairs.len(),
+            6,
+            "op {op:?}: mixed-order crossing census (4 vv + 2 vf seam pairs)"
+        );
+        let vv_pairs = red
+            .null_pairs
+            .iter()
+            .filter(|p| matches!(p.site, topo::PairSite::VertexVertex(_)))
+            .count();
+        assert_eq!(vv_pairs, 4, "op {op:?}: vertex-vertex seam-pair census");
         let red = reduce_ok(op, &a, &b_touch);
         assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
         assert!(

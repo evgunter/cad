@@ -145,6 +145,27 @@ fn find_on_record(records: &[PairRecord], a: usize, b: usize) -> Option<usize> {
     })
 }
 
+/// The reference sector for an on-bound event whose own-side bound has
+/// start-holder `f_s`: the other-solid sector index of the first record
+/// whose own-side On code names **that bound** (start-holder match) —
+/// NOT any On record on the flanking twins: a vertex pair can host
+/// several distinct on-direction events at once (e.g. a collinear-edge
+/// overlap AND a transverse crossing along a subdivision bisector — the
+/// R-1 fixture), and matching any On record conflates them, keying the
+/// event against the wrong face.
+fn find_ref_sector(
+    records: &[PairRecord],
+    a_side: bool,
+    f_s: usize,
+    n_own: usize,
+) -> Option<usize> {
+    records.iter().find_map(|r| {
+        let (own_i, other_i) = if a_side { (r.a, r.b) } else { (r.b, r.a) };
+        let at_start = on_bound(if a_side { r.sa } else { r.sb })?;
+        (flankers(own_i, at_start, n_own).0 == f_s).then_some(other_i)
+    })
+}
+
 /// A flanking sector's Table II key: the GEOMETRIC side code of its
 /// noncoplanar bound (per TOG: a wide flanker keys by its bisector,
 /// which is exactly the twin-shared bound) against the reference face.
@@ -529,21 +550,11 @@ fn resolve_edge_sector<T: Decide>(
     let f_e = (f_s + 1) % n_own;
     let ref_idx = match other_holder {
         Some(h) => h,
-        None => {
-            let mut found = None;
-            for r in records.iter() {
-                let (own_i, other_i) = if a_side { (r.a, r.b) } else { (r.b, r.a) };
-                if (own_i == f_s || own_i == f_e)
-                    && on_bound(if a_side { r.sa } else { r.sb }).is_some()
-                {
-                    found = Some(other_i);
-                    break;
-                }
-            }
-            found.ok_or(BooleanError::ClassificationInvariant {
+        None => find_ref_sector(records, a_side, f_s, n_own).ok_or(
+            BooleanError::ClassificationInvariant {
                 what: "on-edge event without a reference sector",
-            })?
-        }
+            },
+        )?,
     };
     let ref_sector = &ref_secs[ref_idx];
     let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
@@ -617,22 +628,10 @@ fn resolve_bisector_graze<T: Decide>(
     let f_e = (f_s + 1) % n_own;
     let ref_idx = match if a_side { b_holder } else { a_holder } {
         Some(h) => h,
-        None => {
-            let mut found = None;
-            for r in records.iter() {
-                let (own_i, other_i) = if a_side { (r.a, r.b) } else { (r.b, r.a) };
-                if (own_i == f_s || own_i == f_e)
-                    && on_bound(if a_side { r.sa } else { r.sb }).is_some()
-                {
-                    found = Some(other_i);
-                    break;
-                }
-            }
-            match found {
-                Some(f) => f,
-                None => return Ok(None),
-            }
-        }
+        None => match find_ref_sector(records, a_side, f_s, n_own) {
+            Some(f) => f,
+            None => return Ok(None),
+        },
     };
     let ref_sector = if a_side {
         &b_sectors[ref_idx]
