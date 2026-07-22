@@ -395,7 +395,7 @@ impl<T: Decide> Sweep<T> {
 impl ChordJoiner {
     /// `join` (module docs): connect the old loose end `h1` and the
     /// new half `h2` with up to two chord edges.
-    fn join<T: Decide>(
+    pub(crate) fn join<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         h1: HalfEdgeKey,
@@ -494,7 +494,7 @@ impl ChordJoiner {
     /// `cut` (module docs): retire a fully-joined null edge. The
     /// completion outcome comes back unresolved — the caller assigns
     /// roles from its own side data.
-    fn cut_core<T: Decide>(
+    pub(crate) fn cut_core<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         edge: EdgeKey,
@@ -627,7 +627,10 @@ impl<T: Decide> Sweep<T> {
 }
 
 /// The start vertices of a cycle loop.
-fn loop_starts<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<VertexKey>, SplitJoinError> {
+pub(crate) fn loop_starts<T: Decide>(
+    body: &Body<T>,
+    l: LoopKey,
+) -> Result<Vec<VertexKey>, SplitJoinError> {
     let corrupt = || SplitJoinError::Corrupt;
     let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());

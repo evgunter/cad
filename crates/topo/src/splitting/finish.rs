@@ -264,7 +264,7 @@ pub(super) fn split_finish<T: Decide>(
 }
 
 /// The operand's single solid.
-fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
+pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
     let mut it = body.solids();
     let first = it.next();
     let extra = it.count();
@@ -381,7 +381,7 @@ fn classify_shell<T: Decide>(
 /// with every other shell's entities removed and orphaned geometry
 /// swept. Kept entities keep their keys (lineage-scoped identity —
 /// deterministic, replay-stable).
-fn carve<T: Decide>(
+pub(crate) fn carve<T: Decide>(
     src: &Body<T>,
     solid: SolidKey,
     keep: &[ShellKey],

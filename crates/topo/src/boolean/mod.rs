@@ -57,23 +57,36 @@
 //! `dot(dir, n_outward) < 0 ⇒ Enters ⇒ IN`; positive ⇒ OUT. Mirror
 //! tests pin both directions on brick fixtures.
 
+mod combine;
 mod contain;
+mod finish;
 pub(crate) mod insert;
+mod join;
+mod ops;
 pub mod plane_eq;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 pub(crate) mod sectors;
+pub mod solid_contain;
 pub mod tables;
 pub(crate) mod vtxfac;
+mod zip;
 
 use geom_core::{Band, BandError, Decide, Indeterminate, Real};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
+use crate::merge_faces::MergeCoplanarError;
+use crate::revert::RevertError;
+use crate::splitting::join::SplitJoinError;
+use crate::validate::ValidationError;
 
 pub use contain::{FaceContainment, contfp};
+pub use join::CompletedPolygonPair;
+pub use ops::{BooleanBody, BooleanResult, BooleanResultKind, intersect, subtract, union};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
+pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
@@ -324,6 +337,53 @@ pub enum BooleanError {
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
+    /// The joining stage's chord machinery refused (PR 5; nested
+    /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
+    Join(SplitJoinError),
+    /// The A/B lockstep invariant failed during joining, finishing, or
+    /// the combine door (a kernel bug or corrupt reduction, loudly).
+    JoinDesync {
+        /// Which lockstep invariant broke.
+        what: &'static str,
+    },
+    /// One distributed component carries section faces of both sides
+    /// (kernel bug, loudly).
+    TornComponent {
+        /// The operand whose clone tore.
+        operand: Operand,
+        /// The offending shell.
+        shell: ShellKey,
+    },
+    /// The containment fallback / uncut-component probe refused (F8).
+    Containment(PointInSolidError),
+    /// `revert` refused on the ∖ B side.
+    Revert(RevertError),
+    /// The two seam cycles of a polygon pair are not antiparallel —
+    /// the orientation chain broke (kernel bug, loudly).
+    SeamOrientation {
+        /// The A section face.
+        a_face: FaceKey,
+        /// The B section face (result key).
+        b_face: FaceKey,
+    },
+    /// The seam zip's record-keyed correspondence could not be
+    /// resolved (kernel bug or corrupt records, loudly).
+    ZipCorrespondence {
+        /// What failed to resolve.
+        what: &'static str,
+    },
+    /// The F7 output stage (`merge_coplanar_faces`) refused.
+    Merge(MergeCoplanarError),
+    /// The finished result failed a tier gate (kernel bug, loudly —
+    /// no invalid body is ever returned).
+    ResultInvalid {
+        /// The validator's findings.
+        errors: Vec<ValidationError>,
+    },
+    /// The result would be unbounded (only reachable with complement
+    /// operands, e.g. ∪ of a body with its own complement) — no
+    /// boundary representation exists for it.
+    UnrepresentableResult,
 }
 
 impl From<BandError> for BooleanError {
@@ -402,6 +462,41 @@ impl core::fmt::Display for BooleanError {
                  {operand:?}: {source}"
             ),
             Self::Euler(e) => write!(f, "boolean_reduce: euler operation refused: {e}"),
+            Self::Join(e) => write!(f, "boolean op: joining refused: {e}"),
+            Self::JoinDesync { what } => write!(
+                f,
+                "boolean op: A/B lockstep invariant violated: {what} (kernel bug or corrupt \
+                 reduction)"
+            ),
+            Self::TornComponent { operand, shell } => write!(
+                f,
+                "boolean op: component {shell:?} of operand {operand:?} carries section faces \
+                 of both sides (kernel bug)"
+            ),
+            Self::Containment(e) => write!(f, "boolean op: containment fallback: {e}"),
+            Self::Revert(e) => write!(f, "boolean op: revert of the ∖ B side refused: {e}"),
+            Self::SeamOrientation { a_face, b_face } => write!(
+                f,
+                "boolean op: seam cycles of faces {a_face:?}/{b_face:?} are not antiparallel \
+                 (orientation chain broke — kernel bug)"
+            ),
+            Self::ZipCorrespondence { what } => write!(
+                f,
+                "boolean op: seam zip correspondence failed: {what} (kernel bug)"
+            ),
+            Self::Merge(e) => write!(f, "boolean op: coplanar-merge output stage refused: {e}"),
+            Self::ResultInvalid { errors } => write!(
+                f,
+                "boolean op: finished result failed a tier gate ({} finding(s), first: {:?}) — \
+                 kernel bug, no invalid body is returned",
+                errors.len(),
+                errors.first()
+            ),
+            Self::UnrepresentableResult => write!(
+                f,
+                "boolean op: the result would be unbounded (complement operands) — no boundary \
+                 representation exists"
+            ),
         }
     }
 }

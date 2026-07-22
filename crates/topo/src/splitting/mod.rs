@@ -52,9 +52,9 @@
 
 mod classify;
 pub mod containment;
-mod finish;
+pub(crate) mod finish;
 mod insert;
-mod join;
+pub(crate) mod join;
 mod neighborhood;
 mod order;
 #[cfg(test)]

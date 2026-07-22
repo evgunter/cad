@@ -162,9 +162,11 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, BooleanReduction, ContactRecords, FaceContainment,
-    NullEdgePairRecord, Operand, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneRelation, SideCode, VfContact, VvContact, boolean_reduce, contfp, oriented_plane_eq,
+    BoolNullEdgeRecord, BooleanBody, BooleanError, BooleanOp, BooleanReduction, BooleanResult,
+    BooleanResultKind, CompletedPolygonPair, ContactRecords, FaceContainment, NullEdgePairRecord,
+    Operand, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation,
+    PointInSolidError, SideCode, SolidContainment, VfContact, VvContact, boolean_reduce, contfp,
+    intersect, oriented_plane_eq, point_in_solid, subtract, union,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
