@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1/M2 COMPLETE (all 7 M2 PRs merged; K=10 kept, run-configurable); M3-PLAN RATIFIED (#42); M3 PR 1 implemented-unreviewed — docs/M3-LOG.md's 2026-07-21 handoff snapshot is the resumption contract
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1/M2 COMPLETE; M3 PRs 1–5.5 MERGED (#70 = seam discipline; die builds e2e); remaining M3: demo refresh + PR 6 split in three + exit — docs/M3-LOG.md's session-3 (2026-07-23) snapshot is the resumption contract; hosted CI DOWN (billing), gate = scripts/ci-local.sh
 metadata:
   node_type: memory
   type: project
@@ -64,10 +64,19 @@ cross-shell surgery, 6-PR sequence, planar-only (curved → M5 as a
 unit), grounded in `references/notes/m3-grounding-synthesis.md`
 (TOG 1986 second witness: confirms our CCW/outward convention,
 contradicts book's rule (b) — adjudicate from first principles).
-M3 PR 1 (Euler-inventory extensions) implemented-unreviewed on
-`ev/m3-1-surgery` @ `4f95b5f` (stacked pre-fix-pass; merge main
-first) — docs/M3-LOG.md's 2026-07-21 handoff snapshot is the
-resumption contract with the successor's first moves.
+**M3 PRs 1–5.5 ALL MERGED through the full
+implement → adversarial-review → fix-pass cycle** (#53, #55, #61,
+#62, #65, #70 — surgery, split reduce, split join + `split` +
+`plane_section`, boolean reduce/classify, public
+union/intersect/subtract + first voids, and the PR 5.5 seam
+discipline: sense theorem replaces prefer-mirror, R1/R2/R3 +
+Fig 15.1 + double-ring closed, 21-pip die builds e2e watertight
+from raw extrudes). Remaining M3: post-5.5 demo refresh (Evan's
+#68 charter) → PR 6 split in three (tier-3′ validator + touching
+corpus; DESIGN.md exit sweep; caching implementation if
+recommended) → M3 exit walk. docs/M3-LOG.md's session-3
+(2026-07-23) pause snapshot is the resumption contract with the
+successor's first moves.
 Per-PR sections of docs/M2-LOG.md are
 the record; handoffs per [[orchestrator-handoff]]. Mäntylä ch. 12–15 notes all archived in
 `<main-checkout>/references/notes/`; the TOG 1986 boolean paper
@@ -133,6 +142,10 @@ session's worktree until 2026-07-16); the `interval` cargo feature
 (geom-core AND topo) quarantines LGPL per issue #4 (closed; README +
 rustdoc carry the consumer-facing note); x86-64 floored at x86-64-v3;
 CI: fmt/clippy/test + ε matrix {1e-6,1e-9,1e-12} + interval lane +
-`Real +` discipline grep. License dual MIT OR Apache-2.0; name still
+`Real +` discipline grep; **hosted Actions DOWN since 2026-07-22
+(free-plan minutes exhausted, resets at billing-month rollover) —
+the merge gate is `./scripts/ci-local.sh` on the merged tree (11-row
+mirror; keep in sync with ci.yml via the paired cross-references);
+no branch protection, so `gh pr merge --auto` merges immediately. License dual MIT OR Apache-2.0; name still
 pending (Q9). See [[cad-working-style]], [[orchestration-model]],
 [[git-workflow]].

@@ -620,9 +620,109 @@ table, voids documentation), the sweep has picked up:
   the dropped-record configurations are re-derivable at the 3′ gate;
   silent record loss over live coincidence is not acceptable there.
 
-## State snapshot (session 2 pause point, 2026-07-22)
+## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
-Supersedes the 2026-07-21 snapshot below (kept as historical record).
+Merged as **#70** (`fd90a54`), full writeup in the PR body. The short
+record; the PR body is the long one.
+
+**Derivation (F3 style)**: on the germ line of (fA,fB), region
+boundary directions tA(in)=nA×nB, tA(out)=nB×nA, tB(x)=−tA(x) ⇒
+antiparallel zip iff each solid attaches section loops to its own
+regions CCW-consistently — op-independent, no cross-solid coupling.
+**Sense theorem**: half faces germ g UP ⟺ σ·det[n_own,d,n_other]>0;
+corollary sense_A(g)=¬sense_B(g) at every germ — the he1↔he2
+crossover as derived data, minted as F9 attributes at insertion.
+**Mechanism refinement (flagged deviation, orchestrator ruled
+refinement-not-fork)**: role order does NOT carry chord orientation
+(senses do); it moves face identity only, load-bearing solely for
+ring splits (residual-side probe). Root cause as recorded — the
+unenforced ssortnulledges discipline — confirmed; enforcement point
+moved. prefer-mirror deleted; wild/bind/relabel machinery deleted;
+slot-locked matching; clean_dir corrected record-sibling →
+match-partner (R2's actual source); `bool_strut_order` angular spike
+order added (Fig 15.1's second mechanism).
+
+**Review** (suite `review_m3_pr55.rs` promoted, 23 f64 + interval
+mod + stl e2e): NO blockers. Sense census: sense_A=¬sense_B at every
+reachable germ, all ops, incl. det-2/skew/reflected operands.
+`bool_strut_order` weak spot resolved: the dot rule is FORCED for
+sector widths ≤ π = the whole reachable crossing-minted class;
+reflex corners W>3π/2 open the unforced window ⇒ the reflex-corner
+tilted-crossing class refuses SeamOrientation, typed (documented in
+the envelope with the width bound). THE DIE: 21 pips, all six faces,
+exact volume each op, watertight admesh STL, raw extrude operands —
+`normalize_edges_to_chords` is obsolete (PR 5's remap suffices).
+**Fix pass**: point_in_loop degenerate-segment poison fix closed the
+mixed collinear+transversal refusal (flipped to exact success);
+envelope amendments; defensive-guard notes (SectionLoopMixed +
+both-arcs-dirty: unwitnessed defensive guards). Final envelope:
+boundary-on-boundary seams (corner-flush UnpairedLooseEnds{4},
+stacked-full {8}; germ-dump-verified reason: seams along existing
+edges need an on-edge-run mechanism) + reflex-corner tilted
+crossings. Gates: full ci-local 11/11 on the merged tree (main
+#66–#69 + review suite merged in); regression 1022 f64 + 1152
+interval at review time.
+
+**Retrospective (with Evan, #69)**: ~7h wall — theorem complexity,
+not code volume; chunking judged correct, task irreducibly hard; NO
+convention change (scout/spike agents only when scouting is cheap).
+Operational: reviewer AND fix-pass agent both hit the
+stop-after-long-task pattern (fix pass twice; orchestrator finished
+its matrix + push + PR directly). For future fix passes: point
+CARGO_TARGET_DIR at a warm cache before running the matrix — the
+interval lane is the cold-cost dominator (Evan commissioned a
+caching investigation; findings recorded in the snapshot below).
+
+## State snapshot (session 3 pause point, 2026-07-23)
+
+Supersedes the session-2 snapshot below (kept as historical record).
+Wind-down on Evan's instruction (#69, 2026-07-22): finish in-flight
+work, record state, stop; PR 6 and the demo refresh NOT launched.
+
+- **Merged to main** (`fd90a54`): everything through **M3 PR 5.5**
+  (#70) — M3 PRs 1–5 + 5.5 all complete through the full
+  implement → adversarial-review → fix-pass cycle. Today's session
+  also merged: #66 (demo boolean tour; die promoted to the live R1
+  matrix), #67 (`scripts/ci-local.sh` — the CI mirror), #68 (pure
+  open box rendered stop + scoopbox split + ci.yml↔ci-local
+  back-references), #69 (docs: post-5.5 demo charter).
+- **Hosted CI is DOWN** (GitHub free-plan Actions minutes exhausted,
+  all jobs fail at start with the billing annotation; resets at
+  Evan's billing-month rollover). THE MERGE GATE IS
+  `./scripts/ci-local.sh` on the merged tree (11-row mirror of
+  ci.yml; keep the two in sync — cross-references in both files).
+  admesh 0.98.5 is source-built at `~/.local/bin/admesh`. Cold-cache
+  cost is dominated by the interval lane; see the caching-findings
+  paragraph appended below when the commissioned investigation
+  reports (in flight at snapshot time).
+- **Auto-merge caveat**: the repo has no branch protection, so
+  `gh pr merge --auto` merges IMMEDIATELY — do not rely on it to
+  wait for anything while Actions is down.
+- **Branch hygiene (one-off, Evan #69)**: remote pruned to exactly
+  main + live work branches (73 merged branches deleted, 134 local
+  refs pruned). Not a standing convention — Evan explicitly said
+  one-off.
+- **Next orchestrator's first moves**: (1) session-start checklist
+  (arm away-channel + usage monitors per
+  memories/orchestration-model.md; usage events.jsonl goes stale —
+  advisory only). (2) **Post-5.5 demo refresh** (charter = Evan's
+  #68 comment, recorded verbatim in the Demo PR section above; low
+  effort bound): cut scoopbox; pipped die (FULL 21-pip die now
+  WORKS — the review's e2e witness proves it, see
+  `crates/stl/tests/review_m3_pr55_e2e.rs`; drop
+  `normalize_edges_to_chords` from the demo, it is obsolete);
+  voidbox out of montage or opacity <1 if easy. (3) **PR 6, split
+  in three** (retrospective agreement with Evan): (a) tier-3′
+  validator + touching corpus (substantive; the Accumulating PR 6
+  obligations section above is the charter), (b) M3-exit DESIGN.md
+  ratification sweep + K snapshot + tier table (docs), (c) any
+  caching implementation the investigation recommends (small,
+  process). Then the M3 exit walk against M3-PLAN's exit criteria.
+- **Worktrees at pause**: implementer worktree freed (branch merged);
+  ae88 (`ev/m3-5-bool-finish` stale checkout) used for gate runs +
+  caching experiments — clean both at the next seam per
+  memories/worktree-disk-hygiene.md; disk was 83–84% after this
+  session's cleanup.
 
 - **Merged to main** (`318bdf7` + docs PRs after): M3 PRs 1–4 — #53
   (surgery), #55 (split reduce), #61 (split join/finish + `split` +
