@@ -808,77 +808,65 @@ CARGO_TARGET_DIR at a warm cache before running the matrix — the
 interval lane is the cold-cost dominator (Evan commissioned a
 caching investigation; findings recorded in the snapshot below).
 
-## State snapshot (session 3 pause point, 2026-07-23)
+## M3 EXIT (2026-07-23) — milestone COMPLETE
 
-Supersedes the session-2 and 2026-07-21 handoff snapshots (deleted in
-the PR 6(b) state-doc trim; merge-only history preserves them).
-Wind-down on Evan's instruction (#69, 2026-07-22): finish in-flight
-work, record state, stop; PR 6 and the demo refresh NOT launched.
+Exit walk run against M3-PLAN's 13 exit criteria on origin/main
+`4b02e2d` (code tree byte-identical to the 11/11-gated `446640d`):
+**all 13 MET, zero gaps** — 10 with freshly executed evidence (full
+topo+stl suites green; die e2e reproducing the exact dyadic volume
+8 − 21/128 under external admesh, 1 part, 0 defects; two-brick
+bitwise pins; touching corpus certifying both directions; voids at
+tier 2; the A∖B ≡ A∩revert(B) oracle; typed ∅/disjoint), 3 by
+verified record (gate ε-matrix/interval rows at `446640d`;
+rule-(b)/sign-chain sections above; DESIGN.md ratifications #76).
+Criterion 11 verified by full enumeration: every ch. 14 mirror-list
+site, ch. 14 erratum site, and ch. 15 sign-chain site from the
+grounding synthesis maps to a named test in the CI-run set — no
+unmapped site. The verdict table with per-criterion evidence
+pointers is in the exit-walk report (session-4 record); the die,
+corner-kiss, and tangent-edge STLs were re-produced fresh during
+the walk.
 
-- **Merged to main** (`fd90a54`): everything through **M3 PR 5.5**
-  (#70) — M3 PRs 1–5 + 5.5 all complete through the full
-  implement → adversarial-review → fix-pass cycle. Today's session
-  also merged: #66 (demo boolean tour; die promoted to the live R1
-  matrix), #67 (`scripts/ci-local.sh` — the CI mirror), #68 (pure
-  open box rendered stop + scoopbox split + ci.yml↔ci-local
-  back-references), #69 (docs: post-5.5 demo charter).
-- **Hosted CI is DOWN** (GitHub free-plan Actions minutes exhausted,
-  all jobs fail at start with the billing annotation; resets at
-  Evan's billing-month rollover). THE MERGE GATE IS
-  `./scripts/ci-local.sh` on the merged tree (11-row mirror of
-  ci.yml; keep the two in sync — cross-references in both files).
-  admesh 0.98.5 is source-built at `~/.local/bin/admesh`.
-- **Caching investigation (Evan-commissioned, reported 2026-07-23;
-  full report in the #72 PR conversation)** — headline: local CI is
-  tolerable. (a) The session's 70-min matrix was mostly CPU
-  CONTENTION from concurrent agent builds — identical rows measured
-  3–4× faster uncontended; SERIALIZE gate runs. (b) Measured
-  uncontended: cold worktree no cache ~25–30 min; cold + warm
-  sccache ~8–9 min first run (~5 after; cache 155M); a persistent
-  GATE-RUNNER worktree at a fixed path with a warm target runs the
-  full 11-row matrix in **~3.7 min** (floor = test runtimes). eps
-  rows already share binaries (0.06s freshness check) — no script
-  change needed. (c) Recommendation for PR 6(c): `scripts/gate.sh`
-  — flock-serialized fetch + `checkout --detach <sha>` in the
-  gate-runner + ci-local.sh; sccache (`~/.local/bin/sccache`
-  v0.16.0, installed) for agents' own worktrees, exported from the
-  worktree's FIRST build (mid-life wrapper flips re-fingerprint).
-  (d) Cautions: NEVER pass remap-path-prefix (or anything) via
-  RUSTFLAGS env — it silently overrides `.cargo/config.toml`'s
-  `-C target-cpu=x86-64-v3`, which the interval feature REQUIRES
-  for inari's directed rounding; keep `~/.cache/gmp-mpfr-sys`
-  (machine-wide GMP C cache — why interval libs build in 11s);
-  shared CARGO_TARGET_DIR rejected (fingerprint ping-pong, no
-  concurrency safety).
-- **Auto-merge caveat**: the repo has no branch protection, so
-  `gh pr merge --auto` merges IMMEDIATELY — do not rely on it to
-  wait for anything while Actions is down.
-- **Branch hygiene (one-off, Evan #69)**: remote pruned to exactly
-  main + live work branches (73 merged branches deleted, 134 local
-  refs pruned). Not a standing convention — Evan explicitly said
-  one-off.
-- **Post-5.5 demo refresh: DONE (#71, in this wind-down)** — the
-  full 21-pip die is a rendered stop (exact dyadic oracle after
-  every one of the 21 subtracts, final V = 7.8359375; die_blocked
-  and its self-promoting guard retired — the promotion happened);
-  scoopbox cut; voidbox rendered translucent (per-body alpha in
-  render.py, backface culling off for translucent bodies — the
-  internal void shell is visible in the render and montage);
-  `normalize_edges_to_chords` deleted (raw extrude operands, per
-  the review's e2e proof). Demo gates green; kernel untouched.
-- **Next orchestrator's first moves**: (1) session-start checklist
-  (arm away-channel + usage monitors per
-  memories/orchestration-model.md; usage events.jsonl goes stale —
-  advisory only). (2) **PR 6, split in three** (retrospective
-  agreement with Evan): (a) tier-3′ validator + touching corpus
-  (substantive; the Accumulating PR 6 obligations section above is
-  the charter), (b) M3-exit DESIGN.md ratification sweep + K
-  snapshot + tier table (docs), (c) any caching implementation the
-  investigation below recommends (small, process). Then the M3 exit
-  walk against M3-PLAN's exit criteria.
-- **Worktrees at pause**: implementer worktree freed (branch merged);
-  ae88 (`ev/m3-5-bool-finish` stale checkout) used for gate runs +
-  caching experiments — clean both at the next seam per
-  memories/worktree-disk-hygiene.md; disk was 83–84% after this
-  session's cleanup.
+M3 delivered, end to end: null-entity surgery + cross-shell
+operators (#53), split reduce/join + `split` + `plane_section`
+(#55, #61), boolean reduce/classify (#62), public
+union/intersect/subtract + first voids (#65), cross-solid seam
+discipline with the sense theorem (#70), demo tour + refresh
+(#66, #71), gate.sh (#73), tier-3′ `validate_pseudomanifold` +
+declared-contact certification + touching corpus (#75), DESIGN.md
+exit sweep + K inventory + state-doc trim (#76). Pre-M4 design:
+NAMING-DESIGN.md ratified (#74).
 
+## State snapshot (M3 COMPLETE, 2026-07-23)
+
+Supersedes the session-3 snapshot (deleted per the trim convention;
+merge-only history preserves it).
+
+- **Merged to main** (`4b02e2d`): everything through the M3 exit —
+  PRs #73 (gate.sh), #74 (NAMING-DESIGN.md, ratified), #75 (PR 6a
+  tier-3′), #76 (PR 6b docs sweep + Evan-approved state-doc trim),
+  #77 (session-4 orchestrator record). M3 is COMPLETE (exit section
+  above).
+- **Merge gate**: `scripts/gate.sh <ref>` — flock-serialized,
+  persistent clone at `~/.local/share/cad-gate/repo`, warm matrix
+  ~34 min after big merges / ~3–4 min quiescent. Hosted CI still
+  DOWN until Evan's billing-month rollover; when it returns, re-check
+  ci.yml ↔ ci-local.sh sync (cross-refs in both files).
+- **Known envelopes on record** (DESIGN.md M3 conventions block):
+  operand-internal-declaration gap (M4 fix direction: declarations
+  as recipe data per NAMING-DESIGN), both-sided pinch frontier
+  (BOTH_SIDED pin; native below-copy lane = future work),
+  PR 5.5 boundary-on-boundary + reflex-corner refusals. D8 saddle
+  guard remains armed and unwitnessed (JoinDesync-only assert hunts
+  the witness).
+- **Pre-M4 queue**: (1) GQ1 mechanism-details design doc (the last
+  "before M4 planning" item; NAMING-DESIGN N5's Diagnosis leaves a
+  WitnessBifurcation arm for it); (2) M4-PLAN drafting + ratification
+  conversation with Evan. Q9 (name) parked with Evan's shortlist in
+  memories/name-candidates.md (Intension / Noumenon / Selvage, all
+  crates.io-free 2026-07-23).
+- **Standing session-start checklist**: away-channel GitHub monitor
+  only (usage-limit watch RETIRED — Evan 2026-07-23, it never
+  measured the Fable-specific limit that actually binds).
+- **Worktrees**: all agent worktrees removed at this seam; the
+  gate-runner clone is the one standing warm checkout; disk 82%.

@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0/M1/M2 COMPLETE; M3 nearly complete (PRs 1–5.5, 6a #75, 6c #73 merged; NAMING-DESIGN.md ratified #74; 6b docs sweep + exit walk remain); merge gate = scripts/gate.sh (hosted CI DOWN); history lives in the milestone logs, not here
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 ALL COMPLETE (M3 exit walk 13/13, 2026-07-23); NAMING-DESIGN.md ratified #74; next = GQ1 mechanism doc then M4-PLAN ratification with Evan; merge gate = scripts/gate.sh (hosted CI DOWN); history lives in the milestone logs, not here
 metadata:
   node_type: memory
   type: project
@@ -27,20 +27,22 @@ git history preserves the rest).
   EdgeGeometry certification, extrude/revolve, certified tessellation,
   STL + admesh gate, exact mass properties, K-report (K = 10 FINAL,
   run-configured). Record: docs/M2-LOG.md; docs/K-REPORT.md.
-- **M3 IN PROGRESS, near exit** — splitting/booleans/tier-3′ per
-  docs/M3-PLAN.md. Merged through the full
-  implement → adversarial-review → fix-pass cycle: PRs 1–5.5 (#53,
-  #55, #61, #62, #65, #70 — surgery, split, plane_section, boolean
-  reduce/classify, public union/intersect/subtract, first voids, seam
-  discipline; 21-pip die builds e2e watertight), PR 6a (#75 —
+- **M3 COMPLETE (2026-07-23, exit walk 13/13 zero gaps)** —
+  splitting/booleans/tier-3′ per docs/M3-PLAN.md, all through the
+  full implement → adversarial-review → fix-pass cycle: PRs 1–5.5
+  (#53, #55, #61, #62, #65, #70), PR 6a (#75 —
   `validate_pseudomanifold`, coincidence census, two-directional
-  declared-contact certification, touching corpus), PR 6c (#73 —
-  scripts/gate.sh). docs/NAMING-DESIGN.md (selection stability /
-  persistent naming, N1–N7) RATIFIED by Evan (#74, 2026-07-23).
-  Remaining: PR 6b (M3-exit DESIGN.md sweep + K snapshot + state-doc
-  trim — the PR carrying this memory rewrite) and the M3 exit walk
-  against M3-PLAN's exit criteria. Record: docs/M3-LOG.md (its latest
-  state snapshot is the resumption contract).
+  declared-contact certification, touching corpus), PR 6b (#76 —
+  DESIGN.md exit sweep, K inventory, state-doc trim), PR 6c (#73 —
+  scripts/gate.sh). Known envelopes on record in DESIGN.md's M3
+  conventions block (operand-internal-declaration gap → M4;
+  both-sided pinch frontier; PR 5.5 seam refusals). Record:
+  docs/M3-LOG.md (M3 EXIT section + final snapshot).
+- **Pre-M4 design**: docs/NAMING-DESIGN.md (selection stability /
+  persistent naming, N1–N7) RATIFIED (#74, 2026-07-23). Remaining
+  before M4 planning: GQ1 mechanism-details doc; then M4-PLAN
+  drafting + ratification conversation with Evan (his sign-off
+  lane). Q9 name shortlist parked in [[name-candidates]].
 
 **Key operational facts:**
 
@@ -58,8 +60,8 @@ git history preserves the rest).
   floored at x86-64-v3 (inari directed rounding REQUIRES it — never
   override RUSTFLAGS, it silently drops .cargo/config.toml's
   target-cpu).
-- License dual MIT OR Apache-2.0; project name still pending (Q9).
-- Pre-M4 design queue: GQ1 mechanism details doc (naming doc done).
+- License dual MIT OR Apache-2.0; project name still pending (Q9,
+  shortlist in [[name-candidates]]).
 
 See [[cad-working-style]], [[orchestration-model]], [[git-workflow]],
 [[worktree-disk-hygiene]].
