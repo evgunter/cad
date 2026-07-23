@@ -210,17 +210,21 @@ fn boolean_op<T: Decide>(
     let fin = setopfinish(op, red, &completed, a, b, band)?;
     let mut body = fin.body;
     let mut seam_edges = Vec::new();
+    let mut desc = Descendants::default();
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map)?;
+        desc.absorb_zip(&rep);
         seam_edges.extend(rep.seam_edges);
     }
     let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band)?;
     let contacts = remap_contacts(
         &body,
         &contacts,
         KeyView::Direct,
         KeyView::Graft(&fin.graft),
+        &desc,
     );
     gate(&body)?;
     volume_backstop(op, a, b, &body, band)?;
@@ -426,49 +430,119 @@ enum KeyView<'a> {
 }
 
 impl KeyView<'_> {
-    fn vertex<T: Real>(&self, body: &Body<T>, v: VertexKey) -> Option<VertexKey> {
-        let mapped = match self {
+    fn vertex(&self, v: VertexKey) -> Option<VertexKey> {
+        match self {
             Self::Direct => Some(v),
             Self::Graft(g) => g.vertices.get(v).copied(),
             Self::Absent => None,
-        }?;
-        body.get_vertex(mapped).map(|_| mapped)
+        }
     }
 
-    fn face<T: Real>(&self, body: &Body<T>, f: FaceKey) -> Option<FaceKey> {
-        let mapped = match self {
+    fn face(&self, f: FaceKey) -> Option<FaceKey> {
+        match self {
             Self::Direct => Some(f),
             Self::Graft(g) => g.faces.get(f).copied(),
             Self::Absent => None,
-        }?;
-        body.get_face(mapped).map(|_| mapped)
+        }
     }
 }
 
-/// Remaps the declared contacts into result keys, dropping records
-/// whose entities did not survive (module docs).
+/// The D5 descendant map (M3 PR 6a, PR 5 review R5): result-stage
+/// entity replacement — seam-zip vertex fusions and
+/// `merge_coplanar_faces` face absorption — as old key → surviving
+/// key rows, extending the graft's key lineage so a contact record
+/// drops ONLY when its coincidence is consumed (entity gone, not
+/// renamed). Re-derivation at the 3′ gate is rejected as
+/// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
+#[derive(Default)]
+struct Descendants {
+    vertices: std::collections::BTreeMap<VertexKey, VertexKey>,
+    faces: std::collections::BTreeMap<FaceKey, FaceKey>,
+}
+
+impl Descendants {
+    fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
+        for &(dead, kept) in &rep.vertex_merges {
+            self.vertices.insert(dead, kept);
+        }
+    }
+
+    fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {
+        for group in &merged.groups {
+            for &absorbed in &group.absorbed {
+                self.faces.insert(absorbed, group.kept);
+            }
+        }
+    }
+
+    /// Chases a vertex key through the fusion rows until it resolves
+    /// live (bounded by the map size — rows never cycle: a dead key
+    /// maps to its survivor).
+    fn live_vertex<T: Real>(&self, body: &Body<T>, v: VertexKey) -> Option<VertexKey> {
+        let mut k = v;
+        for _ in 0..=self.vertices.len() {
+            if body.get_vertex(k).is_some() {
+                return Some(k);
+            }
+            k = *self.vertices.get(&k)?;
+        }
+        None
+    }
+
+    /// Chases a face key through the absorption rows until live.
+    fn live_face<T: Real>(&self, body: &Body<T>, f: FaceKey) -> Option<FaceKey> {
+        let mut k = f;
+        for _ in 0..=self.faces.len() {
+            if body.get_face(k).is_some() {
+                return Some(k);
+            }
+            k = *self.faces.get(&k)?;
+        }
+        None
+    }
+}
+
+/// Remaps the declared contacts into result keys — operand views
+/// first (graft lineage), then the D5 descendant chase — dropping
+/// records only when the entity is genuinely consumed (module docs).
 fn remap_contacts<T: Real>(
     body: &Body<T>,
     contacts: &ContactRecords,
     a_view: KeyView<'_>,
     b_view: KeyView<'_>,
+    desc: &Descendants,
 ) -> ContactRecords {
+    // v-v pairs chase through zip fusions (a fused vertex's partner
+    // may still coincide with the survivor); a pair fused into ONE
+    // vertex is consumed (structural now) and drops.
+    let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
+    // v-on-f VERTICES deliberately do NOT chase: a zip-fused resting
+    // vertex became a seam vertex — the rest was consumed into
+    // structure, and carrying the record forward would declare a
+    // contact the census now sees as boundary incidence. FACES chase:
+    // merge absorption renames the face while the rest persists (the
+    // R5 bug class this map exists for).
+    let vert_strict = |view: &KeyView<'_>, v: VertexKey| {
+        let k = view.vertex(v)?;
+        body.get_vertex(k).map(|_| k)
+    };
+    let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
     let mut out = ContactRecords::default();
     for c in &contacts.vv {
-        if let (Some(a), Some(b)) = (a_view.vertex(body, c.a), b_view.vertex(body, c.b)) {
+        if let (Some(a), Some(b)) = (vert(&a_view, c.a), vert(&b_view, c.b))
+            && a != b
+        {
             out.vv.push(VvContact { a, b });
         }
     }
     for c in &contacts.a_on_b {
-        if let (Some(vertex), Some(face)) =
-            (a_view.vertex(body, c.vertex), b_view.face(body, c.face))
+        if let (Some(vertex), Some(face)) = (vert_strict(&a_view, c.vertex), face(&b_view, c.face))
         {
             out.a_on_b.push(VfContact { vertex, face });
         }
     }
     for c in &contacts.b_on_a {
-        if let (Some(vertex), Some(face)) =
-            (b_view.vertex(body, c.vertex), a_view.face(body, c.face))
+        if let (Some(vertex), Some(face)) = (vert_strict(&b_view, c.vertex), face(&a_view, c.face))
         {
             out.b_on_a.push(VfContact { vertex, face });
         }
@@ -600,12 +674,15 @@ fn fallback<T: Decide>(
                 _ => BooleanResultKind::Assembly,
             };
             let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+            let mut desc = Descendants::default();
+            desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band)?;
             let contacts = remap_contacts(
                 &body,
                 &red.contacts,
                 KeyView::Direct,
                 KeyView::Graft(&graft),
+                &desc,
             );
             gate(&body)?;
             Ok(BooleanResult::Body(BooleanBody {
@@ -632,12 +709,14 @@ fn finish_fallback<T: Decide>(
         body = body.revert().map_err(BooleanError::Revert)?;
     }
     let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    let mut desc = Descendants::default();
+    desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band)?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
     };
-    let contacts = remap_contacts(&body, contacts, a_view, b_view);
+    let contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
     gate(&body)?;
     Ok(BooleanResult::Body(BooleanBody {
         body,
