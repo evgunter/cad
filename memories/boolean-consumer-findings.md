@@ -55,3 +55,12 @@ guard retargeted to a −z pip for PR 5.5. open_box's pure interior-top cutter
 now succeeds (V = 2.368 exact). Finding 2's chord-normalization workaround is
 STILL IN PLACE — whether PR 5's extrude-operand description remap made it
 unnecessary was not re-tested; check when PR 5.5 unblocks the pure variants.
+
+Post-PR 5.5 (2026-07-23, #70 merged): finding 2's workaround is now
+PROVEN OBSOLETE — the review's e2e witness
+(`crates/stl/tests/review_m3_pr55_e2e.rs`) builds all 22 die operands
+via profile→extrude and feeds them RAW to `subtract`, exact volumes +
+watertight STL. The full 21-pip die works; the demo refresh should drop
+`normalize_edges_to_chords` and promote the die (charter in M3-LOG's
+Demo PR section). Findings 1–3 are all resolved or typed-and-documented;
+this memory is now purely historical.

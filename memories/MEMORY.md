@@ -1,7 +1,7 @@
 # Memory Index
 
-- [Boolean consumer findings (M3 PR 5)](boolean-consumer-findings.md) — cookie-cutter (single-face-seam) boolean results are SILENTLY WRONG; extrude operands need chord re-description; touching/coplanar refusals; exact repros for the PR 5 fix pass
-- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0 + M1 COMPLETE; M2 in progress: PRs 1–2/7 merged, PR 3 implemented-unreviewed — M2-LOG's handoff-point state snapshot is the resumption contract; references live in the MAIN checkout; name pending
+- [Boolean consumer findings (M3 PR 5)](boolean-consumer-findings.md) — historical record of the demo tour's PR 5-era findings; finding 1 (silent wrong component) RESOLVED by the PR 5 fix pass; chord re-description workaround OBSOLETE post-PR 5.5 (raw extrudes work — review_m3_pr55_e2e)
+- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0/M1/M2 COMPLETE; M3 PRs 1–5.5 merged (#70 seam discipline — die builds e2e); remaining: demo refresh + PR 6 ×3 + exit; hosted CI DOWN, gate = scripts/ci-local.sh; M3-LOG session-3 snapshot is the resumption contract; references live in the MAIN checkout; name pending
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main
