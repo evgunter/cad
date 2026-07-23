@@ -94,6 +94,45 @@ fn arithmetic_matches_f64_semantics() {
     assert_eq!(eval(&e, &ParamEnv::<f64>::default()).unwrap(), 1.5);
 }
 
+mod props {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// eval is exactly f64 arithmetic on the erased values (GQ5:
+        /// units erase; D9: bit-identical determinism) — pinned over
+        /// arbitrary finite literals.
+        #[test]
+        fn literal_arithmetic_is_exact_f64(
+            a in -1.0e9f64..1.0e9,
+            b in -1.0e9f64..1.0e9,
+            k in -1.0e3f64..1.0e3,
+        ) {
+            let e = Expr::mul(
+                Expr::add(
+                    Expr::literal(a, Dimension::Length).unwrap(),
+                    Expr::literal(b, Dimension::Length).unwrap(),
+                )
+                .unwrap(),
+                Expr::literal(k, Dimension::Scalar).unwrap(),
+            )
+            .unwrap();
+            let got = eval(&e, &ParamEnv::<f64>::default()).unwrap();
+            prop_assert_eq!(got.to_bits(), ((a + b) * k).to_bits());
+        }
+
+        /// Count arithmetic is exact integer arithmetic wherever i64
+        /// does not overflow (spec D4).
+        #[test]
+        fn count_arithmetic_is_exact(a in -1_000_000i64..1_000_000, b in -1_000_000i64..1_000_000) {
+            let sum = Expr::add(Expr::count(a), Expr::count(b)).unwrap();
+            let prod = Expr::mul(Expr::count(a), Expr::count(b)).unwrap();
+            prop_assert_eq!(eval_count(&sum, &ParamEnv::<f64>::default()).unwrap(), a + b);
+            prop_assert_eq!(eval_count(&prod, &ParamEnv::<f64>::default()).unwrap(), a * b);
+        }
+    }
+}
+
 /// The pinned Interval instantiation (spec D4/D8): the evaluator is
 /// generic over `Real` with no branches, so the certified scalar runs
 /// the SAME code path and must enclose the f64 result.
