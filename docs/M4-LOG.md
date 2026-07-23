@@ -113,3 +113,19 @@ node-granular diff exactness, Interval enclosures with healthy
 decorations. Non-finite conduit premise execution-confirmed (Div
 mints inf/NaN from finite docs; interval lane already refuses via
 NaI). Fix pass dispatched (6 items); merge after gate.
+
+**PR 1 MERGED (#81, `af5a94b`, 2026-07-23)** after the full cycle.
+Fix pass landed all 6 items: DeclareNamesMissingNode edit-time
+validation (+ N5 delete-strand rustdoc); non-finite doors 1+2
+(door 2 via the sanctioned Decide probe — exact, no ε-dependence;
+`eval` bound widened Real→Decide, D1-sanctioned, accepted);
+i32-hop CountToScalar (closed the reviewer's i64::MIN abs panic;
+CountToScalarOutOfRange typed); bit-semantic `bit_eq`/diff (sound
+because door 1 makes NaN unrepresentable in stored docs; PartialEq
+stays IEEE, documented); ExprPath staleness rustdoc; review suite
+merged (38 tests total in the crate). Gate 11/11 on `b6393b7`;
+post-merge confirmation gate run on combined main (#82 was
+test-only, no interaction). **PR 2 spec obligations banked from
+this cycle**: wrap `EvalError::NonFiniteResult` with node/slot
+context at the evaluation service; instantiate `Doc<P>` with the
+real profile payload.
