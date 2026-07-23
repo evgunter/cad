@@ -114,6 +114,13 @@ impl ContentBits for f64 {
     }
 }
 
+/// RETIREMENT-SCHEDULED bit-identity consumer (DESIGN.md M4; the
+/// ci.yml tripwire allowlists this file): unlike the coincidence
+/// checkers the retirement targets, this site HASHES the exact
+/// representation into a content key (spec D4 mandates "evaluated
+/// expression values AS BITS") and never compares values by bits.
+/// When provenance-based naming retires the channel, this feed moves
+/// to whatever exact-representation door replaces `repr_bits`.
 #[cfg(feature = "interval")]
 impl ContentBits for geom_core::Interval {
     fn feed(&self, h: &mut KeyHasher) {

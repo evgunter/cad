@@ -72,8 +72,10 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     );
 
     let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
-    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
-        &ev.value(sub).expect("subtract evaluated at Interval").payload
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &ev
+        .value(sub)
+        .expect("subtract evaluated at Interval")
+        .payload
     else {
         panic!("expected boolean body");
     };
@@ -95,8 +97,10 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
 fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
     let d = fixture::die();
     let ev = evaluate::<Interval>(&d.doc, None, &CancelToken::new(), &EvalOptions::default());
-    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
-        &ev.value(d.final_node).expect("die evaluated at Interval").payload
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &ev
+        .value(d.final_node)
+        .expect("die evaluated at Interval")
+        .payload
     else {
         panic!("expected boolean body");
     };

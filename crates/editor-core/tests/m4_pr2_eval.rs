@@ -39,7 +39,12 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 fn fingerprint(b: &Body<f64>) -> String {
     let mut s = String::new();
     let m = mass_properties(b).unwrap();
-    let _ = writeln!(s, "V {:016x} A {:016x}", m.volume.to_bits(), m.surface_area.to_bits());
+    let _ = writeln!(
+        s,
+        "V {:016x} A {:016x}",
+        m.volume.to_bits(),
+        m.surface_area.to_bits()
+    );
     for (k, p) in b.points() {
         let _ = writeln!(
             s,
@@ -100,7 +105,9 @@ fn incremental_edit_recomputes_only_the_downstream_cone() {
     let memo = run(&edited, Some(&full), false);
     assert_eq!(memo.outcome, EvalOutcome::Completed);
     assert_eq!((memo.recomputed, memo.reused), (2, 54)); // D4 acceptance
-    let vol = mass_properties(final_body(&memo, d.final_node)).unwrap().volume;
+    let vol = mass_properties(final_body(&memo, d.final_node))
+        .unwrap()
+        .volume;
     assert_eq!(vol, DIE_VOLUME); // pip still fully in the face
 
     // D9 cross-checks: the memoized result bit-matches a from-scratch
@@ -136,7 +143,9 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .doc;
     let memo = run(&edited, Some(&full), false);
     assert_eq!((memo.recomputed, memo.reused), (48, 8));
-    let vol = mass_properties(final_body(&memo, d.final_node)).unwrap().volume;
+    let vol = mass_properties(final_body(&memo, d.final_node))
+        .unwrap()
+        .volume;
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
 
@@ -327,7 +336,13 @@ fn split_evaluates_both_parts_role_tagged() {
             normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(2.0)],
         }),
     );
-    let (doc, split_node) = fixture::insert(doc, Node::Split { target: cube, tool: plane });
+    let (doc, split_node) = fixture::insert(
+        doc,
+        Node::Split {
+            target: cube,
+            tool: plane,
+        },
+    );
     let ev = run(&doc, None, false);
     // The datum evaluated with a NORMALIZED normal.
     match &ev.value(plane).unwrap().payload {

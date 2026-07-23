@@ -9,8 +9,8 @@ mod fixture;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind,
-    NodeResult, PatternKind, ProfileDoc, ValuePayload, evaluate,
+    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
+    PatternKind, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, desc, insert, len, scl};
 use topo::{mass_properties, validate, validate_closed};
@@ -190,7 +190,11 @@ fn linear_pattern_evaluates_instances_as_data() {
     match ev2.nodes.get(&boolean) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::WrongOperand { expected: "body", found: "instances", .. }
+            NodeErrorKind::WrongOperand {
+                expected: "body",
+                found: "instances",
+                ..
+            }
         )),
         other => panic!("expected Failed, got {other:?}"),
     }
@@ -245,7 +249,9 @@ fn typed_refusal_doors() {
     match ev.nodes.get(&plane) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::DegenerateDirection { role: "datum plane normal" }
+            NodeErrorKind::DegenerateDirection {
+                role: "datum plane normal"
+            }
         )),
         other => panic!("expected Failed, got {other:?}"),
     }
@@ -296,7 +302,11 @@ fn typed_refusal_doors() {
     match ev.nodes.get(&boolean) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::WrongOperand { expected: "body", found: "split", .. }
+            NodeErrorKind::WrongOperand {
+                expected: "body",
+                found: "split",
+                ..
+            }
         )),
         other => panic!("expected Failed, got {other:?}"),
     }
@@ -343,7 +353,10 @@ fn declare_passes_through_and_boolean_accepts_it() {
     match ev2.nodes.get(&bad) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::WrongOperand { expected: "declarations", .. }
+            NodeErrorKind::WrongOperand {
+                expected: "declarations",
+                ..
+            }
         )),
         other => panic!("expected Failed, got {other:?}"),
     }

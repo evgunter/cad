@@ -157,9 +157,9 @@ mod review_m1_pr5_internal;
 pub(crate) mod seqgen;
 pub mod split;
 pub mod splitting;
-pub mod transform;
 #[cfg(test)]
 mod tier3_tests;
+pub mod transform;
 pub mod validate;
 
 pub use body::Body;
@@ -189,13 +189,13 @@ pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
 pub use split::SplitEdgeCreated;
-pub use transform::{TransformError, transform_rigid};
 pub use splitting::{
     LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionPolygon,
     SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart,
     SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
+pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     CensusContact, StaleDeclaration, ValidationError, validate, validate_closed,
     validate_geometric, validate_pseudomanifold,

@@ -48,10 +48,7 @@ impl ProfileDesc {
                     lp.vertices
                         .iter()
                         .map(|v| ProfileVertex {
-                            pos: geom_core::Point2::new(
-                                T::from_f64(v.pos.x),
-                                T::from_f64(v.pos.y),
-                            ),
+                            pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
                             bulge: T::from_f64(v.bulge),
                         })
                         .collect(),

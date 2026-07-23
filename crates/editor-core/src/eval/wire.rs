@@ -70,9 +70,7 @@ fn body_operand<T: Decide>(
     match &v.payload {
         ValuePayload::Body(b) => Ok(Arc::clone(b)),
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => Ok(Arc::clone(body)),
-        ValuePayload::Boolean(BooleanValue::Empty) => {
-            Err(NodeErrorKind::EmptyOperand { input })
-        }
+        ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
         other => Err(NodeErrorKind::WrongOperand {
             input,
             expected: "body",
@@ -193,7 +191,11 @@ fn wire_revolve<T: Decide>(
     // "wire, don't invent" — projecting silently would be invention).
     let place = vp.plane().placement;
     let (u, v_axis, n) = (place.linear.c0, place.linear.c1, place.linear.c2);
-    let plane_origin = Point3::new(place.translation.x, place.translation.y, place.translation.z);
+    let plane_origin = Point3::new(
+        place.translation.x,
+        place.translation.y,
+        place.translation.z,
+    );
     let rel = *origin - plane_origin;
     let b = band()?;
     for (name, margin) in [
@@ -344,10 +346,7 @@ fn wire_pattern<T: Decide>(
         let step = T::from_f64(i as f64);
         let map = match kind {
             PatternKind::Linear { .. } => {
-                let dir = unit(
-                    need_vec3(vals, SlotId::Direction)?,
-                    "pattern direction",
-                )?;
+                let dir = unit(need_vec3(vals, SlotId::Direction)?, "pattern direction")?;
                 let spacing = need_scalar(vals, SlotId::Spacing)?;
                 Affine3::translation(dir * (spacing * step))
             }

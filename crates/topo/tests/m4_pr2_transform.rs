@@ -45,7 +45,8 @@ fn translation_is_exact_and_key_stable() {
 #[test]
 fn zero_angle_rotation_is_exact_identity() {
     let b = brick((0.0, 1.0), (0.0, 1.0), 1.0);
-    let map = Affine3::rotation_about_axis(Point3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), 0.0);
+    let map =
+        Affine3::rotation_about_axis(Point3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), 0.0);
     let t = transform_rigid(&b, &map).unwrap();
     for (k, p0) in b.points() {
         let p1 = t.get_point(k).unwrap();

@@ -187,7 +187,10 @@ pub fn die() -> Die {
     // distance).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let (d, prof) = insert(doc, Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])));
+        let (d, prof) = insert(
+            doc,
+            Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])),
+        );
         let (d, ext) = insert(
             d,
             Node::Extrude {

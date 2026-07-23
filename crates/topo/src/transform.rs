@@ -253,7 +253,7 @@ pub fn transform_rigid<T: Decide>(
             None => {
                 return Err(TransformError::Corrupt {
                     what: "edge references a missing curve",
-                })
+                });
             }
         };
         let start = endpoint(&out, he_plus, false)?;
@@ -271,7 +271,12 @@ pub fn transform_rigid<T: Decide>(
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);
     }
-    if let Some(_orphan) = out.curves.iter().map(|(k, _)| k).find(|k| !rewritten.contains(k)) {
+    if let Some(_orphan) = out
+        .curves
+        .iter()
+        .map(|(k, _)| k)
+        .find(|k| !rewritten.contains(k))
+    {
         return Err(TransformError::Corrupt {
             what: "curve entry referenced by no edge (left unmapped)",
         });
@@ -286,12 +291,15 @@ fn endpoint<T: Real>(
     end: bool,
 ) -> Result<Point3<T>, TransformError> {
     let vk = if end {
-        body.half_edge_end(he_plus)
-            .ok_or(TransformError::Corrupt { what: "he_plus has no end vertex" })?
+        body.half_edge_end(he_plus).ok_or(TransformError::Corrupt {
+            what: "he_plus has no end vertex",
+        })?
     } else {
         body.half_edges
             .get(he_plus)
-            .ok_or(TransformError::Corrupt { what: "edge references a missing half-edge" })?
+            .ok_or(TransformError::Corrupt {
+                what: "edge references a missing half-edge",
+            })?
             .start
     };
     let v = body.vertices.get(vk).ok_or(TransformError::Corrupt {
@@ -300,7 +308,9 @@ fn endpoint<T: Real>(
     body.points
         .get(v.point)
         .copied()
-        .ok_or(TransformError::Corrupt { what: "vertex references a missing point" })
+        .ok_or(TransformError::Corrupt {
+            what: "vertex references a missing point",
+        })
 }
 
 fn map_description<T: Real>(map: &Affine3<T>, d: &EdgeGeometry<T>) -> EdgeGeometry<T> {
