@@ -216,7 +216,17 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 )
             }
         };
-        let created = piercing_body.mev_null(site, NewVertexSide::Above)?;
+        // Sense theorem (join module docs): the half facing the run's
+        // START germ (forward code Out) must be the UP half — for the
+        // dangling splice that half is he_minus (starts at the copy),
+        // so the SIDE swaps with the facing (mint side flipped to keep
+        // the body scaffold attribute and the record one datum).
+        let side = if dangling {
+            NewVertexSide::Below
+        } else {
+            NewVertexSide::Above
+        };
+        let created = piercing_body.mev_null(site, side)?;
         let Some(&((gs, ds), (ge, de))) = run_germs.last() else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "run germ bookkeeping desynchronized",
@@ -227,14 +237,21 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         } else {
             (created.he_plus, created.he_minus)
         };
+        let attr = match side {
+            NewVertexSide::Below => NullEdge {
+                below_end: created.vertex,
+                above_end: vertex,
+            },
+            NewVertexSide::Above => NullEdge {
+                below_end: vertex,
+                above_end: created.vertex,
+            },
+        };
         let rec = BoolNullEdgeRecord {
             operand: piercing,
             at_vertex: vertex,
             edge: created.edge,
-            attr: NullEdge {
-                below_end: vertex,
-                above_end: created.vertex,
-            },
+            attr,
             dangling,
             germs: [
                 super::HalfGerm {
@@ -325,9 +342,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         face: contact.face,
         ring_vertex: w,
     });
-    // (3) one ring null-edge strut per piercing-side run; the declared
-    // `Above` copy is the +normal-side copy (provisional data the PR 5
-    // joining orients through the correspondence — flagged).
+    // (3) one ring null-edge strut per piercing-side run. Side labels
+    // are DERIVED sense data (PR 5.5, join module docs): the pierced
+    // solid's sense at each germ is the negation of the piercing
+    // solid's (the cross-solid anti-correlation theorem), so the half
+    // facing the run's start germ (piercing UP) is the pierced DOWN
+    // half — he_minus, starting at the created copy = `above_end`.
     let mut ring_anchor: Option<HalfEdgeKey> = None;
     for (run_edge, ((gs, ds), (ge, de))) in run_edges.iter().zip(&run_germs) {
         let site = match ring_anchor {

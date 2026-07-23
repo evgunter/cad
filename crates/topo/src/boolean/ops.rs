@@ -52,34 +52,41 @@
 //! discarded entities are dropped — a contact between A and B is only
 //! meaningful in a result containing both sides.
 //!
-//! # Known limitations (PR 5 review — the honest envelope)
+//! # Known limitations (PR 5.5 — the honest envelope)
 //!
-//! The seam lane's WORKING envelope: transversal boundary crossings
-//! plus interior-rest coplanar unions, all verified against exact
-//! volume/area oracles. Outside it the ops REFUSE — every refusal
-//! typed, deterministic, operands untouched; never a silent wrong
-//! body. The refusing configurations (review findings R1–R3 plus the
-//! previously pinned pair):
+//! The seam lane's WORKING envelope (all exact-oracle-verified):
+//! transversal boundary crossings; single-ring pockets/bosses on ALL
+//! six face orientations (PR 5's R1 closed); double-ring single-face
+//! seams (through-pillar tunnel, inset-leg union); multi-collinear-
+//! site seams (R2) and crossing-polygon disconnections (R3),
+//! including mixed collinear+transversal channel cuts (the PR 5.5
+//! review's E-2, closed by the degenerate-segment fix in
+//! `point_in_loop`); interior-rest flush contacts (pillar standing on
+//! a face); and the Fig 15.1 coplanar-overlap ∩ (seam partly on
+//! shared cap planes) — the `join` module's derived sense/role
+//! discipline is the consistency theorem behind all of them.
 //!
-//! - **Single-ring pockets/bosses are orientation-dependent** (R1):
-//!   the identical blind pocket succeeds with the exact volume on a
-//!   brick's {+z, −x, −y} faces and refuses
-//!   [`BooleanError::SeamOrientation`] on {−z, +x, +y} — a
-//!   handedness-correlated HALF of face orientations, NOT "fixed
-//!   except for double-ring configs".
-//! - **Double-ring single-face seams** (through-pillar tunnel,
-//!   inset-leg union): `SeamOrientation`.
-//! - **Multi-collinear-site seams** (R2, four collinear crossing
-//!   sites on one line): [`BooleanError::JoinDesync`].
-//! - **Crossing-polygon face disconnection** (R3, crossing-polygon
-//!   operands whose seams disconnect a face): `SeamOrientation`.
-//! - **Coplanar-overlap ∩** (Fig 15.1, deferred acceptance item) and
-//!   **corner-flush** contacts: refuse.
+//! Still refusing — typed, deterministic, operands untouched; never a
+//! silent wrong body:
 //!
-//! Root cause (one sentence): the cross-solid null-edge
-//! ordering/orientation discipline is not enforced — `choose_roles`'
-//! prefer-mirror heuristic carries no consistency theorem — which is
-//! exactly PR 5.5's charter (M3-LOG resumption entry).
+//! - **Boundary-on-boundary seams**: configurations whose seam
+//!   segments lie ALONG existing operand edges (the full-overlap
+//!   stacked union; corner-flush rests whose contact-square edges are
+//!   collinear with the face's own edges). The on-edge germs have no
+//!   facing chord partner — such seams need on-edge RUNS (reusing the
+//!   existing edges) rather than chords, a mechanism this pipeline
+//!   does not yet have. Refusal:
+//!   `Join(UnpairedLooseEnds)`.
+//! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
+//!   seam through the VERTEX of a reflex boundary corner under a
+//!   tilted section plane (a 315°-corner pierced by a z-sheared
+//!   brick's cap) can refuse `SeamOrientation`. Root cause: the
+//!   angular strut spike order (`bool_strut_order`) is FORCED only on
+//!   sectors of width W ≤ π (which covers the whole crossing-minted
+//!   corpus class — edge-interior sites are exact half-planes);
+//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in
+//!   the unforced window. Face-interior and convex-corner crossings
+//!   of the same shape succeed exactly.
 
 use geom_core::{Band, Decide, MarginDiag, Real, Sign};
 
