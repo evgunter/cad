@@ -1,0 +1,166 @@
+//! `Doc` — the document as a PLAIN VALUE (spec D2, DESIGN.md D8: the
+//! recipe is data): the recipe DAG plus document metadata. Cheap-clone
+//! plain Rust (`Vec`/`BTreeMap`; no persistent-structure dependency —
+//! document scale does not justify one; revisit only with corpus
+//! latency data). All mutation goes through the pure
+//! [`crate::edit::apply`]; undo/redo is keeping prior values.
+
+use std::collections::BTreeMap;
+
+use geom_core::Real;
+use geom_core::tolerance::DEFAULT_EPS;
+
+use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
+use crate::node::{Node, RecipeNodeId};
+
+/// A document-level parameter name (spec D4's "parameter refs").
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ParamName(pub String);
+
+impl ParamName {
+    /// Convenience constructor.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self(name.into())
+    }
+}
+
+/// A document-level named parameter's declared dimension and exact
+/// stored value (spec D2/D4: `f64` bit-exact for continuous, `i64`
+/// for Count — bit-identical replay is trivial by representation).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DocParam {
+    /// A continuous parameter in canonical kernel units.
+    Continuous {
+        /// Declared dimension (never `Count`; `apply` refuses).
+        dim: Dimension,
+        /// The value, exact `f64`.
+        value: f64,
+    },
+    /// An integer Count parameter (structural material, spec D3).
+    Count {
+        /// The exact value.
+        value: i64,
+    },
+}
+
+impl DocParam {
+    /// The parameter's dimension.
+    pub fn dim(&self) -> Dimension {
+        match self {
+            Self::Continuous { dim, .. } => *dim,
+            Self::Count { .. } => Dimension::Count,
+        }
+    }
+}
+
+/// The document: recipe DAG (node map + insertion-ordered list) +
+/// document metadata (spec D2; ratified F2's substrate). `P` is the
+/// opaque profile payload (spec D1/D3 — see [`Node`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Doc<P> {
+    /// The monotone id counter: the next [`RecipeNodeId`] to mint.
+    /// Never decremented — deletion does not free ids (spec D3).
+    pub(crate) next_id: u64,
+    /// The nodes, by stable id.
+    pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
+    /// Insertion order of the live nodes (the recipe's presentation
+    /// order; the DAG's edges are the nodes' input refs, spec D3).
+    pub(crate) order: Vec<RecipeNodeId>,
+    /// Document-level named parameters.
+    pub(crate) params: BTreeMap<ParamName, DocParam>,
+    /// The recorded modeling tolerance ε (H4's future landing:
+    /// `SetTolerance` arrives in PR 6; until then the ratified
+    /// compiled default, `geom_core::tolerance::DEFAULT_EPS`).
+    pub(crate) epsilon: f64,
+    /// Free-form document metadata (display units etc. — presentation
+    /// only, GQ5). Empty in v1 (spec D2).
+    pub(crate) metadata: BTreeMap<String, String>,
+}
+
+impl<P> Default for Doc<P> {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl<P> Doc<P> {
+    /// The empty document: no nodes, no params, recorded ε at the
+    /// ratified compiled default (D4 ¶1) — replay's origin (spec D7).
+    pub fn empty() -> Self {
+        Self {
+            next_id: 0,
+            nodes: BTreeMap::new(),
+            order: Vec::new(),
+            params: BTreeMap::new(),
+            epsilon: DEFAULT_EPS,
+            metadata: BTreeMap::new(),
+        }
+    }
+
+    /// The node with the given id, if live.
+    pub fn node(&self, id: RecipeNodeId) -> Option<&Node<P>> {
+        self.nodes.get(&id)
+    }
+
+    /// Live node ids in insertion order.
+    pub fn order(&self) -> &[RecipeNodeId] {
+        &self.order
+    }
+
+    /// Number of live nodes.
+    pub fn len(&self) -> usize {
+        self.order.len()
+    }
+
+    /// Whether the document has no live nodes.
+    pub fn is_empty(&self) -> bool {
+        self.order.is_empty()
+    }
+
+    /// The document-level named parameters.
+    pub fn params(&self) -> &BTreeMap<ParamName, DocParam> {
+        &self.params
+    }
+
+    /// The recorded modeling tolerance ε (spec D2; edited by PR 6's
+    /// `SetTolerance`).
+    pub fn epsilon(&self) -> f64 {
+        self.epsilon
+    }
+
+    /// The document metadata map (empty in v1, spec D2).
+    pub fn metadata(&self) -> &BTreeMap<String, String> {
+        &self.metadata
+    }
+
+    /// The expression subtree an [`ExprPath`] addresses, or `None` if
+    /// the node is gone, the slot absent, or the path off the tree
+    /// (spec D5).
+    pub fn expr_at(&self, path: &ExprPath) -> Option<&Expr> {
+        self.nodes
+            .get(&path.node)?
+            .expr(path.slot)?
+            .descend(&path.path)
+    }
+
+    /// The evaluation environment for this document's parameters,
+    /// embedding stored exact values into any [`Real`] `T` (spec D4:
+    /// the evaluator is scalar-generic; units erase here, GQ5).
+    pub fn param_env<T: Real>(&self) -> ParamEnv<T> {
+        let bindings = self
+            .params
+            .iter()
+            .map(|(name, p)| {
+                let v = match *p {
+                    DocParam::Continuous { dim, value } => ParamValue::Continuous {
+                        dim,
+                        value: T::from_f64(value),
+                    },
+                    DocParam::Count { value } => ParamValue::Count(value),
+                };
+                (name.clone(), v)
+            })
+            .collect();
+        ParamEnv { bindings }
+    }
+}
