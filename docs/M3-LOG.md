@@ -859,10 +859,17 @@ merge-only history preserves it).
   PR 5.5 boundary-on-boundary + reflex-corner refusals. D8 saddle
   guard remains armed and unwitnessed (JoinDesync-only assert hunts
   the witness).
-- **Pre-M4 queue**: (1) GQ1 mechanism-details design doc (the last
-  "before M4 planning" item; NAMING-DESIGN N5's Diagnosis leaves a
-  WitnessBifurcation arm for it); (2) M4-PLAN drafting + ratification
-  conversation with Evan. Q9 (name) parked with Evan's shortlist in
+- **Pre-M4 queue**: (1) GQ1 mechanism-details design doc — **draft
+  OPEN as PR #79** (`docs/SOLVER-DESIGN.md`, W1–W9 PROPOSED,
+  grounding notes `gq1-constraint-inventory.md` +
+  `gq1-solver-litreview.md` in the main checkout; sign-off comment
+  watchlisted, 👍-is-enough; headline decisions: witness = committed
+  solved assignment; selection = Krawczyk/HS certification not
+  nearest-root search, certificate ≡ margin as one k_stats trilean
+  `solver_branch_margin`; param edits never write back the witness —
+  explicit ReWitness DocEdit only; ezpz audit criteria pinned with
+  seed-proposer fallback); (2) M4-PLAN drafting + ratification
+  conversation with Evan once #79 resolves. Q9 (name) parked with Evan's shortlist in
   memories/name-candidates.md (Intension / Noumenon / Selvage, all
   crates.io-free 2026-07-23).
 - **Standing session-start checklist**: away-channel GitHub monitor
