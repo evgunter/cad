@@ -687,8 +687,17 @@ name-table invariant = f(recipe, structural params, verdict vector)
 pinned in CI; N5 empty v1 rebinding menu, explicit Rebind DocEdit
 only; N6 GeomSource syntactic identity retires bit_identity (same
 source ⇒ same bits theorem, converse unclaimed); N7 change-site list
-completed for recipe edits. Sign-off comment watchlisted
-(👍-is-enough).
+completed for recipe edits. **RATIFIED and MERGED (#74, Evan
+in-thread sign-off "your original plan sounds very good", 2026-07-23)**
+after two elaboration rounds folded into the doc: N3's F7 analysis
+(merge events confined to recorded change sites by the coincidence
+ladder — Evan offered to reopen F7, recommendation to keep it stood)
+and N2's alternatives-considered block (enumeration indices / value
+fingerprints / resolve-time matching / ask-always, each rejected on
+Q1-coherence grounds). Follow-up for the 6(b) sweep: add the
+DESIGN.md Band-1 cross-reference pointing "needs its own design doc"
+→ docs/NAMING-DESIGN.md (ratified). Pre-M4 design queue remaining:
+GQ1 mechanism details doc.
 
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
