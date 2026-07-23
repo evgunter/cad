@@ -92,3 +92,24 @@ persist-time refusal stays as backstop); (ii) **Doc<P> genericity
 deviation ACCEPTED** (Evan endorsed); (iii) **cast_precision_loss
 suppression replaced by the std i32 hop** (i32::try_from →
 f64::from, lossless by type; typed error outside ±2^31).
+
+**PR 1 adversarial review (2026-07-23)** — suite `review_m4_pr1*.rs`
+(15 tests, `ev/m4-1-review`), all execution-verified. ONE BLOCKER:
+StableName refs escape apply validation (phantom-name Declare
+inserts accepted; deletes strand Declares silently). **Orchestrator
+ruling (spec D3 carve-out added)**: edit-time EXISTENCE validation
+required (never-existed id = typo, refuse); delete-stranding stays
+allowed = N5 dangling semantics (NodeGone at resolution, Rebind
+repairs) with rustdoc. Non-blockers: CountToScalar(i64::MIN) panics
+in abs (the ruled i32-hop closes it — regression test added to fix
+pass); Doc PartialEq/diff are bit-blind (-0.0/NaN) — replay tests
+and diff go bit-semantic (diff is the future SetTolerance-audit
+substrate); ExprPath same-slot ancestor replacement silently
+re-points stale paths (doc note; PR 5 GeomSource must not assume
+detectability). SURVIVED under attack: replay bit-identity (subnormals,
+-0.0, ulp pairs, delete churn), dimension checker (no smuggling hole),
+purity to the bit, independently-authored die isomorphism +
+node-granular diff exactness, Interval enclosures with healthy
+decorations. Non-finite conduit premise execution-confirmed (Div
+mints inf/NaN from finite docs; interval lane already refuses via
+NaI). Fix pass dispatched (6 items); merge after gate.
