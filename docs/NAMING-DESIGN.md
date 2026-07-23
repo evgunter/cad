@@ -1,0 +1,253 @@
+# Persistent naming & selection stability (pre-M4 design doc)
+
+Status: **PROPOSED** (design conversation; N-decisions ratify on Evan's
+sign-off, like GUI-DESIGN.md's G/GQ items). Grounding:
+`references/notes/naming-constraint-inventory.md` (every ratified
+constraint, quoted, with the five tensions T1–T5 this doc must
+resolve) and `references/notes/persistent-naming-litreview.md`
+(15-source mechanism review; taxonomy (a)–(d); failure modes 1–7).
+Citations like [B05] resolve there. This doc answers the inventory's
+open questions Q-a…Q-i; it does NOT cover GQ1 mechanism details
+(queued next), margin-based pre-flip warnings (far-future), or
+assembly pin representation.
+
+## 0. The problem, stated in our terms
+
+A recipe (D8 operation DAG) references entities of intermediate
+bodies ("fillet the edge born of this extrude∩that pocket"). GUI
+selections are the same references (G1: one stable-name type, solved
+once). Arena keys cannot be those references: they are
+body-lineage-scoped and permanently diverge after any edit that
+changes kill history (T1) — key identity is a proof device inside
+flip-free, edit-free replays, nothing more. The literature's framing
+[B05]: (A) how to *name* an entity at construction; (B) how to
+*re-resolve* names after re-evaluation. Every prior system solves (B)
+with matching heuristics — neighborhood scoring, fingerprints,
+best-effort provenance walks — because their kernels cannot promise
+that re-evaluation is a specified function of the recipe. Ours can
+(D9 bit-identical replay + D5 total birth records). The design's one
+big move: **make (B) a lookup, not a search** — names are derivation
+paths, the evaluator emits the name↔entity table as part of
+evaluation, and "matching" disappears entirely. What remains — and
+what most of this doc decides — is making names *denote the right
+thing under edits*: split discriminators, merge policy, and tie
+handling, which no amount of determinism decides for you (lit modes
+1, 2, 4: they are design decisions, not infrastructure).
+
+Theoretical anchor (lit mode 7): beyond the BR-deformation regime
+[Raghothama–Shapiro] "the same face" has no ground truth — any
+re-resolution is convention. Our convention is *intensional*: a name
+denotes a construction role, not a point set. "Same entity" means
+"same role in the same derivation," which is well-defined across the
+entire parametric family because it is a function of recipe syntax
+plus reified predicate verdicts — and the regime boundary surfaces
+exactly as verdict flips, which are the pillar's loud sites. The
+name table depends on nothing else (N4 states this as the invariant
+that CI pins).
+
+## N1 — A stable name is a derivation path (proposed)
+
+```
+StableName<K> = { node: RecipeNodeId, path: RolePath }   // K ∈ {Body, Face, Edge, Vertex}
+RolePath      = [RoleSeg]                                 // op-typed, closed enums
+```
+
+- `RecipeNodeId` is a **stable identifier minted at node insertion**
+  (Onshape's lesson, lit mode 3): never positional, never reused,
+  survives reorder/insert/delete of other nodes. Serialization is the
+  node-ID type's (GQ3 schema discipline); **names contain no floats**
+  (see N2 — geometry enters only through margined predicate verdicts
+  during table construction), so bit-exact persistence is trivial.
+- `RoleSeg` is an operation-specific combinatorial role, a closed enum
+  per feature-op type: extrude — `Cap(Top|Bottom)`, `Lateral(profile
+  edge ref)`, `RimEdge(...)`; revolve — bands/poles/seam per the M2
+  taxonomy; booleans — `FromA(name)`, `FromB(name)`, `Seam(fA, fB)`;
+  split — `Fragment(parent, Qualifier)`; pattern — `Instance(i)`
+  (Q-d: the index is D8-structural data, defined by the pattern's own
+  indexing expression — pattern references never degrade to
+  positional guessing, discharging DESIGN.md's banked requirement).
+  Role vocabularies are part of each op's contract, versioned with it.
+- Composition: role arguments are themselves names (or profile-level
+  combinatorial refs), so boolean-born entities carry terms over
+  operand names — [CCH]'s generic naming, made total by our closed op
+  set instead of their never-completed qualifier zoo.
+- Entity kinds: faces, edges, vertices AND bodies get first-class
+  names (Q-h): body count changes only explicitly (typed refusals
+  otherwise, ratified), so a body's name is the node+role that minted
+  it (e.g. which profile region of a multi-region extrude). Edges and
+  vertices are NOT reduced to face-intersection names (the
+  literature's manifold shortcut): Euler ops give them birth identity
+  natively — one of our few genuine structural advantages, kept.
+- Document-local per GQ4; the (document identity × local ref) wrapper
+  is the sanctioned extension at exactly these seams (Q-i): table
+  keys, rebind edits (N6), appearance attachment, hit-test returns.
+
+## N2 — Split discriminators are covariant margined predicates (proposed)
+
+The split-face problem (lit mode 1): one source, n fragments; history
+supplies no ordering. Value discriminators (indices, (u,v) data) are
+the documented trap — deterministic but not *covariant*: an edit
+permutes them silently and a reference mis-binds without error (lit
+mode 5, the costliest failure). Decision:
+
+- `Fragment` qualifiers are **sign vectors of named trilean
+  predicates against recipe-covariant references** — e.g. a face
+  split by a slot gets qualifiers = side-of(splitting feature's own
+  oriented plane); fragments along an edge get order-along(oriented
+  parent carrier). [B05]'s constraint-solver-positioned half-spaces,
+  except our "solver" is the recipe itself: the discriminating
+  geometry is already recipe data, so covariance is free.
+- Because qualifiers are Q1 predicates (named, margined, through
+  `k_stats`), fragment identity can change **only at a recorded
+  predicate flip** — the naming pillar's flip-localization now covers
+  discriminators too, by construction rather than by hope. A sliver
+  margin escalates (typed) instead of silently swapping fragments.
+- Where no covariant qualifier discriminates — congruent symmetric
+  candidates (equal-radius crossing holes, lit mode 4) — the table
+  records the entities with an explicit **tie mark**; *naming* them is
+  fine, *referencing* a tied name is `Ambiguous{candidates}` (N5)
+  until the user records a disambiguation in the recipe (an explicit
+  declared choice, same ethos as the coincidence ladder; Onshape's
+  `setExternalDisambiguation` is the precedent). Never auto-pick among
+  equally admissible candidates — the single clearest lesson of the
+  literature ([B05] doctrine, TNaming's fail-don't-guess).
+
+## N3 — Merge policy: names retire into the merge, loudly (proposed)
+
+merge_coplanar_faces (F7) merges only structural/declared-coincident
+faces — by the coincidence ladder those share a recipe source, so:
+the merged face's name is `Merged{sorted set of constituent names}`
+(canonical order = name order, not enumeration). Constituent names
+**retire**: a reference to one fails typed with the merged face as
+the offered candidate (N5 payload) — resolving it silently to the
+merge would change the denotation (different area, different
+boundary) without the recipe saying so. Symmetric on unmerge: if an
+edit removes the coincidence, `Merged{a,b}` vanishes and references
+to it fail with candidates {a,b}. We reject [B05]'s
+forbid-owner-crossing-merges (their move) because F7 is ratified
+boolean output behavior; we keep his failure semantics instead.
+
+## N4 — The name table: eager, per-node, cache-transferable (proposed)
+
+Resolution machinery (Q-b, T3):
+
+- Each feature-op **emits names for every boundary entity it
+  produces** as part of evaluation (eager). Rationale: the role
+  vocabulary makes it mechanical (linear in entity count — no search);
+  lazy naming ([TNaming] selectors) reintroduces on-demand B-rep
+  inspection, i.e., matching. The per-node **name table**
+  (`StableName ↔ arena key`, per body) is part of the node's result
+  in the GQ2 result DAG; kills drop entries (a name whose entity was
+  consumed simply isn't in the table — historical birth records stay
+  untouched, T3 resolved: the resolver never chains dead keys, it
+  reads the table the replay just built).
+- **The invariant CI pins**: the name table is a function of (recipe
+  structure, structural parameters, predicate verdict vector) ONLY.
+  Same recipe + same verdicts ⇒ identical table (this is the pillar's
+  "provably trivial" made checkable — and it must hold at f64 AND
+  Interval: same verdicts ⇒ same names, the Q1 genericity boundary
+  respected). A name-table golden test joins the replay-identity CI
+  family.
+- Resolution = table lookup in the target node's result. Cost model:
+  O(entities) build during evaluation (amortized into the op), O(1)
+  resolve, zero regen-time matching passes — vs [realthunder]'s ~30%
+  recompute overhead for application-side reconstruction of what our
+  evaluator knows natively.
+- Content-keyed cache transfer (banked principle) applies to tables
+  as to any derived artifact: the table is data keyed by the node's
+  input content; a cache hit transfers names with the geometry —
+  identical inputs cannot disagree about names (the key is the proof).
+- Home (G1 layering): tables are **produced by the kernel evaluation**
+  (only ops know their roles) and **held/queried by editor-core**;
+  hit-testing (Q-g) is the same table read backwards — mesh back-refs
+  end at arena keys, editor-core inverts key→name against the
+  evaluation the mesh came from. The GUI still never sees an arena
+  key.
+
+## N5 — Typed resolution failure (proposed)
+
+```
+ResolveError =
+  | Vanished  { name, diagnosis: Diagnosis, last_good: Option<Tombstone> }
+  | Ambiguous { name, candidates: Vec<StableName>, tie: TieWitness }
+  | NodeGone  { name, edit: RecipeEditRef }
+Diagnosis =
+  | PredicateFlip { predicate: &'static str, from: Sign, to: Sign }   // the pillar's promise
+  | StructuralParam { node, param }
+  | RecipeEdit { edit }
+  | Cascade { through: StableName }                                    // operand vanished upstream
+```
+
+- The **diagnosis is computable** because both evaluations' verdict
+  logs exist (k_stats names + D9 replay): diff the verdict vectors,
+  attach the flip(s) on the name's derivation path. Same diff
+  machinery as SetTolerance's ε-change audit — ratified to be shared.
+- `Tombstone` carries the last-good table entry (enough for GQ7's
+  ghost rendering: entity kind, owning body name, the mesh patch key
+  of the last evaluation). Selection tools survive vanishing entities
+  by holding the name + tombstone, never a key.
+- **Rebinding: the v1 ratified policy menu is EMPTY.** The error
+  carries candidates; the only repair is an explicit `Rebind(name →
+  selection)` DocEdit — recorded user intent, GQ3-persisted,
+  diffable. Any future automatic policy (e.g. "follow the merge")
+  enters as its own ratification with this doc's failure cases as its
+  test corpus.
+
+## N6 — Recipe-source identity retires bit_identity (proposed)
+
+The declared-coincidence rung and the M4 retirement (T2, Q-e):
+
+```
+GeomSource = { node: RecipeNodeId, expr: ExprPath, orient: Or }   // Or ∈ {Id, Rev}
+```
+
+- Every surface/curve/point description carries the recipe expression
+  that produced its parameters (through transforms: the transform
+  node composes into `expr`; through `revert`: `orient` flips —
+  `rev ∘ rev = id`). Same-source is *syntactic* identity of
+  `GeomSource` — a provenance lookup, no numerics.
+- **Theorem (the retirement's soundness): same GeomSource ⇒
+  bit-identical descriptions**, by D9 determinism of expression
+  evaluation. The converse is deliberately NOT claimed — equal bits
+  without shared source stay unglued, exactly the ratified rung (b).
+  So the declared rung becomes "same GeomSource", and the bit
+  comparison survives only as `debug_assert!(same_source ⇒ eq_bits)`
+  — the "records agree with bits" assertion DESIGN.md's M4 entry
+  promises, now with a definition that can actually hold.
+- Migration of the allowlisted consumers: `merge_faces.rs` and
+  `plane_eq.rs` (oriented_plane_eq) move to `(GeomSource, orient)`
+  comparison; `bit_identity.rs` becomes debug/test-only;
+  `interval.rs`'s use is scalar plumbing unrelated to coincidence and
+  keeps its own allowlist entry with a renamed justification. CI
+  tripwires stay until the last production consumer is gone.
+
+## N7 — What the pillar now says, exhaustively (proposed)
+
+Topology-change sites, complete for *edits* as well as parameter
+motion (T4): (i) structural parameter change (D8), (ii) reified
+predicate flip (Q1) — including N2 discriminator predicates, (iii)
+recipe edit (node insert/delete/reorder). Names localize (iii) by
+construction: node IDs are stable, so an edit renames nothing outside
+derivation paths that actually pass through the edited node. Within
+a flip-free, edit-free replay, arena-key identity remains the
+optimization/proof device (M0's lemma); everywhere else, the name
+table carries resolution. T1 through T5 discharge: T1 (names are
+recipe-level, keys are per-evaluation), T2 (N6), T3 (N4's
+replay-built table), T4 (N2/N3 + this exhaustiveness claim), T5 (N5's
+contract).
+
+## Open after this doc
+
+- GQ1 mechanism details (witness representation for constraint
+  branches) — next doc; N5's `Diagnosis` deliberately leaves room for
+  a `WitnessBifurcation` arm.
+- Out-of-family detection (lit mode 7): a typed resolution failure
+  says the name broke, not that the edit left the design family; a
+  family-membership predicate (Raghothama–Shapiro necessary, Wang
+  sufficient — nothing tight exists) is far-future, and honestly may
+  never be decidable in the useful generality.
+- The concrete Rust shape of `RolePath` segments per existing op
+  (extrude/revolve/split/booleans) — M4 PR-level work; the vocabulary
+  above is the contract, the enums are implementation.
+- Which (if any) rebinding policies to ratify after v1 experience;
+  the menu starts empty by decision.
