@@ -13,15 +13,15 @@
 //! null halves MUST pair with each other: the zero-area 2-gon is
 //! forced regardless of lex order. CONCUR with the refusal.
 //!
-//! BUT: the refusal is predicted to be orientation-DEPENDENT. Under
-//! the flipped plane the tip context reads AOA, the runs become
-//! {slantL} / {slantR}, each null edge bridges slant↔cap, and the
-//! sections are buildable — the pinched pieces get their distinct
-//! copies because they are now the ABOVE side (ch. 14 mints copies
-//! for ABOVE runs only). The acceptance test pins MIRRORED(+n) and
-//! NOTCHED(−n) — both BOB presentations — and calls that
-//! "equivariance of the refusal"; the tests below execute the other
-//! two presentations of the same two physical configurations.
+//! The refusal WAS orientation-DEPENDENT: under the flipped plane the
+//! tip context reads AOA, the runs become {slantL} / {slantR}, each
+//! null edge bridges slant↔cap, and the sections are buildable — the
+//! pinched pieces get their distinct copies because they are now the
+//! ABOVE side (ch. 14 mints copies for ABOVE runs only). That
+//! asymmetry is exactly what M3 PR 6a's D7 pinch lane consumes:
+//! `split` reruns a `DegenerateSection` refusal under the mirrored
+//! plane and swaps the sides back, so every cell of the orientation
+//! table now succeeds (the table test below).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -113,24 +113,39 @@ fn mirrored_fixture_flipped_plane_succeeds() {
     assert!((vp + vs - v0).abs() <= 1e-12 * v0, "{vp} + {vs} vs {v0}");
 }
 
-/// The companion witness: NOTCHED(+n) succeeds (the acceptance suite
-/// already pins this; restated here as the fourth cell of the 2×2 so
-/// the orientation table is complete in one executed place).
-///
-/// The full table this file establishes:
-///   MIRRORED(+n) refuse   | MIRRORED(−n) succeed   (this file)
-///   NOTCHED(−n)  refuse   | NOTCHED(+n)  succeed   (acceptance + here)
-/// i.e. refusal ⇔ the pinched pieces lie on the NEGATIVE side of the
-/// given normal — an orientation asymmetry, not an equivariant net.
+/// The orientation table, CLOSED symmetric by M3 PR 6a's D7 (the
+/// pinch lane): all four cells of the 2×2 now SUCCEED with identical
+/// physical decompositions —
+///   MIRRORED(+n) succeed | MIRRORED(−n) succeed
+///   NOTCHED(−n)  succeed | NOTCHED(+n)  succeed
+/// — the below-side pinch cells (left column) acquire their
+/// below-vertex copies through `split`'s mirror-identity lane, so op
+/// success is orientation-INVARIANT and only the piece ASSIGNMENT
+/// swaps with the normal (PR 2's equivariance, now for success too).
+/// Equal-volume oracle across every cell.
 #[test]
 fn notched_fixture_orientation_table() {
-    let fx = prism::<f64>(NOTCHED, 1.0);
-    // +n: succeeds, three above prisms (acceptance pins details).
-    let r = split(&fx.body, &plane(1.0, 1.0)).unwrap();
-    assert_eq!(body_of(&r.above).shells().count(), 3);
-    // −n: refuses (the acceptance's own pin — restated for the table).
-    assert!(split(&fx.body, &plane(1.0, -1.0)).is_err());
-    // And the mirrored fixture's +n refusal (acceptance pin, restated).
-    let fx = prism::<f64>(MIRRORED, 1.0);
-    assert!(split(&fx.body, &plane(1.0, 1.0)).is_err());
+    for (profile, pinched_above_under_plus) in [(NOTCHED, true), (MIRRORED, false)] {
+        let fx = prism::<f64>(profile, 1.0);
+        let v0 = mass_properties(&fx.body).unwrap().volume;
+        for ny in [1.0, -1.0] {
+            let r = split(&fx.body, &plane(1.0, ny)).unwrap();
+            let (a, b) = (body_of(&r.above), body_of(&r.below));
+            assert_eq!(validate_closed(a), Ok(()));
+            assert_eq!(validate_closed(b), Ok(()));
+            // The pinched triple lands above exactly when the normal
+            // points at it; the slab is always the other side.
+            let pinched = if (ny > 0.0) == pinched_above_under_plus {
+                a
+            } else {
+                b
+            };
+            assert_eq!(pinched.shells().count(), 3, "{profile:?} ny={ny}");
+            let (va, vb) = (
+                mass_properties(a).unwrap().volume,
+                mass_properties(b).unwrap().volume,
+            );
+            assert!((va + vb - v0).abs() <= 1e-12 * v0, "{va} + {vb} vs {v0}");
+        }
+    }
 }

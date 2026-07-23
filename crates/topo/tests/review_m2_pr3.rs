@@ -190,7 +190,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
         "{errs:?}"
     );
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
@@ -219,8 +219,8 @@ fn e2e_prism_dual_lane_matches_f64() {
     use geom_core::Dual64;
     let (mut f, _, _) = triangle_prism::<f64>();
     let (mut d, _, _) = triangle_prism::<Dual64>();
-    common::upgrade_edges_to_intersections(&mut f);
-    common::upgrade_edges_to_intersections(&mut d);
+    common::describe_as_intersections(&mut f);
+    common::describe_as_intersections(&mut d);
     assert_eq!(validate_geometric(&d), Ok(()));
     let fr: Vec<f64> = f
         .curves()
@@ -347,7 +347,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
 fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     let t = common::geometric_cube::<f64>();
     let mut body = t.body;
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
 
     let old_surface = body.get_face(t.seed.face).unwrap().surface;
@@ -512,7 +512,7 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     // Upgrade the cube first (M2 PR 4 fix pass: transverse chords must
     // carry Intersection at rest), so the arc corruption below is the
     // only conventional description left in the body.
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     // The bottom front edge A(0,0,0) -> B(1,0,0): re-describe as the
     // half-circle in the z = 0 plane bulging to y = −0.5 (a genuine,
     // honestly certified arc — description and carrier agree exactly).
@@ -569,7 +569,7 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     let mut body = t.body;
     // Upgrade first (M2 PR 4 fix pass — see the previous test) so the
     // at-rest reports below stay scoped to the attacked edge.
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     let edge = t.mevs[0].edge;
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
@@ -852,7 +852,7 @@ mod interval_lane {
             "{errs:?}"
         );
         // The prefer-intrinsic upgrade at the interval scalar.
-        common::upgrade_edges_to_intersections(&mut body);
+        common::describe_as_intersections(&mut body);
         assert_eq!(validate_geometric(&body), Ok(()));
         assert!(body.curves().all(|(_, c)| matches!(
             c.certified().map(topo::EdgeCurve::description),

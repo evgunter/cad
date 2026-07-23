@@ -10,7 +10,7 @@ use geom_core::Point3;
 use topo::{Body, FaceSurface, MefSite, MevSite, validate, validate_closed, validate_geometric};
 
 mod common;
-use common::{geometric_cube, line, upgrade_edges_to_intersections};
+use common::{describe_as_intersections, geometric_cube, line};
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -198,7 +198,7 @@ fn multi_shell_lifecycle_replay_is_byte_identical() {
 #[test]
 fn revert_involution_and_tiers() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     assert_eq!(validate_geometric(&cube.body), Ok(()));
     let original = format!("{:?}", cube.body);
     let reverted = cube.body.revert().unwrap();
@@ -229,7 +229,7 @@ fn revert_involution_and_tiers() {
 #[test]
 fn revert_negates_volume() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     let props = topo::mass_properties(&cube.body).unwrap();
     let rev_props = topo::mass_properties(&cube.body.revert().unwrap()).unwrap();
     assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
@@ -246,7 +246,7 @@ fn revert_negates_volume() {
 #[test]
 fn split_edge_preserves_tier3_at_rest() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     assert_eq!(validate_geometric(&cube.body), Ok(()));
     let edge = cube.mevs[0].edge; // A → B chord, params [0, 1]
     let created = cube.body.split_edge(edge, 0.5).unwrap();

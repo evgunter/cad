@@ -236,7 +236,6 @@ fn collinear_edge_overlap() {
 fn curved_operand_refuses() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
-    common::upgrade_edges_to_intersections(&mut b); // still line carriers
     let cube = common::geometric_cube::<f64>();
     // A genuinely curved body is not in the prismatic corpus; instead
     // gate on scaffolding: a mid-surgery operand refuses.
