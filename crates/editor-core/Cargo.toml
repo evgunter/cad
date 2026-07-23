@@ -1,0 +1,23 @@
+[package]
+name = "editor-core"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so the expression
+# evaluator's Interval instantiation test (M4 PR 1 D8) runs in CI's
+# interval lane.
+interval = ["geom-core/interval"]
+
+[dependencies]
+# D1 (M4-PR1-SPEC): editor-core depends on geom-core ONLY — the
+# expression evaluator is scalar-generic over `Real` from day one.
+# topo/sweep/profile join behind PR 2's evaluation service, never here.
+geom-core = { path = "../geom-core" }
+
+[dev-dependencies]
+proptest = { workspace = true }

@@ -4,6 +4,7 @@ resolver = "3"
 # tour + STL viewer tooling); it must never join the kernel workspace.
 exclude = ["demos"]
 members = [
+    "crates/editor-core",
     "crates/geom-brep",
     "crates/geom-core",
     "crates/geom-curves",
