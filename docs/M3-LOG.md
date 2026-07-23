@@ -691,10 +691,29 @@ work, record state, stop; PR 6 and the demo refresh NOT launched.
   Evan's billing-month rollover). THE MERGE GATE IS
   `./scripts/ci-local.sh` on the merged tree (11-row mirror of
   ci.yml; keep the two in sync — cross-references in both files).
-  admesh 0.98.5 is source-built at `~/.local/bin/admesh`. Cold-cache
-  cost is dominated by the interval lane; see the caching-findings
-  paragraph appended below when the commissioned investigation
-  reports (in flight at snapshot time).
+  admesh 0.98.5 is source-built at `~/.local/bin/admesh`.
+- **Caching investigation (Evan-commissioned, reported 2026-07-23;
+  full report in the #72 PR conversation)** — headline: local CI is
+  tolerable. (a) The session's 70-min matrix was mostly CPU
+  CONTENTION from concurrent agent builds — identical rows measured
+  3–4× faster uncontended; SERIALIZE gate runs. (b) Measured
+  uncontended: cold worktree no cache ~25–30 min; cold + warm
+  sccache ~8–9 min first run (~5 after; cache 155M); a persistent
+  GATE-RUNNER worktree at a fixed path with a warm target runs the
+  full 11-row matrix in **~3.7 min** (floor = test runtimes). eps
+  rows already share binaries (0.06s freshness check) — no script
+  change needed. (c) Recommendation for PR 6(c): `scripts/gate.sh`
+  — flock-serialized fetch + `checkout --detach <sha>` in the
+  gate-runner + ci-local.sh; sccache (`~/.local/bin/sccache`
+  v0.16.0, installed) for agents' own worktrees, exported from the
+  worktree's FIRST build (mid-life wrapper flips re-fingerprint).
+  (d) Cautions: NEVER pass remap-path-prefix (or anything) via
+  RUSTFLAGS env — it silently overrides `.cargo/config.toml`'s
+  `-C target-cpu=x86-64-v3`, which the interval feature REQUIRES
+  for inari's directed rounding; keep `~/.cache/gmp-mpfr-sys`
+  (machine-wide GMP C cache — why interval libs build in 11s);
+  shared CARGO_TARGET_DIR rejected (fingerprint ping-pong, no
+  concurrency safety).
 - **Auto-merge caveat**: the repo has no branch protection, so
   `gh pr merge --auto` merges IMMEDIATELY — do not rely on it to
   wait for anything while Actions is down.
