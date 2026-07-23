@@ -458,10 +458,23 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// the pipeline reruns under the flipped plane — where the pinched
 /// fans ARE the above runs and receive their distinct copies — and
 /// swaps the sides back. Success is therefore
-/// orientation-INDEPENDENT for the pinch class; a run whose mirror
-/// also refuses degenerate surfaces the original typed refusal
-/// (both-sided zero-area residue — no degenerate body is ever
-/// emitted). The result's section-face normals still follow THIS
+/// orientation-INDEPENDENT for the single-sided pinch class. A run
+/// whose mirror also refuses surfaces the original typed refusal —
+/// and this is a KNOWN COMPLETENESS FRONTIER, not a proof of
+/// impossibility: a body pinched on BOTH sides of the plane
+/// (`review_m3_pr6::r1_both_sided_pinch` is the pinned witness) has
+/// a valid decomposition, but each run direction refuses at its own
+/// below-side pinch — the mirror lane only relocates which side
+/// lacks copies. Resolving the both-sided class needs the native
+/// below-copy insertion lane (mixed copy loops in join
+/// role-resolution); until then it refuses typed, never emits a
+/// degenerate body. Note the error plumbing on asymmetric failures:
+/// if the mirror run fails DIFFERENTLY (e.g. `JoinDesync`), the
+/// pipeline reruns the direct orientation and surfaces the direct
+/// refusal — loud and typed, but attributed to the direct run (the
+/// mirror's distinct failure is not reported), at the cost of up to
+/// three pipeline runs.
+/// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
 ///

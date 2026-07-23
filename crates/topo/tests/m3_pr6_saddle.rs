@@ -92,12 +92,13 @@ fn tilted_saddle_corner_refuses_typed() {
     });
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let err = union(&a, &b).unwrap_err();
+    // JoinDesync ONLY (review tightening): the frontier is known to be
+    // JoinDesync; accepting PairingMismatch here would mask the D8
+    // witness this suite exists to hunt — if the guard ever fires,
+    // this assert must FAIL so the witness is noticed.
     assert!(
-        matches!(
-            err,
-            BooleanError::JoinDesync { .. } | BooleanError::PairingMismatch { .. }
-        ),
-        "expected the typed saddle-frontier refusal, got {err:?}"
+        matches!(err, BooleanError::JoinDesync { .. }),
+        "saddle frontier moved (D8 witness? see m3_pr6_saddle docs), got {err:?}"
     );
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
