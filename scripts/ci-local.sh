@@ -9,6 +9,9 @@
 #
 # Prereqs beyond the Rust toolchain: m4 (interval row's GMP/MPFR C build),
 # admesh (watertight row; apt or built from source — 0.98.4+).
+#
+# Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
+# see its header for the caching guidance and RUSTFLAGS hazard).
 set -u
 cd "$(dirname "$0")/.."
 
