@@ -153,3 +153,78 @@ future corpus shows definite margins crowding the band from above
 while the zero cluster stays at machine noise, the data would then
 support *shrinking* ε (or K) rather than growing it — the current gap
 is overwhelmingly on the definite side.
+
+## M3 addendum (snapshot, 2026-07-23 — M3 exit sweep, PR 6b)
+
+**Scope: inventory only. This addendum records the M3 predicate crop
+and the collection method for its future telemetry run; it does NOT
+reopen the K = 10 decision (FINAL above), and no new margin data was
+gathered — see "why no per-predicate data" below.**
+
+M3 (splitting, booleans, tier 3′) added **59 predicate names** to the
+unified `geom_core::k_stats` funnel — the richest crop yet, and the
+first computed-intersection (rather than construction-controlled)
+margin sources, exactly the pressure source Finding 4 anticipated:
+
+- **24 `bool_*`** (boolean reduction/classification/join;
+  `crates/topo`): `bool_contact_edge`, `bool_contact_edge_span`,
+  `bool_contact_vertex`, `bool_dir_parallel`, `bool_dir_same`,
+  `bool_ee_collinear`, `bool_faces_parallel`, `bool_germ_line`,
+  `bool_join_facing`, `bool_join_nearest`, `bool_plane_offset`,
+  `bool_plane_orient`, `bool_plane_parallel`,
+  `bool_point_in_solid_{advance,denom,infinity,order,plane}`,
+  `bool_sector_{arm,coplanar,reflex,straight,within}`,
+  `bool_strut_order`.
+- **19 `pm_census_*`** (the tier-3′ coincidence census, M3 PR 6a/#75;
+  `crates/topo/src/census.rs`): `pm_census_vv_gap`,
+  `pm_census_ve_line_gap`, `pm_census_ve_span`,
+  `pm_census_vf_residual`, `pm_census_ef_residual`,
+  `pm_census_ef_cut_gap`, `pm_census_ef_cut_span`,
+  `pm_census_ee_parallel`, `pm_census_ee_gap`,
+  `pm_census_ee_line_gap`, `pm_census_ee_span`,
+  `pm_census_ee_overlap`, `pm_census_span_order`,
+  `pm_census_span_gap`, `pm_census_bound_end`,
+  `pm_census_bound_vertex`, `pm_census_confirm_vv`,
+  `pm_census_confirm_vf`, plus the `pm_census_containment`
+  escalation tag; the census also drives the existing
+  `bool_contact_*` names through `contfp`.
+- **10 `split_*`** (split reduction/classification/join):
+  `split_bisector_side`, `split_edge_param_interior`,
+  `split_join_frame_arm`, `split_section_area`,
+  `split_sector_{arm,coplanar,extent,reflex,straight}`,
+  `split_vertex_side`.
+- **4 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
+  parity): `point_in_loop_{advance,arm,boundary,side}`.
+- **2 `enters_material*`** (the F3 sign-chain primitive;
+  `crates/geom-brep/src/enters.rs`): `enters_material`,
+  `enters_material_arm`.
+
+(Inventory method: `grep -r 'decide("' crates/*/src` diffed against
+this report's M2 CSV predicate column, plus the census's
+`gap_is_zero`/`signed_is_zero` helper call sites, which pass names
+into the same funnel. The three M2 refusal-path predicates dead on
+the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
+`extrusion_obliquity` — are M2-era, not counted here.)
+
+**Why no per-predicate margin data in this snapshot.** The recording
+mechanism is the `Probe` scalar: per-predicate CSVs require running a
+corpus end-to-end at `T = Probe` with `CAD_K_REPORT_OUT` set, one
+process per ε (Methodology above). The only such harness,
+`crates/sweep/tests/k_report.rs`, hard-builds the ten M2 sweep shapes
+— it does not touch split/boolean/census code paths. The M3 corpora
+(`m3_pr*`/`m3_pr6_tier3prime` and the promoted review suites) are
+generic over `T` but instantiate only the f64 and Interval lanes; no
+Probe instantiation exists. Producing M3 per-predicate data therefore
+requires a new Probe-lane harness over the M3 corpus — new
+infrastructure, deliberately out of the docs-only exit-sweep scope
+(recorded per the PR 6b charter rather than built ad hoc).
+
+**Collection method for the future run** (unchanged mechanics, ready
+when a harness exists): instantiate the M3 corpus at `Probe`, run one
+process per ε row with `CAD_TOLERANCE_EPS=<ε>
+CAD_K_REPORT_OUT=docs/k-report-data/m3-eps-<ε>.csv`, and reuse this
+report's normalization (`|m|/band_zero`, the escalation-band /
+near-band-definite classes and the counterfactual-K table — no per-K
+reruns needed). The natural trigger remains the one Finding 4 named:
+refusal-path and near-coincidence statistics want an adversarial
+corpus, whose first real instance is D7 import adoption.
