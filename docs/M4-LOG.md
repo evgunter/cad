@@ -124,8 +124,8 @@ CountToScalarOutOfRange typed); bit-semantic `bit_eq`/diff (sound
 because door 1 makes NaN unrepresentable in stored docs; PartialEq
 stays IEEE, documented); ExprPath staleness rustdoc; review suite
 merged (38 tests total in the crate). Gate 11/11 on `b6393b7`;
-post-merge confirmation gate run on combined main (#82 was
-test-only, no interaction). **PR 2 spec obligations banked from
+post-merge confirmation gate on combined main `af5a94b`: 11/11
+PASS (2742s) — the combined tree is fully verified. **PR 2 spec obligations banked from
 this cycle**: wrap `EvalError::NonFiniteResult` with node/slot
 context at the evaluation service; instantiate `Doc<P>` with the
 real profile payload.
