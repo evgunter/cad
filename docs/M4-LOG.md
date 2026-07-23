@@ -37,7 +37,26 @@ diff. Acceptance: the die authored as a document through apply.
 ## STEP spike (F6, early per Evan's #80 amendment) — launched 2026-07-23
 
 Parallel adopt-vs-in-house evaluation of ruststep/truck-stepio for
-the AP203/214 analytic-subset EXPORT (import stays M7): hand-built
-reference parts through each crate, parse-back + external-import
-check, dependency-policy review. Decision records here + in the PR 7
-spec when the report lands.
+the AP203/214 analytic-subset EXPORT (import stays M7).
+
+**F6 DECISION (2026-07-23, spike report
+`references/notes/step-spike-report.md`): IN-HOUSE subset writer;
+adopt nothing at runtime; ruststep (Part 21 parser) +
+truck-stepio's importer become DEV-DEPENDENCY parse-back oracles in
+tests.** Grounds, executed not estimated: (1) ruststep cannot write
+STEP at all (serialization is its own open roadmap item, ruststep#13)
+and its AP203 semantic layer failed on a minimal two-entity file;
+(2) truck-stepio's writer ships conformance defects unfixable
+through its API (resource-schema FILE_SCHEMA over an AP214 data
+section; FACE_SURFACE where ADVANCED_BREP_SHAPE_REPRESENTATION
+requires ADVANCED_FACE; hardcoded units/empty product/unwrapped
+uncertainty; no analytic-surface printers — wrong for the M5
+carrier story); (3) the spike's ~120-line prototype produced a
+152-entity AP214 cube that an independent importer reconstructed as
+exactly 6/12/8, already MORE conformant than truck's output;
+generalized writer ≈ 450–650 lines M4 scope. Hybrid rejected: it
+buys the trivial record-printing 30% while denying control of the
+acceptance-critical preamble. **Open caveat for PR 7: no FreeCAD/OCC
+tool exists on this machine, so the external-import acceptance is
+NOT yet discharged — PR 7 needs a FreeCAD import run where one is
+available.**
