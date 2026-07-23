@@ -87,21 +87,20 @@ pub enum SplitJoinError {
         /// Diagnostics.
         diag: Indeterminate,
     },
-    /// A completed section polygon bounds zero area — the one-sided
-    /// pure-tangency residue (rule (b) adjudication record): the
-    /// degenerate side has no real material, and no degenerate body is
+    /// A completed section polygon bounds zero area — the zero-area
+    /// residue (rule (b) adjudication record): no degenerate body is
     /// ever emitted.
     ///
-    /// This refusal is orientation-DEPENDENT: it fires iff the pinched
-    /// pieces lie on the NEGATIVE side of the given plane normal (the
-    /// below side, where the book's machinery would need below-vertex
-    /// copies it cannot mint). The same solid under the flipped normal
-    /// may succeed: `split(S, n)` refuses exactly where
-    /// `swap(split(S, −n))` returns the same physical decomposition —
-    /// callers hitting this error can flip the plane normal and swap
-    /// the resulting above/below pieces as a workaround. Op SUCCESS is
-    /// thus not orientation-invariant; the piece-assignment
-    /// equivariance principle (PR 2) is unaffected.
+    /// Per RUN this fires iff the pinched pieces lie on the NEGATIVE
+    /// side of the run's plane normal (the below side, where the
+    /// ch. 14 insertion mints no vertex copies). Since M3 PR 6a (D7)
+    /// the public [`super::split`] consumes this refusal as the pinch
+    /// trigger and reruns under the mirrored plane — where the
+    /// pinched fans are ABOVE runs and mint their copies — so op
+    /// success is orientation-independent; the error still surfaces
+    /// from [`super::split`] when BOTH orientations refuse (a genuine
+    /// both-sided zero-area residue) and from the join lane directly
+    /// (e.g. [`super::plane_section`], which has no sides to swap).
     DegenerateSection {
         /// The completed null face.
         face: FaceKey,

@@ -8,14 +8,14 @@
 //!
 //! Tier-3 posture (the PR 3 gap, same documented posture): boolean
 //! outputs carry chord-line descriptions on seam edges, so tier 3 at
-//! rest runs through `upgrade_edges_to_intersections` (the review
+//! rest runs through `describe_as_intersections` (the review
 //! helper posture) — the honest upgrade op is a PR 6 obligation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
-use common::{prism_z, upgrade_edges_to_intersections};
+use common::prism_z;
 use geom_core::Decide;
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
@@ -67,12 +67,10 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
     assert_eq!(m.surface_area, area, "exact area");
 }
 
-/// Tier-3 at rest via the documented description posture (module
-/// docs).
+/// Tier 3 directly at rest (D6, M3 PR 6a): boolean results carry
+/// honest `Intersection` descriptions natively.
 fn assert_tier3_posture(body: &Body<f64>) {
-    let mut upgraded = body.clone();
-    upgrade_edges_to_intersections(&mut upgraded);
-    assert_eq!(validate_geometric(&upgraded), Ok(()));
+    assert_eq!(validate_geometric(body), Ok(()));
 }
 
 // ---------------------------------------------------------------

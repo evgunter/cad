@@ -1,7 +1,11 @@
 # PERF-PLAN — Performance & GPU Roadmap; the Idealized/Realized Dual-Code Question
 
-**Status: PROPOSED (design conversation — awaits Evan's sign-off; not
-ratified).** Companion to `DESIGN.md` (never overrides D1–D9) and
+**Status: MERGED AND ADVISORY (Q-P1 answered by Evan's sign-off, #49,
+2026-07-21). The ratified pieces — §2.2's deterministic-parallelism
+idioms and §3.3's GPU boundary table — are folded into DESIGN.md as
+the D9 addendum (M3 exit sweep); DESIGN.md is the single contract,
+this doc the advisory detail behind it.** Companion to `DESIGN.md`
+(never overrides D1–D9) and
 `GUI-DESIGN.md`. Written at M3-start (2026-07-21) against the M2
 codebase; claims cite files. Purpose: decide *now* which performance
 work is architectural (cheap early, brutal to retrofit), which is

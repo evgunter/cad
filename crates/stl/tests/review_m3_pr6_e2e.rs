@@ -1,0 +1,108 @@
+//! M3 PR 6a ADVERSARIAL REVIEW, R6 — independent consumer e2e (not a
+//! rerun of the implementer's exports test): two pocketed dies built
+//! by SUBTRACT, corner-kissed by UNION, then
+//! validate_pseudomanifold → mass properties → tessellation →
+//! check_mesh → STL, against independently computed exact oracles.
+//!
+//! Oracles (reviewer's derivation, scratchpad): each die is a unit
+//! cube minus a 0.5×0.5 pocket of depth 0.5 cut through its top face
+//! → volume 1 − 0.125 = 0.875 exactly; the kiss assembly is
+//! 2 × 0.875 = 1.75 exactly, TWO shells, one vv contact at (1,1,1).
+//! Surface area per die: cube 6 minus pocket mouth 0.25 plus pocket
+//! walls 4×(0.5×0.5) = 1 plus pocket floor 0.25 → 7.0; assembly 14.0.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Point2, Point3, Tolerance, Vec3};
+use mesh::validate::{check_mesh, signed_volume};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::{Extrusion, extrude};
+use topo::{
+    Body, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
+    validate_pseudomanifold,
+};
+
+fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
+    Profile::new(plane, vec![lp])
+        .validate(Tolerance::get())
+        .unwrap()
+}
+
+fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
+    let lp = ProfileLoop::polygon([
+        Point2::new(x.0, y.0),
+        Point2::new(x.1, y.0),
+        Point2::new(x.1, y.1),
+        Point2::new(x.0, y.1),
+    ]);
+    extrude(
+        &validated(
+            SketchPlane::from_frame(
+                Point3::new(0.0, 0.0, z.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            lp,
+        ),
+        Extrusion::Distance(z.1 - z.0),
+    )
+    .unwrap()
+    .body
+}
+
+/// A pocketed die: `[x0,x0+1]³` minus a centered 0.5×0.5×0.5 pocket
+/// opening through the TOP face (cutter overshoots above). Exact
+/// volume 0.875.
+fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
+    let cube = brick((x0, x0 + 1.0), (y0, y0 + 1.0), (z0, z0 + 1.0));
+    let cutter = brick(
+        (x0 + 0.25, x0 + 0.75),
+        (y0 + 0.25, y0 + 0.75),
+        (z0 + 0.5, z0 + 1.5),
+    );
+    let BooleanResult::Body(b) = subtract(&cube, &cutter).unwrap() else {
+        panic!("die subtract is a body");
+    };
+    assert!(b.contacts.vv.is_empty() && b.contacts.a_on_b.is_empty());
+    assert_eq!(mass_properties(&b.body).unwrap().volume, 0.875);
+    b.body
+}
+
+#[test]
+fn r6_pocketed_dice_kiss_e2e() {
+    let d1 = die(0.0, 0.0, 0.0);
+    let d2 = die(1.0, 1.0, 1.0);
+    let BooleanResult::Body(assembly) = union(&d1, &d2).unwrap() else {
+        panic!("kiss union is a body");
+    };
+    // 3′ gate: green with carried contacts, red without.
+    assert_eq!(assembly.contacts.vv.len(), 1, "one corner kiss");
+    assert_eq!(
+        validate_pseudomanifold(&assembly.body, &assembly.contacts),
+        Ok(())
+    );
+    let withheld = validate_pseudomanifold(&assembly.body, &ContactRecords::default()).unwrap_err();
+    assert!(
+        withheld
+            .iter()
+            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+        "{withheld:?}"
+    );
+    // Structure + exact oracles (the parts=2 discipline: shell count
+    // is asserted HERE, not inferred from admesh part count).
+    assert_eq!(assembly.body.shells().count(), 2);
+    let m = mass_properties(&assembly.body).unwrap();
+    assert_eq!(m.volume, 1.75, "exact volume oracle");
+    assert_eq!(m.surface_area, 14.0, "exact area oracle");
+    // Tessellate → watertight mesh → exact mesh volume → STL.
+    let mesh = mesh::tessellate(&assembly.body, 1e-2).unwrap();
+    check_mesh(&mesh).unwrap();
+    let v = signed_volume(&mesh);
+    assert!((v - 1.75).abs() < 1e-9, "mesh volume {v}");
+    let dir = std::env::temp_dir().join("review_m3_pr6_stl");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("pocketed_dice_kiss.stl");
+    let mut file = std::fs::File::create(&path).unwrap();
+    stl::write_binary(&mesh, &mut file).unwrap();
+    eprintln!("R6 STL written: {}", path.display());
+}

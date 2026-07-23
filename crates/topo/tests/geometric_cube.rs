@@ -17,7 +17,7 @@ use topo::{
 };
 
 mod common;
-use common::{GeoCube, geometric_cube, upgrade_edges_to_intersections};
+use common::{GeoCube, describe_as_intersections, geometric_cube};
 
 #[test]
 fn geometric_cube_passes_all_three_tiers() {
@@ -47,7 +47,7 @@ fn geometric_cube_passes_all_three_tiers() {
     // Upgraded (the construction-discipline the rule enforces), the
     // cube passes all three tiers.
     let mut body = t.body;
-    upgrade_edges_to_intersections(&mut body);
+    describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
 }
 
@@ -120,7 +120,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     // re-certifies all twelve against BOTH planes.
     let t = geometric_cube::<f64>();
     let mut body = t.body;
-    upgrade_edges_to_intersections(&mut body);
+    describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
@@ -184,8 +184,8 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     use geom_core::{Dual, Dual64};
     let mut f = geometric_cube::<f64>();
     let mut d = geometric_cube::<Dual64>();
-    upgrade_edges_to_intersections(&mut f.body);
-    upgrade_edges_to_intersections(&mut d.body);
+    describe_as_intersections(&mut f.body);
+    describe_as_intersections(&mut d.body);
     assert_eq!(validate_geometric(&d.body), Ok(()));
     let f_certs: Vec<f64> = f
         .body

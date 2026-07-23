@@ -96,7 +96,7 @@ fn interval_geometric_cube_passes_tier3() {
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
     let mut body = t.body;
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
     // Certification records are genuine enclosures: max residual
     // brackets are finite, tiny, and contain no poison.
@@ -113,6 +113,6 @@ fn interval_cube_upgrades_to_intersections() {
     // margins classify Positive from genuine enclosures.
     let t = common::geometric_cube::<Interval>();
     let mut body = t.body;
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body), Ok(()));
 }

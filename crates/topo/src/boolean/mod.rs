@@ -82,7 +82,7 @@ use crate::revert::RevertError;
 use crate::splitting::join::SplitJoinError;
 use crate::validate::ValidationError;
 
-pub use contain::{FaceContainment, contfp};
+pub use contain::{ContainError, FaceContainment, contfp};
 pub use join::CompletedPolygonPair;
 pub use ops::{BooleanBody, BooleanResult, BooleanResultKind, intersect, subtract, union};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};

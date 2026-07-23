@@ -1024,44 +1024,6 @@ self-merges).
   tog.pdf` — real text layer (pdftotext works; no page rendering
   needed).
 
-## State snapshot (handoff point, 2026-07-18) — SUPERSEDED
-
-*(Historical. Everything below was consumed by the 2026-07-19/20
-session — PRs 3 (#31) and 4 (#33) are merged, PR 5 is
-implemented+reviewed, PR 6 is in flight; see the per-PR sections
-above. A fresh snapshot will be written at the next handoff.)*
-
-- **Merged to main**: M2-PLAN (#24); PR 1 (#27, analytic evaluators);
-  PR 2 (#28, profile crate). All zero-blocker reviews, suites
-  promoted.
-- **Implemented, review pending**: PR 3 on `ev/m2-3-edgegeom`
-  (pushed, gates green) — see the PR 3 section above; the reviewer
-  has not run.
-- **Next orchestrator's first moves**: (1) spec + launch PR 3's
-  adversarial reviewer (falsification targets: certification schedule
-  soundness incl. the 9-sample sufficiency for the M2 carrier/surface
-  pairs, the certified-by-construction claim from an external
-  consumer, dihedral lever-arm honesty, the stored-interval
-  reconciliation, suite-migration integrity — esp. the two semantic
-  rewrites — and the PR 4/5 handoff claims); (2) in parallel, spec +
-  launch PR 4 (extrude) stacked on `ev/m2-3-edgegeom` per the
-  overlapped pipeline, consuming the "For PR 4/5" facts above plus
-  PR 2's (axis = ±plane-normal by turn sign is PR 4's to own; spans
-  from stored bulge θ = 4·atan|b|, never endpoint atan2); (3) after
-  PR 3's review+fix: open its PR with full writeup, self-merge on
-  green (option-(a) scope is ratified; only genuinely fork-shaped
-  findings wait for Evan).
-- **Standing process**: overlapped pipeline (fix pass = the only
-  serialization point); high-confidence design PRs self-merge with
-  writeups, forks wait; reviewer suites promote into CI; M2-PLAN PR
-  sequence continues 4 (extrude) → 5 (revolve) → 6 (tessellation) →
-  7 (STL + mass properties + K report + M2 exit).
-- **Channels**: Evan may message via new GitHub issues or comments on
-  any PR/issue (re-arm the monitor each session); usage-limit
-  monitoring via the mngr events file (see orchestration-model
-  memory); `mngr` CLI itself currently broken (azure plugin
-  ImportError) — read events.jsonl directly.
-
 ## State snapshot (handoff point, 2026-07-20)
 
 - **Merged to main**: M2-PLAN (#24); PR 1 (#27); PR 2 (#28); PR 3

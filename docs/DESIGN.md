@@ -178,7 +178,76 @@ component-aware E–P form found and corrected in M1 PR 4).**
    shared boundary is exactly a two-hemisphere ball's incidence
    structure, so a zero-volume lamina is a geometric defect, not a
    topological one. Global self-intersection / minimum clearance stays
-   deferred (M3 partial via booleans, M6 interval clearance).
+   deferred (M3 partial via booleans — tier 3′ below discharges the
+   coincidence census on the planar inventory; M6 interval clearance).
+4. **Tier 3′ "pseudomanifold" (`validate_pseudomanifold`; ratified at
+   the M3 exit sweep per M3-PLAN F1/F2, resolved with Evan #42;
+   implemented M3 PR 6a, #75)** — the honest at-rest tier for boolean
+   results that *touch*: contacts limited to
+   entirely-coincident-but-distinct edges, edge-on-face,
+   vertex-on-face, vertex-on-edge/vertex — touching allowed, proper
+   self-intersection not. Composition: tier 3's **local battery
+   verbatim** (shared extraction — 3′ and tier-3 bodies run identical
+   local checks) plus a **global coincidence census** plus
+   **two-directional declared-contact certification**:
+   - The census is exact on the planar inventory (`Line` carriers /
+     `Plane` faces — the same F5 boundary the booleans that produce 3′
+     bodies enforce; anything else refuses typed `CensusUnsupported`);
+     five quadratic sweeps (vertex–vertex, vertex-on-edge,
+     vertex-on-face, edge×face, edge×edge), every comparison a named
+     Q1 trilean; indeterminates surface as typed `CensusEscalated`,
+     never a silent skip.
+   - Certification runs **both directions and never scans-to-bless in
+     either**: a census finding with no backing declaration is
+     `UndeclaredContact` (discovery is never declaration); a
+     declaration with no geometric witness is
+     `StaleContactDeclaration` (dead keys, self-pairs,
+     coincidence-free records). Structural sharing (same key) is the
+     coincidence ladder's first rung and needs no record.
+   - Contact records are vertex-granularity; edge-on-face and
+     coincident-edge *segments* are certified by reconstruction from
+     their bounding vertex records (rule derived and pinned in
+     `topo::census` module docs: between two backed bounds, two lines
+     sharing two points are one line; a missing bounding record is
+     `UndeclaredContact`, never inferred).
+   - Census posture, stated honestly: **area-contact certification
+     strength equals its vertex skeleton** (a face-on-face flush rest
+     is certified via its corner/segment records, not an area test);
+     **nested-shell pure containment (zero coincidences — a void) is
+     census-invisible and certifies** — that is the F8 voids story
+     (see the M3 conventions below), not a gap the census must catch.
+
+   **Touching is always backed by explicit intent (Evan's condition,
+   #42, part of the ratified invariant)**: (i) operand coincidences
+   are only ever structural (shared key) or declared (recipe data) —
+   near-coincidence NEVER silently becomes contact (escalated typed
+   error instead, per F6); (ii) result-side touching arises only from
+   those intentional coincidences propagated through the boolean node,
+   and the result carries machine-checkable declared-contact records
+   (the ON-set survivors, carried across seam-zip/merge mints by a
+   descendant map — never re-derived, which would be scan-to-bless);
+   (iii) an *undeclared* contact discovered at validation is a hard
+   error, never blessed.
+
+   **Validity class rides the result wrapper, never a mutable `Body`
+   field** (the binding F1 interpretation, pinned in the PR 6a spec):
+   a boolean result is `BooleanBody` — body + contacts — whose
+   non-empty contact list is the 3′-grade currency and whose at-rest
+   gate is `validate_pseudomanifold(&body, &contacts)`; empty-contact
+   results remain plain tier-3 currency, and the two gates agree there
+   (3′ ≡ tier 3 with empty contacts, pinned). Tier-3 bodies remain the
+   default currency.
+
+   **Representability boundary (F2, sharpening — not revising — the
+   round-9 "non-manifold results are typed errors" ratification)**:
+   pseudomanifold touching via *distinct* entities (two vertices at
+   one point, two edges on one segment) is representable in the
+   half-edge structure, is what the pipeline naturally produces, and
+   is a typed *success* carrying its 3′ declarations. Genuine
+   non-manifoldness — a single edge with >2 faces, a shared-entity
+   wedge fan — is unrepresentable and stays a typed error at the site
+   that would have needed it. "Non-manifold" means non-representable;
+   3′ is the honest name for the representable touching class.
 
 **M2 structural conventions (ratified at the M2 exit sweep, 2026-07-20/21):**
 
@@ -229,7 +298,83 @@ component-aware E–P form found and corrected in M1 PR 4).**
   stored bulge/carrier data (θ = 4·atan|b| or minted parameter
   spans), never endpoint atan2.
 
-### D2 (agreed, revised 2026-07-15): Topology and geometry separated; edge/vertex geometry is intensional where possible
+**M3 structural conventions (ratified at the M3 exit sweep,
+2026-07-23; forks resolved with Evan in #42, 2026-07-20/21):**
+
+- **Planar-only booleans (F5).** M3 splits and booleans require
+  all-planar boundaries; any non-`Plane` face refuses typed
+  `CurvedBooleanUnsupported` — precise, honest, fail-loud. Curved
+  defers to **M5 as a unit**: the dependency chain is fourfold and
+  entirely M5-shaped — (a) intersection-locus representation (even a
+  tilted plane×cylinder cut is an ellipse, outside `Line | Circle`),
+  (b) general pcurves, (c) second-order sector classification (the
+  `TangencyLocus` regime), (d) certified marching numerics (the SSI
+  contract). The inverse commitment holds too: M3 built **no
+  speculative curved-readiness abstraction** beyond the thin
+  face-intersection interface (plane×plane closed-form today); M5
+  refactors that boundary against real curved requirements rather
+  than inheriting a guessed one.
+- **Coincidence discipline in the reduction (F6).** Every
+  reduction/classification comparison is a Q1 trilean predicate:
+  definitely-off ⇒ clean side, exactly-on ⇒ ON, in-band ⇒
+  **escalated typed error** (a genuine sliver: the operand pair is
+  ill-conditioned at this ε). Near-coincidence NEVER silently becomes
+  contact; the round-8 ladder (structural / declared / typed sliver)
+  governs — no EPS snapping anywhere in the pipeline. Consequence,
+  stated honestly: booleans on independently modeled nearly-touching
+  bodies fail loudly rather than guess — the design thesis; the
+  resolution is an explicit D7-style repair/adoption op (M5+).
+- **Maximal-faces precondition and the merge stage (F7).** Booleans
+  precondition no two adjacent coplanar faces (typed
+  `NonMaximalFaces`); the explicit opt-in normalization op is
+  `merge_coplanar_faces` (merging is never silent, per the M2
+  no-automatic-face-merging ratification), and boolean *outputs* run
+  it as a **documented final stage of the op's contract** — the seam
+  zip manufactures coplanar pairs by construction; the recipe records
+  one boolean node, not hidden healing. Merge glues on the
+  **structural and declared rungs only** (shared surface key or the
+  declared bit-fingerprint rung — see the M4 retirement note in the
+  roadmap); numeric coincidence never merges. Load-bearing dependency,
+  recorded here: `merge_coplanar_faces` **never elides vertices** (it
+  merges faces; collinear vertex chains survive), and tier 3′'s
+  strict record-drop rule (a contact record whose vertex pair fused
+  into one vertex is consumed and drops — the census agrees:
+  structural now) is correct *because* of that; any future
+  collinear-vertex elision re-opens the record-carriage class (M3
+  PR 5 review, R5).
+- **∅, disjoint, and voids are typed results (F8).** ∅ is a typed
+  success value (`BooleanResult::Empty`), not an error — the per-node
+  result DAG (GQ2) wants a value; disjoint unions and voids are
+  tier-2-legal multi-shell bodies (the M2 single-shell *sweep*
+  invariant is untouched). A∖B with B strictly inside A births the
+  first legitimate voids, exactly as the voids-only-from-booleans
+  ratification anticipated. **The sweeps-vs-voids invariant
+  (ratified): sweeps produce genus, never voids; voids are
+  boolean-born; the extrude/full-revolve hole asymmetry is an
+  instance of the invariant, not an inconsistency** — extruded holes
+  are cap-to-cap tunnels (one shell, genus); full-revolve holes would
+  be closed inner shells (voids); partial revolve is extrude-shaped
+  and already supports holes. A void's inner shell carries zero
+  coincidences and is census-invisible at tier 3′ — a valid void, not
+  an undetected contact.
+- **The M3 envelope (typed refusals on record, never silent gaps):**
+  (i) **the operand-internal-declaration gap** — ops do not consume
+  their operands' contact declarations, so reusing a 3′ body as an
+  operand yields a result whose surviving operand-internal
+  coincidence 3′-refuses `UndeclaredContact` (loud + typed at the
+  at-rest gate). M4 fix direction: declarations become recipe data
+  (NAMING-DESIGN's N-decisions) and thread through op composition as
+  op inputs. (ii) **the both-sided pinch split frontier** — split's
+  below-copy completeness is delivered via the exact mirror identity
+  `split(S, n) ≡ swap(split(S, −n))` (piece-assignment equivariance;
+  ruled refinement-not-fork at PR 6a), so single-sided pinches
+  succeed symmetrically; a *both*-sided zero-area pinch refuses typed
+  (the BOTH_SIDED fixture pins the frontier); a native below-copy
+  insertion lane is the recorded future upgrade. (iii)
+  **boundary-on-boundary seams** (corner-flush/stacked-full unions —
+  seams along existing edges need an on-edge-run mechanism) and
+  **reflex-corner tilted crossings** refuse typed (PR 5.5 envelope,
+  with the sector-width bound documented at the error sites).
 
 Topology and geometry live in separate arenas: faces reference surfaces,
 edges reference curves, vertices reference points.
@@ -552,6 +697,47 @@ and curve arenas immediately and the loop arena one loop-mint later
 the killed arenas' allocation cursors permanently — arenas the kill
 never touched stay aligned forever, killed arenas never re-align.
 
+**D9 addendum (ratified via PERF-PLAN's Q-P1, Evan's sign-off #49,
+2026-07-21; folded in at the M3 exit sweep. PERF-PLAN itself stays
+merged-and-advisory; this addendum is the contract.)**
+
+*Deterministic parallelism — the project's two sanctioned idioms
+(PERF-PLAN §2.2); every future use cites these instead of
+re-deriving:*
+
+1. **Indexed parallel map**: results written to slot *i* of a
+   pre-sized buffer (indexed `par_iter().map().collect()`).
+   Schedule-invariant by construction — combination is positional,
+   not arithmetic. Bit-deterministic at any thread count.
+2. **Fixed-shape reduction**: FP sums/mins are **never**
+   `par_iter().reduce()` (rayon's reduction tree is
+   schedule-dependent; FP non-associativity leaks the schedule into
+   bits). Instead: idiom 1, then a *sequential* fold in arena order —
+   or, if that fold profiles hot, a fixed-arity block tree (chunk
+   size a named constant, combine order documented). Same bits every
+   run, any thread count.
+
+Targets in value order (advisory detail in PERF-PLAN): the M6
+subdivision driver, per-face tessellation, certification sampling,
+mass properties (the canonical idiom-2 example), independent M4 DAG
+nodes. Euler-op sequences stay serial — shared arena mutation,
+already cheap.
+
+*GPU boundary (PERF-PLAN §3.3), ratified:*
+
+| Work | Home | Why |
+|---|---|---|
+| Rendering, LOD, ID-buffer picking | GPU, GUI milestone | ratified direction (GUI-DESIGN); no kernel coupling |
+| Preview (uncertified) surface evaluation | GPU-eligible, GUI milestone experiment | display lane; never re-enters kernel |
+| Certified tessellation, export meshes | CPU forever* | export promise needs certified bounds |
+| Booleans, splitting, SSI, predicates | CPU forever* | D9 + certification; GPU pre-filter not worth the audit |
+| Euler ops, validators, arena surgery | CPU forever | pointer-chasing, serial by nature, already cheap |
+| Interval lane / subdivision driver | CPU (rayon) | embarrassingly parallel on CPU already (PERF-PLAN §3.2) |
+
+\* "forever" = for this project's plannable horizon; PERF-PLAN §3.2's
+grounds (rounding control, f64, portability) are re-checkable facts,
+and the table is revisited only if they change materially.
+
 ### D5 (agreed): Persistent topological identity from birth
 
 Every topological entity carries a provenance record from the moment it is
@@ -630,7 +816,10 @@ precursor of the error-propagation feature.
   bit-identity tripwires keep **every consumer of the channel
   acknowledged**: a new consumer must be allowlisted in CI and carry its
   own retirement-scheduled doc note, and the type-punning plumbing stays
-  confined to the single `bit_identity` seam.
+  confined to the single `bit_identity` seam. The retirement
+  *mechanism* is now ratified (NAMING-DESIGN N6, #74, 2026-07-23):
+  `GeomSource` syntactic recipe-source identity — same source ⇒ same
+  bits by D9, converse deliberately unclaimed.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets.
 - **M6** — Error-propagation MVP: distributions over parameters;
@@ -678,8 +867,9 @@ binding semantics: Cargo.lock-style pinned-with-explicit-update,
 ratified in direction), GQ5 typed
 quantities in the expression sublanguage (dimension-algebra extent
 banked for M4); GQ6/GQ7 deliberately deferred to GUI time.
-Remaining pre-M4 design work: GQ1 mechanism details and the
-selection-stability/naming design doc).
+Remaining pre-M4 design work: GQ1 mechanism details — the
+selection-stability/naming design doc is done and ratified,
+`docs/NAMING-DESIGN.md` #74, 2026-07-23).
 
 ### Band 1 — kernel-side services an interactive client requires
 
@@ -707,11 +897,13 @@ kernel exports these. None are research; all are load-bearing:
   of parametric CAD: the user fillets edge E, changes a parameter,
   topology shifts, and E must re-resolve or fail with an actionable
   typed error. M4's "builds stable references on top of the birth
-  record" sentence is months of work. **Needs its own design doc
-  before M4 planning**, with the explicit goal that our architecture
-  (D5 birth provenance + D8 recipe node IDs + D9 replay) makes
-  correct resolution *structurally* easy — as much "automatic" as the
-  design can extract. Ratified 2026-07-19 (GUI-DESIGN.md G1): the
+  record" sentence is months of work. **Its design doc exists and is
+  ratified: `docs/NAMING-DESIGN.md` (#74, 2026-07-23; N1–N7)** —
+  names are derivation paths resolved by a replay-emitted table, no
+  matching heuristics — meeting the explicit goal that our
+  architecture (D5 birth provenance + D8 recipe node IDs + D9 replay)
+  makes correct resolution *structurally* easy — as much "automatic"
+  as the design can extract. Ratified 2026-07-19 (GUI-DESIGN.md G1): the
   GUI's selection type and the recipe's entity references are **the
   same type** (a stable name), so the naming problem is solved once,
   not twice. Founding pillar ratified 2026-07-19: naming is
@@ -883,6 +1075,12 @@ named.
   bodies is rejected as inexplicit (changes body count without the
   recipe saying so); any future split behavior is an explicit,
   ratified operation the user invokes, never a fallback.
+  *Sharpened at the M3 exit sweep (F2, ratified — see the tier-3′
+  entry under D1's validity tiers)*: "non-manifold" means
+  **non-representable** (a single edge with >2 faces, a shared-entity
+  wedge fan) — those stay typed errors. Touching via *distinct*
+  entities is representable, is a typed success carrying its 3′
+  declared-contact records, and validates at tier 3′.
 - **The expression sublanguage is total and finite by charter**
   *(M4; the anti-OpenSCAD guardrail)*. No recursion, no unbounded
   iteration, no user-defined functions — anything Turing-ish lives

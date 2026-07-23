@@ -32,14 +32,29 @@ use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use geom_brep::EdgeCurveSpec;
 
+/// What one seam zip did to the arena — the F9-style record the op
+/// stage consumes (M3 PR 6a): every vertex fusion (dead key → kept
+/// key, the D5 descendant map's zip rows) and the surviving seam
+/// edges (the D6 description pass's worklist — tracked lineage, never
+/// a post-hoc scan).
+#[derive(Debug, Default)]
+pub(super) struct ZipReport {
+    /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
+    pub vertex_merges: Vec<(VertexKey, VertexKey)>,
+    /// The seam edges surviving the zip (the outer cycle's edges), in
+    /// cycle order.
+    pub seam_edges: Vec<crate::entity::EdgeKey>,
+}
+
 /// Zips one section-face pair (module docs).
 pub(super) fn zip_seam<T: Decide>(
     body: &mut Body<T>,
     a_face: FaceKey,
     b_face: FaceKey,
     vmap: &SecondaryMap<VertexKey, VertexKey>,
-) -> Result<(), BooleanError> {
+) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
+    let mut report = ZipReport::default();
 
     // ---- Fuse: B's section face becomes a ring of A's. ----
     let fused = body.kfmrh(a_face, b_face)?;
@@ -118,6 +133,21 @@ pub(super) fn zip_seam<T: Decide>(
                 .and_then(|vd| body.get_point(vd.point).copied())
                 .ok_or_else(|| corr("seam vertex has no point"))
         };
+    let record_kev = |body: &mut Body<T>,
+                      he: crate::entity::HalfEdgeKey,
+                      report: &mut ZipReport|
+     -> Result<(), BooleanError> {
+        let kept = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("kev half-edge no longer resolves"))?
+            .start;
+        let dead = body
+            .half_edge_end(he)
+            .ok_or_else(|| corr("kev half-edge has no end"))?;
+        body.kev(he)?;
+        report.vertex_merges.push((dead, kept));
+        Ok(())
+    };
     let p0 = point_of(body, ob[0])?;
     let n0 = body.mekr(
         MekrSite::Cycles {
@@ -126,7 +156,7 @@ pub(super) fn zip_seam<T: Decide>(
         },
         EdgeCurveSpec::self_loop_circle_at(p0),
     )?;
-    body.kev(n0.he_plus)?;
+    record_kev(body, n0.he_plus, &mut report)?;
     for j in (1..n).rev() {
         let pj = point_of(body, ob[j])?;
         let nj = body.mef(
@@ -137,9 +167,16 @@ pub(super) fn zip_seam<T: Decide>(
             EdgeCurveSpec::self_loop_circle_at(pj),
             FaceSurface::Inherit,
         )?;
-        body.kev(nj.he_plus)?;
+        record_kev(body, nj.he_plus, &mut report)?;
         body.kef(rs[(j + 1) % n])?;
     }
     body.kef(rs[1 % n])?;
-    Ok(())
+    for &he in &ob {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("surviving seam half-edge no longer resolves"))?
+            .edge;
+        report.seam_edges.push(edge);
+    }
+    Ok(report)
 }
