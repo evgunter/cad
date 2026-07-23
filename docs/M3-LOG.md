@@ -650,6 +650,21 @@ trim (charter bullets above); queued behind (a) because it consumes
 retired from the session-start checklist (Evan: it never measured
 Fable-specific usage, the limit that actually binds).
 
+**PR 6(c) MERGED (#73, `b6df924`, 2026-07-23)** — `scripts/gate.sh`:
+flock-serialized merge-gate runner on a persistent standalone CLONE at
+`~/.local/share/cad-gate/repo` (clone not worktree — a worktree
+parented on an ephemeral mngr checkout dies with its parent;
+implementer's flagged decision, endorsed). Fetch → origin-first ref
+resolution → detach → dirty guard → ci-local.sh; defensively unsets
+inherited RUSTFLAGS/RUSTC_WRAPPER/CARGO_* /CAD_TOLERANCE_EPS (beyond
+spec, endorsed — protects both interval rounding and the warm
+fingerprints). Orchestrator review found + fixed one defect
+(`bdfeed8`): as-given-first ref resolution would have gated the
+runner's never-advancing local `main` — stale sha, silent. E2E review
+run of the fixed script: 11/11 PASS, 223s warm (483s cold bootstrap,
+158s warm in acceptance). THE MERGE GATE IS NOW `scripts/gate.sh
+<ref>`; concurrent gate runs queue on the flock.
+
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
 Merged as **#70** (`fd90a54`), full writeup in the PR body. The short
