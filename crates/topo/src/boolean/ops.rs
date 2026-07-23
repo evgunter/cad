@@ -122,6 +122,20 @@ pub enum BooleanResultKind {
 }
 
 /// A real (non-empty) boolean result.
+///
+/// # Validity-class carriage (M3 PR 6a, D2 — the F1 contract)
+///
+/// The validity class rides THIS wrapper, never a mutable field on
+/// [`Body`] (validity stays checked-on-demand; raw-insertion
+/// disclaimers unchanged): a `BooleanBody` with non-empty `contacts`
+/// is **tier-3′-grade currency**, and
+/// `validate_pseudomanifold(&b.body, &b.contacts)` is its at-rest
+/// gate — the declarations are the machine-checkable record of every
+/// intentional touching the pipeline propagated (F2's
+/// explicit-intent condition). An empty-contact result remains
+/// ordinary tier-3 currency (`validate_geometric`), and on such a
+/// body the two gates agree (3′ ≡ tier 3 plus the census actually
+/// run — pinned by the PR 6a acceptance suite).
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
     /// The result body: one solid, possibly multi-shell.
@@ -129,7 +143,8 @@ pub struct BooleanBody<T: Real> {
     /// How it was produced.
     pub kind: BooleanResultKind,
     /// Declared contacts surviving into the result, in result keys
-    /// (module docs) — the tier-3′ declarations.
+    /// (module docs) — the tier-3′ declarations (see the type-level
+    /// docs: non-empty ⇒ 3′ currency).
     pub contacts: ContactRecords,
 }
 
@@ -458,12 +473,17 @@ impl KeyView<'_> {
 struct Descendants {
     vertices: std::collections::BTreeMap<VertexKey, VertexKey>,
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
+    /// Every vertex that participated in a zip fusion (dead OR kept):
+    /// its point rests were consumed into seam structure.
+    fused: std::collections::BTreeSet<VertexKey>,
 }
 
 impl Descendants {
     fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
         for &(dead, kept) in &rep.vertex_merges {
             self.vertices.insert(dead, kept);
+            self.fused.insert(dead);
+            self.fused.insert(kept);
         }
     }
 
@@ -516,14 +536,19 @@ fn remap_contacts<T: Real>(
     // may still coincide with the survivor); a pair fused into ONE
     // vertex is consumed (structural now) and drops.
     let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
-    // v-on-f VERTICES deliberately do NOT chase: a zip-fused resting
-    // vertex became a seam vertex — the rest was consumed into
-    // structure, and carrying the record forward would declare a
-    // contact the census now sees as boundary incidence. FACES chase:
-    // merge absorption renames the face while the rest persists (the
-    // R5 bug class this map exists for).
+    // v-on-f VERTICES deliberately do NOT chase, and any vertex that
+    // took part in a zip fusion (either side of a kev) drops its
+    // rests: a fused vertex IS a seam vertex — the point rest was
+    // consumed into structure (it now sits on the pierced face's cut
+    // boundary), and carrying the record forward would declare a
+    // contact the census sees as boundary incidence (stale). FACES
+    // chase: merge absorption renames the face while the rest
+    // persists (the R5 bug class this map exists for).
     let vert_strict = |view: &KeyView<'_>, v: VertexKey| {
         let k = view.vertex(v)?;
+        if desc.fused.contains(&k) {
+            return None;
+        }
         body.get_vertex(k).map(|_| k)
     };
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
@@ -769,5 +794,73 @@ mod tests {
         let rev = quad_prism(&square, 0.5).revert().unwrap();
         volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band).unwrap();
         implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band).unwrap_err());
+    }
+
+    /// The D5 descendant chase, pinned at the mechanism level (M3
+    /// PR 6a): a v-on-f record whose FACE key is dead (an absorbed
+    /// merge fragment — realized here with a foreign-arena key, the
+    /// same dead-key shape) survives `remap_contacts` when the
+    /// descendant map names its surviving fragment, and drops without
+    /// the row — record loss over a live coincidence is exactly what
+    /// the map exists to prevent (PR 5 review R5). The v-v lane's
+    /// consumed-pair rule is pinned too: a pair fused into ONE vertex
+    /// drops.
+    #[test]
+    fn descendant_chase_wiring() {
+        use super::{Descendants, KeyView, remap_contacts};
+        use crate::boolean::{ContactRecords, VfContact, VvContact};
+
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut body = quad_prism(&square, 1.0);
+        let live_vertex = body.vertices().next().map(|(k, _)| k).unwrap();
+        let live_face = body.faces().next().map(|(k, _)| k).unwrap();
+        // Dead keys: arena entries removed in place (the test only
+        // exercises key lookups; tier validity is irrelevant here).
+        let dead_face = body.faces().map(|(k, _)| k).nth(5).unwrap();
+        body.faces.remove(dead_face);
+        assert!(body.get_face(dead_face).is_none(), "key is dead");
+
+        let contacts = ContactRecords {
+            vv: vec![],
+            a_on_b: vec![VfContact {
+                vertex: live_vertex,
+                face: dead_face,
+            }],
+            b_on_a: vec![],
+        };
+        // Without the descendant row: the record drops (pre-D5 loss).
+        let out = remap_contacts(
+            &body,
+            &contacts,
+            KeyView::Direct,
+            KeyView::Direct,
+            &Descendants::default(),
+        );
+        assert!(out.a_on_b.is_empty());
+        // With the row: the record survives, renamed to the survivor.
+        let mut desc = Descendants::default();
+        desc.faces.insert(dead_face, live_face);
+        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
+        assert_eq!(out.a_on_b.len(), 1);
+        assert_eq!(out.a_on_b[0].face, live_face);
+        assert_eq!(out.a_on_b[0].vertex, live_vertex);
+
+        // v-v consumed-pair rule: both sides chased into one vertex ⇒
+        // the coincidence is structural now, the record drops.
+        let dead_vertex = body.vertices().map(|(k, _)| k).nth(3).unwrap();
+        assert_ne!(dead_vertex, live_vertex);
+        body.vertices.remove(dead_vertex);
+        let contacts = ContactRecords {
+            vv: vec![VvContact {
+                a: dead_vertex,
+                b: live_vertex,
+            }],
+            a_on_b: vec![],
+            b_on_a: vec![],
+        };
+        let mut desc = Descendants::default();
+        desc.vertices.insert(dead_vertex, live_vertex);
+        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
+        assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
     }
 }

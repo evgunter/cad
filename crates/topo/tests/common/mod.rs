@@ -295,7 +295,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 /// fixture builder (both surfaces are known — certified-by-
 /// construction), never applied to an op result: split and boolean
 /// results carry honest descriptions natively (the retired
-/// `describe_as_intersections` review posture). Smooth edges
+/// `upgrade_edges_to_intersections` review posture). Smooth edges
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
 pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
@@ -329,4 +329,102 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
         spec.description = EdgeGeometry::Intersection { s1, s2, witness };
         body.set_edge_curve(edge_key, spec).unwrap();
     }
+}
+
+/// A cube built like `geometric_cube` but through an arbitrary
+/// point transform (tilted operands are outside the prism builder).
+pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>) -> Body<f64> {
+    let mut body = Body::<f64>::new();
+    cube_into(&mut body, map);
+    body
+}
+
+/// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
+/// second solid — the hand-built self-intersection control's door).
+pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>) {
+    let (a, b, cc, d) = (
+        map(0.0, 0.0, 0.0),
+        map(1.0, 0.0, 0.0),
+        map(1.0, 1.0, 0.0),
+        map(0.0, 1.0, 0.0),
+    );
+    let (a1, b1, c1, d1) = (
+        map(0.0, 0.0, 1.0),
+        map(1.0, 0.0, 1.0),
+        map(1.0, 1.0, 1.0),
+        map(0.0, 1.0, 1.0),
+    );
+    let seed = body.mvfs(a).unwrap();
+    let e_ab = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            line(a, b),
+        )
+        .unwrap();
+    let strut = |body: &mut Body<f64>, at, from, to| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to))
+            .unwrap()
+    };
+    let e_bc = strut(body, e_ab.he_minus, b, cc);
+    let e_cd = strut(body, e_bc.he_minus, cc, d);
+    let he_dc = body
+        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
+        .unwrap();
+    let f_bottom = body
+        .mef(
+            MefSite::Chords {
+                he1: he_dc,
+                he2: e_ab.he_plus,
+            },
+            line(d, a),
+            FaceSurface::New(plane(&[a, d, cc, b])),
+        )
+        .unwrap();
+    let e_aa = strut(body, e_ab.he_plus, a, a1);
+    let e_bb = strut(body, e_bc.he_plus, b, b1);
+    let e_cc = strut(body, e_cd.he_plus, cc, c1);
+    let e_dd = strut(body, f_bottom.he_plus, d, d1);
+    let f_front = body
+        .mef(
+            MefSite::Chords {
+                he1: e_aa.he_minus,
+                he2: e_bb.he_minus,
+            },
+            line(a1, b1),
+            FaceSurface::New(plane(&[a, b, b1, a1])),
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e_bb.he_minus,
+            he2: e_cc.he_minus,
+        },
+        line(b1, c1),
+        FaceSurface::New(plane(&[b, cc, c1, b1])),
+    )
+    .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e_cc.he_minus,
+            he2: e_dd.he_minus,
+        },
+        line(c1, d1),
+        FaceSurface::New(plane(&[cc, d, d1, c1])),
+    )
+    .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e_dd.he_minus,
+            he2: f_front.he_plus,
+        },
+        line(d1, a1),
+        FaceSurface::New(plane(&[d, a, a1, d1])),
+    )
+    .unwrap();
+    body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
+        .unwrap();
+    describe_as_intersections(body);
 }
