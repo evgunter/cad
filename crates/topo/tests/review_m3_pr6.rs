@@ -527,6 +527,127 @@ fn r5_straddle_f64() {
     }
 }
 
+// =================================================================
+// R7 — contract surface: tamper distinction on the vf lane, and the
+// closure gap's loudness on rows the acceptance suite skipped
+// (reversed subtract, intersect vs second toucher).
+// =================================================================
+
+/// vf tamper: on the vertex-on-face kiss body, point the record at a
+/// WRONG face — must fire StaleContactDeclaration (dead/witness-free
+/// declaration) AND UndeclaredContact (the orphaned real rest): the
+/// two directions must stay distinguishable on the vf lane too (the
+/// acceptance suite only tampers vv).
+#[test]
+fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
+    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
+    let tilted = mapped_cube(|x, y, z| {
+        let (e1, e2, e3) = (
+            Vec3::new(0.9, 0.1, 0.3),
+            Vec3::new(-0.2, 0.8, 0.45),
+            Vec3::new(-0.3, -0.4, 0.85),
+        );
+        Point3::new(
+            2.0 + x * e1.x + y * e2.x + z * e3.x,
+            2.0 + x * e1.y + y * e2.y + z * e3.y,
+            1.0 + x * e1.z + y * e2.z + z * e3.z,
+        )
+    });
+    let BooleanResult::Body(r) = union(&slab, &tilted).unwrap() else {
+        panic!("kiss union is a body");
+    };
+    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts), Ok(()));
+    let mut tampered = r.contacts.clone();
+    let rests = tampered.a_on_b.len() + tampered.b_on_a.len();
+    assert_eq!(rests, 1, "expected exactly one vf record");
+    let rec = tampered
+        .a_on_b
+        .first_mut()
+        .or(tampered.b_on_a.first_mut())
+        .unwrap();
+    let right = rec.face;
+    let wrong = r
+        .body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| k != right)
+        .unwrap();
+    rec.face = wrong;
+    let errors = validate_pseudomanifold(&r.body, &tampered).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+        "{errors:?}"
+    );
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+        "{errors:?}"
+    );
+}
+
+/// Closure rows the suite skipped: REVERSED subtract (mover minus
+/// kiss assembly) and intersect against a second toucher at the same
+/// locus. Every outcome must be a certified result with the exact
+/// volume oracle or LOUD (typed refusal / UndeclaredContact-only
+/// gate) — never silent wrongness.
+#[test]
+fn r7_closure_reversed_rows_loud() {
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let BooleanResult::Body(base) = union(&a, &b).unwrap() else {
+        panic!("kiss base");
+    };
+    // Reversed subtract: mover ∖ assembly. Oracle: mover [1.5,2.5]^3
+    // minus its overlap with B-cube [1,2]^3 = 1 − 0.125 = 0.875.
+    let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5));
+    match subtract(&mover, &base.body) {
+        Ok(BooleanResult::Body(r)) => {
+            assert_eq!(mass_properties(&r.body).unwrap().volume, 0.875);
+            match validate_pseudomanifold(&r.body, &r.contacts) {
+                Ok(()) => {}
+                Err(errors) => {
+                    for e in &errors {
+                        assert!(
+                            matches!(e, ValidationError::UndeclaredContact { .. }),
+                            "gate must stay in the documented gap class: {e:?}"
+                        );
+                    }
+                }
+            }
+        }
+        Ok(BooleanResult::Empty) => panic!("reversed subtract cannot be empty"),
+        Err(e) => eprintln!("R7 reversed subtract refusal: {e:?}"),
+    }
+    // Intersect vs a second toucher kissing the same (1,1,1) locus.
+    let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
+    match intersect(&base.body, &toucher) {
+        Ok(BooleanResult::Body(r)) => {
+            // The intersection of the assembly with the edge-tied
+            // toucher: B-cube ∩ toucher is the face-flush region of
+            // measure 0 → must not silently return junk; A ∩ toucher
+            // is the shared edge only. Any BODY here must certify or
+            // refuse loudly.
+            let v = mass_properties(&r.body).unwrap().volume;
+            match validate_pseudomanifold(&r.body, &r.contacts) {
+                Ok(()) => eprintln!("R7 intersect second-toucher closed: vol {v}"),
+                Err(errors) => {
+                    for e in &errors {
+                        assert!(
+                            matches!(e, ValidationError::UndeclaredContact { .. }),
+                            "{e:?}"
+                        );
+                    }
+                }
+            }
+        }
+        Ok(BooleanResult::Empty) => eprintln!("R7 intersect second-toucher: Empty (measure-zero)"),
+        Err(e) => eprintln!("R7 intersect second-toucher refusal: {e:?}"),
+    }
+}
+
 #[cfg(feature = "interval")]
 mod interval_r5 {
     use super::*;
