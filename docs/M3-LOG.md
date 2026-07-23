@@ -620,6 +620,20 @@ table, voids documentation), the sweep has picked up:
   with pointers to the logs for history (its M2 PR-by-PR detail
   duplicates M2-LOG). Rationale: stale inline state is worse than
   absent state for a cold-start orchestrator.
+- **PR 6(a) review-sourced doc items (2026-07-23, for 6(b))**:
+  (i) document that area-contact certification strength equals its
+  vertex skeleton — a flush stack is certifiable from four
+  hand-fed corner-vv records (no public op mints them today, but
+  the posture must be stated); (ii) nested-shell pure containment
+  (zero coincidences) is census-invisible and certifies — fold into
+  the voids documentation; (iii) D5's strict fused-vertex drop rule
+  is correct BECAUSE merge_coplanar_faces never elides vertices —
+  record that dependency where merge is documented (any future
+  collinear-vertex elision re-opens the R5 carriage class);
+  (iv) the operand-internal-declaration gap (3′ operand reuse
+  3′-refuses UndeclaredContact, loud+typed) — ledger entry with the
+  M4 fix direction (declarations as recipe data per NAMING-DESIGN
+  N-decisions).
 - **Contact-remap key lineage (PR 5 review, R5)**: boolean results
   drop contact records whose exact keys do not survive into the
   result, but the geometric coincidence can PERSIST via minted copies
