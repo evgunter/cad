@@ -1229,6 +1229,17 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
+    let errors = tier3_local_checks(body, band);
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
+}
+
+/// Tier 3's local check battery (checks 1–5 + the +V invariant, check
+/// 7), shared verbatim between [`validate_geometric`] and
+/// [`validate_pseudomanifold`] (M3 PR 6a: the tier-3′ validator runs
+/// the SAME local passes — extraction, not copy-paste; behavior under
+/// `validate_geometric` is identical to the pre-extraction code).
+/// Assumes the tier-1/2 coarse gate already passed.
+pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // ------------------------------------------------------------------
@@ -1469,11 +1480,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
-    }
+    errors
 }
 
 /// The endpoint points of an edge in `he_plus` forward order, or `None`
