@@ -702,27 +702,35 @@ work, record state, stop; PR 6 and the demo refresh NOT launched.
   main + live work branches (73 merged branches deleted, 134 local
   refs pruned). Not a standing convention — Evan explicitly said
   one-off.
+- **Post-5.5 demo refresh: DONE (#71, in this wind-down)** — the
+  full 21-pip die is a rendered stop (exact dyadic oracle after
+  every one of the 21 subtracts, final V = 7.8359375; die_blocked
+  and its self-promoting guard retired — the promotion happened);
+  scoopbox cut; voidbox rendered translucent (per-body alpha in
+  render.py, backface culling off for translucent bodies — the
+  internal void shell is visible in the render and montage);
+  `normalize_edges_to_chords` deleted (raw extrude operands, per
+  the review's e2e proof). Demo gates green; kernel untouched.
 - **Next orchestrator's first moves**: (1) session-start checklist
   (arm away-channel + usage monitors per
   memories/orchestration-model.md; usage events.jsonl goes stale —
-  advisory only). (2) **Post-5.5 demo refresh** (charter = Evan's
-  #68 comment, recorded verbatim in the Demo PR section above; low
-  effort bound): cut scoopbox; pipped die (FULL 21-pip die now
-  WORKS — the review's e2e witness proves it, see
-  `crates/stl/tests/review_m3_pr55_e2e.rs`; drop
-  `normalize_edges_to_chords` from the demo, it is obsolete);
-  voidbox out of montage or opacity <1 if easy. (3) **PR 6, split
-  in three** (retrospective agreement with Evan): (a) tier-3′
-  validator + touching corpus (substantive; the Accumulating PR 6
-  obligations section above is the charter), (b) M3-exit DESIGN.md
-  ratification sweep + K snapshot + tier table (docs), (c) any
-  caching implementation the investigation recommends (small,
-  process). Then the M3 exit walk against M3-PLAN's exit criteria.
+  advisory only). (2) **PR 6, split in three** (retrospective
+  agreement with Evan): (a) tier-3′ validator + touching corpus
+  (substantive; the Accumulating PR 6 obligations section above is
+  the charter), (b) M3-exit DESIGN.md ratification sweep + K
+  snapshot + tier table (docs), (c) any caching implementation the
+  investigation below recommends (small, process). Then the M3 exit
+  walk against M3-PLAN's exit criteria.
 - **Worktrees at pause**: implementer worktree freed (branch merged);
   ae88 (`ev/m3-5-bool-finish` stale checkout) used for gate runs +
   caching experiments — clean both at the next seam per
   memories/worktree-disk-hygiene.md; disk was 83–84% after this
   session's cleanup.
+
+## State snapshot (session 2 pause point, 2026-07-22)
+
+Superseded by the session-3 snapshot above (kept as historical
+record).
 
 - **Merged to main** (`318bdf7` + docs PRs after): M3 PRs 1–4 — #53
   (surgery), #55 (split reduce), #61 (split join/finish + `split` +
