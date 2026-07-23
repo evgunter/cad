@@ -677,7 +677,18 @@ Marcheix–Pierra; FreeCAD/realthunder; OCAF TNaming; Onshape) →
 checkout's git-ignored notes dir). Orchestrator drafts the design
 doc from these; it goes to Evan as a design-conversation PR (his
 sign-off lane, not self-merge). GQ1 mechanism details doc queued
-behind it.
+behind it. **Draft OPEN as PR #74** (`ev/naming-doc`,
+docs/NAMING-DESIGN.md, N1–N7 PROPOSED): names = derivation paths
+(stable node ID × op-role path), resolution = table lookup emitted
+by evaluation (no matching heuristics — the D9+D5 dividend); N2
+covariant margined-predicate discriminators (fragment identity flips
+only at recorded predicate flips); N3 loud merge retirement; N4
+name-table invariant = f(recipe, structural params, verdict vector)
+pinned in CI; N5 empty v1 rebinding menu, explicit Rebind DocEdit
+only; N6 GeomSource syntactic identity retires bit_identity (same
+source ⇒ same bits theorem, converse unclaimed); N7 change-site list
+completed for recipe edits. Sign-off comment watchlisted
+(👍-is-enough).
 
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
