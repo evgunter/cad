@@ -60,3 +60,35 @@ acceptance-critical preamble. **Open caveat for PR 7: no FreeCAD/OCC
 tool exists on this machine, so the external-import acceptance is
 NOT yet discharged — PR 7 needs a FreeCAD import run where one is
 available.**
+
+## Corner-aligned table investigation (Evan's #71 question) — 2026-07-23
+
+Evan asked whether true corner-aligned table legs are possible yet
+(demo ships the straddle workaround). Investigation (PR #82,
+`crates/topo/tests/demo_tripwires.rs`): **(1) a single
+corner-aligned leg NOW UNIONS tier-2-exactly** — the mixed
+collinear+transversal seam class opened at the PR 5.5 fix pass and
+nobody retried; pinned as a capability. **(2) Known gap (loud): the
+result fails tier 3 `DescriptionNotAdjacent`** on seam edges lying
+IN the shared plane (plane∥plane intersection degenerate — no honest
+Intersection description exists for those edges); secondary tripwire
+fires when the gap closes. **(3) The full table still refuses**
+(second leg `NonMaximalFaces`): the first union's flush faces cannot
+merge — equal-but-independent descriptions, ladder rung (b), by
+design. Opener = M4 PR 5's Declare + GeomSource (declared rung then
+glues); the primary tripwire fires with demo-upgrade instructions
+when the second leg unions. The corner-aligned table is thus the
+first concrete consumer of the M4 naming decisions.
+
+## PR 1 conversation rulings (Evan on #81) — 2026-07-23
+
+Evan's in-thread round produced three rulings for the fix pass:
+(i) **non-finite floats: doors 1+2 land in PR 1's fix pass**
+(construction-time refusal at literal/SetDocParam — best
+diagnostics, poison never enters the document; eval-time finiteness
+check at the T-erasure choke point with ExprPath in the error —
+required because Div mints inf/NaN from finite documents; F3's
+persist-time refusal stays as backstop); (ii) **Doc<P> genericity
+deviation ACCEPTED** (Evan endorsed); (iii) **cast_precision_loss
+suppression replaced by the std i32 hop** (i32::try_from →
+f64::from, lossless by type; typed error outside ±2^31).
