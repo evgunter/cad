@@ -113,7 +113,11 @@ fn transform_is_bit_deterministic() {
     );
     let t1 = transform_rigid(&b, &map).unwrap();
     let t2 = transform_rigid(&b, &map).unwrap();
-    assert_eq!(arena_dump(&t1), arena_dump(&t2), "same map twice must be bit-identical");
+    assert_eq!(
+        arena_dump(&t1),
+        arena_dump(&t2),
+        "same map twice must be bit-identical"
+    );
 }
 
 /// R1a: certificate honesty under composition. 32 successive
@@ -251,11 +255,21 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
     let t = transform_rigid(&b, &map).unwrap();
     let keys = |bb: &Body<f64>| {
         (
-            bb.points().map(|(k, _)| format!("{k:?}")).collect::<Vec<_>>(),
-            bb.curves().map(|(k, _)| format!("{k:?}")).collect::<Vec<_>>(),
-            bb.surfaces().map(|(k, _)| format!("{k:?}")).collect::<Vec<_>>(),
-            bb.edges().map(|(k, _)| format!("{k:?}")).collect::<Vec<_>>(),
-            bb.faces().map(|(k, _)| format!("{k:?}")).collect::<Vec<_>>(),
+            bb.points()
+                .map(|(k, _)| format!("{k:?}"))
+                .collect::<Vec<_>>(),
+            bb.curves()
+                .map(|(k, _)| format!("{k:?}"))
+                .collect::<Vec<_>>(),
+            bb.surfaces()
+                .map(|(k, _)| format!("{k:?}"))
+                .collect::<Vec<_>>(),
+            bb.edges()
+                .map(|(k, _)| format!("{k:?}"))
+                .collect::<Vec<_>>(),
+            bb.faces()
+                .map(|(k, _)| format!("{k:?}"))
+                .collect::<Vec<_>>(),
         )
     };
     assert_eq!(keys(&b), keys(&t), "arena key sets must be identical");
@@ -266,14 +280,22 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
         use std::fmt::Write as _;
         let mut s = String::new();
         for (k, e) in bb.edges() {
-            let _ = writeln!(s, "E {k:?} curve={:?} hp={:?} hm={:?}", e.curve, e.he_plus, e.he_minus);
+            let _ = writeln!(
+                s,
+                "E {k:?} curve={:?} hp={:?} hm={:?}",
+                e.curve, e.he_plus, e.he_minus
+            );
         }
         for (k, f) in bb.faces() {
             let _ = writeln!(s, "F {k:?} {f:?}");
         }
         s
     };
-    assert_eq!(topo_dump(&b), topo_dump(&t), "topology records must be bit-stable");
+    assert_eq!(
+        topo_dump(&b),
+        topo_dump(&t),
+        "topology records must be bit-stable"
+    );
 }
 
 /// Full bit-level dump of every arena (geometry AND topology).
