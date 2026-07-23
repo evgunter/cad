@@ -112,6 +112,35 @@ mode 5, the costliest failure). Decision:
   equally admissible candidates — the single clearest lesson of the
   literature ([B05] doctrine, TNaming's fail-don't-guess).
 
+**Alternatives considered (all four fill the same slot — what
+disambiguates n fragments of one source):**
+1. *Deterministic enumeration indices* (Kripac, realthunder, Han
+   SFI): D9 makes them reproducible, but deterministic ≠ covariant —
+   an edit can permute which fragment is "1" while both survive, and
+   the reference re-resolves *successfully* to the wrong fragment:
+   silent mis-binding with NO recorded flip, a denotation change the
+   pillar cannot even diagnose. The literature's "old trap of
+   enumeration", rejected on Q1 grounds as much as on its record.
+2. *Geometric value fingerprints* ((u,v) extents, centroids, bboxes;
+   nearest-match): values move with the parameters being edited;
+   nearest-match is an unmargined comparison (Q1 violation by
+   construction); floats would enter names, breaking N1's float-free
+   persistence.
+3. *Neighborhood matching at resolve time* (Chen–Hoffmann scoring,
+   Kripac graph match): reintroduces the search N1 eliminates,
+   silently accepts best-scoring wrong answers, and reconstructs
+   information we already own.
+4. *Ask-always* (every fragment reference → user disambiguation):
+   maximally honest, but "loud everywhere" erodes loud's signal —
+   most splits are provably unambiguous via a certified-margin
+   qualifier, and refusing provable answers violates
+   trivial-where-provable. N2 degrades to ask-always exactly at
+   genuine ties, where it is correct.
+N2 is taxonomy-(d) hybridization domesticated: derivation is the
+name's spine; geometry enters only as margined predicate verdicts —
+never raw values — so the "geometry tie-breaker" exists but every
+use of it is named, margined, and diffable.
+
 ## N3 — Merge policy: names retire into the merge, loudly (proposed)
 
 merge_coplanar_faces (F7) merges only structural/declared-coincident
