@@ -665,6 +665,20 @@ run of the fixed script: 11/11 PASS, 223s warm (483s cold bootstrap,
 158s warm in acceptance). THE MERGE GATE IS NOW `scripts/gate.sh
 <ref>`; concurrent gate runs queue on the flock.
 
+**Pre-M4 naming doc started early (Evan, in-chat 2026-07-23)** —
+the selection-stability/persistent-naming design doc (DESIGN.md's
+"before M4 planning" requirement) kicked off in parallel with 6(a),
+M3-grounding-synthesis pattern: two grounding agents running —
+(i) ratified-constraint inventory across DESIGN/GUI-DESIGN/logs →
+`references/notes/naming-constraint-inventory.md`, (ii)
+persistent-naming literature review (Kripac; Capoyleas/Chen/Hoffmann;
+Marcheix–Pierra; FreeCAD/realthunder; OCAF TNaming; Onshape) →
+`references/notes/persistent-naming-litreview.md` (both in the MAIN
+checkout's git-ignored notes dir). Orchestrator drafts the design
+doc from these; it goes to Evan as a design-conversation PR (his
+sign-off lane, not self-merge). GQ1 mechanism details doc queued
+behind it.
+
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
 Merged as **#70** (`fd90a54`), full writeup in the PR body. The short
