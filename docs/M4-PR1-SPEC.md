@@ -53,6 +53,15 @@ no edit is ever destructive of history at this layer.
 - Upstream references: nodes hold input `RecipeNodeId`s; the DAG's
   edges are those references. `apply` rejects unresolvable refs and
   cycles with typed errors.
+- **StableName-carrying payloads (Declare) — carve-out, ruled at the
+  PR 1 review (2026-07-23)**: names are REFERENCES, not DAG edges.
+  `apply` validates at edit time that a name's node EXISTS (a
+  never-existed id is a typo, not a dangling reference — refuse at
+  the best-diagnostics door), but a later `DeleteNode` MAY strand a
+  name: that is NAMING-DESIGN N5's ratified dangling-reference
+  semantics (loud `NodeGone` at resolution; `Rebind` is the repair;
+  blocking the delete would force cascade-or-pre-repair, worse than
+  the typed-failure flow). Rustdoc on Declare states this.
 - Structural vs continuous (D8, binding shape): structural
   parameters are Count-typed expression slots whose edits are
   `SetStructuralParam` (a distinct DocEdit arm from `SetParam`);
