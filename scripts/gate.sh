@@ -68,9 +68,12 @@ fi
 cd "$RUNNER"
 git fetch origin --prune
 
-# Resolve the requested ref to a commit: as given, else as origin/<ref>.
-SHA=$(git rev-parse --verify --quiet "${REF}^{commit}" \
-   || git rev-parse --verify --quiet "origin/${REF}^{commit}" \
+# Resolve the requested ref to a commit: origin/<ref> FIRST, then as
+# given. Order matters: the runner's local branches (e.g. `main` from
+# the bootstrap clone) never advance — only fetch + detach happen here —
+# so resolving `main` as-given would silently gate a stale sha.
+SHA=$(git rev-parse --verify --quiet "origin/${REF}^{commit}" \
+   || git rev-parse --verify --quiet "${REF}^{commit}" \
    || { echo "[gate] ERROR: cannot resolve '$REF' to a commit" >&2; exit 2; })
 echo "[gate] gating $REF -> $SHA"
 git checkout --detach --quiet "$SHA"
