@@ -1,7 +1,7 @@
 # Memory Index
 
 - [Boolean consumer findings (M3 PR 5)](boolean-consumer-findings.md) — historical record of the demo tour's PR 5-era findings; finding 1 (silent wrong component) RESOLVED by the PR 5 fix pass; chord re-description workaround OBSOLETE post-PR 5.5 (raw extrudes work — review_m3_pr55_e2e)
-- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0–M3 ALL COMPLETE (M3 exit 13/13, 2026-07-23); NAMING-DESIGN ratified #74; next = GQ1 mechanism doc → M4-PLAN ratification with Evan; merge gate = scripts/gate.sh (hosted CI DOWN, --auto merges immediately); references live in the MAIN checkout; name pending
+- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0–M3 ALL COMPLETE (M3 exit 13/13, 2026-07-23); NAMING-DESIGN #74 + SOLVER-DESIGN #79 ratified; pre-M4 design DONE (NAMING #74 + SOLVER #79); next = M4-PLAN ratification with Evan; merge gate = scripts/gate.sh (hosted CI DOWN, --auto merges immediately); references live in the MAIN checkout; name pending
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main

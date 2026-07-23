@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 ALL COMPLETE (M3 exit walk 13/13, 2026-07-23); NAMING-DESIGN.md ratified #74; next = GQ1 mechanism doc then M4-PLAN ratification with Evan; merge gate = scripts/gate.sh (hosted CI DOWN); history lives in the milestone logs, not here
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 ALL COMPLETE (M3 exit walk 13/13, 2026-07-23); NAMING-DESIGN #74 + SOLVER-DESIGN #79 ratified; pre-M4 design DONE (NAMING #74 + SOLVER #79); next = M4-PLAN ratification with Evan; merge gate = scripts/gate.sh (hosted CI DOWN); history lives in the milestone logs, not here
 metadata:
   node_type: memory
   type: project
@@ -40,7 +40,8 @@ git history preserves the rest).
   docs/M3-LOG.md (M3 EXIT section + final snapshot).
 - **Pre-M4 design**: docs/NAMING-DESIGN.md (selection stability /
   persistent naming, N1–N7) RATIFIED (#74, 2026-07-23). Remaining
-  before M4 planning: GQ1 mechanism-details doc; then M4-PLAN
+  before M4 planning: NONE — both docs ratified 2026-07-23
+  (docs/SOLVER-DESIGN.md, #79, joined NAMING-DESIGN). Next: M4-PLAN
   drafting + ratification conversation with Evan (his sign-off
   lane). Q9 name shortlist parked in [[name-candidates]].
 
