@@ -611,6 +611,29 @@ table, voids documentation), the sweep has picked up:
   reconstruction rule (and its failure mode when a bounding vertex
   record is missing) must be designed and pinned at the 3′ gate, not
   assumed.
+- **State-doc trim (Evan-approved, 2026-07-23, for PR 6(b))**: the
+  PR-by-PR log sections stay (they ARE the historical record), but
+  state-carrying material gets trimmed to live-only — each milestone
+  LOG keeps only its most recent state snapshot (superseded snapshots
+  deleted; merge-only git history preserves them), and
+  `memories/cad-project-state.md` is rewritten down to current state
+  with pointers to the logs for history (its M2 PR-by-PR detail
+  duplicates M2-LOG). Rationale: stale inline state is worse than
+  absent state for a cold-start orchestrator.
+- **PR 6(a) review-sourced doc items (2026-07-23, for 6(b))**:
+  (i) document that area-contact certification strength equals its
+  vertex skeleton — a flush stack is certifiable from four
+  hand-fed corner-vv records (no public op mints them today, but
+  the posture must be stated); (ii) nested-shell pure containment
+  (zero coincidences) is census-invisible and certifies — fold into
+  the voids documentation; (iii) D5's strict fused-vertex drop rule
+  is correct BECAUSE merge_coplanar_faces never elides vertices —
+  record that dependency where merge is documented (any future
+  collinear-vertex elision re-opens the R5 carriage class);
+  (iv) the operand-internal-declaration gap (3′ operand reuse
+  3′-refuses UndeclaredContact, loud+typed) — ledger entry with the
+  M4 fix direction (declarations as recipe data per NAMING-DESIGN
+  N-decisions).
 - **Contact-remap key lineage (PR 5 review, R5)**: boolean results
   drop contact records whose exact keys do not survive into the
   result, but the geometric coincidence can PERSIST via minted copies
@@ -619,6 +642,118 @@ table, voids documentation), the sweep has picked up:
   either carry records across the mint (a descendant map) or prove
   the dropped-record configurations are re-derivable at the 3′ gate;
   silent record loss over live coincidence is not acceptable there.
+
+## PR 6 launch (session 4) — 2026-07-23
+
+PR 6 runs as three PRs per the retrospective agreement. **6(a) binding
+spec written and committed (`docs/M3-PR6A-SPEC.md`); its design
+decisions D1–D10 approved by Evan in-chat 2026-07-23** — notably:
+two-directional certification (UndeclaredContact / a
+StaleContactDeclaration for unwitnessed declarations; no
+scan-to-bless either way), descendant-map contact carriage across
+seam-zip/coplanar-merge mints (re-derivation rejected as
+scan-to-bless), native Intersection minting on split/boolean section
+edges (test-only upgrade helper retired), below-copy minting at BOB
+pinches, validity class carried on the result wrapper not on `Body`
+(the binding F1 interpretation; 6(b) ratifies the wording into
+DESIGN.md). 6(c) = `scripts/gate.sh` per the caching investigation
+(orchestrator-reviewed, no separate reviewer — process script, its
+e2e test is running it). 6(b) = docs sweep + Evan-approved state-doc
+trim (charter bullets above); queued behind (a) because it consumes
+(a)'s closure table and predicate names. Usage-limit monitor
+retired from the session-start checklist (Evan: it never measured
+Fable-specific usage, the limit that actually binds).
+
+**PR 6(c) MERGED (#73, `b6df924`, 2026-07-23)** — `scripts/gate.sh`:
+flock-serialized merge-gate runner on a persistent standalone CLONE at
+`~/.local/share/cad-gate/repo` (clone not worktree — a worktree
+parented on an ephemeral mngr checkout dies with its parent;
+implementer's flagged decision, endorsed). Fetch → origin-first ref
+resolution → detach → dirty guard → ci-local.sh; defensively unsets
+inherited RUSTFLAGS/RUSTC_WRAPPER/CARGO_* /CAD_TOLERANCE_EPS (beyond
+spec, endorsed — protects both interval rounding and the warm
+fingerprints). Orchestrator review found + fixed one defect
+(`bdfeed8`): as-given-first ref resolution would have gated the
+runner's never-advancing local `main` — stale sha, silent. E2E review
+run of the fixed script: 11/11 PASS, 223s warm (483s cold bootstrap,
+158s warm in acceptance). THE MERGE GATE IS NOW `scripts/gate.sh
+<ref>`; concurrent gate runs queue on the flock.
+
+**Pre-M4 naming doc started early (Evan, in-chat 2026-07-23)** —
+the selection-stability/persistent-naming design doc (DESIGN.md's
+"before M4 planning" requirement) kicked off in parallel with 6(a),
+M3-grounding-synthesis pattern: two grounding agents running —
+(i) ratified-constraint inventory across DESIGN/GUI-DESIGN/logs →
+`references/notes/naming-constraint-inventory.md`, (ii)
+persistent-naming literature review (Kripac; Capoyleas/Chen/Hoffmann;
+Marcheix–Pierra; FreeCAD/realthunder; OCAF TNaming; Onshape) →
+`references/notes/persistent-naming-litreview.md` (both in the MAIN
+checkout's git-ignored notes dir). Orchestrator drafts the design
+doc from these; it goes to Evan as a design-conversation PR (his
+sign-off lane, not self-merge). GQ1 mechanism details doc queued
+behind it. **Draft OPEN as PR #74** (`ev/naming-doc`,
+docs/NAMING-DESIGN.md, N1–N7 PROPOSED): names = derivation paths
+(stable node ID × op-role path), resolution = table lookup emitted
+by evaluation (no matching heuristics — the D9+D5 dividend); N2
+covariant margined-predicate discriminators (fragment identity flips
+only at recorded predicate flips); N3 loud merge retirement; N4
+name-table invariant = f(recipe, structural params, verdict vector)
+pinned in CI; N5 empty v1 rebinding menu, explicit Rebind DocEdit
+only; N6 GeomSource syntactic identity retires bit_identity (same
+source ⇒ same bits theorem, converse unclaimed); N7 change-site list
+completed for recipe edits. **RATIFIED and MERGED (#74, Evan
+in-thread sign-off "your original plan sounds very good", 2026-07-23)**
+after two elaboration rounds folded into the doc: N3's F7 analysis
+(merge events confined to recorded change sites by the coincidence
+ladder — Evan offered to reopen F7, recommendation to keep it stood)
+and N2's alternatives-considered block (enumeration indices / value
+fingerprints / resolve-time matching / ask-always, each rejected on
+Q1-coherence grounds). Follow-up for the 6(b) sweep: add the
+DESIGN.md Band-1 cross-reference pointing "needs its own design doc"
+→ docs/NAMING-DESIGN.md (ratified). Pre-M4 design queue remaining:
+GQ1 mechanism details doc.
+
+**PR 6(a) implementation COMPLETE (PR #75 open, 2026-07-23)** —
+`ev/m3-6a-tier3prime`, 7 staged commits, full 11-row gate green on
+the merged tree (rows run serialized foreground). D1–D6, D9, D10
+delivered per spec (census in `crates/topo/src/census.rs`, 5 exact
+planar quadratic sweeps; both certification directions typed; D4
+derived YES — reduce refines v-on-e to vv pre-emission, pinned; D5
+descendant map fixed a real stale-record bug the closure suite
+caught; D6 native Intersection descriptions, test helper deleted).
+**Two flagged deviations awaiting ruling: (i) D7 delivered as an
+internal mirror-identity rerun** (`split(S,n) ≡ swap(split(S,−n))`
+by piece-assignment equivariance) instead of a native below-copy
+lane — end state identical (all 4 orientation cells succeed,
+refusal surface gone), mechanism differs; **orchestrator ruling
+plan: reviewer attacks the equivalence FIRST; if it survives, rule
+refinement-not-fork** (Evan's #61 commitment was the end state; PR
+5.5 role-order precedent). **(ii) D8 partial**: right-prism
+unreachability proven + 24-tilt sweep unwitnessed + typed frontier
+(`JoinDesync`) pinned — not a general tier-2 proof; reviewer
+assesses whether the residual class is real. Closure corpus
+surfaced the operand-internal-declaration gap (3′ operand reused →
+result 3′-refuses UndeclaredContact, loud+typed) — documented,
+lands in the 6(b)/M4 ledger. 19 new `pm_census_*` predicates for
+the 6(b) K snapshot.
+
+**PR 6(a) MERGED (#75, `33e5241`, 2026-07-23)** after adversarial
+review (suites `review_m3_pr6{,_e2e}.rs` promoted, 12 tests, NO
+blockers across 7 falsification assignments) + orchestrator fix
+pass. Review's one genuine catch: the "double refusal ⇒ both-sided
+residue" rustdoc claim FALSIFIED (both-sided pinch has a valid
+decomposition but both run directions refuse — typed, never wrong);
+doc corrected to a known completeness frontier with the BOTH_SIDED
+fixture pinned; native below-copy lane recorded as the future
+upgrade. **D7 ruled refinement-not-fork** (end state per Evan #61
+delivered; mirror identity survived structural attack f64+Interval).
+D8 partial accepted (right-prism theorem + 64 swept triples all
+closing with inclusion-exclusion identities; guard unwitnessed;
+saddle test tightened to JoinDesync-only so a witness fails loudly).
+Fix pass also: shell-count pins in exports (closes the admesh
+parts=N mask), fmt/clippy in the review suite. Gate 11/11 on the
+merged tree (`446640d`, 2045s warm). Worktrees cleaned; the
+gate-runner clone is the standing warm checkout.
 
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 

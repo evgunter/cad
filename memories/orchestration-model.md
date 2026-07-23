@@ -105,13 +105,12 @@ M2-LOG snapshots assume it):**
      form is a PR editing the relevant design doc to state the
      question, updated in place with the answer once resolved (the
      design-conversation-PR pattern); a GitHub issue also works.
-  2. **Usage-limit watch**: tail the newest line of
-     `~/.mngr/agents/<agent-id>/events/claude/usage/events.jsonl`
-     (each line has `rate_limits.five_hour.used_percentage` and
-     `.seven_day...`); alert at 90%/97%. The `mngr` CLI itself has
-     been broken (azure plugin ImportError) — read the file
-     directly. On a usage warning: flush state, write the handoff,
-     notify Evan.
+  2. ~~Usage-limit watch~~ **DROPPED (Evan, 2026-07-23)**: the
+     events.jsonl `rate_limits` percentages don't measure
+     Fable-specific usage — which is the limit that actually gets
+     hit — so the monitor never warned usefully. Don't arm it. The
+     stopping rule stands on its own: commit crucial state at every
+     seam so an unannounced limit-stop loses nothing.
 - On any warning-driven or planned handoff: commit log + memories +
   in-flight branch status per the stopping rule above.
 
