@@ -123,9 +123,35 @@ the offered candidate (N5 payload) — resolving it silently to the
 merge would change the denotation (different area, different
 boundary) without the recipe saying so. Symmetric on unmerge: if an
 edit removes the coincidence, `Merged{a,b}` vanishes and references
-to it fail with candidates {a,b}. We reject [B05]'s
-forbid-owner-crossing-merges (their move) because F7 is ratified
-boolean output behavior; we keep his failure semantics instead.
+to it fail with candidates {a,b}.
+
+**Why F7 stays (Bidarra's merge ban considered and rejected).** [B05]
+forbids owner-crossing merges because his scheme has no merge
+denotation — a merged face would have no name. N3 supplies one, so
+the ban's motivation evaporates. What makes keeping F7 *safe* here is
+our own coincidence ladder: numeric coplanarity NEVER merges, so a
+merge can never appear or disappear from continuous parameter drift
+alone. Merge/unmerge events are confined to the pillar's recorded
+change sites — a recipe edit or structural parameter creates/removes
+the shared source, or a named adjacency predicate flips (same-source
+faces sliding into/out of contact) — every one diagnosable in the N5
+payload. So an N3 failure fires exactly when the flat region
+*genuinely changed cardinality*, which any honest scheme must
+surface. Forbidding merges would not remove that event, it would
+hide it: the reference keeps resolving to the a-fragment while the
+visible flat region has grown — a silent denotation mismatch, lit
+mode 5's cousin. The ban's real costs: interior bookkeeping edges
+accumulate unboundedly through op chains (each later boolean
+fragments along them); union-of-two-halves and the directly-built
+whole stay topologically distinct forever; and it reopens ratified,
+adversarially-reviewed PR 4/5/5.5 output behavior including the
+bitwise-pinned two-brick trace. Its sole benefit — names never
+retire — is already covered loudly and one-edit-repairably.
+Softener for the common case: tooling may *suggest* the follow-merge
+`Rebind` (an explicit DocEdit, one click); if experience shows it is
+always right for appearance-like references, it graduates to a
+ratified opt-in policy via the N5 menu — same convenience as
+auto-follow, without the silent semantics.
 
 ## N4 — The name table: eager, per-node, cache-transferable (proposed)
 
