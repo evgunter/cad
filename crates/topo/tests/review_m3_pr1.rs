@@ -15,7 +15,7 @@ use topo::{
 };
 
 mod common;
-use common::{geometric_cube, line, plane, upgrade_edges_to_intersections};
+use common::{describe_as_intersections, geometric_cube, line, plane};
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -345,7 +345,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
 #[test]
 fn null_scaffold_fail_loud_audit() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     assert_eq!(validate_geometric(&cube.body), Ok(()));
     let he = cube
         .body
@@ -416,7 +416,7 @@ fn null_scaffold_fail_loud_audit() {
 #[test]
 fn split_edge_double_split_preserves_tier3_and_volume() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     let vol0 = topo::mass_properties(&cube.body).unwrap().volume;
     let edge = cube.mevs[0].edge; // A->B, unit line, params [0, 1]
     let first = cube.body.split_edge(edge, 0.25).unwrap();
@@ -461,7 +461,7 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
 #[test]
 fn split_edge_intersection_witness_bitwise_remint() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     assert_eq!(validate_geometric(&cube.body), Ok(()));
     let edge = cube.mevs[0].edge;
     let parent = *cube
@@ -520,7 +520,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
 fn split_edge_interiority_band_edges() {
     let eps = geom_core::Tolerance::get().eps;
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     let edge = cube.mevs[0].edge; // line, params [0, 1], scale 1 m
     let before = dump(&cube.body);
     for t in [
@@ -556,7 +556,7 @@ fn split_edge_interiority_band_edges() {
 #[test]
 fn revert_on_split_body_involution_and_posture() {
     let mut cube = geometric_cube::<f64>();
-    upgrade_edges_to_intersections(&mut cube.body);
+    describe_as_intersections(&mut cube.body);
     cube.body.split_edge(cube.mevs[0].edge, 0.5).unwrap();
     cube.body.split_edge(cube.mevs[5].edge, 0.25).unwrap();
     assert_eq!(validate_geometric(&cube.body), Ok(()));

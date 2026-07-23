@@ -48,7 +48,7 @@ use slotmap::SecondaryMap;
 use super::join::{CompletedSection, SplitJoinError, loop_points_of};
 use super::{PlaneSide, SplitReduction};
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom_surfaces::Surface;
 
@@ -120,6 +120,19 @@ pub enum SplitFinishError {
     Corrupt,
     /// An underlying Euler/structural operation refused.
     Euler(EulerOpError),
+    /// The run's tolerance could not produce a classification band
+    /// (absurd ε) — the section-boundary description pass classifies.
+    Band(geom_core::BandError),
+    /// The section-boundary dihedral escalated while minting honest
+    /// `Intersection` descriptions (M3 PR 6a, D6) — indeterminate
+    /// wedge geometry at the section boundary refuses typed, never
+    /// guesses a description.
+    DescribeEscalated {
+        /// The section-boundary edge.
+        edge: EdgeKey,
+        /// The classifier's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -152,6 +165,12 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::Corrupt => write!(f, "split finish: traversal failed (corrupt body)"),
             Self::Euler(e) => write!(f, "split finish: euler operation refused: {e}"),
+            Self::Band(e) => write!(f, "split finish: no classification band: {e:?}"),
+            Self::DescribeEscalated { edge, diag } => write!(
+                f,
+                "split finish: section-boundary dihedral escalated at edge {edge:?} \
+                 while minting its description: {diag:?}"
+            ),
         }
     }
 }
@@ -225,6 +244,19 @@ pub(super) fn split_finish<T: Decide>(
         section_side.insert(section.face, other_side);
     }
 
+    // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
+    // AT MINT TIME — both parent surfaces are known here (the section
+    // faces were just promoted; the other side of every boundary edge
+    // is an operand face). Definitely-transverse edges get
+    // `Intersection`; definitely-smooth ones (a flush ON-face
+    // neighbor: the surfaces under-determine the locus) keep their
+    // conventional chord per D2; escalations refuse typed. ----
+    let band = geom_core::Band::linear().map_err(SplitFinishError::Band)?;
+    let section_faces: Vec<FaceKey> = section_side.keys().collect();
+    for face in section_faces {
+        describe_section_boundary(&mut body, face, band)?;
+    }
+
     // ---- Distribution: movefac every shell of the solid. ----
     let shells: Vec<ShellKey> = body
         .get_solid(solid)
@@ -261,6 +293,82 @@ pub(super) fn split_finish<T: Decide>(
         above: SplitPart::Body(above),
         below: SplitPart::Body(below),
     })
+}
+
+/// D6 (M3 PR 6a): describes every boundary edge of one just-promoted
+/// section face as the transverse `Intersection` of its two faces'
+/// surfaces (witness at the chord midpoint), through the certified
+/// [`crate::Body::set_edge_curve`] lane. Smooth neighbors (flush
+/// ON-faces — parallel planes under-determine the locus) keep their
+/// conventional chord description (D2's conventional split);
+/// escalations are typed ([`SplitFinishError::DescribeEscalated`]).
+fn describe_section_boundary<T: Decide>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    band: geom_core::Band,
+) -> Result<(), SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let s_self = face_data.surface;
+    let loops: Vec<_> = core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect();
+    for lk in loops {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
+            continue;
+        };
+        let hes = body.loop_cycle(first).ok_or_else(corrupt)?;
+        for he in hes {
+            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+            let edge_data = body.get_edge(edge).cloned().ok_or_else(corrupt)?;
+            let mate = if edge_data.he_plus == he {
+                edge_data.he_minus
+            } else {
+                edge_data.he_plus
+            };
+            let other_loop = body.get_half_edge(mate).ok_or_else(corrupt)?.parent_loop;
+            let other_face = body.get_loop(other_loop).ok_or_else(corrupt)?.face;
+            let s_other = body.get_face(other_face).ok_or_else(corrupt)?.surface;
+            let start = body
+                .get_half_edge(edge_data.he_plus)
+                .ok_or_else(corrupt)?
+                .start;
+            let end = body.half_edge_end(edge_data.he_plus).ok_or_else(corrupt)?;
+            let p0 = *body
+                .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
+                .ok_or_else(corrupt)?;
+            let p1 = *body
+                .get_point(body.get_vertex(end).ok_or_else(corrupt)?.point)
+                .ok_or_else(corrupt)?;
+            let (Some(surf_self), Some(surf_other)) =
+                (body.get_surface(s_self), body.get_surface(s_other))
+            else {
+                return Err(corrupt());
+            };
+            let witness = p0.lerp(p1, T::from_f64(0.5));
+            match geom_brep::classify_dihedral(
+                surf_self,
+                surf_other,
+                witness,
+                p0.distance(p1),
+                band,
+            ) {
+                Ok(geom_brep::DihedralClass::Transverse) => {
+                    let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+                    spec.description = geom_brep::EdgeGeometry::Intersection {
+                        s1: s_self,
+                        s2: s_other,
+                        witness,
+                    };
+                    body.set_edge_curve(edge, spec)?;
+                }
+                // Smooth: the conventional chord stays (D2).
+                Ok(geom_brep::DihedralClass::Smooth) => {}
+                Err(diag) => return Err(SplitFinishError::DescribeEscalated { edge, diag }),
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The operand's single solid.

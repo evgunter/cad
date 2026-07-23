@@ -273,6 +273,9 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
     // order viewed from above).
     body.set_face_surface(seed.face, FaceSurface::New(plane(&top)))
         .unwrap();
+    // Construction-final description step (D6): prisms are the M3
+    // boolean/split operand factories — tier-3-grade by construction.
+    describe_as_intersections(&mut body);
 
     Prism {
         body,
@@ -284,11 +287,19 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
     }
 }
 
-/// Re-describes every edge of a (planar-faced) body as the
+/// **Construction step** for hand-built planar fixtures (M3 PR 6a,
+/// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
-/// edge midpoint, carrier the straight chord — the prefer-intrinsic
-/// upgrade pass, through the certified `set_edge_curve` path.
-pub fn upgrade_edges_to_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
+/// edge midpoint, carrier the straight chord — through the certified
+/// `set_edge_curve` path. Called as the LAST construction step of a
+/// fixture builder (both surfaces are known — certified-by-
+/// construction), never applied to an op result: split and boolean
+/// results carry honest descriptions natively (the retired
+/// `describe_as_intersections` review posture). Smooth edges
+/// (coplanar neighbors — collinear profile runs) keep their
+/// conventional chord, mirroring the pipeline's D2 split.
+pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
+    let band = Band::linear().unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
         let face_surface = |body: &Body<T>, he| {
@@ -304,12 +315,18 @@ pub fn upgrade_edges_to_intersections<T: geom_core::Decide>(body: &mut Body<T>) 
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();
         let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
+        let witness = p0.lerp(p1, T::from_f64(0.5));
+        let (surf1, surf2) = (
+            *body.get_surface(s1).unwrap(),
+            *body.get_surface(s2).unwrap(),
+        );
+        match geom_brep::classify_dihedral(&surf1, &surf2, witness, p0.distance(p1), band).unwrap()
+        {
+            geom_brep::DihedralClass::Smooth => continue,
+            geom_brep::DihedralClass::Transverse => {}
+        }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeGeometry::Intersection {
-            s1,
-            s2,
-            witness: p0.lerp(p1, T::from_f64(0.5)),
-        };
+        spec.description = EdgeGeometry::Intersection { s1, s2, witness };
         body.set_edge_curve(edge_key, spec).unwrap();
     }
 }

@@ -52,7 +52,23 @@ fn audit_geometry(body: &Body<f64>) {
     for (k, _) in body.curves() {
         assert!(live_c.binary_search(&k).is_ok(), "orphan curve {k:?}");
     }
+    // Surfaces are kept alive by faces AND by edge descriptions (the
+    // carve rule: an `Intersection`/`Seam` description on a surviving
+    // edge must never dangle — with D6's native descriptions this lane
+    // is now live on every split result).
     let mut live_s: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
+    for (_, e) in body.edges() {
+        if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) {
+            match *c.description() {
+                geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
+                    live_s.push(s1);
+                    live_s.push(s2);
+                }
+                geom_brep::EdgeGeometry::Seam { surface } => live_s.push(surface),
+                geom_brep::EdgeGeometry::MappedCurve(_) => {}
+            }
+        }
+    }
     live_s.sort();
     for (k, _) in body.surfaces() {
         assert!(live_s.binary_search(&k).is_ok(), "orphan surface {k:?}");
@@ -173,13 +189,14 @@ fn vertex_only_contact_is_typed_empty() {
     assert!(s.u_ref.is_none());
 }
 
-/// Target 9 exploited as a consumer: split results carry chord-line
-/// edge descriptions, so tier 3 (`validate_geometric`) REFUSES them
-/// out of the box, while tier 2 and mass properties work. The
-/// acceptance suite reaches tier 3 only through a tests/common-only
-/// upgrade helper a real consumer cannot call — the documented gap,
-/// executed. (If this test ever finds tier 3 passing directly, the
-/// gap has been closed and the writeup should say so.)
+/// Target 9, RESOLVED (M3 PR 6a, D6): split results carry honest
+/// `Intersection` descriptions natively (minted at section-face
+/// promotion from the two known parent surfaces), so tier 3
+/// (`validate_geometric`) passes OUT OF THE BOX — the gap this test
+/// originally witnessed ("the acceptance suite reaches tier 3 only
+/// through a tests/common-only upgrade helper") is closed, and the
+/// helper is retired. This test now pins the closure from the
+/// consumer's seat.
 #[test]
 fn tier3_needs_upgrade_pass_consumers_lack() {
     let fx = prism::<f64>(
@@ -189,11 +206,11 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     let r = split(&fx.body, &plane_y(1.0)).unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
-    assert!(mass_properties(above).is_ok(), "mass props work on chords");
-    assert!(
-        validate_geometric(above).is_err(),
-        "tier 3 refuses split output as shipped (chord descriptions) — \
-         the documented deviation-2 gap, witnessed from outside"
+    assert!(mass_properties(above).is_ok(), "mass props work");
+    assert_eq!(
+        validate_geometric(above),
+        Ok(()),
+        "tier 3 accepts split output as shipped (D6: native descriptions)"
     );
 }
 

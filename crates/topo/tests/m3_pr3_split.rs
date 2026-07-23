@@ -11,7 +11,7 @@
 
 mod common;
 
-use common::{prism, upgrade_edges_to_intersections};
+use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
@@ -54,13 +54,10 @@ const MIRRORED: &[(f64, f64)] = &[
     (0.0, 2.0),
 ];
 
-/// Tier 3 on a clone with the prefer-intrinsic edge upgrade applied
-/// (tests/common's pass — the same route every M2 tier-3 fixture
-/// takes).
+/// Tier 3 directly at rest (D6, M3 PR 6a): split results carry honest
+/// `Intersection` descriptions natively — no upgrade pass exists.
 fn assert_tier3_after_upgrade(body: &Body<f64>) {
-    let mut upgraded = body.clone();
-    upgrade_edges_to_intersections(&mut upgraded);
-    assert_eq!(validate_geometric(&upgraded), Ok(()));
+    assert_eq!(validate_geometric(body), Ok(()));
 }
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
@@ -185,6 +182,9 @@ fn holed_box_geometric() -> Body<f64> {
         body.set_face_surface(f, topo::FaceSurface::New(plane))
             .unwrap();
     }
+    // Construction-final description step (D6): the fixture is a split
+    // operand — tier-3-grade by construction.
+    common::describe_as_intersections(&mut body);
     body
 }
 

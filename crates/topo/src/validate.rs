@@ -1373,7 +1373,11 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let errors = tier3_local_checks(body, band);
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /// Tier 3's local check battery (checks 1–5 + the +V invariant, check
@@ -1673,7 +1677,11 @@ pub fn validate_pseudomanifold<T: Decide>(
     if errors.is_empty() {
         errors.extend(crate::census::census_and_certify(body, contacts, band));
     }
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /// The endpoint points of an edge in `he_plus` forward order, or `None`

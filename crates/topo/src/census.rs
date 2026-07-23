@@ -300,8 +300,7 @@ fn sweep_vertex_vertex<T: Decide>(
 ) {
     for (i, &(ka, pa)) in geo.verts.iter().enumerate() {
         for &(kb, pb) in &geo.verts[i + 1..] {
-            let Some(zero) = gap_is_zero("pm_census_vv_gap", (pa - pb).norm(), band, errors)
-            else {
+            let Some(zero) = gap_is_zero("pm_census_vv_gap", (pa - pb).norm(), band, errors) else {
                 continue;
             };
             if zero && !declared.vv.contains(&(ka, kb)) {
@@ -615,7 +614,10 @@ fn ef_overlap_lane<T: Decide>(
     let half = T::from_f64(0.5);
     for i in 0..cuts.len() - 1 {
         let (a, b) = (cuts[i], cuts[i + 1]);
-        if !matches!(decide("pm_census_span_gap", b - a, band), Ok(Sign::Positive)) {
+        if !matches!(
+            decide("pm_census_span_gap", b - a, band),
+            Ok(Sign::Positive)
+        ) {
             continue; // empty/degenerate cell (escalations via sort/gap)
         }
         let mid = e.p0 + e.dir * ((a + b) * half);
@@ -816,8 +818,12 @@ fn confirm_declarations<T: Decide>(
             errors.push(stale);
             continue;
         };
-        match signed_is_zero("pm_census_confirm_vf", (q - f.origin).dot(f.normal), band, errors)
-        {
+        match signed_is_zero(
+            "pm_census_confirm_vf",
+            (q - f.origin).dot(f.normal),
+            band,
+            errors,
+        ) {
             Some(true) => {}
             Some(false) => {
                 errors.push(stale);

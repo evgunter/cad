@@ -118,7 +118,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
         .unwrap();
     body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
         .unwrap();
-    common::upgrade_edges_to_intersections(&mut body);
+    common::describe_as_intersections(&mut body);
     body
 }
 

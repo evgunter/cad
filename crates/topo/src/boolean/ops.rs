@@ -209,10 +209,13 @@ fn boolean_op<T: Decide>(
     let contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &completed, a, b, band)?;
     let mut body = fin.body;
+    let mut seam_edges = Vec::new();
     for &(a_face, b_face) in &fin.seams {
-        zip_seam(&mut body, a_face, b_face, &fin.vertex_map)?;
+        let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map)?;
+        seam_edges.extend(rep.seam_edges);
     }
-    body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    describe_minted_edges(&mut body, &seam_edges, &merged, band)?;
     let contacts = remap_contacts(
         &body,
         &contacts,
@@ -326,6 +329,87 @@ fn volume_backstop<T: Decide>(
             if ba {
                 check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va)?;
             }
+        }
+    }
+    Ok(())
+}
+
+/// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
+/// TIME — the worklist is tracked lineage (the zips' surviving seam
+/// edges plus every boundary edge of a merge-kept face, whose
+/// adjacency the merge just rewrote), never a post-hoc scan of the
+/// body. Each worklist edge that still resolves is described from its
+/// two faces' surfaces (structural adjacency): definitely transverse ⇒
+/// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
+/// the existing conventional description stays (D2's split — the
+/// surfaces under-determine the locus); escalation refuses typed.
+fn describe_minted_edges<T: Decide>(
+    body: &mut Body<T>,
+    seam_edges: &[crate::entity::EdgeKey],
+    merged: &crate::merge_faces::MergeCoplanarOutcome,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let corrupt = || BooleanError::JoinDesync {
+        what: "description worklist edge not walkable",
+    };
+    let mut worklist: Vec<crate::entity::EdgeKey> = Vec::new();
+    for &e in seam_edges {
+        if body.get_edge(e).is_some() {
+            worklist.push(e); // merge may have consumed flush seam edges
+        }
+    }
+    for group in &merged.groups {
+        let Some(face) = body.get_face(group.kept) else {
+            continue;
+        };
+        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+            let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary
+            else {
+                continue;
+            };
+            for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+                worklist.push(body.get_half_edge(he).ok_or_else(corrupt)?.edge);
+            }
+        }
+    }
+    for edge in worklist {
+        let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
+        let face_of = |body: &Body<T>, he| -> Option<crate::geometry::SurfaceKey> {
+            let l = body.get_half_edge(he)?.parent_loop;
+            Some(body.get_face(body.get_loop(l)?.face)?.surface)
+        };
+        let (Some(s1), Some(s2)) = (
+            face_of(body, edge_data.he_plus),
+            face_of(body, edge_data.he_minus),
+        ) else {
+            return Err(corrupt());
+        };
+        let start = body
+            .get_half_edge(edge_data.he_plus)
+            .ok_or_else(corrupt)?
+            .start;
+        let end = body.half_edge_end(edge_data.he_plus).ok_or_else(corrupt)?;
+        let p0 = *body
+            .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
+            .ok_or_else(corrupt)?;
+        let p1 = *body
+            .get_point(body.get_vertex(end).ok_or_else(corrupt)?.point)
+            .ok_or_else(corrupt)?;
+        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+            return Err(corrupt());
+        };
+        let witness = p0.lerp(p1, T::from_f64(0.5));
+        match geom_brep::classify_dihedral(surf1, surf2, witness, p0.distance(p1), band) {
+            Ok(geom_brep::DihedralClass::Transverse) => {
+                let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+                spec.description = geom_brep::EdgeGeometry::Intersection { s1, s2, witness };
+                body.set_edge_curve(edge, spec)
+                    .map_err(|_| BooleanError::JoinDesync {
+                        what: "minted-edge description failed certification",
+                    })?;
+            }
+            Ok(geom_brep::DihedralClass::Smooth) => {}
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
     }
     Ok(())
@@ -496,11 +580,11 @@ fn fallback<T: Decide>(
         }
         (false, true) => {
             let body = carve_kept(&red.a, &a_keep)?;
-            finish_fallback(op, body, &red.contacts, BooleanResultKind::OperandA)
+            finish_fallback(op, body, &red.contacts, BooleanResultKind::OperandA, band)
         }
         (true, false) => {
             let body = carve_kept(&red.b, &b_keep)?;
-            finish_fallback(op, body, &red.contacts, BooleanResultKind::OperandB)
+            finish_fallback(op, body, &red.contacts, BooleanResultKind::OperandB, band)
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
@@ -515,7 +599,8 @@ fn fallback<T: Decide>(
                 BooleanOp::Subtract => BooleanResultKind::Voided,
                 _ => BooleanResultKind::Assembly,
             };
-            body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+            let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+            describe_minted_edges(&mut body, &[], &merged, band)?;
             let contacts = remap_contacts(
                 &body,
                 &red.contacts,
@@ -540,12 +625,14 @@ fn finish_fallback<T: Decide>(
     body: Body<T>,
     contacts: &ContactRecords,
     kind: BooleanResultKind,
+    band: Band,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
         body = body.revert().map_err(BooleanError::Revert)?;
     }
-    body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    describe_minted_edges(&mut body, &[], &merged, band)?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
