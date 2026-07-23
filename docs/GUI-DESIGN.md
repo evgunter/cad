@@ -291,3 +291,32 @@ history (undo never changes what is selected, but tools must survive
 the referenced entity vanishing under them — a consumer of the GQ4/
 naming-doc resolution-failure semantics). Details at sketcher/tree
 design time.
+
+## UI ideas (non-binding sketchpad)
+
+Ideas captured during design conversations — NOT ratified decisions;
+they inform sketcher/editor design when it happens. Each cites the
+contract it builds on.
+
+- **Wall-mode drag (Evan, PR #79 conversation, 2026-07-23)** — on
+  SOLVER-DESIGN W2/W4: the default click-and-drag mode refuses to
+  cross the discriminant locus. As the drag approaches it, the
+  preview solver's `solver_branch_margin` shrinks; at the wall the
+  dragged point visually sticks, with an indication of the
+  parameter-space wall it has hit. Consequence: every default-mode
+  drag is a fold-free homotopy, so the drag-end ReWitness is
+  uniquely branch-selected and needs NO disambiguation dialog. An
+  explicit modifier key crosses the wall — the keypress is the
+  recorded intent to flip branches, so even flips are chosen, never
+  silent. The drag path is legitimate *UI* input (it authors the
+  ReWitness proposal); purity is untouched because only the recorded
+  endpoint enters `solution()`.
+- **Bulk ReWitness on clean certificates** — on SOLVER-DESIGN W4:
+  certified-same-branch rewitnessing is semantically invisible, so
+  the editor should do it in bulk (piggybacked on commit edits)
+  rather than nag; dialogs are reserved for certificate refusals,
+  which concentrate at genuinely degenerate geometry.
+- **Margin as an ambient affordance** — on W3/T6: the
+  `solver_branch_margin` value is a live scalar during editing;
+  surfacing it (e.g. subtle proximity shading near walls) turns
+  "why did it ask?" into something the user saw coming.
