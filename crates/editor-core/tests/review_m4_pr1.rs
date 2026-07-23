@@ -253,6 +253,289 @@ fn r2_count_to_scalar_i64_min_panics_instead_of_typed_error() {
     }
 }
 
+/// R3 WITNESS — ExprPath is POSITIONAL within its slot: replacing an
+/// ANCESTOR of the referent (or the whole slot) with a same-shape
+/// expression makes an old path resolve to a DIFFERENT subexpression
+/// with no error and no way to detect it (no generation/version on
+/// the slot). D5 only *claims* stability under edits to other
+/// expressions/sibling subtrees, so this is out-of-claim — but PR 5's
+/// GeomSource must not assume same-slot edits are detectable.
+#[test]
+fn r3_ancestor_replace_silently_repoints_exprpath() {
+    use editor_core::{Axis3, ExprPath};
+    // Slot: x = 1.0 + 2.0; path [1] refers to the literal 2.0.
+    let e0 = Expr::add(len(1.0), len(2.0)).unwrap();
+    let ins = DocEdit::InsertNode {
+        node: editor_core::Node::Datum(editor_core::Datum::Point {
+            position: [e0, len(0.0), len(0.0)],
+        }),
+    };
+    let a = Doc::empty().apply(&ins).unwrap();
+    let id = a.record.minted.unwrap();
+    let path = ExprPath {
+        node: id,
+        slot: SlotId::Origin(Axis3::X),
+        path: vec![1],
+    };
+    let before = eval::<f64>(a.doc.expr_at(&path).unwrap(), &a.doc.param_env()).unwrap();
+    assert_eq!(before, 2.0);
+    // Replace the ANCESTOR (whole slot, path []) with 5.0 + 7.0.
+    let replaced = a
+        .doc
+        .apply(&Edit::SetExpression {
+            path: ExprPath {
+                node: id,
+                slot: SlotId::Origin(Axis3::X),
+                path: vec![],
+            },
+            expr: Expr::add(len(5.0), len(7.0)).unwrap(),
+        })
+        .unwrap()
+        .doc;
+    // The old path still RESOLVES — to a different subexpression.
+    let after = eval::<f64>(replaced.expr_at(&path).unwrap(), &replaced.param_env()).unwrap();
+    assert_eq!(after, 7.0, "silent re-point (witness): 2.0 became 7.0");
+    // Arity-shrinking ancestor replace: old path now dangles as None
+    // (detectable, but an Option, not a typed error).
+    let shrunk = replaced
+        .apply(&Edit::SetExpression {
+            path: ExprPath {
+                node: id,
+                slot: SlotId::Origin(Axis3::X),
+                path: vec![],
+            },
+            expr: len(9.0),
+        })
+        .unwrap()
+        .doc;
+    assert!(shrunk.expr_at(&path).is_none(), "dangles as None, untyped");
+}
+
+/// R3 — the D5 CLAIM itself: a referent survives (a) edits to other
+/// expressions, (b) replacement of a SIBLING subtree via SetExpression,
+/// (c) SetParam on a different slot of the same node — bit-checked.
+#[test]
+fn r3_referent_survives_out_of_claim_edits_bitwise() {
+    use editor_core::{Axis3, ExprPath};
+    let marker = f64::from_bits(0x3FF00000000000AB); // recognizable bits
+    let e0 = Expr::add(len(marker), len(2.0)).unwrap();
+    let ins = DocEdit::InsertNode {
+        node: editor_core::Node::Datum(editor_core::Datum::Point {
+            position: [e0, len(0.0), len(0.0)],
+        }),
+    };
+    let a = Doc::empty().apply(&ins).unwrap();
+    let id = a.record.minted.unwrap();
+    let referent = ExprPath {
+        node: id,
+        slot: SlotId::Origin(Axis3::X),
+        path: vec![0],
+    };
+    let check = |d: &Doc| {
+        let v = eval::<f64>(d.expr_at(&referent).unwrap(), &d.param_env()).unwrap();
+        assert_eq!(v.to_bits(), marker.to_bits(), "referent bits");
+    };
+    check(&a.doc);
+    // (a) edit ANOTHER node entirely.
+    let (d, _) = apply_all(a.doc, &[point_edit(len(4.0))]);
+    check(&d);
+    // (b) replace the SIBLING subtree [1] of the same slot.
+    let d = d
+        .apply(&Edit::SetExpression {
+            path: ExprPath {
+                node: id,
+                slot: SlotId::Origin(Axis3::X),
+                path: vec![1],
+            },
+            expr: Expr::mul(scl(3.0), len(8.0)).unwrap(),
+        })
+        .unwrap()
+        .doc;
+    check(&d);
+    // (c) SetParam a DIFFERENT slot on the same node.
+    let d = d
+        .apply(&Edit::SetParam {
+            node: id,
+            slot: SlotId::Origin(Axis3::Z),
+            expr: len(6.0),
+        })
+        .unwrap()
+        .doc;
+    check(&d);
+}
+
+/// R4 WITNESS (HOLE) — `StableName.node` is a `RecipeNodeId` but is
+/// NOT a DAG edge (`Declare::inputs()` is empty), so:
+/// (1) DeleteNode of a node referenced ONLY by a Declare's pairs is
+///     ACCEPTED → the live Declare holds a stale RecipeNodeId;
+/// (2) InsertNode of a Declare whose StableName points at a NEVER-
+///     EXISTING node is ACCEPTED (no UnresolvedInput).
+/// Spec D3 says "apply rejects unresolvable refs"; whether name refs
+/// count as refs is the open question this witnesses.
+#[test]
+fn r4_stablename_node_refs_escape_ref_validation() {
+    use editor_core::{EntityKind, Node, StableName};
+    let (doc, ids) = apply_all(
+        Doc::empty(),
+        &[point_edit(len(1.0))], // the node the name will denote
+    );
+    let target = ids[0];
+    let declare = |node| Edit::InsertNode {
+        node: Node::Declare {
+            pairs: vec![(
+                StableName {
+                    kind: EntityKind::Face,
+                    node,
+                    path: vec![],
+                },
+                StableName {
+                    kind: EntityKind::Face,
+                    node,
+                    path: vec![],
+                },
+            )],
+        },
+    };
+    let a = doc.apply(&declare(target)).unwrap();
+    let declare_id = a.record.minted.unwrap();
+    // (1) Delete the named node — ACCEPTED despite the live Declare.
+    let after = a.doc.apply(&Edit::DeleteNode { id: target });
+    let after = after.expect("WITNESS: delete of name-referenced node accepted");
+    assert!(after.doc.node(target).is_none());
+    // The Declare survives, holding a stale id.
+    match after.doc.node(declare_id).unwrap() {
+        Node::Declare { pairs } => {
+            assert_eq!(pairs[0].0.node, target, "stale RecipeNodeId held");
+        }
+        n => panic!("expected Declare, got {n:?}"),
+    }
+    // (2) Insert a Declare naming an id that never existed.
+    let phantom = RecipeNodeId(9999);
+    let res = Doc::empty().apply(&declare(phantom));
+    assert!(
+        res.is_ok(),
+        "WITNESS: phantom StableName.node accepted at insert"
+    );
+    // Contrast: a DAG-edge ref to the same phantom is refused.
+    let res2 = Doc::empty().apply(&Edit::InsertNode {
+        node: Node::Extrude {
+            profile: phantom,
+            distance: len(1.0),
+        },
+    });
+    assert!(matches!(res2, Err(EditError::UnresolvedInput { .. })));
+}
+
+/// R4 — cycles via multi-edit sequences: the v1 edit vocabulary has
+/// NO arm that rewires a node's inputs after insertion (SetParam /
+/// SetExpression touch expression slots only; Circular pattern's axis
+/// ref lives outside every slot), so A→B-then-B→A is UNCONSTRUCTIBLE
+/// through the public API — the defensive WouldCycle stays unreachable.
+/// This pins the exhaustive attempt.
+#[test]
+fn r4_cycle_unconstructible_by_any_edit_sequence() {
+    use editor_core::Node;
+    let (doc, ids) = apply_all(
+        Doc::empty(),
+        &[
+            Edit::InsertNode {
+                node: Node::Profile("p"),
+            },
+        ],
+    );
+    let a = doc
+        .apply(&Edit::InsertNode {
+            node: Node::Extrude {
+                profile: ids[0],
+                distance: len(1.0),
+            },
+        })
+        .unwrap();
+    let extrude = a.record.minted.unwrap();
+    let doc = a.doc;
+    // Forward ref to a FUTURE id (the only way to seed a cycle at
+    // insert) is refused: the id isn't live yet.
+    let next_would_be = RecipeNodeId(extrude.0 + 1);
+    let res = doc.apply(&Edit::InsertNode {
+        node: Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: extrude,
+            b: next_would_be,
+            declare: None,
+        },
+    });
+    assert!(matches!(res, Err(EditError::UnresolvedInput { .. })));
+    // And no edit arm can touch `Extrude.profile` afterwards: the
+    // slot vocabulary for Extrude is exactly [Distance].
+    let slots = doc.node(extrude).unwrap().slots();
+    assert_eq!(slots, vec![SlotId::Distance]);
+}
+
+/// R4 — SetDocParam re-declaration sweep + the flagged no-delete-arm
+/// hole: a dimension flip under a referencing slot is REFUSED (sweep
+/// works); a Count→Count value change passes; and since NO edit can
+/// remove a param, reference stranding via deletion is impossible in
+/// v1 (the hole is the absent arm, not a validation gap).
+#[test]
+fn r4_setdocparam_sweep_and_no_delete_arm() {
+    let name = ParamName::new("d");
+    let doc = Doc::empty()
+        .apply(&Edit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 0.5,
+            },
+        })
+        .unwrap()
+        .doc;
+    let (doc, _) = apply_all(
+        doc,
+        &[point_edit(Expr::param(name.clone(), Dimension::Length))],
+    );
+    // Dimension flip out from under the referencing slot: refused.
+    let flip = doc.apply(&Edit::SetDocParam {
+        name: name.clone(),
+        value: DocParam::Continuous {
+            dim: Dimension::Angle,
+            value: 0.5,
+        },
+    });
+    assert!(
+        matches!(flip, Err(EditError::DocParamDimensionMismatch { .. })),
+        "got {flip:?}"
+    );
+    // Kind flip Continuous→Count under a reference: also refused.
+    let kind_flip = doc.apply(&Edit::SetDocParam {
+        name: name.clone(),
+        value: DocParam::Count { value: 2 },
+    });
+    assert!(matches!(
+        kind_flip,
+        Err(EditError::DocParamDimensionMismatch { .. })
+    ));
+    // Same-dimension value change: accepted, non-structural.
+    let ok = doc
+        .apply(&Edit::SetDocParam {
+            name,
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 0.75,
+            },
+        })
+        .unwrap();
+    assert!(!ok.record.structural);
+    // An UNREFERENCED param may flip freely (nothing to strand).
+    let free = ok
+        .doc
+        .apply(&Edit::SetDocParam {
+            name: ParamName::new("unused"),
+            value: DocParam::Count { value: 1 },
+        })
+        .unwrap();
+    assert!(free.record.structural, "Count doc-param set flags structural");
+}
+
 /// BIT-compare two docs: structure via PartialEq fields, floats via
 /// to_bits (PartialEq would conflate -0.0/0.0 and reject NaN==NaN).
 /// Slot expressions are compared by evaluating literal trees to f64
