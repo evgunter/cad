@@ -611,6 +611,15 @@ table, voids documentation), the sweep has picked up:
   reconstruction rule (and its failure mode when a bounding vertex
   record is missing) must be designed and pinned at the 3′ gate, not
   assumed.
+- **State-doc trim (Evan-approved, 2026-07-23, for PR 6(b))**: the
+  PR-by-PR log sections stay (they ARE the historical record), but
+  state-carrying material gets trimmed to live-only — each milestone
+  LOG keeps only its most recent state snapshot (superseded snapshots
+  deleted; merge-only git history preserves them), and
+  `memories/cad-project-state.md` is rewritten down to current state
+  with pointers to the logs for history (its M2 PR-by-PR detail
+  duplicates M2-LOG). Rationale: stale inline state is worse than
+  absent state for a cold-start orchestrator.
 - **Contact-remap key lineage (PR 5 review, R5)**: boolean results
   drop contact records whose exact keys do not survive into the
   result, but the geometric coincidence can PERSIST via minted copies
