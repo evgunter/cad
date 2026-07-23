@@ -699,6 +699,30 @@ DESIGN.md Band-1 cross-reference pointing "needs its own design doc"
 → docs/NAMING-DESIGN.md (ratified). Pre-M4 design queue remaining:
 GQ1 mechanism details doc.
 
+**PR 6(a) implementation COMPLETE (PR #75 open, 2026-07-23)** —
+`ev/m3-6a-tier3prime`, 7 staged commits, full 11-row gate green on
+the merged tree (rows run serialized foreground). D1–D6, D9, D10
+delivered per spec (census in `crates/topo/src/census.rs`, 5 exact
+planar quadratic sweeps; both certification directions typed; D4
+derived YES — reduce refines v-on-e to vv pre-emission, pinned; D5
+descendant map fixed a real stale-record bug the closure suite
+caught; D6 native Intersection descriptions, test helper deleted).
+**Two flagged deviations awaiting ruling: (i) D7 delivered as an
+internal mirror-identity rerun** (`split(S,n) ≡ swap(split(S,−n))`
+by piece-assignment equivariance) instead of a native below-copy
+lane — end state identical (all 4 orientation cells succeed,
+refusal surface gone), mechanism differs; **orchestrator ruling
+plan: reviewer attacks the equivalence FIRST; if it survives, rule
+refinement-not-fork** (Evan's #61 commitment was the end state; PR
+5.5 role-order precedent). **(ii) D8 partial**: right-prism
+unreachability proven + 24-tilt sweep unwitnessed + typed frontier
+(`JoinDesync`) pinned — not a general tier-2 proof; reviewer
+assesses whether the residual class is real. Closure corpus
+surfaced the operand-internal-declaration gap (3′ operand reused →
+result 3′-refuses UndeclaredContact, loud+typed) — documented,
+lands in the 6(b)/M4 ledger. 19 new `pm_census_*` predicates for
+the 6(b) K snapshot.
+
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
 Merged as **#70** (`fd90a54`), full writeup in the PR body. The short
