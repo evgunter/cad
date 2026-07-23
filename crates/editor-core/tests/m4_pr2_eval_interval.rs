@@ -1,0 +1,112 @@
+//! The pinned Interval evaluation of a boolean-bearing document (M4
+//! PR 2 spec D2/D7): `evaluate<T>` instantiated at the certified
+//! interval scalar, through profile validation, extrude, a
+//! translation-only rigid transform (re-certification at Interval),
+//! and a subtract — the enclosure brackets the exact dyadic oracle.
+#![cfg(feature = "interval")]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod fixture;
+
+use editor_core::{
+    BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
+};
+use fixture::{ang, desc, insert, len, scl};
+use geom_core::{Bounds, Interval};
+use topo::{mass_properties, validate, validate_closed};
+
+#[test]
+fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
+    // Cube [0,2]³ minus one pip 0.25×0.25×0.125 embedded in the top
+    // face (the die's +z pip, alone): volume exactly 8 − 1/128.
+    let doc = ProfileDoc::empty();
+    let (doc, cube_p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
+        )),
+    );
+    let (doc, cube) = insert(
+        doc,
+        Node::Extrude {
+            profile: cube_p,
+            distance: len(2.0),
+        },
+    );
+    let (doc, pip_p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 2.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![fixture::square(0.0, 0.0, 0.125)],
+        )),
+    );
+    let (doc, pip) = insert(
+        doc,
+        Node::Extrude {
+            profile: pip_p,
+            distance: len(-0.125),
+        },
+    );
+    let (doc, placed) = insert(
+        doc,
+        Node::Transform {
+            input: pip,
+            translation: [len(1.0), len(1.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    let (doc, sub) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: cube,
+            b: placed,
+            declare: None,
+        },
+    );
+
+    let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
+        &ev.value(sub).expect("subtract evaluated at Interval").payload
+    else {
+        panic!("expected boolean body");
+    };
+    assert_eq!(validate(body), Ok(()));
+    assert_eq!(validate_closed(body), Ok(()));
+    let vol = mass_properties(body).unwrap().volume;
+    let oracle = 8.0 - 0.25 * 0.25 * 0.125;
+    assert!(
+        vol.lo() <= oracle && oracle <= vol.hi(),
+        "enclosure [{}, {}] must bracket {oracle}",
+        vol.lo(),
+        vol.hi()
+    );
+    // The enclosure is TIGHT for a dyadic construction.
+    assert!(vol.hi() - vol.lo() < 1e-9);
+}
+
+#[test]
+fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
+    let d = fixture::die();
+    let ev = evaluate::<Interval>(&d.doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
+        &ev.value(d.final_node).expect("die evaluated at Interval").payload
+    else {
+        panic!("expected boolean body");
+    };
+    assert_eq!(validate(body), Ok(()));
+    assert_eq!(validate_closed(body), Ok(()));
+    let vol = mass_properties(body).unwrap().volume;
+    assert!(
+        vol.lo() <= fixture::DIE_VOLUME && fixture::DIE_VOLUME <= vol.hi(),
+        "enclosure [{}, {}] must bracket the oracle",
+        vol.lo(),
+        vol.hi()
+    );
+}
