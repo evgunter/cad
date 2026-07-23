@@ -53,7 +53,7 @@ fn fingerprint(b: &Body<f64>) -> String {
     s
 }
 
-fn boolean_body<'e>(ev: &'e Evaluation<f64>, id: RecipeNodeId) -> &'e Body<f64> {
+fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
     match &ev.value(id).expect("node evaluated").payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
         other => panic!("expected boolean body, got {}", other.kind_name()),
