@@ -870,8 +870,14 @@ merge-only history preserves it).
   (certificate ≡ margin, one k_stats trilean
   `solver_branch_margin`); param edits never silently write back
   the witness; ezpz audit criteria pinned with seed-proposer
-  fallback. **Next: M4-PLAN drafting + ratification conversation
-  with Evan.** Q9 (name) parked with Evan's shortlist in
+  fallback. **M4-PLAN drafted and OPEN as PR #80** (ratification
+  conversation, sign-off watchlisted): F1–F9 forks with firm
+  recommendations (restrictive dimension lattice; no conditionals
+  in the expression AST; Declare-node threading closes the
+  operand-declaration envelope; persisted-file v1 in-milestone;
+  STEP as spike-then-decide), 8-PR sequence along the
+  m4-obligations-inventory critical path. Grounding note:
+  `references/notes/m4-obligations-inventory.md`. Q9 (name) parked with Evan's shortlist in
   memories/name-candidates.md (Intension / Noumenon / Selvage, all
   crates.io-free 2026-07-23).
 - **Standing session-start checklist**: away-channel GitHub monitor
