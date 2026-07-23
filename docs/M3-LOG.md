@@ -737,6 +737,24 @@ result 3′-refuses UndeclaredContact, loud+typed) — documented,
 lands in the 6(b)/M4 ledger. 19 new `pm_census_*` predicates for
 the 6(b) K snapshot.
 
+**PR 6(a) MERGED (#75, `33e5241`, 2026-07-23)** after adversarial
+review (suites `review_m3_pr6{,_e2e}.rs` promoted, 12 tests, NO
+blockers across 7 falsification assignments) + orchestrator fix
+pass. Review's one genuine catch: the "double refusal ⇒ both-sided
+residue" rustdoc claim FALSIFIED (both-sided pinch has a valid
+decomposition but both run directions refuse — typed, never wrong);
+doc corrected to a known completeness frontier with the BOTH_SIDED
+fixture pinned; native below-copy lane recorded as the future
+upgrade. **D7 ruled refinement-not-fork** (end state per Evan #61
+delivered; mirror identity survived structural attack f64+Interval).
+D8 partial accepted (right-prism theorem + 64 swept triples all
+closing with inclusion-exclusion identities; guard unwitnessed;
+saddle test tightened to JoinDesync-only so a witness fails loudly).
+Fix pass also: shell-count pins in exports (closes the admesh
+parts=N mask), fmt/clippy in the review suite. Gate 11/11 on the
+merged tree (`446640d`, 2045s warm). Worktrees cleaned; the
+gate-runner clone is the standing warm checkout.
+
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
 Merged as **#70** (`fd90a54`), full writeup in the PR body. The short
