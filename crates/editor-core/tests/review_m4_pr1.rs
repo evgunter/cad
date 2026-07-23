@@ -53,14 +53,14 @@ fn r1_replay_bit_identity_adversarial() {
     let adversarial = [
         -0.0,
         0.0,
-        5e-324,          // smallest subnormal
+        5e-324, // smallest subnormal
         -5e-324,
         f64::MIN_POSITIVE - 5e-324, // largest subnormal neighborhood
         1.0,
         ulp1,
         -ulp1,
         f64::MAX,
-        nan_payload,     // door 1 open today: literal(NaN) accepted
+        nan_payload, // door 1 open today: literal(NaN) accepted
     ];
     let mut log: Vec<Edit> = vec![Edit::SetDocParam {
         name: ParamName::new("neg_zero"),
@@ -111,12 +111,18 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     let (neg, _) = apply_all(Doc::empty(), &[point_edit(len(-0.0))]);
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
-        pos.node(pos.order()[0]).unwrap().expr(SlotId::Origin(editor_core::Axis3::X)).unwrap(),
+        pos.node(pos.order()[0])
+            .unwrap()
+            .expr(SlotId::Origin(editor_core::Axis3::X))
+            .unwrap(),
         &pos.param_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
-        neg.node(neg.order()[0]).unwrap().expr(SlotId::Origin(editor_core::Axis3::X)).unwrap(),
+        neg.node(neg.order()[0])
+            .unwrap()
+            .expr(SlotId::Origin(editor_core::Axis3::X))
+            .unwrap(),
         &neg.param_env(),
     )
     .unwrap();
@@ -182,8 +188,14 @@ fn r2_dimension_smuggling_probes() {
         Expr::atan2(c(), c()),
         Err(DE::CountNeedsExplicitPromotion { .. })
     ));
-    assert_eq!(Expr::atan2(ang(1.0), ang(2.0)).unwrap().dim(), Dimension::Angle);
-    assert_eq!(Expr::atan2(scl(1.0), scl(2.0)).unwrap().dim(), Dimension::Angle);
+    assert_eq!(
+        Expr::atan2(ang(1.0), ang(2.0)).unwrap().dim(),
+        Dimension::Angle
+    );
+    assert_eq!(
+        Expr::atan2(scl(1.0), scl(2.0)).unwrap().dim(),
+        Dimension::Angle
+    );
     // Neg is dimension-transparent: Neg(Length) still refuses ×Length.
     let neg_l = Expr::neg(len(1.0));
     assert!(Expr::mul(neg_l, len(1.0)).is_err());
@@ -437,11 +449,9 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     use editor_core::Node;
     let (doc, ids) = apply_all(
         Doc::empty(),
-        &[
-            Edit::InsertNode {
-                node: Node::Profile("p"),
-            },
-        ],
+        &[Edit::InsertNode {
+            node: Node::Profile("p"),
+        }],
     );
     let a = doc
         .apply(&Edit::InsertNode {
@@ -533,7 +543,10 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
             value: DocParam::Count { value: 1 },
         })
         .unwrap();
-    assert!(free.record.structural, "Count doc-param set flags structural");
+    assert!(
+        free.record.structural,
+        "Count doc-param set flags structural"
+    );
 }
 
 /// R5 — `apply` purity, bit-checked: the input doc is bitwise
@@ -633,11 +646,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         Expr::atan2(len(1.0), len(2.0)).unwrap(),
         Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
         Expr::max(len(-0.0), len(0.0)).unwrap(),
-        Expr::mul(
-            Expr::count_to_scalar(Expr::count(21)).unwrap(),
-            len(0.002),
-        )
-        .unwrap(),
+        Expr::mul(Expr::count_to_scalar(Expr::count(21)).unwrap(), len(0.002)).unwrap(),
         Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap()),
     ];
     for (i, e) in cases.iter().enumerate() {
@@ -667,6 +676,89 @@ fn r8_interval_lane_representative_and_zero_divisor() {
     assert_eq!(vi.repr_bits().2, 0, "NaN literal → NaI in interval lane");
 }
 
+/// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
+/// (Declare insert — pure intent metadata — flags structural) but no
+/// FALSE NEGATIVE is constructible: a Count slot expression CANNOT
+/// reference a continuous doc param (refused), so no continuous-
+/// flagged edit can ever move a structural value. Pinned here; the
+/// wider reading is safe in the conservative direction only.
+#[test]
+fn r4_structural_flag_false_positive_but_no_false_negative() {
+    use editor_core::{Node, PatternKind};
+    let cnt_param = ParamName::new("n");
+    let doc = Doc::empty()
+        .apply(&Edit::SetDocParam {
+            name: cnt_param.clone(),
+            value: DocParam::Count { value: 4 },
+        })
+        .unwrap()
+        .doc;
+    let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
+    let pattern = |count: Expr| Edit::InsertNode {
+        node: Node::Pattern {
+            input: ids[0],
+            count,
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(0.005),
+            },
+        },
+    };
+    // Count slot referencing the Count doc param: accepted.
+    let a = doc
+        .apply(&pattern(Expr::param(cnt_param.clone(), Dimension::Count)))
+        .unwrap();
+    assert!(a.record.structural);
+    let pat_id = a.record.minted.unwrap();
+    let doc = a.doc;
+    // Attempted false negative: make the structural value depend on a
+    // CONTINUOUS param. The only promotion is Count→Scalar (wrong
+    // direction), and a Length-dim ref in a Count slot is refused at
+    // the slot-dimension check — unrepresentable, not just unvalidated.
+    let smuggle = Expr::param(ParamName::new("d_len"), Dimension::Length);
+    let res = doc.apply(&Edit::SetStructuralParam {
+        node: pat_id,
+        slot: SlotId::Count,
+        expr: smuggle,
+    });
+    assert!(
+        matches!(res, Err(EditError::SlotDimensionMismatch { .. })),
+        "got {res:?}"
+    );
+    // Continuous SetDocParam is flagged non-structural AND provably
+    // cannot move the pattern count: value before == after.
+    let n_before = eval_count(
+        doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
+        &doc.param_env::<f64>(),
+    )
+    .unwrap();
+    let a2 = doc
+        .apply(&Edit::SetDocParam {
+            name: ParamName::new("other"),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 9.0,
+            },
+        })
+        .unwrap();
+    assert!(!a2.record.structural);
+    let n_after = eval_count(
+        a2.doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
+        &a2.doc.param_env::<f64>(),
+    )
+    .unwrap();
+    assert_eq!(n_before, n_after);
+    // FALSE POSITIVE witness: inserting a Declare (no geometry, no
+    // slots, no inputs) is flagged structural under the wide reading.
+    let a3 = a2
+        .doc
+        .apply(&Edit::InsertNode {
+            node: Node::Declare { pairs: vec![] },
+        })
+        .unwrap();
+    assert!(a3.record.structural, "Declare insert flags structural");
+}
+
 /// BIT-compare two docs: structure via PartialEq fields, floats via
 /// to_bits (PartialEq would conflate -0.0/0.0 and reject NaN==NaN).
 /// Slot expressions are compared by evaluating literal trees to f64
@@ -679,13 +771,7 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     assert_eq!(pa.len(), pb.len(), "param count");
     for (name, p) in pa {
         match (p, pb.get(name).expect("param present")) {
-            (
-                DocParam::Continuous { dim, value },
-                DocParam::Continuous {
-                    dim: d2,
-                    value: v2,
-                },
-            ) => {
+            (DocParam::Continuous { dim, value }, DocParam::Continuous { dim: d2, value: v2 }) => {
                 assert_eq!(dim, d2, "param dim {name:?}");
                 assert_eq!(value.to_bits(), v2.to_bits(), "param bits {name:?}");
             }
