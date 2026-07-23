@@ -338,3 +338,135 @@ fn r2_inscribed_diamond_vertices_on_edges() {
         "expected VertexOnEdge findings: {errors:?}"
     );
 }
+
+// =================================================================
+// R4 — the saddle frontier (D8): pin what JoinDesync is, and stress
+// tilt families the 24-sweep missed, with a volume-identity oracle
+// (vol(A∪B) = vol(A)+vol(B)−vol(A∩B); vol(A∖B) = vol(A)−vol(A∩B))
+// that detects WRONG-RESULT outcomes the internal gates cannot.
+// =================================================================
+
+fn l_prism() -> Body<f64> {
+    prism_z::<f64>(
+        &[
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 4.0),
+            (0.0, 4.0),
+        ],
+        0.0,
+        1.0,
+    )
+    .body
+}
+
+/// Volume of a boolean outcome: `Some(v)` when it closed (Empty = 0),
+/// `None` on a typed refusal. Panics only on `PairingMismatch` — the
+/// D8 witness this hunt exists for.
+fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
+    match r {
+        Ok(BooleanResult::Body(b)) => Some(mass_properties(&b.body).unwrap().volume),
+        Ok(BooleanResult::Empty) => Some(0.0),
+        Err(BooleanError::PairingMismatch { .. }) => {
+            panic!("D8 WITNESS: PairingMismatch at {ctx}")
+        }
+        Err(_) => None,
+    }
+}
+
+/// The implementer's frontier fixture, pinned TIGHTLY: their test
+/// accepts `JoinDesync | PairingMismatch`; this one demands to know
+/// which. (If it ever flips to PairingMismatch, that is the D8
+/// witness and this test fails loudly to say so.)
+#[test]
+fn r4_frontier_is_joindesync_not_pairingmismatch() {
+    let a = l_prism();
+    let b = mapped_cube(|x, y, z| {
+        let (e1, e2, e3) = (
+            Vec3::new(0.9, -0.6, 0.5),
+            Vec3::new(0.7, 0.8, -0.55),
+            Vec3::new(-0.45, 0.5, 0.9),
+        );
+        Point3::new(
+            2.0 + x * e1.x + y * e2.x + z * e3.x,
+            2.0 + x * e1.y + y * e2.y + z * e3.y,
+            0.5 + x * e1.z + y * e2.z + z * e3.z,
+        )
+    });
+    let err = union(&a, &b).unwrap_err();
+    assert!(
+        matches!(err, BooleanError::JoinDesync { .. }),
+        "frontier moved: {err:?}"
+    );
+}
+
+/// Families the 24-tilt sweep missed: all three OPS (they swept union
+/// only), near-tangent tilts, and a rotation-only family (no shear).
+/// Every closing case must satisfy the inclusion-exclusion volume
+/// identities to 1e-9 — a wrong-but-gated body fails HERE even when
+/// tier 1–2 pass.
+#[test]
+fn r4_extended_sweep_volume_identities() {
+    let a = l_prism();
+    let va = mass_properties(&a).unwrap().volume;
+    let mut closed = 0;
+    let mut refused = 0;
+    for zc in [0.5f64, 1.0] {
+        for family in 0..2u8 {
+            for k in 0..10 {
+                let t = if k < 5 {
+                    0.02 + 0.03 * f64::from(k) // near-tangent band
+                } else {
+                    0.3 + 0.22 * f64::from(k - 5)
+                };
+                let (c, s) = (t.cos(), t.sin());
+                let map = move |x: f64, y: f64, z: f64| {
+                    let (x1, y1) = (x * c - y * s, x * s + y * c);
+                    if family == 0 {
+                        // Their family (rot + tilt + shear).
+                        let (t2c, t2s) = ((t / 2.0).cos(), (t / 2.0).sin());
+                        let (y2, z2) = (y1 * t2c - z * t2s, y1 * t2s + z * t2c);
+                        Point3::new(
+                            2.0 + 0.7 * x1 + 0.3 * y2,
+                            2.0 + 0.6 * y2 - 0.2 * z2 + 0.3 * x1,
+                            zc + 0.8 * z2 - 0.3 * x1,
+                        )
+                    } else {
+                        // Rotation-only about z then x — corner AT the
+                        // reflex site, no shear (higher symmetry).
+                        let (txc, txs) = (t.cos(), t.sin());
+                        let (y2, z2) = (y1 * txc - z * txs, y1 * txs + z * txc);
+                        Point3::new(2.0 + x1, 2.0 + y2, zc + z2)
+                    }
+                };
+                let b = mapped_cube(map);
+                let vb = mass_properties(&b).unwrap().volume;
+                let ctx = format!("zc={zc} family={family} k={k}");
+                let vu = vol_of(union(&a, &b), &ctx);
+                let vi = vol_of(intersect(&a, &b), &ctx);
+                let vs = vol_of(subtract(&a, &b), &ctx);
+                if let (Some(vu), Some(vi)) = (vu, vi) {
+                    assert!(
+                        (vu - (va + vb - vi)).abs() <= 1e-9,
+                        "{ctx}: union identity broke: {vu} vs {va}+{vb}-{vi}"
+                    );
+                    closed += 1;
+                }
+                if let (Some(vs), Some(vi)) = (vs, vi) {
+                    assert!(
+                        (vs - (va - vi)).abs() <= 1e-9,
+                        "{ctx}: subtract identity broke: {vs} vs {va}-{vi}"
+                    );
+                }
+                if vu.is_none() || vi.is_none() || vs.is_none() {
+                    refused += 1;
+                }
+            }
+        }
+    }
+    // The sweep must EXERCISE both outcomes to mean anything.
+    eprintln!("R4 sweep: {closed} identity-checked, {refused} typed refusals");
+    assert!(closed > 0, "sweep never closed — fixtures miss the site");
+}
