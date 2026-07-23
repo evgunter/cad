@@ -536,6 +536,137 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     assert!(free.record.structural, "Count doc-param set flags structural");
 }
 
+/// R5 — `apply` purity, bit-checked: the input doc is bitwise
+/// untouched by successful AND failing applies; repeated application
+/// of the same edit is deterministic (results bit-identical).
+#[test]
+fn r5_apply_pure_and_deterministic_bitwise() {
+    let (doc, ids) = apply_all(
+        Doc::empty(),
+        &[point_edit(len(-0.0)), point_edit(len(5e-324))],
+    );
+    let snapshot = doc.clone();
+    // Successful apply: input untouched.
+    let e = Edit::SetParam {
+        node: ids[0],
+        slot: SlotId::Origin(editor_core::Axis3::Y),
+        expr: len(f64::from_bits(0x3FF0000000000001)),
+    };
+    let a1 = doc.apply(&e).unwrap();
+    assert_bit_identical(&doc, &snapshot);
+    // Failing apply: input untouched (delete of a referenced node —
+    // build an extrude on a profile to get a refusal).
+    let bad = doc.apply(&Edit::DeleteNode {
+        id: RecipeNodeId(424_242),
+    });
+    assert!(bad.is_err());
+    assert_bit_identical(&doc, &snapshot);
+    // Determinism: same edit, same input → bit-identical outputs,
+    // including the minted-id stream.
+    let a2 = doc.apply(&e).unwrap();
+    assert_bit_identical(&a1.doc, &a2.doc);
+    assert_eq!(a1.record, a2.record);
+    // eval purity in (expr, params): repeated evals bit-identical.
+    let expr = Expr::div(len(0.1), scl(0.3)).unwrap();
+    let env = ParamEnv::<f64>::default();
+    let (v1, v2) = (
+        eval::<f64>(&expr, &env).unwrap(),
+        eval::<f64>(&expr, &env).unwrap(),
+    );
+    assert_eq!(v1.to_bits(), v2.to_bits());
+}
+
+/// R6 EXPECTED-GAP (pre-fix-pass) — the non-finite conduit, witnessed
+/// for the fix pass to close:
+/// door 2: Div mints inf (x/0) and NaN (0/0) from FINITE documents
+///         and both flow out of `eval` as Ok — no typed refusal;
+/// door 1: literal(NaN/inf) and SetDocParam(NaN) are ACCEPTED at
+///         construction/edit time today.
+/// The orchestrator ruled doors 1+2 land in the fix pass; these pins
+/// must FLIP then.
+#[test]
+fn r6_nonfinite_conduit_witnessed() {
+    let env = ParamEnv::<f64>::default();
+    // Door 2: finite inputs, non-finite outputs, all Ok(_) today.
+    let inf = eval::<f64>(&Expr::div(len(1.0), scl(0.0)).unwrap(), &env).unwrap();
+    assert!(inf.is_infinite(), "1/0 flows out as inf (witness)");
+    let nan = eval::<f64>(&Expr::div(len(0.0), scl(0.0)).unwrap(), &env).unwrap();
+    assert!(nan.is_nan(), "0/0 flows out as NaN (witness)");
+    // tan at ±π/2 is finite-but-huge in f64 (not a conduit); the trig
+    // conduits are arg-dependent NaN via inf propagation:
+    let tan_inf = eval::<f64>(
+        &Expr::sin(Expr::literal(f64::INFINITY, Dimension::Angle).unwrap()).unwrap(),
+        &env,
+    )
+    .unwrap();
+    assert!(tan_inf.is_nan(), "sin(inf literal) → NaN (witness)");
+    // Door 1: NaN/inf injectable at construction and via SetDocParam.
+    assert!(Expr::literal(f64::NAN, Dimension::Length).is_ok());
+    assert!(Expr::literal(f64::NEG_INFINITY, Dimension::Angle).is_ok());
+    let res = Doc::empty().apply(&Edit::SetDocParam {
+        name: ParamName::new("poison"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: f64::NAN,
+        },
+    });
+    assert!(res.is_ok(), "SetDocParam(NaN) accepted today (witness)");
+}
+
+/// R8 — Interval instantiation over a representative expression set:
+/// every enclosure must contain the f64 result; the zero-divisor Div
+/// must come out POISONED (empty/NaI or decoration-demoted), never a
+/// confident finite enclosure. (Source sweep: editor-core contains no
+/// `x*x` self-multiplication anywhere — checked by grep, noted in the
+/// review report; powi discipline is geom-core's.)
+#[cfg(feature = "interval")]
+#[test]
+fn r8_interval_lane_representative_and_zero_divisor() {
+    use editor_core::eval;
+    use geom_core::Interval;
+    let env_f = ParamEnv::<f64>::default();
+    let env_i = ParamEnv::<Interval>::default();
+    let cases: Vec<Expr> = vec![
+        Expr::add(len(0.1), len(0.2)).unwrap(),
+        Expr::mul(scl(3.0), Expr::div(len(1.0), scl(7.0)).unwrap()).unwrap(),
+        Expr::sin(ang(std::f64::consts::FRAC_PI_6)).unwrap(),
+        Expr::atan2(len(1.0), len(2.0)).unwrap(),
+        Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
+        Expr::max(len(-0.0), len(0.0)).unwrap(),
+        Expr::mul(
+            Expr::count_to_scalar(Expr::count(21)).unwrap(),
+            len(0.002),
+        )
+        .unwrap(),
+        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap()),
+    ];
+    for (i, e) in cases.iter().enumerate() {
+        let vf = eval::<f64>(e, &env_f).unwrap();
+        let vi = eval::<Interval>(e, &env_i).unwrap();
+        let (lo, hi, dec) = vi.repr_bits();
+        let (lo, hi) = (f64::from_bits(lo), f64::from_bits(hi));
+        assert!(dec >= 2, "case {i}: decoration {dec} (poisoned?)");
+        assert!(
+            lo <= vf && vf <= hi,
+            "case {i}: enclosure [{lo:e},{hi:e}] misses f64 {vf:e}"
+        );
+    }
+    // Zero-containing divisor: must NOT be a confident enclosure.
+    let div0 = Expr::div(len(1.0), scl(0.0)).unwrap();
+    let vi = eval::<Interval>(&div0, &env_i).unwrap();
+    let (lo, hi, dec) = vi.repr_bits();
+    eprintln!(
+        "WITNESS interval 1/[0,0]: lo={:e} hi={:e} dec={dec}",
+        f64::from_bits(lo),
+        f64::from_bits(hi)
+    );
+    assert!(dec <= 1, "1/[0,0] must be Trv/Ill-poisoned, got {dec}");
+    // NaN literal entering the interval lane: from_f64 poisons (NaI).
+    let nan_lit = Expr::literal(f64::NAN, Dimension::Length).unwrap();
+    let vi = eval::<Interval>(&nan_lit, &env_i).unwrap();
+    assert_eq!(vi.repr_bits().2, 0, "NaN literal → NaI in interval lane");
+}
+
 /// BIT-compare two docs: structure via PartialEq fields, floats via
 /// to_bits (PartialEq would conflate -0.0/0.0 and reject NaN==NaN).
 /// Slot expressions are compared by evaluating literal trees to f64
