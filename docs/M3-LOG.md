@@ -629,6 +629,27 @@ table, voids documentation), the sweep has picked up:
   the dropped-record configurations are re-derivable at the 3′ gate;
   silent record loss over live coincidence is not acceptable there.
 
+## PR 6 launch (session 4) — 2026-07-23
+
+PR 6 runs as three PRs per the retrospective agreement. **6(a) binding
+spec written and committed (`docs/M3-PR6A-SPEC.md`); its design
+decisions D1–D10 approved by Evan in-chat 2026-07-23** — notably:
+two-directional certification (UndeclaredContact / a
+StaleContactDeclaration for unwitnessed declarations; no
+scan-to-bless either way), descendant-map contact carriage across
+seam-zip/coplanar-merge mints (re-derivation rejected as
+scan-to-bless), native Intersection minting on split/boolean section
+edges (test-only upgrade helper retired), below-copy minting at BOB
+pinches, validity class carried on the result wrapper not on `Body`
+(the binding F1 interpretation; 6(b) ratifies the wording into
+DESIGN.md). 6(c) = `scripts/gate.sh` per the caching investigation
+(orchestrator-reviewed, no separate reviewer — process script, its
+e2e test is running it). 6(b) = docs sweep + Evan-approved state-doc
+trim (charter bullets above); queued behind (a) because it consumes
+(a)'s closure table and predicate names. Usage-limit monitor
+retired from the session-start checklist (Evan: it never measured
+Fable-specific usage, the limit that actually binds).
+
 ## PR 5.5 (cross-solid seam discipline) — implement + review + fix pass — 2026-07-22/23
 
 Merged as **#70** (`fd90a54`), full writeup in the PR body. The short
