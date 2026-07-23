@@ -1,0 +1,653 @@
+//! The evaluation service (M4 PR 2; ratified F2 shape, spec D2–D6):
+//! `evaluate(doc) → Evaluation<T>` — the result DAG, memoized
+//! incremental recompute on content keys, cooperative cancelation with
+//! epochs, and D9-addendum idiom-1 parallelism over independent nodes.
+//!
+//! Layering (spec D1): this module is where editor-core joins the
+//! kernel op crates (`profile`, `sweep`, `topo`) — editor-core sits
+//! ABOVE the kernel (G1); the kernel crates gain no editor-core
+//! dependency.
+//!
+//! Failure semantics (spec D2, GQ2 ratified): a node failure poisons
+//! its DESCENDANTS ONLY; independent subgraphs complete. Kernel errors
+//! are wrapped UNALTERED (no stringification) with (node, slot)
+//! context — including PR 1's banked `NonFiniteResult` obligation:
+//! every expression evaluated during node evaluation carries the node
+//! and slot it came from.
+
+mod memo;
+mod schedule;
+mod slots;
+mod wire;
+
+pub use memo::{ContentBits, ContentKey, KeyHasher};
+
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+use geom_core::{Decide, Indeterminate, Point3, Vec3};
+use profile::{ProfileError, ValidatedProfile};
+use sweep::{ExtrudeError, RevolveError};
+use topo::splitting::SplitError;
+use topo::transform::TransformError;
+use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+
+use crate::doc::Doc;
+use crate::expr::EvalError;
+use crate::node::{RecipeNodeId, SlotId, StableName};
+use crate::profile_desc::ProfileDesc;
+
+/// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
+/// per-node result map, with the run's epoch, outcome, and the
+/// D4-acceptance recompute counters.
+#[derive(Debug)]
+pub struct Evaluation<T: Decide> {
+    /// This evaluation's identity token (spec D5) — the caller's
+    /// stale-result discrimination hook.
+    pub epoch: Epoch,
+    /// Deterministic topological order of the live nodes (spec D2:
+    /// a pure function of the DAG; Kahn's algorithm, tiebreak
+    /// `RecipeNodeId` ascending). Always the FULL order, even when
+    /// canceled — order is data, not schedule.
+    pub order: Vec<RecipeNodeId>,
+    /// Per-node results. On cancelation this holds the completed
+    /// prefix only.
+    pub nodes: BTreeMap<RecipeNodeId, NodeResult<T>>,
+    /// Completed or canceled (spec D5's typed partial result).
+    pub outcome: EvalOutcome,
+    /// How many nodes actually ran their op this evaluation (spec D4's
+    /// acceptance counter: the downstream cone of an edit).
+    pub recomputed: usize,
+    /// How many nodes were reused from the prior evaluation by
+    /// content-key match.
+    pub reused: usize,
+}
+
+impl<T: Decide> Evaluation<T> {
+    /// The node's successful value, if it has one.
+    pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
+        match self.nodes.get(&id) {
+            Some(NodeResult::Ok(v)) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+/// Whether the evaluation ran to completion (spec D5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvalOutcome {
+    /// Every scheduled node has a result.
+    Completed,
+    /// The cancel token was observed set at a yield point; `nodes`
+    /// holds the completed prefix.
+    Canceled,
+}
+
+/// One node's outcome (F2 verbatim, spec D2).
+#[derive(Debug)]
+pub enum NodeResult<T: Decide> {
+    /// The node evaluated to a value.
+    Ok(NodeValue<T>),
+    /// The node itself failed — the typed root cause.
+    Failed(NodeError),
+    /// An ancestor failed; this node never ran (GQ2: descendants
+    /// only). `through` names the NEAREST FAILED ancestor — not
+    /// necessarily the root cause of a longer chain, but every
+    /// `through` points at a `Failed` entry, so the chain is walkable
+    /// in one hop per poisoned run.
+    Poisoned {
+        /// The nearest failed ancestor.
+        through: RecipeNodeId,
+    },
+}
+
+/// A successful node value (spec D2): the op-appropriate payload plus
+/// the reserved PR 3 / M6 slots and the node's content key.
+#[derive(Debug, Clone)]
+pub struct NodeValue<T: Decide> {
+    /// What the node's op produced.
+    pub payload: ValuePayload<T>,
+    /// RESERVED empty slot: the per-node name table (PR 3 fills).
+    pub name_table: NameTableSlot,
+    /// RESERVED empty slot: the solved witness assignment (M6 fills).
+    pub witness: WitnessSlot,
+    /// The node's input-content hash (spec D4) — the memo currency.
+    pub content_key: ContentKey,
+}
+
+/// PR 3's per-node name table, as a type stub (spec D2: shape
+/// reserved now so `NodeValue` does not churn when it lands).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NameTableSlot {}
+
+/// M6's solved-assignment slot, as a type stub (spec D2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WitnessSlot {}
+
+/// The op-appropriate value a node evaluates to (spec D2's
+/// "`Vec<Body<T>>`-shaped output (op-appropriate)", made typed per op
+/// family; spec D3 fixes each node's semantics).
+#[derive(Debug, Clone)]
+pub enum ValuePayload<T: Decide> {
+    /// A datum evaluated to geometry values (D3: frames/axes as
+    /// values; directions normalized, degenerate refused).
+    Datum(DatumValue<T>),
+    /// A validated profile (D3: the wrapped description through the
+    /// profile crate's validation door).
+    Profile(Arc<ValidatedProfile<T>>),
+    /// A single body: Extrude, Revolve, Transform.
+    Body(Arc<Body<T>>),
+    /// A boolean's result: a body with its contact records, or the
+    /// typed empty success (F8; D3).
+    Boolean(BooleanValue<T>),
+    /// Split's BOTH parts, role-tagged by field (D3).
+    Split {
+        /// Material on the tool plane's normal side.
+        above: SplitSide<T>,
+        /// Material on the opposite side.
+        below: SplitSide<T>,
+    },
+    /// A pattern's instances AS DATA (D3: patterns do not implicitly
+    /// union; index `i` is the A8/N1 `Instance(i)` substrate).
+    Instances(Vec<Arc<Body<T>>>),
+    /// A Declare node's pairs, passed through as data (D3; threading
+    /// into booleans is PR 5).
+    Declarations(Vec<(StableName, StableName)>),
+}
+
+impl<T: Decide> ValuePayload<T> {
+    /// The payload family, for typed operand mismatches.
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Self::Datum(_) => "datum",
+            Self::Profile(_) => "profile",
+            Self::Body(_) => "body",
+            Self::Boolean(_) => "boolean",
+            Self::Split { .. } => "split",
+            Self::Instances(_) => "instances",
+            Self::Declarations(_) => "declarations",
+        }
+    }
+}
+
+/// A boolean node's typed result (F8: ∅ is a value, not an error).
+#[derive(Debug, Clone)]
+pub enum BooleanValue<T: Decide> {
+    /// The regularized result is empty — typed success.
+    Empty,
+    /// A real result body.
+    Body {
+        /// The result body.
+        body: Arc<Body<T>>,
+        /// How the kernel produced it.
+        kind: BooleanResultKind,
+        /// Declared contacts surviving into the result (the
+        /// `BooleanBody` contract, spec D2).
+        contacts: Arc<ContactRecords>,
+    },
+}
+
+/// One side of a split's output (both parts are the node's output,
+/// role-tagged — spec D3).
+#[derive(Debug, Clone)]
+pub enum SplitSide<T: Decide> {
+    /// No material on this side.
+    Empty,
+    /// This side's material as an independent body.
+    Body(Arc<Body<T>>),
+}
+
+/// An evaluated datum (spec D3): geometry VALUES, not kernel entities.
+/// Normals/directions are normalized at evaluation; a degenerate
+/// (decided-zero-length) vector is a typed refusal.
+#[derive(Debug, Clone)]
+pub enum DatumValue<T: Decide> {
+    /// A plane through `origin` with UNIT `normal`.
+    Plane {
+        /// A point on the plane.
+        origin: Point3<T>,
+        /// The unit normal.
+        normal: Vec3<T>,
+    },
+    /// An axis through `origin` along UNIT `dir`.
+    Axis {
+        /// A point on the axis.
+        origin: Point3<T>,
+        /// The unit direction.
+        dir: Vec3<T>,
+    },
+    /// A point.
+    Point {
+        /// Its position.
+        position: Point3<T>,
+    },
+}
+
+/// A node's typed failure: the wrapped cause plus the node it happened
+/// at (spec D2's context contract; slot context lives in
+/// [`NodeErrorKind::Expr`] — the PR 1 `NonFiniteResult` obligation).
+#[derive(Debug)]
+pub struct NodeError {
+    /// The node that failed.
+    pub node: RecipeNodeId,
+    /// The typed cause.
+    pub kind: NodeErrorKind,
+}
+
+/// The closed set of node-evaluation failures. Kernel errors are
+/// carried UNALTERED (spec D2: no stringification).
+#[derive(Debug)]
+pub enum NodeErrorKind {
+    /// An expression slot failed to evaluate — (node, slot) context
+    /// around [`EvalError`], including `NonFiniteResult` (the PR 1
+    /// banked obligation).
+    Expr {
+        /// The slot whose expression failed.
+        slot: SlotId,
+        /// The expression evaluator's refusal, unaltered.
+        source: EvalError,
+    },
+    /// Profile validation refused the description.
+    Profile(ProfileError),
+    /// The extrude op refused.
+    Extrude(ExtrudeError),
+    /// The revolve op refused.
+    Revolve(RevolveError),
+    /// The split op refused.
+    Split(SplitError),
+    /// The boolean op refused.
+    Boolean(BooleanError),
+    /// The rigid-transform op refused.
+    Transform(TransformError),
+    /// An input id names no live node (a dangling reference —
+    /// unreachable through `apply`, refused typed anyway).
+    MissingInput {
+        /// The dangling id.
+        input: RecipeNodeId,
+    },
+    /// An input's value family does not fit this operand (e.g. a
+    /// boolean fed a split's two-part value — selecting a part needs
+    /// PR 3's naming layer).
+    WrongOperand {
+        /// The offending input node.
+        input: RecipeNodeId,
+        /// What the operand needed.
+        expected: &'static str,
+        /// What the input's value is.
+        found: &'static str,
+    },
+    /// A body operand evaluated to the typed empty value — the kernel
+    /// ops take real bodies only (v1; ∅-absorbing semantics would be
+    /// invented behavior, spec D3's "wire, don't invent").
+    EmptyOperand {
+        /// The empty input node.
+        input: RecipeNodeId,
+    },
+    /// A direction-valued vector decided to zero length (datum
+    /// normal/direction, transform rotation axis, pattern direction).
+    DegenerateDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
+    /// The ambient tolerance could not form a classification band.
+    Band(geom_core::BandError),
+    /// A slot the wiring expected was absent from the node — a wiring
+    /// bug surfaced typed (unreachable while `Node::slots` and the
+    /// wire agree; no panic paths in this crate).
+    MissingSlot {
+        /// The absent slot.
+        slot: SlotId,
+    },
+    /// A decided predicate escalated (in-band indeterminacy).
+    Escalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// A revolve axis with a decided out-of-plane component (the
+    /// kernel's `RevolveAxis` is a sketch-plane datum; an axis not in
+    /// the profile's plane cannot be wired, only refused).
+    AxisNotInSketchPlane {
+        /// The axis datum node.
+        axis: RecipeNodeId,
+    },
+    /// A pattern count that is not at least 1.
+    NonPositiveCount {
+        /// The evaluated count.
+        count: i64,
+    },
+    /// The node is in (or downstream of) a dependency cycle — Kahn
+    /// never released it (unreachable through `apply`, refused typed).
+    UnschedulableCycle,
+}
+
+/// An evaluation's identity token (spec D5, GQ2): callers tag each
+/// launched evaluation and discriminate stale results by comparing the
+/// epoch a result carries against the newest one they minted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Epoch(pub u64);
+
+static EPOCH_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+impl Epoch {
+    /// Mints a process-unique epoch (monotone).
+    pub fn mint() -> Self {
+        Self(EPOCH_COUNTER.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+/// The cooperative cancel token (spec D5): checked BETWEEN nodes
+/// (sequential path) or between levels (parallel path) — node
+/// granularity in v1; tokens are never threaded into kernel ops.
+#[derive(Debug, Clone, Default)]
+pub struct CancelToken(Arc<AtomicBool>);
+
+impl CancelToken {
+    /// A fresh, un-canceled token.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Requests cancelation (any thread, any time).
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+
+    /// Whether cancelation has been requested.
+    pub fn is_canceled(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// Evaluation options (spec D5/D6).
+#[derive(Debug, Clone)]
+pub struct EvalOptions {
+    /// The identity token to carry (spec D5). [`EvalOptions::default`]
+    /// mints a fresh one.
+    pub epoch: Epoch,
+    /// Whether independent nodes may run under rayon idiom 1 (spec
+    /// D6). A RUNTIME switch so the D9 determinism cross-check can
+    /// compare both schedules in one test run; results land by node
+    /// id either way — order is data, not schedule.
+    pub parallel: bool,
+}
+
+impl Default for EvalOptions {
+    fn default() -> Self {
+        Self {
+            epoch: Epoch::mint(),
+            parallel: false,
+        }
+    }
+}
+
+/// Evaluates the document (spec D2–D6): a TOTAL function — every
+/// failure is a per-node typed result, never a top-level error or a
+/// panic.
+///
+/// `prior` is the memo (spec D4): nodes whose content key matches the
+/// prior evaluation reuse the prior value without re-running the op;
+/// only the downstream cone of changed keys re-evaluates.
+///
+/// `cancel` is checked between nodes (sequential) or between levels
+/// (parallel) — spec D5's cooperative yield points at node
+/// granularity; a canceled run returns the completed prefix with
+/// [`EvalOutcome::Canceled`].
+pub fn evaluate<T>(
+    doc: &Doc<ProfileDesc>,
+    prior: Option<&Evaluation<T>>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + Send + Sync,
+{
+    let sched = schedule::schedule(doc);
+    let env = doc.param_env::<T>();
+    let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
+    let mut recomputed = 0usize;
+    let mut reused = 0usize;
+    let mut outcome = EvalOutcome::Completed;
+
+    if opts.parallel {
+        for level in &sched.levels {
+            if cancel.is_canceled() {
+                outcome = EvalOutcome::Canceled;
+                break;
+            }
+            // D6 / D9-addendum idiom 1: an INDEXED parallel map into
+            // per-node slots — results land keyed by node id, the
+            // combination is positional (one map entry per node),
+            // never arithmetic, so the schedule cannot leak into bits.
+            use rayon::prelude::*;
+            let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
+                .par_iter()
+                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior)))
+                .collect();
+            for (id, step) in results {
+                bookkeep(&step, &mut recomputed, &mut reused);
+                nodes.insert(id, step.result);
+            }
+        }
+    } else {
+        for &id in &sched.order {
+            if cancel.is_canceled() {
+                outcome = EvalOutcome::Canceled;
+                break;
+            }
+            let step = eval_node(doc, &env, id, &nodes, prior);
+            bookkeep(&step, &mut recomputed, &mut reused);
+            nodes.insert(id, step.result);
+        }
+    }
+
+    // Cycle leftovers (unreachable through `apply`): typed refusals,
+    // appended after the schedulable order so `order` still covers
+    // every live node.
+    let mut order = sched.order;
+    for &id in &sched.unschedulable {
+        order.push(id);
+        if outcome == EvalOutcome::Completed {
+            nodes.insert(
+                id,
+                NodeResult::Failed(NodeError {
+                    node: id,
+                    kind: NodeErrorKind::UnschedulableCycle,
+                }),
+            );
+        }
+    }
+
+    Evaluation {
+        epoch: opts.epoch,
+        order,
+        nodes,
+        outcome,
+        recomputed,
+        reused,
+    }
+}
+
+/// One node's evaluation step: the result plus whether it was a memo
+/// reuse (for the D4 counters).
+struct NodeStep<T: Decide> {
+    result: NodeResult<T>,
+    reused: bool,
+}
+
+fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut usize) {
+    match &step.result {
+        NodeResult::Ok(_) | NodeResult::Failed(_) => {
+            if step.reused {
+                *reused += 1;
+            } else {
+                *recomputed += 1;
+            }
+        }
+        NodeResult::Poisoned { .. } => {}
+    }
+}
+
+/// Evaluates one node against the results so far: poison propagation,
+/// slot evaluation with (node, slot) context, content key, memo
+/// lookup, and the op wiring.
+fn eval_node<T>(
+    doc: &Doc<ProfileDesc>,
+    env: &crate::expr::ParamEnv<T>,
+    id: RecipeNodeId,
+    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+    prior: Option<&Evaluation<T>>,
+) -> NodeStep<T>
+where
+    T: Decide + ContentBits,
+{
+    let fail = |kind: NodeErrorKind| NodeStep {
+        result: NodeResult::Failed(NodeError { node: id, kind }),
+        reused: false,
+    };
+    let Some(node) = doc.node(id) else {
+        // Unreachable: the schedule only lists live nodes.
+        return fail(NodeErrorKind::MissingInput { input: id });
+    };
+
+    // Poison propagation (spec D2, GQ2): first blocking input in the
+    // node's deterministic input order; `through` always names a
+    // FAILED node (propagated through poisoned intermediaries).
+    let mut upstream_keys: Vec<ContentKey> = Vec::new();
+    for input in node.inputs() {
+        match results.get(&input) {
+            None => return fail(NodeErrorKind::MissingInput { input }),
+            Some(NodeResult::Failed(_)) => {
+                return NodeStep {
+                    result: NodeResult::Poisoned { through: input },
+                    reused: false,
+                };
+            }
+            Some(NodeResult::Poisoned { through }) => {
+                return NodeStep {
+                    result: NodeResult::Poisoned { through: *through },
+                    reused: false,
+                };
+            }
+            Some(NodeResult::Ok(v)) => upstream_keys.push(v.content_key),
+        }
+    }
+
+    // Slot evaluation — the (node, slot) context door (PR 1's banked
+    // NonFiniteResult obligation lands here).
+    let slot_values = match slots::eval_slots(node, env) {
+        Ok(v) => v,
+        Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+    };
+
+    let content_key = content_key(node, &slot_values, &upstream_keys);
+
+    // Memo (spec D4): same key ⇒ same inputs ⇒ (D9) same output.
+    if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
+        && v.content_key == content_key
+    {
+        return NodeStep {
+            result: NodeResult::Ok(v.clone()),
+            reused: true,
+        };
+    }
+
+    match wire::run_op(node, results, &slot_values) {
+        Ok(payload) => NodeStep {
+            result: NodeResult::Ok(NodeValue {
+                payload,
+                name_table: NameTableSlot {},
+                witness: WitnessSlot {},
+                content_key,
+            }),
+            reused: false,
+        },
+        Err(kind) => fail(kind),
+    }
+}
+
+/// The content key (spec D4): op kind, structural params, evaluated
+/// expression values AS BITS, upstream keys — plus the ambient
+/// tolerance (ε, k), which parameterizes every decision the kernel
+/// ops make, and a leading format version.
+fn content_key<T>(
+    node: &crate::node::Node<ProfileDesc>,
+    slot_values: &slots::SlotValues<T>,
+    upstream_keys: &[ContentKey],
+) -> ContentKey
+where
+    T: Decide + ContentBits,
+{
+    use crate::node::{Datum, Node, PatternKind};
+    let mut h = KeyHasher::new();
+    h.write_tag(1); // key format v1
+    let tol = geom_core::Tolerance::get();
+    h.write_f64_bits(tol.eps);
+    h.write_f64_bits(tol.k);
+    let tag = match node {
+        Node::Datum(Datum::Plane { .. }) => 1,
+        Node::Datum(Datum::Axis { .. }) => 2,
+        Node::Datum(Datum::Point { .. }) => 3,
+        Node::Profile(_) => 4,
+        Node::Extrude { .. } => 5,
+        Node::Revolve { .. } => 6,
+        Node::Split { .. } => 7,
+        Node::Boolean { op, .. } => match op {
+            crate::node::BooleanOp::Union => 8,
+            crate::node::BooleanOp::Intersect => 9,
+            crate::node::BooleanOp::Subtract => 10,
+        },
+        Node::Transform { .. } => 11,
+        Node::Pattern { kind, .. } => match kind {
+            PatternKind::Linear { .. } => 12,
+            PatternKind::Circular { .. } => 13,
+        },
+        Node::Declare { .. } => 14,
+    };
+    h.write_tag(tag);
+    // Structural payloads beyond the tag: profile floats and Declare
+    // pairs (StableName is float-free by construction).
+    match node {
+        Node::Profile(desc) => {
+            for bits in desc.float_bits() {
+                h.write_u64(bits);
+            }
+        }
+        Node::Declare { pairs } => {
+            h.write_u64(pairs.len() as u64);
+            for (a, b) in pairs {
+                for name in [a, b] {
+                    h.write_tag(match name.kind {
+                        crate::node::EntityKind::Body => 1,
+                        crate::node::EntityKind::Face => 2,
+                        crate::node::EntityKind::Edge => 3,
+                        crate::node::EntityKind::Vertex => 4,
+                    });
+                    h.write_u64(name.node.0);
+                    h.write_u64(name.path.len() as u64);
+                    for seg in &name.path {
+                        h.write_u64(u64::from(seg.0));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    // Evaluated slot values, in the node's deterministic slot order.
+    for (i, (_slot, val)) in slot_values.iter().enumerate() {
+        h.write_u64(i as u64);
+        match val {
+            slots::SlotVal::Scalar(v) => v.feed(&mut h),
+            slots::SlotVal::Count(n) => h.write_i64(*n),
+        }
+    }
+    // Upstream identity, by CONTENT (never by id — ids are stable
+    // labels, content keys are the Merkle links).
+    h.write_u64(upstream_keys.len() as u64);
+    for k in upstream_keys {
+        h.write_key(*k);
+    }
+    h.finish()
+}
