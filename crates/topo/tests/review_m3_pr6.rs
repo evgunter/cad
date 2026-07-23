@@ -109,11 +109,7 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// reading. Controls: each single-sided half succeeds under the SAME
 /// plane with exact volume conservation.
 fn both_sided_pinch_scenario<T: Decide + Bounds>() {
-    for (profile, must_succeed) in [
-        (BUMP_ONLY, true),
-        (NOTCH_ONLY, true),
-        (BOTH_SIDED, false),
-    ] {
+    for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
         let fx = prism::<T>(profile, 1.0);
         let v0 = mass_properties(&fx.body).unwrap().volume;
         match split(&fx.body, &plane_y::<T>(1.0, 1.0)) {
@@ -184,8 +180,7 @@ fn mirror_identity_scenario<T: Decide + Bounds>() {
                 y.vertices().count(),
                 "{profile:?} {side} vertices"
             );
-            let d = (mass_properties(x).unwrap().volume - mass_properties(y).unwrap().volume)
-                .abs();
+            let d = (mass_properties(x).unwrap().volume - mass_properties(y).unwrap().volume).abs();
             assert!(d.hi() <= 1e-9, "{side}: volume mismatch {d:?}");
         }
         // Section-normal convention: outward normals point away from
@@ -202,8 +197,7 @@ fn mirror_identity_scenario<T: Decide + Bounds>() {
         ] {
             let mut found = 0;
             for (_, f) in part.faces() {
-                let Some(topo::Surface::Plane { origin, normal, .. }) =
-                    part.get_surface(f.surface)
+                let Some(topo::Surface::Plane { origin, normal, .. }) = part.get_surface(f.surface)
                 else {
                     continue;
                 };
@@ -211,9 +205,17 @@ fn mirror_identity_scenario<T: Decide + Bounds>() {
                 if on_plane && normal.y.lo().abs().max(normal.y.hi().abs()) > 0.99 {
                     found += 1;
                     if want_down {
-                        assert!(normal.y.hi() < 0.0, "{profile:?} above-side normal {:?}", normal.y);
+                        assert!(
+                            normal.y.hi() < 0.0,
+                            "{profile:?} above-side normal {:?}",
+                            normal.y
+                        );
                     } else {
-                        assert!(normal.y.lo() > 0.0, "{profile:?} below-side normal {:?}", normal.y);
+                        assert!(
+                            normal.y.lo() > 0.0,
+                            "{profile:?} below-side normal {:?}",
+                            normal.y
+                        );
                     }
                 }
             }
@@ -280,7 +282,7 @@ fn r2_coplanar_plus_overlap_detected() {
 /// the report (the PR calls skeleton-certification deliberate).
 #[test]
 fn r2_flush_stack_full_overlap() {
-    let mut body = mapped_cube(|x, y, z| Point3::new(x, y, z));
+    let mut body = mapped_cube(Point3::new);
     cube_into(&mut body, |x, y, z| Point3::new(x, y, 1.0 + z));
     let errors = validate_pseudomanifold(&body, &ContactRecords::default()).unwrap_err();
     assert!(!errors.is_empty(), "flush stack must not pass undeclared");

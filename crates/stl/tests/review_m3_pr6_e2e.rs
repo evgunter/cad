@@ -81,8 +81,7 @@ fn r6_pocketed_dice_kiss_e2e() {
         validate_pseudomanifold(&assembly.body, &assembly.contacts),
         Ok(())
     );
-    let withheld =
-        validate_pseudomanifold(&assembly.body, &ContactRecords::default()).unwrap_err();
+    let withheld = validate_pseudomanifold(&assembly.body, &ContactRecords::default()).unwrap_err();
     assert!(
         withheld
             .iter()
