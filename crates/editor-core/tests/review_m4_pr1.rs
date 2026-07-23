@@ -43,13 +43,13 @@ fn apply_all(doc: Doc, edits: &[Edit]) -> (Doc, Vec<RecipeNodeId>) {
 }
 
 /// R1 — replay reproduces the doc BIT-identically under adversarial
-/// floats (-0.0, subnormals, last-ulp pairs, NaN payload) with delete
-/// churn interleaved. NaN literal is constructible today (R6 door 1
-/// open pre-fix-pass), so replay must carry it bit-faithfully too.
+/// floats (-0.0, subnormals, last-ulp pairs) with delete churn
+/// interleaved. (Fix pass: NaN payloads are no longer constructible —
+/// door 1 refuses non-finite literals — so the adversarial set is the
+/// full FINITE bit-hazard menagerie.)
 #[test]
 fn r1_replay_bit_identity_adversarial() {
     let ulp1 = f64::from_bits(0x3FF0000000000001); // 1.0 + 1 ulp
-    let nan_payload = f64::from_bits(0x7FF80000DEADBEEF);
     let adversarial = [
         -0.0,
         0.0,
@@ -60,7 +60,7 @@ fn r1_replay_bit_identity_adversarial() {
         ulp1,
         -ulp1,
         f64::MAX,
-        nan_payload, // door 1 open today: literal(NaN) accepted
+        -f64::MAX,
     ];
     let mut log: Vec<Edit> = vec![Edit::SetDocParam {
         name: ParamName::new("neg_zero"),
@@ -90,13 +90,15 @@ fn r1_replay_bit_identity_adversarial() {
     assert!(a.record.minted.unwrap() > *minted.iter().max().unwrap());
     doc = a.doc;
     log.push(e);
-    // Re-insert a NaN carrier so the FINAL doc holds one (the earlier
-    // one was deleted in the churn) — replay must carry its bits.
-    let e = point_edit(len(nan_payload));
+    // Re-insert a last-ulp carrier after the churn — replay must
+    // carry its exact bits through the re-minted id stream.
+    let e = point_edit(len(-ulp1));
     doc = doc.apply(&e).unwrap().doc;
     log.push(e);
     let replayed = Doc::replay(&log).unwrap();
     assert_bit_identical(&replayed, &doc);
+    // The crate's own bit-semantic comparator agrees (fix pass).
+    assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");
 }
 
 /// R1 WITNESS — `Doc: PartialEq` (which the crate's own replay test
@@ -127,17 +129,24 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     )
     .unwrap();
     assert_ne!(vp.to_bits(), vn.to_bits(), "bits differ");
-    // …but PartialEq and diff both say "identical" (witnessed gap).
-    assert_eq!(pos, neg, "PartialEq conflates -0.0/0.0 (witness)");
-    assert!(pos.diff(&neg).is_empty(), "diff blind to -0.0 (witness)");
-    // NaN: a doc is UNEQUAL to its own bit-identical replay.
-    let e = point_edit(len(f64::NAN));
-    let (nan_doc, _) = apply_all(Doc::empty(), std::slice::from_ref(&e));
-    let replayed = Doc::replay(std::slice::from_ref(&e)).unwrap();
-    assert_bit_identical(&replayed, &nan_doc);
-    assert_ne!(nan_doc, replayed, "PartialEq rejects NaN==NaN (witness)");
-    let d = nan_doc.diff(&replayed);
-    assert!(!d.is_empty(), "diff reports a phantom change (witness)");
+    // PartialEq stays IEEE-semantic (documented)…
+    assert_eq!(pos, neg, "PartialEq conflates -0.0/0.0 (by design)");
+    // …but the fix pass made diff and bit_eq BIT-semantic: the
+    // 0.0→-0.0 payload change is DETECTED (diff is the future
+    // SetTolerance-audit substrate and must not be bit-blind).
+    let d = pos.diff(&neg);
+    assert_eq!(
+        d.nodes,
+        vec![editor_core::NodeChange::Changed(pos.order()[0])],
+        "diff detects the signed-zero change"
+    );
+    assert!(!pos.bit_eq(&neg), "bit_eq distinguishes -0.0/0.0");
+    // NaN can no longer enter a document at all (door 1): the
+    // conflation hazard for NaN is gone at the source.
+    assert_eq!(
+        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        editor_core::DimensionError::NonFiniteLiteral
+    );
 }
 
 /// R2 — dimension smuggling via nested promotion / synthetic
@@ -244,24 +253,35 @@ fn r2_contradictory_param_dims_caught_downstream() {
     );
 }
 
-/// R2/R6 WITNESS (BUG) — `eval` of `CountToScalar(i64::MIN)` PANICS
-/// (`n.abs()` overflows) instead of returning the typed
-/// `CountToScalarInexact`: the ±2^53 guard calls `i64::abs` before
-/// range-checking. Fail-loud by accident, not by contract — a typed-
-/// error discipline break (and in release-without-overflow-checks,
-/// `abs` would WRAP negative and the guard would PASS i64::MIN into
-/// an inexact cast).
+/// R2/R6 REGRESSION (fixed) — `eval` of `CountToScalar(i64::MIN)`
+/// used to PANIC (`i64::abs` overflow in the old ±2^53 guard). The
+/// ruled fix routes promotion through `i32::try_from` +
+/// `f64::from(i32)`: total, exact, and i64::MIN is the same typed
+/// error as any other out-of-range count — never a panic.
 #[test]
-fn r2_count_to_scalar_i64_min_panics_instead_of_typed_error() {
-    let e = Expr::count_to_scalar(Expr::count(i64::MIN)).unwrap();
+fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
     let env = ParamEnv::<f64>::default();
-    let outcome = std::panic::catch_unwind(|| eval::<f64>(&e, &env));
-    match outcome {
-        Err(_) => eprintln!("WITNESS: eval(CountToScalar(i64::MIN)) panicked"),
-        Ok(r) => assert!(
-            matches!(r, Err(editor_core::EvalError::CountToScalarInexact(_))),
-            "if it no longer panics it must be the typed error; got {r:?}"
-        ),
+    for n in [
+        i64::MIN,
+        i64::MAX,
+        i64::from(i32::MAX) + 1,
+        i64::from(i32::MIN) - 1,
+    ] {
+        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
+        let outcome = std::panic::catch_unwind(|| eval::<f64>(&e, &env));
+        let r = outcome.expect("must never panic");
+        assert_eq!(
+            r,
+            Err(editor_core::EvalError::CountToScalarOutOfRange(n)),
+            "typed refusal for {n}"
+        );
+    }
+    // Boundary values promote exactly.
+    for n in [i64::from(i32::MIN), i64::from(i32::MAX)] {
+        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
+        #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
+        let expected = n as f64;
+        assert_eq!(eval::<f64>(&e, &env).unwrap(), expected);
     }
 }
 
@@ -376,14 +396,15 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     check(&d);
 }
 
-/// R4 WITNESS (HOLE) — `StableName.node` is a `RecipeNodeId` but is
-/// NOT a DAG edge (`Declare::inputs()` is empty), so:
+/// R4 (RULED, spec D3 carve-out) — `StableName.node` is a REFERENCE,
+/// not a DAG edge (`Declare::inputs()` stays empty), so:
 /// (1) DeleteNode of a node referenced ONLY by a Declare's pairs is
-///     ACCEPTED → the live Declare holds a stale RecipeNodeId;
-/// (2) InsertNode of a Declare whose StableName points at a NEVER-
-///     EXISTING node is ACCEPTED (no UnresolvedInput).
-/// Spec D3 says "apply rejects unresolvable refs"; whether name refs
-/// count as refs is the open question this witnesses.
+///     ACCEPTED → the Declare strands (N5 dangling semantics: loud
+///     `NodeGone` at resolution, `Rebind` repairs — documented on
+///     `Node::Declare`);
+/// (2) InsertNode of a Declare naming a node that does not EXIST at
+///     edit time is a TYPED REFUSAL (a never-existed id is a typo,
+///     caught at the best-diagnostics door).
 #[test]
 fn r4_stablename_node_refs_escape_ref_validation() {
     use editor_core::{EntityKind, Node, StableName};
@@ -421,13 +442,16 @@ fn r4_stablename_node_refs_escape_ref_validation() {
         }
         n => panic!("expected Declare, got {n:?}"),
     }
-    // (2) Insert a Declare naming an id that never existed.
+    // (2) Insert a Declare naming an id that never existed: REFUSED
+    // (fix pass, ruled carve-out).
     let phantom = RecipeNodeId(9999);
     let res = Doc::empty().apply(&declare(phantom));
-    assert!(
-        res.is_ok(),
-        "WITNESS: phantom StableName.node accepted at insert"
-    );
+    match res {
+        Err(EditError::DeclareNamesMissingNode { name }) => {
+            assert_eq!(name.node, phantom, "refusal names the typo'd id");
+        }
+        other => panic!("phantom StableName.node must be refused, got {other:?}"),
+    }
     // Contrast: a DAG-edge ref to the same phantom is refused.
     let res2 = Doc::empty().apply(&Edit::InsertNode {
         node: Node::Extrude {
@@ -589,41 +613,68 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     assert_eq!(v1.to_bits(), v2.to_bits());
 }
 
-/// R6 EXPECTED-GAP (pre-fix-pass) — the non-finite conduit, witnessed
-/// for the fix pass to close:
-/// door 2: Div mints inf (x/0) and NaN (0/0) from FINITE documents
-///         and both flow out of `eval` as Ok — no typed refusal;
-/// door 1: literal(NaN/inf) and SetDocParam(NaN) are ACCEPTED at
-///         construction/edit time today.
-/// The orchestrator ruled doors 1+2 land in the fix pass; these pins
-/// must FLIP then.
+/// R6 (RULED, fixed) — both non-finite doors are CLOSED:
+/// door 1: literal(NaN/inf) and SetDocParam(NaN/inf) are typed
+///         refusals at construction/edit time;
+/// door 2: a non-finite RESULT (inf from 1/0, NaN from 0/0, overflow
+///         to inf) is a typed `NonFiniteResult` at the eval boundary
+///         — poison flows through values mid-tree per kernel policy,
+///         but never OUT of `eval` as Ok.
 #[test]
-fn r6_nonfinite_conduit_witnessed() {
+fn r6_nonfinite_doors_closed() {
+    use editor_core::{DimensionError, EvalError};
     let env = ParamEnv::<f64>::default();
-    // Door 2: finite inputs, non-finite outputs, all Ok(_) today.
-    let inf = eval::<f64>(&Expr::div(len(1.0), scl(0.0)).unwrap(), &env).unwrap();
-    assert!(inf.is_infinite(), "1/0 flows out as inf (witness)");
-    let nan = eval::<f64>(&Expr::div(len(0.0), scl(0.0)).unwrap(), &env).unwrap();
-    assert!(nan.is_nan(), "0/0 flows out as NaN (witness)");
-    // tan at ±π/2 is finite-but-huge in f64 (not a conduit); the trig
-    // conduits are arg-dependent NaN via inf propagation:
-    let tan_inf = eval::<f64>(
-        &Expr::sin(Expr::literal(f64::INFINITY, Dimension::Angle).unwrap()).unwrap(),
-        &env,
-    )
-    .unwrap();
-    assert!(tan_inf.is_nan(), "sin(inf literal) → NaN (witness)");
-    // Door 1: NaN/inf injectable at construction and via SetDocParam.
-    assert!(Expr::literal(f64::NAN, Dimension::Length).is_ok());
-    assert!(Expr::literal(f64::NEG_INFINITY, Dimension::Angle).is_ok());
-    let res = Doc::empty().apply(&Edit::SetDocParam {
-        name: ParamName::new("poison"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: f64::NAN,
-        },
-    });
-    assert!(res.is_ok(), "SetDocParam(NaN) accepted today (witness)");
+    // Door 2: pole and indeterminate-form conduits refused.
+    assert_eq!(
+        eval::<f64>(&Expr::div(len(1.0), scl(0.0)).unwrap(), &env),
+        Err(EvalError::NonFiniteResult),
+        "1/0"
+    );
+    assert_eq!(
+        eval::<f64>(&Expr::div(len(0.0), scl(0.0)).unwrap(), &env),
+        Err(EvalError::NonFiniteResult),
+        "0/0"
+    );
+    // Arithmetic overflow to inf from finite literals: also refused.
+    assert_eq!(
+        eval::<f64>(&Expr::mul(len(f64::MAX), scl(2.0)).unwrap(), &env),
+        Err(EvalError::NonFiniteResult),
+        "overflow"
+    );
+    // Mid-tree poison that CANCELS still refuses at the boundary
+    // check only if the FINAL value is non-finite: (1/0) flows into
+    // min(inf, 1) = 1 → finite → Ok (poison-flows-through-values).
+    let cancelled = Expr::min(Expr::div(len(1.0), scl(0.0)).unwrap(), len(1.0)).unwrap();
+    assert_eq!(
+        eval::<f64>(&cancelled, &env),
+        Ok(1.0),
+        "finite final value passes"
+    );
+    // Door 1: construction and edit-time injection refused, typed.
+    assert_eq!(
+        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        DimensionError::NonFiniteLiteral
+    );
+    assert_eq!(
+        Expr::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
+        DimensionError::NonFiniteLiteral
+    );
+    for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let res = Doc::empty().apply(&Edit::SetDocParam {
+            name: ParamName::new("poison"),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: poison,
+            },
+        });
+        assert_eq!(
+            res.unwrap_err(),
+            EditError::NonFiniteDocParam {
+                name: ParamName::new("poison")
+            },
+            "SetDocParam({poison})"
+        );
+    }
 }
 
 /// R8 — Interval instantiation over a representative expression set:
@@ -660,20 +711,20 @@ fn r8_interval_lane_representative_and_zero_divisor() {
             "case {i}: enclosure [{lo:e},{hi:e}] misses f64 {vf:e}"
         );
     }
-    // Zero-containing divisor: must NOT be a confident enclosure.
+    // Zero-containing divisor (fix pass): the certified lane's
+    // empty/Trv poison is REFUSED at the eval boundary — the same
+    // typed door as the f64 lane's inf/NaN, never a confident (or
+    // any) enclosure.
     let div0 = Expr::div(len(1.0), scl(0.0)).unwrap();
-    let vi = eval::<Interval>(&div0, &env_i).unwrap();
-    let (lo, hi, dec) = vi.repr_bits();
-    eprintln!(
-        "WITNESS interval 1/[0,0]: lo={:e} hi={:e} dec={dec}",
-        f64::from_bits(lo),
-        f64::from_bits(hi)
+    assert!(
+        matches!(
+            eval::<Interval>(&div0, &env_i),
+            Err(editor_core::EvalError::NonFiniteResult)
+        ),
+        "interval 1/[0,0] refused at the boundary"
     );
-    assert!(dec <= 1, "1/[0,0] must be Trv/Ill-poisoned, got {dec}");
-    // NaN literal entering the interval lane: from_f64 poisons (NaI).
-    let nan_lit = Expr::literal(f64::NAN, Dimension::Length).unwrap();
-    let vi = eval::<Interval>(&nan_lit, &env_i).unwrap();
-    assert_eq!(vi.repr_bits().2, 0, "NaN literal → NaI in interval lane");
+    // NaN literal can no longer enter ANY lane (door 1).
+    assert!(Expr::literal(f64::NAN, Dimension::Length).is_err());
 }
 
 /// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
@@ -764,6 +815,9 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
 /// Slot expressions are compared by evaluating literal trees to f64
 /// bits (the crate exposes no direct literal accessor).
 fn assert_bit_identical(a: &Doc, b: &Doc) {
+    // The crate's own bit-semantic comparator must agree with the
+    // independent walk below (fix pass: Doc::bit_eq landed).
+    assert!(a.bit_eq(b), "Doc::bit_eq");
     assert_eq!(a.order(), b.order(), "order");
     assert_eq!(a.epsilon().to_bits(), b.epsilon().to_bits(), "epsilon");
     assert_eq!(a.metadata(), b.metadata(), "metadata");

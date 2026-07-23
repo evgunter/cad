@@ -59,18 +59,26 @@ fn count_param_is_exact_i64() {
 }
 
 #[test]
-fn count_to_scalar_exactness_guard() {
-    // Within ±2^53 the promotion is exact…
-    let ok = Expr::count_to_scalar(Expr::count(1 << 53)).unwrap();
+fn count_to_scalar_range_guard() {
+    // Within i32 range the promotion is exact (i32::try_from +
+    // f64::from — ruled at the review, replacing the ±2^53 guard)…
+    let ok = Expr::count_to_scalar(Expr::count(i64::from(i32::MAX))).unwrap();
     assert_eq!(
         eval(&ok, &ParamEnv::<f64>::default()).unwrap(),
-        9_007_199_254_740_992.0
+        2_147_483_647.0
     );
-    // …beyond it the embedding would be inexact: typed refusal.
-    let too_big = Expr::count_to_scalar(Expr::count((1 << 53) + 1)).unwrap();
+    // …outside it: typed refusal.
+    let too_big = Expr::count_to_scalar(Expr::count(i64::from(i32::MAX) + 1)).unwrap();
     assert_eq!(
         eval(&too_big, &ParamEnv::<f64>::default()).unwrap_err(),
-        EvalError::CountToScalarInexact((1 << 53) + 1)
+        EvalError::CountToScalarOutOfRange(i64::from(i32::MAX) + 1)
+    );
+    // Regression (review r2): i64::MIN must be the SAME typed error,
+    // never a panic (the old guard called i64::abs first).
+    let min = Expr::count_to_scalar(Expr::count(i64::MIN)).unwrap();
+    assert_eq!(
+        eval(&min, &ParamEnv::<f64>::default()).unwrap_err(),
+        EvalError::CountToScalarOutOfRange(i64::MIN)
     );
 }
 

@@ -51,6 +51,18 @@ impl DocParam {
             Self::Count { .. } => Dimension::Count,
         }
     }
+
+    /// Bit-semantic equality (spec D7): continuous values compare by
+    /// BITS (`0.0` ≠ `-0.0` here), everything else structurally.
+    pub fn bit_eq(&self, other: &DocParam) -> bool {
+        match (self, other) {
+            (Self::Continuous { dim: da, value: va }, Self::Continuous { dim: db, value: vb }) => {
+                da == db && va.to_bits() == vb.to_bits()
+            }
+            (Self::Count { value: a }, Self::Count { value: b }) => a == b,
+            _ => false,
+        }
+    }
 }
 
 /// The document: recipe DAG (node map + insertion-ordered list) +
@@ -162,5 +174,34 @@ impl<P> Doc<P> {
             })
             .collect();
         ParamEnv { bindings }
+    }
+}
+
+impl<P: PartialEq> Doc<P> {
+    /// Bit-semantic document equality (spec D7's replay-identity
+    /// comparator; M4 PR 1 review non-blocker): every float field —
+    /// expression literals, continuous doc params, recorded ε —
+    /// compares by BITS; ids, order, structure, metadata compare
+    /// structurally. `PartialEq` on `Doc` remains IEEE-semantic
+    /// (conflates `±0.0`); use THIS for replay pins and audits.
+    pub fn bit_eq(&self, other: &Doc<P>) -> bool {
+        self.next_id == other.next_id
+            && self.order == other.order
+            && self.epsilon.to_bits() == other.epsilon.to_bits()
+            && self.metadata == other.metadata
+            && self.nodes.len() == other.nodes.len()
+            && self.nodes.iter().all(|(id, node)| {
+                other
+                    .nodes
+                    .get(id)
+                    .is_some_and(|theirs| node.bit_eq(theirs))
+            })
+            && self.params.len() == other.params.len()
+            && self.params.iter().all(|(name, p)| {
+                other
+                    .params
+                    .get(name)
+                    .is_some_and(|theirs| p.bit_eq(theirs))
+            })
     }
 }

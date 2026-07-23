@@ -6,7 +6,7 @@
 
 use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
-use crate::node::{Node, RecipeNodeId, SlotId};
+use crate::node::{Node, RecipeNodeId, SlotId, StableName};
 
 /// The v1 edit vocabulary (spec D6).
 ///
@@ -170,6 +170,22 @@ pub enum EditError {
     },
     /// Replacing the subtree broke an ancestor's dimension check.
     Dimension(DimensionError),
+    /// A `Declare` payload names a node that does not exist at edit
+    /// time (spec D3 carve-out, ruled): a never-existed id is a TYPO,
+    /// refused at the best-diagnostics door. (A later `DeleteNode`
+    /// stranding a name is ALLOWED — N5 dangling semantics; see
+    /// [`Node::Declare`].)
+    DeclareNamesMissingNode {
+        /// The name whose node is not live.
+        name: StableName,
+    },
+    /// A non-finite (NaN/inf) continuous doc-param value — refused at
+    /// the edit door (ruled door 1 of the non-finite policy; F3's
+    /// persist-time refusal then has nothing to catch).
+    NonFiniteDocParam {
+        /// The parameter.
+        name: ParamName,
+    },
 }
 
 /// What an accepted edit did (spec D6: structural edits are FLAGGED
@@ -305,6 +321,17 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                     return Err(EditError::UnresolvedInput { input });
                 }
             }
+            // Spec D3 carve-out (ruled): name refs (Declare pairs)
+            // must point at LIVE nodes at edit time — a never-existed
+            // id is a typo. They are not DAG edges: later deletes may
+            // strand them (N5), so this is the ONLY door that checks.
+            if let Node::Declare { pairs } = node {
+                for name in pairs.iter().flat_map(|(a, b)| [a, b]) {
+                    if !new.nodes.contains_key(&name.node) {
+                        return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
+                    }
+                }
+            }
             let id = RecipeNodeId(new.next_id);
             check_node_slots(&new, id, node)?;
             new.next_id += 1;
@@ -384,6 +411,13 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             } = value
             {
                 return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
+            }
+            // Ruled door 1 (non-finite policy): recipe data never
+            // carries NaN/inf.
+            if let DocParam::Continuous { value: v, .. } = value
+                && !v.is_finite()
+            {
+                return Err(EditError::NonFiniteDocParam { name: name.clone() });
             }
             let structural = matches!(value, DocParam::Count { .. });
             new.params.insert(name.clone(), value.clone());

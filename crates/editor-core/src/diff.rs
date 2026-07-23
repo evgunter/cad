@@ -52,7 +52,10 @@ impl<P: PartialEq> Doc<P> {
         for (&id, node) in &self.nodes {
             match other.nodes.get(&id) {
                 None => nodes.push(NodeChange::Removed(id)),
-                Some(theirs) if theirs != node => nodes.push(NodeChange::Changed(id)),
+                // BIT comparison (review non-blocker): diff is the
+                // future SetTolerance-audit substrate and must not be
+                // bit-blind — a 0.0 → -0.0 payload change is Changed.
+                Some(theirs) if !theirs.bit_eq(node) => nodes.push(NodeChange::Changed(id)),
                 Some(_) => {}
             }
         }
@@ -66,7 +69,11 @@ impl<P: PartialEq> Doc<P> {
         });
         let mut params = Vec::new();
         for (name, p) in &self.params {
-            if other.params.get(name) != Some(p) {
+            if !other
+                .params
+                .get(name)
+                .is_some_and(|theirs| theirs.bit_eq(p))
+            {
                 params.push(name.clone());
             }
         }

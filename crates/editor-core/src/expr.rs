@@ -19,6 +19,7 @@
 //! presentation metadata, not this layer's concern.
 
 use geom_core::Real;
+use geom_core::predicate::{Band, Decide, Sign};
 
 use crate::doc::ParamName;
 use crate::node::{RecipeNodeId, SlotId};
@@ -90,6 +91,11 @@ pub enum DimensionError {
     /// A literal constructed with [`Dimension::Count`] — Count literals
     /// are integers, made by [`Expr::count`].
     LiteralCountIsInteger,
+    /// A non-finite (NaN/±inf) literal — refused at construction (the
+    /// M4 PR 1 review's ruled "door 1": the kernel never produces
+    /// non-finite values legitimately, so admitting one into recipe
+    /// data would smuggle poison past every downstream check).
+    NonFiniteLiteral,
 }
 
 /// A dimension-checked expression tree (ratified F7 shape).
@@ -161,10 +167,16 @@ impl Expr {
 
     /// A continuous dimensioned literal in canonical kernel units.
     /// Refuses [`Dimension::Count`] — Count literals are integers
-    /// ([`Expr::count`]).
+    /// ([`Expr::count`]) — and NON-FINITE values (ruled door 1 of the
+    /// non-finite policy: the kernel never produces NaN/inf
+    /// legitimately, so recipe data must not admit them; F3's
+    /// persist-time refusal then has nothing to catch).
     pub fn literal(value: f64, dim: Dimension) -> Result<Self, DimensionError> {
         if dim == Dimension::Count {
             return Err(DimensionError::LiteralCountIsInteger);
+        }
+        if !value.is_finite() {
+            return Err(DimensionError::NonFiniteLiteral);
         }
         Ok(Self {
             dim,
@@ -404,6 +416,49 @@ impl Expr {
         }
     }
 
+    /// Pushes every continuous literal's `f64` BITS in deterministic
+    /// traversal order (pre-order, children in [`Expr::child`] order)
+    /// — the bit-semantic comparison substrate (spec D7: replay is
+    /// bit-identical, so the comparators must not be bit-blind).
+    pub fn literal_bits(&self, out: &mut Vec<u64>) {
+        use ExprKind as K;
+        match &self.kind {
+            K::Literal(v) => out.push(v.to_bits()),
+            K::CountLiteral(_) | K::Param(_) => {}
+            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
+                a.literal_bits(out);
+            }
+            K::Add(a, b)
+            | K::Sub(a, b)
+            | K::Mul(a, b)
+            | K::Div(a, b)
+            | K::Atan2(a, b)
+            | K::Min(a, b)
+            | K::Max(a, b) => {
+                a.literal_bits(out);
+                b.literal_bits(out);
+            }
+        }
+    }
+
+    /// Bit-semantic equality (M4 PR 1 review non-blocker): structural
+    /// equality with float literals compared by BITS — `0.0` and
+    /// `-0.0` are DIFFERENT expressions here, unlike `PartialEq`
+    /// (which stays IEEE-semantic). NaN cannot occur in a stored
+    /// expression (door 1 refuses non-finite literals), so
+    /// `PartialEq` + aligned bit vectors is exact: when `self ==
+    /// other`, both trees have identical shape, so the traversals
+    /// align literal-for-literal.
+    pub fn bit_eq(&self, other: &Expr) -> bool {
+        if self != other {
+            return false;
+        }
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        self.literal_bits(&mut a);
+        other.literal_bits(&mut b);
+        a == b
+    }
+
     /// A copy of `self` with the subtree at `path` replaced by `new`,
     /// re-running the dimension checker on every rebuilt ancestor (the
     /// replacement may change a subtree's dimension; ancestors must
@@ -451,6 +506,15 @@ impl Expr {
 /// F7's "GeomSource's missing type"): a node, a NAMED slot (never an
 /// index), and a chain of AST-child indices. Stable under edits to
 /// other expressions and to unrelated subtrees by construction.
+///
+/// **Staleness caveat (M4 PR 1 review, non-blocker)**: within its OWN
+/// slot a path is positional — a same-slot edit that replaces an
+/// ANCESTOR of the referent (or the whole slot) with a same-shape
+/// expression silently re-points an old path at a different
+/// subexpression; v1 has no slot generation/version to detect this.
+/// Consumers must re-derive their paths after any same-slot edit;
+/// PR 5's GeomSource must NOT assume same-slot staleness is
+/// detectable.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExprPath {
     /// The recipe node owning the expression slot.
@@ -536,17 +600,58 @@ pub enum EvalError {
     /// Exact integer Count arithmetic overflowed `i64` (fail-loud:
     /// wrapping would fabricate a count).
     CountOverflow,
-    /// A `CountToScalar` promotion of a count outside ±2⁵³, where
-    /// `f64` embedding stops being exact (fail-loud; such counts are
-    /// structurally absurd, so refusal costs nothing).
-    CountToScalarInexact(i64),
+    /// A `CountToScalar` promotion of a count outside `i32` range
+    /// (fail-loud; the `f64` embedding goes through `i32::try_from` +
+    /// the exact `f64::from(i32)`, so out-of-range counts — which are
+    /// structurally absurd anyway — are typed refusals, never inexact
+    /// casts; ruled at the M4 PR 1 review, replacing the ±2⁵³ guard).
+    CountToScalarOutOfRange(i64),
+    /// The evaluated result was NON-FINITE (ruled door 2 of the
+    /// non-finite policy): with door 1 refusing non-finite literals
+    /// and doc params, a non-finite RESULT means the arithmetic
+    /// itself overflowed or hit a pole (1/0, 0/0) — refused at the
+    /// eval boundary rather than flowed into geometry. Context: the
+    /// caller supplied the expression being evaluated ([`eval`]'s
+    /// argument identifies it; PR 2's evaluation service attaches
+    /// node/slot when it evaluates document slots). At certified
+    /// scalars this refuses POISON (NaI/empty/`Trv`-decorated
+    /// enclosures); legitimately unbounded-but-valid enclosures pass
+    /// (boundedness is the `Com`-decoration's business, not this
+    /// door's).
+    NonFiniteResult,
 }
 
 /// Evaluate a continuous expression to a raw `T` in kernel units —
-/// units erase at this boundary (GQ5). Generic over [`Real`] (spec D4,
-/// the banked scalar-genericity principle); there are no raw
+/// units erase at this boundary (GQ5). Generic over the scalar (spec
+/// D4, the banked scalar-genericity principle); there are no raw
 /// comparisons on control-flow paths because the AST has no branches.
-pub fn eval<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+///
+/// The bound is [`Decide`] (= `Real` + the one sanctioned door from
+/// values to decisions, spec D1's "for `Real`/`Decide`"): the ruled
+/// door-2 finiteness check on the FINAL value is a reified decision,
+/// so it goes through `sign_within`, never a raw comparison. The
+/// recursive evaluation itself needs only `Real` (see `eval_inner`).
+pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+    let value = eval_inner(expr, params)?;
+    // Door 2: probe = value * 0 is EXACTLY zero for every finite
+    // value and poison (NaN / empty / Trv) otherwise, so any valid
+    // band classifies it identically — Zero passes, everything else
+    // is a non-finite result. Band construction with these constants
+    // cannot fail; the `else` arm is unreachable but typed (no
+    // panic paths in this crate).
+    let Ok(band) = Band::new(1e-100, 1e-50) else {
+        return Err(EvalError::NonFiniteResult);
+    };
+    match (value * T::zero()).sign_within(band) {
+        Ok(Sign::Zero) => Ok(value),
+        _ => Err(EvalError::NonFiniteResult),
+    }
+}
+
+/// The recursive evaluation core — `Real` only (no decisions inside:
+/// poison FLOWS through values per the kernel policy; the single
+/// refusal door is [`eval`]'s final check).
+fn eval_inner<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
     use ExprKind as K;
     if expr.dim == Dimension::Count {
         return Err(EvalError::CountExprInContinuousEval);
@@ -563,26 +668,23 @@ pub fn eval<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> 
                 found: bound.dim(),
             }),
         },
-        K::Add(a, b) => Ok(eval(a, params)? + eval(b, params)?),
-        K::Sub(a, b) => Ok(eval(a, params)? - eval(b, params)?),
-        K::Neg(a) => Ok(-eval(a, params)?),
-        K::Mul(a, b) => Ok(eval(a, params)? * eval(b, params)?),
-        K::Div(a, b) => Ok(eval(a, params)? / eval(b, params)?),
-        K::Sin(a) => Ok(eval(a, params)?.sin()),
-        K::Cos(a) => Ok(eval(a, params)?.cos()),
-        K::Tan(a) => Ok(eval(a, params)?.tan()),
-        K::Atan2(y, x) => Ok(eval(y, params)?.atan2(eval(x, params)?)),
-        K::Min(a, b) => Ok(eval(a, params)?.min(eval(b, params)?)),
-        K::Max(a, b) => Ok(eval(a, params)?.max(eval(b, params)?)),
+        K::Add(a, b) => Ok(eval_inner(a, params)? + eval_inner(b, params)?),
+        K::Sub(a, b) => Ok(eval_inner(a, params)? - eval_inner(b, params)?),
+        K::Neg(a) => Ok(-eval_inner(a, params)?),
+        K::Mul(a, b) => Ok(eval_inner(a, params)? * eval_inner(b, params)?),
+        K::Div(a, b) => Ok(eval_inner(a, params)? / eval_inner(b, params)?),
+        K::Sin(a) => Ok(eval_inner(a, params)?.sin()),
+        K::Cos(a) => Ok(eval_inner(a, params)?.cos()),
+        K::Tan(a) => Ok(eval_inner(a, params)?.tan()),
+        K::Atan2(y, x) => Ok(eval_inner(y, params)?.atan2(eval_inner(x, params)?)),
+        K::Min(a, b) => Ok(eval_inner(a, params)?.min(eval_inner(b, params)?)),
+        K::Max(a, b) => Ok(eval_inner(a, params)?.max(eval_inner(b, params)?)),
         K::CountToScalar(a) => {
             let n = eval_count(a, params)?;
-            // f64 embeds integers exactly only within ±2^53.
-            const EXACT: i64 = 1 << 53;
-            if n.abs() > EXACT {
-                return Err(EvalError::CountToScalarInexact(n));
-            }
-            #[allow(clippy::cast_precision_loss)] // range-checked above
-            Ok(T::from_f64(n as f64))
+            // i32::try_from is total on i64 (no abs, no panic —
+            // i64::MIN is a typed refusal); f64::from(i32) is exact.
+            let small = i32::try_from(n).map_err(|_| EvalError::CountToScalarOutOfRange(n))?;
+            Ok(T::from_f64(f64::from(small)))
         }
     }
 }

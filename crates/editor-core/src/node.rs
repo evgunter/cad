@@ -250,6 +250,18 @@ pub enum Node<P> {
     },
     /// Coincidence-intent pairs by [`StableName`] (F5; resolution is
     /// PR 3/5 — this crate only carries the data).
+    ///
+    /// **Name-reference semantics (spec D3 carve-out, ruled at the
+    /// PR 1 review)**: the names' `RecipeNodeId`s are REFERENCES, not
+    /// DAG edges — [`Node::inputs`] does not include them. `apply`
+    /// validates at edit time that every named node EXISTS (a
+    /// never-existed id is a typo, refused with a typed error at the
+    /// best-diagnostics door), but a later `DeleteNode` MAY strand a
+    /// name: that is NAMING-DESIGN N5's ratified dangling-reference
+    /// semantics — resolution fails loudly (`NodeGone`) and the
+    /// explicit `Rebind` edit (PR 4) is the repair. Blocking the
+    /// delete would force cascade-or-pre-repair, worse than the
+    /// typed-failure flow.
     Declare {
         /// The declared-coincident name pairs.
         pairs: Vec<(StableName, StableName)>,
@@ -439,5 +451,39 @@ impl<P> Node<P> {
             ) => Some(step),
             _ => None,
         }
+    }
+
+    /// The node ids REFERENCED BY NAME from this payload (Declare
+    /// pairs) — validated for existence at edit time per the spec D3
+    /// carve-out, but NOT DAG edges ([`Node::inputs`] excludes them;
+    /// a later delete may strand them, N5 semantics).
+    pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a.node, b.node]).collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+impl<P: PartialEq> Node<P> {
+    /// Bit-semantic payload equality (spec D7's comparison substrate):
+    /// `PartialEq` for structure plus BIT comparison of every slot
+    /// expression's float literals — `0.0` vs `-0.0` differ here. The
+    /// opaque profile payload `P` is compared by its own `PartialEq`
+    /// (its float semantics are PR 2's contract when `P` is
+    /// instantiated).
+    pub fn bit_eq(&self, other: &Node<P>) -> bool {
+        if self != other {
+            return false;
+        }
+        // Equal payloads have identical slot sets; compare each
+        // slot's literal bits (slots() order is deterministic).
+        self.slots()
+            .into_iter()
+            .all(|slot| match (self.expr(slot), other.expr(slot)) {
+                (Some(a), Some(b)) => a.bit_eq(b),
+                (None, None) => true,
+                _ => false,
+            })
     }
 }
