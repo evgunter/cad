@@ -490,10 +490,20 @@ impl<T> ParamValue<T> {
 
 /// The name→value environment [`eval`] and [`eval_count`] read
 /// parameter refs from (spec D4's `params`).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParamEnv<T> {
     /// The bindings, by parameter name.
     pub bindings: std::collections::BTreeMap<ParamName, ParamValue<T>>,
+}
+
+// Manual impl: the derive would demand `T: Default`, which certified
+// scalars (Interval) deliberately do not provide.
+impl<T> Default for ParamEnv<T> {
+    fn default() -> Self {
+        Self {
+            bindings: std::collections::BTreeMap::new(),
+        }
+    }
 }
 
 /// Typed evaluation failure (spec D4). Numeric-domain issues (division

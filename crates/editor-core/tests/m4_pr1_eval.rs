@@ -1,0 +1,138 @@
+//! Evaluator behavior (spec D4): scalar-generic over `Real`, units
+//! erased at the boundary (GQ5), typed environment errors, and the
+//! pinned Interval instantiation (feature `interval`).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use editor_core::{Dimension, EvalError, Expr, ParamEnv, ParamName, ParamValue, eval, eval_count};
+
+fn env_with(name: &str, v: ParamValue<f64>) -> ParamEnv<f64> {
+    let mut env = ParamEnv::default();
+    env.bindings.insert(ParamName::new(name), v);
+    env
+}
+
+#[test]
+fn param_lookup_and_typed_failures() {
+    let depth = Expr::param(ParamName::new("depth"), Dimension::Length);
+    // Bound correctly: the raw kernel-unit value comes back.
+    let env = env_with(
+        "depth",
+        ParamValue::Continuous {
+            dim: Dimension::Length,
+            value: 0.002,
+        },
+    );
+    assert_eq!(eval(&depth, &env).unwrap(), 0.002);
+    // Unbound: typed.
+    assert_eq!(
+        eval(&depth, &ParamEnv::<f64>::default()).unwrap_err(),
+        EvalError::UnknownParam(ParamName::new("depth"))
+    );
+    // Bound at a different dimension: typed.
+    let wrong = env_with(
+        "depth",
+        ParamValue::Continuous {
+            dim: Dimension::Angle,
+            value: 0.002,
+        },
+    );
+    assert_eq!(
+        eval(&depth, &wrong).unwrap_err(),
+        EvalError::ParamDimensionMismatch {
+            name: ParamName::new("depth"),
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        }
+    );
+}
+
+#[test]
+fn count_param_is_exact_i64() {
+    let n = Expr::param(ParamName::new("n"), Dimension::Count);
+    let env = env_with("n", ParamValue::Count(7));
+    assert_eq!(eval_count(&n, &env).unwrap(), 7);
+    // A Count param under continuous eval is a typed refusal.
+    assert_eq!(
+        eval(&n, &env).unwrap_err(),
+        EvalError::CountExprInContinuousEval
+    );
+}
+
+#[test]
+fn count_to_scalar_exactness_guard() {
+    // Within ±2^53 the promotion is exact…
+    let ok = Expr::count_to_scalar(Expr::count(1 << 53)).unwrap();
+    assert_eq!(
+        eval(&ok, &ParamEnv::<f64>::default()).unwrap(),
+        9_007_199_254_740_992.0
+    );
+    // …beyond it the embedding would be inexact: typed refusal.
+    let too_big = Expr::count_to_scalar(Expr::count((1 << 53) + 1)).unwrap();
+    assert_eq!(
+        eval(&too_big, &ParamEnv::<f64>::default()).unwrap_err(),
+        EvalError::CountToScalarInexact((1 << 53) + 1)
+    );
+}
+
+#[test]
+fn arithmetic_matches_f64_semantics() {
+    // (2 m + 3 m) * 0.5 - 1 m = 1.5 m — plain f64 arithmetic, units
+    // erased (GQ5: eval returns raw kernel units).
+    let e = Expr::sub(
+        Expr::mul(
+            Expr::add(
+                Expr::literal(2.0, Dimension::Length).unwrap(),
+                Expr::literal(3.0, Dimension::Length).unwrap(),
+            )
+            .unwrap(),
+            Expr::literal(0.5, Dimension::Scalar).unwrap(),
+        )
+        .unwrap(),
+        Expr::literal(1.0, Dimension::Length).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(eval(&e, &ParamEnv::<f64>::default()).unwrap(), 1.5);
+}
+
+/// The pinned Interval instantiation (spec D4/D8): the evaluator is
+/// generic over `Real` with no branches, so the certified scalar runs
+/// the SAME code path and must enclose the f64 result.
+#[cfg(feature = "interval")]
+mod interval_lane {
+    use super::*;
+    use geom_core::Interval;
+    use geom_core::real::{Bounds, Real};
+
+    #[test]
+    fn interval_instantiation_encloses_f64() {
+        // sin(τ/8) * 2 — exercises literal embedding, trig, and
+        // arithmetic through the one generic evaluator.
+        let e = Expr::mul(
+            Expr::sin(Expr::literal(std::f64::consts::FRAC_PI_4, Dimension::Angle).unwrap())
+                .unwrap(),
+            Expr::literal(2.0, Dimension::Scalar).unwrap(),
+        )
+        .unwrap();
+        let at_f64 = eval::<f64>(&e, &ParamEnv::default()).unwrap();
+        let at_interval = eval::<Interval>(&e, &ParamEnv::default()).unwrap();
+        assert!(at_interval.lo() <= at_f64 && at_f64 <= at_interval.hi());
+        // The enclosure is tight (a point input), not vacuous.
+        assert!(at_interval.hi() - at_interval.lo() < 1e-12);
+    }
+
+    #[test]
+    fn interval_param_env_embeds_exactly() {
+        let depth = Expr::param(ParamName::new("d"), Dimension::Length);
+        let mut env: ParamEnv<Interval> = ParamEnv::default();
+        env.bindings.insert(
+            ParamName::new("d"),
+            ParamValue::Continuous {
+                dim: Dimension::Length,
+                value: <Interval as Real>::from_f64(0.003),
+            },
+        );
+        let v = eval(&depth, &env).unwrap();
+        assert_eq!(v.lo(), 0.003);
+        assert_eq!(v.hi(), 0.003);
+    }
+}
