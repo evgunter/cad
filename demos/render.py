@@ -29,14 +29,17 @@ BODIES = {
     # The boolean leg (M3 PR 5). voidbox_cutaway is exported only when
     # the multi-shell cutaway subtract succeeds; missing STLs from this
     # group are skipped with a warning (the tour narrates why).
+    "die": {"color": (0.88, 0.86, 0.80), "view": (28, -55), "up": "z",
+            "optional": True},
     "table": {"color": (0.62, 0.45, 0.28), "view": (12, -55), "up": "z",
               "optional": True},
     "openbox": {"color": (0.40, 0.60, 0.72), "view": (38, -125), "up": "z",
                 "optional": True},
-    "scoopbox": {"color": (0.46, 0.56, 0.76), "view": (38, -125), "up": "z",
-                 "optional": True},
+    # voidbox: translucent so the internal void shell is visible (an
+    # opaque render is indistinguishable from a plain cube). Alpha
+    # disables exact backface culling for this body — see draw().
     "voidbox": {"color": (0.58, 0.58, 0.64), "view": (30, -55), "up": "z",
-                "optional": True},
+                "optional": True, "alpha": 0.42},
     "voidbox_cutaway": {"color": (0.58, 0.58, 0.64), "view": (28, -55),
                         "up": "z", "optional": True},
 }
@@ -65,16 +68,16 @@ def orient(verts, up):
     return verts
 
 
-def shade(verts, base):
+def shade(verts, base, alpha=1.0):
     """Flat Lambert shading per triangle (recomputed normals)."""
     n = np.cross(verts[:, 1] - verts[:, 0], verts[:, 2] - verts[:, 0])
     norm = np.linalg.norm(n, axis=1, keepdims=True)
     n = n / np.where(norm == 0, 1, norm)
-    lam = np.clip(n @ LIGHT, 0.0, 1.0)
+    lam = np.clip(np.abs(n @ LIGHT) if alpha < 1 else n @ LIGHT, 0.0, 1.0)
     fill = np.clip(n @ np.array([-0.55, 0.35, 0.15]), 0.0, 1.0)  # soft fill
     lum = 0.30 + 0.60 * lam + 0.12 * fill
     rgb = np.clip(np.outer(lum, np.asarray(base)), 0, 1)
-    return np.concatenate([rgb, np.ones((len(rgb), 1))], axis=1)
+    return np.concatenate([rgb, np.full((len(rgb), 1), alpha)], axis=1)
 
 
 def cull_backfaces(verts, elev, azim):
@@ -95,8 +98,12 @@ def cull_backfaces(verts, elev, azim):
 
 def draw(ax, verts, cfg):
     v = orient(verts, cfg["up"])
-    front = cull_backfaces(v, *cfg["view"])
-    colors = shade(front, cfg["color"])
+    alpha = cfg.get("alpha", 1.0)
+    # Translucent bodies keep ALL faces (the interior — e.g. voidbox's
+    # internal void shell — is the point of the transparency); opaque
+    # bodies get the exact backface cull.
+    front = v if alpha < 1 else cull_backfaces(v, *cfg["view"])
+    colors = shade(front, cfg["color"], alpha)
     ax.add_collection3d(
         Poly3DCollection(
             front,

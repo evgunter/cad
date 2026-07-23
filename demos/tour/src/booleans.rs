@@ -24,29 +24,11 @@ pub fn try_subtract(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, 
     topo::subtract(a, b)
 }
 
-/// Operand normalization (early-consumer finding, narrated in the
-/// tour): `extrude` describes edges as `Intersection { s1, s2 }` of
-/// the adjacent faces' surfaces (prefer-intrinsic), but the boolean
-/// pipeline's carve/merge stages drop faces whose surfaces those
-/// descriptions reference — the merge output stage then refuses with
-/// `Merge(InputNotClosed { DanglingDescription })`. Until the ops
-/// remap (or re-describe) operand edge descriptions, boolean operands
-/// built by `extrude` need their edges downgraded to self-contained
-/// chord-line specs (`line_between`'s `MappedCurve` description) —
-/// geometrically exact here, every slab edge is straight.
-pub fn normalize_edges_to_chords(body: &mut Body<f64>) {
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.he_plus)).collect();
-    for (edge_key, he_plus) in edges {
-        let start = body.get_half_edge(he_plus).unwrap().start;
-        let end = body.half_edge_end(he_plus).unwrap();
-        let p0 = *body
-            .get_point(body.get_vertex(start).unwrap().point)
-            .unwrap();
-        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
-        body.set_edge_curve(edge_key, EdgeCurveSpec::line_between(p0, p1))
-            .unwrap();
-    }
-}
+// The chord-normalization workaround (`normalize_edges_to_chords`)
+// that used to live here is RETIRED: PR 5's extrude-operand
+// description remap makes raw extrude output boolean-consumable,
+// proven end-to-end by the PR 5.5 review's die e2e
+// (crates/stl/tests/review_m3_pr55_e2e.rs).
 
 /// Tier-3 posture pass (module docs): re-describes every edge of a
 /// planar-faced body as the `Intersection` of its two adjacent faces'
