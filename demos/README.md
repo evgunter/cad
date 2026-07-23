@@ -2,10 +2,10 @@
 
 A visual tour of what the kernel can do today, from a pure outside
 consumer's seat: six bodies built through the public `profile` /
-`sweep` APIs, then a boolean leg through the M3 PR 5 `union` /
-`subtract` ops — narrated (operations used, topology census + genus,
-validation tiers passed, exact-vs-meshed mass properties), exported as
-binary STL, and rendered to PNG.
+`sweep` APIs, then a boolean leg through the M3 `union` / `subtract`
+ops (headlined by a full 21-pip die) — narrated (operations used,
+topology census + genus, validation tiers passed, exact-vs-meshed mass
+properties), exported as binary STL, and rendered to PNG.
 
 This directory is **deliberately outside the cargo workspace** (root
 manifest `workspace.exclude`, plus the empty `[workspace]` table in
@@ -37,46 +37,32 @@ Outputs: `demos/out/*.stl` (untracked), `demos/renders/*.png` (tracked
 | `pulley` | full revolve of an off-axis polyline — V-groove, center bore |
 | `wedge` | partial (90°) revolve — wedge caps, arc rims |
 
-### The boolean leg (M3 PR 5)
+### The boolean leg (M3 PRs 5 + 5.5)
 
 All boolean operands are axis-aligned boxes from one shared builder
-(`slab`), so intended coincidences arise from bit-identical values.
-Every scene checks the op's result against an exact box-arithmetic
-volume oracle and narrates each attempted variant honestly.
+(`slab`) — raw `extrude` output fed directly to the ops (the chord
+re-description workaround retired after PR 5.5's review proved it
+unnecessary). Every scene checks the op's result against an exact
+box-arithmetic volume oracle.
 
 | stop | what it shows |
 | --- | --- |
-| die (live matrix) | the R1 orientation matrix run live: pip pockets succeed exact on {+z, −x, −y} and refuse typed `SeamOrientation` on {−z, +x, +y}; a real 3-pocket cube composes on the working faces; a −z pip guard fails loudly the day PR 5.5 lands the refusing half (full die then) — no STL |
-| `table` | tabletop ∪ 4 corner-straddling legs — 4 sequential Seamed union nodes; coplanar-touching and inset-overlap leg variants attempted and their typed refusals narrated |
-| `openbox` | the pure open box: fully-interior cavity cutter, open only through the top — a single-ring pocket on a working R1 orientation (refused pre-fix-pass, rendered since) |
-| `scoopbox` | subtract through-cut: cavity cutter overhanging top + one wall — a multi-face seam, the variant that shipped while the pure box was refused |
-| `voidbox` | inner box strictly inside, subtracted — kind `Voided`, TWO shells, the first legitimate voids; V = 8 − 1 = 7 exactly; a cutaway subtract of the two-shell body is attempted and its typed refusal narrated |
+| `die` | the full die: 21 pip pockets across all six faces (opposite faces sum to 7), 21 sequential Seamed subtracts with the exact volume after every op (final V = 7.8359375); blocked pre-PR 5.5 by the R1 orientation-dependent refusals, promoted when the seam discipline closed them |
+| `table` | tabletop ∪ 4 corner-straddling legs — 4 sequential Seamed union nodes; coplanar-touching and inset-overlap leg variants attempted and narrated |
+| `openbox` | the pure open box: fully-interior cavity cutter, open only through the top — a single-ring pocket (refused pre-PR 5-fix-pass, rendered since) |
+| `voidbox` | inner box strictly inside, subtracted — kind `Voided`, TWO shells, the first legitimate voids; V = 8 − 1 = 7 exactly; rendered translucent so the internal void shell is visible; a cutaway subtract of the two-shell body is attempted and its typed refusal narrated |
 
-Known-limitation narration baked into the tour (PR 5 review's ratified
-envelope, demonstrated with exact numbers rather than claimed):
-
-- **Orientation-dependent single-ring seams (R1)**: pockets/bosses whose
-  seam ring closes within one face succeed exactly on {+z, −x, −y}
-  faces and refuse typed `SeamOrientation` on {−z, +x, +y} — the
-  handedness-correlated half. Double-ring configurations
-  (through-pillar) refuse too. PR 5.5's charter; the die's −z guard and
-  the demo's pure variants promote when it lands. (The pre-fix-pass
-  SILENT wrong-component defect this narration replaced is resolved —
-  every failure is now a typed refusal.)
-- **Extrude operands**: `extrude` describes edges as `Intersection`
-  of adjacent surfaces; the ops' carve/merge stages leave those
-  references dangling (`Merge(InputNotClosed)` refusal), so the tour
-  re-describes operand edges as chord lines first. (Whether PR 5's
-  extrude-operand remap made this workaround unnecessary is untested —
-  queued for the PR 5.5 demo unblock.)
-- **Touching/coplanar-overlap unions** (flush-stacked, corner-flush,
-  inset-overlap) refuse with typed Join-family errors
-  (`SeamOrientation` / `UnpairedLooseEnds` / `JoinDesync` by
-  configuration) — PR 5.5 territory, narrated live from the actual
-  results.
-- Boolean outputs carry chord descriptions on seam edges, so tier 3
-  runs on an `Intersection`-upgraded clone (the test suite's
-  documented posture; the honest upgrade op is a PR 6 obligation).
+Historical narration retired as the kernel caught up: the PR 5-era
+silent wrong-component defect (typed refusals since the PR 5 fix
+pass), the R1 orientation matrix (closed by PR 5.5 — the die above IS
+the promotion payload), and the scoop-box stand-in for the open box.
+What the tour still touches of the post-5.5 refusal envelope
+(boundary-on-boundary seams, e.g. flush-stacked/corner-flush unions;
+reflex-corner tilted crossings) is narrated live from the actual typed
+refusals where scenes attempt it. Boolean outputs carry chord
+descriptions on seam edges, so tier 3 runs on an
+`Intersection`-upgraded clone (the documented posture; the honest
+upgrade op is a PR 6 obligation).
 
 The tour's coda feeds a self-intersecting (bowtie) profile to
 `Profile::validate` and prints the typed rejection — the fail-loud
