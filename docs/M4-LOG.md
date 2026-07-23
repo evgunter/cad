@@ -129,3 +129,31 @@ PASS (2742s) — the combined tree is fully verified. **PR 2 spec obligations ba
 this cycle**: wrap `EvalError::NonFiniteResult` with node/slot
 context at the evaluation service; instantiate `Doc<P>` with the
 real profile payload.
+
+## PR 2 (evaluation service) — implemented, PR #83 open — 2026-07-23/24
+
+Binding spec `docs/M4-PR2-SPEC.md`. Delivered on `ev/m4-2-eval`
+(`a6e727d`): F2-verbatim Evaluation/NodeResult/NodeValue (Kahn
+min-id order documented; poisoning descendants-only, `through`
+walkable); full F4 wiring; 128-bit two-basis FNV-1a content keys
+over bits (Merkle upstream); memo acceptance pinned (slot edit ⇒
+2/54 recomputed, pip-depth ⇒ 48/8; memoized ≡ scratch by arena
+fingerprint); CancelToken between nodes, typed partial, Epoch;
+rayon idiom-1 with seq/par×scratch/memo fingerprint identity; die
+(56 nodes) evaluates to exactly 7.8359375 at f64 + bracketed at
+Interval. **Reported items**: (i) `topo::transform_rigid` LANDED
+(no public rigid transform existed; spec's report-or-land clause;
+rigidity door + per-edge re-certification, own suite) — reviewer
+attacks first; (ii) die uses 6 pip masters + translation-only
+Transforms (rotational placement can't hit the dyadic oracle —
+cos π/2 ≈ 6e-17; rotation tested separately); (iii) memo.rs
+repr_bits joined the bit-identity allowlist (hashes per D4, never
+compares; retirement-scheduled note; both CI files); (iv) gate
+caveat: harness killed gate.sh mid-row-9 — rows 1–8 attested from
+the run, 9–11 completed green in the same runner/sha; the fix-pass
+gate must be ONE uninterrupted 11/11 run. Adversarial reviewer
+launched (R1 transform_rigid certificate honesty, R2 content-key
+completeness incl. the un-hashed doc-ε flag, R3 memo soundness
+under edit-back/delete-reinsert, R4 poisoning determinism +
+cancelation memo hygiene, R5 parallel tearing, R6 die deviation +
+τ-door margining, R7 interval lane + allowlist honesty).
