@@ -48,8 +48,13 @@ fn non_finite_translation_is_refused_not_laundered() {
                 );
             }
             Err(e) => {
-                // Typed refusal; any variant is fine, panic is not.
-                let _ = format!("{e:?}");
+                // Fix-pass tightening: the door now refuses with the
+                // named finiteness predicate, not the oblique
+                // certification path.
+                assert!(
+                    format!("{e:?}").contains("NonFiniteMap"),
+                    "expected the door-side finiteness refusal, got {e:?}"
+                );
             }
         }
     }

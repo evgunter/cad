@@ -71,6 +71,13 @@ pub enum TransformError {
         /// The named predicate that refused.
         check: &'static str,
     },
+    /// A map component is non-finite (NaN/inf translation or linear
+    /// entry) — refused at the door with the component named, before
+    /// certification would refuse it obliquely (PR 2 review, R1b).
+    NonFiniteMap {
+        /// The named finiteness predicate that refused.
+        check: &'static str,
+    },
     /// The body carries a transient null-scaffold curve (M3 boolean
     /// machinery mid-flight); bodies at rest never do (tier 2).
     NullScaffold {
@@ -111,6 +118,22 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
         match geom_core::k_stats::decide(check, margin, band) {
             Ok(geom_core::Sign::Zero) => {}
             _ => return Err(TransformError::NotRigid { check }),
+        }
+    }
+    // Translation finiteness: x * 0 is exactly 0 iff x is finite
+    // (component-wise — a norm could overflow to inf for large finite
+    // translations). The linear part needs no separate door: NaN/inf
+    // entries poison the rigidity margins above and refuse there.
+    let t = &map.translation;
+    let finite: [(&'static str, T); 3] = [
+        ("transform_rigid_trans_finite_x", t.x * T::zero()),
+        ("transform_rigid_trans_finite_y", t.y * T::zero()),
+        ("transform_rigid_trans_finite_z", t.z * T::zero()),
+    ];
+    for (check, margin) in finite {
+        match geom_core::k_stats::decide(check, margin, band) {
+            Ok(geom_core::Sign::Zero) => {}
+            _ => return Err(TransformError::NonFiniteMap { check }),
         }
     }
     Ok(())
