@@ -170,9 +170,29 @@ now pinned:
 - **The repair is an explicit `ReWitness` DocEdit** — recorded,
   replayable, undoable — adopting the current certified solution as
   the new witness (the direct analogue of NAMING-DESIGN N5's
-  explicit `Rebind`; same trivial-or-loud ethos). An editor MAY
-  offer it proactively when `solver_branch_margin` shrinks toward
-  the band; the offer is UI, the edit is the semantics.
+  explicit `Rebind`; same trivial-or-loud ethos).
+- **Certified-same-branch ReWitness is semantically invisible, so it
+  may be automated in bulk (Evan, in-conversation on this PR)**: when
+  the W2 certificate proves old witness and new solution lie in one
+  uniqueness region (same branch), rewitnessing changes NO predicate
+  outcome — it only recenters the stored point, improving future
+  margins and shrinking future boxes. The W4 ban is therefore
+  precisely on *silent/unrecorded* write-back, not on automation: an
+  editor SHOULD bulk-ReWitness (recorded, e.g. piggybacked on the
+  commit DocEdit) after certified-clean edits, and MUST ask only
+  where the certificate refuses — the ambiguous cases W3 types.
+  Purity is preserved because the recorded document, not the edit
+  path, remains the sole input to `solution()`.
+- **The user's drag path is legitimate UI input** for *authoring* the
+  ReWitness proposal: purity bans path-dependence in the semantics,
+  not in what the UI suggests. A drag is a user-supplied homotopy;
+  if it stays fold-free (see the GUI-DESIGN "UI ideas" note: a
+  default drag mode that refuses to cross the wall where
+  `solver_branch_margin` → 0, with an explicit modifier key to
+  cross), the homotopy uniquely identifies the endpoint branch, and
+  the drag-end ReWitness needs no dialog at all. An explicit
+  wall-crossing keypress is itself the recorded disambiguating
+  intent.
 - Undo/redo and `SetTolerance` replays therefore need no special
   cases: the witness is ordinary recorded document state under GQ3.
 
@@ -249,6 +269,69 @@ the decomposition plan is a pure function of the constraint graph
 layer-1 outputs may key caches but never consult coordinates;
 generic-configuration rigidity probes (the *other* witness) live
 entirely in layer 1.
+
+## Worked example: the elbow
+
+The two-bar linkage, smallest system with every phenomenon. A=(0,0)
+and B=(d,0) fixed; C with |AC| = r₁ = 8, |BC| = r₂ = 6. Two branches:
+elbow-up C⁺ and elbow-down C⁻ (reflections across AB). The fold locus
+is r₁ + r₂ = d (elbow straightens, C⁺ and C⁻ merge); beyond it, no
+real solution.
+
+- **Commit (W1)**: the user drags C up and commits. Witness = the
+  full assignment with C at (x, +y), residual-certified, recorded
+  with d = 12.
+- **Typed edit d → 13 (W2, the common case)**: Newton from the
+  witness converges to elbow-up at the new params; the Krawczyk box
+  around witness-and-candidate certifies one root + regular Jacobian.
+  Margin healthy (the elbow is far from straight). Selection proved,
+  zero interaction. If the editor bulk-ReWitnesses on the clean
+  certificate (W4), the stored point recenters — semantically
+  invisible.
+- **d → 13.999999999 (W3, FoldProximity)**: the certificate margin
+  enters the sliver band — the elbow is within ε-scale of straight.
+  Typed `WitnessBifurcation { FoldProximity }` naming the two
+  distance constraints as implicated. This is genuinely
+  ill-conditioned geometry; asking is correct.
+- **d → 15 (infeasible)**: no real solution (r₁ + r₂ < d); residual
+  certification cannot pass; typed infeasibility, layer-1 vocabulary
+  untouched (this is not "over-constrained", it is "no real
+  configuration at these params").
+- **d → 15, then back to 12 (no hysteresis)**: the stored witness
+  was never rewritten by the failed excursion, so d = 12 reselects
+  elbow-up, bit-identically. The seed-continuation contrast: a
+  solver seeding from "wherever the sketch last was" can return from
+  this excursion elbow-DOWN depending on numerical luck — the
+  documented SolveSpace flip.
+- **Wall-mode drag (the GUI-DESIGN idea)**: dragging C toward the AB
+  line, the preview solver's margin shrinks; at the wall
+  (`solver_branch_margin` → 0, the straightened elbow) the dragged
+  point sticks, with the wall rendered. Drag ends → drag-end
+  ReWitness, no dialog (the fold-free homotopy proved the branch).
+  With the modifier key held, the user pushes through the wall: the
+  explicit keypress records the intent, and the far side resumes on
+  the mirror branch — a chosen flip, never a silent one.
+- **AmbiguousBasin, for completeness**: a large typed jump in a
+  near-symmetric sketch can leave the old witness between two
+  well-separated roots — box inflation swallows both, the
+  certificate refuses, and the error carries the candidate set for
+  an explicit choice (Bidarra's doctrine, unchanged).
+- **Downstream (W5/N5)**: an extrude of this sketch poisons (typed,
+  descendants-only) while the sketch node carries
+  `WitnessBifurcation`; a stable name referencing an edge born of
+  C's position diagnoses its resolution failure with the
+  `solver_branch_margin` flip via the shared verdict-diff machinery.
+
+**How often do the asking cases fire?** Structurally: never inside a
+chamber (the certificate fires and margins are healthy — folds are
+codimension-1, and typical edits stay far from them); the asking
+cases concentrate at (a) genuinely near-degenerate geometry, where
+asking is honest, and (b) large typed jumps in root-crowded sketches.
+Wall-mode drags eliminate the drag-borne cases by construction. The
+honest quantitative answer is empirical and the instrument is already
+built: `solver_branch_margin` sits in the k_stats funnel, so the M6
+corpus measures exactly this distribution (the T6 obligation — the
+first genuinely ill-conditioned predicate family K will see).
 
 ## Open after this doc
 
