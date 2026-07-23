@@ -1,7 +1,9 @@
 # Persistent naming & selection stability (pre-M4 design doc)
 
-Status: **PROPOSED** (design conversation; N-decisions ratify on Evan's
-sign-off, like GUI-DESIGN.md's G/GQ items). Grounding:
+Status: **RATIFIED** (Evan, PR #74, 2026-07-23 — N1–N7 as proposed,
+including keeping F7 per the N3 analysis; the elaboration rounds on
+merge policy and N2 alternatives are in the PR conversation).
+Grounding:
 `references/notes/naming-constraint-inventory.md` (every ratified
 constraint, quoted, with the five tensions T1–T5 this doc must
 resolve) and `references/notes/persistent-naming-litreview.md`
