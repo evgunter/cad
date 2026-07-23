@@ -1,7 +1,9 @@
 # GQ1 mechanism details: witnesses, branch selection, bifurcation (pre-M4 design doc)
 
-Status: **PROPOSED** (design conversation; W-decisions ratify on
-Evan's sign-off). This is the second and last "before M4 planning"
+Status: **RATIFIED** (Evan, PR #79, 2026-07-23 — W1–W9 as proposed
+plus the round-2 amendments: bulk certified-same-branch ReWitness,
+drag-as-homotopy UI input, the worked elbow example, and the
+GUI-DESIGN wall-mode-drag idea, all from the in-conversation round). This is the second and last "before M4 planning"
 doc (DESIGN.md; the first was NAMING-DESIGN.md, #74). Grounding:
 `references/notes/gq1-constraint-inventory.md` (ratified constraints
 quoted; tensions T1–T6) and `references/notes/gq1-solver-litreview.md`
