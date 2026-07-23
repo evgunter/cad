@@ -470,3 +470,74 @@ fn r4_extended_sweep_volume_identities() {
     eprintln!("R4 sweep: {closed} identity-checked, {refused} typed refusals");
     assert!(closed > 0, "sweep never closed — fixtures miss the site");
 }
+
+// =================================================================
+// R5 — census predicates near/at the ε boundary, f64 AND Interval:
+// escalation must surface typed (CensusEscalated / UndeclaredContact),
+// never a silent pass, on fixtures built to straddle the band.
+// =================================================================
+
+/// A prism whose top notch apex hangs `delta` above the bottom edge:
+/// vertex-edge gap = delta, exercising `pm_census_ve_line_gap` /
+/// `pm_census_ve_span` (and the vv lane at delta = 0 corners). For
+/// every delta at or inside ε the validator must REFUSE (finding or
+/// typed escalation) — a silent Ok is the R5 falsification.
+fn straddle_scenario<T: Decide>(delta: f64) {
+    let fx = prism_z::<T>(
+        &[
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (3.0, 2.0),
+            (2.0, delta),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ],
+        0.0,
+        1.0,
+    );
+    let verdict = validate_pseudomanifold(&fx.body, &ContactRecords::default());
+    let errors = verdict.expect_err("near-touch at/inside eps must be loud");
+    let (mut esc, mut und) = (0, 0);
+    for e in &errors {
+        match e {
+            ValidationError::CensusEscalated { .. } => esc += 1,
+            ValidationError::UndeclaredContact { .. } => und += 1,
+            _ => {}
+        }
+    }
+    eprintln!("R5 delta={delta}: {und} findings, {esc} escalations");
+    for e in &errors {
+        assert!(
+            matches!(
+                e,
+                ValidationError::UndeclaredContact { .. } | ValidationError::CensusEscalated { .. }
+            ),
+            "unexpected error class: {e:?}"
+        );
+    }
+}
+
+/// f64 lane: deltas strictly inside the band (default ε = 1e-12 per
+/// the gate's tolerance rows) and exactly AT it.
+#[test]
+fn r5_straddle_f64() {
+    for delta in [0.0, 5e-13, 1e-12] {
+        straddle_scenario::<f64>(delta);
+    }
+}
+
+#[cfg(feature = "interval")]
+mod interval_r5 {
+    use super::*;
+
+    /// Interval lane: the same deltas — the enclosure straddling the
+    /// band edge must surface as typed escalation or finding, never a
+    /// silent skip or a poison panic.
+    #[test]
+    fn r5_straddle_interval() {
+        for delta in [0.0, 5e-13, 1e-12] {
+            straddle_scenario::<geom_core::Interval>(delta);
+        }
+    }
+}
