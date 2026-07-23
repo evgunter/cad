@@ -1,7 +1,12 @@
 # M4 work order: the parametric model layer
 
-Status: **PROPOSED** (ratification conversation; forks F1–F9 carry
-firm recommendations, pushback welcome — the M3-PLAN/#42 pattern).
+Status: **RATIFIED** (Evan, PR #80, 2026-07-23 — F1–F9 as
+recommended, with one amendment he requested: the F6 STEP
+adopt-vs-in-house spike runs EARLY and in parallel, not
+mid-milestone. Evan's stated sequencing principle, recorded: he
+holds sequencing opinions only where order could affect the final
+design — e.g. temporary stopgaps that become widely used and too
+onerous to remove.)
 Charter: DESIGN.md's M4 roadmap entry — parameter vector → feature
 DAG → solid; provenance-based naming; replay; STEP export — plus
 every M4-tagged obligation in the ratified record, inventoried
@@ -89,8 +94,12 @@ whenever the recipe declares the surviving intent. (The M3-era
 implicit path — records minted by the op from structural/declared
 coincidence — remains; Declare is how intent *persists across* ops.)
 
-**F6 — STEP export approach.** *Recommendation:* an evaluation PR,
-decision recorded mid-milestone: spike `ruststep`/`truck-stepio`
+**F6 — STEP export approach (amended per Evan at ratification:
+decide EARLY, in parallel).** The adopt-vs-in-house spike launches
+alongside PR 1 — it needs no kernel integration (hand-construct
+reference parts via each crate; check external import) — and the
+decision is recorded as soon as it reports, so the PR 7 export
+implementation starts decided. Original shape: spike `ruststep`/`truck-stepio`
 (both satisfy the dependency-age rule) against our bodies for the
 AP203/AP214 analytic-geometry subset; adopt the syntax layer if the
 spike round-trips our planar B-reps cleanly, else write the (small)
@@ -180,8 +189,9 @@ memories/name-candidates.md whenever he wants to close it.
 7. **Appearance + STEP export** (parallelizable pair). Appearance:
    per-face/body attributes in editor-core keyed by StableName,
    surviving recompute, N3/N5 semantics on retire/vanish, seams
-   wrapper-ready (B11). STEP: F6's evaluation + the export it
-   lands on, external-import acceptance.
+   wrapper-ready (B11). STEP: the export implementation on the
+   crate decision ALREADY MADE by the early F6 spike (launched
+   with PR 1); external-import acceptance.
 8. **Band 4 corpus + M4 exit sweep.** The model corpus (recipe
    documents spanning the feature vocabulary) with rebuild-latency
    tracking wired into CI reporting; the K-telemetry Probe run the
