@@ -125,6 +125,7 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub(crate) mod census;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
@@ -193,4 +194,7 @@ pub use splitting::{
     SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use validate::{ValidationError, validate, validate_closed, validate_geometric};
+pub use validate::{
+    CensusContact, StaleDeclaration, ValidationError, validate, validate_closed,
+    validate_geometric, validate_pseudomanifold,
+};

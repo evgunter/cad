@@ -407,6 +407,43 @@ pub enum ValidationError {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
     },
+    /// Tier 3′ (M3 PR 6a): the global coincidence census found a
+    /// position coincidence between distinct entities that no declared
+    /// contact record backs (directly, or via the D3 segment
+    /// reconstruction) — an **undeclared contact** is a hard error,
+    /// never blessed (F1/F2(iii): discovery ≠ declaration, ever).
+    UndeclaredContact {
+        /// The coinciding entity pair, typed by census kind.
+        contact: CensusContact,
+        /// A debug rendering of the witnessing position.
+        witness: String,
+    },
+    /// Tier 3′: a declared contact record has no geometric witness —
+    /// the named entities do not coincide (or no longer resolve).
+    /// Silent tolerance of unconfirmed declarations is forbidden
+    /// (F1/F2(iii), the other direction of the certification diff).
+    StaleContactDeclaration {
+        /// The unconfirmed declaration.
+        declaration: StaleDeclaration,
+    },
+    /// Tier 3′: a census predicate escalated (sliver band or poison) —
+    /// indeterminate coincidence geometry at rest is a defect (the
+    /// standard trilean discipline: typed escalation, never a silent
+    /// skip).
+    CensusEscalated {
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// Tier 3′: the census met an entity outside its exact planar
+    /// inventory (non-`Line` carrier / non-`Plane` surface). The
+    /// coincidence census is exact on the F5 planar corpus — the same
+    /// boundary the M3 booleans that produce 3′ bodies enforce; curved
+    /// census geometry is deferred with the curved boolean work (M5),
+    /// and meeting it here refuses loudly rather than sampling.
+    CensusUnsupported {
+        /// The unsupported entity.
+        entity: EntityId,
+    },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
     /// key twice yields two errors).
@@ -712,6 +749,91 @@ pub enum ValidationError {
     },
 }
 
+/// A census-discovered coincidence between **distinct** entities (the
+/// tier-3′ injectivity pass's finding kinds, M3 PR 6a). Interior means
+/// strictly interior (endpoint/boundary coincidences surface through
+/// the vertex-level kinds instead — one finding per configuration
+/// class, deterministically).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CensusContact {
+    /// Two distinct vertices at one position.
+    VertexVertex {
+        /// The lower-arena-order vertex.
+        a: VertexKey,
+        /// The other vertex.
+        b: VertexKey,
+    },
+    /// A vertex on a face's interior (off the face's boundary).
+    VertexOnFace {
+        /// The resting vertex.
+        vertex: VertexKey,
+        /// The face.
+        face: FaceKey,
+    },
+    /// A vertex on an edge's interior — never declarable: reduction
+    /// refines every such contact into v-v records before records are
+    /// emitted (module docs, D4), so at rest this is always a defect.
+    VertexOnEdge {
+        /// The resting vertex.
+        vertex: VertexKey,
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// An edge piercing a face transversally at both interiors — a
+    /// proper crossing, categorically undeclarable (3′ allows touching,
+    /// never crossing).
+    EdgeFacePierce {
+        /// The piercing edge.
+        edge: EdgeKey,
+        /// The pierced face.
+        face: FaceKey,
+    },
+    /// Two edges crossing at both interiors (coplanar or skew-with-
+    /// contact) — a proper crossing, categorically undeclarable.
+    EdgeEdgeCross {
+        /// The lower-arena-order edge.
+        a: EdgeKey,
+        /// The other edge.
+        b: EdgeKey,
+    },
+    /// Two collinear edges overlapping on a positive-length segment
+    /// (certifiable via the D3 bounding-record reconstruction).
+    EdgeEdgeOverlap {
+        /// The lower-arena-order edge.
+        a: EdgeKey,
+        /// The other edge.
+        b: EdgeKey,
+    },
+    /// An edge lying in a face's plane with a positive-length
+    /// sub-segment inside the face region (certifiable via D3).
+    EdgeFaceOverlap {
+        /// The resting edge.
+        edge: EdgeKey,
+        /// The face.
+        face: FaceKey,
+    },
+}
+
+/// A declared contact the census could not confirm (tier 3′).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StaleDeclaration {
+    /// A v-v record whose vertices are dead, equal, or not coincident.
+    VertexVertex {
+        /// The record's A-side vertex.
+        a: VertexKey,
+        /// The record's B-side vertex.
+        b: VertexKey,
+    },
+    /// A v-on-f record whose vertex is dead / face dead / vertex not
+    /// resting on the face interior.
+    VertexOnFace {
+        /// The record's vertex.
+        vertex: VertexKey,
+        /// The record's face.
+        face: FaceKey,
+    },
+}
+
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -779,6 +901,27 @@ impl fmt::Display for ValidationError {
             Self::VolumeUncomputable { source } => write!(
                 f,
                 "the exact-B-rep volume for the +V invariant could not be computed: {source}"
+            ),
+            Self::UndeclaredContact { contact, witness } => write!(
+                f,
+                "tier-3′ census: undeclared contact {contact:?} at {witness} — \
+                 touching must be backed by a declared-contact record, never \
+                 blessed from discovery (F1/F2)"
+            ),
+            Self::StaleContactDeclaration { declaration } => write!(
+                f,
+                "tier-3′ census: declaration {declaration:?} has no geometric \
+                 witness — stale contact records are defects, not noise"
+            ),
+            Self::CensusEscalated { cause } => write!(
+                f,
+                "tier-3′ census predicate escalated: {cause:?} — indeterminate \
+                 coincidence geometry at rest is a defect"
+            ),
+            Self::CensusUnsupported { entity } => write!(
+                f,
+                "tier-3′ census: {entity} is outside the exact planar census \
+                 inventory (F5 planar corpus; curved census is M5)"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -1481,6 +1624,56 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
     }
 
     errors
+}
+
+/// **Tier 3′** (M3 PR 6a, F1/F2): the pseudomanifold at-rest validator
+/// for declared-contact bodies — tier 3's full local battery **plus**
+/// the global coincidence census tier 3 defers, certified against the
+/// body's declared-contact records.
+///
+/// Structure (D1):
+/// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).
+/// 2. All of tier 3's local checks, shared verbatim
+///    ([`tier3_local_checks`]).
+/// 3. The **global coincidence census** (only when the local checks are
+///    clean — census geometry on a locally corrupt body is cascade
+///    noise, the check-7 discipline): every cross-entity position
+///    coincidence among distinct entities — vertex-vertex,
+///    vertex-on-face (interior), vertex-on-edge (interior), proper
+///    edge-face / edge-edge crossings, and the segment-granularity
+///    overlaps (edge-edge collinear, edge-on-face) reconstructed per
+///    the D3 rule (see [`crate::census`] module docs). Quadratic
+///    sweeps, documented — the boolean edge×face convention.
+/// 4. The certification diff, both directions: every census finding
+///    must be backed by a declaration
+///    ([`ValidationError::UndeclaredContact`] otherwise — the
+///    validator never blesses discovered contacts; F1: no
+///    scan-to-bless) and every declaration must be geometrically
+///    confirmed ([`ValidationError::StaleContactDeclaration`]
+///    otherwise).
+///
+/// With `contacts` empty the census must find nothing, and 3′ ≡ tier 3
+/// plus the census actually run (pinned by the acceptance suite).
+///
+/// # Errors
+///
+/// A non-empty vector of every failure found: tiers 1–2 verbatim if
+/// any, else tier-3 local failures, else census/certification
+/// failures in deterministic sweep order.
+pub fn validate_pseudomanifold<T: Decide>(
+    body: &Body<T>,
+    contacts: &crate::boolean::ContactRecords,
+) -> Result<(), Vec<ValidationError>> {
+    validate_closed(body)?;
+    let band = match Band::linear() {
+        Ok(band) => band,
+        Err(error) => return Err(vec![ValidationError::Band { error }]),
+    };
+    let mut errors = tier3_local_checks(body, band);
+    if errors.is_empty() {
+        errors.extend(crate::census::census_and_certify(body, contacts, band));
+    }
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
 }
 
 /// The endpoint points of an edge in `he_plus` forward order, or `None`
