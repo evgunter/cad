@@ -442,12 +442,60 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// joining order is the total lexicographic sort (`order` module) —
 /// byte-identical replay is pinned by test.
 ///
+/// # Below-side pinches (M3 PR 6a, D7)
+///
+/// At a **BOB pinch** vertex (pieces meeting at a tip line, pinched
+/// pieces on the plane normal's NEGATIVE side) the ch. 14 insertion —
+/// which mints vertex copies for ABOVE runs only — leaves every below
+/// fan sharing the one original vertex, and the join is forced into a
+/// zero-area 2-gon in each tip-adjacent face
+/// ([`SplitJoinError::DegenerateSection`], the PR 3 posture). The
+/// below fans need their own copies. This op realizes that
+/// below-copy minting through the **mirror identity**
+/// `split(S, n) ≡ swap(split(S, −n))` (exact: piece assignment is
+/// plane-orientation-equivariant — PR 2's principle, executed by the
+/// PR 3 review's orientation table): on a `DegenerateSection` refusal
+/// the pipeline reruns under the flipped plane — where the pinched
+/// fans ARE the above runs and receive their distinct copies — and
+/// swaps the sides back. Success is therefore
+/// orientation-INDEPENDENT for the pinch class; a run whose mirror
+/// also refuses degenerate surfaces the original typed refusal
+/// (both-sided zero-area residue — no degenerate body is ever
+/// emitted). The result's section-face normals still follow THIS
+/// call's plane convention (above face m = −n, below face m = +n)
+/// because the mirrored run's roles are the swap of ours.
+///
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted).
 pub fn split<T: geom_core::Decide>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+) -> Result<SplitResult<T>, SplitError> {
+    match split_direct(operand, plane) {
+        Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {}
+        other => return other,
+    }
+    // D7: the pinch lane — rerun mirrored (the below fans become
+    // above runs and mint their copies), swap the sides back. A
+    // double degenerate refusal surfaces the DIRECT run's error.
+    let mirrored = SplitPlane {
+        origin: plane.origin,
+        normal: -plane.normal,
+    };
+    match split_direct(operand, &mirrored) {
+        Ok(SplitResult { above, below }) => Ok(SplitResult {
+            above: below,
+            below: above,
+        }),
+        Err(_) => split_direct(operand, plane),
+    }
+}
+
+/// One direct (non-mirrored) run of the split pipeline.
+fn split_direct<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<SplitResult<T>, SplitError> {

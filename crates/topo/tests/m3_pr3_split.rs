@@ -392,63 +392,60 @@ fn one_sided_tangency_refused_typed() {
     ));
 }
 
-/// The BOB mirror (PR 2 carry-forward 1b), pinned HONESTLY: full split
-/// of the touching-wedge fixture **refuses typed** at the tip's
-/// zero-area 2-gon polygon — the below-side pinch is NOT realizable by
-/// the ch. 14 joining as it stands (a fork-shaped finding, reported in
-/// the PR writeup, not improvised around).
-///
-/// Why (derived): the BOB tip's ABOVE runs are `{tip edge}` and
-/// `{wide-cap bisector}` — the minted copies' null halves land in
-/// (slantL, slantR) and (cap, cap) respectively, so NO null edge
-/// bridges a slant face to a cap face at the tip. The tip slivers
-/// therefore close onto themselves as a 2-gon (above loop: the tip
-/// edge on its copies; below loop: the connecting edge on the old
-/// vertices) instead of merging into the two flanking section
-/// polygons, and the realization the adjudication promises (two below
-/// pieces touching via coincident-but-distinct edges) additionally
-/// requires below-side vertex copies at the pinch — duplication the
-/// book's machinery (copies for ABOVE runs only) cannot mint. The
-/// zero-area net catches it and refuses typed.
-///
-/// The refusal is orientation-DEPENDENT, not ±n-equivariant: it fires
-/// iff the pinched pieces lie on the NEGATIVE side of the given
-/// normal (the below side, where the book's machinery would need
-/// below-vertex copies it cannot mint). MIRRORED under (o, −n)
-/// SUCCEEDS; `split(S, n)` refuses exactly where `swap(split(S, −n))`
-/// returns the same physical decomposition (the flip-and-swap
-/// workaround). PR 2's equivariance principle — physical piece
-/// ASSIGNMENT is orientation-invariant — still holds; op SUCCESS is
-/// not. This test pins two BOB presentations that both place the
-/// pinch on the negative side: (MIRRORED, +n) and (NOTCHED, −n).
+/// The BOB mirror (PR 2 carry-forward 1b), CLOSED by M3 PR 6a's D7:
+/// full split of the touching-wedge fixture now SUCCEEDS in BOTH
+/// orientations — the below-side pinch (whose below fans share the
+/// one original vertex under ch. 14's above-only copy minting) gets
+/// its below-vertex copies through the pinch lane (`split`'s mirror
+/// identity; see the splitting module docs), and the former
+/// orientation-dependent `DegenerateSection` refusal is gone for the
+/// pinch class. This test pins the two presentations that used to
+/// refuse — (MIRRORED, +n) and (NOTCHED, −n) — with the equal-volume
+/// oracle and the piece-assignment check (pinched pieces land on the
+/// correct SIDE for this call's normal, wherever the copies were
+/// minted).
 #[test]
 fn bob_mirror_pinch_refuses_typed() {
+    // MIRRORED under +n: pinched floor pieces are BELOW.
     let fx = prism::<f64>(MIRRORED, 1.0);
-    let err = split(&fx.body, &plane_y(1.0)).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            SplitError::Join(SplitJoinError::DegenerateSection { .. })
-        ),
-        "got {err:?}"
+    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let (slab, pieces) = (body_of(&r.above), body_of(&r.below));
+    assert_eq!(validate_closed(slab), Ok(()));
+    assert_eq!(validate_closed(pieces), Ok(()));
+    assert_eq!(pieces.shells().count(), 3, "three pinched floor pieces");
+    assert_eq!(slab.shells().count(), 1);
+    // Distinct coincident tip copies on the pieces side; one vertex on
+    // the slab side (same census as the flipped-plane presentation).
+    for z in [0.0, 1.0] {
+        assert_eq!(vertices_at(pieces, 4.0, 1.0, z).len(), 2);
+        assert_eq!(vertices_at(slab, 4.0, 1.0, z).len(), 1);
+    }
+    let v0 = mass_properties(&fx.body).unwrap().volume;
+    let (vs, vp) = (
+        mass_properties(slab).unwrap().volume,
+        mass_properties(pieces).unwrap().volume,
     );
+    assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 
-    // Second BOB presentation: NOTCHED under (o, −n) also places the
-    // pinch on the negative side of the normal and refuses identically.
-    // (NOT equivariance — MIRRORED under (o, −n) succeeds.)
+    // NOTCHED under −n: pinched prisms are BELOW the flipped normal.
     let fx = prism::<f64>(NOTCHED, 1.0);
     let flipped = SplitPlane {
         origin: Point3::new(0.0, 1.0, 0.0),
         normal: Vec3::new(0.0, -1.0, 0.0),
     };
-    let err = split(&fx.body, &flipped).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            SplitError::Join(SplitJoinError::DegenerateSection { .. })
-        ),
-        "got {err:?}"
+    let r = split(&fx.body, &flipped).unwrap();
+    // Below the flipped normal = the y > 1 pinched prisms.
+    let (pieces, slab) = (body_of(&r.below), body_of(&r.above));
+    assert_eq!(validate_closed(pieces), Ok(()));
+    assert_eq!(validate_closed(slab), Ok(()));
+    assert_eq!(pieces.shells().count(), 3);
+    assert_eq!(slab.shells().count(), 1);
+    let v0 = mass_properties(&fx.body).unwrap().volume;
+    let (vs, vp) = (
+        mass_properties(slab).unwrap().volume,
+        mass_properties(pieces).unwrap().volume,
     );
+    assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 }
 
 /// Slicing (§14.9): `plane_section` returns the section polygons
