@@ -375,3 +375,31 @@ key spaces (clone/graft/revert key-stable), order_along boundaries,
 refusal doors all typed + no hard-coded ε (grep-verified), identity
 boundary on the rich doc. Fix pass dispatched to the resumed
 implementer in its surviving worktree.
+
+**STEP export implementation COMPLETE (2026-07-24, `ev/m4-7-step`
+@ `b7b382a`, pushed; review launched)**: `crates/step-export` —
+runtime deps kernel-only (F6 "adopt nothing" honored; ruststep +
+truck-stepio dev-only oracles). AP214 ed.2 (schema names the AP the
+data uses), unprefixed SI_UNIT METRE (kernel is metres, no .MILLI.
+lie), LENGTH_MEASURE-wrapped uncertainty = ambient ε at write time,
+ADVANCED_FACE under ABSR, orientation adds no new conventions
+(same_sense=.T. both levels per M1 outward-normal + he_plus
+contracts). Part 21 real printer: shortest-round-trip digits
+normalized to Part 21 grammar, exact-bits parse-back proptested;
+NaN/∞ typed refusals. Multi-shell solids classified by per-shell
+exact divergence-theorem volume (positive → independent MSBs; void
+shells → typed VoidShellUnsupported — BREP_WITH_VOIDS needs a
+designation the kernel doesn't record). 12-variant typed error
+enum; byte-identical determinism (fixed default timestamp).
+18 oracle tests green (cube 6/12/8 bit-exact corners, die 11/24/16,
+kiss assembly 2×MSB; refusal doors end-to-end); workspace 122/122.
+**FreeCAD external-import acceptance DISCHARGED**: all three
+committed fixtures import VALID with exact counts + volumes
+(admesh-pattern `scripts/check_step.sh` + step_import_check.py +
+.expect sidecars; FREECADCMD env discovery, loud hermetic skip,
+REQUIRE_FREECAD=1 hardening; new ci-local.sh row + ci.yml job).
+Adversarial review launched (clone `~/.local/share/cad-work/
+step-review`) — attack surface includes the ambient-ε-in-golden-
+bytes vs 11-row-matrix interaction, HashMap-order determinism,
+orientation proof beyond OCC healing, near-zero shell-volume
+classification.
