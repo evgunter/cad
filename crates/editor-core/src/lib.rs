@@ -8,21 +8,29 @@
 //! (D1–D9, binding). This crate holds NO geometry evaluation (PR 2), NO
 //! persistence (PR 6), NO name resolution (PR 3/4).
 //!
-//! Layering (spec D1): the only dependency is `geom-core`, for the
-//! scalar-generic [`geom_core::Real`] the expression evaluator is
-//! parameterized over. Profiles are carried opaquely (a type parameter,
-//! never a re-model); the kernel op crates join behind PR 2's
-//! evaluation service.
+//! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
+//! the evaluation service ([`eval`]) depends on the op crates it wires
+//! (`profile`, `sweep`, `topo`); the kernel crates gain no editor-core
+//! dependency. Profiles are carried opaquely in the document (a type
+//! parameter, never a re-model); [`ProfileDoc`] is the canonical
+//! instantiation at the profile crate's public description type.
 
 pub mod diff;
 pub mod doc;
 pub mod edit;
+pub mod eval;
 pub mod expr;
 pub mod node;
+pub mod profile_desc;
 
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
+pub use eval::{
+    BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
+    EvalOutcome, Evaluation, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
+    ValuePayload, evaluate,
+};
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
@@ -30,3 +38,4 @@ pub use node::{
     Axis3, BooleanOp, CapEnd, Datum, EntityKind, Node, PatternKind, RecipeNodeId, RoleSeg, SlotId,
     StableName,
 };
+pub use profile_desc::{ProfileDesc, ProfileDoc};

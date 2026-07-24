@@ -159,6 +159,7 @@ pub mod split;
 pub mod splitting;
 #[cfg(test)]
 mod tier3_tests;
+pub mod transform;
 pub mod validate;
 
 pub use body::Body;
@@ -194,6 +195,7 @@ pub use splitting::{
     SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
+pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     CensusContact, StaleDeclaration, ValidationError, validate, validate_closed,
     validate_geometric, validate_pseudomanifold,
