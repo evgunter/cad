@@ -638,6 +638,49 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
     out
 }
 
+/// Name-level edit-time validation (PR 3's R6 obligation, landed
+/// here): [`crate::edit::apply`] upgraded with resolution of the
+/// edit's recorded [`StableName`]s against `eval`'s tables WHEN THEY
+/// ARE EVALUABLE — a name whose minting node has an Ok value in
+/// `eval` must be carried by some table (unique or tied; a tie is
+/// recordable intent, refused only at reference-resolution time).
+/// The documented carve-out for forward references stands: names
+/// whose nodes are unevaluated, failed, or poisoned in `eval` are
+/// not checkable here and defer to evaluation-time resolution.
+///
+/// Checked sites: `InsertNode(Declare)` pairs and `Rebind`'s target.
+/// Every other edit validates exactly as [`crate::edit::apply`].
+///
+/// # Errors
+///
+/// [`crate::edit::EditError::NameUnresolvedInEvaluation`] on a
+/// checkable-but-absent name; otherwise whatever [`crate::edit::apply`]
+/// returns.
+pub fn apply_with_names<T: Decide>(
+    doc: &Doc<ProfileDesc>,
+    edit: &crate::edit::DocEdit<ProfileDesc>,
+    eval: &Evaluation<T>,
+) -> Result<crate::edit::Applied<ProfileDesc>, crate::edit::EditError> {
+    use crate::edit::{DocEdit, EditError};
+    use crate::node::Node;
+    let mut names: Vec<&StableName> = Vec::new();
+    match edit {
+        DocEdit::InsertNode {
+            node: Node::Declare { pairs },
+        } => names.extend(pairs.iter().flat_map(|(a, b)| [a, b])),
+        DocEdit::Rebind { to, .. } => names.push(to),
+        _ => {}
+    }
+    for name in names {
+        // Checkable = the minting node evaluated Ok. (Node existence
+        // itself is apply's own door.)
+        if eval.value(name.node).is_some() && lookup(eval, name).is_none() {
+            return Err(EditError::NameUnresolvedInEvaluation { name: name.clone() });
+        }
+    }
+    crate::edit::apply(doc, edit)
+}
+
 /// The nodes a name's derivation passes through: its minting node,
 /// every embedded operand name's nodes (recursively), and every
 /// discriminator partner's nodes — the localization set of N7 ("an

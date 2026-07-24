@@ -282,6 +282,18 @@ pub enum EditError {
     },
     /// A `ReWitnessBulk` with no entries — a recorded no-op, refused.
     EmptyWitnessBulk,
+    /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
+    /// obligation, via [`crate::resolve::apply_with_names`]): the
+    /// name's minting node HAS an Ok value in the supplied
+    /// evaluation, yet no table carries the name — recording the
+    /// reference would strand it immediately. The forward-reference
+    /// carve-out stands: names whose nodes are unevaluated (or
+    /// failed/poisoned) in the supplied evaluation are not checkable
+    /// and pass through to evaluation-time resolution.
+    NameUnresolvedInEvaluation {
+        /// The name no table carries.
+        name: StableName,
+    },
 }
 
 /// What an accepted edit did (spec D6: structural edits are FLAGGED

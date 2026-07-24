@@ -47,8 +47,9 @@ pub use profile_desc::{ProfileDesc, ProfileDoc};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, RecipeEditRef, Resolution,
     ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness,
-    Tombstone, VerdictFlip, body_name, derivation_nodes, diff_verdicts, edge_name, entity_name,
-    face_name, rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+    Tombstone, VerdictFlip, apply_with_names, body_name, derivation_nodes, diff_verdicts,
+    edge_name, entity_name, face_name, rebind_suggestions, resolve, resolve_with_prior,
+    vertex_name,
 };
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
