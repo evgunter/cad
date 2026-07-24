@@ -285,7 +285,11 @@ certified caches.
   cylinder chart is a sinusoid graph — transcendental in the chart,
   fitted as a 2-D NURBS cache with the same certificate; on the
   plane chart it is the exact ellipse). Fitted pcurves are 2-D NURBS;
-  the fit loop is the same A9.10 shape as C1 rung 3.
+  the fit loop is the same A9.10 shape as C1 rung 3, under C6's
+  pinning rule (structure f64-selected, certification scalar-generic
+  — D9 replay of pcurve caches is the same story as every other
+  fitted cache, libm-only and bit-replayable; chart evaluations are
+  the only transcendental sites and already live on `Real`).
 
 **Alternatives considered:** (i) *derive pcurves on demand, store
 nothing* — attractive purity (fewer caches, no staleness class), but
@@ -664,6 +668,44 @@ PR-plan line item, none re-ratifying anything):
 - STEP: M4's export scope grows to conics + NURBS entities
   (AP203/214 have exact forms for both — Book ch. 12 §12.3.2); import
   stays M7.
+
+## D7 leave-room obligations (mostly mechanical; listed so M5 cannot foreclose M7)
+
+Import adoption (D7) and the native repair/adoption op (F6's sliver
+resolution, banked "M5+") stay out of M5. What M5 must *leave room
+for* — each an obligation on M5 code shape, none a new decision:
+
+- **Certifiability from data alone.** Every intrinsic description's
+  certificate (C2, C7) must consume only the description + caches —
+  never construction-context side data — because adoption's whole
+  mechanism is re-running exactly these certificates on reconstructed
+  descriptions (D7: "adoption reuses the kernel's own certification
+  machinery"). This is already the M2 contract; the flag is to keep
+  it true through the fitted-cache generation (e.g. the C2.3 tube
+  must be re-derivable from witness + carrier, not from marcher
+  internals that import will never have).
+- **Tolerance as an explicit argument internally.** ε stays one
+  global per run (D4 ¶1, untouched); but D7's ε_in ("governs
+  interpretation") means the *classification* layers C5 builds
+  (configuration trileans, tangency-vs-transverse dispatch) will be
+  re-run at a different tolerance by adoption. Predicates already
+  take `Tolerance` as a value — M5 must not regress this by baking
+  the global into new classification code paths.
+- **Error text names the future op.** The F6-mandated escalations on
+  near-coincident/near-tangent *operands* (C5, the envelope) should
+  point at the explicit repair/adoption operation as the resolution —
+  the `FullRevolveHoles` precedent: a standing rule whose error text
+  names the front door that does not exist yet.
+- **Recognition's substrate.** D7 step 1 (NURBS-within-ε-of-analytic
+  promotion) will want closest-analytic-fit machinery; C11's fitting
+  stack and C9's enclosures are its substrate, and nothing more is
+  built for it at M5 (non-goal reaffirmed — no feature recognition,
+  D7's own text).
+- **`TangencyLocus` is the pressure-test variant.** D2 predicts
+  imported fillets force the intrinsic form; C8 storing native
+  trimlines as `TangencyLocus` from birth is what makes M7's adoption
+  of imported fillets a reconstruction into an *existing, certified*
+  variant rather than a taxonomy scramble.
 
 ## Open questions for Evan (genuine forks)
 
