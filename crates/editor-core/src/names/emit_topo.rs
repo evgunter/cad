@@ -362,23 +362,31 @@ fn name_split_edges_vertices<T: Decide>(
                 ent(s.ix, EntityKey::Edge(e)),
             )?;
         }
-        // Vertices.
+        // Vertices. Pair membership FIRST: a vertex the tool plane
+        // passed through exists as a coincident copy in BOTH halves
+        // (null-pair rows), so even an operand-named original must
+        // take a side-tagged role, never the bare pass-through (the
+        // bare name would alias across the two halves).
+        let pair_originals: BTreeSet<VertexKey> =
+            naming.vertex_pairs.iter().map(|&(_, o)| o).collect();
         for (v, _) in body.vertices() {
-            if target_table
-                .name_of(&ent(0, EntityKey::Vertex(v)))
-                .is_some()
+            let is_pair_member =
+                copy_to_original.contains_key(&v) || pair_originals.contains(&v);
+            if !is_pair_member
+                && target_table
+                    .name_of(&ent(0, EntityKey::Vertex(v)))
+                    .is_some()
             {
                 let name = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
                 t.insert(name, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
-            // Crossing vertex: resolve the birth record — directly,
-            // or through the null-pair copy row (the original's
-            // record lives in whichever side kept it).
+            // Resolve the birth record — directly, or through the
+            // null-pair copy row (the original's record lives in
+            // whichever side kept it).
             let src = copy_to_original.get(&v).copied().unwrap_or(v);
-            let parent_edge = sides
-                .iter()
-                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
+            let parent_edge = sides.iter().find_map(|sb| {
+                match sb.body.vertex_provenance_of(src) {
                     Some(Provenance::SplitEdge { edge }) => Some(chase_edge_to_table(
                         sb.body,
                         target_table,
@@ -386,22 +394,41 @@ fn name_split_edges_vertices<T: Decide>(
                         sb.body.edges().count(),
                     )),
                     _ => None,
-                })
-                .ok_or_else(|| bug("crossing vertex without a SplitEdge birth record"))?;
-            let parent = upstream_name(
-                target_table,
-                target_node,
-                ent(0, EntityKey::Edge(parent_edge)),
-            )?;
+                }
+            });
+            let seg = if let Some(parent_edge) = parent_edge {
+                // Crossing vertex: minted where the plane crossed an
+                // operand edge's interior.
+                let parent = upstream_name(
+                    target_table,
+                    target_node,
+                    ent(0, EntityKey::Edge(parent_edge)),
+                )?;
+                RoleSeg::CrossingVertex {
+                    side: s.half,
+                    edge: Box::new(parent),
+                }
+            } else if target_table
+                .name_of(&ent(0, EntityKey::Vertex(src)))
+                .is_some()
+            {
+                // The plane passed THROUGH an operand vertex (review
+                // R2): side-tagged pass-through — operand identity
+                // from the pair row, side from body membership (a
+                // recorded verdict).
+                let of =
+                    upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(src)))?;
+                RoleSeg::OnToolVertex {
+                    side: s.half,
+                    of: Box::new(of),
+                }
+            } else {
+                return Err(bug(
+                    "on-plane vertex with neither a SplitEdge record nor an operand identity",
+                ));
+            };
             t.insert(
-                name1(
-                    EntityKind::Vertex,
-                    node,
-                    RoleSeg::CrossingVertex {
-                        side: s.half,
-                        edge: Box::new(parent),
-                    },
-                ),
+                name1(EntityKind::Vertex, node, seg),
                 ent(s.ix, EntityKey::Vertex(v)),
             )?;
         }
@@ -705,20 +732,27 @@ fn name_boolean_edges<T: Decide>(
         A(EdgeKey),
         B(EdgeKey),
     }
-    let chase_b = |mut e_b: EdgeKey| -> Result<EdgeKey, NamingError> {
+    // Best-effort B-space descent: stops at the first key B's table
+    // names. A broken chain (a middle fragment of a doubly-pierced
+    // edge dies PRE-graft, so its key is unnamed AND ungrafted)
+    // returns the non-resolving key instead of refusing — the
+    // `resolves == false` route below hands such edges to
+    // `chord_kind`, the same rescue the A lane gets (review R1: lane
+    // parity; the kernel completed the body, naming must too).
+    let chase_b = |mut e_b: EdgeKey| -> EdgeKey {
         for _ in 0..=fwd_edges.len() {
             if b.table.name_of(&ent(0, EntityKey::Edge(e_b))).is_some() {
-                return Ok(e_b);
+                return e_b;
             }
-            let res = fwd_edges
-                .get(&e_b)
-                .ok_or_else(|| bug("B edge descent: ungrafted intermediate"))?;
+            let Some(res) = fwd_edges.get(&e_b) else {
+                return e_b; // dead, ungrafted intermediate
+            };
             match body.edge_provenance_of(*res) {
                 Some(Provenance::SplitEdge { edge }) => e_b = *edge,
-                _ => return Err(bug("B edge descent reached no operand edge")),
+                _ => return e_b,
             }
         }
-        Err(bug("B edge descent did not terminate"))
+        e_b
     };
     let mut groups: BTreeMap<ERoot, Vec<EdgeKey>> = BTreeMap::new();
     for (e, _) in body.edges() {
@@ -727,7 +761,7 @@ fn name_boolean_edges<T: Decide>(
         }
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
-                Some(&eb) => ERoot::B(chase_b(eb)?),
+                Some(&eb) => ERoot::B(chase_b(eb)),
                 None => ERoot::A(chase_edge_to_table(
                     body,
                     a.table,
@@ -738,7 +772,7 @@ fn name_boolean_edges<T: Decide>(
             (OperandKeys::Direct, OperandKeys::Absent) => {
                 ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count()))
             }
-            (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)?),
+            (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)),
             _ => return Err(bug("unsupported operand-key layout")),
         };
         // A root that resolves in no operand table is a join-minted

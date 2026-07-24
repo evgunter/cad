@@ -277,6 +277,18 @@ pub enum RoleSeg {
         /// The operand edge the plane crossed.
         edge: Box<StableName>,
     },
+    /// A per-half copy of an operand vertex the tool plane passed
+    /// THROUGH (review R2): both halves keep a coincident copy, so
+    /// the operand name alone would alias — the side tag (the
+    /// kernel's own recorded side assignment, a verdict) is the
+    /// discriminator. Fully birth-derived: the operand identity via
+    /// the null-pair copy row, the side via which half owns the copy.
+    OnToolVertex {
+        /// Which output half holds this copy.
+        side: SplitHalf,
+        /// The operand vertex the plane passed through.
+        of: Box<StableName>,
+    },
 
     // ---- Pattern ----
     /// Instance `i` of the pattern's master (i is the D8-structural

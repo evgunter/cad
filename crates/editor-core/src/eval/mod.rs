@@ -817,6 +817,11 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_u64(half(*side));
             feed_stable_name(h, edge);
         }
+        RoleSeg::OnToolVertex { side, of } => {
+            h.write_tag(27);
+            h.write_u64(half(*side));
+            feed_stable_name(h, of);
+        }
         RoleSeg::Instance { i, of } => {
             h.write_tag(26);
             h.write_u64(u64::from(*i));
