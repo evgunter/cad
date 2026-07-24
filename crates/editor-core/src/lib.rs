@@ -36,8 +36,9 @@ pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
 pub use names::{
-    CapEnd, EntityKey, EntityKind, EntityRef, MeridianEnd, NameTable, NamingError, ProfileEdgeRef,
-    ProfileVertexRef, Qualifier, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
+    CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NameTable, NamingError,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RolePath, RoleSeg, SideVerdict, SplitHalf,
+    StableName,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use profile_desc::{ProfileDesc, ProfileDoc};
