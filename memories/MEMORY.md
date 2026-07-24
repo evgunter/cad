@@ -14,3 +14,4 @@
 - [Worktree disk hygiene](worktree-disk-hygiene.md) — each worktree's target/ is 4-8 GB and cargo can't safely share artifacts across parallel builds; remove merged-branch worktrees at every pipeline seam
 - [Subagent death recovery](subagent-death-recovery.md) — resume dead agents from transcript first; isolation worktrees under .claude/worktrees/ survive with uncommitted work; implementers push after every unit
 - [Clone placement](clone-placement.md) — working git clones never in /tmp scratchpad; use ~/.local/share/cad-work/ or .claude/worktrees/; scratchpad = disposable artifacts only
+- [FreeCAD oracle](freecad-oracle.md) — FreeCAD 1.1.2 headless at ~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd; STEP import acceptance oracle, admesh-pattern integration

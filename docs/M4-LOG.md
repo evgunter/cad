@@ -277,3 +277,13 @@ PR 4 stays behind PR 3 (builds on its tables/discriminators), PR 5
 behind PR 4; PR 6 core could overlap PR 4 but both live in
 editor-core — contention not worth it. Appearance half of PR 7
 unblocks at PR 3 merge (StableName) and can then run beside PR 4.
+
+**FreeCAD oracle installed (Evan-approved, 2026-07-23)**: FreeCAD
+1.1.2 headless (`freecadcmd`, extracted AppImage — apt only carries
+0.18/2019) at `~/.local/share/cad-work/freecad/`. Smoke test: the
+F6 spike's in-house AP214 cube imports as a VALID solid, exactly
+6/12/8, volume 1.0. PR 7's open external-import caveat is now
+DISCHARGEABLE on this machine; the STEP implementer was directed to
+wire it as an admesh-pattern check script (env-var locator, loud
+hermetic skip when absent) run against cube, die, and a
+boolean-result body.
