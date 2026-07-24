@@ -14,7 +14,7 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::discriminate::{Extent, band, order_along, side_of_face};
-use super::emit::{Incidence, NamingError, edge_ends, ent, face_half_edges, name1};
+use super::emit::{Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge};
 use super::role::{EntityKind, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -373,7 +373,7 @@ pub(crate) struct OperandCtx<'a, T: Decide> {
 
 /// Which operand a result key descends from, with its operand-space
 /// key.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Descent {
     A(FaceKey),
     B(FaceKey),
@@ -567,12 +567,18 @@ fn name_boolean_edges<T: Decide>(
     let bug = |what| NamingError::Emission { what };
     use topo::OperandKeys;
 
-    // ---- Seam edges, grouped by their (fA, fB) operand pair. ----
-    let mut seam_groups: BTreeMap<(StableName, StableName), Vec<EdgeKey>> = BTreeMap::new();
-    for &e in &naming.seam_edges {
-        if body.get_edge(e).is_none() {
-            continue; // consumed by the merge stage — historical row
-        }
+    // ---- Seam edges (zip-listed AND derived — see below), grouped
+    // by their (fA, fB) operand pair. A derived chord between two
+    // SAME-operand faces (the collinear channel-cut lane re-mints a
+    // sub-edge of an operand edge as a chord) descends instead to the
+    // unique operand edge its two parent faces share — combinatorial
+    // adjacency of emitted anchors, not matching. ----
+    enum ChordKind {
+        Cross(StableName, StableName),
+        SameA(EdgeKey),
+        SameB(EdgeKey),
+    }
+    let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
             .get(&e)
@@ -581,51 +587,33 @@ fn name_boolean_edges<T: Decide>(
             return Err(bug("seam edge without exactly two adjacent faces"));
         }
         let (d0, d1) = (descend_face(faces[0])?, descend_face(faces[1])?);
-        let (da, db) = match (d0, d1) {
-            (Descent::A(_), Descent::B(_)) => (d0, d1),
-            (Descent::B(_), Descent::A(_)) => (d1, d0),
-            _ => return Err(bug("seam edge between same-operand faces")),
-        };
-        seam_groups
-            .entry((operand_face_name(da)?, operand_face_name(db)?))
-            .or_default()
-            .push(e);
-    }
-    for ((fa, fb), edges) in seam_groups {
-        let base = name1(
-            EntityKind::Edge,
-            node,
-            RoleSeg::Seam {
-                a: Box::new(fa),
-                b: Box::new(fb),
-            },
-        );
-        if edges.len() == 1 {
-            t.insert(base, ent(0, EntityKey::Edge(edges[0])))?;
-            continue;
+        Ok(match (d0, d1) {
+            (Descent::A(_), Descent::B(_)) => {
+                ChordKind::Cross(operand_face_name(d0)?, operand_face_name(d1)?)
+            }
+            (Descent::B(_), Descent::A(_)) => {
+                ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?)
+            }
+            (Descent::A(fa0), Descent::A(fa1)) => {
+                ChordKind::SameA(unique_shared_edge(a.body, fa0, fa1)?)
+            }
+            (Descent::B(fb0), Descent::B(fb1)) => {
+                ChordKind::SameB(unique_shared_edge(b.body, fb0, fb1)?)
+            }
+        })
+    };
+    let seam_pair = |e: EdgeKey| -> Result<(StableName, StableName), NamingError> {
+        match chord_kind(e)? {
+            ChordKind::Cross(fa, fb) => Ok((fa, fb)),
+            _ => Err(bug("seam edge between same-operand faces")),
         }
-        // Collinear chain: order along the pair's intersection line,
-        // oriented n_a × n_b (the carriers' own orientations, A side
-        // first — descent decides which is which, never list order).
-        let faces = inc
-            .edge_faces
-            .get(&edges[0])
-            .ok_or_else(|| bug("seam group lost its faces"))?;
-        let (f0, f1) = (faces[0], faces[1]);
-        let (fa_key, fb_key) = match descend_face(f0)? {
-            Descent::A(_) => (f0, f1),
-            Descent::B(_) => (f1, f0),
-        };
-        let (_, na) = face_plane(body, fa_key)?;
-        let (_, nb) = face_plane(body, fb_key)?;
-        let dir = na.cross(nb);
-        let extents = edges
-            .iter()
-            .map(|&e| edge_extent(body, e, dir))
-            .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, base, &edges, &extents, bnd, |&e| {
-            ent(0, EntityKey::Edge(e))
-        })?;
+    };
+    let mut seam_groups: BTreeMap<(StableName, StableName), Vec<EdgeKey>> = BTreeMap::new();
+    for &e in &naming.seam_edges {
+        if body.get_edge(e).is_none() {
+            continue; // consumed by the merge stage — historical row
+        }
+        seam_groups.entry(seam_pair(e)?).or_default().push(e);
     }
 
     // ---- Operand-descended edges, grouped by (space, root). ----
@@ -665,7 +653,65 @@ fn name_boolean_edges<T: Decide>(
             (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)?),
             _ => return Err(bug("unsupported operand-key layout")),
         };
-        groups.entry(root).or_default().push(e);
+        // A root that resolves in no operand table is a join-minted
+        // crossing chord that survived OUTSIDE the zip's list (channel
+        // cuts: chords on the operand's own faces) — a DERIVED seam
+        // edge, named by its adjacent faces' descent like any seam.
+        let resolves = match &root {
+            ERoot::A(k) => a.table.name_of(&ent(0, EntityKey::Edge(*k))).is_some(),
+            ERoot::B(k) => b.table.name_of(&ent(0, EntityKey::Edge(*k))).is_some(),
+        };
+        if resolves {
+            groups.entry(root).or_default().push(e);
+        } else {
+            match chord_kind(e)? {
+                ChordKind::Cross(fa, fb) => {
+                    seam_groups.entry((fa, fb)).or_default().push(e);
+                }
+                ChordKind::SameA(k) => {
+                    groups.entry(ERoot::A(k)).or_default().push(e);
+                }
+                ChordKind::SameB(k) => {
+                    groups.entry(ERoot::B(k)).or_default().push(e);
+                }
+            }
+        }
+    }
+    for ((fa, fb), edges) in seam_groups {
+        let base = name1(
+            EntityKind::Edge,
+            node,
+            RoleSeg::Seam {
+                a: Box::new(fa),
+                b: Box::new(fb),
+            },
+        );
+        if edges.len() == 1 {
+            t.insert(base, ent(0, EntityKey::Edge(edges[0])))?;
+            continue;
+        }
+        // Collinear chain: order along the pair's intersection line,
+        // oriented n_a × n_b (the carriers' own orientations, A side
+        // first — descent decides which is which, never list order).
+        let faces = inc
+            .edge_faces
+            .get(&edges[0])
+            .ok_or_else(|| bug("seam group lost its faces"))?;
+        let (f0, f1) = (faces[0], faces[1]);
+        let (fa_key, fb_key) = match descend_face(f0)? {
+            Descent::A(_) => (f0, f1),
+            Descent::B(_) => (f1, f0),
+        };
+        let (_, na) = face_plane(body, fa_key)?;
+        let (_, nb) = face_plane(body, fb_key)?;
+        let dir = na.cross(nb);
+        let extents = edges
+            .iter()
+            .map(|&e| edge_extent(body, e, dir))
+            .collect::<Result<Vec<_>, _>>()?;
+        insert_ranked_or_tied(t, base, &edges, &extents, bnd, |&e| {
+            ent(0, EntityKey::Edge(e))
+        })?;
     }
     for (root, edges) in groups {
         let (inner, wrap_a, op_body, root_key) = match root {
