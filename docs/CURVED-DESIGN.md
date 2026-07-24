@@ -18,8 +18,10 @@ resolved several forks; each is recorded inline below as **DECIDED
 (both halves), OQ5, OQ6 (scope; its run-out vocabulary sub-question
 stays open), OQ8, OQ9, and the C9/T2 inari-on-default-path question.
 Still open: OQ3, OQ4, OQ7 (reshaped by Evan's counter-proposal, under
-discussion in the PR threads), the OQ6 run-out vocabulary, and C6's
-sign-off. The K = 10 tangent raised on T5 moved to issue #89.
+discussion in the PR threads), and the OQ6 run-out vocabulary. C6 and
+the C3 certification-failure path are SIGNED OFF (Evan 👍 on the PR
+top-level answer, 2026-07-24). The K = 10 tangent raised on T5 moved
+to issue #89.
 
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
