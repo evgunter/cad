@@ -600,13 +600,18 @@ fn revolve_tau_door_is_margined_not_raw() {
     // faceted kernel volume differs, so compare RELATIVE to the
     // full-revolve result instead of an analytic oracle.
     let v_full = revolve_volume(TAU).expect("exact τ must be Full");
-    // ±1 ulp and ±1e-12: inside the 1e-9 zero band ⇒ silently Full,
+    // Probes derived from the AMBIENT tolerance so this test is valid
+    // on every ε row of the gate matrix (the first draft hard-coded
+    // the 1e-9 default and failed the 1e-6/1e-12 rows).
+    let tol = geom_core::Tolerance::get();
+    let (eps, kesc) = (tol.eps, tol.eps * tol.k);
+    // ±1 ulp and ±eps/10: inside the zero band ⇒ silently Full,
     // bit-identical volume to exact τ.
     for a in [
         TAU - f64::EPSILON * TAU, // 1 ulp under
         TAU + f64::EPSILON * TAU,
-        TAU - 1e-12,
-        TAU + 1e-12,
+        TAU - eps * 0.1,
+        TAU + eps * 0.1,
         -TAU, // sign door: |θ|
     ] {
         let v = revolve_volume(a).unwrap_or_else(|e| panic!("θ={a:.17}: {e}"));
@@ -616,9 +621,10 @@ fn revolve_tau_door_is_margined_not_raw() {
             "θ={a:.17} must classify Full"
         );
     }
-    // In-band margin (zero < |m| < escalate = 1e-8): typed escalation,
-    // NOT a silent guess either way.
-    let e = revolve_volume(TAU - 5e-9).expect_err("in-band must escalate typed");
+    // In-band margin (eps < |m| < K·eps): typed escalation, NOT a
+    // silent guess either way. Geometric mean of the band edges.
+    let in_band = (eps * kesc).sqrt();
+    let e = revolve_volume(TAU - in_band).expect_err("in-band must escalate typed");
     assert!(e.contains("Escalated"), "got {e}");
     assert!(
         e.contains("revolve_full_vs_partial"),
@@ -627,10 +633,10 @@ fn revolve_tau_door_is_margined_not_raw() {
     // Definite partial: strictly less volume.
     let v_half = revolve_volume(TAU / 2.0).expect("half revolve");
     assert!(v_half < v_full * 0.51 && v_half > v_full * 0.49);
-    // Definitely OVER τ but past the band: Partial(θ>τ) — the kernel's
-    // own classification must refuse loudly, not wrap silently.
-    match revolve_volume(TAU + 1e-7) {
-        Ok(v) => panic!("θ=τ+1e-7 silently produced a body (V={v})"),
+    // Definitely OVER τ, past the band: the kernel's own
+    // classification must refuse loudly, not wrap silently.
+    match revolve_volume(TAU + kesc * 10.0) {
+        Ok(v) => panic!("θ=τ+10Kε silently produced a body (V={v})"),
         Err(e) => assert!(!e.is_empty()),
     }
 }
