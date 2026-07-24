@@ -529,3 +529,21 @@ whether FromA/FromB non-inheritance is the right "survives
 recompute" reading (flag-don't-assume), Clear-replay determinism
 under upstream edits, PR 4 hook-shape compatibility (Ambiguous
 {at,width} vs N5 TieWitness; Vanished vs N5 payload).
+
+**Evan engaged CURVED-DESIGN #85 (2026-07-24)**: inline comments on
+most OQs + two top-level questions (march-then-certify failure
+path; whether C6 cache-knots needs explaining). DECIDED by Evan in
+review: OQ1 (b)-staged-via-(a); OQ2 hull bounds day-one AND tube
+always; inari temporarily OK on default path as in-house-ring seed;
+D7 waits; OQ6 WIDENED to three-convex-edge corners (he wants the
+die-with-pips demo upgrade as the acceptance target); OQ8 in-house
+ring approved; OQ9 lean DESIGN.md Q5 revision. Needing elaboration:
+OQ3 gate placement, OQ4 pcurve-vs-carrier, C8 refusal-name
+vocabulary, OQ7 (his counter-proposal: keep TangencyLocus separate,
+maybe renamed narrower), T1 clarification (two-strength residual —
+resolved-tension not feature), T3 innocent-operand example, and his
+K tangent ("much larger K? GUI-indistinguishable slivers are
+probably mistakes") — likely its own issue. Original design agent's
+transcript lost to the WSL crash; fresh responder launched on the
+surviving clone (doc is self-contained) to reply inline + top-level,
+revise the doc with DECIDED markers, and report.
