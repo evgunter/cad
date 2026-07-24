@@ -614,3 +614,11 @@ Q5 lean revision; inari quarantine boundary text; LGPL-before-
 publish). The pre-M5 design-doc program is COMPLETE (NAMING,
 SOLVER, CURVED all ratified). m5-design clone retained for the
 DESIGN.md pass; watchlist clear.
+
+**#86 fix kicked off (2026-07-24, Evan's request on #88)**: no
+overlap with live work (topo vs editor-core). Investigator briefed
+diagnose-before-fix: (a) upstream boolean-of-boolean bookkeeping
+bug — make the double-subtract succeed; (b) honest-envelope typed
+refusal; (c) wrong assert. Prefers (a); reviewer's preserved probe
+as seed; branch ev/issue86-attach-panic. If (a), the R13
+boolean-of-boolean fixture ban lifts.
