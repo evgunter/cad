@@ -2,3 +2,4 @@
 /references/
 *.local.*
 .claude/worktrees
+__pycache__/
