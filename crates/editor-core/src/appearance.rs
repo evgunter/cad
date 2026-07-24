@@ -290,9 +290,9 @@ pub(crate) fn resolve(
         let cause = match states.get(&name.node) {
             None => AppearanceLossCause::TargetNotEvaluated,
             Some(NodeState::Failed) => AppearanceLossCause::TargetFailed { node: name.node },
-            Some(NodeState::Poisoned { through }) => AppearanceLossCause::TargetPoisoned {
-                through: *through,
-            },
+            Some(NodeState::Poisoned { through }) => {
+                AppearanceLossCause::TargetPoisoned { through: *through }
+            }
             Some(NodeState::Ok(_)) => AppearanceLossCause::Vanished {
                 candidates: vanished_candidates(name, states),
             },

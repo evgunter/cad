@@ -19,7 +19,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
-    evaluate::<f64>(doc, Some(prior), &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        Some(prior),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+    )
 }
 
 fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
@@ -82,7 +87,11 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(applied.record.minted, None);
     assert!(doc.appearance().is_empty(), "apply must be pure");
     assert_eq!(
-        applied.doc.appearance_of(&cap).unwrap().get(&AttrKind::Color),
+        applied
+            .doc
+            .appearance_of(&cap)
+            .unwrap()
+            .get(&AttrKind::Color),
         Some(&red())
     );
 
@@ -108,7 +117,11 @@ fn set_appearance_validates_and_applies_purely() {
     );
 
     // A never-existed node id: typed refusal at the edit door.
-    let bogus = name1(EntityKind::Face, RecipeNodeId(999), RoleSeg::Cap(CapEnd::Top));
+    let bogus = name1(
+        EntityKind::Face,
+        RecipeNodeId(999),
+        RoleSeg::Cap(CapEnd::Top),
+    );
     assert_eq!(
         doc.apply(&DocEdit::SetAppearance {
             name: bogus.clone(),
@@ -143,7 +156,10 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     let doc = set(doc, body.clone(), Attr::Label("housing".into()));
     let attrs = doc.appearance_of(&body).unwrap();
     assert_eq!(attrs.len(), 3);
-    assert_eq!(attrs.get(&AttrKind::Label), Some(&Attr::Label("housing".into())));
+    assert_eq!(
+        attrs.get(&AttrKind::Label),
+        Some(&Attr::Label("housing".into()))
+    );
 
     // Same-kind set replaces (one slot per kind).
     let doc = set(doc, body.clone(), Attr::Color(Rgba8::opaque(0, 0, 255)));
@@ -163,7 +179,12 @@ fn multi_attribute_per_entity_and_clear_semantics() {
             kind: AttrKind::Color,
         },
     );
-    assert!(doc.appearance_of(&body).unwrap().get(&AttrKind::Color).is_none());
+    assert!(
+        doc.appearance_of(&body)
+            .unwrap()
+            .get(&AttrKind::Color)
+            .is_none()
+    );
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
@@ -178,7 +199,10 @@ fn multi_attribute_per_entity_and_clear_semantics() {
             kind: AttrKind::Label,
         },
     );
-    assert!(doc.appearance_of(&body).is_none(), "empty set drops the entry");
+    assert!(
+        doc.appearance_of(&body).is_none(),
+        "empty set drops the entry"
+    );
     assert!(doc.appearance().is_empty());
 }
 
@@ -248,7 +272,11 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let doc = set(doc, face.clone(), red());
 
     let ev1 = run(&doc);
-    assert!(ev1.appearance.is_lossless(), "losses: {:?}", ev1.appearance.losses);
+    assert!(
+        ev1.appearance.is_lossless(),
+        "losses: {:?}",
+        ev1.appearance.losses
+    );
     let rows = ev1.appearance.for_node(d.final_node).unwrap();
     // The body row and the face row both landed.
     assert!(rows.iter().any(|(ent, attrs)| {
@@ -273,7 +301,11 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let ev2 = rerun(&doc2, &ev1);
     assert!(ev2.recomputed > 0, "the edit must recompute its cone");
     // The attribute rode the name: same resolution, zero losses.
-    assert!(ev2.appearance.is_lossless(), "losses: {:?}", ev2.appearance.losses);
+    assert!(
+        ev2.appearance.is_lossless(),
+        "losses: {:?}",
+        ev2.appearance.losses
+    );
     assert_eq!(ev1.appearance, ev2.appearance);
 }
 

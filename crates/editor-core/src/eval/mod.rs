@@ -481,9 +481,9 @@ where
             let s = match res {
                 NodeResult::Ok(v) => appearance::NodeState::Ok(&v.name_table),
                 NodeResult::Failed(_) => appearance::NodeState::Failed,
-                NodeResult::Poisoned { through } => appearance::NodeState::Poisoned {
-                    through: *through,
-                },
+                NodeResult::Poisoned { through } => {
+                    appearance::NodeState::Poisoned { through: *through }
+                }
             };
             (id, s)
         })
