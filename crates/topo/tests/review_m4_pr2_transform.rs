@@ -60,11 +60,15 @@ fn non_finite_translation_is_refused_not_laundered() {
     }
 }
 
-/// R1b: near-rigid maps around the band edges (ε=1e-9, escalate=1e-8
-/// under the gate default). Rounding-level defects (≤ zero) are
-/// decided Zero and pass; in-band and definite defects refuse typed.
+/// R1b: near-rigid maps around the band edges, with probes derived
+/// from the AMBIENT tolerance (valid on every gate ε row; the first
+/// draft hard-coded the 1e-9 default). Rounding-level defects (≤
+/// zero) are decided Zero and pass; in-band and definite defects
+/// refuse typed.
 #[test]
 fn near_rigid_door_band_behavior() {
+    let tol = geom_core::Tolerance::get();
+    let (eps, kesc) = (tol.eps, tol.eps * tol.k);
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let with_c0x = |s: f64| {
         Affine3::from_parts(
@@ -76,23 +80,24 @@ fn near_rigid_door_band_behavior() {
             Vec3::zero(),
         )
     };
-    // Rounding-level defect: col0 norm² off by ~2e-13 — decided Zero,
-    // must PASS (a real rotation matrix carries this much noise).
+    // Rounding-level defect: col0 norm² off well below the zero band
+    // — decided Zero, must PASS (a real rotation matrix carries this
+    // much noise). eps*1e-4 stays sub-band on every row while ≫ ulp.
     assert!(
-        transform_rigid(&b, &with_c0x(1.0 + 1e-13)).is_ok(),
+        transform_rigid(&b, &with_c0x(1.0 + eps * 1e-4)).is_ok(),
         "rounding-level orthonormality noise must not refuse"
     );
-    // In-band defect (norm² off ~6e-9, between zero and escalate):
-    // maybe-rigid is not rigid — typed NotRigid, not silence.
-    match transform_rigid(&b, &with_c0x(1.0 + 3e-9)) {
+    // In-band defect (norm² between zero and escalate, geometric
+    // mean of the edges): maybe-rigid is not rigid — typed NotRigid.
+    let in_band = (eps * kesc).sqrt();
+    match transform_rigid(&b, &with_c0x(1.0 + in_band / 2.0)) {
         Err(TransformError::NotRigid { .. }) => {}
         other => panic!("in-band defect: expected NotRigid, got {other:?}"),
     }
-    // Orthonormal to within 10ε exactly (the review brief's probe):
-    // norm² off 2e-8 ≥ escalate — definite, refused.
-    match transform_rigid(&b, &with_c0x(1.0 + 1e-8)) {
+    // Past escalate: definite, refused.
+    match transform_rigid(&b, &with_c0x(1.0 + kesc * 2.0)) {
         Err(TransformError::NotRigid { .. }) => {}
-        other => panic!("10ε defect: expected NotRigid, got {other:?}"),
+        other => panic!("definite defect: expected NotRigid, got {other:?}"),
     }
     // Improper rotation built from an honest axis-angle then negated
     // column: det −1 with perfect columns.
