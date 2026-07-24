@@ -557,7 +557,7 @@ where
         Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
     };
 
-    let content_key = content_key(node, &slot_values, &upstream_keys);
+    let content_key = content_key(node, &slot_values, &upstream_keys, doc.witness(id));
 
     // Memo (spec D4): same key ⇒ same inputs ⇒ (D9) same output.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
@@ -596,11 +596,18 @@ where
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS, upstream keys — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
-/// ops make, and a leading format version.
+/// ops make, and a leading format version. M4 PR 4: the node's
+/// recorded witness datum (if any) is an input too — `solution
+/// (constraints, params, witness)` is pure in exactly those three
+/// (W5), so a witness change must move the key (v1 evaluation does
+/// not read the witness, so the recompute reproduces identical
+/// results — W4's "semantically invisible", honestly re-derived
+/// rather than assumed).
 fn content_key<T>(
     node: &crate::node::Node<ProfileDesc>,
     slot_values: &slots::SlotValues<T>,
     upstream_keys: &[ContentKey],
+    witness: Option<&crate::witness::WitnessDatum>,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -662,6 +669,17 @@ where
     h.write_u64(upstream_keys.len() as u64);
     for k in upstream_keys {
         h.write_key(*k);
+    }
+    // The recorded witness datum (M4 PR 4). The tag is fed in BOTH
+    // cases — a datum's absence is content too (recording, then
+    // clearing, a witness must not alias the never-recorded key).
+    match witness {
+        None => h.write_tag(0),
+        Some(w) => {
+            h.write_tag(1);
+            h.write_u64(u64::from(w.schema));
+            h.write_bytes(&w.bytes);
+        }
     }
     h.finish()
 }

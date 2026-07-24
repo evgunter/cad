@@ -84,6 +84,12 @@ pub struct Doc<P> {
     /// `SetTolerance` arrives in PR 6; until then the ratified
     /// compiled default, `geom_core::tolerance::DEFAULT_EPS`).
     pub(crate) epsilon: f64,
+    /// Per-node witness data (M4 PR 4, SOLVER-DESIGN W1/W4): the
+    /// opaque branch-selection datum of each sketch-bearing node,
+    /// written ONLY by the recorded `ReWitness` edits (and, at M6, by
+    /// committed sketch edits). Document state under GQ3 — undo/redo
+    /// and replay need no special cases.
+    pub(crate) witnesses: BTreeMap<RecipeNodeId, crate::witness::WitnessDatum>,
     /// Free-form document metadata (display units etc. — presentation
     /// only, GQ5). Empty in v1 (spec D2).
     pub(crate) metadata: BTreeMap<String, String>,
@@ -105,6 +111,7 @@ impl<P> Doc<P> {
             order: Vec::new(),
             params: BTreeMap::new(),
             epsilon: DEFAULT_EPS,
+            witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
         }
     }
@@ -143,6 +150,17 @@ impl<P> Doc<P> {
     /// The document metadata map (empty in v1, spec D2).
     pub fn metadata(&self) -> &BTreeMap<String, String> {
         &self.metadata
+    }
+
+    /// The recorded witness datum of a sketch-bearing node, if any
+    /// (SOLVER-DESIGN W1; written only by `ReWitness` edits).
+    pub fn witness(&self, id: RecipeNodeId) -> Option<&crate::witness::WitnessDatum> {
+        self.witnesses.get(&id)
+    }
+
+    /// Every recorded witness, by node.
+    pub fn witnesses(&self) -> &BTreeMap<RecipeNodeId, crate::witness::WitnessDatum> {
+        &self.witnesses
     }
 
     /// The expression subtree an [`ExprPath`] addresses, or `None` if
@@ -188,6 +206,9 @@ impl<P: PartialEq> Doc<P> {
         self.next_id == other.next_id
             && self.order == other.order
             && self.epsilon.to_bits() == other.epsilon.to_bits()
+            // Witness bytes are exact data (no float semantics to
+            // conflate) — structural equality IS bit equality here.
+            && self.witnesses == other.witnesses
             && self.metadata == other.metadata
             && self.nodes.len() == other.nodes.len()
             && self.nodes.iter().all(|(id, node)| {

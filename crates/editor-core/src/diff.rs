@@ -30,6 +30,9 @@ pub struct DocDiff {
     pub order_changed: bool,
     /// Whether recorded ε differs (bit comparison; ε edits are PR 6).
     pub epsilon_changed: bool,
+    /// Nodes whose recorded witness datum was added, removed, or
+    /// changed (M4 PR 4; witness bytes are exact data), ascending.
+    pub witnesses: Vec<RecipeNodeId>,
     /// Whether the metadata maps differ.
     pub metadata_changed: bool,
 }
@@ -41,6 +44,7 @@ impl DocDiff {
             && self.params.is_empty()
             && !self.order_changed
             && !self.epsilon_changed
+            && self.witnesses.is_empty()
             && !self.metadata_changed
     }
 }
@@ -84,11 +88,25 @@ impl<P: PartialEq> Doc<P> {
         }
         params.sort();
         params.dedup();
+        let mut witnesses = Vec::new();
+        for (&id, w) in &self.witnesses {
+            if other.witnesses.get(&id) != Some(w) {
+                witnesses.push(id);
+            }
+        }
+        for &id in other.witnesses.keys() {
+            if !self.witnesses.contains_key(&id) {
+                witnesses.push(id);
+            }
+        }
+        witnesses.sort_unstable();
+        witnesses.dedup();
         DocDiff {
             nodes,
             params,
             order_changed: self.order != other.order,
             epsilon_changed: self.epsilon.to_bits() != other.epsilon.to_bits(),
+            witnesses,
             metadata_changed: self.metadata != other.metadata,
         }
     }

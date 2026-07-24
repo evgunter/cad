@@ -6,19 +6,21 @@
 
 use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
+use crate::names::EntityKind;
 use crate::node::{Node, RecipeNodeId, SlotId, StableName};
+use crate::witness::{BranchCertification, WitnessDatum};
 
-/// The v1 edit vocabulary (spec D6).
+/// The v1 edit vocabulary (spec D6), extended by M4 PR 4 with the two
+/// explicit-repair edits: `Rebind` (NAMING-DESIGN N5 — the ONLY name
+/// repair; the automatic-rebinding policy menu is EMPTY by ratified
+/// decision) and `ReWitness`/`ReWitnessBulk` (SOLVER-DESIGN W4 — the
+/// recorded witness adoption; never silent write-back).
 ///
 /// # Reserved arms (planned evolution, spec D6 — NOT ad hoc)
 ///
-/// - `Rebind` — explicit name re-binding (NAMING-DESIGN N5/N6); PR 4.
-/// - `ReWitness` — explicit witness adoption after a certified solve
-///   (SOLVER-DESIGN W4: the repair is a recorded, replayable DocEdit —
-///   never silent write-back); types land in PR 4 alongside naming's
-///   Rebind, semantics with the M6 solver.
 /// - `SetTolerance` — the recorded-ε edit with its flipped-predicate
-///   audit (H4); PR 6.
+///   audit (H4); PR 6 (the verdict-diff engine it reports through is
+///   [`crate::resolve::diff_verdicts`], already built).
 /// - Appearance edits — presentation attachment by StableName; PR 7.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DocEdit<P> {
@@ -74,6 +76,48 @@ pub enum DocEdit<P> {
         name: ParamName,
         /// The declared dimension and exact value.
         value: DocParam,
+    },
+    /// The explicit name repair (N5, spec D3): rewrite every document
+    /// site that references `from` EXACTLY (Declare pairs in v1;
+    /// appearance keys when PR 7's store lands) to reference `to`.
+    /// One-shot recorded intent — no alias table persists, nothing
+    /// follows automatically afterwards (the ratified EMPTY policy
+    /// menu). Validation mirrors Declare's edit-time carve-out: node
+    /// existence NOW (`to`'s node must be live; `from`'s node must at
+    /// least have once existed — a never-minted id is a typo);
+    /// name-level resolution stays an evaluation-time concern.
+    Rebind {
+        /// The name being repaired (may be stranded — its node may be
+        /// deleted; that is the `NodeGone` repair case).
+        from: StableName,
+        /// The selection it now denotes (selections ARE stable names,
+        /// G1).
+        to: StableName,
+    },
+    /// The explicit witness adoption (SOLVER-DESIGN W4, spec D5):
+    /// records `witness` as the sketch-bearing node's branch
+    /// selection. Recorded, replayable, undoable; parameter-edit
+    /// rebuilds never write a witness back — this edit is the ONLY
+    /// witness-changing event besides a committed sketch edit (M6).
+    ReWitness {
+        /// The sketch-bearing node.
+        node: RecipeNodeId,
+        /// The opaque witness datum (schema + bytes).
+        witness: WitnessDatum,
+    },
+    /// The bulk certified-same-branch witness adoption (W4's ratified
+    /// amendment): semantically invisible when the certificate holds,
+    /// so an editor may record it in bulk (e.g. piggybacked on a
+    /// commit) — the certification obligation rides AS DATA and the
+    /// M6 solver adds the checker that enforces it (additive, no
+    /// schema change). v1 validates shape only (live sketch-bearing
+    /// nodes, no duplicates, non-empty).
+    ReWitnessBulk {
+        /// The per-node witness adoptions.
+        entries: Vec<(RecipeNodeId, WitnessDatum)>,
+        /// The certified-same-branch evidence (opaque; M6's checker
+        /// consumes it).
+        certification: BranchCertification,
     },
 }
 
@@ -186,6 +230,58 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
+    /// A `Rebind` whose target name's node is not live (the selection
+    /// must denote something the recipe still has — best-diagnostics
+    /// door, mirrors the Declare carve-out).
+    RebindTargetMissingNode {
+        /// The target name whose node is gone.
+        name: StableName,
+    },
+    /// A `Rebind` whose SOURCE name's node was never minted by this
+    /// document (ids are monotone and never reused, so an id at or
+    /// above the mint counter is a typo or a foreign name — refused;
+    /// a deleted-but-once-lived node is ALLOWED, that is the
+    /// `NodeGone` repair case).
+    RebindUnknownName {
+        /// The foreign source name.
+        name: StableName,
+    },
+    /// A `Rebind` across entity kinds (a face reference cannot come
+    /// to denote an edge — the reference's kind is part of its type).
+    RebindKindMismatch {
+        /// The source name's kind.
+        from: EntityKind,
+        /// The target name's kind.
+        to: EntityKind,
+    },
+    /// A `Rebind` from a name to itself — a recorded no-op is noise,
+    /// refused loudly.
+    RebindIdentity {
+        /// The name.
+        name: StableName,
+    },
+    /// A `Rebind` whose source name no document site references:
+    /// there is nothing to repair (GUI selection state is not
+    /// document state — repairing a selection is re-selecting).
+    RebindNoReferences {
+        /// The unreferenced source name.
+        name: StableName,
+    },
+    /// A `ReWitness` aimed at a node that is not sketch-bearing (the
+    /// witness datum is GQ1's per-sketch-node branch selection;
+    /// Profile is the v1 sketch-bearing node kind).
+    WitnessOnNonSketch {
+        /// The non-sketch node.
+        node: RecipeNodeId,
+    },
+    /// A `ReWitnessBulk` with the same node listed twice (which entry
+    /// wins would be positional — refused).
+    DuplicateWitnessEntry {
+        /// The duplicated node.
+        node: RecipeNodeId,
+    },
+    /// A `ReWitnessBulk` with no entries — a recorded no-op, refused.
+    EmptyWitnessBulk,
 }
 
 /// What an accepted edit did (spec D6: structural edits are FLAGGED
@@ -357,6 +453,9 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             }
             new.nodes.remove(id);
             new.order.retain(|&n| n != *id);
+            // The node's witness (if any) dies with it — ids are
+            // never reused, so the entry could never be read again.
+            new.witnesses.remove(id);
             // next_id is NOT decremented: ids are never reused (D3).
             EditRecord {
                 minted: None,
@@ -434,8 +533,97 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 structural,
             }
         }
+        DocEdit::Rebind { from, to } => {
+            if from == to {
+                return Err(EditError::RebindIdentity { name: from.clone() });
+            }
+            if from.kind != to.kind {
+                return Err(EditError::RebindKindMismatch {
+                    from: from.kind,
+                    to: to.kind,
+                });
+            }
+            // The target must denote a LIVE node (node existence now;
+            // name-level resolution at evaluation — the Declare
+            // carve-out's split, spec D3).
+            if !new.nodes.contains_key(&to.node) {
+                return Err(EditError::RebindTargetMissingNode { name: to.clone() });
+            }
+            // The source must have ONCE existed (ids are monotone and
+            // never reused): dead-but-once-lived is exactly the
+            // NodeGone repair; never-minted is a typo.
+            if from.node.0 >= new.next_id {
+                return Err(EditError::RebindUnknownName { name: from.clone() });
+            }
+            // One-shot rewrite of every EXACT reference (v1 sites:
+            // Declare pairs). Zero sites = nothing to repair, refused.
+            let mut sites = 0usize;
+            for node in new.nodes.values_mut() {
+                if let Node::Declare { pairs } = node {
+                    for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
+                        if name == from {
+                            *name = to.clone();
+                            sites += 1;
+                        }
+                    }
+                }
+            }
+            if sites == 0 {
+                return Err(EditError::RebindNoReferences { name: from.clone() });
+            }
+            EditRecord {
+                minted: None,
+                // Declare payloads changed: content keys move and the
+                // (PR 5) threading consumes the pairs — structural.
+                structural: true,
+            }
+        }
+        DocEdit::ReWitness { node, witness } => {
+            check_witness_site(&new, *node)?;
+            new.witnesses.insert(*node, witness.clone());
+            EditRecord {
+                minted: None,
+                structural: false,
+            }
+        }
+        DocEdit::ReWitnessBulk {
+            entries,
+            certification: _,
+        } => {
+            // v1 validates SHAPE; the certification payload rides as
+            // data and the M6 solver adds its checker (W4 — additive,
+            // no schema change).
+            if entries.is_empty() {
+                return Err(EditError::EmptyWitnessBulk);
+            }
+            let mut seen = std::collections::BTreeSet::new();
+            for (node, _) in entries {
+                check_witness_site(&new, *node)?;
+                if !seen.insert(*node) {
+                    return Err(EditError::DuplicateWitnessEntry { node: *node });
+                }
+            }
+            for (node, witness) in entries {
+                new.witnesses.insert(*node, witness.clone());
+            }
+            EditRecord {
+                minted: None,
+                structural: false,
+            }
+        }
     };
     Ok(Applied { doc: new, record })
+}
+
+/// A witness edit's site check: the node is live and sketch-bearing
+/// (Profile — the v1 sketch node kind; mates extend this at their
+/// milestone).
+fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError> {
+    match doc.nodes.get(&id) {
+        None => Err(EditError::UnknownNode { id }),
+        Some(Node::Profile(_)) => Ok(()),
+        Some(_) => Err(EditError::WitnessOnNonSketch { node: id }),
+    }
 }
 
 /// Shared slot-write path: node exists, slot exists, dimension
