@@ -14,7 +14,9 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::discriminate::{Extent, band, order_along, side_of_face};
-use super::emit::{Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge};
+use super::emit::{
+    Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
+};
 use super::role::{EntityKind, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -27,12 +29,11 @@ struct Side<'a, T: Decide> {
 }
 
 /// The operand-face plane (result carriers are the N2 references).
-fn face_plane<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), NamingError> {
+fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<T>), NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let face = body.get_face(f).ok_or_else(|| bug("face_plane: dangling"))?;
+    let face = body
+        .get_face(f)
+        .ok_or_else(|| bug("face_plane: dangling"))?;
     match body
         .get_surface(face.surface)
         .ok_or_else(|| bug("face_plane: dangling surface"))?
@@ -174,21 +175,49 @@ pub(crate) fn name_split<T: Decide>(
         let section = per_side_ix[slot];
         per_side_ix[slot] += 1;
         // The face is live in exactly the side that kept it.
-        let Some(s) = sides.iter().find(|s| {
-            s.half == half && s.body.get_face(f).is_some()
-        }) else {
+        let Some(s) = sides
+            .iter()
+            .find(|s| s.half == half && s.body.get_face(f).is_some())
+        else {
             return Err(NamingError::Emission {
                 what: "section face live in no matching side body",
             });
         };
         t.insert(
-            name1(EntityKind::Face, node, RoleSeg::SectionFace { side: half, section }),
+            name1(
+                EntityKind::Face,
+                node,
+                RoleSeg::SectionFace {
+                    side: half,
+                    section,
+                },
+            ),
             ent(s.ix, EntityKey::Face(f)),
         )?;
     }
 
-    name_split_faces(node, &mut t, &sides, &frag_rows, &section_keys, target_node, target_table, target_body, tool_normal, b)?;
-    name_split_edges_vertices(node, &mut t, &sides, &frag_rows, &section_keys, naming, target_node, target_table)?;
+    name_split_faces(
+        node,
+        &mut t,
+        &sides,
+        &frag_rows,
+        &section_keys,
+        target_node,
+        target_table,
+        target_body,
+        tool_normal,
+        b,
+    )?;
+    name_split_edges_vertices(
+        node,
+        &mut t,
+        &sides,
+        &frag_rows,
+        &section_keys,
+        naming,
+        target_node,
+        target_table,
+    )?;
 
     for s in &sides {
         super::emit::check_total(&t, s.body, s.ix)?;
@@ -248,8 +277,7 @@ fn name_split_edges_vertices<T: Decide>(
             if section_keys.contains(&root) {
                 return Err(bug("section chord adjacent to a section face"));
             }
-            let parent =
-                upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
+            let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
             if edges.len() > 1 {
                 return Err(bug(
                     "multiple section chords across one operand face — deferred (reported)",
@@ -278,7 +306,11 @@ fn name_split_edges_vertices<T: Decide>(
                     sb.body.edge_provenance_of(e),
                     Some(Provenance::SplitEdge { .. })
                 ) {
-                    divided_edges.insert(chase_edge_provenance(sb.body, e, sb.body.edges().count()));
+                    divided_edges.insert(chase_edge_provenance(
+                        sb.body,
+                        e,
+                        sb.body.edges().count(),
+                    ));
                 }
             }
         }
@@ -320,8 +352,7 @@ fn name_split_edges_vertices<T: Decide>(
                 .name_of(&ent(0, EntityKey::Vertex(v)))
                 .is_some()
             {
-                let name =
-                    upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
+                let name = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
                 t.insert(name, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
@@ -469,11 +500,46 @@ pub(crate) fn name_boolean<T: Decide>(
             t.insert(base, ent(0, EntityKey::Face(members[0])))?;
             continue;
         }
-        name_fragment_group(&mut t, body, &base, &members, &seam_set, &inc, &descend_face, &operand_face_name, bnd)?;
+        name_fragment_group(
+            &mut t,
+            body,
+            &base,
+            &members,
+            &seam_set,
+            &inc,
+            &descend_face,
+            &operand_face_name,
+            bnd,
+        )?;
     }
 
-    name_boolean_edges(node, &mut t, body, naming, a, b, &inv_edges, &fwd_edges, &seam_set, &inc, &descend_face, &operand_face_name, bnd)?;
-    name_boolean_vertices(node, &mut t, body, naming, &inv_vertices, a, b, &seam_set, &inc, bnd)?;
+    name_boolean_edges(
+        node,
+        &mut t,
+        body,
+        naming,
+        a,
+        b,
+        &inv_edges,
+        &fwd_edges,
+        &seam_set,
+        &inc,
+        &descend_face,
+        &operand_face_name,
+        bnd,
+    )?;
+    name_boolean_vertices(
+        node,
+        &mut t,
+        body,
+        naming,
+        &inv_vertices,
+        a,
+        b,
+        &seam_set,
+        &inc,
+        bnd,
+    )?;
 
     super::emit::check_total(&t, body, 0)?;
     Ok(Arc::new(t))
@@ -867,24 +933,22 @@ fn name_boolean_vertices<T: Decide>(
         let rc = &naming.reduction_contacts;
         let partner_b_inner: Option<StableName> = va_key
             .and_then(|k| rc.vv.iter().find(|r| r.a == k).map(|r| r.b))
-            .and_then(|pb| {
-                upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(pb))).ok()
-            });
+            .and_then(|pb| upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(pb))).ok());
         let partner_a_inner: Option<StableName> = vb_key
             .and_then(|k| rc.vv.iter().find(|r| r.b == k).map(|r| r.a))
-            .and_then(|pa| {
-                upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok()
-            });
+            .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
         let pair = match (a_edges.as_slice(), b_edges.as_slice()) {
             ([ae], [be]) => (ae.clone(), be.clone()),
             ([ae], []) if b_faces.len() == 1 => (ae.clone(), b_faces[0].clone()),
             ([], [be]) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
-            ([ae], []) if partner_b_inner.is_some() => {
-                (ae.clone(), partner_b_inner.clone().unwrap_or_else(|| ae.clone()))
-            }
-            ([], [be]) if partner_a_inner.is_some() => {
-                (partner_a_inner.clone().unwrap_or_else(|| be.clone()), be.clone())
-            }
+            ([ae], []) if partner_b_inner.is_some() => (
+                ae.clone(),
+                partner_b_inner.clone().unwrap_or_else(|| ae.clone()),
+            ),
+            ([], [be]) if partner_a_inner.is_some() => (
+                partner_a_inner.clone().unwrap_or_else(|| be.clone()),
+                be.clone(),
+            ),
             _ => {
                 return Err(bug(
                     "seam vertex parentage underdetermined from incident edges",
@@ -910,7 +974,10 @@ fn name_boolean_vertices<T: Decide>(
         // parent's own carrier (prefer the A side).
         let carrier = resolve_edge_carrier(&pa, a).or_else(|| resolve_edge_carrier(&pb, b));
         let Some(dir) = carrier else {
-            let ents = verts.iter().map(|&v| ent(0, EntityKey::Vertex(v))).collect();
+            let ents = verts
+                .iter()
+                .map(|&v| ent(0, EntityKey::Vertex(v)))
+                .collect();
             t.insert_tied(base, ents)?;
             continue;
         };
@@ -935,10 +1002,7 @@ fn name_boolean_vertices<T: Decide>(
 
 /// The oriented carrier of an operand-edge parent name, if the name
 /// denotes an edge in that operand's table.
-fn resolve_edge_carrier<T: Decide>(
-    parent: &StableName,
-    op: &OperandCtx<'_, T>,
-) -> Option<Vec3<T>> {
+fn resolve_edge_carrier<T: Decide>(parent: &StableName, op: &OperandCtx<'_, T>) -> Option<Vec3<T>> {
     if parent.kind != EntityKind::Edge {
         return None;
     }
@@ -1045,14 +1109,13 @@ fn name_split_faces<T: Decide>(
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
                 // contributes no segment to survivors).
-                let name = upstream_name(
-                    target_table,
-                    target_node,
-                    ent(0, EntityKey::Face(f)),
-                )?;
+                let name = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
                 t.insert(name, ent(s.ix, EntityKey::Face(f)))?;
             } else {
-                groups.entry((root, s.ix)).or_default().push((s.ix, s.half, f));
+                groups
+                    .entry((root, s.ix))
+                    .or_default()
+                    .push((s.ix, s.half, f));
             }
         }
     }
@@ -1093,7 +1156,8 @@ fn name_split_faces<T: Decide>(
                 let of = u32::try_from(members.len()).unwrap_or(u32::MAX);
                 for (m, rank) in members.iter().zip(ranks) {
                     let mut name = name1(EntityKind::Face, node, base.clone());
-                    name.path.push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
+                    name.path
+                        .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
                     t.insert(name, ent(m.0, EntityKey::Face(m.2)))?;
                 }
             }

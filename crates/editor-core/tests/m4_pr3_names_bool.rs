@@ -75,7 +75,10 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
     let ev = run(&doc);
     let t = table(&ev, u);
     // Body row.
-    assert!(t.lookup(&name1(EntityKind::Body, u, RoleSeg::OutputBody)).is_some());
+    assert!(
+        t.lookup(&name1(EntityKind::Body, u, RoleSeg::OutputBody))
+            .is_some()
+    );
     // Both operands' caps survive under their FromX wraps.
     for (node, wrap) in [(a, true), (b, false)] {
         let inner = name1(EntityKind::Face, node, RoleSeg::Cap(CapEnd::Top));
@@ -85,7 +88,10 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             RoleSeg::FromB(Box::new(inner))
         };
         assert!(
-            matches!(t.lookup(&name1(EntityKind::Face, u, seg)), Some(Entry::Unique(_))),
+            matches!(
+                t.lookup(&name1(EntityKind::Face, u, seg)),
+                Some(Entry::Unique(_))
+            ),
             "missing wrapped top cap of {node:?}"
         );
     }
@@ -144,14 +150,15 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
                     n.path.first(),
                     Some(RoleSeg::FromA(inner)) if **inner == top
                 )
-                && matches!(
-                    n.path.get(1),
-                    Some(RoleSeg::Fragment(Qualifier::SideOf(_)))
-                );
+                && matches!(n.path.get(1), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (is_frag && matches!(e, Entry::Unique(_))).then_some(n)
         })
         .collect();
-    assert_eq!(frags.len(), 2, "expected two SideOf-qualified cap fragments");
+    assert_eq!(
+        frags.len(),
+        2,
+        "expected two SideOf-qualified cap fragments"
+    );
     assert_ne!(frags[0], frags[1]);
     // The vectors' partners are B lateral names (recipe-covariant
     // references), and every verdict is a definite sign.
@@ -223,7 +230,9 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         .collect();
     assert!(!ties.is_empty(), "expected N2 ties, found none");
     for (n, e) in &ties {
-        let Entry::Tied(cands) = e else { unreachable!() };
+        let Entry::Tied(cands) = e else {
+            unreachable!()
+        };
         assert_eq!(cands.len(), 2, "tie should have 2 candidates: {n:?}");
         assert!(
             matches!(n.path.first(), Some(RoleSeg::FromB(_))),
@@ -320,7 +329,9 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
     assert_eq!(u1, u2);
     // And the flipped table's names differ in SHAPE: the disjoint
     // union has no fragments at all.
-    assert!(table(&ev2, u2).iter().all(|(n, _)| {
-        !matches!(n.path.last(), Some(RoleSeg::Fragment(_)))
-    }));
+    assert!(
+        table(&ev2, u2)
+            .iter()
+            .all(|(n, _)| { !matches!(n.path.last(), Some(RoleSeg::Fragment(_))) })
+    );
 }

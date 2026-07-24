@@ -75,7 +75,12 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
             },
         },
     );
-    let ev2 = evaluate::<f64>(&doc2, Some(&ev1), &CancelToken::new(), &EvalOptions::default());
+    let ev2 = evaluate::<f64>(
+        &doc2,
+        Some(&ev1),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+    );
     assert!(ev2.recomputed > 0, "the edit must recompute its cone");
     let mut changed = 0usize;
     for id in &ev1.order {
@@ -92,7 +97,12 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
 fn memo_reuse_transfers_tables_bit_identically() {
     let d = die();
     let ev1 = run(&d.doc);
-    let ev2 = evaluate::<f64>(&d.doc, Some(&ev1), &CancelToken::new(), &EvalOptions::default());
+    let ev2 = evaluate::<f64>(
+        &d.doc,
+        Some(&ev1),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+    );
     assert_eq!(ev2.recomputed, 0, "unchanged doc must be a full memo hit");
     for id in &ev1.order {
         let (a, b) = (ev1.value(*id).unwrap(), ev2.value(*id).unwrap());

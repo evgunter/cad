@@ -6,9 +6,9 @@
 mod fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, MeridianEnd,
-    NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    SplitHalf, StableName, evaluate,
+    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, MeridianEnd, NameTable,
+    Node, ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, SplitHalf,
+    StableName, evaluate,
 };
 use fixture::{ang, desc, insert, len};
 
@@ -79,27 +79,48 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
     // 1 body + 6 faces + 12 edges + 8 vertices.
     assert_eq!(t.len(), 27);
     // Body + caps.
-    assert!(t.lookup(&name1(EntityKind::Body, ext, RoleSeg::OutputBody)).is_some());
+    assert!(
+        t.lookup(&name1(EntityKind::Body, ext, RoleSeg::OutputBody))
+            .is_some()
+    );
     for end in [CapEnd::Top, CapEnd::Bottom] {
-        assert!(t.lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(end))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(end)))
+                .is_some()
+        );
     }
     // Per canonical segment: lateral, both rims; per vertex: strut,
     // both cap vertices.
     for s in 0..4 {
-        assert!(t.lookup(&name1(EntityKind::Face, ext, RoleSeg::Lateral(pe(0, s)))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Face, ext, RoleSeg::Lateral(pe(0, s))))
+                .is_some()
+        );
         for end in [CapEnd::Top, CapEnd::Bottom] {
             assert!(
-                t.lookup(&name1(EntityKind::Edge, ext, RoleSeg::RimEdge(end, pe(0, s))))
-                    .is_some()
+                t.lookup(&name1(
+                    EntityKind::Edge,
+                    ext,
+                    RoleSeg::RimEdge(end, pe(0, s))
+                ))
+                .is_some()
             );
             assert!(
-                t.lookup(&name1(EntityKind::Vertex, ext, RoleSeg::CapVertex(end, pv(0, s))))
-                    .is_some()
+                t.lookup(&name1(
+                    EntityKind::Vertex,
+                    ext,
+                    RoleSeg::CapVertex(end, pv(0, s))
+                ))
+                .is_some()
             );
         }
         assert!(
-            t.lookup(&name1(EntityKind::Edge, ext, RoleSeg::LateralEdge(pv(0, s))))
-                .is_some()
+            t.lookup(&name1(
+                EntityKind::Edge,
+                ext,
+                RoleSeg::LateralEdge(pv(0, s))
+            ))
+            .is_some()
         );
     }
     // Every entry unique (no ties in a plain extrude), kinds agree.
@@ -118,12 +139,7 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty();
     let (doc, p) = insert(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![pts],
-        )),
+        Node::Profile(desc([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts])),
     );
     let (doc, axis) = insert(
         doc,
@@ -154,19 +170,36 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
     // 8 meridians) + 8 meridian vertices.
     assert_eq!(t.len(), 27);
     for m in [MeridianEnd::Start, MeridianEnd::End] {
-        assert!(t.lookup(&name1(EntityKind::Face, rev, RoleSeg::RevolveCap(m))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Face, rev, RoleSeg::RevolveCap(m)))
+                .is_some()
+        );
     }
     for s in 0..4 {
-        assert!(t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, s)))).is_some());
-        assert!(t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(0, s)))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, s))))
+                .is_some()
+        );
+        assert!(
+            t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(0, s))))
+                .is_some()
+        );
         for m in [MeridianEnd::Start, MeridianEnd::End] {
             assert!(
-                t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::Meridian(m, pe(0, s))))
-                    .is_some()
+                t.lookup(&name1(
+                    EntityKind::Edge,
+                    rev,
+                    RoleSeg::Meridian(m, pe(0, s))
+                ))
+                .is_some()
             );
             assert!(
-                t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::MeridianVertex(m, pv(0, s))))
-                    .is_some()
+                t.lookup(&name1(
+                    EntityKind::Vertex,
+                    rev,
+                    RoleSeg::MeridianVertex(m, pv(0, s))
+                ))
+                .is_some()
             );
         }
     }
@@ -181,17 +214,27 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
-    assert!(t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::AxisEdge(pe(0, 3)))).is_some());
+    assert!(
+        t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::AxisEdge(pe(0, 3))))
+            .is_some()
+    );
     // The two on-axis profile vertices are poles.
     for v in [0, 3] {
-        assert!(t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v)))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
+                .is_some()
+        );
     }
     // Off-axis vertices carry start+end copies.
     for v in [1, 2] {
         for m in [MeridianEnd::Start, MeridianEnd::End] {
             assert!(
-                t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::MeridianVertex(m, pv(0, v))))
-                    .is_some()
+                t.lookup(&name1(
+                    EntityKind::Vertex,
+                    rev,
+                    RoleSeg::MeridianVertex(m, pv(0, v))
+                ))
+                .is_some()
             );
         }
     }
@@ -209,8 +252,14 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     // 4 meridian vertices.
     assert_eq!(t.len(), 17);
     for s in 0..4 {
-        assert!(t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, s)))).is_some());
-        assert!(t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(0, s)))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, s))))
+                .is_some()
+        );
+        assert!(
+            t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(0, s))))
+                .is_some()
+        );
         assert!(
             t.lookup(&name1(
                 EntityKind::Edge,
@@ -241,17 +290,18 @@ fn full_wire_revolve_names_pi_band_and_poles() {
     let t = table(&ev, rev);
     // π-band roles exist (the wire case's second half).
     assert!(
-        t.iter().any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandPi(_)))),
+        t.iter()
+            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandPi(_)))),
         "no BandPi role minted"
     );
     assert!(
-        t.iter().any(
-            |(n, _)| matches!(n.path.first(), Some(RoleSeg::Meridian(MeridianEnd::Pi, _)))
-        ),
+        t.iter()
+            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Meridian(MeridianEnd::Pi, _)))),
         "no Meridian(Pi) role minted"
     );
     assert!(
-        t.iter().any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_)))),
+        t.iter()
+            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_)))),
         "no BandRimPi role minted"
     );
     // Two poles: the on-axis profile vertices.
@@ -286,7 +336,10 @@ fn split_names_sections_fragments_and_crossings() {
     // Both halves total: 2 bodies + 12 faces + 24 edges + 16 vertices.
     assert_eq!(t.len(), 54);
     for side in [SplitHalf::Above, SplitHalf::Below] {
-        assert!(t.lookup(&name1(EntityKind::Body, split, RoleSeg::SplitBody(side))).is_some());
+        assert!(
+            t.lookup(&name1(EntityKind::Body, split, RoleSeg::SplitBody(side)))
+                .is_some()
+        );
         assert!(
             t.lookup(&name1(
                 EntityKind::Face,

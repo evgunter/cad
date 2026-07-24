@@ -419,7 +419,14 @@ impl std::error::Error for SplitError {}
 pub(crate) fn split_scratch<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
-) -> Result<(SplitReduction<T>, Vec<join::CompletedSection>, join::FragmentRows), SplitError> {
+) -> Result<
+    (
+        SplitReduction<T>,
+        Vec<join::CompletedSection>,
+        join::FragmentRows,
+    ),
+    SplitError,
+> {
     let band = geom_core::Band::linear().map_err(SplitReduceError::from)?;
     let mut red = split_reduce(operand, plane)?;
     let (completed, fragments) = join::split_connect(&mut red, band)?;

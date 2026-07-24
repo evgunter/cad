@@ -72,11 +72,7 @@ impl From<DuplicateName> for NamingError {
 }
 
 /// A name at `node` with a single role segment.
-pub(crate) fn name1(
-    kind: EntityKind,
-    node: RecipeNodeId,
-    seg: super::role::RoleSeg,
-) -> StableName {
+pub(crate) fn name1(kind: EntityKind, node: RecipeNodeId, seg: super::role::RoleSeg) -> StableName {
     StableName {
         kind,
         node,

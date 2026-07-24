@@ -47,10 +47,7 @@ where
         Node::Boolean { op, a, b, declare } => wire_boolean(id, *op, *a, *b, *declare, results),
         Node::Transform { input, .. } => wire_transform(*input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
-        Node::Declare { pairs } => Ok((
-            ValuePayload::Declarations(pairs.clone()),
-            names::empty(),
-        )),
+        Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
     }
 }
 

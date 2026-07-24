@@ -132,10 +132,16 @@ pub(crate) fn name_revolve<T: Decide>(
         vertex: ix(v),
     };
     let insert_face = |t: &mut NameTable, seg: RoleSeg, f| {
-        t.insert(name1(EntityKind::Face, node, seg), ent(0, EntityKey::Face(f)))
+        t.insert(
+            name1(EntityKind::Face, node, seg),
+            ent(0, EntityKey::Face(f)),
+        )
     };
     let insert_edge = |t: &mut NameTable, seg: RoleSeg, e| {
-        t.insert(name1(EntityKind::Edge, node, seg), ent(0, EntityKey::Edge(e)))
+        t.insert(
+            name1(EntityKind::Edge, node, seg),
+            ent(0, EntityKey::Edge(e)),
+        )
     };
     let insert_vertex = |t: &mut NameTable, seg: RoleSeg, v| {
         t.insert(
@@ -183,8 +189,16 @@ pub(crate) fn name_revolve<T: Decide>(
                 let end = resolve_chain(body, es, rims)?;
                 for v in 0..rims.len() {
                     if rims[v].is_some() {
-                        insert_vertex(&mut t, RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)), start[v].ok_or(UNRESOLVED)?)?;
-                        insert_vertex(&mut t, RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)), end[v].ok_or(UNRESOLVED)?)?;
+                        insert_vertex(
+                            &mut t,
+                            RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)),
+                            start[v].ok_or(UNRESOLVED)?,
+                        )?;
+                        insert_vertex(
+                            &mut t,
+                            RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)),
+                            end[v].ok_or(UNRESOLVED)?,
+                        )?;
                     } else {
                         // Pole: the same physical vertex in both chains.
                         let p = start[v].or(end[v]).ok_or(UNRESOLVED)?;
@@ -228,8 +242,16 @@ pub(crate) fn name_revolve<T: Decide>(
                 let pi = resolve_chain_opt(body, &pi_chain, rims)?;
                 for v in 0..rims.len() {
                     if rims[v].is_some() {
-                        insert_vertex(&mut t, RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)), seam[v].ok_or(UNRESOLVED)?)?;
-                        insert_vertex(&mut t, RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)), pi[v].ok_or(UNRESOLVED)?)?;
+                        insert_vertex(
+                            &mut t,
+                            RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)),
+                            seam[v].ok_or(UNRESOLVED)?,
+                        )?;
+                        insert_vertex(
+                            &mut t,
+                            RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)),
+                            pi[v].ok_or(UNRESOLVED)?,
+                        )?;
                     } else {
                         let p = seam[v].or(pi[v]).ok_or(UNRESOLVED)?;
                         insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)), p)?;
@@ -248,7 +270,11 @@ pub(crate) fn name_revolve<T: Decide>(
                             what: "lamina rim is not a self-loop",
                         });
                     }
-                    insert_vertex(&mut t, RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)), a)?;
+                    insert_vertex(
+                        &mut t,
+                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)),
+                        a,
+                    )?;
                 }
             }
         }
