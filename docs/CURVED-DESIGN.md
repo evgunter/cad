@@ -1,28 +1,16 @@
 # M5 curved-geometry design: SSI, pcurves, NURBS depth, fillets (pre-M5 design doc)
 
-Status: **DRAFT — NOT RATIFIED. This document is a design-conversation
-opener, not a record.** Nothing below is binding until Evan has pushed
-back and the outcomes are ratified (into DESIGN.md and/or a final
-revision of this doc). Candidate decisions are numbered C1–C12 with
-alternatives and a firm recommendation each, per the house convention
-(NAMING-DESIGN, SOLVER-DESIGN); the genuine forks are collected in
-**Open questions for Evan** at the end, separated from mechanical
-consequences of already-ratified decisions. Ratified decisions are
-cited, honored, and never re-litigated; where curved work puts a
-ratified decision under *tension*, that is flagged in **Tensions**
-(flag ≠ reopen).
-
-Review status (2026-07-24, final pass): **every fork is now
-decided.** Evan's inline review resolved OQ1, OQ2 (both halves), OQ5,
-OQ6 (scope), OQ8, OQ9, and the C9/T2 inari-on-default-path question;
-the follow-up 👍 round (verified per-comment reactions) confirmed
-OQ3, OQ4, the OQ6 run-out vocabulary, and OQ7 (the two-level shape +
-rename), and C6 together with the C3 certification-failure path are
-SIGNED OFF (Evan 👍 on the PR top-level answer). Each outcome is
-recorded inline as DECIDED pending whole-doc ratification; per the
-design-PR convention (design conversations merge only on Evan's
-sign-off), **merging PR #85 is the whole-doc ratification**. Nothing
-in this doc remains open. The K = 10 tangent raised on T5 moved to
+Status: **RATIFIED (Evan, PR #85, 2026-07-24: "lgtm!").** This
+document is the design record for M5 curved geometry. Every fork was
+decided in the #85 review conversation and is recorded inline as
+DECIDED with its ground; candidate decisions C1-C12 are now the
+ratified decisions of this doc. Tensions T1-T6 remain flags on
+ratified decisions elsewhere (flag != reopen). Post-ratification
+obligations (tracked in M4-LOG/M5 planning): the DESIGN.md
+D2-sharpening pass (incl. the TangencyLocus -> TangentIntersection
+rename sweep and the Q5 lean revision), the inari quarantine
+boundary-text update for the transition state, and the
+LGPL-before-publish exit condition. The K = 10 tangent lives in
 issue #89.
 
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
