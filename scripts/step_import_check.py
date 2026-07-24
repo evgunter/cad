@@ -1,7 +1,12 @@
 # External STEP import acceptance (M4 PR 7) — run under FreeCAD's
 # headless interpreter by scripts/check_step.sh:
 #
-#   freecadcmd scripts/step_import_check.py <file.step>
+#   STEP_FILE=<file.step> freecadcmd scripts/step_import_check.py
+#
+# The file path arrives via $STEP_FILE, NOT as a positional argument:
+# freecadcmd auto-opens every positional file it recognizes, so a
+# positional .step path would be imported a SECOND time as a document —
+# duplicate work, and duplicated/confusing logs when a file is corrupt.
 #
 # Expectations arrive via EXPECT_* environment variables (set by
 # check_step.sh from the fixture's .expect sidecar):
@@ -18,7 +23,7 @@ import sys
 
 import Part  # noqa: F401  (FreeCAD's Part workbench)
 
-path = sys.argv[-1]
+path = os.environ["STEP_FILE"]
 shape = Part.Shape()
 shape.read(path)
 

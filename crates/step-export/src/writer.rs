@@ -335,12 +335,19 @@ impl<'a> Writer<'a> {
         for face_key in face_keys {
             faces.push(self.advanced_face(face_key)?);
         }
+        // A faceless CLOSED_SHELL would violate the schema (its face
+        // set has a 1..* cardinality). Currently unreachable — an
+        // empty body refuses NothingToExport and mvfs-grade skeletons
+        // refuse in the face walk — but a latent door if a future op
+        // ever mints a shell with an empty face list.
         Ok(self.emit(&format!("CLOSED_SHELL('', ({}))", refs(&faces))))
     }
 
     /// One `MANIFOLD_SOLID_BREP` per shell of every solid, with the
     /// multi-shell outward/void classification (crate docs: positive
     /// shells are independent solids, negative shells refuse).
+    /// Single-shell solids skip classification by design — tier-2
+    /// validity and the +V invariant own lone-shell orientation.
     fn manifold_solids(&mut self, name: &str) -> Result<Vec<u64>, StepExportError> {
         // Snapshot the walk order first (arena order for solids, stored
         // order for their shells) so classification runs before any

@@ -45,9 +45,12 @@ for f in "${files[@]}"; do
         fail=1
         continue
     fi
-    # Sidecar format: KEY=VALUE lines (EXPECT_SOLIDS=..., etc.).
-    if ! env $(grep -E '^EXPECT_[A-Z0-9_]+=' "$expect" | xargs) \
-        "$freecadcmd" "$repo_root/scripts/step_import_check.py" "$f"; then
+    # Sidecar format: KEY=VALUE lines (EXPECT_SOLIDS=..., etc.). The
+    # file path travels via $STEP_FILE — a positional path would make
+    # freecadcmd import the file a SECOND time as a document (see
+    # step_import_check.py's header).
+    if ! env $(grep -E '^EXPECT_[A-Z0-9_]+=' "$expect" | xargs) STEP_FILE="$f" \
+        "$freecadcmd" "$repo_root/scripts/step_import_check.py"; then
         fail=1
     fi
 done

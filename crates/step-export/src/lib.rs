@@ -80,15 +80,23 @@
 //! Each shell exports as one `CLOSED_SHELL` under its own
 //! `MANIFOLD_SOLID_BREP`. For a **multi-shell solid** (an M3 boolean
 //! Assembly/Voided result) the writer classifies each shell by the
-//! sign of its exact divergence-theorem volume over the planar subset
-//! (outward-normal convention: a positive shell bounds material from
-//! outside, a negative shell is a void cavity wall): positive shells
+//! sign of its divergence-theorem volume over the planar subset,
+//! computed in f64 (closed forms per segment; rounded accumulation in
+//! general, exact on dyadic inputs — the sign read is a plain
+//! comparison, not a Q1 trilean, and `volume.rs`'s module docs carry
+//! the headroom argument for why that is safe on any buildable shell).
+//! Outward-normal convention: a positive shell bounds material from
+//! outside, a negative shell is a void cavity wall. Positive shells
 //! become independent `MANIFOLD_SOLID_BREP`s (the disjoint-assembly
 //! case); a negative shell is **refused** with
 //! [`StepExportError::VoidShellUnsupported`] — `BREP_WITH_VOIDS`
 //! needs a void-to-containing-shell association the kernel does not
 //! yet record, and guessing it would be a silent lie. Voided bodies
 //! wait for that designation (M5+); the refusal is pinned by test.
+//! Single-shell solids are deliberately never volume-checked: tier-2
+//! validity plus the +V invariant own a lone shell's orientation, and
+//! the classification gate exists only to tell a multi-shell solid's
+//! shells apart.
 //!
 //! # Determinism (D9)
 //!

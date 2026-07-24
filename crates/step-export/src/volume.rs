@@ -2,31 +2,40 @@
 //! outward-vs-void classifier for multi-shell solids (crate docs,
 //! "Solids, shells, and voids").
 //!
-//! # Formula (divergence theorem, exact on the subset)
+//! # Formula (divergence theorem, closed forms on the subset)
 //!
 //! `V = (1/3) ∮ p·n dA`. On a planar face every point satisfies
 //! `p·n̂ = o·n̂` with `o` the stored plane origin, so the face
 //! contributes `(o·A⃗_f)/3` where `A⃗_f = (1/2) Σ (a−o)×(b−o)` over the
 //! directed boundary segments `a→b` of all its loops (outer CCW +
-//! rings CW as stored — rings subtract automatically). For line
-//! carriers the segment closed form `(a−o)×(b−o)/2` is exact; the
-//! walk therefore **verifies** every carrier is a line and every
-//! surface a plane, refusing anything else with the same typed errors
-//! the emitter would raise (never a silently-approximated
-//! classification).
+//! rings CW as stored — rings subtract automatically). The per-segment
+//! closed form `(a−o)×(b−o)/2` is mathematically exact for line
+//! carriers, but the accumulation is **rounded f64 arithmetic** (bit
+//! exact only when the inputs are dyadic, as in the test corpus); the
+//! walk **verifies** every carrier is a line and every surface a
+//! plane, refusing anything else with the same typed errors the
+//! emitter would raise (never a silently-approximated classification).
 //!
-//! # Why the sign is trustworthy
+//! # Why the sign read is safe (headroom, not exactness)
 //!
 //! Every face's stored normal is its outward normal and loops obey
 //! interior-left (M1 ratification), so a shell bounding material from
 //! outside integrates to `+enclosed volume` and a void cavity wall
 //! (normals pointing into the cavity, away from material) integrates
 //! to `−cavity volume`. The classification read is a plain f64 sign
-//! comparison — an export-layer decision on a quantity whose scale is
-//! the model's own volume, not a kernel topology predicate (the
-//! kernel's Q1 trilean discipline governs construction, which is
-//! long finished by export time). Zero or non-finite sums refuse as
-//! [`StepExportError::ShellVolumeIndeterminate`].
+//! comparison, **not a Q1 trilean** — an export-layer decision, made
+//! safe by headroom rather than certification: f64 accumulation error
+//! here is a few ulps per term (relative ~1e-16 of the coordinate
+//! scale cubed), so flipping the sign of a genuinely enclosed volume
+//! would need the shell's feature scale to be ≲ 1.7e-17 of its
+//! coordinate scale — many orders of magnitude below the K·ε band any
+//! Q1-certified construction enforces (at ε = 1e-6 the kernel refuses
+//! to *build* features near 1e-5, long before this sum could dither).
+//! The genuinely unclassifiable outcomes — an exactly-0.0 or
+//! non-finite sum — refuse as
+//! [`StepExportError::ShellVolumeIndeterminate`], and note that
+//! single-shell solids never reach this classifier at all (lib docs:
+//! tier-2 validity + the +V invariant own lone-shell orientation).
 
 use geom_core::{Point3, Vec3};
 use geom_curves::Curve3;
