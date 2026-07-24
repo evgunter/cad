@@ -179,3 +179,17 @@ real user; incidental find — exactly-touching union refuses typed
 at the kernel (pre-existing M3 envelope, fixture knowledge).
 Next: PR 3 (naming part 1 — RolePath enums, eager name tables, CI
 invariant).
+
+**Rotation-exactness question (Evan, #83, 2026-07-24)** — "is
+inexact sin/cos a problem in general?" Answer on the thread: no in
+every load-bearing layer (Q1 margins + D4 certified bounds never
+depend on exactness; D9 = bit-identical replay not exact values;
+test `==`-sharpness degrades to brackets off the dyadic grid); the
+one design-relevant case — rotation-induced intended coincidence —
+is exactly what N6 GeomSource-through-transforms solves (intent is
+recipe data, not float luck). **Banked idea (not scheduled):
+signed-permutation fast path in `transform_rigid`** — quarter-turn
+rotations are exactly-representable signed permutation matrices;
+a bit-checked recognize-and-permute path would keep dyadic models
+exact through 90/180/270° turns, preserving ==-sharp oracles.
+Principled, small, optional.
