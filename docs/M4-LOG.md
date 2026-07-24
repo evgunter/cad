@@ -547,3 +547,19 @@ probably mistakes") — likely its own issue. Original design agent's
 transcript lost to the WSL crash; fresh responder launched on the
 surviving clone (doc is self-contained) to reply inline + top-level,
 revise the doc with DECIDED markers, and report.
+
+**#85 conversation serviced (2026-07-24)**: all 15 inline threads
+replied + top-level answer posted; doc revision `c0c74ea` pushed
+(+114 lines, DECIDED markers for OQ1/OQ2/OQ5/OQ6-scope/OQ8/OQ9 +
+the inari transition allowance; T1 discharged). Notable design
+movement: OQ7 adopts Evan's two-level counter-shape — verdict-mark
+on every definitely-tangent edge + must-carry enforcement keyed on
+jet-determinacy (exempts G2 joins by the predicate itself) —
+proposed rename `TangentIntersection{s1,s2,witness}`, to land as a
+D2 sharpening. OQ4 gained a new invariant-shaped argument
+(carrier-primary keeps the edge parameter chart-neutral). K
+question spun out as **issue #89** (kernel-K revisit gated on the
+M5 exit K-snapshot per T5; scale-relative sliver lint at the
+document layer). Remaining for Evan, all 👍-sufficient and
+watchlisted: OQ3 (gate placement rec (a)), OQ4 (carrier-primary),
+OQ7 (reshape + rename), OQ6 run-out vocabulary, C6 (top-level).
