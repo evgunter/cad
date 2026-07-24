@@ -209,3 +209,37 @@ items banked**: (i) transform_rigid rustdoc upgraded from
 refuses typed at the ε boundary. **Demo note**: the demo die stays
 translation-authored (Evan: it's how a human would do it) — applies
 to the PR 8 demo-as-recipe rebuild.
+
+**Re-mint-at-transform SHIPPED (PR #84, merged 2026-07-23, main
+`098c4c1`)**: `transform_rigid` now re-mints Intersection witnesses
+construction-fresh from the MAPPED carrier at the pinned mid
+parameter (`carrier'.eval(sample_param((CERT_SAMPLES-1)/2))`) —
+the same S2/WitnessMidpoint formula construction uses — instead of
+mapping the stored witness. Fresh headroom every transform (bit-zero
+mid residual), no chain ratcheting, per-edge local (no cross-entity
+dependence — Evan's locality concern), D9-clean (pure function of
+mapped carrier + pinned param). Sliver refusals unchanged: typed
+errors, no nudging (ruled: not until demonstrated need). The
+`unreachable!` in the old `map_description` is gone (total
+`map_mapped_curve`; never-panic discipline). Pins:
+`m4_remint_transform.rs` (bit-equality on real boolean output under
+a rounding-hostile map; 5-transform chain stays fresh; determinism)
++ `m4_remint_headroom.rs` (0.9ε marginal witness certifies but
+keeps consumed slack under map-the-witness even for identity; the
+re-mint formula certifies with fresh headroom). Gate 11/11 on
+`b363fb0` (ff from main ⇒ gated sha ≡ merge content). Banked item
+(i) (rustdoc two-class statement) is DONE via #84's module docs;
+item (ii) (sliver-class typed-refusal fixture at the ε boundary)
+stays banked for PR 3's fix pass.
+
+**PR 3 implementer casualty (2026-07-23)**: the naming implementer
+hit the Fable usage limit mid-final-verification ("Table looks
+honest. Running the full editor-core suite"). Its worktree did not
+survive; what's pushed on `ev/m4-3-names` is the kernel-side half
+only (`3d93561`: ChordJoiner fragment rows, SplitNaming on
+SplitResult, GraftMap edges, BooleanNaming on BooleanBody, public
+provenance accessors — crates/topo, +271/−19). The editor-core half
+(StableName, RolePath vocabulary, N2 discriminators, bidirectional
+NameTable filling the PR 2 slot, D5 CI-invariant tests) was
+uncommitted and is lost — a fresh implementer redoes it on top of
+`3d93561` per `docs/M4-PR3-SPEC.md`.
