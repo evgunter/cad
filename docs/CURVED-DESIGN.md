@@ -12,6 +12,15 @@ cited, honored, and never re-litigated; where curved work puts a
 ratified decision under *tension*, that is flagged in **Tensions**
 (flag ≠ reopen).
 
+Review status (2026-07-24): Evan's first review pass on PR #85
+resolved several forks; each is recorded inline below as **DECIDED
+(Evan, #85, 2026-07-24) — pending whole-doc ratification**: OQ1, OQ2
+(both halves), OQ5, OQ6 (scope; its run-out vocabulary sub-question
+stays open), OQ8, OQ9, and the C9/T2 inari-on-default-path question.
+Still open: OQ3, OQ4, OQ7 (reshaped by Evan's counter-proposal, under
+discussion in the PR threads), the OQ6 run-out vocabulary, and C6's
+sign-off. The K = 10 tangent raised on T5 moved to issue #89.
+
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
 obligation and fillet-validity-is-reified-predicates); M3-PLAN F5 (the
@@ -161,7 +170,8 @@ lies about the locus (the fit is smooth, the locus is smooth, but a
 missed wiggle or a wrong-branch segment between samples is the failure
 mode with no closed-form backstop); acceptable only as a staged
 implementation step with the hull bound as the ratified target — the
-staging question is OQ2. (ii) *Full interval-Newton tube from inari at
+staging question was OQ2, decided 2026-07-24: no such stage ships
+(hull bounds are an entry requirement). (ii) *Full interval-Newton tube from inari at
 T = Interval* — soundest, but puts LGPL-quarantined machinery on the
 default build path (Tension T2) and is unnecessary: the exclusions
 here are polynomial. (iii) *Trust the marcher's step control* —
@@ -495,6 +505,9 @@ practice, p. 343).
   three-convex-edge vertex = sphere-octant corner patch, refuses
   typed everything else (`FilletCornerUnsupported`); run-out
   policies are a taxonomy decision Evan should own before any lands.
+  (Scope decided per OQ6, #85 2026-07-24: as recommended, with the
+  die-with-pips demo upgrade as the acceptance target; run-out
+  vocabulary still open.)
 
 ## C9 — The exclusion arithmetic: hull/ring intervals; inari stays quarantined (proposed)
 
@@ -525,6 +538,18 @@ resolution is structural, not a compromise:
   is also a concrete first step of the Tabled in-house-interval
   program, scoped to the ring (the Tabled item's hard part —
   transcendental pads — stays tabled).
+
+**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+the in-house ring is approved (OQ8). Transition allowance, reconciling
+the quarantine (T2): while the ring lands, `inari` MAY sit on the
+default build path *temporarily*, as the ring's seed/reference
+implementation and differential test oracle — Evan explicitly
+accepted the temporary default-path presence (#85, the line-164 and
+OQ8 threads). The quarantine boundary text (crate table / issue #4)
+gets updated to name this transition state and its exit condition:
+the ring lands ⇒ inari returns behind the `interval` feature; the
+temporary LGPL exposure is acceptable for the private repo but must
+be resolved before any publish (dual MIT/Apache license).
 
 **Alternatives:** (i) require the `interval` feature for curved
 certification — makes default builds unable to validate curved bodies
@@ -718,6 +743,9 @@ NURBS for everything past `Circle`. C1 recommends (b)-staged-via-(a):
 on whether plane×cone acceptance shapes make M5. The real fork is
 taste about enum growth vs uniformity — D3 licenses either.
 
+**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+(b) staged via (a), as recommended.
+
 **OQ2 — Certificate strength staging.** Is the C2.2 hull-bound
 (sup-norm-honest) certificate an M5 *entry* requirement for fitted
 caches, or does a schedule-max-only stage ship first with the hull
@@ -731,6 +759,13 @@ pass (C3) found multiple branches for the pair? (Recommendation:
 always — the witness semantics is a kernel invariant, not a
 circumstance.)
 
+**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+both halves as recommended — hull bounds are an *entry* requirement
+(no fitted cache reaches an at-rest body on a schedule-max-only
+certificate), and the C2.3 uniqueness tube is required for every
+fitted `Intersection` at rest. This discharges T1's flag: "residual
+≤ ε" keeps a single strength across all cache classes.
+
 **OQ3 — Where does the exhaustiveness gate sit?** (a) Inside the
 boolean/SSI op: the op does not return until every branch is found or
 it refuses typed (recommendation — matches fail-loud and makes curved
@@ -742,6 +777,14 @@ preview lane yet, so (c) collapses to (a) until editor-core preview
 exists). The banked principle fixes the *contract* (found-or-typed,
 never silence); the placement is genuinely open.
 
+**Status: OPEN.** Considerations spelled out in the #85 thread
+(2026-07-24) — the deciding asymmetry offered there: every other
+tier-3 obligation certifies caches against fixed topology, but SSI
+exhaustiveness decides the topology *itself*, so an uncertified
+intermediate under (b) is a body whose connectivity may be wrong,
+consumed downstream before the at-rest gate can refuse.
+Recommendation stands at (a); awaiting Evan.
+
 **OQ4 — Pcurve-primary vs carrier-primary for the general rung.** The
 ℝ⁴ trace produces pcurves natively; C4 recommends keeping the 3-D
 carrier as the primary fitted cache (existing witness/dihedral/
@@ -749,6 +792,14 @@ certification plumbing) with pcurves fitted alongside. The symmetric
 alternative — fit pcurves, derive the 3-D cache through the chart —
 is cleaner for trimmed-NURBS-heavy futures and slightly worse for
 everything M5 actually validates. Cheap to flip now, expensive later.
+
+**Status: OPEN.** Trade-off spelled out in the #85 thread
+(2026-07-24) — beyond plumbing inertia, the invariant-shaped argument
+for carrier-primary is that the edge's parameter stays
+*chart-neutral*: pcurve-primary must pick one face's chart as the
+parameter source, privileging a side with no principled tie-break
+(seam edges make "which side" degenerate). Recommendation stands at
+carrier-primary; awaiting Evan.
 
 **OQ5 — Curved 3′/census.** Confirm the C7 recommendation that M5
 curved booleans refuse touching results (census stays exact-on-planar)
@@ -758,12 +809,30 @@ coincident-cylinder/tangent-contact classes) is a real
 coincidence-ladder design of its own; recommending it wait for its
 own doc.
 
+**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+as recommended — the census stays exact-on-planar through M5; curved
+boolean results that touch refuse typed at the 3′ gate; the curved
+coincidence census waits for its own design doc.
+
 **OQ6 — Fillet scope box.** Closed smooth chains + three-convex-edge
 sphere corner, everything else `FilletCornerUnsupported` (C8's
 recommendation)? Or narrower (closed chains only)? And which run-out
 policy vocabulary should exist even as typed-refusal names? This is
 the survey's termination/corner problem — the one part of fillet
 scope where reasonable kernels genuinely differ.
+
+**Scope DECIDED (Evan, #85, 2026-07-24) — pending whole-doc
+ratification:** closed smooth chains AND the three-convex-edge
+sphere-octant corner are in scope; the **die-with-pips demo upgrade**
+(closed chains on the pip rims, open chains terminating in octant
+corners on the cube edges) is the named acceptance target. Everything
+else refuses `FilletCornerUnsupported`. The **run-out vocabulary
+sub-question stays OPEN**: recommendation in the #85 thread is the
+minimal two-policy vocabulary (stop-at-vertex-with-corner-patch,
+feather-out) as refusal-payload names only — honest frontier error
+text, zero constructor surface — with the finer taxonomy (per-end
+assignment, setback parameters) left to the post-M5 design that
+implements it.
 
 **OQ7 — Symmetric prefer-intrinsic enforcement.** Extend tier 3 with
 definitely-tangent-smooth-contact ⇒ must-carry-`TangencyLocus`
@@ -776,6 +845,24 @@ discriminator is "do the surfaces determine the locus" — sharp in
 theory; the enforcement predicate needs a margin story at the
 boundary and Evan's eyes on which side conventional splits land.
 
+**Status: OPEN — reshaped by Evan's counter-proposal (#85,
+2026-07-24)**: tangent smooth contact should carry *some* mark, but
+`TangencyLocus` may deserve a narrower role (possibly renamed).
+Proposed resolution in the thread, two levels: (i) every
+definitely-tangent edge carries the tangency *verdict* as a named
+recorded classification — the mark; keeps the preference from
+drifting at zero enforcement risk; (ii) the tier-3 must-carry rule
+(the `TransverseNotIntrinsic` sibling) fires only on
+**jet-determinate** tangencies — definitely-tangent AND second-order
+separation definite — so G2 conventional joins are exempt *by the
+predicate itself* (their second-order margin is zero-side; the
+surfaces under-determine the locus), not by an exemption list;
+in-band second order escalates per F6. The discriminator "do the
+surfaces determine the locus" thereby becomes the enforcement
+predicate rather than prose. Candidate rename: `TangentIntersection
+{ s1, s2, witness }` (mirrors `Intersection`; margin one order up) —
+a D2 sharpening if adopted. Awaiting Evan's reaction.
+
 **OQ8 — The in-house interval ring** (C9). Sign off on adding a
 second interval type (ring-only, MIT-clean, ulp-widened) alongside
 inari rather than either (a) putting inari on the default path or
@@ -783,12 +870,23 @@ inari rather than either (a) putting inari on the default path or
 interval program. This is a licensing/architecture fork, small code,
 long shadow.
 
+**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+the in-house ring is approved, doubling as the seed of the eventual
+inari replacement; see the C9 transition note for the temporary
+inari-on-default-path allowance while the ring lands.
+
 **OQ9 — Q5 closure trigger.** The curvo audit verdict will land
 during M5 planning; if it recommends vendoring specific algorithms
 (most likely: fitting/knot machinery, possibly their SSI seeding
 heuristics as reference), does that change the build-vs-study stance
 enough to warrant a DESIGN.md Q5 revision, or is a memories/audit
 note sufficient? (Process question as much as technical.)
+
+**DECIDED (Evan, #85, 2026-07-24, deferred-to-judgment; the revision
+path is taken) — pending whole-doc ratification:** the audit verdict
+lands as a lean DESIGN.md Q5 revision — standing stance and its
+supersession in one place, no re-litigating — pointing at the audit
+note for detail.
 
 ## Tensions (ratified decisions under curved pressure — flagged, not reopened)
 
@@ -801,6 +899,11 @@ closed-form classes it was written for. OQ2 is the decision; the flag
 is that "residual ≤ ε" silently meaning two different strengths for
 two cache classes is the kind of asymmetry this project exists to
 avoid.
+*(Resolved by the OQ2 decision, #85 2026-07-24: hull bounds are an
+entry requirement, so "residual ≤ ε" keeps a single strength across
+cache classes — the two-strength state this flag named was the trap
+the C2 design avoids, never a feature, and the staging door that
+could have reintroduced it mid-milestone is closed.)*
 
 **T2 — Interval quarantine vs certification on the default path.**
 The `interval` feature's LGPL quarantine (issue #4, crate table) was
@@ -809,6 +912,10 @@ enclosures load-bearing for default-build validation of curved
 bodies. C9 resolves it structurally (ring-only in-house type); the
 flag stands in case Evan prefers a different resolution, because
 whichever way, the quarantine boundary text needs an update.
+*(Resolution direction decided in #85, 2026-07-24: the C9 in-house
+ring, with the temporary inari-on-default-path transition allowance —
+see C9's decided note. The quarantine boundary text update is now a
+committed obligation.)*
 
 **T3 — Witness component-selection semantics.** D2's S2 sharpening
 says the selection semantics "activates with real SSI at M5." It
@@ -832,6 +939,12 @@ discriminating evidence would come from boolean/SSI predicates. C7's
 second-order family and C2.3's branch-separation margins are that
 corpus. The M5 exit K-snapshot is not optional bookkeeping; it is the
 report's own revisit condition firing.
+*(#85 tangent, 2026-07-24: Evan raised whether K should be much
+larger — "any sliver that looks exactly-equal in the GUI is probably
+a mistake." Split to issue #89 rather than decided in #85: the
+kernel-K half waits on the M5 exit K-snapshot (this flag's own
+trigger); the GUI-indistinguishability half is proposed there as a
+scale-relative document/editor-layer lint, not a kernel refusal.)*
 
 **T6 — Tessellation cost.** PERF-PLAN rank 1 (CDT quadratic) was
 measured on analytic UV grids; trimmed NURBS faces raise point counts.
