@@ -84,6 +84,29 @@ pub struct SplitResult<T: Real> {
     pub above: SplitPart<T>,
     /// The material on the opposite side.
     pub below: SplitPart<T>,
+    /// Naming emission (M4 PR 3, NAMING-DESIGN N4): the mint-time
+    /// wiring facts the naming layer consumes — never reconstructed
+    /// by post-hoc inspection.
+    pub naming: SplitNaming,
+}
+
+/// Mint-time naming facts of one split (M4 PR 3). Keys live in the
+/// scratch arena both result bodies were carved from — `carve` clones,
+/// so a key resolves in whichever side kept the entity (and only
+/// there). Rows are historical: entries whose entity survived in
+/// neither side (discarded scaffolding) simply resolve nowhere.
+#[derive(Debug, Default)]
+pub struct SplitNaming {
+    /// The section faces with their side, in section completion order
+    /// (the `order` module's total exact-order sort: reorderings are
+    /// recorded predicate verdicts, so the position is a function of
+    /// the verdict vector — N4's covariance).
+    pub sections: Vec<(FaceKey, PlaneSide)>,
+    /// Chord-mef fragment rows: `(new face, divided-from face)` in
+    /// mint order, call-time keys ([`super::join`]'s `ChordJoiner`
+    /// log). Section faces appear here too (they are minted by the
+    /// same mefs); consumers exclude the keys listed in `sections`.
+    pub face_fragments: Vec<(FaceKey, FaceKey)>,
 }
 
 /// Typed failure of the finish step.
@@ -187,6 +210,7 @@ impl std::error::Error for SplitFinishError {}
 pub(super) fn split_finish<T: Decide>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
+    face_fragments: Vec<(FaceKey, FaceKey)>,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     let mut body = red.body;
     let solid = single_solid(&body)?;
@@ -196,6 +220,10 @@ pub(super) fn split_finish<T: Decide>(
     if completed.is_empty() {
         return whole_body_side(body, &red.sides);
     }
+    let mut naming = SplitNaming {
+        sections: Vec::with_capacity(completed.len() * 2),
+        face_fragments,
+    };
 
     // ---- Promotion: each null face → two section faces. ----
     // Which loop is currently the ring is read from the face record
@@ -242,6 +270,8 @@ pub(super) fn split_finish<T: Decide>(
         body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
+        naming.sections.push((promoted.face, ring_side));
+        naming.sections.push((section.face, other_side));
     }
 
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
@@ -292,6 +322,7 @@ pub(super) fn split_finish<T: Decide>(
     Ok(SplitResult {
         above: SplitPart::Body(above),
         below: SplitPart::Body(below),
+        naming,
     })
 }
 
@@ -408,10 +439,12 @@ fn whole_body_side<T: Decide>(
         Some(PlaneSide::Above) => Ok(SplitResult {
             above: SplitPart::Body(body),
             below: SplitPart::Empty,
+            naming: SplitNaming::default(),
         }),
         Some(_) => Ok(SplitResult {
             above: SplitPart::Empty,
             below: SplitPart::Body(body),
+            naming: SplitNaming::default(),
         }),
         // Every vertex ON: a zero-volume operand — nothing legal
         // reaches here (tier 2 refused it long ago).

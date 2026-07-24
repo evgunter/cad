@@ -71,7 +71,7 @@ use crate::null::NullEdge;
 use slotmap::SecondaryMap;
 
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
-pub use finish::{SplitFinishError, SplitPart, SplitResult};
+pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use join::SplitJoinError;
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionPolygon, plane_section};
@@ -419,11 +419,11 @@ impl std::error::Error for SplitError {}
 pub(crate) fn split_scratch<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
-) -> Result<(SplitReduction<T>, Vec<join::CompletedSection>), SplitError> {
+) -> Result<(SplitReduction<T>, Vec<join::CompletedSection>, join::FragmentRows), SplitError> {
     let band = geom_core::Band::linear().map_err(SplitReduceError::from)?;
     let mut red = split_reduce(operand, plane)?;
-    let completed = join::split_connect(&mut red, band)?;
-    Ok((red, completed))
+    let (completed, fragments) = join::split_connect(&mut red, band)?;
+    Ok((red, completed, fragments))
 }
 
 /// **`split`** — plane-splitting of a solid (ch. 14 end to end):
@@ -499,9 +499,31 @@ pub fn split<T: geom_core::Decide>(
         normal: -plane.normal,
     };
     match split_direct(operand, &mirrored) {
-        Ok(SplitResult { above, below }) => Ok(SplitResult {
+        Ok(SplitResult {
+            above,
+            below,
+            naming,
+        }) => Ok(SplitResult {
             above: below,
             below: above,
+            // The naming sides were recorded against the MIRRORED
+            // plane; swap them back with the bodies so `sections`
+            // states sides in the caller's orientation.
+            naming: finish::SplitNaming {
+                sections: naming
+                    .sections
+                    .into_iter()
+                    .map(|(f, s)| {
+                        let flipped = match s {
+                            PlaneSide::Above => PlaneSide::Below,
+                            PlaneSide::Below => PlaneSide::Above,
+                            other => other,
+                        };
+                        (f, flipped)
+                    })
+                    .collect(),
+                face_fragments: naming.face_fragments,
+            },
         }),
         Err(_) => split_direct(operand, plane),
     }
@@ -512,6 +534,6 @@ fn split_direct<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<SplitResult<T>, SplitError> {
-    let (red, completed) = split_scratch(operand, plane)?;
-    Ok(finish::split_finish(red, &completed)?)
+    let (red, completed, fragments) = split_scratch(operand, plane)?;
+    Ok(finish::split_finish(red, &completed, fragments)?)
 }

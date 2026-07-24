@@ -53,6 +53,8 @@ pub(super) struct GraftMap {
     pub vertices: SecondaryMap<VertexKey, VertexKey>,
     /// Source face → result face.
     pub faces: SecondaryMap<FaceKey, FaceKey>,
+    /// Source edge → result edge (naming emission, M4 PR 3).
+    pub edges: SecondaryMap<EdgeKey, EdgeKey>,
 }
 
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
@@ -297,5 +299,9 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     let solid = dst.get_solid_mut(dst_solid).ok_or_else(corrupt)?;
     solid.shells.extend(shell_list);
 
-    Ok(GraftMap { vertices, faces })
+    Ok(GraftMap {
+        vertices,
+        faces,
+        edges,
+    })
 }

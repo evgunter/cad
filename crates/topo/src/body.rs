@@ -482,6 +482,25 @@ impl<T: Real> Body<T> {
         self.edges.get(key)
     }
 
+    /// The D5 birth record of a live edge (M4 PR 3: the naming layer
+    /// reads `SplitEdge` parentage from here — birth data, never
+    /// inspection). `None` iff the key is stale.
+    pub fn edge_provenance_of(&self, key: EdgeKey) -> Option<&Provenance> {
+        self.edge_provenance.get(key)
+    }
+
+    /// The D5 birth record of a live vertex (see
+    /// [`Body::edge_provenance_of`]).
+    pub fn vertex_provenance_of(&self, key: VertexKey) -> Option<&Provenance> {
+        self.vertex_provenance.get(key)
+    }
+
+    /// The D5 birth record of a live face (see
+    /// [`Body::edge_provenance_of`]).
+    pub fn face_provenance_of(&self, key: FaceKey) -> Option<&Provenance> {
+        self.face_provenance.get(key)
+    }
+
     /// The vertex at `key`, or `None` if the key is stale (a foreign key is
     /// not caught — see the [module docs](self)).
     pub fn get_vertex(&self, key: VertexKey) -> Option<&Vertex> {

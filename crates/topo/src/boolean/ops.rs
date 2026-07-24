@@ -100,7 +100,7 @@ use super::{
     VvContact, boolean_reduce,
 };
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::props::mass_properties_with;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{validate, validate_closed};
@@ -146,6 +146,60 @@ pub struct BooleanBody<T: Real> {
     /// (module docs) — the tier-3′ declarations (see the type-level
     /// docs: non-empty ⇒ 3′ currency).
     pub contacts: ContactRecords,
+    /// Naming emission (M4 PR 3, NAMING-DESIGN N4): the mint-time
+    /// wiring facts the naming layer consumes — recorded as the
+    /// pipeline runs, never reconstructed by post-hoc inspection.
+    pub naming: BooleanNaming,
+}
+
+/// How one operand's keys relate to the result body's keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum OperandKeys {
+    /// The result arena IS this operand's clone: operand keys resolve
+    /// directly (surviving entities keep their keys).
+    #[default]
+    Direct,
+    /// This operand was grafted in: its surviving keys appear as the
+    /// source column of the corresponding `graft_*` rows.
+    Grafted,
+    /// No material of this operand is in the result.
+    Absent,
+}
+
+/// Mint-time naming facts of one boolean result (M4 PR 3). Rows are
+/// historical: a listed key may have been consumed by a later stage
+/// (zip scaffolding, merge absorption, discarded material) — consumers
+/// filter against the entities alive in `body` / chase the rows.
+#[derive(Debug, Default)]
+pub struct BooleanNaming {
+    /// How operand A's keys map into the result.
+    pub a_keys: OperandKeys,
+    /// How operand B's keys map into the result.
+    pub b_keys: OperandKeys,
+    /// B-side graft lineage, `(B key, result key)` in arena slot
+    /// order (empty unless `b_keys` is `Grafted`). Source keys are
+    /// B-CLONE keys: operand keys for surviving operand entities plus
+    /// reduction-minted keys (whose provenance rows, transplanted
+    /// verbatim, also speak B-clone keys).
+    pub graft_vertices: Vec<(VertexKey, VertexKey)>,
+    /// B-side edge graft lineage (see `graft_vertices`).
+    pub graft_edges: Vec<(EdgeKey, EdgeKey)>,
+    /// B-side face graft lineage (see `graft_vertices`).
+    pub graft_faces: Vec<(FaceKey, FaceKey)>,
+    /// Seam edges surviving the zips, in zip/cycle order, result keys.
+    pub seam_edges: Vec<EdgeKey>,
+    /// Zip vertex fusions `(dead, kept)` in zip order, result keys.
+    pub vertex_merges: Vec<(VertexKey, VertexKey)>,
+    /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
+    /// result keys.
+    pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
+    /// A-side chord-mef fragment rows `(new face, divided-from face)`
+    /// in mint order — A-clone keys, which ARE result keys when
+    /// `a_keys` is `Direct`.
+    pub face_fragments_a: Vec<(FaceKey, FaceKey)>,
+    /// B-side chord-mef fragment rows, in B-CLONE keys (translate the
+    /// new-face column through `graft_faces` for result keys).
+    pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
 }
 
 /// The typed result of a boolean op: a body, or the typed empty
@@ -215,20 +269,22 @@ fn boolean_op<T: Decide>(
         return fallback(op, &red, a, b, band);
     }
 
-    let completed = bool_connect(&mut red, a, b, band)?;
-    if completed.is_empty() {
+    let connected = bool_connect(&mut red, a, b, band)?;
+    if connected.completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",
         });
     }
     let contacts = red.contacts.clone();
-    let fin = setopfinish(op, red, &completed, a, b, band)?;
+    let fin = setopfinish(op, red, &connected.completed, a, b, band)?;
     let mut body = fin.body;
     let mut seam_edges = Vec::new();
+    let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map)?;
         desc.absorb_zip(&rep);
+        vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
     }
     let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
@@ -243,11 +299,48 @@ fn boolean_op<T: Decide>(
     );
     gate(&body)?;
     volume_backstop(op, a, b, &body, band)?;
+    let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
+    let naming = BooleanNaming {
+        a_keys: OperandKeys::Direct,
+        b_keys: OperandKeys::Grafted,
+        graft_vertices,
+        graft_edges,
+        graft_faces,
+        seam_edges,
+        vertex_merges,
+        merge_groups: merge_rows(&merged),
+        face_fragments_a: connected.a_fragments,
+        face_fragments_b: connected.b_fragments,
+    };
     Ok(BooleanResult::Body(BooleanBody {
         body,
         kind: BooleanResultKind::Seamed,
         contacts,
+        naming,
     }))
+}
+
+/// The graft map as sorted-order row vectors (naming emission).
+type GraftRows = (
+    Vec<(VertexKey, VertexKey)>,
+    Vec<(EdgeKey, EdgeKey)>,
+    Vec<(FaceKey, FaceKey)>,
+);
+
+fn graft_rows(g: &GraftMap) -> GraftRows {
+    (
+        g.vertices.iter().map(|(k, &v)| (k, v)).collect(),
+        g.edges.iter().map(|(k, &v)| (k, v)).collect(),
+        g.faces.iter().map(|(k, &v)| (k, v)).collect(),
+    )
+}
+
+/// The merge outcome as naming rows.
+fn merge_rows(m: &crate::merge_faces::MergeCoplanarOutcome) -> Vec<(FaceKey, Vec<FaceKey>)> {
+    m.groups
+        .iter()
+        .map(|g| (g.kept, g.absorbed.clone()))
+        .collect()
 }
 
 /// The volume-inequality backstop at the op gate (PR 5 review): every
@@ -710,10 +803,21 @@ fn fallback<T: Decide>(
                 &desc,
             );
             gate(&body)?;
+            let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
+            let naming = BooleanNaming {
+                a_keys: OperandKeys::Direct,
+                b_keys: OperandKeys::Grafted,
+                graft_vertices,
+                graft_edges,
+                graft_faces,
+                merge_groups: merge_rows(&merged),
+                ..BooleanNaming::default()
+            };
             Ok(BooleanResult::Body(BooleanBody {
                 body,
                 kind,
                 contacts,
+                naming,
             }))
         }
     }
@@ -743,10 +847,26 @@ fn finish_fallback<T: Decide>(
     };
     let contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
     gate(&body)?;
+    let naming = match kind {
+        BooleanResultKind::OperandA => BooleanNaming {
+            a_keys: OperandKeys::Direct,
+            b_keys: OperandKeys::Absent,
+            merge_groups: merge_rows(&merged),
+            ..BooleanNaming::default()
+        },
+        // The result arena IS the B clone: B keys direct, A absent.
+        _ => BooleanNaming {
+            a_keys: OperandKeys::Absent,
+            b_keys: OperandKeys::Direct,
+            merge_groups: merge_rows(&merged),
+            ..BooleanNaming::default()
+        },
+    };
     Ok(BooleanResult::Body(BooleanBody {
         body,
         kind,
         contacts,
+        naming,
     }))
 }
 

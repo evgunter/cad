@@ -84,7 +84,10 @@ use crate::validate::ValidationError;
 
 pub use contain::{ContainError, FaceContainment, contfp};
 pub use join::CompletedPolygonPair;
-pub use ops::{BooleanBody, BooleanResult, BooleanResultKind, intersect, subtract, union};
+pub use ops::{
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, intersect,
+    subtract, union,
+};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
