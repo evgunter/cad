@@ -232,14 +232,26 @@ re-mint formula certifies with fresh headroom). Gate 11/11 on
 item (ii) (sliver-class typed-refusal fixture at the ε boundary)
 stays banked for PR 3's fix pass.
 
-**PR 3 implementer casualty (2026-07-23)**: the naming implementer
-hit the Fable usage limit mid-final-verification ("Table looks
-honest. Running the full editor-core suite"). Its worktree did not
-survive; what's pushed on `ev/m4-3-names` is the kernel-side half
-only (`3d93561`: ChordJoiner fragment rows, SplitNaming on
-SplitResult, GraftMap edges, BooleanNaming on BooleanBody, public
-provenance accessors — crates/topo, +271/−19). The editor-core half
-(StableName, RolePath vocabulary, N2 discriminators, bidirectional
-NameTable filling the PR 2 slot, D5 CI-invariant tests) was
-uncommitted and is lost — a fresh implementer redoes it on top of
-`3d93561` per `docs/M4-PR3-SPEC.md`.
+**PR 3 implementer casualty + recovery (2026-07-23)**: the naming
+implementer hit the Fable usage limit mid-final-verification
+("Table looks honest. Running the full editor-core suite"). First
+assessment said its worktree died and the uncommitted editor-core
+half was lost — WRONG: isolation-worktree subagents live under
+`<main checkout>/.claude/worktrees/agent-<id>/`, not the session
+scratchpad, and the worktree (with all uncommitted work) survived
+at `/home/evan/projects/cad/.claude/worktrees/agent-ab07efef…`.
+Evan's question ("can the agent not be resumed from transcript?")
+prompted resuming the original agent instead of the freshly
+spawned replacement; the resumed agent found its own worktree,
+committed the editor-core half (`6345291`: StableName/RolePath
+made real, N2 discriminators, bidirectional NameTable filling the
+PR 2 slot, per-op wire emission, structural Declare hashing),
+merged the remote branch (which had picked up main `098c4c1` via
+the stood-down replacement's `90f7a4e`), and pushed — branch head
+`f9fd585`, everything on the remote. **Lessons, now standing
+policy**: (i) implementers commit+push after every coherent unit
+(no batching to a final push); (ii) a dead subagent's first
+recovery move is RESUME-FROM-TRANSCRIPT (it knows what it wrote),
+and its isolation worktree under `.claude/worktrees/` likely still
+holds the files. Kernel half remains `3d93561` (crates/topo,
++271/−19). Verification still to finish; then review cycle.
