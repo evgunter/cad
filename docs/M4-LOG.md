@@ -341,3 +341,37 @@ obligation; D9 discipline on iterative numerics; K=10 revisit
 likely fires; CDT bulk-load trigger). Sources visually read:
 Hoffmann §6.2-6.3 complete, NURBS Book §7.3-7.4 + §9.4.4,
 Vida-Martin-Várady taxonomy pages.
+
+**PR 3 adversarial review returned (2026-07-24): needs-rework; fix
+pass ruled and dispatched.** Review ran 13 uncommitted probes; 4
+found real breakage. Findings + rulings (R1-R13): R1 BLOCKER —
+chase_b false refusal on a bar pierced through two A-walls (middle
+B fragment dies pre-graft; `?` bypasses the chord_kind rescue the
+A lane gets) ⇒ B-lane fall-through parity + both-orientation
+fixture. R2 MAJOR — split through existing operand vertices
+refuses ("crossing vertex without SplitEdge birth record") ⇒ ruled
+pass-through-with-side role (derivable from birth data per D2;
+STOP-and-report fallback if not). R3 MAJOR — head fails `cargo
+fmt --check` (3 files; fmt commit predated last two commits). R4
+MAJOR — Merged lane dead code end-to-end until PR 5 declare
+threading ⇒ kernel-level synthetic merge_groups unit test + REPORT
+line; full fixture PR 5. R5/R6 report-only deviations (single-
+qualifier-flip fixture → PR 4; Declare name-level validation → PR
+4). R7 name_pattern totality/multi-body-master hardening now
+(latent). R8 Merged-collision code comment (PR 5 discriminator).
+R9 doc fix: "kept-key identity wins" (not A-side; zip_seam keeps
+outer vertex) — Vanished-diagnosis check banked for PR 4. R10
+order_along over-tie accepted (widens Ambiguous, never mis-binds).
+R11 companion names-only golden digest. R12 displaced doc comment.
+R13 pre-existing kernel PANIC on legal double-subtract
+(attach.rs:173 assert_eq, reproduced on origin/main) — filed as
+**issue #86**, not PR 3's; blocks boolean-of-boolean fixtures
+corpus-wide. EXTRA: the banked #83 sliver-side ε-boundary
+typed-refusal fixture rides in this fix pass (test-only, beside
+m4_remint_headroom.rs). Verified CLEAN under attack: transform
+pass-through vs #84 re-mint (no keys minted/killed), Mixed-verdict
+covariance, section completion-order covariance, reduction_contacts
+key spaces (clone/graft/revert key-stable), order_along boundaries,
+refusal doors all typed + no hard-coded ε (grep-verified), identity
+boundary on the rich doc. Fix pass dispatched to the resumed
+implementer in its surviving worktree.
