@@ -287,3 +287,33 @@ DISCHARGEABLE on this machine; the STEP implementer was directed to
 wire it as an admesh-pattern check script (env-var locator, loud
 hermetic skip when absent) run against cube, die, and a
 boolean-result body.
+
+**PR 3 implementation COMPLETE (2026-07-23, `ev/m4-3-names` @
+`afa6c0b`, pushed)**: the resumed implementer finished — recovery
+total, nothing redone. D1 StableName real (runtime kind tag — kind-
+heterogeneous collections + F3 serialization); D2 full closed
+RoleSeg vocabulary (composition via boxed operand StableNames per
+N1; section-face completion-order index argued recipe-covariant via
+split_join_order exact-order sort; transform contributes no segment
+— key-stable arenas); D3 discriminators through k_stats::decide,
+ambient band, SideVerdict{+,−,Mixed,On}, in-band ⇒ typed
+Naming(Escalated), no bare indices; D4 bidirectional NameTable in
+NodeValue (Arc), injectivity/totality typed, kernel emission gaps
+fixed kernel-side (SplitNaming, BooleanNaming incl. pre-remap
+reduction_contacts, GraftMap edges, ChordJoiner fragment rows,
+provenance accessors); D5 all four CI-invariant tests (golden die
+digest 0x8d53_0dcf_2954_07bb; no-flip motion ⇒ zero table changes
+across 56 nodes; f64/Interval table equality; node-granular flip
+localization) — single-qualifier-flip fixture deferred (reviewer/
+PR 4 item). 17 tests across 4 suites; full workspace + interval
+lanes green; fmt/clippy clean. Typed-refusal deferrals: Merged
+variant lacks evaluate-level fixture; sphere-like all-on-axis
+revolve poles; tied-upstream-through-downstream; >1 section chord
+per operand face. Found-and-fixed in verification: same-operand
+collinear chord descent; provenance chases stop at the operand
+table (was breaking the PR 2 rich-doc test); zip vertex_merges
+dead-partner rows (A-priority documented). Implementer supplied a
+10-item reviewer attack list. **Adversarial review launched**
+(clone `~/.local/share/cad-work/pr3-review`). Fix-pass queue
+already holds: sliver-class ε-boundary typed-refusal fixture
+(banked from #83).
