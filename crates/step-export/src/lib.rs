@@ -1,0 +1,387 @@
+//! STEP (ISO 10303-21 / AP214) export of finished kernel bodies — the
+//! in-house analytic-subset writer (M4 PR 7, discharging the F6
+//! decision: docs/M4-LOG.md 2026-07-23, grounds in
+//! `references/notes/step-spike-report.md`).
+//!
+//! # What this is, and what it is not
+//!
+//! An EXPORT writer only: a finished [`topo::Body`] (certified planar
+//! geometry, tier-2-valid at rest) is serialized to a Part 21 exchange
+//! file whose data section is the AP214 advanced-B-rep product
+//! structure. Import is M7 and deliberately absent. The F6 spike
+//! established that no adoptable crate writes conformant STEP
+//! (ruststep has no writer at all; truck-stepio's writer ships
+//! preamble/entity defects unfixable through its API), so this writer
+//! is in-house and the external crates appear as **dev-dependency
+//! parse-back oracles in the tests only**.
+//!
+//! # Conformance decisions (the truck-stepio defect list, in reverse)
+//!
+//! - **Schema**: `AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }` (AP214
+//!   ed. 2), and the data section's `APPLICATION_PROTOCOL_DEFINITION`
+//!   says `'automotive_design', 2000` — the FILE_SCHEMA names the AP
+//!   the data section actually uses (truck's names a resource schema
+//!   over an AP214 body — the disqualifying defect class). AP214 over
+//!   AP203 because AP203 ed. 1 conformance drags the config-control
+//!   person/organization/approval apparatus into every file; AP214's
+//!   product skeleton is the minimal one every importer accepts, and
+//!   the spike's AP214 prototype was reconstructed intact by an
+//!   independent importer and by FreeCAD/OCC.
+//! - **Units**: `SI_UNIT($, .METRE.)` — unprefixed metres, because
+//!   kernel-internal geometry IS metres by D6/D4 ¶4. No hardcoded
+//!   millimetre lie (truck defect 3).
+//! - **Uncertainty**: `UNCERTAINTY_MEASURE_WITH_UNIT` wraps the value
+//!   in the `LENGTH_MEASURE(...)` select (truck emits the bare real —
+//!   a Part 21 typing error), and the value is the run's ambient
+//!   tolerance ε (D4 ¶1) unless overridden in [`StepOptions`].
+//! - **Topology**: `ADVANCED_FACE` under
+//!   `ADVANCED_BREP_SHAPE_REPRESENTATION` with `FACE_OUTER_BOUND` for
+//!   outer loops (truck emits `FACE_SURFACE`/`FACE_BOUND`, violating
+//!   the ABSR WHERE rules). Rings emit as `FACE_BOUND`.
+//! - **Product structure**: real `PRODUCT` chain with a caller-visible
+//!   product name ([`StepOptions::product_name`]), not a hardcoded
+//!   empty string.
+//!
+//! # The analytic subset, and how it grows (M5)
+//!
+//! The M4 surface vocabulary of finished bodies is planes with line
+//! boundary carriers; the writer's printers are the closed matches in
+//! `writer.rs` (`Surface::Plane` → `PLANE`, `Curve3::Line` → `LINE`).
+//! Every other variant returns a **typed refusal**
+//! ([`StepExportError::UnsupportedSurface`] /
+//! [`StepExportError::UnsupportedCurve`]) naming the variant — never a
+//! silent degradation. M5 adds arms (cylinder/cone/sphere/torus,
+//! circle/NURBS) to exactly those two matches; the surrounding
+//! topology walk, preamble, and float printing are already
+//! carrier-agnostic. Exporting analytic surfaces *as* analytic STEP
+//! entities (a cylinder as `CYLINDRICAL_SURFACE`, never a B-spline
+//! approximation) is the point of writing this in-house — the M5
+//! carrier story truck-stepio could not serve.
+//!
+//! # Orientation mapping (cites the ratified conventions, adds none)
+//!
+//! - A face's stored plane normal IS its outward normal (M1
+//!   interior-left ratification, restated in `geom_brep::enters`), so
+//!   every `ADVANCED_FACE` has `same_sense = .T.` and the surface's
+//!   `AXIS2_PLACEMENT_3D` axis is the stored normal with `ref_direction`
+//!   the stored `u_ref` (⊥ normal by the same convention).
+//! - An edge's certified carrier parameter runs `start(he_plus) →
+//!   end(he_plus)` (the M2 forward contract on `Edge::he_plus`), so
+//!   every `EDGE_CURVE` has `same_sense = .T.` with its vertices taken
+//!   from `he_plus`; an `ORIENTED_EDGE` is `.T.` exactly when the
+//!   loop's half-edge is the edge's plus half.
+//! - Outer loops as stored run counterclockwise about the outward
+//!   normal and rings clockwise (interior-left), which is precisely
+//!   STEP's convention for `FACE_OUTER_BOUND`/`FACE_BOUND` with
+//!   orientation `.T.` — the stored direction is emitted unchanged.
+//!
+//! # Solids, shells, and voids
+//!
+//! Each shell exports as one `CLOSED_SHELL` under its own
+//! `MANIFOLD_SOLID_BREP`. For a **multi-shell solid** (an M3 boolean
+//! Assembly/Voided result) the writer classifies each shell by the
+//! sign of its exact divergence-theorem volume over the planar subset
+//! (outward-normal convention: a positive shell bounds material from
+//! outside, a negative shell is a void cavity wall): positive shells
+//! become independent `MANIFOLD_SOLID_BREP`s (the disjoint-assembly
+//! case); a negative shell is **refused** with
+//! [`StepExportError::VoidShellUnsupported`] — `BREP_WITH_VOIDS`
+//! needs a void-to-containing-shell association the kernel does not
+//! yet record, and guessing it would be a silent lie. Voided bodies
+//! wait for that designation (M5+); the refusal is pinned by test.
+//!
+//! # Determinism (D9)
+//!
+//! Same body value + same options ⇒ **byte-identical** file. Entity
+//! ids are allocated in a single fixed traversal (solids → shells →
+//! faces → outer-then-rings → loop cycle order; vertex/edge entities
+//! minted at first encounter), hash maps are used for lookup only —
+//! no hash iteration anywhere on the write path — and every real is
+//! printed by the shortest round-trip formatter (`real.rs`): the
+//! printed token parses back to the identical f64 bits. There is no
+//! wall-clock anywhere: the header timestamp is
+//! [`StepOptions::timestamp`], a fixed string.
+//!
+//! # Fail loud (D4/D9)
+//!
+//! Every unrepresentable input is a typed [`StepExportError`]: no
+//! panics, no lossy fallbacks, no NaN smuggling (`NaN`/`±∞` refuse at
+//! the float printer with the offending context named). Mid-surgery
+//! bodies (null scaffolding, empty loops) refuse rather than emit
+//! half-topology.
+//!
+//! # External acceptance
+//!
+//! The parse-back oracles prove syntax and reconstructed topology; the
+//! acceptance gate for "real CAD systems read our files" is external
+//! (the admesh pattern, STEP-shaped): `scripts/check_step.sh` runs a
+//! headless FreeCAD/OCC import over the committed fixtures in
+//! `tests/fixtures/` and asserts validity, entity counts, and volume.
+
+use std::collections::HashMap;
+use std::fmt;
+
+use topo::{Body, EdgeKey, FaceKey, LoopKey, ShellKey};
+
+mod real;
+mod volume;
+mod writer;
+
+/// Typed export failure (closed enum, D4 ¶3). Every variant names the
+/// offending entity or value — the writer never panics and never
+/// silently degrades output.
+#[derive(Debug)]
+pub enum StepExportError {
+    /// A real value on the write path (coordinate, direction component,
+    /// uncertainty) is NaN or ±∞ — unrepresentable as a Part 21 real.
+    NonFiniteReal {
+        /// The offending value.
+        value: f64,
+        /// Which quantity was being printed (static description).
+        context: &'static str,
+    },
+    /// A header/product string contains characters outside Part 21's
+    /// basic alphabet (0x20..=0x7E) — the writer refuses rather than
+    /// emit an encoding it cannot promise importers read back.
+    UnrepresentableString {
+        /// Which string field was being quoted (static description).
+        context: &'static str,
+    },
+    /// A face's surface has no printer in the M4 analytic subset
+    /// (planes only; M5 adds the curved arms). Typed refusal, never a
+    /// B-spline approximation.
+    UnsupportedSurface {
+        /// The face whose surface is out of subset.
+        face: FaceKey,
+        /// The surface variant's name.
+        kind: &'static str,
+    },
+    /// An edge's certified carrier has no printer in the M4 analytic
+    /// subset (lines only; M5 adds circles/NURBS).
+    UnsupportedCurve {
+        /// The edge whose carrier is out of subset.
+        edge: EdgeKey,
+        /// The carrier variant's name.
+        kind: &'static str,
+    },
+    /// An edge is M3 null-edge scaffolding (no carrier by type): the
+    /// body is mid-surgery — tier 2 refuses such bodies at rest, and
+    /// so does export.
+    NullScaffoldEdge {
+        /// The scaffolding edge.
+        edge: EdgeKey,
+    },
+    /// A loop is the empty-loop degenerate state (a lone vertex, no
+    /// edges) — legal only mid-construction; a finished solid's face
+    /// bounds never contain one, and STEP's advanced B-rep has no
+    /// place for it.
+    EmptyLoop {
+        /// The empty loop.
+        loop_: LoopKey,
+    },
+    /// The body contains no exportable shell (no solids, or solids
+    /// with no shells) — an empty DATA section would be a conformance
+    /// defect, so the writer refuses.
+    NothingToExport,
+    /// A multi-shell solid contains a shell whose signed volume is
+    /// definitely negative — a void cavity wall (outward normals point
+    /// into the cavity). `BREP_WITH_VOIDS` needs the kernel's
+    /// void-to-outer-shell designation, which does not exist yet
+    /// (M5+); exporting the void as a solid would be silently wrong,
+    /// so the writer refuses.
+    VoidShellUnsupported {
+        /// The void shell.
+        shell: ShellKey,
+        /// Its computed signed volume (m³, negative).
+        volume: f64,
+    },
+    /// A multi-shell solid contains a shell whose signed volume is
+    /// zero or non-finite — the outward/void classification has no
+    /// honest answer.
+    ShellVolumeIndeterminate {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// The computed signed volume (m³).
+        volume: f64,
+    },
+    /// An explicit [`StepOptions::uncertainty_m`] is not finite and
+    /// strictly positive.
+    InvalidUncertainty {
+        /// The rejected value.
+        value: f64,
+    },
+    /// A key held by the body fails to resolve, or the half-edge
+    /// structure is incoherent — corrupt input, surfaced rather than
+    /// trusted (the structural validators own the diagnosis; this is
+    /// the fail-loud surface).
+    Corrupt {
+        /// What failed to resolve (static description).
+        what: &'static str,
+    },
+    /// An I/O failure from the output sink.
+    Io(std::io::Error),
+}
+
+impl fmt::Display for StepExportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonFiniteReal { value, context } => write!(
+                f,
+                "step export: {context} is {value}, which has no Part 21 real representation"
+            ),
+            Self::UnrepresentableString { context } => write!(
+                f,
+                "step export: {context} contains characters outside Part 21's basic \
+                 alphabet (0x20..=0x7E)"
+            ),
+            Self::UnsupportedSurface { face, kind } => write!(
+                f,
+                "step export: face {face:?}'s surface ({kind}) has no printer in the M4 \
+                 analytic subset (planes only; M5 grows it)"
+            ),
+            Self::UnsupportedCurve { edge, kind } => write!(
+                f,
+                "step export: edge {edge:?}'s carrier ({kind}) has no printer in the M4 \
+                 analytic subset (lines only; M5 grows it)"
+            ),
+            Self::NullScaffoldEdge { edge } => write!(
+                f,
+                "step export: edge {edge:?} is null-edge scaffolding — the body is \
+                 mid-surgery (tier 2 refuses null entities at rest)"
+            ),
+            Self::EmptyLoop { loop_ } => write!(
+                f,
+                "step export: loop {loop_:?} is an empty loop (lone vertex) — not part \
+                 of any finished solid's boundary"
+            ),
+            Self::NothingToExport => {
+                f.write_str("step export: the body contains no exportable shell")
+            }
+            Self::VoidShellUnsupported { shell, volume } => write!(
+                f,
+                "step export: shell {shell:?} of a multi-shell solid has negative signed \
+                 volume {volume} m\u{b3} — a void cavity; BREP_WITH_VOIDS export needs the \
+                 kernel's void-shell designation (future work), refusing rather than \
+                 exporting a void as material"
+            ),
+            Self::ShellVolumeIndeterminate { shell, volume } => write!(
+                f,
+                "step export: shell {shell:?} of a multi-shell solid has signed volume \
+                 {volume} m\u{b3} — outward/void classification is indeterminate"
+            ),
+            Self::InvalidUncertainty { value } => write!(
+                f,
+                "step export: uncertainty override {value} is not finite and strictly \
+                 positive"
+            ),
+            Self::Corrupt { what } => write!(f, "step export: corrupt body ({what})"),
+            Self::Io(e) => write!(f, "step export: I/O failure: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for StepExportError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+/// Export options: everything that lands in the file besides the body.
+///
+/// Determinism (D9): the writer is a pure function of `(body, options)`
+/// — equal inputs give byte-identical files. In particular the header
+/// timestamp is **this fixed string**, never a wall-clock read; callers
+/// wanting a real timestamp supply one (ISO 8601, e.g.
+/// `2026-07-23T12:00:00`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StepOptions {
+    /// The product name: `PRODUCT` id/name, the `MANIFOLD_SOLID_BREP`
+    /// name, and the header's file name (with `.step` appended).
+    /// Part 21 basic alphabet only (apostrophes and backslashes are
+    /// escaped for you).
+    pub product_name: String,
+    /// The header `FILE_NAME` time_stamp field, verbatim. Fixed epoch
+    /// placeholder by default (determinism over false freshness).
+    pub timestamp: String,
+    /// The header author field (empty by default).
+    pub author: String,
+    /// The header organization field (empty by default).
+    pub organization: String,
+    /// The header originating_system field (empty by default).
+    pub originating_system: String,
+    /// The `UNCERTAINTY_MEASURE_WITH_UNIT` length value in meters:
+    /// `Some(ε)` explicit (must be finite and > 0), `None` reads the
+    /// run's ambient tolerance `geom_core::Tolerance::get().eps` at
+    /// write time (D4 ¶1 — the one ε the body was built under).
+    pub uncertainty_m: Option<f64>,
+}
+
+impl Default for StepOptions {
+    fn default() -> Self {
+        Self {
+            product_name: "part".to_owned(),
+            timestamp: "1970-01-01T00:00:00".to_owned(),
+            author: String::new(),
+            organization: String::new(),
+            originating_system: String::new(),
+            uncertainty_m: None,
+        }
+    }
+}
+
+/// Serializes `body` as an AP214 Part 21 exchange file (crate docs for
+/// the mapping, subset, and conformance decisions) and returns it as a
+/// string.
+///
+/// # Errors
+///
+/// [`StepExportError`] — out-of-subset geometry, mid-surgery bodies,
+/// non-finite values, void shells, corrupt structure. Finished planar
+/// bodies from the public construction APIs export cleanly.
+pub fn step_string(body: &Body<f64>, options: &StepOptions) -> Result<String, StepExportError> {
+    writer::write_document(body, options)
+}
+
+/// [`step_string`], written to an [`std::io::Write`] sink.
+///
+/// # Errors
+///
+/// As [`step_string`], plus [`StepExportError::Io`] from the sink.
+pub fn write_step<W: std::io::Write>(
+    body: &Body<f64>,
+    options: &StepOptions,
+    sink: &mut W,
+) -> Result<(), StepExportError> {
+    let document = step_string(body, options)?;
+    sink.write_all(document.as_bytes()).map_err(StepExportError::Io)
+}
+
+/// Quotes `s` as a Part 21 string literal: surrounding apostrophes,
+/// `'` doubled, `\` doubled; any character outside the basic alphabet
+/// (0x20..=0x7E) is a typed refusal.
+fn quoted(s: &str, context: &'static str) -> Result<String, StepExportError> {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for ch in s.chars() {
+        match ch {
+            '\'' => out.push_str("''"),
+            '\\' => out.push_str("\\\\"),
+            ' '..='~' => out.push(ch),
+            _ => return Err(StepExportError::UnrepresentableString { context }),
+        }
+    }
+    out.push('\'');
+    Ok(out)
+}
+
+/// Lookup-only id caches for entities shared across the walk (vertices
+/// and edges are referenced by every adjacent face). Hash maps are
+/// never iterated — output order is the traversal's (D9).
+#[derive(Default)]
+struct SharedIds {
+    vertex_points: HashMap<topo::VertexKey, u64>,
+    edge_curves: HashMap<EdgeKey, u64>,
+}

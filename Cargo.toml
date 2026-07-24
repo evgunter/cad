@@ -11,6 +11,7 @@ members = [
     "crates/geom-surfaces",
     "crates/mesh",
     "crates/profile",
+    "crates/step-export",
     "crates/stl",
     "crates/sweep",
     "crates/topo",
@@ -63,6 +64,16 @@ num-dual = "0.14.1"
 # crate table). MIT OR Apache-2.0. 2.15.1 released 2026-03-24, well past the
 # 2-week age policy.
 spade = "2.15.1"
+# DEV-ONLY STEP parse-back oracles for step-export's tests (F6 decision,
+# docs/M4-LOG.md 2026-07-23: in-house subset writer, adopt nothing at
+# runtime; these two crates are test oracles only). ruststep gives
+# syntactic Part 21 parse-back; truck-stepio's `in::Table` gives an
+# independent semantic reconstruction (topology counts). Both Apache-2.0,
+# both released 2024-09-20 — far past the 2-week age policy. ruststep is
+# used parser-layer only (its espr-generated AP203 semantic layer is
+# demonstrably broken — references/notes/step-spike-report.md).
+ruststep = "0.4.0"
+truck-stepio = "0.3.0"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
