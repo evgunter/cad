@@ -33,6 +33,7 @@ use topo::splitting::SplitError;
 use topo::transform::TransformError;
 use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
 
+use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::names::{NameTable, NamingError};
@@ -63,6 +64,14 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
+    /// The document's appearance store resolved against THIS
+    /// evaluation's name tables (M4 PR 7): per node, entity →
+    /// attributes, so a renderer/exporter consumes appearance without
+    /// touching tables; unresolved entries are LOUD typed losses.
+    /// Appearance never enters content keys (presentation metadata):
+    /// an appearance-only edit re-resolves this field and recomputes
+    /// zero nodes.
+    pub appearance: AppearanceResolution,
 }
 
 impl<T: Decide> Evaluation<T> {
@@ -463,6 +472,26 @@ where
         }
     }
 
+    // Appearance resolution (M4 PR 7): a total post-pass over the
+    // result DAG — canceled prefixes resolve what completed and report
+    // the rest as typed TargetNotEvaluated losses.
+    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = nodes
+        .iter()
+        .map(|(&id, res)| {
+            let s = match res {
+                NodeResult::Ok(v) => appearance::NodeState::Ok(&v.name_table),
+                NodeResult::Failed(_) => appearance::NodeState::Failed,
+                NodeResult::Poisoned { through } => appearance::NodeState::Poisoned {
+                    through: *through,
+                },
+            };
+            (id, s)
+        })
+        .collect();
+    let resolved_appearance =
+        appearance::resolve(doc.appearance(), |id| doc.node(id).is_some(), &states);
+    drop(states);
+
     Evaluation {
         epoch: opts.epoch,
         order,
@@ -470,6 +499,7 @@ where
         outcome,
         recomputed,
         reused,
+        appearance: resolved_appearance,
     }
 }
 

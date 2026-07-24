@@ -10,7 +10,9 @@ use std::collections::BTreeMap;
 use geom_core::Real;
 use geom_core::tolerance::DEFAULT_EPS;
 
+use crate::appearance::{AppearanceMap, AttrSet};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
+use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
 
 /// A document-level parameter name (spec D4's "parameter refs").
@@ -87,6 +89,12 @@ pub struct Doc<P> {
     /// Free-form document metadata (display units etc. — presentation
     /// only, GQ5). Empty in v1 (spec D2).
     pub(crate) metadata: BTreeMap<String, String>,
+    /// Appearance attributes keyed by stable name (M4 PR 7;
+    /// DESIGN.md's ratified attachment contract). Presentation
+    /// metadata: NEVER enters evaluation content keys — see
+    /// [`crate::appearance`] for the loss (N3/N5) and wrapper (B11)
+    /// semantics.
+    pub(crate) appearance: AppearanceMap,
 }
 
 impl<P> Default for Doc<P> {
@@ -106,6 +114,7 @@ impl<P> Doc<P> {
             params: BTreeMap::new(),
             epsilon: DEFAULT_EPS,
             metadata: BTreeMap::new(),
+            appearance: AppearanceMap::new(),
         }
     }
 
@@ -143,6 +152,17 @@ impl<P> Doc<P> {
     /// The document metadata map (empty in v1, spec D2).
     pub fn metadata(&self) -> &BTreeMap<String, String> {
         &self.metadata
+    }
+
+    /// The appearance store: attributes by stable name (M4 PR 7;
+    /// edited through `SetAppearance`/`ClearAppearance`).
+    pub fn appearance(&self) -> &AppearanceMap {
+        &self.appearance
+    }
+
+    /// One name's attributes, if any are attached.
+    pub fn appearance_of(&self, name: &StableName) -> Option<&AttrSet> {
+        self.appearance.get(name)
     }
 
     /// The expression subtree an [`ExprPath`] addresses, or `None` if
@@ -189,6 +209,10 @@ impl<P: PartialEq> Doc<P> {
             && self.order == other.order
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             && self.metadata == other.metadata
+            // Appearance values are float-free by construction
+            // (integers/bools/strings), so structural equality IS bit
+            // equality here.
+            && self.appearance == other.appearance
             && self.nodes.len() == other.nodes.len()
             && self.nodes.iter().all(|(id, node)| {
                 other

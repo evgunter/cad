@@ -32,6 +32,9 @@ pub struct DocDiff {
     pub epsilon_changed: bool,
     /// Whether the metadata maps differ.
     pub metadata_changed: bool,
+    /// Whether the appearance stores differ (attribute values are
+    /// float-free, so structural comparison is bit comparison).
+    pub appearance_changed: bool,
 }
 
 impl DocDiff {
@@ -42,6 +45,7 @@ impl DocDiff {
             && !self.order_changed
             && !self.epsilon_changed
             && !self.metadata_changed
+            && !self.appearance_changed
     }
 }
 
@@ -90,6 +94,7 @@ impl<P: PartialEq> Doc<P> {
             order_changed: self.order != other.order,
             epsilon_changed: self.epsilon.to_bits() != other.epsilon.to_bits(),
             metadata_changed: self.metadata != other.metadata,
+            appearance_changed: self.appearance != other.appearance,
         }
     }
 }
