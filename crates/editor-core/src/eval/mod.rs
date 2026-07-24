@@ -114,11 +114,23 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The node's verdict log (M4 PR 4, N5): every definite predicate
+    /// decision the node's op made, in decision order, recorded
+    /// through the one `k_stats` funnel. Scalar-independent data —
+    /// same verdicts at f64 and Interval — and the diff-engine
+    /// substrate ("both evaluations' verdict logs exist"). Rides the
+    /// value, so memo reuse transfers the log with the geometry it
+    /// certified (same content key ⇒ same decisions, D9).
+    pub verdicts: Arc<VerdictLog>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
     pub content_key: ContentKey,
 }
+
+/// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
+/// payload): [`geom_core::k_stats::Verdict`]s in decision order.
+pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
 
 /// M6's solved-assignment slot, as a type stub (spec D2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -557,11 +569,21 @@ where
         };
     }
 
-    match wire::run_op(id, node, results, &slot_values) {
+    // Verdict-log bracket (M4 PR 4): every definite decision the op
+    // makes — kernel predicates and N2 discriminators alike — lands in
+    // this node's log through the one `k_stats` funnel. The bracket is
+    // per-node and thread-confined (kernel ops are single-threaded;
+    // idiom-1 parallelism runs whole nodes on one worker each), so
+    // logs never interleave across nodes.
+    geom_core::k_stats::start_verdict_log();
+    let op = wire::run_op(id, node, results, &slot_values);
+    let verdicts = geom_core::k_stats::take_verdict_log();
+    match op {
         Ok((payload, name_table)) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload,
                 name_table,
+                verdicts: Arc::new(verdicts),
                 witness: WitnessSlot {},
                 content_key,
             }),
