@@ -157,3 +157,25 @@ completeness incl. the un-hashed doc-ε flag, R3 memo soundness
 under edit-back/delete-reinsert, R4 poisoning determinism +
 cancelation memo hygiene, R5 parallel tearing, R6 die deviation +
 τ-door margining, R7 interval lane + allowlist honesty).
+
+**PR 2 MERGED (#83, `8aec775`, 2026-07-24)** after review + fix
+pass. Review: ZERO blockers across R1–R7 — transform_rigid survived
+direct residual measurement (worst 3.3e-15 under 32 composed
+rotations; typed refusal at 1e9-scale degradation); stale-ε memo
+attack structurally unreachable in v1 (three walls; keys carry
+eps/k for PR 6); memo/parallel/cancelation all bit-sound. Review's
+one find: NaN/inf TRANSLATION bypassed check_rigid (refused
+obliquely via certification) — fix pass added the NonFiniteMap
+door (component-wise x·0 probes, k_stats-named). First gate run
+FAILED the 1e-6/1e-12 rows: both review band tests had hard-coded
+default-ε probes — made ε-aware (probes from ambient Tolerance);
+the ε matrix thereby proved it catches ε-brittle TEST code too.
+Final gate 11/11 uninterrupted on `11bca72`. **Rulings**: τ−ulp ⇒
+Full stands as designed band semantics (flagged to Evan for
+awareness); doc-ε/ambient-ε unification re-audit = PR 6 obligation.
+**Banked for later PRs**: PR 6 re-audit (doc ε joining the content
+key if ops ever read it); Instances consumer lands with its first
+real user; incidental find — exactly-touching union refuses typed
+at the kernel (pre-existing M3 envelope, fixture knowledge).
+Next: PR 3 (naming part 1 — RolePath enums, eager name tables, CI
+invariant).
