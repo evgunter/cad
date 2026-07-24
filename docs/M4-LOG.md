@@ -563,3 +563,27 @@ M5 exit K-snapshot per T5; scale-relative sliver lint at the
 document layer). Remaining for Evan, all 👍-sufficient and
 watchlisted: OQ3 (gate placement rec (a)), OQ4 (carrier-primary),
 OQ7 (reshape + rename), OQ6 run-out vocabulary, C6 (top-level).
+
+**Appearance review returned (2026-07-24): mergeable-after-fixes;
+ruled and dispatched.** No blockers; all lanes green incl. both ε
+rows. A1 MAJOR was a design ruling, RULED: the paint-operand-then-
+extend-recipe case (attribute resolves on the intermediate node
+only; final node shows neither paint nor loss) is UPHELD as
+correct v1 semantics — N1 identity + ratified N5's EMPTY auto-menu
+(appearance auto-following a face through a boolean would be the
+banned silent rebind). Required: document "resolves-anywhere"
+success criterion + commit the reviewer's probe as a pinning
+fixture; the operand→final gap banked in M4-PR4-SPEC D9 (Rebind
+suggestion ladder offers wrapping derivations; GUI attributes the
+displayed node's names). A2 dedupe Ambiguous losses per name. A3
+drop the u32 saturation. A4 hook-mapping recorded in PR4-SPEC D9
+(incl. the N3-offers-vs-N5-shape ratified-doc tension, PR 4
+resolves). A5 nested-Merged empty-offers doc line. Verified CLEAN
+under attack: cross-ε tie honesty (monotone verdict refinement ⇒
+silent owner-swap impossible — for a name to stay Unique while
+changing owners a definite verdict would have to flip sign),
+transform identity is the same Arc (bit-identical), content-key
+exclusion (zero recompute pinned; DocDiff has no eval consumers),
+Clear-replay determinism (no poison path; ids never reused), all
+six loss causes reachable, totality on canceled prefixes,
+entity-injectivity prevents attr merging, B11 no-global-uniqueness.
