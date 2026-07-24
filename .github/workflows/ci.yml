@@ -163,6 +163,21 @@ jobs:
       - name: admesh check (watertight/manifold, no repair accepted)
         run: scripts/check_admesh.sh target/stl-acceptance
 
+  step-import:
+    name: step import (freecad)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # External STEP import acceptance (M4 PR 7, the admesh pattern
+      # STEP-shaped): FreeCAD/OCC imports the committed fixtures
+      # (byte-golden against the writer via the cargo test suite) and
+      # the script asserts validity + exact topology counts + volume.
+      # No cargo build needed — the fixtures are committed.
+      - name: install freecad
+        run: sudo apt-get update && sudo apt-get install -y freecad
+      - name: freecad import check (validity, counts, volume)
+        run: REQUIRE_FREECAD=1 FREECADCMD="$(command -v freecadcmd)" scripts/check_step.sh
+
   multi-eps:
     name: test (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest

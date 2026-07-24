@@ -85,7 +85,9 @@ mod tests {
     fn non_finite_refuses_typed() {
         for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             match fmt_real(x, "poison") {
-                Err(StepExportError::NonFiniteReal { context: "poison", .. }) => {}
+                Err(StepExportError::NonFiniteReal {
+                    context: "poison", ..
+                }) => {}
                 other => panic!("expected NonFiniteReal, got {other:?}"),
             }
         }

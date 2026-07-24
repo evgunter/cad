@@ -42,10 +42,7 @@ use crate::writer::{carrier_kind, certified_carrier, surface_kind};
 ///
 /// [`StepExportError`] — out-of-subset geometry, empty loops, null
 /// scaffolding, or unresolvable keys.
-pub(crate) fn shell_signed_volume(
-    body: &Body<f64>,
-    shell: &Shell,
-) -> Result<f64, StepExportError> {
+pub(crate) fn shell_signed_volume(body: &Body<f64>, shell: &Shell) -> Result<f64, StepExportError> {
     let mut six_v = 0.0_f64;
     for &face_key in &shell.faces {
         let face = body.get_face(face_key).ok_or(StepExportError::Corrupt {
@@ -94,11 +91,9 @@ pub(crate) fn shell_signed_volume(
                     });
                 }
                 let a = vertex_position(body, he.start)?;
-                let end = body
-                    .half_edge_end(he_key)
-                    .ok_or(StepExportError::Corrupt {
-                        what: "half-edge end does not resolve",
-                    })?;
+                let end = body.half_edge_end(he_key).ok_or(StepExportError::Corrupt {
+                    what: "half-edge end does not resolve",
+                })?;
                 let b = vertex_position(body, end)?;
                 area2 = area2 + (a - origin).cross(b - origin);
             }

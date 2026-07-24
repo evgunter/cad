@@ -356,7 +356,8 @@ pub fn write_step<W: std::io::Write>(
     sink: &mut W,
 ) -> Result<(), StepExportError> {
     let document = step_string(body, options)?;
-    sink.write_all(document.as_bytes()).map_err(StepExportError::Io)
+    sink.write_all(document.as_bytes())
+        .map_err(StepExportError::Io)
 }
 
 /// Quotes `s` as a Part 21 string literal: surrounding apostrophes,

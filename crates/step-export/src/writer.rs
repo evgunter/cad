@@ -132,9 +132,12 @@ impl<'a> Writer<'a> {
         if let Some(&id) = self.shared.vertex_points.get(&vertex) {
             return Ok(id);
         }
-        let v = self.body.get_vertex(vertex).ok_or(StepExportError::Corrupt {
-            what: "vertex key does not resolve",
-        })?;
+        let v = self
+            .body
+            .get_vertex(vertex)
+            .ok_or(StepExportError::Corrupt {
+                what: "vertex key does not resolve",
+            })?;
         let p = self
             .body
             .get_point(v.point)
@@ -156,9 +159,12 @@ impl<'a> Writer<'a> {
         if let Some(&id) = self.shared.edge_curves.get(&edge_key) {
             return Ok(id);
         }
-        let edge = self.body.get_edge(edge_key).ok_or(StepExportError::Corrupt {
-            what: "edge key does not resolve",
-        })?;
+        let edge = self
+            .body
+            .get_edge(edge_key)
+            .ok_or(StepExportError::Corrupt {
+                what: "edge key does not resolve",
+            })?;
         let he_plus = self
             .body
             .get_half_edge(edge.he_plus)
@@ -205,18 +211,24 @@ impl<'a> Writer<'a> {
     /// STEP's (interior-left ⇒ outer CCW / rings CW about the outward
     /// normal — crate docs).
     fn face_bound(&mut self, loop_key: LoopKey, outer: bool) -> Result<u64, StepExportError> {
-        let loop_ = self.body.get_loop(loop_key).ok_or(StepExportError::Corrupt {
-            what: "loop key does not resolve",
-        })?;
+        let loop_ = self
+            .body
+            .get_loop(loop_key)
+            .ok_or(StepExportError::Corrupt {
+                what: "loop key does not resolve",
+            })?;
         let first = match loop_.boundary {
             LoopBoundary::Empty { .. } => {
                 return Err(StepExportError::EmptyLoop { loop_: loop_key });
             }
             LoopBoundary::Cycle { first } => first,
         };
-        let cycle = self.body.loop_cycle(first).ok_or(StepExportError::Corrupt {
-            what: "loop cycle does not close",
-        })?;
+        let cycle = self
+            .body
+            .loop_cycle(first)
+            .ok_or(StepExportError::Corrupt {
+                what: "loop cycle does not close",
+            })?;
         let mut oriented = Vec::with_capacity(cycle.len());
         for he_key in cycle {
             let he = self
@@ -226,9 +238,12 @@ impl<'a> Writer<'a> {
                     what: "half-edge key does not resolve",
                 })?;
             let edge_key = he.edge;
-            let edge = self.body.get_edge(edge_key).ok_or(StepExportError::Corrupt {
-                what: "half-edge edge key does not resolve",
-            })?;
+            let edge = self
+                .body
+                .get_edge(edge_key)
+                .ok_or(StepExportError::Corrupt {
+                    what: "half-edge edge key does not resolve",
+                })?;
             let flag = if he_key == edge.he_plus {
                 ".T."
             } else if he_key == edge.he_minus {
@@ -242,24 +257,28 @@ impl<'a> Writer<'a> {
             oriented.push(self.emit(&format!("ORIENTED_EDGE('', *, *, #{ec}, {flag})")));
         }
         let el = self.emit(&format!("EDGE_LOOP('', ({}))", refs(&oriented)));
-        let kind = if outer { "FACE_OUTER_BOUND" } else { "FACE_BOUND" };
+        let kind = if outer {
+            "FACE_OUTER_BOUND"
+        } else {
+            "FACE_BOUND"
+        };
         Ok(self.emit(&format!("{kind}('', #{el}, .T.)")))
     }
 
-    /// `ADVANCED_FACE` for a kernel face: bounds (outer first, rings in
-    /// stored order), the surface printer, `same_sense = .T.` (the
+    /// `ADVANCED_FACE` for a kernel face: the surface printer first
+    /// (so an out-of-subset face refuses by its surface, the primary
+    /// fact, not incidentally by a boundary carrier), then bounds
+    /// (outer first, rings in stored order), `same_sense = .T.` (the
     /// stored normal IS the outward normal — M1 ratification).
     fn advanced_face(&mut self, face_key: FaceKey) -> Result<u64, StepExportError> {
-        let face = self.body.get_face(face_key).ok_or(StepExportError::Corrupt {
-            what: "face key does not resolve",
-        })?;
+        let face = self
+            .body
+            .get_face(face_key)
+            .ok_or(StepExportError::Corrupt {
+                what: "face key does not resolve",
+            })?;
         let outer = face.outer;
         let rings = face.rings.clone();
-        let mut bounds = Vec::with_capacity(1 + rings.len());
-        bounds.push(self.face_bound(outer, true)?);
-        for ring in rings {
-            bounds.push(self.face_bound(ring, false)?);
-        }
         let surface = self
             .body
             .get_surface(face.surface)
@@ -280,8 +299,9 @@ impl<'a> Writer<'a> {
                 let cp = self.cartesian_point(origin, "plane origin")?;
                 let axis = self.direction(normal, "plane normal")?;
                 let ref_dir = self.direction(u_ref, "plane u_ref")?;
-                let placement =
-                    self.emit(&format!("AXIS2_PLACEMENT_3D('', #{cp}, #{axis}, #{ref_dir})"));
+                let placement = self.emit(&format!(
+                    "AXIS2_PLACEMENT_3D('', #{cp}, #{axis}, #{ref_dir})"
+                ));
                 self.emit(&format!("PLANE('', #{placement})"))
             }
             ref other => {
@@ -291,6 +311,11 @@ impl<'a> Writer<'a> {
                 });
             }
         };
+        let mut bounds = Vec::with_capacity(1 + rings.len());
+        bounds.push(self.face_bound(outer, true)?);
+        for ring in rings {
+            bounds.push(self.face_bound(ring, false)?);
+        }
         Ok(self.emit(&format!(
             "ADVANCED_FACE('', ({}), #{surface_id}, .T.)",
             refs(&bounds)
@@ -299,9 +324,12 @@ impl<'a> Writer<'a> {
 
     /// `CLOSED_SHELL` over the shell's faces (stored order).
     fn closed_shell(&mut self, shell_key: ShellKey) -> Result<u64, StepExportError> {
-        let shell = self.body.get_shell(shell_key).ok_or(StepExportError::Corrupt {
-            what: "shell key does not resolve",
-        })?;
+        let shell = self
+            .body
+            .get_shell(shell_key)
+            .ok_or(StepExportError::Corrupt {
+                what: "shell key does not resolve",
+            })?;
         let face_keys = shell.faces.clone();
         let mut faces = Vec::with_capacity(face_keys.len());
         for face_key in face_keys {
@@ -326,12 +354,12 @@ impl<'a> Writer<'a> {
         for shells in solid_shells {
             if shells.len() > 1 {
                 for &shell_key in &shells {
-                    let shell =
-                        self.body
-                            .get_shell(shell_key)
-                            .ok_or(StepExportError::Corrupt {
-                                what: "solid shell key does not resolve",
-                            })?;
+                    let shell = self
+                        .body
+                        .get_shell(shell_key)
+                        .ok_or(StepExportError::Corrupt {
+                            what: "solid shell key does not resolve",
+                        })?;
                     let volume = shell_signed_volume(self.body, shell)?;
                     if !volume.is_finite() || volume == 0.0 {
                         return Err(StepExportError::ShellVolumeIndeterminate {
@@ -415,8 +443,7 @@ pub(crate) fn write_document(
         "ADVANCED_BREP_SHAPE_REPRESENTATION('', ({}), #{ctx})",
         refs(&items)
     ));
-    let app =
-        w.emit("APPLICATION_CONTEXT('core data for automotive mechanical design processes')");
+    let app = w.emit("APPLICATION_CONTEXT('core data for automotive mechanical design processes')");
     w.emit(&format!(
         "APPLICATION_PROTOCOL_DEFINITION('international standard', 'automotive_design', \
          2000, #{app})"
@@ -424,11 +451,15 @@ pub(crate) fn write_document(
     let pctx = w.emit(&format!("PRODUCT_CONTEXT('', #{app}, 'mechanical')"));
     let prod = w.emit(&format!("PRODUCT({name}, {name}, '', (#{pctx}))"));
     let pdf = w.emit(&format!("PRODUCT_DEFINITION_FORMATION('', '', #{prod})"));
-    let pdc = w.emit(&format!("PRODUCT_DEFINITION_CONTEXT('part definition', #{app}, 'design')"));
+    let pdc = w.emit(&format!(
+        "PRODUCT_DEFINITION_CONTEXT('part definition', #{app}, 'design')"
+    ));
     let pd = w.emit(&format!("PRODUCT_DEFINITION('design', '', #{pdf}, #{pdc})"));
     let pds = w.emit(&format!("PRODUCT_DEFINITION_SHAPE('', '', #{pd})"));
     w.emit(&format!("SHAPE_DEFINITION_REPRESENTATION(#{pds}, #{absr})"));
-    w.emit(&format!("PRODUCT_RELATED_PRODUCT_CATEGORY('part', $, (#{prod}))"));
+    w.emit(&format!(
+        "PRODUCT_RELATED_PRODUCT_CATEGORY('part', $, (#{prod}))"
+    ));
 
     // Header (fixed template — FILE_SCHEMA names the AP the data
     // section actually instantiates: AP214 ed. 2).
