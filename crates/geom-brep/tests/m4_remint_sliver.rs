@@ -95,9 +95,7 @@ fn witness_offset_in_the_sliver_band_refuses_typed_never_accepts() {
         tol.eps * 1.5
     };
     match certify_with_offset(offset) {
-        Err(
-            CertifyError::Escalated { .. } | CertifyError::ResidualExceeded { .. },
-        ) => {}
+        Err(CertifyError::Escalated { .. } | CertifyError::ResidualExceeded { .. }) => {}
         Ok(_) => panic!("a witness residual past epsilon must never certify"),
         Err(other) => panic!("unexpected refusal shape: {other:?}"),
     }

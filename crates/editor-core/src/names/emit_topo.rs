@@ -370,8 +370,7 @@ fn name_split_edges_vertices<T: Decide>(
         let pair_originals: BTreeSet<VertexKey> =
             naming.vertex_pairs.iter().map(|&(_, o)| o).collect();
         for (v, _) in body.vertices() {
-            let is_pair_member =
-                copy_to_original.contains_key(&v) || pair_originals.contains(&v);
+            let is_pair_member = copy_to_original.contains_key(&v) || pair_originals.contains(&v);
             if !is_pair_member
                 && target_table
                     .name_of(&ent(0, EntityKey::Vertex(v)))
@@ -385,8 +384,9 @@ fn name_split_edges_vertices<T: Decide>(
             // null-pair copy row (the original's record lives in
             // whichever side kept it).
             let src = copy_to_original.get(&v).copied().unwrap_or(v);
-            let parent_edge = sides.iter().find_map(|sb| {
-                match sb.body.vertex_provenance_of(src) {
+            let parent_edge = sides
+                .iter()
+                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
                     Some(Provenance::SplitEdge { edge }) => Some(chase_edge_to_table(
                         sb.body,
                         target_table,
@@ -394,8 +394,7 @@ fn name_split_edges_vertices<T: Decide>(
                         sb.body.edges().count(),
                     )),
                     _ => None,
-                }
-            });
+                });
             let seg = if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
@@ -416,8 +415,7 @@ fn name_split_edges_vertices<T: Decide>(
                 // R2): side-tagged pass-through — operand identity
                 // from the pair row, side from body membership (a
                 // recorded verdict).
-                let of =
-                    upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(src)))?;
+                let of = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(src)))?;
                 RoleSeg::OnToolVertex {
                     side: s.half,
                     of: Box::new(of),
@@ -768,12 +766,7 @@ fn name_boolean_edges<T: Decide>(
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
                 Some(&eb) => ERoot::B(chase_b(eb)),
-                None => ERoot::A(chase_edge_to_table(
-                    body,
-                    a.table,
-                    e,
-                    body.edges().count(),
-                )),
+                None => ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count())),
             },
             (OperandKeys::Direct, OperandKeys::Absent) => {
                 ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count()))
@@ -1065,99 +1058,6 @@ fn name_boolean_vertices<T: Decide>(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    //! Kernel-level exercise of the N3 `Merged` lane (review R4): no
-    //! eval-level path can mint an F7 merge until PR 5's declare
-    //! threading (glued unions refuse `UnpairedLooseEnds`), so the
-    //! merge-group naming lane is driven directly with a synthetic
-    //! `merge_groups` row over a real extrusion — including the
-    //! sorted-constituents dedup.
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::*;
-    use crate::names::emit_sweep::name_extrude;
-    use crate::node::RecipeNodeId;
-
-    #[test]
-    fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {
-        // A unit-cube extrusion: the "result body" stand-in.
-        let plane = profile::SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| geom_core::Point2::new(x, y)),
-        );
-        let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tolerance::get())
-            .unwrap();
-        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
-        let ext_node = RecipeNodeId(1);
-        let a_table = name_extrude(ext_node, &built).unwrap();
-
-        // Synthetic merge: the top cap absorbed one lateral — listed
-        // TWICE to exercise the dedup.
-        let lateral = *a_table
-            .iter()
-            .find_map(|(n, e)| match (n.path.first(), e) {
-                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
-                    EntityKey::Face(f) => Some(e).map(|_| f),
-                    _ => None,
-                },
-                _ => None,
-            })
-            .as_ref()
-            .unwrap();
-        let naming = topo::BooleanNaming {
-            a_keys: topo::OperandKeys::Direct,
-            b_keys: topo::OperandKeys::Absent,
-            merge_groups: vec![(built.top, vec![lateral, lateral])],
-            ..topo::BooleanNaming::default()
-        };
-        let empty = NameTable::new();
-        let bool_node = RecipeNodeId(9);
-        let a = OperandCtx {
-            node: ext_node,
-            table: &a_table,
-            body: &built.body,
-        };
-        let b = OperandCtx {
-            node: RecipeNodeId(2),
-            table: &empty,
-            body: &built.body,
-        };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b).unwrap();
-
-        // Exactly one Merged name, on the kept (top) face, with the
-        // TWO deduped constituents in sorted order.
-        let merged: Vec<_> = t
-            .iter()
-            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-            .collect();
-        assert_eq!(merged.len(), 1);
-        let (name, entry) = merged[0];
-        let Some(RoleSeg::Merged(cs)) = name.path.first() else {
-            unreachable!()
-        };
-        assert_eq!(cs.len(), 2, "constituents must dedup");
-        assert!(cs.windows(2).all(|w| w[0] < w[1]), "constituents sorted");
-        match entry {
-            Entry::Unique(r) => assert_eq!(r.key, EntityKey::Face(built.top)),
-            other => panic!("merged entry not unique: {other:?}"),
-        }
-        // The (synthetically still-live) absorbed lateral keeps its
-        // own FromA row; the table stays total over the body.
-        assert!(
-            t.name_of(&ent(0, EntityKey::Face(lateral))).is_some(),
-            "absorbed-but-live lateral must still be covered"
-        );
-    }
-}
-
 /// The oriented carrier of an operand-edge parent name, if the name
 /// denotes an edge in that operand's table.
 fn resolve_edge_carrier<T: Decide>(parent: &StableName, op: &OperandCtx<'_, T>) -> Option<Vec3<T>> {
@@ -1330,4 +1230,102 @@ fn name_split_faces<T: Decide>(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! Kernel-level exercise of the N3 `Merged` lane (review R4): no
+    //! eval-level path can mint an F7 merge until PR 5's declare
+    //! threading (glued unions refuse `UnpairedLooseEnds`), so the
+    //! merge-group naming lane is driven directly with a synthetic
+    //! `merge_groups` row over a real extrusion — including the
+    //! sorted-constituents dedup.
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )]
+
+    use super::*;
+    use crate::names::emit_sweep::name_extrude;
+    use crate::node::RecipeNodeId;
+
+    #[test]
+    fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {
+        // A unit-cube extrusion: the "result body" stand-in.
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let profile = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tolerance::get())
+            .unwrap();
+        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
+        let ext_node = RecipeNodeId(1);
+        let a_table = name_extrude(ext_node, &built).unwrap();
+
+        // Synthetic merge: the top cap absorbed one lateral — listed
+        // TWICE to exercise the dedup.
+        let lateral = *a_table
+            .iter()
+            .find_map(|(n, e)| match (n.path.first(), e) {
+                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
+                    EntityKey::Face(f) => Some(e).map(|_| f),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .as_ref()
+            .unwrap();
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            merge_groups: vec![(built.top, vec![lateral, lateral])],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let bool_node = RecipeNodeId(9);
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let t = name_boolean(bool_node, &built.body, &naming, &a, &b).unwrap();
+
+        // Exactly one Merged name, on the kept (top) face, with the
+        // TWO deduped constituents in sorted order.
+        let merged: Vec<_> = t
+            .iter()
+            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .collect();
+        assert_eq!(merged.len(), 1);
+        let (name, entry) = merged[0];
+        let Some(RoleSeg::Merged(cs)) = name.path.first() else {
+            unreachable!()
+        };
+        assert_eq!(cs.len(), 2, "constituents must dedup");
+        assert!(cs.windows(2).all(|w| w[0] < w[1]), "constituents sorted");
+        match entry {
+            Entry::Unique(r) => assert_eq!(r.key, EntityKey::Face(built.top)),
+            other => panic!("merged entry not unique: {other:?}"),
+        }
+        // The (synthetically still-live) absorbed lateral keeps its
+        // own FromA row; the table stays total over the body.
+        assert!(
+            t.name_of(&ent(0, EntityKey::Face(lateral))).is_some(),
+            "absorbed-but-live lateral must still be covered"
+        );
+    }
 }

@@ -2,7 +2,12 @@
 //! (FromA/FromB/Seam), N2 discriminators (SideOf sign vectors,
 //! OrderAlong sub-edge ranks), the genuine-tie fixture, and
 //! discriminator-flip localization (counted).
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unreachable)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 
 mod fixture;
 
