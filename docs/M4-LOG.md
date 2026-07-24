@@ -193,3 +193,19 @@ rotations are exactly-representable signed permutation matrices;
 a bit-checked recognize-and-permute path would keep dyadic models
 exact through 90/180/270° turns, preserving ==-sharp oracles.
 Principled, small, optional.
+
+**Transform re-certification contract sharpened (Evan, #83)**: Evan
+correctly observed universal re-certification success is impossible
+without sub-ε nudging (rejected — value-fudging; an explicit
+D7-style repair op is the honest shape IF a need is ever
+demonstrated). Ruled contract = two classes: provable survival for
+bodies with residual slack > the map-application noise bound
+(O(ulp·scale) — virtually everything the pipeline mints, ~six
+orders of headroom at defaults), and an irreducible sliver class
+(residuals within noise of ε) that refuses TYPED. **PR 3 fix-pass
+items banked**: (i) transform_rigid rustdoc upgraded from
+"empirical" to the two-class statement with the noise bound;
+(ii) a deliberately-marginal fixture pinning the sliver class
+refuses typed at the ε boundary. **Demo note**: the demo die stays
+translation-authored (Evan: it's how a human would do it) — applies
+to the PR 8 demo-as-recipe rebuild.
