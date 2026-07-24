@@ -7,7 +7,7 @@
 #
 #   ./scripts/gate.sh <sha-or-ref>     # e.g. origin/main, a branch, a sha
 #
-# runs the full 11-row matrix (scripts/ci-local.sh, the ci.yml mirror)
+# runs the full ci-local.sh matrix (the ci.yml mirror, however many rows)
 # against the resolved commit in a persistent gate-runner checkout, and
 # exits with ci-local.sh's status. Two properties make it fast and
 # honest (caching investigation, PR #72):

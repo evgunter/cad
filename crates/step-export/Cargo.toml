@@ -1,0 +1,44 @@
+# In-house STEP AP214 analytic-subset EXPORT writer (M4 PR 7; the F6
+# decision — docs/M4-LOG.md 2026-07-23 — adopted nothing at runtime).
+# Export layer like `stl`: f64-only, not scalar-generic. Import is M7
+# and deliberately absent here.
+[package]
+name = "step-export"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards the interval feature so the workspace-wide `--features
+# interval` lane builds uniformly (the writer itself is f64-only; the
+# feature only propagates to dependencies).
+interval = ["topo/interval"]
+
+[dependencies]
+# The writer consumes finished kernel bodies: topology walk over `topo`,
+# certified carriers/surfaces from the geometry crates, the ambient
+# tolerance (STEP uncertainty) from geom-core.
+geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
+topo = { path = "../topo" }
+
+[dev-dependencies]
+# Building acceptance bodies end-to-end (cube, the M3 pocketed die,
+# boolean-result assemblies) through the public profile/sweep/boolean
+# APIs.
+profile = { path = "../profile" }
+sweep = { path = "../sweep" }
+# Float-printer round-trip property tests.
+proptest = { workspace = true }
+# Parse-back oracles (F6 decision: dev-dependencies ONLY — the writer
+# itself adopts nothing). ruststep: syntactic Part 21 parse-back (its
+# AP203 semantic layer is broken upstream and unused here).
+# truck-stepio: independent semantic reconstruction — `in::Table` +
+# `to_compressed_shell` rebuilds topology from our output and the tests
+# compare entity counts against the source body.
+ruststep = { workspace = true }
+truck-stepio = { workspace = true }
