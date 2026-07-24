@@ -506,3 +506,26 @@ remainder) unblocked by #87's StableName — implementer launched.
 Next orchestrator task: PR 4 binding spec (resolution + diff
 engine; banked: single-qualifier-flip fixture, Declare name-level
 validation, Vanished-diagnosis vs dropped fused-vertex identity).
+
+**Appearance half COMPLETE (2026-07-24, `ev/m4-7-appearance` @
+`7d7861d`, pushed; adversarial review launched)**: appearance.rs —
+Attr/AttrKind (Rgba8/Label/Visibility, float-free, additive),
+AppearanceMap in Doc (bit_eq covered), SetAppearance/ClearAppearance
+DocEdits (Declare carve-out validation; Clear works on stranded
+names as the repair path), Evaluation.appearance total post-pass
+(works on canceled prefixes), typed AppearanceLoss with six causes
+(the N3/N5 hook PR 4's Diagnosis attaches to; Vanished carries
+structural merged/unmerged candidate offers). Appearance excluded
+from content keys — appearance-only edit recomputes ZERO nodes
+(pinned). Flagged conservative choices: tied names accepted at
+edit, refuse typed Ambiguous at resolution (no auto-pick); NO
+inheritance (patterns don't inherit master; transforms pass through
+by N1 identity, not policy; boolean FromA/FromB wrapping means
+pre-boolean attributes don't paint post-boolean faces); edge/vertex
+= typed AppearanceWrongKind; fail-loud clears. 13 integration + 3
+unit tests; fmt/clippy/workspace/interval green (131 rows × 2
+lanes). Reviewer attack list includes: tie-across-ε honesty,
+whether FromA/FromB non-inheritance is the right "survives
+recompute" reading (flag-don't-assume), Clear-replay determinism
+under upstream edits, PR 4 hook-shape compatibility (Ambiguous
+{at,width} vs N5 TieWitness; Vanished vs N5 payload).
