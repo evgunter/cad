@@ -255,3 +255,25 @@ recovery move is RESUME-FROM-TRANSCRIPT (it knows what it wrote),
 and its isolation worktree under `.claude/worktrees/` likely still
 holds the files. Kernel half remains `3d93561` (crates/topo,
 +271/−19). Verification still to finish; then review cycle.
+
+**Parallel tracks opened (Evan's parallelization question,
+2026-07-23)**: two independent tracks launched alongside the PR 3
+verification tail. (1) **STEP-export half of PR 7 pulled forward**
+(branch `ev/m4-7-step`, clone `~/.local/share/cad-work/step-export`):
+in-house AP214 subset writer per the F6 decision, spike code
+(preserved at `~/.local/share/cad-work/step-spike/`) as seed,
+ruststep/truck-stepio as dev-dep parse-back oracles; FreeCAD
+external-import acceptance stays open (no tool on this machine).
+Needs no naming — consumes finished kernel bodies only. (2) **M5
+design prep** (branch `ev/m5-curved-design`, clone
+`~/.local/share/cad-work/m5-design`): DRAFT `docs/CURVED-DESIGN.md`
+in the NAMING/SOLVER-DESIGN house style — curved intersection
+representation + D4 certification for SSI curves, pcurves, certified
+marching, analytic-pair dispatch, fillet predicate reification,
+TangencyLocus, D7 boundary, BVH trigger — plus open-questions-for-
+Evan list. Explicitly a design conversation: NO self-merge; Evan
+pushback precedes ratification. Serialization kept where real:
+PR 4 stays behind PR 3 (builds on its tables/discriminators), PR 5
+behind PR 4; PR 6 core could overlap PR 4 but both live in
+editor-core — contention not worth it. Appearance half of PR 7
+unblocks at PR 3 merge (StableName) and can then run beside PR 4.
