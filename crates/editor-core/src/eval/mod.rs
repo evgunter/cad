@@ -35,6 +35,7 @@ use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
 
 use crate::doc::Doc;
 use crate::expr::EvalError;
+use crate::names::{NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId, StableName};
 use crate::profile_desc::ProfileDesc;
 
@@ -108,18 +109,16 @@ pub enum NodeResult<T: Decide> {
 pub struct NodeValue<T: Decide> {
     /// What the node's op produced.
     pub payload: ValuePayload<T>,
-    /// RESERVED empty slot: the per-node name table (PR 3 fills).
-    pub name_table: NameTableSlot,
+    /// The node's eagerly-emitted name table (N4, PR 3): every
+    /// boundary entity of the node's output bodies, `StableName ↔`
+    /// (body, arena key). Rides the value, so memo reuse transfers
+    /// names with geometry (the content key is the proof).
+    pub name_table: Arc<NameTable>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
     pub content_key: ContentKey,
 }
-
-/// PR 3's per-node name table, as a type stub (spec D2: shape
-/// reserved now so `NodeValue` does not churn when it lands).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct NameTableSlot {}
 
 /// M6's solved-assignment slot, as a type stub (spec D2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -321,6 +320,10 @@ pub enum NodeErrorKind {
     /// The node is in (or downstream of) a dependency cycle — Kahn
     /// never released it (unreachable through `apply`, refused typed).
     UnschedulableCycle,
+    /// Name emission failed (M4 PR 3, spec D4's loud door): an
+    /// emission bug, a kernel-emission gap, or an in-band N2
+    /// discriminator escalation — carried unaltered.
+    Naming(NamingError),
 }
 
 /// An evaluation's identity token (spec D5, GQ2): callers tag each
@@ -554,11 +557,11 @@ where
         };
     }
 
-    match wire::run_op(node, results, &slot_values) {
-        Ok(payload) => NodeStep {
+    match wire::run_op(id, node, results, &slot_values) {
+        Ok((payload, name_table)) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload,
-                name_table: NameTableSlot {},
+                name_table,
                 witness: WitnessSlot {},
                 content_key,
             }),
@@ -618,19 +621,8 @@ where
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
             for (a, b) in pairs {
-                for name in [a, b] {
-                    h.write_tag(match name.kind {
-                        crate::node::EntityKind::Body => 1,
-                        crate::node::EntityKind::Face => 2,
-                        crate::node::EntityKind::Edge => 3,
-                        crate::node::EntityKind::Vertex => 4,
-                    });
-                    h.write_u64(name.node.0);
-                    h.write_u64(name.path.len() as u64);
-                    for seg in &name.path {
-                        h.write_u64(u64::from(seg.0));
-                    }
-                }
+                feed_stable_name(&mut h, a);
+                feed_stable_name(&mut h, b);
             }
         }
         _ => {}
@@ -650,4 +642,185 @@ where
         h.write_key(*k);
     }
     h.finish()
+}
+
+/// Feeds a [`StableName`] structurally into the content key (names
+/// are float-free by construction — pure tags and integers).
+fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
+    use crate::names::EntityKind;
+    h.write_tag(match name.kind {
+        EntityKind::Body => 1,
+        EntityKind::Face => 2,
+        EntityKind::Edge => 3,
+        EntityKind::Vertex => 4,
+    });
+    h.write_u64(name.node.0);
+    h.write_u64(name.path.len() as u64);
+    for seg in &name.path {
+        feed_role_seg(h, seg);
+    }
+}
+
+/// Feeds one role segment (closed enum — every variant tagged; the
+/// tags are part of the key format version).
+fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict, SplitHalf};
+    let cap = |c: CapEnd| match c {
+        CapEnd::Top => 1u64,
+        CapEnd::Bottom => 2,
+    };
+    let mer = |m: MeridianEnd| match m {
+        MeridianEnd::Start => 1u64,
+        MeridianEnd::End => 2,
+        MeridianEnd::Seam => 3,
+        MeridianEnd::Pi => 4,
+    };
+    let half = |s: SplitHalf| match s {
+        SplitHalf::Above => 1u64,
+        SplitHalf::Below => 2,
+    };
+    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
+        h.write_u64(u64::from(e.loop_index));
+        h.write_u64(u64::from(e.segment));
+    };
+    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| {
+        h.write_u64(u64::from(v.loop_index));
+        h.write_u64(u64::from(v.vertex));
+    };
+    let qual = |h: &mut KeyHasher, q: &Qualifier| match q {
+        Qualifier::SideOf(vec) => {
+            h.write_tag(1);
+            h.write_u64(vec.len() as u64);
+            for (name, v) in vec {
+                feed_stable_name(h, name);
+                h.write_tag(match v {
+                    SideVerdict::Positive => 1,
+                    SideVerdict::Negative => 2,
+                    SideVerdict::Mixed => 3,
+                    SideVerdict::On => 4,
+                });
+            }
+        }
+        Qualifier::OrderAlong { rank, of } => {
+            h.write_tag(2);
+            h.write_u64(u64::from(*rank));
+            h.write_u64(u64::from(*of));
+        }
+    };
+    match seg {
+        RoleSeg::OutputBody => h.write_tag(1),
+        RoleSeg::Cap(c) => {
+            h.write_tag(2);
+            h.write_u64(cap(*c));
+        }
+        RoleSeg::Lateral(e) => {
+            h.write_tag(3);
+            pe(h, *e);
+        }
+        RoleSeg::RimEdge(c, e) => {
+            h.write_tag(4);
+            h.write_u64(cap(*c));
+            pe(h, *e);
+        }
+        RoleSeg::LateralEdge(v) => {
+            h.write_tag(5);
+            pv(h, *v);
+        }
+        RoleSeg::CapVertex(c, v) => {
+            h.write_tag(6);
+            h.write_u64(cap(*c));
+            pv(h, *v);
+        }
+        RoleSeg::Band(e) => {
+            h.write_tag(7);
+            pe(h, *e);
+        }
+        RoleSeg::BandRim(v) => {
+            h.write_tag(8);
+            pv(h, *v);
+        }
+        RoleSeg::BandRimPi(v) => {
+            h.write_tag(9);
+            pv(h, *v);
+        }
+        RoleSeg::BandPi(e) => {
+            h.write_tag(10);
+            pe(h, *e);
+        }
+        RoleSeg::Meridian(m, e) => {
+            h.write_tag(11);
+            h.write_u64(mer(*m));
+            pe(h, *e);
+        }
+        RoleSeg::MeridianVertex(m, v) => {
+            h.write_tag(12);
+            h.write_u64(mer(*m));
+            pv(h, *v);
+        }
+        RoleSeg::RevolveCap(m) => {
+            h.write_tag(13);
+            h.write_u64(mer(*m));
+        }
+        RoleSeg::Pole(v) => {
+            h.write_tag(14);
+            pv(h, *v);
+        }
+        RoleSeg::AxisEdge(e) => {
+            h.write_tag(15);
+            pe(h, *e);
+        }
+        RoleSeg::FromA(inner) => {
+            h.write_tag(16);
+            feed_stable_name(h, inner);
+        }
+        RoleSeg::FromB(inner) => {
+            h.write_tag(17);
+            feed_stable_name(h, inner);
+        }
+        RoleSeg::Seam { a, b } => {
+            h.write_tag(18);
+            feed_stable_name(h, a);
+            feed_stable_name(h, b);
+        }
+        RoleSeg::Merged(names) => {
+            h.write_tag(19);
+            h.write_u64(names.len() as u64);
+            for n in names {
+                feed_stable_name(h, n);
+            }
+        }
+        RoleSeg::Fragment(q) => {
+            h.write_tag(20);
+            qual(h, q);
+        }
+        RoleSeg::SplitBody(s) => {
+            h.write_tag(21);
+            h.write_u64(half(*s));
+        }
+        RoleSeg::SectionFace { side, section } => {
+            h.write_tag(22);
+            h.write_u64(half(*side));
+            h.write_u64(u64::from(*section));
+        }
+        RoleSeg::SectionEdge { side, face } => {
+            h.write_tag(23);
+            h.write_u64(half(*side));
+            feed_stable_name(h, face);
+        }
+        RoleSeg::SplitFragment { side, parent } => {
+            h.write_tag(24);
+            h.write_u64(half(*side));
+            feed_stable_name(h, parent);
+        }
+        RoleSeg::CrossingVertex { side, edge } => {
+            h.write_tag(25);
+            h.write_u64(half(*side));
+            feed_stable_name(h, edge);
+        }
+        RoleSeg::Instance { i, of } => {
+            h.write_tag(26);
+            h.write_u64(u64::from(*i));
+            feed_stable_name(h, of);
+        }
+    }
 }

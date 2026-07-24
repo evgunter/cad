@@ -523,6 +523,11 @@ pub fn split<T: geom_core::Decide>(
                     })
                     .collect(),
                 face_fragments: naming.face_fragments,
+                // Pairs stay (copy, original): the mirrored run's
+                // copies land on the caller's BELOW side, but
+                // consumers resolve pair roles by which body holds
+                // each key, so no swap is needed here.
+                vertex_pairs: naming.vertex_pairs,
             },
         }),
         Err(_) => split_direct(operand, plane),

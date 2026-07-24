@@ -107,6 +107,12 @@ pub struct SplitNaming {
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
+    /// Null-edge vertex pairs `(above copy, below original)` from the
+    /// reduction's F9 records, in record order: the above-side
+    /// coincident copies with the vertices they were minted at (the
+    /// naming layer derives the above copy's parentage through the
+    /// below original's birth record).
+    pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
 }
 
 /// Typed failure of the finish step.
@@ -223,6 +229,11 @@ pub(super) fn split_finish<T: Decide>(
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
         face_fragments,
+        vertex_pairs: red
+            .null_edges
+            .iter()
+            .map(|r| (r.attr.above_end, r.attr.below_end))
+            .collect(),
     };
 
     // ---- Promotion: each null face → two section faces. ----

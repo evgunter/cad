@@ -20,6 +20,7 @@ pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+pub mod names;
 pub mod node;
 pub mod profile_desc;
 
@@ -34,8 +35,9 @@ pub use eval::{
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
-pub use node::{
-    Axis3, BooleanOp, CapEnd, Datum, EntityKind, Node, PatternKind, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+pub use names::{
+    CapEnd, EntityKey, EntityKind, EntityRef, MeridianEnd, NameTable, NamingError, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
 };
+pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use profile_desc::{ProfileDesc, ProfileDoc};

@@ -200,6 +200,12 @@ pub struct BooleanNaming {
     /// B-side chord-mef fragment rows, in B-CLONE keys (translate the
     /// new-face column through `graft_faces` for result keys).
     pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
+    /// The reduction's declared-contact records BEFORE result
+    /// remapping (A rows in A-clone = result keys, B rows in B-CLONE
+    /// = operand keys): the mint-time crossing correspondences the
+    /// naming layer reads even when one side's key was consumed
+    /// (`BooleanBody::contacts` drops such rows by design).
+    pub reduction_contacts: ContactRecords,
 }
 
 /// The typed result of a boolean op: a body, or the typed empty
@@ -276,6 +282,7 @@ fn boolean_op<T: Decide>(
         });
     }
     let contacts = red.contacts.clone();
+    let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band)?;
     let mut body = fin.body;
     let mut seam_edges = Vec::new();
@@ -311,6 +318,7 @@ fn boolean_op<T: Decide>(
         merge_groups: merge_rows(&merged),
         face_fragments_a: connected.a_fragments,
         face_fragments_b: connected.b_fragments,
+        reduction_contacts,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -811,6 +819,7 @@ fn fallback<T: Decide>(
                 graft_edges,
                 graft_faces,
                 merge_groups: merge_rows(&merged),
+                reduction_contacts: red.contacts.clone(),
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -833,6 +842,7 @@ fn finish_fallback<T: Decide>(
     kind: BooleanResultKind,
     band: Band,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
         body = body.revert().map_err(BooleanError::Revert)?;
@@ -852,6 +862,7 @@ fn finish_fallback<T: Decide>(
             a_keys: OperandKeys::Direct,
             b_keys: OperandKeys::Absent,
             merge_groups: merge_rows(&merged),
+            reduction_contacts: reduction_contacts.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -859,6 +870,7 @@ fn finish_fallback<T: Decide>(
             a_keys: OperandKeys::Absent,
             b_keys: OperandKeys::Direct,
             merge_groups: merge_rows(&merged),
+            reduction_contacts: reduction_contacts.clone(),
             ..BooleanNaming::default()
         },
     };
