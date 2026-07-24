@@ -12,16 +12,18 @@ cited, honored, and never re-litigated; where curved work puts a
 ratified decision under *tension*, that is flagged in **Tensions**
 (flag ≠ reopen).
 
-Review status (2026-07-24): Evan's first review pass on PR #85
-resolved several forks; each is recorded inline below as **DECIDED
-(Evan, #85, 2026-07-24) — pending whole-doc ratification**: OQ1, OQ2
-(both halves), OQ5, OQ6 (scope; its run-out vocabulary sub-question
-stays open), OQ8, OQ9, and the C9/T2 inari-on-default-path question.
-Still open: OQ3, OQ4, OQ7 (reshaped by Evan's counter-proposal, under
-discussion in the PR threads), and the OQ6 run-out vocabulary. C6 and
-the C3 certification-failure path are SIGNED OFF (Evan 👍 on the PR
-top-level answer, 2026-07-24). The K = 10 tangent raised on T5 moved
-to issue #89.
+Review status (2026-07-24, final pass): **every fork is now
+decided.** Evan's inline review resolved OQ1, OQ2 (both halves), OQ5,
+OQ6 (scope), OQ8, OQ9, and the C9/T2 inari-on-default-path question;
+the follow-up 👍 round (verified per-comment reactions) confirmed
+OQ3, OQ4, the OQ6 run-out vocabulary, and OQ7 (the two-level shape +
+rename), and C6 together with the C3 certification-failure path are
+SIGNED OFF (Evan 👍 on the PR top-level answer). Each outcome is
+recorded inline as DECIDED pending whole-doc ratification; per the
+design-PR convention (design conversations merge only on Evan's
+sign-off), **merging PR #85 is the whole-doc ratification**. Nothing
+in this doc remains open. The K = 10 tangent raised on T5 moved to
+issue #89.
 
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
@@ -402,7 +404,9 @@ predicate in full; this section only mechanizes it):
 
 - **Shape**: `TangencyLocus { s1, s2, witness }` — mirroring
   `Intersection`, witness pinned at carrier(mid) by the same S2
-  argument. No stored contact-order field: order-k contact beyond
+  argument. (Rename decided per OQ7, Evan 👍 #85 2026-07-24: the
+  variant becomes `TangentIntersection`, a D2 sharpening at
+  ratification.) No stored contact-order field: order-k contact beyond
   k = 1 is out of scope (D2 notes the generalization; nothing at M5
   produces it).
 - **Certification** (the jet system, D2 verbatim, made a schedule):
@@ -430,15 +434,21 @@ predicate in full; this section only mechanizes it):
   K funnel will see (after `solver_branch_margin` — K-REPORT's scope
   honesty predicted exactly this corpus; the M5 exit must include a
   K-telemetry snapshot).
-- **Tier-3 interaction**: prefer-intrinsic today enforces
-  definitely-transverse ⇒ `Intersection`. The symmetric question —
-  definitely-tangent smooth contact ⇒ must carry `TangencyLocus` —
-  is OQ7 (recommended: yes, same rationale — an unenforced preference
-  drifts; but it turns existing `MappedCurve` fillet-adjacent
-  conventions in *imported-like* configurations into errors, so the
-  enforcement boundary needs Evan's eyes). Escalated and `Seam` edges
-  stay exempt exactly as today, preserving the ε-tightening-never-
-  flips-valid-to-invalid property.
+- **Tier-3 interaction (decided per OQ7, Evan 👍 #85 2026-07-24 —
+  the two-level shape)**: prefer-intrinsic today enforces
+  definitely-transverse ⇒ `Intersection`. The symmetric side gets two
+  levels, not one rule: (i) **the mark** — every definitely-tangent
+  edge carries the tangency verdict as a named recorded
+  classification (tier 3 already samples dihedrals per edge; same
+  data, kept as a verdict); (ii) **the must-carry rule**
+  (`TangentNotIntrinsic`, the `TransverseNotIntrinsic` sibling) fires
+  only on **jet-determinate** tangencies — definitely-tangent AND
+  second-order separation definite — so G2 conventional `MappedCurve`
+  joins are exempt by the predicate itself (their second-order margin
+  is zero-side: the surfaces under-determine the locus), never by an
+  exemption list; in-band second order escalates (F6). Escalated and
+  `Seam` edges stay exempt exactly as today, preserving the
+  ε-tightening-never-flips-valid-to-invalid property.
 - Tier 3′/census: **not extended to curved contacts at M5**
   (recommendation): the census stays exact-on-planar
   (`CensusUnsupported` refusal for curved inventories is already
@@ -508,8 +518,10 @@ practice, p. 343).
   typed everything else (`FilletCornerUnsupported`); run-out
   policies are a taxonomy decision Evan should own before any lands.
   (Scope decided per OQ6, #85 2026-07-24: as recommended, with the
-  die-with-pips demo upgrade as the acceptance target; run-out
-  vocabulary still open.)
+  die-with-pips demo upgrade as the acceptance target. Run-out
+  vocabulary decided too, Evan 👍: minimal two-policy refusal-payload
+  names — `RunOutStopAtVertex`, `RunOutFeather`, corner-configuration
+  tags — zero constructor surface; see OQ6.)
 
 ## C9 — The exclusion arithmetic: hull/ring intervals; inari stays quarantined (proposed)
 
@@ -779,13 +791,21 @@ preview lane yet, so (c) collapses to (a) until editor-core preview
 exists). The banked principle fixes the *contract* (found-or-typed,
 never silence); the placement is genuinely open.
 
-**Status: OPEN.** Considerations spelled out in the #85 thread
-(2026-07-24) — the deciding asymmetry offered there: every other
-tier-3 obligation certifies caches against fixed topology, but SSI
-exhaustiveness decides the topology *itself*, so an uncertified
-intermediate under (b) is a body whose connectivity may be wrong,
-consumed downstream before the at-rest gate can refuse.
-Recommendation stands at (a); awaiting Evan.
+**DECIDED (Evan 👍, #85, 2026-07-24) — pending whole-doc
+ratification:** (a) in-op — the boolean/SSI op does not return until
+every branch is found or it refuses typed. Recorded ground (the
+deciding asymmetry): every other tier-3 obligation certifies *caches*
+against a fixed topology, so a failure means "this body's numbers are
+bad"; SSI exhaustiveness decides the topology *itself* — a missed
+branch is a missing edge/face/loop — so an uncertified intermediate
+under (b) would be a body whose connectivity may simply be wrong,
+consumed by downstream ops before the at-rest gate can refuse, with
+the failure surfacing far from its cause. (c) is not foreclosed: a
+future editor-core preview lane relaxes the gate for
+explicitly-preview results rather than moving it for real ones. Cost
+is mitigated twice: the exclusion subdivision doubles as the
+marcher's seed generator (C3), and the box tree is the C10 BVH — one
+structure, two duties.
 
 **OQ4 — Pcurve-primary vs carrier-primary for the general rung.** The
 ℝ⁴ trace produces pcurves natively; C4 recommends keeping the 3-D
@@ -795,13 +815,18 @@ alternative — fit pcurves, derive the 3-D cache through the chart —
 is cleaner for trimmed-NURBS-heavy futures and slightly worse for
 everything M5 actually validates. Cheap to flip now, expensive later.
 
-**Status: OPEN.** Trade-off spelled out in the #85 thread
-(2026-07-24) — beyond plumbing inertia, the invariant-shaped argument
-for carrier-primary is that the edge's parameter stays
-*chart-neutral*: pcurve-primary must pick one face's chart as the
-parameter source, privileging a side with no principled tie-break
-(seam edges make "which side" degenerate). Recommendation stands at
-carrier-primary; awaiting Evan.
+**DECIDED (Evan 👍, #85, 2026-07-24) — pending whole-doc
+ratification:** carrier-primary. Recorded grounds: every existing
+certified mechanism keys off the 3-D carrier (witness = carrier(mid),
+certification schedules, dihedral/sector classification, `split_edge`
+parameter bounds, endpoint pinning — nothing re-plumbs), and — the
+invariant-shaped argument, beyond plumbing inertia — the edge's
+parameter stays **chart-neutral**: pcurve-primary must pick one
+face's chart as the parameter source, privileging a side with no
+principled tie-break (seam edges make "which side" degenerate).
+Honest counterweight on record: if post-M5 work goes heavily
+trimmed-NURBS, pcurve-primary would have been the leaner substrate;
+the flip was offered pre-implementation and declined with eyes open.
 
 **OQ5 — Curved 3′/census.** Confirm the C7 recommendation that M5
 curved booleans refuse touching results (census stays exact-on-planar)
@@ -828,13 +853,21 @@ ratification:** closed smooth chains AND the three-convex-edge
 sphere-octant corner are in scope; the **die-with-pips demo upgrade**
 (closed chains on the pip rims, open chains terminating in octant
 corners on the cube edges) is the named acceptance target. Everything
-else refuses `FilletCornerUnsupported`. The **run-out vocabulary
-sub-question stays OPEN**: recommendation in the #85 thread is the
-minimal two-policy vocabulary (stop-at-vertex-with-corner-patch,
-feather-out) as refusal-payload names only — honest frontier error
-text, zero constructor surface — with the finer taxonomy (per-end
-assignment, setback parameters) left to the post-M5 design that
-implements it.
+else refuses `FilletCornerUnsupported`.
+
+**Run-out vocabulary DECIDED (Evan 👍, #85, 2026-07-24) — pending
+whole-doc ratification:** the minimal two-policy vocabulary ships as
+**refusal-payload names only** — `FilletCornerUnsupported` carries an
+enumerated payload naming the configuration hit and the policy that
+would handle it: `RunOutStopAtVertex` (blend runs full-radius to the
+vertex; a corner patch fills the junction — the sphere-octant corner
+is its three-convex-edge case), `RunOutFeather` (radius decays to
+zero before the vertex; the blend fades into the sharp edge), plus
+corner-configuration tags for the N-edge / mixed-convexity vertex
+cases. Honest, actionable frontier error text (the `FullRevolveHoles`
+precedent: errors name the front door that does not exist yet), zero
+constructor surface; the finer taxonomy (per-end assignment, setback
+parameters) is left to the post-M5 design that implements run-outs.
 
 **OQ7 — Symmetric prefer-intrinsic enforcement.** Extend tier 3 with
 definitely-tangent-smooth-contact ⇒ must-carry-`TangencyLocus`
@@ -847,23 +880,27 @@ discriminator is "do the surfaces determine the locus" — sharp in
 theory; the enforcement predicate needs a margin story at the
 boundary and Evan's eyes on which side conventional splits land.
 
-**Status: OPEN — reshaped by Evan's counter-proposal (#85,
-2026-07-24)**: tangent smooth contact should carry *some* mark, but
-`TangencyLocus` may deserve a narrower role (possibly renamed).
-Proposed resolution in the thread, two levels: (i) every
-definitely-tangent edge carries the tangency *verdict* as a named
-recorded classification — the mark; keeps the preference from
-drifting at zero enforcement risk; (ii) the tier-3 must-carry rule
-(the `TransverseNotIntrinsic` sibling) fires only on
+**DECIDED (Evan 👍, #85, 2026-07-24) — pending whole-doc
+ratification:** Evan's two-level shape is adopted and folded into C7:
+(i) **the mark** — every definitely-tangent edge carries the tangency
+*verdict* as a named recorded classification (tier 3 already samples
+dihedrals per edge; the same data kept as a verdict instead of
+discarded) — this is what stops the preference from drifting, at zero
+enforcement risk; (ii) **the must-carry rule** (`TangentNotIntrinsic`,
+the `TransverseNotIntrinsic` sibling) fires only on
 **jet-determinate** tangencies — definitely-tangent AND second-order
 separation definite — so G2 conventional joins are exempt *by the
 predicate itself* (their second-order margin is zero-side; the
-surfaces under-determine the locus), not by an exemption list;
+surfaces under-determine the locus), never by an exemption list;
 in-band second order escalates per F6. The discriminator "do the
-surfaces determine the locus" thereby becomes the enforcement
-predicate rather than prose. Candidate rename: `TangentIntersection
-{ s1, s2, witness }` (mirrors `Intersection`; margin one order up) —
-a D2 sharpening if adopted. Awaiting Evan's reaction.
+surfaces determine the locus" is thereby the enforcement predicate,
+not prose. **Rename decided:** `TangencyLocus` →
+`TangentIntersection { s1, s2, witness }` (mirrors `Intersection` —
+same shape, same witness pin, margin one differential order up),
+landing as an explicit **D2 sharpening** applied to DESIGN.md in the
+ratification pass; this doc keeps the `TangencyLocus` spelling in
+untouched sections so quotations of currently-ratified text stay
+verbatim until then.
 
 **OQ8 — The in-house interval ring** (C9). Sign off on adding a
 second interval type (ring-only, MIT-clean, ulp-widened) alongside
