@@ -306,7 +306,10 @@ pub fn transform_rigid<T: Decide>(
                 s2: *s2,
                 witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
             },
-            other => map_description(map, other),
+            // A seam is defined intrinsically by its (key-stable)
+            // surface; the mapped surface carries the whole map.
+            EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface: *surface },
+            EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(map_mapped_curve(map, mc)),
         };
         let spec = EdgeCurveSpec {
             description,
@@ -362,39 +365,29 @@ fn endpoint<T: Real>(
         })
 }
 
-fn map_description<T: Real>(map: &Affine3<T>, d: &EdgeGeometry<T>) -> EdgeGeometry<T> {
-    match d {
-        // Intersection is handled at the certify call site (witness
-        // re-mint needs the mapped carrier); reaching it here is a bug.
-        EdgeGeometry::Intersection { .. } => {
-            unreachable!("Intersection descriptions are re-minted at the call site")
-        }
-        // A seam is defined intrinsically by its (key-stable) surface;
-        // the mapped surface carries the whole map.
-        EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface: *surface },
-        EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(match *mc {
-            MappedCurve::PlacedSegment { segment, place } => MappedCurve::PlacedSegment {
-                segment,
-                place: *map * place,
-            },
-            MappedCurve::ExtrudedPoint { point, place, vec } => MappedCurve::ExtrudedPoint {
-                point,
-                place: *map * place,
-                vec: map_vec(map, vec),
-            },
-            MappedCurve::RevolvedPoint {
-                point,
-                place,
-                axis_origin,
-                axis_dir,
-                angle,
-            } => MappedCurve::RevolvedPoint {
-                point,
-                place: *map * place,
-                axis_origin: map.transform_point(axis_origin),
-                axis_dir: map_vec(map, axis_dir),
-                angle,
-            },
-        }),
+fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCurve<T> {
+    match *mc {
+        MappedCurve::PlacedSegment { segment, place } => MappedCurve::PlacedSegment {
+            segment,
+            place: *map * place,
+        },
+        MappedCurve::ExtrudedPoint { point, place, vec } => MappedCurve::ExtrudedPoint {
+            point,
+            place: *map * place,
+            vec: map_vec(map, vec),
+        },
+        MappedCurve::RevolvedPoint {
+            point,
+            place,
+            axis_origin,
+            axis_dir,
+            angle,
+        } => MappedCurve::RevolvedPoint {
+            point,
+            place: *map * place,
+            axis_origin: map.transform_point(axis_origin),
+            axis_dir: map_vec(map, axis_dir),
+            angle,
+        },
     }
 }

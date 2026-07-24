@@ -86,8 +86,26 @@ fn marginal_witness_slack_vs_remint_freshness() {
         old_residual > offset * 0.99,
         "old path keeps consumed slack: {old_residual:e}"
     );
-    // Re-mint: bit-zero mid residual — full headroom restored.
-    let fresh = ec.carrier().eval(ec.sample_param(mid_i));
-    let fresh_residual = ec.carrier().eval(ec.sample_param(mid_i)).distance(fresh);
-    assert_eq!(fresh_residual.to_bits(), 0.0f64.to_bits());
+    // Re-mint: a spec whose witness IS the pinned formula certifies
+    // with full headroom (the non-vacuous statement of freshness — the
+    // bit-level pin on the real transform path lives in
+    // crates/topo/tests/m4_remint_transform.rs).
+    let fresh_spec = EdgeCurveSpec {
+        description: EdgeGeometry::Intersection {
+            s1: keys[0],
+            s2: keys[1],
+            witness: ec.carrier().eval(ec.sample_param(mid_i)),
+        },
+        carrier: *ec.carrier(),
+        param_start: t0,
+        param_end: t1,
+    };
+    EdgeCurve::certify(
+        fresh_spec,
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        &resolve,
+        band,
+    )
+    .expect("the re-mint formula's witness certifies with fresh headroom");
 }
