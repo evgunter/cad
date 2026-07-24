@@ -403,3 +403,27 @@ step-review`) — attack surface includes the ambient-ε-in-golden-
 bytes vs 11-row-matrix interaction, HashMap-order determinism,
 orientation proof beyond OCC healing, near-zero shell-volume
 classification.
+
+**PR 3 fix pass COMPLETE (2026-07-24, `ev/m4-3-names` @ `136d3db`,
+pushed; gate running)**: all rulings landed. R1 chase_b made
+infallible — broken B chains return the non-resolving key and route
+to the chord_kind rescue (lane parity); reviewer reproductions
+committed both orientations + subtract variants
+(m4_pr3_names_rework.rs). R2 derivability CONFIRMED — new
+`RoleSeg::OnToolVertex{side, of}` (identity via null-pair copy row,
+side via recorded side assignment; both halves side-tagged so the
+mirror-lane original/copy swap can't silently flip a name). R4
+kernel-level Merged-lane unit test (synthetic merge_groups; sorted
++deduped constituents). R7 name_pattern: typed multi-body-master
+refusal + per-instance totality. R8/R9/R11/R12 done (names-only
+companion digest 0x015e_a22f_fd6d_b11d; full digest unchanged by
+the rework — no die names moved). EXTRA: m4_remint_sliver.rs pins
+the refuse side of the transform two-class contract (past-ε typed
+ResidualExceeded, mid-band never-accepts; ambient-derived
+magnitudes) — both sides of the #83 contract now pinned. Meta-
+review spot-check: chase_b Result→infallible conversion verified at
+both call sites. fmt/clippy/workspace/interval all green. Branch
+still ff from main (098c4c1) ⇒ gated sha ≡ merge content. Gate
+launched on 136d3db; PR body drafted with the three REPORT lines
+(Merged eval-fixture → PR 5; single-qualifier-flip → PR 4; Declare
+name-level validation → PR 4). PR + merge on gate green.
