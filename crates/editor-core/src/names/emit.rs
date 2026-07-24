@@ -94,10 +94,16 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// Wraps a pattern master's table per structural instance index
 /// (A8/N1 `Instance(i)`): instance `i` holds the master's keys
 /// verbatim (`transform_rigid` key-stability), body index `i`.
-pub(crate) fn name_pattern(
+///
+/// Hardening (review R7): masters with MULTIPLE output bodies refuse
+/// typed — the instance-index-as-body-index scheme would conflate
+/// their halves (latent today: `body_operand` refuses such inputs
+/// upstream) — and totality is checked against every instance body.
+pub(crate) fn name_pattern<T: geom_core::Real>(
     node: RecipeNodeId,
     master: &NameTable,
     n: i64,
+    instances: &[Arc<Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
     for i in 0..n {
@@ -115,13 +121,26 @@ pub(crate) fn name_pattern(
             };
             match entry {
                 super::table::Entry::Unique(e) => {
+                    if e.body != 0 {
+                        return Err(NamingError::Emission {
+                            what: "pattern of a multi-body master — deferred (typed, R7)",
+                        });
+                    }
                     t.insert(wrapped, ent(iu, e.key))?;
                 }
                 super::table::Entry::Tied(es) => {
+                    if es.iter().any(|e| e.body != 0) {
+                        return Err(NamingError::Emission {
+                            what: "pattern of a multi-body master — deferred (typed, R7)",
+                        });
+                    }
                     t.insert_tied(wrapped, es.iter().map(|e| ent(iu, e.key)).collect())?;
                 }
             }
         }
+    }
+    for (i, body) in instances.iter().enumerate() {
+        check_total(&t, body, u32::try_from(i).unwrap_or(u32::MAX))?;
     }
     Ok(Arc::new(t))
 }

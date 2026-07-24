@@ -429,6 +429,6 @@ fn wire_pattern<T: Decide>(
     // per structural index; `transform_rigid` key-stability means
     // instance keys equal master keys.
     let master = Arc::clone(&value_of(results, input)?.name_table);
-    let table = names::name_pattern(id, &master, n).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
     Ok((ValuePayload::Instances(instances), table))
 }
