@@ -622,3 +622,13 @@ bug — make the double-subtract succeed; (b) honest-envelope typed
 refusal; (c) wrong assert. Prefers (a); reviewer's preserved probe
 as seed; branch ev/issue86-attach-panic. If (a), the R13
 boolean-of-boolean fixture ban lifts.
+
+**PR 4 launched EARLY (2026-07-24, Evan's push on #88: "does PR 4
+need to wait on 7?")**: re-examined the contention — only spec D9
+(appearance-hook enrichment) truly depends on PR 7's types; the
+rest is independent, and the DocEdit-enum overlap is a trivially
+additive conflict. Implementer launched on ev/m4-4-resolution off
+current main with D9 sequenced LAST (merges main when it gets
+there; stops-and-reports if PR 7 somehow hasn't landed). Lesson:
+"same crate" is not by itself merge contention — check the actual
+dependency and conflict surface before serializing.
