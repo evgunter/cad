@@ -456,3 +456,20 @@ executed in the review clone's cwd via the shared shell snapshot;
 no tampering (HEAD pinned, status clean, goldens green), but
 reviews should pin HEAD + re-verify goldens at report time, as
 this one did. Meanwhile PR 3 gate still running on 136d3db.
+
+**STEP fix pass COMPLETE (2026-07-24, `ev/m4-7-step` @ `6ef1b8d`,
+pushed)**: S1 orientation oracle committed — minimal Part 21 parser
+over emitted text (all three orientation data honored) computing
+per-shell signed volume with exact `==` pins (cube +1.0, die
++0.875, kiss +0.875×2; dyadic-fixture exactness documented) +
+flag-flip negative control reading exactly −1.0 (catches what OCC
+heals and truck's counts miss). S2 "exact"→headroom-not-exactness
+honesty rewrite. S3 STEP_FILE env (double-import fixed, re-verified
+live). S4 gate.sh stale-proof wording. S5/S6 latent-door one-
+liners. 123 workspace rows green; step-export green at ε=1e-6/
+1e-9/1e-12; FreeCAD acceptance re-run green. Meta-review: diff
+tightly scoped (7 files, oracle + docs/scripts only). **Merge
+sequencing ruled**: PR 3 merges first; THEN ev/m4-7-step merges
+current main and gates the actual post-PR 3 merge state (STEP
+depends on topo, which PR 3 touches — gate the real candidate, not
+the stale base). PR 3 gate mid-matrix on 136d3db.
