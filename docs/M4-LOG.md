@@ -473,3 +473,23 @@ sequencing ruled**: PR 3 merges first; THEN ev/m4-7-step merges
 current main and gates the actual post-PR 3 merge state (STEP
 depends on topo, which PR 3 touches — gate the real candidate, not
 the stale base). PR 3 gate mid-matrix on 136d3db.
+
+**PR 3 MERGED (2026-07-24, PR #87, main `90aae39`)**: gate 11/11
+uninterrupted on `136d3db` (352s wall). First gate attempt was
+aborted by a WSL crash that tore four cached test binaries in the
+gate runner's warm target ("Exec format error" — torn writes, NOT
+test failures); purged by ELF-magic scan and re-run clean. Crash
+also took the away-channel monitor (re-armed) and pushed disk to
+5G free — reclaimed ~24G by deleting finished agents' build caches
+and completed review clones (probe files preserved at
+`~/.local/share/cad-work/review-probes/`); gate warm cache and
+Evan's main-checkout target left intact. Naming part 1 is on main:
+StableName/RolePath, eager bidirectional name tables, N2
+discriminators, the D5 CI invariant, kernel emission, OnToolVertex,
+chase_b lane parity, both sides of the #83 transform contract.
+**STEP sequencing executed**: origin/main (90aae39) merged clean
+into `ev/m4-7-step` as `0768f78`, pushed; gate launched on the
+actual post-PR 3 candidate. STEP PR + merge on green. Next after
+STEP: PR 4 spec (resolution + diff engine) — carries banked items:
+single-qualifier-flip fixture, Declare name-level validation,
+Vanished-diagnosis vs dropped fused-vertex identity.
