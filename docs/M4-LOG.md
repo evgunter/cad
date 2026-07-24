@@ -493,3 +493,16 @@ actual post-PR 3 candidate. STEP PR + merge on green. Next after
 STEP: PR 4 spec (resolution + diff engine) — carries banked items:
 single-qualifier-flip fixture, Declare name-level validation,
 Vanished-diagnosis vs dropped fused-vertex identity.
+
+**STEP export MERGED (2026-07-24, PR #88, main `0063f00`)**: gate
+all-rows PASS on `0768f78` (the actual post-#87 candidate), 1016s
+wall, including the new `step import (freecad)` row live in the
+gate. PR 7's STEP half is done — F6 discharged end-to-end
+(in-house AP214 writer, oracles dev-only, FreeCAD acceptance
+green, orientation-sensitive text oracle closing the OCC-healing
+blind spot). Merged-branch hygiene: step-export clone +
+PR 3 implementer worktree removed. Appearance half (PR 7's
+remainder) unblocked by #87's StableName — implementer launched.
+Next orchestrator task: PR 4 binding spec (resolution + diff
+engine; banked: single-qualifier-flip fixture, Declare name-level
+validation, Vanished-diagnosis vs dropped fused-vertex identity).
