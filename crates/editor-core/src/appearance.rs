@@ -34,6 +34,13 @@
 //! states WHICH names lost their targets and the coarse cause visible
 //! to the evaluation itself; the flipping predicate is PR 4's job.
 //!
+//! An entry counts as resolved when its name is found in ANY Ok
+//! node's table ([`AppearanceResolution`] docs spell out the ruled
+//! consequence: operand paint does not follow the face through a
+//! boolean, and that gap is silent-by-design — N1 identity plus the
+//! empty N5 auto-rebind menu — with explicit re-attachment or PR 4's
+//! `Rebind` as the repair path).
+//!
 //! # Wrapper readiness (B11, NAMING-DESIGN Q-i)
 //!
 //! Appearance attachment is one of the four sanctioned seams where
@@ -157,11 +164,16 @@ pub enum AppearanceLossCause {
     /// The name is tie-marked (N2): referencing a tied name is
     /// ambiguous, so painting any candidate would be an auto-pick —
     /// refused loudly until the recipe records a disambiguation.
+    /// Reported ONCE per name even when pass-through tables carry the
+    /// tie several times (review A2); `at` is the first carrying node
+    /// in id order, and the full candidate set is recoverable by
+    /// table lookup at `at` (PR 4's `Ambiguous{candidates}` builds on
+    /// exactly that).
     Ambiguous {
-        /// The node whose table holds the tie.
+        /// The first (defining) node whose table holds the tie.
         at: RecipeNodeId,
-        /// How many candidates tie.
-        width: u32,
+        /// How many candidates tie there.
+        width: usize,
     },
 }
 
@@ -183,6 +195,22 @@ pub struct AppearanceLoss {
 /// needed downstream). Entity refs are per-THIS-evaluation data (they
 /// die with it, G1); the durable attachment remains the document's
 /// name-keyed store.
+///
+/// # Success criterion: resolves ANYWHERE (review A1, ruled)
+///
+/// An entry is "resolved" when at least one Ok node's table carries
+/// its name — losses fire only when NO table does. Consequence,
+/// upheld as correct v1 semantics: painting an OPERAND's face and
+/// then consuming the operand in a boolean paints the operand node's
+/// output only. The final node's corresponding face is a DIFFERENT
+/// derivation (`FromA(name)` ≠ `name` — N1 identity), so it shows
+/// neither the paint nor a loss, and [`Self::is_lossless`] is true.
+/// This is deliberate: auto-following a face through a boolean would
+/// be a silent rebinding policy, and the N5 policy menu is EMPTY by
+/// ratified decision. The repairs are explicit — attribute the name
+/// the displayed node's table actually mints (what a GUI does), or
+/// PR 4's `Rebind` once it lands (its suggestion ladder feeds exactly
+/// this gap).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AppearanceResolution {
     /// Per-node resolved rows: for each node whose table carried an
@@ -192,7 +220,10 @@ pub struct AppearanceResolution {
     /// its input's attributes — N1 derivation-path semantics).
     pub resolved: BTreeMap<RecipeNodeId, BTreeMap<EntityRef, AttrSet>>,
     /// Every appearance entry that failed to resolve, loudly typed
-    /// (empty = every attribute landed).
+    /// (empty = every attribute landed). Per-name granularity: an
+    /// entry lands here AT MOST ONCE PER CAUSE (review A2) — in v1
+    /// each name gets at most one loss row total, since the causes
+    /// are mutually exclusive per evaluation.
     pub losses: Vec<AppearanceLoss>,
 }
 
@@ -253,6 +284,11 @@ pub(crate) fn resolve(
         // inherit the attachment through the SAME name — no policy,
         // just N1 lookup.
         let mut hit = false;
+        // Losses are per NAME, one row per cause (review A2): a tied
+        // name carried by several tables (pass-through) reports ONE
+        // Ambiguous loss, at the first table in node-id order — the
+        // defining site; the others are derivable by lookup.
+        let mut tie: Option<(RecipeNodeId, usize)> = None;
         for (&id, state) in states {
             let NodeState::Ok(table) = state else {
                 continue;
@@ -272,17 +308,19 @@ pub(crate) fn resolve(
                     // N2: never auto-pick among equally admissible
                     // candidates — painting all of them would be one.
                     hit = true;
-                    resolution.losses.push(AppearanceLoss {
-                        name: name.clone(),
-                        attrs: attrs.clone(),
-                        cause: AppearanceLossCause::Ambiguous {
-                            at: id,
-                            width: u32::try_from(cands.len()).unwrap_or(u32::MAX),
-                        },
-                    });
+                    if tie.is_none() {
+                        tie = Some((id, cands.len()));
+                    }
                 }
                 None => {}
             }
+        }
+        if let Some((at, width)) = tie {
+            resolution.losses.push(AppearanceLoss {
+                name: name.clone(),
+                attrs: attrs.clone(),
+                cause: AppearanceLossCause::Ambiguous { at, width },
+            });
         }
         if hit {
             continue;
@@ -312,6 +350,12 @@ pub(crate) fn resolve(
 /// {a, b}); otherwise, any live merged name whose constituent set
 /// contains it (the retire-into-merge case — the reference fails
 /// "with the merged face as the offered candidate").
+///
+/// Scope of "structurally detectable" (review A5): the unmerge
+/// direction fires only when `Merged` is the path's LAST segment —
+/// names wrapping a merge deeper in (`Instance{of: Merged}`,
+/// `FromA(Merged)`) get empty offers; PR 4's resolution ladder owns
+/// anything beyond this.
 fn vanished_candidates(
     name: &StableName,
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,

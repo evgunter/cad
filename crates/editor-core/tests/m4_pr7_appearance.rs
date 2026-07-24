@@ -531,11 +531,10 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     assert!(run(&doc).appearance.is_lossless());
 }
 
-#[test]
-fn tied_name_appearance_is_ambiguous_never_painted() {
-    // The PR 3 genuine-tie fixture: a U cutter through one wall; both
-    // B-cap prong fragments tie (no covariant qualifier separates
-    // them).
+/// The PR 3 genuine-tie fixture: a U cutter through one wall; both
+/// B-cap prong fragments tie (no covariant qualifier separates them).
+/// Returns (doc, subtract node).
+fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty();
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, p) = insert(
@@ -572,16 +571,26 @@ fn tied_name_appearance_is_ambiguous_never_painted() {
             declare: None,
         },
     );
-    let ev = run(&doc);
-    let tied = ev
-        .value(sub)
+    (doc, sub)
+}
+
+/// A tied name (width 2) from the fixture's subtract table.
+fn tied_name(ev: &Evaluation<f64>, sub: RecipeNodeId) -> StableName {
+    ev.value(sub)
         .unwrap()
         .name_table
         .iter()
         .find_map(|(n, e)| {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
         })
-        .expect("the U-cutter fixture ties");
+        .expect("the U-cutter fixture ties")
+}
+
+#[test]
+fn tied_name_appearance_is_ambiguous_never_painted() {
+    let (doc, sub) = tie_fixture();
+    let ev = run(&doc);
+    let tied = tied_name(&ev, sub);
     // Attaching is a legal edit (tie status is evaluation-level
     // knowledge)…
     let doc = set(doc, tied.clone(), red());
@@ -594,6 +603,80 @@ fn tied_name_appearance_is_ambiguous_never_painted() {
         AppearanceLossCause::Ambiguous { at: sub, width: 2 }
     );
     assert!(ev.appearance.resolved.is_empty());
+}
+
+#[test]
+fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
+    // Review A2 (adapted from the reviewer's transform-duplicate
+    // probe): a tied name passed through a Transform appears in TWO
+    // tables; the loss report stays per-name — exactly ONE Ambiguous
+    // row, `at` = the first carrying node in id order (the subtract),
+    // the rest derivable by table lookup.
+    let (doc, sub) = tie_fixture();
+    let (doc, _moved) = insert(
+        doc,
+        Node::Transform {
+            input: sub,
+            translation: [len(10.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: fixture::ang(0.0),
+        },
+    );
+    let ev = run(&doc);
+    let tied = tied_name(&ev, sub);
+    let doc = set(doc, tied.clone(), red());
+    let ev = run(&doc);
+    assert_eq!(
+        ev.appearance.losses.len(),
+        1,
+        "one loss row per (name, cause): {:?}",
+        ev.appearance.losses
+    );
+    assert_eq!(ev.appearance.losses[0].name, tied);
+    assert_eq!(
+        ev.appearance.losses[0].cause,
+        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+    );
+    assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
+}
+
+#[test]
+fn operand_paint_does_not_follow_the_face_through_a_boolean() {
+    // Review A1 (RULED, upheld as correct v1 semantics; fixture
+    // adapted from the reviewer's probe_boolean_final_output_
+    // silently_unpainted): painting an OPERAND's cap and then
+    // consuming the operand in a union paints the operand node's
+    // output ONLY. The union's corresponding face is a DIFFERENT
+    // derivation (`FromA(cap)` ≠ `cap`, N1 identity), so the final
+    // node shows neither the paint nor a loss and the resolution is
+    // lossless — auto-following the face through the boolean would be
+    // a silent rebinding policy, and the N5 menu is EMPTY by ratified
+    // decision. Repairs are explicit: attribute the name the
+    // displayed node's table mints, or PR 4's Rebind. This test PINS
+    // the ruling; changing it requires a ratified policy, not a code
+    // tweak.
+    let doc = ProfileDoc::empty();
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, uni) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: None,
+        },
+    );
+    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
+    let doc = set(doc, cap.clone(), red());
+    let ev = run(&doc);
+    // Lossless, painted at `a` — and NOTHING at the union node.
+    assert!(ev.appearance.is_lossless());
+    assert!(ev.appearance.for_node(a).is_some());
+    assert!(
+        ev.appearance.for_node(uni).is_none(),
+        "the final body carries no paint and no loss row (ruled A1)"
+    );
 }
 
 #[test]
