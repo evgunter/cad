@@ -879,8 +879,14 @@ impl<T: Decide> Body<T> {
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        let killed_surface = self
-            .remove_surface_if_orphaned(f1_data.surface)
+        // The curve hygiene above can itself reap f1's surface (a
+        // killed curve's `Intersection`/`Seam` description can hold
+        // the last reference — the issue #86 cascade); `f1_data`
+        // resolved at entry, so a now-missing key means THIS call
+        // removed it — report the kill through either door.
+        let cascade_took_surface = self.get_surface(f1_data.surface).is_none();
+        let killed_surface = (self.remove_surface_if_orphaned(f1_data.surface)
+            || cascade_took_surface)
             .then_some(f1_data.surface);
 
         #[cfg(debug_assertions)]
