@@ -336,6 +336,12 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
+    /// M4 PR 4 pins the document semantics — a per-node failure
+    /// poisoning descendants only, GQ2/W5). NEVER constructed before
+    /// the M6 solver: the arm exists so the solver lands as logic,
+    /// not a schema change.
+    WitnessBifurcation(crate::witness::WitnessBifurcation),
 }
 
 /// An evaluation's identity token (spec D5, GQ2): callers tag each
