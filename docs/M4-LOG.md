@@ -587,3 +587,19 @@ exclusion (zero recompute pinned; DocDiff has no eval consumers),
 Clear-replay determinism (no poison path; ids never reused), all
 six loss causes reachable, totality on canceled prefixes,
 entity-injectivity prevents attr merging, B11 no-global-uniqueness.
+
+**CURVED-DESIGN fully decided (2026-07-24)**: Evan 👍'd all four
+inline replies + the top-level answer (verified per-comment via the
+pulls reactions API — which exposed and fixed a monitor gotcha:
+inline-review-comment reactions live under pulls/, not issues/).
+Every fork resolved: OQ3 in-op gate, OQ4 carrier-primary, OQ6
+run-out refusal vocabulary (zero constructor surface), OQ7 Evan's
+two-level shape + TangencyLocus→TangentIntersection rename (D2
+sharpening at ratification), C6 + C3 failure path. Doc folded at
+`9860b87` (on top of my `d05579b` sign-off note); review-status now
+reads "merging #85 = whole-doc ratification"; closing comment
+posted and watchlisted (👍 = ratify, orchestrator merges).
+Post-merge obligations flagged by the responder: flip DRAFT header
+to ratified-record; DESIGN.md ratification pass (D2 sharpening +
+Q5 lean revision + TangencyLocus spelling sweep); inari quarantine
+boundary-text update; LGPL-before-publish exit condition.
