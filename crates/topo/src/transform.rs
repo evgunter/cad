@@ -32,7 +32,20 @@
 //!   radii/angles untouched (rigid invariants);
 //! - curve carriers: same treatment per [`Curve3`] variant;
 //! - edge descriptions: [`EdgeGeometry::Intersection`] keeps its
-//!   surface keys (the arenas are key-stable) and maps its witness;
+//!   surface keys (the arenas are key-stable) and **RE-MINTS its
+//!   witness construction-fresh** — `witness′ = carrier′(mid)`, the
+//!   mapped carrier evaluated at the pinned mid parameter (the S2
+//!   formula the `WitnessMidpoint` check verifies) — never the mapped
+//!   stored witness. Ruled with Evan on PR #83: mapping stored
+//!   witnesses consumes inherited residual slack (a body certified
+//!   near ε could refuse after an exact-in-principle isometry, and
+//!   transform chains would ratchet); re-minting is per-entity local,
+//!   D9-deterministic, and writes nothing to satisfy a check — it is
+//!   the same formula construction uses. Consequence, the two-class
+//!   contract: bodies re-certify with construction-fresh residual
+//!   headroom regardless of stored-data marginality (the provable
+//!   class); what can still refuse is authored VERDICT marginality
+//!   (in-band classifications — Q1 bedrock), typed as always;
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
@@ -282,9 +295,22 @@ pub fn transform_rigid<T: Decide>(
         let start = endpoint(&out, he_plus, false)?;
         let end = endpoint(&out, he_plus, true)?;
         let (param_start, param_end) = old.params();
+        let carrier = map_carrier(map, old.carrier())?;
+        let description = match old.description() {
+            // Re-mint (module docs above): construction-fresh witness
+            // from the MAPPED carrier at the pinned mid parameter.
+            // Params are transform-invariant, so the pre-transform
+            // schedule parameter is the post-transform one.
+            EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+                s1: *s1,
+                s2: *s2,
+                witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+            },
+            other => map_description(map, other),
+        };
         let spec = EdgeCurveSpec {
-            description: map_description(map, old.description()),
-            carrier: map_carrier(map, old.carrier())?,
+            description,
+            carrier,
             param_start,
             param_end,
         };
@@ -338,11 +364,11 @@ fn endpoint<T: Real>(
 
 fn map_description<T: Real>(map: &Affine3<T>, d: &EdgeGeometry<T>) -> EdgeGeometry<T> {
     match d {
-        EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
-            s1: *s1,
-            s2: *s2,
-            witness: map.transform_point(*witness),
-        },
+        // Intersection is handled at the certify call site (witness
+        // re-mint needs the mapped carrier); reaching it here is a bug.
+        EdgeGeometry::Intersection { .. } => {
+            unreachable!("Intersection descriptions are re-minted at the call site")
+        }
         // A seam is defined intrinsically by its (key-stable) surface;
         // the mapped surface carries the whole map.
         EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface: *surface },
