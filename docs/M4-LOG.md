@@ -317,3 +317,27 @@ dead-partner rows (A-priority documented). Implementer supplied a
 (clone `~/.local/share/cad-work/pr3-review`). Fix-pass queue
 already holds: sliver-class ε-boundary typed-refusal fixture
 (banked from #83).
+
+**M5 CURVED-DESIGN draft OPEN as PR #85 (2026-07-23, design
+conversation — waits for Evan, NO self-merge)**: 917-line draft in
+the NAMING/SOLVER house style. C1-C12 spine: intersection-locus
+ladder (analytic > exact conics > fitted-with-certificate); fitted
+certificate = residual + Bernstein hull sup-norm honesty +
+uniqueness tube (W2 transferred: selection is certification);
+march-then-certify SSI (Hoffmann stepper untrusted, ℝ⁴ tracing,
+box-exclusion exhaustiveness, singular tracing refused); per-half-
+edge pcurve caches certified in meters; total (kind,kind) dispatch
+table; cache-structure-is-f64-lane (C6); TangencyLocus + sector
+predicates, M5 booleans transverse-only; analytic-first fillets
+with reified predicate list; in-house MIT interval ring (inari
+stays quarantined); BVH doubling as SSI exhaustiveness structure;
+NURBS substrate scope; 9-seam refactor inventory. OQ1-OQ9 for Evan
+(conic extent, certificate staging, exhaustiveness gate placement,
+pcurve-vs-carrier primacy, curved-3′ deferral, fillet scope,
+tangency symmetry, interval-ring sign-off, Q5/curvo closure).
+T1-T6 tensions flagged not relitigated (D4 two-strength
+"certified"; LGPL boundary text; witness selection as proof
+obligation; D9 discipline on iterative numerics; K=10 revisit
+likely fires; CDT bulk-load trigger). Sources visually read:
+Hoffmann §6.2-6.3 complete, NURBS Book §7.3-7.4 + §9.4.4,
+Vida-Martin-Várady taxonomy pages.
