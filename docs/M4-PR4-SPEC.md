@@ -105,3 +105,23 @@ The N5 block is normative, not indicative:
 - Boolean-of-boolean fixtures stay excluded until issue #86 closes.
 - fmt/clippy(-D warnings, default + interval)/workspace/interval lanes
   green before reporting. No gate, no PR from the implementer.
+
+## D9 — Appearance-hook obligations (added post-PR 7 review, 2026-07-24)
+
+- PR 7's `AppearanceLossCause` is the typed hook this PR enriches:
+  `Ambiguous{at, ..}` → N5 `Ambiguous{name, candidates, tie}` by
+  `table.lookup(name)` at node `at` (Tied entry = candidates);
+  `AppearanceLoss::Vanished{candidates}` is a superset of N5's
+  `Vanished` shape — N3 promises an offered candidate, N5's struct
+  has no field for it; PR 4 resolves the tension by carrying offers
+  inside `Diagnosis`/tombstone payload or wrapping (implementer's
+  choice, REPORT which).
+- **Banked (ruled at PR 7 review, A1)**: the operand→final paint gap
+  — an attribute on an operand-node name resolves on the intermediate
+  body only after a recipe extension; final-node consumers see
+  neither paint nor loss ("resolves-anywhere" success criterion,
+  upheld per N1 identity + N5's empty auto-menu). PR 4's resolution
+  machinery must make the EXPLICIT repair ergonomic: when Rebind
+  targets an appearance-carrying name, the suggestion ladder offers
+  the final-node derivations wrapping it (FromA(x) etc.) as
+  candidates. No automatic following.
