@@ -603,3 +603,14 @@ Post-merge obligations flagged by the responder: flip DRAFT header
 to ratified-record; DESIGN.md ratification pass (D2 sharpening +
 Q5 lean revision + TangencyLocus spelling sweep); inari quarantine
 boundary-text update; LGPL-before-publish exit condition.
+
+**CURVED-DESIGN RATIFIED and MERGED (2026-07-24, PR #85, main
+`b7e3962`)**: Evan "lgtm!" + 👍 on the closing comment. Header
+flipped DRAFT→ratified-record before merge. M5's design record is
+on main: C1-C12 ratified with grounds, T1-T6 flags,
+post-ratification obligations listed in the header (DESIGN.md
+D2-sharpening pass incl. TangencyLocus→TangentIntersection sweep +
+Q5 lean revision; inari quarantine boundary text; LGPL-before-
+publish). The pre-M5 design-doc program is COMPLETE (NAMING,
+SOLVER, CURVED all ratified). m5-design clone retained for the
+DESIGN.md pass; watchlist clear.
