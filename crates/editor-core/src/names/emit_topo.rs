@@ -108,11 +108,21 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
     f
 }
 
-/// Chases an edge through `SplitEdge` birth records to the oldest
-/// ancestor still recorded (the operand edge, when the operand
-/// contributed it).
-fn chase_edge_provenance<T: Decide>(body: &Body<T>, mut e: EdgeKey, limit: usize) -> EdgeKey {
+/// Chases an edge through `SplitEdge` birth records, STOPPING at the
+/// first key the operand's table names: the table is the identity
+/// boundary — records deeper than the operand's own entities belong
+/// to earlier ops (a union's rim fragment must not chase past its
+/// own union-level name into its grand-parent).
+fn chase_edge_to_table<T: Decide>(
+    body: &Body<T>,
+    table: &NameTable,
+    mut e: EdgeKey,
+    limit: usize,
+) -> EdgeKey {
     for _ in 0..=limit {
+        if table.name_of(&ent(0, EntityKey::Edge(e))).is_some() {
+            return e;
+        }
         match body.edge_provenance_of(e) {
             Some(Provenance::SplitEdge { edge }) => e = *edge,
             _ => return e,
@@ -302,12 +312,18 @@ fn name_split_edges_vertices<T: Decide>(
         let mut divided_edges: BTreeSet<EdgeKey> = BTreeSet::new();
         for sb in sides {
             for (e, _) in sb.body.edges() {
-                if matches!(
-                    sb.body.edge_provenance_of(e),
-                    Some(Provenance::SplitEdge { .. })
-                ) {
-                    divided_edges.insert(chase_edge_provenance(
+                // FRESH children only: an edge the target table
+                // already names is the target's own entity, not a
+                // product of THIS split.
+                if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_none()
+                    && matches!(
+                        sb.body.edge_provenance_of(e),
+                        Some(Provenance::SplitEdge { .. })
+                    )
+                {
+                    divided_edges.insert(chase_edge_to_table(
                         sb.body,
+                        target_table,
                         e,
                         sb.body.edges().count(),
                     ));
@@ -318,7 +334,7 @@ fn name_split_edges_vertices<T: Decide>(
             if chord_faces.contains_key(&e) {
                 continue;
             }
-            let root = chase_edge_provenance(body, e, body.edges().count());
+            let root = chase_edge_to_table(body, target_table, e, body.edges().count());
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -363,8 +379,9 @@ fn name_split_edges_vertices<T: Decide>(
             let parent_edge = sides
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => Some(chase_edge_provenance(
+                    Some(Provenance::SplitEdge { edge }) => Some(chase_edge_to_table(
                         sb.body,
+                        target_table,
                         *edge,
                         sb.body.edges().count(),
                     )),
@@ -711,10 +728,15 @@ fn name_boolean_edges<T: Decide>(
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
                 Some(&eb) => ERoot::B(chase_b(eb)?),
-                None => ERoot::A(chase_edge_provenance(body, e, fwd_edges.len() + 8)),
+                None => ERoot::A(chase_edge_to_table(
+                    body,
+                    a.table,
+                    e,
+                    body.edges().count(),
+                )),
             },
             (OperandKeys::Direct, OperandKeys::Absent) => {
-                ERoot::A(chase_edge_provenance(body, e, 8))
+                ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count()))
             }
             (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)?),
             _ => return Err(bug("unsupported operand-key layout")),

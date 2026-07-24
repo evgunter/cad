@@ -525,7 +525,7 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
     assert!(seq.value(_ids[4]).is_some(), "union must succeed");
     assert!(seq.value(_ids[6]).is_some(), "pattern must succeed");
     assert!(seq.value(_ids[9]).is_some(), "revolve must succeed");
-    assert!(seq.value(_ids[11]).is_some(), "split must succeed");
+    assert!(seq.value(_ids[11]).is_some(), "split must succeed: {:?}", seq.nodes.get(&_ids[11]));
     assert!(matches!(
         seq.nodes.get(&_ids[12]),
         Some(NodeResult::Failed(_))
