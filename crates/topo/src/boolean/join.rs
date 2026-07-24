@@ -215,9 +215,6 @@ struct Match {
     cand_slot: usize,
 }
 
-/// The lockstep joining sweep (module docs). Mutates both annotated
-/// clones in `red` in place; returns the completed polygon pairs in
-/// completion order, with [`NullFacePair::Boolean`] records set.
 /// `bool_connect`'s product: the completed pairs plus the per-operand
 /// chord-mef fragment logs (naming emission, M4 PR 3 — `(new face,
 /// divided-from face)` at call-time CLONE keys, A rows in the A-clone
@@ -228,6 +225,9 @@ pub(super) struct Connected {
     pub b_fragments: Vec<(FaceKey, FaceKey)>,
 }
 
+/// The lockstep joining sweep (module docs). Mutates both annotated
+/// clones in `red` in place; returns the completed polygon pairs in
+/// completion order, with [`NullFacePair::Boolean`] records set.
 pub(super) fn bool_connect<T: Decide>(
     red: &mut BooleanReduction<T>,
     a_pristine: &Body<T>,

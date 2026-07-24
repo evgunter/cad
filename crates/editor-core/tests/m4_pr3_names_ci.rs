@@ -40,9 +40,40 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
     h
 }
 
+/// Names-only companion digest (review R11): entry keys excluded —
+/// only node ids, names, and entry shape (unique vs tie width). A
+/// drift HERE is a naming-semantics change; a drift in the full
+/// digest alone is an allocation/replay change. Triage reads both.
+fn digest_names(ev: &Evaluation<f64>) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut feed = |s: &str| {
+        for b in s.bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x1000_0000_01b3);
+        }
+    };
+    for id in &ev.order {
+        feed(&format!("#{id:?}"));
+        if let Some(v) = ev.value(*id) {
+            for (n, e) in v.name_table.iter() {
+                let shape = match e {
+                    editor_core::Entry::Unique(r) => format!("u{}", r.body),
+                    editor_core::Entry::Tied(c) => format!("t{}", c.len()),
+                };
+                feed(&format!("{n:?}={shape};"));
+            }
+        }
+    }
+    h
+}
+
 /// The pinned die digest (update ONLY on a ratified naming change —
 /// this is the replay-identity family's naming member).
 const DIE_TABLE_DIGEST: u64 = 0x8d53_0dcf_2954_07bb;
+
+/// The pinned names-only die digest (R11 companion; see
+/// [`digest_names`]).
+const DIE_NAMES_DIGEST: u64 = 0x015e_a22f_fd6d_b11d;
 
 #[test]
 fn die_name_tables_are_golden() {
@@ -57,6 +88,12 @@ fn die_name_tables_are_golden() {
         DIE_TABLE_DIGEST,
         "die name-table digest drifted: got {:#018x}",
         digest(&ev)
+    );
+    assert_eq!(
+        digest_names(&ev),
+        DIE_NAMES_DIGEST,
+        "die NAMES-ONLY digest drifted (naming semantics changed): got {:#018x}",
+        digest_names(&ev)
     );
 }
 

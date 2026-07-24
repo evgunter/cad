@@ -524,6 +524,12 @@ pub(crate) fn name_boolean<T: Decide>(
             constituents.push(wrap(d, operand_face_name(d)?, EntityKind::Face));
         }
         constituents.sort_unstable();
+        // Review R8: dedup makes the constituent SET the name — TWO
+        // merge groups with the same constituent set would collide
+        // (loudly, at insert). Unreachable in v1 (no eval-level path
+        // mints merges at all); PR 5's declare threading must add a
+        // discriminator if repeated same-source merge sets become
+        // constructible.
         constituents.dedup();
         t.insert(
             name1(EntityKind::Face, node, RoleSeg::Merged(constituents)),
@@ -925,9 +931,12 @@ fn name_boolean_vertices<T: Decide>(
     let mut groups: BTreeMap<(StableName, StableName), Vec<VertexKey>> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
-        // fusion partners (deterministic order: A-side identity wins
-        // when both operands fused here — documented choice, the
-        // result arena keeps A's key space).
+        // fusion partners (deterministic order: KEPT-KEY identity
+        // wins when both operands fused here — `operand_identity`
+        // checks the graft destination first, and the kept key is
+        // A's exactly because `zip_seam` keeps the outer cycle's
+        // vertex; review R9 — the PR 4 Vanished-diagnosis item covers
+        // the retired partner).
         let mut identity = operand_identity(v)?;
         if identity.is_none() {
             for &dead in fused.get(&v).into_iter().flatten() {
