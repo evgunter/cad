@@ -427,3 +427,32 @@ still ff from main (098c4c1) ⇒ gated sha ≡ merge content. Gate
 launched on 136d3db; PR body drafted with the three REPORT lines
 (Merged eval-fixture → PR 5; single-qualifier-flip → PR 4; Declare
 name-level validation → PR 4). PR + merge on gate green.
+
+**STEP review returned (2026-07-24): mergeable-after-fixes; fix
+pass dispatched.** No writer correctness defect — reviewer
+independently confirmed orientation via exact rational signed
+volume computed from emitted file text (cube +1.0, die +0.875,
+kiss +0.875×2) and verified the mapping against the M1 interior-
+left/he_plus contracts. S1 MAJOR (evidence gap, not a bug): the
+orientation axis is invisible to all committed oracles — OCC
+ShapeHealing silently rectifies a fully inverted shell (flag-flip
+experiment: valid=True, POSITIVE volume), truck compares counts
+only ⇒ ruled a committed parse-based signed-volume oracle + flag-
+flip negative control (dyadic fixtures ⇒ f64 exact). S2 "exact
+volume" doc softening + band-headroom argument. S3 check_step.sh
+double-import (positional arg → env var). S4 stale "11-row" text
+(matrix is 13 rows now). S5/S6 latent-door one-liners. Verified
+CLEAN: real printer exact-bits over 40M random patterns + power-
+of-two ulp neighbors; ε-golden hazard does NOT fire (explicit
+uncertainty pin; green at 1e-6/1e-9/1e-12); D9 no-hash-iteration
+grep + non-dyadic byte-identity; all F6 conformance grounds; all
+refusal doors; hermetic skip matrix; +83 dev-only deps, licenses
+clean. **Security-flag triage: FALSE ALARM** — the "deleted test
+file" was the reviewer's OWN uncommitted probe (zz_ convention),
+never in git history (verified --all/main/head); tree pristine at
+b7b382a. **Ops note (reviewer finding 7)**: cross-agent shell
+cross-talk observed — another agent's cargo/git commands briefly
+executed in the review clone's cwd via the shared shell snapshot;
+no tampering (HEAD pinned, status clean, goldens green), but
+reviews should pin HEAD + re-verify goldens at report time, as
+this one did. Meanwhile PR 3 gate still running on 136d3db.
