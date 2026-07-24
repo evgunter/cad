@@ -215,6 +215,16 @@ struct Match {
     cand_slot: usize,
 }
 
+/// `bool_connect`'s product: the completed pairs plus the per-operand
+/// chord-mef fragment logs (naming emission, M4 PR 3 — `(new face,
+/// divided-from face)` at call-time CLONE keys, A rows in the A-clone
+/// arena, B rows in the B-clone arena pre-graft).
+pub(super) struct Connected {
+    pub completed: Vec<CompletedPolygonPair>,
+    pub a_fragments: Vec<(FaceKey, FaceKey)>,
+    pub b_fragments: Vec<(FaceKey, FaceKey)>,
+}
+
 /// The lockstep joining sweep (module docs). Mutates both annotated
 /// clones in `red` in place; returns the completed polygon pairs in
 /// completion order, with [`NullFacePair::Boolean`] records set.
@@ -223,7 +233,7 @@ pub(super) fn bool_connect<T: Decide>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
-) -> Result<Vec<CompletedPolygonPair>, BooleanError> {
+) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
@@ -360,7 +370,11 @@ pub(super) fn bool_connect<T: Decide>(
             count: leftovers,
         }));
     }
-    Ok(completed)
+    Ok(Connected {
+        completed,
+        a_fragments: sa.joiner.take_fragments(),
+        b_fragments: sb.joiner.take_fragments(),
+    })
 }
 
 /// `scanjoin`, germ form (module docs): among all candidate/entry slot

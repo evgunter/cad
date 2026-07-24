@@ -16,15 +16,21 @@ use topo::{Body, BooleanResult, intersect, subtract, union};
 
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
+use crate::names::{self, NameTable};
 use crate::node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 use crate::profile_desc::ProfileDesc;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
-type OpResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
+/// An op's product: the payload plus its eagerly-emitted name table
+/// (N4 — emission lives HERE in the wire layer, spec D4).
+type OpResult<T> = Result<(ValuePayload<T>, Arc<NameTable>), NodeErrorKind>;
+/// A bare payload (datum/profile lanes — empty tables).
+type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
-/// slots.
+/// slots, emitting the node's name table alongside the payload.
 pub(crate) fn run_op<T>(
+    id: RecipeNodeId,
     node: &Node<ProfileDesc>,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -33,15 +39,15 @@ where
     T: Decide + super::ContentBits,
 {
     match node {
-        Node::Datum(d) => wire_datum(d, vals),
-        Node::Profile(desc) => wire_profile(desc),
-        Node::Extrude { profile, .. } => wire_extrude(*profile, results, vals),
-        Node::Revolve { profile, axis, .. } => wire_revolve(*profile, *axis, results, vals),
-        Node::Split { target, tool } => wire_split(*target, *tool, results),
-        Node::Boolean { op, a, b, declare } => wire_boolean(*op, *a, *b, *declare, results),
+        Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
+        Node::Profile(desc) => Ok((wire_profile(desc)?, names::empty())),
+        Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
+        Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
+        Node::Split { target, tool } => wire_split(id, *target, *tool, results),
+        Node::Boolean { op, a, b, declare } => wire_boolean(id, *op, *a, *b, *declare, results),
         Node::Transform { input, .. } => wire_transform(*input, results, vals),
-        Node::Pattern { input, kind, .. } => wire_pattern(*input, kind, results, vals),
-        Node::Declare { pairs } => Ok(ValuePayload::Declarations(pairs.clone())),
+        Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
+        Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
     }
 }
 
@@ -121,7 +127,7 @@ fn need_point3<T: Decide>(
     point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
-fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>) -> OpResult<T> {
+fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>) -> PayloadResult<T> {
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
@@ -137,7 +143,7 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>) -> OpResult<T> {
     }))
 }
 
-fn wire_profile<T: Decide>(desc: &ProfileDesc) -> OpResult<T> {
+fn wire_profile<T: Decide>(desc: &ProfileDesc) -> PayloadResult<T> {
     let validated = desc
         .embed::<T>()
         .validate(Tolerance::get())
@@ -146,6 +152,7 @@ fn wire_profile<T: Decide>(desc: &ProfileDesc) -> OpResult<T> {
 }
 
 fn wire_extrude<T: Decide>(
+    id: RecipeNodeId,
     profile: RecipeNodeId,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -160,10 +167,14 @@ fn wire_extrude<T: Decide>(
     };
     let distance = need_scalar(vals, SlotId::Distance)?;
     let built = extrude(vp, Extrusion::Distance(distance)).map_err(NodeErrorKind::Extrude)?;
-    Ok(ValuePayload::Body(Arc::new(built.body)))
+    // Eager N4 emission from the emitter's own maps, BEFORE the
+    // structural handoff is dropped.
+    let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
 
 fn wire_revolve<T: Decide>(
+    id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
     results: &Results<T>,
@@ -234,10 +245,12 @@ fn wire_revolve<T: Decide>(
         }
     };
     let built = revolve(vp, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
-    Ok(ValuePayload::Body(Arc::new(built.body)))
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
 
 fn wire_split<T: Decide>(
+    id: RecipeNodeId,
     target: RecipeNodeId,
     tool: RecipeNodeId,
     results: &Results<T>,
@@ -260,13 +273,30 @@ fn wire_split<T: Decide>(
         SplitPart::Body(b) => SplitSide::Body(Arc::new(b)),
         SplitPart::Empty => SplitSide::Empty,
     };
-    Ok(ValuePayload::Split {
-        above: side(result.above),
-        below: side(result.below),
-    })
+    let above = side(result.above);
+    let below = side(result.below);
+    let as_body = |s: &SplitSide<T>| match s {
+        SplitSide::Body(b) => Some(Arc::clone(b)),
+        SplitSide::Empty => None,
+    };
+    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let (ab, bb) = (as_body(&above), as_body(&below));
+    let table = names::name_split(
+        id,
+        ab.as_deref(),
+        bb.as_deref(),
+        &result.naming,
+        target,
+        &target_table,
+        &body,
+        *normal,
+    )
+    .map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Split { above, below }, table))
 }
 
 fn wire_boolean<T: Decide>(
+    id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
     b: RecipeNodeId,
@@ -293,16 +323,37 @@ fn wire_boolean<T: Decide>(
         BooleanOp::Intersect => intersect,
         BooleanOp::Subtract => subtract,
     };
-    Ok(ValuePayload::Boolean(
-        match run(&body_a, &body_b).map_err(NodeErrorKind::Boolean)? {
-            BooleanResult::Empty => BooleanValue::Empty,
-            BooleanResult::Body(bb) => BooleanValue::Body {
-                body: Arc::new(bb.body),
-                kind: bb.kind,
-                contacts: Arc::new(bb.contacts),
-            },
-        },
-    ))
+    match run(&body_a, &body_b).map_err(NodeErrorKind::Boolean)? {
+        BooleanResult::Empty => Ok((ValuePayload::Boolean(BooleanValue::Empty), names::empty())),
+        BooleanResult::Body(bb) => {
+            let a_table = Arc::clone(&value_of(results, a)?.name_table);
+            let b_table = Arc::clone(&value_of(results, b)?.name_table);
+            let table = names::name_boolean(
+                id,
+                &bb.body,
+                &bb.naming,
+                &names::OperandCtx {
+                    node: a,
+                    table: &a_table,
+                    body: &body_a,
+                },
+                &names::OperandCtx {
+                    node: b,
+                    table: &b_table,
+                    body: &body_b,
+                },
+            )
+            .map_err(NodeErrorKind::Naming)?;
+            Ok((
+                ValuePayload::Boolean(BooleanValue::Body {
+                    body: Arc::new(bb.body),
+                    kind: bb.kind,
+                    contacts: Arc::new(bb.contacts),
+                }),
+                table,
+            ))
+        }
+    }
 }
 
 fn wire_transform<T: Decide>(
@@ -321,10 +372,18 @@ fn wire_transform<T: Decide>(
     // ORIGIN by `angle`, then translate.
     let map = Affine3::from_parts(Mat3::rotation_about(rot_axis, angle), translation);
     let placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
-    Ok(ValuePayload::Body(Arc::new(placed)))
+    // Identity-preserving pass-through (spec D2): the transform
+    // contributes NO RolePath segment — `transform_rigid` is
+    // key-stable (arenas rewritten in place of a clone), so the
+    // input's table rows hold verbatim: same names, same keys, the
+    // N1 derivation-path semantics (the name still points at the
+    // MINTING node; the placement is recipe context, not identity).
+    let table = Arc::clone(&value_of(results, input)?.name_table);
+    Ok((ValuePayload::Body(Arc::new(placed)), table))
 }
 
 fn wire_pattern<T: Decide>(
+    id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
     results: &Results<T>,
@@ -366,5 +425,10 @@ fn wire_pattern<T: Decide>(
         let placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
         instances.push(Arc::new(placed));
     }
-    Ok(ValuePayload::Instances(instances))
+    // Instance(i) wrapping (A8/N1): every master entity name wraps
+    // per structural index; `transform_rigid` key-stability means
+    // instance keys equal master keys.
+    let master = Arc::clone(&value_of(results, input)?.name_table);
+    let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Instances(instances), table))
 }

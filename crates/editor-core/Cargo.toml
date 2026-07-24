@@ -13,6 +13,7 @@ workspace = true
 # (M4 PR 1 D8; M4 PR 2 D2/D7) run in CI's interval lane.
 interval = [
     "geom-core/interval",
+    "geom-surfaces/interval",
     "profile/interval",
     "sweep/interval",
     "topo/interval",
@@ -24,6 +25,9 @@ interval = [
 # crates gain NO editor-core dependency (the workspace dep direction
 # enforces it).
 geom-core = { path = "../geom-core" }
+# M4 PR 3: the naming layer reads face carrier PLANES (side-of
+# discriminators against cutting carriers, N2) from the result body.
+geom-surfaces = { path = "../geom-surfaces" }
 profile = { path = "../profile" }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }

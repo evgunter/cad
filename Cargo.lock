@@ -234,6 +234,7 @@ name = "editor-core"
 version = "0.0.0"
 dependencies = [
  "geom-core",
+ "geom-surfaces",
  "profile",
  "proptest",
  "rayon",

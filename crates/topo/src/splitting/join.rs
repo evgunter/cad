@@ -198,10 +198,14 @@ impl std::error::Error for SplitJoinError {}
 ///
 /// [`SplitJoinError`] — the body may be left mid-surgery on `Err`
 /// (callers operate on a scratch clone; the public ops discard it).
+/// Chord-mef fragment rows: `(new face, divided-from face)` in mint
+/// order (naming emission, M4 PR 3).
+pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
+
 pub(super) fn split_connect<T: Decide>(
     red: &mut SplitReduction<T>,
     band: Band,
-) -> Result<Vec<CompletedSection>, SplitJoinError> {
+) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
     let exact = order::exact_band().map_err(|_| SplitJoinError::Corrupt)?;
 
     // The minted above-copy set (role resolution is key membership).
@@ -272,7 +276,8 @@ pub(super) fn split_connect<T: Decide>(
             count: st.ends.len(),
         });
     }
-    Ok(st.completed)
+    let fragments = st.joiner.take_fragments();
+    Ok((st.completed, fragments))
 }
 
 /// The point of a vertex.
@@ -325,6 +330,15 @@ pub(crate) struct ChordJoiner {
     /// Faces minted by `join`'s mefs — the sliver (section-polygon-in-
     /// progress) faces `cut` may kill.
     slivers: SecondaryMap<FaceKey, ()>,
+    /// Naming emission (M4 PR 3): every face the chord mefs minted,
+    /// paired with the face it was divided from, in mint order —
+    /// `(new face, divided-from face)` at CALL-TIME keys. Rows are
+    /// historical (a recorded face may later die — slivers killed by
+    /// `cut`, discarded material at finish); consumers filter to the
+    /// entities alive in the body they hold. This is mint-time wiring
+    /// knowledge, recorded so the naming layer never reconstructs
+    /// parentage by inspection (NAMING-DESIGN N4: no post-hoc scans).
+    fragments: Vec<(FaceKey, FaceKey)>,
     /// The run band (ring re-homing containment).
     band: Band,
 }
@@ -350,8 +364,15 @@ impl ChordJoiner {
     pub(crate) fn new(band: Band) -> Self {
         Self {
             slivers: SecondaryMap::new(),
+            fragments: Vec::new(),
             band,
         }
+    }
+
+    /// Consumes the recorded `(new face, divided-from face)` rows
+    /// (naming emission; see the field docs).
+    pub(crate) fn take_fragments(&mut self) -> FragmentRows {
+        core::mem::take(&mut self.fragments)
     }
 }
 
@@ -421,6 +442,7 @@ impl ChordJoiner {
                     he2: next(body, h2)?,
                 })?;
                 self.slivers.insert(created.face, ());
+                self.fragments.push((created.face, oldf));
                 chords.push(created.edge);
                 newf = Some(created.face);
             }
@@ -440,11 +462,24 @@ impl ChordJoiner {
         // Second-chord guard: when the two halves are already adjacent
         // the second mef is skipped (the chord already exists).
         if next(body, next(body, h1)?)? != h2 {
+            // The second chord divides the face `h2` sits on NOW —
+            // after a first mef that is not necessarily `oldf` (`h2`
+            // may have landed in the new face). Capture the owner at
+            // call time, BEFORE the surgery moves loops.
+            let owner = body
+                .get_loop(
+                    body.get_half_edge(h2)
+                        .ok_or(SplitJoinError::Corrupt)?
+                        .parent_loop,
+                )
+                .ok_or(SplitJoinError::Corrupt)?
+                .face;
             let created = body.mef_chord(MefSite::Chords {
                 he1: h2,
                 he2: next(body, h1)?,
             })?;
             self.slivers.insert(created.face, ());
+            self.fragments.push((created.face, owner));
             chords.push(created.edge);
         }
         // Ring re-homing (`laringmv`, the lkemr/ring-placement mirror

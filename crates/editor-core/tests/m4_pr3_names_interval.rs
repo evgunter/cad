@@ -1,0 +1,109 @@
+//! M4 PR 3 naming tests, part 4 (spec D5): f64/Interval agreement —
+//! same verdicts ⇒ IDENTICAL name tables at both scalar types (the Q1
+//! genericity boundary respected). `NameTable` is scalar-independent
+//! (names + arena keys), so the comparison is direct table equality
+//! per node, over a boolean-and-split-bearing corpus document.
+#![cfg(feature = "interval")]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod fixture;
+
+use editor_core::{
+    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
+    evaluate,
+};
+use fixture::{desc, insert, len, scl};
+use geom_core::{Decide, Interval};
+
+fn block(
+    doc: ProfileDoc,
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, z0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        )),
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(dz),
+        },
+    )
+}
+
+/// The corpus: an overlapping union, a through-slot subtract, and a
+/// plane split — all dyadic.
+fn corpus() -> ProfileDoc {
+    let doc = ProfileDoc::empty();
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _union) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: None,
+        },
+    );
+    let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, slot) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, _sub) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: c,
+            b: slot,
+            declare: None,
+        },
+    );
+    let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 0.0, 2.0);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(1.0)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, _split) = insert(
+        doc,
+        Node::Split {
+            target: d,
+            tool: plane,
+        },
+    );
+    doc
+}
+
+fn run<T: Decide + editor_core::ContentBits + Send + Sync>(doc: &ProfileDoc) -> Evaluation<T> {
+    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
+}
+
+#[test]
+fn f64_and_interval_lanes_emit_identical_name_tables() {
+    let doc = corpus();
+    let ef: Evaluation<f64> = run(&doc);
+    let ei: Evaluation<Interval> = run(&doc);
+    assert_eq!(ef.order, ei.order);
+    for id in &ef.order {
+        let vf = ef
+            .value(*id)
+            .unwrap_or_else(|| panic!("f64 node {id:?} failed: {:?}", ef.nodes.get(id)));
+        let vi = ei
+            .value(*id)
+            .unwrap_or_else(|| panic!("interval node {id:?} failed: {:?}", ei.nodes.get(id)));
+        assert_eq!(
+            vf.name_table, vi.name_table,
+            "lane disagreement at node {id:?}"
+        );
+    }
+}

@@ -11,39 +11,7 @@ use crate::expr::{Dimension, Expr};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RecipeNodeId(pub u64);
 
-/// Entity kinds a [`StableName`] can denote (N1: bodies are
-/// first-class alongside faces/edges/vertices).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum EntityKind {
-    /// A whole body.
-    Body,
-    /// A face.
-    Face,
-    /// An edge.
-    Edge,
-    /// A vertex.
-    Vertex,
-}
-
-/// PLACEHOLDER for N1's op-typed `RoleSeg` closed enums (PR 3 lands
-/// the real per-op role vocabularies; this crate only needs the name
-/// SHAPE so `Declare` nodes can carry pairs). Opaque on purpose — no
-/// fake role vocabulary is invented here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RoleSeg(pub u32);
-
-/// N1's stable-name shape, as a placeholder (spec D3): a derivation
-/// path — the minting node plus an op-typed role path. Contains no
-/// floats by construction. Resolution semantics are PR 3/5.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct StableName {
-    /// The entity kind this name denotes (N1's `K`).
-    pub kind: EntityKind,
-    /// The recipe node whose operation minted the entity.
-    pub node: RecipeNodeId,
-    /// The role path within that operation (placeholder segments).
-    pub path: Vec<RoleSeg>,
-}
+pub use crate::names::{EntityKind, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
 /// (spec D5: slots are NAMED, never positional indices).
@@ -55,16 +23,6 @@ pub enum Axis3 {
     Y,
     /// The z component.
     Z,
-}
-
-/// Extrude cap ends — reserved for PR 3's role vocabulary; unused in
-/// PR 1 beyond keeping [`RoleSeg`]'s eventual shape visible.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CapEnd {
-    /// The cap on the profile plane's positive side.
-    Top,
-    /// The cap on the profile plane.
-    Bottom,
 }
 
 /// The regularized boolean operations (F4; kernel semantics in M3's
