@@ -13,3 +13,4 @@
 - [Review and dependency policy](review-and-dependency-policy.md) — reviews must run real e2e demos, not just read diffs; deps fine to add with ~2-week minimum release age
 - [Worktree disk hygiene](worktree-disk-hygiene.md) — each worktree's target/ is 4-8 GB and cargo can't safely share artifacts across parallel builds; remove merged-branch worktrees at every pipeline seam
 - [Subagent death recovery](subagent-death-recovery.md) — resume dead agents from transcript first; isolation worktrees under .claude/worktrees/ survive with uncommitted work; implementers push after every unit
+- [Clone placement](clone-placement.md) — working git clones never in /tmp scratchpad; use ~/.local/share/cad-work/ or .claude/worktrees/; scratchpad = disposable artifacts only
