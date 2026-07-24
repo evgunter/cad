@@ -157,3 +157,12 @@ M2-LOG snapshots assume it):**
 - Transient API-overload (529) kills background agents mid-task;
   resume via SendMessage (transcript + worktree survive), with
   exponential backoff between retries when the overload persists.
+
+**Watchlist-reaction endpoint gotcha (2026-07-24)**: 👍 reactions on
+INLINE PR review comments live under `repos/{r}/pulls/comments/{id}/
+reactions`, NOT `issues/comments/{id}/reactions` — a poller using
+only the issues endpoint silently never fires for inline sign-offs
+(top-level comments work; that asymmetry hid the bug until Evan
+said "added 👍 on your comments!" in prose). The monitor script must
+try the issues endpoint and fall back to the pulls endpoint per
+watched ID.
