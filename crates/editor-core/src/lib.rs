@@ -23,6 +23,8 @@ pub mod expr;
 pub mod names;
 pub mod node;
 pub mod profile_desc;
+pub mod resolve;
+pub mod witness;
 
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
@@ -42,3 +44,13 @@ pub use names::{
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use profile_desc::{ProfileDesc, ProfileDoc};
+pub use resolve::{
+    Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, RecipeEditRef, Resolution,
+    ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness,
+    Tombstone, VerdictFlip, body_name, derivation_nodes, diff_verdicts, edge_name, entity_name,
+    face_name, rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+};
+pub use witness::{
+    BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
+    WitnessBifurcation, WitnessDatum,
+};
