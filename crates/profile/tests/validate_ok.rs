@@ -173,11 +173,15 @@ fn reversal_is_a_bit_exact_involution() {
         rect(0.0, 0.0, 2.0, 1.0),
         circle_h(1.0, -2.0, 0.75),
         rounded_rect(4.0, 3.0, 0.5),
+        common::bracket(),
         lens(),
     ];
     for lp in &loops {
         let back = lp.reversed().reversed();
         assert_eq!(back.vertices.len(), lp.vertices.len());
+        // Declared-tangent joints round-trip exactly too (the reversal
+        // remap is an involution).
+        assert_eq!(back.tangent_joints, lp.tangent_joints);
         for (a, b) in lp.vertices.iter().zip(back.vertices.iter()) {
             assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
             assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());

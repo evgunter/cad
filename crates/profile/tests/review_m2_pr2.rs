@@ -327,10 +327,7 @@ fn near_tangent_join_escalates() {
             chain = chain.declare_tangent();
         }
         profile(vec![
-            chain
-                .line_to(p2(end.x, 3.0))
-                .line_to(p2(0.0, 3.0))
-                .close(),
+            chain.line_to(p2(end.x, 3.0)).line_to(p2(0.0, 3.0)).close(),
         ])
     };
     // phi = 0: exact carrier tangency at the shared vertex -> smooth
@@ -352,7 +349,10 @@ fn near_tangent_join_escalates() {
     // escalation naming the tangency predicate (declaration cannot
     // rescue an in-band margin -- point 2 of the discipline).
     let phi = (10.0 * eps).sqrt();
-    match build(phi, true).validate(tol()).expect_err("near-tangent join") {
+    match build(phi, true)
+        .validate(tol())
+        .expect_err("near-tangent join")
+    {
         ProfileError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("carrier_line_circle"));
         }

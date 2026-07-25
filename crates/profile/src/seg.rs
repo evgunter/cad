@@ -278,7 +278,11 @@ pub(crate) fn joint_tangency<T: Decide>(
             match decide("carrier_circles_identity", d + dr, band)? {
                 Sign::Zero | Sign::Negative => Ok(JointClass::SameCarrier),
                 Sign::Positive => {
-                    match decide("carrier_circles_external", d - (g1.radius + g2.radius), band)? {
+                    match decide(
+                        "carrier_circles_external",
+                        d - (g1.radius + g2.radius),
+                        band,
+                    )? {
                         Sign::Zero => Ok(JointClass::Tangent),
                         // Positive external clearance (disjoint) is
                         // unreachable for carriers sharing a vertex —
@@ -308,13 +312,15 @@ fn line_circle_joint<T: Decide>(
     band: Band,
 ) -> Result<JointClass, Indeterminate> {
     let h = line.unit.perp_dot(g.center - line.a);
-    Ok(match decide("carrier_line_circle", g.radius - h.abs(), band)? {
-        Sign::Zero => JointClass::Tangent,
-        Sign::Positive => JointClass::Transversal,
-        // A definitely-disjoint carrier pair cannot share a vertex —
-        // defensively definite non-tangency.
-        Sign::Negative => JointClass::Transversal,
-    })
+    Ok(
+        match decide("carrier_line_circle", g.radius - h.abs(), band)? {
+            Sign::Zero => JointClass::Tangent,
+            Sign::Positive => JointClass::Transversal,
+            // A definitely-disjoint carrier pair cannot share a vertex —
+            // defensively definite non-tangency.
+            Sign::Negative => JointClass::Transversal,
+        },
+    )
 }
 
 /// The kind of an isolated contact between two segments.

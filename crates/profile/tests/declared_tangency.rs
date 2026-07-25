@@ -178,7 +178,12 @@ fn external_arc_arc_tangency_must_be_declared() {
         .validate(tol())
         .expect_err("undeclared external tangency")
     {
-        ProfileError::UndeclaredTangency { first, second, joint, .. } => {
+        ProfileError::UndeclaredTangency {
+            first,
+            second,
+            joint,
+            ..
+        } => {
             assert_eq!(joint, 1);
             assert_eq!(first.segment_index, 0);
             assert_eq!(second.segment_index, 1);
