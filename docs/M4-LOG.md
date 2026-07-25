@@ -1155,3 +1155,15 @@ bump (Finding 8, one line), D6 three CI rows (round-trip identity,
 #92 black-box appearance metadata at the schema-freeze point
 (opaque bytes, never interpreted), D8 scope walls, D9 standing
 process + A/B protocol.
+
+**#99 dispatched between seams (2026-07-25)**: A/B row 2 —
+difficulty S pre-flip, draw 220 → FABLE (two fable draws so far;
+fair coin). Branch ev/issue99-tour-eps-panic off main. Charter
+framing in the brief: panic is always a bug — outcome must be
+green run or typed refusal naming the profile; honest root-cause
+split (demo data vs kernel escalation) required, minimal kernel
+diff if kernel-side, REPORT prominently. Three lanes now active
+(PR 5 review, #93, #99); memory comfortable (8.1G available at
+dispatch). PR 6 spec fully ratified after two D7 rounds with Evan
+(final: MetaValue tree, serde-native boundary, v-field
+convention).
