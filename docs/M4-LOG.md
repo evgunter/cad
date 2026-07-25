@@ -1049,3 +1049,21 @@ MERGE OF #98 IS HELD until the revision pass lands, renders
 regenerate, and I visually re-inspect the montage. Also: rustfmt
 row on #98 was a formatting-only miss in demo_tripwires.rs;
 orchestrator fixed directly (3ec8b18) — mechanical, no content.
+
+**DEMO REFRESH MERGED (2026-07-25): #98 → main `493ce7b`** on a
+10/10 green matrix at revision head `7cbd781`; closes #91. Final
+shape after Evan's in-chat review round (montage: "looks great"):
+13 panels; pulley DELETED (sheave gained conical rim shoulders —
+one part now carries plane+cylinder+cone+torus, census asserted);
+wedge → quarter-turn chute (C-channel × 270°, Pappus rel 0.0);
+letterforms equal-height; third silhouette shape = letter C
+(diamond dropped — only beveled the H); montage trimmed to
+silhouette3 + heat-sink-9 only (other scenes stay in the script);
+cutaway restaged to face the viewer. Orchestrator visually
+inspected montage/shadow-y/cutaway; Evan approved the montage.
+Main now carries THREE Declare-sensitive pins (crosslap tripwire,
+corner-table tripwire, narrate_naive 4×DescriptionNotAdjacent);
+PR 5 implementer briefed on which should fire (1-2) vs which
+flipping would signal a regression (3). demo-review clone removed.
+Away-channel note: the demo review + revision cycle ran while Evan
+was in-chat; both reports live under ~/.local/share/cad-work/.
