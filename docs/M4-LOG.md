@@ -1014,3 +1014,21 @@ captures); table narration drift (coplanar-touch + inset-overlap
 now union exactly — kernel caught up post-PR 5.5). Adversarial
 reviewer LAUNCHED (10 falsification claims, e2e execution
 required; report to demo-review-report.md).
+
+**Demo review returned (2026-07-25): MERGEABLE.** All 10
+falsification claims executed clean — oracles independently
+recomputed by Fraction integration (C2 = 1593/512, 3-way =
+12321/4096), sheave Pappus re-derived symbolically, C5 asserts
+proven real by tamper test, FreeCAD renders pixel-deterministic
+across sessions, sentinel correctly absent on simulated mid-run
+failure, kernel diff exactly one test file. Five MINOR + four NOTE
+findings; fix pass dispatched with rulings: M1 doc overclaim
+(projectbox 3′-once reality), M2 STEP arm must assert
+Unsupported*-class + planar-must-export (the silent F6-hollowing
+hole — the one finding with teeth), M3 README shadow-PNG caption,
+M4 narrate_naive becomes a real 4×DescriptionNotAdjacent pin
+(fires like a tripwire when Declare glues it), M5 pin the 135, N2
+honest Empty label; N1 implementer's discretion (tighten gate vs
+reword caption, REPORT which); N3/N4 accepted. Merge on green
+Actions after the fix push. Review report:
+~/.local/share/cad-work/demo-review-report.md.
