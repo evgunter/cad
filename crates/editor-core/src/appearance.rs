@@ -232,7 +232,12 @@ pub struct AppearanceLoss {
 
 /// Resolved appearance for one evaluation: per node, entity → its
 /// attributes — the renderer/exporter-facing shape (no table reads
-/// needed downstream). Entity refs are per-THIS-evaluation data (they
+/// needed downstream). Resolved rows carry the typed ATTRS only:
+/// D7 metadata stays name-keyed in the document store (black-box —
+/// merging several names' metadata trees under one entity would
+/// need an interpretation policy the kernel refuses to have; a GUI
+/// reads `Doc::appearance_of(name).metadata` directly). Losses, by
+/// contrast, carry the WHOLE record — nothing is silently dropped. Entity refs are per-THIS-evaluation data (they
 /// die with it, G1); the durable attachment remains the document's
 /// name-keyed store.
 ///
