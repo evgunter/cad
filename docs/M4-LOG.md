@@ -659,3 +659,15 @@ transiently-orphaned surface mid-Euler-op would be strictly worse
 than the leak). R13 boolean-of-boolean exclusion lifts when #90
 merges — seed the naming corpus with the fixture's document shape
 (bank for PR 5/8).
+
+**Ops (2026-07-24, Evan's asks on #88)**: (1) hourly agent check-in
+heartbeat armed + saved as standing memory — sweep every agent lane
+per tick, nudge silent ones (two lost wake-on-completion events
+today motivated it). (2) Hosted Actions diagnosed: runs trigger but
+every job dies in 2s with "recent account payments have failed or
+your spending limit needs to be increased" — still true after Evan
+added budget; told him: retry/fix the payment method and check the
+Actions spending limit is > $0 (budget and spending limit are
+separate knobs). Also flagged: the ci.yml step-import job has never
+executed hosted — expect a shake-out iteration when Actions wakes.
+gate.sh remains the merge gate until a full green hosted run.
