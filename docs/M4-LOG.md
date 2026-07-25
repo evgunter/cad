@@ -980,3 +980,37 @@ regression pin: grandparent case.
 (disposition 2, recursive naming key). PR 5 D7 green-lit to the
 implementer (sequenced last in its plan); watchlist entry
 auto-cleared by the monitor.
+
+**Usage-limit outage + recovery (2026-07-25, ~08:00–15:30Z)**: both
+implementer lanes died at the Fable limit mid-morning; Evan
+re-logged-in ~15:30Z; both resumed from transcript per the standing
+ladder — NOTHING lost (both had pushed; demo lane's push came from
+the hourly-sweep nudge minutes before the kill — the discipline
+paid for itself). WSL RAM mystery solved by an investigator agent:
+the ~5.7G ceiling is WSL2's DEFAULT 50%-of-physical rule (11.75GB
+host), no explicit limit; `memory=10GB` added to
+C:\Users\evgun\.wslconfig at Evan's ask, EFFECTIVE ONLY at his
+next `wsl --shutdown` (he'll restart after current work concludes);
+memory banked — keep 5G discipline until `free -h` shows ~10G.
+
+**DEMO REFRESH IMPLEMENTATION COMPLETE (2026-07-25,
+`ev/m4-demo-refresh` @ `b91f1de`, pushed)**: all #91 picks landed —
+C1 crosslap (JoinDesync-class refusal narrated + THIRD tripwire
+planted pinning that exact class), C2 H×T + 3-way with
+naive-refusal/decoupled-pass pair + 3 shadow-proof renders, C3
+15-op project box (exact dyadic V after EVERY op), C4
+split-of-boolean cutaway (no fallback needed — works on main), C5
+recipe heat sink (recomputed-1/reused-4 + 135/135 names ASSERTED),
+C9 torus-groove sheave (Pappus closed-form rel 2e-16), C10 one-
+session FreeCAD STEP renders (14 planar bodies; montage.png 17
+panels regenerated + visually inspected), tier-3′ modernization
+(clone hack deleted), retirements done (wedge kept). Kernel diff =
+exactly one test file. REPORT items: STEP lane planar-only until M5
+(curved stops refuse typed, narrated); Boolean-of-Pattern not
+wireable in F4 (possible future F4 item); crosslap refuses
+JoinDesync not NonMaximalFaces; FreeCAD offscreen pitfalls fixed
+in-script (incl. discovering the OLD montage had mid-animation
+captures); table narration drift (coplanar-touch + inset-overlap
+now union exactly — kernel caught up post-PR 5.5). Adversarial
+reviewer LAUNCHED (10 falsification claims, e2e execution
+required; report to demo-review-report.md).
