@@ -1193,3 +1193,16 @@ MIN / 3 NOTE, ONE silent deviation (skip-lane tier-3 posture
 unstated), ratings idiom 4 / tests 4 / docs 4. Fix pass also owes
 the stale demo renders (table/montage regeneration). MODEL-AB-LOG
 reference row updated when fix pass concludes.
+
+**#99 implementation complete (2026-07-25, ev/issue99-tour-eps-
+panic @ 4745e9f)**: root cause = DATA bug — bracket fillet via
+point rounded to 1.146 vs exact tangent apex 1.5 − 0.5/√2
+(1.1464466…), arc carrier 2.315e-6 off tangency = genuinely inside
+the carrier_line_circle escalation band at ε=1e-6; the kernel's
+typed escalation was CORRECT, the demo's .expect made it a panic.
+Fix: exact-tangency constant (post-fix margin ~1.1e-16, definite
+Zero at all supported ε), ZERO kernel diff, regression pin runs
+the tour binary at default/1e-6/1e-12. Four pre-existing
+demos/tour clippy lints flagged (on main, untouched). Compact
+blinded review launched (same rubric — A/B row 2 needs comparable
+treatment; review scaled to surface, not rigor).
