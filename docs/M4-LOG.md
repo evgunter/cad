@@ -1067,3 +1067,45 @@ PR 5 implementer briefed on which should fire (1-2) vs which
 flipping would signal a regression (3). demo-review clone removed.
 Away-channel note: the demo review + revision cycle ran while Evan
 was in-chat; both reports live under ~/.local/share/cad-work/.
+
+**PR 5 implementation COMPLETE (2026-07-25, `ev/m4-5-geomsource` @
+`a68e8e5`, pushed, main/#98 merged in; adversarial review
+launched)**: D1–D7 all done. GeomSource as topo side records with
+lowered pure-data fields (R1 accepted: layering necessity;
+Minted{index} = per-evaluation mint-order identity per the spec's
+own caveat); plane_eq/merge migrated to (GeomSource, orient) with
+the debug bits-agree assertion; tripwire allowlist EMPTY (memo.rs
+retained on its bit-hashing non-consumer justification — R3
+accepted); Declare threading LIVE end-to-end (die = 21 declared
+pips through 77 nodes, exact oracle); first eval-level Merged rows
+— PR 3 R4 + R8 and PR 4 Finding 10 all discharged (R8 collision =
+loud typed refusal, per-group discriminator BANKED — R4); D7
+landed as disposition 2 recursive naming key, naming miss = full
+op re-run (R8 accepted — emission not separable; D9 makes re-run
+bit-identical), both pins in. **R2 accepted and flagged for the PR
+body: the retirement is a designed NARROWING** — undeclared
+value-equal flush booleans now refuse typed at the coincidence
+door (the M3 bit rung was doing real, now-forbidden work); whole
+corpus + demos migrated to declared intent; goldens re-pinned with
+row-shape verification. **Corner-table PRIMARY WIRE FIRED** —
+four-leg corner-aligned table tier 3 GREEN, demo stop ships it;
+SECONDARY GAP CLOSED (in-plane seam edges consumed by the declared
+glue) — this supersedes the 2026-07-23 corner-table gap note
+above. **Crosslap wire could NOT fire (R7)**: the mate is a pure
+REST contact — M3 envelope (iii) join-stage gap, same frontier as
+the declared corner-flush REST pin; wire re-armed honestly as
+crosslap_rest.rs pinning both doors; join-stage REST lane BANKED
+(with #93 as the other join-stage kernel item). R9 accepted
+(ContactRecords carry same-operand vf rows; docs updated). R10 =
+pre-existing tour panic at ε=1e-6, filed as #99. Battery:
+1252/0 + 1252/0 + interval 1396/0, fmt/clippy clean, tour green
+default ε. Reviewer attack list: false-declaration laundering
+(both doors + orient/transform/carried paths), rung-(b) no-silent-
+widening, GeomSource composition + Minted determinism under
+parallel schedule, D7 tamper + re-run bit-identity + memoized
+recursion, R5 emit_topo machinery (PRIME: junction naming,
+skip-and-record, N4 totality), N5-verbatim Declare doors,
+tripwire-catches-smuggled-consumer, golden re-pin shape honesty,
+all showcases executed. First review with the fixed code-quality
+rubric (PR 5 = pre-experiment Fable reference row for
+docs/MODEL-AB-LOG.md).
