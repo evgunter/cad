@@ -77,11 +77,21 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     // ---- Geometry arenas (slot order). ----
     let mut points: SecondaryMap<PointKey, PointKey> = SecondaryMap::new();
     for (k, p) in src.points.iter() {
-        points.insert(k, dst.points.insert(*p));
+        let dk = dst.points.insert(*p);
+        points.insert(k, dk);
+        // GeomSource rows ride every graft (N6: identity carried with
+        // the description, exactly like provenance).
+        if let Some(gs) = src.point_sources.get(k) {
+            dst.point_sources.insert(dk, gs.clone());
+        }
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
     for (k, s) in src.surfaces.iter() {
-        surfaces.insert(k, dst.surfaces.insert(*s));
+        let dk = dst.surfaces.insert(*s);
+        surfaces.insert(k, dk);
+        if let Some(gs) = src.surface_sources.get(k) {
+            dst.surface_sources.insert(dk, gs.clone());
+        }
     }
 
     // ---- Topology arenas, pass 1: clone with source-internal keys
@@ -109,7 +119,11 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
                 CurveGeom::NullScaffold(attr)
             }
         };
-        curves.insert(k, dst.curves.insert(mapped));
+        let dk = dst.curves.insert(mapped);
+        curves.insert(k, dk);
+        if let Some(gs) = src.curve_sources.get(k) {
+            dst.curve_sources.insert(dk, gs.clone());
+        }
     }
     let mut half_edges: SecondaryMap<HalfEdgeKey, HalfEdgeKey> = SecondaryMap::new();
     for (k, he) in src.half_edges.iter() {

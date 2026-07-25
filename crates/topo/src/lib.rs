@@ -141,6 +141,7 @@ pub mod null;
 pub mod props;
 pub mod provenance;
 pub mod revert;
+pub mod source;
 #[cfg(test)]
 mod review_m0_pr7;
 #[cfg(test)]
@@ -188,6 +189,7 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
+pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionPolygon,
