@@ -47,6 +47,13 @@ Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135) |
 
+Three committed **shadow proofs** ride beside the montage panels
+(`renders/silhouette3_shadow_{z,x,y}.png`, standalone — excluded from
+the montage): the 3-way solid viewed straight down each axis renders
+an H (z), a T (x), and the 45° chamfer diamond (y) — the y-view
+**clipped by the solid's extents**, which is the honest form of the
+third-shadow claim.
+
 Retired at the #91 refresh: `donut` → sheave (the torus surface kind
 now rides in a real part), `openbox` → project box, `voidbox` panel →
 cutaway (the two-shell `Voided` story stays as live narration in the

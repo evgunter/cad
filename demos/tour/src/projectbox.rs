@@ -4,7 +4,8 @@
 //! interior screw bosses unioned to the floor (inset-overlap, the
 //! table-leg pattern), then 4 square pilot pockets into the boss tops:
 //! 15 sequential ops, every one against the exact dyadic volume
-//! oracle, tier 3′ with declared contacts after every op.
+//! oracle (a volume + Seamed-kind gate per op; tier 3′ with declared
+//! contacts runs once, on the FINAL body, in `crate::run_body`).
 //!
 //! Square-only honesty: real enclosures want ROUND bosses and drilled
 //! pilot holes — cylindrical boolean operands are M5 (`gate_planar`
@@ -76,8 +77,8 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
     let body_for_cutaway = acc.body.clone();
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
-         4 boss unions -> 4 pocket subtracts), exact volume after every op, final \
-         V = {vol}; square-only honesty: round bosses/pilot holes are M5 \
+         4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
+         after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are M5 \
          (gate_planar refuses curved operands); no two operand planes coincide \
          anywhere in the chain (the #91 design rule)"
     );

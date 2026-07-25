@@ -82,7 +82,8 @@ pub fn stops() -> Vec<Stop> {
     let b_lifted = topo::transform_rigid(&b.body, &lift).expect("lift beam B");
 
     let note = format!(
-        "each beam is a boolean RESULT (notch subtract, volume exact {}); the \
+        "each beam is a boolean RESULT (notch subtract, volume {} — observed \
+         bit-exact, gated 1e-9); the \
          assembled union refuses typed and is tripwired for M4 PR 5: {refusal}",
         BEAM_VOL - NOTCH_VOL
     );
@@ -117,7 +118,7 @@ pub fn stops() -> Vec<Stop> {
                 // The lifted copy is a TRANSFORM result, not a boolean
                 // result — its contacts don't survive the move; it
                 // validates through the plain tier-3 gate.
-                SceneBody::plain("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
+                SceneBody::plain_planar("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
             ],
         },
     ]

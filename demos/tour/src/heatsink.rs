@@ -179,6 +179,13 @@ pub fn stops() -> Vec<Stop> {
     }
 
     // Stable names survive the structural edits (N1 Instance(i)).
+    assert_eq!(
+        names5.len(),
+        135,
+        "the count-5 pattern name table is pinned at 135 entries; a \
+         change means the naming emission vocabulary moved - update \
+         this pin deliberately"
+    );
     let names9 = &evs[2].1.value(r.pattern).expect("pattern@9").name_table;
     let survived = names5
         .iter()
@@ -218,7 +225,7 @@ pub fn stops() -> Vec<Stop> {
                 delta: 1e-2,
                 note: Some(format!(
                     "{recompute_story}; fins union-inset into the base (1/16 overlap, \
-                     exact volume {}); the union-to-solid step is demo-side — a \
+                     volume {} — observed bit-exact, gated 1e-9); the union-to-solid step is demo-side — a \
                      Boolean recipe node cannot consume Pattern Instances today (F4)",
                     BASE_VOL + n as f64 * FIN_GAIN
                 )),

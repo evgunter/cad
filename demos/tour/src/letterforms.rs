@@ -125,24 +125,56 @@ fn narrate_naive() {
     let BooleanResult::Body(bb) = r else {
         panic!("naive 2-way cannot be empty");
     };
-    let t3 = validate_pseudomanifold(&bb.body, &bb.contacts);
-    println!(
-        "   NAIVE H x T (T stem spanning exactly H's bar band, y in [1.25, 1.75]):\n\
-         \x20     tiers 1-2 pass, but tier 3' refuses on the shared-plane seam edges:\n\
-         \x20     {}",
-        match &t3 {
-            Ok(()) => "Ok — the flush-plane gap CLOSED; update this narration".to_string(),
-            Err(errs) => format!("{} errors, all {:?}-class", errs.len(),
-                errs.first().map(|e| format!("{e:?}").chars().take(24).collect::<String>())),
-        }
-    );
-    match try_intersect(&bb.body, &diamond_prism()) {
-        Err(e) => println!(
-            "      and its 3-way consumer refuses typed: {e:?}\n\
-             \x20     — value-equality never glues (ladder rung (b)); M4 PR 5's Declare is\n\
-             \x20     what makes INTENTIONAL flush contact glue"
+    // A real PIN, not just narration (#91 review M4): exactly FOUR
+    // tier-3' failures, every one the DescriptionNotAdjacent class
+    // (the flush-plane seam-edge gap). When M4 PR 5's Declare makes
+    // the flush variant glue, these asserts fire like a tripwire -
+    // upgrade this demo to the declared-coincidence before/after then.
+    match validate_pseudomanifold(&bb.body, &bb.contacts) {
+        Ok(()) => panic!(
+            "TRIPWIRE (not a regression): the NAIVE coincident-plane H x T \
+             now passes tier 3' - the flush-plane gap closed. Upgrade the \
+             silhouette narration to the declared-coincidence before/after."
         ),
-        Ok(_) => println!("      3-way on the naive result now succeeds — update this narration"),
+        Err(errs) => {
+            assert_eq!(
+                errs.len(),
+                4,
+                "the naive-variant tier-3' failure count moved off the \
+                 pinned 4: {errs:?}"
+            );
+            for e in &errs {
+                assert!(
+                    format!("{e:?}").contains("DescriptionNotAdjacent"),
+                    "a naive-variant tier-3' failure moved off the pinned \
+                     DescriptionNotAdjacent class: {e:?}"
+                );
+            }
+            println!(
+                "   NAIVE H x T (T stem spanning exactly H's bar band, y in [1.25, 1.75]):\n\
+                 \x20     tiers 1-2 pass, but tier 3' refuses on the shared-plane seam edges:\n\
+                 \x20     4 errors, all DescriptionNotAdjacent (pinned)"
+            );
+        }
+    }
+    match try_intersect(&bb.body, &diamond_prism()) {
+        Err(e) => {
+            assert!(
+                format!("{e:?}").contains("NonMaximalFaces"),
+                "the naive 3-way refusal moved off the pinned \
+                 NonMaximalFaces class: {e:?}"
+            );
+            println!(
+                "      and its 3-way consumer refuses typed: {e:?}\n\
+                 \x20     - value-equality never glues (ladder rung (b)); M4 PR 5's Declare is\n\
+                 \x20     what makes INTENTIONAL flush contact glue"
+            );
+        }
+        Ok(_) => panic!(
+            "TRIPWIRE (not a regression): the 3-way on the NAIVE result now \
+             succeeds - the flush-plane gap closed downstream; upgrade this \
+             narration."
+        ),
     }
 }
 
@@ -209,7 +241,9 @@ pub fn stops() -> Vec<Stop> {
                     — the tour's first `intersect`",
             ops: "extrude H (xy sketch, +z) x extrude T (yz sketch, +x) -> 1 intersect node",
             delta: 1e-2,
-            note: Some(format!("volume exact {V_2WAY}; {naive_note}")),
+            note: Some(format!(
+                "volume {V_2WAY} (observed bit-exact, gated 1e-9); {naive_note}"
+            )),
             view: View { elev: 24.0, azim: -50.0, up: 'z' },
             bodies: vec![SceneBody::seamed(
                 "silhouette",
@@ -227,8 +261,9 @@ pub fn stops() -> Vec<Stop> {
             ops: "silhouette result x extrude diamond (zx sketch, +y) -> 1 more intersect node",
             delta: 1e-2,
             note: Some(format!(
-                "volume exact {V_3WAY}; the chamfer crossing is coplanarity-free, so \
-                 the boolean-of-boolean runs the clean lane"
+                "volume {V_3WAY} (observed bit-exact, gated 1e-9); the chamfer \
+                 crossing is coplanarity-free, so the boolean-of-boolean runs \
+                 the clean lane"
             )),
             view: View { elev: 24.0, azim: -50.0, up: 'z' },
             bodies: vec![SceneBody::seamed(

@@ -38,12 +38,20 @@ pub fn try_intersect(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>,
 // the kernel's own `BooleanResult`).
 #[allow(clippy::large_enum_variant)]
 pub enum Verdict {
-    Good(BooleanBody<f64>),
+    /// The bool records whether the volume matched the oracle
+    /// BIT-EXACTLY (#91 review N1: the gate is 1e-9 because the
+    /// table's non-dyadic dims carry a few-ulp integration gap;
+    /// dyadic scenes are observed bit-exact and say so).
+    Good(BooleanBody<f64>, bool),
     /// Op "succeeded" (tier 1+2 legal) with the WRONG volume — the
     /// silent wrong-component defect class (extinct since the PR 5
     /// fix pass; the oracle stays armed anyway).
     Wrong(f64, BooleanResultKind),
     Refused(BooleanError),
+    /// The op returned the typed EMPTY success (F8: the empty set is
+    /// a value) — no tour scene expects one, so it gets its own
+    /// honest label instead of masquerading as a refusal.
+    Empty,
 }
 
 pub fn check(r: Result<BooleanResult<f64>, BooleanError>, expected: f64) -> Verdict {
@@ -53,24 +61,33 @@ pub fn check(r: Result<BooleanResult<f64>, BooleanError>, expected: f64) -> Verd
                 .expect("mass properties")
                 .volume;
             if (v - expected).abs() <= 1e-9 {
-                Verdict::Good(b)
+                Verdict::Good(b, v == expected)
             } else {
                 Verdict::Wrong(v, b.kind)
             }
         }
-        Ok(BooleanResult::Empty) => Verdict::Refused(BooleanError::UnrepresentableResult),
+        Ok(BooleanResult::Empty) => Verdict::Empty,
         Err(e) => Verdict::Refused(e),
     }
 }
 
 pub fn describe(v: &Verdict, expected: f64) -> String {
     match v {
-        Verdict::Good(b) => format!("OK (kind {:?}, volume exact {expected})", b.kind),
+        Verdict::Good(b, bit_exact) => format!(
+            "OK (kind {:?}, volume = {expected}, {})",
+            b.kind,
+            if *bit_exact {
+                "observed bit-exact (gated 1e-9)"
+            } else {
+                "within 1e-9 of the oracle"
+            }
+        ),
         Verdict::Wrong(vol, kind) => format!(
             "SILENT WRONG RESULT (kind {kind:?}): tier 1+2 passed but volume = {vol} \
              instead of {expected} — caught by the tour's volume oracle"
         ),
         Verdict::Refused(e) => format!("typed refusal (fail-loud): {e:?}"),
+        Verdict::Empty => "typed EMPTY success (empty result - unexpected in this scene)".to_string(),
     }
 }
 
@@ -78,7 +95,7 @@ pub fn describe(v: &Verdict, expected: f64) -> String {
 /// with the failure narrated in the panic.
 pub fn expect_seamed(what: &str, v: Verdict, expected: f64) -> BooleanBody<f64> {
     match v {
-        Verdict::Good(b) => {
+        Verdict::Good(b, _) => {
             assert_eq!(
                 b.kind,
                 BooleanResultKind::Seamed,

@@ -64,8 +64,8 @@ pub fn stops(boxbody: &topo::Body<f64>) -> Vec<Stop> {
         // ride it, so both halves go through the plain tier-3 gate.
         view: View { elev: 26.0, azim: -125.0, up: 'z' },
         bodies: vec![
-            SceneBody::plain("cutaway_above", [0.40, 0.60, 0.72], moved_above),
-            SceneBody::plain("cutaway_below", [0.78, 0.60, 0.35], moved_below),
+            SceneBody::plain_planar("cutaway_above", [0.40, 0.60, 0.72], moved_above),
+            SceneBody::plain_planar("cutaway_below", [0.78, 0.60, 0.35], moved_below),
         ],
     }]
 }

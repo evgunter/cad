@@ -34,15 +34,34 @@ struct SceneBody {
     contacts: Option<ContactRecords>,
     /// Base RGB for the render manifest.
     color: [f64; 3],
+    /// Whether STEP export MUST succeed for this body (#91 review M2:
+    /// every all-planar body is inside the writer's analytic subset,
+    /// so a refusal there is a regression that fails the tour, never
+    /// a silently hollowed F6 dogfood). Boolean results are always
+    /// planar today (`gate_planar`); curved sweeps are the honest
+    /// refusals until the M5 arms.
+    step_expected: bool,
 }
 
 impl SceneBody {
+    /// A (possibly curved) non-boolean body: STEP is attempted and a
+    /// typed analytic-subset refusal is narration, not failure.
     fn plain(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
         Self {
             name: name.into(),
             body,
             contacts: None,
             color,
+            step_expected: false,
+        }
+    }
+
+    /// An all-planar non-boolean body (split halves, transformed
+    /// planar bodies): STEP export is REQUIRED to succeed.
+    fn plain_planar(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
+        Self {
+            step_expected: true,
+            ..Self::plain(name, color, body)
         }
     }
 
@@ -57,6 +76,7 @@ impl SceneBody {
             body,
             contacts: Some(contacts),
             color,
+            step_expected: true,
         }
     }
 }
@@ -182,14 +202,33 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
             println!("   [{label}] exported {stl_name} + {step_name}");
             Some(step_name)
         }
-        Err(e) => {
+        // Only the analytic-subset class is an acceptable refusal, and
+        // only on bodies not known planar (#91 review M2); anything
+        // else - or a refusal on a planar body - fails the tour loud.
+        Err(
+            e @ (step_export::StepExportError::UnsupportedSurface { .. }
+            | step_export::StepExportError::UnsupportedCurve { .. }),
+        ) => {
+            assert!(
+                !sb.step_expected,
+                "{label}: this body is all-planar and MUST export STEP, \
+                 but the writer refused: {e:?}"
+            );
             println!(
                 "   [{label}] exported {stl_name}; STEP refused typed ({e:?}) — \
                  the writer's analytic subset is planar until M5"
             );
             None
         }
+        Err(other) => panic!(
+            "{label}: STEP export failed OUTSIDE the analytic-subset \
+             refusal class: {other:?}"
+        ),
     };
+    assert!(
+        !(sb.step_expected && step.is_none()),
+        "{label}: STEP expected but not produced"
+    );
 
     ManifestBody {
         stl: stl_name,

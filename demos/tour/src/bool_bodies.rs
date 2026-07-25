@@ -108,7 +108,8 @@ fn die() -> (topo::BooleanBody<f64>, String) {
     let acc = acc.expect("21 pips");
     let note = format!(
         "21 sequential single-ring pip subtracts across ALL SIX faces (opposite \
-         faces sum to 7), exact volume after every op, final V = {}; tier 3' runs \
+         faces sum to 7), volume matches the dyadic oracle after every op \
+         (observed bit-exact, gated 1e-9), final V = {}; tier 3' runs \
          on the RESULT with its declared contacts (the #91 tier-3' modernization)",
         8.0 - 21.0 * 0.25 * 0.25 * 0.125
     );
@@ -190,7 +191,7 @@ fn table() -> (topo::BooleanBody<f64>, String) {
         "three variants attempted — (1) leg EXACTLY coplanar-touching the underside \
          (shared value {}): {}; (2) leg inset, overlapping 0.05 into the top: {}; \
          (3) SHIPPED: legs straddling the top's corners (shared corner values), \
-         each seam crossing underside + two side faces: exact",
+         each seam crossing underside + two side faces: within the 1e-9 oracle gate",
         TOP_Z.0,
         describe(&coplanar, top_vol() + leg_vol(TOP_Z.0)),
         describe(&overlap, top_vol() + leg_vol(TOP_Z.0)),
@@ -218,7 +219,7 @@ pub fn voidbox_narration() {
     let outer = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let inner = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5));
     match check(crate::booleans::try_subtract(&outer, &inner), 7.0) {
-        Verdict::Good(b) => {
+        Verdict::Good(b, _) => {
             assert_eq!(b.kind, BooleanResultKind::Voided);
             assert_eq!(b.body.shells().count(), 2);
             println!(
