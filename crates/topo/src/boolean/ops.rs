@@ -101,6 +101,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
+use crate::geometry::SurfaceKey;
 use crate::props::mass_properties_with;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{validate, validate_closed};
@@ -335,13 +336,7 @@ fn boolean_op<T: Decide>(
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
     }
-    let declared_pairs = surviving_declared_pairs(
-        &body,
-        decls,
-        &KeyView::Direct,
-        &KeyView::Graft(&fin.graft),
-        &desc,
-    );
+    let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs)
         .map_err(BooleanError::Merge)?;
@@ -734,26 +729,33 @@ fn remap_contacts<T: Real>(
     out
 }
 
-/// The declared face pairs that survive into result keys (M4 PR 5):
-/// operand views first, then the descendant chase. A pair with a
-/// consumed side licenses nothing and drops — its contact material
-/// did not survive the op (the same consumed-record rule as contact
-/// rows); resolution-level dangling was already refused at the door
+/// The declared face pairs lowered to SURVIVING result SURFACE pairs
+/// (M4 PR 5): the equivalence rides surfaces because fragments
+/// inherit their parent's surface key — face-key churn (a declared
+/// face whose original key died with a discarded fragment) cannot
+/// strand the intent as long as any fragment keeps the surface
+/// alive. A pair with a consumed side (surface gone from the result)
+/// licenses nothing and drops — its contact material did not survive
+/// the op (the same consumed-record rule as contact rows);
+/// resolution-level dangling was already refused at the door
 /// (`validate_declarations`).
-fn surviving_declared_pairs<T: Real>(
-    body: &Body<T>,
+fn declared_surface_pairs<T: Real>(
+    result: &Body<T>,
+    a: &Body<T>,
+    b: &Body<T>,
     decls: &BooleanDeclarations,
-    a_view: &KeyView<'_>,
-    b_view: &KeyView<'_>,
-    desc: &Descendants,
-) -> Vec<(FaceKey, FaceKey)> {
+    graft: &GraftMap,
+) -> Vec<(SurfaceKey, SurfaceKey)> {
     decls
         .coincident_faces
         .iter()
         .filter_map(|&(fa, fb)| {
-            let fa = desc.live_face(body, a_view.face(fa)?)?;
-            let fb = desc.live_face(body, b_view.face(fb)?)?;
-            (fa != fb).then_some((fa, fb))
+            // A-clone surface keys ARE result keys (carve/clone
+            // preserve them); B bridges through the graft.
+            let ka = a.get_face(fa)?.surface;
+            let kb = graft.surfaces.get(b.get_face(fb)?.surface).copied()?;
+            (result.get_surface(ka).is_some() && result.get_surface(kb).is_some() && ka != kb)
+                .then_some((ka, kb))
         })
         .collect()
 }
@@ -957,13 +959,8 @@ fn fallback<T: Decide>(
                 BooleanOp::Subtract => BooleanResultKind::Voided,
                 _ => BooleanResultKind::Assembly,
             };
-            let declared_pairs = surviving_declared_pairs(
-                &body,
-                decls,
-                &KeyView::Direct,
-                &KeyView::Graft(&graft),
-                &Descendants::default(),
-            );
+            let declared_pairs =
+                declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let merged = body
                 .merge_coplanar_faces_declared(&declared_pairs)
                 .map_err(BooleanError::Merge)?;

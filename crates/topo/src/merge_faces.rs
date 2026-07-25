@@ -96,11 +96,12 @@ pub enum MergeCoplanarError {
         /// The refusing operator's error.
         error: EulerOpError,
     },
-    /// A declared face pair references a key that does not resolve, or
-    /// a non-plane face (M4 PR 5) — a caller bug, refused up front.
+    /// A declared surface pair references a key that does not
+    /// resolve, or a non-plane surface (M4 PR 5) — a caller bug,
+    /// refused up front.
     InvalidDeclaration {
-        /// The offending face key.
-        face: FaceKey,
+        /// The offending surface key.
+        surface: SurfaceKey,
         /// What was wrong.
         what: &'static str,
     },
@@ -155,9 +156,9 @@ impl core::fmt::Display for MergeCoplanarError {
                  one face — unsupported configuration, refused"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
-            Self::InvalidDeclaration { face, what } => write!(
+            Self::InvalidDeclaration { surface, what } => write!(
                 f,
-                "merge_coplanar_faces: invalid declared pair at face {face:?}: {what}"
+                "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
             ),
             Self::DeclarationContradicted { diag } => write!(
                 f,
@@ -260,16 +261,17 @@ impl<T: Decide> Body<T> {
         self.merge_coplanar_faces_declared(&[])
     }
 
-    /// [`Body::merge_coplanar_faces`] with declared coincident face
-    /// pairs (M4 PR 5, F5): each pair's faces are declared to lie in
-    /// one plane by recipe intent — their SURFACE keys become
-    /// equivalent for the adjacency test (fragments inherit keys, so
-    /// fragments are covered), verified at each meeting edge through
-    /// `plane_eq`'s declared rung (contradiction refuses typed).
-    /// Same-source surfaces (N6) glue with zero declarations — the
-    /// retired bit rung's replacement.
+    /// [`Body::merge_coplanar_faces`] with declared coincident
+    /// SURFACE pairs (M4 PR 5, F5): each pair's surfaces are declared
+    /// to describe one plane by recipe intent — they become
+    /// equivalent for the adjacency test (fragments inherit surface
+    /// keys, so every fragment of a declared face is covered),
+    /// verified at each meeting edge through `plane_eq`'s declared
+    /// rung (contradiction refuses typed). Same-source surfaces (N6)
+    /// glue with zero declarations — the retired bit rung's
+    /// replacement.
     ///
-    /// A declared pair whose faces never meet at an edge licenses
+    /// A declared pair whose surfaces never meet at an edge licenses
     /// nothing and is a no-op (the equivalence is consulted only
     /// across shared edges); a pair whose keys do not resolve is a
     /// typed refusal.
@@ -279,32 +281,30 @@ impl<T: Decide> Body<T> {
     /// [`MergeCoplanarError`], the body untouched in every case.
     pub fn merge_coplanar_faces_declared(
         &mut self,
-        declared: &[(FaceKey, FaceKey)],
+        declared: &[(SurfaceKey, SurfaceKey)],
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
         // ---- Declared pairs: validate, then class the surfaces. ----
-        let planar_key = |body: &Self, f: FaceKey| -> Result<SurfaceKey, MergeCoplanarError> {
-            let face = body
-                .get_face(f)
-                .ok_or(MergeCoplanarError::InvalidDeclaration {
-                    face: f,
-                    what: "declared face key does not resolve",
-                })?;
-            match body.get_surface(face.surface) {
-                Some(Surface::Plane { .. }) => Ok(face.surface),
-                _ => Err(MergeCoplanarError::InvalidDeclaration {
-                    face: f,
-                    what: "declared face is not a plane",
+        let planar = |body: &Self, k: SurfaceKey| -> Result<(), MergeCoplanarError> {
+            match body.get_surface(k) {
+                Some(Surface::Plane { .. }) => Ok(()),
+                Some(_) => Err(MergeCoplanarError::InvalidDeclaration {
+                    surface: k,
+                    what: "declared surface is not a plane",
+                }),
+                None => Err(MergeCoplanarError::InvalidDeclaration {
+                    surface: k,
+                    what: "declared surface key does not resolve",
                 }),
             }
         };
         let mut eq = DeclaredSurfaceEq::default();
-        for &(f1, f2) in declared {
-            let k1 = planar_key(self, f1)?;
-            let k2 = planar_key(self, f2)?;
+        for &(k1, k2) in declared {
+            planar(self, k1)?;
+            planar(self, k2)?;
             eq.union(k1, k2);
         }
         let declared_ctx = if eq.is_empty() {

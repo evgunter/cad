@@ -55,6 +55,10 @@ pub(super) struct GraftMap {
     pub faces: SecondaryMap<FaceKey, FaceKey>,
     /// Source edge → result edge (naming emission, M4 PR 3).
     pub edges: SecondaryMap<EdgeKey, EdgeKey>,
+    /// Source surface → result surface (M4 PR 5: declared-pair
+    /// equivalences ride surfaces — fragments inherit surface keys,
+    /// so the surface bridge survives fragment-key churn).
+    pub surfaces: SecondaryMap<SurfaceKey, SurfaceKey>,
 }
 
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
@@ -86,8 +90,8 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
         }
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
-    for (k, s) in src.surfaces.iter() {
-        let dk = dst.surfaces.insert(*s);
+    for (k, sfc) in src.surfaces.iter() {
+        let dk = dst.surfaces.insert(*sfc);
         surfaces.insert(k, dk);
         if let Some(gs) = src.surface_sources.get(k) {
             dst.surface_sources.insert(dk, gs.clone());
@@ -317,5 +321,6 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
         vertices,
         faces,
         edges,
+        surfaces,
     })
 }
