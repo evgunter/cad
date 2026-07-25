@@ -334,3 +334,14 @@ contract it builds on.
   effect on evaluation or certification. The kernel-side "should K
   itself be larger" question stays separate, gated on the M5 exit
   K-snapshot (#89 remains the tracking handle).
+- **Painted operands through booleans** — from #92 (Evan, 2026-07-25):
+  joining painted bodies never errors (resolves-anywhere semantics;
+  paint keeps resolving on the operand node). The GUI renders the
+  displayed node's appearance, so paint-what-you-see always works;
+  when a boolean is appended above appearance-carrying names, the
+  PR 4 suggestion ladder surfaces one-click Rebind offers for the
+  wrapping derivations (recorded intent). The industry default —
+  silently following faces via topological-naming heuristics — is
+  exactly the N5-banned shape; if one-click proves too manual, a
+  "carry appearance through this boolean" policy can enter the N5
+  menu as its own ratification.
