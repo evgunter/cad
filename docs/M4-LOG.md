@@ -1333,3 +1333,26 @@ case, Newell-predicate soundness + Interval escalation, centroid
 boundary certification, doubly-nested rehome case, golden
 stability, declared-arm truth). Three lanes now: PR 6, #101,
 #93-review.
+
+**#101 implementation COMPLETE (2026-07-25, ev/issue101-declared-
+tangency @ b76834f, pushed)**: all 5 ratified points — per-junction
+classifier reusing existing carrier predicates verbatim (zero new
+ε), UndeclaredTangency with repair menu, TangencyContradicted
+(verified never trusted), LoopBuilder::fillet (bit-exact on dyadic
+right angles, declares by construction) + declare_tangent,
+persistence keys the flags. Migrations: bracket → constructor, 11
+corpus fixtures declared, free arcs verified transversal +
+untouched, no unintended definite-Zero found. Batteries green
+(1267/1412 new baselines; tour + eps_regression 3/3). Rulings
+R1-R6 ACCEPTED: R1 same-carrier = identity not tangency (declared
+cocircular/collinear joints refuse with same_carrier:true; two-arc
+circles stay legal — spec refinement, credit to implementer); R2
+cusps classify Tangent (smoothness = direction question, additive
+later); R3 pub(crate) + future public wrapper for #104; R4
+line/line fillet scope (arc-leg = sugar follow-up, noted on #104);
+R5 intent judgments (reviewer spot-checks two); R6 DESIGN.md sync
+→ PR 8 exit-sweep obligation. Blinded reviewer LAUNCHED (rubric;
+attack: narrowing holes at every door, verification laundering via
+in-band, same-carrier gate edge cases, fillet degeneracies,
+migration intent honesty, free-arc classification, predicate
+discipline). Foreground-battery clause now standard in prompts.
