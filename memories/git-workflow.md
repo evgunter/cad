@@ -34,3 +34,12 @@ the stacked PR, and a PR whose base branch was deleted cannot be
 reopened — a fresh PR must be opened (losing thread continuity).
 Retarget stacked PRs to main BEFORE deleting the base branch, or just
 don't delete branches (private remote; cheap to keep).
+
+**Merge gate = hosted Actions (2026-07-25)**: PR checks green =
+mergeable. gate.sh is a billing-outage FALLBACK only (its runner
+target/ is not kept warm; cold rebuild on fallback use). Agents
+never run gate.sh; reviewers run targeted cargo lanes in their own
+clones. Rationale: Actions runs the same matrix in parallel on
+GitHub hardware (~5-7 min) on the PR's merge ref; the local gate
+was serialized (sum-of-rows, 35-70 min), held a 30G cache, and
+contributed to two disk-crash incidents on the 5G-RAM/251G box.

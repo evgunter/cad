@@ -859,10 +859,25 @@ merge-only history preserves it).
   PR 5.5 boundary-on-boundary + reflex-corner refusals. D8 saddle
   guard remains armed and unwitnessed (JoinDesync-only assert hunts
   the witness).
-- **Pre-M4 queue**: (1) GQ1 mechanism-details design doc (the last
-  "before M4 planning" item; NAMING-DESIGN N5's Diagnosis leaves a
-  WitnessBifurcation arm for it); (2) M4-PLAN drafting + ratification
-  conversation with Evan. Q9 (name) parked with Evan's shortlist in
+- **Pre-M4 design queue: EMPTY.** Both "before M4 planning" docs
+  ratified 2026-07-23: `docs/NAMING-DESIGN.md` (#74, N1–N7) and
+  `docs/SOLVER-DESIGN.md` (#79, W1–W9 + round-2 amendments — bulk
+  certified-same-branch ReWitness sanctioned, drag-as-homotopy as
+  UI input, the worked elbow example; GUI-DESIGN.md gained a
+  non-binding "UI ideas" section with Evan's wall-mode drag).
+  Headline W-decisions: witness = committed solved assignment;
+  selection = Krawczyk/HS certification not nearest-root search
+  (certificate ≡ margin, one k_stats trilean
+  `solver_branch_margin`); param edits never silently write back
+  the witness; ezpz audit criteria pinned with seed-proposer
+  fallback. **M4-PLAN drafted and OPEN as PR #80** (ratification
+  conversation, sign-off watchlisted): F1–F9 forks with firm
+  recommendations (restrictive dimension lattice; no conditionals
+  in the expression AST; Declare-node threading closes the
+  operand-declaration envelope; persisted-file v1 in-milestone;
+  STEP as spike-then-decide), 8-PR sequence along the
+  m4-obligations-inventory critical path. Grounding note:
+  `references/notes/m4-obligations-inventory.md`. Q9 (name) parked with Evan's shortlist in
   memories/name-candidates.md (Intension / Noumenon / Selvage, all
   crates.io-free 2026-07-23).
 - **Standing session-start checklist**: away-channel GitHub monitor
