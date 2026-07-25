@@ -211,6 +211,7 @@ pub fn stops() -> Vec<Stop> {
             Stop {
                 name,
                 caption: format!("heat sink ({n} fins)"),
+                montage: true,
                 story: "parametric heat-sink strip from ONE recipe document — fin count \
                         is a structural parameter; this render is one evaluation",
                 ops: recipe_ops,

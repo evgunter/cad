@@ -84,6 +84,7 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
     let s = Stop {
         name: "projectbox",
         caption: "project box".to_string(),
+        montage: true,
         story: "electronics enclosure: cavity, 6 vent through-slots, 4 floor bosses, \
                 4 pilot pockets — the tour's longest boolean-of-boolean chain",
         ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes",

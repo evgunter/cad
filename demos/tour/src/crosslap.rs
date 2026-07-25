@@ -90,6 +90,7 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "crosslap",
             caption: "cross-lap (assembled)".to_string(),
+            montage: true,
             story: "cross-lap joint, assembled: two half-depth-notched beams interlocked \
                     — mated flush, shipped as two bodies (the glued union is PR 5's)",
             ops: "2 x (extrude beam, extrude cutter -> subtract); mate by construction",
@@ -104,6 +105,7 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "crosslap_exploded",
             caption: "cross-lap (exploded)".to_string(),
+            montage: true,
             story: "the same joint exploded: beam B lifted by a rigid transform \
                     (re-minted witnesses, #84), the interlocking notches visible",
             ops: "transform_rigid(beam B, +1.25 z) — transform witnesses re-minted",

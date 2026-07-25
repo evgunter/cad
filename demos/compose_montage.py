@@ -36,7 +36,11 @@ def trim(img, thresh=0.985, pad=6):
 
 def main():
     outdir, renderdir = Path(sys.argv[1]), Path(sys.argv[2])
-    scenes = json.loads((outdir / "scenes.json").read_text())
+    scenes = [
+        s
+        for s in json.loads((outdir / "scenes.json").read_text())
+        if s.get("montage", True)
+    ]
     rows = -(-len(scenes) // COLS)
     fig = plt.figure(figsize=(3.4 * COLS, 3.1 * rows), dpi=120)
     for i, scene in enumerate(scenes, start=1):

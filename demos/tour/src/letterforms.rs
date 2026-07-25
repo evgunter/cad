@@ -164,6 +164,38 @@ fn build() -> (BooleanBody<f64>, BooleanBody<f64>) {
 
 pub fn stops() -> Vec<Stop> {
     let (two, three) = build();
+    // The shadow PROOF renders (standalone, not montage panels): the
+    // 3-way solid viewed straight down each axis — orthographic, so
+    // each frame IS the shadow: an H (z), a T (x), a diamond (y).
+    let shadow = |axis: char, caption: &str, elev: f64, azim: f64| Stop {
+        name: match axis {
+            'z' => "silhouette3_shadow_z",
+            'x' => "silhouette3_shadow_x",
+            _ => "silhouette3_shadow_y",
+        },
+        caption: caption.to_string(),
+        montage: false,
+        story: "shadow proof: the 3-way solid viewed straight down one axis",
+        ops: "same body as silhouette3; orthographic axis view",
+        delta: 1e-2,
+        note: None,
+        view: View { elev, azim, up: 'z' },
+        bodies: vec![SceneBody::seamed(
+            match axis {
+                'z' => "silhouette3_shadow_z",
+                'x' => "silhouette3_shadow_x",
+                _ => "silhouette3_shadow_y",
+            },
+            [0.80, 0.44, 0.30],
+            three.body.clone(),
+            three.contacts.clone(),
+        )],
+    };
+    let shadows = vec![
+        shadow('z', "z-shadow: H", 90.0, -90.0),
+        shadow('x', "x-shadow: T", 0.0, 0.0),
+        shadow('y', "y-shadow: chamfer diamond (clipped by the solid's extents)", 0.0, -90.0),
+    ];
     let naive_note =
         "the NAIVE variant (coincident planes) is narrated above: tier 3' refusal + \
          typed 3-way refusal — the design rule is 'operands never share coincident \
@@ -172,6 +204,7 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "silhouette",
             caption: "silhouette (H x T)".to_string(),
+            montage: true,
             story: "shadow-silhouette solid: its z-shadow is an H, its x-shadow is a T \
                     — the tour's first `intersect`",
             ops: "extrude H (xy sketch, +z) x extrude T (yz sketch, +x) -> 1 intersect node",
@@ -188,6 +221,7 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "silhouette3",
             caption: "silhouette3 (+ diamond)".to_string(),
+            montage: true,
             story: "three shadows: the H x T solid intersected AGAIN with a 45-degree \
                     diamond prism along +y — intersect-of-intersect, boolean-of-boolean",
             ops: "silhouette result x extrude diamond (zx sketch, +y) -> 1 more intersect node",
@@ -205,4 +239,7 @@ pub fn stops() -> Vec<Stop> {
             )],
         },
     ]
+    .into_iter()
+    .chain(shadows)
+    .collect()
 }

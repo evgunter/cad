@@ -29,6 +29,7 @@ Gui.showMainWindow()
 import FreeCAD as App  # noqa: E402
 import Mesh  # noqa: E402
 import Part  # noqa: E402
+from pivy import coin  # noqa: E402
 
 App.ParamGet("User parameter:BaseApp/Preferences/View").SetBool(
     "UseNavigationAnimation", False
@@ -53,7 +54,10 @@ def camera_rotation(elev, azim, up):
         to_world = lambda v: App.Vector(v[0], v[1], v[2])  # noqa: E731
     z_cam = to_world(pos_d)  # camera looks along -z_cam
     z_cam.normalize()
-    x_cam = to_world(up_d).cross(z_cam)
+    up_w = to_world(up_d)
+    if abs(up_w.dot(z_cam)) > 0.9999:  # straight-down views: fall back
+        up_w = to_world((0.0, 1.0, 0.0))
+    x_cam = up_w.cross(z_cam)
     x_cam.normalize()
     y_cam = z_cam.cross(x_cam)
     m = App.Matrix(
@@ -65,36 +69,57 @@ def camera_rotation(elev, azim, up):
     return App.Rotation(m)
 
 
-def render_scene(scene, outdir, renderdir):
-    doc = App.newDocument("scene")
-    for body in scene["bodies"]:
-        color = tuple(body["color"])
-        if body.get("step"):
+def import_bodies(doc, scenes, outdir):
+    """Import every scene's bodies into ONE document, hidden.
+
+    One document for the whole session: per-scene newDocument/
+    closeDocument cycling races the (event-loop-deferred) view
+    provider setup offscreen — observed as blank frames and hangs —
+    while a single warm document with visibility toggling is stable.
+    Returns {scene name: [objects]}.
+    """
+    by_scene = {}
+    for scene in scenes:
+        objs = []
+        for body in scene["bodies"]:
             before = set(o.Name for o in doc.Objects)
-            Part.insert(str(outdir / body["step"]), doc.Name)
+            if body.get("step"):
+                Part.insert(str(outdir / body["step"]), doc.Name)
+            else:
+                Mesh.insert(str(outdir / body["stl"]), doc.Name)
             new = [o for o in doc.Objects if o.Name not in before]
-        else:
-            before = set(o.Name for o in doc.Objects)
-            Mesh.insert(str(outdir / body["stl"]), doc.Name)
-            new = [o for o in doc.Objects if o.Name not in before]
-        for obj in new:
-            if hasattr(obj.ViewObject, "ShapeColor"):
-                obj.ViewObject.ShapeColor = color
+            for obj in new:
+                if hasattr(obj.ViewObject, "ShapeColor"):
+                    obj.ViewObject.ShapeColor = tuple(body["color"])
+                obj.ViewObject.Visibility = False
+            objs.extend(new)
+        by_scene[scene["name"]] = objs
     doc.recompute()
     Gui.updateGui()
+    return by_scene
 
-    view = Gui.activeDocument().activeView()
-    view.setCameraType("Orthographic")
+
+def render_scene(scene, objs, view, renderdir):
+    for obj in objs:
+        obj.ViewObject.Visibility = True
+    Gui.updateGui()
     v = scene["view"]
     rot = camera_rotation(v["elev"], v["azim"], v["up"])
-    view.setCameraOrientation(rot.Q)
+    # Set the camera node's orientation FIELD directly (pivy):
+    # `view.setCameraOrientation` runs the navigation style's ANIMATED
+    # transition, and offscreen `saveImage` can capture mid-flight --
+    # observed as obliquely-off frames late in a long session.
+    cam = view.getCameraNode()
+    cam.orientation.setValue(coin.SbRotation(*rot.Q))
     Gui.updateGui()
     view.fitAll()
     Gui.updateGui()
     target = renderdir / f"{scene['name']}.png"
     view.saveImage(str(target), WIDTH, HEIGHT, "White")
+    for obj in objs:
+        obj.ViewObject.Visibility = False
+    Gui.updateGui()
     print(f"rendered {target}")
-    App.closeDocument(doc.Name)
     return target
 
 
@@ -102,9 +127,13 @@ def main():
     outdir, renderdir = Path(sys.argv[-2]), Path(sys.argv[-1])
     renderdir.mkdir(parents=True, exist_ok=True)
     scenes = json.loads((outdir / "scenes.json").read_text())
+    doc = App.newDocument("scenes")
+    by_scene = import_bodies(doc, scenes, outdir)
+    view = Gui.activeDocument().activeView()
+    view.setCameraType("Orthographic")
     done = []
     for scene in scenes:
-        done.append(render_scene(scene, outdir, renderdir))
+        done.append(render_scene(scene, by_scene[scene["name"]], view, renderdir))
     missing = [str(p) for p in done if not p.exists()]
     if missing:
         raise SystemExit(f"missing renders: {missing}")

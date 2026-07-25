@@ -136,6 +136,67 @@ fn tripwire_corner_aligned_table_four_legs() {
     }
 }
 
+/// THE SECOND TRIPWIRE (#91 C1, planted 2026-07-25): the mated
+/// cross-lap union. The demo tour's cross-lap joint (demos/tour
+/// `crosslap` stop) ships as TWO mated bodies because unioning the
+/// assembled joint refuses typed today: every mating plane (the
+/// half-depth shelf z = 0.25, the notch walls at the shared beam-width
+/// values) is flush — equal-but-independent descriptions, coincidence
+/// ladder rung (b), surfacing as `Join(JoinDesync)` ("every chord arc
+/// separates a loose scaffolding pair": all seam segments lie ALONG
+/// existing operand edges, so no chord has a facing partner). The
+/// expected opener is M4 PR 5 (Declare + GeomSource): declared
+/// coincidence glues the mate. When the union builds, this test FAILS
+/// with upgrade instructions — the wire firing, not a regression
+/// (precedent: die_blocked's self-promoting guard, table wire above).
+///
+/// Geometry = the demo's exact values: beams 4 x 0.5 x 0.5 crossing at
+/// x,y ∈ [1.75, 2.25], A notched from the top, B from the bottom,
+/// notch volume 1/16 each (dyadic exact).
+#[test]
+fn tripwire_crosslap_glued_union() {
+    let beam_a = prism_z::<f64>(&[(0.0, 1.75), (4.0, 1.75), (4.0, 2.25), (0.0, 2.25)], 0.0, 0.5);
+    let cut_a = prism_z::<f64>(&[(1.75, 1.5), (2.25, 1.5), (2.25, 2.5), (1.75, 2.5)], 0.25, 0.75);
+    let BooleanResult::Body(a) = topo::subtract(&beam_a.body, &cut_a.body).expect("notch A") else {
+        panic!("notch A yields a body");
+    };
+    let beam_b = prism_z::<f64>(&[(1.75, 0.0), (2.25, 0.0), (2.25, 4.0), (1.75, 4.0)], 0.0, 0.5);
+    let cut_b =
+        prism_z::<f64>(&[(1.5, 1.75), (2.5, 1.75), (2.5, 2.25), (1.5, 2.25)], -0.25, 0.25);
+    let BooleanResult::Body(b) = topo::subtract(&beam_b.body, &cut_b.body).expect("notch B") else {
+        panic!("notch B yields a body");
+    };
+    for (label, notched) in [("A", &a), ("B", &b)] {
+        assert_eq!(
+            mass_properties(&notched.body).unwrap().volume,
+            1.0 - 0.0625,
+            "notched beam {label}: exact dyadic volume"
+        );
+    }
+    match topo::union(&a.body, &b.body) {
+        Err(e) => {
+            assert!(
+                format!("{e:?}").contains("JoinDesync"),
+                "mated-union refusal moved off the documented JoinDesync \
+                 class — update this tripwire AND the demos/tour crosslap \
+                 narration: {e:?}"
+            );
+        }
+        Ok(BooleanResult::Body(glued)) => {
+            let vol = mass_properties(&glued.body).map(|m| m.volume);
+            panic!(
+                "TRIPWIRE FIRED (not a regression): the mated cross-lap now \
+                 unions (volume {vol:?}, expected {}). Declared-coincidence \
+                 gluing is live — upgrade the demos/tour `crosslap` stop to \
+                 ship the GLUED union (exact volume + watertight STL/STEP \
+                 there), narrate the before/after, then retire this tripwire.",
+                2.0 * (1.0 - 0.0625)
+            );
+        }
+        Ok(BooleanResult::Empty) => panic!("overlapping mate returned Empty"),
+    }
+}
+
 /// Interval lane: conservatism acceptable, wrongness never.
 #[cfg(feature = "interval")]
 #[test]

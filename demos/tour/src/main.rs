@@ -75,6 +75,9 @@ struct Stop {
     name: &'static str,
     /// Montage caption (defaults to `name` when empty).
     caption: String,
+    /// Whether the scene is a montage panel (aux proof renders — the
+    /// silhouette shadow views — render standalone only).
+    montage: bool,
     story: &'static str,
     ops: &'static str,
     delta: f64,
@@ -232,10 +235,11 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
         })
         .collect();
     format!(
-        "  {{\"name\": \"{}\", \"caption\": \"{}\", \"view\": {{\"elev\": {}, \"azim\": {}, \
-         \"up\": \"{}\"}}, \"bodies\": [{}]}}",
+        "  {{\"name\": \"{}\", \"caption\": \"{}\", \"montage\": {}, \"view\": \
+         {{\"elev\": {}, \"azim\": {}, \"up\": \"{}\"}}, \"bodies\": [{}]}}",
         stop.name,
         caption.replace('"', "'"),
+        stop.montage,
         stop.view.elev,
         stop.view.azim,
         stop.view.up,

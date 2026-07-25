@@ -243,6 +243,7 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "die",
             caption: String::new(),
+            montage: true,
             story: "the die: 21 pip pockets across all six faces (opposite faces sum to 7)",
             ops: "extrude 22 boxes -> 21 sequential subtract nodes (Seamed single-ring pockets)",
             delta: 1e-2,
@@ -258,11 +259,12 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "table",
             caption: String::new(),
+            montage: true,
             story: "a table: tabletop unioned with four corner-straddling legs",
             ops: "extrude 5 boxes (one shared builder) -> 4 sequential union nodes (Seamed)",
             delta: 1e-2,
             note: Some(table_note),
-            view: View { elev: 12.0, azim: -55.0, up: 'z' },
+            view: View { elev: 18.0, azim: -55.0, up: 'z' },
             bodies: vec![SceneBody::seamed(
                 "table",
                 [0.62, 0.45, 0.28],

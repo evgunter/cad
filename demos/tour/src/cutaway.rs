@@ -54,6 +54,7 @@ pub fn stops(boxbody: &topo::Body<f64>) -> Vec<Stop> {
     vec![Stop {
         name: "cutaway",
         caption: "cutaway (split + move)".to_string(),
+        montage: true,
         story: "the project box split by a tilted plane and pulled apart — a \
                 machinist's section pair showing bosses, pockets, and wall sections",
         ops: "topo::split(projectbox, tilted plane) -> 2 bodies -> 2 transform nodes",

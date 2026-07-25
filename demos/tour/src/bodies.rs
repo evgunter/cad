@@ -180,6 +180,7 @@ fn stop(
     Stop {
         name,
         caption: String::new(),
+        montage: true,
         story,
         ops,
         delta,
