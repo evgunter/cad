@@ -39,12 +39,16 @@ fn run_tour(eps: Option<&str>) {
         "tour failed at eps {:?} ({}):\n--- stdout tail ---\n{}\n--- stderr ---\n{}",
         eps,
         output.status,
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .rev()
-            .take(5)
-            .collect::<Vec<_>>()
-            .join("\n"),
+        {
+            let mut tail: Vec<_> = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .rev()
+                .take(5)
+                .map(str::to_owned)
+                .collect();
+            tail.reverse();
+            tail.join("\n")
+        },
         String::from_utf8_lossy(&output.stderr),
     );
 }
