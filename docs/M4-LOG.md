@@ -975,3 +975,8 @@ re-derives names (or re-runs the op if emission isn't separable —
 REPORT which). Spec D7 updated in place; new sign-off comment
 5077393718 on the watchlist (old 5077325409 removed). Extra
 regression pin: grandparent case.
+
+**#95 RATIFIED (2026-07-25)**: Evan 👍'd the revised ruling
+(disposition 2, recursive naming key). PR 5 D7 green-lit to the
+implementer (sequenced last in its plan); watchlist entry
+auto-cleared by the monitor.
