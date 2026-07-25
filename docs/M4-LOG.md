@@ -778,3 +778,17 @@ sketch: probe region-interior points (also covers nested islands
 fraction oracles as the ready acceptance fixture; C2 ships H×T;
 A×Z upgrades when it closes. Demo agent's kernel instrumentation
 verified reverted, clone clean, disk 21G.
+
+**Hosted CI fully GREEN (2026-07-25, PR #94 merged)**: Actions is
+back (Evan fixed billing) and PR 94's run passed ALL 10 jobs
+including the first-ever hosted `step import (freecad)` execution
+— the apt-has-no-freecad shake-out fixed by installing the
+checksum-verified 1.1.2 AppImage (version-matched to the local
+oracle, cached via actions/cache). First fully-green hosted run
+since the billing outage began 2026-07-22. Open question for Evan
+(flagged on #90): whether gate.sh retires to a local convenience
+now that hosted CI is authoritative again — recommend keeping
+gate.sh as the pre-merge gate for wall-clock (hosted run ≈ 7 min
+rows in parallel — actually comparable; the real difference is
+gate.sh needs no billing and runs pre-push). Decision deferred to
+Evan; both stay for now.
