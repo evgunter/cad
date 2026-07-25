@@ -288,6 +288,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         outcome: EvalOutcome::Completed,
         recomputed: 1,
         reused: 0,
+        appearance: editor_core::AppearanceResolution::default(),
     };
     let mut ranked = base.clone();
     ranked

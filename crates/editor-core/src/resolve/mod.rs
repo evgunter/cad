@@ -25,6 +25,16 @@
 //!   [`ResolveError`] (spec D9's sanctioned "wrapping" choice — N5's
 //!   `Vanished` struct stays byte-verbatim).
 //!
+//! # The appearance hook (spec D9)
+//!
+//! PR 7's [`crate::appearance::AppearanceLoss`] rows carry the
+//! coarse, evaluation-visible causes; [`enrich_appearance_loss`] (and
+//! its with-prior form) maps each row onto this module's full ladder
+//! — the per-arm table lives on that function. The banked
+//! operand→final repair ergonomics (PR 7 review A1) are served by
+//! [`appearance_rebind_suggestions`]: every appearance-carrying name
+//! mapped to the derivations wrapping it, loss or no loss.
+//!
 //! # No-prior diagnosis (reported)
 //!
 //! `Vanished`'s diagnosis diffs the last-good run against the current
@@ -44,10 +54,11 @@ pub use vdiff::{
     FlipSet, NodeVerdictDelta, PredicateDivergence, RunStatus, VerdictFlip, diff_verdicts,
 };
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::{Decide, Sign};
 
+use crate::appearance::{AppearanceLoss, AppearanceLossCause, AppearanceMap};
 use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult};
@@ -298,6 +309,100 @@ pub fn resolve_with_prior<T: Decide, U: Decide>(
     name: &StableName,
 ) -> Resolution {
     resolve_impl(new, prior, name)
+}
+
+/// Enriches one appearance loss with the full N5 ladder (spec D9's
+/// enrichment mapping), single-run form: no prior evaluation, so
+/// `Vanished` diagnoses rest on current-run evidence only. Prefer
+/// [`enrich_appearance_loss_with_prior`] when a last-good run exists.
+///
+/// The per-arm mapping ([`AppearanceLossCause`] → [`Resolution`]):
+///
+/// - `Ambiguous { at, .. }` → [`ResolveError::Ambiguous`] derived by
+///   `table.lookup(name)` at node `at` (the loss recorded the first
+///   carrying node; the Tied entry there IS the tie — its width and
+///   site fill the [`TieWitness`], and the candidates are the tie row
+///   expressed in names, module docs).
+/// - `NodeGone` → [`ResolveError::NodeGone`] with the derived
+///   [`RecipeEditRef`].
+/// - `Vanished { candidates }` → [`ResolveError::Vanished`] with the
+///   diagnosis ladder's verdict; the coarse structural candidates
+///   reappear among [`ResolutionFailure::offers`] (the spec D9
+///   wrapping choice: offers ride NEXT TO the byte-verbatim N5 error,
+///   never inside it).
+/// - `TargetFailed`/`TargetPoisoned`/`TargetNotEvaluated` →
+///   [`Resolution::Indeterminate`] (indeterminate, not vanished —
+///   same vocabulary on both sides of the hook).
+///
+/// Total and honest: a loss row whose recorded cause no longer
+/// matches the evaluation (stale row against a different run) falls
+/// through to the full ladder rather than fabricating the recorded
+/// shape.
+pub fn enrich_appearance_loss<T: Decide>(new: RunCtx<'_, T>, loss: &AppearanceLoss) -> Resolution {
+    enrich_impl(new, NoPrior, loss)
+}
+
+/// [`enrich_appearance_loss`] with the last-good run as diagnosis
+/// context: `Vanished` gains the verdict-diff diagnosis and the
+/// tombstone (GQ7 ghost payload), exactly as [`resolve_with_prior`].
+pub fn enrich_appearance_loss_with_prior<T: Decide, U: Decide>(
+    new: RunCtx<'_, T>,
+    prior: RunCtx<'_, U>,
+    loss: &AppearanceLoss,
+) -> Resolution {
+    enrich_impl(new, prior, loss)
+}
+
+fn enrich_impl<T: Decide, P: PriorCtx>(
+    new: RunCtx<'_, T>,
+    prior: P,
+    loss: &AppearanceLoss,
+) -> Resolution {
+    // The Ambiguous arm maps DIRECTLY off the recorded site (spec D9:
+    // candidates and witness by table lookup at `at`); everything
+    // else — and any stale row — takes the full ladder below.
+    if let AppearanceLossCause::Ambiguous { at, .. } = &loss.cause
+        && let Some(v) = new.eval.value(*at)
+        && let Some(Entry::Tied(ents)) = v.name_table.lookup(&loss.name)
+    {
+        return Resolution::Failed(ResolutionFailure {
+            error: ResolveError::Ambiguous {
+                name: loss.name.clone(),
+                candidates: vec![loss.name.clone()],
+                tie: TieWitness {
+                    node: *at,
+                    at: loss.name.clone(),
+                    width: ents.len() as u32,
+                },
+            },
+            offers: Vec::new(),
+        });
+    }
+    resolve_impl(new, prior, &loss.name)
+}
+
+/// Rebind suggestions for every appearance-carrying name (the spec D9
+/// BANKED obligation, ruled at PR 7 review A1): the operand→final
+/// paint gap means an attribute on an operand-node name resolves on
+/// the intermediate body only — the final node's corresponding face
+/// is a DIFFERENT derivation (`FromA(x)` ≠ `x`, N1 identity), showing
+/// neither paint nor loss. The explicit repair must be ergonomic:
+/// this maps EVERY appearance key (resolving or not — the gap is
+/// silent by design, so suggestions cannot be gated on a loss) to the
+/// evaluation's derivations wrapping it ([`rebind_suggestions`]'s
+/// ladder). Total over the store: a name with nothing wrapping it
+/// maps to an empty list, never a dropped row. Suggestions feed an
+/// explicit [`crate::edit::DocEdit::Rebind`] — which also MOVES the
+/// appearance key (the attribute rides the name) — and nothing
+/// follows automatically (the ratified EMPTY policy menu).
+pub fn appearance_rebind_suggestions<T: Decide>(
+    appearance: &AppearanceMap,
+    eval: &Evaluation<T>,
+) -> BTreeMap<StableName, Vec<StableName>> {
+    appearance
+        .keys()
+        .map(|name| (name.clone(), rebind_suggestions(eval, name)))
+        .collect()
 }
 
 /// The prior-run capability, monomorphized away: `NoPrior` for the
