@@ -1294,3 +1294,18 @@ L pre-flip, draw 221 → fable; branch ev/m4-6-persistence).
 fable; branch ev/issue101-declared-tangency; 5-point discipline
 binding). FOUR consecutive fable draws — blocked-randomization
 proposal noted in MODEL-AB-LOG, pending Evan.
+
+**#104 filed (2026-07-25): PartialPath authoring algebra — CONCEPT
+status per Evan** ("not a mandate; needs to harmonize with
+whatever we already have"). Tangency-by-construction typed path
+builder; harmonization analysis in the issue: composes with #101
+(authoring layer lowering to its flag/verify document contract,
+reusing its junction predicates), closure = the care point
+(tangent closure overdetermined for one arc → constructor family),
+schema v1 unaffected (profiles-as-programs = determined v2 lift
+via F3 migrations; ladder rung below M6 constraint sketches). Open
+questions listed (LoopBuilder relationship, sugar inventory,
+multi-loop, constructor-quantity exactness contract). No
+implementation until ratified. #101 implementer nudged
+(structure-only): junction classification as a small callable API,
+5 points win any tension.
