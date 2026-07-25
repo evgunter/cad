@@ -79,7 +79,15 @@ that serializes cleaner, REPORT which). Constraint from #92: F3/
 bit_eq compatible = bit-exact serializable, trivially satisfied by
 bytes. Kernel/editor-core NEVER interprets the bytes (black-box for
 GUI/tooling layers); N3/N5 retire/vanish semantics apply to the
-whole appearance record, Custom arm included.
+whole appearance record, Custom arm included. Shape RULING
+(discussed with Evan 2026-07-25): bytes, not a generic parameter or
+dyn trait — a generic M makes the v1 file format open-ended (F3
+migrations can't be defined over an uncontrolled type) and a dyn
+registry makes loaded-tooling part of the format implicitly; bytes
+are the second instance of the witness-datum convention. Convention
+REQUIRED of producers: metadata values begin with a leading version
+integer (mirroring WitnessDatum.schema); typed views live in the
+layer owning the key namespace.
 
 ## D8 — Out of scope
 
