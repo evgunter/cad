@@ -103,9 +103,12 @@ fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
         Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
         Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
     );
-    extrude(&validated(plane, loops), Extrusion::Distance(T::from_f64(2.125)))
-        .expect("extrude A")
-        .body
+    extrude(
+        &validated(plane, loops),
+        Extrusion::Distance(T::from_f64(2.125)),
+    )
+    .expect("extrude A")
+    .body
 }
 
 /// The Z prism: profile in (u, v) = (y, z) — bars z ∈ [0, 0.4375] and
@@ -130,9 +133,12 @@ fn z_prism<T: Decide>() -> Body<T> {
         Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
         Vec3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
     );
-    extrude(&validated(plane, vec![lp(&z_poly)]), Extrusion::Distance(T::from_f64(2.125)))
-        .expect("extrude Z")
-        .body
+    extrude(
+        &validated(plane, vec![lp(&z_poly)]),
+        Extrusion::Distance(T::from_f64(2.125)),
+    )
+    .expect("extrude Z")
+    .body
 }
 
 /// Tiers 1/2/3′ + exact-oracle volume (1e-12: the oracles are exact
@@ -188,4 +194,82 @@ fn az_stencil_intersects_exact() {
 fn az_plain_intersects_exact() {
     let a = a_prism(vec![lp(&A_OUTLINE)]);
     intersect_success(&a, ORACLE_PLAIN, "plain A");
+}
+
+/// The COUPLED variant — Z's bars shifted flush onto A's y-extent
+/// (bar ends at y = 0 and y = 2.5, coinciding with A's feet and apex
+/// planes; diagonal slope re-derived, 18/29). The flush contact here
+/// is SAME-SIDE TANGENTIAL (both materials on y > 0 / y < 2.5): the
+/// contact-records class the kernel supports, not the opposite-side
+/// value-equality mate that stays refused (coincidence ladder rung
+/// (b) — pinned by demo_tripwires' crosslap/table wires and
+/// review_m3_pr5's flush family, all unchanged by issue #93). On
+/// pre-#93 main this case refused through the very gap arm this fix
+/// closes ("neither section loop's regions hold a classifiable
+/// vertex" — verified 2026-07-25), so it opens WITH the gap, with an
+/// exact independent oracle:
+///   ∫ w_plain·h_Zflush dy = 2562165/950272 (same Fraction method).
+#[test]
+fn az_coupled_tangential_flush_intersects_exact() {
+    let z_poly_flush = [
+        (0.0, 0.0),
+        (2.5, 0.0),
+        (2.5, 0.4375),
+        (0.6875, 0.4375),
+        (2.5, 1.5625),
+        (2.5, 2.0),
+        (0.0, 2.0),
+        (0.0, 1.5625),
+        (1.8125, 1.5625),
+        (0.0, 0.4375),
+    ];
+    let plane = SketchPlane::from_frame(
+        Point3::new(0.0_f64, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    );
+    let z_flush = extrude(
+        &validated(plane, vec![lp(&z_poly_flush)]),
+        Extrusion::Distance(2.125),
+    )
+    .expect("extrude flush Z")
+    .body;
+    let a = a_prism(vec![lp(&A_OUTLINE)]);
+    match topo::intersect(&a, &z_flush) {
+        Ok(BooleanResult::Body(bb)) => {
+            check_success(&bb, 2_562_165.0 / 950_272.0, "coupled tangential-flush A×Z");
+        }
+        Ok(BooleanResult::Empty) => panic!("flush-coupled overlap returned Empty"),
+        Err(e) => panic!(
+            "coupled tangential-flush A×Z regressed to a refusal: {e:?} \
+             (it opens with the issue #93 gap fix; the opposite-side \
+             flush refusals are pinned elsewhere)"
+        ),
+    }
+}
+
+/// Interval lane: conservatism acceptable, wrongness never (the
+/// demo_tripwires pattern). A success must pass tier 2 and enclose
+/// the exact oracle.
+#[cfg(feature = "interval")]
+#[test]
+fn az_plain_interval_refuses_or_encloses() {
+    use geom_core::Interval;
+    let a = a_prism::<Interval>(vec![lp(&A_OUTLINE)]);
+    match topo::intersect(&a, &z_prism::<Interval>()) {
+        Err(_) => {} // conservative refusal: acceptable
+        Ok(BooleanResult::Body(bb)) => {
+            assert_eq!(validate_closed(&bb.body), Ok(()), "interval tier 2");
+            let v = mass_properties(&bb.body)
+                .expect("interval mass properties")
+                .volume;
+            assert!(
+                v.lo() <= ORACLE_PLAIN && ORACLE_PLAIN <= v.hi(),
+                "interval volume enclosure [{}, {}] excludes the oracle {ORACLE_PLAIN}",
+                v.lo(),
+                v.hi()
+            );
+        }
+        Ok(BooleanResult::Empty) => panic!("nonempty overlap returned Empty on Interval"),
+    }
 }
