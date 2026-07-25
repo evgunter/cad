@@ -178,9 +178,9 @@ pub struct ProfileLoop<T: Real> {
     ///   out-of-range index is a typed validation error. Order is not
     ///   significant.
     ///
-    /// [`sugar::LoopBuilder::fillet`] is the primary authoring path (it
+    /// [`LoopBuilder::fillet`] is the primary authoring path (it
     /// computes tangent geometry exactly and declares by construction);
-    /// [`sugar::LoopBuilder::declare_tangent`] and this field are the
+    /// [`LoopBuilder::declare_tangent`] and this field are the
     /// explicit hand-authoring/persistence form.
     ///
     /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted

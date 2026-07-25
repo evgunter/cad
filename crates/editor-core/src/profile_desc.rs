@@ -43,16 +43,20 @@ impl ProfileDesc {
             .0
             .loops
             .iter()
-            .map(|lp| {
-                ProfileLoop::new(
-                    lp.vertices
-                        .iter()
-                        .map(|v| ProfileVertex {
-                            pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                            bulge: T::from_f64(v.bulge),
-                        })
-                        .collect(),
-                )
+            .map(|lp| ProfileLoop {
+                vertices: lp
+                    .vertices
+                    .iter()
+                    .map(|v| ProfileVertex {
+                        pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
+                        bulge: T::from_f64(v.bulge),
+                    })
+                    .collect(),
+                // Declared-tangent joints are indices (scalar-free):
+                // carried verbatim — the declaration is part of the
+                // description and is re-verified at validation in the
+                // evaluation scalar.
+                tangent_joints: lp.tangent_joints.clone(),
             })
             .collect();
         Profile::new(plane, loops)
@@ -73,6 +77,17 @@ impl ProfileDesc {
             out.push(u64::MAX);
             for v in &lp.vertices {
                 out.extend([v.pos.x.to_bits(), v.pos.y.to_bits(), v.bulge.to_bits()]);
+            }
+            // Declared-tangent joints (#101) are semantic description
+            // data: they feed the key. Emitted behind their own marker
+            // and only when present, so declaration-free documents key
+            // exactly as before this field existed. Injective: both
+            // markers are NaN bit patterns, which doc floats never are
+            // (the PR 1 refusal doors), and the joint indices are
+            // consumed to the next loop marker.
+            if !lp.tangent_joints.is_empty() {
+                out.push(u64::MAX - 1);
+                out.extend(lp.tangent_joints.iter().map(|&j| j as u64));
             }
         }
         out
