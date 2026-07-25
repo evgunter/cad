@@ -936,3 +936,26 @@ review pipeline after. Next: PR 4 merge on green → PR 5 spec
 corner-table + lap-joint tripwires and #91 flush-plane demos are
 its acceptance showcases; R13 boolean-of-boolean fixtures
 unblocked).
+
+**PR 4 MERGED (2026-07-25): #96 → main `4ad1dca`** on a 10/10 green
+Actions matrix (incl. step import freecad); implementer's local
+confirmation battery came back ALL GREEN post-merge (139/139 both
+lanes + PR-4 ε rows; archived as a #96 comment). Reviewer
+TaskStopped; pr4 clone deleted (disk 127G free). **PR 5 SPEC
+COMMITTED (`docs/M4-PR5-SPEC.md`, b7aec91)**: D1 GeomSource
+N6-verbatim (with the PR-1 ExprPath re-point caveat made binding),
+D2 declared-rung migration (merge_faces/plane_eq to source
+comparison, rung (b) untouched), D3 bit_identity to debug-only +
+empty production allowlist (tripwires stay armed; interval.rs entry
+renamed), D4 Declare threading via the PR 3/4 resolution machinery
+(N5-typed refusals on unresolvable intents), D5 first real Merged
+rows (R4 fixture, R8 discriminator, PR-4 F10 offers pin), D6
+acceptance showcases (closure corpus certify, corner-table primary
+tripwire fires + secondary REPORTed, #91 flush-plane Declare
+before/after, R13 corpus seeding), D7 #95 disposition-1 CONDITIONAL
+on Evan's 👍 (else skip + REPORT), D8 #93 out of scope, D9 standing
+process. **PR 5 IMPLEMENTER LAUNCHED** (clone
+~/.local/share/cad-work/pr5, branch ev/m4-5-geomsource off main
+incl. #96), with cross-lane RAM discipline (demo lane runs in
+parallel; both agents pgrep-wait before every cargo invocation).
+Two lanes in flight: demos (ev/m4-demo-refresh) + PR 5.
