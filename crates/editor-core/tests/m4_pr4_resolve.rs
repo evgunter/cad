@@ -60,6 +60,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 struct Slide {
     doc: ProfileDoc,
     a: RecipeNodeId,
+    b0: RecipeNodeId,
     transform: RecipeNodeId,
     union: RecipeNodeId,
 }
@@ -68,6 +69,7 @@ fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty();
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
     let (doc, transform) = insert(
         doc,
         Node::Transform {
@@ -83,12 +85,13 @@ fn slide_union(tx: f64) -> Slide {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: None,
+            declare: Some(decl),
         },
     );
     Slide {
         doc,
         a,
+        b0,
         transform,
         union,
     }
@@ -134,16 +137,36 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
         doc: &s.doc,
         eval: &ev,
     };
-    // The A-cap wrap resolves at the union.
+    // M4 PR 5 (N3 live): the declared flush caps GLUE — the A-cap
+    // wrap retired into the Merged row, which resolves at the union;
+    // the retired constituent name itself now fails typed with the
+    // merged row among the OFFERS (N3's loud retirement, pinned in
+    // the vanishing tests below).
     let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::Top));
     let wrapped = name1(
         EntityKind::Face,
         s.union,
         RoleSeg::FromA(Box::new(cap.clone())),
     );
-    match resolve(ctx, &wrapped) {
+    let cap_b = name1(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::Top));
+    let wrapped_b = name1(
+        EntityKind::Face,
+        s.union,
+        RoleSeg::FromB(Box::new(cap_b.clone())),
+    );
+    let mut constituents = vec![wrapped.clone(), wrapped_b];
+    constituents.sort_unstable();
+    let merged = name1(EntityKind::Face, s.union, RoleSeg::Merged(constituents));
+    match resolve(ctx, &merged) {
         Resolution::Resolved(r) => assert_eq!(r.node, s.union),
         other => panic!("expected Resolved, got {other:?}"),
+    }
+    match resolve(ctx, &wrapped) {
+        Resolution::Failed(f) => assert!(
+            f.offers.contains(&merged),
+            "retired constituent must offer its merge: {f:?}"
+        ),
+        other => panic!("expected the retired constituent to fail typed, got {other:?}"),
     }
     // The operand-level cap name resolves too — at the EXTRUDE (first
     // carrying node in evaluation order; the transform pass-through
@@ -674,13 +697,17 @@ fn rebind_suggestions_offer_wrapping_derivations() {
     let ev = run(&s.doc, None);
     let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::Top));
     let suggestions = rebind_suggestions(&ev, &cap);
-    // The union's FromA(cap) wrap is offered (with the cap's
-    // fragment/rim derivations that embed it); nothing is followed
+    // M4 PR 5 (N3 live): the FromA(cap) wrap retired into the Merged
+    // row — the suggestion ladder offers the MERGED name (whose
+    // constituents embed the cap's wrap); nothing is followed
     // automatically — these are Rebind candidates only.
     let wrapped = name1(EntityKind::Face, s.union, RoleSeg::FromA(Box::new(cap)));
     assert!(
-        suggestions.contains(&wrapped),
-        "expected the FromA wrap among suggestions: {suggestions:?}"
+        suggestions.iter().any(|n| matches!(
+            n.path.first(),
+            Some(RoleSeg::Merged(cs)) if cs.contains(&wrapped)
+        )),
+        "expected the Merged row embedding the FromA wrap among suggestions: {suggestions:?}"
     );
 }
 

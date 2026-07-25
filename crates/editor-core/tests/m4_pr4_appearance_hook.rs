@@ -122,8 +122,11 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
 /// cap painted, `a` consumed by a union. Returns (doc, a, uni, cap).
 fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
     let doc = ProfileDoc::empty();
+    // Decoupled overlap (M4 PR 5: the original y/z-flush variant now
+    // demands a Declare and MERGES the caps — the A1 ergonomics this
+    // fixture pins are the plain wrapping-derivation kind).
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, uni) = insert(
         doc,
         Node::Boolean {
@@ -318,8 +321,10 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     // it, and enrichment preserves the indeterminate verdict (not
     // Vanished — same vocabulary on both sides of the hook).
     let doc = ProfileDoc::empty();
+    // Decoupled overlap (M4 PR 5: coincident planes now demand a
+    // Declare; this test wants a plain transversal union).
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
     let (doc, uni) = insert(
         doc,
         Node::Boolean {
