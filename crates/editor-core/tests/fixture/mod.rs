@@ -16,7 +16,8 @@
 #![allow(dead_code)] // shared across test binaries; not all use all of it
 
 use editor_core::{
-    Dimension, DocEdit, DocParam, Expr, Node, ParamName, ProfileDesc, ProfileDoc, RecipeNodeId,
+    CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, ProfileDesc,
+    ProfileDoc, ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName,
 };
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane};
@@ -202,10 +203,37 @@ pub fn die() -> Die {
         masters.push((ext, u, v, pips));
     }
 
-    // Interleaved Transform + Subtract pairs (the PR 1 die shape).
+    // Interleaved Declare + Transform + Subtract triples (M4 PR 5,
+    // F5): every pip's outer cap lies exactly ON its cube face — a
+    // coincidence the recipe DECLARES per subtract (name pairs
+    // resolved through the operands' tables at evaluation; the
+    // retired bit rung no longer infers it from values). The A-side
+    // face name wraps in `FromA` per boolean, tracked here.
+    let face_name = |node: RecipeNodeId, seg: RoleSeg| StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![seg],
+    };
+    // faces() order: -z, +x, -x, +y, -y, +z against the cube extrude's
+    // roles (profile (0,0)->(2,0)->(2,2)->(0,2): wall seg 0 = -y,
+    // 1 = +x, 2 = +y, 3 = -x; caps: Bottom = -z, Top = +z).
+    let wall = |seg: u32| {
+        RoleSeg::Lateral(ProfileEdgeRef {
+            loop_index: 0,
+            segment: seg,
+        })
+    };
+    let mut cube_face_names: [StableName; 6] = [
+        face_name(cube, RoleSeg::Cap(CapEnd::Bottom)),
+        face_name(cube, wall(1)),
+        face_name(cube, wall(3)),
+        face_name(cube, wall(2)),
+        face_name(cube, wall(0)),
+        face_name(cube, RoleSeg::Cap(CapEnd::Top)),
+    ];
     let mut acc = cube;
     let mut pz_transform = acc; // overwritten below
-    for &(ext, u, v, pips) in &masters {
+    for (face_idx, &(ext, u, v, pips)) in masters.iter().enumerate() {
         for &(a, b) in pips {
             let t = [
                 a * u[0] + b * v[0],
@@ -221,18 +249,33 @@ pub fn die() -> Die {
                     rotation_angle: ang(0.0),
                 },
             );
+            // The pip master extrudes INWARD (negative distance), so
+            // its OUTER cap — the flush one — is Bottom (on the
+            // sketch plane, which IS the cube face's plane).
+            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Bottom));
+            let (d, decl) = insert(
+                d,
+                Node::Declare {
+                    pairs: vec![(cube_face_names[face_idx].clone(), pip_cap)],
+                },
+            );
             let (d, sub) = insert(
                 d,
                 Node::Boolean {
                     op: editor_core::BooleanOp::Subtract,
                     a: acc,
                     b: tr,
-                    declare: None,
+                    declare: Some(decl),
                 },
             );
             doc = d;
             acc = sub;
             pz_transform = tr;
+            // Every A-side face name wraps once per boolean (N1
+            // derivation paths through the new subtract node).
+            for name in &mut cube_face_names {
+                *name = face_name(sub, RoleSeg::FromA(Box::new(name.clone())));
+            }
         }
     }
 
@@ -247,3 +290,46 @@ pub fn die() -> Die {
 }
 
 pub mod pr4;
+
+/// One face name at a node (authoring shorthand).
+pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![seg],
+    }
+}
+
+/// A wall (lateral) role for outer-loop segment `seg`.
+pub fn wall(seg: u32) -> RoleSeg {
+    RoleSeg::Lateral(ProfileEdgeRef {
+        loop_index: 0,
+        segment: seg,
+    })
+}
+
+/// A `Declare` node pairing the flush planes of two axis-aligned
+/// extruded blocks that share their y-range and z-range and differ
+/// along x only (the corpus's standard sliding-overlap shape): walls
+/// y0/y1 (segments 0/2, the `square`/`desc` corner order) plus both
+/// caps (M4 PR 5 — the recipe states the coincidence intent the
+/// retired bit rung used to infer from values).
+pub fn declare_x_offset_flush(
+    doc: ProfileDoc,
+    a_ext: RecipeNodeId,
+    b_ext: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
+    let pairs = vec![
+        (fname(a_ext, wall(0)), fname(b_ext, wall(0))),
+        (fname(a_ext, wall(2)), fname(b_ext, wall(2))),
+        (
+            fname(a_ext, RoleSeg::Cap(CapEnd::Bottom)),
+            fname(b_ext, RoleSeg::Cap(CapEnd::Bottom)),
+        ),
+        (
+            fname(a_ext, RoleSeg::Cap(CapEnd::Top)),
+            fname(b_ext, RoleSeg::Cap(CapEnd::Top)),
+        ),
+    ];
+    insert(doc, Node::Declare { pairs })
+}

@@ -316,8 +316,10 @@ fn typed_refusal_doors() {
 fn declare_passes_through_and_boolean_accepts_it() {
     let doc = ProfileDoc::empty();
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
-    let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping
-    let (doc, decl) = insert(doc, Node::Declare { pairs: Vec::new() });
+    let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
+    // M4 PR 5: the flush contacts are DECLARED by name — this test's
+    // Declare is now the LIVE lane, not pass-through data.
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
     let (doc, boolean) = insert(
         doc,
         Node::Boolean {
@@ -329,7 +331,7 @@ fn declare_passes_through_and_boolean_accepts_it() {
     );
     let ev = run(&doc);
     match &ev.value(decl).expect("declare is a value").payload {
-        ValuePayload::Declarations(pairs) => assert!(pairs.is_empty()),
+        ValuePayload::Declarations(pairs) => assert_eq!(pairs.len(), 4),
         other => panic!("expected declarations, got {}", other.kind_name()),
     }
     let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =

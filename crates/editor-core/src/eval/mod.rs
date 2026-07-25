@@ -345,6 +345,30 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// A `Declare` pair failed to resolve through the operands' name
+    /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
+    /// naming a vanished/ambiguous/deleted name refuses loudly; no
+    /// silent drop, no best-effort gluing.
+    DeclareResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A `Declare` name resolves in BOTH operands' tables (the same
+    /// body value feeding both sides) — the declaration cannot pick a
+    /// side; refused, never guessed.
+    DeclareBothOperands {
+        /// The ambiguous name.
+        name: Box<crate::names::StableName>,
+    },
+    /// A `Declare` pair outside the v1 threading vocabulary
+    /// (supported: cross-operand Face–Face; same-operand
+    /// Vertex–Vertex and Vertex–Face).
+    DeclareUnsupportedPair {
+        /// The pair's entity kinds, declaration order.
+        kinds: (crate::names::EntityKind, crate::names::EntityKind),
+        /// Whether the names resolved in different operands.
+        cross_operand: bool,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -612,7 +636,7 @@ where
     // idiom-1 parallelism runs whole nodes on one worker each), so
     // logs never interleave across nodes.
     geom_core::k_stats::start_verdict_log();
-    let op = wire::run_op(id, node, results, &slot_values);
+    let op = wire::run_op(id, node, doc, results, &slot_values);
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
         Ok((payload, name_table)) => NodeStep {
