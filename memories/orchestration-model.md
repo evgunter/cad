@@ -179,3 +179,9 @@ deleted). Sign-off watchlist moved to the persistent path
 `~/.local/share/cad-work/signoff-watchlist.txt` (survives
 sessions). Fix bugs in the repo scripts, re-install, re-arm —
 don't fork inline variants.
+
+**Orchestrator-branch state-sync PRs (Evan, #96 comment,
+2026-07-25)**: the orchestrator branch (logs, specs, memories,
+scripts) must not accumulate a large unmerged delta — open a quick
+docs-only PR to main at pipeline seams (a PR merge, a lane launch)
+so an orchestrator switch never strands state. First one: #97.
