@@ -873,3 +873,30 @@ banked items (doc-ε re-audit; black-box appearance metadata —
 Evan's #92 ask), Q9 name shortlist (Evan's call). Away-channel:
 reply on the PR/issue threads; sign-off watchlist at
 ~/.local/share/cad-work/signoff-watchlist.txt (empty).
+
+**PR 4 review returned (2026-07-25): mergeable-after-fixes; ruled,
+dispatched.** Report persisted at ~/.local/share/cad-work/
+pr4-review-report.md (self-contained + probe appendix). P1 Finding
+2 (fix): rebind suggestions counted SideOf partner MENTIONS as
+wrapping (6/12 phantoms in the band-cut probe) + no kind filter
+(offered names Rebind itself refuses) ⇒ separate suggestions
+walker + kind filter + probe inverted to pin. P2 Finding 1
+(RULED): cross-group population-cancel can empty the FlipSet and
+reach the RecipeEdit-lie fallback — ruling: widen the vdiff
+blind-spot docs AND add a qualifier-delta rung to the diagnose
+ladder (N2 verdicts are embedded in names; compare the vanished
+name's own qualifier vector against same-node siblings in the new
+table ⇒ honest PredicateFlip from recorded data); true-no-evidence
+keeps RecipeEdit re-documented honestly. P3 positive tests
+(RecipeEdit arm, no-prior Vanished, P2 pin). P4 hardening rides
+(tombstone debug_assert, exhaustive for_each_inner, parallel
+verdict-log probe adopted). Recorded no-action: candidates
+degeneracy verified compliant; two-ε diff waits for PR 6's
+recorded ε; content-key tag bump BANKED for PR 6 persistence;
+Merged offers pin waits for PR 5 corpus. Verified clean: verdict-
+log substrate (memo-transfer log identity, decision outcomes
+bit-identical), Ambiguous fidelity, tombstone last-good, W-datum
+opacity, D6.1 single-qualifier counted, goldens cross-lane. Fix
+pass dispatched (report will persist to pr4-fixpass-report.md);
+merge gates on ACTIONS per the new policy. pr4-review clone
+removed (report + probes preserved).
