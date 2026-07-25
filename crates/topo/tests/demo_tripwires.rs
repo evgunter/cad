@@ -155,14 +155,29 @@ fn tripwire_corner_aligned_table_four_legs() {
 /// notch volume 1/16 each (dyadic exact).
 #[test]
 fn tripwire_crosslap_glued_union() {
-    let beam_a = prism_z::<f64>(&[(0.0, 1.75), (4.0, 1.75), (4.0, 2.25), (0.0, 2.25)], 0.0, 0.5);
-    let cut_a = prism_z::<f64>(&[(1.75, 1.5), (2.25, 1.5), (2.25, 2.5), (1.75, 2.5)], 0.25, 0.75);
+    let beam_a = prism_z::<f64>(
+        &[(0.0, 1.75), (4.0, 1.75), (4.0, 2.25), (0.0, 2.25)],
+        0.0,
+        0.5,
+    );
+    let cut_a = prism_z::<f64>(
+        &[(1.75, 1.5), (2.25, 1.5), (2.25, 2.5), (1.75, 2.5)],
+        0.25,
+        0.75,
+    );
     let BooleanResult::Body(a) = topo::subtract(&beam_a.body, &cut_a.body).expect("notch A") else {
         panic!("notch A yields a body");
     };
-    let beam_b = prism_z::<f64>(&[(1.75, 0.0), (2.25, 0.0), (2.25, 4.0), (1.75, 4.0)], 0.0, 0.5);
-    let cut_b =
-        prism_z::<f64>(&[(1.5, 1.75), (2.5, 1.75), (2.5, 2.25), (1.5, 2.25)], -0.25, 0.25);
+    let beam_b = prism_z::<f64>(
+        &[(1.75, 0.0), (2.25, 0.0), (2.25, 4.0), (1.75, 4.0)],
+        0.0,
+        0.5,
+    );
+    let cut_b = prism_z::<f64>(
+        &[(1.5, 1.75), (2.5, 1.75), (2.5, 2.25), (1.5, 2.25)],
+        -0.25,
+        0.25,
+    );
     let BooleanResult::Body(b) = topo::subtract(&beam_b.body, &cut_b.body).expect("notch B") else {
         panic!("notch B yields a body");
     };
