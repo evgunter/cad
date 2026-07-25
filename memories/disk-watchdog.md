@@ -37,3 +37,11 @@ Before diagnosing a fast single-row gate FAIL as a code bug: check
 for "Terminated", check what else was running, and rerun quiet.
 Prefer sequencing agent batteries away from gate runs when
 possible.
+
+**RAM limit raised (2026-07-25)**: the ~5G ceiling was WSL2's
+default 50%-of-physical rule (11.75 GB host), not an explicit
+limit. `memory=10GB` added to `C:\Users\evgun\.wslconfig`; takes
+effect at Evan's next `wsl --shutdown`. Until a session observes
+`free -h` ≈ 10G, keep the 5G discipline (sequential batteries,
+pgrep-wait); after, parallel cargo batteries across two lanes are
+viable.
