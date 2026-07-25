@@ -372,16 +372,33 @@ impl<T: Real> Body<T> {
 
     /// Removes `curve` from the curve arena iff no edge references it,
     /// returning whether it was removed. Used by edge-killing operators
-    /// (`kemr`; PR 4's `kev`/`kef`): in Euler-built bodies every edge
-    /// owns its own placeholder curve, but the scan keeps the op sound
-    /// standalone. Deterministic (D9): a full sweep of the edge arena —
-    /// the outcome is a pure function of the arena contents. A stale
-    /// `curve` key is a no-op returning `false`.
+    /// (`kemr`; PR 4's `kev`/`kef`), `split_edge`, and the edge-curve
+    /// setter: in Euler-built bodies every edge owns its own
+    /// placeholder curve, but the scan keeps the op sound standalone.
+    /// Deterministic (D9): a full sweep of the edge arena — the outcome
+    /// is a pure function of the arena contents. A stale `curve` key is
+    /// a no-op returning `false`.
+    ///
+    /// A removed curve's description was a live surface reference
+    /// ([`Body::description_surfaces`] — the same references that keep
+    /// [`Body::remove_surface_if_orphaned`] from dangling it), so
+    /// dropping the curve can orphan a surface whose faces are already
+    /// gone: sweep its description surfaces through the same guarded
+    /// rule (issue #86 — the second boolean of a boolean-of-boolean
+    /// merges away a face while first-boolean `Intersection`
+    /// descriptions still name its surface; re-describing the last
+    /// such edge must take the surface with it, not strand it).
     pub(crate) fn remove_curve_if_orphaned(&mut self, curve: CurveKey) -> bool {
         if self.edges.values().any(|edge| edge.curve == curve) {
             return false;
         }
-        self.curves.remove(curve).is_some()
+        let Some(removed) = self.curves.remove(curve) else {
+            return false;
+        };
+        for surface in Self::description_surfaces(&removed) {
+            self.remove_surface_if_orphaned(surface);
+        }
+        true
     }
 
     /// Removes `surface` from the surface arena iff nothing references
