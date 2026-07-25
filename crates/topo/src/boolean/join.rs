@@ -81,8 +81,11 @@
 //!    That is orientation-neutral for outer-loop splits and mekr
 //!    merges, and load-bearing exactly for RING splits, where the
 //!    remainder becomes the old face's ring (a hole boundary must
-//!    anti-enclose): the run must take the cycle opposite the face's
-//!    residual-material side — [`choose_roles`]' derived rule.
+//!    anti-enclose): the run must take the CCW-winding cycle —
+//!    [`choose_roles`]' derived rule via [`ring_run_ccw`] (issue #93;
+//!    equivalent to PR 5.5's "cycle opposite the residual-material
+//!    side" wherever that probe's outer-loop anchor was sound, and
+//!    decided intrinsically so multi-polygon faces cannot cross it).
 //! 4. **Consistency theorem.** With (2) as data, (3)'s ring rule per
 //!    solid, and matching that consumes the SAME germ in both solids
 //!    ([`find_match`]'s slot lock), every completed polygon pair has
@@ -290,8 +293,8 @@ pub(super) fn bool_connect<T: Decide>(
         // carried by the sense attributes alone; role order only
         // decides the face partition of a same-loop split, which each
         // solid resolves against its OWN geometry.
-        let (a1, a2) = choose_roles(&red.a, b_pristine, &sa, ea, ra, &a_loose, band)?;
-        let (b1, b2) = choose_roles(&red.b, a_pristine, &sb, eb, rb, &b_loose, band)?;
+        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, band)?;
+        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, band)?;
         sa.joiner
             .join(&mut red.a, a1, a2)
             .map_err(BooleanError::Join)?;
@@ -583,14 +586,14 @@ fn loose_partners<T: Decide>(
 ///   Both arcs dirty is a loud desync.
 /// - **Same loop, a RING of its face** (the closed seam-ring lane —
 ///   pierce-ring scaffolding): the split's remainder stays a ring of
-///   the old face and must therefore be the cycle bounding the old
-///   face's own material; the mef run takes the enclosed patch. The
-///   run cycle's side is the copy-side of `end(h1)` (h1 = UP half ⇒
-///   OUT cycle), so the derived order is: h1 := the UP half iff the
-///   old face's residual material is IN the other body (probed on the
-///   face's outer loop against the pristine other operand — the same
-///   anchor `resolve_roles_geometric` uses). A derived order whose
-///   run separates a loose pair is a loud desync.
+///   the old face and must anti-enclose (a hole boundary), so the mef
+///   run — the enclosed patch, the new face's outer — must wind CCW
+///   around the face's outward normal. Decided intrinsically by
+///   [`ring_run_ccw`] (issue #93; supersedes the PR 5.5
+///   residual-material-side probe, whose outer-loop vertex anchor was
+///   unsound mid-fixpoint on multi-polygon faces — see the lane
+///   comment). A derived order whose run separates a loose pair is a
+///   loud desync.
 ///
 /// Cross-solid consistency needs NO coupling of the two solids' role
 /// orders: the sense attributes carry the seam orientation (the
@@ -599,8 +602,6 @@ fn loose_partners<T: Decide>(
 /// the runtime witness.
 fn choose_roles<T: Decide>(
     body: &Body<T>,
-    other_pristine: &Body<T>,
-    s: &SolidJoin,
     ea: HalfEdgeKey,
     ra: HalfEdgeKey,
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
@@ -633,10 +634,22 @@ fn choose_roles<T: Decide>(
         return clean_dir(body, ea, ra, loose)?
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
-    // Ring lane: derived order from the residual-material side.
-    let residual_in = residual_side_in(body, other_pristine, s, face, band)?;
-    let h1_up = residual_in;
-    let (h1, h2) = if s.is_up(body, ea)? == h1_up {
+    // Ring lane: intrinsic winding (issue #93). The role order is
+    // fully determined by the face's own orientation — the mef run
+    // (the enclosed patch, the new face's outer) must wind CCW around
+    // the face's outward normal so the remainder ring anti-encloses.
+    // Exactly one of the two orders satisfies it (the candidate runs
+    // are antiparallel copies). This replaces the PR 5.5
+    // residual-material-side probe, which anchored on the face's
+    // outer-loop vertices and was UNSOUND mid-fixpoint on faces
+    // hosting several pending polygons: the outer anchor classified a
+    // region other pending seams still separate from the island's
+    // immediate surround (the A×Z counter island — surround IN, outer
+    // corners OUT — silently crossed the copies; the zip's
+    // antiparallelism witness caught it). The two rules agree wherever
+    // the residual anchor was sound (both parities checked in the
+    // issue #93 diagnosis), so corpus surgery is unchanged.
+    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, band)? {
         (ea, ra)
     } else {
         (ra, ea)
@@ -649,56 +662,82 @@ fn choose_roles<T: Decide>(
     }
 }
 
-/// Whether the residual material of `face` (the region holding its
-/// outer boundary) lies INSIDE the other body: the first definitive
-/// [`point_in_solid`] verdict walking the outer loop's non-scaffolding
-/// vertices in cycle order (D9-deterministic; seam copies are skipped
-/// by side-set membership, contact vertices land `OnBoundary` and are
-/// skipped by the trilean itself). No classifiable vertex is a loud
-/// desync.
-fn residual_side_in<T: Decide>(
+/// Whether the prospective mef run `[h1 .. h2]` — the `next`-order arc
+/// from `h1` through `h2`, closed by the chord `end(h2) → start(h1)`
+/// (exactly the cycle the joiner's first `mef(Chords { he1: h1,
+/// he2: next(h2) })` walls off as the new face) — winds CCW around
+/// `face`'s outward normal: the orientation an island's new outer loop
+/// must have (the remainder ring anti-encloses iff the run encloses).
+///
+/// Reified (issue #93): the margin is `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
+/// the plane's Newell functional, twice the run's signed enclosed
+/// area — through the `bool_ring_run_winding` predicate in the
+/// k_stats funnel; `Indeterminate` escalates. Zero is a degenerate
+/// area-free run and a loud desync (the ring lane only closes full
+/// island cycles — slit-growing joins are mekr-lane merges). The
+/// ring lane is planar-scoped like [`point_in_solid`]'s F5 gate: a
+/// non-planar carrier refuses loudly.
+fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
-    other_pristine: &Body<T>,
-    s: &SolidJoin,
     face: FaceKey,
+    h1: HalfEdgeKey,
+    h2: HalfEdgeKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let outer = body
+    let normal = match body
         .get_face(face)
-        .ok_or(desync("ring-lane face no longer resolves"))?
-        .outer;
-    let crate::entity::LoopBoundary::Cycle { first } = body
-        .get_loop(outer)
-        .ok_or(desync("ring-lane outer loop no longer resolves"))?
-        .boundary
-    else {
-        return Err(desync("ring-lane outer loop is empty"));
-    };
-    for he in body
-        .loop_cycle(first)
-        .ok_or(desync("ring-lane outer loop not walkable"))?
+        .and_then(|f| body.get_surface(f.surface))
     {
+        Some(geom_surfaces::Surface::Plane { normal, .. }) => *normal,
+        _ => return Err(desync("ring-lane face has no planar carrier")),
+    };
+    let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = body
             .get_half_edge(he)
-            .ok_or(desync("ring-lane outer half no longer resolves"))?
+            .ok_or(desync("run half no longer resolves"))?
             .start;
-        if s.in_set.contains_key(v) || s.out_set.contains_key(v) {
-            continue;
-        }
-        let p = body
-            .get_vertex(v)
+        body.get_vertex(v)
             .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(desync("ring-lane outer vertex has no point"))?;
-        match super::solid_contain::point_in_solid(other_pristine, p, band)
-            .map_err(BooleanError::Containment)?
-        {
-            super::solid_contain::SolidContainment::In => return Ok(true),
-            super::solid_contain::SolidContainment::Out => return Ok(false),
-            super::solid_contain::SolidContainment::OnBoundary => continue,
+            .ok_or(desync("run vertex has no point"))
+    };
+    let p0 = point_of(h1)?;
+    let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+    let mut prev = p0;
+    let mut he = h1;
+    let mut steps = 0usize;
+    loop {
+        if he != h1 {
+            let p = point_of(he)?;
+            newell = newell + (prev - p0).cross(p - p0);
+            prev = p;
+        }
+        if he == h2 {
+            break;
+        }
+        he = body
+            .get_half_edge(he)
+            .ok_or(desync("run half no longer resolves"))?
+            .next;
+        steps += 1;
+        if steps > body.half_edges().count() {
+            return Err(desync("ring-run arc did not close"));
         }
     }
-    Err(desync("ring-lane face has no classifiable residual vertex"))
+    let end = body
+        .half_edge_end(h2)
+        .and_then(|v| body.get_vertex(v))
+        .and_then(|vd| body.get_point(vd.point).copied())
+        .ok_or(desync("run end has no point"))?;
+    newell = newell + (prev - p0).cross(end - p0);
+    let escalate = |diag| BooleanError::Escalated { diag };
+    match decide("bool_ring_run_winding", normal.dot(newell), band).map_err(escalate)? {
+        geom_core::Sign::Positive => Ok(true),
+        geom_core::Sign::Negative => Ok(false),
+        geom_core::Sign::Zero => Err(desync(
+            "ring-run winding is degenerate (zero enclosed area)",
+        )),
+    }
 }
 
 /// The clean chord-arc role order, if any (doc at [`choose_roles`]):
