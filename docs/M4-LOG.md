@@ -827,3 +827,17 @@ PID-scoped kills. Reviewer launched (attack list: over-tie
 candidates fidelity, attribution determinism/honesty, ForeignNode
 totality, collision-refusal bypasses, offers golden coverage,
 ladder completeness/non-invention, tombstone last-good pinning).
+
+**Merge-gate policy CHANGE (2026-07-25, prompted by Evan: "how is
+gate.sh free?")**: honest accounting — gate.sh costs 30G cache,
+serialized wall-clock, RAM/CPU contention on a 5G box, and
+contributed to both disk crashes; hosted Actions (green since #94)
+runs the same matrix parallel on GitHub hardware ~7 min on the
+PR's merge ref. NEW POLICY: hosted Actions PR checks are the merge
+gate; gate.sh demotes to documented billing-outage fallback. The
+running PR 90 gate is the last old-regime run (no double-verify);
+PR 4 onward merges on green checks. Gate runner's 30G target gets
+deleted after PR 90 merges (cold rebuild accepted for rare
+fallback use). Demo implementation launches post-PR-90-merge:
+Evan confirmed everything viable-now is picked (C2 H×T, C4, C5,
+C9, C10 + fix-regardless trio; C1/C3 unlock at the merge).
