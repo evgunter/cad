@@ -706,6 +706,7 @@ fn ring_run_ccw<T: Decide>(
     let mut prev = p0;
     let mut he = h1;
     let mut steps = 0usize;
+    let cap = body.half_edges().count(); // hoisted: O(n) guard, not O(n²)
     loop {
         if he != h1 {
             let p = point_of(he)?;
@@ -720,7 +721,7 @@ fn ring_run_ccw<T: Decide>(
             .ok_or(desync("run half no longer resolves"))?
             .next;
         steps += 1;
-        if steps > body.half_edges().count() {
+        if steps > cap {
             return Err(desync("ring-run arc did not close"));
         }
     }
@@ -896,9 +897,19 @@ fn cut_pair<T: Decide>(
 /// seam loops — every vertex and midpoint on the other boundary):
 /// vertex-triple centroids accepted only when the reified
 /// `point_in_face` certifies them strictly interior, then probed the
-/// same way. Regions lying INSIDE the other body's boundary surface
-/// (the coincident-plane class) still exhaust all three tiers — every
-/// interior point is `OnBoundary` — so the typed refusal below stays.
+/// same way.
+///
+/// The typed refusal below is LOAD-BEARING, not a dead backstop
+/// (issue #106): the centroid generator is heuristic-incomplete —
+/// e.g. a square annulus between two seam loops (depth-2 island
+/// nesting, island ⊃ ring ⊃ island on one face) can land every
+/// consecutive-triple centroid inside the hole, so no candidate
+/// certifies and the arm refuses typed. That residue is
+/// refusal-only, never wrongness (uncertified candidates are
+/// discarded unprobed). Regions lying INSIDE the other body's
+/// boundary surface (the coincident-plane class) also exhaust all
+/// tiers — every interior point is `OnBoundary` — though post-N6
+/// that class normally refuses earlier, at the coincidence door.
 fn resolve_roles_geometric<T: Decide>(
     body: &Body<T>,
     other_pristine: &Body<T>,
