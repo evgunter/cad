@@ -1237,3 +1237,24 @@ checks. Review clone for #99 removed after merge.
 green checks. #99 lanes + docs-audit clone removed (pr5-review
 clone RETAINED until PR 5 merges, in case the fix pass needs the
 reviewer resumed). Remaining in flight: PR 5 fix pass, #93.
+
+**SESSION-LIMIT FLUSH (2026-07-25, 98%, reset ~25min; wakeup
+scheduled)**: PR 5 fix pass COMPLETE @ 386a900 (F1 skip-lane
+re-description at both doors, F2/F3 skip records public+honest,
+F4 door tests, F6 arms pinned ×2, F7; battery 1256/0 + 1256/0 +
+interval 1400/0; renders regenerated incl. corner-aligned table
+montage). **PR #102 OPENED** — checks watcher NOT yet armed (limit).
+#101 declared-tangency discipline RATIFIED in-session (5-point
+shape; between-seams unit, coin flip at dispatch). WAKE CHECKLIST:
+(1) arm PR 102 checks watcher → merge on green → clean pr5/
+pr5-review clones → state-sync PR to main; (2) check #93 lane
+(was mid-battery — likely died at the shared limit; resume from
+transcript, clone ~/.local/share/cad-work/issue93, branch pushed
+@ 40670fa+); (3) answer Evan's large-K demo lint question
+(recommendation drafted: fold into PR 8's K-telemetry wiring —
+sweep demo scenes alongside Band 4 corpus, |m|/ε percentile
+threshold from K-REPORT baselines, advisory-first; #99's 2.3ε
+margin at 1e-6 is the motivating catch); (4) A/B: PR 5 reference
+row fillable from review rubric (1MAJ/3MIN/3NOTE, 1 silent dev,
+4/4/4); #93 row awaits its review; (5) #101 + tangency unit and
+PR 6 dispatch (spec ratified) queue after PR 5 merges.
