@@ -756,8 +756,60 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
     // cannot take the Intersection upgrade - coincident planes have no
     // intersection line).
     assert_eq!(validate_closed(&cube.body), Ok(()));
+    // M4 PR 5 (N6 retirement): the quadrants' "declared" equality is
+    // now a shared GeomSource — stamp every surface bit-equal to the
+    // canonical top plane with ONE source (the numeric center's
+    // different description stays unstamped and unmergeable).
+    stamp_top_sources(&mut cube.body);
     let verts = [e_ap.vertex, e_pq.vertex, e_qr.vertex, e_rs.vertex];
     (cube, center, verts)
+}
+
+/// Stamps one shared [`topo::GeomSource`] onto every surface whose
+/// plane description bit-equals the canonical top plane (f64 lane) —
+/// the test-side stand-in for the recipe layer's post-op stamping.
+fn stamp_top_sources(body: &mut topo::Body<f64>) {
+    let canon = plane(&[
+        pt(0.0, 0.0, 1.0),
+        pt(1.0, 0.0, 1.0),
+        pt(1.0, 1.0, 1.0),
+        pt(0.0, 1.0, 1.0),
+    ]);
+    let geom_surfaces::Surface::Plane {
+        origin: co,
+        normal: cn,
+        u_ref: cu,
+    } = canon
+    else {
+        panic!("canonical top plane is a plane")
+    };
+    let eq = |a: f64, b: f64| a.to_bits() == b.to_bits();
+    let keys: Vec<_> = body
+        .surfaces()
+        .filter_map(|(k, s)| match *s {
+            geom_surfaces::Surface::Plane {
+                origin: o,
+                normal: n,
+                u_ref: u,
+            } if eq(o.x, co.x)
+                && eq(o.y, co.y)
+                && eq(o.z, co.z)
+                && eq(n.x, cn.x)
+                && eq(n.y, cn.y)
+                && eq(n.z, cn.z)
+                && eq(u.x, cu.x)
+                && eq(u.y, cu.y)
+                && eq(u.z, cu.z) =>
+            {
+                Some(k)
+            }
+            _ => None,
+        })
+        .collect();
+    let src = topo::GeomSource::minted(1001, 0);
+    for k in keys {
+        body.set_surface_source(k, src.clone()).unwrap();
+    }
 }
 
 /// TARGET 6: the annulus merge - four declared-equal quadrants around a
@@ -1032,6 +1084,9 @@ fn merge_coplanar_full_plateau_atomicity() {
     cube.body
         .set_face_surface(center, FaceSurface::New(top_plane))
         .unwrap();
+    // Re-stamp: the center's replacement surface joins the shared
+    // source (the M4 PR 5 form of "declared-equal center").
+    stamp_top_sources(&mut cube.body);
     assert_eq!(validate_closed(&cube.body), Ok(()));
     let before = dump(&cube.body);
     match cube.body.merge_coplanar_faces() {

@@ -56,11 +56,35 @@ pub struct MergedGroup {
     pub rings_made: Vec<LoopKey>,
 }
 
+/// A declared-licensed merge group that was NOT glued (M4 PR 5): its
+/// shape is outside the merge's never-elide Euler inventory. Loud in
+/// the record, never a silent drop — and never a partial commit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SkippedMerge {
+    /// The group's faces (group order).
+    pub faces: Vec<FaceKey>,
+    /// Why the glue was not performed.
+    pub why: &'static str,
+}
+
 /// The outcome of one [`Body::merge_coplanar_faces`] call.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MergeCoplanarOutcome {
     /// The merged runs, in group order (first face's arena order).
     pub groups: Vec<MergedGroup>,
+    /// Declared-licensed groups skipped as outside the inventory
+    /// (empty for the no-declaration entry point).
+    pub skipped: Vec<SkippedMerge>,
+}
+
+/// Which ladder rung licensed one mergeable adjacency (crate-
+/// internal: declared-pair-licensed groups get per-group staging).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MergeRung {
+    /// Same surface key or same GeomSource — the ratified hard rungs.
+    Hard,
+    /// A per-call declared surface pair.
+    DeclaredPair,
 }
 
 /// A refused [`Body::merge_coplanar_faces`] call (closed enum, D3
@@ -317,17 +341,26 @@ impl<T: Decide> Body<T> {
         };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
         let mut neighbors: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
+        let mut declared_faces: std::collections::BTreeSet<FaceKey> =
+            std::collections::BTreeSet::new();
         let mut any = false;
         for (edge_key, edge) in self.edges() {
             let Some((fp, fm)) = self.edge_faces(edge.he_plus, edge.he_minus) else {
                 continue; // unreachable on tier-2 input
             };
-            if fp != fm && self.planes_declared_equal(fp, fm, edge_key, declared_ctx.as_ref())? {
+            if fp != fm
+                && let Some(rung) =
+                    self.planes_declared_equal(fp, fm, edge_key, declared_ctx.as_ref())?
+            {
                 if let Some(entry) = neighbors.entry(fp) {
                     entry.or_default().push(fm);
                 }
                 if let Some(entry) = neighbors.entry(fm) {
                     entry.or_default().push(fp);
+                }
+                if rung == MergeRung::DeclaredPair {
+                    declared_faces.insert(fp);
+                    declared_faces.insert(fm);
                 }
                 any = true;
             }
@@ -358,10 +391,48 @@ impl<T: Decide> Body<T> {
             groups.push(members);
         }
         // ---- Staged surgery on a clone. ----
+        //
+        // Structural / same-source groups keep the ratified
+        // whole-refusal semantics. DECLARED-licensed groups (any
+        // member joined through a declared pair) are attempted each
+        // on its own sub-stage: shapes outside the never-elide
+        // inventory (e.g. chain-shaped shared seam edges, whose full
+        // kill would strand interior vertices) are SKIPPED and
+        // recorded in [`MergeCoplanarOutcome::skipped`] — the
+        // declaration still served the consuming op's classification;
+        // the unglued coplanar adjacency persists exactly as the
+        // M3-era output did and refuses loudly downstream if reused
+        // undeclared. Never a partial commit: each sub-stage is
+        // tier-2-gated before adoption.
         let mut work = self.clone();
         let mut outcome = MergeCoplanarOutcome::default();
         for members in groups {
-            outcome.groups.push(work.merge_group(&members)?);
+            let licensed = members.iter().any(|f| declared_faces.contains(f));
+            if !licensed {
+                outcome.groups.push(work.merge_group(&members)?);
+                continue;
+            }
+            let mut trial = work.clone();
+            match trial.merge_group(&members) {
+                Ok(group) => {
+                    if validate_closed(&trial).is_ok() {
+                        work = trial;
+                        outcome.groups.push(group);
+                    } else {
+                        outcome.skipped.push(SkippedMerge {
+                            faces: members,
+                            why: "staged declared merge failed tier 2 (shape outside the \
+                                  never-elide inventory)",
+                        });
+                    }
+                }
+                Err(_) => {
+                    outcome.skipped.push(SkippedMerge {
+                        faces: members,
+                        why: "declared merge group refused by the Euler inventory",
+                    });
+                }
+            }
         }
         // ---- Gate: tier-valid after; commit. ----
         if let Err(errors) = validate_closed(&work) {
@@ -410,15 +481,15 @@ impl<T: Decide> Body<T> {
         f2: FaceKey,
         edge: EdgeKey,
         declared: Option<&DeclaredCtx>,
-    ) -> Result<bool, MergeCoplanarError> {
+    ) -> Result<Option<MergeRung>, MergeCoplanarError> {
         let (Some(k1), Some(k2)) = (
             self.get_face(f1).map(|f| f.surface),
             self.get_face(f2).map(|f| f.surface),
         ) else {
-            return Ok(false);
+            return Ok(None);
         };
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
-            return Ok(false);
+            return Ok(None);
         };
         let (
             Surface::Plane {
@@ -433,10 +504,10 @@ impl<T: Decide> Body<T> {
             },
         ) = (*s1, *s2)
         else {
-            return Ok(false);
+            return Ok(None);
         };
         if k1 == k2 {
-            return Ok(true); // structural (and planar, checked above)
+            return Ok(Some(MergeRung::Hard)); // structural (planar-checked)
         }
         // Declared rung, N6 form: same recipe source INCLUDING orient
         // — a provenance lookup, no numerics. The debug assertion is
@@ -451,7 +522,7 @@ impl<T: Decide> Body<T> {
                 "N6 theorem violated: same-source surface descriptions disagree bitwise \
                  (kernel bug: a source survived a geometric rewrite)"
             );
-            return Ok(true);
+            return Ok(Some(MergeRung::Hard));
         }
         #[cfg(not(debug_assertions))]
         let _ = (u1, u2);
@@ -475,12 +546,12 @@ impl<T: Decide> Body<T> {
                 normal: n2,
             };
             return match oriented_plane_eq(&p1, &p2, id, arm, band) {
-                Ok(PlaneRelation::SameOriented) => Ok(true),
+                Ok(PlaneRelation::SameOriented) => Ok(Some(MergeRung::DeclaredPair)),
                 Ok(PlaneRelation::SameOpposite) => {
                     Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
                 }
                 // Unreachable through the declared rung; kept typed.
-                Ok(PlaneRelation::Distinct) => Ok(false),
+                Ok(PlaneRelation::Distinct) => Ok(None),
                 Err(PlaneEqError::Contradicted(diag)) => {
                     Err(MergeCoplanarError::DeclarationContradicted { diag })
                 }
@@ -489,7 +560,7 @@ impl<T: Decide> Body<T> {
                 }
             };
         }
-        Ok(false)
+        Ok(None)
     }
 
     /// The chord length between an edge's endpoints — the lever arm

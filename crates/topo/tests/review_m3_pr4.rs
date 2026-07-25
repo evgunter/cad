@@ -10,7 +10,7 @@
 
 mod common;
 
-use common::prism_z;
+use common::{flush_declarations, prism_z};
 use geom_core::Decide;
 use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 
@@ -38,7 +38,8 @@ fn dump<T: Decide>(b: &Body<T>) -> String {
 
 fn reduce_ok<T: Decide>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
-    let red = boolean_reduce(op, a, b).unwrap();
+    // M4 PR 5: the review corpus declares its intended flush contacts.
+    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
