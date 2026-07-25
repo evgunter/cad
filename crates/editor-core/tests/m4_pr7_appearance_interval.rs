@@ -13,7 +13,7 @@ use editor_core::{
     Attr, AttrKind, BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
     Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{declare_x_offset_flush, desc, insert, len, step};
 use geom_core::{Decide, Interval};
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
@@ -54,13 +54,14 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     let doc = ProfileDoc::empty();
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = declare_x_offset_flush(doc, a, b);
     let (doc, uni) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Some(decl),
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's

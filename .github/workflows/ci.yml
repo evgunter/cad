@@ -41,26 +41,45 @@ jobs:
             echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
             exit 1
           fi
-      # Bit-identity coincidence checking is SCHEDULED FOR RETIREMENT
-      # (DESIGN.md roadmap, M4: provenance-based naming replaces the
-      # declared rung's bit fingerprint with a record lookup; Evan, #53).
-      # Until then, exactly the allowlisted sites below may CONSUME the
-      # channel (bit_identity::/repr_bits/eq_bits). A new consumer must
-      # (1) be added to the allowlist here AND (2) carry its own code-doc
-      # note that it is retirement-scheduled with M4 — the tripwire
-      # exists so no usage lands without that note (Evan, #53,
-      # 2026-07-21). Comment lines are excluded (docs may name the
+      # Bit-identity coincidence checking is RETIRED from production
+      # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
+      # declared rung is GeomSource lookup, and the production-consumer
+      # allowlist is EMPTY. The remaining rows are NON-consumers:
+      #  - bit_identity.rs — the sanctioned seam itself;
+      #  - interval.rs — Interval::repr_bits over its OWN storage:
+      #    scalar plumbing (exact-representation access), never a
+      #    coincidence comparison;
+      #  - eval/memo.rs — HASHES exact bits into content keys (spec D4
+      #    "values AS BITS"): scalar plumbing, never a comparison;
+      #  - topo/source.rs — the cfg(debug_assertions)-gated
+      #    "records agree with bits" assertion (N6's
+      #    debug_assert!(same_source => eq_bits)); not in production
+      #    builds.
+      # The tripwire stays ARMED: any NEW file using the channel fails
+      # here — a new production consumer is a design regression against
+      # the ratified retirement (add nothing without a DESIGN.md
+      # revision). Comment lines are excluded (docs may name the
       # channel; code may not use it unlisted).
-      - name: bit-identity consumer tripwire (M4 retirement)
+      - name: bit-identity consumer tripwire (retirement landed, M4 PR 5)
         run: |
           if grep -rnE 'bit_identity::|repr_bits|eq_bits' crates/*/src \
             | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
             | grep -vE '^crates/geom-core/src/interval\.rs:' \
-            | grep -vE '^crates/topo/src/merge_faces\.rs:' \
-            | grep -vE '^crates/topo/src/boolean/plane_eq\.rs:' \
+            | grep -vE '^crates/topo/src/source\.rs:' \
             | grep -vE '^crates/editor-core/src/eval/memo\.rs:' \
             | grep -vE ':[0-9]+:\s*//'; then
-            echo "::error::new bit-identity channel consumer above — this channel is retirement-scheduled (DESIGN.md M4); allowlist it here AND add a retirement note in its docs, or use a provenance mechanism instead"
+            echo "::error::bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
+            exit 1
+          fi
+      # source.rs must stay debug-only: its bit-channel calls may only
+      # appear inside cfg(debug_assertions) items (grep-level guard:
+      # the file declares the gate above each use).
+      - name: bit-identity debug-only guard (topo/source.rs)
+        run: |
+          uses=$(grep -cE 'bit_identity::|eq_bits' crates/topo/src/source.rs || true)
+          gates=$(grep -c 'cfg(debug_assertions)' crates/topo/src/source.rs || true)
+          if [ "$uses" -gt 0 ] && [ "$gates" -eq 0 ]; then
+            echo "::error::topo/src/source.rs uses the bit channel without cfg(debug_assertions) gating — the retirement allows a debug assertion only"
             exit 1
           fi
       # Complementary punning tripwire (M3 PR 4; Evan #53/#57/#58): the

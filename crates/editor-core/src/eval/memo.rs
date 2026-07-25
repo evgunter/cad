@@ -26,6 +26,20 @@ use geom_core::Real;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ContentKey(pub u128);
 
+/// A node's NAMING key (issue #95, disposition 2 — M4 PR 5):
+/// `naming_key(N) = H(content_key(N), [(input_id_i,
+/// naming_key(input_i)), …])` — computed like a content key but
+/// INCLUDING input node ids, composing recursively through the DAG.
+/// Names embed minting node ids (N1) while content keys exclude them
+/// (D8), so the naming half of a memoized value is a pure function of
+/// THIS key, not of the content key; a memo hit additionally requires
+/// naming-key equality, else the op re-runs (geometry bit-identical
+/// by D9, names honestly re-derived). The recursion is what catches
+/// the grandparent case: re-pointing an input two hops up changes
+/// every downstream naming key even where contents agree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct NamingKey(pub u128);
+
 /// The two FNV-1a states (standard 64-bit offset basis, and the same
 /// basis XOR a documented constant so the halves are independent
 /// walks; both use the standard FNV prime).

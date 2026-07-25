@@ -12,7 +12,7 @@ use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
     evaluate,
 };
-use fixture::{desc, insert, len, scl};
+use fixture::{declare_x_offset_flush, desc, fname, insert, len, scl, wall};
 use geom_core::{Decide, Interval};
 
 fn block(
@@ -46,24 +46,36 @@ fn corpus() -> ProfileDoc {
     let doc = ProfileDoc::empty();
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl_u) = declare_x_offset_flush(doc, a, b);
     let (doc, _union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Some(decl_u),
         },
     );
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, slot) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    // The slot's top cap lies IN c's top plane — declared (M4 PR 5).
+    let (doc, decl_s) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(
+                fname(c, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
+                fname(slot, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
+            )],
+        },
+    );
+    let _ = wall; // shared helper import parity with the f64 lane
     let (doc, _sub) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: c,
             b: slot,
-            declare: None,
+            declare: Some(decl_s),
         },
     );
     let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 0.0, 2.0);

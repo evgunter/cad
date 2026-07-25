@@ -152,13 +152,14 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             },
         )
     };
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Some(decl),
         },
     );
     // Split the union.

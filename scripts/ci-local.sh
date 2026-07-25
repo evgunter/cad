@@ -32,14 +32,22 @@ discipline() {
     echo "ERROR: found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
     rc=1
   fi
+  # Production-consumer allowlist EMPTY since M4 PR 5 (N6 retirement):
+  # remaining rows are non-consumers (the seam itself; interval.rs
+  # scalar plumbing; memo.rs bit-hashing; source.rs debug assertion).
   if grep -rnE 'bit_identity::|repr_bits|eq_bits' crates/*/src \
     | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
     | grep -vE '^crates/geom-core/src/interval\.rs:' \
-    | grep -vE '^crates/topo/src/merge_faces\.rs:' \
-    | grep -vE '^crates/topo/src/boolean/plane_eq\.rs:' \
+    | grep -vE '^crates/topo/src/source\.rs:' \
     | grep -vE '^crates/editor-core/src/eval/memo\.rs:' \
     | grep -vE ':[0-9]+:\s*//'; then
-    echo "ERROR: new bit-identity channel consumer above — retirement-scheduled (DESIGN.md M4); allowlist in ci.yml AND here, plus a retirement note in its docs"
+    echo "ERROR: bit-identity channel use above — RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md first"
+    rc=1
+  fi
+  uses=$(grep -cE 'bit_identity::|eq_bits' crates/topo/src/source.rs || true)
+  gates=$(grep -c 'cfg(debug_assertions)' crates/topo/src/source.rs || true)
+  if [ "$uses" -gt 0 ] && [ "$gates" -eq 0 ]; then
+    echo "ERROR: topo/src/source.rs uses the bit channel without cfg(debug_assertions) gating"
     rc=1
   fi
   if grep -rnE 'downcast_ref|downcast_mut|TypeId|core::any|std::any' crates/*/src \

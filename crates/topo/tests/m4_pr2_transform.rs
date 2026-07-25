@@ -10,7 +10,7 @@ use std::f64::consts::FRAC_PI_2;
 use common::prism_z;
 use geom_core::{Affine3, Point3, Vec3};
 use topo::{
-    Body, BooleanResult, mass_properties, subtract, transform_rigid, validate, validate_closed,
+    Body, BooleanResult, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
 };
 
@@ -82,7 +82,9 @@ fn transformed_tool_subtracts_exactly() {
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(&tool, &map).unwrap();
     tiers_ok(&placed);
-    let out = match subtract(&base, &placed).unwrap() {
+    let out = match topo::subtract_with(&base, &placed, &common::flush_declarations(&base, &placed))
+        .unwrap()
+    {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("nonempty subtract"),
     };

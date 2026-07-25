@@ -22,10 +22,11 @@
 
 mod common;
 
-use common::{geometric_cube, prism_z};
+use common::{flush_declarations, geometric_cube, prism_z};
 use geom_core::Decide;
 use topo::{
-    Body, BooleanBody, BooleanResult, subtract, validate, validate_closed, validate_pseudomanifold,
+    Body, BooleanBody, BooleanResult, subtract_with, validate, validate_closed,
+    validate_pseudomanifold,
 };
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
@@ -35,12 +36,14 @@ fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
 fn double_subtract_crossing_slots<T: Decide>() -> BooleanBody<T> {
     let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
     let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
-    let BooleanResult::Body(s1) = subtract(&a, &b1).expect("first subtract succeeds") else {
+    let BooleanResult::Body(s1) =
+        subtract_with(&a, &b1, &flush_declarations(&a, &b1)).expect("first subtract succeeds")
+    else {
         panic!("first subtract yields a body");
     };
     let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5));
-    let BooleanResult::Body(s2) =
-        subtract(&s1.body, &b2).expect("second subtract succeeds (issue #86)")
+    let BooleanResult::Body(s2) = subtract_with(&s1.body, &b2, &flush_declarations(&s1.body, &b2))
+        .expect("second subtract succeeds (issue #86)")
     else {
         panic!("second subtract yields a body");
     };

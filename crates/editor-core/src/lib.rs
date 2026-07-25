@@ -36,7 +36,7 @@ pub use doc::{Doc, DocParam, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
-    EvalOutcome, Evaluation, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
+    EvalOutcome, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
     ValuePayload, evaluate,
 };
 pub use expr::{

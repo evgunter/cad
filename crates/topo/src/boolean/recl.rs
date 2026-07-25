@@ -38,19 +38,36 @@ fn plane_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> Result<PlaneDesc<T>
     })
 }
 
+/// The geometrically-ON sector pair's plane identity check, with the
+/// M4 PR 5 evidence: the two faces' recipe sources (N6) plus the
+/// consuming op's declared face pairs (F5).
+#[allow(clippy::too_many_arguments)]
 fn require_same<T: Decide>(
-    p1: &PlaneDesc<T>,
-    p2: &PlaneDesc<T>,
+    body1: &Body<T>,
+    o1: super::Operand,
+    s1: &BoolSector<T>,
+    body2: &Body<T>,
+    o2: super::Operand,
+    s2: &BoolSector<T>,
+    declared: &super::DeclaredPairs,
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
-    match super::oriented_plane_eq(p1, p2, arm, band) {
+    let id = super::PlaneIdentity {
+        s1: super::reduce::face_source(body1, s1.face),
+        s2: super::reduce::face_source(body2, s2.face),
+        declared: declared.contains(o1, s1.face, o2, s2.face),
+    };
+    match super::oriented_plane_eq(&plane_of(body1, s1)?, &plane_of(body2, s2)?, id, arm, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct planes",
         }),
         Ok(rel) => Ok(rel),
         Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
         Err(PlaneEqError::Undeclared(diag)) => Err(BooleanError::UndeclaredCoincidence { diag }),
+        Err(PlaneEqError::Contradicted(diag)) => {
+            Err(BooleanError::DeclarationContradicted { diag })
+        }
     }
 }
 
@@ -64,6 +81,7 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// Program 15.10 (module docs). `records` are rewritten in place,
 /// sequentially, in creation (A-major) order — later coplanar pairs see
 /// propagated codes, as the book.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
     a_sectors: &[BoolSector<T>],
@@ -71,6 +89,7 @@ pub(super) fn recl_sectors<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
+    declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
@@ -83,7 +102,17 @@ pub(super) fn recl_sectors<T: Decide>(
         let sa = &a_sectors[r.a];
         let sb = &b_sectors[r.b];
         let arm = sa.arm.min(sb.arm);
-        let rel = require_same(&plane_of(a_body, sa)?, &plane_of(b_body, sb)?, arm, band)?;
+        let rel = require_same(
+            a_body,
+            super::Operand::A,
+            sa,
+            b_body,
+            super::Operand::B,
+            sb,
+            declared,
+            arm,
+            band,
+        )?;
         let newsa = eq15_3_lump(op, Operand::A, rel);
         let newsb = eq15_3_lump(op, Operand::B, rel);
         // Cyclic neighbors through the shared-bound chain:
@@ -234,6 +263,7 @@ pub(super) fn recl_edges<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
+    declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
@@ -315,6 +345,7 @@ pub(super) fn recl_edges<T: Decide>(
                 a_body,
                 b_body,
                 op,
+                declared,
                 band,
                 am.start_holder,
                 bm.start_holder,
@@ -326,6 +357,7 @@ pub(super) fn recl_edges<T: Decide>(
                 a_body,
                 b_body,
                 op,
+                declared,
                 band,
                 true,
                 am.start_holder,
@@ -338,6 +370,7 @@ pub(super) fn recl_edges<T: Decide>(
                 a_body,
                 b_body,
                 op,
+                declared,
                 band,
                 false,
                 bm.start_holder,
@@ -423,6 +456,7 @@ fn resolve_edge_edge<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
+    declared: &super::DeclaredPairs,
     band: Band,
     fa_s: usize,
     fb_s: usize,
@@ -481,9 +515,19 @@ fn resolve_edge_edge<T: Decide>(
                     if !same {
                         inside = false; // touching, not overlapping
                     } else {
+                        let (own_op, other_op) = if own_is_a {
+                            (super::Operand::A, super::Operand::B)
+                        } else {
+                            (super::Operand::B, super::Operand::A)
+                        };
                         let rel = require_same(
-                            &plane_of(own_body, &own_secs[own_idx])?,
-                            &plane_of(other_body, &other_secs[oi])?,
+                            own_body,
+                            own_op,
+                            &own_secs[own_idx],
+                            other_body,
+                            other_op,
+                            &other_secs[oi],
+                            declared,
                             arm,
                             band,
                         )?;
@@ -536,6 +580,7 @@ fn resolve_edge_sector<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
+    declared: &super::DeclaredPairs,
     band: Band,
     a_side: bool,
     f_s: usize,
@@ -578,9 +623,19 @@ fn resolve_edge_sector<T: Decide>(
         } else {
             (b_body, a_body)
         };
+        let (own_op, ref_op) = if a_side {
+            (super::Operand::A, super::Operand::B)
+        } else {
+            (super::Operand::B, super::Operand::A)
+        };
         relation = require_same(
-            &plane_of(own_body, &own_secs[on_flanker])?,
-            &plane_of(ref_body, ref_sector)?,
+            own_body,
+            own_op,
+            &own_secs[on_flanker],
+            ref_body,
+            ref_op,
+            ref_sector,
+            declared,
             own_secs[on_flanker].arm.min(ref_sector.arm),
             band,
         )?;

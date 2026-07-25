@@ -20,7 +20,7 @@ mod schedule;
 mod slots;
 mod wire;
 
-pub use memo::{ContentBits, ContentKey, KeyHasher};
+pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -135,6 +135,11 @@ pub struct NodeValue<T: Decide> {
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
     pub content_key: ContentKey,
+    /// The node's recursive NAMING key (issue #95 disposition 2, M4
+    /// PR 5): memo reuse of the whole value requires BOTH keys to
+    /// match — content certifies the geometry, naming certifies the
+    /// node-id-embedding names half (see [`NamingKey`]).
+    pub naming_key: NamingKey,
 }
 
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
@@ -345,6 +350,30 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// A `Declare` pair failed to resolve through the operands' name
+    /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
+    /// naming a vanished/ambiguous/deleted name refuses loudly; no
+    /// silent drop, no best-effort gluing.
+    DeclareResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A `Declare` name resolves in BOTH operands' tables (the same
+    /// body value feeding both sides) — the declaration cannot pick a
+    /// side; refused, never guessed.
+    DeclareBothOperands {
+        /// The ambiguous name.
+        name: Box<crate::names::StableName>,
+    },
+    /// A `Declare` pair outside the v1 threading vocabulary
+    /// (supported: cross-operand Face–Face; same-operand
+    /// Vertex–Vertex and Vertex–Face).
+    DeclareUnsupportedPair {
+        /// The pair's entity kinds, declaration order.
+        kinds: (crate::names::EntityKind, crate::names::EntityKind),
+        /// Whether the names resolved in different operands.
+        cross_operand: bool,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -567,6 +596,7 @@ where
     // node's deterministic input order; `through` always names a
     // FAILED node (propagated through poisoned intermediaries).
     let mut upstream_keys: Vec<ContentKey> = Vec::new();
+    let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
     for input in node.inputs() {
         match results.get(&input) {
             None => return fail(NodeErrorKind::MissingInput { input }),
@@ -582,7 +612,10 @@ where
                     reused: false,
                 };
             }
-            Some(NodeResult::Ok(v)) => upstream_keys.push(v.content_key),
+            Some(NodeResult::Ok(v)) => {
+                upstream_keys.push(v.content_key);
+                upstream_naming.push((input, v.naming_key));
+            }
         }
     }
 
@@ -594,10 +627,19 @@ where
     };
 
     let content_key = content_key(node, &slot_values, &upstream_keys, doc.witness(id));
+    let naming_key = naming_key(content_key, &upstream_naming);
 
-    // Memo (spec D4): same key ⇒ same inputs ⇒ (D9) same output.
+    // Memo (spec D4 + #95 disposition 2): a content-key match
+    // certifies the GEOMETRY; whole-value reuse additionally requires
+    // the naming key (names embed node ids the content key excludes).
+    // On a content hit with a naming miss the op RE-RUNS whole: the
+    // emission handoffs are dropped after naming, so the naming half
+    // is not separably re-derivable — and D9 makes the re-run's
+    // geometry bit-identical, so re-running IS "reuse the geometry,
+    // re-derive the names", spelled honestly.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
         && v.content_key == content_key
+        && v.naming_key == naming_key
     {
         return NodeStep {
             result: NodeResult::Ok(v.clone()),
@@ -612,7 +654,7 @@ where
     // idiom-1 parallelism runs whole nodes on one worker each), so
     // logs never interleave across nodes.
     geom_core::k_stats::start_verdict_log();
-    let op = wire::run_op(id, node, results, &slot_values);
+    let op = wire::run_op(id, node, doc, results, &slot_values);
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
         Ok((payload, name_table)) => NodeStep {
@@ -622,6 +664,7 @@ where
                 verdicts: Arc::new(verdicts),
                 witness: WitnessSlot {},
                 content_key,
+                naming_key,
             }),
             reused: false,
         },
@@ -722,6 +765,23 @@ where
 
 /// Feeds a [`StableName`] structurally into the content key (names
 /// are float-free by construction — pure tags and integers).
+/// The recursive naming key (issue #95 disposition 2; see
+/// [`NamingKey`]): the node's own content key plus every input's
+/// (id, naming key) pair, in input order — ids INCLUDED, which is
+/// exactly what the content key omits by design (D8).
+fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> NamingKey {
+    let mut h = KeyHasher::new();
+    h.write_tag(3); // naming-key domain, format v1
+    h.write_key(content);
+    h.write_u64(upstream.len() as u64);
+    for (id, nk) in upstream {
+        h.write_u64(id.0);
+        h.write_u64(nk.0 as u64);
+        h.write_u64((nk.0 >> 64) as u64);
+    }
+    NamingKey(h.finish().0)
+}
+
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {

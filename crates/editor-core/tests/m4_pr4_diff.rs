@@ -66,13 +66,15 @@ fn slide_union(tx: f64) -> Slide {
             rotation_angle: ang(0.0),
         },
     );
+    // M4 PR 5: the sliding overlap's flush planes are declared.
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
     let (doc, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: None,
+            declare: Some(decl),
         },
     );
     Slide {

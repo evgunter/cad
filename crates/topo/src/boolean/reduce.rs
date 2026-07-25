@@ -99,6 +99,16 @@ pub(super) fn gate_planar<T: Decide>(body: &Body<T>, operand: Operand) -> Result
     Ok(())
 }
 
+/// The recipe source of a face's surface description, if the recipe
+/// layer stamped one (N6; the plane-identity evidence at every
+/// classification comparison).
+pub(super) fn face_source<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<&crate::source::GeomSource> {
+    body.surface_source(body.get_face(face)?.surface)
+}
+
 /// The face's plane description (post-gate: always a `Plane`).
 pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.get_face(face)?;
@@ -147,7 +157,16 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             continue;
         };
         let arm = edge_chord_len(body, edge_key).unwrap_or_else(T::one);
-        match super::oriented_plane_eq(&p1, &p2, arm, band) {
+        // Same-operand comparison: sources apply (a shared recipe
+        // source IS declared coplanarity — the pair should have been
+        // merged by the producing op); cross-operand declared pairs
+        // never do.
+        let id = super::PlaneIdentity {
+            s1: face_source(body, f1),
+            s2: face_source(body, f2),
+            declared: false,
+        };
+        match super::oriented_plane_eq(&p1, &p2, id, arm, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -160,6 +179,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             }
             Err(super::PlaneEqError::Undeclared(diag)) => {
                 return Err(BooleanError::UndeclaredCoincidence { diag });
+            }
+            // Unreachable with `declared: false`; kept typed.
+            Err(super::PlaneEqError::Contradicted(diag)) => {
+                return Err(BooleanError::DeclarationContradicted { diag });
             }
         }
     }

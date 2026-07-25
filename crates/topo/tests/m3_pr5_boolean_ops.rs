@@ -19,7 +19,7 @@ use common::prism_z;
 use geom_core::Decide;
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
-    union, validate, validate_closed, validate_geometric,
+    subtract_with, union, union_with, validate, validate_closed, validate_geometric,
 };
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
@@ -39,14 +39,17 @@ fn census<T: geom_core::Real>(b: &Body<T>) -> (usize, usize, usize, usize, usize
     )
 }
 
-/// A public boolean op as a value.
-type BoolOp<T> = fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError>;
+/// A public declared boolean op as a value (M4 PR 5: the corpus
+/// declares its intended flush contacts — recipe intent, test form).
+type BoolOp<T> =
+    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations) -> Result<BooleanResult<T>, BooleanError>;
 
-/// Runs one op functionally, checking the operands stayed bitwise
-/// untouched and the result passes tier 1 + 2.
+/// Runs one op functionally with the author's flush contacts
+/// declared, checking the operands stayed bitwise untouched and the
+/// result passes tier 1 + 2.
 fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let out = op(a, b).unwrap();
+    let out = op(a, b, &common::flush_declarations(a, b)).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &out {
@@ -85,9 +88,9 @@ fn assert_tier3_posture(body: &Body<f64>) {
 fn generic_scenarios<T: Decide>() {
     let (a, b) = two_bricks::<T>();
     for (op, faces) in [
-        (topo::intersect as BoolOp<T>, 6),
-        (union, 12),
-        (subtract, 9),
+        (topo::intersect_with as BoolOp<T>, 6),
+        (union_with, 12),
+        (subtract_with, 9),
     ] {
         let r = run(op, &a, &b);
         let body = body_of(&r);
@@ -97,15 +100,18 @@ fn generic_scenarios<T: Decide>() {
     // Pocket (the cookie-cutter lane) + void + disjoint.
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<T>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
     let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
     let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     assert_eq!(body_of(&r).kind, BooleanResultKind::Voided);
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<T>((2.0, 3.0), (2.0, 3.0), (2.0, 3.0));
-    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
+    assert!(matches!(
+        run(topo::intersect_with, &a, &b),
+        BooleanResult::Empty
+    ));
 }
 
 #[test]
@@ -134,7 +140,7 @@ fn two_bricks<T: Decide>() -> (Body<T>, Body<T>) {
 #[test]
 fn two_bricks_intersect() {
     let (a, b) = two_bricks::<f64>();
-    let r = run(topo::intersect, &a, &b);
+    let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // The [1,2]³ cube: 3 A faces + 3 B faces, hexagon seam.
@@ -142,7 +148,7 @@ fn two_bricks_intersect() {
     assert_props(&body.body, 1.0, 6.0);
     assert_tier3_posture(&body.body);
     // D9: byte-identical replay.
-    let again = run(topo::intersect, &a, &b);
+    let again = run(topo::intersect_with, &a, &b);
     assert_eq!(
         format!("{:?}", body.body),
         format!("{:?}", body_of(&again).body)
@@ -152,14 +158,14 @@ fn two_bricks_intersect() {
 #[test]
 fn two_bricks_union() {
     let (a, b) = two_bricks::<f64>();
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // 7+7 operand corners + 6 seam; 3 full + 3 L faces per operand.
     assert_eq!(census(&body.body), (1, 1, 12, 12, 60, 30, 20));
     assert_props(&body.body, 15.0, 42.0);
     assert_tier3_posture(&body.body);
-    let again = run(union, &a, &b);
+    let again = run(union_with, &a, &b);
     assert_eq!(
         format!("{:?}", body.body),
         format!("{:?}", body_of(&again).body)
@@ -181,7 +187,7 @@ fn two_bricks_union() {
 fn coplanar_overlap_intersect() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
-    let r = run(topo::intersect, &a, &b);
+    let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_props(&body.body, 1.0, 6.0);
@@ -196,7 +202,7 @@ fn coplanar_overlap_intersect() {
 fn void_birth_cube_minus_inner_cube() {
     let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Voided);
     // Outer cube shell + reverted inner void shell: tier-2-legal
@@ -215,15 +221,18 @@ fn disjoint_operands() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<f64>((2.0, 3.0), (2.0, 3.0), (2.0, 3.0));
     // ∪: the typed disjoint union — one solid, two shells.
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
     assert_eq!(census(&body.body), (1, 2, 12, 12, 48, 24, 16));
     assert_props(&body.body, 2.0, 12.0);
     // ∩: the typed empty success.
-    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
+    assert!(matches!(
+        run(topo::intersect_with, &a, &b),
+        BooleanResult::Empty
+    ));
     // ∖: A untouched.
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
     assert_eq!(census(&body.body), census(&a));
@@ -235,15 +244,15 @@ fn nested_operands() {
     let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     // B_inside ∖ A = ∅ (typed success).
-    assert!(matches!(run(subtract, &b, &a), BooleanResult::Empty));
+    assert!(matches!(run(subtract_with, &b, &a), BooleanResult::Empty));
     // A ∩ B_inside = B.
-    let r = run(topo::intersect, &a, &b);
+    let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandB);
     assert_eq!(census(&body.body), census(&b));
     assert_props(&body.body, 1.0, 6.0);
     // A ∪ B_inside = A.
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
     assert_props(&body.body, 27.0, 54.0);
@@ -261,7 +270,7 @@ fn corner_kiss_operands() {
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     // ∪: a touching assembly with the vv contact carried, remapped to
     // live result keys.
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
     assert_eq!(census(&body.body), (1, 2, 12, 12, 48, 24, 16));
@@ -274,8 +283,11 @@ fn corner_kiss_operands() {
     // touching via distinct entities — F2's representable class).
     assert_ne!(c.a, c.b);
     // ∩: regularized empty. ∖: A, contacts dropped (B not in result).
-    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
-    let r = run(subtract, &a, &b);
+    assert!(matches!(
+        run(topo::intersect_with, &a, &b),
+        BooleanResult::Empty
+    ));
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
     assert!(body.contacts.vv.is_empty());
@@ -294,7 +306,7 @@ fn pocket_subtract() {
     // the volume/area oracles are EXACT).
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_props(&body.body, 8.0 - 0.125, 24.0 + 1.0);
@@ -306,7 +318,7 @@ fn boss_union() {
     // The same pillar, added: a boss standing on the top face.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5));
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_props(&body.body, 8.0 + 0.125, 24.0 + 1.0);
@@ -321,7 +333,7 @@ fn boss_union() {
 fn through_pillar_subtract() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (-0.5, 2.5));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(body.body.shells().count(), 1);
@@ -334,7 +346,7 @@ fn through_pillar_subtract() {
 fn inset_leg_union() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 1.5));
     let b = brick::<f64>((0.5, 1.0), (0.5, 1.0), (0.0, 1.25));
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 2·2·0.5 + 0.5·0.5·1.0; area = slab 2·4 + rim 4 − foot .25
@@ -446,8 +458,11 @@ fn tangential_rest_operands() {
     // Full-face coplanar rest (PR 4: ∩/∖ classify to contacts only).
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
-    let r = run(subtract, &a, &b);
+    assert!(matches!(
+        run(topo::intersect_with, &a, &b),
+        BooleanResult::Empty
+    ));
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
     assert_eq!(census(&body.body), census(&a));
@@ -457,7 +472,7 @@ fn tangential_rest_operands() {
 #[test]
 fn two_bricks_subtract() {
     let (a, b) = two_bricks::<f64>();
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // A's union side (7 corners, 3 L + 3 full faces) + reverted BinA
@@ -465,7 +480,7 @@ fn two_bricks_subtract() {
     assert_eq!(census(&body.body), (1, 1, 9, 9, 42, 21, 14));
     assert_props(&body.body, 7.0, 24.0);
     assert_tier3_posture(&body.body);
-    let again = run(subtract, &a, &b);
+    let again = run(subtract_with, &a, &b);
     assert_eq!(
         format!("{:?}", body.body),
         format!("{:?}", body_of(&again).body)

@@ -155,6 +155,7 @@ mod review_m1_pr4;
 mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub mod source;
 pub mod split;
 pub mod splitting;
 #[cfg(test)]
@@ -164,11 +165,13 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanError, BooleanNaming, BooleanOp, BooleanReduction,
-    BooleanResult, BooleanResultKind, CompletedPolygonPair, ContactRecords, FaceContainment,
-    NullEdgePairRecord, Operand, OperandKeys, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneRelation, PointInSolidError, SideCode, SolidContainment, VfContact, VvContact,
-    boolean_reduce, contfp, intersect, oriented_plane_eq, point_in_solid, subtract, union,
+    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
+    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CompletedPolygonPair,
+    ContactRecords, FaceContainment, NullEdgePairRecord, Operand, OperandKeys, PairSite,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
+    SideCode, SolidContainment, VfContact, VvContact, boolean_reduce, boolean_reduce_declared,
+    contfp, intersect, intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with,
+    union, union_with,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -183,11 +186,12 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
-pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup};
+pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
+pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionPolygon,
