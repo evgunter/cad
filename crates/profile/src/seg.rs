@@ -221,6 +221,102 @@ pub(crate) fn coincident<T: Decide>(
     decide(name, p.distance(q), band)
 }
 
+/// How the two carriers of a *joint* — adjacent segments at their
+/// shared vertex — meet there (the #101 declared-tangency discipline's
+/// classification vocabulary).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum JointClass {
+    /// Distinct carriers in first-order (tangent) contact. Tangent
+    /// carriers share exactly one point, and the shared vertex lies on
+    /// both, so the tangency *is* at the joint. Must be declared.
+    Tangent,
+    /// Distinct carriers meeting transversally (or, defensively, a
+    /// definitely-negative clearance, unreachable for carriers sharing
+    /// a vertex): definitely not tangent. A declaration here is
+    /// contradicted.
+    Transversal,
+    /// One shared carrier (collinear line/line, cocircular arc/arc —
+    /// e.g. the minimal two-arc circle's joints): *continuation*, not
+    /// tangency — legal undeclared; a declaration here is contradicted
+    /// (there is no second carrier to be tangent to).
+    SameCarrier,
+}
+
+/// Classifies the joint between two adjacent segments — `prev` arrives
+/// at the shared vertex, `next` leaves it (the classification is
+/// symmetric; the roles only name the arguments). This is the single
+/// per-junction tangency question of the #101 discipline, kept
+/// separate from profile-wide validation so future authoring layers
+/// can ask it per-junction.
+///
+/// Decisions reuse the pair-classification predicates on bit-identical
+/// margin expressions (`carrier_line_circle`,
+/// `carrier_circles_identity` / `_external` / `_internal`,
+/// `chord_side`) — same funnel, same bands, no new ε. In-band or
+/// poisoned margins escalate verbatim.
+pub(crate) fn joint_tangency<T: Decide>(
+    prev: &Seg<T>,
+    next: &Seg<T>,
+    band: Band,
+) -> Result<JointClass, Indeterminate> {
+    match (&prev.kind, &next.kind) {
+        (SegKind::Line, SegKind::Line) => {
+            // Distinct lines are never tangent; the only Zero question
+            // is carrier identity (collinearity). The shared vertex is
+            // on both carriers, so identity ⟺ the far endpoint of one
+            // lies on the other's carrier line.
+            Ok(match chord_side(prev, next.b, band)? {
+                Sign::Zero => JointClass::SameCarrier,
+                Sign::Positive | Sign::Negative => JointClass::Transversal,
+            })
+        }
+        (SegKind::Line, SegKind::Arc(g)) => line_circle_joint(prev, g, band),
+        (SegKind::Arc(g), SegKind::Line) => line_circle_joint(next, g, band),
+        (SegKind::Arc(g1), SegKind::Arc(g2)) => {
+            let d = g1.center.distance(g2.center);
+            let dr = (g1.radius - g2.radius).abs();
+            match decide("carrier_circles_identity", d + dr, band)? {
+                Sign::Zero | Sign::Negative => Ok(JointClass::SameCarrier),
+                Sign::Positive => {
+                    match decide("carrier_circles_external", d - (g1.radius + g2.radius), band)? {
+                        Sign::Zero => Ok(JointClass::Tangent),
+                        // Positive external clearance (disjoint) is
+                        // unreachable for carriers sharing a vertex —
+                        // defensively definite non-tangency.
+                        Sign::Positive => Ok(JointClass::Transversal),
+                        Sign::Negative => {
+                            Ok(match decide("carrier_circles_internal", d - dr, band)? {
+                                Sign::Zero => JointClass::Tangent,
+                                Sign::Positive => JointClass::Transversal,
+                                // Nested carriers: unreachable with a
+                                // shared vertex; defensive.
+                                Sign::Negative => JointClass::Transversal,
+                            })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The line/circle joint core: `carrier_line_circle` on the same
+/// margin expression as [`line_arc`] (r − |h|).
+fn line_circle_joint<T: Decide>(
+    line: &Seg<T>,
+    g: &ArcGeom<T>,
+    band: Band,
+) -> Result<JointClass, Indeterminate> {
+    let h = line.unit.perp_dot(g.center - line.a);
+    Ok(match decide("carrier_line_circle", g.radius - h.abs(), band)? {
+        Sign::Zero => JointClass::Tangent,
+        Sign::Positive => JointClass::Transversal,
+        // A definitely-disjoint carrier pair cannot share a vertex —
+        // defensively definite non-tangency.
+        Sign::Negative => JointClass::Transversal,
+    })
+}
+
 /// The kind of an isolated contact between two segments.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CKind {

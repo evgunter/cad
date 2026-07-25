@@ -101,6 +101,7 @@ pub fn bulge_from_center<T: Real>(
 #[derive(Clone, Debug)]
 pub struct LoopBuilder<T: Real> {
     vertices: Vec<ProfileVertex<T>>,
+    tangent: Vec<usize>,
 }
 
 impl<T: Real> LoopBuilder<T> {
@@ -111,6 +112,7 @@ impl<T: Real> LoopBuilder<T> {
                 pos: start,
                 bulge: T::zero(),
             }],
+            tangent: Vec::new(),
         }
     }
 
@@ -161,17 +163,91 @@ impl<T: Real> LoopBuilder<T> {
         self.arc_to(p, bulge)
     }
 
+    /// Declares the **joint at the current chain end** tangent: the
+    /// junction between the segment arriving at the last vertex and
+    /// the segment that will leave it (the next `*_to`/`close*` call —
+    /// or, called on a fresh builder, the junction between the closing
+    /// segment and the first). The explicit hand-authoring form of the
+    /// #101 discipline ([`crate::ProfileLoop::tangent_joints`]);
+    /// validation *verifies* the claim and refuses
+    /// `TangencyContradicted` if the carriers are definitely not
+    /// tangent. Prefer [`LoopBuilder::fillet`], which computes tangent
+    /// geometry and declares it by construction.
+    pub fn declare_tangent(mut self) -> Self {
+        self.tangent.push(self.vertices.len() - 1);
+        self
+    }
+
+    /// Appends a **tangent fillet** rounding the corner the chain is
+    /// heading for — the primary authoring path of the #101 discipline
+    /// (constructive, solver-free): from the chain end H, a straight
+    /// leg toward `corner` C stopping at the tangent point T₁, then
+    /// the radius-`radius` arc to the tangent point T₂ on the outgoing
+    /// leg C→`next`; **both joints are declared tangent by
+    /// construction**. The caller must continue toward `next`
+    /// (`line_to(next)`, or another `fillet` whose `corner` is `next`)
+    /// — leaving T₂ any other way is a contradicted declaration, which
+    /// validation refuses loudly.
+    ///
+    /// Closed form, exact where inputs are exact (D9: fixed order; no
+    /// transcendentals — one square root per length, the "usual sqrt
+    /// forms"): with legs v₁ = C − H, v₂ = `next` − C and
+    /// m = √(‖v₁‖²·‖v₂‖²),
+    /// tan(φ/2) = v₁×v₂ / (m + v₁·v₂) (φ = the corner's turn angle),
+    /// setback = r·|tan(φ/2)|, T₁/T₂ = C ∓ setback·v̂₁/₂, and the arc's
+    /// bulge = tan(φ/4) by the quarter-angle identity
+    /// tan(φ/4) = tan(φ/2) / (1 + √(1 + tan²(φ/2))). For a
+    /// right-angle corner with dyadic legs everything but the bulge is
+    /// *bit-exact* (tan(φ/2) = ±1), and the residual carrier-clearance
+    /// margin is rounding-level (~1e-16) — definite Zero at every
+    /// supported ε.
+    ///
+    /// Degenerate inputs, honestly (sugar is total, comparison-free —
+    /// no decisions): a straight-through corner (φ = 0) yields
+    /// setback 0 and T₁ = T₂ = C — a degenerate (zero-length) arc
+    /// segment that validation refuses typed; a doubled-back corner
+    /// (φ = ±π) or a zero-length leg poisons the closed form (0/0 →
+    /// NaN) for validation to refuse; a `radius` too large for either
+    /// leg puts T₁/T₂ outside the legs and the loop fails simplicity.
+    /// Never a panic, never a guess.
+    pub fn fillet(self, corner: Point2<T>, next: Point2<T>, radius: T) -> Self {
+        let v1 = corner - self.head();
+        let v2 = next - corner;
+        // powi(2)-discipline squares (interval lane: a straddling-zero
+        // factor must not poison the enclosure — memories/
+        // interval-square-poison.md); norm_squared is powi inside.
+        let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
+        let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
+        let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
+        let setback = radius * half_tan.abs();
+        let t1 = corner - v1 * (setback / v1.norm_squared().sqrt());
+        let t2 = corner + v2 * (setback / v2.norm_squared().sqrt());
+        self.line_to(t1)
+            .declare_tangent()
+            .arc_to(t2, bulge)
+            .declare_tangent()
+    }
+
+    /// The finished loop: vertices plus the declared-tangent joints
+    /// accumulated by `declare_tangent`/`fillet`.
+    fn build(self) -> ProfileLoop<T> {
+        ProfileLoop {
+            vertices: self.vertices,
+            tangent_joints: self.tangent,
+        }
+    }
+
     /// Closes the chain with a straight segment back to the start.
     pub fn close(mut self) -> ProfileLoop<T> {
         self.set_leaving_bulge(T::zero());
-        ProfileLoop::new(self.vertices)
+        self.build()
     }
 
     /// Closes the chain with an arc of the given `bulge` back to the
     /// start.
     pub fn close_with_bulge(mut self, bulge: T) -> ProfileLoop<T> {
         self.set_leaving_bulge(bulge);
-        ProfileLoop::new(self.vertices)
+        self.build()
     }
 
     /// Closes the chain with the arc through `via` back to the start.
@@ -295,12 +371,19 @@ mod tests {
 
     #[test]
     fn builder_line_and_arc_mix() {
-        // A stadium: two straight sides, two semicircular caps.
+        // A stadium: two straight sides, two semicircular caps. Every
+        // cap joint is an exact line/arc tangency — declared (the #101
+        // discipline; undeclared it is refused, see the validate
+        // suites).
         let tol = Tolerance::with_eps(1e-9);
         let lp = ProfileLoop::builder(p2(0.0, 0.0))
+            .declare_tangent() // left cap → bottom side (closing joint)
             .line_to(p2(2.0, 0.0))
+            .declare_tangent() // bottom side → right cap
             .arc_to_center(p2(2.0, 1.0), p2(2.0, 0.5), ArcSweep::Ccw)
+            .declare_tangent() // right cap → top side
             .line_to(p2(0.0, 1.0))
+            .declare_tangent() // top side → left cap
             .close_arc_center(p2(0.0, 0.5), ArcSweep::Ccw);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(tol)

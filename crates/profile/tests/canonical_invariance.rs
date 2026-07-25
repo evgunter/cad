@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{annulus, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
+use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
 use profile::{Profile, ProfileLoop};
 use proptest::prelude::*;
 
@@ -13,20 +13,26 @@ use proptest::prelude::*;
 /// same closed chain).
 fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     let n = lp.vertices.len();
-    ProfileLoop::new((0..n).map(|k| lp.vertices[(r + k) % n]).collect())
+    ProfileLoop {
+        vertices: (0..n).map(|k| lp.vertices[(r + k) % n]).collect(),
+        // Declared joints follow their vertex through the reindexing.
+        tangent_joints: lp.tangent_joints.iter().map(|&j| (j + n - r) % n).collect(),
+    }
 }
 
 /// Translates a loop rigidly (fixture plumbing).
 fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(
-        lp.vertices
+    ProfileLoop {
+        vertices: lp
+            .vertices
             .iter()
             .map(|v| profile::ProfileVertex {
                 pos: geom_core::Point2::new(v.pos.x + dx, v.pos.y + dy),
                 bulge: v.bulge,
             })
             .collect(),
-    )
+        tangent_joints: lp.tangent_joints.clone(),
+    }
 }
 
 /// The named fixture set (every accepting fixture with ≥ 1 loop).
@@ -36,6 +42,10 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         ("l_profile", profile(vec![l_profile()])),
         ("rounded_rect", profile(vec![rounded_rect(4.0, 3.0, 0.5)])),
         ("circle", profile(vec![circle_h(0.0, 0.0, 2.0)])),
+        // Mixed declared/undeclared joints (2 tangent of 7): the
+        // partial declaration set discriminates rotation/reversal
+        // remapping bugs the fully-declared fixtures cannot.
+        ("bracket", profile(vec![bracket()])),
         ("annulus", annulus()),
         ("lens", profile(vec![lens()])),
         (
