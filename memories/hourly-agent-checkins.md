@@ -15,9 +15,9 @@ only gets discovered hours later." Subagents that park waiting on
 long test runs sometimes never receive the completion wake-up; the
 work is done and pushed but unreported, blocking the pipeline.
 
-**How to apply:** At session start (with the other monitors), arm a
-persistent hourly heartbeat Monitor:
-`while true; do sleep 3600; echo "HOURLY AGENT CHECK-IN TICK ..."; done`
+**How to apply:** At session start (with the other monitors), arm
+`bash ~/.local/share/cad-work/monitors/hourly-checkin.sh` as a
+persistent Monitor (canonical source: repo `scripts/monitors/`).
 On each tick: list the lanes believed running, check each for real
 activity (branch pushes, cargo processes in its clone, task output
 mtime), and SendMessage-nudge any agent that appears idle without a

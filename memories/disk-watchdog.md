@@ -17,7 +17,7 @@ lanes filled a 251G disk to 100%, crashing WSL and killing every
 monitor, gate run, and agent session. Evan asked for the watchdog
 explicitly.
 
-**How to apply:** On WARN/CRITICAL: delete finished lanes' whole
+**How to apply:** Arm via `bash ~/.local/share/cad-work/monitors/disk-watchdog.sh` (install once per machine: `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from any up-to-date checkout — the repo's `scripts/monitors/` is canonical). On WARN/CRITICAL: delete finished lanes' whole
 clones (reviews that reported) and idle lanes' `target/` dirs (work
 pushed = clone is cheap to rebuild); NEVER touch
 `~/.local/share/cad-gate/repo/target` while a gate is running, and

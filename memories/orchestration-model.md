@@ -166,3 +166,16 @@ only the issues endpoint silently never fires for inline sign-offs
 said "added 👍 on your comments!" in prose). The monitor script must
 try the issues endpoint and fall back to the pulls endpoint per
 watched ID.
+
+**Monitor suite is now scripted (2026-07-24, Evan's suggestion)**:
+the session-start monitors live in the repo at `scripts/monitors/`
+(github-away-channel.sh with BOTH reaction endpoints baked in,
+disk-watchdog.sh, hourly-checkin.sh). Session start = install
+(`cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
+an up-to-date checkout) + arm each as a persistent Monitor running
+`bash ~/.local/share/cad-work/monitors/<script>`. Run from the
+installed copies, NOT a checkout (checkouts switch refs/get
+deleted). Sign-off watchlist moved to the persistent path
+`~/.local/share/cad-work/signoff-watchlist.txt` (survives
+sessions). Fix bugs in the repo scripts, re-install, re-arm —
+don't fork inline variants.
