@@ -1032,3 +1032,20 @@ honest Empty label; N1 implementer's discretion (tighten gate vs
 reword caption, REPORT which); N3/N4 accepted. Merge on green
 Actions after the fix push. Review report:
 ~/.local/share/cad-work/demo-review-report.md.
+
+**Evan's demo review notes (2026-07-25, in-chat, PR #98 held
+open)**: six revisions dispatched to the demo implementer —
+(1) pulley likely redundant vs sheave: surface-kind audit; prefer
+folding a conical zone into the sheave and deleting pulley (cone
+was pulley's unique content per #91); (2) wedge dropped or
+replaced with a more interesting partial revolve, implementer's
+pick; (3) T resized to H's bounding height in both silhouettes;
+(4) silhouette3 diamond resized to genuinely shape the y-shadow
+(current one only bevels the H — not acceptable); (5) montage
+trims to silhouette3-only and full-heat-sink-only (other scenes
+stay in the tour script, montage:false); (6) cutaway view/cut
+plane rotated so the section actually reveals the interior.
+MERGE OF #98 IS HELD until the revision pass lands, renders
+regenerate, and I visually re-inspect the montage. Also: rustfmt
+row on #98 was a formatting-only miss in demo_tripwires.rs;
+orchestrator fixed directly (3ec8b18) — mechanical, no content.
