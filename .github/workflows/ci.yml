@@ -173,10 +173,27 @@ jobs:
       # (byte-golden against the writer via the cargo test suite) and
       # the script asserts validity + exact topology counts + volume.
       # No cargo build needed — the fixtures are committed.
-      - name: install freecad
-        run: sudo apt-get update && sudo apt-get install -y freecad
+      # apt has no freecad package on current ubuntu-latest (exit 100,
+      # 2026-07-25); use the version-pinned AppImage instead — same
+      # FreeCAD 1.1.2 as the local oracle, checksum-verified, cached.
+      - name: cache freecad
+        id: cache-freecad
+        uses: actions/cache@v4
+        with:
+          path: ~/freecad-appimage
+          key: freecad-1.1.2-appimage-extracted
+      - name: install freecad (AppImage 1.1.2, checksum-verified)
+        if: steps.cache-freecad.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/freecad-appimage && cd ~/freecad-appimage
+          curl -sLO https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          curl -sLO https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          sha256sum -c FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          chmod +x FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          ./FreeCAD_1.1.2-Linux-x86_64-py311.AppImage --appimage-extract > /dev/null
+          rm FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
       - name: freecad import check (validity, counts, volume)
-        run: REQUIRE_FREECAD=1 FREECADCMD="$(command -v freecadcmd)" scripts/check_step.sh
+        run: REQUIRE_FREECAD=1 FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" scripts/check_step.sh
 
   multi-eps:
     name: test (eps = ${{ matrix.eps }})
