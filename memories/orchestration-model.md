@@ -157,3 +157,31 @@ M2-LOG snapshots assume it):**
 - Transient API-overload (529) kills background agents mid-task;
   resume via SendMessage (transcript + worktree survive), with
   exponential backoff between retries when the overload persists.
+
+**Watchlist-reaction endpoint gotcha (2026-07-24)**: 👍 reactions on
+INLINE PR review comments live under `repos/{r}/pulls/comments/{id}/
+reactions`, NOT `issues/comments/{id}/reactions` — a poller using
+only the issues endpoint silently never fires for inline sign-offs
+(top-level comments work; that asymmetry hid the bug until Evan
+said "added 👍 on your comments!" in prose). The monitor script must
+try the issues endpoint and fall back to the pulls endpoint per
+watched ID.
+
+**Monitor suite is now scripted (2026-07-24, Evan's suggestion)**:
+the session-start monitors live in the repo at `scripts/monitors/`
+(github-away-channel.sh with BOTH reaction endpoints baked in,
+disk-watchdog.sh, hourly-checkin.sh). Session start = install
+(`cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
+an up-to-date checkout) + arm each as a persistent Monitor running
+`bash ~/.local/share/cad-work/monitors/<script>`. Run from the
+installed copies, NOT a checkout (checkouts switch refs/get
+deleted). Sign-off watchlist moved to the persistent path
+`~/.local/share/cad-work/signoff-watchlist.txt` (survives
+sessions). Fix bugs in the repo scripts, re-install, re-arm —
+don't fork inline variants.
+
+**Orchestrator-branch state-sync PRs (Evan, #96 comment,
+2026-07-25)**: the orchestrator branch (logs, specs, memories,
+scripts) must not accumulate a large unmerged delta — open a quick
+docs-only PR to main at pipeline seams (a PR merge, a lane launch)
+so an orchestrator switch never strands state. First one: #97.
