@@ -1109,3 +1109,25 @@ tripwire-catches-smuggled-consumer, golden re-pin shape honesty,
 all showcases executed. First review with the fixed code-quality
 rubric (PR 5 = pre-experiment Fable reference row for
 docs/MODEL-AB-LOG.md).
+
+**PLANNED WSL RESTART (2026-07-25, ~12:00 local)**: pausing for the
+10GB RAM bump (memory=10GB already in .wslconfig; Evan runs `wsl
+--shutdown`). Pre-restart state flush: PR 5 reviewer TaskStopped
+CLEANLY mid-build (clone ~/.local/share/cad-work/pr5-review @
+a68e8e5 checked out, build partial — safe to resume; NO findings
+yet, report not started). RESUME CHECKLIST for this orchestrator
+(or a successor reading cold): (1) verify `free -h` shows ~10G —
+then the 5G sequential-battery discipline RELAXES to two parallel
+lanes max (update prompts accordingly); (2) re-arm the three
+monitors from ~/.local/share/cad-work/monitors/ (install step
+already done); (3) resume the PR 5 reviewer by SendMessage — point
+it at its clone, tell it the machine now has 10G, re-state: attack
+list unchanged, battery rows may run with more parallelism but
+still check pgrep first; (4) sign-off watchlist is EMPTY; (5) two
+other open items: #99 (tour ε-panic, between-seams), demo renders
+regeneration owed to the PR 5 fix pass (table + montage — PR 5
+changed stop 8 but didn't re-render; fresh table.png verified
+correct by orchestrator + Evan pre-restart). In flight NOTHING
+else: PR 4 merged (#96), demos merged (#98), state-sync #97
+merged, PR 5 implementation pushed @ a68e8e5 with report
+delivered; only the review cycle remains.
