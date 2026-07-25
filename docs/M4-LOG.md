@@ -753,3 +753,15 @@ currently has ZERO coverage and a demonstrable pre-hunk misreport)
 doc-drift fix rides along. Follow-up issues to file: unreported-
 kill channel on kev/kemr/split_edge result structs; corrupt-input
 misattribution note. Fix pass dispatched.
+
+**PR 7 COMPLETE — appearance MERGED (2026-07-24, PR #92, main
+`9764dd4`)**: gate all-rows PASS on `9f2cf6f` (443s, quiet
+machine after the OOM false alarm). Both PR 7 halves are on main
+(#88 STEP + #92 appearance). The A1 ruling (paint does not follow
+a face through a boolean; resolves-anywhere; explicit Rebind
+repair path) is flagged in the PR body for Evan's awareness.
+PR 4's D9 unblocked — implementer notified to merge main and
+finish; #86 agent cleared to run its F1/F2 battery. Appearance
+clone removed (hygiene). M4 status: PRs 1, 2, 3, 7 merged +
+re-mint (#84) + CURVED-DESIGN ratified (#85); PR 4 nearing
+completion; PR 90 (#86 fix) in fix pass; remaining: 5, 6, 8.
