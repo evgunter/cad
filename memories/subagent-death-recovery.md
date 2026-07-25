@@ -31,3 +31,17 @@ transcript and worktree are truly gone. Standing prevention policy:
 implementers must commit AND push after every coherent unit — no
 batching work for a final push. See [[orchestration-model]],
 [[multi-agent-capabilities]], [[worktree-disk-hygiene]].
+
+**Resume resets cwd (2026-07-25, caught by hourly sweep)**: a
+resumed subagent's Bash cwd resets to the ORCHESTRATOR worktree —
+it does not stay in the agent's clone. Post-resume battery rows
+without an explicit `cd <clone> && ...` IN THE SAME COMMAND run
+against the wrong tree and produce green-but-invalid numbers
+(main-equivalent code), silently validating nothing. Five stray
+cargo processes were found building the orchestrator worktree this
+way. PREVENTION: every resume/nudge message AND every prompt's
+verification section must require prefixing every Bash command
+with the clone cd; on any post-resume battery claim, verify the
+transcript rows carried the cd before trusting numbers. The
+orchestrator sweep check `readlink /proc/<cargo-pid>/cwd` catches
+it live.
