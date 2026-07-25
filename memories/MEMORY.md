@@ -16,3 +16,4 @@
 - [Clone placement](clone-placement.md) — working git clones never in /tmp scratchpad; use ~/.local/share/cad-work/ or .claude/worktrees/; scratchpad = disposable artifacts only
 - [FreeCAD oracle](freecad-oracle.md) — FreeCAD 1.1.2 headless at ~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd; STEP import acceptance oracle, admesh-pattern integration
 - [Hourly agent check-ins](hourly-agent-checkins.md) — standing Evan instruction: hourly heartbeat Monitor; sweep agent lanes, nudge silent ones (lost wake-ups happen)
+- [Disk watchdog](disk-watchdog.md) — standing: arm disk-space Monitor at session start (warn <15G, critical <8G); lanes grow 5-8G targets; two disk-full WSL crashes 2026-07-24

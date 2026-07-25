@@ -697,3 +697,20 @@ never appeared in any demo. Envelope note candidates respect:
 gate_planar refuses booleans if ANY operand face is curved (arcs
 and booleans stay separated until M5); flush-plane contact refuses
 until PR 5. Awaiting Evan's picks on #91.
+
+**Second WSL crash — disk full (2026-07-24)**: disk hit 100%
+(169M free), crashing WSL again; killed the appearance gate
+mid-interval-row, both monitors, the PR 90 reviewer, and the demo
+agent mid-task. Recovery: freed to 18G (deleted appearance-review
+clone, issue86/appearance/demo-ideas targets; gate cache at 30G
+kept — in use); ONE torn binary purged from the gate cache
+(m4_pr2_wire, ELF-magic scan); appearance gate relaunched; all
+monitors re-armed + NEW disk watchdog per Evan's request (warn
+<15G, critical <8G, 5-min poll) — saved as standing memory; PR 90
+reviewer, demo agent, and PR 4 implementer all resumed from
+transcripts with warnings that crash-window test results are
+ENOSPC-suspect and must re-run. Root cause: five parallel lanes ×
+5-8G targets + 30G gate cache on a 251G disk. Standing mitigation
+now in the disk-watchdog memory (delete finished lanes' caches at
+seams — this session had been doing it only at merge seams, not
+review-completion seams).
