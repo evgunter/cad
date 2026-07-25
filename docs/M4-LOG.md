@@ -1280,3 +1280,17 @@ Merged rows, corner-aligned table shipped, #95 recursive naming
 key. pr5 + pr5-review clones removed (disk 120G). Seam actions:
 state-sync PR; PR 6 + #101 dispatches (coin flips below); #93
 merges main + reviews when its report lands.
+
+**Seam dispatches post-PR-5 (2026-07-25)**: state-sync PR #103
+opened (watcher armed). #93 report received — three stacked
+join-stage repairs (anchor tiers via point_in_face-certified
+centroids, Newell ring-winding predicate, rehome_rings), all A×Z
+variants green with independently derived oracles; merge-under of
+PR 5 dispatched with the flush-pin ruling (pin the live post-merge
+outcome; undeclared flush refusing = correct N6; add declared
+success arm if cheap). **PR 6 implementer LAUNCHED** (A/B row 3:
+L pre-flip, draw 221 → fable; branch ev/m4-6-persistence).
+**#101 implementer LAUNCHED** (A/B row 4: M pre-flip, draw 218 →
+fable; branch ev/issue101-declared-tangency; 5-point discipline
+binding). FOUR consecutive fable draws — blocked-randomization
+proposal noted in MODEL-AB-LOG, pending Evan.

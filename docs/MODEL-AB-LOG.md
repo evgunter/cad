@@ -31,6 +31,15 @@ day). Protocol:
 |---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
 | 1 | 2026-07-25 | #93 join-stage seam-region anchors | M | fable (draw 197) | — | — | — | — | — | — | — | — | — |
 | 2 | 2026-07-25 | #99 tour ε-panic | S | fable (draw 220) | 0/1/3 | 0 | 5 | 4 | 5 | 1 line (orchestrator-applied) | tour 3/3 ε rows; zero kernel diff | 58k | 6.4 min |
+| 3 | 2026-07-25 | M4 PR 6 persistence | L | fable (draw 221) | — | — | — | — | — | — | — | — | — |
+| 4 | 2026-07-25 | #101 declared tangency | M | fable (draw 218) | — | — | — | — | — | — | — | — | — |
+
+NOTE (2026-07-25): four consecutive fable draws (197, 220, 221,
+218; p = 1/16 for the run). Proposal pending with Evan: switch to
+BLOCKED randomization (shuffled opus/fable pairs) for remaining
+dispatches — guarantees arm balance at small n, strictly better
+power for the same count. Fair-coin protocol stands until he
+answers.
 
 (Reference rows, pre-experiment, both Fable, unblinded — context
 only, not comparable: M4 PR 4 impl (L): 2 MAJ / 2 MIN / 6 NOTE, 0
