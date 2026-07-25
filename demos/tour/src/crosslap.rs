@@ -4,13 +4,18 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! The ASSEMBLED union is attempted live and refuses TYPED today (the
-//! mated faces are flush — boundary-on-boundary seams, exactly the
-//! class the coincidence ladder reserves for DECLARED coincidence):
-//! that refusal is narrated, never patched around. The glued union is
-//! the SECOND `demo_tripwires.rs` wire (alongside the table's) — when
-//! M4 PR 5's Declare/GeomSource lands and the union builds, the wire
-//! fires with upgrade instructions for this stop.
+//! M4 PR 5 status (the crosslap wire did NOT fire — refusal moved
+//! one stage deeper, honestly): UNDECLARED, the mated union now
+//! refuses at the COINCIDENCE door (rung (b) — value equality never
+//! classifies); DECLARED, classification opens but the union still
+//! refuses typed at the JOIN — the mate is a pure REST contact (the
+//! notches interlock exactly, interiors disjoint), the M3 envelope's
+//! boundary-on-boundary class (iii), which is a join-stage gap, not
+//! a classification gap (the corner-table legs glue because they
+//! OVERLAP into the top; the crosslap has no overlap to seam).
+//! Both refusals are narrated; the joint ships as two mated bodies;
+//! the kernel wire (`crosslap_rest.rs`) stays armed on the join
+//! frontier.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -55,25 +60,40 @@ pub fn stops() -> Vec<Stop> {
     let a = beam_a();
     let b = beam_b();
 
-    // The glued union, attempted live: flush mating planes (z = 0.25
-    // and the notch walls, shared VALUES but independent descriptions)
-    // refuse typed — rung (b) of the coincidence ladder. Narrated;
-    // the second demo_tripwires.rs wire watches for PR 5 opening it.
+    // The UNDECLARED union refuses at the coincidence door (rung (b);
+    // post-PR 5 value equality never even classifies).
     let expected = 2.0 * (BEAM_VOL - NOTCH_VOL);
-    let union_verdict = check(try_union(&a.body, &b.body), expected);
-    let refusal = describe(&union_verdict, expected);
-    if !matches!(union_verdict, crate::booleans::Verdict::Refused(_)) {
+    let naive = check(try_union(&a.body, &b.body), expected);
+    let refusal = describe(&naive, expected);
+    if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
         panic!(
-            "the mated cross-lap union no longer refuses ({refusal}) — the \
-             demo_tripwires.rs crosslap wire should have fired; upgrade this stop \
-             to ship the glued union"
+            "the UNDECLARED mated union no longer refuses ({refusal}) — \
+             value-equality must never glue (ladder rung (b)); regression"
         );
     }
-    println!("   mated-union attempt (flush mating planes): {refusal}");
+    println!("   mated-union WITHOUT declarations: {refusal}");
+    // DECLARED, classification opens — and the union still refuses
+    // typed at the JOIN: the mate is a pure REST contact (interiors
+    // disjoint), the M3 envelope's boundary-on-boundary class (iii).
+    // A join-stage gap, distinct from PR 5's declared-classification
+    // opener; the kernel wire stays armed on it.
+    let declared = check(
+        crate::booleans::try_union_declared(&a.body, &b.body),
+        expected,
+    );
+    let declared_refusal = describe(&declared, expected);
+    if !matches!(declared, crate::booleans::Verdict::Refused(_)) {
+        panic!(
+            "the DECLARED mated union now builds ({declared_refusal}) — the \
+             crosslap_rest.rs wire should have fired; upgrade this stop to ship \
+             the glued union"
+        );
+    }
     println!(
-        "   — the mate is INTENTIONAL coincidence, which is exactly what M4 PR 5's \
-         Declare/GeomSource is for; until then the assembled joint ships as two \
-         mated bodies and the union refusal is the story"
+        "   mated-union WITH the mate declared: {declared_refusal}\n\
+         \x20  — classification OPENED (M4 PR 5); the remaining refusal is the \
+         join-stage boundary-on-boundary REST gap (M3 envelope iii): no overlap \
+         to seam, every mate segment lies ON existing edges"
     );
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
@@ -83,8 +103,9 @@ pub fn stops() -> Vec<Stop> {
 
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
-         bit-exact, gated 1e-9); the \
-         assembled union refuses typed and is tripwired for M4 PR 5: {refusal}",
+         bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
+         door; DECLARED (M4 PR 5) classification opens and the join-stage REST gap \
+         refuses typed ({declared_refusal}) — shipped as two mated bodies, wire armed",
         BEAM_VOL - NOTCH_VOL
     );
     vec![
@@ -93,7 +114,8 @@ pub fn stops() -> Vec<Stop> {
             caption: "cross-lap (assembled)".to_string(),
             montage: true,
             story: "cross-lap joint, assembled: two half-depth-notched beams interlocked \
-                    — mated flush, shipped as two bodies (the glued union is PR 5's)",
+                    — mated flush, shipped as two bodies (declared classification opened \
+                    with M4 PR 5; the glued union waits on the join-stage REST lane)",
             ops: "2 x (extrude beam, extrude cutter -> subtract); mate by construction",
             delta: 1e-2,
             note: Some(note.clone()),

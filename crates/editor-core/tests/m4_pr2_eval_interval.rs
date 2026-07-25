@@ -61,13 +61,23 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
             rotation_angle: ang(0.0),
         },
     );
+    // The pip's outer cap lies ON the cube's top — declared (M4 PR 5).
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(
+                fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
+                fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Bottom)),
+            )],
+        },
+    );
     let (doc, sub) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: cube,
             b: placed,
-            declare: None,
+            declare: Some(decl),
         },
     );
 

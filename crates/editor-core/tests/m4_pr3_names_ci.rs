@@ -69,11 +69,18 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 
 /// The pinned die digest (update ONLY on a ratified naming change —
 /// this is the replay-identity family's naming member).
-const DIE_TABLE_DIGEST: u64 = 0x8d53_0dcf_2954_07bb;
+///
+/// RE-PINNED at M4 PR 5: the die document now DECLARES its 21
+/// flush pip contacts (F5 — Declare nodes between each
+/// Transform/Subtract pair), so every node id downstream of the
+/// first Declare shifted and the digests moved. The naming
+/// VOCABULARY did not change; the fixture's authoring did (21 new
+/// Declare nodes, 56 → 77).
+const DIE_TABLE_DIGEST: u64 = 0x8d2e_4c61_3057_071e;
 
 /// The pinned names-only die digest (R11 companion; see
-/// [`digest_names`]).
-const DIE_NAMES_DIGEST: u64 = 0x015e_a22f_fd6d_b11d;
+/// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
+const DIE_NAMES_DIGEST: u64 = 0xf154_2d1e_3b36_a26e;
 
 #[test]
 fn die_name_tables_are_golden() {

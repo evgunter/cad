@@ -30,6 +30,72 @@ pub fn try_intersect(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>,
     topo::intersect(a, b)
 }
 
+/// A ∪* B with the scene's flush contacts DECLARED (M4 PR 5: the
+/// author's coincidence intent, stated — the kernel never infers it
+/// from values).
+pub fn try_union_declared(
+    a: &Body<f64>,
+    b: &Body<f64>,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    topo::union_with(a, b, &flush_declarations(a, b))
+}
+
+/// A ∩* B with the scene's flush contacts declared
+/// ([`try_union_declared`]).
+pub fn try_intersect_declared(
+    a: &Body<f64>,
+    b: &Body<f64>,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    topo::intersect_with(a, b, &flush_declarations(a, b))
+}
+
+/// Demo-authoring convenience (M4 PR 5, same shape as the kernel test
+/// suites'): the [`topo::BooleanDeclarations`] declaring every
+/// geometrically-plausible cross-operand flush-plane face pair — the
+/// scene author BUILT the contact deliberately; this writes the
+/// intent down. Certification still happens inside the op through
+/// the verified declared rung.
+pub fn flush_declarations(a: &Body<f64>, b: &Body<f64>) -> topo::BooleanDeclarations {
+    use geom_core::Sign;
+    use geom_core::k_stats::decide;
+    let band = geom_core::Band::linear().unwrap();
+    let planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> {
+        body.faces()
+            .filter_map(|(k, f)| match body.get_surface(f.surface) {
+                Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => {
+                    Some((k, origin, normal))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let mut decls = topo::BooleanDeclarations::none();
+    for &(fa, oa, na) in &planes(a) {
+        for &(fb, ob, nb) in &planes(b) {
+            if matches!(
+                decide("demo_flush_parallel", na.cross(nb).norm(), band),
+                Ok(Sign::Positive)
+            ) {
+                continue;
+            }
+            let sigma = match decide("demo_flush_orient", na.dot(nb), band) {
+                Ok(Sign::Positive) => 1.0,
+                Ok(Sign::Negative) => -1.0,
+                _ => continue,
+            };
+            let da = na.dot(oa - geom_core::Point3::origin());
+            let db = nb.dot(ob - geom_core::Point3::origin());
+            if matches!(
+                decide("demo_flush_offset", da - sigma * db, band),
+                Ok(Sign::Zero)
+            ) {
+                decls.coincident_faces.push((fa, fb));
+            }
+        }
+    }
+    decls
+}
+
 /// The oracle: volume of a boolean result vs the exact expectation.
 /// `Good` carries the whole [`BooleanBody`] (body + kind + the
 /// declared contacts the 3′ gate consumes); the two failure shapes

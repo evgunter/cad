@@ -163,6 +163,13 @@ impl<T: Real> Body<T> {
                 *normal = -*normal;
             }
         }
+        // N6: `revert` flips every surface source's orientation tag
+        // (`rev ∘ rev = id`) — the negated description is the SAME
+        // recipe source seen from the other side. Curve and point
+        // records are untouched (their descriptions are).
+        for (_, gs) in out.surface_sources.iter_mut() {
+            *gs = gs.reverted();
+        }
 
         #[cfg(debug_assertions)]
         debug_assert_eq!(

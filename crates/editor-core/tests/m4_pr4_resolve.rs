@@ -13,9 +13,9 @@ use std::sync::Arc;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, NameTable, Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId,
-    Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId, StableName,
-    apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
+    EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
+    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
+    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
 use fixture::{ang, desc, insert, len, scl, step};
 
@@ -60,6 +60,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 struct Slide {
     doc: ProfileDoc,
     a: RecipeNodeId,
+    b0: RecipeNodeId,
     transform: RecipeNodeId,
     union: RecipeNodeId,
 }
@@ -68,6 +69,7 @@ fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty();
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
     let (doc, transform) = insert(
         doc,
         Node::Transform {
@@ -83,12 +85,13 @@ fn slide_union(tx: f64) -> Slide {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: None,
+            declare: Some(decl),
         },
     );
     Slide {
         doc,
         a,
+        b0,
         transform,
         union,
     }
@@ -134,16 +137,36 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
         doc: &s.doc,
         eval: &ev,
     };
-    // The A-cap wrap resolves at the union.
+    // M4 PR 5 (N3 live): the declared flush caps GLUE — the A-cap
+    // wrap retired into the Merged row, which resolves at the union;
+    // the retired constituent name itself now fails typed with the
+    // merged row among the OFFERS (N3's loud retirement, pinned in
+    // the vanishing tests below).
     let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::Top));
     let wrapped = name1(
         EntityKind::Face,
         s.union,
         RoleSeg::FromA(Box::new(cap.clone())),
     );
-    match resolve(ctx, &wrapped) {
+    let cap_b = name1(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::Top));
+    let wrapped_b = name1(
+        EntityKind::Face,
+        s.union,
+        RoleSeg::FromB(Box::new(cap_b.clone())),
+    );
+    let mut constituents = vec![wrapped.clone(), wrapped_b];
+    constituents.sort_unstable();
+    let merged = name1(EntityKind::Face, s.union, RoleSeg::Merged(constituents));
+    match resolve(ctx, &merged) {
         Resolution::Resolved(r) => assert_eq!(r.node, s.union),
         other => panic!("expected Resolved, got {other:?}"),
+    }
+    match resolve(ctx, &wrapped) {
+        Resolution::Failed(f) => assert!(
+            f.offers.contains(&merged),
+            "retired constituent must offer its merge: {f:?}"
+        ),
+        other => panic!("expected the retired constituent to fail typed, got {other:?}"),
     }
     // The operand-level cap name resolves too — at the EXTRUDE (first
     // carrying node in evaluation order; the transform pass-through
@@ -279,6 +302,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             verdicts: Arc::new(vec![]),
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
+            naming_key: NamingKey(0),
         }),
     );
     let ev = Evaluation::<f64> {
@@ -674,13 +698,17 @@ fn rebind_suggestions_offer_wrapping_derivations() {
     let ev = run(&s.doc, None);
     let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::Top));
     let suggestions = rebind_suggestions(&ev, &cap);
-    // The union's FromA(cap) wrap is offered (with the cap's
-    // fragment/rim derivations that embed it); nothing is followed
+    // M4 PR 5 (N3 live): the FromA(cap) wrap retired into the Merged
+    // row — the suggestion ladder offers the MERGED name (whose
+    // constituents embed the cap's wrap); nothing is followed
     // automatically — these are Rebind candidates only.
     let wrapped = name1(EntityKind::Face, s.union, RoleSeg::FromA(Box::new(cap)));
     assert!(
-        suggestions.contains(&wrapped),
-        "expected the FromA wrap among suggestions: {suggestions:?}"
+        suggestions.iter().any(|n| matches!(
+            n.path.first(),
+            Some(RoleSeg::Merged(cs)) if cs.contains(&wrapped)
+        )),
+        "expected the Merged row embedding the FromA wrap among suggestions: {suggestions:?}"
     );
 }
 
@@ -925,9 +953,9 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
                 declare: None,
             },
         );
-        (doc, b, bl)
+        (doc, b, c, bl)
     };
-    let (doc1, b, bl) = build(false);
+    let (doc1, b, _c, bl) = build(false);
     let ev1 = run(&doc1, None);
     // The union carries B's top cap as FromB(cap_b).
     let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Top));
@@ -949,17 +977,13 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         ),
         "the union derives FromB(cap of b) before the re-point"
     );
-    let (doc2, _, _) = build(true);
-    // FRESH evaluation deliberately (REPORTED observation, fix-pass):
-    // a memo-TRANSFERRED run reuses the boolean's value by content
-    // key, and b/c are bit-identical twins — so the reused value
-    // still carries the OLD `FromB(cap of b)` name table and the
-    // name keeps resolving against a recipe that now feeds c. Name
-    // tables embed minting node ids (N1) while content keys exclude
-    // them (D8): the names half of a memoized value is not a pure
-    // function of its key. Flagged for an orchestrator ruling; out
-    // of scope for this PR's resolution machinery.
-    let ev2 = run(&doc2, None);
+    let (doc2, _, c, _) = build(true);
+    // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
+    // now honestly re-derives the boolean's naming half — the
+    // recursive naming key includes input node ids, so the b→c
+    // re-point misses the memo even though the twins are
+    // bit-identical. Pinned WITH memo transfer.
+    let ev2 = run(&doc2, Some(&ev1));
     let res = resolve_with_prior(
         RunCtx {
             doc: &doc2,
@@ -991,6 +1015,86 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
          no structural param to blame"
     );
     assert!(last_good.is_some(), "the prior run resolved the name");
+    // The positive half of the #95 pin: the re-derived table carries
+    // FromB(cap of C) — the value the recipe actually denotes.
+    let cap_c = name1(EntityKind::Face, c, RoleSeg::Cap(CapEnd::Top));
+    let target_c = StableName {
+        kind: EntityKind::Face,
+        node: bl,
+        path: vec![RoleSeg::FromB(Box::new(cap_c))],
+    };
+    assert!(
+        matches!(
+            resolve(
+                RunCtx {
+                    doc: &doc2,
+                    eval: &ev2
+                },
+                &target_c
+            ),
+            Resolution::Resolved(_)
+        ),
+        "the memo-transferred run must derive FromB(cap of c)"
+    );
+}
+
+/// The #95 GRANDPARENT pin (the reason disposition 2's key is
+/// RECURSIVE): re-point X's INPUT to a bit-identical twin two hops
+/// above N — X's content key is unchanged at N's doorstep (N's direct
+/// input is X either way), so a one-level context check would reuse
+/// N's stale names; the recursive naming key composes X's change
+/// through and N re-derives, embedding the twin's re-derived names.
+#[test]
+fn grandparent_repoint_rederives_the_grandchild_names() {
+    use editor_core::{NodeResult, ValuePayload};
+    let build = |use_c: bool| {
+        let doc = ProfileDoc::empty();
+        let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, x) = insert(
+            doc,
+            Node::Transform {
+                input: if use_c { c } else { b },
+                translation: [len(0.25), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        let (doc, n) = insert(
+            doc,
+            Node::Transform {
+                input: x,
+                translation: [len(0.0), len(0.25), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        (doc, b, c, n)
+    };
+    let (doc1, b, _c, n) = build(false);
+    let ev1 = run(&doc1, None);
+    let (doc2, _b, c, _n) = build(true);
+    let ev2 = run(&doc2, Some(&ev1));
+    // The grandchild's table must speak C's names now (transform
+    // pass-through: rows keep the MINTING node = the twin extrude).
+    let table = match ev2.nodes.get(&n) {
+        Some(NodeResult::Ok(v)) => {
+            assert!(
+                matches!(v.payload, ValuePayload::Body(_)),
+                "grandchild is a body"
+            );
+            &v.name_table
+        }
+        other => panic!("grandchild must evaluate, got {other:?}"),
+    };
+    assert!(
+        table.iter().any(|(name, _)| name.node == c),
+        "the memo-transferred grandchild table must embed the twin's names"
+    );
+    assert!(
+        table.iter().all(|(name, _)| name.node != b),
+        "no stale name may survive the grandparent re-point"
+    );
 }
 
 #[test]
@@ -1082,6 +1186,7 @@ fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
             verdicts: Arc::new(vec![]),
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
+            naming_key: NamingKey(0),
         }),
     );
     Evaluation::<f64> {

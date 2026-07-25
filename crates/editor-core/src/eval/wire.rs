@@ -12,7 +12,10 @@ use geom_core::{Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tolerance, Ve
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
-use topo::{Body, BooleanResult, intersect, subtract, union};
+use topo::{
+    Body, BooleanDeclarations, BooleanResult, CarriedContacts, GeomSource, VfContact, VvContact,
+    intersect_with, subtract_with, union_with,
+};
 
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
@@ -32,6 +35,7 @@ type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileDesc>,
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> OpResult<T>
@@ -44,10 +48,87 @@ where
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
-        Node::Boolean { op, a, b, declare } => wire_boolean(id, *op, *a, *b, *declare, results),
-        Node::Transform { input, .. } => wire_transform(*input, results, vals),
+        Node::Boolean { op, a, b, declare } => {
+            wire_boolean(id, *op, *a, *b, *declare, doc, results)
+        }
+        Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
+    }
+}
+
+/// Stamps every UNSOURCED description of `body` with this node's
+/// minted [`GeomSource`]s, one shared index space in deterministic
+/// arena order (D1/N6: every description minted by evaluation carries
+/// its recipe source; pass-through descriptions keep the source they
+/// arrived with). Per-evaluation identity — exactly the scope N6's
+/// binding caveat allows.
+fn stamp_minted<T: Decide>(body: &mut Body<T>, node: RecipeNodeId) {
+    let mut idx: u32 = 0;
+    let surfaces: Vec<_> = body
+        .surfaces()
+        .map(|(k, _)| k)
+        .filter(|&k| body.surface_source(k).is_none())
+        .collect();
+    for k in surfaces {
+        // Stamping a just-enumerated live key cannot fail.
+        let _ = body.set_surface_source(k, GeomSource::minted(node.0, idx));
+        idx += 1;
+    }
+    let curves: Vec<_> = body
+        .curves()
+        .map(|(k, _)| k)
+        .filter(|&k| body.curve_source(k).is_none())
+        .collect();
+    for k in curves {
+        let _ = body.set_curve_source(k, GeomSource::minted(node.0, idx));
+        idx += 1;
+    }
+    let points: Vec<_> = body
+        .points()
+        .map(|(k, _)| k)
+        .filter(|&k| body.point_source(k).is_none())
+        .collect();
+    for k in points {
+        let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
+        idx += 1;
+    }
+}
+
+/// Re-stamps `placed`'s descriptions with `input`'s sources wrapped
+/// by placing node `by` at `instance` (N6: the transform node
+/// composes into `expr`). Keys are stable across `transform_rigid`,
+/// so the input's rows map key-for-key.
+fn compose_placed<T: Decide>(
+    input: &Body<T>,
+    placed: &mut Body<T>,
+    by: RecipeNodeId,
+    instance: u32,
+) {
+    let surfaces: Vec<_> = input
+        .surfaces()
+        .filter_map(|(k, _)| {
+            input
+                .surface_source(k)
+                .map(|s| (k, s.placed(by.0, instance)))
+        })
+        .collect();
+    for (k, src) in surfaces {
+        let _ = placed.set_surface_source(k, src);
+    }
+    let curves: Vec<_> = input
+        .curves()
+        .filter_map(|(k, _)| input.curve_source(k).map(|s| (k, s.placed(by.0, instance))))
+        .collect();
+    for (k, src) in curves {
+        let _ = placed.set_curve_source(k, src);
+    }
+    let points: Vec<_> = input
+        .points()
+        .filter_map(|(k, _)| input.point_source(k).map(|s| (k, s.placed(by.0, instance))))
+        .collect();
+    for (k, src) in points {
+        let _ = placed.set_point_source(k, src);
     }
 }
 
@@ -166,10 +247,11 @@ fn wire_extrude<T: Decide>(
         });
     };
     let distance = need_scalar(vals, SlotId::Distance)?;
-    let built = extrude(vp, Extrusion::Distance(distance)).map_err(NodeErrorKind::Extrude)?;
+    let mut built = extrude(vp, Extrusion::Distance(distance)).map_err(NodeErrorKind::Extrude)?;
     // Eager N4 emission from the emitter's own maps, BEFORE the
     // structural handoff is dropped.
     let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
+    stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
 
@@ -244,8 +326,9 @@ fn wire_revolve<T: Decide>(
             });
         }
     };
-    let built = revolve(vp, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
+    let mut built = revolve(vp, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
 
@@ -269,8 +352,13 @@ fn wire_split<T: Decide>(
         normal: *normal,
     };
     let result = split(&body, &plane).map_err(NodeErrorKind::Split)?;
+    // Pass-through descriptions keep their sources (the clone carried
+    // them); the split's fresh section planes get THIS node's (D1).
     let side = |part: SplitPart<T>| match part {
-        SplitPart::Body(b) => SplitSide::Body(Arc::new(b)),
+        SplitPart::Body(mut b) => {
+            stamp_minted(&mut b, id);
+            SplitSide::Body(Arc::new(b))
+        }
         SplitPart::Empty => SplitSide::Empty,
     };
     let above = side(result.above);
@@ -301,29 +389,35 @@ fn wire_boolean<T: Decide>(
     a: RecipeNodeId,
     b: RecipeNodeId,
     declare: Option<RecipeNodeId>,
+    doc: &crate::doc::Doc<ProfileDesc>,
     results: &Results<T>,
 ) -> OpResult<T> {
-    // v1 (spec D3): a Declare input is validated for SHAPE and passed
-    // through as data — threading its pairs into the kernel op is
-    // PR 5's contract.
+    // F5 threading (M4 PR 5): the Declare input's name pairs resolve
+    // through the OPERANDS' name tables into the kernel's declared
+    // coincidence data. Resolution failures are the N5 typed errors —
+    // no silent drop, no best-effort gluing.
+    let mut kernel_decls = BooleanDeclarations::none();
     if let Some(d) = declare {
         let dv = value_of(results, d)?;
-        if !matches!(dv.payload, ValuePayload::Declarations(_)) {
+        let ValuePayload::Declarations(pairs) = &dv.payload else {
             return Err(NodeErrorKind::WrongOperand {
                 input: d,
                 expected: "declarations",
                 found: dv.payload.kind_name(),
             });
-        }
+        };
+        let a_table = Arc::clone(&value_of(results, a)?.name_table);
+        let b_table = Arc::clone(&value_of(results, b)?.name_table);
+        kernel_decls = resolve_declarations(pairs, doc, &a_table, &b_table)?;
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
     let run = match op {
-        BooleanOp::Union => union,
-        BooleanOp::Intersect => intersect,
-        BooleanOp::Subtract => subtract,
+        BooleanOp::Union => union_with,
+        BooleanOp::Intersect => intersect_with,
+        BooleanOp::Subtract => subtract_with,
     };
-    match run(&body_a, &body_b).map_err(NodeErrorKind::Boolean)? {
+    match run(&body_a, &body_b, &kernel_decls).map_err(NodeErrorKind::Boolean)? {
         BooleanResult::Empty => Ok((ValuePayload::Boolean(BooleanValue::Empty), names::empty())),
         BooleanResult::Body(bb) => {
             let a_table = Arc::clone(&value_of(results, a)?.name_table);
@@ -344,9 +438,13 @@ fn wire_boolean<T: Decide>(
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
+            let mut body = bb.body;
+            // Seam chords / minted descriptions get THIS node's
+            // sources; everything carried keeps its own (D1).
+            stamp_minted(&mut body, id);
             Ok((
                 ValuePayload::Boolean(BooleanValue::Body {
-                    body: Arc::new(bb.body),
+                    body: Arc::new(body),
                     kind: bb.kind,
                     contacts: Arc::new(bb.contacts),
                 }),
@@ -356,7 +454,124 @@ fn wire_boolean<T: Decide>(
     }
 }
 
+/// Resolves one Declare payload's name pairs against the two operand
+/// tables into the kernel's [`BooleanDeclarations`] (F5, M4 PR 5).
+///
+/// v1 vocabulary: cross-operand Face–Face pairs (coincident-plane
+/// glue intents) and same-operand Vertex–Vertex / Vertex–Face pairs
+/// (carried 3′ contacts). Everything else refuses typed. Resolution
+/// scope is deliberately the OPERANDS' tables (spec D4: "resolve
+/// through the operands' name tables") — a name minted elsewhere in
+/// the document is Vanished HERE even if some other node still
+/// carries it.
+fn resolve_declarations(
+    pairs: &[(names::StableName, names::StableName)],
+    doc: &crate::doc::Doc<ProfileDesc>,
+    a_table: &NameTable,
+    b_table: &NameTable,
+) -> Result<BooleanDeclarations, NodeErrorKind> {
+    use crate::names::{EntityKey, Entry};
+    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+    use topo::Operand;
+
+    let resolve_one = |name: &names::StableName| -> Result<(Operand, EntityKey), NodeErrorKind> {
+        // NodeGone first (ids are never reused; below the mint
+        // counter ⇒ deleted, at/above ⇒ foreign).
+        if doc.node(name.node).is_none() {
+            let edit = if name.node.0 < doc.next_id {
+                RecipeEditRef::NodeDeleted { node: name.node }
+            } else {
+                RecipeEditRef::ForeignNode { node: name.node }
+            };
+            return Err(NodeErrorKind::DeclareResolve {
+                error: Box::new(ResolveError::NodeGone {
+                    name: name.clone(),
+                    edit,
+                }),
+            });
+        }
+        let hit = |table: &NameTable,
+                   op: Operand|
+         -> Option<Result<(Operand, EntityKey), NodeErrorKind>> {
+            match table.lookup(name) {
+                Some(Entry::Unique(ent)) => Some(Ok((op, ent.key))),
+                Some(Entry::Tied(ents)) => Some(Err(NodeErrorKind::DeclareResolve {
+                    error: Box::new(ResolveError::Ambiguous {
+                        name: name.clone(),
+                        candidates: vec![name.clone()],
+                        tie: TieWitness {
+                            node: name.node,
+                            at: name.clone(),
+                            width: ents.len() as u32,
+                        },
+                    }),
+                })),
+                None => None,
+            }
+        };
+        match (hit(a_table, Operand::A), hit(b_table, Operand::B)) {
+            (Some(_), Some(_)) => Err(NodeErrorKind::DeclareBothOperands {
+                name: Box::new(name.clone()),
+            }),
+            (Some(r), None) | (None, Some(r)) => r,
+            // Absent from both operand tables: Vanished, with the
+            // honest single-run fallback diagnosis (no prior run
+            // is consultable mid-evaluation; `NodeChanged` names
+            // the minting node as the disagreement site, not a
+            // claim an edit happened — same posture as the
+            // resolve ladder's total fallback).
+            (None, None) => Err(NodeErrorKind::DeclareResolve {
+                error: Box::new(ResolveError::Vanished {
+                    name: name.clone(),
+                    diagnosis: Diagnosis::RecipeEdit {
+                        edit: RecipeEditRef::NodeChanged { node: name.node },
+                    },
+                    last_good: None,
+                }),
+            }),
+        }
+    };
+
+    let mut out = BooleanDeclarations::none();
+    for (n1, n2) in pairs {
+        let (o1, k1) = resolve_one(n1)?;
+        let (o2, k2) = resolve_one(n2)?;
+        let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
+            kinds: (n1.kind, n2.kind),
+            cross_operand: o1 != o2,
+        };
+        match ((o1, k1), (o2, k2)) {
+            // Cross-operand face pair: the coincident-plane intent.
+            ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
+            | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
+                out.coincident_faces.push((fa, fb));
+            }
+            // Same-operand carried contacts.
+            ((oa, EntityKey::Vertex(va)), (ob, EntityKey::Vertex(vb))) if oa == ob => {
+                let c: &mut CarriedContacts = match oa {
+                    Operand::A => &mut out.carried_a,
+                    Operand::B => &mut out.carried_b,
+                };
+                c.vv.push(VvContact { a: va, b: vb });
+            }
+            ((oa, EntityKey::Vertex(v)), (ob, EntityKey::Face(f)))
+            | ((ob, EntityKey::Face(f)), (oa, EntityKey::Vertex(v)))
+                if oa == ob =>
+            {
+                let c: &mut CarriedContacts = match oa {
+                    Operand::A => &mut out.carried_a,
+                    Operand::B => &mut out.carried_b,
+                };
+                c.vf.push(VfContact { vertex: v, face: f });
+            }
+            _ => return Err(unsupported()),
+        }
+    }
+    Ok(out)
+}
+
 fn wire_transform<T: Decide>(
+    id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -371,7 +586,13 @@ fn wire_transform<T: Decide>(
     // PR 1's die convention: rotate about the axis THROUGH THE WORLD
     // ORIGIN by `angle`, then translate.
     let map = Affine3::from_parts(Mat3::rotation_about(rot_axis, angle), translation);
-    let placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
+    let mut placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
+    // N6 composition: `transform_rigid` cleared the source records
+    // (its geometric rewrite invalidates the bit-identity claim); the
+    // recipe layer re-stamps each description with the INPUT's source
+    // wrapped by this placing node (keys are stable across the op).
+    // Unsourced input descriptions stay unsourced — never invented.
+    compose_placed(&body, &mut placed, id, 0);
     // Identity-preserving pass-through (spec D2): the transform
     // contributes NO RolePath segment — `transform_rigid` is
     // key-stable (arenas rewritten in place of a clone), so the
@@ -422,7 +643,11 @@ fn wire_pattern<T: Decide>(
                 Affine3::rotation_about_axis(*origin, *dir, angle * step)
             }
         };
-        let placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
+        let mut placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
+        // N6 composition, per structural instance (`Placed { node,
+        // instance: i, .. }`): distinct instances are distinct
+        // sources — their descriptions genuinely differ.
+        compose_placed(&body, &mut placed, id, i as u32);
         instances.push(Arc::new(placed));
     }
     // Instance(i) wrapping (A8/N1): every master entity name wraps

@@ -74,12 +74,14 @@ struct Entry {
 /// Classifies `contact.vertex` (in the piercing body) against
 /// `contact.face` (in the pierced body) and performs the paired
 /// insertion (module docs).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn classify_vertex_on_face<T: Decide>(
     piercing_body: &mut Body<T>,
     pierced_body: &mut Body<T>,
     piercing: Operand,
     contact: VfContact,
     op: BooleanOp,
+    declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
@@ -114,7 +116,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             face_plane(piercing_body, s.face).ok_or(BooleanError::ClassificationInvariant {
                 what: "sector face lost its plane",
             })?;
-        let rel = match super::oriented_plane_eq(&sector_plane, &plane, s.arm, band) {
+        let pierced_op = piercing.other();
+        let id = super::PlaneIdentity {
+            s1: super::reduce::face_source(piercing_body, s.face),
+            s2: super::reduce::face_source(pierced_body, contact.face),
+            declared: declared.contains(piercing, s.face, pierced_op, contact.face),
+        };
+        let rel = match super::oriented_plane_eq(&sector_plane, &plane, id, s.arm, band) {
             Ok(super::PlaneRelation::Distinct) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "geometrically coplanar sector with definitely-distinct plane",
@@ -124,6 +132,9 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
             Err(PlaneEqError::Undeclared(diag)) => {
                 return Err(BooleanError::UndeclaredCoincidence { diag });
+            }
+            Err(PlaneEqError::Contradicted(diag)) => {
+                return Err(BooleanError::DeclarationContradicted { diag });
             }
         };
         let lump = eq15_3_lump(op, piercing, rel);

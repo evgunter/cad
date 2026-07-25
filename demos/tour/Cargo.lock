@@ -45,6 +45,7 @@ version = "0.1.0"
 dependencies = [
  "editor-core",
  "geom-core",
+ "geom-surfaces",
  "mesh",
  "profile",
  "step-export",

@@ -424,8 +424,10 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
 #[test]
 fn poisoned_target_node_reports_the_failed_ancestor() {
     let doc = ProfileDoc::empty();
+    // Decoupled overlap (M4 PR 5: coincident planes demand a Declare;
+    // this test wants a plain transversal union).
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
     let (doc, uni) = insert(
         doc,
         Node::Boolean {

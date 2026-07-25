@@ -298,13 +298,16 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
             rotation_angle: ang(0.0),
         },
     );
+    // M4 PR 5: the slide's flush planes are declared (the disjoint
+    // position keeps the same coplanarity, so ONE declare serves both).
+    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: None,
+            declare: Some(decl),
         },
     );
     let ev1 = run(&doc, None);

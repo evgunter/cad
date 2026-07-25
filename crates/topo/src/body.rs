@@ -61,6 +61,7 @@ use crate::entity::{
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
+use crate::source::{GeomSource, SourceAttachError};
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).
@@ -157,6 +158,16 @@ pub struct Body<T: Real> {
     pub(crate) half_edge_provenance: SecondaryMap<HalfEdgeKey, Provenance>,
     pub(crate) edge_provenance: SecondaryMap<EdgeKey, Provenance>,
     pub(crate) vertex_provenance: SecondaryMap<VertexKey, Provenance>,
+    // N6 GeomSource records (M4 PR 5), parallel to the geometry arenas
+    // exactly as provenance parallels the topology arenas: the recipe
+    // source of each description, stamped by the recipe layer
+    // (`editor-core`) after each op and carried by clone and graft.
+    // An absent row = no recipe source (raw/kernel-level
+    // construction); absence never certifies coincidence (the
+    // ladder's conservative direction).
+    pub(crate) point_sources: SecondaryMap<PointKey, GeomSource>,
+    pub(crate) curve_sources: SecondaryMap<CurveKey, GeomSource>,
+    pub(crate) surface_sources: SecondaryMap<SurfaceKey, GeomSource>,
 }
 
 impl<T: Real> Body<T> {
@@ -181,6 +192,9 @@ impl<T: Real> Body<T> {
             half_edge_provenance: SecondaryMap::new(),
             edge_provenance: SecondaryMap::new(),
             vertex_provenance: SecondaryMap::new(),
+            point_sources: SecondaryMap::new(),
+            curve_sources: SecondaryMap::new(),
+            surface_sources: SecondaryMap::new(),
         }
     }
 
@@ -395,6 +409,7 @@ impl<T: Real> Body<T> {
         let Some(removed) = self.curves.remove(curve) else {
             return false;
         };
+        self.curve_sources.remove(curve);
         for surface in Self::description_surfaces(&removed) {
             self.remove_surface_if_orphaned(surface);
         }
@@ -421,7 +436,11 @@ impl<T: Real> Body<T> {
         {
             return false;
         }
-        self.surfaces.remove(surface).is_some()
+        let removed = self.surfaces.remove(surface).is_some();
+        if removed {
+            self.surface_sources.remove(surface);
+        }
+        removed
     }
 
     /// The surface keys an edge description references: `Intersection`'s
@@ -452,7 +471,99 @@ impl<T: Real> Body<T> {
         if self.vertices.values().any(|vertex| vertex.point == point) {
             return false;
         }
-        self.points.remove(point).is_some()
+        let removed = self.points.remove(point).is_some();
+        if removed {
+            self.point_sources.remove(point);
+        }
+        removed
+    }
+
+    // ------------------------------------------------------------------
+    // GeomSource records (N6, M4 PR 5) — see `crate::source`.
+    // ------------------------------------------------------------------
+
+    /// The recipe source of a surface description, if the recipe layer
+    /// stamped one (`None` for raw/kernel-level constructions — never
+    /// coincidence-certifying).
+    pub fn surface_source(&self, key: SurfaceKey) -> Option<&GeomSource> {
+        self.surface_sources.get(key)
+    }
+
+    /// The recipe source of a curve description ([`Body::surface_source`]).
+    pub fn curve_source(&self, key: CurveKey) -> Option<&GeomSource> {
+        self.curve_sources.get(key)
+    }
+
+    /// The recipe source of a point ([`Body::surface_source`]).
+    pub fn point_source(&self, key: PointKey) -> Option<&GeomSource> {
+        self.point_sources.get(key)
+    }
+
+    /// Stamps (or replaces) the recipe source of a surface description
+    /// — the recipe layer's post-op attachment door.
+    ///
+    /// # Errors
+    ///
+    /// [`SourceAttachError::StaleKey`] if the key does not resolve
+    /// (attaching identity to nothing is a caller bug, refused loudly).
+    pub fn set_surface_source(
+        &mut self,
+        key: SurfaceKey,
+        source: GeomSource,
+    ) -> Result<(), SourceAttachError> {
+        if self.surfaces.get(key).is_none() {
+            return Err(SourceAttachError::StaleKey);
+        }
+        self.surface_sources.insert(key, source);
+        Ok(())
+    }
+
+    /// Stamps the recipe source of a curve description
+    /// ([`Body::set_surface_source`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SourceAttachError::StaleKey`] on a non-resolving key.
+    pub fn set_curve_source(
+        &mut self,
+        key: CurveKey,
+        source: GeomSource,
+    ) -> Result<(), SourceAttachError> {
+        if self.curves.get(key).is_none() {
+            return Err(SourceAttachError::StaleKey);
+        }
+        self.curve_sources.insert(key, source);
+        Ok(())
+    }
+
+    /// Stamps the recipe source of a point ([`Body::set_surface_source`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SourceAttachError::StaleKey`] on a non-resolving key.
+    pub fn set_point_source(
+        &mut self,
+        key: PointKey,
+        source: GeomSource,
+    ) -> Result<(), SourceAttachError> {
+        if self.points.get(key).is_none() {
+            return Err(SourceAttachError::StaleKey);
+        }
+        self.point_sources.insert(key, source);
+        Ok(())
+    }
+
+    /// Clears every GeomSource record — the honest posture after a
+    /// kernel-level geometric rewrite without recipe context
+    /// (`transform_rigid`): the old sources' bit-identity claim no
+    /// longer holds, so keeping them would let same-source certify
+    /// coincidence between bit-DIFFERENT descriptions. The recipe
+    /// layer re-stamps composed sources after the op (N6: the
+    /// transform node composes into `expr`).
+    pub fn clear_geom_sources(&mut self) {
+        self.point_sources.clear();
+        self.curve_sources.clear();
+        self.surface_sources.clear();
     }
 
     // ------------------------------------------------------------------

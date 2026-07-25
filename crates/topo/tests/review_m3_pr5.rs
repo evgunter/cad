@@ -13,11 +13,12 @@
 
 mod common;
 
-use common::prism_z;
+use common::{flush_declarations, prism_z};
 use geom_core::{Band, Decide, Point3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, SolidContainment,
-    mass_properties, point_in_solid, subtract, union, validate, validate_closed,
+    mass_properties, point_in_solid, subtract, subtract_with, union_with, validate,
+    validate_closed,
 };
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
@@ -43,12 +44,14 @@ fn uslab() -> Body<f64> {
     .body
 }
 
-type BoolOp<T> = fn(&Body<T>, &Body<T>) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> =
+    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations) -> Result<BooleanResult<T>, BooleanError>;
 
-/// Functional run: operands bitwise untouched, result tier-1+2 valid.
+/// Functional run with the author's flush contacts declared (M4
+/// PR 5): operands bitwise untouched, result tier-1+2 valid.
 fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let r = op(a, b).unwrap();
+    let r = op(a, b, &flush_declarations(a, b)).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &r {
@@ -75,8 +78,9 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
 /// untouched — never a silent wrong body.
 fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> String {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let e1 = op(a, b).map(|_| ()).unwrap_err();
-    let e2 = op(a, b).map(|_| ()).unwrap_err();
+    let d = flush_declarations(a, b);
+    let e1 = op(a, b, &d).map(|_| ()).unwrap_err();
+    let e2 = op(a, b, &d).map(|_| ()).unwrap_err();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
     assert_eq!(
@@ -97,7 +101,7 @@ fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> S
 fn deep_asymmetric_pocket_subtract() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.25, 0.75), (0.25, 1.75), (0.25, 2.5));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 − 0.5·1.5·1.75; area = 24 − 0.75 + walls 7 + floor 0.75.
@@ -110,12 +114,12 @@ fn deep_asymmetric_pocket_subtract() {
 fn boss_and_pocket_on_minus_x_face() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((-0.75, 0.5), (0.75, 1.25), (0.75, 1.25));
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 + 0.75·0.25; area = 24 + 4·(0.5·0.75) + cap .25 − opening .25.
     assert_props(&body.body, 8.1875, 25.5);
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 − 0.5·0.25; area = 24 − .25 + 4·(0.5·0.5) + floor .25.
@@ -129,12 +133,12 @@ fn boss_and_pocket_on_minus_x_face() {
 fn plus_x_face_cookie_refusals_pinned() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((1.5, 2.75), (0.75, 1.25), (0.75, 1.25));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 − 0.5·0.25; area = 24 − .25 + 4·(0.5·0.5) + floor .25.
     assert_props(&body.body, 7.875, 25.0);
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 + 0.75·0.25; area = 24 + 4·(0.5·0.75) + cap .25 − opening .25.
@@ -166,7 +170,7 @@ fn two_pockets_one_face_subtract() {
         1.25,
     )
     .body;
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // Each pocket 0.5³; per pocket: walls 1.0 + floor .25 − opening .25.
@@ -194,7 +198,7 @@ fn pocket_orientation_matrix() {
     for (name, x, y, z) in pillars {
         let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<f64>(x, y, z);
-        match subtract(&a, &b) {
+        match subtract_with(&a, &b, &flush_declarations(&a, &b)) {
             Ok(BooleanResult::Body(body)) => {
                 assert_eq!(validate_closed(&body.body), Ok(()), "{name}");
                 let m = mass_properties(&body.body).unwrap();
@@ -203,7 +207,7 @@ fn pocket_orientation_matrix() {
             }
             Ok(BooleanResult::Empty) => panic!("{name}: empty"),
             Err(_) => {
-                assert_typed_refusal(subtract, &a, &b);
+                assert_typed_refusal(subtract_with, &a, &b);
                 refused.push(name);
             }
         }
@@ -221,7 +225,7 @@ fn pocket_orientation_matrix() {
 fn edge_notch_subtract() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((1.5, 2.5), (0.5, 1.0), (1.5, 2.5));
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 − 0.125; area = 24 − 0.5 + 4·0.25.
@@ -238,7 +242,7 @@ fn edge_notch_subtract() {
 fn fig151_noncoplanar_intersect_works() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (-0.25, 1.25));
-    let r = run(topo::intersect, &a, &b);
+    let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_props(&body.body, 1.0, 6.0);
@@ -255,17 +259,20 @@ fn fig151_noncoplanar_intersect_works() {
 fn flush_pillar_rest_union_honest() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (2.0, 3.0));
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(body.body.shells().count(), 1);
     assert_props(&body.body, 8.25, 26.0);
     // ∖ and ∩ on the same rest are regularized-correct.
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
     assert_props(&body.body, 8.0, 24.0);
-    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
+    assert!(matches!(
+        run(topo::intersect_with, &a, &b),
+        BooleanResult::Empty
+    ));
 }
 
 /// Corner-flush rest: the pillar's bottom rests flush at A's top-face
@@ -280,9 +287,9 @@ fn flush_pillar_rest_union_honest() {
 fn corner_flush_pillar_union_honest() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
-    match union(&a, &b) {
+    match union_with(&a, &b, &flush_declarations(&a, &b)) {
         Err(_) => {
-            let e = assert_typed_refusal(union, &a, &b);
+            let e = assert_typed_refusal(union_with, &a, &b);
             assert!(e.contains("UnpairedLooseEnds"), "got {e}");
         }
         Ok(BooleanResult::Body(body)) => {
@@ -300,7 +307,7 @@ fn corner_flush_pillar_union_honest() {
 fn perturbed_flush_pillar_union_works() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.9375, 3.0));
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 + 0.25·1; area = 24 + 4·(0.5·1.0) + cap .25 − opening .25.
@@ -314,7 +321,7 @@ fn perturbed_flush_pillar_union_works() {
 fn interior_column_union_works() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0625, 1.9375), (0.0625, 1.9375), (1.9375, 4.0));
-    let r = run(union, &a, &b);
+    let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // vol = 8 + 1.875²·2 = 15.03125; area = 24 − 1.875² + walls
@@ -332,7 +339,7 @@ fn interior_column_union_works() {
 fn pinned_refusals_deterministic() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    let e = assert_typed_refusal(union, &a, &b);
+    let e = assert_typed_refusal(union_with, &a, &b);
     assert!(e.contains("UnpairedLooseEnds"), "got {e}");
 }
 
@@ -344,7 +351,7 @@ fn pinned_refusals_deterministic() {
 fn fig151_coplanar_overlap_intersect_exact() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
-    let r = run(topo::intersect, &a, &b);
+    let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(body.body.shells().count(), 1);
@@ -382,7 +389,7 @@ fn collinear_four_site_seam_subtract() {
     // the record-sibling proxy) lets adjacent-site chords capture a
     // whole partner pair together; the 1–2 gap is still never bridged
     // (facing + nearest). Base + stubs shell and two floating tips.
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(body.body.shells().count(), 3);
@@ -414,7 +421,7 @@ fn single_prong_cut_nonconvex_cap_subtract() {
     // R3 CLOSED (PR 5.5): the crossing-polygon disconnection family
     // joins under the derived sense discipline — 2 shells (body +
     // severed tip), exact mass properties.
-    let r = run(subtract, &a, &b);
+    let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(body.body.shells().count(), 2);
@@ -516,8 +523,8 @@ fn replay_deterministic_all_kinds() {
     // Seamed (pocket, exercises resolve_roles + zip).
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5));
-    let r1 = run(subtract, &a, &b);
-    let r2 = run(subtract, &a, &b);
+    let r1 = run(subtract_with, &a, &b);
+    let r2 = run(subtract_with, &a, &b);
     assert_eq!(
         format!("{:?}", body_of(&r1).body),
         format!("{:?}", body_of(&r2).body),
@@ -526,8 +533,8 @@ fn replay_deterministic_all_kinds() {
     // Assembly (disjoint union: graft door in the fallback lane).
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<f64>((2.0, 3.0), (2.0, 3.0), (2.0, 3.0));
-    let r1 = run(union, &a, &b);
-    let r2 = run(union, &a, &b);
+    let r1 = run(union_with, &a, &b);
+    let r2 = run(union_with, &a, &b);
     assert_eq!(
         format!("{:?}", body_of(&r1).body),
         format!("{:?}", body_of(&r2).body),
@@ -536,8 +543,8 @@ fn replay_deterministic_all_kinds() {
     // Voided (nested subtract: graft + revert).
     let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let r1 = run(subtract, &a, &b);
-    let r2 = run(subtract, &a, &b);
+    let r1 = run(subtract_with, &a, &b);
+    let r2 = run(subtract_with, &a, &b);
     assert_eq!(
         format!("{:?}", body_of(&r1).body),
         format!("{:?}", body_of(&r2).body),
@@ -615,17 +622,17 @@ mod interval {
         // Working orientation (−x pocket) + non-coplanar Fig 15.1.
         let a = brick::<Interval>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<Interval>((-0.75, 0.5), (0.75, 1.25), (0.75, 1.25));
-        let r = run(subtract, &a, &b);
+        let r = run(subtract_with, &a, &b);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
         let a = brick::<Interval>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
         let b = brick::<Interval>((1.0, 3.0), (1.0, 3.0), (-0.25, 1.25));
-        let r = run(topo::intersect, &a, &b);
+        let r = run(topo::intersect_with, &a, &b);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
         // R1's former refusal orientation now succeeds on the
         // interval lane too (PR 5.5).
         let a = brick::<Interval>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<Interval>((1.5, 2.75), (0.75, 1.25), (0.75, 1.25));
-        let r = run(subtract, &a, &b);
+        let r = run(subtract_with, &a, &b);
         assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
     }
 }
