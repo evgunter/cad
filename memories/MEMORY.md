@@ -17,3 +17,4 @@
 - [FreeCAD oracle](freecad-oracle.md) — FreeCAD 1.1.2 headless at ~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd; STEP import acceptance oracle, admesh-pattern integration
 - [Hourly agent check-ins](hourly-agent-checkins.md) — standing Evan instruction: hourly heartbeat Monitor; sweep agent lanes, nudge silent ones (lost wake-ups happen)
 - [Disk watchdog](disk-watchdog.md) — standing: arm disk-space Monitor at session start (warn <15G, critical <8G); lanes grow 5-8G targets; two disk-full WSL crashes 2026-07-24
+- [Model A/B experiment](model-ab-experiment.md) — standing (2026-07-25): coin-flip Opus 5 vs Fable 5 for implementation; blinded reviewers + fixed quality rubric; data in docs/MODEL-AB-LOG.md
