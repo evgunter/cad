@@ -1222,3 +1222,13 @@ pass. Report-only flags accepted as historical (M4-PLAN gate.sh
 convention text — condition lapsed naturally, policy change is
 logged; M4-PR5-SPEC "5G box" — harmless, fix pass told directly).
 Reaches main with the next state-sync PR.
+
+**#99 review APPROVE (2026-07-25); PR #100 opened.** Reviewer
+re-derived the apex + both margins in exact rationals, verified
+the escalation band at predicate level (genuine data bug, not band
+papering), reproduced the old panic byte-for-byte on main, and
+tamper-tested the pin. 0 MAJ / 1 MIN / 3 NOTE; rubric idiom 5 /
+tests 4 / docs 5 — A/B row 2 FILLED (first complete experiment
+row). The 1 MINOR (failure-message tail reversed) orchestrator-
+fixed directly (f4460a5, pin re-run 3/3). #100 merges on green
+checks. Review clone for #99 removed after merge.

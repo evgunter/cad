@@ -30,7 +30,7 @@ day). Protocol:
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
 | 1 | 2026-07-25 | #93 join-stage seam-region anchors | M | fable (draw 197) | — | — | — | — | — | — | — | — | — |
-| 2 | 2026-07-25 | #99 tour ε-panic | S | fable (draw 220) | — | — | — | — | — | — | — | — | — |
+| 2 | 2026-07-25 | #99 tour ε-panic | S | fable (draw 220) | 0/1/3 | 0 | 5 | 4 | 5 | 1 line (orchestrator-applied) | tour 3/3 ε rows; zero kernel diff | 58k | 6.4 min |
 
 (Reference rows, pre-experiment, both Fable, unblinded — context
 only, not comparable: M4 PR 4 impl (L): 2 MAJ / 2 MIN / 6 NOTE, 0
