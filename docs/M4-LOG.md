@@ -841,3 +841,35 @@ deleted after PR 90 merges (cold rebuild accepted for rare
 fallback use). Demo implementation launches post-PR-90-merge:
 Evan confirmed everything viable-now is picked (C2 H×T, C4, C5,
 C9, C10 + fix-regardless trio; C1/C3 unlock at the merge).
+
+**SESSION HANDOFF SNAPSHOT (2026-07-25, orchestrator seam at
+Evan's suggestion)**. Merged this session: #84 re-mint, #87 naming
+part 1, #88 STEP export, #92 appearance (PR 7 complete), #94 ci
+freecad fix, #90 issue-86 cascade fix (main `604e5dc`); #85
+CURVED-DESIGN RATIFIED. Policy changes, all logged above and in
+memories: hosted Actions = merge gate (gate.sh fallback, header
+updated 12e256b, cache deleted — disk 57G); monitor suite scripted
+in scripts/monitors/ (install to ~/.local/share/cad-work/monitors/,
+arm 3 persistent Monitors at session start); hourly agent sweeps +
+disk watchdog standing; clone placement never-/tmp; push-per-unit.
+IN FLIGHT FOR SUCCESSOR: (1) PR 4 review — reviewer (static review
+complete, verdict pending its held-then-released test lanes) will
+deliver a self-contained report; process rulings → fix pass by the
+PR 4 implementer if needed → merge on green Actions checks. Branch
+ev/m4-4-resolution @ 260e620, PR not yet opened — open with a
+writeup covering the D1-D9 report in the log above (incl. the
+UPHELD RebindAppearanceCollision ruling + the wrapping choice for
+Vanished offers). (2) Demo implementation NOT yet launched —
+Evan's picks: everything viable now (C2 H×T, C4, C5, C9, C10,
+fix-regardless trio) + C1/C3 (unlocked by #90's merge). Launch one
+implementer per the #91 issue body; FreeCAD render path per the
+#91 evidence comments; normal review pipeline, Actions gate. (3)
+PR 5 spec next on the critical path after PR 4 merges (GeomSource
++ Declare; corner-table tripwires + the #91 flush-plane demos are
+its acceptance showcases; R13 boolean-of-boolean fixtures now
+unblocked for its corpus). (4) Parked: #93 resolver gap (ready
+fixture; schedulable between seams), #89 K-revisit (M5 exit), PR 6
+banked items (doc-ε re-audit; black-box appearance metadata —
+Evan's #92 ask), Q9 name shortlist (Evan's call). Away-channel:
+reply on the PR/issue threads; sign-off watchlist at
+~/.local/share/cad-work/signoff-watchlist.txt (empty).
