@@ -714,3 +714,23 @@ ENOSPC-suspect and must re-run. Root cause: five parallel lanes ×
 now in the disk-watchdog memory (delete finished lanes' caches at
 seams — this session had been doing it only at merge seams, not
 review-completion seams).
+
+**#91 revisions posted (2026-07-24)**: Evan's three pushbacks
+answered with evidence. (1) C2 shadow-silhouette: his curvature
+concern diagnosed as actually a COPLANARITY constraint — with
+decoupled dimensions the 2-way H×T prism intersect passes tiers
+1/2/3′ with exact dyadic volume, and the 3-WAY
+intersect-of-intersect SUCCEEDS ON MAIN PRE-#90 (chamfer crossing
+is coplanarity-free); naive coincident-plane variant refuses typed
+— kept as a PR-5 Declare before/after narrative. (2) C9 reshaped:
+donut's unique content is the torus SURFACE KIND (vase/pulley
+cover full-revolution); new C9 = rope-groove sheave (ring-torus
+groove + bore, genus 1) — enabled by finding the vase's "off-axis
+arcs refuse as toroids" comment is STALE (revolve mints ring-torus
+walls today; only horn/spindle refuse). (3) FreeCAD headless
+render WORKS: freecadcmd + QT_QPA_PLATFORM=offscreen +
+Gui.updateGui() renders our die.step to clean 1600×1200 shaded
+isometric, no display — proposed as montage render path (F6
+dogfooding; matplotlib kept as the tessellation-proving fallback;
+~1 min startup ⇒ batch stops in one session). Issue #91 body
+updated + evidence comment posted. Picks still open.
