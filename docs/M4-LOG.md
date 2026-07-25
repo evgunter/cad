@@ -1356,3 +1356,29 @@ attack: narrowing holes at every door, verification laundering via
 in-band, same-carrier gate edge cases, fillet degeneracies,
 migration intent honesty, free-arc classification, predicate
 discipline). Foreground-battery clause now standard in prompts.
+
+**#93 review returned (2026-07-25): APPROVE CODE, CORRECT REPORT;
+two MAJOR claim-findings, both filed.** All four oracles
+independently re-derived exact; old winding probe's unsoundness
+empirically confirmed; no envelope widening (two fresh flush
+constructions bit-identical main vs branch); Newell predicate
+sound with typed Interval escalation; batteries exact-match. F1:
+implementer's unreachability claim FALSIFIED — general-position
+depth-2 nested island reaches the anchor-exhaustion arm (typed
+refusal, load-bearing) → #106 completeness gap (ready fixture).
+F2 (HEADLINE): **main 75166b8 silently returns V=22.5 vs exact
+22.4375 on a depth-2 chain, all tiers passing — fail-loud violated
+in general position; the #93 branch computes it exactly** → #105;
+push notification sent to Evan. Fix pass dispatched (correct the
+claim, adopt both constructions as pins — #106 as typed-refusal
+pin, #105 as exactness pin; stale titles; in-clone battery rerun
+mandatory per the cwd incident). Quality rubric (A/B row 1
+pending fix pass): idiom 4 / tests 4 / docs 4.
+
+**Ops incident (2026-07-25, caught by hourly sweep): resumed
+subagents' cwd resets to the orchestrator worktree** — five stray
+cargo processes found building MY worktree (wrong tree, green-but-
+invalid numbers); killed PID-scoped, stray target/ deleted (35G→
+freed, disk 87G), all three lanes corrected (cd-per-command now
+mandatory), lesson banked in subagent-death-recovery memory with
+the /proc-cwd sweep check.
