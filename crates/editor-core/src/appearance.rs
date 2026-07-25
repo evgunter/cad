@@ -126,8 +126,9 @@ pub type AppearanceMap = BTreeMap<StableName, AttrSet>;
 
 /// Why an appearance entry failed to resolve in an evaluation — the
 /// typed "appearance lost its target" state (N3/N5). PR 4's
-/// `Diagnosis` (the verdict-vector diff engine) enriches these with
-/// the flipping predicate; the causes here are what the evaluation
+/// [`crate::resolve::enrich_appearance_loss`] maps each cause onto
+/// the full N5 ladder (the verdict-vector diff engine supplies the
+/// flipping predicate); the causes here are what the evaluation
 /// itself can see without that engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppearanceLossCause {
@@ -209,8 +210,9 @@ pub struct AppearanceLoss {
 /// be a silent rebinding policy, and the N5 policy menu is EMPTY by
 /// ratified decision. The repairs are explicit — attribute the name
 /// the displayed node's table actually mints (what a GUI does), or
-/// PR 4's `Rebind` once it lands (its suggestion ladder feeds exactly
-/// this gap).
+/// [`crate::edit::DocEdit::Rebind`] (which moves the appearance key;
+/// [`crate::resolve::appearance_rebind_suggestions`] feeds exactly
+/// this gap with the wrapping final-node derivations).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AppearanceResolution {
     /// Per-node resolved rows: for each node whose table carried an
