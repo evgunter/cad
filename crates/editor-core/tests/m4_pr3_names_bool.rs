@@ -15,7 +15,7 @@ use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, declare_x_offset_flush, desc, insert, len, scl};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
@@ -68,13 +68,14 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
     let doc = ProfileDoc::empty();
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = declare_x_offset_flush(doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Some(decl),
         },
     );
     let ev = run(&doc);
@@ -84,10 +85,58 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
         t.lookup(&name1(EntityKind::Body, u, RoleSeg::OutputBody))
             .is_some()
     );
-    // Both operands' caps survive under their FromX wraps.
-    for (node, wrap) in [(a, true), (b, false)] {
-        let inner = name1(EntityKind::Face, node, RoleSeg::Cap(CapEnd::Top));
-        let seg = if wrap {
+    // M4 PR 5 (N3/D5, the Merged lane LIVE): the declared flush caps
+    // GLUE — the operands' top caps retire into one `Merged` row whose
+    // constituents are exactly the two FromX-wrapped cap names, sorted.
+    let mut cap_constituents = vec![
+        name1(
+            EntityKind::Face,
+            u,
+            RoleSeg::FromA(Box::new(name1(
+                EntityKind::Face,
+                a,
+                RoleSeg::Cap(CapEnd::Top),
+            ))),
+        ),
+        name1(
+            EntityKind::Face,
+            u,
+            RoleSeg::FromB(Box::new(name1(
+                EntityKind::Face,
+                b,
+                RoleSeg::Cap(CapEnd::Top),
+            ))),
+        ),
+    ];
+    cap_constituents.sort_unstable();
+    assert!(
+        matches!(
+            t.lookup(&name1(
+                EntityKind::Face,
+                u,
+                RoleSeg::Merged(cap_constituents)
+            )),
+            Some(Entry::Unique(_))
+        ),
+        "missing Merged top-cap row"
+    );
+    // Four Merged faces total (both caps + both flush y-walls); the
+    // x-extreme walls survive under their FromX wraps unmerged.
+    let merged_rows = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+        .count();
+    assert_eq!(merged_rows, 4);
+    for (node, seg, wrap_a) in [(a, 3u32, true), (b, 1u32, false)] {
+        let inner = name1(
+            EntityKind::Face,
+            node,
+            RoleSeg::Lateral(editor_core::ProfileEdgeRef {
+                loop_index: 0,
+                segment: seg,
+            }),
+        );
+        let seg = if wrap_a {
             RoleSeg::FromA(Box::new(inner))
         } else {
             RoleSeg::FromB(Box::new(inner))
@@ -97,7 +146,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
                 t.lookup(&name1(EntityKind::Face, u, seg)),
                 Some(Entry::Unique(_))
             ),
-            "missing wrapped top cap of {node:?}"
+            "missing surviving x-wall of {node:?}"
         );
     }
     // Cut rims carry OrderAlong ranks 0 and 1 (never bare indices —
@@ -111,7 +160,10 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             )
         })
         .count();
-    assert!(ranked >= 4, "expected ranked rim fragments, got {ranked}");
+    assert_eq!(
+        ranked, 8,
+        "ranked rim fragments (per-operand rims cut in two)"
+    );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
         .iter()
@@ -255,6 +307,7 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
         let doc = ProfileDoc::empty();
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, decl) = declare_x_offset_flush(doc, a, b0);
         let (doc, tb) = insert(
             doc,
             Node::Transform {
@@ -270,7 +323,7 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: None,
+                declare: Some(decl),
             },
         );
         (doc, u)
@@ -297,6 +350,7 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         let doc = ProfileDoc::empty();
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, decl) = declare_x_offset_flush(doc, a, b0);
         let (doc, tb) = insert(
             doc,
             Node::Transform {
@@ -312,7 +366,7 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: None,
+                declare: Some(decl),
             },
         );
         (doc, u)

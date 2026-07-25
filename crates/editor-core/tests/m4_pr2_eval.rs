@@ -72,11 +72,11 @@ fn fingerprint(b: &Body<f64>) -> String {
 #[test]
 fn die_evaluates_to_the_exact_oracle() {
     let d = die();
-    assert_eq!(d.n_nodes, 56); // 2 cube + 12 masters + 21×2 pip pairs
+    assert_eq!(d.n_nodes, 77); // 2 cube + 12 masters + 21×3 pip triples (M4 PR 5: + Declare)
     let ev = run(&d.doc, None, false);
     assert_eq!(ev.outcome, EvalOutcome::Completed);
-    assert_eq!(ev.order.len(), 56);
-    assert_eq!((ev.recomputed, ev.reused), (56, 0));
+    assert_eq!(ev.order.len(), 77);
+    assert_eq!((ev.recomputed, ev.reused), (77, 0));
     let body = final_body(&ev, d.final_node);
     let m = mass_properties(body).unwrap();
     assert_eq!(m.volume, DIE_VOLUME); // exactly 7.8359375
@@ -104,7 +104,7 @@ fn incremental_edit_recomputes_only_the_downstream_cone() {
 
     let memo = run(&edited, Some(&full), false);
     assert_eq!(memo.outcome, EvalOutcome::Completed);
-    assert_eq!((memo.recomputed, memo.reused), (2, 54)); // D4 acceptance
+    assert_eq!((memo.recomputed, memo.reused), (2, 75)); // D4 acceptance
     let vol = mass_properties(final_body(&memo, d.final_node))
         .unwrap()
         .volume;
@@ -116,7 +116,7 @@ fn incremental_edit_recomputes_only_the_downstream_cone() {
     let scratch = run(&edited, None, false);
     let par_scratch = run(&edited, None, true);
     let par_memo = run(&edited, Some(&full), true);
-    assert_eq!((par_memo.recomputed, par_memo.reused), (2, 54));
+    assert_eq!((par_memo.recomputed, par_memo.reused), (2, 75));
     let fp = fingerprint(final_body(&memo, d.final_node));
     for other in [&scratch, &par_scratch, &par_memo] {
         assert_eq!(fp, fingerprint(final_body(other, d.final_node)));
@@ -128,8 +128,9 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let d = die();
     let full = run(&d.doc, None, false);
     // pip_depth 0.125 → 0.0625: every pip master extrude and all 42
-    // downstream pip nodes recompute; the 7 profiles and the cube
-    // extrude are reused.
+    // downstream pip nodes recompute; the 7 profiles, the cube
+    // extrude, and the 21 Declare nodes (pure recipe data) are
+    // reused.
     let edited = d
         .doc
         .apply(&editor_core::DocEdit::SetDocParam {
@@ -142,7 +143,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .unwrap()
         .doc;
     let memo = run(&edited, Some(&full), false);
-    assert_eq!((memo.recomputed, memo.reused), (48, 8));
+    assert_eq!((memo.recomputed, memo.reused), (48, 29));
     let vol = mass_properties(final_body(&memo, d.final_node))
         .unwrap()
         .volume;
@@ -210,7 +211,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         .values()
         .filter(|r| matches!(r, NodeResult::Ok(_)))
         .count();
-    assert_eq!(ok_count, 56 - 3); // all but Failed + 2 Poisoned
+    assert_eq!(ok_count, 77 - 3); // all but Failed + 2 Poisoned
 }
 
 #[test]
@@ -222,7 +223,7 @@ fn cancelation_returns_a_typed_partial_result() {
     let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts);
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert!(ev.nodes.is_empty()); // canceled before the first node
-    assert_eq!(ev.order.len(), 56); // order is data, not schedule
+    assert_eq!(ev.order.len(), 77); // order is data, not schedule
     assert_eq!(ev.epoch, opts.epoch); // the identity token round-trips
 
     // Distinct evaluations carry distinct minted epochs (GQ2's
@@ -234,7 +235,7 @@ fn cancelation_returns_a_typed_partial_result() {
     // it completes and computes everything.
     let full = evaluate::<f64>(&d.doc, Some(&ev), &CancelToken::new(), &opts2);
     assert_eq!(full.outcome, EvalOutcome::Completed);
-    assert_eq!((full.recomputed, full.reused), (56, 0));
+    assert_eq!((full.recomputed, full.reused), (77, 0));
 }
 
 #[test]

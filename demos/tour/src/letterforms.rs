@@ -166,70 +166,68 @@ const T_DECOUPLED: [(f64, f64); 8] = [
 /// exactly 577/128 (dyadic; hand computation and the exact-fraction
 /// script in the #91 revision pass agree).
 const V_2WAY: f64 = 4.5078125;
+/// 2-way volume oracle for the NAIVE pair (the declared-glue
+/// after-shot), same derivation: len_x(H) is 1 on the legs bands and
+/// 2 on the bar band y ∈ [1.25, 1.75]; len_z(T) is 0.5 off-stem and
+/// 3.0 on the stem band (= the SAME y-band, that's the coincidence):
+/// 1.25·0.5 + 0.5·6 + 1.25·0.5 = 17/4 exactly (dyadic).
+const V_2WAY_NAIVE: f64 = 4.25;
 /// 3-way (× C) volume: independent derivation as
 /// ∬ |Y_H(x) ∩ Y_T(z)| over the C region (exact-fraction polygon
 /// clipping over the 5×3 cell grid) — exactly 11461/4096 (dyadic).
 const V_3WAY: f64 = 2.798095703125;
 
-/// The naive variant, narrated: tiers 1–2 pass, tier 3′ refuses on the
-/// coincident-plane seam edges, and the 3-way consumer refuses typed.
+/// The coincident-plane variant, narrated as the M4 PR 5
+/// before/after (the #91 review pin UPGRADED when the Declare wire
+/// fired): UNDECLARED, the flush H × T refuses typed at the
+/// coincidence door — post-retirement, value-equality never even
+/// CLASSIFIES (rung (b)); the old "tiers 1–2 pass, tier 3′ refuses
+/// DescriptionNotAdjacent" posture is gone because the op refuses
+/// EARLIER and cleaner. DECLARED, the same geometry glues to the
+/// exact silhouette volume.
 fn narrate_naive() {
-    println!("   -- the coincidence ladder, made visible --");
-    let r = try_intersect(&h_prism(&H_NAIVE), &t_prism(&T_NAIVE)).expect("naive 2-way runs");
-    let BooleanResult::Body(bb) = r else {
-        panic!("naive 2-way cannot be empty");
-    };
-    // A real PIN, not just narration (#91 review M4): exactly FOUR
-    // tier-3' failures, every one the DescriptionNotAdjacent class
-    // (the flush-plane seam-edge gap). When M4 PR 5's Declare makes
-    // the flush variant glue, these asserts fire like a tripwire -
-    // upgrade this demo to the declared-coincidence before/after then.
-    match validate_pseudomanifold(&bb.body, &bb.contacts) {
-        Ok(()) => panic!(
-            "TRIPWIRE (not a regression): the NAIVE coincident-plane H x T \
-             now passes tier 3' - the flush-plane gap closed. Upgrade the \
-             silhouette narration to the declared-coincidence before/after."
-        ),
-        Err(errs) => {
-            assert_eq!(
-                errs.len(),
-                4,
-                "the naive-variant tier-3' failure count moved off the \
-                 pinned 4: {errs:?}"
-            );
-            for e in &errs {
-                assert!(
-                    format!("{e:?}").contains("DescriptionNotAdjacent"),
-                    "a naive-variant tier-3' failure moved off the pinned \
-                     DescriptionNotAdjacent class: {e:?}"
-                );
-            }
-            println!(
-                "   NAIVE H x T (T stem spanning exactly H's bar band, y in [1.25, 1.75]):\n\
-                 \x20     tiers 1-2 pass, but tier 3' refuses on the shared-plane seam edges:\n\
-                 \x20     4 errors, all DescriptionNotAdjacent (pinned)"
-            );
-        }
-    }
-    match try_intersect(&bb.body, &c_prism()) {
+    println!("   -- the coincidence ladder, made visible (before/after, M4 PR 5) --");
+    // BEFORE: undeclared flush contact refuses typed, loudly.
+    let (h, t) = (h_prism(&H_NAIVE), t_prism(&T_NAIVE));
+    match try_intersect(&h, &t) {
         Err(e) => {
             assert!(
-                format!("{e:?}").contains("NonMaximalFaces"),
-                "the naive 3-way refusal moved off the pinned \
-                 NonMaximalFaces class: {e:?}"
+                format!("{e:?}").contains("UndeclaredCoincidence"),
+                "the naive refusal moved off the pinned \
+                 UndeclaredCoincidence class: {e:?}"
             );
             println!(
-                "      and its 3-way consumer refuses typed: {e:?}\n\
-                 \x20     - value-equality never glues (ladder rung (b)); M4 PR 5's Declare is\n\
-                 \x20     what makes INTENTIONAL flush contact glue"
+                "   NAIVE H x T (T stem spanning exactly H's bar band, y in [1.25, 1.75]):\n\
+                 \x20     refuses typed at the coincidence door (UndeclaredCoincidence):\n\
+                 \x20     value-equality never glues (ladder rung (b), M4 PR 5 narrowing)"
             );
         }
         Ok(_) => panic!(
-            "TRIPWIRE (not a regression): the 3-way on the NAIVE result now \
-             succeeds - the flush-plane gap closed downstream; upgrade this \
-             narration."
+            "REGRESSION: the UNDECLARED coincident-plane H x T ran — \
+             value-equality must never classify coincidence"
         ),
     }
+    // AFTER: the SAME geometry with the flush contact DECLARED —
+    // glued, certified, exact.
+    let r = crate::booleans::try_intersect_declared(&h, &t).expect("declared naive 2-way runs");
+    let BooleanResult::Body(bb) = r else {
+        panic!("declared naive 2-way cannot be empty");
+    };
+    let v = topo::mass_properties(&bb.body).expect("declared naive volume").volume;
+    assert!(
+        (v - V_2WAY_NAIVE).abs() < 1e-9,
+        "declared naive 2-way volume {v} vs {V_2WAY_NAIVE}"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&bb.body, &bb.contacts),
+        Ok(()),
+        "the declared naive 2-way certifies at the 3' gate"
+    );
+    println!(
+        "      the SAME geometry with the flush contact DECLARED: glued, 3' \
+         certified, volume {v} — coincidence is intent (recipe data), never a \
+         value guess"
+    );
 }
 
 /// Builds the decoupled 2-way and 3-way results.

@@ -33,7 +33,11 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// The pinned diagnosis-corpus digest (update ONLY on a ratified
 /// resolution-semantics change — this is the replay-identity family's
 /// resolution member).
-const DIAGNOSIS_DIGEST: u64 = 0x659c_a00b_6abe_b0df;
+// RE-PINNED at M4 PR 5: the corpus's sliding-union scenario now
+// DECLARES its flush planes (F5), shifting downstream node ids; the
+// row SHAPES are unchanged (verified: flip-vanish → PredicateFlip,
+// cascade → Cascade, structural-param, node-gone, ambiguous).
+const DIAGNOSIS_DIGEST: u64 = 0x6bdd_0267_c8f7_644b;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

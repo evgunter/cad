@@ -12,6 +12,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Expr,
     Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
+use editor_core::{CapEnd, RoleSeg};
 use fixture::{ang, desc, die, insert, len, scl, square, step};
 use topo::{Body, mass_properties};
 
@@ -98,13 +99,24 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
+    // M4 PR 5: the flush bottom caps are declared (sides resolve
+    // per-operand, so ONE Declare serves both operand orders).
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(
+                fixture::fname(a, RoleSeg::Cap(CapEnd::Bottom)),
+                fixture::fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+            )],
+        },
+    );
     let (doc, s) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: x,
             b: y,
-            declare: None,
+            declare: Some(decl),
         },
     );
     (doc, s)
@@ -356,15 +368,19 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             distance: len(1.0),
         },
     );
-    // Diamond: two transforms of base, unioned.
-    let tr = |dx: f64| Node::Transform {
+    // Diamond: two transforms of base, unioned. Decoupled offsets
+    // (M4 PR 5): the same body through two placements shares its
+    // NAMES on both sides, so flush planes here could not even be
+    // declared by name pair — the stressor shears all three axes so
+    // no plane coincides and no declaration is needed.
+    let tr = |dx: f64, dy: f64, dz: f64| Node::Transform {
         input: base,
-        translation: [len(dx), len(0.0), len(0.0)],
+        translation: [len(dx), len(dy), len(dz)],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
         rotation_angle: ang(0.0),
     };
-    let (doc, t1) = insert(doc, tr(0.25));
-    let (doc, t2) = insert(doc, tr(-0.25));
+    let (doc, t1) = insert(doc, tr(0.25, 0.125, 0.0625));
+    let (doc, t2) = insert(doc, tr(-0.25, -0.125, -0.0625));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
@@ -711,13 +727,24 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 }
             },
         );
+        // M4 PR 5: the pip's outer cap lies ON the cube's top —
+        // declared (the rotational variant maps the SAME names).
+        let (doc, decl) = insert(
+            doc,
+            Node::Declare {
+                pairs: vec![(
+                    fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
+                    fixture::fname(pip, RoleSeg::Cap(CapEnd::Bottom)),
+                )],
+            },
+        );
         let (doc, sub) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
                 a: cube,
                 b: tr,
-                declare: None,
+                declare: Some(decl),
             },
         );
         (doc, sub)
@@ -988,5 +1015,5 @@ fn edit_back_restores_bit_identical_bodies() {
         "edit-back must restore the ORIGINAL bits (memo through a stale prior)"
     );
     // Reverted transform + final subtract recompute; the rest reuses.
-    assert_eq!((e2.recomputed, e2.reused), (2, 54));
+    assert_eq!((e2.recomputed, e2.reused), (2, 75));
 }

@@ -145,12 +145,14 @@ fn leg(cx: f64, cy: f64, z_top: f64) -> Body<f64> {
 ///  3. legs straddling the top's CORNERS (shared values `TOP_X.1`
 ///     etc.), so each seam crosses the underside AND two side faces.
 ///
-/// All three are narrated LIVE from their actual outcomes (attempts 1
-/// and 2, refusals in the PR 5 era, now union exactly — the kernel
-/// caught up and the narration reports it); variant 3 ships. TRUE
-/// corner-ALIGNED legs still refuse (equal-but-independent flush
-/// planes, coincidence-ladder rung (b)) — the first
-/// `demo_tripwires.rs` wire watches for M4 PR 5's Declare opening it.
+/// All three are narrated LIVE from their actual outcomes; since M4
+/// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Evan,
+/// PR #71 — the first `demo_tripwires.rs` wire FIRED): each leg's
+/// outer faces lie exactly in the top's side planes, DECLARED per
+/// union, and the declared rung glues them — every later union sees
+/// maximal operands. Attempt 1 (coplanar touch, undeclared) now
+/// refuses at the coincidence door — rung (b), value equality never
+/// classifies — and the narration says so.
 fn table() -> (topo::BooleanBody<f64>, String) {
     let top = slab(TOP_X, TOP_Y, TOP_Z);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
@@ -166,38 +168,65 @@ fn table() -> (topo::BooleanBody<f64>, String) {
         crate::booleans::try_union(&top, &leg(icx, icy, TOP_Z.0 + 0.05)),
         top_vol() + leg_vol(TOP_Z.0),
     );
-    // Attempt 3: corner-straddling legs (the shipping variant).
+    // Attempt 3 (the pre-PR 5 shipping variant, kept as narration):
+    // one corner-straddling leg — still works, no declarations needed
+    // (transversal seams only).
     let z_top = TOP_Z.0 + 0.05;
+    let per_straddle_gain = leg_vol(z_top) - LEG_HALF * LEG_HALF * 0.05;
+    let straddle = check(
+        crate::booleans::try_union(&top, &leg(TOP_X.1, TOP_Y.1, z_top)),
+        top_vol() + per_straddle_gain,
+    );
+
+    // SHIPPED (M4 PR 5, the fired table wire): TRUE corner-aligned
+    // legs — outer faces exactly IN the top's side planes, the flush
+    // contacts DECLARED per union, glued by the declared rung.
+    let aligned_leg = |cx: f64, cy: f64| {
+        let (x0, x1) = if cx > 0.0 {
+            (cx - 2.0 * LEG_HALF, cx)
+        } else {
+            (cx, cx + 2.0 * LEG_HALF)
+        };
+        let (y0, y1) = if cy > 0.0 {
+            (cy - 2.0 * LEG_HALF, cy)
+        } else {
+            (cy, cy + 2.0 * LEG_HALF)
+        };
+        slab((x0, x1), (y0, y1), (0.0, z_top))
+    };
     let corners = [
         (TOP_X.1, TOP_Y.1),
         (TOP_X.1, TOP_Y.0),
         (TOP_X.0, TOP_Y.1),
         (TOP_X.0, TOP_Y.0),
     ];
-    // Each leg: quarter footprint under the top, overlapping 0.05 up.
-    let per_leg_gain = leg_vol(z_top) - LEG_HALF * LEG_HALF * 0.05;
+    // Each aligned leg: FULL footprint under the top, overlapping
+    // 0.05 up into it.
+    let per_leg_gain = leg_vol(z_top) - (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * 0.05;
     let mut acc: Option<topo::BooleanBody<f64>> = None;
     let mut expected = top_vol();
     for (cx, cy) in corners {
         expected += per_leg_gain;
         let base = acc.as_ref().map_or(&top, |b| &b.body);
         acc = Some(expect_seamed(
-            "corner-straddle leg union",
+            "corner-ALIGNED leg union (declared)",
             check(
-                crate::booleans::try_union(base, &leg(cx, cy, z_top)),
+                crate::booleans::try_union_declared(base, &aligned_leg(cx, cy)),
                 expected,
             ),
             expected,
         ));
     }
     let note = format!(
-        "three variants attempted — (1) leg EXACTLY coplanar-touching the underside \
-         (shared value {}): {}; (2) leg inset, overlapping 0.05 into the top: {}; \
-         (3) SHIPPED: legs straddling the top's corners (shared corner values), \
-         each seam crossing underside + two side faces: within the 1e-9 oracle gate",
+        "variants narrated live — (1) leg EXACTLY coplanar-touching the underside, \
+         UNDECLARED (shared value {}): {}; (2) leg inset, overlapping 0.05 into the \
+         top: {}; (3) the pre-PR 5 straddle workaround: {}; (4) SHIPPED: TRUE \
+         corner-ALIGNED legs, flush side planes DECLARED per union (M4 PR 5) — the \
+         straddle narration is retired",
         TOP_Z.0,
         describe(&coplanar, top_vol() + leg_vol(TOP_Z.0)),
         describe(&overlap, top_vol() + leg_vol(TOP_Z.0)),
+        describe(&straddle, top_vol() + per_straddle_gain),
     );
     (acc.expect("four legs"), note)
 }

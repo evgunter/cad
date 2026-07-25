@@ -363,8 +363,55 @@ fn merge_coplanar_declared_vs_numeric() {
             .unwrap();
         cube.body
     };
-    // Declared: the top plane recomputed from the same corner data —
-    // bit-identical description, fresh key.
+    // Bit-identical description on a fresh key, NO source and NO
+    // declaration: stays unmerged post-retirement (M4 PR 5, ladder
+    // rung (b) — value equality never glues; the M3-era bit rung is
+    // gone).
+    let mut bit_equal = build(|_| {
+        FaceSurface::New(plane(&[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ]))
+    });
+    let outcome = bit_equal.merge_coplanar_faces().unwrap();
+    assert_eq!(outcome.groups, vec![]);
+    assert_eq!(bit_equal.faces().count(), 7);
+    // Declared, N6 same-source rung: stamp BOTH descriptions with one
+    // GeomSource — the provenance lookup merges with zero numerics
+    // and zero per-call declarations.
+    let mut same_source = build(|_| {
+        FaceSurface::New(plane(&[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ]))
+    });
+    let src = topo::GeomSource::minted(42, 0);
+    let coplanar_keys: Vec<_> = same_source
+        .faces()
+        .filter_map(|(_, f)| match same_source.get_surface(f.surface) {
+            Some(geom_surfaces::Surface::Plane { origin, normal, .. })
+                if origin.z == 1.0 && normal.z == 1.0 =>
+            {
+                Some(f.surface)
+            }
+            _ => None,
+        })
+        .collect();
+    // The seed top face and its chord twin both describe z = 1 with
+    // +z normals; stamp exactly those two.
+    assert_eq!(coplanar_keys.len(), 2, "{coplanar_keys:?}");
+    for k in &coplanar_keys {
+        same_source.set_surface_source(*k, src.clone()).unwrap();
+    }
+    let outcome = same_source.merge_coplanar_faces().unwrap();
+    assert_eq!(outcome.groups.len(), 1);
+    assert_eq!(same_source.faces().count(), 6);
+    // Declared, per-call surface pair (F5): same geometry, fresh
+    // build, intent supplied by the call — merges after verification.
     let mut declared = build(|_| {
         FaceSurface::New(plane(&[
             pt(0.0, 0.0, 1.0),
@@ -373,7 +420,21 @@ fn merge_coplanar_declared_vs_numeric() {
             pt(0.0, 1.0, 1.0),
         ]))
     });
-    let outcome = declared.merge_coplanar_faces().unwrap();
+    let pair: Vec<_> = declared
+        .faces()
+        .filter_map(|(_, f)| match declared.get_surface(f.surface) {
+            Some(geom_surfaces::Surface::Plane { origin, normal, .. })
+                if origin.z == 1.0 && normal.z == 1.0 =>
+            {
+                Some(f.surface)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(pair.len(), 2, "{pair:?}");
+    let outcome = declared
+        .merge_coplanar_faces_declared(&[(pair[0], pair[1])])
+        .unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(declared.faces().count(), 6);
     // Numeric-only: geometrically the same plane, but the description

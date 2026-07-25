@@ -7,9 +7,12 @@
 
 mod common;
 
-use common::prism_z;
+use common::{flush_declarations, prism_z};
 use geom_core::Decide;
-use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
+use topo::{
+    Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, boolean_reduce_declared,
+    validate,
+};
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -21,7 +24,9 @@ fn counts<T: Decide>(b: &Body<T>) -> (usize, usize, usize) {
 
 fn reduce_ok<T: Decide>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> BooleanReduction<T> {
     let before = (counts(a), counts(b));
-    let red = boolean_reduce(op, a, b).unwrap();
+    // M4 PR 5: intended flush contacts are DECLARED (the test author's
+    // recipe intent); value-equality alone no longer classifies.
+    let red = boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
     // Operands functionally untouched.
     assert_eq!((counts(a), counts(b)), before);
     // Annotated clones stay tier-1 valid through every transient.
