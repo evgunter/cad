@@ -1272,3 +1272,11 @@ gating once the baseline is pinned; tooling-level threshold only
 in-band there, but the lint would have flagged it as a bottom-
 percentile margin at EVERY ε row, before any band was entered.
 Added to PR 8's obligations.
+
+**PR 5 MERGED (2026-07-25): #102 → main `75166b8`** on 10/10 green
+checks. The M4 naming stack is now END-TO-END: GeomSource identity,
+bit_identity out of production, Declare threading live, first real
+Merged rows, corner-aligned table shipped, #95 recursive naming
+key. pr5 + pr5-review clones removed (disk 120G). Seam actions:
+state-sync PR; PR 6 + #101 dispatches (coin flips below); #93
+merges main + reviews when its report lands.
