@@ -96,8 +96,8 @@ use super::join::bool_connect;
 use super::solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 use super::zip::zip_seam;
 use super::{
-    BooleanError, BooleanOp, BooleanReduction, ContactRecords, Operand, SideCode, VfContact,
-    VvContact, boolean_reduce,
+    BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
+    ContactRecords, Operand, SideCode, VfContact, VvContact, boolean_reduce_declared,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
@@ -236,7 +236,7 @@ impl<T: Real> BooleanResult<T> {
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
 pub fn union<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Union, a, b)
+    boolean_op(BooleanOp::Union, a, b, &BooleanDeclarations::none())
 }
 
 /// A ∩* B (module docs).
@@ -245,7 +245,7 @@ pub fn union<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, Bo
 ///
 /// [`BooleanError`].
 pub fn intersect<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Intersect, a, b)
+    boolean_op(BooleanOp::Intersect, a, b, &BooleanDeclarations::none())
 }
 
 /// A ∖* B (module docs).
@@ -254,7 +254,47 @@ pub fn intersect<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>
 ///
 /// [`BooleanError`].
 pub fn subtract<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Subtract, a, b)
+    boolean_op(BooleanOp::Subtract, a, b, &BooleanDeclarations::none())
+}
+
+/// A ∪* B with declared coincidence intents (F5, M4 PR 5) — see
+/// [`BooleanDeclarations`].
+///
+/// # Errors
+///
+/// [`BooleanError`].
+pub fn union_with<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op(BooleanOp::Union, a, b, decls)
+}
+
+/// A ∩* B with declared coincidence intents ([`union_with`]).
+///
+/// # Errors
+///
+/// [`BooleanError`].
+pub fn intersect_with<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op(BooleanOp::Intersect, a, b, decls)
+}
+
+/// A ∖* B with declared coincidence intents ([`union_with`]).
+///
+/// # Errors
+///
+/// [`BooleanError`].
+pub fn subtract_with<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op(BooleanOp::Subtract, a, b, decls)
 }
 
 /// The shared pipeline (module docs).
@@ -262,9 +302,10 @@ fn boolean_op<T: Decide>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
+    decls: &BooleanDeclarations,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear()?;
-    let mut red = boolean_reduce(op, a, b)?;
+    let mut red = boolean_reduce_declared(op, a, b, decls)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -272,7 +313,7 @@ fn boolean_op<T: Decide>(
                 what: "null edges without pairs reached the op",
             });
         }
-        return fallback(op, &red, a, b, band);
+        return fallback(op, &red, a, b, decls, band);
     }
 
     let connected = bool_connect(&mut red, a, b, band)?;
@@ -294,14 +335,31 @@ fn boolean_op<T: Decide>(
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
     }
-    let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    let declared_pairs = surviving_declared_pairs(
+        &body,
+        decls,
+        &KeyView::Direct,
+        &KeyView::Graft(&fin.graft),
+        &desc,
+    );
+    let merged = body
+        .merge_coplanar_faces_declared(&declared_pairs)
+        .map_err(BooleanError::Merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band)?;
-    let contacts = remap_contacts(
+    let mut contacts = remap_contacts(
         &body,
         &contacts,
         KeyView::Direct,
         KeyView::Graft(&fin.graft),
+        &desc,
+    );
+    remap_carried(
+        &mut contacts,
+        &body,
+        decls,
+        &KeyView::Direct,
+        &KeyView::Graft(&fin.graft),
         &desc,
     );
     gate(&body)?;
@@ -676,6 +734,91 @@ fn remap_contacts<T: Real>(
     out
 }
 
+/// The declared face pairs that survive into result keys (M4 PR 5):
+/// operand views first, then the descendant chase. A pair with a
+/// consumed side licenses nothing and drops — its contact material
+/// did not survive the op (the same consumed-record rule as contact
+/// rows); resolution-level dangling was already refused at the door
+/// (`validate_declarations`).
+fn surviving_declared_pairs<T: Real>(
+    body: &Body<T>,
+    decls: &BooleanDeclarations,
+    a_view: &KeyView<'_>,
+    b_view: &KeyView<'_>,
+    desc: &Descendants,
+) -> Vec<(FaceKey, FaceKey)> {
+    decls
+        .coincident_faces
+        .iter()
+        .filter_map(|&(fa, fb)| {
+            let fa = desc.live_face(body, a_view.face(fa)?)?;
+            let fb = desc.live_face(body, b_view.face(fb)?)?;
+            (fa != fb).then_some((fa, fb))
+        })
+        .collect()
+}
+
+/// Appends the operand-internal CARRIED contacts (F5) to the result
+/// records, remapped through the operand views and the descendant
+/// chase under the same strict drop rules as discovered records
+/// ([`remap_contacts`]); duplicates of already-present rows are not
+/// re-added. Carried A rows land in `vv`/`a_on_b`, carried B rows in
+/// `vv`/`b_on_a` (the census flattens the split; the fields record
+/// which lineage carried the row).
+fn remap_carried<T: Real>(
+    out: &mut ContactRecords,
+    body: &Body<T>,
+    decls: &BooleanDeclarations,
+    a_view: &KeyView<'_>,
+    b_view: &KeyView<'_>,
+    desc: &Descendants,
+) {
+    let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
+    let vert_strict = |view: &KeyView<'_>, v: VertexKey| {
+        let k = view.vertex(v)?;
+        if desc.fused.contains(&k) {
+            return None;
+        }
+        body.get_vertex(k).map(|_| k)
+    };
+    let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
+    let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, view: &KeyView<'_>| {
+        for c in &carried.vv {
+            if let (Some(a), Some(b)) = (vert(view, c.a), vert(view, c.b))
+                && a != b
+                && !out
+                    .vv
+                    .iter()
+                    .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
+            {
+                out.vv.push(VvContact { a, b });
+            }
+        }
+    };
+    push_vv(out, &decls.carried_a, a_view);
+    push_vv(out, &decls.carried_b, b_view);
+    let dup_vf = |out: &ContactRecords, v: VertexKey, f: FaceKey| {
+        out.a_on_b
+            .iter()
+            .chain(&out.b_on_a)
+            .any(|r| (r.vertex, r.face) == (v, f))
+    };
+    for c in &decls.carried_a.vf {
+        if let (Some(vertex), Some(fk)) = (vert_strict(a_view, c.vertex), face(a_view, c.face))
+            && !dup_vf(out, vertex, fk)
+        {
+            out.a_on_b.push(VfContact { vertex, face: fk });
+        }
+    }
+    for c in &decls.carried_b.vf {
+        if let (Some(vertex), Some(fk)) = (vert_strict(b_view, c.vertex), face(b_view, c.face))
+            && !dup_vf(out, vertex, fk)
+        {
+            out.b_on_a.push(VfContact { vertex, face: fk });
+        }
+    }
+}
+
 /// The tier gates: tier 1 + tier 2 on the finished result (tier 3 is
 /// an at-rest posture with the PR 3 description gap — see the
 /// acceptance suite's documented posture).
@@ -745,6 +888,7 @@ fn fallback<T: Decide>(
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
+    decls: &BooleanDeclarations,
     band: Band,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -780,11 +924,25 @@ fn fallback<T: Decide>(
         }
         (false, true) => {
             let body = carve_kept(&red.a, &a_keep)?;
-            finish_fallback(op, body, &red.contacts, BooleanResultKind::OperandA, band)
+            finish_fallback(
+                op,
+                body,
+                &red.contacts,
+                decls,
+                BooleanResultKind::OperandA,
+                band,
+            )
         }
         (true, false) => {
             let body = carve_kept(&red.b, &b_keep)?;
-            finish_fallback(op, body, &red.contacts, BooleanResultKind::OperandB, band)
+            finish_fallback(
+                op,
+                body,
+                &red.contacts,
+                decls,
+                BooleanResultKind::OperandB,
+                band,
+            )
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
@@ -799,15 +957,32 @@ fn fallback<T: Decide>(
                 BooleanOp::Subtract => BooleanResultKind::Voided,
                 _ => BooleanResultKind::Assembly,
             };
-            let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+            let declared_pairs = surviving_declared_pairs(
+                &body,
+                decls,
+                &KeyView::Direct,
+                &KeyView::Graft(&graft),
+                &Descendants::default(),
+            );
+            let merged = body
+                .merge_coplanar_faces_declared(&declared_pairs)
+                .map_err(BooleanError::Merge)?;
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band)?;
-            let contacts = remap_contacts(
+            let mut contacts = remap_contacts(
                 &body,
                 &red.contacts,
                 KeyView::Direct,
                 KeyView::Graft(&graft),
+                &desc,
+            );
+            remap_carried(
+                &mut contacts,
+                &body,
+                decls,
+                &KeyView::Direct,
+                &KeyView::Graft(&graft),
                 &desc,
             );
             gate(&body)?;
@@ -839,6 +1014,7 @@ fn finish_fallback<T: Decide>(
     op: BooleanOp,
     body: Body<T>,
     contacts: &ContactRecords,
+    decls: &BooleanDeclarations,
     kind: BooleanResultKind,
     band: Band,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -847,6 +1023,9 @@ fn finish_fallback<T: Decide>(
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
         body = body.revert().map_err(BooleanError::Revert)?;
     }
+    // Cross-operand declared pairs are inapplicable here (one operand
+    // is absent from the result); the surviving operand's CARRIED
+    // records still apply.
     let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
@@ -855,7 +1034,12 @@ fn finish_fallback<T: Decide>(
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
     };
-    let contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
+    let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
+    let (a_view, b_view) = match kind {
+        BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
+        _ => (KeyView::Absent, KeyView::Direct),
+    };
+    remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc);
     gate(&body)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {

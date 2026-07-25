@@ -141,7 +141,6 @@ pub mod null;
 pub mod props;
 pub mod provenance;
 pub mod revert;
-pub mod source;
 #[cfg(test)]
 mod review_m0_pr7;
 #[cfg(test)]
@@ -156,6 +155,7 @@ mod review_m1_pr4;
 mod review_m1_pr5_internal;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub mod source;
 pub mod split;
 pub mod splitting;
 #[cfg(test)]
@@ -165,11 +165,13 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanError, BooleanNaming, BooleanOp, BooleanReduction,
-    BooleanResult, BooleanResultKind, CompletedPolygonPair, ContactRecords, FaceContainment,
-    NullEdgePairRecord, Operand, OperandKeys, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneRelation, PointInSolidError, SideCode, SolidContainment, VfContact, VvContact,
-    boolean_reduce, contfp, intersect, oriented_plane_eq, point_in_solid, subtract, union,
+    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
+    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CompletedPolygonPair,
+    ContactRecords, FaceContainment, NullEdgePairRecord, Operand, OperandKeys, PairSite,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
+    SideCode, SolidContainment, VfContact, VvContact, boolean_reduce, boolean_reduce_declared,
+    contfp, intersect, intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with,
+    union, union_with,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

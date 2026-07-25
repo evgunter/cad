@@ -85,10 +85,10 @@ use crate::validate::ValidationError;
 pub use contain::{ContainError, FaceContainment, contfp};
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, intersect, subtract,
-    union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, intersect,
+    intersect_with, subtract, subtract_with, union, union_with,
 };
-pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
+pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the
@@ -168,6 +168,87 @@ pub struct ContactRecords {
     pub a_on_b: Vec<VfContact>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<VfContact>,
+}
+
+/// Operand-internal contact records carried by recipe intent (F5, M4
+/// PR 5): coincidences WITHIN one operand — typically a reused 3′
+/// body's surviving declarations — re-entering this op as declared
+/// data. Keys are that operand's; the op remaps survivors into result
+/// keys (same strict drop rule as discovered records: a record whose
+/// entity was consumed drops).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CarriedContacts {
+    /// Coincident vertex pairs within the operand.
+    pub vv: Vec<VvContact>,
+    /// Vertex-on-face rests within the operand.
+    pub vf: Vec<VfContact>,
+}
+
+impl CarriedContacts {
+    /// True iff nothing is carried.
+    pub fn is_empty(&self) -> bool {
+        self.vv.is_empty() && self.vf.is_empty()
+    }
+}
+
+/// Declared coincidence intents threaded into ONE boolean call (F5 —
+/// declarations are recipe data on the consuming node; M4 PR 5). The
+/// kernel-level form is arena keys; the recipe layer resolves its
+/// `Declare` name pairs into these through the operands' name tables.
+///
+/// Every key is validated at the op door (live, and planar for
+/// faces) — a dangling declaration is a typed refusal
+/// ([`BooleanError::InvalidDeclaration`]), never a silent drop.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BooleanDeclarations {
+    /// Cross-operand coincident-plane face pairs `(A face, B face)`:
+    /// classification treats each pair's planes as the same plane
+    /// (orientation decided, contradiction refused —
+    /// `plane_eq` rung 2), and the result's merge stage glues the
+    /// pair's surviving coplanar-adjacent material (N3 `Merged`).
+    pub coincident_faces: Vec<(FaceKey, FaceKey)>,
+    /// Contacts carried within operand A.
+    pub carried_a: CarriedContacts,
+    /// Contacts carried within operand B.
+    pub carried_b: CarriedContacts,
+}
+
+impl BooleanDeclarations {
+    /// The no-declarations value (the plain 2-argument ops).
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// True iff nothing is declared.
+    pub fn is_empty(&self) -> bool {
+        self.coincident_faces.is_empty() && self.carried_a.is_empty() && self.carried_b.is_empty()
+    }
+}
+
+/// The classification stages' symmetric declared-face-pair index
+/// (crate-internal): normalized `(A face, B face)` rows.
+#[derive(Debug, Default)]
+pub(crate) struct DeclaredPairs {
+    set: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+}
+
+impl DeclaredPairs {
+    pub(crate) fn build(decls: &BooleanDeclarations) -> Self {
+        Self {
+            set: decls.coincident_faces.iter().copied().collect(),
+        }
+    }
+
+    /// Whether the (operand-tagged) face pair is declared coincident.
+    /// Same-operand pairs are never declared here (operand-internal
+    /// coplanarity is the producing op's merge, not this op's).
+    pub(crate) fn contains(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
+        match (o1, o2) {
+            (Operand::A, Operand::B) => self.set.contains(&(f1, f2)),
+            (Operand::B, Operand::A) => self.set.contains(&(f2, f1)),
+            _ => false,
+        }
+    }
 }
 
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
@@ -323,11 +404,28 @@ pub enum BooleanError {
         diag: Indeterminate,
     },
     /// Two entities are geometrically coincident-or-near without a
-    /// declared (bit-equal) description backing the coincidence (F6):
-    /// near-coincidence NEVER silently becomes contact.
+    /// shared recipe source or declared intent backing the coincidence
+    /// (F6/N6): near-coincidence NEVER silently becomes contact.
     UndeclaredCoincidence {
         /// The escalation site's diagnostics.
         diag: Indeterminate,
+    },
+    /// A declared coincidence contradicts the geometry (the declared
+    /// pair's planes are definitely distinct) — the recipe's intent
+    /// cannot be realized; refused loudly, never glued (M4 PR 5).
+    DeclarationContradicted {
+        /// The contradicting predicate's diagnostics.
+        diag: Indeterminate,
+    },
+    /// A [`BooleanDeclarations`] payload references an entity that
+    /// does not resolve in its operand (stale/foreign key, or a
+    /// non-planar declared face) — a caller bug, refused before any
+    /// classification runs (M4 PR 5).
+    InvalidDeclaration {
+        /// The operand whose key failed.
+        operand: Operand,
+        /// What was wrong.
+        what: &'static str,
     },
     /// The 15.11 consecutive-pairing invariant failed: a surviving
     /// crossing-record pair is not cyclically adjacent in both
@@ -477,9 +575,19 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::UndeclaredCoincidence { diag } => write!(
                 f,
-                "boolean_reduce: geometric near-coincidence without a declared (bit-equal) \
-                 description ({diag}); coincidence is structural or declared, never inferred \
-                 from values — declare the relation or repair the geometry"
+                "boolean_reduce: geometric near-coincidence without a shared recipe source or \
+                 declared intent ({diag}); coincidence is structural or declared, never \
+                 inferred from values — declare the relation or repair the geometry"
+            ),
+            Self::DeclarationContradicted { diag } => write!(
+                f,
+                "boolean op: a declared coincidence contradicts the geometry ({diag}) — the \
+                 declared pair's planes are definitely distinct; fix the declaration or the \
+                 geometry, the op never glues a lie"
+            ),
+            Self::InvalidDeclaration { operand, what } => write!(
+                f,
+                "boolean op: invalid declaration payload on operand {operand:?}: {what}"
             ),
             Self::PairingMismatch { a_vertex, b_vertex } => write!(
                 f,
@@ -578,7 +686,27 @@ pub fn boolean_reduce<T: Decide>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
 ) -> Result<BooleanReduction<T>, BooleanError> {
+    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none())
+}
+
+/// [`boolean_reduce`] with declared coincidence intents (F5, M4
+/// PR 5): the declared face pairs enter the classification stages'
+/// plane-identity evidence; carried contacts are validated here and
+/// consumed by the result stage (`ops`).
+///
+/// # Errors
+///
+/// [`BooleanError`] — including [`BooleanError::InvalidDeclaration`]
+/// for payloads that do not resolve against the operands.
+pub fn boolean_reduce_declared<T: Decide>(
+    op: BooleanOp,
+    a_operand: &Body<T>,
+    b_operand: &Body<T>,
+    decls: &BooleanDeclarations,
+) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear()?;
+    validate_declarations(a_operand, b_operand, decls)?;
+    let declared = DeclaredPairs::build(decls);
     reduce::gate_planar(a_operand, Operand::A)?;
     reduce::gate_planar(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
@@ -599,13 +727,15 @@ pub fn boolean_reduce<T: Decide>(
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
-        let out = vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, band)?;
+        let out =
+            vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, &declared, band)?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
     }
     for &c in &contacts.b_on_a {
-        let out = vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, band)?;
+        let out =
+            vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, &declared, band)?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
@@ -616,8 +746,26 @@ pub fn boolean_reduce<T: Decide>(
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
-        recl::recl_sectors(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
-        recl::recl_edges(&mut records, &a_sectors, &b_sectors, &a, &b, op, band)?;
+        recl::recl_sectors(
+            &mut records,
+            &a_sectors,
+            &b_sectors,
+            &a,
+            &b,
+            op,
+            &declared,
+            band,
+        )?;
+        recl::recl_edges(
+            &mut records,
+            &a_sectors,
+            &b_sectors,
+            &a,
+            &b,
+            op,
+            &declared,
+            band,
+        )?;
         let out =
             insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records, band)?;
         null_edges.extend(out.edges);
@@ -633,4 +781,53 @@ pub fn boolean_reduce<T: Decide>(
         null_pairs,
         pierce_rings,
     })
+}
+
+/// Fail-loud validation of a [`BooleanDeclarations`] payload against
+/// the operands (M4 PR 5): every referenced key must resolve in its
+/// operand, and declared faces must be planes. A dangling declaration
+/// is a caller bug refused before any classification runs — never a
+/// silent drop (F5's no-silent-drop contract).
+fn validate_declarations<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+) -> Result<(), BooleanError> {
+    let bad = |operand, what| BooleanError::InvalidDeclaration { operand, what };
+    let planar_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
+        let face = body
+            .get_face(f)
+            .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
+        match body.get_surface(face.surface) {
+            Some(geom_surfaces::Surface::Plane { .. }) => Ok(()),
+            Some(_) => Err(bad(operand, "declared face is not a plane")),
+            None => Err(bad(operand, "declared face lost its surface")),
+        }
+    };
+    for &(fa, fb) in &decls.coincident_faces {
+        planar_face(a, fa, Operand::A)?;
+        planar_face(b, fb, Operand::B)?;
+    }
+    let carried = |body: &Body<T>, c: &CarriedContacts, operand| -> Result<(), BooleanError> {
+        for pair in &c.vv {
+            if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
+                return Err(bad(operand, "carried v-v vertex key does not resolve"));
+            }
+            if pair.a == pair.b {
+                return Err(bad(operand, "carried v-v pair names one vertex twice"));
+            }
+        }
+        for rest in &c.vf {
+            if body.get_vertex(rest.vertex).is_none() {
+                return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
+            }
+            if body.get_face(rest.face).is_none() {
+                return Err(bad(operand, "carried v-on-f face key does not resolve"));
+            }
+        }
+        Ok(())
+    };
+    carried(a, &decls.carried_a, Operand::A)?;
+    carried(b, &decls.carried_b, Operand::B)?;
+    Ok(())
 }

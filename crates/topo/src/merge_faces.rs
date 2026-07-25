@@ -11,28 +11,35 @@
 //! silent; boolean outputs run this op as a documented final stage of
 //! their own contract).
 //!
-//! **Coincidence discipline (the F6/round-8 ladder, applied)**: two
-//! adjacent faces merge iff their surfaces are the *same key*
-//! (structural) or *bit-identical `Plane` descriptions* (declared —
-//! exact per-component `to_bits` equality, no `Debug` strings and no
-//! tolerance anywhere). A pair that is merely **numerically** coplanar — same
-//! plane up to ε, different descriptions — is out of scope **by
-//! design**: coincidence is never inferred from values; such a pair
-//! stays unmerged (and PR 4's `NonMaximalFaces` gate will not see it
-//! as coplanar either — the ladder is consistent end to end). Curved
-//! same-key neighbors (a revolve's shared-key wall wedges) also stay
-//! unmerged: face maximality on curved surfaces is M5's.
+//! **Coincidence discipline (the F6/round-8 ladder; N6 retirement,
+//! M4 PR 5)**: two adjacent faces merge iff their surfaces are the
+//! *same key* (structural), the *same [`crate::GeomSource`]*
+//! (declared — shared recipe source, syntactic identity), or a
+//! *declared face pair* of the call
+//! ([`Body::merge_coplanar_faces_declared`] — recipe intent, verified
+//! not trusted). The M3-era bit-identical-description rung is RETIRED:
+//! a pair that is merely **numerically or bitwise** value-equal — same
+//! plane, independent sources — stays unmerged **by design** (the
+//! ladder's ratified rung (b): coincidence is never inferred from
+//! values; the boolean's `NonMaximalFaces` gate agrees — the ladder is
+//! consistent end to end). Curved same-key neighbors (a revolve's
+//! shared-key wall wedges) also stay unmerged: face maximality on
+//! curved surfaces is M5's.
 //!
 //! Serves the ch. 15 boolean pipeline's operand precondition and
 //! output stage (M3 PRs 4–5).
 
-use geom_core::Decide;
+use std::collections::BTreeMap;
+
+use geom_core::{Band, BandError, Decide, Indeterminate};
 use geom_surfaces::Surface;
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
+use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
 use crate::euler::EulerOpError;
+use crate::geometry::SurfaceKey;
 use crate::validate::{ValidationError, validate_closed};
 
 /// One merged run: the surviving face and what was consumed into it.
@@ -89,6 +96,42 @@ pub enum MergeCoplanarError {
         /// The refusing operator's error.
         error: EulerOpError,
     },
+    /// A declared face pair references a key that does not resolve, or
+    /// a non-plane face (M4 PR 5) — a caller bug, refused up front.
+    InvalidDeclaration {
+        /// The offending face key.
+        face: FaceKey,
+        /// What was wrong.
+        what: &'static str,
+    },
+    /// A declared face pair's planes are DEFINITELY distinct — the
+    /// declaration contradicts the geometry; refused loudly, never
+    /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
+    DeclarationContradicted {
+        /// The contradicting predicate's diagnostics.
+        diag: Indeterminate,
+    },
+    /// A declared face pair meets with OPPOSITE orientations at a
+    /// shared edge — no valid closed solid merges such a pair; the
+    /// declaration cannot be honored here.
+    DeclaredOppositeOrientation {
+        /// The pair's first face (arena order at the meeting edge).
+        f1: FaceKey,
+        /// The second face.
+        f2: FaceKey,
+    },
+    /// A plane-identity margin escalated while verifying a declared
+    /// pair (in-band sliver) — typed, never guessed.
+    Escalated {
+        /// The predicate's diagnostics.
+        diag: Indeterminate,
+    },
+    /// The run's tolerance cannot form a valid band (needed only when
+    /// declared pairs are present).
+    Band {
+        /// The band construction failure.
+        error: BandError,
+    },
 }
 
 impl core::fmt::Display for MergeCoplanarError {
@@ -112,27 +155,79 @@ impl core::fmt::Display for MergeCoplanarError {
                  one face — unsupported configuration, refused"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
+            Self::InvalidDeclaration { face, what } => write!(
+                f,
+                "merge_coplanar_faces: invalid declared pair at face {face:?}: {what}"
+            ),
+            Self::DeclarationContradicted { diag } => write!(
+                f,
+                "merge_coplanar_faces: declared coincidence contradicts the geometry ({diag}) \
+                 — fix the declaration or the geometry, the op never glues a lie"
+            ),
+            Self::DeclaredOppositeOrientation { f1, f2 } => write!(
+                f,
+                "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
+                 orientations — unmergeable in a closed solid"
+            ),
+            Self::Escalated { diag } => write!(
+                f,
+                "merge_coplanar_faces: plane-identity margin escalated verifying a declared \
+                 pair ({diag})"
+            ),
+            Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
         }
     }
 }
 
 impl std::error::Error for MergeCoplanarError {}
 
-/// Bit-faithful identity of one scalar for the declared-equality rung —
-/// since M3 PR 4 a thin alias for the sanctioned `Real`-level door
-/// [`geom_core::bit_identity::repr_bits`] (the PR 1 interim downcast
-/// ladder migrated there; this file no longer carries any bit-channel
-/// plumbing of its own). `None` = no bit channel for this scalar ⇒ the
-/// caller refuses to merge (the ladder's conservative direction).
-///
-/// **Retirement-scheduled (DESIGN.md roadmap, M4; Evan, #53)**: when
-/// provenance-based naming gives surfaces global identity, the
-/// declared rung becomes a record lookup and this bit comparison
-/// leaves production (at most a debug assertion that records and bits
-/// agree). A CI tripwire allowlists this file and blocks new
-/// consumers of the channel in the interim.
-fn scalar_repr_bits<T: Decide>(x: T) -> Option<geom_core::bit_identity::ScalarBits> {
-    geom_core::bit_identity::repr_bits(&x)
+/// A non-empty declared-pair context: the surface equivalence plus
+/// the band its verification decisions run in.
+struct DeclaredCtx {
+    eq: DeclaredSurfaceEq,
+    band: Band,
+}
+
+/// The declared surface-key equivalence (M4 PR 5): union-find classes
+/// over the declared face pairs' surface keys. Fragments of a face
+/// inherit its surface key (`FaceSurface::Inherit`), so surface-level
+/// equivalence covers every fragment of a declared pair without
+/// key-chasing.
+#[derive(Debug, Default)]
+struct DeclaredSurfaceEq {
+    parent: BTreeMap<SurfaceKey, SurfaceKey>,
+}
+
+impl DeclaredSurfaceEq {
+    fn find(&self, mut k: SurfaceKey) -> SurfaceKey {
+        while let Some(&p) = self.parent.get(&k) {
+            if p == k {
+                break;
+            }
+            k = p;
+        }
+        k
+    }
+
+    fn union(&mut self, a: SurfaceKey, b: SurfaceKey) {
+        let (ra, rb) = (self.find(a), self.find(b));
+        self.parent.entry(ra).or_insert(ra);
+        self.parent.entry(rb).or_insert(rb);
+        if ra != rb {
+            self.parent.insert(rb, ra);
+        }
+    }
+
+    fn same(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
+        if self.parent.is_empty() {
+            return false;
+        }
+        self.find(a) == self.find(b)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.parent.is_empty()
+    }
 }
 
 impl<T: Decide> Body<T> {
@@ -162,18 +257,72 @@ impl<T: Decide> Body<T> {
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
     pub fn merge_coplanar_faces(&mut self) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+        self.merge_coplanar_faces_declared(&[])
+    }
+
+    /// [`Body::merge_coplanar_faces`] with declared coincident face
+    /// pairs (M4 PR 5, F5): each pair's faces are declared to lie in
+    /// one plane by recipe intent — their SURFACE keys become
+    /// equivalent for the adjacency test (fragments inherit keys, so
+    /// fragments are covered), verified at each meeting edge through
+    /// `plane_eq`'s declared rung (contradiction refuses typed).
+    /// Same-source surfaces (N6) glue with zero declarations — the
+    /// retired bit rung's replacement.
+    ///
+    /// A declared pair whose faces never meet at an edge licenses
+    /// nothing and is a no-op (the equivalence is consulted only
+    /// across shared edges); a pair whose keys do not resolve is a
+    /// typed refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`MergeCoplanarError`], the body untouched in every case.
+    pub fn merge_coplanar_faces_declared(
+        &mut self,
+        declared: &[(FaceKey, FaceKey)],
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
+        // ---- Declared pairs: validate, then class the surfaces. ----
+        let planar_key = |body: &Self, f: FaceKey| -> Result<SurfaceKey, MergeCoplanarError> {
+            let face = body
+                .get_face(f)
+                .ok_or(MergeCoplanarError::InvalidDeclaration {
+                    face: f,
+                    what: "declared face key does not resolve",
+                })?;
+            match body.get_surface(face.surface) {
+                Some(Surface::Plane { .. }) => Ok(face.surface),
+                _ => Err(MergeCoplanarError::InvalidDeclaration {
+                    face: f,
+                    what: "declared face is not a plane",
+                }),
+            }
+        };
+        let mut eq = DeclaredSurfaceEq::default();
+        for &(f1, f2) in declared {
+            let k1 = planar_key(self, f1)?;
+            let k2 = planar_key(self, f2)?;
+            eq.union(k1, k2);
+        }
+        let declared_ctx = if eq.is_empty() {
+            None
+        } else {
+            Some(DeclaredCtx {
+                eq,
+                band: Band::linear().map_err(|error| MergeCoplanarError::Band { error })?,
+            })
+        };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
         let mut neighbors: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
         let mut any = false;
-        for (_, edge) in self.edges() {
+        for (edge_key, edge) in self.edges() {
             let Some((fp, fm)) = self.edge_faces(edge.he_plus, edge.he_minus) else {
                 continue; // unreachable on tier-2 input
             };
-            if fp != fm && self.planes_declared_equal(fp, fm) {
+            if fp != fm && self.planes_declared_equal(fp, fm, edge_key, declared_ctx.as_ref())? {
                 if let Some(entry) = neighbors.entry(fp) {
                     entry.or_default().push(fm);
                 }
@@ -238,32 +387,38 @@ impl<T: Decide> Body<T> {
         Some((fp, fm))
     }
 
-    /// The F6 ladder's merge test: same surface key (structural), or
-    /// both `Plane` with **bit-identical descriptions** (declared —
-    /// arising from shared recipe data). The comparison is
-    /// per-component `to_bits` equality over the nine `Plane` scalars
-    /// (see [`scalar_repr_bits`]) — **never** `Debug` strings (`f64`'s
-    /// shortest-roundtrip `Debug` is injective on bits *except* NaN:
-    /// every payload/sign prints `"NaN"`, so bit-different NaN
-    /// descriptions would launder into "declared-equal"). The scalar
-    /// types deliberately expose no generic `==` — the interval scalar
-    /// bans `PartialEq` — and *no banded comparison belongs here by
-    /// design*: coincidence is never inferred from values.
+    /// The F6 ladder's merge test (M4 PR 5, the N6 retirement): same
+    /// surface key (structural), same [`crate::GeomSource`] including
+    /// orient (declared — shared recipe source, syntactic identity,
+    /// zero numerics), or the pair's surfaces are declared-equivalent
+    /// by this call's face pairs (verified through `plane_eq`'s
+    /// declared rung at the meeting edge; contradiction refuses).
     ///
-    /// Accepted consequence: bit-**identical** NaN planes still
-    /// compare equal — a declared coincidence of garbage; tier 3
-    /// refuses such geometry downstream, so fail-loud is preserved.
+    /// The M3-era rung — bit-identical nine-scalar descriptions — is
+    /// RETIRED from production: equal bits without shared source stay
+    /// unglued (the ladder's ratified rung (b)). The bit comparison
+    /// survives as the debug assertion that same-source records agree
+    /// with the bits. *No banded comparison certifies coincidence
+    /// here by design* — the declared-pair verification only checks
+    /// the declaration is not a lie; the INTENT does the gluing.
+    ///
     /// Non-plane surfaces never merge, same-key included (curved
     /// maximality is M5's).
-    fn planes_declared_equal(&self, f1: FaceKey, f2: FaceKey) -> bool {
+    fn planes_declared_equal(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+        edge: EdgeKey,
+        declared: Option<&DeclaredCtx>,
+    ) -> Result<bool, MergeCoplanarError> {
         let (Some(k1), Some(k2)) = (
             self.get_face(f1).map(|f| f.surface),
             self.get_face(f2).map(|f| f.surface),
         ) else {
-            return false;
+            return Ok(false);
         };
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
-            return false;
+            return Ok(false);
         };
         let (
             Surface::Plane {
@@ -278,21 +433,75 @@ impl<T: Decide> Body<T> {
             },
         ) = (*s1, *s2)
         else {
-            return false;
+            return Ok(false);
         };
         if k1 == k2 {
-            return true; // structural (and planar, checked above)
+            return Ok(true); // structural (and planar, checked above)
         }
-        let comps = |o: geom_core::Point3<T>, n: geom_core::Vec3<T>, u: geom_core::Vec3<T>| {
-            [o.x, o.y, o.z, n.x, n.y, n.z, u.x, u.y, u.z]
-        };
-        comps(o1, n1, u1)
-            .into_iter()
-            .zip(comps(o2, n2, u2))
-            .all(|(a, b)| match (scalar_repr_bits(a), scalar_repr_bits(b)) {
-                (Some(ba), Some(bb)) => ba == bb,
-                _ => false, // no bit channel for this scalar: never declared-equal
-            })
+        // Declared rung, N6 form: same recipe source INCLUDING orient
+        // — a provenance lookup, no numerics. The debug assertion is
+        // DESIGN.md's "records agree with bits".
+        if let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
+            && g1 == g2
+        {
+            #[cfg(debug_assertions)]
+            debug_assert!(
+                crate::source::plane_bits_agree(o1, n1, o2, n2, false)
+                    && crate::source::vec3_bits_agree(u1, u2),
+                "N6 theorem violated: same-source surface descriptions disagree bitwise \
+                 (kernel bug: a source survived a geometric rewrite)"
+            );
+            return Ok(true);
+        }
+        #[cfg(not(debug_assertions))]
+        let _ = (u1, u2);
+        // Declared face pairs (this call's recipe intent), verified.
+        if let Some(ctx) = declared
+            && ctx.eq.same(k1, k2)
+        {
+            let band = ctx.band;
+            let arm = self.edge_chord_len(edge).unwrap_or_else(T::one);
+            let id = PlaneIdentity {
+                s1: None,
+                s2: None,
+                declared: true,
+            };
+            let p1 = PlaneDesc {
+                origin: o1,
+                normal: n1,
+            };
+            let p2 = PlaneDesc {
+                origin: o2,
+                normal: n2,
+            };
+            return match oriented_plane_eq(&p1, &p2, id, arm, band) {
+                Ok(PlaneRelation::SameOriented) => Ok(true),
+                Ok(PlaneRelation::SameOpposite) => {
+                    Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
+                }
+                // Unreachable through the declared rung; kept typed.
+                Ok(PlaneRelation::Distinct) => Ok(false),
+                Err(PlaneEqError::Contradicted(diag)) => {
+                    Err(MergeCoplanarError::DeclarationContradicted { diag })
+                }
+                Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared(diag)) => {
+                    Err(MergeCoplanarError::Escalated { diag })
+                }
+            };
+        }
+        Ok(false)
+    }
+
+    /// The chord length between an edge's endpoints — the lever arm
+    /// metering the declared-pair verification at that edge.
+    fn edge_chord_len(&self, edge: EdgeKey) -> Option<T> {
+        let e = self.get_edge(edge)?;
+        let pa = *self.get_point(self.get_vertex(self.get_half_edge(e.he_plus)?.start)?.point)?;
+        let pb = *self.get_point(
+            self.get_vertex(self.get_half_edge(e.he_minus)?.start)?
+                .point,
+        )?;
+        Some((pb - pa).norm())
     }
 
     /// Merges one group into its first member (see the public op's
