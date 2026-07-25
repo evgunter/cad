@@ -90,15 +90,23 @@ reading, not a pin).
 
 ## D7 — #95 disposition (CONDITIONAL — check before implementing)
 
-If Evan's 👍 has landed on issue #95's sign-off comment (ask the
-orchestrator; do not poll GitHub yourself): implement disposition 1
-— store the minting context (node id + input-id vector) beside the
-memoized value; on a memo hit with a differing context, reuse the
-geometry but re-derive the naming half. Regression pin: the PR 4
-fix-pass fixture re-run WITH memo transfer — `FromB(cap-of-c)`
-exists, `FromB(cap-of-b)` vanishes with an honest diagnosis. If the
-👍 has not landed, SKIP entirely (it forks to its own PR) and put
-one REPORT line saying so.
+If Evan's 👍 has landed on the REVISED #95 ruling (comment
+5077393718 — ask the orchestrator; do not poll GitHub yourself):
+implement **disposition 2 with the recursive key**:
+`naming_key(N) = H(content_key(N), [(input_id_i,
+naming_key(input_i)), ...])` — computed like content keys but
+including input node ids, composing through the DAG (the one-level
+context check of disposition 1 fails the grandparent re-point case;
+see the #95 thread). Memo hit still requires content-key match; a
+naming-key mismatch reuses the geometry half and re-derives the
+naming half — or re-runs the whole op if emission is not cleanly
+separable (correctness identical; REPORT which one lands).
+Regression pins: the PR 4 fix-pass fixture re-run WITH memo
+transfer (`FromB(cap-of-c)` exists, `FromB(cap-of-b)` vanishes with
+an honest diagnosis) AND a grandparent-case pin (re-point X's input
+to a twin; N's table must embed X's re-derived names). If the 👍
+has not landed, SKIP entirely (it forks to its own PR) and put one
+REPORT line saying so.
 
 ## D8 — Out of scope (do not touch)
 

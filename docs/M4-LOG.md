@@ -959,3 +959,19 @@ process. **PR 5 IMPLEMENTER LAUNCHED** (clone
 incl. #96), with cross-lane RAM discipline (demo lane runs in
 parallel; both agents pgrep-wait before every cargo invocation).
 Two lanes in flight: demos (ev/m4-demo-refresh) + PR 5.
+
+**#95 ruling REVISED (2026-07-25, Evan's pushback engaged)**: Evan
+intuited disposition 2 (separate keying = pure function + state
+lookup); stress-testing proved him right for a STRONGER reason —
+disposition 1's one-level context check fails the grandparent
+re-point case (X's input g→g' twins: X re-derives names, N's
+input-id vector unchanged → N keeps a table embedding X's OLD
+names; staleness is recursive). Verified at 4ad1dca: memo lookup is
+per node id, so no intra-run twin sharing and no own-id needed in
+the key. Revised ruling on the thread: disposition 2 with the
+recursive key naming_key(N) = H(content_key(N), [(input_id_i,
+naming_key(input_i))...]); naming-key mismatch reuses geometry +
+re-derives names (or re-runs the op if emission isn't separable —
+REPORT which). Spec D7 updated in place; new sign-off comment
+5077393718 on the watchlist (old 5077325409 removed). Extra
+regression pin: grandparent case.
