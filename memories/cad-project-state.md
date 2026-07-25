@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 ALL COMPLETE (M3 exit walk 13/13, 2026-07-23); NAMING-DESIGN #74 + SOLVER-DESIGN #79 ratified; pre-M4 design DONE (NAMING #74 + SOLVER #79); next = M4-PLAN ratification with Evan; merge gate = scripts/gate.sh (hosted CI DOWN); history lives in the milestone logs, not here
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 COMPLETE; M4 IN FLIGHT (plan ratified #80 — live status is docs/M4-LOG.md's tail snapshot, not this memory); merge gate = hosted Actions, gate.sh fallback (see git-workflow); references live in the MAIN checkout; name pending (Q9)
 metadata:
   node_type: memory
   type: project
@@ -38,22 +38,20 @@ git history preserves the rest).
   conventions block (operand-internal-declaration gap → M4;
   both-sided pinch frontier; PR 5.5 seam refusals). Record:
   docs/M3-LOG.md (M3 EXIT section + final snapshot).
-- **Pre-M4 design**: docs/NAMING-DESIGN.md (selection stability /
-  persistent naming, N1–N7) RATIFIED (#74, 2026-07-23). Remaining
-  before M4 planning: NONE — both docs ratified 2026-07-23
-  (docs/SOLVER-DESIGN.md, #79, joined NAMING-DESIGN). Next: M4-PLAN
-  drafting + ratification conversation with Evan (his sign-off
-  lane). Q9 name shortlist parked in [[name-candidates]].
+- **Pre-M4 design ratified (2026-07-23)**: docs/NAMING-DESIGN.md
+  (#74, N1–N7) and docs/SOLVER-DESIGN.md (#79, W1–W9 — M4 takes
+  the contracts; solver implementation is M6).
+- **M4 IN FLIGHT** — plan RATIFIED (PR #80, 2026-07-23,
+  docs/M4-PLAN.md; binding per-PR specs in docs/M4-PR*-SPEC.md).
+  Which PRs are merged / in review / queued changes weekly: read
+  the CURRENT-STATE tail of docs/M4-LOG.md, not this memory.
+  Q9 name shortlist parked in [[name-candidates]].
 
 **Key operational facts:**
 
-- **THE MERGE GATE IS `scripts/gate.sh <ref>`** (#73): flock-
-  serialized run of scripts/ci-local.sh (11-row mirror of ci.yml) on
-  a persistent standalone clone at `~/.local/share/cad-gate/repo`;
-  ~4 min warm. Run it on the merged tree before any merge to main.
-- **Hosted GitHub Actions is DOWN** (free-plan minutes exhausted;
-  resets at Evan's billing-month rollover). No branch protection, so
-  `gh pr merge --auto` merges IMMEDIATELY — never rely on it to wait.
+- **Merge gate = hosted GitHub Actions** (policy 2026-07-25): PR
+  checks green = mergeable; `scripts/gate.sh` is the billing-outage
+  FALLBACK only. Details + --auto caveat in [[git-workflow]].
 - **Reference books/notes live in the MAIN checkout's `references/`**
   (git-ignored; does not propagate to worktrees). Scans read visually
   (poppler installed); the TOG 1986 boolean paper has a text layer.
