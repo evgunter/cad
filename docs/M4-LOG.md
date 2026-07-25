@@ -1167,3 +1167,29 @@ diff if kernel-side, REPORT prominently. Three lanes now active
 dispatch). PR 6 spec fully ratified after two D7 rounds with Evan
 (final: MetaValue tree, serde-native boundary, v-field
 convention).
+
+**PR 5 review returned (2026-07-25): mergeable-after-fixes; ruled,
+fix pass dispatched.** Report at pr5-review-report.md. F1 MAJOR:
+the declared-merge SKIP lane emits Ok bodies failing tier-3
+DescriptionNotAdjacent ×4 (declared-identity classification
+rewrote edge descriptions anticipating a glue the skip never
+performed; reviewer probe = ordinary flush-caps/offset-walls union
+with only TRUE declarations, both doors) — ruling: on skip,
+descriptions must match ACTUAL unmerged adjacency; probe adopted
+as pin; typed refusal only if honest description impossible. F2
+skipped-outcome write-only → plumb public + test; F3 Err(_)
+catch-all launders tier-2 diagnostics → preserve real reasons; F4
+Declare eval-door gaps → adopt BothOperands probe + NodeGone
+deleted/foreign + Ambiguous payload; F6 pure-seam-vertex arm zero
+corpus instances → targeted fixture; F7 bit_identity doc ¶
+contradiction → one line. F5 NOTE accepted (verified-at-use
+semantics per contract; DESIGN wording banked for PR 8). Reviewer
+verified clean by execution: false declarations refuse at both
+doors, rung (b) holds, transform/revert + parallel-mint bitwise
+identity, D7 pins + re-run bit-identity, smuggled consumer fails
+CI-local, die golden re-pin survived independent 552-row
+reproduction. Quality rubric (A/B reference row, fable): 1 MAJ / 3
+MIN / 3 NOTE, ONE silent deviation (skip-lane tier-3 posture
+unstated), ratings idiom 4 / tests 4 / docs 4. Fix pass also owes
+the stale demo renders (table/montage regeneration). MODEL-AB-LOG
+reference row updated when fix pass concludes.
