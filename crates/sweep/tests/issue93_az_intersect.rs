@@ -254,7 +254,7 @@ fn az_coupled_tangential_flush_intersects_exact() {
 #[cfg(feature = "interval")]
 #[test]
 fn az_plain_interval_refuses_or_encloses() {
-    use geom_core::Interval;
+    use geom_core::{Bounds, Interval};
     let a = a_prism::<Interval>(vec![lp(&A_OUTLINE)]);
     match topo::intersect(&a, &z_prism::<Interval>()) {
         Err(_) => {} // conservative refusal: acceptable
