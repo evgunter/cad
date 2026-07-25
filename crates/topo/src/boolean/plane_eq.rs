@@ -286,11 +286,13 @@ mod tests {
         use crate::source::GeomSource;
         let p1 = plane([1.0, 2.0, 5.0], [0.0, 0.0, 1.0]);
         let s = GeomSource::minted(7, 3);
-        let id = |s1: &GeomSource, s2: &GeomSource| PlaneIdentity {
-            s1: Some(s1),
-            s2: Some(s2),
-            declared: false,
-        };
+        fn id<'a>(s1: &'a GeomSource, s2: &'a GeomSource) -> PlaneIdentity<'a> {
+            PlaneIdentity {
+                s1: Some(s1),
+                s2: Some(s2),
+                declared: false,
+            }
+        }
         assert_eq!(
             oriented_plane_eq(&p1, &p1.clone(), id(&s, &s.clone()), 1.0, band()).unwrap(),
             PlaneRelation::SameOriented

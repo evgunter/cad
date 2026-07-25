@@ -361,12 +361,14 @@ fn notch_fill_dense_ties() {
 
 /// plane_eq door: bit-DIFFERENT NaN normals must never compare Same
 /// (the PR 1 NaN lesson at the new seam) — and must not silently pass
-/// as Distinct either; axis-plane revert (zero-sign folding) must land
-/// SameOpposite.
+/// as Distinct either. Post-retirement (M4 PR 5): an axis-plane
+/// revert pair decides SameOpposite through the SAME-SOURCE rung
+/// (reverted orient), and WITHOUT sources the same values refuse
+/// Undeclared — value equality never glues (rung (b)).
 #[test]
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
-    use topo::{PlaneRelation, oriented_plane_eq};
+    use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
     let band = Band::linear().unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
@@ -376,15 +378,35 @@ fn plane_eq_nan_and_negzero() {
     let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
     let p1 = mk(Vec3::new(0.0, 0.0, nan1), Point3::new(0.0, 0.0, 0.0));
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
-    let r = oriented_plane_eq(&p1, &p2, 1.0, band);
+    let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
-    // Zero-sign folding: negating an axis plane flips 0.0 signs; the
-    // canonicalization must still land SameOpposite.
+    // Same-source revert pair (the post-retirement declared rung):
+    // orient split decides SameOpposite with zero numerics.
     let q1 = mk(Vec3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 5.0));
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
+    let src = GeomSource::minted(1, 0);
+    let src_rev = src.reverted();
     assert_eq!(
-        oriented_plane_eq(&q1, &q2, 1.0, band).unwrap(),
+        oriented_plane_eq(
+            &q1,
+            &q2,
+            PlaneIdentity {
+                s1: Some(&src),
+                s2: Some(&src_rev),
+                declared: false
+            },
+            1.0,
+            band
+        )
+        .unwrap(),
         PlaneRelation::SameOpposite
+    );
+    // The SAME values without sources: Undeclared, typed — the M4
+    // PR 5 narrowing (equal bits without shared source stay unglued).
+    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, 1.0, band);
+    assert!(
+        matches!(r, Err(topo::PlaneEqError::Undeclared(_))),
+        "unsourced value-equal planes must refuse Undeclared, got {r:?}"
     );
 }
 
