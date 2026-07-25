@@ -512,22 +512,32 @@ pub(crate) fn name_boolean<T: Decide>(
 
     // ---- Faces: merges first (N3), then descent groups. ----
     let mut handled: BTreeSet<FaceKey> = BTreeSet::new();
+    // Kept face → constituent descents (M4 PR 5: the seam-edge walk
+    // reads THROUGH a merged face to its mint-time operand identity).
+    let mut merged_descents: BTreeMap<FaceKey, Vec<Descent>> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
         }
         let mut constituents = Vec::new();
+        let mut descents = Vec::new();
         for &c in core::iter::once(kept).chain(absorbed) {
             let d = descend_face(c)?;
+            descents.push(d);
             constituents.push(wrap(d, operand_face_name(d)?, EntityKind::Face));
         }
+        merged_descents.insert(*kept, descents);
         constituents.sort_unstable();
-        // Review R8: dedup makes the constituent SET the name — TWO
-        // merge groups with the same constituent set would collide
-        // (loudly, at insert). Unreachable in v1 (no eval-level path
-        // mints merges at all); PR 5's declare threading must add a
-        // discriminator if repeated same-source merge sets become
-        // constructible.
+        // Review R8, RESOLVED at M4 PR 5: dedup makes the constituent
+        // SET the name — TWO merge groups with one constituent set
+        // (reachable only when BOTH kept faces are fragments of one
+        // operand face, glued to fragments of one partner: a
+        // disjoint-patch declared contact) collide LOUDLY at insert
+        // (`DuplicateName` → typed `NamingError`; pinned by
+        // `merged_same_constituent_groups_collide_loudly`). No silent
+        // aliasing is possible; a per-group discriminator upgrades
+        // this refusal to a success if the disjoint-patch class ever
+        // matters (REPORT'd, banked).
         constituents.dedup();
         t.insert(
             name1(EntityKind::Face, node, RoleSeg::Merged(constituents)),
@@ -574,6 +584,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &inc,
         &descend_face,
         &operand_face_name,
+        &merged_descents,
         bnd,
     )?;
     name_boolean_vertices(
@@ -676,6 +687,7 @@ fn name_boolean_edges<T: Decide>(
     inc: &Incidence,
     descend_face: &impl Fn(FaceKey) -> Result<Descent, NamingError>,
     operand_face_name: &impl Fn(Descent) -> Result<StableName, NamingError>,
+    merged_descents: &BTreeMap<FaceKey, Vec<Descent>>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -692,6 +704,40 @@ fn name_boolean_edges<T: Decide>(
         SameA(EdgeKey),
         SameB(EdgeKey),
     }
+    // A face's descent for CHORD purposes: a plain face descends as
+    // itself; a MERGED face (M4 PR 5, N3 live) reads through to its
+    // unique constituent on the side the partner needs — the seam's
+    // mint-time operand identity survives the glue. Ambiguity (both
+    // faces merged, or several same-side constituents) refuses typed.
+    let chord_descent =
+        |f: FaceKey, want_opposite_of: Option<Descent>| -> Result<Descent, NamingError> {
+            let Some(ds) = merged_descents.get(&f) else {
+                return descend_face(f);
+            };
+            let pick = |want_a: bool| -> Result<Descent, NamingError> {
+                // Constituent fragments of ONE operand face share a
+                // descent — dedup before the uniqueness demand.
+                let mut hits: Vec<Descent> = ds
+                    .iter()
+                    .filter(|d| matches!(d, Descent::A(_)) == want_a)
+                    .copied()
+                    .collect();
+                hits.sort_unstable();
+                hits.dedup();
+                match hits.as_slice() {
+                    [] => Err(bug("merged face lacks the needed operand-side constituent")),
+                    [one] => Ok(*one),
+                    _ => Err(bug(
+                        "merged face has several same-side constituents at a seam edge",
+                    )),
+                }
+            };
+            match want_opposite_of {
+                Some(Descent::A(_)) => pick(false),
+                Some(Descent::B(_)) => pick(true),
+                None => Err(bug("seam edge between two merged faces (unsupported)")),
+            }
+        };
     let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
@@ -700,7 +746,23 @@ fn name_boolean_edges<T: Decide>(
         if faces.len() != 2 {
             return Err(bug("seam edge without exactly two adjacent faces"));
         }
-        let (d0, d1) = (descend_face(faces[0])?, descend_face(faces[1])?);
+        let merged0 = merged_descents.contains_key(&faces[0]);
+        let merged1 = merged_descents.contains_key(&faces[1]);
+        let (d0, d1) = match (merged0, merged1) {
+            (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
+            (true, false) => {
+                let d1 = descend_face(faces[1])?;
+                (chord_descent(faces[0], Some(d1))?, d1)
+            }
+            (false, true) => {
+                let d0 = descend_face(faces[0])?;
+                (d0, chord_descent(faces[1], Some(d0))?)
+            }
+            (true, true) => (
+                chord_descent(faces[0], None)?,
+                chord_descent(faces[1], None)?,
+            ),
+        };
         Ok(match (d0, d1) {
             (Descent::A(_), Descent::B(_)) => {
                 ChordKind::Cross(operand_face_name(d0)?, operand_face_name(d1)?)
@@ -952,6 +1014,7 @@ fn name_boolean_vertices<T: Decide>(
         let mut b_edges: Vec<StableName> = Vec::new();
         let mut a_faces: Vec<StableName> = Vec::new();
         let mut b_faces: Vec<StableName> = Vec::new();
+        let mut seam_lines: Vec<(StableName, StableName)> = Vec::new();
         for &e in edges {
             let Some(ename) = t.name_of(&ent(0, EntityKey::Edge(e))) else {
                 return Err(bug("seam vertex incident to an unnamed edge"));
@@ -959,9 +1022,15 @@ fn name_boolean_vertices<T: Decide>(
             match ename.path.first() {
                 Some(RoleSeg::FromA(x)) => a_edges.push((**x).clone()),
                 Some(RoleSeg::FromB(x)) => b_edges.push((**x).clone()),
-                Some(RoleSeg::Seam { a: fa, b: fb }) if seam_set.contains(&e) => {
+                // Zip-listed AND derived seams both qualify (M4 PR 5:
+                // declared merges reroute channel-cut chords into the
+                // derived-seam lane, so a seam vertex may lean on a
+                // Seam-named edge outside `naming.seam_edges`) — the
+                // NAME is the evidence either way.
+                Some(RoleSeg::Seam { a: fa, b: fb }) => {
                     a_faces.push((**fa).clone());
                     b_faces.push((**fb).clone());
+                    seam_lines.push(((**fa).clone(), (**fb).clone()));
                 }
                 _ => return Err(bug("seam vertex incident to an unexpected edge role")),
             }
@@ -995,8 +1064,21 @@ fn name_boolean_vertices<T: Decide>(
         let partner_a_inner: Option<StableName> = vb_key
             .and_then(|k| rc.vv.iter().find(|r| r.b == k).map(|r| r.a))
             .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
+        a_faces.sort_unstable();
+        a_faces.dedup();
+        b_faces.sort_unstable();
+        b_faces.dedup();
+        seam_lines.sort_unstable();
+        seam_lines.dedup();
         let pair = match (a_edges.as_slice(), b_edges.as_slice()) {
             ([ae], [be]) => (ae.clone(), be.clone()),
+            // A pure seam-junction vertex (M4 PR 5: declared merges
+            // can consume every operand-descended edge at a crossing
+            // vertex): the incident seam edges' face parents determine
+            // it when they agree on ONE (A, B) pair.
+            ([], []) if a_faces.len() == 1 && b_faces.len() == 1 => {
+                (a_faces[0].clone(), b_faces[0].clone())
+            }
             ([ae], []) if b_faces.len() == 1 => (ae.clone(), b_faces[0].clone()),
             ([], [be]) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
             ([ae], []) if partner_b_inner.is_some() => (
@@ -1007,6 +1089,28 @@ fn name_boolean_vertices<T: Decide>(
                 partner_a_inner.clone().unwrap_or_else(|| be.clone()),
                 be.clone(),
             ),
+            // A seam JUNCTION (M4 PR 5: declared merges can consume
+            // every operand-descended edge at a crossing): the vertex
+            // where k ≥ 2 seam LINES meet. Its name is the sorted
+            // path of the lines' Seam segments — deterministic, and
+            // unique per line set (straight lines meet once).
+            ([], []) if seam_lines.len() >= 2 => {
+                let mut segs: Vec<RoleSeg> = seam_lines
+                    .iter()
+                    .map(|(fa, fb)| RoleSeg::Seam {
+                        a: Box::new(fa.clone()),
+                        b: Box::new(fb.clone()),
+                    })
+                    .collect();
+                segs.sort_unstable();
+                let name = StableName {
+                    kind: EntityKind::Vertex,
+                    node,
+                    path: segs,
+                };
+                t.insert(name, ent(0, EntityKey::Vertex(v)))?;
+                continue;
+            }
             _ => {
                 return Err(bug(
                     "seam vertex parentage underdetermined from incident edges",
@@ -1234,12 +1338,12 @@ fn name_split_faces<T: Decide>(
 
 #[cfg(test)]
 mod tests {
-    //! Kernel-level exercise of the N3 `Merged` lane (review R4): no
-    //! eval-level path can mint an F7 merge until PR 5's declare
-    //! threading (glued unions refuse `UnpairedLooseEnds`), so the
-    //! merge-group naming lane is driven directly with a synthetic
-    //! `merge_groups` row over a real extrusion — including the
-    //! sorted-constituents dedup.
+    //! Kernel-level exercise of the N3 `Merged` lane (review R4; the
+    //! eval-level end-to-end fixture landed with M4 PR 5's declare
+    //! threading — see `m4_pr3_names_bool`'s declared-union Merged
+    //! pins). The synthetic `merge_groups` rows here keep the
+    //! emission-unit coverage: sorted-constituents dedup, and the R8
+    //! same-set collision refusing loudly.
     #![allow(
         clippy::unwrap_used,
         clippy::expect_used,
@@ -1327,5 +1431,68 @@ mod tests {
             t.name_of(&ent(0, EntityKey::Face(lateral))).is_some(),
             "absorbed-but-live lateral must still be covered"
         );
+    }
+
+    /// Review R8 (resolved M4 PR 5): two merge groups with the SAME
+    /// constituent set — kept faces that are fragments of one operand
+    /// face, each absorbing a fragment of one partner — refuse
+    /// LOUDLY (typed `NamingError`), never a silent alias.
+    #[test]
+    fn merged_same_constituent_groups_collide_loudly() {
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let profile = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tolerance::get())
+            .unwrap();
+        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
+        let ext_node = RecipeNodeId(1);
+        let a_table = name_extrude(ext_node, &built).unwrap();
+        let laterals: Vec<_> = a_table
+            .iter()
+            .filter_map(|(n, e)| match (n.path.first(), e) {
+                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
+                    EntityKey::Face(f) => Some(f),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        assert!(laterals.len() >= 2);
+        // Synthetic descent: `top` reads as a fragment of `bottom`,
+        // `laterals[1]` as a fragment of `laterals[0]` — the two
+        // groups then share the constituent set
+        // {FromA(bottom), FromA(laterals[0])}.
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            face_fragments_a: vec![(built.top, built.bottom), (laterals[1], laterals[0])],
+            merge_groups: vec![
+                (built.top, vec![laterals[0]]),
+                (built.bottom, vec![laterals[1]]),
+            ],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let err = name_boolean(RecipeNodeId(9), &built.body, &naming, &a, &b)
+            .expect_err("same-constituent merge groups must refuse loudly");
+        let _ = err; // typed NamingError, never a silent alias
     }
 }
