@@ -948,7 +948,8 @@ fn name_boolean_vertices<T: Decide>(
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
-    seam_set: &BTreeSet<EdgeKey>,
+    // Unused since M4 PR 5: the vertex pass trusts Seam NAMES (zip-listed and derived alike).
+    _seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
