@@ -23,11 +23,15 @@
 //!   step fails if the punning idioms appear anywhere else in crate
 //!   sources (allowlist: this file, plus `interval.rs` which defines
 //!   `Interval::repr_bits` over its own storage).
-//! - **Retirement is scheduled** (DESIGN.md, M4 roadmap note):
-//!   production bit-identity checking retires when provenance naming
-//!   lands — a declared coincidence becomes a *record lookup* (two
-//!   descriptions share provenance), and the bit compare survives at
-//!   most as a debug assertion behind that lookup.
+//! - **Retirement LANDED (M4 PR 5, NAMING-DESIGN N6)**: production
+//!   bit-identity coincidence checking is GONE — the declared rung is
+//!   a `topo::GeomSource` lookup (two descriptions share a recipe
+//!   source), and the bit compare survives exactly as N6 promised: a
+//!   `cfg(debug_assertions)` assertion behind the lookup
+//!   (`topo::source`, the "records agree with bits" check). The CI
+//!   tripwires stay armed with an EMPTY production-consumer
+//!   allowlist; the remaining allowlisted files are non-consumers
+//!   (scalar plumbing / the debug assertion).
 //!
 //! A scalar type without an arm below (e.g. `Dual`, which no `Body`
 //! instantiates) yields `None`: no bit channel ⇒ declared coincidence
