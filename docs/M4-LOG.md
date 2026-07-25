@@ -804,3 +804,26 @@ naming color-following — the N5-banned shape; our flow = displayed-
 node rendering + PR 4 one-click Rebind offers + open N5 door for a
 ratified carry policy. GUI-DESIGN note added on main (55a31d8);
 answered on #92.
+
+**PR 4 implementation COMPLETE (2026-07-25, `ev/m4-4-resolution` @
+`260e620`, pushed; adversarial review launched)**: D1-D9 all done.
+N5-verbatim ResolveError/Diagnosis/TieWitness/Tombstone; one
+cause-agnostic diff engine (vdiff.rs, per-predicate sign
+populations; attribution prefers name_frag_* discriminators, else
+deterministic-first — flagged for review); Rebind with the Declare
+carve-out rewriting Declare pairs AND appearance-store keys;
+merge-time call RULED UPHELD: RebindAppearanceCollision typed
+refusal (repair = ClearAppearance first — no silent survivor-
+picking); hit-testing total + typed Unnamed; solver contracts as
+data only; all three PR 3 banked obligations; diagnosis goldens +
+f64/Interval agreement; D9 done post-#92-merge — Vanished offers
+ride NEXT TO the byte-verbatim N5 error (wrapping choice), and the
+A1 ladder end-to-end test pins paint→union→suggest→rebind→resolves
+on the FINAL body. Batteries green (139/139 both lanes + ε rows;
+pre-crash battery matched). Honesty note: agent used broad pkill
+once during crash cleanup (~19:28), possibly racing a gate cargo
+spawn — that gate completed normally, no impact; switched to
+PID-scoped kills. Reviewer launched (attack list: over-tie
+candidates fidelity, attribution determinism/honesty, ForeignNode
+totality, collision-refusal bypasses, offers golden coverage,
+ladder completeness/non-invention, tombstone last-good pinning).
