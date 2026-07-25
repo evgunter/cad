@@ -1,87 +1,114 @@
 # Pre-GUI demo tour
 
 A visual tour of what the kernel can do today, from a pure outside
-consumer's seat: six bodies built through the public `profile` /
-`sweep` APIs, then a boolean leg through the M3 `union` / `subtract`
-ops (headlined by a full 21-pip die) — narrated (operations used,
-topology census + genus, validation tiers passed, exact-vs-meshed mass
-properties), exported as binary STL, and rendered to PNG.
+consumer's seat: sweep bodies through the public `profile` / `sweep`
+APIs, a boolean leg through the M3 `union` / `subtract` / `intersect`
+ops (boolean-of-boolean chains included), the first `topo::split`
+cutaway, and the M4 recipe layer (editor-core document, structural
+edit, downstream-only recompute, stable names) — narrated (operations
+used, topology census + genus, validation tiers passed, exact-vs-meshed
+mass properties), exported as binary STL + AP214 STEP, and rendered to
+PNG.
 
 This directory is **deliberately outside the cargo workspace** (root
 manifest `workspace.exclude`, plus the empty `[workspace]` table in
-`tour/Cargo.toml`): STL viewing/rendering tooling is demo-only and must
-never become a kernel dependency. The renderer is a demo-local Python
-venv (numpy + matplotlib, pinned, created on first run) — pure CPU,
-headless, no GPU/GL required.
+`tour/Cargo.toml`): viewer/render tooling is demo-only and must never
+become a kernel dependency.
 
 ## Run
 
 ```sh
 cd demos/tour
-cargo run --release -- ../out   # build + narrate + export STLs
+cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.json
 cd ..
-./render.sh                     # venv on first run, then PNGs
+./render.sh                     # FreeCAD headless (or matplotlib fallback), then montage
 ```
 
-Outputs: `demos/out/*.stl` (untracked), `demos/renders/*.png` (tracked
-— one per body plus `montage.png`, the contact sheet).
+Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
+`demos/renders/*.png` (tracked — one per scene plus `montage.png`).
 
 ## The stops
 
-| body | what it shows |
+| scene | what it shows |
 | --- | --- |
 | `bracket` | extrude of a polyline + tangent-arc profile (`LoopBuilder`, inner fillet) |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
-| `donut` | full revolve of an off-axis circle — closed all-curved torus, genus 1 |
-| `pulley` | full revolve of an off-axis polyline — V-groove, center bore |
-| `wedge` | partial (90°) revolve — wedge caps, arc rims |
+| `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
+| `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
+| `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
+| `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
+| `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
+| `silhouette3` | the H×T solid ∩ a blocky **C** prism along +y — intersect-of-intersect, boolean-of-boolean; all C planes axis-aligned yet sharing no carrier with any H/T plane |
+| `crosslap` | cross-lap joint, assembled: two half-depth-notched beams (each a boolean result); the glued union refuses typed today and is **tripwired for M4 PR 5** (`demo_tripwires.rs`) |
+| `crosslap_exploded` | the same joint exploded via `transform_rigid` (re-minted witnesses, #84) |
+| `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
+| `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
+| `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
-### The boolean leg (M3 PRs 5 + 5.5)
+Three committed **shadow proofs** ride beside the montage panels
+(`renders/silhouette3_shadow_{z,x,y}.png`, standalone — excluded from
+the montage): the 3-way solid viewed straight down each axis renders
+an **H** (z), a **T** (x), and a **C** (y) — the C near-unclipped
+(only its 1/16 x-overshoot margins are trimmed by the solid's width;
+the T loses two 1/16 z-slivers the same way — stated because it is
+true, not visible).
 
-All boolean operands are axis-aligned boxes from one shared builder
-(`slab`) — raw `extrude` output fed directly to the ops (the chord
-re-description workaround retired after PR 5.5's review proved it
-unnecessary). Every scene checks the op's result against an exact
-box-arithmetic volume oracle.
+Retired at the #91 refresh: `donut` → sheave (the torus surface kind
+now rides in a real part), `openbox` → project box, `voidbox` panel →
+cutaway (the two-shell `Voided` story stays as live narration in the
+tour output, including STEP's typed void-shell refusal). At the
+revision pass: `pulley` → sheave (its plane/cylinder/cone kinds are a
+strict subset of the sheave's four) and `wedge` → chute. A×Z
+letterforms were probed and refuse typed today — banked as the
+acceptance fixture for the cookie-cutter role resolver's
+vertex-only-probing gap (#91 comments).
 
-| stop | what it shows |
-| --- | --- |
-| `die` | the full die: 21 pip pockets across all six faces (opposite faces sum to 7), 21 sequential Seamed subtracts with the exact volume after every op (final V = 7.8359375); blocked pre-PR 5.5 by the R1 orientation-dependent refusals, promoted when the seam discipline closed them |
-| `table` | tabletop ∪ 4 corner-straddling legs — 4 sequential Seamed union nodes; coplanar-touching and inset-overlap leg variants attempted and narrated |
-| `openbox` | the pure open box: fully-interior cavity cutter, open only through the top — a single-ring pocket (refused pre-PR 5-fix-pass, rendered since) |
-| `voidbox` | inner box strictly inside, subtracted — kind `Voided`, TWO shells, the first legitimate voids; V = 8 − 1 = 7 exactly; rendered translucent so the internal void shell is visible; a cutaway subtract of the two-shell body is attempted and its typed refusal narrated |
+## Validation posture (tier 3′)
 
-Historical narration retired as the kernel caught up: the PR 5-era
-silent wrong-component defect (typed refusals since the PR 5 fix
-pass), the R1 orientation matrix (closed by PR 5.5 — the die above IS
-the promotion payload), and the scoop-box stand-in for the open box.
-What the tour still touches of the post-5.5 refusal envelope
-(boundary-on-boundary seams, e.g. flush-stacked/corner-flush unions;
-reflex-corner tilted crossings) is narrated live from the actual typed
-refusals where scenes attempt it. Boolean outputs carry chord
-descriptions on seam edges, so tier 3 runs on an
-`Intersection`-upgraded clone (the documented posture; the honest
-upgrade op is a PR 6 obligation).
+Boolean stops validate the ACTUAL result body via
+`validate_pseudomanifold` with the op's own declared `contacts` (M3
+PR 6a). The historical `upgrade_edges_to_intersections` clone hack is
+deleted. Non-boolean bodies run the plain tier-3 geometric gate; on
+contact-free bodies the two gates agree.
+
+Every scene body pre-flights tiers 1–2, prints exact B-rep volume/area
+from `topo::mass_properties`, and cross-checks the tessellation's
+signed volume. Boolean scenes assert exact (dyadic / closed-form)
+volume oracles after EVERY op.
 
 The tour's coda feeds a self-intersecting (bowtie) profile to
 `Profile::validate` and prints the typed rejection — the fail-loud
 contract, demonstrated rather than claimed.
 
-Every stop pre-flights all three validator tiers (structural,
-closed-solid census, geometric incl. the +V orientation invariant),
-prints exact B-rep volume/area from `topo::mass_properties`, and
-cross-checks the tessellation's signed volume against the exact value.
+## The STEP lane (#88)
 
-## Renderer notes
+Every scene body attempts an AP214 STEP export beside its STL. The
+in-house writer's analytic subset is planes/lines today, so curved
+bodies (bracket, plate, vase, sheave, chute) refuse **typed**
+(`UnsupportedSurface`/`UnsupportedCurve` — the M5 arms), and the tour
+narrates the refusal. All-planar bodies (die, table, silhouettes,
+cross-lap, project box, cutaway halves, heat sinks) export STEP.
 
-`render.py` parses binary STL with numpy and draws flat-shaded
-`Poly3DCollection`s (matplotlib Agg). Because every exported body is
-closed and outward-oriented (tier 3's +V invariant), the renderer culls
-back-faces exactly — which is also what makes matplotlib's
-painter's-algorithm depth sort artifact-free here. Orthographic
-projection, per-body camera and palette at the top of the script.
+## Renderers
 
-An f3d prebuilt binary was the preferred renderer but needs OpenSSL 3 /
-newer glibc than this environment has; the numpy+matplotlib fallback is
-fully headless and has no system requirements beyond Python.
+`render.sh` prefers **headless FreeCAD** (`freecadcmd`,
+`QT_QPA_PLATFORM=offscreen`, no display/Xvfb): one session imports the
+tour's OWN STEP exports — every montage panel of a planar body
+dogfoods the F6 lane end-to-end (export → OCC import → render) — and
+falls back to STL mesh import for the curved bodies. Set `FREECADCMD`
+to override the binary location. All scenes render in one warm
+document with per-scene visibility toggling (per-scene document
+cycling races the offscreen view-provider setup — observed as blank
+frames/hangs). freecadcmd's Qt teardown can crash AFTER a successful
+pass, so `render.sh` keys on the `renders/.freecad_ok` sentinel, not
+the exit status.
+
+`render.py` is the zero-dependency fallback (numpy + matplotlib, pure
+CPU, demo-local venv): binary-STL parsing, flat shading, exact
+backface culling (guaranteed by tier 3's +V invariant) — and the lane
+that draws OUR tessellation (FreeCAD re-tessellates from the B-rep;
+the STL lane in CI keeps mesh coverage either way).
+
+`compose_montage.py` builds `montage.png` from the per-scene PNGs in
+`scenes.json` order with captions, for both render paths.

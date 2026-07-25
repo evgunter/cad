@@ -18,3 +18,5 @@ sweep = { path = "../../crates/sweep" }
 topo = { path = "../../crates/topo" }
 mesh = { path = "../../crates/mesh" }
 stl = { path = "../../crates/stl" }
+step-export = { path = "../../crates/step-export" }
+editor-core = { path = "../../crates/editor-core" }
