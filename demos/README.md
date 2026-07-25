@@ -34,30 +34,32 @@ Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 | `bracket` | extrude of a polyline + tangent-arc profile (`LoopBuilder`, inner fillet) |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
-| `sheave` | rope-groove sheave — full revolve of a polyline+arc profile; the groove arc is OFF-axis, so its wall is a **ring-torus zone**; genus 1; volume checked against the closed-form Pappus value |
-| `pulley` | full revolve of an off-axis polyline — V-groove, center bore; the cone showcase |
-| `wedge` | partial (90°) revolve — wedge caps, arc rims |
+| `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
+| `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
 | `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
-| `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T; the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible) |
-| `silhouette3` | the H×T solid ∩ a 45° diamond prism — intersect-of-intersect, boolean-of-boolean |
+| `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
+| `silhouette3` | the H×T solid ∩ a blocky **C** prism along +y — intersect-of-intersect, boolean-of-boolean; all C planes axis-aligned yet sharing no carrier with any H/T plane |
 | `crosslap` | cross-lap joint, assembled: two half-depth-notched beams (each a boolean result); the glued union refuses typed today and is **tripwired for M4 PR 5** (`demo_tripwires.rs`) |
 | `crosslap_exploded` | the same joint exploded via `transform_rigid` (re-minted witnesses, #84) |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
-| `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135) |
+| `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Three committed **shadow proofs** ride beside the montage panels
 (`renders/silhouette3_shadow_{z,x,y}.png`, standalone — excluded from
 the montage): the 3-way solid viewed straight down each axis renders
-an H (z), a T (x), and the 45° chamfer diamond (y) — the y-view
-**clipped by the solid's extents**, which is the honest form of the
-third-shadow claim.
+an **H** (z), a **T** (x), and a **C** (y) — the C near-unclipped
+(only its 1/16 x-overshoot margins are trimmed by the solid's width;
+the T loses two 1/16 z-slivers the same way — stated because it is
+true, not visible).
 
 Retired at the #91 refresh: `donut` → sheave (the torus surface kind
 now rides in a real part), `openbox` → project box, `voidbox` panel →
 cutaway (the two-shell `Voided` story stays as live narration in the
-tour output, including STEP's typed void-shell refusal). A×Z
+tour output, including STEP's typed void-shell refusal). At the
+revision pass: `pulley` → sheave (its plane/cylinder/cone kinds are a
+strict subset of the sheave's four) and `wedge` → chute. A×Z
 letterforms were probed and refuse typed today — banked as the
 acceptance fixture for the cookie-cutter role resolver's
 vertex-only-probing gap (#91 comments).
@@ -83,7 +85,7 @@ contract, demonstrated rather than claimed.
 
 Every scene body attempts an AP214 STEP export beside its STL. The
 in-house writer's analytic subset is planes/lines today, so curved
-bodies (bracket, plate, vase, sheave, pulley, wedge) refuse **typed**
+bodies (bracket, plate, vase, sheave, chute) refuse **typed**
 (`UnsupportedSurface`/`UnsupportedCurve` — the M5 arms), and the tour
 narrates the refusal. All-planar bodies (die, table, silhouettes,
 cross-lap, project box, cutaway halves, heat sinks) export STEP.

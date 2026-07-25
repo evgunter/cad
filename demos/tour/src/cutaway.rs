@@ -34,15 +34,18 @@ pub fn stops(boxbody: &topo::Body<f64>) -> Vec<Stop> {
     let v_above = topo::mass_properties(above).expect("above props").volume;
     let v_below = topo::mass_properties(below).expect("below props").volume;
     let gap = (v_above + v_below - v_box).abs();
-    assert!(gap < 1e-9, "split halves must partition the volume (gap {gap:.3e})");
+    assert!(
+        gap < 1e-9,
+        "split halves must partition the volume (gap {gap:.3e})"
+    );
 
     // Pull the halves apart along the (unnormalized) section normal:
     // rigid transforms re-mint every moved witness (#84).
-    let n = normal * (0.55 / normal.norm());
-    let moved_above = topo::transform_rigid(above, &Affine3::translation(n))
-        .expect("translate above half");
-    let moved_below = topo::transform_rigid(below, &Affine3::translation(-n))
-        .expect("translate below half");
+    let n = normal * (0.75 / normal.norm());
+    let moved_above =
+        topo::transform_rigid(above, &Affine3::translation(n)).expect("translate above half");
+    let moved_below =
+        topo::transform_rigid(below, &Affine3::translation(-n)).expect("translate below half");
 
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
@@ -62,7 +65,16 @@ pub fn stops(boxbody: &topo::Body<f64>) -> Vec<Stop> {
         note: Some(note),
         // Split output is not a boolean result: no declared contacts
         // ride it, so both halves go through the plain tier-3 gate.
-        view: View { elev: 26.0, azim: -125.0, up: 'z' },
+        // Camera chosen so the section normal is ~48 degrees off the
+        // view direction (#91 revision note 6): the below half's
+        // section faces the camera and the cut interior (cavity,
+        // vents, boss sections) is visible, while the halves still
+        // separate laterally on screen.
+        view: View {
+            elev: 20.0,
+            azim: 55.0,
+            up: 'z',
+        },
         bodies: vec![
             SceneBody::plain_planar("cutaway_above", [0.40, 0.60, 0.72], moved_above),
             SceneBody::plain_planar("cutaway_below", [0.78, 0.60, 0.35], moved_below),

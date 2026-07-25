@@ -3,11 +3,13 @@
 //! `intersect`, and (for the 3-way) intersect-of-intersect, the
 //! boolean-of-boolean lane.
 //!
-//! Both letterform operands are extrudes of pure POLYGON profiles (an
+//! All three operands are extrudes of pure POLYGON letterforms (an
 //! "H" on the xy plane extruded +z, a "T" on the yz plane extruded
-//! +x): every face a plane, every edge a line — `gate_planar` passes,
-//! no curved geometry near a boolean (round letterforms are the M5
-//! upgrade). A×Z was probed (#91, 2026-07-25) and refuses typed today
+//! +x, a "C" on the zx plane extruded +y — all three letter boxes the
+//! same 3-unit height): every face a plane, every edge a line —
+//! `gate_planar` passes, no curved geometry near a boolean (round
+//! letterforms are the M5 upgrade). A×Z was probed (#91, 2026-07-25)
+//! and refuses typed today
 //! — banked as the acceptance fixture for the cookie-cutter role
 //! resolver's vertex-only-probing gap; do not attempt it here.
 //!
@@ -45,14 +47,15 @@ fn validated(plane: SketchPlane<f64>, poly: &[(f64, f64)]) -> ValidatedProfile<f
         .expect("letterform profile")
 }
 
-/// "H" sketch: xy plane at z = -0.25, extruded 2.5 (z ∈ [-0.25, 2.25]).
+/// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —
+/// covering the full-height T).
 fn h_prism(poly: &[(f64, f64)]) -> Body<f64> {
     let plane = SketchPlane::from_frame(
         Point3::new(0.0, 0.0, -0.25),
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    extrude(&validated(plane, poly), Extrusion::Distance(2.5))
+    extrude(&validated(plane, poly), Extrusion::Distance(3.5))
         .expect("extrude H")
         .body
 }
@@ -69,53 +72,104 @@ fn t_prism(poly: &[(f64, f64)]) -> Body<f64> {
         .body
 }
 
-/// Third silhouette: 45°-chamfer diamond on the zx plane at y = -0.5,
-/// extruded 4 along +y — its crossing is coplanarity-free by
-/// construction, so the intersect-of-intersect runs the clean lane.
-fn diamond_prism() -> Body<f64> {
+/// Third letterform: a blocky "C" on the zx plane at y = -0.5,
+/// extruded 4 along +y — H x T x C, the third shadow a real letter.
+/// Every C plane is axis-aligned but shares NO carrier with any H/T
+/// plane (x planes {-1/16, 3/8, 33/16} vs H's {0, 7/16, 1/2, 3/2,
+/// 25/16, 2} and T's caps {-1/4, 9/4}; z planes {3/16, 13/16, 39/16,
+/// 49/16} vs T's {1/8, 41/16, 21/8, 25/8} and H's caps {-1/4, 13/4})
+/// — the no-coincident-planes rule, so the intersect-of-intersect
+/// runs the clean lane. Sized so the y-shadow is the near-unclipped
+/// C (only its 1/16 x-overshoot margins are trimmed), while the H
+/// shadow stays COMPLETE: the C's spine spans the stem's z-band over
+/// H's full-height left column, and its top arm spans every x at the
+/// T-bar band.
+fn c_prism() -> Body<f64> {
     let plane = SketchPlane::from_frame(
         Point3::new(0.0, -0.5, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
         Vec3::new(1.0, 0.0, 0.0),
     );
+    // (z, x), counterclockwise; right-opening notch makes the C.
     let poly = [
-        (1.0, -0.8125),
-        (2.8125, 1.0),
-        (1.0, 2.8125),
-        (-0.8125, 1.0),
+        (0.1875, -0.0625),
+        (3.0625, -0.0625),
+        (3.0625, 2.0625),
+        (2.4375, 2.0625),
+        (2.4375, 0.375),
+        (0.8125, 0.375),
+        (0.8125, 2.0625),
+        (0.1875, 2.0625),
     ];
     extrude(&validated(plane, &poly), Extrusion::Distance(4.0))
-        .expect("extrude diamond")
+        .expect("extrude C")
         .body
 }
 
-/// NAIVE letterforms: textbook proportions, T stem = H bar band.
+/// NAIVE letterforms: textbook proportions, T stem = H bar band, both
+/// letter boxes 3 tall (T: z ∈ [0.125, 3.125]).
 const H_NAIVE: [(f64, f64); 12] = [
-    (0.0, 0.0), (0.5, 0.0), (0.5, 1.25), (1.5, 1.25), (1.5, 0.0), (2.0, 0.0),
-    (2.0, 3.0), (1.5, 3.0), (1.5, 1.75), (0.5, 1.75), (0.5, 3.0), (0.0, 3.0),
+    (0.0, 0.0),
+    (0.5, 0.0),
+    (0.5, 1.25),
+    (1.5, 1.25),
+    (1.5, 0.0),
+    (2.0, 0.0),
+    (2.0, 3.0),
+    (1.5, 3.0),
+    (1.5, 1.75),
+    (0.5, 1.75),
+    (0.5, 3.0),
+    (0.0, 3.0),
 ];
 const T_NAIVE: [(f64, f64); 8] = [
-    (1.25, 0.25), (1.75, 0.25), (1.75, 1.5), (3.25, 1.5),
-    (3.25, 2.0), (-0.25, 2.0), (-0.25, 1.5), (1.25, 1.5),
+    (1.25, 0.125),
+    (1.75, 0.125),
+    (1.75, 2.625),
+    (3.25, 2.625),
+    (3.25, 3.125),
+    (-0.25, 3.125),
+    (-0.25, 2.625),
+    (1.25, 2.625),
 ];
 
 /// DECOUPLED letterforms: every cross-operand-coincident plane pair
 /// offset by 1/16 (T stem straddles H's bar planes; same-carrier
 /// splits offset) — imperceptible, still exact-dyadic.
 const H_DECOUPLED: [(f64, f64); 12] = [
-    (0.0, 0.0), (0.5, 0.0), (0.5, 1.25), (1.5, 1.25), (1.5, 0.0625), (2.0, 0.0625),
-    (2.0, 2.9375), (1.5625, 2.9375), (1.5625, 1.75), (0.4375, 1.75), (0.4375, 3.0), (0.0, 3.0),
+    (0.0, 0.0),
+    (0.5, 0.0),
+    (0.5, 1.25),
+    (1.5, 1.25),
+    (1.5, 0.0625),
+    (2.0, 0.0625),
+    (2.0, 2.9375),
+    (1.5625, 2.9375),
+    (1.5625, 1.75),
+    (0.4375, 1.75),
+    (0.4375, 3.0),
+    (0.0, 3.0),
 ];
 const T_DECOUPLED: [(f64, f64); 8] = [
-    (1.1875, 0.25), (1.8125, 0.25), (1.8125, 1.5), (3.25, 1.5),
-    (3.25, 2.0), (-0.25, 2.0), (-0.25, 1.4375), (1.1875, 1.4375),
+    (1.1875, 0.125),
+    (1.8125, 0.125),
+    (1.8125, 2.625),
+    (3.25, 2.625),
+    (3.25, 3.125),
+    (-0.25, 3.125),
+    (-0.25, 2.5625),
+    (1.1875, 2.5625),
 ];
 
-/// 2-way volume oracle for the decoupled pair (exact dyadic, derived
-/// in the #91 build evidence).
-const V_2WAY: f64 = 3.111328125;
-/// 3-way volume, pinned exact-dyadic from the same verified build.
-const V_3WAY: f64 = 3.008056640625;
+/// 2-way volume oracle for the decoupled pair: independent derivation
+/// as ∫ len_x(H at y) · len_z(T at y) dy over the seven y-cells —
+/// exactly 577/128 (dyadic; hand computation and the exact-fraction
+/// script in the #91 revision pass agree).
+const V_2WAY: f64 = 4.5078125;
+/// 3-way (× C) volume: independent derivation as
+/// ∬ |Y_H(x) ∩ Y_T(z)| over the C region (exact-fraction polygon
+/// clipping over the 5×3 cell grid) — exactly 11461/4096 (dyadic).
+const V_3WAY: f64 = 2.798095703125;
 
 /// The naive variant, narrated: tiers 1–2 pass, tier 3′ refuses on the
 /// coincident-plane seam edges, and the 3-way consumer refuses typed.
@@ -157,7 +211,7 @@ fn narrate_naive() {
             );
         }
     }
-    match try_intersect(&bb.body, &diamond_prism()) {
+    match try_intersect(&bb.body, &c_prism()) {
         Err(e) => {
             assert!(
                 format!("{e:?}").contains("NonMaximalFaces"),
@@ -183,12 +237,15 @@ fn build() -> (BooleanBody<f64>, BooleanBody<f64>) {
     narrate_naive();
     let two = expect_seamed(
         "decoupled H x T intersect",
-        check(try_intersect(&h_prism(&H_DECOUPLED), &t_prism(&T_DECOUPLED)), V_2WAY),
+        check(
+            try_intersect(&h_prism(&H_DECOUPLED), &t_prism(&T_DECOUPLED)),
+            V_2WAY,
+        ),
         V_2WAY,
     );
     let three = expect_seamed(
         "3-way intersect (result x diamond)",
-        check(try_intersect(&two.body, &diamond_prism()), V_3WAY),
+        check(try_intersect(&two.body, &c_prism()), V_3WAY),
         V_3WAY,
     );
     (two, three)
@@ -198,7 +255,7 @@ pub fn stops() -> Vec<Stop> {
     let (two, three) = build();
     // The shadow PROOF renders (standalone, not montage panels): the
     // 3-way solid viewed straight down each axis — orthographic, so
-    // each frame IS the shadow: an H (z), a T (x), a diamond (y).
+    // each frame IS the shadow: an H (z), a T (x), a C (y).
     let shadow = |axis: char, caption: &str, elev: f64, azim: f64| Stop {
         name: match axis {
             'z' => "silhouette3_shadow_z",
@@ -211,7 +268,11 @@ pub fn stops() -> Vec<Stop> {
         ops: "same body as silhouette3; orthographic axis view",
         delta: 1e-2,
         note: None,
-        view: View { elev, azim, up: 'z' },
+        view: View {
+            elev,
+            azim,
+            up: 'z',
+        },
         bodies: vec![SceneBody::seamed(
             match axis {
                 'z' => "silhouette3_shadow_z",
@@ -226,17 +287,23 @@ pub fn stops() -> Vec<Stop> {
     let shadows = vec![
         shadow('z', "z-shadow: H", 90.0, -90.0),
         shadow('x', "x-shadow: T", 0.0, 0.0),
-        shadow('y', "y-shadow: chamfer diamond (clipped by the solid's extents)", 0.0, -90.0),
+        shadow(
+            'y',
+            "y-shadow: C (only its 1/16 x-overshoot margins are trimmed)",
+            0.0,
+            -90.0,
+        ),
     ];
-    let naive_note =
-        "the NAIVE variant (coincident planes) is narrated above: tier 3' refusal + \
+    let naive_note = "the NAIVE variant (coincident planes) is narrated above: tier 3' refusal + \
          typed 3-way refusal — the design rule is 'operands never share coincident \
          planes' (1/16 decoupling, invisible at this scale)";
     vec![
         Stop {
             name: "silhouette",
             caption: "silhouette (H x T)".to_string(),
-            montage: true,
+            // Montage carries only the 3-way (#91 revision note 5);
+            // this stop stays in the tour + standalone render.
+            montage: false,
             story: "shadow-silhouette solid: its z-shadow is an H, its x-shadow is a T \
                     — the tour's first `intersect`",
             ops: "extrude H (xy sketch, +z) x extrude T (yz sketch, +x) -> 1 intersect node",
@@ -244,7 +311,11 @@ pub fn stops() -> Vec<Stop> {
             note: Some(format!(
                 "volume {V_2WAY} (observed bit-exact, gated 1e-9); {naive_note}"
             )),
-            view: View { elev: 24.0, azim: -50.0, up: 'z' },
+            view: View {
+                elev: 24.0,
+                azim: -50.0,
+                up: 'z',
+            },
             bodies: vec![SceneBody::seamed(
                 "silhouette",
                 [0.85, 0.62, 0.28],
@@ -254,18 +325,22 @@ pub fn stops() -> Vec<Stop> {
         },
         Stop {
             name: "silhouette3",
-            caption: "silhouette3 (+ diamond)".to_string(),
+            caption: "silhouette3 (H x T x C)".to_string(),
             montage: true,
-            story: "three shadows: the H x T solid intersected AGAIN with a 45-degree \
-                    diamond prism along +y — intersect-of-intersect, boolean-of-boolean",
-            ops: "silhouette result x extrude diamond (zx sketch, +y) -> 1 more intersect node",
+            story: "three letter shadows: the H x T solid intersected AGAIN with a \
+                    blocky C prism along +y — intersect-of-intersect, boolean-of-boolean",
+            ops: "silhouette result x extrude C (zx sketch, +y) -> 1 more intersect node",
             delta: 1e-2,
             note: Some(format!(
-                "volume {V_3WAY} (observed bit-exact, gated 1e-9); the chamfer \
-                 crossing is coplanarity-free, so the boolean-of-boolean runs \
-                 the clean lane"
+                "volume {V_3WAY} (observed bit-exact, gated 1e-9); the C's planes \
+                 are axis-aligned yet share NO carrier with any H/T plane, so the \
+                 boolean-of-boolean runs the clean coplanarity-free lane"
             )),
-            view: View { elev: 24.0, azim: -50.0, up: 'z' },
+            view: View {
+                elev: 24.0,
+                azim: -50.0,
+                up: 'z',
+            },
             bodies: vec![SceneBody::seamed(
                 "silhouette3",
                 [0.80, 0.44, 0.30],

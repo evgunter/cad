@@ -150,11 +150,7 @@ pub fn stops() -> Vec<Stop> {
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
-    evs.push((
-        5,
-        ev5,
-        format!("cold evaluation: all 5 nodes computed"),
-    ));
+    evs.push((5, ev5, format!("cold evaluation: all 5 nodes computed")));
     let mut prior_idx = 0;
     for n in [7usize, 9] {
         let applied = apply(
@@ -172,7 +168,10 @@ pub fn stops() -> Vec<Stop> {
             "count edit -> {n}: recomputed {} node(s), reused {} (downstream-only recompute)",
             ev.recomputed, ev.reused
         );
-        assert_eq!(ev.recomputed, 1, "a count edit re-runs exactly the pattern node");
+        assert_eq!(
+            ev.recomputed, 1,
+            "a count edit re-runs exactly the pattern node"
+        );
         assert_eq!(ev.reused, 4, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
         prior_idx += 1;
@@ -202,8 +201,7 @@ pub fn stops() -> Vec<Stop> {
         names5.len()
     );
 
-    let recipe_ops =
-        "ONE recipe doc: Profile -> Extrude (base), Profile -> Extrude (fin) -> \
+    let recipe_ops = "ONE recipe doc: Profile -> Extrude (base), Profile -> Extrude (fin) -> \
          LinearPattern(count); count edited via SetStructuralParam";
     let colors = [[0.45, 0.62, 0.62], [0.38, 0.58, 0.68], [0.32, 0.54, 0.74]];
     evs.into_iter()
@@ -218,7 +216,9 @@ pub fn stops() -> Vec<Stop> {
             Stop {
                 name,
                 caption: format!("heat sink ({n} fins)"),
-                montage: true,
+                // Montage carries only the fullest variant (#91
+                // revision note 5); 5/7 stay in the tour + standalone.
+                montage: n == 9,
                 story: "parametric heat-sink strip from ONE recipe document — fin count \
                         is a structural parameter; this render is one evaluation",
                 ops: recipe_ops,

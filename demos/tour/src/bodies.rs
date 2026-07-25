@@ -1,7 +1,9 @@
 //! The tour's sweep bodies, each built through the public
-//! profile/sweep API. The donut retired at the #91 refresh — the
-//! rope-groove sheave carries the torus surface kind inside a real
-//! part now.
+//! profile/sweep API. Retirements: the donut (#91 refresh) and the
+//! pulley (#91 revision pass) both fold into the rope-groove sheave —
+//! it carries plane + cylinder + cone + torus on one real part; the
+//! plain wedge became the quarter-turn chute (same partial-revolve
+//! capability, a real profile).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -88,23 +90,25 @@ fn vase() -> topo::Body<f64> {
         .body
 }
 
-/// Rope-groove sheave (the donut's successor): full revolve of a
-/// polyline + arc profile — stepped hub, recessed web, cylindrical rim
-/// carrying a SEMICIRCULAR rope groove. The groove arc's carrier
-/// center sits OFF the revolve axis, so the swept wall is a ring-torus
-/// zone (`WallKind::Torus` — only horn/spindle tori refuse typed):
-/// the torus surface kind rides inside a real part now. Center bore →
-/// genus 1.
+/// Rope-groove sheave (the donut's AND the pulley's successor): full
+/// revolve of a polyline + arc profile — stepped hub, recessed web,
+/// rim with TAPERED (conical) shoulders flanking a SEMICIRCULAR rope
+/// groove. The groove arc's carrier center sits OFF the revolve axis,
+/// so its wall is a ring-torus zone (`WallKind::Torus` — only
+/// horn/spindle tori refuse typed); the shoulders are cone zones. One
+/// stop carries all four analytic surface kinds (plane, cylinder,
+/// cone, torus), which is why the pulley (plane/cylinder/cone only)
+/// retired into it at the #91 revision pass. Center bore → genus 1.
 fn sheave() -> (topo::Body<f64>, String) {
     let lp = LoopBuilder::start(p2(0.4, 0.0))
         .line_to(p2(0.9, 0.0))
         .line_to(p2(0.9, 0.25))
         .line_to(p2(1.6, 0.25))
         .line_to(p2(1.6, 0.0))
-        .line_to(p2(2.1, 0.0))
-        .line_to(p2(2.1, 0.2))
+        .line_to(p2(2.0, 0.0))
+        .line_to(p2(2.1, 0.2)) // tapered shoulder: cone zone
         .arc_to_via(p2(1.8, 0.5), p2(2.1, 0.8)) // groove: r = 0.3 semicircle
-        .line_to(p2(2.1, 1.0))
+        .line_to(p2(2.0, 1.0)) // tapered shoulder: cone zone
         .line_to(p2(1.6, 1.0))
         .line_to(p2(1.6, 0.75))
         .line_to(p2(0.9, 0.75))
@@ -114,57 +118,83 @@ fn sheave() -> (topo::Body<f64>, String) {
     let body = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .expect("revolve sheave")
         .body;
-    // Closed-form volume by Pappus: hub + web + rim annuli minus the
-    // revolved half-disc groove (centroid 4r/3pi off the rim plane):
-    // V = 3.411*pi - 0.189*pi^2 exactly.
+    // Closed-form volume by Pappus (independent derivation, exact
+    // rationals): hub + web + rim annuli + two cone shoulder wedges,
+    // minus the revolved half-disc groove:
+    //   V = 2*pi*(1997/1200) - (189/1000)*pi^2.
     let pi = core::f64::consts::PI;
-    let oracle = 3.411 * pi - 0.189 * pi * pi;
-    let v = topo::mass_properties(&body).expect("sheave mass properties").volume;
+    let oracle = 2.0 * (1997.0 / 1200.0) * pi - 0.189 * pi * pi;
+    let v = topo::mass_properties(&body)
+        .expect("sheave mass properties")
+        .volume;
     let rel = ((v - oracle) / oracle).abs();
     assert!(
         rel < 1e-12,
         "sheave volume {v} vs closed-form {oracle} (rel {rel:.3e})"
     );
-    let torus_faces = body
-        .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(topo::Surface::Torus { .. })))
-        .count();
-    assert_eq!(torus_faces, 1, "the groove must be a torus wall");
+    let kind_count = |pred: fn(&topo::Surface<f64>) -> bool| {
+        body.faces()
+            .filter(|(_, f)| body.get_surface(f.surface).is_some_and(pred))
+            .count()
+    };
+    assert_eq!(
+        kind_count(|s| matches!(s, topo::Surface::Torus { .. })),
+        1,
+        "the groove must be a torus wall"
+    );
+    assert_eq!(
+        kind_count(|s| matches!(s, topo::Surface::Cone { .. })),
+        2,
+        "the rim shoulders must be cone walls"
+    );
     let note = format!(
-        "the groove is a RING-TORUS zone (off-axis arc carrier; the old 'off-axis \
-         arcs refuse as toroids' narration was stale — only horn/spindle tori \
-         refuse typed today); volume matches the closed-form Pappus value \
-         3.411pi - 0.189pi^2 to {rel:.1e} relative"
+        "surface census: 6 planes, 5 cylinders, 2 CONES (tapered rim shoulders), \
+         1 TORUS (groove) — all four analytic wall kinds on one part (the pulley, \
+         whose kinds were a subset, retired here); volume matches the closed-form \
+         Pappus value 2pi*1997/1200 - 0.189pi^2 to {rel:.1e} relative"
     );
     (body, note)
 }
 
-/// V-groove pulley: an off-axis polyline profile, fully revolved.
-fn pulley() -> topo::Body<f64> {
+/// Quarter-turn chute (the wedge's successor at the #91 revision
+/// pass): a C-channel cross-section swept through a 270-degree
+/// partial revolve — a curved trough with wedge caps at both ends,
+/// annular rims, and four cylinder bands. A more interesting partial
+/// revolve than the old plain rectangle, still boolean-free.
+fn chute() -> (topo::Body<f64>, String) {
     let lp = ProfileLoop::polygon([
-        p2(0.5, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 0.35),
-        p2(1.45, 0.75),
-        p2(2.0, 1.15),
-        p2(2.0, 1.5),
-        p2(0.5, 1.5),
+        p2(1.0, 0.0),
+        p2(1.75, 0.0),
+        p2(1.75, 0.625),
+        p2(1.5625, 0.625),
+        p2(1.5625, 0.1875),
+        p2(1.1875, 0.1875),
+        p2(1.1875, 0.625),
+        p2(1.0, 0.625),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .expect("revolve pulley")
-        .body
-}
-
-/// Quarter wedge: a partial (90°) revolve — wedge caps, arc rims.
-fn wedge() -> topo::Body<f64> {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    revolve(
+    let body = revolve(
         &validated(vec![lp]),
         axis_y(),
-        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        Revolution::Partial(3.0 * core::f64::consts::FRAC_PI_2),
     )
-    .expect("revolve wedge")
-    .body
+    .expect("revolve chute")
+    .body;
+    // Pappus for the partial sweep (independent derivation, exact):
+    // profile first moment 429/1024, angle 3pi/2 => V = (1287/2048)pi.
+    let oracle = (1287.0 / 2048.0) * core::f64::consts::PI;
+    let v = topo::mass_properties(&body)
+        .expect("chute mass properties")
+        .volume;
+    let rel = ((v - oracle) / oracle).abs();
+    assert!(
+        rel < 1e-12,
+        "chute volume {v} vs closed-form {oracle} (rel {rel:.3e})"
+    );
+    let note = format!(
+        "C-channel profile x 270 degrees about y; volume matches the closed-form \
+         Pappus value (1287/2048)pi to {rel:.1e} relative"
+    );
+    (body, note)
 }
 
 fn stop(
@@ -193,13 +223,18 @@ fn stop(
 /// The sweep stops, in tour order.
 pub fn stops() -> Vec<Stop> {
     let (sheave_body, sheave_note) = sheave();
+    let (chute_body, chute_note) = chute();
     vec![
         stop(
             "bracket",
             "L-bracket with a filleted inner corner (polyline + tangent arc profile)",
             "LoopBuilder (line_to/arc_to_via) -> Profile::validate -> extrude(Distance)",
             1e-2,
-            View { elev: 32.0, azim: -55.0, up: 'z' },
+            View {
+                elev: 32.0,
+                azim: -55.0,
+                up: 'z',
+            },
             [0.36, 0.56, 0.86],
             bracket(),
             None,
@@ -209,7 +244,11 @@ pub fn stops() -> Vec<Stop> {
             "plate with two circular holes — genus 2 (each hole: 2 rings, wall band)",
             "polygon outer + two closed arc-carrier holes -> extrude(Distance)",
             1e-2,
-            View { elev: 42.0, azim: -60.0, up: 'z' },
+            View {
+                elev: 42.0,
+                azim: -60.0,
+                up: 'z',
+            },
             [0.86, 0.51, 0.27],
             plate(),
             None,
@@ -219,40 +258,44 @@ pub fn stops() -> Vec<Stop> {
             "solid vase — axis-touching profile, spherical belly zone + conical lip",
             "LoopBuilder line/arc_to_via -> revolve(axis y, Full); sphere/cone/plane faces",
             2e-2,
-            View { elev: 16.0, azim: -55.0, up: 'y' },
+            View {
+                elev: 16.0,
+                azim: -55.0,
+                up: 'y',
+            },
             [0.42, 0.72, 0.50],
             vase(),
             None,
         ),
         stop(
             "sheave",
-            "rope-groove sheave — stepped hub, recessed web, semicircular groove; torus zone",
+            "rope-groove sheave — hub, web, TAPERED rim shoulders, semicircular groove: \
+             plane + cylinder + cone + torus on one part",
             "LoopBuilder polyline + arc -> revolve(axis y, Full), genus 1",
             5e-2,
-            View { elev: 26.0, azim: -55.0, up: 'y' },
+            View {
+                elev: 26.0,
+                azim: -55.0,
+                up: 'y',
+            },
             [0.78, 0.42, 0.72],
             sheave_body,
             Some(sheave_note),
         ),
         stop(
-            "pulley",
-            "V-groove pulley — off-axis polyline revolved; cones, cylinders, annuli",
-            "7-gon profile -> revolve(axis y, Full), genus 1",
+            "chute",
+            "quarter-turn chute — C-channel profile swept 270 degrees; wedge caps, \
+             curved trough",
+            "8-gon C-channel -> revolve(axis y, Partial(3pi/2))",
             2e-2,
-            View { elev: 22.0, azim: -55.0, up: 'y' },
-            [0.74, 0.68, 0.30],
-            pulley(),
-            None,
-        ),
-        stop(
-            "wedge",
-            "quarter wedge — partial 90 degree revolve with planar wedge caps",
-            "rectangle -> revolve(axis y, Partial(pi/2))",
-            1e-2,
-            View { elev: 35.0, azim: -40.0, up: 'y' },
+            View {
+                elev: 35.0,
+                azim: -40.0,
+                up: 'y',
+            },
             [0.44, 0.68, 0.78],
-            wedge(),
-            None,
+            chute_body,
+            Some(chute_note),
         ),
     ]
 }

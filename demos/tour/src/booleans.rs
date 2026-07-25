@@ -87,7 +87,9 @@ pub fn describe(v: &Verdict, expected: f64) -> String {
              instead of {expected} — caught by the tour's volume oracle"
         ),
         Verdict::Refused(e) => format!("typed refusal (fail-loud): {e:?}"),
-        Verdict::Empty => "typed EMPTY success (empty result - unexpected in this scene)".to_string(),
+        Verdict::Empty => {
+            "typed EMPTY success (empty result - unexpected in this scene)".to_string()
+        }
     }
 }
 

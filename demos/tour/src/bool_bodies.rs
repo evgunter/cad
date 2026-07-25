@@ -183,7 +183,10 @@ fn table() -> (topo::BooleanBody<f64>, String) {
         let base = acc.as_ref().map_or(&top, |b| &b.body);
         acc = Some(expect_seamed(
             "corner-straddle leg union",
-            check(crate::booleans::try_union(base, &leg(cx, cy, z_top)), expected),
+            check(
+                crate::booleans::try_union(base, &leg(cx, cy, z_top)),
+                expected,
+            ),
             expected,
         ));
     }
@@ -228,7 +231,9 @@ pub fn voidbox_narration() {
                  cutaway split, which shows interiors honestly"
             );
             match step_export::step_string(&b.body, &step_export::StepOptions::default()) {
-                Ok(_) => println!("   STEP export of the voided body: OK (unexpected — update this narration)"),
+                Ok(_) => println!(
+                    "   STEP export of the voided body: OK (unexpected — update this narration)"
+                ),
                 Err(e) => println!("   STEP export of the voided body refuses typed: {e:?}"),
             }
         }
@@ -249,7 +254,11 @@ pub fn stops() -> Vec<Stop> {
             ops: "extrude 22 boxes -> 21 sequential subtract nodes (Seamed single-ring pockets)",
             delta: 1e-2,
             note: Some(die_note),
-            view: View { elev: 28.0, azim: -55.0, up: 'z' },
+            view: View {
+                elev: 28.0,
+                azim: -55.0,
+                up: 'z',
+            },
             bodies: vec![SceneBody::seamed(
                 "die",
                 [0.88, 0.86, 0.80],
@@ -265,7 +274,11 @@ pub fn stops() -> Vec<Stop> {
             ops: "extrude 5 boxes (one shared builder) -> 4 sequential union nodes (Seamed)",
             delta: 1e-2,
             note: Some(table_note),
-            view: View { elev: 18.0, azim: -55.0, up: 'z' },
+            view: View {
+                elev: 18.0,
+                azim: -55.0,
+                up: 'z',
+            },
             bodies: vec![SceneBody::seamed(
                 "table",
                 [0.62, 0.45, 0.28],

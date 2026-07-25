@@ -97,10 +97,24 @@ pub fn stops() -> Vec<Stop> {
             ops: "2 x (extrude beam, extrude cutter -> subtract); mate by construction",
             delta: 1e-2,
             note: Some(note.clone()),
-            view: View { elev: 22.0, azim: -60.0, up: 'z' },
+            view: View {
+                elev: 22.0,
+                azim: -60.0,
+                up: 'z',
+            },
             bodies: vec![
-                SceneBody::seamed("crosslap_a", [0.72, 0.53, 0.30], a.body.clone(), a.contacts.clone()),
-                SceneBody::seamed("crosslap_b", [0.55, 0.42, 0.65], b.body.clone(), b.contacts.clone()),
+                SceneBody::seamed(
+                    "crosslap_a",
+                    [0.72, 0.53, 0.30],
+                    a.body.clone(),
+                    a.contacts.clone(),
+                ),
+                SceneBody::seamed(
+                    "crosslap_b",
+                    [0.55, 0.42, 0.65],
+                    b.body.clone(),
+                    b.contacts.clone(),
+                ),
             ],
         },
         Stop {
@@ -112,7 +126,11 @@ pub fn stops() -> Vec<Stop> {
             ops: "transform_rigid(beam B, +1.25 z) — transform witnesses re-minted",
             delta: 1e-2,
             note: None,
-            view: View { elev: 22.0, azim: -60.0, up: 'z' },
+            view: View {
+                elev: 22.0,
+                azim: -60.0,
+                up: 'z',
+            },
             bodies: vec![
                 SceneBody::seamed("crosslap_exp_a", [0.72, 0.53, 0.30], a.body, a.contacts),
                 // The lifted copy is a TRANSFORM result, not a boolean

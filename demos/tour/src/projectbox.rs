@@ -31,8 +31,11 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
     let outer = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
     let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0));
     let mut vol = 9.0 - 2.5 * 1.5 * 1.25;
-    let mut acc: BooleanBody<f64> =
-        expect_seamed("cavity subtract", check(try_subtract(&outer, &cavity), vol), vol);
+    let mut acc: BooleanBody<f64> = expect_seamed(
+        "cavity subtract",
+        check(try_subtract(&outer, &cavity), vol),
+        vol,
+    );
     let mut ops = 1;
 
     // Vent through-slots: 3 per long wall, cut clean through both wall
@@ -42,7 +45,11 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
         for y in [(-0.25, 0.5), (1.5, 2.25)] {
             let cutter = slab(x, y, (0.5, 1.25));
             vol -= 0.375 * 0.25 * 0.75;
-            acc = expect_seamed("vent slot", check(try_subtract(&acc.body, &cutter), vol), vol);
+            acc = expect_seamed(
+                "vent slot",
+                check(try_subtract(&acc.body, &cutter), vol),
+                vol,
+            );
             ops += 1;
         }
     }
@@ -68,7 +75,11 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
             let py = (y.0 + 0.09375, y.1 - 0.09375);
             let pocket = slab(px, py, (0.5625, 1.0625));
             vol -= 0.1875 * 0.1875 * 0.3125;
-            acc = expect_seamed("pilot pocket", check(try_subtract(&acc.body, &pocket), vol), vol);
+            acc = expect_seamed(
+                "pilot pocket",
+                check(try_subtract(&acc.body, &pocket), vol),
+                vol,
+            );
             ops += 1;
         }
     }
@@ -91,7 +102,11 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
         ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes",
         delta: 1e-2,
         note: Some(note),
-        view: View { elev: 33.0, azim: -125.0, up: 'z' },
+        view: View {
+            elev: 33.0,
+            azim: -125.0,
+            up: 'z',
+        },
         bodies: vec![SceneBody::seamed(
             "projectbox",
             [0.40, 0.60, 0.72],
