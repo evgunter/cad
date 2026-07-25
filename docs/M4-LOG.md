@@ -900,3 +900,39 @@ opacity, D6.1 single-qualifier counted, goldens cross-lane. Fix
 pass dispatched (report will persist to pr4-fixpass-report.md);
 merge gates on ACTIONS per the new policy. pr4-review clone
 removed (report + probes preserved).
+
+**Successor orchestrator picked up (2026-07-25, post-/clear
+continuation — monitors and subagents inherited live).** Fix pass
+RECEIVED: `e6f78b7` pushed; P1 (walk_names Partners::Include|Skip
++ kind filter, probe inverted to pin), P2 (blind-spot docs widened;
+qualifier_delta rung fires on clean single-SideOf-entry deltas with
+unanimous signs, serves no-prior path too; REPORTED boundary
+ACCEPTED: Mixed/On have no honest single-Sign reading in N5's
+payload — those deltas fall through to the honestly-re-documented
+fallback, negatively pinned), P3 (three positive tests incl. the
+EMPTY-FlipSet population-cancel shape), P4 (tombstone debug_assert,
+exhaustive walk_names, parallel verdict-log pin). Local battery
+running as confirmation only. **PR 4 OPENED: #96** with the full
+D1-D9 + review-outcome writeup; merge gates on green Actions
+(checks running; watcher armed). **NEW ISSUE #95** (fix-pass
+REPORT): memo transfer can reuse stale name tables — names embed
+minting node ids (N1) but content keys exclude them (D8), so the
+names half of a memoized value is not a pure function of its
+content key; reachable by re-pointing an input to a bit-identical
+twin. Ruled: "accept + document" rejected (silent recipe-lie, the
+class R9/N5 forbid); recommended disposition 1 = re-derive the
+naming half on mismatched transfer (store minting context beside
+the memo; geometry reuse unchanged); sign-off comment posted and
+on the watchlist (comment 5077325409); lands in PR 5 spec or a
+small dedicated PR after Evan's 👍. **DEMO IMPLEMENTER LAUNCHED**
+(clone ~/.local/share/cad-work/demos, branch ev/m4-demo-refresh):
+scope = Evan's picks C1, C2 H×T (+3-way), C3, C4, C5, C9, C10 +
+tier-3′ modernization; retirements donut/openbox/voidbox-panel;
+wedge STAYS (C6 not picked); A×Z explicitly out of scope (banked
+acceptance fixture); no-coincident-planes design rule and FreeCAD
+render path per #91 evidence; report to demo-refresh-report.md;
+review pipeline after. Next: PR 4 merge on green → PR 5 spec
+(GeomSource + Declare; #95 disposition folds in on sign-off;
+corner-table + lap-joint tripwires and #91 flush-plane demos are
+its acceptance showcases; R13 boolean-of-boolean fixtures
+unblocked).
