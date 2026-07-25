@@ -10,7 +10,7 @@ use std::f64::consts::FRAC_PI_2;
 use common::prism_z;
 use geom_core::{Affine3, Point3, Vec3};
 use topo::{
-    Body, BooleanResult, mass_properties, subtract, transform_rigid, validate, validate_closed,
+    Body, BooleanResult, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
 };
 

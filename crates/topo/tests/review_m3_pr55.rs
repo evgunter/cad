@@ -22,7 +22,7 @@ use common::{flush_declarations, line, plane, prism_z};
 use geom_core::{Decide, Point3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, FaceSurface, MefSite,
-    MevSite, mass_properties, subtract, subtract_with, union_with, validate, validate_closed,
+    MevSite, mass_properties, subtract_with, union_with, validate, validate_closed,
 };
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {

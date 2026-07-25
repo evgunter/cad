@@ -15,7 +15,7 @@ mod common;
 use common::{mapped_cube, prism_z};
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError, intersect,
+    Body, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
     intersect_with, mass_properties, subtract_with, union, union_with, validate_geometric,
     validate_pseudomanifold,
 };
