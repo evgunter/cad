@@ -1,17 +1,18 @@
 //! The tour's ONLY boolean call sites — a deliberately thin,
-//! centralized wrapper over `topo::{union, subtract}` (M3 PR 5) so
-//! that any API shift in PR 5's in-flight review pass is a one-file
-//! adaptation here.
+//! centralized wrapper over `topo::{union, subtract, intersect}` so
+//! any API shift is a one-file adaptation here — plus the shared
+//! exact-volume oracle every boolean scene runs its results through.
 //!
-//! Also holds the tier-3 posture pass for boolean outputs: seam edges
-//! carry chord-line descriptions (the documented PR 3 description
-//! gap), so tier 3 at rest runs on a clone whose edges are upgraded to
-//! `Intersection` descriptions through the certified `set_edge_curve`
-//! path — the honest upgrade op itself is a PR 6 obligation.
+//! Tier-3 posture: RETIRED as a workaround. Boolean results validate
+//! as they are, via `validate_pseudomanifold` with the op's own
+//! declared `contacts` (M3 PR 6a's 3′ contract) — see
+//! `crate::run_body`. The `upgrade_edges_to_intersections` clone hack
+//! that used to live here (a PR 3-era description-gap workaround) is
+//! deleted; the kernel caught up.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use topo::{Body, BooleanError, BooleanResult, EdgeCurveSpec, EdgeGeometry};
+use topo::{Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
 
 /// A ∪* B — refusals surface to the caller; every result goes through
 /// the scene builders' exact-volume oracle before it ships.
@@ -24,39 +25,67 @@ pub fn try_subtract(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, 
     topo::subtract(a, b)
 }
 
-// The chord-normalization workaround (`normalize_edges_to_chords`)
-// that used to live here is RETIRED: PR 5's extrude-operand
-// description remap makes raw extrude output boolean-consumable,
-// proven end-to-end by the PR 5.5 review's die e2e
-// (crates/stl/tests/review_m3_pr55_e2e.rs).
+/// A ∩* B (same posture as [`try_union`]).
+pub fn try_intersect(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, BooleanError> {
+    topo::intersect(a, b)
+}
 
-/// Tier-3 posture pass (module docs): re-describes every edge of a
-/// planar-faced body as the `Intersection` of its two adjacent faces'
-/// surfaces (witness at the chord midpoint), through the certified
-/// `set_edge_curve` path. Mirrors the kernel test suite's documented
-/// posture for boolean outputs.
-pub fn upgrade_edges_to_intersections(body: &mut Body<f64>) {
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in edges {
-        let face_surface = |body: &Body<f64>, he| {
-            let he_data = body.get_half_edge(he).unwrap();
-            let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-            body.get_face(loop_data.face).unwrap().surface
-        };
-        let s1 = face_surface(body, edge.he_plus);
-        let s2 = face_surface(body, edge.he_minus);
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = *body
-            .get_point(body.get_vertex(start).unwrap().point)
-            .unwrap();
-        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
-        let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeGeometry::Intersection {
-            s1,
-            s2,
-            witness: p0.lerp(p1, 0.5),
-        };
-        body.set_edge_curve(edge_key, spec).unwrap();
+/// The oracle: volume of a boolean result vs the exact expectation.
+/// `Good` carries the whole [`BooleanBody`] (body + kind + the
+/// declared contacts the 3′ gate consumes); the two failure shapes
+/// carry what actually happened, for narration.
+// Size skew vs the slim failure variants is inherent (same posture as
+// the kernel's own `BooleanResult`).
+#[allow(clippy::large_enum_variant)]
+pub enum Verdict {
+    Good(BooleanBody<f64>),
+    /// Op "succeeded" (tier 1+2 legal) with the WRONG volume — the
+    /// silent wrong-component defect class (extinct since the PR 5
+    /// fix pass; the oracle stays armed anyway).
+    Wrong(f64, BooleanResultKind),
+    Refused(BooleanError),
+}
+
+pub fn check(r: Result<BooleanResult<f64>, BooleanError>, expected: f64) -> Verdict {
+    match r {
+        Ok(BooleanResult::Body(b)) => {
+            let v = topo::mass_properties(&b.body)
+                .expect("mass properties")
+                .volume;
+            if (v - expected).abs() <= 1e-9 {
+                Verdict::Good(b)
+            } else {
+                Verdict::Wrong(v, b.kind)
+            }
+        }
+        Ok(BooleanResult::Empty) => Verdict::Refused(BooleanError::UnrepresentableResult),
+        Err(e) => Verdict::Refused(e),
+    }
+}
+
+pub fn describe(v: &Verdict, expected: f64) -> String {
+    match v {
+        Verdict::Good(b) => format!("OK (kind {:?}, volume exact {expected})", b.kind),
+        Verdict::Wrong(vol, kind) => format!(
+            "SILENT WRONG RESULT (kind {kind:?}): tier 1+2 passed but volume = {vol} \
+             instead of {expected} — caught by the tour's volume oracle"
+        ),
+        Verdict::Refused(e) => format!("typed refusal (fail-loud): {e:?}"),
+    }
+}
+
+/// Unwraps a [`Verdict`] the scene REQUIRES to be good and `Seamed`,
+/// with the failure narrated in the panic.
+pub fn expect_seamed(what: &str, v: Verdict, expected: f64) -> BooleanBody<f64> {
+    match v {
+        Verdict::Good(b) => {
+            assert_eq!(
+                b.kind,
+                BooleanResultKind::Seamed,
+                "{what}: expected a Seamed result"
+            );
+            b
+        }
+        other => panic!("{what} failed: {}", describe(&other, expected)),
     }
 }
