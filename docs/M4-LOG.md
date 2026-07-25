@@ -679,3 +679,21 @@ ideation agent launched — inventory the montage, flag weak entries
 grounds and envelope-honest feasibility tiers (NOW / post-#90 /
 post-PR-5 / M5-tripwired), file as a pick-list issue for Evan.
 No implementation until his picks.
+
+**Demo refresh proposal filed (issue #91, 2026-07-24)**: 12
+candidates, top-5: cross-lap joint (Evan's crossing-slots, post-
+#90), shadow-silhouette solid (first-ever `intersect` demo, 3-way
+post-#90), project-box enclosure (longest boolean-of-boolean
+chain), parametric heat-sink strip (first M4-layer demo: one
+recipe, three fin counts, counted downstream-only recompute —
+feasible NOW), cutaway section (first `split` demo, re-minted
+transform separation). Donut → half-torus grab handle (keeps the
+montage's only torus). Inventory surprises, fix-regardless: (a)
+the tour still validates boolean stops via the pre-M3-PR-6a
+upgrade_edges_to_intersections clone hack instead of
+validate_pseudomanifold + contacts; (b) NOTHING in the demo suite
+exercises STEP export; (c) topo::intersect and topo::split have
+never appeared in any demo. Envelope note candidates respect:
+gate_planar refuses booleans if ANY operand face is curved (arcs
+and booleans stay separated until M5); flush-plane contact refuses
+until PR 5. Awaiting Evan's picks on #91.
