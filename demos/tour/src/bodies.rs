@@ -46,11 +46,22 @@ fn circle(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 
 /// L-bracket: polyline + one fillet arc at the inner corner, extruded.
 fn bracket() -> topo::Body<f64> {
+    // Fillet apex: the r = 0.5 arc tangent to y = 1 at (1.5, 1) and to
+    // x = 1 at (1, 1.5) has center (1.5, 1.5); its apex is at
+    // 1.5 − r/√2 in both coordinates. The via point must be this EXACT
+    // value: a decimal rounding (the original 1.146) perturbs the
+    // carrier circle so that its clearance to the adjacent line
+    // carriers is ~2.3e-6 — inside the escalation band at
+    // CAD_TOLERANCE_EPS=1e-6, so validation (correctly) refuses the
+    // near-tangency as ambiguous and the tour dies (#99). Exact
+    // tangency keeps the carrier_line_circle margin at rounding noise
+    // (~1e-16), a definite Zero at every supported ε.
+    let apex = 1.5 - 0.5 * core::f64::consts::FRAC_1_SQRT_2;
     let lp = LoopBuilder::start(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0))
         .line_to(p2(3.0, 1.0))
         .line_to(p2(1.5, 1.0))
-        .arc_to_via(p2(1.146, 1.146), p2(1.0, 1.5)) // r = 0.5 inner fillet
+        .arc_to_via(p2(apex, apex), p2(1.0, 1.5)) // r = 0.5 inner fillet
         .line_to(p2(1.0, 3.0))
         .line_to(p2(0.0, 3.0))
         .close();
