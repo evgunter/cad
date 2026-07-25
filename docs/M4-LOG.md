@@ -1319,3 +1319,17 @@ exactness contract all open); the algebra gets exercised by real
 authoring before entering the file format. Evan's philosophy point
 (program = truer recipe form) accepted — it's what upgrades v2
 from option to commitment. Recorded on #104.
+
+**#93 merge-under complete (2026-07-25, @ 51d6244)**: clean merge
+with PR 5, post-merge battery green (1260/1405 baselines + 5
+acceptance tests), flush/rung-(b)/goldens unchanged, and the
+REPORT-item pin landed exactly per ruling — coupled flush A×Z
+refuses UndeclaredCoincidence undeclared, succeeds EXACTLY
+(2562165/950272) with all six pairs declared, through the new
+anchor tiers: PR 5's narrowing and #93's fix compose as designed.
+Adversarial reviewer LAUNCHED (blinded, rubric; attack list:
+oracle re-derivation, envelope non-widening + fresh opposite-side
+case, Newell-predicate soundness + Interval escalation, centroid
+boundary certification, doubly-nested rehome case, golden
+stability, declared-arm truth). Three lanes now: PR 6, #101,
+#93-review.
