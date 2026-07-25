@@ -840,6 +840,21 @@ fn cut_pair<T: Decide>(
 /// never consults strut side labels — pierce-ring struts carry
 /// provisional labels (PR 4's flag), and single-face seam rings have
 /// no in-solid label anchor; geometry is the anchor.
+///
+/// Anchor tiers (issue #93, the A×Z finding): vertices first — the
+/// original M3 PR 5 anchor, exhausted over BOTH loops before any new
+/// probing so the existing corpus sees a bit-identical predicate
+/// stream — then EDGE MIDPOINTS of the same region loops in the same
+/// iteration order. An isolated seam polygon can leave every flanking
+/// region bounded entirely by seam vertices (all `OnBoundary`), yet
+/// its non-seam edges' interiors classify definitively; the midpoint
+/// (`lerp` at ½, the [`super::ops`] witness-point precedent) is probed
+/// through the same [`point_in_solid`] reified-predicate funnel — no
+/// new predicate, no epsilon comparison. Seam-chord midpoints lie ON
+/// the other boundary and are skipped by the trilean like seam
+/// vertices. Regions bounded entirely by edges INSIDE the other
+/// body's boundary (the coincident-plane class) still exhaust both
+/// tiers → the typed refusal below stays.
 fn resolve_roles_geometric<T: Decide>(
     body: &Body<T>,
     other_pristine: &Body<T>,
@@ -848,8 +863,16 @@ fn resolve_roles_geometric<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
+    /// Which point of a region-loop half-edge anchors the probe.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Anchor {
+        /// The half-edge's start vertex (the M3 PR 5 anchor).
+        Vertex,
+        /// The half-edge's chord midpoint (issue #93's tier).
+        EdgeMidpoint,
+    }
     let desync = |what| BooleanError::JoinDesync { what };
-    let probe = |l: LoopKey| -> Result<Option<bool>, BooleanError> {
+    let probe = |l: LoopKey, anchor: Anchor| -> Result<Option<bool>, BooleanError> {
         let crate::entity::LoopBoundary::Cycle { first } = body
             .get_loop(l)
             .ok_or(desync("completed section loop no longer resolves"))?
@@ -892,10 +915,21 @@ fn resolve_roles_geometric<T: Decide>(
                         .get_half_edge(rhe)
                         .ok_or(desync("region half no longer resolves"))?
                         .start;
-                    let p = body
+                    let start = body
                         .get_vertex(v)
                         .and_then(|vd| body.get_point(vd.point).copied())
                         .ok_or(desync("region vertex has no point"))?;
+                    let p = match anchor {
+                        Anchor::Vertex => start,
+                        Anchor::EdgeMidpoint => {
+                            let end = body
+                                .half_edge_end(rhe)
+                                .and_then(|ev| body.get_vertex(ev))
+                                .and_then(|vd| body.get_point(vd.point).copied())
+                                .ok_or(desync("region half has no end point"))?;
+                            start.lerp(end, T::from_f64(0.5))
+                        }
+                    };
                     match super::solid_contain::point_in_solid(other_pristine, p, band)
                         .map_err(BooleanError::Containment)?
                     {
@@ -908,38 +942,49 @@ fn resolve_roles_geometric<T: Decide>(
         }
         Ok(None)
     };
-    let roles = match probe(outer)? {
-        Some(outer_in) => {
-            // The two regions flank the seam: the other loop takes the
-            // opposite role (checked when it also resolves). Defensive
-            // guard (PR 5.5 review, MINOR (b)): no constructible
-            // agreeing-verdicts witness is known post-discipline; kept
-            // as a loud backstop, never deleted.
-            if probe(ring)? == Some(outer_in) {
-                return Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
-                    face,
-                }));
-            }
-            if outer_in {
-                (outer, ring)
-            } else {
-                (ring, outer)
-            }
-        }
-        None => match probe(ring)? {
-            Some(ring_in) => {
-                if ring_in {
-                    (ring, outer)
+    // One anchor tier at a time, both loops, before the next tier —
+    // the vertex tier is exhausted first so the existing corpus sees
+    // an unchanged predicate stream (doc above).
+    let resolve = |anchor: Anchor| -> Result<Option<(LoopKey, LoopKey)>, BooleanError> {
+        Ok(match probe(outer, anchor)? {
+            Some(outer_in) => {
+                // The two regions flank the seam: the other loop takes
+                // the opposite role (checked when it also resolves).
+                // Defensive guard (PR 5.5 review, MINOR (b)): no
+                // constructible agreeing-verdicts witness is known
+                // post-discipline; kept as a loud backstop, never
+                // deleted.
+                if probe(ring, anchor)? == Some(outer_in) {
+                    return Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
+                        face,
+                    }));
+                }
+                if outer_in {
+                    Some((outer, ring))
                 } else {
-                    (outer, ring)
+                    Some((ring, outer))
                 }
             }
-            None => {
-                return Err(desync(
-                    "neither section loop's regions hold a classifiable vertex",
-                ));
-            }
-        },
+            None => match probe(ring, anchor)? {
+                Some(ring_in) => {
+                    if ring_in {
+                        Some((ring, outer))
+                    } else {
+                        Some((outer, ring))
+                    }
+                }
+                None => None,
+            },
+        })
     };
-    Ok(roles)
+    if let Some(roles) = resolve(Anchor::Vertex)? {
+        return Ok(roles);
+    }
+    match resolve(Anchor::EdgeMidpoint)? {
+        Some(roles) => Ok(roles),
+        None => Err(desync(
+            "neither section loop's regions hold a classifiable anchor \
+             (vertices and edge midpoints all on the other boundary)",
+        )),
+    }
 }
