@@ -792,3 +792,15 @@ gate.sh as the pre-merge gate for wall-clock (hosted run ≈ 7 min
 rows in parallel — actually comparable; the real difference is
 gate.sh needs no billing and runs pre-push). Decision deferred to
 Evan; both stay for now.
+
+**#92 follow-ups from Evan (2026-07-25)**: (1) black-box appearance
+metadata — agreed additive; BANKED AS PR 6 SPEC ITEM (schema v1
+freeze is the decision point; opaque Custom{key, bytes} arm or
+metadata map; F3/bit_eq constraint = bit-exact serializable,
+trivially satisfied by bytes). (2) joining painted objects: no
+errors by construction (resolves-anywhere; worst case = paint not
+propagating until Rebind); industry standard is silent topological-
+naming color-following — the N5-banned shape; our flow = displayed-
+node rendering + PR 4 one-click Rebind offers + open N5 door for a
+ratified carry policy. GUI-DESIGN note added on main (55a31d8);
+answered on #92.
