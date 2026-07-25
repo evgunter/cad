@@ -734,3 +734,22 @@ isometric, no display — proposed as montage render path (F6
 dogfooding; matplotlib kept as the tessellation-proving fallback;
 ~1 min startup ⇒ batch stops in one session). Issue #91 body
 updated + evidence comment posted. Picks still open.
+
+**Gate FAIL false alarm (2026-07-24): OOM, not code.** Appearance
+gate run 2 failed ONLY the f64 ε=1e-6 row, in 4s, with a bare
+"Terminated" mid-suite (5/7 m4_pr2_eval tests already ok; same
+suites pass at 1e-9/1e-12/interval-1e-6). Cause: ~5G-RAM WSL
+instance running the gate + two agent batteries concurrently —
+OOM kill. Machine now quiet (batteries done); gate re-running.
+RAM-contention corollary added to the disk-watchdog memory.
+**PR 90 review returned: mergeable-after-fixes** — core cascade
+fix verified (panic reproduced on revert; trace corroborated via
+kef's debug postconditions; structural proof: the cascade fires
+only in states the pre-fix kernel already flagged as bugs — no
+wrong-removal window constructible; D9 clean). Required: F1 kef
+cascade-door test (reviewer's ready-made probe — the door hunk
+currently has ZERO coverage and a demonstrable pre-hunk misreport)
++ F2 interval-lane parity in the fixture (tier 3′ + transform);
+doc-drift fix rides along. Follow-up issues to file: unreported-
+kill channel on kev/kemr/split_edge result structs; corrupt-input
+misattribution note. Fix pass dispatched.

@@ -27,3 +27,13 @@ purge torn binaries in every surviving target that was building
 treat test results from the pressure window as suspect (ENOSPC can
 kill processes silently). See [[worktree-disk-hygiene]],
 [[hourly-agent-checkins]].
+
+**RAM contention corollary (2026-07-24)**: this WSL instance has
+only ~5G RAM. Running the gate concurrently with agent test
+batteries can OOM-kill a gate test process mid-suite — observed as
+a bare "Terminated" in one ε row (4s FAIL) while every other row
+passed; the identical suites passed on rerun with a quiet machine.
+Before diagnosing a fast single-row gate FAIL as a code bug: check
+for "Terminated", check what else was running, and rerun quiet.
+Prefer sequencing agent batteries away from gate runs when
+possible.
