@@ -4,6 +4,7 @@
 //! Undo/redo is keeping prior values — no edit destroys history at
 //! this layer (spec D2).
 
+use crate::appearance::{Attr, AttrKind};
 use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::names::EntityKind;
@@ -21,7 +22,6 @@ use crate::witness::{BranchCertification, WitnessDatum};
 /// - `SetTolerance` — the recorded-ε edit with its flipped-predicate
 ///   audit (H4); PR 6 (the verdict-diff engine it reports through is
 ///   [`crate::resolve::diff_verdicts`], already built).
-/// - Appearance edits — presentation attachment by StableName; PR 7.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DocEdit<P> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the
@@ -78,8 +78,8 @@ pub enum DocEdit<P> {
         value: DocParam,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
-    /// site that references `from` EXACTLY (Declare pairs in v1;
-    /// appearance keys when PR 7's store lands) to reference `to`.
+    /// site that references `from` EXACTLY (Declare pairs and
+    /// appearance-store keys in v1) to reference `to`.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
     /// menu). Validation mirrors Declare's edit-time carve-out: node
@@ -118,6 +118,31 @@ pub enum DocEdit<P> {
         /// The certified-same-branch evidence (opaque; M6's checker
         /// consumes it).
         certification: BranchCertification,
+    },
+    /// Attach (or replace) one appearance attribute on a face or body
+    /// stable name (M4 PR 7; [`crate::appearance`] module docs).
+    /// Validation mirrors `Declare`'s ruled carve-out: the name's
+    /// NODE must be live at edit time (a never-existed id is a typo,
+    /// refused at the best-diagnostics door); name-LEVEL resolution
+    /// happens at evaluation, where a non-resolving name surfaces as
+    /// a typed [`crate::appearance::AppearanceLoss`] — never a silent
+    /// drop. A later `DeleteNode` MAY strand the attachment (N5
+    /// dangling semantics, same as Declare).
+    SetAppearance {
+        /// The face or body name attributed.
+        name: StableName,
+        /// The attribute (occupies its [`AttrKind`] slot; one per
+        /// kind per name).
+        attr: Attr,
+    },
+    /// Remove one attribute kind from a name. Deliberately does NOT
+    /// require the node to be live: clearing is the repair path for
+    /// attributes stranded on retired/deleted names.
+    ClearAppearance {
+        /// The attributed name.
+        name: StableName,
+        /// The attribute kind removed.
+        kind: AttrKind,
     },
 }
 
@@ -293,6 +318,41 @@ pub enum EditError {
     NameUnresolvedInEvaluation {
         /// The name no table carries.
         name: StableName,
+    },
+    /// A `Rebind` whose appearance-key rewrite would land two
+    /// attributes of the same kind on the target name (`from`'s
+    /// attribute set collides with one already attached to `to`).
+    /// Which value survives would be an auto-pick — refused loudly;
+    /// the repair is an explicit `ClearAppearance` on either side
+    /// first (fail-loud charter, the `ClearAppearance` loud-no-op
+    /// precedent).
+    RebindAppearanceCollision {
+        /// The target name that already carries the kind.
+        name: StableName,
+        /// The colliding attribute kind.
+        kind: AttrKind,
+    },
+    /// A `SetAppearance` on an edge or vertex name — v1 appearance is
+    /// per-face/per-body (M4-PLAN item 7); edge/vertex attributes are
+    /// a future additive extension, refused typed until ratified.
+    AppearanceWrongKind {
+        /// The refused name.
+        name: StableName,
+    },
+    /// A `SetAppearance` naming a node that is not live at edit time
+    /// (the Declare-parallel carve-out: a never-existed id is a typo;
+    /// see [`DocEdit::SetAppearance`]).
+    AppearanceNamesMissingNode {
+        /// The name whose node is not live.
+        name: StableName,
+    },
+    /// A `ClearAppearance` for an attribute that is not set — loud
+    /// no-ops per the fail-loud charter.
+    AppearanceNotSet {
+        /// The name.
+        name: StableName,
+        /// The kind that was not set on it.
+        kind: AttrKind,
     },
 }
 
@@ -568,31 +628,75 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference (v1 sites:
-            // Declare pairs). Zero sites = nothing to repair, refused.
-            let mut sites = 0usize;
+            // Declare pairs and appearance-store keys). Zero sites =
+            // nothing to repair, refused.
+            let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 if let Node::Declare { pairs } = node {
                     for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
                         if name == from {
                             *name = to.clone();
-                            sites += 1;
+                            declare_sites += 1;
                         }
                     }
                 }
             }
-            if sites == 0 {
+            // Appearance keys are rebind sites (the attribute rides
+            // the name — PR 7's store; also the spec D9 banked
+            // operand→final repair path). A per-kind collision with
+            // an attribute already on `to` is refused loudly: which
+            // value survives would be an auto-pick.
+            let mut appearance_sites = 0usize;
+            if let Some(moved) = new.appearance.remove(from) {
+                appearance_sites += 1;
+                let dst = new.appearance.entry(to.clone()).or_default();
+                for (kind, attr) in moved {
+                    if dst.contains_key(&kind) {
+                        return Err(EditError::RebindAppearanceCollision {
+                            name: to.clone(),
+                            kind,
+                        });
+                    }
+                    dst.insert(kind, attr);
+                }
+            }
+            if declare_sites + appearance_sites == 0 {
                 return Err(EditError::RebindNoReferences { name: from.clone() });
             }
             EditRecord {
                 minted: None,
                 // Declare payloads changed: content keys move and the
                 // (PR 5) threading consumes the pairs — structural.
-                structural: true,
+                // An appearance-only rebind is presentation motion:
+                // no content key moves, nothing recomputes.
+                structural: declare_sites > 0,
             }
         }
         DocEdit::ReWitness { node, witness } => {
             check_witness_site(&new, *node)?;
             new.witnesses.insert(*node, witness.clone());
+            EditRecord {
+                minted: None,
+                structural: false,
+            }
+        }
+        DocEdit::SetAppearance { name, attr } => {
+            // v1 scope: faces and bodies (M4-PLAN item 7); edges/
+            // vertices stay a typed refusal until ratified.
+            if !matches!(name.kind, EntityKind::Face | EntityKind::Body) {
+                return Err(EditError::AppearanceWrongKind { name: name.clone() });
+            }
+            // Node existence NOW, name-level resolution at evaluation
+            // (the ruled Declare carve-out, applied to the second
+            // name-referencing edit).
+            if !new.nodes.contains_key(&name.node) {
+                return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
+            }
+            new.appearance
+                .entry(name.clone())
+                .or_default()
+                .insert(attr.kind(), attr.clone());
+            // Presentation only: never structural, never a recompute.
             EditRecord {
                 minted: None,
                 structural: false,
@@ -617,6 +721,25 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             }
             for (node, witness) in entries {
                 new.witnesses.insert(*node, witness.clone());
+            }
+            EditRecord {
+                minted: None,
+                structural: false,
+            }
+        }
+        DocEdit::ClearAppearance { name, kind } => {
+            let not_set = || EditError::AppearanceNotSet {
+                name: name.clone(),
+                kind: *kind,
+            };
+            let Some(set) = new.appearance.get_mut(name) else {
+                return Err(not_set());
+            };
+            if set.remove(kind).is_none() {
+                return Err(not_set());
+            }
+            if set.is_empty() {
+                new.appearance.remove(name);
             }
             EditRecord {
                 minted: None,

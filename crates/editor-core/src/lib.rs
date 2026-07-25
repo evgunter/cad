@@ -15,6 +15,7 @@
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical
 //! instantiation at the profile crate's public description type.
 
+pub mod appearance;
 pub mod diff;
 pub mod doc;
 pub mod edit;
@@ -26,6 +27,10 @@ pub mod profile_desc;
 pub mod resolve;
 pub mod witness;
 
+pub use appearance::{
+    AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceResolution, Attr, AttrKind,
+    AttrSet, Rgba8,
+};
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};

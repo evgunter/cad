@@ -35,6 +35,9 @@ pub struct DocDiff {
     pub witnesses: Vec<RecipeNodeId>,
     /// Whether the metadata maps differ.
     pub metadata_changed: bool,
+    /// Whether the appearance stores differ (attribute values are
+    /// float-free, so structural comparison is bit comparison).
+    pub appearance_changed: bool,
 }
 
 impl DocDiff {
@@ -46,6 +49,7 @@ impl DocDiff {
             && !self.epsilon_changed
             && self.witnesses.is_empty()
             && !self.metadata_changed
+            && !self.appearance_changed
     }
 }
 
@@ -108,6 +112,7 @@ impl<P: PartialEq> Doc<P> {
             epsilon_changed: self.epsilon.to_bits() != other.epsilon.to_bits(),
             witnesses,
             metadata_changed: self.metadata != other.metadata,
+            appearance_changed: self.appearance != other.appearance,
         }
     }
 }
