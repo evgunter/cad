@@ -291,6 +291,19 @@ pub enum NodeErrorKind {
         /// The dangling id.
         input: RecipeNodeId,
     },
+    /// The document's recorded ε disagrees with the process's
+    /// committed ambient ε (M4 PR 6 spec D4: one process = one ε —
+    /// the kernel's every predicate reads the committed tolerance, so
+    /// evaluating this document here would silently use the wrong ε;
+    /// refused loudly on EVERY node instead). The repair is
+    /// persist-grade: save, and replay in a process whose ε matches
+    /// (load commits the recorded ε when the process is fresh).
+    ToleranceConflict {
+        /// The document's recorded ε.
+        document_eps: f64,
+        /// The process's committed ε.
+        process_eps: f64,
+    },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -464,6 +477,13 @@ where
     T: Decide + ContentBits + Send + Sync,
 {
     let sched = schedule::schedule(doc);
+    // D4 door (M4 PR 6): the recorded ε must BE the committed process
+    // ε — otherwise every predicate below would silently decide at
+    // the wrong tolerance. Refuse loudly, per node, staying total.
+    let process_eps = geom_core::Tolerance::get().eps;
+    if doc.epsilon().to_bits() != process_eps.to_bits() {
+        return refuse_tolerance_conflict(doc, sched, opts, process_eps);
+    }
     let env = doc.param_env::<T>();
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -546,6 +566,54 @@ where
         outcome,
         recomputed,
         reused,
+        appearance: resolved_appearance,
+    }
+}
+
+/// The all-nodes ToleranceConflict refusal (spec D4 door): a TOTAL
+/// evaluation in which every live node fails typed and the appearance
+/// store resolves against all-failed states (typed losses, nothing
+/// silent).
+fn refuse_tolerance_conflict<T>(
+    doc: &Doc<ProfileDesc>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    process_eps: f64,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + Send + Sync,
+{
+    let mut order = sched.order;
+    order.extend(sched.unschedulable.iter().copied());
+    let nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = order
+        .iter()
+        .map(|&id| {
+            (
+                id,
+                NodeResult::Failed(NodeError {
+                    node: id,
+                    kind: NodeErrorKind::ToleranceConflict {
+                        document_eps: doc.epsilon(),
+                        process_eps,
+                    },
+                }),
+            )
+        })
+        .collect();
+    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = nodes
+        .keys()
+        .map(|&id| (id, appearance::NodeState::Failed))
+        .collect();
+    let resolved_appearance =
+        appearance::resolve(doc.appearance(), |id| doc.node(id).is_some(), &states);
+    drop(states);
+    Evaluation {
+        epoch: opts.epoch,
+        order,
+        nodes,
+        outcome: EvalOutcome::Completed,
+        recomputed: 0,
+        reused: 0,
         appearance: resolved_appearance,
     }
 }
@@ -693,7 +761,14 @@ where
 {
     use crate::node::{Datum, Node, PatternKind};
     let mut h = KeyHasher::new();
-    h.write_tag(1); // key format v1
+    // Key format v2 (M4 PR 6 spec D5, banking PR 4 review Finding 8):
+    // the tag versions the key's INPUT-SET SHAPE, which grew since v1
+    // — witness datum (schema + bytes, PR 4/W5) and the naming-key
+    // context now feed the hash. Keys remain process-internal (spec
+    // D3: never persisted), so no migration machinery exists or is
+    // wanted; any future persistence of keys inherits this honest
+    // version. Bump AGAIN whenever the hashed input set changes.
+    h.write_tag(2);
     let tol = geom_core::Tolerance::get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);

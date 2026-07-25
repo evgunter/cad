@@ -52,6 +52,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::meta::MetaValue;
 use crate::names::{Entry, NameTable, RoleSeg, StableName};
 use crate::node::RecipeNodeId;
 
@@ -62,6 +63,8 @@ pub use crate::names::EntityRef;
 /// bit-exactly without entering any float policy (F3's NaN/inf
 /// refusal has nothing to inspect here).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rgba8 {
     /// Red channel.
     pub r: u8,
@@ -84,6 +87,8 @@ impl Rgba8 {
 /// per entity; a new kind is an additive variant here plus its
 /// [`Attr`] twin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum AttrKind {
     /// Display color.
     Color,
@@ -97,6 +102,8 @@ pub enum AttrKind {
 /// One appearance attribute value (closed enum, one variant per
 /// [`AttrKind`]; module docs on extension).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Attr {
     /// Display color.
     Color(Rgba8),
@@ -120,9 +127,35 @@ impl Attr {
 /// An entity's attributes, at most one per kind.
 pub type AttrSet = BTreeMap<AttrKind, Attr>;
 
-/// The document's appearance store: attributes keyed by stable name
+/// One name's full appearance record (M4 PR 6 spec D7): the typed
+/// display attributes plus BLACK-BOX metadata — a string-keyed map of
+/// [`MetaValue`] trees the kernel stores, round-trips, and never
+/// interprets (GUI/tooling vocabulary; each value carries a `"v"`
+/// version field by enforced producer convention — see
+/// [`crate::meta`]). N3/N5 retire/vanish semantics apply to the WHOLE
+/// record, metadata included ([`AppearanceLoss`] carries both).
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppearanceRecord {
+    /// The typed display attributes, at most one per kind.
+    pub attrs: AttrSet,
+    /// The black-box metadata (spec D7; floats inside obey D2 —
+    /// bit-exact via [`MetaValue`]'s bits-equality, NaN/inf refused at
+    /// the edit and persist doors).
+    pub metadata: BTreeMap<String, MetaValue>,
+}
+
+impl AppearanceRecord {
+    /// True when the record holds nothing (the store drops empty
+    /// records rather than keeping tombstones).
+    pub fn is_empty(&self) -> bool {
+        self.attrs.is_empty() && self.metadata.is_empty()
+    }
+}
+
+/// The document's appearance store: records keyed by stable name
 /// (the B11 wrapper-ready seam — document-local keys, module docs).
-pub type AppearanceMap = BTreeMap<StableName, AttrSet>;
+pub type AppearanceMap = BTreeMap<StableName, AppearanceRecord>;
 
 /// Why an appearance entry failed to resolve in an evaluation — the
 /// typed "appearance lost its target" state (N3/N5). PR 4's
@@ -187,6 +220,9 @@ pub struct AppearanceLoss {
     pub name: StableName,
     /// The attributes that were attached to it.
     pub attrs: AttrSet,
+    /// The black-box metadata attached to it (spec D7: the loss
+    /// carries the WHOLE record — nothing is silently dropped).
+    pub metadata: BTreeMap<String, MetaValue>,
     /// Why it did not resolve.
     pub cause: AppearanceLossCause,
 }
@@ -272,11 +308,12 @@ pub(crate) fn resolve(
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
 ) -> AppearanceResolution {
     let mut resolution = AppearanceResolution::default();
-    for (name, attrs) in appearance {
+    for (name, rec) in appearance {
         if !is_live(name.node) {
             resolution.losses.push(AppearanceLoss {
                 name: name.clone(),
-                attrs: attrs.clone(),
+                attrs: rec.attrs.clone(),
+                metadata: rec.metadata.clone(),
                 cause: AppearanceLossCause::NodeGone,
             });
             continue;
@@ -304,7 +341,7 @@ pub(crate) fn resolve(
                         .or_default()
                         .entry(*ent)
                         .or_default()
-                        .extend(attrs.iter().map(|(k, v)| (*k, v.clone())));
+                        .extend(rec.attrs.iter().map(|(k, v)| (*k, v.clone())));
                 }
                 Some(Entry::Tied(cands)) => {
                     // N2: never auto-pick among equally admissible
@@ -320,7 +357,8 @@ pub(crate) fn resolve(
         if let Some((at, width)) = tie {
             resolution.losses.push(AppearanceLoss {
                 name: name.clone(),
-                attrs: attrs.clone(),
+                attrs: rec.attrs.clone(),
+                metadata: rec.metadata.clone(),
                 cause: AppearanceLossCause::Ambiguous { at, width },
             });
         }
@@ -339,7 +377,8 @@ pub(crate) fn resolve(
         };
         resolution.losses.push(AppearanceLoss {
             name: name.clone(),
-            attrs: attrs.clone(),
+            attrs: rec.attrs.clone(),
+            metadata: rec.metadata.clone(),
             cause,
         });
     }
@@ -408,10 +447,13 @@ mod tests {
         }
     }
 
-    fn color() -> AttrSet {
+    fn color() -> AppearanceRecord {
         let mut s = AttrSet::new();
         s.insert(AttrKind::Color, Attr::Color(Rgba8::opaque(1, 2, 3)));
-        s
+        AppearanceRecord {
+            attrs: s,
+            metadata: BTreeMap::new(),
+        }
     }
 
     #[test]
@@ -437,7 +479,7 @@ mod tests {
         assert_eq!(r.losses.len(), 1);
         let loss = &r.losses[0];
         assert_eq!(loss.name, a);
-        assert_eq!(loss.attrs, color());
+        assert_eq!(loss.attrs, color().attrs);
         assert_eq!(
             loss.cause,
             AppearanceLossCause::Vanished {

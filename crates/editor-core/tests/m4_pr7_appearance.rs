@@ -91,6 +91,7 @@ fn set_appearance_validates_and_applies_purely() {
             .doc
             .appearance_of(&cap)
             .unwrap()
+            .attrs
             .get(&AttrKind::Color),
         Some(&red())
     );
@@ -155,18 +156,18 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     let doc = set(doc, body.clone(), Attr::Visibility(false));
     let doc = set(doc, body.clone(), Attr::Label("housing".into()));
     let attrs = doc.appearance_of(&body).unwrap();
-    assert_eq!(attrs.len(), 3);
+    assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
-        attrs.get(&AttrKind::Label),
+        attrs.attrs.get(&AttrKind::Label),
         Some(&Attr::Label("housing".into()))
     );
 
     // Same-kind set replaces (one slot per kind).
     let doc = set(doc, body.clone(), Attr::Color(Rgba8::opaque(0, 0, 255)));
     let attrs = doc.appearance_of(&body).unwrap();
-    assert_eq!(attrs.len(), 3);
+    assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
-        attrs.get(&AttrKind::Color),
+        attrs.attrs.get(&AttrKind::Color),
         Some(&Attr::Color(Rgba8::opaque(0, 0, 255)))
     );
 
@@ -182,6 +183,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     assert!(
         doc.appearance_of(&body)
             .unwrap()
+            .attrs
             .get(&AttrKind::Color)
             .is_none()
     );

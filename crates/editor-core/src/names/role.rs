@@ -36,6 +36,8 @@ use crate::node::RecipeNodeId;
 /// Entity kinds a [`StableName`] can denote (N1: bodies are
 /// first-class alongside faces/edges/vertices, Q-h).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum EntityKind {
     /// A whole body.
     Body,
@@ -51,6 +53,8 @@ pub enum EntityKind {
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StableName {
     /// The entity kind this name denotes (N1's `K`, runtime-tagged —
     /// module docs).
@@ -69,6 +73,8 @@ pub type RolePath = Vec<RoleSeg>;
 
 /// An extrude/revolve cap end.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum CapEnd {
     /// On the sketch plane translated by the extrusion vector.
     Top,
@@ -80,6 +86,8 @@ pub enum CapEnd {
 /// (module docs: the profile crate's canonical form, cited — not a
 /// bare index).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProfileEdgeRef {
     /// Canonical loop: 0 = outer, then holes in description order.
     pub loop_index: u32,
@@ -90,6 +98,8 @@ pub struct ProfileEdgeRef {
 /// A profile vertex by canonical combinatorial identity: vertex `v`
 /// starts segment `v` of its loop's canonical chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProfileVertexRef {
     /// Canonical loop index.
     pub loop_index: u32,
@@ -99,6 +109,8 @@ pub struct ProfileVertexRef {
 
 /// Which meridian of a revolve (the M2 band/pole/seam taxonomy).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum MeridianEnd {
     /// Partial: the start-cap side (on the sketch plane).
     Start,
@@ -114,6 +126,8 @@ pub enum MeridianEnd {
 /// normal side is `Above` — recipe-covariant: the tool is the split
 /// node's own input).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SplitHalf {
     /// Material on the tool plane's normal side.
     Above,
@@ -127,6 +141,8 @@ pub enum SplitHalf {
 /// verdict vector entry, still flip-localized (it changes only when
 /// a vertex's side verdict flips).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SideVerdict {
     /// Every off-plane probe decided positive.
     Positive,
@@ -145,6 +161,8 @@ pub enum SideVerdict {
 /// order-along comparison (N2's sanctioned order-along(oriented
 /// parent carrier)), which changes only at a recorded flip.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Qualifier {
     /// Sign vector of side-of(partner's oriented carrier plane), one
     /// entry per partner, sorted by partner name (`name_frag_side_of`
@@ -167,6 +185,8 @@ pub enum Qualifier {
 /// One op-typed role segment (N1; closed enum, spec D2). Grouped by
 /// op; each group versions with its op's contract.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum RoleSeg {
     // ---- Shared ----
     /// The single output body of a body-producing op (extrude,

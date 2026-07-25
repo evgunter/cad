@@ -8,15 +8,17 @@
 use std::collections::BTreeMap;
 
 use geom_core::Real;
-use geom_core::tolerance::DEFAULT_EPS;
+use geom_core::tolerance::Tolerance;
 
-use crate::appearance::{AppearanceMap, AttrSet};
+use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
 
 /// A document-level parameter name (spec D4's "parameter refs").
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ParamName(pub String);
 
 impl ParamName {
@@ -30,6 +32,8 @@ impl ParamName {
 /// stored value (spec D2/D4: `f64` bit-exact for continuous, `i64`
 /// for Count — bit-identical replay is trivial by representation).
 #[derive(Debug, Clone, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum DocParam {
     /// A continuous parameter in canonical kernel units.
     Continuous {
@@ -71,6 +75,8 @@ impl DocParam {
 /// document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
 #[derive(Debug, Clone, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Doc<P> {
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.
     /// Never decremented — deletion does not free ids (spec D3).
@@ -82,9 +88,10 @@ pub struct Doc<P> {
     pub(crate) order: Vec<RecipeNodeId>,
     /// Document-level named parameters.
     pub(crate) params: BTreeMap<ParamName, DocParam>,
-    /// The recorded modeling tolerance ε (H4's future landing:
-    /// `SetTolerance` arrives in PR 6; until then the ratified
-    /// compiled default, `geom_core::tolerance::DEFAULT_EPS`).
+    /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
+    /// documents record the process's committed ambient ε; loading
+    /// reconciles the recorded value against the process (one process
+    /// = one ε); `SetTolerance` edits it.
     pub(crate) epsilon: f64,
     /// Per-node witness data (M4 PR 4, SOLVER-DESIGN W1/W4): the
     /// opaque branch-selection datum of each sketch-bearing node,
@@ -100,6 +107,7 @@ pub struct Doc<P> {
     /// metadata: NEVER enters evaluation content keys — see
     /// [`crate::appearance`] for the loss (N3/N5) and wrapper (B11)
     /// semantics.
+    #[serde(with = "crate::persist::pairs")]
     pub(crate) appearance: AppearanceMap,
 }
 
@@ -110,15 +118,19 @@ impl<P> Default for Doc<P> {
 }
 
 impl<P> Doc<P> {
-    /// The empty document: no nodes, no params, recorded ε at the
-    /// ratified compiled default (D4 ¶1) — replay's origin (spec D7).
+    /// The empty document: no nodes, no params, recorded ε = the
+    /// process's ambient tolerance (M4 PR 6 spec D4: a new document
+    /// adopts the process ε, so in-process documents NEVER disagree
+    /// with the committed tolerance; the OnceLock bootstrap commits
+    /// here on first touch if nothing committed earlier) — replay's
+    /// origin (spec D7).
     pub fn empty() -> Self {
         Self {
             next_id: 0,
             nodes: BTreeMap::new(),
             order: Vec::new(),
             params: BTreeMap::new(),
-            epsilon: DEFAULT_EPS,
+            epsilon: Tolerance::get().eps,
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
@@ -179,8 +191,8 @@ impl<P> Doc<P> {
         &self.appearance
     }
 
-    /// One name's attributes, if any are attached.
-    pub fn appearance_of(&self, name: &StableName) -> Option<&AttrSet> {
+    /// One name's appearance record (attrs + D7 metadata), if any.
+    pub fn appearance_of(&self, name: &StableName) -> Option<&AppearanceRecord> {
         self.appearance.get(name)
     }
 
@@ -231,9 +243,10 @@ impl<P: PartialEq> Doc<P> {
             // conflate) — structural equality IS bit equality here.
             && self.witnesses == other.witnesses
             && self.metadata == other.metadata
-            // Appearance values are float-free by construction
-            // (integers/bools/strings), so structural equality IS bit
-            // equality here.
+            // Appearance attrs are float-free by construction
+            // (integers/bools/strings), and D7 metadata floats compare
+            // BY BITS through `MetaValue`'s own `PartialEq` — so
+            // structural equality IS bit equality here.
             && self.appearance == other.appearance
             && self.nodes.len() == other.nodes.len()
             && self.nodes.iter().all(|(id, node)| {

@@ -1,0 +1,289 @@
+//! The persistence doors' walks (spec D2/D6.3):
+//!
+//! - [`first_non_finite`] — the SAVE door: every float the format
+//!   would write, checked finite, with a typed site name. Expression
+//!   literals are finite BY CONSTRUCTION (`Expr::literal` refuses
+//!   non-finite — ruled door 1), so the walk covers the float carriers
+//!   outside that door: profile payloads, continuous doc params, the
+//!   recorded ε, and D7 metadata trees (in the snapshot AND in the
+//!   edit log). A NEW float-carrying field must join this walk — the
+//!   D2 round-trip property tests are the tripwire.
+//! - [`validate_snapshot`] — the LOAD door: a parsed snapshot is not
+//!   trusted; the document invariants `apply` maintains are re-checked
+//!   structurally before replay.
+
+use crate::appearance::AppearanceRecord;
+use crate::doc::{DocParam, ParamName};
+use crate::edit::DocEdit;
+use crate::expr::Dimension;
+use crate::meta::MetaVersionError;
+use crate::names::StableName;
+use crate::node::{Node, RecipeNodeId};
+use crate::profile_desc::{ProfileDesc, ProfileDoc};
+use crate::resolve::derivation_nodes;
+
+/// Where a non-finite float sits (the D2 refusal's typed site).
+#[derive(Debug, Clone, PartialEq)]
+pub enum NonFiniteSite {
+    /// The recorded ε.
+    Epsilon,
+    /// A continuous document parameter (snapshot).
+    DocParam {
+        /// The parameter.
+        name: ParamName,
+    },
+    /// A float of a profile node's payload (snapshot), by position in
+    /// the payload's canonical float traversal
+    /// ([`ProfileDesc::float_bits`] order).
+    Profile {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Index in the canonical float traversal.
+        index: usize,
+    },
+    /// A float inside an appearance record's metadata (snapshot).
+    Metadata {
+        /// The attributed name.
+        name: StableName,
+        /// The metadata key.
+        key: String,
+        /// Path within the value tree (dot/index notation).
+        path: String,
+    },
+    /// A float of a profile payload carried by an `InsertNode` edit
+    /// (the node id is minted only at replay, so the site is the
+    /// float's traversal index alone).
+    InsertedProfile {
+        /// Index in the canonical float traversal.
+        index: usize,
+    },
+    /// A float carried by an edit in the log; `index` is the edit's
+    /// position, `inner` the site within that edit's payload.
+    Edit {
+        /// The edit's index in the log.
+        index: usize,
+        /// The site within the edit.
+        inner: Box<NonFiniteSite>,
+    },
+}
+
+/// The first non-finite float the format would write, or `None`.
+pub(crate) fn first_non_finite(
+    snapshot: &ProfileDoc,
+    edits: &[DocEdit<ProfileDesc>],
+) -> Option<NonFiniteSite> {
+    if !snapshot.epsilon.is_finite() {
+        return Some(NonFiniteSite::Epsilon);
+    }
+    for (name, p) in &snapshot.params {
+        if let Some(site) = param_site(name, p) {
+            return Some(site);
+        }
+    }
+    for (&id, node) in &snapshot.nodes {
+        if let Node::Profile(desc) = node
+            && let Some(index) = profile_non_finite(desc)
+        {
+            return Some(NonFiniteSite::Profile { node: id, index });
+        }
+    }
+    for (name, rec) in &snapshot.appearance {
+        if let Some((key, path)) = record_non_finite(rec) {
+            return Some(NonFiniteSite::Metadata {
+                name: name.clone(),
+                key,
+                path,
+            });
+        }
+    }
+    for (index, edit) in edits.iter().enumerate() {
+        if let Some(inner) = edit_non_finite(edit) {
+            return Some(NonFiniteSite::Edit {
+                index,
+                inner: Box::new(inner),
+            });
+        }
+    }
+    None
+}
+
+fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
+    match p {
+        DocParam::Continuous { value, .. } if !value.is_finite() => {
+            Some(NonFiniteSite::DocParam { name: name.clone() })
+        }
+        _ => None,
+    }
+}
+
+fn profile_non_finite(desc: &ProfileDesc) -> Option<usize> {
+    desc.float_bits()
+        .iter()
+        .position(|&bits| bits != u64::MAX && !f64::from_bits(bits).is_finite())
+}
+
+fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
+    rec.metadata
+        .iter()
+        .find_map(|(key, value)| value.first_non_finite().map(|path| (key.clone(), path)))
+}
+
+/// The float carriers an edit can smuggle past `apply` (a saved log
+/// is DATA — it has not necessarily been applied by this process).
+fn edit_non_finite(edit: &DocEdit<ProfileDesc>) -> Option<NonFiniteSite> {
+    match edit {
+        DocEdit::InsertNode {
+            node: Node::Profile(desc),
+        } => profile_non_finite(desc).map(|index| NonFiniteSite::InsertedProfile { index }),
+        DocEdit::SetDocParam { name, value } => param_site(name, value),
+        DocEdit::SetAppearanceMeta { name, key, value } => {
+            value.first_non_finite().map(|path| NonFiniteSite::Metadata {
+                name: name.clone(),
+                key: key.clone(),
+                path,
+            })
+        }
+        DocEdit::SetTolerance { eps } if !eps.is_finite() => Some(NonFiniteSite::Epsilon),
+        _ => None,
+    }
+}
+
+/// A structural invariant violation in a parsed snapshot (load door).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SnapshotError {
+    /// `order` and the node map disagree (missing, extra, or
+    /// duplicated ids).
+    OrderMismatch,
+    /// An id at or beyond the mint counter appears in the document.
+    IdBeyondCounter {
+        /// The offending id.
+        id: RecipeNodeId,
+        /// The counter.
+        next_id: u64,
+    },
+    /// A node's input ref does not name a live node.
+    DanglingInput {
+        /// The referring node.
+        node: RecipeNodeId,
+        /// The missing input.
+        input: RecipeNodeId,
+    },
+    /// A node's input ref does not precede it in `order` (insertion
+    /// order is topological by construction — a forward ref means a
+    /// tampered file, and possibly a cycle).
+    ForwardInput {
+        /// The referring node.
+        node: RecipeNodeId,
+        /// The forward input.
+        input: RecipeNodeId,
+    },
+    /// A witness attached to a missing or non-sketch-bearing node.
+    WitnessSite {
+        /// The offending node id.
+        node: RecipeNodeId,
+    },
+    /// A continuous parameter declared with the Count dimension
+    /// (`apply` refuses this; a file must not smuggle it).
+    CountContinuous {
+        /// The parameter.
+        name: ParamName,
+    },
+    /// The recorded ε is not finite and strictly positive.
+    EpsilonInvalid {
+        /// The recorded value.
+        value: f64,
+    },
+    /// An appearance metadata value violating the D7 producer
+    /// convention (map with an integer `"v"`).
+    MetadataUnversioned {
+        /// The attributed name.
+        name: StableName,
+        /// The metadata key.
+        key: String,
+        /// The typed shape refusal.
+        error: MetaVersionError,
+    },
+}
+
+/// Re-checks the document invariants on a parsed snapshot.
+pub(crate) fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
+    // order ↔ nodes agreement (and no duplicates: equal lengths plus
+    // every order id resolving implies a bijection on a BTreeMap).
+    let mut position = std::collections::BTreeMap::new();
+    for (i, &id) in doc.order.iter().enumerate() {
+        if !doc.nodes.contains_key(&id) || position.insert(id, i).is_some() {
+            return Err(SnapshotError::OrderMismatch);
+        }
+    }
+    if position.len() != doc.nodes.len() {
+        return Err(SnapshotError::OrderMismatch);
+    }
+    if !(doc.epsilon.is_finite() && doc.epsilon > 0.0) {
+        return Err(SnapshotError::EpsilonInvalid { value: doc.epsilon });
+    }
+    for (name, p) in &doc.params {
+        if matches!(
+            p,
+            DocParam::Continuous {
+                dim: Dimension::Count,
+                ..
+            }
+        ) {
+            return Err(SnapshotError::CountContinuous { name: name.clone() });
+        }
+    }
+    // Every id in the document stays below the mint counter — replay
+    // after load must never re-mint a referenced id.
+    let check_id = |id: RecipeNodeId| -> Result<(), SnapshotError> {
+        if id.0 >= doc.next_id {
+            Err(SnapshotError::IdBeyondCounter {
+                id,
+                next_id: doc.next_id,
+            })
+        } else {
+            Ok(())
+        }
+    };
+    for (&id, node) in &doc.nodes {
+        check_id(id)?;
+        for input in node.inputs() {
+            check_id(input)?;
+            if !doc.nodes.contains_key(&input) {
+                return Err(SnapshotError::DanglingInput { node: id, input });
+            }
+            if position.get(&input) >= position.get(&id) {
+                return Err(SnapshotError::ForwardInput { node: id, input });
+            }
+        }
+        if let Node::Declare { pairs } = node {
+            for (a, b) in pairs {
+                for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
+                    check_id(*n)?;
+                }
+            }
+        }
+    }
+    for name in doc.appearance.keys() {
+        for n in derivation_nodes(name) {
+            check_id(n)?;
+        }
+    }
+    for &node in doc.witnesses.keys() {
+        check_id(node)?;
+        if !matches!(doc.nodes.get(&node), Some(Node::Profile(_))) {
+            return Err(SnapshotError::WitnessSite { node });
+        }
+    }
+    for (name, rec) in &doc.appearance {
+        for (key, value) in &rec.metadata {
+            if let Err(error) = value.require_versioned() {
+                return Err(SnapshotError::MetadataUnversioned {
+                    name: name.clone(),
+                    key: key.clone(),
+                    error,
+                });
+            }
+        }
+    }
+    Ok(())
+}
