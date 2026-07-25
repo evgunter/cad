@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # scripts/gate.sh <sha-or-ref> — the serialized merge-gate runner.
 #
-# HOW THE MERGE GATE RUNS (while hosted Actions is down — GitHub
-# free-plan minutes exhausted 2026-07-22; resets at Evan's
-# billing-month rollover):
+# STATUS (2026-07-25): FALLBACK ONLY. Hosted Actions is the merge
+# gate (PR checks green = mergeable; same matrix, parallel, ~5-7 min
+# on the PR's merge ref). Use this script only when Actions is
+# unavailable (billing outage). The persistent runner's target/ is
+# no longer kept warm — expect a cold rebuild on first fallback use.
+# History (how the gate ran while Actions was down, 2026-07-22..25):
 #
 #   ./scripts/gate.sh <sha-or-ref>     # e.g. origin/main, a branch, a sha
 #
-# runs the full 11-row matrix (scripts/ci-local.sh, the ci.yml mirror)
+# runs the full ci-local.sh matrix (the ci.yml mirror, however many rows)
 # against the resolved commit in a persistent gate-runner checkout, and
 # exits with ci-local.sh's status. Two properties make it fast and
 # honest (caching investigation, PR #72):

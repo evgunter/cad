@@ -159,15 +159,16 @@ pub mod split;
 pub mod splitting;
 #[cfg(test)]
 mod tier3_tests;
+pub mod transform;
 pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanError, BooleanOp, BooleanReduction, BooleanResult,
-    BooleanResultKind, CompletedPolygonPair, ContactRecords, FaceContainment, NullEdgePairRecord,
-    Operand, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PointInSolidError,
-    SideCode, SolidContainment, VfContact, VvContact, boolean_reduce, contfp, intersect,
-    oriented_plane_eq, point_in_solid, subtract, union,
+    BoolNullEdgeRecord, BooleanBody, BooleanError, BooleanNaming, BooleanOp, BooleanReduction,
+    BooleanResult, BooleanResultKind, CompletedPolygonPair, ContactRecords, FaceContainment,
+    NullEdgePairRecord, Operand, OperandKeys, PairSite, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneRelation, PointInSolidError, SideCode, SolidContainment, VfContact, VvContact,
+    boolean_reduce, contfp, intersect, oriented_plane_eq, point_in_solid, subtract, union,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -194,6 +195,7 @@ pub use splitting::{
     SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
+pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     CensusContact, StaleDeclaration, ValidationError, validate, validate_closed,
     validate_geometric, validate_pseudomanifold,

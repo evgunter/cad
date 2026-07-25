@@ -1,0 +1,40 @@
+[package]
+name = "editor-core"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so the expression
+# evaluator's and evaluation service's Interval instantiation tests
+# (M4 PR 1 D8; M4 PR 2 D2/D7) run in CI's interval lane.
+interval = [
+    "geom-core/interval",
+    "geom-surfaces/interval",
+    "profile/interval",
+    "sweep/interval",
+    "topo/interval",
+]
+
+[dependencies]
+# M4 PR 2 D1: editor-core sits ABOVE the kernel (G1 layering) — the
+# evaluation service depends on the op crates it wires. The kernel
+# crates gain NO editor-core dependency (the workspace dep direction
+# enforces it).
+geom-core = { path = "../geom-core" }
+# M4 PR 3: the naming layer reads face carrier PLANES (side-of
+# discriminators against cutting carriers, N2) from the result body.
+geom-surfaces = { path = "../geom-surfaces" }
+profile = { path = "../profile" }
+sweep = { path = "../sweep" }
+topo = { path = "../topo" }
+# D6: rayon idiom-1 parallelism over independent DAG nodes (the D9
+# addendum's sanctioned idiom) — a runtime switch, so the determinism
+# cross-check can compare both schedules in one test run.
+rayon = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

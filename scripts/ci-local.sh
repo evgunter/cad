@@ -37,6 +37,7 @@ discipline() {
     | grep -vE '^crates/geom-core/src/interval\.rs:' \
     | grep -vE '^crates/topo/src/merge_faces\.rs:' \
     | grep -vE '^crates/topo/src/boolean/plane_eq\.rs:' \
+    | grep -vE '^crates/editor-core/src/eval/memo\.rs:' \
     | grep -vE ':[0-9]+:\s*//'; then
     echo "ERROR: new bit-identity channel consumer above — retirement-scheduled (DESIGN.md M4); allowlist in ci.yml AND here, plus a retirement note in its docs"
     rc=1
@@ -56,6 +57,16 @@ watertight() {
     scripts/check_admesh.sh target/stl-acceptance
 }
 
+# External STEP import acceptance (M4 PR 7): FreeCAD/OCC imports the
+# committed fixtures (kept byte-golden against the writer by the cargo
+# test suite), asserting validity + exact counts + volume. The script
+# SKIPS LOUDLY (exit 0) when freecadcmd is absent so this row stays
+# hermetic on machines without FreeCAD — see its header for FREECADCMD
+# discovery and REQUIRE_FREECAD.
+step_import() {
+  scripts/check_step.sh
+}
+
 test_eps() { CAD_TOLERANCE_EPS="$1" cargo test --workspace; }
 interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test --workspace --features interval; }
 
@@ -70,6 +81,7 @@ run_row "clippy (interval)"            cargo clippy --workspace --all-targets --
 run_row "test (interval)"              cargo test --workspace --features interval
 run_row "test (interval, eps = 1e-6)"  interval_eps
 run_row "watertight (admesh)"          watertight
+run_row "step import (freecad)"        step_import
 
 echo
 echo "=== ci-local summary ==="

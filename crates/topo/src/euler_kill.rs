@@ -355,8 +355,11 @@ pub struct KefResult {
     pub killed_loop: LoopKey,
     /// The killed edge's curve (dead key), iff orphaned and removed.
     pub killed_curve: Option<CurveKey>,
-    /// The killed face's surface (dead key), iff orphaned and removed;
-    /// `None` whenever another face still shares it (the common case —
+    /// The killed face's surface (dead key), iff orphaned and removed
+    /// by this call — through the explicit check or through the
+    /// curve-removal cascade (the killed curve's `Intersection`/`Seam`
+    /// description can hold the last reference; issue #86). `None`
+    /// whenever something else still references it (the common case —
     /// every `mef` face shares its parent's surface).
     pub killed_surface: Option<SurfaceKey>,
 }
@@ -879,8 +882,14 @@ impl<T: Decide> Body<T> {
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        let killed_surface = self
-            .remove_surface_if_orphaned(f1_data.surface)
+        // The curve hygiene above can itself reap f1's surface (a
+        // killed curve's `Intersection`/`Seam` description can hold
+        // the last reference — the issue #86 cascade); `f1_data`
+        // resolved at entry, so a now-missing key means THIS call
+        // removed it — report the kill through either door.
+        let cascade_took_surface = self.get_surface(f1_data.surface).is_none();
+        let killed_surface = (self.remove_surface_if_orphaned(f1_data.surface)
+            || cascade_took_surface)
             .then_some(f1_data.surface);
 
         #[cfg(debug_assertions)]

@@ -78,7 +78,7 @@ pub fn plane_section<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<Section<T>, SplitError> {
-    let (red, completed) = split_scratch(operand, plane)?;
+    let (red, completed, _fragments) = split_scratch(operand, plane)?;
 
     let mut u_ref = None;
     let mut v_ref = None;
