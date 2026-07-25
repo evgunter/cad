@@ -1131,3 +1131,27 @@ correct by orchestrator + Evan pre-restart). In flight NOTHING
 else: PR 4 merged (#96), demos merged (#98), state-sync #97
 merged, PR 5 implementation pushed @ a68e8e5 with report
 delivered; only the review cycle remains.
+
+**Post-restart parallel dispatch (2026-07-25)**: RAM verified 9.7G
+total / 8.2G available (memory=10GB took); monitors re-armed ×3;
+PR 5 reviewer resumed from transcript (told: possible torn target/
+from the mid-build stop — rebuild fresh; two cargo lanes now
+allowed). **#93 IMPLEMENTER LAUNCHED between seams** — first
+MODEL-AB row: difficulty M logged pre-flip, draw 197 → FABLE arm
+(row 1 in docs/MODEL-AB-LOG.md). Branch
+ev/issue93-seam-region-anchors off main; binding constraints:
+anchors through reified predicates only (k_stats funnel), no
+envelope widening (flush-plane pins must stay refusing), A×Z ×3
+variants become acceptance fixtures with independently-derived
+exact volumes, name-table goldens must not move (STOP+REPORT if
+they legitimately must). **PR 6 SPEC DRAFTED**
+(docs/M4-PR6-SPEC.md, DRAFT until PR 5 merges): D1 snapshot+edit-
+log versioned text with explicit migration chain, D2 Ryu bit-exact
+floats + NaN/inf typed refusal (-0.0 is data), D3 the-recipe-is-
+the-save (no tables/keys persisted), D4 recorded ε + SetTolerance
+= replay + PR-4 diff (discharges Finding 6), D5 content-key tag
+bump (Finding 8, one line), D6 three CI rows (round-trip identity,
+ε-diff golden, corrupt/unknown-version typed refusals), D7 Evan's
+#92 black-box appearance metadata at the schema-freeze point
+(opaque bytes, never interpreted), D8 scope walls, D9 standing
+process + A/B protocol.

@@ -29,6 +29,7 @@ day). Protocol:
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
+| 1 | 2026-07-25 | #93 join-stage seam-region anchors | M | fable (draw 197) | — | — | — | — | — | — | — | — | — |
 
 (Reference rows, pre-experiment, both Fable, unblinded — context
 only, not comparable: M4 PR 4 impl (L): 2 MAJ / 2 MIN / 6 NOTE, 0
