@@ -320,3 +320,17 @@ contract it builds on.
   `solver_branch_margin` value is a live scalar during editing;
   surfacing it (e.g. subtle proximity shading near walls) turns
   "why did it ask?" into something the user saw coming.
+- **Scale-relative sliver lint** — from #89 (Evan, 2026-07-24): any
+  feature whose margin is so small it renders indistinguishably from
+  exact coincidence at GUI scale is *probably* a mistake — but the
+  kernel must not refuse it (K guards certification honesty, not
+  intent; GUI-scale K ≈ 1e5–1e6 would refuse legitimate
+  micro-features). Instead: a document-layer lint reusing the normal
+  K machinery verbatim — evaluate the margined predicates, compare
+  margins against a *display-relative* threshold (viewport scale ×
+  pixel size, not ε), and badge offending features in the tree/
+  viewport ("this edge is 3e-9 from exactly touching — intended?").
+  Pure UI concern: no kernel change, no new predicate family, no
+  effect on evaluation or certification. The kernel-side "should K
+  itself be larger" question stays separate, gated on the M5 exit
+  K-snapshot (#89 remains the tracking handle).
