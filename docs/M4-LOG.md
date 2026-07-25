@@ -671,3 +671,11 @@ Actions spending limit is > $0 (budget and spending limit are
 separate knobs). Also flagged: the ci.yml step-import job has never
 executed hosted — expect a shake-out iteration when Actions wakes.
 gate.sh remains the merge gate until a full green hosted run.
+
+**Demo-montage refresh kicked off (2026-07-24, Evan on #90)**:
+crossing slots endorsed as the first boolean-of-boolean demo;
+ideation agent launched — inventory the montage, flag weak entries
+(donut named), propose 8-12 candidates with capability-showcase
+grounds and envelope-honest feasibility tiers (NOW / post-#90 /
+post-PR-5 / M5-tripwired), file as a pick-list issue for Evan.
+No implementation until his picks.
