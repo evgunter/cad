@@ -1258,3 +1258,17 @@ margin at 1e-6 is the motivating catch); (4) A/B: PR 5 reference
 row fillable from review rubric (1MAJ/3MIN/3NOTE, 1 silent dev,
 4/4/4); #93 row awaits its review; (5) #101 + tangency unit and
 PR 6 dispatch (spec ratified) queue after PR 5 merges.
+
+**Post-limit wake (2026-07-25)**: monitors verified alive (no
+re-arm needed); PR #102 checks watcher armed; #93 lane resumed
+(had died 500-then-529 while finalizing its report — work done,
+report pending). A/B PR 5 reference row filled. Large-K demo lint
+(Evan's question): RULED — fold into PR 8's K-telemetry wiring;
+the Probe sweep gains the demo scenes alongside the Band 4 corpus,
+lint statistic = |m|/ε per K-REPORT's normalization, threshold
+from the K-REPORT baseline percentiles, ADVISORY first run then
+gating once the baseline is pinned; tooling-level threshold only
+(no kernel ε). Motivating catch: #99's margin was 2.3ε at 1e-6 —
+in-band there, but the lint would have flagged it as a bottom-
+percentile margin at EVERY ε row, before any band was entered.
+Added to PR 8's obligations.

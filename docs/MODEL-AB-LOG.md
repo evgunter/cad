@@ -35,4 +35,9 @@ day). Protocol:
 (Reference rows, pre-experiment, both Fable, unblinded — context
 only, not comparable: M4 PR 4 impl (L): 2 MAJ / 2 MIN / 6 NOTE, 0
 silent devs, fix pass P1–P4, all-green battery. Demo refresh (M):
-0 MAJ / 5 MIN / 4 NOTE, 0 silent devs, light fix pass, all-green.)
+0 MAJ / 5 MIN / 4 NOTE, 0 silent devs, light fix pass, all-green.
+M4 PR 5 impl (L, first rubric-scored reference): 1 MAJ / 3 MIN /
+3 NOTE, 1 SILENT deviation (skip-lane tier-3 posture unstated),
+idiom 4 / tests 4 / docs 4, substantial fix pass (F1 re-describe
+machinery + plumbing + door tests), battery 1256/0 ×2 + interval
+1400/0, ~1.44M impl+fix tokens.)
