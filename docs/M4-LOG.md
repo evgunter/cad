@@ -1206,3 +1206,19 @@ the tour binary at default/1e-6/1e-12. Four pre-existing
 demos/tour clippy lints flagged (on main, untouched). Compact
 blinded review launched (same rubric — A/B row 2 needs comparable
 treatment; review scaled to surface, not rigor).
+
+**Docs/memory audit merged (2026-07-25, Evan's ask)**: 6 files
+edited (cad-project-state de-rotted — live status now delegated to
+this log's tail; CLAUDE.md milestone reference made rot-resistant;
+orchestration-model defers model choice to the A/B protocol;
+disk-watchdog/freecad-oracle/git-workflow refreshed; MEMORY.md
+index resynced), 1 deleted (boolean-consumer-findings — historical,
+facts in M3-LOG, action items discharged). Borderline rulings:
+KEEP multi-agent-capabilities (spawn mechanics still load-bearing),
+KEEP orchestrator-handoff's mngr caution (breakage was real, cheap
+to keep), name-candidates deletes when Q9 closes, monitor-arming
+consolidation in orchestration-model DEFERRED to the next audit
+pass. Report-only flags accepted as historical (M4-PLAN gate.sh
+convention text — condition lapsed naturally, policy change is
+logged; M4-PR5-SPEC "5G box" — harmless, fix pass told directly).
+Reaches main with the next state-sync PR.
