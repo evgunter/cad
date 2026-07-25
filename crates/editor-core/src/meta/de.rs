@@ -140,7 +140,11 @@ impl<'de> de::VariantAccess<'de> for ValueDe<'de> {
     ) -> Result<S::Value, MetaError> {
         seed.deserialize(self)
     }
-    fn tuple_variant<V: Visitor<'de>>(self, _len: usize, visitor: V) -> Result<V::Value, MetaError> {
+    fn tuple_variant<V: Visitor<'de>>(
+        self,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, MetaError> {
         self.deserialize_any(visitor)
     }
     fn struct_variant<V: Visitor<'de>>(

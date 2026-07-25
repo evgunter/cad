@@ -42,17 +42,17 @@ pub use eval::{
     EvalOutcome, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
     ValuePayload, evaluate,
 };
-pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
-pub use persist::{Loaded, PersistError, SCHEMA_VERSION, load, save};
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
+pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NameTable, NamingError,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RolePath, RoleSeg, SideVerdict, SplitHalf,
     StableName,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use persist::{Loaded, PersistError, SCHEMA_VERSION, load, save};
 pub use profile_desc::{ProfileDesc, ProfileDoc};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,

@@ -57,7 +57,10 @@ fn unknown_schema_version_refuses_typed() {
     let body = text.split_once('\n').expect("header").1;
     let v2 = format!("schema: 2\n{body}");
     match load(&v2) {
-        Err(PersistError::UnknownSchema { found: 2, newest: 1 }) => {}
+        Err(PersistError::UnknownSchema {
+            found: 2,
+            newest: 1,
+        }) => {}
         other => panic!("expected UnknownSchema, got {other:?}"),
     }
     match load("schema: 0\n{}") {

@@ -62,8 +62,9 @@ pub use crate::names::EntityRef;
 /// by design: appearance is presentation data and must persist
 /// bit-exactly without entering any float policy (F3's NaN/inf
 /// refusal has nothing to inspect here).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct Rgba8 {
     /// Red channel.
@@ -86,8 +87,9 @@ impl Rgba8 {
 /// The attribute kinds (the per-entity map's key). One entry per kind
 /// per entity; a new kind is an additive variant here plus its
 /// [`Attr`] twin.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub enum AttrKind {
     /// Display color.
@@ -101,8 +103,9 @@ pub enum AttrKind {
 
 /// One appearance attribute value (closed enum, one variant per
 /// [`AttrKind`]; module docs on extension).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub enum Attr {
     /// Display color.

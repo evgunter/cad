@@ -92,8 +92,14 @@ fn spawn_probe(eps: &str, out: &std::path::Path) -> editor_core::VerdictSummary 
 #[test]
 fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     let dir = std::env::temp_dir();
-    let old = spawn_probe(EPS_OLD, &dir.join(format!("m4pr6_eps_old_{}", std::process::id())));
-    let new = spawn_probe(EPS_NEW, &dir.join(format!("m4pr6_eps_new_{}", std::process::id())));
+    let old = spawn_probe(
+        EPS_OLD,
+        &dir.join(format!("m4pr6_eps_old_{}", std::process::id())),
+    );
+    let new = spawn_probe(
+        EPS_NEW,
+        &dir.join(format!("m4pr6_eps_new_{}", std::process::id())),
+    );
 
     let flips = editor_core::diff_summaries(&old, &new);
     // GOLDEN (update only on a ratified predicate-vocabulary or
@@ -105,8 +111,15 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // reports its reshaped decision structure as loud DIVERGENCE
     // rows (arc-only predicates leaving, chord probes recounting) —
     // never absorbed, never guessed about (vdiff module docs).
-    assert_eq!(flips.nodes.len(), 1, "exactly one differing node: {flips:?}");
-    let delta = flips.nodes.get(&RecipeNodeId(0)).expect("profile node delta");
+    assert_eq!(
+        flips.nodes.len(),
+        1,
+        "exactly one differing node: {flips:?}"
+    );
+    let delta = flips
+        .nodes
+        .get(&RecipeNodeId(0))
+        .expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
         new_status: RunStatus::Ok,
@@ -175,11 +188,7 @@ fn set_tolerance_round_trips_and_gates_replay() {
     // the matching side: a fresh child at the NEW ε loads the file
     // and reports the recorded value).
     let doc = thin_profile_doc();
-    let text = save(
-        &doc,
-        &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }],
-    )
-    .expect("save");
+    let text = save(&doc, &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }]).expect("save");
     // In THIS process the recorded ε (ambient) plus the edit's 1e-4
     // conflicts unless ambient IS 1e-4 — assert the door's decision
     // matches the committed ε, whichever matrix row we run under.

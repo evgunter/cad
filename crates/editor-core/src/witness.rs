@@ -19,8 +19,9 @@ use crate::names::StableName;
 /// with the params it solved under — all inside `bytes`, under
 /// `schema`'s vocabulary). Bytes are exact data: bit-exact
 /// persistence and content-key feeding need no float policy here.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct WitnessDatum {
     /// The serialization vocabulary tag (versioned with the solver's
@@ -40,8 +41,9 @@ pub struct WitnessDatum {
 /// **enforcement arrives with the M6 solver** (a checker that
 /// consumes this payload — an additive function, not a schema
 /// change).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct BranchCertification {
     /// The certification evidence's vocabulary tag (M6's checker owns

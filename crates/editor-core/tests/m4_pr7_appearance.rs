@@ -181,11 +181,10 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         },
     );
     assert!(
-        doc.appearance_of(&body)
+        !doc.appearance_of(&body)
             .unwrap()
             .attrs
-            .get(&AttrKind::Color)
-            .is_none()
+            .contains_key(&AttrKind::Color)
     );
     let (doc, _) = step(
         doc,

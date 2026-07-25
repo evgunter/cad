@@ -78,6 +78,18 @@ step_import() {
 test_eps() { CAD_TOLERANCE_EPS="$1" cargo test --workspace; }
 interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test --workspace --features interval; }
 
+# M4 PR 6 spec D6: the three persistence obligations as NAMED rows
+# (also covered by the workspace rows; named = attributable).
+persist_roundtrip() {
+  local e
+  for e in 1e-6 1e-9 1e-12; do
+    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats || return 1
+  done
+}
+persist_eps_diff() { cargo test -p editor-core --test m4_pr6_eps_diff; }
+persist_refusal() { cargo test -p editor-core --test m4_pr6_refusal; }
+persist_interval() { cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval; }
+
 run_row "discipline (evaluation-code)" discipline
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy --workspace --all-targets -- -D warnings
@@ -88,6 +100,10 @@ run_row "test (eps = 1e-12)"           test_eps 1e-12
 run_row "clippy (interval)"            cargo clippy --workspace --all-targets --features interval -- -D warnings
 run_row "test (interval)"              cargo test --workspace --features interval
 run_row "test (interval, eps = 1e-6)"  interval_eps
+run_row "persist save/load/replay (D6.1)" persist_roundtrip
+run_row "persist eps-diff golden (D6.2)"  persist_eps_diff
+run_row "persist refusal (D6.3)"          persist_refusal
+run_row "persist roundtrip (interval)"    persist_interval
 run_row "watertight (admesh)"          watertight
 run_row "step import (freecad)"        step_import
 

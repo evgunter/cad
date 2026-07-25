@@ -44,9 +44,9 @@
 //! ([`PersistError::ToleranceConflict`]) — one process, one ε.
 //! [`crate::eval::evaluate`] enforces the same invariant per run.
 
+mod check;
 pub mod hexbytes;
 pub(crate) mod pairs;
-mod check;
 mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
@@ -169,7 +169,10 @@ pub struct MigrationError {
 /// deserializes typed). v1 is current, so no step exists yet; the
 /// first format change adds `1 => Ok(...)` here and bumps
 /// [`SCHEMA_VERSION`].
-fn migrate(from_version: u32, _value: serde_json::Value) -> Result<serde_json::Value, MigrationError> {
+fn migrate(
+    from_version: u32,
+    _value: serde_json::Value,
+) -> Result<serde_json::Value, MigrationError> {
     Err(MigrationError {
         from: from_version,
         reason: format!("no migration step from schema v{from_version}"),
@@ -183,10 +186,7 @@ fn migrate(from_version: u32, _value: serde_json::Value) -> Result<serde_json::V
 /// [`PersistError::NonFinite`] naming the site of any NaN/inf in the
 /// document or edit log (D2); [`PersistError::Serialize`] if the JSON
 /// writer itself fails.
-pub fn save(
-    snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileDesc>],
-) -> Result<String, PersistError> {
+pub fn save(snapshot: &ProfileDoc, edits: &[DocEdit<ProfileDesc>]) -> Result<String, PersistError> {
     if let Some(site) = check::first_non_finite(snapshot, edits) {
         return Err(PersistError::NonFinite { site });
     }

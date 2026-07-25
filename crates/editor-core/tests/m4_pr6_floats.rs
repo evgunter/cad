@@ -22,7 +22,7 @@ use proptest::prelude::*;
 /// the loaded document for slot-by-slot bit assertions.
 fn round_trip(value: f64) -> ProfileDoc {
     let mut doc = ProfileDoc::empty();
-    let mut push = |d: &ProfileDoc, e| editor_core::apply(d, &e).expect("edit").doc;
+    let push = |d: &ProfileDoc, e| editor_core::apply(d, &e).expect("edit").doc;
     doc = push(
         &doc,
         DocEdit::SetDocParam {
@@ -41,7 +41,11 @@ fn round_trip(value: f64) -> ProfileDoc {
                 [value, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (1.0, value.abs().min(1e6) + 1.0), (value, 2e9)]],
+                vec![vec![
+                    (0.0, 0.0),
+                    (1.0, value.abs().min(1e6) + 1.0),
+                    (value, 2e9),
+                ]],
             )),
         },
     );
@@ -73,8 +77,7 @@ fn assert_bits(label: &str, value: f64, loaded: f64) {
 
 fn check_all_slots(value: f64) {
     let doc = round_trip(value);
-    let Some(DocParam::Continuous { value: p, .. }) = doc.params().get(&ParamName::new("p"))
-    else {
+    let Some(DocParam::Continuous { value: p, .. }) = doc.params().get(&ParamName::new("p")) else {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);
@@ -113,8 +116,8 @@ fn special_values_round_trip_bit_exactly() {
         -1.0,
         ulp_up,
         ulp_down,
-        f64::MIN_POSITIVE,               // smallest normal
-        f64::from_bits(1),               // smallest subnormal
+        f64::MIN_POSITIVE,                     // smallest normal
+        f64::from_bits(1),                     // smallest subnormal
         f64::from_bits(0x000F_FFFF_FFFF_FFFF), // largest subnormal
         -f64::from_bits(1),
         f64::MAX,
@@ -122,7 +125,9 @@ fn special_values_round_trip_bit_exactly() {
         std::f64::consts::PI,
         0.1,
         1e-323,
-        2.2250738585072011e-308, // the notorious rounding-boundary value
+        #[allow(clippy::excessive_precision)]
+        // deliberately one digit past shortest: the notorious rounding-boundary value
+        2.225_073_858_507_201_1e-308,
     ] {
         check_all_slots(v);
     }

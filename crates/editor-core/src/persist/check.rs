@@ -137,11 +137,13 @@ fn edit_non_finite(edit: &DocEdit<ProfileDesc>) -> Option<NonFiniteSite> {
         } => profile_non_finite(desc).map(|index| NonFiniteSite::InsertedProfile { index }),
         DocEdit::SetDocParam { name, value } => param_site(name, value),
         DocEdit::SetAppearanceMeta { name, key, value } => {
-            value.first_non_finite().map(|path| NonFiniteSite::Metadata {
-                name: name.clone(),
-                key: key.clone(),
-                path,
-            })
+            value
+                .first_non_finite()
+                .map(|path| NonFiniteSite::Metadata {
+                    name: name.clone(),
+                    key: key.clone(),
+                    path,
+                })
         }
         DocEdit::SetTolerance { eps } if !eps.is_finite() => Some(NonFiniteSite::Epsilon),
         _ => None,

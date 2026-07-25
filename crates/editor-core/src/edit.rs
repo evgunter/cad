@@ -22,8 +22,7 @@ use crate::witness::{BranchCertification, WitnessDatum};
 /// edit; its flipped-predicate audit reports through the PR 4
 /// verdict-diff engine) plus the D7 metadata pair
 /// (`SetAppearanceMeta`/`ClearAppearanceMeta`).
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum DocEdit<P> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the

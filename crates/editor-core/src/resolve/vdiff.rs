@@ -64,8 +64,7 @@ use super::derivation_nodes;
 /// A node's standing in one run, as the diff engine sees it.
 /// Serializable: it rides in [`VerdictSummary`], the cross-process ε
 /// audit's persist-grade seam.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum RunStatus {
     /// Evaluated to a value (has a verdict log).
@@ -323,8 +322,7 @@ fn diff_populations<N: Ord + Clone>(
 /// predicate name, its (Negative, Zero, Positive) instance counts.
 /// The persist-grade projection of a run's verdict log: everything
 /// the population diff needs, nothing else (no values — N2).
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeVerdicts {
     /// The node's standing.
@@ -340,8 +338,7 @@ pub struct NodeVerdicts {
 /// [`verdict_summary`], and [`diff_summaries`] — the same population
 /// math as [`diff_verdicts`], via one shared core — reports exactly
 /// the flipped predicates.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VerdictSummary {
     /// Per-node populations (every node in the run's order).

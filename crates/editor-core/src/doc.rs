@@ -16,8 +16,9 @@ use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
 
 /// A document-level parameter name (spec D4's "parameter refs").
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct ParamName(pub String);
 
@@ -31,8 +32,7 @@ impl ParamName {
 /// A document-level named parameter's declared dimension and exact
 /// stored value (spec D2/D4: `f64` bit-exact for continuous, `i64`
 /// for Count — bit-identical replay is trivial by representation).
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum DocParam {
     /// A continuous parameter in canonical kernel units.
@@ -74,8 +74,7 @@ impl DocParam {
 /// The document: recipe DAG (node map + insertion-ordered list) +
 /// document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Doc<P> {
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.

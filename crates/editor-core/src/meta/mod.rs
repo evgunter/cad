@@ -180,3 +180,128 @@ impl serde::de::Error for MetaError {
         Self::Message(msg.to_string())
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// A stand-in GUI/tooling producer type (D7's serde-native
+    /// ergonomics): derives Serialize/Deserialize, converts at the
+    /// store boundary, carries its own "v".
+    #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct Annotation {
+        v: i64,
+        label: String,
+        offset: [f64; 2],
+        pinned: bool,
+        color: Option<u8>,
+        #[serde(with = "serde_bytes_shim")]
+        raw: Vec<u8>,
+    }
+
+    /// Minimal serialize_bytes shim (serde derives Vec<u8> as a seq;
+    /// the BYTES path needs an explicit call — same as serde_bytes).
+    mod serde_bytes_shim {
+        pub fn serialize<S: serde::Serializer>(b: &[u8], s: S) -> Result<S::Ok, S::Error> {
+            s.serialize_bytes(b)
+        }
+        pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+            struct V;
+            impl serde::de::Visitor<'_> for V {
+                type Value = Vec<u8>;
+                fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    f.write_str("bytes")
+                }
+                fn visit_bytes<E>(self, v: &[u8]) -> Result<Vec<u8>, E> {
+                    Ok(v.to_vec())
+                }
+            }
+            d.deserialize_bytes(V)
+        }
+    }
+
+    fn ann() -> Annotation {
+        Annotation {
+            v: 3,
+            label: "hole ⌀".into(),
+            offset: [-0.0, 1.5e-300],
+            pinned: true,
+            color: None,
+            raw: vec![0, 255, 7],
+        }
+    }
+
+    #[test]
+    fn producer_round_trips_through_the_erased_tree() {
+        let tree = to_value(&ann()).expect("to_value");
+        // The erased shape is the canonical vocabulary: a Map with
+        // exact ints, bit-exact floats, real Bytes, Null for None.
+        let MetaValue::Map(m) = &tree else {
+            panic!("struct erases to Map")
+        };
+        assert_eq!(m["v"], MetaValue::Int(3));
+        assert_eq!(m["color"], MetaValue::Null);
+        assert_eq!(m["raw"], MetaValue::Bytes(vec![0, 255, 7]));
+        let MetaValue::List(off) = &m["offset"] else {
+            panic!("array erases to List")
+        };
+        assert_eq!(off[0], MetaValue::Float(-0.0)); // bit-eq: sign kept
+        tree.require_versioned().expect("carries v");
+        let back: Annotation = from_value(&tree).expect("from_value");
+        assert_eq!(back, ann());
+    }
+
+    #[test]
+    fn boundary_refusals_are_typed() {
+        assert_eq!(to_value(&f64::NAN), Err(MetaError::NonFinite));
+        assert_eq!(to_value(&u64::MAX), Err(MetaError::IntOutOfRange));
+        let int_keys: std::collections::BTreeMap<u32, u32> = [(1, 2)].into();
+        assert_eq!(to_value(&int_keys), Err(MetaError::NonStringKey));
+        assert!(MetaValue::Int(1).require_versioned().is_err());
+        assert!(
+            MetaValue::Map([("v".to_owned(), MetaValue::Str("x".into()))].into())
+                .require_versioned()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn enums_erase_with_external_tags_and_come_back() {
+        #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+        enum Marker {
+            Plain,
+            At(f64),
+            Rect { w: f64, h: f64 },
+        }
+        for m in [
+            Marker::Plain,
+            Marker::At(2.5),
+            Marker::Rect { w: 1.0, h: -0.0 },
+        ] {
+            let tree = to_value(&m).expect("to_value");
+            let back: Marker = from_value(&tree).expect("from_value");
+            assert_eq!(back, m);
+        }
+        assert_eq!(
+            to_value(&Marker::Plain).unwrap(),
+            MetaValue::Str("Plain".into())
+        );
+    }
+
+    #[test]
+    fn first_non_finite_names_the_path() {
+        let tree = MetaValue::Map(
+            [(
+                "a".to_owned(),
+                MetaValue::List(vec![
+                    MetaValue::Float(1.0),
+                    MetaValue::Map([("b".to_owned(), MetaValue::Float(f64::INFINITY))].into()),
+                ]),
+            )]
+            .into(),
+        );
+        assert_eq!(tree.first_non_finite().as_deref(), Some("$.a[1].b"));
+        assert_eq!(MetaValue::Float(1.0).first_non_finite(), None);
+    }
+}

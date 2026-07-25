@@ -8,8 +8,9 @@ use crate::expr::{Dimension, Expr};
 /// substrate): minted from `Doc`'s monotone counter at insertion,
 /// never reused (deletion does not free it), never positional. Its
 /// stability is a contract, pinned by test.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct RecipeNodeId(pub u64);
 
@@ -17,8 +18,9 @@ pub use crate::names::{EntityKind, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
 /// (spec D5: slots are NAMED, never positional indices).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub enum Axis3 {
     /// The x component.
@@ -31,8 +33,7 @@ pub enum Axis3 {
 
 /// The regularized boolean operations (F4; kernel semantics in M3's
 /// boolean pipeline, interpreted by PR 2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum BooleanOp {
     /// Regularized union.
@@ -47,8 +48,9 @@ pub enum BooleanOp {
 /// named enum, never an index). Each variant carries its required
 /// dimension ([`SlotId::dimension`]) and structural flag
 /// ([`SlotId::is_structural`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(deny_unknown_fields)]
 pub enum SlotId {
     /// A datum's origin / a datum point's position component (Length).
@@ -100,8 +102,7 @@ impl SlotId {
 
 /// A datum construction (F4: plane/axis/point), defined by expression
 /// slots — geometry is produced by PR 2's evaluation, never here.
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Datum {
     /// A plane through `origin` with normal `normal` (unnormalized;
@@ -128,8 +129,7 @@ pub enum Datum {
 
 /// A pattern's replication rule (F4: LinearPattern/CircularPattern;
 /// the count lives on [`Node::Pattern`] as the structural slot).
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum PatternKind {
     /// Instances stepped along a direction.
@@ -154,8 +154,7 @@ pub enum PatternKind {
 /// type is carried as a value without this crate depending on it
 /// (spec D1's geom-core-only boundary + D3's "wrap, don't re-model",
 /// reconciled by genericity; PR 2 instantiates `P`).
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Node<P> {
     /// A datum construction.
