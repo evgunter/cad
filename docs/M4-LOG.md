@@ -632,3 +632,30 @@ current main with D9 sequenced LAST (merges main when it gets
 there; stops-and-reports if PR 7 somehow hasn't landed). Lesson:
 "same crate" is not by itself merge contention — check the actual
 dependency and conflict surface before serializing.
+
+**Appearance fix pass VERIFIED + #86 report in (2026-07-24)**.
+Appearance: all rulings done at `32d5645` (resolves-anywhere
+documented twice + reviewer's probe committed as the ruled-gap pin;
+per-name Ambiguous dedupe with deterministic defining-`at`; width
+kept as usize — candidate set derivable via table.lookup, noted per
+A4 mapping; A5 scope paragraph). Four lanes green with captured
+exit codes (default/1e-6/1e-12/interval, 131 rows each). Main
+(docs-only CURVED-DESIGN delta) merged in as `9f2cf6f`; GATE
+launched on the true candidate. **#86: diagnosis (a) CONFIRMED
+with causal trace** — merge_coplanar_faces absorbs a coplanar slot
+floor whose surface stays alive via 4 edge-description refs;
+re-description drains 4→0; the last remove_curve_if_orphaned
+stranded the surface (the assert is a genuine invariant and
+stays). Fix: curve removal cascades description_surfaces through
+remove_surface_if_orphaned — the exact dual of the
+descriptions-keep-surfaces-alive rule; closes the same latent gap
+in kemr/kev/kef/split_edge; kef's killed_surface reports through
+either door. Committed fixture: crossing-slots double-subtract
+SUCCEEDS + tier1/2/pseudomanifold + transform shake-out, both
+lanes; reproduced the exact panic pre-fix. Implementer opened PR
+#90 itself (minor process deviation, harmless). All lanes green.
+Adversarial review launched (attack: cascade removing a
+transiently-orphaned surface mid-Euler-op would be strictly worse
+than the leak). R13 boolean-of-boolean exclusion lifts when #90
+merges — seed the naming corpus with the fixture's document shape
+(bank for PR 5/8).
