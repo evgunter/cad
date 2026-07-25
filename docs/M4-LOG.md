@@ -765,3 +765,16 @@ finish; #86 agent cleared to run its F1/F2 battery. Appearance
 clone removed (hygiene). M4 status: PRs 1, 2, 3, 7 merged +
 re-mint (#84) + CURVED-DESIGN ratified (#85); PR 4 nearing
 completion; PR 90 (#86 fix) in fix pass; remaining: 5, 6, 8.
+
+**A×Z verdict + new kernel gap filed (2026-07-24)**: Evan's A×Z
+suggestion refuses typed today — NOT the coplanarity gap, a new
+one: resolve_roles_geometric's vertex-only anchor probing fails
+when an isolated seam hexagon (cookie-cutter null-face pair, no
+struts) leaves every flanking fragment bounded entirely by seam
+vertices (all OnBoundary ⇒ no anchor ⇒ JoinDesync). Structural for
+these letterforms; H×T dodges via surviving original corners. Fix
+sketch: probe region-interior points (also covers nested islands
+= A's true counter). Filed as an issue with the agent's exact-
+fraction oracles as the ready acceptance fixture; C2 ships H×T;
+A×Z upgrades when it closes. Demo agent's kernel instrumentation
+verified reverted, clone clean, disk 21G.
