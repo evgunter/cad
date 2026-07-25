@@ -356,9 +356,13 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     }
 }
 
-/// N5 doors: a Declare naming a VANISHED, FOREIGN, or out-of-
-/// vocabulary reference refuses with the typed error — no silent
-/// drop, no best-effort gluing.
+/// N5 doors: a Declare naming a VANISHED or out-of-vocabulary
+/// reference refuses with the typed error — no silent drop, no
+/// best-effort gluing. (The FOREIGN arm — a name whose node id was
+/// never minted — is defense-in-depth only: `apply` validates
+/// Declare-named node EXISTENCE at edit time, so no apply-built
+/// document can carry one; NodeGone-by-DELETE is the reachable case,
+/// covered below.)
 #[test]
 fn declare_resolution_failures_are_typed_n5_errors() {
     let base = ProfileDoc::empty();
@@ -428,4 +432,292 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let (doc, u) = boolean_with(doc, decl);
     let k = failed_kind(&run(&doc), u);
     assert!(k.contains("DeclareUnsupportedPair"), "{k}");
+}
+
+/// Review F1, recipe door: flush caps DECLARED on an ordinary partial
+/// overlap (walls offset) — the cap groups license, land outside the
+/// merge's never-elide inventory, and are SKIPPED; the result must
+/// still be tier-3 honest (no stale in-plane descriptions) with the
+/// exact volume.
+#[test]
+fn skipped_declared_merge_recipe_door_is_tier3_green() {
+    let doc = ProfileDoc::empty();
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![
+                (
+                    fname(a, RoleSeg::Cap(CapEnd::Top)),
+                    fname(b, RoleSeg::Cap(CapEnd::Top)),
+                ),
+                (
+                    fname(a, RoleSeg::Cap(CapEnd::Bottom)),
+                    fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+                ),
+            ],
+        },
+    );
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u) else {
+        panic!("declared flush-caps union is a body");
+    };
+    assert_eq!(topo::mass_properties(body).unwrap().volume, 1.625);
+    assert_eq!(topo::validate::validate_geometric(body), Ok(()), "tier 3");
+    assert_eq!(topo::validate_pseudomanifold(body, contacts), Ok(()));
+    // Review F6: this shape is the corpus's PURE-seam-vertex pin —
+    // the skip lane's re-described in-plane chain leaves vertices
+    // whose every incident edge is Seam-named from ONE line (single
+    // Seam-headed path, no junction composition). Assert they exist.
+    let pure_seam_vertices = ev
+        .value(u)
+        .unwrap()
+        .name_table
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Vertex
+                && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
+                && n.path
+                    .iter()
+                    .filter(|seg| matches!(seg, RoleSeg::Seam { .. }))
+                    .count()
+                    == 1
+        })
+        .count();
+    assert!(
+        pure_seam_vertices >= 2,
+        "expected the pure-seam-vertex naming arm to fire (single-line          seam vertices), got {pure_seam_vertices}"
+    );
+}
+
+/// Review F4: the remaining Declare eval doors, each typed.
+#[test]
+fn declare_doors_both_operands_node_gone_and_ambiguous() {
+    use editor_core::DocEdit;
+    let failed_kind = |ev: &editor_core::Evaluation<f64>, node| match ev.nodes.get(&node) {
+        Some(NodeResult::Failed(e)) => format!("{:?}", e.kind),
+        other => panic!("expected Failed, got {other:?}"),
+    };
+
+    // --- DeclareBothOperands: the same body value feeds both sides,
+    // so the name resolves in BOTH operand tables — refused, never a
+    // side guess (reviewer's probe adopted).
+    let doc = ProfileDoc::empty();
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let cap = fname(a, RoleSeg::Cap(CapEnd::Top));
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Bottom)))],
+        },
+    );
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b: a,
+            declare: Some(decl),
+        },
+    );
+    let k = failed_kind(&run(&doc), u);
+    assert!(k.contains("DeclareBothOperands"), "{k}");
+
+    // --- NodeGone by DELETE (the reachable N5 dangling case): the
+    // Declare names a third body's face; deleting that node AFTER the
+    // Declare strands the name; resolution refuses NodeGone with the
+    // derived NodeDeleted edit.
+    let doc = ProfileDoc::empty();
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(
+                fname(c, RoleSeg::Cap(CapEnd::Top)),
+                fname(b, RoleSeg::Cap(CapEnd::Top)),
+            )],
+        },
+    );
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let doc = doc.apply(&DocEdit::DeleteNode { id: c }).unwrap().doc;
+    let ev = run(&doc);
+    let k = failed_kind(&ev, u);
+    assert!(
+        k.contains("DeclareResolve") && k.contains("NodeGone") && k.contains("NodeDeleted"),
+        "{k}"
+    );
+
+    // --- Ambiguous: the Declare names a TIED row (the symmetric U
+    // cutter's N2 tie) — refused with the tie carried honestly:
+    // candidates name the tied row itself, width = the recorded tie.
+    let doc = ProfileDoc::empty();
+    let (doc, ua) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, up) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![
+                (2.0, 1.0),
+                (6.0, 1.0),
+                (6.0, 3.0),
+                (2.0, 3.0),
+                (2.0, 2.5),
+                (5.0, 2.5),
+                (5.0, 1.5),
+                (2.0, 1.5),
+            ]],
+        )),
+    );
+    let (doc, ub) = insert(
+        doc,
+        Node::Extrude {
+            profile: up,
+            distance: len(2.0),
+        },
+    );
+    let (doc, us) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: ua,
+            b: ub,
+            declare: None,
+        },
+    );
+    let ev1 = run(&doc);
+    let tied: StableName = ev1
+        .value(us)
+        .expect("U subtract evaluates")
+        .name_table
+        .iter()
+        .find_map(|(n, e)| matches!(e, editor_core::Entry::Tied(_)).then(|| n.clone()))
+        .expect("the U fixture ties");
+    let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(tied.clone(), fname(mate, RoleSeg::Cap(CapEnd::Top)))],
+        },
+    );
+    let (doc, u2) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: us,
+            b: mate,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&u2) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+                editor_core::resolve::ResolveError::Ambiguous {
+                    name,
+                    candidates,
+                    tie,
+                } => {
+                    assert_eq!(name, &tied);
+                    // One-name tie payload, stated honestly: the
+                    // candidate list is the tied row itself; the
+                    // WIDTH carries the recorded multiplicity.
+                    assert_eq!(candidates, &vec![tied.clone()]);
+                    assert!(tie.width >= 2, "recorded tie width, got {}", tie.width);
+                    assert_eq!(tie.at, tied);
+                }
+                other => panic!("expected Ambiguous, got {other:?}"),
+            },
+            other => panic!("expected DeclareResolve, got {other:?}"),
+        },
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// Review F6 (second seam-JUNCTION instance): the crossing slots with
+/// the SECOND slot subtracted first — same junction class (a vertex
+/// where three seam lines meet on the shared floor plane), different
+/// evaluation order; the multi-Seam-segment junction names must
+/// appear and the document must certify.
+#[test]
+fn crossing_slots_swapped_order_hits_the_junction_arm() {
+    let doc = ProfileDoc::empty();
+    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
+    let (doc, s1) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: slab,
+            b: b2,
+            declare: None,
+        },
+    );
+    let floor2 = fname(
+        s1,
+        RoleSeg::FromB(Box::new(fname(b2, RoleSeg::Cap(CapEnd::Bottom)))),
+    );
+    let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(floor2, fname(b1, RoleSeg::Cap(CapEnd::Bottom)))],
+        },
+    );
+    let (doc, s2) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: s1,
+            b: b1,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, s2) else {
+        panic!("swapped crossing slots is a body");
+    };
+    assert_eq!(
+        topo::mass_properties(body).unwrap().volume,
+        9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
+    );
+    assert_eq!(topo::validate_pseudomanifold(body, contacts), Ok(()));
+    // The junction arm's product: a vertex named by ≥ 2 Seam
+    // segments (the sorted line set).
+    let junctions = ev
+        .value(s2)
+        .unwrap()
+        .name_table
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Vertex
+                && n.path
+                    .iter()
+                    .filter(|seg| matches!(seg, RoleSeg::Seam { .. }))
+                    .count()
+                    >= 2
+        })
+        .count();
+    assert!(junctions >= 1, "expected junction-named vertices");
 }

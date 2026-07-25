@@ -186,7 +186,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 pub use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
-pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup};
+pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use props::{MassProperties, MassPropsError, mass_properties};
 pub use provenance::Provenance;

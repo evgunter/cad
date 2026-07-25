@@ -63,8 +63,10 @@ pub struct MergedGroup {
 pub struct SkippedMerge {
     /// The group's faces (group order).
     pub faces: Vec<FaceKey>,
-    /// Why the glue was not performed.
-    pub why: &'static str,
+    /// Why the glue was not performed — the ACTUAL refusing
+    /// diagnostics, rendered (the sub-stage's Euler/tier-2 error),
+    /// never a generic label (M4 PR 5 review F3).
+    pub reason: String,
 }
 
 /// The outcome of one [`Body::merge_coplanar_faces`] call.
@@ -414,22 +416,27 @@ impl<T: Decide> Body<T> {
             }
             let mut trial = work.clone();
             match trial.merge_group(&members) {
-                Ok(group) => {
-                    if validate_closed(&trial).is_ok() {
+                Ok(group) => match validate_closed(&trial) {
+                    Ok(()) => {
                         work = trial;
                         outcome.groups.push(group);
-                    } else {
+                    }
+                    Err(errors) => {
                         outcome.skipped.push(SkippedMerge {
                             faces: members,
-                            why: "staged declared merge failed tier 2 (shape outside the \
-                                  never-elide inventory)",
+                            reason: format!(
+                                "staged declared merge failed tier 2 ({} finding(s), first: \
+                                 {:?}) — shape outside the never-elide inventory",
+                                errors.len(),
+                                errors.first()
+                            ),
                         });
                     }
-                }
-                Err(_) => {
+                },
+                Err(e) => {
                     outcome.skipped.push(SkippedMerge {
                         faces: members,
-                        why: "declared merge group refused by the Euler inventory",
+                        reason: format!("declared merge group refused: {e}"),
                     });
                 }
             }

@@ -7,14 +7,17 @@
 //!
 //! # What this is, and is not
 //!
-//! This is an **identity channel, not a comparison door**: it powers the
-//! *declared* rung of the round-8 coincidence ladder (bit-equal
-//! descriptions arising from shared recipe data decide coincidence
-//! exactly) and nothing else. It never orders values, never bands, and
-//! is deliberately NOT part of the [`Real`](crate::Real) trait surface —
-//! evaluation code stays comparison-free; only decision-layer callers
-//! (coincidence-ladder rungs) may consult it, always alongside a Q1
-//! trilean that escalates the *near*-equal band as a typed error.
+//! This is an **identity channel, not a comparison door**: through M3
+//! it powered the *declared* rung of the round-8 coincidence ladder
+//! (bit-equal descriptions arising from shared recipe data decided
+//! coincidence exactly). Since M4 PR 5 that rung is a
+//! `topo::GeomSource` lookup and NO production coincidence path
+//! consults this channel (see the retirement note below) — what
+//! remains is exact-representation plumbing (content-key hashing)
+//! and the debug assertion behind the source lookup. It never orders
+//! values, never bands, and is deliberately NOT part of the
+//! [`Real`](crate::Real) trait surface — evaluation code stays
+//! comparison-free.
 //!
 //! # Fencing (Evan, #53/#57/#58)
 //!

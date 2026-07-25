@@ -194,6 +194,13 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
+    /// Declared-licensed merge groups the output stage SKIPPED as
+    /// outside the never-elide inventory (M4 PR 5): faces + the
+    /// actual refusing diagnostics. The skip is visible HERE — a
+    /// consumer can see what was not glued and why; the skipped
+    /// faces' in-plane descriptions are re-checked against the
+    /// actual adjacency before the result ships (review F1/F2).
+    pub merge_skipped: Vec<crate::merge_faces::SkippedMerge>,
     /// A-side chord-mef fragment rows `(new face, divided-from face)`
     /// in mint order — A-clone keys, which ARE result keys when
     /// `a_keys` is `Direct`.
@@ -369,6 +376,7 @@ fn boolean_op<T: Decide>(
         seam_edges,
         vertex_merges,
         merge_groups: merge_rows(&merged),
+        merge_skipped: merged.skipped.clone(),
         face_fragments_a: connected.a_fragments,
         face_fragments_b: connected.b_fragments,
         reduction_contacts,
@@ -531,8 +539,19 @@ fn describe_minted_edges<T: Decide>(
             worklist.push(e); // merge may have consumed flush seam edges
         }
     }
-    for group in &merged.groups {
-        let Some(face) = body.get_face(group.kept) else {
+    // Merge-KEPT faces' boundaries (adjacency rewritten by the glue)
+    // AND SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue
+    // those groups' classification anticipated did NOT happen, so
+    // their in-plane cut edges may carry descriptions citing
+    // no-longer-adjacent surfaces — they must be re-checked against
+    // the ACTUAL adjacency below).
+    let group_faces = merged
+        .groups
+        .iter()
+        .map(|g| g.kept)
+        .chain(merged.skipped.iter().flat_map(|s| s.faces.iter().copied()));
+    for f in group_faces {
+        let Some(face) = body.get_face(f) else {
             continue;
         };
         for &lk in core::iter::once(&face.outer).chain(&face.rings) {
@@ -581,7 +600,36 @@ fn describe_minted_edges<T: Decide>(
                         what: "minted-edge description failed certification",
                     })?;
             }
-            Ok(geom_brep::DihedralClass::Smooth) => {}
+            Ok(geom_brep::DihedralClass::Smooth) => {
+                // F1 (the declared-merge SKIP lane): a SURVIVING
+                // smooth-adjacency edge whose existing
+                // `Intersection`/`Seam` description no longer cites
+                // its two adjacent faces' surfaces would violate D2
+                // adjacency coherence at tier 3 — the glue its
+                // description anticipated was skipped (or the merge
+                // re-homed its neighbors). Re-describe as the
+                // conventional chord line: coplanar surfaces
+                // under-determine the locus (D2's split), so the
+                // line's own data is the honest description.
+                let stale = match *body
+                    .get_curve_geom(edge_data.curve)
+                    .and_then(crate::null::CurveGeom::certified)
+                    .ok_or_else(corrupt)?
+                    .description()
+                {
+                    geom_brep::EdgeGeometry::Intersection { s1: d1, s2: d2, .. } => {
+                        !((d1 == s1 && d2 == s2) || (d1 == s2 && d2 == s1))
+                    }
+                    geom_brep::EdgeGeometry::Seam { surface } => !(surface == s1 && surface == s2),
+                    geom_brep::EdgeGeometry::MappedCurve(_) => false,
+                };
+                if stale {
+                    body.set_edge_curve(edge, geom_brep::EdgeCurveSpec::line_between(p0, p1))
+                        .map_err(|_| BooleanError::JoinDesync {
+                            what: "stale in-plane description failed re-certification",
+                        })?;
+                }
+            }
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
     }
@@ -991,6 +1039,7 @@ fn fallback<T: Decide>(
                 graft_edges,
                 graft_faces,
                 merge_groups: merge_rows(&merged),
+                merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 ..BooleanNaming::default()
             };
@@ -1043,6 +1092,7 @@ fn finish_fallback<T: Decide>(
             a_keys: OperandKeys::Direct,
             b_keys: OperandKeys::Absent,
             merge_groups: merge_rows(&merged),
+            merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             ..BooleanNaming::default()
         },
@@ -1051,6 +1101,7 @@ fn finish_fallback<T: Decide>(
             a_keys: OperandKeys::Absent,
             b_keys: OperandKeys::Direct,
             merge_groups: merge_rows(&merged),
+            merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             ..BooleanNaming::default()
         },
