@@ -82,7 +82,9 @@ fn transformed_tool_subtracts_exactly() {
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(&tool, &map).unwrap();
     tiers_ok(&placed);
-    let out = match subtract(&base, &placed).unwrap() {
+    let out = match topo::subtract_with(&base, &placed, &common::flush_declarations(&base, &placed))
+        .unwrap()
+    {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("nonempty subtract"),
     };
