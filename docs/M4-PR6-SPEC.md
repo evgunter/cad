@@ -71,23 +71,28 @@ build key migration machinery.)
 
 ## D7 — Black-box appearance metadata (Evan's #92 ask, banked)
 
-Schema v1 freeze is the decision point Evan named, so it lands here:
-appearance values gain an OPAQUE extension arm — `Custom { key:
-String, bytes: Vec<u8> }` (or a `metadata: BTreeMap<String,
-Vec<u8>>` on the appearance record — implementer picks the shape
-that serializes cleaner, REPORT which). Constraint from #92: F3/
-bit_eq compatible = bit-exact serializable, trivially satisfied by
-bytes. Kernel/editor-core NEVER interprets the bytes (black-box for
-GUI/tooling layers); N3/N5 retire/vanish semantics apply to the
-whole appearance record, Custom arm included. Shape RULING
-(discussed with Evan 2026-07-25): bytes, not a generic parameter or
-dyn trait — a generic M makes the v1 file format open-ended (F3
-migrations can't be defined over an uncontrolled type) and a dyn
-registry makes loaded-tooling part of the format implicitly; bytes
-are the second instance of the witness-datum convention. Convention
-REQUIRED of producers: metadata values begin with a leading version
-integer (mirroring WitnessDatum.schema); typed views live in the
-layer owning the key namespace.
+Schema v1 freeze is the decision point Evan named, so it lands
+here: the appearance record gains `metadata: BTreeMap<String,
+MetaValue>` where `MetaValue` is the format's own SELF-DESCRIBING
+value tree (null/bool/int/float/string/bytes/list/map — the
+serde-value shape). Producer ergonomics are serde-native
+(RULED with Evan, 2026-07-25, superseding the earlier bytes
+ruling): a producer type derives Serialize/Deserialize and
+converts at the store boundary (`to_value`/`from_value`) — typed
+where the type is known, erased at the format boundary. The kernel
+NEVER interprets metadata (black-box for GUI/tooling); any loader
+round-trips unknown metadata structurally (pass-through interop —
+the reason a generic `M` parameter and dyn registries were both
+rejected: serde needs the concrete type at decode time, so either
+would make one tool's types part of the file format). Equality /
+F3 bit_eq = structural equality on the canonical tree; floats
+inside obey D2 (Ryu-canonical, NaN/inf refused); BTreeMap gives
+canonical key order. Producer convention REQUIRED: each value
+carries a `"v": <integer>` version field (the WitnessDatum.schema
+discipline); typed views live in the layer owning the key
+namespace. Witness data stays raw bytes (genuinely opaque binary —
+different contract). N3/N5 retire/vanish semantics apply to the
+whole appearance record, metadata included.
 
 ## D8 — Out of scope
 
