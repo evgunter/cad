@@ -35,16 +35,21 @@
 //! [`appearance_rebind_suggestions`]: every appearance-carrying name
 //! mapped to the derivations wrapping it, loss or no loss.
 //!
-//! # No-prior diagnosis (reported)
+//! # Low-evidence diagnosis (reported)
 //!
 //! `Vanished`'s diagnosis diffs the last-good run against the current
-//! one. Without any prior run the honest evidence is current-run only:
-//! `Cascade` when an embedded operand name itself fails to resolve;
-//! otherwise the discrepancy is between the recorded reference and the
-//! recipe as it stands, reported as
-//! `RecipeEdit { NodeChanged(minting node) }` — the recipe's current
-//! definition does not derive the name, and no verdict evidence exists
-//! to blame a flip.
+//! one. When those lanes are silent — no prior run, or the diff
+//! engine's population-cancel blind spot (`vdiff` module docs) — two
+//! honest rungs remain, in order: `Cascade` when an embedded operand
+//! name itself fails to resolve, and the QUALIFIER-DELTA rung
+//! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
+//! the names themselves yield a `PredicateFlip` derived from recorded
+//! data when a same-shape sibling differs by exactly one pure-sign
+//! `SideOf` entry. If that too finds nothing, the total fallback is
+//! `RecipeEdit { NodeChanged(minting node) }`, documented as "the
+//! recorded reference disagrees with the recipe as it stands; the
+//! cause is not in evidence" — a site, not a claim that an edit
+//! happened.
 
 mod hit;
 mod vdiff;
@@ -497,15 +502,25 @@ impl<U: Decide> PriorCtx for RunCtx<'_, U> {
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
         let (node, entity) = lookup_unique(self.eval, name)?;
         let table = &self.eval.value(node)?.name_table;
-        let body = table
-            .name_of(&EntityRef {
-                body: entity.body,
-                key: EntityKey::Body,
-            })?
-            .clone();
+        let Some(body) = table.name_of(&EntityRef {
+            body: entity.body,
+            key: EntityKey::Body,
+        }) else {
+            // An Ok value whose table has no body row is an
+            // emission-totality violation — the same event
+            // hit-testing screams about (`HitTestError::Unnamed`,
+            // spec D4). Scream in debug too (review Finding 4);
+            // release degrades to no-tombstone (the ghost payload is
+            // cosmetic, the resolution verdict is unaffected).
+            debug_assert!(
+                false,
+                "emission totality violation: no body row for {entity:?} at {node:?}"
+            );
+            return None;
+        };
         Some(Tombstone {
             kind: name.kind,
-            body,
+            body: body.clone(),
             patch: MeshPatchKey { node, entity },
         })
     }
@@ -636,11 +651,21 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     } else {
         prior
             .diagnose(new, name, &path)
+            // The qualifier-delta rung (review Finding 1 ruling):
+            // when the verdict-diff and doc-diff lanes have no
+            // evidence — the population-cancel blind spot, or a
+            // single-run resolve — the N2 discriminator verdicts
+            // recorded IN the names themselves are still evidence.
+            .or_else(|| qualifier_delta(new.eval, name))
             .unwrap_or(Diagnosis::RecipeEdit {
-                // No prior run and no cascade evidence: the recorded
-                // reference disagrees with the recipe as it stands
-                // (module docs; also the total fallback for the
-                // N4-invariant-impossible "nothing differs" state).
+                // Total fallback, honest about its limits: the
+                // recorded reference disagrees with the recipe as it
+                // stands and the CAUSE IS NOT IN EVIDENCE (no verdict
+                // flip, no doc delta, no recorded qualifier delta —
+                // reachable e.g. through the population-cancel blind
+                // spot, `vdiff` module docs). `NodeChanged` names the
+                // minting node as the site of the disagreement, not a
+                // claim that an edit happened.
                 edit: RecipeEditRef::NodeChanged { node: name.node },
             })
     };
@@ -653,6 +678,92 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         },
         offers,
     })
+}
+
+/// The qualifier-delta diagnosis rung (review Finding 1 ruling): a
+/// re-qualified fragment's OLD name carries `(partner, s)` where a
+/// same-shape sibling in the new tables carries `(partner, s')` —
+/// the N2 discriminator verdicts are recorded in the names, so the
+/// flip is derivable from recorded data even when the verdict-diff
+/// engine reports nothing (its population-cancel blind spot, `vdiff`
+/// module docs) or no prior run exists.
+///
+/// Fires only on a CLEAN delta (first match in deterministic
+/// evaluation/table order): a candidate of the same kind, node, and
+/// path shape, equal in every segment except ONE `SideOf` vector,
+/// equal in every entry of that vector except ONE partner whose
+/// verdicts are unanimous signs on both sides (`Positive` ↔
+/// `Negative`). REPORTED boundary: aggregate verdicts (`Mixed`,
+/// `On`) have no single-`Sign` reading in N5's `PredicateFlip`
+/// payload, and multi-entry deltas have no single flip — deriving a
+/// `Sign` for either would be fabrication (the R9 honesty pin), so
+/// both fall through to the documented fallback.
+fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option<Diagnosis> {
+    for &id in &eval.order {
+        let Some(v) = eval.value(id) else { continue };
+        for (candidate, _) in v.name_table.iter() {
+            if let Some((from, to)) = single_pure_sideof_delta(name, candidate) {
+                return Some(Diagnosis::PredicateFlip {
+                    predicate: "name_frag_side_of",
+                    from,
+                    to,
+                });
+            }
+        }
+    }
+    None
+}
+
+/// The (from, to) sign pair iff `new` differs from `old` by exactly
+/// one pure-sign `SideOf` entry ([`qualifier_delta`] docs).
+fn single_pure_sideof_delta(old: &StableName, new: &StableName) -> Option<(Sign, Sign)> {
+    if old.kind != new.kind || old.node != new.node || old.path.len() != new.path.len() {
+        return None;
+    }
+    let mut delta: Option<(Sign, Sign)> = None;
+    for (a, b) in old.path.iter().zip(&new.path) {
+        if a == b {
+            continue;
+        }
+        // More than one differing segment: not a single delta.
+        if delta.is_some() {
+            return None;
+        }
+        let (RoleSeg::Fragment(Qualifier::SideOf(va)), RoleSeg::Fragment(Qualifier::SideOf(vb))) =
+            (a, b)
+        else {
+            return None;
+        };
+        if va.len() != vb.len() {
+            return None;
+        }
+        for ((pa, sa), (pb, sb)) in va.iter().zip(vb) {
+            if pa != pb {
+                return None; // different partner sets: different shape
+            }
+            if sa == sb {
+                continue;
+            }
+            if delta.is_some() {
+                return None; // two entries moved: no single flip
+            }
+            delta = Some((pure_sign(sa)?, pure_sign(sb)?));
+        }
+        // A SideOf pair that differs as a whole but entry-wise not at
+        // all cannot happen (same partners, same verdicts ⇒ equal);
+        // delta is Some here by construction.
+    }
+    delta
+}
+
+/// The unanimous sign of a side verdict, if it has one (`Mixed`/`On`
+/// aggregates do not — [`qualifier_delta`]'s reported boundary).
+fn pure_sign(v: &crate::names::SideVerdict) -> Option<Sign> {
+    match v {
+        crate::names::SideVerdict::Positive => Some(Sign::Positive),
+        crate::names::SideVerdict::Negative => Some(Sign::Negative),
+        crate::names::SideVerdict::Mixed | crate::names::SideVerdict::On => None,
+    }
 }
 
 /// The first (evaluation-order) Ok table carrying `name`.
@@ -728,22 +839,32 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 }
 
 /// Rebind suggestions for a vanished-or-gapped name (spec D9's
-/// suggestion ladder, general form): every name in the evaluation
-/// whose derivation WRAPS `name` (embeds it as an operand name at any
-/// depth — `FromA(x)`, `Instance{of: x}`, seams, fragments of it),
-/// deterministically ordered (first carrying node, then name order).
-/// These are SUGGESTIONS for an explicit `Rebind` — nothing follows
-/// automatically (the ratified EMPTY policy menu).
+/// suggestion ladder, general form): every SAME-KIND name in the
+/// evaluation whose derivation STRUCTURALLY wraps `name` (embeds it
+/// as an operand name at any depth — `FromA(x)`, `Instance{of: x}`,
+/// seams, fragments of it), deterministically ordered (first carrying
+/// node, then name order). These are SUGGESTIONS for an explicit
+/// `Rebind` — nothing follows automatically (the ratified EMPTY
+/// policy menu).
+///
+/// Two exclusions (review Finding 2): a name that merely MENTIONS
+/// `name` as a `SideOf` discriminator PARTNER is not a derivation of
+/// it — partners are the references fragments are classified
+/// against, so painting a cutter wall must not suggest the other
+/// body's fragments ([`walk_names`] with [`Partners::Skip`]); and
+/// cross-kind candidates are excluded because `Rebind` itself
+/// refuses them ([`crate::edit::EditError::RebindKindMismatch`]) —
+/// offering un-rebindable names is not ergonomics.
 pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut out: Vec<StableName> = Vec::new();
     for &id in &eval.order {
         if let Some(v) = eval.value(id) {
             for (candidate, _) in v.name_table.iter() {
-                if candidate == name || out.contains(candidate) {
+                if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
                     continue;
                 }
                 let mut wraps = false;
-                for_each_inner(candidate, &mut |inner| {
+                walk_names(candidate, Partners::Skip, &mut |inner| {
                     if inner == name {
                         wraps = true;
                     }
@@ -813,40 +934,88 @@ pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
     nodes
 }
 
+/// Whether a name walk visits `SideOf` discriminator PARTNERS.
+/// Partners are discrimination references — an edit at a partner's
+/// node can re-qualify the name (N7 localization, cascade), but the
+/// name is not DERIVED from the partner (suggestions must not offer
+/// the other body's fragments for a painted cutter wall — review
+/// Finding 2).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Partners {
+    /// Visit partner names (localization, cascade).
+    Include,
+    /// Skip partner positions (structural embedding only).
+    Skip,
+}
+
 /// Visits every name embedded in `name`'s role path, recursively,
 /// in path order (operand names, seam pairs, merged constituents,
-/// discriminator partners, pattern masters).
-fn for_each_inner<'a>(name: &'a StableName, f: &mut impl FnMut(&'a StableName)) {
-    fn visit<'a>(n: &'a StableName, f: &mut impl FnMut(&'a StableName)) {
+/// pattern masters — and discriminator partners iff `partners` says
+/// so). The match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
+/// [`Qualifier`] variant embedding names must be classified here or
+/// the compile breaks (review Finding 7 — no fail-quiet wildcard).
+fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
+    fn visit<'a>(n: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
         f(n);
-        for_each_inner(n, f);
+        walk_names(n, partners, f);
     }
     for seg in &name.path {
         match seg {
+            // Structural embeddings: the entity derives from these.
             RoleSeg::FromA(n)
             | RoleSeg::FromB(n)
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::Instance { of: n, .. } => visit(n, f),
+            | RoleSeg::Instance { of: n, .. } => visit(n, partners, f),
             RoleSeg::Seam { a, b } => {
-                visit(a, f);
-                visit(b, f);
+                visit(a, partners, f);
+                visit(b, partners, f);
             }
             RoleSeg::Merged(names) => {
                 for n in names {
-                    visit(n, f);
+                    visit(n, partners, f);
                 }
             }
-            RoleSeg::Fragment(Qualifier::SideOf(vec)) => {
-                for (n, _) in vec {
-                    visit(n, f);
+            // Discrimination references: verdicts against partners,
+            // not derivation.
+            RoleSeg::Fragment(q) => match q {
+                Qualifier::SideOf(vec) => {
+                    if partners == Partners::Include {
+                        for (n, _) in vec {
+                            visit(n, partners, f);
+                        }
+                    }
                 }
-            }
-            _ => {}
+                Qualifier::OrderAlong { .. } => {}
+            },
+            // Name-free segments (kept explicit — see the doc note).
+            RoleSeg::OutputBody
+            | RoleSeg::Cap(_)
+            | RoleSeg::Lateral(_)
+            | RoleSeg::RimEdge(..)
+            | RoleSeg::LateralEdge(_)
+            | RoleSeg::CapVertex(..)
+            | RoleSeg::Band(_)
+            | RoleSeg::BandRim(_)
+            | RoleSeg::BandRimPi(_)
+            | RoleSeg::BandPi(_)
+            | RoleSeg::Meridian(..)
+            | RoleSeg::MeridianVertex(..)
+            | RoleSeg::RevolveCap(_)
+            | RoleSeg::Pole(_)
+            | RoleSeg::AxisEdge(_)
+            | RoleSeg::SplitBody(_)
+            | RoleSeg::SectionFace { .. } => {}
         }
     }
+}
+
+/// [`walk_names`] with partners included — the localization/cascade
+/// walk (N7: a flip at a partner node re-qualifies the name).
+fn for_each_inner<'a>(name: &'a StableName, f: &mut impl FnMut(&'a StableName)) {
+    walk_names(name, Partners::Include, f);
 }
 
 /// The first structural-parameter change, restricted to `path` when

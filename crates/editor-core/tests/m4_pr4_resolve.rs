@@ -749,3 +749,461 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         "forward references defer to evaluation-time resolution"
     );
 }
+
+// ---- Review Finding 2: suggestions are structural wraps only, ----
+// ---- kind-filtered (adopted reviewer probe, inverted to a pin) ----
+
+/// True iff `needle` occurs in `hay`'s path ONLY inside SideOf
+/// discriminator vectors (never as a structural embedding) — the
+/// reviewer's phantom detector.
+fn only_sideof_mention(hay: &StableName, needle: &StableName) -> bool {
+    fn embeds_structurally(n: &StableName, needle: &StableName) -> bool {
+        if n == needle {
+            return true;
+        }
+        for seg in &n.path {
+            let hit = match seg {
+                RoleSeg::FromA(x)
+                | RoleSeg::FromB(x)
+                | RoleSeg::SectionEdge { face: x, .. }
+                | RoleSeg::SplitFragment { parent: x, .. }
+                | RoleSeg::CrossingVertex { edge: x, .. }
+                | RoleSeg::OnToolVertex { of: x, .. }
+                | RoleSeg::Instance { of: x, .. } => embeds_structurally(x, needle),
+                RoleSeg::Seam { a, b } => {
+                    embeds_structurally(a, needle) || embeds_structurally(b, needle)
+                }
+                RoleSeg::Merged(v) => v.iter().any(|x| embeds_structurally(x, needle)),
+                // SideOf partners deliberately NOT counted here.
+                _ => false,
+            };
+            if hit {
+                return true;
+            }
+        }
+        false
+    }
+    fn mentions_anywhere(n: &StableName, needle: &StableName) -> bool {
+        if n == needle {
+            return true;
+        }
+        for seg in &n.path {
+            let hit = match seg {
+                RoleSeg::FromA(x)
+                | RoleSeg::FromB(x)
+                | RoleSeg::SectionEdge { face: x, .. }
+                | RoleSeg::SplitFragment { parent: x, .. }
+                | RoleSeg::CrossingVertex { edge: x, .. }
+                | RoleSeg::OnToolVertex { of: x, .. }
+                | RoleSeg::Instance { of: x, .. } => mentions_anywhere(x, needle),
+                RoleSeg::Seam { a, b } => {
+                    mentions_anywhere(a, needle) || mentions_anywhere(b, needle)
+                }
+                RoleSeg::Merged(v) => v.iter().any(|x| mentions_anywhere(x, needle)),
+                RoleSeg::Fragment(Qualifier::SideOf(v)) => {
+                    v.iter().any(|(p, _)| mentions_anywhere(p, needle))
+                }
+                _ => false,
+            };
+            if hit {
+                return true;
+            }
+        }
+        false
+    }
+    !embeds_structurally(hay, needle) && mentions_anywhere(hay, needle)
+}
+
+#[test]
+fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
+    // The reviewer's band-cut rig: the subtract mints SideOf-qualified
+    // cap fragments whose partners are BARE operand names of the
+    // cutter's walls — exactly the shape a user paints. Suggestions
+    // for a painted partner must be derivations WRAPPING it, never
+    // fragments of the OTHER body that merely recorded a side-of
+    // verdict against its plane, and never a kind Rebind refuses.
+    let doc = ProfileDoc::empty();
+    let (doc, _a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
+    let (doc, bp) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, -0.5],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![
+                (-2.5, 1.0),
+                (2.0, 1.0),
+                (4.5, 0.8),
+                (4.5, 0.9),
+                (2.0, 1.1),
+                (-2.5, 1.1),
+            ]],
+        )),
+    );
+    let (doc, band) = insert(
+        doc,
+        Node::Extrude {
+            profile: bp,
+            distance: len(2.0),
+        },
+    );
+    let (doc, tr) = insert(
+        doc,
+        Node::Transform {
+            input: band,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    let (doc, sub) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: _a,
+            b: tr,
+            declare: None,
+        },
+    );
+    let ev = run(&doc, None);
+    // A partner name recorded in some fragment's SideOf vector.
+    let partner: StableName = ev
+        .value(sub)
+        .expect("subtract evaluates")
+        .name_table
+        .iter()
+        .find_map(|(n, e)| {
+            if !matches!(e, Entry::Unique(_) | Entry::Tied(_)) {
+                return None;
+            }
+            n.path.iter().find_map(|seg| match seg {
+                RoleSeg::Fragment(Qualifier::SideOf(v)) => v.first().map(|(p, _)| p.clone()),
+                _ => None,
+            })
+        })
+        .expect("band cut mints SideOf-qualified fragments");
+    let suggestions = rebind_suggestions(&ev, &partner);
+    assert!(
+        !suggestions.is_empty(),
+        "the true structural wraps are still offered"
+    );
+    for s in &suggestions {
+        assert_eq!(
+            s.kind, partner.kind,
+            "cross-kind suggestion (Rebind refuses these): {s:?}"
+        );
+        assert!(
+            !only_sideof_mention(s, &partner),
+            "SIDEOF-ONLY phantom offered as a suggestion: {s:?}"
+        );
+    }
+}
+
+// ---- Review Finding 3: Diagnosis::RecipeEdit constructed for a ----
+// ---- real recipe edit; the single-run no-prior Vanished path ----
+
+#[test]
+fn repointed_input_diagnoses_recipe_edit_on_path() {
+    // Two geometrically IDENTICAL operands b and c: re-pointing the
+    // boolean's second input from b to c changes NO verdict (the
+    // computed geometry is bit-identical) and NO structural
+    // parameter — the only honest evidence is the recipe edit at the
+    // boolean node, and it is on the vanished name's path.
+    let build = |use_c: bool| {
+        let doc = ProfileDoc::empty();
+        let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+        // General position (no coplanar planes with A): B pierces A's
+        // slab, strictly inside in y, poking out above and below.
+        let (doc, b) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+        let (doc, c) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+        let (doc, bl) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a,
+                b: if use_c { c } else { b },
+                declare: None,
+            },
+        );
+        (doc, b, bl)
+    };
+    let (doc1, b, bl) = build(false);
+    let ev1 = run(&doc1, None);
+    // The union carries B's top cap as FromB(cap_b).
+    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Top));
+    let target = StableName {
+        kind: EntityKind::Face,
+        node: bl,
+        path: vec![RoleSeg::FromB(Box::new(cap_b.clone()))],
+    };
+    assert!(
+        matches!(
+            resolve(
+                RunCtx {
+                    doc: &doc1,
+                    eval: &ev1
+                },
+                &target
+            ),
+            Resolution::Resolved(_)
+        ),
+        "the union derives FromB(cap of b) before the re-point"
+    );
+    let (doc2, _, _) = build(true);
+    // FRESH evaluation deliberately (REPORTED observation, fix-pass):
+    // a memo-TRANSFERRED run reuses the boolean's value by content
+    // key, and b/c are bit-identical twins — so the reused value
+    // still carries the OLD `FromB(cap of b)` name table and the
+    // name keeps resolving against a recipe that now feeds c. Name
+    // tables embed minting node ids (N1) while content keys exclude
+    // them (D8): the names half of a memoized value is not a pure
+    // function of its key. Flagged for an orchestrator ruling; out
+    // of scope for this PR's resolution machinery.
+    let ev2 = run(&doc2, None);
+    let res = resolve_with_prior(
+        RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        RunCtx {
+            doc: &doc1,
+            eval: &ev1,
+        },
+        &target,
+    );
+    let Resolution::Failed(f) = res else {
+        panic!("expected Failed, got {res:?}");
+    };
+    let ResolveError::Vanished {
+        diagnosis,
+        last_good,
+        ..
+    } = &f.error
+    else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert_eq!(
+        *diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node: bl }
+        },
+        "a re-pointed input is a recipe edit on the path — no flip, \
+         no structural param to blame"
+    );
+    assert!(last_good.is_some(), "the prior run resolved the name");
+}
+
+#[test]
+fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
+    // No prior run, no cascade, no recorded qualifier delta: the
+    // documented total fallback — the recorded reference disagrees
+    // with the recipe as it stands, the cause not in evidence.
+    let doc = ProfileDoc::empty();
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: body,
+            count: editor_core::Expr::count(2),
+            kind: editor_core::PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc, None);
+    // Instance 5 was never minted by this 2-count pattern.
+    let master_body = name1(EntityKind::Body, body, RoleSeg::OutputBody);
+    let inst5 = name1(
+        EntityKind::Body,
+        pattern,
+        RoleSeg::Instance {
+            i: 5,
+            of: Box::new(master_body),
+        },
+    );
+    let res = resolve(
+        RunCtx {
+            doc: &doc,
+            eval: &ev,
+        },
+        &inst5,
+    );
+    let Resolution::Failed(f) = res else {
+        panic!("expected Failed, got {res:?}");
+    };
+    let ResolveError::Vanished {
+        diagnosis,
+        last_good,
+        ..
+    } = &f.error
+    else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert_eq!(
+        *diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node: pattern }
+        }
+    );
+    assert!(last_good.is_none(), "no prior run, no tombstone");
+    assert!(f.offers.is_empty());
+}
+
+// ---- Review Finding 1 ruling: the qualifier-delta rung ----
+
+/// A body-kind fragment name `[FromA(f), Fragment(SideOf([(p, v)]))]`
+/// at `node` — the hand-built shape for the qualifier-delta pins.
+fn sideof_frag(
+    node: RecipeNodeId,
+    f: &StableName,
+    p: &StableName,
+    v: editor_core::SideVerdict,
+) -> StableName {
+    StableName {
+        kind: EntityKind::Body,
+        node,
+        path: vec![
+            RoleSeg::FromA(Box::new(f.clone())),
+            RoleSeg::Fragment(Qualifier::SideOf(vec![(p.clone(), v)])),
+        ],
+    }
+}
+
+/// One-node hand-built evaluation whose table is `t` (the over-tie
+/// pin's construction, reused).
+fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
+    let mut nodes = std::collections::BTreeMap::new();
+    nodes.insert(
+        node,
+        editor_core::NodeResult::Ok(editor_core::NodeValue {
+            payload: editor_core::ValuePayload::Declarations(vec![]),
+            name_table: Arc::new(t),
+            verdicts: Arc::new(vec![]),
+            witness: WitnessSlot::default(),
+            content_key: ContentKey(0),
+        }),
+    );
+    Evaluation::<f64> {
+        epoch: editor_core::Epoch::mint(),
+        order: vec![node],
+        nodes,
+        outcome: EvalOutcome::Completed,
+        recomputed: 1,
+        reused: 0,
+        appearance: editor_core::AppearanceResolution::default(),
+    }
+}
+
+fn body_ent(i: u32) -> editor_core::EntityRef {
+    editor_core::EntityRef {
+        body: i,
+        key: editor_core::EntityKey::Body,
+    }
+}
+
+#[test]
+fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
+    use geom_core::Sign;
+    // The re-qualification is recorded IN the names: the old name
+    // carries (P, Negative) where the new table's same-shape sibling
+    // carries (P, Positive). Both runs have EMPTY verdict logs and
+    // the doc is UNCHANGED — the diff-engine and doc-diff lanes have
+    // nothing (the population-cancel shape), yet the diagnosis is an
+    // honest PredicateFlip derived from recorded data.
+    let (doc, n) = insert(ProfileDoc::empty(), Node::Declare { pairs: vec![] });
+    let (doc, m) = insert(doc, Node::Declare { pairs: vec![] });
+    let f = name1(EntityKind::Body, n, RoleSeg::OutputBody);
+    let p = name1(EntityKind::Body, m, RoleSeg::OutputBody);
+    let old_name = sideof_frag(n, &f, &p, editor_core::SideVerdict::Negative);
+    let new_name = sideof_frag(n, &f, &p, editor_core::SideVerdict::Positive);
+
+    let mut t_prior = NameTable::new();
+    t_prior.insert(old_name.clone(), body_ent(0)).unwrap();
+    t_prior.insert(f.clone(), body_ent(1)).unwrap();
+    t_prior.insert(p.clone(), body_ent(2)).unwrap();
+    let mut t_new = NameTable::new();
+    t_new.insert(new_name.clone(), body_ent(0)).unwrap();
+    t_new.insert(f.clone(), body_ent(1)).unwrap();
+    t_new.insert(p.clone(), body_ent(2)).unwrap();
+    let prior_ev = one_node_eval(n, t_prior);
+    let new_ev = one_node_eval(n, t_new);
+
+    let expect_flip = |res: Resolution| {
+        let Resolution::Failed(fail) = res else {
+            panic!("expected Failed, got {res:?}");
+        };
+        let ResolveError::Vanished {
+            diagnosis,
+            last_good,
+            ..
+        } = fail.error
+        else {
+            panic!("expected Vanished, got {:?}", fail.error);
+        };
+        assert_eq!(
+            diagnosis,
+            Diagnosis::PredicateFlip {
+                predicate: "name_frag_side_of",
+                from: Sign::Negative,
+                to: Sign::Positive,
+            },
+            "the recorded qualifier delta is the honest flip"
+        );
+        last_good
+    };
+
+    // Single-run: the rung is the FIRST evidence (no prior at all).
+    let last_good = expect_flip(resolve(
+        RunCtx {
+            doc: &doc,
+            eval: &new_ev,
+        },
+        &old_name,
+    ));
+    assert!(last_good.is_none());
+
+    // With-prior, empty FlipSet (both logs empty), unchanged doc:
+    // every earlier lane is silent; the rung still fires, and the
+    // tombstone rides from the prior run.
+    let last_good = expect_flip(resolve_with_prior(
+        RunCtx {
+            doc: &doc,
+            eval: &new_ev,
+        },
+        RunCtx {
+            doc: &doc,
+            eval: &prior_ev,
+        },
+        &old_name,
+    ));
+    let t = last_good.expect("the prior run resolved the name");
+    assert_eq!(t.patch.node, n);
+    assert_eq!(t.patch.entity, body_ent(0));
+
+    // The reported boundary: an aggregate (Mixed) verdict on either
+    // side has no single-Sign reading — the rung must NOT fire, and
+    // the fallback names the site without claiming an edit.
+    let old_mixed = sideof_frag(n, &f, &p, editor_core::SideVerdict::Mixed);
+    let res = resolve(
+        RunCtx {
+            doc: &doc,
+            eval: &new_ev,
+        },
+        &old_mixed,
+    );
+    let Resolution::Failed(fail) = res else {
+        panic!("expected Failed, got {res:?}");
+    };
+    let ResolveError::Vanished { diagnosis, .. } = fail.error else {
+        panic!("expected Vanished, got {:?}", fail.error);
+    };
+    assert_eq!(
+        diagnosis,
+        Diagnosis::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node: n }
+        },
+        "Mixed→Positive is not a pure-sign delta; fabricating a Sign \
+         would be dishonest"
+    );
+}

@@ -37,10 +37,17 @@
 //! same recipe, same construction, a handful of margins re-classified)
 //! the residual IS the exact flip list. The documented blind spot:
 //! two instances of one predicate trading opposite signs in one node
-//! cancel — a pure exchange has no net population change. Such an
-//! exchange also swaps no name STRINGS (order qualifiers keep their
-//! rank vocabulary), so the resolution consumers lose nothing; the
-//! PR 6 audit inherits the caveat with this paragraph as its record.
+//! cancel — a pure exchange has no net population change. WITHIN one
+//! qualifier group such an exchange also swaps no name STRINGS (order
+//! qualifiers keep their rank vocabulary); ACROSS groups it CAN
+//! re-qualify names while this engine reports no flip (two fragments'
+//! `name_frag_side_of` probes flipping in opposite directions against
+//! different partners cancel exactly, yet both names change). A
+//! `Vanished` attribution then sees an empty [`FlipSet`] and rests on
+//! the later ladder rungs — the recorded-qualifier delta, or the
+//! cause-not-in-evidence fallback (`super` module docs, "Low-evidence
+//! diagnosis"). The PR 6 audit inherits the caveat with this
+//! paragraph as its record.
 //!
 //! [`SetTolerance`]: crate::edit::DocEdit
 

@@ -225,3 +225,50 @@ fn failure_transitions_surface_as_status_rows() {
     assert_eq!(d_split.old_status, RunStatus::Ok);
     assert_eq!(d_split.new_status, RunStatus::Poisoned);
 }
+
+// ---- Review Finding 9: the parallel schedule preserves verdict ----
+// ---- logs (adopted reviewer probe) ----
+
+#[test]
+fn parallel_schedule_preserves_verdict_logs() {
+    // PR 2's D9 cross-check compares body fingerprints only; PR 4
+    // added verdict logs to node values, and the verdict sink is
+    // thread-local — pin that the rayon lane records IDENTICAL logs
+    // per node (the diff engine's inputs are schedule-independent).
+    let doc = ProfileDoc::empty();
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _uni) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: None,
+        },
+    );
+    let seq = run(&doc, None);
+    let par = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            epoch: editor_core::Epoch::mint(),
+            parallel: true,
+        },
+    );
+    for &id in &seq.order {
+        match (seq.value(id), par.value(id)) {
+            (Some(sv), Some(pv)) => {
+                assert_eq!(
+                    sv.verdicts, pv.verdicts,
+                    "verdict log diverged under the parallel schedule at {id:?}"
+                );
+            }
+            (None, None) => {}
+            other => panic!("status diverged at {id:?}: {:?}", other.0.is_some()),
+        }
+    }
+    // And the engine sees them as identical runs.
+    assert!(diff_verdicts(&seq, &par).is_empty());
+}
