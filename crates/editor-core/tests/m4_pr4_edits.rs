@@ -380,12 +380,15 @@ fn witness_change_moves_the_content_key_and_reproduces_bits() {
 
 #[test]
 fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
+    // Payload values derived from the ambient tolerance (discipline:
+    // no hard-coded ε anywhere, even in constructed evidence).
+    let tol = geom_core::Tolerance::get();
     let bif = WitnessBifurcation {
         kind: BifurcationKind::FoldProximity,
         margin: BranchMarginEvidence {
-            margin: 1.0e-12,
-            band_zero: 1.0e-9,
-            band_escalate: 1.0e-8,
+            margin: tol.eps / 1024.0,
+            band_zero: tol.eps,
+            band_escalate: tol.eps * tol.k,
         },
         implicated: vec![
             Implicated::Constraint(3),

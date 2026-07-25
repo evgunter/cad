@@ -10,8 +10,8 @@
 use editor_core::eval::ContentBits;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDesc, ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId,
-    StableName, evaluate, resolve, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
+    resolve, resolve_with_prior,
 };
 use geom_core::Decide;
 
