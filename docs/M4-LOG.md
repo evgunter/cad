@@ -1232,3 +1232,8 @@ tests 4 / docs 5 — A/B row 2 FILLED (first complete experiment
 row). The 1 MINOR (failure-message tail reversed) orchestrator-
 fixed directly (f4460a5, pin re-run 3/3). #100 merges on green
 checks. Review clone for #99 removed after merge.
+
+**#100 MERGED (2026-07-25): main `9b07465`, closes #99** on 10/10
+green checks. #99 lanes + docs-audit clone removed (pr5-review
+clone RETAINED until PR 5 merges, in case the fix pass needs the
+reviewer resumed). Remaining in flight: PR 5 fix pass, #93.
