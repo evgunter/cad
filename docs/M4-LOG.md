@@ -1309,3 +1309,13 @@ multi-loop, constructor-quantity exactness contract). No
 implementation until ratified. #101 implementer nudged
 (structure-only): junction classification as a small callable API,
 5 points win any tension.
+
+**#104 sequencing settled (2026-07-25, Evan delegated the call)**:
+schema v1 = explicit geometry + #101 flags; profiles-as-programs
+DECLARED as the v2 end state (not optional) via the F3 migration
+chain, lift determined by the flags. Grounds: v1 must not freeze
+around an unratified algebra (closure family, multi-loop, sugar,
+exactness contract all open); the algebra gets exercised by real
+authoring before entering the file format. Evan's philosophy point
+(program = truer recipe form) accepted — it's what upgrades v2
+from option to commitment. Recorded on #104.
