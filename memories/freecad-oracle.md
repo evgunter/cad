@@ -9,13 +9,13 @@ FreeCAD 1.1.2 (extracted AppImage, checksum-verified; apt only had
 0.18 from 2019) is installed at
 `~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd`
 on this machine — Evan approved the install 2026-07-23. It is the
-external-import acceptance oracle for STEP export (M4 PR 7's
-previously-open caveat, now dischargeable): headless import via a
-python script calling `Part.Shape().read(path)`, asserting
-validity, solid/shell/face/edge/vertex counts, and volume. Working
-example: `~/.local/share/cad-work/freecad/import_check.py`
-(smoke-tested on the F6 spike's in-house AP214 cube → VALID, 6/12/8,
-volume 1.0). Integration follows the `scripts/check_admesh.sh`
-pattern ("admesh pattern, STEP-shaped") — locate via env var with
-the above path as default, skip loudly when absent so cargo/gate
-stay hermetic.
+external-import acceptance oracle for STEP export: headless import
+via `Part.Shape().read(path)`, asserting validity,
+solid/shell/face/edge/vertex counts, and volume. Integration is
+DONE and canonical in-repo (admesh pattern, STEP-shaped):
+`scripts/check_step.sh` + `scripts/step_import_check.py` — locate
+via env var with the above path as default, skip loudly when
+absent so cargo stays hermetic. Hosted CI's step-import job
+installs its own checksum-verified FreeCAD 1.1.2 AppImage (#94),
+version-matched to this local oracle — keep the versions in sync
+if either side upgrades.
