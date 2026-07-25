@@ -183,7 +183,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     let flips = diff_verdicts(&ev1, &ev2);
     let delta = flips.nodes.get(&pattern).expect("pattern delta");
     assert!(delta.flips.is_empty(), "no fake flips: {delta:?}");
-    assert!(delta.diverged.is_some(), "length change is divergence");
+    assert!(!delta.diverged.is_empty(), "count change is divergence");
     assert_eq!(flips.nodes.len(), 1, "localized to the pattern node");
 }
 

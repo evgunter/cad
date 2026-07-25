@@ -40,7 +40,9 @@ mod hit;
 mod vdiff;
 
 pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
-pub use vdiff::{FlipSet, NodeVerdictDelta, RunStatus, VerdictFlip, diff_verdicts};
+pub use vdiff::{
+    FlipSet, NodeVerdictDelta, PredicateDivergence, RunStatus, VerdictFlip, diff_verdicts,
+};
 
 use std::collections::BTreeSet;
 
@@ -339,40 +341,52 @@ impl<U: Decide> PriorCtx for RunCtx<'_, U> {
     /// the same three globally (geometry-mediated effects still land
     /// their flips at the deciding node, so the global lanes are the
     /// honesty fallback, not the common case).
+    ///
+    /// Attribution among several path flips: the `name_frag_*`
+    /// discriminator family wins when present — those predicates are
+    /// the name's OWN qualifier vocabulary (a discriminator flip is
+    /// definitionally the flip that re-qualified the fragment);
+    /// otherwise the first flip in deterministic order. This is a
+    /// consumer-side attribution choice — the diff engine itself
+    /// stays cause-agnostic and unspecialized.
     fn diagnose<T: Decide>(
         &self,
         new: RunCtx<'_, T>,
         _name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
+        let pick = |flips: &[(RecipeNodeId, VerdictFlip)]| {
+            flips
+                .iter()
+                .find(|(_, f)| f.predicate.starts_with("name_frag_"))
+                .or_else(|| flips.first())
+                .map(|(_, f)| Diagnosis::PredicateFlip {
+                    predicate: f.predicate,
+                    from: f.from,
+                    to: f.to,
+                })
+        };
         let flips = diff_verdicts(self.eval, new.eval);
-        if let Some((_, f)) = flips.flips_on_nodes(path).first() {
-            return Some(Diagnosis::PredicateFlip {
-                predicate: f.predicate,
-                from: f.from,
-                to: f.to,
-            });
+        if let Some(d) = pick(&flips.flips_on_nodes(path)) {
+            return Some(d);
         }
         let ddiff = self.doc.diff(new.doc);
         if let Some((node, param)) = structural_param_change(self.doc, new.doc, &ddiff, Some(path))
         {
             return Some(Diagnosis::StructuralParam { node, param });
         }
-        if let Some(edit) = recipe_edit_change(&ddiff, Some(path)) {
+        if let Some(edit) = recipe_edit_change(self.doc, new.doc, &ddiff, Some(path)) {
             return Some(Diagnosis::RecipeEdit { edit });
         }
         // Global fallbacks (off-path evidence, in the same order).
-        if let Some(&(_, f)) = flips.report().first() {
-            return Some(Diagnosis::PredicateFlip {
-                predicate: f.predicate,
-                from: f.from,
-                to: f.to,
-            });
+        if let Some(d) = pick(&flips.report()) {
+            return Some(d);
         }
         if let Some((node, param)) = structural_param_change(self.doc, new.doc, &ddiff, None) {
             return Some(Diagnosis::StructuralParam { node, param });
         }
-        recipe_edit_change(&ddiff, None).map(|edit| Diagnosis::RecipeEdit { edit })
+        recipe_edit_change(self.doc, new.doc, &ddiff, None)
+            .map(|edit| Diagnosis::RecipeEdit { edit })
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
@@ -776,8 +790,14 @@ fn structural_param_change(
 }
 
 /// The first recipe edit touching the (optionally restricted) node
-/// set, as a [`RecipeEditRef`].
+/// set, as a [`RecipeEditRef`]. A `Changed` node whose delta is
+/// confined to CONTINUOUS slot expressions is NOT a recipe edit —
+/// that is parameter motion, N7's site (i)/(ii) vocabulary (its
+/// effects surface as verdict flips or structural-parameter
+/// diagnoses), never site (iii).
 fn recipe_edit_change(
+    old: &Doc<ProfileDesc>,
+    new: &Doc<ProfileDesc>,
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<RecipeEditRef> {
@@ -785,11 +805,38 @@ fn recipe_edit_change(
         let (node, edit) = match *change {
             NodeChange::Added(n) => (n, RecipeEditRef::NodeInserted { node: n }),
             NodeChange::Removed(n) => (n, RecipeEditRef::NodeDeleted { node: n }),
-            NodeChange::Changed(n) => (n, RecipeEditRef::NodeChanged { node: n }),
+            NodeChange::Changed(n) => {
+                if let (Some(a), Some(b)) = (old.node(n), new.node(n))
+                    && continuous_only_change(a, b)
+                {
+                    continue;
+                }
+                (n, RecipeEditRef::NodeChanged { node: n })
+            }
         };
         if path.is_none_or(|p| p.contains(&node)) {
             return Some(edit);
         }
     }
     None
+}
+
+/// Whether two payloads differ ONLY in continuous slot expressions
+/// (checked by copying the new continuous exprs over the old payload
+/// and comparing bitwise — total, no per-variant knowledge).
+fn continuous_only_change(
+    old: &crate::node::Node<ProfileDesc>,
+    new: &crate::node::Node<ProfileDesc>,
+) -> bool {
+    let mut patched = old.clone();
+    for slot in new.slots() {
+        if slot.is_structural() {
+            continue;
+        }
+        let (Some(dst), Some(src)) = (patched.expr_mut(slot), new.expr(slot)) else {
+            return false; // slot sets disagree: structural change
+        };
+        *dst = src.clone();
+    }
+    patched.bit_eq(new)
 }

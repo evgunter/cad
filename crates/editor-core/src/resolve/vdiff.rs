@@ -12,10 +12,35 @@
 //! Why the diff is well-defined (N5): both evaluations carry their
 //! verdict logs ([`crate::eval::NodeValue::verdicts`] — k_stats names
 //! and definite signs), and D9 replay determinism makes each node's
-//! decision sequence a pure function of its inputs. Two runs of the
-//! same node therefore produce logs that are positionally comparable
-//! until the first structural divergence; a sign change at a matched
-//! position IS a predicate flip, the pillar's recorded change site.
+//! decision sequence a pure function of its inputs.
+//!
+//! # Alignment: per-predicate sign populations, not positions
+//!
+//! Two runs of a node are compared PER PREDICATE by their sign
+//! POPULATIONS (how many Negative/Zero/Positive verdicts each run
+//! recorded), never by log position. Positional pairing — global or
+//! per-predicate — is unsound here by the kernel's own rules: the
+//! construction order inside an op is itself steered by recorded
+//! exact-order predicates, so a legitimate flip can permute the
+//! entire remaining decision sequence, and positional pairing then
+//! reports pure permutation noise as flips. Populations are
+//! permutation-invariant: matched signs cancel, and the residual —
+//! signs present in one run but not the other — is exactly the NET
+//! verdict change at that node. Residuals pair canonically
+//! (ascending sign order, old against new) into [`VerdictFlip`]s
+//! with multiplicity; an instance-count change is additionally
+//! recorded as a [`PredicateDivergence`] (the predicate ran a
+//! different number of times — a structural change, reported, never
+//! guessed about).
+//!
+//! When the decision structure is stable (the ε-audit's common case:
+//! same recipe, same construction, a handful of margins re-classified)
+//! the residual IS the exact flip list. The documented blind spot:
+//! two instances of one predicate trading opposite signs in one node
+//! cancel — a pure exchange has no net population change. Such an
+//! exchange also swaps no name STRINGS (order qualifiers keep their
+//! rank vocabulary), so the resolution consumers lose nothing; the
+//! PR 6 audit inherits the caveat with this paragraph as its record.
 //!
 //! [`SetTolerance`]: crate::edit::DocEdit
 
@@ -43,19 +68,34 @@ pub enum RunStatus {
     Absent,
 }
 
-/// One verdict flip: the same decision site (same position, same
-/// predicate name) classified to different signs in the two runs —
-/// the pillar's recorded change site, N5's `PredicateFlip` payload.
+/// One net verdict flip at a node: `count` instances of `predicate`
+/// decided `from` in the old run where the new run decided `to`
+/// (population residuals, canonically paired — module docs). The
+/// pillar's recorded change site, N5's `PredicateFlip` payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VerdictFlip {
-    /// Position in the node's decision order (both logs).
-    pub index: u32,
     /// The predicate that flipped (k_stats static name).
     pub predicate: &'static str,
-    /// Its sign in the old run.
+    /// Its net old-run sign.
     pub from: Sign,
-    /// Its sign in the new run.
+    /// Its net new-run sign.
     pub to: Sign,
+    /// How many instances made this transition (net).
+    pub count: u32,
+}
+
+/// A predicate whose instance count differs between the two runs at
+/// one node: the decision structure changed there (the predicate ran
+/// a different number of times). Reported alongside any pairable
+/// net flips, never silently absorbed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PredicateDivergence {
+    /// The structurally-diverged predicate.
+    pub predicate: &'static str,
+    /// Its instance count in the old run.
+    pub old_count: u32,
+    /// Its instance count in the new run.
+    pub new_count: u32,
 }
 
 /// One node's verdict delta between two runs.
@@ -65,27 +105,23 @@ pub struct NodeVerdictDelta {
     pub old_status: RunStatus,
     /// The node's standing in the new run.
     pub new_status: RunStatus,
-    /// Sign changes at matched decision sites, in decision order.
+    /// Net sign changes, ordered by predicate name then (from, to)
+    /// (deterministic).
     pub flips: Vec<VerdictFlip>,
-    /// The first log position where the two decision sequences stop
-    /// being positionally comparable (different predicate name, or
-    /// one log ends): the node's decision STRUCTURE changed there —
-    /// downstream positions are not compared (they would pair
-    /// unrelated decisions). `None` when the sequences align end to
-    /// end.
-    pub diverged: Option<u32>,
+    /// Count-changed predicates, ordered by name.
+    pub diverged: Vec<PredicateDivergence>,
 }
 
 impl NodeVerdictDelta {
     /// Whether this delta records any difference at all.
     pub fn is_empty(&self) -> bool {
-        self.old_status == self.new_status && self.flips.is_empty() && self.diverged.is_none()
+        self.old_status == self.new_status && self.flips.is_empty() && self.diverged.is_empty()
     }
 }
 
 /// The diff engine's output: per-node verdict deltas, only for nodes
 /// where SOMETHING differs (statuses, flips, or divergence).
-/// Deterministic by construction (`BTreeMap`, decision order within
+/// Deterministic by construction (`BTreeMap`, canonical order within
 /// nodes).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlipSet {
@@ -94,8 +130,8 @@ pub struct FlipSet {
 }
 
 impl FlipSet {
-    /// True when the two runs' verdict vectors (and node standings)
-    /// are identical — the no-flip certificate.
+    /// True when the two runs' verdict populations (and node
+    /// standings) are identical — the no-flip certificate.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
@@ -106,9 +142,9 @@ impl FlipSet {
     }
 
     /// Every flip, deterministically ordered (node id ascending, then
-    /// decision order) — the `SetTolerance` audit's "exactly the
-    /// flipped predicates" report (PR 6 wires the recorded-ε edit to
-    /// this; the ambient-ε mechanism feeds it now).
+    /// the per-node canonical order) — the `SetTolerance` audit's
+    /// "exactly the flipped predicates" report (PR 6 wires the
+    /// recorded-ε edit to this; the ambient-ε mechanism feeds it now).
     pub fn report(&self) -> Vec<(RecipeNodeId, VerdictFlip)> {
         self.nodes
             .iter()
@@ -146,6 +182,16 @@ fn status<T: Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
     }
 }
 
+const SIGNS: [Sign; 3] = [Sign::Negative, Sign::Zero, Sign::Positive];
+
+fn sign_ix(s: Sign) -> usize {
+    match s {
+        Sign::Negative => 0,
+        Sign::Zero => 1,
+        Sign::Positive => 2,
+    }
+}
+
 /// Diffs two evaluations' verdict logs (spec D2 — THE engine, built
 /// once). Scalar-generic on BOTH sides independently: verdict logs
 /// are scalar-independent data, so f64 runs, Interval runs, and
@@ -161,27 +207,71 @@ pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation
             old_status,
             new_status,
             flips: Vec::new(),
-            diverged: None,
+            diverged: Vec::new(),
         };
-        if let (Some(a), Some(b)) = (old.value(id), new.value(id)) {
-            let (la, lb) = (a.verdicts.as_slice(), b.verdicts.as_slice());
-            let n = la.len().min(lb.len());
-            for (i, (va, vb)) in la.iter().zip(lb.iter()).enumerate() {
-                if va.predicate != vb.predicate {
-                    delta.diverged = Some(i as u32);
-                    break;
+        if let (Some(a), Some(b)) = (old.value(id), new.value(id))
+            && a.verdicts != b.verdicts
+        {
+            // Per-predicate sign populations (module docs).
+            let populate = |log: &[geom_core::k_stats::Verdict]| {
+                let mut m: BTreeMap<&'static str, [u32; 3]> = BTreeMap::new();
+                for v in log {
+                    m.entry(v.predicate).or_default()[sign_ix(v.sign)] += 1;
                 }
-                if va.sign != vb.sign {
+                m
+            };
+            let (pa, pb) = (populate(&a.verdicts), populate(&b.verdicts));
+            let predicates: BTreeSet<&'static str> = pa.keys().chain(pb.keys()).copied().collect();
+            for predicate in predicates {
+                let ca = pa.get(predicate).copied().unwrap_or_default();
+                let cb = pb.get(predicate).copied().unwrap_or_default();
+                if ca == cb {
+                    continue;
+                }
+                // Residuals after matched signs cancel.
+                let mut old_surplus = Vec::new();
+                let mut new_surplus = Vec::new();
+                for s in SIGNS {
+                    let (x, y) = (ca[sign_ix(s)], cb[sign_ix(s)]);
+                    if x > y {
+                        old_surplus.push((s, x - y));
+                    } else if y > x {
+                        new_surplus.push((s, y - x));
+                    }
+                }
+                // Canonical pairing: ascending sign order both sides;
+                // grouped runs zip into net flips with multiplicity.
+                let mut oi = old_surplus.into_iter();
+                let mut ni = new_surplus.into_iter();
+                let (mut o, mut n) = (oi.next(), ni.next());
+                while let (Some((fs, fc)), Some((ts, tc))) = (o, n) {
+                    let take = fc.min(tc);
                     delta.flips.push(VerdictFlip {
-                        index: i as u32,
-                        predicate: va.predicate,
-                        from: va.sign,
-                        to: vb.sign,
+                        predicate,
+                        from: fs,
+                        to: ts,
+                        count: take,
+                    });
+                    o = if fc > take {
+                        Some((fs, fc - take))
+                    } else {
+                        oi.next()
+                    };
+                    n = if tc > take {
+                        Some((ts, tc - take))
+                    } else {
+                        ni.next()
+                    };
+                }
+                // Unbalanced totals = an instance-count change.
+                let (ta, tb) = (ca.iter().sum::<u32>(), cb.iter().sum::<u32>());
+                if ta != tb {
+                    delta.diverged.push(PredicateDivergence {
+                        predicate,
+                        old_count: ta,
+                        new_count: tb,
                     });
                 }
-            }
-            if delta.diverged.is_none() && la.len() != lb.len() {
-                delta.diverged = Some(n as u32);
             }
         }
         if !delta.is_empty() {
