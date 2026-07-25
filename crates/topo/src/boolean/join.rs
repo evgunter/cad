@@ -891,9 +891,14 @@ fn cut_pair<T: Decide>(
 /// through the same [`point_in_solid`] reified-predicate funnel — no
 /// new predicate, no epsilon comparison. Seam-chord midpoints lie ON
 /// the other boundary and are skipped by the trilean like seam
-/// vertices. Regions bounded entirely by edges INSIDE the other
-/// body's boundary (the coincident-plane class) still exhaust both
-/// tiers → the typed refusal below stays.
+/// vertices. Third, REGION-INTERIOR candidates (the nested-island
+/// case: an island's surround bounded entirely by seam chords of TWO
+/// seam loops — every vertex and midpoint on the other boundary):
+/// vertex-triple centroids accepted only when the reified
+/// `point_in_face` certifies them strictly interior, then probed the
+/// same way. Regions lying INSIDE the other body's boundary surface
+/// (the coincident-plane class) still exhaust all three tiers — every
+/// interior point is `OnBoundary` — so the typed refusal below stays.
 fn resolve_roles_geometric<T: Decide>(
     body: &Body<T>,
     other_pristine: &Body<T>,
@@ -907,8 +912,19 @@ fn resolve_roles_geometric<T: Decide>(
     enum Anchor {
         /// The half-edge's start vertex (the M3 PR 5 anchor).
         Vertex,
-        /// The half-edge's chord midpoint (issue #93's tier).
+        /// The half-edge's chord midpoint (issue #93's second tier).
         EdgeMidpoint,
+        /// A verified region-interior point (issue #93's third tier —
+        /// the nested-island case): the centroid of the half-edge's
+        /// vertex triple, ACCEPTED only when the reified
+        /// [`point_in_face`](super::solid_contain::point_in_face)
+        /// certifies it strictly interior to the region face —
+        /// candidates are guesses, the gate is a predicate. Needed
+        /// when a region is bounded entirely by seam CHORDS (an
+        /// island's surround between two seam loops): every vertex
+        /// and every edge midpoint lies ON the other boundary, yet
+        /// the region interior classifies definitively.
+        RegionInterior,
     }
     let desync = |what| BooleanError::JoinDesync { what };
     let probe = |l: LoopKey, anchor: Anchor| -> Result<Option<bool>, BooleanError> {
@@ -958,15 +974,40 @@ fn resolve_roles_geometric<T: Decide>(
                         .get_vertex(v)
                         .and_then(|vd| body.get_point(vd.point).copied())
                         .ok_or(desync("region vertex has no point"))?;
+                    let end_of = |he: HalfEdgeKey| {
+                        body.half_edge_end(he)
+                            .and_then(|ev| body.get_vertex(ev))
+                            .and_then(|vd| body.get_point(vd.point).copied())
+                            .ok_or(desync("region half has no end point"))
+                    };
                     let p = match anchor {
                         Anchor::Vertex => start,
-                        Anchor::EdgeMidpoint => {
-                            let end = body
-                                .half_edge_end(rhe)
-                                .and_then(|ev| body.get_vertex(ev))
-                                .and_then(|vd| body.get_point(vd.point).copied())
-                                .ok_or(desync("region half has no end point"))?;
-                            start.lerp(end, T::from_f64(0.5))
+                        Anchor::EdgeMidpoint => start.lerp(end_of(rhe)?, T::from_f64(0.5)),
+                        Anchor::RegionInterior => {
+                            let b = end_of(rhe)?;
+                            let c = end_of(
+                                body.get_half_edge(rhe)
+                                    .ok_or(desync("region half no longer resolves"))?
+                                    .next,
+                            )?;
+                            let cand = start + ((b - start) + (c - start)) * T::from_f64(1.0 / 3.0);
+                            let (_, normal) = super::solid_contain::face_plane(body, region_face)
+                                .map_err(BooleanError::Containment)?;
+                            match super::solid_contain::point_in_face(
+                                body,
+                                region_face,
+                                normal,
+                                cand,
+                                band,
+                            )
+                            .map_err(BooleanError::Containment)?
+                            {
+                                Some(true) => cand,
+                                // Not certified interior (outside, in a
+                                // ring, or grazing a loop): candidate
+                                // discarded, never probed.
+                                _ => continue,
+                            }
                         }
                     };
                     match super::solid_contain::point_in_solid(other_pristine, p, band)
@@ -1019,11 +1060,15 @@ fn resolve_roles_geometric<T: Decide>(
     if let Some(roles) = resolve(Anchor::Vertex)? {
         return Ok(roles);
     }
-    match resolve(Anchor::EdgeMidpoint)? {
+    if let Some(roles) = resolve(Anchor::EdgeMidpoint)? {
+        return Ok(roles);
+    }
+    match resolve(Anchor::RegionInterior)? {
         Some(roles) => Ok(roles),
         None => Err(desync(
             "neither section loop's regions hold a classifiable anchor \
-             (vertices and edge midpoints all on the other boundary)",
+             (vertices, edge midpoints, and verified interior candidates \
+             all exhausted)",
         )),
     }
 }

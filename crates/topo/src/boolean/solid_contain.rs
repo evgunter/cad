@@ -159,7 +159,7 @@ impl core::fmt::Display for PointInSolidError {
 impl std::error::Error for PointInSolidError {}
 
 /// The face's plane, F5-gated.
-fn face_plane<T: Decide>(
+pub(super) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
@@ -175,7 +175,7 @@ fn face_plane<T: Decide>(
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
 /// loop is reported as `None` (graze).
-fn point_in_face<T: Decide>(
+pub(super) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     normal: Vec3<T>,
