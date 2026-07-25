@@ -24,6 +24,8 @@ pub mod expr;
 pub mod names;
 pub mod node;
 pub mod profile_desc;
+pub mod resolve;
+pub mod witness;
 
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceResolution, Attr, AttrKind,
@@ -47,3 +49,15 @@ pub use names::{
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use profile_desc::{ProfileDesc, ProfileDoc};
+pub use resolve::{
+    Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
+    RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
+    RunCtx, RunStatus, TieWitness, Tombstone, VerdictFlip, appearance_rebind_suggestions,
+    apply_with_names, body_name, derivation_nodes, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+};
+pub use witness::{
+    BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
+    WitnessBifurcation, WitnessDatum,
+};

@@ -36,6 +36,10 @@ thread_local! {
     static CURRENT: Cell<&'static str> = const { Cell::new("<unnamed>") };
     /// The installed sample sink, if any.
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
+    /// The installed verdict-log sink, if any (NAMING-DESIGN N5 /
+    /// M4 PR 4: evaluations record their verdict vectors so the
+    /// verdict-diff engine can attribute flips).
+    static VERDICTS: RefCell<Option<Vec<Verdict>>> = const { RefCell::new(None) };
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -46,8 +50,10 @@ thread_local! {
 /// (greppable per crate).
 ///
 /// Cost on the production path: exactly one thread-local `Cell` write
-/// per decision; the decision itself is `sign_within` verbatim, so
-/// outcomes are bit-identical to an unfunneled classification.
+/// per decision (plus, when a verdict log is installed —
+/// [`start_verdict_log`] — one `Vec` push per definite outcome); the
+/// decision itself is `sign_within` verbatim, so outcomes are
+/// bit-identical to an unfunneled classification.
 ///
 /// # Errors
 ///
@@ -55,7 +61,49 @@ thread_local! {
 /// attached.
 pub fn decide<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
     CURRENT.with(|c| c.set(name));
-    margin.sign_within(band).map_err(|e| e.with_predicate(name))
+    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    if let Ok(sign) = outcome {
+        VERDICTS.with(|v| {
+            if let Some(log) = v.borrow_mut().as_mut() {
+                log.push(Verdict {
+                    predicate: name,
+                    sign,
+                });
+            }
+        });
+    }
+    outcome
+}
+
+/// One recorded predicate decision: the funnel's static name and the
+/// definite sign it classified to. Scalar-independent by construction
+/// (the N4 invariant's currency: same verdicts ⇒ same names at f64 AND
+/// Interval); float-free, so verdict vectors compare exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Verdict {
+    /// The predicate that decided (the funnel's static name).
+    pub predicate: &'static str,
+    /// The definite sign it returned.
+    pub sign: Sign,
+}
+
+/// Installs a fresh, empty verdict log for the current thread
+/// (dropping any verdicts already recorded). Unlike [`start_recording`]
+/// (the K-experiment margin sink, [`Probe`]-only), the verdict log
+/// records through [`decide`] itself at ANY scalar — it is the
+/// evaluation-artifact channel NAMING-DESIGN N5's diagnosis diffing
+/// relies on ("both evaluations' verdict logs exist"). Indeterminate
+/// outcomes are not verdicts (they escalate typed instead of
+/// deciding) and are not logged.
+pub fn start_verdict_log() {
+    VERDICTS.with(|v| *v.borrow_mut() = Some(Vec::new()));
+}
+
+/// Removes the verdict log and returns everything recorded since
+/// [`start_verdict_log`]. Returns an empty vector if no log was
+/// installed on this thread.
+pub fn take_verdict_log() -> Vec<Verdict> {
+    VERDICTS.with(|v| v.borrow_mut().take()).unwrap_or_default()
 }
 
 /// How a recorded classification came out.
@@ -253,5 +301,71 @@ impl Decide for Probe {
         };
         record(self.0, band, sample);
         outcome
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::panic)]
+
+    use super::*;
+
+    fn band() -> Band {
+        Band::linear().unwrap()
+    }
+
+    #[test]
+    fn verdict_log_records_definite_signs_in_decision_order() {
+        let b = band();
+        start_verdict_log();
+        assert_eq!(decide("vlog_a", 1.0f64, b), Ok(Sign::Positive));
+        assert_eq!(decide("vlog_b", -1.0f64, b), Ok(Sign::Negative));
+        assert_eq!(decide("vlog_c", 0.0f64, b), Ok(Sign::Zero));
+        let log = take_verdict_log();
+        assert_eq!(
+            log,
+            vec![
+                Verdict {
+                    predicate: "vlog_a",
+                    sign: Sign::Positive
+                },
+                Verdict {
+                    predicate: "vlog_b",
+                    sign: Sign::Negative
+                },
+                Verdict {
+                    predicate: "vlog_c",
+                    sign: Sign::Zero
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn verdict_log_skips_indeterminate_outcomes_and_is_absent_by_default() {
+        let b = band();
+        // No log installed: decisions record nothing, take is empty.
+        assert_eq!(decide("vlog_d", 2.0f64, b), Ok(Sign::Positive));
+        assert!(take_verdict_log().is_empty());
+        // In-band margin escalates and is NOT a verdict.
+        start_verdict_log();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        assert!(decide("vlog_e", mid, b).is_err());
+        assert_eq!(decide("vlog_f", -1.0f64, b), Ok(Sign::Negative));
+        let log = take_verdict_log();
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0].predicate, "vlog_f");
+    }
+
+    #[test]
+    fn verdict_log_reinstall_drops_prior_entries() {
+        let b = band();
+        start_verdict_log();
+        decide("vlog_g", 1.0f64, b).unwrap();
+        start_verdict_log();
+        decide("vlog_h", 1.0f64, b).unwrap();
+        let log = take_verdict_log();
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0].predicate, "vlog_h");
     }
 }
