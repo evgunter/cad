@@ -23,9 +23,9 @@ refused — so M6 planning starts decided.
   intervals in continuous-parameter space; structural (Count)
   parameters are FIXED — a box varies topology only through
   predicate flips.
-- **Chamber**: a connected flip-free region of parameter space
-  (W3's discriminant-chamber language). The driver certifies
-  *leaves* (sub-boxes), never chambers.
+- **Chamber**: a connected flip-free region of parameter space (W3's
+  discriminant-chamber language). The driver certifies *leaves*
+  (sub-boxes), never chambers.
 - **Analyzed box vs. support vs. measure**: the box the kernel
   machinery sees is the **analyzed box** — an analysis-time choice
   (E2), equal to the support when that is bounded; the probability
@@ -392,15 +392,14 @@ report; a gating mode is additive policy.
    D8's explicit regime.
 4. **No reverse-mode AD, no vector-forward duals** (E4) —
    performance additions, not semantic ones.
-5. **No GD&T semantics.** Stackups are parameter-space facts about
-   the recipe; ASME Y14.5 is a language layer that could later
-   *compile to* Measure nodes + assertions. M6 does not speak it
-   rather than approximating it.
+5. **No GD&T semantics.** Stackups are parameter-space facts; ASME
+   Y14.5 is a language layer that could later *compile to* Measure
+   nodes + assertions — M6 declines to speak it approximately.
 6. **No output densities** (PDF/histogram of a measurement) — MC
    or measure transport, both out. v1: certified enclosure +
    advisory RSS + mass accounting.
-7. **Imported bodies carry no parameters** (D7, restated): nothing
-   to vary; they participate in clearance checks as constants.
+7. **Imported bodies carry no parameters** (D7): nothing to vary;
+   they participate in clearance checks as constants.
 8. **No sensitivity-driven optimization/inverse loops** ("resize
    until clearance holds") — consumers of M6's reports, post-M6.
 
