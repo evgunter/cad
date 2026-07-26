@@ -90,6 +90,22 @@ persist_eps_diff() { cargo test -p editor-core --test m4_pr6_eps_diff; }
 persist_refusal() { cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key; }
 persist_interval() { cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval; }
 
+# M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
+# the workspace rows; named = attributable).
+corpus_eps() {
+  local e
+  for e in 1e-6 1e-9 1e-12; do
+    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr8_corpus -- --nocapture || return 1
+  done
+}
+corpus_interval() { cargo test -p editor-core --features interval --test m4_pr8_corpus_interval; }
+
+# M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
+# per-document table and diffs the committed baseline. NOT A GATE on any
+# timing number (the only assertions are the counted-reuse ones).
+# Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
+rebuild_latency() { cargo test -p editor-core --test m4_pr8_latency -- --nocapture; }
+
 run_row "discipline (evaluation-code)" discipline
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy --workspace --all-targets -- -D warnings
@@ -104,6 +120,9 @@ run_row "persist save/load/replay (D6.1)" persist_roundtrip
 run_row "persist eps-diff golden (D6.2)"  persist_eps_diff
 run_row "persist refusal (D6.3)"          persist_refusal
 run_row "persist roundtrip (interval)"    persist_interval
+run_row "band 4 corpus (3 eps rows)"      corpus_eps
+run_row "band 4 corpus (interval)"        corpus_interval
+run_row "rebuild latency (reporting)"     rebuild_latency
 run_row "watertight (admesh)"          watertight
 run_row "step import (freecad)"        step_import
 

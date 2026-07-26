@@ -10,9 +10,11 @@
 //!    (`==`, never a tolerance), with tiers 1 and "closed" green;
 //! 3. reuse exactly the complement of its bump's downstream cone —
 //!    the cone being derived independently from the recipe DAG, not
-//!    from the evaluator;
-//! and the corpus as a whole must cover EVERY F4 node kind and EVERY
-//! `DocEdit` kind.
+//!    from the evaluator.
+//!
+//! And the corpus as a whole must cover EVERY F4 node kind, every node
+//! sub-kind (datum flavours, boolean operators, pattern kinds) and
+//! EVERY `DocEdit` kind.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -1,0 +1,70 @@
+{
+  "documents": {
+    "corner_table": {
+      "about": "corner-aligned four-leg table (declared flush contacts)",
+      "cone": 5,
+      "full_ms": 1520.1,
+      "incremental_ms": 1254.59,
+      "nodes": 18
+    },
+    "crossing_slots": {
+      "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
+      "cone": 3,
+      "full_ms": 1918.1,
+      "incremental_ms": 1466.55,
+      "nodes": 9
+    },
+    "declared_tangency": {
+      "about": "#101: fillet-constructed joints + a hand-declared collinear joint",
+      "cone": 1,
+      "full_ms": 103.8,
+      "incremental_ms": 59.47,
+      "nodes": 4
+    },
+    "die": {
+      "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
+      "cone": 3,
+      "full_ms": 17674.6,
+      "incremental_ms": 1593.81,
+      "nodes": 77
+    },
+    "heat_sink": {
+      "about": "parametric fin strip: Pattern instances + explicit union chain",
+      "cone": 12,
+      "full_ms": 1384.7,
+      "incremental_ms": 1701.95,
+      "nodes": 15
+    },
+    "kitchen_sink": {
+      "about": "every v1 node kind and every DocEdit kind in one document",
+      "cone": 2,
+      "full_ms": 579.2,
+      "incremental_ms": 20.64,
+      "nodes": 15
+    },
+    "nested_islands_105": {
+      "about": "doubly-nested island union chain (#105 exactness pin)",
+      "cone": 2,
+      "full_ms": 1355.6,
+      "incremental_ms": 349.87,
+      "nodes": 11
+    },
+    "nested_islands_106_depth1": {
+      "about": "depth-1 nested-island intersect (the #106 coverage boundary's green side)",
+      "cone": 2,
+      "full_ms": 2130.7,
+      "incremental_ms": 1511.72,
+      "nodes": 11
+    }
+  },
+  "provenance": {
+    "epsilon": "CAD_TOLERANCE_EPS unset (the bootstrap default) - the row is ambient-eps agnostic by design.",
+    "machine": "developer workstation (WSL2, shared with other build lanes) - absolute values are NOT portable; the shape (relative cost per document, full vs incremental ratio) is the signal.",
+    "method": "median of 3 runs in one process, std::time::Instant, sequential evaluation schedule (EvalOptions::default()).",
+    "profile": "cargo test dev profile: opt-level 0 for the kernel crates, opt-level 2 only for spade and mesh (root Cargo.toml). NOT release-representative.",
+    "refresh_with": "CAD_LATENCY_BASELINE_REFRESH=1 cargo test -p editor-core --test m4_pr8_latency -- --nocapture",
+    "refreshed_by": "M4 PR 8a (ev/m4-8a-corpus)",
+    "status": "REPORTING ONLY - measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on these numbers.",
+    "what": "Per-document full-rebuild and incremental-recompute wall-clock medians for the M4 PR 8a Band 4 corpus."
+  }
+}

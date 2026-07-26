@@ -156,7 +156,7 @@ pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
 
 /// The single body a node evaluated to (`Body` payload or a boolean's
 /// nonempty body).
-pub fn body_of<'a, T: Decide>(ev: &'a Evaluation<T>, id: RecipeNodeId) -> &'a Body<T> {
+pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
