@@ -40,34 +40,94 @@ strictly between `t` and `c`, the `>= 2k + 1` gaps separating `t` from
 
 The factor 2 is not paranoia — it is exactly the binade-boundary case
 (gaps halve one binade toward zero), and a 1-ulp error straddling a
-boundary genuinely needs 2 steps. The lemma is also empirically
-enforced by the containment harness on millions of samples.
+boundary genuinely needs 2 steps. (P2 is retained as a general lemma;
+the libm pads in §2 now rest on the sharper P3 below, which matches
+what libm's CI actually measures.)
+
+**Lemma P3 (bit-distance from a correctly rounded reference).** Let
+`expected = RN(t)` and let the returned value `c` satisfy
+`bitdist(c, expected) <= k`, where `bitdist(x, y) =
+|(bits(x) as i64) − (bits(y) as i64)|` (libm-test's metric). Within
+each sign class this encoding is a unit-step isometry: one
+`next_up`/`next_down` step changes the encoded integer by exactly 1
+(subnormals and binade boundaries included), order-preserving on
+positives and order-REVERSING on negatives — either way, absolute
+encoded distance = neighbor-step count. Then
+`step_down(c, k + 1) <= t <= step_up(c, k + 1)`.
+*Proof.* For small `k` the hypothesis forces `c` and `expected` to
+share a sign bit: opposite-sign bit patterns differ by ≥ 2^63 under the
+signed encoding (e.g. `+0.0 ↦ 0`, `−0.0 ↦ i64::MIN`), so a passing
+small bound implies same sign, where `bitdist` counts neighbor steps
+exactly. Hence `c` is within `k` neighbor steps of
+`expected` in the total order: `step_down(c, k) <= expected <=
+step_up(c, k)`. Lemma P1 gives `next_down(expected) <= t <=
+next_up(expected)`. Composing (both `next_down` and `next_up` are
+monotone): `step_down(c, k + 1) = next_down(step_down(c, k)) <=
+next_down(expected) <= t`, mirrored above. Infinities: a finite/
+infinite mismatch is rejected by the CI harness outright, and if both
+are `+inf` the lower chain still holds through `next_down(+inf) = MAX
+<= t` (P1's overflow case). ∎
+
+Note what P3 buys over the P2 route: no ulp-unit conversion is needed
+at all, because the CI metric already counts representables — the
+binade factor 2 never enters.
 
 ## §2 libm accuracy assumption (per function)
 
-Rust `libm` 0.2.16 is the musl-derived pure-Rust port; rust-lang/libm's
-CI checks every f64 function against MPFR with a per-function allowed
-error, **1 ulp** for `sin cos tan asin acos atan atan2` (musl provenance:
-the double-precision trig kernels with full Payne–Hanek argument
-reduction; accuracy holds for ALL finite arguments, including huge ones).
-The pad chain, every factor accounted for:
+Rust `libm` 0.2.16 is the musl-derived pure-Rust port. Source facts,
+verified at tag `libm-v0.2.16` (rust-lang/compiler-builtins), which the
+pads rest on:
 
-1. CI bound: error `<= 1` ulp, measured in "ulp of the expected value"
-   (rust-lang/libm's precision checks divide by the ulp of the
-   MPFR-computed reference).
-2. Unit conversion: `ulp(expected) <= 2·ulp(t)` in the worst
-   binade-boundary case, so error `<= 2·ulp(t)` (straddle definition of
-   §1). This step takes the CI bound at face value — no extra safety
-   multiplier; the factor 2 is the exact worst-case conversion.
-3. Lemma P2 with `k = 2`: `2k = 4` outward steps enclose the true value.
+1. **The CI metric is integer bit-distance, not an ulp quotient**:
+   `libm-test/src/test_traits.rs:363` computes
+   `act_bits.checked_sub(exp_bits).unwrap().abs()` on the sign-extended
+   bit patterns — exactly `bitdist` of Lemma P3.
+2. **The reference is the correctly rounded value**: the MPFR oracle
+   runs at 53-bit precision, `Round::Nearest`, with
+   `subnormalize_ieee_round` (`libm-test/src/mpfloat.rs`) — a single
+   rounding, so `expected = RN(t)` exactly (no double-rounding gap).
+3. **Per-function allowed distance** (`libm-test/src/precision.rs`,
+   lines 84–109): `sin cos tan asin acos atan` ⇒ **1**;
+   **`atan2` ⇒ 2**. (Musl provenance; trig uses full Payne–Hanek
+   argument reduction, so the bound is enforced across the sampled
+   sweeps at all magnitudes, huge arguments included.)
 
-Hence `PAD_ULPS = 4` for `sin cos tan asin acos atan atan2`. Typical
-real-world libm error is < 0.7 ulp, so the pads are ~5× looser than
-observed reality — that is what "proven, not measured" costs at these
-magnitudes (≈ 9·10^−16 relative on O(1) values; three orders below the
-kernel's tolerance scales). The differential harness then verifies
-containment against inari+MPFR on millions of cases per function,
-including adversarial edge sweeps; a single violation fails the build.
+Assumption A (the one non-derived ingredient, stated plainly): the
+shipped binaries meet their CI distance bounds on ALL inputs, not just
+the CI's sampled ones. This is trust in musl's documented accuracy +
+libm's enforcement, hedged by this crate's own differential sweeps
+(millions of cases incl. subnormal/huge windows; one violation fails
+the build).
+
+The proof is then Lemma P3, per function:
+
+| function | CI bitdist k | steps needed (k+1) | PAD_ULPS | margin |
+|---|---|---|---|---|
+| sin, cos, tan | 1 | 2 | 4 | 2 |
+| asin, acos, atan | 1 | 2 | 4 | 2 |
+| atan2 | **2** | **3** | 4 | **1** |
+
+`PAD_ULPS = 4` therefore covers every inventoried transcendental, with
+margin 2 everywhere except atan2 (margin 1 — adequate, but any future
+function added with a CI bound above 3 must raise its own pad).
+
+**Correction war story (adversarial review catch).** The first version
+of this section claimed "1 ulp for … atan2" and described the metric
+as an ulp-of-expected quotient. Both were wrong at the source: atan2's
+CI bound is 2, and the metric is bit-distance. Under the old written
+route (k ulp(expected) → ≤2k·ulp(t) → P2 → 4k steps) atan2 would have
+needed 8 steps and PAD_ULPS = 4 would have been unproven — the
+constant survived only because the sharper P3 route (never written
+down until now) needs just k+1. No value-level violation exists
+(observed musl atan2 error ≲ 1 ulp; 300k differential atan2 cases +
+edge sweeps pass), but a "proven" claim is about the written
+derivation, not the luck of the constant. This section is now the
+actual proof.
+
+Typical real-world libm error is < 0.7 ulp, so the 4-step pads are
+~5× looser than observed reality — the price of "proven, not
+measured" (≈ 9·10^−16 relative on O(1) values; three orders below the
+kernel's tolerance scales).
 
 ## §3 sqrt exactness witness
 

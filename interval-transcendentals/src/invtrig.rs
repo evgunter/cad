@@ -1,5 +1,8 @@
 //! Inverse trigonometry: `asin`, `acos`, `atan`, `atan2`.
-//! Pads as in `trig.rs` (4 outward ulp steps per libm endpoint value).
+//! Pads as in `trig.rs` (4 outward steps per libm endpoint value;
+//! derivations §2/P3). atan2 is the tight one: its libm CI bit-distance
+//! bound is 2 (not 1 like the rest), so it needs 3 of the 4 steps —
+//! margin 1, called out in the §2 table.
 //! Domain-clamp semantics follow the kernel's inari contract: a partial
 //! domain miss CLAMPS the input and poisons the decoration to `Trv`; a
 //! full miss is Empty (`Trv`); the clamp never decides anything.

@@ -1,12 +1,14 @@
 //! Forward trigonometry: `sin`, `cos`, `sin_cos`, `tan`.
 //!
 //! Pad: `PAD_ULPS = 4` outward steps on every libm endpoint value.
-//! Derivation (docs/derivations.md §2): rust-lang/libm's CI enforces
-//! ≤ 1 ulp (of expected) deviation from MPFR for sin/cos/tan (musl, full
-//! Payne–Hanek argument reduction, so endpoint values are accurate for
-//! ALL finite arguments); worst-case unit conversion gives ≤ 2·ulp(true),
-//! and Lemma P2 turns k error-ulps into 2k outward steps → 4. The harness
-//! then hammers the chain against the MPFR oracle.
+//! Derivation (docs/derivations.md §2, Lemma P3): libm's CI enforces a
+//! BIT-DISTANCE of ≤ 1 from the correctly rounded MPFR reference for
+//! sin/cos/tan/asin/acos/atan and ≤ 2 for atan2 (precision.rs at tag
+//! libm-v0.2.16; musl provenance, full Payne–Hanek reduction, so the
+//! bound spans all magnitudes). k bit-steps from RN(t) need k+1 outward
+//! steps to enclose t (P3) → sin family needs 2, atan2 needs 3;
+//! PAD_ULPS = 4 covers all with margin 2 (atan2: margin 1). The harness
+//! hammers the chain against the MPFR oracle.
 //!
 //! Extremum capture: a conservative grid test (consts.rs) decides
 //! "possibly contains a max/min point"; a *false* is a proof of absence

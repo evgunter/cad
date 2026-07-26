@@ -16,7 +16,9 @@ certification evidence is the deliverable.
 - Scope: exactly the kernel's inventoried interval-lane surface —
   `docs/inventory.md`.
 - Pad proofs: `docs/derivations.md` (neighbor-step lemmas; `PAD_ULPS = 4`
-  for libm trig from the CI ulp bound with worst-case unit conversion).
+  from libm's CI bit-distance bounds — 1 for the sin family, 2 for atan2 —
+  via Lemma P3: k bit-steps from the correctly rounded reference need
+  k+1 outward steps; margins 2 and 1 respectively).
 - Divergences from inari, all deliberate: `docs/semantics-diffs.md`.
 
 ## Certification

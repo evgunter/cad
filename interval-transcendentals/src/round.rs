@@ -19,11 +19,10 @@ pub(crate) fn up1(x: f64) -> f64 {
 
 /// `k` representable steps down.
 ///
-/// Lemma P2 (derivations §1.2): if a computed value `c` satisfies
-/// `|c - t| <= k·ulp(t)` for the true value `t`, then `step_down(c, k) <= t`
-/// (consecutive-float gaps on the segment between `t` and `c` are all
-/// `>= ulp(t)` on the side that matters, so `k` steps cross the whole
-/// error distance).
+/// Soundness comes from the lemmas in docs/derivations.md §1: P3 (the
+/// load-bearing one for libm pads — k bit-steps from the correctly
+/// rounded reference need k+1 outward steps) and P2 (general k·ulp(t)
+/// errors need 2k steps).
 #[inline]
 pub(crate) fn step_down(x: f64, k: u32) -> f64 {
     let mut y = x;

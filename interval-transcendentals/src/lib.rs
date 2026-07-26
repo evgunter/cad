@@ -23,8 +23,10 @@
 //!
 //! Pads are derived, not guessed: `docs/derivations.md` proves each
 //! function pad conservative from (a) the correctly-rounded ops 1-step
-//! neighbor lemma and (b) libm CI-enforced ≤1-ulp bound with worst-case
-//! ulp-unit conversion (Lemma P2), backed by the differential harness.
+//! neighbor lemma and (b) libm's CI-enforced BIT-DISTANCE bounds (1 for
+//! the sin family, 2 for atan2) via Lemma P3 (k bit-steps from the
+//! correctly rounded reference need k+1 outward steps), backed by the
+//! differential harness.
 //!
 //! ## Honest domain contract (big arguments)
 //!

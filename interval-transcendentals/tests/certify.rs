@@ -129,10 +129,18 @@ fn certify_atan2() {
 #[test]
 fn certify_powi() {
     let mut rng = Rng(0x5EED_0009);
+    // Split like drive_unary: the huge window (index 3) is where the
+    // documented negative-exponent overflow-saturation looseness lives
+    // (|x|^|n| overflows f64, so pow_mag_lo saturates at MAX and the
+    // reciprocal's upper bound becomes ~1/MAX ~ 2^-1024 against a
+    // sub-subnormal truth -> ratios up to ~2^50+2; sound, crude, and
+    // unreachable at kernel magnitudes).
     let mut tight = Tightness::default();
+    let mut tight_huge = Tightness::default();
     let exps: [i32; 12] = [0, 1, 2, 3, 4, 5, 7, 12, -1, -2, -3, 31];
     for i in 0..CASES_BINARY {
-        let w = WINDOWS[(i % 4) as usize];
+        let wi = (i % 4) as usize;
+        let w = WINDOWS[wi];
         let x = gen_interval(&mut rng, w.0, w.1);
         let n = exps[(rng.next_u64() % exps.len() as u64) as usize];
         let mine = x.powi(n);
@@ -143,9 +151,10 @@ fn certify_powi() {
             &oracle,
             false,
         );
-        tight.record(&mine, &oracle);
+        if wi == 3 { &mut tight_huge } else { &mut tight }.record(&mine, &oracle);
     }
     tight.report("powi");
+    tight_huge.report("powi[huge-window]");
 }
 
 #[test]
@@ -207,4 +216,40 @@ fn certify_constants() {
         core::f64::consts::TAU.next_up(),
         2.0 * core::f64::consts::PI.next_up()
     );
+}
+
+#[test]
+fn certify_exact_ops() {
+    // Endpoint-exact operations (abs/floor/min/max) differentially
+    // certified like everything else. floor carries the D8 allowlist:
+    // constant-on-box with an integer left endpoint is Com for us
+    // (restriction-continuity) but Dac for inari (ambient), see
+    // docs/semantics-diffs.md.
+    let mut rng = Rng(0x5EED_000B);
+    for i in 0..CASES_BINARY {
+        let w = WINDOWS[(i % 4) as usize];
+        let a = gen_interval(&mut rng, w.0, w.1);
+        let b = gen_interval(&mut rng, w.0, w.1);
+        let (ia, ib) = (to_inari(&a), to_inari(&b));
+        assert_contains(&format!("abs case {i} a={a:?}"), &a.abs(), &ia.abs(), false);
+        let floor_d8 = a.lo().floor() == a.hi().floor() && a.lo() == a.lo().floor();
+        assert_contains(
+            &format!("floor case {i} a={a:?}"),
+            &a.floor(),
+            &ia.floor(),
+            floor_d8,
+        );
+        assert_contains(
+            &format!("min case {i} a={a:?} b={b:?}"),
+            &a.min_i(b),
+            &ia.min(ib),
+            false,
+        );
+        assert_contains(
+            &format!("max case {i} a={a:?} b={b:?}"),
+            &a.max_i(b),
+            &ia.max(ib),
+            false,
+        );
+    }
 }

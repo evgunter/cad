@@ -177,3 +177,29 @@ fn subnormal_and_zero_endpoints() {
     let s = nz.sin();
     assert!(s.contains(0.0) && s.decoration() == Decoration::Com);
 }
+
+#[test]
+fn floor_d8_divergence_is_real_and_bounded() {
+    // D8 (semantics-diffs.md): constant-on-box floor with integer left
+    // endpoint — we say Com (restriction is constant), inari says Dac
+    // (ambient discontinuity at the endpoint). Pin BOTH sides so the
+    // allowlist in certify_exact_ops can never silently widen.
+    let s = DInterval::from_bounds(3.0, 3.0);
+    assert_eq!(s.floor().decoration(), Decoration::Com);
+    assert_eq!(
+        to_inari(&s).floor().decoration(),
+        inari::Decoration::Dac,
+        "inari changed its floor decoration policy; revisit D8"
+    );
+    // Non-D8 shapes agree exactly.
+    let c = DInterval::from_bounds(2.25, 2.75);
+    assert_eq!(
+        dec_of(to_inari(&c).floor().decoration()),
+        c.floor().decoration()
+    );
+    let j = DInterval::from_bounds(2.25, 3.25);
+    assert_eq!(
+        dec_of(to_inari(&j).floor().decoration()),
+        j.floor().decoration()
+    );
+}

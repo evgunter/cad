@@ -68,6 +68,39 @@ Overflow to an infinite bound caps the decoration at `Dac` (Com requires
 boundedness) — same rule as inari. Noted here only because our padded
 arithmetic overflows one ulp earlier than inari's in the extreme binade.
 
+## D7 — `hull()` keeps `min(dec)`; 1788/inari give set operations `Trv`
+
+IEEE 1788 assigns set operations (convexHull, intersection) the
+decoration `Trv` — they are not function evaluations, so nothing
+functional is asserted. inari follows that; our `intersection` does
+too. Our `hull()` deliberately does NOT: it propagates `min` of the
+operand decorations (ignoring empty operands). Rationale: in the
+kernel's poison-channel reading, a decoration is a record of
+domain-violation history, and hulling two enclosures whose histories
+are clean produces an enclosure whose history is clean — `min(dec)`
+can never exceed either input, so no poison is laundered; what it
+does is let clean values stay clean through hull-shaped code paths
+(e.g. a future `copysign`-style tangent hull) instead of poisoning
+them structurally. This over-asserts relative to strict 1788
+decoration semantics (which would say `Trv`), it is the single such
+place, and consumers wanting 1788-strict behavior can call
+`intersection`-style code or drop the decoration themselves. Flagged
+by adversarial review (it was undocumented — a process violation of
+this file's "complete list" claim, now corrected); behavior kept,
+divergence documented, and pinned by a unit test.
+
+## D8 — `floor` decoration uses restriction-continuity (like D2)
+
+`floor` over a box with `floor(lo) == floor(hi)` is CONSTANT on the
+box, so we return up to `Com`. inari additionally demotes to `Dac`
+when the left endpoint is itself an integer (`x.inf == floor(x.inf)`),
+i.e. it charges the AMBIENT discontinuity at that point even though
+the restriction to the box is constant. Same philosophical split as
+D2 (restriction vs ambient continuity); ours is the tighter correct
+decoration under 1788's "restriction of f to x" wording. The
+differential harness allowlists exactly this configuration
+(`floor(lo) == floor(hi) && lo == floor(lo)`).
+
 ## Non-differences (verified by the harness)
 
 - Decoration ordering and min-propagation through every operation.
