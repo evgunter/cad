@@ -1455,7 +1455,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // join at (1,1) is TANGENT (smooth, distinct keys): the D2
     // conventional split must survive in BOTH bands, and tier 3 must
     // accept it while the transverse base join upgrades.
-    let lp = ProfileLoop::new(vec![
+    let mut lp = ProfileLoop::new(vec![
         ProfileVertex {
             pos: p2(0.0, 0.0),
             bulge: 0.0,
@@ -1473,6 +1473,10 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
             bulge: 0.0,
         },
     ]);
+    // The cylinder-sphere tangency this test is ABOUT is declared
+    // (#101): the discipline gates the profile door; the D2 split and
+    // tier-3 acceptance downstream are what the test pins.
+    lp.tangent_joints = vec![2];
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);

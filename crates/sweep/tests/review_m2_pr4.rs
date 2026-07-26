@@ -410,9 +410,13 @@ fn survives_reversal_maps_and_orientation() {
     // Asymmetric, one arc: (0,0) → (2,0) → arc → (2.5,0.5) → (2.5,1.5)
     // → (0,1). Canonical start (0,0), CCW as written, n = 5.
     let b = FRAC_PI_8.tan();
+    // The quarter arc joins both neighbor lines tangentially (a
+    // rounded step) -- declared per the #101 discipline.
     let lp = ProfileLoop::builder(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0))
+        .declare_tangent()
         .arc_to(p2(2.5, 0.5), b)
+        .declare_tangent()
         .line_to(p2(2.5, 1.5))
         .line_to(p2(0.0, 1.0))
         .close();

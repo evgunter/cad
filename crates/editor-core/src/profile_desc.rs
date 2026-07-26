@@ -43,16 +43,20 @@ impl ProfileDesc {
             .0
             .loops
             .iter()
-            .map(|lp| {
-                ProfileLoop::new(
-                    lp.vertices
-                        .iter()
-                        .map(|v| ProfileVertex {
-                            pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                            bulge: T::from_f64(v.bulge),
-                        })
-                        .collect(),
-                )
+            .map(|lp| ProfileLoop {
+                vertices: lp
+                    .vertices
+                    .iter()
+                    .map(|v| ProfileVertex {
+                        pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
+                        bulge: T::from_f64(v.bulge),
+                    })
+                    .collect(),
+                // Declared-tangent joints are indices (scalar-free):
+                // carried verbatim — the declaration is part of the
+                // description and is re-verified at validation in the
+                // evaluation scalar.
+                tangent_joints: lp.tangent_joints.clone(),
             })
             .collect();
         Profile::new(plane, loops)
@@ -68,12 +72,29 @@ impl ProfileDesc {
             out.extend([v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]);
         }
         for lp in &self.0.loops {
-            // Loop boundary marker: keeps (2 loops of 1 vertex) and
-            // (1 loop of 2 vertices) key-distinct.
+            // Per-loop record, LENGTH-PREFIXED (no in-band sentinels:
+            // a sentinel word can be forged by data — a garbage joint
+            // index of usize::MAX encodes as the old marker word; #101
+            // review MINOR-1): loop tag, vertex count, vertex float
+            // triples, declared-joint count, joint indices. Counts
+            // delimit every section, so the stream parses uniquely and
+            // injectivity is structural, not conventional.
+            //
+            // Declared-tangent joints (#101) are semantic description
+            // data: they feed the key — as their canonical SET
+            // (sorted, deduplicated; the field is set-semantic, so
+            // `[1, 1]` and `[1]` describe the same loop and must key
+            // identically — review NOTE-1).
             out.push(u64::MAX);
+            out.push(lp.vertices.len() as u64);
             for v in &lp.vertices {
                 out.extend([v.pos.x.to_bits(), v.pos.y.to_bits(), v.bulge.to_bits()]);
             }
+            let mut joints: Vec<u64> = lp.tangent_joints.iter().map(|&j| j as u64).collect();
+            joints.sort_unstable();
+            joints.dedup();
+            out.push(joints.len() as u64);
+            out.extend(joints);
         }
         out
     }
