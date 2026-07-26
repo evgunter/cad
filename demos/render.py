@@ -81,7 +81,16 @@ def draw(ax, scene, stl_dir):
     elev, azim, up = view["elev"], view["azim"], view["up"]
     lo = np.full(3, np.inf)
     hi = np.full(3, -np.inf)
+    drawn = 0
     for body in scene["bodies"]:
+        if body["stl"] is None:
+            # A #111-pinned body: the STL writer refused its defective
+            # tessellation typed; only the FreeCAD/STEP lane can draw
+            # it. Contributes nothing here (including to the axis
+            # bounds below).
+            print(f"WARNING: {scene['name']}: body has no STL (#111 pin) — skipped")
+            continue
+        drawn += 1
         verts = orient(read_binary_stl(stl_dir / body["stl"]), up)
         front = cull_backfaces(verts, elev, azim)
         colors = shade(front, body["color"])
@@ -96,6 +105,11 @@ def draw(ax, scene, stl_dir):
         )
         lo = np.minimum(lo, verts.reshape(-1, 3).min(axis=0))
         hi = np.maximum(hi, verts.reshape(-1, 3).max(axis=0))
+    if drawn == 0:
+        # Nothing rendered (every body #111-pinned): lo/hi are still
+        # ±inf, so skip the axis math and tell the caller not to save
+        # a blank panel.
+        return False
     c, half = (lo + hi) / 2, (hi - lo).max() / 2 * 1.02
     ax.set_xlim(c[0] - half, c[0] + half)
     ax.set_ylim(c[1] - half, c[1] + half)
@@ -104,6 +118,7 @@ def draw(ax, scene, stl_dir):
     ax.view_init(elev, azim)
     ax.set_proj_type("ortho")
     ax.set_axis_off()
+    return True
 
 
 def main():
@@ -113,7 +128,10 @@ def main():
     for scene in scenes:
         fig = plt.figure(figsize=(5, 5), dpi=130)
         ax = fig.add_subplot(projection="3d")
-        draw(ax, scene, stl_dir)
+        if not draw(ax, scene, stl_dir):
+            plt.close(fig)
+            print(f"skipped {scene['name']} (no STL bodies — #111 pin)")
+            continue
         fig.tight_layout(pad=0.1)
         fig.savefig(out_dir / f"{scene['name']}.png", facecolor="white")
         plt.close(fig)
