@@ -1649,3 +1649,25 @@ idiom 4 / tests 4 / docs 4, small fix pass, ~263k tokens. Open
 PRs now: #110 only (ERROR-DESIGN, Evan's careful pass). In
 flight: 8a (opus), #111 (opus), interval-review. M4 close =
 #111 merge + 8a + 8b + 8c.
+
+**#111 implementation COMPLETE (2026-07-26, ev/issue111-cdt-needle
+@ d77ce5d, pushed) — opus row 8.** Root cause SHARPENED beyond the
+issue: the parity test POINT was wrong (spade center() rounds
+~5e-17, 10× the needle's half-thickness — reification alone could
+never fix it; exact parity on the rounded point still answers
+inside). Fix STRUCTURAL: even-odd flood fill over the CDT face-
+adjacency graph seeded at the outer face, toggling on odd
+constraint-crossing multiplicity — integer traversal, zero float
+comparisons, no new ε; watertightness across boundary edges by
+construction; revolve slit preserved via odd-multiplicity;
+try_add_constraint refusal kept typed + atomic. 6 pins incl.
+exact-chart unit replay + all three A×Z variants watertight +
+az_intersect ADDED TO THE EXTERNAL ADMESH GATE (passes). Battery
+1289/1289/1435 (baseline math reconciled vs #109). Survey: two
+same-class signed_area<0 winding flips reported not-in-band (
+reviewer to verify the bound). Post-merge follow-up owed: flip
+the demo scene's #111 retire-pins. Blinded reviewer LAUNCHED
+(flood-fill attack surfaces: seeding uniqueness, shared-sub-edge
+multiplicity, slit variants, disconnected interiors, depth-3
+holes; watertight-theorem-vs-bookkeeping; root-cause re-derivation;
+winding-flip band argument).
