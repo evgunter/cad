@@ -65,7 +65,7 @@ pub fn rounded_prism() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let r = 0.5;
     let v = |pos: Point2<f64>, bulge: f64| ProfileVertex { pos, bulge };
-    let lp = ProfileLoop::new(vec![
+    let mut lp = ProfileLoop::new(vec![
         v(p2(r, 0.0), 0.0),
         v(p2(2.0 - r, 0.0), b),
         v(p2(2.0, r), 0.0),
@@ -75,6 +75,9 @@ pub fn rounded_prism() -> Body<f64> {
         v(p2(0.0, 2.0 - r), 0.0),
         v(p2(0.0, r), b),
     ]);
+    // Every joint is an exact quarter-arc/side tangency -- declared
+    // (the #101 discipline).
+    lp.tangent_joints = (0..lp.vertices.len()).collect();
     extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
         .unwrap()
         .body

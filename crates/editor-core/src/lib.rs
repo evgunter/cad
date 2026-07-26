@@ -5,8 +5,9 @@
 //! Born in M4 PR 1 under the ratified M4-PLAN forks: F1 (restrictive
 //! dimension lattice), F4 (node vocabulary), F7 (expression AST with no
 //! conditionals — total by construction) — see `docs/M4-PR1-SPEC.md`
-//! (D1–D9, binding). This crate holds NO geometry evaluation (PR 2), NO
-//! persistence (PR 6), NO name resolution (PR 3/4).
+//! (D1–D9, binding). This crate holds NO geometry evaluation (PR 2) and NO
+//! name resolution (PR 3/4) in its document layer; persistence
+//! (schema v1) arrived in M4 PR 6 as [`persist`].
 //!
 //! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
 //! the evaluation service ([`eval`]) depends on the op crates it wires
@@ -21,15 +22,17 @@ pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+pub mod meta;
 pub mod names;
 pub mod node;
+pub mod persist;
 pub mod profile_desc;
 pub mod resolve;
 pub mod witness;
 
 pub use appearance::{
-    AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceResolution, Attr, AttrKind,
-    AttrSet, Rgba8,
+    AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
+    Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
@@ -42,13 +45,16 @@ pub use eval::{
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
+pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NameTable, NamingError,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RolePath, RoleSeg, SideVerdict, SplitHalf,
     StableName,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
-pub use profile_desc::{ProfileDesc, ProfileDoc};
+pub use persist::{JointSite, NonFiniteSite, SnapshotError};
+pub use persist::{Loaded, PersistError, SCHEMA_VERSION, load, save};
+pub use profile_desc::{DescToken, ProfileDesc, ProfileDoc};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
@@ -56,6 +62,10 @@ pub use resolve::{
     apply_with_names, body_name, derivation_nodes, diff_verdicts, edge_name,
     enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
     rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+};
+pub use resolve::{
+    NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictSummary,
+    diff_summaries, verdict_summary,
 };
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,

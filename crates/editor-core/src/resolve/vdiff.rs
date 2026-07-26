@@ -62,7 +62,10 @@ use crate::node::RecipeNodeId;
 use super::derivation_nodes;
 
 /// A node's standing in one run, as the diff engine sees it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Serializable: it rides in [`VerdictSummary`], the cross-process ε
+/// audit's persist-grade seam.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum RunStatus {
     /// Evaluated to a value (has a verdict log).
     Ok,
@@ -228,62 +231,257 @@ pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation
                 m
             };
             let (pa, pb) = (populate(&a.verdicts), populate(&b.verdicts));
-            let predicates: BTreeSet<&'static str> = pa.keys().chain(pb.keys()).copied().collect();
-            for predicate in predicates {
-                let ca = pa.get(predicate).copied().unwrap_or_default();
-                let cb = pb.get(predicate).copied().unwrap_or_default();
-                if ca == cb {
-                    continue;
-                }
-                // Residuals after matched signs cancel.
-                let mut old_surplus = Vec::new();
-                let mut new_surplus = Vec::new();
-                for s in SIGNS {
-                    let (x, y) = (ca[sign_ix(s)], cb[sign_ix(s)]);
-                    if x > y {
-                        old_surplus.push((s, x - y));
-                    } else if y > x {
-                        new_surplus.push((s, y - x));
-                    }
-                }
-                // Canonical pairing: ascending sign order both sides;
-                // grouped runs zip into net flips with multiplicity.
-                let mut oi = old_surplus.into_iter();
-                let mut ni = new_surplus.into_iter();
-                let (mut o, mut n) = (oi.next(), ni.next());
-                while let (Some((fs, fc)), Some((ts, tc))) = (o, n) {
-                    let take = fc.min(tc);
-                    delta.flips.push(VerdictFlip {
-                        predicate,
-                        from: fs,
-                        to: ts,
-                        count: take,
-                    });
-                    o = if fc > take {
-                        Some((fs, fc - take))
-                    } else {
-                        oi.next()
-                    };
-                    n = if tc > take {
-                        Some((ts, tc - take))
-                    } else {
-                        ni.next()
-                    };
-                }
-                // Unbalanced totals = an instance-count change.
-                let (ta, tb) = (ca.iter().sum::<u32>(), cb.iter().sum::<u32>());
-                if ta != tb {
-                    delta.diverged.push(PredicateDivergence {
-                        predicate,
-                        old_count: ta,
-                        new_count: tb,
-                    });
-                }
-            }
+            let (flips, diverged) = diff_populations(&pa, &pb);
+            delta.flips = flips
+                .into_iter()
+                .map(|(predicate, from, to, count)| VerdictFlip {
+                    predicate,
+                    from,
+                    to,
+                    count,
+                })
+                .collect();
+            delta.diverged = diverged
+                .into_iter()
+                .map(|(predicate, old_count, new_count)| PredicateDivergence {
+                    predicate,
+                    old_count,
+                    new_count,
+                })
+                .collect();
         }
         if !delta.is_empty() {
             out.insert(id, delta);
         }
     }
     FlipSet { nodes: out }
+}
+
+/// THE population-diff core (module docs): per-predicate sign
+/// populations cancel matched signs; residuals pair canonically
+/// (ascending sign order, old against new) into net flips with
+/// multiplicity; unbalanced totals report as divergence. Generic over
+/// the predicate-name type so the in-process engine (`&'static str`,
+/// [`diff_verdicts`]) and the persist-grade cross-process audit
+/// (`String`, [`diff_summaries`]) are the SAME math — built once,
+/// spec D2.
+#[allow(clippy::type_complexity)]
+fn diff_populations<N: Ord + Clone>(
+    pa: &BTreeMap<N, [u32; 3]>,
+    pb: &BTreeMap<N, [u32; 3]>,
+) -> (Vec<(N, Sign, Sign, u32)>, Vec<(N, u32, u32)>) {
+    let mut flips = Vec::new();
+    let mut diverged = Vec::new();
+    let predicates: BTreeSet<&N> = pa.keys().chain(pb.keys()).collect();
+    for predicate in predicates {
+        let ca = pa.get(predicate).copied().unwrap_or_default();
+        let cb = pb.get(predicate).copied().unwrap_or_default();
+        if ca == cb {
+            continue;
+        }
+        // Residuals after matched signs cancel.
+        let mut old_surplus = Vec::new();
+        let mut new_surplus = Vec::new();
+        for s in SIGNS {
+            let (x, y) = (ca[sign_ix(s)], cb[sign_ix(s)]);
+            if x > y {
+                old_surplus.push((s, x - y));
+            } else if y > x {
+                new_surplus.push((s, y - x));
+            }
+        }
+        // Canonical pairing: ascending sign order both sides; grouped
+        // runs zip into net flips with multiplicity.
+        let mut oi = old_surplus.into_iter();
+        let mut ni = new_surplus.into_iter();
+        let (mut o, mut n) = (oi.next(), ni.next());
+        while let (Some((fs, fc)), Some((ts, tc))) = (o, n) {
+            let take = fc.min(tc);
+            flips.push((predicate.clone(), fs, ts, take));
+            o = if fc > take {
+                Some((fs, fc - take))
+            } else {
+                oi.next()
+            };
+            n = if tc > take {
+                Some((ts, tc - take))
+            } else {
+                ni.next()
+            };
+        }
+        // Unbalanced totals = an instance-count change.
+        let (ta, tb) = (ca.iter().sum::<u32>(), cb.iter().sum::<u32>());
+        if ta != tb {
+            diverged.push((predicate.clone(), ta, tb));
+        }
+    }
+    (flips, diverged)
+}
+
+/// One node's verdict POPULATIONS in one run — status plus, for each
+/// predicate name, its (Negative, Zero, Positive) instance counts.
+/// The persist-grade projection of a run's verdict log: everything
+/// the population diff needs, nothing else (no values — N2).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeVerdicts {
+    /// The node's standing.
+    pub status: RunStatus,
+    /// Per-predicate sign populations, indexed Negative/Zero/Positive.
+    #[serde(with = "crate::persist::strict::populations")]
+    pub populations: BTreeMap<String, [u32; 3]>,
+}
+
+/// A whole run's verdict populations by node (M4 PR 6 spec D4): the
+/// SERIALIZABLE run summary the SetTolerance audit ships between
+/// processes. One process hosts one ε, so the two runs of an ε audit
+/// can never share an address space; each run summarizes itself with
+/// [`verdict_summary`], and [`diff_summaries`] — the same population
+/// math as [`diff_verdicts`], via one shared core — reports exactly
+/// the flipped predicates.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerdictSummary {
+    /// Per-node populations (every node in the run's order).
+    #[serde(with = "crate::persist::strict::summary_nodes")]
+    pub nodes: BTreeMap<RecipeNodeId, NodeVerdicts>,
+}
+
+/// Projects an evaluation onto its serializable verdict populations.
+pub fn verdict_summary<T: Decide>(run: &Evaluation<T>) -> VerdictSummary {
+    let mut nodes = BTreeMap::new();
+    for &id in &run.order {
+        let mut populations: BTreeMap<String, [u32; 3]> = BTreeMap::new();
+        if let Some(v) = run.value(id) {
+            for verdict in v.verdicts.iter() {
+                populations.entry(verdict.predicate.to_owned()).or_default()
+                    [sign_ix(verdict.sign)] += 1;
+            }
+        }
+        nodes.insert(
+            id,
+            NodeVerdicts {
+                status: status(run, id),
+                populations,
+            },
+        );
+    }
+    VerdictSummary { nodes }
+}
+
+/// One net verdict flip in a summary diff ([`VerdictFlip`]'s
+/// owned-name twin; the audit report's row).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SummaryFlip {
+    /// The predicate that flipped.
+    pub predicate: String,
+    /// Its net old-run sign.
+    pub from: Sign,
+    /// Its net new-run sign.
+    pub to: Sign,
+    /// How many instances made this transition (net).
+    pub count: u32,
+}
+
+/// A count-diverged predicate in a summary diff
+/// ([`PredicateDivergence`]'s owned-name twin).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SummaryDivergence {
+    /// The structurally-diverged predicate.
+    pub predicate: String,
+    /// Its instance count in the old run.
+    pub old_count: u32,
+    /// Its instance count in the new run.
+    pub new_count: u32,
+}
+
+/// One node's delta between two summarized runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SummaryDelta {
+    /// The node's standing in the old run (`Absent` when the node has
+    /// no row there).
+    pub old_status: RunStatus,
+    /// The node's standing in the new run.
+    pub new_status: RunStatus,
+    /// Net sign changes, canonical order.
+    pub flips: Vec<SummaryFlip>,
+    /// Count-changed predicates, ordered by name.
+    pub diverged: Vec<SummaryDivergence>,
+}
+
+/// The summary diff's output — [`FlipSet`]'s cross-process twin.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SummaryFlipSet {
+    /// The differing nodes' deltas, ascending by node id.
+    pub nodes: BTreeMap<RecipeNodeId, SummaryDelta>,
+}
+
+impl SummaryFlipSet {
+    /// True when nothing differs (the no-flip certificate).
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Every flip, deterministically ordered — "exactly the flipped
+    /// predicates", the SetTolerance audit's report (spec D4/D6.2).
+    pub fn report(&self) -> Vec<(RecipeNodeId, SummaryFlip)> {
+        self.nodes
+            .iter()
+            .flat_map(|(&id, d)| d.flips.iter().map(move |f| (id, f.clone())))
+            .collect()
+    }
+}
+
+/// Diffs two runs' serialized verdict summaries — the SetTolerance
+/// audit's engine call (M4 PR 6 spec D4, discharging PR 4 review
+/// Finding 6's wait). Same population math as [`diff_verdicts`]
+/// (one shared core, [`diff_populations`]); the summaries typically
+/// come from two processes committed to different ε values.
+pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryFlipSet {
+    let ids: BTreeSet<RecipeNodeId> = old.nodes.keys().chain(new.nodes.keys()).copied().collect();
+    let mut out = BTreeMap::new();
+    let empty: BTreeMap<String, [u32; 3]> = BTreeMap::new();
+    for id in ids {
+        let (old_status, pa) = old
+            .nodes
+            .get(&id)
+            .map_or((RunStatus::Absent, &empty), |n| (n.status, &n.populations));
+        let (new_status, pb) = new
+            .nodes
+            .get(&id)
+            .map_or((RunStatus::Absent, &empty), |n| (n.status, &n.populations));
+        let (flips, diverged) = if old_status == RunStatus::Ok && new_status == RunStatus::Ok {
+            diff_populations(pa, pb)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        let delta = SummaryDelta {
+            old_status,
+            new_status,
+            flips: flips
+                .into_iter()
+                .map(|(predicate, from, to, count)| SummaryFlip {
+                    predicate,
+                    from,
+                    to,
+                    count,
+                })
+                .collect(),
+            diverged: diverged
+                .into_iter()
+                .map(|(predicate, old_count, new_count)| SummaryDivergence {
+                    predicate,
+                    old_count,
+                    new_count,
+                })
+                .collect(),
+        };
+        if delta.old_status != delta.new_status
+            || !delta.flips.is_empty()
+            || !delta.diverged.is_empty()
+        {
+            out.insert(id, delta);
+        }
+    }
+    SummaryFlipSet { nodes: out }
 }

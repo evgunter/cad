@@ -57,6 +57,22 @@
 //!   derives nesting from containment and canonicalizes traversal
 //!   internally (outers counterclockwise, holes clockwise, in sketch
 //!   coordinates). No winding errors exist.
+//! - **Tangency is declared intent, verified — never inferred (the
+//!   #101 discipline).** A *joint* (the junction of two adjacent
+//!   segments at their shared vertex) whose two **distinct** carriers
+//!   meet tangentially must be declared in
+//!   [`ProfileLoop::tangent_joints`]; validation refuses undeclared
+//!   definite tangency ([`ProfileError::UndeclaredTangency`]) and
+//!   contradicted declarations ([`ProfileError::TangencyContradicted`])
+//!   alike. Same-carrier continuation (collinear lines, cocircular
+//!   arcs — e.g. the minimal two-arc circle's joints) is carrier
+//!   identity, not tangency: legal undeclared. Free arcs whose joints
+//!   are definitely transversal (secant carriers) remain legal
+//!   undeclared — declaration marks *tangency*, not arc-ness. The
+//!   primary authoring path is [`LoopBuilder::fillet`], which computes
+//!   tangent geometry exactly and declares by construction;
+//!   [`LoopBuilder::declare_tangent`] is the explicit flag for
+//!   hand-authored chains.
 //! - **The sketch plane is conventional data.** [`SketchPlane`] is a
 //!   rigid placement: profile (x, y) ↦ plane origin + x·u + y·v, with
 //!   u/v/normal the columns of the placement's linear part. Rigidity
@@ -108,8 +124,8 @@ use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
 
 pub use sugar::{ArcSweep, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{
-    ContactKind, EscalationSite, LoopRole, ProfileError, SegmentKind, SegmentRef, ValidatedLoop,
-    ValidatedProfile, ValidatedSegment,
+    ContactKind, EscalationSite, FilletLeg, LoopRole, ProfileError, SegmentKind, SegmentRef,
+    ValidatedLoop, ValidatedProfile, ValidatedSegment,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the
@@ -137,26 +153,64 @@ pub struct ProfileLoop<T: Real> {
     /// The vertex chain, in traversal order (either winding — winding
     /// is invisible, see the crate docs).
     pub vertices: Vec<ProfileVertex<T>>,
+    /// **Declared-tangent joints** (the #101 discipline): vertex
+    /// indices whose *joint* — the junction between the segment
+    /// arriving at that vertex and the segment leaving it — is declared
+    /// tangent (first-order carrier contact between two *distinct*
+    /// carriers).
+    ///
+    /// Semantics, normative:
+    /// - A declaration is **intent, verified — never trusted**:
+    ///   validation checks the joint's carrier-tangency margin is
+    ///   definite Zero and refuses
+    ///   [`ProfileError::TangencyContradicted`] otherwise.
+    /// - Conversely, a joint whose carriers *are* definitely tangent
+    ///   **must** be declared: undeclared exact tangency is refused as
+    ///   [`ProfileError::UndeclaredTangency`] (relying on tangency that
+    ///   numerically happens-to-hold is the pattern the boolean door's
+    ///   UndeclaredCoincidence retired; lifted here to the profile
+    ///   door).
+    /// - **Same-carrier continuation is not tangency**: collinear
+    ///   line/line joints and cocircular arc/arc joints (the two-arc
+    ///   circle's joints) are carrier *identity*, legal undeclared, and
+    ///   a declaration there is contradicted.
+    /// - Duplicate indices are harmless (set semantics); an
+    ///   out-of-range index is a typed validation error. Order is not
+    ///   significant.
+    ///
+    /// [`LoopBuilder::fillet`] is the primary authoring path (it
+    /// computes tangent geometry exactly and declares by construction);
+    /// [`LoopBuilder::declare_tangent`] and this field are the
+    /// explicit hand-authoring/persistence form.
+    ///
+    /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted
+    /// [`ProfileError::UndeclaredTangency`]: validate::ProfileError::UndeclaredTangency
+    pub tangent_joints: Vec<usize>,
 }
 
 impl<T: Real> ProfileLoop<T> {
-    /// Builds a loop from a vertex chain.
+    /// Builds a loop from a vertex chain (no declared-tangent joints;
+    /// set [`ProfileLoop::tangent_joints`] or use the builder's
+    /// declaration paths for those).
     pub fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
-        Self { vertices }
+        Self {
+            vertices,
+            tangent_joints: Vec::new(),
+        }
     }
 
     /// Builds a loop of straight segments through the given points (all
     /// bulges zero) — polygon sugar.
     pub fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
-        Self {
-            vertices: points
+        Self::new(
+            points
                 .into_iter()
                 .map(|pos| ProfileVertex {
                     pos,
                     bulge: T::zero(),
                 })
                 .collect(),
-        }
+        )
     }
 
     /// Starts a [`LoopBuilder`] at `start` — the human-friendly
@@ -175,6 +229,11 @@ impl<T: Real> ProfileLoop<T> {
     ///
     /// `reversed ∘ reversed` is the identity bit-exactly (the
     /// reindexing round-trips and IEEE negation is exact) — under test.
+    ///
+    /// Declared-tangent joints travel with their vertex: joint j maps
+    /// to (n − j) mod n, the reversed chain's index of the same
+    /// geometric junction (an involution, so the round-trip is exact
+    /// elementwise).
     pub fn reversed(&self) -> Self {
         let n = self.vertices.len();
         if n == 0 {
@@ -186,6 +245,13 @@ impl<T: Real> ProfileLoop<T> {
                     pos: self.vertices[(n - k) % n].pos,
                     bulge: -self.vertices[(n - k - 1) % n].bulge,
                 })
+                .collect(),
+            // Out-of-range indices (garbage data) pass through
+            // untouched — total code; validation refuses them typed.
+            tangent_joints: self
+                .tangent_joints
+                .iter()
+                .map(|&j| if j < n { (n - j) % n } else { j })
                 .collect(),
         }
     }

@@ -112,3 +112,32 @@ fn interval_decisions_match_f64_on_the_fixture_suite() {
         }
     }
 }
+
+#[test]
+fn declared_tangency_discipline_holds_at_interval() {
+    // The #101 discipline at the interval scalar: the fillet-authored
+    // bracket's rounding-level tangency margins enclose inside the
+    // Zero region (definite Zero, no escalation), and the discipline's
+    // refusals agree with f64 variant-for-variant.
+    let declared = profile(vec![common::bracket()]);
+    lift::<Interval>(&declared)
+        .validate(tol())
+        .expect("declared bracket validates at Interval");
+
+    let mut undeclared = common::bracket();
+    undeclared.tangent_joints.clear();
+    let mut contradicted = common::bracket();
+    contradicted.tangent_joints = vec![1, 3, 4]; // joint 1 is a corner
+    for lp in [undeclared, contradicted] {
+        let p = profile(vec![lp]);
+        let at_f64 = p.validate(tol()).expect_err("must refuse at f64");
+        let at_iv = lift::<Interval>(&p)
+            .validate(tol())
+            .expect_err("must refuse at Interval");
+        assert_eq!(
+            core::mem::discriminant(&at_f64),
+            core::mem::discriminant(&at_iv),
+            "f64: {at_f64:?}, interval: {at_iv:?}"
+        );
+    }
+}

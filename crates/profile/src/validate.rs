@@ -14,13 +14,30 @@
 //!    contact is a typed error. Tangential contact (touching without
 //!    crossing) is semantically indeterminate and escalates as
 //!    [`ProfileError::TangentialContact`] (D4 ¶3: typed, actionable).
-//! 4. **Containment forest** — trilean point-in-loop by ray parity
+//! 4. **Declared tangency** (the #101 discipline) — every *joint*
+//!    (adjacent-segment junction at its shared vertex) is classified by
+//!    the same carrier predicates the simplicity pass uses — the
+//!    carrier clearance margins (`carrier_line_circle`, the
+//!    `carrier_circles_*` family) are bit-identical expressions;
+//!    line/line joints reuse `chord_side` in the same expression form
+//!    on the joint's far endpoint (a carrier-identity question — no
+//!    new ε anywhere) — and reconciled with the loop's declared
+//!    [`crate::ProfileLoop::tangent_joints`]: definite tangency between
+//!    distinct carriers undeclared ⇒
+//!    [`ProfileError::UndeclaredTangency`]; a declaration that is
+//!    definitely not a tangency (transversal, or same-carrier
+//!    continuation — collinear/cocircular joints are carrier identity,
+//!    not tangency) ⇒ [`ProfileError::TangencyContradicted`] (declared
+//!    tangency is verified, never trusted). In-band near-tangency
+//!    escalates from the simplicity pass as it always did; the refusal
+//!    text carries the declare-or-move repair menu.
+//! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
 //!    retry made principled); exhaustion is a typed escalation. Depth 0
 //!    = the outer boundary, depth 1 = holes; deeper nesting or multiple
 //!    outers are typed errors at M2 (one face region per profile).
-//! 5. **Canonicalization** — see [`ValidatedProfile`] for the rules.
+//! 6. **Canonicalization** — see [`ValidatedProfile`] for the rules.
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
@@ -47,6 +64,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
+//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in [`crate::LoopBuilder::fillet`], not here |
 //!
 //! The band coherence worth noting for the K report: contact margins
 //! and the orientation margin share K, so a loop thin enough to look
@@ -129,6 +147,11 @@ pub enum EscalationSite {
         /// Index of the loop in [`Profile::loops`].
         loop_index: usize,
     },
+    /// While gating the fillet constructor's leg fit
+    /// ([`crate::LoopBuilder::fillet`] — the only decision construction
+    /// sugar takes; reachable only at scalars whose leg-fit enclosure
+    /// straddles the exact-order band, or on poisoned legs).
+    Fillet,
 }
 
 impl fmt::Display for EscalationSite {
@@ -137,7 +160,27 @@ impl fmt::Display for EscalationSite {
             Self::Segment(s) => write!(f, "at {s}"),
             Self::SegmentPair(a, b) => write!(f, "between {a} and {b}"),
             Self::Loop { loop_index } => write!(f, "on loop {loop_index}"),
+            Self::Fillet => f.write_str("in the fillet constructor's leg-fit gate"),
         }
+    }
+}
+
+/// Which leg of a fillet corner a diagnostic refers to (the incoming
+/// leg runs chain-head → corner; the outgoing leg corner → `next`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilletLeg {
+    /// The leg arriving at the corner (chain head → corner).
+    Incoming,
+    /// The leg leaving the corner (corner → `next`).
+    Outgoing,
+}
+
+impl fmt::Display for FilletLeg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Incoming => "incoming leg",
+            Self::Outgoing => "outgoing leg",
+        })
     }
 }
 
@@ -188,6 +231,67 @@ pub enum ProfileError {
         first: SegmentRef,
         /// The other.
         second: SegmentRef,
+    },
+    /// The fillet constructor's requested radius does not fit its
+    /// corner: a computed tangent point falls outside its leg segment
+    /// (setback r·tan(φ/2) exceeds the leg's length), so the arc
+    /// would never approach the corner the caller asked to round —
+    /// refused at construction ([`crate::LoopBuilder::fillet`]; the
+    /// constructor-door sibling of `TangentJointOutOfRange`: the
+    /// tangent joint the radius determines is out of the leg's range).
+    FilletDoesNotFit {
+        /// The (first, in incoming→outgoing order) overrun leg.
+        leg: FilletLeg,
+        /// The computed tangent setback from the corner along each leg,
+        /// r·tan(φ/2), in meters — an `f64` **diagnostic** (the
+        /// enclosure's lower bound at interval scalars; for messages,
+        /// not for re-deciding).
+        setback: f64,
+        /// The overrun leg's length in meters (same diagnostic
+        /// channel).
+        leg_length: f64,
+    },
+    /// A declared-tangent joint index ([`crate::ProfileLoop::tangent_joints`])
+    /// is not a vertex index of its loop.
+    TangentJointOutOfRange {
+        /// Index of the offending loop.
+        loop_index: usize,
+        /// The declared (out-of-range) joint index.
+        joint: usize,
+        /// The loop's vertex count.
+        count: usize,
+    },
+    /// Adjacent segments meet tangentially at their shared vertex —
+    /// the joint's distinct carriers are in definite first-order
+    /// contact — but the joint is not declared tangent. Tangency that
+    /// numerically happens-to-hold is refused (the boolean door's
+    /// UndeclaredCoincidence, lifted to the profile door): declare the
+    /// intent or move the geometry.
+    UndeclaredTangency {
+        /// The segment arriving at the joint.
+        first: SegmentRef,
+        /// The segment leaving the joint.
+        second: SegmentRef,
+        /// The joint's vertex index (input chain of `first`'s loop) —
+        /// the index a declaration must name.
+        joint: usize,
+        /// The repair menu, rendered once at detection.
+        suggestion: String,
+    },
+    /// A joint declared tangent is definitely not: the flag is
+    /// verified, never trusted (the profile analogue of the boolean
+    /// door's DeclarationContradicted).
+    TangencyContradicted {
+        /// The segment arriving at the joint.
+        first: SegmentRef,
+        /// The segment leaving the joint.
+        second: SegmentRef,
+        /// The joint's vertex index (input chain).
+        joint: usize,
+        /// `true` if the adjacent segments share one carrier
+        /// (collinear/cocircular continuation — not a tangency);
+        /// `false` if their distinct carriers meet transversally.
+        same_carrier: bool,
     },
     /// A loop's area-per-perimeter width classified as zero: a sliver
     /// loop (unreachable for loops that passed simplicity — kept total).
@@ -263,6 +367,61 @@ impl fmt::Display for ProfileError {
                  crossing is semantically indeterminate — separate the geometry or make \
                  it cross cleanly (D4)"
             ),
+            Self::FilletDoesNotFit {
+                leg,
+                setback,
+                leg_length,
+            } => write!(
+                f,
+                "fillet radius does not fit: the tangent setback {setback} m exceeds \
+                 the {leg}'s length {leg_length} m — the arc would never approach the \
+                 requested corner; use a smaller radius or longer legs"
+            ),
+            Self::TangentJointOutOfRange {
+                loop_index,
+                joint,
+                count,
+            } => write!(
+                f,
+                "loop {loop_index} declares a tangent joint at vertex {joint}, but the \
+                 loop has only {count} vertices"
+            ),
+            Self::UndeclaredTangency {
+                first,
+                second,
+                joint,
+                suggestion,
+            } => write!(
+                f,
+                "{first} and {second} meet tangentially at their shared vertex \
+                 (joint {joint}) without a declaration — tangency is declared intent, \
+                 never a numerical accident; {suggestion}"
+            ),
+            Self::TangencyContradicted {
+                first,
+                second,
+                joint,
+                same_carrier,
+            } => {
+                if *same_carrier {
+                    write!(
+                        f,
+                        "joint {joint} between {first} and {second} is declared tangent, \
+                         but the segments continue on one shared carrier \
+                         (collinear/cocircular) — continuation is not a tangency; remove \
+                         the declaration (declared tangency is verified, never trusted)"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "joint {joint} between {first} and {second} is declared tangent, \
+                         but the carriers definitely meet transversally — remove the \
+                         declaration or make the tangency exact \
+                         (LoopBuilder::fillet computes it); declared tangency is \
+                         verified, never trusted"
+                    )
+                }
+            }
             Self::SliverLoop { loop_index } => write!(
                 f,
                 "loop {loop_index} has zero width at tolerance (sliver loop)"
@@ -287,7 +446,29 @@ impl fmt::Display for ProfileError {
                  candidate ray grazed — escalating rather than guessing (Q1)"
             ),
             Self::Escalated { site, source } => {
-                write!(f, "validation escalated {site}: {source}")
+                write!(f, "validation escalated {site}: {source}")?;
+                // The declare-or-move repair menu (#101 point 2): an
+                // in-band carrier-clearance margin between two profile
+                // segments is a *near-tangency* — the refusal names
+                // both exits.
+                let near_tangency = matches!(site, EscalationSite::SegmentPair(_, _))
+                    && matches!(
+                        source.predicate,
+                        Some(
+                            "carrier_line_circle"
+                                | "carrier_circles_external"
+                                | "carrier_circles_internal"
+                        )
+                    );
+                if near_tangency {
+                    f.write_str(
+                        " — near-tangency: if tangency is intended, make it exact and \
+                         declare it (LoopBuilder::fillet computes and declares it; \
+                         declared tangency is verified); otherwise move the geometry \
+                         out of the band",
+                    )?;
+                }
+                Ok(())
             }
         }
     }
@@ -355,6 +536,7 @@ pub struct ValidatedSegment<T: Real> {
 pub struct ValidatedLoop<T: Real> {
     vertices: Vec<ProfileVertex<T>>,
     segments: Vec<ValidatedSegment<T>>,
+    tangent_joints: Vec<usize>,
     role: LoopRole,
 }
 
@@ -374,6 +556,14 @@ impl<T: Real> ValidatedLoop<T> {
     /// vertex k+1 (mod n).
     pub fn segments(&self) -> &[ValidatedSegment<T>] {
         &self.segments
+    }
+
+    /// The declared (and verified — validation refuses otherwise)
+    /// tangent joints, as **canonical** vertex indices: joint v is the
+    /// junction between segment (v − 1 mod n) and segment v. Sorted
+    /// ascending, deduplicated.
+    pub fn tangent_joints(&self) -> &[usize] {
+        &self.tangent_joints
     }
 }
 
@@ -468,6 +658,18 @@ impl<T: Decide> Profile<T> {
         let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(self.loops.len());
         for (li, lp) in self.loops.iter().enumerate() {
             loop_segs.push(build_loop_segs(lp, li, band)?);
+            // Declared-tangent joints must name vertices of their loop
+            // (set semantics — duplicates are harmless, order is not
+            // significant; see `ProfileLoop::tangent_joints`). Checked
+            // after the loop's structural pass so arity/degeneracy
+            // refusals keep their established precedence.
+            if let Some(&joint) = lp.tangent_joints.iter().find(|&&j| j >= lp.vertices.len()) {
+                return Err(ProfileError::TangentJointOutOfRange {
+                    loop_index: li,
+                    joint,
+                    count: lp.vertices.len(),
+                });
+            }
         }
 
         // 3: simplicity — every unordered segment pair, adjacency
@@ -485,6 +687,17 @@ impl<T: Decide> Profile<T> {
                     }
                 }
             }
+        }
+
+        // 3b: the declared-tangency discipline (#101) — classify every
+        // joint (adjacent-segment junction) and reconcile with the
+        // loop's declarations. Runs after simplicity so in-band
+        // near-tangency escalates from the pair classification exactly
+        // as before this arm existed. Definite-Zero tangency between
+        // distinct carriers must be declared; a declaration must be
+        // definite-Zero tangency (verified, never trusted).
+        for (li, lp) in self.loops.iter().enumerate() {
+            judge_joints(lp, &loop_segs[li], li, band)?;
         }
 
         // Representative point per loop: the lexicographic minimum
@@ -674,6 +887,70 @@ fn judge_pair<T: Decide>(
     Ok(())
 }
 
+/// The per-loop joint pass of the declared-tangency discipline: joint
+/// v is the junction between segment (v − 1 mod n) (arriving) and
+/// segment v (leaving) at vertex v. Each joint is classified by
+/// [`seg::joint_tangency`] (module docs list the reused carrier
+/// predicates) and reconciled with the loop's declarations:
+///
+/// - `Tangent` undeclared ⇒ [`ProfileError::UndeclaredTangency`];
+/// - `Transversal` or `SameCarrier` declared ⇒
+///   [`ProfileError::TangencyContradicted`] (a declaration is verified,
+///   never trusted — and same-carrier continuation is not a tangency);
+/// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
+fn judge_joints<T: Decide>(
+    lp: &ProfileLoop<T>,
+    segs: &[Seg<T>],
+    loop_index: usize,
+    band: Band,
+) -> Result<(), ProfileError> {
+    let n = segs.len();
+    for joint in 0..n {
+        let prev = (joint + n - 1) % n;
+        let first = SegmentRef {
+            loop_index,
+            segment_index: prev,
+        };
+        let second = SegmentRef {
+            loop_index,
+            segment_index: joint,
+        };
+        let declared = lp.tangent_joints.contains(&joint);
+        let class = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(|source| {
+            ProfileError::Escalated {
+                site: EscalationSite::SegmentPair(first, second),
+                source,
+            }
+        })?;
+        match (class, declared) {
+            (seg::JointClass::Tangent, false) => {
+                return Err(ProfileError::UndeclaredTangency {
+                    first,
+                    second,
+                    joint,
+                    suggestion: format!(
+                        "declare it (add {joint} to loop {loop_index}'s tangent_joints — \
+                         LoopBuilder::declare_tangent, or author the arc with \
+                         LoopBuilder::fillet, which declares by construction) or move \
+                         the vertex off the tangency"
+                    ),
+                });
+            }
+            (seg::JointClass::Transversal | seg::JointClass::SameCarrier, true) => {
+                return Err(ProfileError::TangencyContradicted {
+                    first,
+                    second,
+                    joint,
+                    same_carrier: class == seg::JointClass::SameCarrier,
+                });
+            }
+            (seg::JointClass::Tangent, true)
+            | (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
+        }
+    }
+    Ok(())
+}
+
 /// Ray-parity containment of point `p` in the loop with segments
 /// `segs`, retrying grazing rays deterministically (module docs).
 fn point_in_loop<T: Decide>(
@@ -779,6 +1056,16 @@ fn canonicalize_loop<T: Decide>(
     let start = lex_min_index(&chain.vertices, exact, loop_index)?;
     let n = chain.vertices.len();
     let vertices: Vec<ProfileVertex<T>> = (0..n).map(|k| chain.vertices[(start + k) % n]).collect();
+    // Declared joints follow their vertex through the rotation
+    // (reversal already remapped them in `reversed()`); indices are
+    // in range — validated at entry. Sorted + deduplicated: canonical.
+    let mut tangent_joints: Vec<usize> = chain
+        .tangent_joints
+        .iter()
+        .map(|&j| (j + n - start) % n)
+        .collect();
+    tangent_joints.sort_unstable();
+    tangent_joints.dedup();
 
     // Re-derive classified segments on the canonical chain. The
     // classifications are reversal/rotation-symmetric (distances are
@@ -819,6 +1106,7 @@ fn canonicalize_loop<T: Decide>(
     Ok(ValidatedLoop {
         vertices,
         segments,
+        tangent_joints,
         role,
     })
 }
