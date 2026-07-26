@@ -1671,3 +1671,20 @@ the demo scene's #111 retire-pins. Blinded reviewer LAUNCHED
 multiplicity, slit variants, disconnected interiors, depth-3
 holes; watertight-theorem-vs-bookkeeping; root-cause re-derivation;
 winding-flip band argument).
+
+**Interval-crate review returned (2026-07-26): VALUE-SOUND, PROOF
+PROSE NOT — fix pass dispatched.** No containment violation in
+3.7M dual-oracle cases; war stories fail-on-revert exactly; no
+second atan2 trap (15-config hunt); degrade boundary honest;
+re-land tree-identical. 1 MAJ: §2 claims libm atan2 = 1 ulp but
+libm's own CI table says 2 — PAD_ULPS=4 survives ONLY via the
+sharper bit-distance argument (atan2 margin 1), which must be
+WRITTEN as the proof before "certified" is honest. MINORs: report
+misquoted its own harness (cos p50, powi p99 = 2^50+2 needing
+honest explanation, 3.7M not 3.2M), hull() decoration divergence
+SILENT (doc honesty 3/5 — milestone low), ops.rs zero coverage,
+irreproducible build-time claim (measured: 48s CPU / 203MB RSS).
+Quality (A/B row 6 pending fix pass): 1/4-ish MIN/…, idiom 5 /
+tests 4 / docs 3. Plan: after fix pass, the crate PRs to main as
+workspace-excluded tooling (zero kernel risk); ADOPTION stays an
+M5-PLAN ratified decision.
