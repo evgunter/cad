@@ -152,6 +152,9 @@ pub enum MetaError {
     NonFinite,
     /// A map key was not a string — `Map` keys are strings.
     NonStringKey,
+    /// A producer map serialized the same key twice — refused (the
+    /// erased tree is canonical; silent last-wins would drop data).
+    DuplicateKey(String),
     /// A serde-reported error (producer `Serialize`/`Deserialize`
     /// impls surface their own messages here).
     Message(String),
@@ -163,6 +166,12 @@ impl std::fmt::Display for MetaError {
             Self::IntOutOfRange => write!(f, "integer out of i64 range for MetaValue::Int"),
             Self::NonFinite => write!(f, "non-finite float refused at the metadata boundary"),
             Self::NonStringKey => write!(f, "non-string map key refused at the metadata boundary"),
+            Self::DuplicateKey(k) => {
+                write!(
+                    f,
+                    "duplicate map key {k:?} refused at the metadata boundary"
+                )
+            }
             Self::Message(m) => write!(f, "{m}"),
         }
     }
@@ -259,6 +268,26 @@ mod tests {
         assert_eq!(to_value(&u64::MAX), Err(MetaError::IntOutOfRange));
         let int_keys: std::collections::BTreeMap<u32, u32> = [(1, 2)].into();
         assert_eq!(to_value(&int_keys), Err(MetaError::NonStringKey));
+        // Duplicate producer map keys refuse (save/load symmetry at
+        // the producer boundary — from_value's tree cannot even
+        // represent a duplicate).
+        let dup_keys: Vec<(&str, u8)> = vec![("k", 1), ("k", 2)];
+        struct AsMap(Vec<(&'static str, u8)>);
+        impl serde::Serialize for AsMap {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::SerializeMap as _;
+                let mut m = s.serialize_map(Some(self.0.len()))?;
+                for (k, v) in &self.0 {
+                    m.serialize_entry(k, v)?;
+                }
+                m.end()
+            }
+        }
+        let dup_keys = AsMap(dup_keys);
+        assert_eq!(
+            to_value(&dup_keys),
+            Err(MetaError::DuplicateKey("k".into()))
+        );
         assert!(MetaValue::Int(1).require_versioned().is_err());
         assert!(
             MetaValue::Map([("v".to_owned(), MetaValue::Str("x".into()))].into())

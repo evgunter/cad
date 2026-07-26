@@ -52,6 +52,7 @@ pub use names::{
     StableName,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use persist::{JointSite, NonFiniteSite, SnapshotError};
 pub use persist::{Loaded, PersistError, SCHEMA_VERSION, load, save};
 pub use profile_desc::{DescToken, ProfileDesc, ProfileDoc};
 pub use resolve::{

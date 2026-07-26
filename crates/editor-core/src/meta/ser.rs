@@ -269,6 +269,12 @@ impl ser::SerializeMap for MapSer {
             .pending
             .take()
             .ok_or_else(|| MetaError::Message("serialize_value before serialize_key".into()))?;
+        // Duplicate keys refuse (the from_value side cannot even
+        // represent them — BTreeMap — so silent last-wins here would
+        // be a save/load-shaped asymmetry at the producer boundary).
+        if self.entries.contains_key(&key) {
+            return Err(MetaError::DuplicateKey(key));
+        }
         self.entries.insert(key, v.serialize(ValueSer)?);
         Ok(())
     }
@@ -285,6 +291,10 @@ impl ser::SerializeStruct for MapSer {
         key: &'static str,
         v: &T,
     ) -> Result<(), MetaError> {
+        // Derives cannot repeat a field; a hand-written impl could.
+        if self.entries.contains_key(key) {
+            return Err(MetaError::DuplicateKey(key.to_owned()));
+        }
         self.entries.insert(key.to_owned(), v.serialize(ValueSer)?);
         Ok(())
     }
@@ -306,6 +316,9 @@ impl ser::SerializeStructVariant for TaggedMapSer {
         key: &'static str,
         v: &T,
     ) -> Result<(), MetaError> {
+        if self.entries.contains_key(key) {
+            return Err(MetaError::DuplicateKey(key.to_owned()));
+        }
         self.entries.insert(key.to_owned(), v.serialize(ValueSer)?);
         Ok(())
     }

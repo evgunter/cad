@@ -348,3 +348,86 @@ fn tangent_joint_doors_refuse_typed_at_load() {
     };
     assert_eq!(desc.0.loops[0].tangent_joints, vec![1]);
 }
+
+#[test]
+fn stale_tangent_joint_refuses_at_save_before_any_byte() {
+    use editor_core::persist::JointSite;
+    // The payload is pub: a stale joint (as after deleting a vertex
+    // in the payload) reaches the document without passing any edit
+    // door. Save must refuse — the load side would (MAJOR-DELTA-1's
+    // inversion: a save that succeeds but cannot load).
+    let mut lp = profile::ProfileLoop::new(
+        [(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]
+            .into_iter()
+            .map(|(x, y)| profile::ProfileVertex {
+                pos: geom_core::Point2::new(x, y),
+                bulge: 0.0,
+            })
+            .collect(),
+    );
+    lp.tangent_joints = vec![7]; // 3 vertices: out of range
+    let bad = editor_core::ProfileDesc(profile::Profile::new(profile::SketchPlane::xy(), vec![lp]));
+    // Snapshot site.
+    let (doc, node) = insert(ProfileDoc::empty(), Node::Profile(bad.clone()));
+    match save(&doc, &[]) {
+        Err(PersistError::TangentJointOutOfRange {
+            site: JointSite::Profile { node: at },
+            loop_index: 0,
+            joint: 7,
+            vertex_count: 3,
+        }) => assert_eq!(at, node),
+        other => panic!("stale joint in snapshot must refuse at save, got {other:?}"),
+    }
+    // Edit-log site (an unapplied log is data; the walk runs before
+    // the replay-verification pass so the site names the edit).
+    match save(
+        &ProfileDoc::empty(),
+        &[DocEdit::InsertNode {
+            node: Node::Profile(bad),
+        }],
+    ) {
+        Err(PersistError::TangentJointOutOfRange {
+            site: JointSite::InsertedProfile { index: 0 },
+            loop_index: 0,
+            joint: 7,
+            vertex_count: 3,
+        }) => {}
+        other => panic!("stale joint in edit log must refuse at save, got {other:?}"),
+    }
+}
+
+#[test]
+fn unreplayable_edit_log_refuses_at_save() {
+    // Save/load symmetry for the LOG: load replays through apply's
+    // doors, so a log that refuses there refuses at save too — e.g. a
+    // D7 metadata value without its "v" field.
+    let (doc, _) = small();
+    let mut m = std::collections::BTreeMap::new();
+    m.insert("x".to_owned(), MetaValue::Int(3));
+    let bad = DocEdit::SetAppearanceMeta {
+        name: editor_core::StableName {
+            kind: editor_core::EntityKind::Body,
+            node: RecipeNodeId(1),
+            path: vec![editor_core::RoleSeg::OutputBody],
+        },
+        key: "k".into(),
+        value: MetaValue::Map(m),
+    };
+    match save(&doc, &[bad]) {
+        Err(PersistError::EditReplay { index: 0, error }) => assert!(
+            matches!(error, editor_core::EditError::MetaUnversioned { .. }),
+            "expected the apply door's refusal, got {error:?}"
+        ),
+        other => panic!("unreplayable log must refuse at save, got {other:?}"),
+    }
+    // And a log referencing a node the snapshot lacks.
+    let orphan = DocEdit::SetParam {
+        node: RecipeNodeId(77),
+        slot: editor_core::SlotId::Distance,
+        expr: len(1.0),
+    };
+    assert!(matches!(
+        save(&doc, &[orphan]),
+        Err(PersistError::EditReplay { index: 0, .. })
+    ));
+}

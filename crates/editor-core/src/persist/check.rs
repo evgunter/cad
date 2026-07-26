@@ -303,3 +303,75 @@ pub(crate) fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     }
     Ok(())
 }
+
+/// Where an out-of-range declared-tangent joint sits (save door,
+/// review MAJOR-DELTA-1 — the `Index` channel's twin of
+/// [`NonFiniteSite`]): the profile payload is `pub`, so a stale joint
+/// (e.g. after a vertex deletion in the payload) is API-reachable
+/// without passing any edit door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JointSite {
+    /// A profile node in the snapshot.
+    Profile {
+        /// The profile node.
+        node: RecipeNodeId,
+    },
+    /// A profile payload carried by an `InsertNode` edit in the log
+    /// (the node id is minted only at replay).
+    InsertedProfile {
+        /// The edit's index in the log.
+        index: usize,
+    },
+}
+
+/// The first out-of-range declared-tangent joint the format would
+/// write, as `(site, loop_index, joint, vertex_count)` — the save
+/// door's twin of the LOAD door's bounds check in `wire.rs`: a file
+/// carrying such a joint refuses on load, so save refuses FIRST with
+/// the same diagnostics (no unloadable file is ever produced).
+/// Non-canonical (unsorted/duplicated) lists are NOT refused here:
+/// they are set-semantic in memory and the wire canonicalizes them.
+pub(crate) fn first_bad_joint(
+    snapshot: &ProfileDoc,
+    edits: &[DocEdit<ProfileDesc>],
+) -> Option<(JointSite, usize, u64, usize)> {
+    for (&id, node) in &snapshot.nodes {
+        if let Node::Profile(desc) = node
+            && let Some((loop_index, joint, vertex_count)) = desc_bad_joint(desc)
+        {
+            return Some((
+                JointSite::Profile { node: id },
+                loop_index,
+                joint,
+                vertex_count,
+            ));
+        }
+    }
+    for (index, edit) in edits.iter().enumerate() {
+        if let DocEdit::InsertNode {
+            node: Node::Profile(desc),
+        } = edit
+            && let Some((loop_index, joint, vertex_count)) = desc_bad_joint(desc)
+        {
+            return Some((
+                JointSite::InsertedProfile { index },
+                loop_index,
+                joint,
+                vertex_count,
+            ));
+        }
+    }
+    None
+}
+
+fn desc_bad_joint(desc: &ProfileDesc) -> Option<(usize, u64, usize)> {
+    for (loop_index, lp) in desc.0.loops.iter().enumerate() {
+        let vertex_count = lp.vertices.len();
+        for &j in &lp.tangent_joints {
+            if j >= vertex_count {
+                return Some((loop_index, j as u64, vertex_count));
+            }
+        }
+    }
+    None
+}

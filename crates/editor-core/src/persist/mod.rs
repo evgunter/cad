@@ -25,8 +25,11 @@
 //!
 //! # Doors (fail loud, D2/D6.3)
 //!
-//! - Save refuses non-finite floats with a typed error naming the
-//!   site ([`NonFiniteSite`]); `-0.0` is data and round-trips.
+//! - Save refuses non-finite floats ([`NonFiniteSite`]), out-of-range
+//!   declared-tangent joints ([`JointSite`]), and edit logs that
+//!   cannot replay — everything the LOAD side would refuse, refused
+//!   before a byte is written (never an unloadable file); `-0.0` is
+//!   data and round-trips.
 //! - Load walks the header → migration chain → typed deserialize →
 //!   structural validation ([`SnapshotError`]) → expression REBUILD
 //!   through the dimension-checking constructors ([`wire`]) → edit
@@ -55,7 +58,7 @@ use geom_core::tolerance::{Tolerance, ToleranceError};
 use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
 use crate::profile_desc::{ProfileDesc, ProfileDoc};
 
-pub use check::{NonFiniteSite, SnapshotError};
+pub use check::{JointSite, NonFiniteSite, SnapshotError};
 
 /// The current schema version. Version 1 froze at M4 PR 6 (F8: the
 /// persisted file IS in M4). Bump ONLY with a ratified format change
@@ -98,6 +101,22 @@ pub enum PersistError {
         /// Where the non-finite value sits.
         site: NonFiniteSite,
     },
+    /// A declared-tangent joint out of range at SAVE time (review
+    /// MAJOR-DELTA-1 — the `Index` channel's twin of `NonFinite`):
+    /// the profile payload is `pub`, so a stale joint is reachable
+    /// without passing an edit door, and the written file would
+    /// refuse on load. Save refuses FIRST, with the load door's own
+    /// diagnostics; no file is produced.
+    TangentJointOutOfRange {
+        /// Where the offending payload sits.
+        site: JointSite,
+        /// The loop within the payload.
+        loop_index: usize,
+        /// The out-of-range joint index.
+        joint: u64,
+        /// The loop's vertex count (valid joints are `0..count`).
+        vertex_count: usize,
+    },
     /// The serializer itself failed (I/O-free here, so effectively
     /// unreachable; surfaced rather than swallowed).
     Serialize {
@@ -132,7 +151,10 @@ pub enum PersistError {
     },
     /// The snapshot parsed but violates a document invariant.
     Snapshot(SnapshotError),
-    /// An edit in the log refused during replay (the [`apply`] door).
+    /// An edit in the log refused through the [`apply`] door — on
+    /// LOAD replay, or at SAVE by the symmetric log-verification pass
+    /// (a log that cannot replay would make an unloadable file; save
+    /// refuses first).
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,
@@ -191,6 +213,25 @@ pub fn save(snapshot: &ProfileDoc, edits: &[DocEdit<ProfileDesc>]) -> Result<Str
     if let Some(site) = check::first_non_finite(snapshot, edits) {
         return Err(PersistError::NonFinite { site });
     }
+    if let Some((site, loop_index, joint, vertex_count)) = check::first_bad_joint(snapshot, edits) {
+        return Err(PersistError::TangentJointOutOfRange {
+            site,
+            loop_index,
+            joint,
+            vertex_count,
+        });
+    }
+    // Save/load symmetry for the LOG: load replays the edits through
+    // apply's doors, so a log that refuses there must refuse HERE —
+    // never a file that saves clean and cannot load. (Pure and
+    // document-scale cheap; the replayed value is discarded.)
+    let mut replay = snapshot.clone();
+    for (index, edit) in edits.iter().enumerate() {
+        replay = apply(&replay, edit)
+            .map_err(|error| PersistError::EditReplay { index, error })?
+            .doc;
+    }
+    drop(replay);
     let body = SerBody { snapshot, edits };
     let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
         message: e.to_string(),
