@@ -34,12 +34,16 @@ day). Protocol:
 | 3 | 2026-07-25 | M4 PR 6 persistence | L | fable (draw 221) | — | — | — | — | — | — | — | — | — |
 | 4 | 2026-07-25 | #101 declared tangency | M | fable (draw 218) | — | — | — | — | — | — | — | — | — |
 
-NOTE (2026-07-25): four consecutive fable draws (197, 220, 221,
-218; p = 1/16 for the run). Proposal pending with Evan: switch to
-BLOCKED randomization (shuffled opus/fable pairs) for remaining
-dispatches — guarantees arm balance at small n, strictly better
-power for the same count. Fair-coin protocol stands until he
-answers.
+PROTOCOL CHANGE (2026-07-25, Evan approved: "shuffled pairs makes
+sense") after four consecutive fable draws (197, 220, 221, 218;
+p = 1/16): remaining dispatches use BLOCKED randomization —
+opus/fable pairs, order shuffled per block via /dev/urandom.
+Transparency note: block 1's order is FORCED (opus, fable) as an
+explicit balance correction for the 4-0 fable start — the actual
+draw came out (fable, opus) and was overridden, recorded here
+rather than silently; random order resumes from block 2. Blinding
+unchanged (reviewers never learn arms; difficulty still logged
+pre-assignment).
 
 (Reference rows, pre-experiment, both Fable, unblinded — context
 only, not comparable: M4 PR 4 impl (L): 2 MAJ / 2 MIN / 6 NOTE, 0

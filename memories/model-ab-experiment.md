@@ -25,3 +25,10 @@ request the fixed-rubric CODE QUALITY REPORT; fill the data row as
 results arrive. Applies to implementation tasks dispatched after
 2026-07-25 (PR 5's implementer predates it: Fable, excluded).
 See [[orchestration-model]].
+
+**Protocol v2 (Evan, 2026-07-25)**: blocked randomization replaces
+the fair coin — opus/fable PAIRS, order shuffled per block
+(/dev/urandom), after four consecutive fable draws left the
+experiment opus-less. Block 1 forced (opus, fable) as a recorded
+balance correction; random order from block 2. NEXT DISPATCH =
+OPUS. Blinding and pre-flip difficulty logging unchanged.
