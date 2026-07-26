@@ -103,7 +103,10 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
 
     let flips = editor_core::diff_summaries(&old, &new);
     // GOLDEN (update only on a ratified predicate-vocabulary or
-    // fixture change): exactly ONE differing node — the profile —
+    // fixture change — RE-PINNED once at the #101 merge: declared
+    // tangency added validation probes, so carrier_line_circle and
+    // chord_side instance counts grew; the FLIPS are unchanged):
+    // exactly ONE differing node — the profile —
     // both runs Ok. The ε re-classification reports as EXACTLY these
     // net flips (the thin segment_straightness margin, twice decided
     // per validation pass, plus the line_span probes the collapsed
@@ -150,13 +153,13 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "carrier_line_circle".into(),
-                old_count: 3,
+                old_count: 5,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "chord_side".into(),
-                old_count: 12,
-                new_count: 24,
+                old_count: 14,
+                new_count: 28,
             },
             editor_core::SummaryDivergence {
                 predicate: "contact_at_shared_vertex".into(),
