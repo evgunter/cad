@@ -84,10 +84,12 @@ fn check_all_slots(value: f64) {
     let Some(Node::Profile(prof)) = doc.node(editor_core::RecipeNodeId(0)) else {
         panic!("profile lost");
     };
-    // Slot 0 of float_bits is the placement's first basis component;
-    // the value rides the ORIGIN (index 9) and vertices; find by scan.
+    // The value rides the placement origin and the vertices; find it
+    // by scanning the Float tokens (tags separate structure from
+    // data, so this scan can never match a boundary).
     assert!(
-        prof.float_bits().contains(&value.to_bits()),
+        prof.tokens()
+            .contains(&editor_core::DescToken::Float(value.to_bits())),
         "profile floats lost {value:?}"
     );
     let Some(Node::Datum(editor_core::Datum::Point { position })) =

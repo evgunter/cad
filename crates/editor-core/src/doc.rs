@@ -76,16 +76,24 @@ impl DocParam {
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+// The `with`-routed nodes field hides `P` from serde's bound
+// inference; state the bounds explicitly.
+#[serde(bound(
+    serialize = "P: serde::Serialize",
+    deserialize = "P: serde::Deserialize<'de>"
+))]
 pub struct Doc<P> {
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.
     /// Never decremented — deletion does not free ids (spec D3).
     pub(crate) next_id: u64,
     /// The nodes, by stable id.
+    #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
     /// Insertion order of the live nodes (the recipe's presentation
     /// order; the DAG's edges are the nodes' input refs, spec D3).
     pub(crate) order: Vec<RecipeNodeId>,
     /// Document-level named parameters.
+    #[serde(with = "crate::persist::strict::params")]
     pub(crate) params: BTreeMap<ParamName, DocParam>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
@@ -97,9 +105,11 @@ pub struct Doc<P> {
     /// written ONLY by the recorded `ReWitness` edits (and, at M6, by
     /// committed sketch edits). Document state under GQ3 — undo/redo
     /// and replay need no special cases.
+    #[serde(with = "crate::persist::strict::witnesses")]
     pub(crate) witnesses: BTreeMap<RecipeNodeId, crate::witness::WitnessDatum>,
     /// Free-form document metadata (display units etc. — presentation
     /// only, GQ5). Empty in v1 (spec D2).
+    #[serde(with = "crate::persist::strict::doc_metadata")]
     pub(crate) metadata: BTreeMap<String, String>,
     /// Appearance attributes keyed by stable name (M4 PR 7;
     /// DESIGN.md's ratified attachment contract). Presentation

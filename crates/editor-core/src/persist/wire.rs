@@ -10,7 +10,7 @@
 //!   the kernel crates gain no serde dependency (G1 layering), so the
 //!   wire shape is written here structurally (plane placement
 //!   columns plus loops of `(x, y, bulge)` vertices — exactly the
-//!   `ProfileDesc::float_bits` traversal).
+//!   `ProfileDesc::tokens` traversal).
 
 use geom_core::{Affine3, Mat3, Point2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};

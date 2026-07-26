@@ -54,8 +54,9 @@ pub enum MetaValue {
     Bytes(#[serde(with = "crate::persist::hexbytes")] Vec<u8>),
     /// An ordered list.
     List(Vec<MetaValue>),
-    /// A string-keyed map (canonical key order by construction).
-    Map(BTreeMap<String, MetaValue>),
+    /// A string-keyed map (canonical key order by construction;
+    /// duplicate keys refuse typed on load — no silent last-wins).
+    Map(#[serde(with = "crate::persist::strict::meta_map")] BTreeMap<String, MetaValue>),
 }
 
 impl PartialEq for MetaValue {

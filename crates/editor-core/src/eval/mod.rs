@@ -797,8 +797,22 @@ where
     // pairs (StableName is float-free by construction).
     match node {
         Node::Profile(desc) => {
-            for bits in desc.float_bits() {
-                h.write_u64(bits);
+            // Tagged token stream (profile_desc module docs): every
+            // token hashes as (tag, payload) — structure can never
+            // alias float data. Rides content-key format v2 (the tag
+            // bump above; nothing shipped under the old stream).
+            for tok in desc.tokens() {
+                match tok {
+                    crate::profile_desc::DescToken::LoopStart => h.write_tag(1),
+                    crate::profile_desc::DescToken::Float(bits) => {
+                        h.write_tag(2);
+                        h.write_u64(bits);
+                    }
+                    crate::profile_desc::DescToken::Index(i) => {
+                        h.write_tag(3);
+                        h.write_u64(i);
+                    }
+                }
             }
         }
         Node::Declare { pairs } => {

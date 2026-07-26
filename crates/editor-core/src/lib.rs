@@ -53,7 +53,7 @@ pub use names::{
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use persist::{Loaded, PersistError, SCHEMA_VERSION, load, save};
-pub use profile_desc::{ProfileDesc, ProfileDoc};
+pub use profile_desc::{DescToken, ProfileDesc, ProfileDoc};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,

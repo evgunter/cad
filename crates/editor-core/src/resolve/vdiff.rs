@@ -328,6 +328,7 @@ pub struct NodeVerdicts {
     /// The node's standing.
     pub status: RunStatus,
     /// Per-predicate sign populations, indexed Negative/Zero/Positive.
+    #[serde(with = "crate::persist::strict::populations")]
     pub populations: BTreeMap<String, [u32; 3]>,
 }
 
@@ -342,6 +343,7 @@ pub struct NodeVerdicts {
 #[serde(deny_unknown_fields)]
 pub struct VerdictSummary {
     /// Per-node populations (every node in the run's order).
+    #[serde(with = "crate::persist::strict::summary_nodes")]
     pub nodes: BTreeMap<RecipeNodeId, NodeVerdicts>,
 }
 

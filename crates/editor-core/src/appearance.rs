@@ -141,10 +141,12 @@ pub type AttrSet = BTreeMap<AttrKind, Attr>;
 #[serde(deny_unknown_fields)]
 pub struct AppearanceRecord {
     /// The typed display attributes, at most one per kind.
+    #[serde(with = "crate::persist::strict::attrs")]
     pub attrs: AttrSet,
     /// The black-box metadata (spec D7; floats inside obey D2 —
     /// bit-exact via [`MetaValue`]'s bits-equality, NaN/inf refused at
     /// the edit and persist doors).
+    #[serde(with = "crate::persist::strict::record_metadata")]
     pub metadata: BTreeMap<String, MetaValue>,
 }
 

@@ -47,6 +47,7 @@
 mod check;
 pub mod hexbytes;
 pub(crate) mod pairs;
+pub(crate) mod strict;
 mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
@@ -270,10 +271,21 @@ fn reconcile_epsilon(eps: f64) -> Result<(), PersistError> {
 fn parse_header(text: &str) -> Result<(u32, &str), PersistError> {
     let (first, rest) = text.split_once('\n').unwrap_or((text, ""));
     let found = || first.chars().take(80).collect::<String>();
-    let Some(version_text) = first.strip_prefix("schema:") else {
+    // Canonical spelling ONLY (review NOTE-5): exactly "schema: "
+    // then plain decimal digits — no signs, no extra whitespace, no
+    // leading zeros. The write side emits exactly this; any other
+    // spelling is a tampered or foreign file and refuses typed.
+    let Some(version_text) = first.strip_prefix("schema: ") else {
         return Err(PersistError::Header { found: found() });
     };
-    let Ok(version) = version_text.trim().parse::<u64>() else {
+    let canonical_digits = !version_text.is_empty()
+        && version_text.bytes().all(|b| b.is_ascii_digit())
+        && (version_text == "0" || !version_text.starts_with('0'));
+    if !canonical_digits {
+        return Err(PersistError::Header { found: found() });
+    }
+    let Ok(version) = version_text.parse::<u64>() else {
+        // Only reachable on > u64::MAX digit strings.
         return Err(PersistError::Header { found: found() });
     };
     if version == 0 || version > u64::from(SCHEMA_VERSION) {

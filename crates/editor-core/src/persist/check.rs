@@ -19,7 +19,7 @@ use crate::expr::Dimension;
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
-use crate::profile_desc::{ProfileDesc, ProfileDoc};
+use crate::profile_desc::{DescToken, ProfileDesc, ProfileDoc};
 use crate::resolve::derivation_nodes;
 
 /// Where a non-finite float sits (the D2 refusal's typed site).
@@ -32,9 +32,10 @@ pub enum NonFiniteSite {
         /// The parameter.
         name: ParamName,
     },
-    /// A float of a profile node's payload (snapshot), by position in
-    /// the payload's canonical float traversal
-    /// ([`ProfileDesc::float_bits`] order).
+    /// A float of a profile node's payload (snapshot), by position
+    /// among the REAL floats of the canonical traversal (the `Float`
+    /// tokens of [`ProfileDesc::tokens`]: placement columns, then
+    /// vertices in loop order — structural tokens do not count).
     Profile {
         /// The profile node.
         node: RecipeNodeId,
@@ -116,10 +117,23 @@ fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
     }
 }
 
+/// Walks every `Float` token of the description — keyed off token
+/// TAGS, so the door skips NOTHING and shares no blind spot with any
+/// encoding detail (review MAJOR-1: the former bit-stream walk
+/// skipped the `u64::MAX` in-band marker, which is itself a real NaN
+/// pattern). The returned index counts REAL floats only (placement
+/// columns first, then vertices in loop order).
 fn profile_non_finite(desc: &ProfileDesc) -> Option<usize> {
-    desc.float_bits()
-        .iter()
-        .position(|&bits| bits != u64::MAX && !f64::from_bits(bits).is_finite())
+    let mut float_index = 0usize;
+    for tok in desc.tokens() {
+        if let DescToken::Float(bits) = tok {
+            if !f64::from_bits(bits).is_finite() {
+                return Some(float_index);
+            }
+            float_index += 1;
+        }
+    }
+    None
 }
 
 fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
