@@ -5,9 +5,10 @@
 //! on half-plane sectors — reflex-corner attack), R1 closure depth
 //! (pocket/boss matrices, six-face chains, near-edge and face-spanning
 //! pockets), R2 generalization (6/8 collinear sites, mixed lanes, the
-//! U-family under all ops), ring-lane `residual_side_in` robustness
-//! (probes on the other operand's boundary, nested pockets,
-//! ring+transversal same face), boundary-on-boundary refusal honesty
+//! U-family under all ops), ring-lane role-order robustness (was the
+//! `residual_side_in` probe; issue #93 replaced it with the intrinsic
+//! `ring_run_ccw` winding rule — probes on the other operand's
+//! boundary, nested pockets, ring+transversal same face), boundary-on-boundary refusal honesty
 //! (UnpairedLooseEnds {4}/{8} + sharp perturbation boundary + null-edge
 //! dump), THE DIE (21 pips, exact oracle), and the standing sweeps
 //! (D9 replay, A minus B == A meet revert B, interval lane).
@@ -796,7 +797,9 @@ fn e_uslab_all_ops() {
 }
 
 // =====================================================================
-// F. Ring-lane residual_side_in probe robustness.
+// F. Ring-lane role-order robustness (originally the residual_side_in
+// probe; issue #93 replaced it with the intrinsic ring_run_ccw winding
+// rule — these remain black-box attacks on the ring lane).
 // =====================================================================
 
 /// Probe vertices ON the other operand's boundary: an inscribed
