@@ -437,14 +437,20 @@ impl ChordJoiner {
         let mut newf = None;
         if l1 == l2 {
             if prev(body, prev(body, h1)?)? != h2 {
+                // `outside` is the first half past the run; after the
+                // mef its parent loop is the split's REMAINDER — the
+                // loop ring re-homing must skip (a ring-lane remainder
+                // is geometrically coincident with the run and would
+                // land OnBoundary; issue #93).
+                let outside = next(body, h2)?;
                 let created = body.mef_chord(MefSite::Chords {
                     he1: h1,
-                    he2: next(body, h2)?,
+                    he2: outside,
                 })?;
                 self.slivers.insert(created.face, ());
                 self.fragments.push((created.face, oldf));
                 chords.push(created.edge);
-                newf = Some(created.face);
+                newf = Some((created.face, outside));
             }
         } else {
             // Structural ring choice (module docs): kill the loop that
@@ -494,34 +500,48 @@ impl ChordJoiner {
         // re-homes after the second mef alone (its face is the sliver
         // between the two chords, which bounds no ring-holding region);
         // that placement is kept.
-        if let Some(newf) = newf {
-            self.rehome_rings(body, oldf, newf)?;
+        if let Some((newf, outside)) = newf {
+            let remainder = body.get_half_edge(outside).ok_or_else(corrupt)?.parent_loop;
+            self.rehome_rings(body, oldf, newf, remainder)?;
         }
         Ok(chords)
     }
 
-    /// `laringmv(oldf, newf)`: move every ring of `oldf` that no
-    /// longer lies inside `oldf`'s outer loop into `newf` — decided by
-    /// the trilean containment predicate, never a raw comparison.
+    /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
+    /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
+    /// by the trilean containment predicate, never a raw comparison.
+    ///
+    /// The test is against the RUN, not `oldf`'s outer (issue #93):
+    /// when the split loop was a RING of `oldf` (an island seam),
+    /// `oldf`'s outer is untouched and still encloses everything — the
+    /// old-outer test kept nested rings (an island inside an island)
+    /// on the wrong face, silently. For an outer-loop split the two
+    /// tests agree (the run and the remainder partition the old area).
+    /// `remainder` — the split's own leftover cycle — is skipped, not
+    /// tested: a ring-lane remainder is geometrically coincident with
+    /// the run and would land `OnBoundary`.
     fn rehome_rings<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         oldf: FaceKey,
         newf: FaceKey,
+        remainder: LoopKey,
     ) -> Result<(), SplitJoinError> {
         let corrupt = || SplitJoinError::Corrupt;
-        let face = body.get_face(oldf).ok_or_else(corrupt)?;
-        if face.rings.is_empty() {
+        let rings = body.get_face(oldf).ok_or_else(corrupt)?.rings.clone();
+        if rings.iter().all(|&r| r == remainder) {
             return Ok(());
         }
-        let outer = face.outer;
-        let rings = face.rings.clone();
+        let run = body.get_face(newf).ok_or_else(corrupt)?.outer;
         let normal = face_plane_normal(body, oldf)?;
         for ring in rings {
+            if ring == remainder {
+                continue;
+            }
             let rep = ring_representative(body, ring)?;
-            match point_in_loop(body, outer, normal, rep, self.band)? {
-                LoopContainment::In => {}
-                LoopContainment::Out => body.ring_move(ring, newf)?,
+            match point_in_loop(body, run, normal, rep, self.band)? {
+                LoopContainment::In => body.ring_move(ring, newf)?,
+                LoopContainment::Out => {}
                 LoopContainment::OnBoundary => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
