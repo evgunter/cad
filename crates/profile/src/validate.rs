@@ -16,10 +16,12 @@
 //!    [`ProfileError::TangentialContact`] (D4 ¶3: typed, actionable).
 //! 4. **Declared tangency** (the #101 discipline) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
-//!    the same carrier predicates the simplicity pass uses
-//!    (`carrier_line_circle`, the `carrier_circles_*` family,
-//!    `chord_side` for line/line — bit-identical margin expressions,
-//!    no new ε) and reconciled with the loop's declared
+//!    the same carrier predicates the simplicity pass uses — the
+//!    carrier clearance margins (`carrier_line_circle`, the
+//!    `carrier_circles_*` family) are bit-identical expressions;
+//!    line/line joints reuse `chord_side` in the same expression form
+//!    on the joint's far endpoint (a carrier-identity question — no
+//!    new ε anywhere) — and reconciled with the loop's declared
 //!    [`crate::ProfileLoop::tangent_joints`]: definite tangency between
 //!    distinct carriers undeclared ⇒
 //!    [`ProfileError::UndeclaredTangency`]; a declaration that is
@@ -62,6 +64,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
+//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in [`crate::LoopBuilder::fillet`], not here |
 //!
 //! The band coherence worth noting for the K report: contact margins
 //! and the orientation margin share K, so a loop thin enough to look
@@ -144,6 +147,11 @@ pub enum EscalationSite {
         /// Index of the loop in [`Profile::loops`].
         loop_index: usize,
     },
+    /// While gating the fillet constructor's leg fit
+    /// ([`crate::LoopBuilder::fillet`] — the only decision construction
+    /// sugar takes; reachable only at scalars whose leg-fit enclosure
+    /// straddles the exact-order band, or on poisoned legs).
+    Fillet,
 }
 
 impl fmt::Display for EscalationSite {
@@ -152,7 +160,27 @@ impl fmt::Display for EscalationSite {
             Self::Segment(s) => write!(f, "at {s}"),
             Self::SegmentPair(a, b) => write!(f, "between {a} and {b}"),
             Self::Loop { loop_index } => write!(f, "on loop {loop_index}"),
+            Self::Fillet => f.write_str("in the fillet constructor's leg-fit gate"),
         }
+    }
+}
+
+/// Which leg of a fillet corner a diagnostic refers to (the incoming
+/// leg runs chain-head → corner; the outgoing leg corner → `next`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilletLeg {
+    /// The leg arriving at the corner (chain head → corner).
+    Incoming,
+    /// The leg leaving the corner (corner → `next`).
+    Outgoing,
+}
+
+impl fmt::Display for FilletLeg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Incoming => "incoming leg",
+            Self::Outgoing => "outgoing leg",
+        })
     }
 }
 
@@ -203,6 +231,25 @@ pub enum ProfileError {
         first: SegmentRef,
         /// The other.
         second: SegmentRef,
+    },
+    /// The fillet constructor's requested radius does not fit its
+    /// corner: a computed tangent point falls outside its leg segment
+    /// (setback r·tan(φ/2) exceeds the leg's length), so the arc
+    /// would never approach the corner the caller asked to round —
+    /// refused at construction ([`crate::LoopBuilder::fillet`]; the
+    /// constructor-door sibling of `TangentJointOutOfRange`: the
+    /// tangent joint the radius determines is out of the leg's range).
+    FilletDoesNotFit {
+        /// The (first, in incoming→outgoing order) overrun leg.
+        leg: FilletLeg,
+        /// The computed tangent setback from the corner along each leg,
+        /// r·tan(φ/2), in meters — an `f64` **diagnostic** (the
+        /// enclosure's lower bound at interval scalars; for messages,
+        /// not for re-deciding).
+        setback: f64,
+        /// The overrun leg's length in meters (same diagnostic
+        /// channel).
+        leg_length: f64,
     },
     /// A declared-tangent joint index ([`crate::ProfileLoop::tangent_joints`])
     /// is not a vertex index of its loop.
@@ -319,6 +366,16 @@ impl fmt::Display for ProfileError {
                 "tangential contact between {first} and {second}: touching without \
                  crossing is semantically indeterminate — separate the geometry or make \
                  it cross cleanly (D4)"
+            ),
+            Self::FilletDoesNotFit {
+                leg,
+                setback,
+                leg_length,
+            } => write!(
+                f,
+                "fillet radius does not fit: the tangent setback {setback} m exceeds \
+                 the {leg}'s length {leg_length} m — the arc would never approach the \
+                 requested corner; use a smaller radius or longer legs"
             ),
             Self::TangentJointOutOfRange {
                 loop_index,
@@ -600,9 +657,12 @@ impl<T: Decide> Profile<T> {
         // classification.
         let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(self.loops.len());
         for (li, lp) in self.loops.iter().enumerate() {
+            loop_segs.push(build_loop_segs(lp, li, band)?);
             // Declared-tangent joints must name vertices of their loop
             // (set semantics — duplicates are harmless, order is not
-            // significant; see `ProfileLoop::tangent_joints`).
+            // significant; see `ProfileLoop::tangent_joints`). Checked
+            // after the loop's structural pass so arity/degeneracy
+            // refusals keep their established precedence.
             if let Some(&joint) = lp.tangent_joints.iter().find(|&&j| j >= lp.vertices.len()) {
                 return Err(ProfileError::TangentJointOutOfRange {
                     loop_index: li,
@@ -610,7 +670,6 @@ impl<T: Decide> Profile<T> {
                     count: lp.vertices.len(),
                 });
             }
-            loop_segs.push(build_loop_segs(lp, li, band)?);
         }
 
         // 3: simplicity — every unordered segment pair, adjacency

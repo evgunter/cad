@@ -5,14 +5,21 @@
 //! ([`ArcSweep`]) or through-points, but nothing beyond the computed
 //! bulge survives into the data.
 //!
-//! Sugar is *evaluation code*: total, comparison-free, no decisions.
-//! Degenerate inputs (a through-point collinear-outside its chord, a
-//! zero-radius center) produce well-defined poison or degenerate values
-//! that [`crate::Profile::validate`] rejects with typed errors — the
-//! sugar never guesses and never panics.
+//! Sugar is *evaluation code*: total, comparison-free, no decisions —
+//! with ONE documented exception: [`LoopBuilder::fillet`]'s leg-fit
+//! gate, a reified predicate (`fillet_leg_fit`) through the k_stats
+//! funnel that refuses a radius whose tangent points fall outside
+//! their legs (see its docs; #101 review MAJOR-1). Everything else
+//! holds everywhere: degenerate inputs (a through-point
+//! collinear-outside its chord, a zero-radius center) produce
+//! well-defined poison or degenerate values that
+//! [`crate::Profile::validate`] rejects with typed errors — the sugar
+//! never guesses and never panics.
 
-use geom_core::{Point2, Real};
+use geom_core::{Band, Bounds, Decide, Point2, Real, Sign};
 
+use crate::k_stats::decide;
+use crate::validate::{EscalationSite, FilletLeg, ProfileError};
 use crate::{ProfileLoop, ProfileVertex};
 
 /// The sweep direction hint for [`bulge_from_center`] /
@@ -183,8 +190,9 @@ impl<T: Real> LoopBuilder<T> {
     /// (constructive, solver-free): from the chain end H, a straight
     /// leg toward `corner` C stopping at the tangent point T₁, then
     /// the radius-`radius` arc to the tangent point T₂ on the outgoing
-    /// leg C→`next`; **both joints are declared tangent by
-    /// construction**. The caller must continue toward `next`
+    /// leg C→`next`; **the joints at strictly-interior tangent points
+    /// are declared tangent by construction** (exact-fit sides: see
+    /// the gate below). The caller must continue toward `next`
     /// (`line_to(next)`, or another `fillet` whose `corner` is `next`)
     /// — leaving T₂ any other way is a contradicted declaration, which
     /// validation refuses loudly.
@@ -202,15 +210,58 @@ impl<T: Real> LoopBuilder<T> {
     /// margin is rounding-level (~1e-16) — definite Zero at every
     /// supported ε.
     ///
-    /// Degenerate inputs, honestly (sugar is total, comparison-free —
-    /// no decisions): a straight-through corner (φ = 0) yields
-    /// setback 0 and T₁ = T₂ = C — a degenerate (zero-length) arc
-    /// segment that validation refuses typed; a doubled-back corner
-    /// (φ = ±π) or a zero-length leg poisons the closed form (0/0 →
-    /// NaN) for validation to refuse; a `radius` too large for either
-    /// leg puts T₁/T₂ outside the legs and the loop fails simplicity.
-    /// Never a panic, never a guess.
-    pub fn fillet(self, corner: Point2<T>, next: Point2<T>, radius: T) -> Self {
+    /// # The leg-fit gate (the one decision sugar takes)
+    ///
+    /// A tangent point outside its leg means the arc never approaches
+    /// the corner the caller asked to round — a silent intent mismatch
+    /// (the exact disease this discipline refuses), and one the
+    /// resulting loop can VALIDATE through (the overshot arc is still
+    /// carrier-tangent at both points; #101 review, MAJOR-1). The
+    /// constructor therefore refuses it: each leg's fit margin
+    /// (leg length − setback, meters) is classified through the
+    /// reified **`fillet_leg_fit`** predicate against the exact-order
+    /// band (`crate::validate` module docs — the representation-exact
+    /// device, not a new ε; the knife-edge neighborhoods on BOTH sides
+    /// are covered by validation's `vertex_separation` door, so exact
+    /// classification is honest here):
+    ///
+    /// - **Negative** (either leg) ⇒ [`ProfileError::FilletDoesNotFit`]
+    ///   naming the first overrun leg with setback/length diagnostics;
+    /// - **Zero** (exact fit) ⇒ that side's straight piece has zero
+    ///   length and is **not emitted**, and — having no collinear
+    ///   straight piece adjacent — that tangent point is **not
+    ///   declared**: an exact-fit incoming leg springs the arc directly
+    ///   off the chain head (the head joint's tangency, if the caller
+    ///   arranged one, is the caller's to declare); an exact-fit
+    ///   outgoing leg ends the arc at `next` itself (continue from the
+    ///   corner AT `next` — a `line_to(next)` would be degenerate);
+    /// - **Positive** ⇒ the normal emission (straight piece + declared
+    ///   tangent joint);
+    /// - in-band / poisoned (interval knife-edge, NaN legs) ⇒
+    ///   [`ProfileError::Escalated`] at
+    ///   [`crate::EscalationSite::Fillet`] — this is also where a
+    ///   doubled-back corner (φ = ±π) or zero-length leg lands: the
+    ///   0/0 → NaN closed form poisons the fit margin, refused typed
+    ///   at the constructor door.
+    ///
+    /// Remaining degenerates, honestly (executed, pinned in the
+    /// `declared_tangency` suite): a straight-through corner (φ = 0)
+    /// or `radius` = 0 yields setback 0, T₁ = T₂ = C, and a degenerate
+    /// zero-length arc that validation refuses as `DegenerateSegment`;
+    /// a negative radius puts the tangent points beyond the corner and
+    /// the loop fails simplicity (`NonSimple`/`Crossing`). Never a
+    /// panic, never a guess, never a silently-wrong shape.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError::FilletDoesNotFit`], [`ProfileError::Escalated`]
+    /// (site [`crate::EscalationSite::Fillet`]), or
+    /// [`ProfileError::Band`] (unreachable for the built-in band) — see
+    /// the gate above.
+    pub fn fillet(self, corner: Point2<T>, next: Point2<T>, radius: T) -> Result<Self, ProfileError>
+    where
+        T: Decide + Bounds,
+    {
         let v1 = corner - self.head();
         let v2 = next - corner;
         // powi(2)-discipline squares (interval lane: a straddling-zero
@@ -220,12 +271,38 @@ impl<T: Real> LoopBuilder<T> {
         let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
         let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
         let setback = radius * half_tan.abs();
-        let t1 = corner - v1 * (setback / v1.norm_squared().sqrt());
-        let t2 = corner + v2 * (setback / v2.norm_squared().sqrt());
-        self.line_to(t1)
-            .declare_tangent()
-            .arc_to(t2, bulge)
-            .declare_tangent()
+        let len1 = v1.norm_squared().sqrt();
+        let len2 = v2.norm_squared().sqrt();
+        // The exact-order band (validate module docs): no representable
+        // f64 lies strictly inside it, so f64 classification is total.
+        let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
+        let fit = |len: T, leg: FilletLeg| -> Result<Sign, ProfileError> {
+            match decide("fillet_leg_fit", len - setback, exact) {
+                Ok(Sign::Negative) => Err(ProfileError::FilletDoesNotFit {
+                    leg,
+                    setback: setback.lo(),
+                    leg_length: len.lo(),
+                }),
+                Ok(sign) => Ok(sign),
+                Err(source) => Err(ProfileError::Escalated {
+                    site: EscalationSite::Fillet,
+                    source,
+                }),
+            }
+        };
+        let fit_in = fit(len1, FilletLeg::Incoming)?;
+        let fit_out = fit(len2, FilletLeg::Outgoing)?;
+        let t2 = corner + v2 * (setback / len2);
+        let mut chain = self;
+        if fit_in == Sign::Positive {
+            let t1 = corner - v1 * (setback / len1);
+            chain = chain.line_to(t1).declare_tangent();
+        }
+        chain = chain.arc_to(t2, bulge);
+        if fit_out == Sign::Positive {
+            chain = chain.declare_tangent();
+        }
+        Ok(chain)
     }
 
     /// The finished loop: vertices plus the declared-tangent joints

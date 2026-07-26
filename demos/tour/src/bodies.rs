@@ -62,6 +62,7 @@ fn bracket() -> topo::Body<f64> {
         .line_to(p2(3.0, 0.0))
         .line_to(p2(3.0, 1.0))
         .fillet(p2(1.0, 1.0), p2(1.0, 3.0), 0.5) // r = 0.5 inner fillet
+        .expect("bracket fillet fits")
         .line_to(p2(1.0, 3.0))
         .line_to(p2(0.0, 3.0))
         .close();

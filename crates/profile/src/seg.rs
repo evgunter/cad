@@ -249,11 +249,14 @@ pub(crate) enum JointClass {
 /// separate from profile-wide validation so future authoring layers
 /// can ask it per-junction.
 ///
-/// Decisions reuse the pair-classification predicates on bit-identical
-/// margin expressions (`carrier_line_circle`,
-/// `carrier_circles_identity` / `_external` / `_internal`,
-/// `chord_side`) — same funnel, same bands, no new ε. In-band or
-/// poisoned margins escalate verbatim.
+/// Decisions reuse the pair-classification predicates: the carrier
+/// clearance margins (`carrier_line_circle`,
+/// `carrier_circles_identity` / `_external` / `_internal`) are
+/// bit-identical to [`line_arc`]/[`arc_arc`]'s expressions; line/line
+/// joints reuse `chord_side` in the same expression form on the
+/// joint's *far* endpoint (a carrier-identity question — the pair pass
+/// asks it of other points). Same funnel, same bands, no new ε.
+/// In-band or poisoned margins escalate verbatim.
 pub(crate) fn joint_tangency<T: Decide>(
     prev: &Seg<T>,
     next: &Seg<T>,

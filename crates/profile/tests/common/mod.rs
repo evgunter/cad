@@ -126,6 +126,7 @@ pub fn bracket() -> ProfileLoop<f64> {
         .line_to(Point2::new(3.0, 0.0))
         .line_to(Point2::new(3.0, 1.0))
         .fillet(Point2::new(1.0, 1.0), Point2::new(1.0, 3.0), 0.5)
+        .expect("bracket fillet fits")
         .line_to(Point2::new(1.0, 3.0))
         .line_to(Point2::new(0.0, 3.0))
         .close()

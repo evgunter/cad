@@ -254,6 +254,7 @@ fn abandoning_a_fillet_exit_leg_is_contradicted_loudly() {
         .line_to(p2(3.0, 0.0))
         .line_to(p2(3.0, 1.0))
         .fillet(p2(1.0, 1.0), p2(1.0, 3.0), 0.5)
+        .expect("fillet fits")
         .line_to(p2(0.5, 3.0)) // NOT toward (1, 3)
         .line_to(p2(0.0, 3.0))
         .close();
@@ -270,10 +271,138 @@ fn fillet_of_an_acute_corner_validates_at_run_eps() {
     let sqrt3 = 3.0f64.sqrt();
     let lp = ProfileLoop::builder(p2(0.0, 0.0))
         .fillet(p2(2.0, 0.0), p2(3.0, sqrt3), 0.25)
+        .expect("fillet fits")
         .line_to(p2(3.0, sqrt3))
         .line_to(p2(0.0, 2.5))
         .close();
     profile(vec![lp])
         .validate(tol())
         .expect("acute fillet validates");
+}
+
+// ------------------------------- the fillet leg-fit gate (MAJOR-1) --
+
+#[test]
+fn oversized_fillet_radius_is_refused_typed_both_legs() {
+    // The review's MAJOR-1 counterexample, inverted into the pin:
+    // r = 10 on legs of length 2 and 3 used to validate green with an
+    // arc that never approached the corner (T1 = (3,-8)).
+    match ProfileLoop::builder(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .fillet(p2(3.0, 2.0), p2(0.0, 2.0), 10.0)
+        .expect_err("oversized radius must refuse")
+    {
+        ProfileError::FilletDoesNotFit {
+            leg,
+            setback,
+            leg_length,
+        } => {
+            // Incoming→outgoing gate order: the shorter incoming leg
+            // reports first; right angle + dyadic legs: exact values.
+            assert_eq!(leg, profile::FilletLeg::Incoming);
+            assert_eq!(setback, 10.0);
+            assert_eq!(leg_length, 2.0);
+        }
+        other => panic!("expected FilletDoesNotFit, got {other:?}"),
+    }
+}
+
+#[test]
+fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
+    // Incoming leg (3) fits; outgoing leg (2) overruns at r = 2.5.
+    match ProfileLoop::builder(p2(0.0, 0.0))
+        .fillet(p2(3.0, 0.0), p2(3.0, 2.0), 2.5)
+        .expect_err("outgoing overrun must refuse")
+    {
+        ProfileError::FilletDoesNotFit {
+            leg,
+            setback,
+            leg_length,
+        } => {
+            assert_eq!(leg, profile::FilletLeg::Outgoing);
+            assert_eq!(setback, 2.5);
+            assert_eq!(leg_length, 2.0);
+        }
+        other => panic!("expected FilletDoesNotFit, got {other:?}"),
+    }
+}
+
+#[test]
+fn zero_radius_fillet_is_a_degenerate_segment_at_validation() {
+    // r = 0: setback 0 fits both legs (the gate passes); T1 = T2 =
+    // corner and the zero-length arc is refused typed downstream.
+    let lp = ProfileLoop::builder(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 1.0))
+        .fillet(p2(1.0, 1.0), p2(1.0, 3.0), 0.0)
+        .expect("zero radius passes the fit gate")
+        .line_to(p2(1.0, 3.0))
+        .line_to(p2(0.0, 3.0))
+        .close();
+    match profile(vec![lp]).validate(tol()).expect_err("degenerate") {
+        ProfileError::DegenerateSegment(_) => {}
+        other => panic!("expected DegenerateSegment, got {other:?}"),
+    }
+}
+
+#[test]
+fn largest_fitting_radius_succeeds_with_exact_tangency() {
+    // Boundary: r = 2 on a right angle consumes the incoming leg
+    // EXACTLY (setback = leg = 2, margin bit-zero). The arc springs
+    // directly off the chain head (no zero-length lead-in line, no
+    // declaration there -- the head joint is a genuine transversal
+    // corner), and the strictly-interior outgoing tangent point is
+    // declared and verifies.
+    let lp = ProfileLoop::builder(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .fillet(p2(3.0, 2.0), p2(0.0, 2.0), 2.0)
+        .expect("exact-fit radius must succeed")
+        .line_to(p2(0.0, 2.0))
+        .close();
+    // 4 vertices: (0,0), (3,0) [arc springs here], T2, (0,2).
+    assert_eq!(lp.vertices.len(), 4);
+    assert_eq!(lp.tangent_joints, vec![2]);
+    let vp = profile(vec![lp])
+        .validate(tol())
+        .expect("exact-fit fillet validates with verified tangency");
+    assert_eq!(vp.loops()[0].tangent_joints(), &[2]);
+}
+
+#[test]
+fn negative_fillet_radius_is_refused_downstream() {
+    // r < 0 puts both tangent points beyond the corner (setback < 0
+    // passes the overrun gate -- it is not an overrun); the resulting
+    // doubled-back geometry fails simplicity typed. Pinned as
+    // documented behavior.
+    let lp = ProfileLoop::builder(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 1.0))
+        .fillet(p2(1.0, 1.0), p2(1.0, 3.0), -0.5)
+        .expect("negative radius passes the fit gate")
+        .line_to(p2(1.0, 3.0))
+        .line_to(p2(0.0, 3.0))
+        .close();
+    match profile(vec![lp]).validate(tol()).expect_err("negative r") {
+        ProfileError::NonSimple {
+            kind: profile::ContactKind::Crossing,
+            ..
+        } => {}
+        other => panic!("expected NonSimple crossing, got {other:?}"),
+    }
+}
+
+#[test]
+fn doubled_back_fillet_corner_escalates_at_the_constructor() {
+    // phi = pi: the closed form is 0/0 -> NaN; the fit gate's margin
+    // poisons and the CONSTRUCTOR refuses typed (site: Fillet).
+    match ProfileLoop::builder(p2(0.0, 0.0))
+        .fillet(p2(2.0, 0.0), p2(1.0, 0.0), 0.5)
+        .expect_err("doubled-back corner must escalate")
+    {
+        ProfileError::Escalated {
+            site: profile::EscalationSite::Fillet,
+            ..
+        } => {}
+        other => panic!("expected fillet-site escalation, got {other:?}"),
+    }
 }
