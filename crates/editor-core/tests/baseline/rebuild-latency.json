@@ -15,7 +15,7 @@
       "nodes": 9
     },
     "declared_tangency": {
-      "about": "#101: fillet-constructed joints + a hand-declared collinear joint",
+      "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "cone": 1,
       "full_ms": 103.1,
       "incremental_ms": 54.33,
