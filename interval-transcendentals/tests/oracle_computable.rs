@@ -38,14 +38,29 @@ fn refined_bounds(c: &Computable, width_hint: f64) -> Option<(XBinary, XBinary)>
     Some((p.lower(), p.upper()))
 }
 
-/// The containment assertion: computable's enclosure of the true value
-/// must sit inside our interval.
-fn assert_point_in(ctx: &str, mine: &DInterval, c: &Computable, skips: &mut u64) {
+/// The containment assertion: computable's enclosure of the true value,
+/// CLIPPED to the function's mathematical range, must sit inside our
+/// interval. The clip is rigorous — truth lies in oracle ∩ range — and
+/// necessary: e.g. cos(2.2e-308) is within 2.5e-616 of the exact range
+/// bound 1.0, so any finite-width oracle enclosure straddles 1.0 while
+/// our (correct, tighter) upper bound IS 1.0. Found live at the
+/// MIN_POSITIVE edge case.
+fn assert_point_in(
+    ctx: &str,
+    mine: &DInterval,
+    c: &Computable,
+    range: (f64, f64),
+    skips: &mut u64,
+) {
     let width = mine.hi() - mine.lo();
     let Some((lo, hi)) = refined_bounds(c, width) else {
         *skips += 1;
         return;
     };
+    let range_lo = XBinary::from_f64(range.0).expect("range bound");
+    let range_hi = XBinary::from_f64(range.1).expect("range bound");
+    let lo = lo.max(range_lo);
+    let hi = hi.min(range_hi);
     let my_lo = XBinary::from_f64(mine.lo()).expect("finite bound");
     let my_hi = XBinary::from_f64(mine.hi()).expect("finite bound");
     assert!(
@@ -53,6 +68,10 @@ fn assert_point_in(ctx: &str, mine: &DInterval, c: &Computable, skips: &mut u64)
         "{ctx}: computable-oracle CONTAINMENT VIOLATION: oracle in ({lo:?}, {hi:?}), mine {mine:?}"
     );
 }
+
+const RANGE_TRIG: (f64, f64) = (-1.0, 1.0);
+const RANGE_NONNEG: (f64, f64) = (0.0, f64::INFINITY);
+const RANGE_ALL: (f64, f64) = (f64::NEG_INFINITY, f64::INFINITY);
 
 fn c_of(x: f64) -> Computable {
     Computable::from(Binary::from_f64(x).expect("finite dyadic"))
@@ -76,6 +95,7 @@ fn computable_oracle_sin_cos_points() {
             &format!("sin({x}) case {i}"),
             &mine_s,
             &c_of(x).sin(),
+            RANGE_TRIG,
             &mut skips,
         );
         let mine_c = DInterval::point(x).cos();
@@ -83,6 +103,7 @@ fn computable_oracle_sin_cos_points() {
             &format!("cos({x}) case {i}"),
             &mine_c,
             &c_cos(x),
+            RANGE_TRIG,
             &mut skips,
         );
     }
@@ -112,6 +133,7 @@ fn computable_oracle_sin_wide_intervals() {
                 &format!("sin wide case {i} t={t}"),
                 &s,
                 &c_of(t).sin(),
+                RANGE_TRIG,
                 &mut skips,
             );
         }
@@ -128,7 +150,13 @@ fn computable_oracle_sqrt_pow_points() {
         let x = rng.log_mag(-80, 80).abs();
         let mine = DInterval::point(x).sqrt();
         let c = c_of(x).nth_root(core::num::NonZeroU32::new(2).expect("2 != 0"));
-        assert_point_in(&format!("sqrt({x:e}) case {i}"), &mine, &c, &mut skips);
+        assert_point_in(
+            &format!("sqrt({x:e}) case {i}"),
+            &mine,
+            &c,
+            RANGE_NONNEG,
+            &mut skips,
+        );
         let n = (rng.next_u64() % 6 + 2) as u32;
         let y = rng.range(-20.0, 20.0);
         let mine_p = DInterval::point(y).powi(n as i32);
@@ -136,6 +164,7 @@ fn computable_oracle_sqrt_pow_points() {
             &format!("pow({y}, {n}) case {i}"),
             &mine_p,
             &c_of(y).pow(n),
+            RANGE_ALL,
             &mut skips,
         );
     }
@@ -167,12 +196,14 @@ fn computable_oracle_edge_points() {
             &format!("edge sin({x})"),
             &DInterval::point(x).sin(),
             &c_of(x).sin(),
+            RANGE_TRIG,
             &mut skips,
         );
         assert_point_in(
             &format!("edge cos({x})"),
             &DInterval::point(x).cos(),
             &c_cos(x),
+            RANGE_TRIG,
             &mut skips,
         );
     }
