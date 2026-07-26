@@ -14,8 +14,10 @@ Evan's standing instructions for implementation work (given at M0 start,
 
 - The top-level agent acts as **orchestrator and (meta-)reviewer**:
   central planning and design decisions stay with it; normal coding tasks
-  are delegated to subagents (Opus for straightforward tasks, Fable for
-  medium/hard ones), and reviews are delegated to subagents too.
+  are delegated to subagents, and reviews are delegated to subagents
+  too. (Model choice for implementation dispatches is currently
+  governed by the coin-flip A/B protocol — see [[model-ab-experiment]];
+  design/specs/reviews/rulings stay Fable.)
   Subagents may spawn their own subagents for large tasks (verified —
   see [[multi-agent-capabilities]]).
 - **Continue autonomously** until hitting a major branch point that needs

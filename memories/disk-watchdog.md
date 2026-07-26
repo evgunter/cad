@@ -28,8 +28,8 @@ treat test results from the pressure window as suspect (ENOSPC can
 kill processes silently). See [[worktree-disk-hygiene]],
 [[hourly-agent-checkins]].
 
-**RAM contention corollary (2026-07-24)**: this WSL instance has
-only ~5G RAM. Running the gate concurrently with agent test
+**RAM contention corollary (2026-07-24)**: this WSL instance had
+only ~5G RAM at the time. Running the gate concurrently with agent test
 batteries can OOM-kill a gate test process mid-suite — observed as
 a bare "Terminated" in one ε row (4s FAIL) while every other row
 passed; the identical suites passed on rerun with a quiet machine.
@@ -37,3 +37,11 @@ Before diagnosing a fast single-row gate FAIL as a code bug: check
 for "Terminated", check what else was running, and rerun quiet.
 Prefer sequencing agent batteries away from gate runs when
 possible.
+
+**RAM limit raised — CONFIRMED (2026-07-25)**: the ~5G ceiling was
+WSL2's default 50%-of-physical rule (11.75 GB host), not an
+explicit limit. `memory=10GB` in `C:\Users\evgun\.wslconfig` took
+effect at the 2026-07-25 restart (verified: `free -h` 9.7G total).
+Discipline now: up to TWO parallel cargo lanes machine-wide; keep
+the pgrep-before-battery habit; the OOM-diagnosis lesson above
+still applies under pressure.

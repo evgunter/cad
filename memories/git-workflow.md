@@ -42,4 +42,7 @@ never run gate.sh; reviewers run targeted cargo lanes in their own
 clones. Rationale: Actions runs the same matrix in parallel on
 GitHub hardware (~5-7 min) on the PR's merge ref; the local gate
 was serialized (sum-of-rows, 35-70 min), held a 30G cache, and
-contributed to two disk-crash incidents on the 5G-RAM/251G box.
+contributed to two disk-crash incidents on the (then-5G-RAM)/251G
+box. Caveat (still true 2026-07-25): main has NO branch
+protection, so `gh pr merge --auto` merges IMMEDIATELY — verify
+the checks are green yourself; never rely on --auto to wait.

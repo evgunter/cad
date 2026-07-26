@@ -152,6 +152,50 @@ fn kitchen_sink() -> Recorder {
         axis,
         angle: ang(std::f64::consts::FRAC_PI_2),
     });
+    // #101 declared tangency (M4 PR 6 fix pass, MINOR-4): a
+    // fillet-CONSTRUCTED loop (tangent joints declared by
+    // construction) and a hand-declared collinear tangency — both
+    // must survive save/load/replay bit-identically, joints included.
+    let fillet_loop = profile::ProfileLoop::builder(geom_core::Point2::new(0.0, 0.0))
+        .line_to(geom_core::Point2::new(3.0, 0.0))
+        .line_to(geom_core::Point2::new(3.0, 1.0))
+        .fillet(
+            geom_core::Point2::new(1.0, 1.0),
+            geom_core::Point2::new(1.0, 3.0),
+            0.5,
+        )
+        .expect("fillet fits")
+        .line_to(geom_core::Point2::new(1.0, 3.0))
+        .line_to(geom_core::Point2::new(0.0, 3.0))
+        .close();
+    let fillet_profile = r.insert(Node::Profile(ProfileDesc(profile::Profile::new(
+        profile::SketchPlane::xy(),
+        vec![fillet_loop],
+    ))));
+    r.insert(Node::Extrude {
+        profile: fillet_profile,
+        distance: len(0.4),
+    });
+    let mut collinear = profile::ProfileLoop::new(
+        [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+            .into_iter()
+            .map(|(x, y)| profile::ProfileVertex {
+                pos: geom_core::Point2::new(x, y),
+                bulge: 0.0,
+            })
+            .collect(),
+    );
+    // The joint at vertex 1 sits between two collinear straights:
+    // definite tangency, and #101 requires it DECLARED to validate.
+    collinear.tangent_joints = vec![1];
+    let tangent_profile = r.insert(Node::Profile(ProfileDesc(profile::Profile::new(
+        profile::SketchPlane::xy(),
+        vec![collinear],
+    ))));
+    r.insert(Node::Extrude {
+        profile: tangent_profile,
+        distance: len(0.3),
+    });
     // Witness bytes (opaque, hex on the wire — bit-exact).
     r.push(DocEdit::ReWitness {
         node: profile,

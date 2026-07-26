@@ -246,14 +246,24 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // surfaces (plane–cylinder): distinct surface keys, conventional
     // MappedCurve struts.
     let b = FRAC_PI_8.tan();
+    // All eight joints are exact tangencies -- declared (#101), one
+    // declaration per joint including the closing arc's two.
     let lp = ProfileLoop::builder(p2(0.25, 0.0))
+        .declare_tangent()
         .line_to(p2(0.75, 0.0))
+        .declare_tangent()
         .arc_to(p2(1.0, 0.25), b)
+        .declare_tangent()
         .line_to(p2(1.0, 0.75))
+        .declare_tangent()
         .arc_to(p2(0.75, 1.0), b)
+        .declare_tangent()
         .line_to(p2(0.25, 1.0))
+        .declare_tangent()
         .arc_to(p2(0.0, 0.75), b)
+        .declare_tangent()
         .line_to(p2(0.0, 0.25))
+        .declare_tangent()
         .close_with_bulge(b);
     let t = extrude(&validated(vec![lp]), Extrusion::Distance(0.5)).unwrap();
     assert_all_tiers(&t.body);

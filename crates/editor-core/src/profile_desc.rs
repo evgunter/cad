@@ -43,16 +43,20 @@ impl ProfileDesc {
             .0
             .loops
             .iter()
-            .map(|lp| {
-                ProfileLoop::new(
-                    lp.vertices
-                        .iter()
-                        .map(|v| ProfileVertex {
-                            pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                            bulge: T::from_f64(v.bulge),
-                        })
-                        .collect(),
-                )
+            .map(|lp| ProfileLoop {
+                vertices: lp
+                    .vertices
+                    .iter()
+                    .map(|v| ProfileVertex {
+                        pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
+                        bulge: T::from_f64(v.bulge),
+                    })
+                    .collect(),
+                // Declared-tangent joints are indices (scalar-free):
+                // carried verbatim — the declaration is part of the
+                // description and is re-verified at validation in the
+                // evaluation scalar.
+                tangent_joints: lp.tangent_joints.clone(),
             })
             .collect();
         Profile::new(plane, loops)
@@ -84,6 +88,20 @@ impl ProfileDesc {
             for v in &lp.vertices {
                 out.extend([v.pos.x, v.pos.y, v.bulge].map(|f| DescToken::Float(f.to_bits())));
             }
+            // Declared-tangent joints (#101): semantic description
+            // data, keyed as their canonical SET (sorted,
+            // deduplicated — the field is set-semantic: `[1, 1]` and
+            // `[1]` describe the same loop and must key identically,
+            // #101 review NOTE-1). `Index` tokens are tag-distinct
+            // from float data and from boundaries, so no count prefix
+            // is needed and no payload (e.g. a garbage joint index of
+            // u64::MAX) can forge structure — the tagged retype
+            // subsumes #101's length-prefix fix (MINOR-1) and this
+            // PR's door blind spot (MAJOR-1) in one shape.
+            let mut joints: Vec<u64> = lp.tangent_joints.iter().map(|&j| j as u64).collect();
+            joints.sort_unstable();
+            joints.dedup();
+            out.extend(joints.into_iter().map(DescToken::Index));
         }
         out
     }

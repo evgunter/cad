@@ -159,6 +159,23 @@ struct WireVertex {
     bulge: f64,
 }
 
+/// One loop on the wire: vertices plus declared-tangent joints
+/// (#101's vocabulary; schema v1 extended PRE-freeze at the PR 6 fix
+/// pass — no migration, v1 never shipped without it). Joints persist
+/// as the canonical SET (strictly increasing — the field is
+/// set-semantic, #101 review NOTE-1); the save side canonicalizes,
+/// and the load door refuses non-canonical or out-of-range lists
+/// typed (no silent reinterpretation of a corrupt declaration).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireLoop {
+    /// The loop's vertices, chain order.
+    vertices: Vec<WireVertex>,
+    /// Declared-tangent joint indices (vertex v = the joint where
+    /// segment v begins), canonical set order.
+    tangent_joints: Vec<u64>,
+}
+
 /// The profile payload's wire shape (module docs).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -166,7 +183,7 @@ struct WireProfile {
     /// The sketch plane placement.
     plane: WirePlacement,
     /// The loops: outer first, then holes, description order.
-    loops: Vec<Vec<WireVertex>>,
+    loops: Vec<WireLoop>,
 }
 
 impl Serialize for ProfileDesc {
@@ -183,14 +200,24 @@ impl Serialize for ProfileDesc {
                 .loops
                 .iter()
                 .map(|lp| {
-                    lp.vertices
-                        .iter()
-                        .map(|v| WireVertex {
-                            x: v.pos.x,
-                            y: v.pos.y,
-                            bulge: v.bulge,
-                        })
-                        .collect()
+                    // Canonical joint set (sorted, deduplicated) —
+                    // same canonicalization the token stream applies.
+                    let mut joints: Vec<u64> =
+                        lp.tangent_joints.iter().map(|&j| j as u64).collect();
+                    joints.sort_unstable();
+                    joints.dedup();
+                    WireLoop {
+                        vertices: lp
+                            .vertices
+                            .iter()
+                            .map(|v| WireVertex {
+                                x: v.pos.x,
+                                y: v.pos.y,
+                                bulge: v.bulge,
+                            })
+                            .collect(),
+                        tangent_joints: joints,
+                    }
                 })
                 .collect(),
         };
@@ -210,20 +237,42 @@ impl<'de> Deserialize<'de> for ProfileDesc {
             ),
             v3(wire.plane.origin),
         );
-        let loops = wire
-            .loops
-            .into_iter()
-            .map(|lp| {
-                ProfileLoop::new(
-                    lp.into_iter()
-                        .map(|v| ProfileVertex {
-                            pos: Point2::new(v.x, v.y),
-                            bulge: v.bulge,
-                        })
-                        .collect(),
-                )
-            })
-            .collect();
+        let mut loops = Vec::with_capacity(wire.loops.len());
+        for (loop_index, lp) in wire.loops.into_iter().enumerate() {
+            let vertex_count = lp.vertices.len();
+            let mut joints = Vec::with_capacity(lp.tangent_joints.len());
+            for (i, &j) in lp.tangent_joints.iter().enumerate() {
+                // Bounds + canonical-set door (typed; surfaces as a
+                // Parse refusal with position): a joint names segment
+                // j of THIS loop, and the list is a strictly
+                // increasing set — anything else is a corrupt or
+                // hand-mangled declaration, never reinterpreted.
+                if j >= vertex_count as u64 {
+                    return Err(D::Error::custom(format!(
+                        "tangent joint {j} out of range for loop {loop_index} with {vertex_count} vertices"
+                    )));
+                }
+                if i > 0 && lp.tangent_joints[i - 1] >= j {
+                    return Err(D::Error::custom(format!(
+                        "tangent joints of loop {loop_index} are not a strictly increasing set at index {i} (value {j})"
+                    )));
+                }
+                let idx = usize::try_from(j)
+                    .map_err(|_| D::Error::custom(format!("tangent joint {j} exceeds usize")))?;
+                joints.push(idx);
+            }
+            let mut built = ProfileLoop::new(
+                lp.vertices
+                    .into_iter()
+                    .map(|v| ProfileVertex {
+                        pos: Point2::new(v.x, v.y),
+                        bulge: v.bulge,
+                    })
+                    .collect(),
+            );
+            built.tangent_joints = joints;
+            loops.push(built);
+        }
         Ok(ProfileDesc(Profile::new(
             SketchPlane::new(placement),
             loops,

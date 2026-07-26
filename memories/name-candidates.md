@@ -1,17 +1,18 @@
 ---
 name: name-candidates
-description: Q9 project-name candidates — Evan's shortlist (Intension, Noumenon/Noumena, Selvage) with justifications + the full rejected/backup slate and availability as of 2026-07-23
+description: Q9 project-name candidates — Evan's shortlist (Intension, Noumenon/Noumena, Selvage, Tertium) with justifications + the full rejected/backup slate and availability as of 2026-07-25
 metadata:
   type: project
 ---
 
 Q9 (project name) is still open; Evan reviewed candidates 2026-07-23
-and shortlisted three to revisit later. Naming brief he gave: a subtle
+and 2026-07-25 and shortlisted four to revisit later. Naming brief he gave: a subtle
 nod to what makes this kernel different — the FUNCTIONAL/INTENSIONAL
 core (the object *is* its definition; everything else derived from
 it), everything explicit, no assumptions/silent fudging.
 
-## Shortlist (Evan-liked, all crates.io-AVAILABLE 2026-07-23)
+## Shortlist (Evan-liked, all crates.io-AVAILABLE; first three checked
+2026-07-23, Tertium 2026-07-25)
 
 - **Intension** — the philosopher's term for exactly the architecture:
   the definitional content of a thing vs its *extension* (the point
@@ -29,6 +30,11 @@ it), everything explicit, no assumptions/silent fudging.
   boundaries by construction. Evan likes it a lot but judges it
   slightly tangential to the intensional core. crates.io free; tiny
   GitHub collisions only.
+- **Tertium** (added 2026-07-25, from the constructive-logic vein) —
+  from *tertium non datur*, the excluded middle: "no third is given."
+  The trilean predicates give a third; the tagline is *tertium datur*.
+  Short, same archaic-Latin register as Scruple/Quiddity; needs one
+  sentence of unpacking (as do the others). crates.io free.
 
 ## Liked but namespace too crowded (Evan)
 
@@ -50,11 +56,82 @@ it), everything explicit, no assumptions/silent fudging.
   (Availability unchecked.)
 - **Definiens** — the defining clause of a definition; names precisely
   the artifact the kernel persists. Very obscure. (Unchecked.)
-- **Constructive-logic vein** (unmined): the ethos is constructive in
-  the mathematician's sense — existence needs explicit witnesses;
-  trilean predicates are a working rejection of excluded middle. If
-  the nod should aim at the logic rather than the metaphysics, mine
-  here.
+## Constructive-logic vein (MINED 2026-07-25)
+
+The premise: the ethos is constructive in the mathematician's sense —
+existence needs explicit witnesses; trilean predicates are a working
+rejection of excluded middle. This vein aims the nod at the logic
+rather than the metaphysics. crates.io re-checked 2026-07-25; GitHub
+and trademark NOT swept for any of these.
+
+Outcome: **Tertium** promoted to the shortlist above. Evan also liked
+the *sound* of Quadrance and Esakia (and Sequent, which is taken)
+while judging their meanings less relevant — kept as backups.
+
+Live candidates (all crates.io-AVAILABLE 2026-07-25):
+
+- **Apartness** — the sharpest semantic fit in the vein. Constructively
+  you cannot decide `x = y` for reals; the affirmable relation is
+  apartness `x # y`, which needs an explicit separating witness, and
+  equality is only ever its negation. That is the kernel's epsilon
+  situation exactly (certify separation, never coincidence), and the
+  trilean falls straight out. A B-rep is also plainly *about* what is
+  separated from what. Risk: "apartheid" is Afrikaans for literally
+  "apartness" — phonetic shadow.
+- **Realizer** — Kleene realizability: a proof of `∃x.P(x)` *is* a
+  program producing the witness (cf. witness midpoints, certified
+  bounds, GQ1 authoritative-branch witnesses). Bridges to the
+  intensional shortlist: the extension is the *realization* of the
+  intension, and "realize a design" is native fabrication vocabulary.
+  Reads a bit generic out of context.
+- **Glivenko** — deep cut. Glivenko's theorem: a proposition is
+  classically provable iff its double negation is intuitionistically
+  provable. In solid modeling regularization *is* `¬¬` (closure of
+  interior), so the kernel's relation to a classical CSG kernel is
+  literally Glivenko's theorem. Maximum precision, maximum obscurity;
+  surname register unlike the rest of the slate.
+- **Quadrance** — Wildberger's rational trigonometry (quadrance +
+  spread; no square roots) → exact-arithmetic geometry, on-ethos for
+  exactness. Evan likes the sound. Caveats: fringe/crank association,
+  and the kernel is not actually rational-trig based, so the meaning
+  is decorative.
+- **Esakia** — Esakia duality (Heyting algebras ↔ Esakia spaces), i.e.
+  the logic-side/space-side correspondence. Evan likes the sound;
+  meaning is a stretch beyond "constructive logic has a spatial dual."
+  Same surname register as Glivenko.
+- **Decidable** — pointed, but claiming it inverts the ethos: the whole
+  point is that these predicates are *not* decidable. Listed for
+  completeness.
+- Also free, unpursued: **Topos**, **Sublocale**, **Modulus**,
+  **Refutation**, **Brouwer**, **Priestley**, **Stable**, **Gentzen**,
+  **Succedent**.
+
+Ruled out in this vein:
+
+- **Heyting** — the ideal pun (Heyting algebra = intuitionistic truth
+  values = lattice of *open* sets, where `¬¬p ≠ p` is exactly
+  regularization). Dead: crates.io `heyting` is an active
+  knowledge-graph-embedding crate (0.16.0, updated 2026-07-08).
+- **Kleene** — crates.io-free and arguably the most literal citation
+  for the trilean (strong Kleene K3 = true/false/unknown), but every
+  Rust dev reads `kleene` as regex/automata. Connotation collision,
+  not namespace.
+- **Sequent** — Evan liked the sound; crates.io taken (kindredgroup/
+  sequent, discrete-event simulation, stale since 2022 but published).
+- **Locale** — pointfree topology is a perfect intension/extension
+  story (describe the space, derive the points) but `locale` is
+  i18n-squatted at ~1M downloads. **Nucleus** (the closure operator
+  carving a sublocale — regularization is exactly that) also taken and
+  generic.
+- **Topos** — free on crates.io, but the Topos Institute owns that
+  search space and the name slightly overclaims.
+- **Modulus** — Bishop's modulus of convergence (every constructive
+  real ships its own explicit error bound = the eps discipline), nice
+  double reading with elastic modulus, but NVIDIA Modulus is a large
+  collision.
+- crates.io TAKEN in this vein: apart, bishop, constructive, evident,
+  attest, posit (also confusable with posit arithmetic), spread,
+  realize, sequent, nucleus, locale, heyting.
 
 ## Ruled out
 

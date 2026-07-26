@@ -980,3 +980,317 @@ regression pin: grandparent case.
 (disposition 2, recursive naming key). PR 5 D7 green-lit to the
 implementer (sequenced last in its plan); watchlist entry
 auto-cleared by the monitor.
+
+**Usage-limit outage + recovery (2026-07-25, ~08:00–15:30Z)**: both
+implementer lanes died at the Fable limit mid-morning; Evan
+re-logged-in ~15:30Z; both resumed from transcript per the standing
+ladder — NOTHING lost (both had pushed; demo lane's push came from
+the hourly-sweep nudge minutes before the kill — the discipline
+paid for itself). WSL RAM mystery solved by an investigator agent:
+the ~5.7G ceiling is WSL2's DEFAULT 50%-of-physical rule (11.75GB
+host), no explicit limit; `memory=10GB` added to
+C:\Users\evgun\.wslconfig at Evan's ask, EFFECTIVE ONLY at his
+next `wsl --shutdown` (he'll restart after current work concludes);
+memory banked — keep 5G discipline until `free -h` shows ~10G.
+
+**DEMO REFRESH IMPLEMENTATION COMPLETE (2026-07-25,
+`ev/m4-demo-refresh` @ `b91f1de`, pushed)**: all #91 picks landed —
+C1 crosslap (JoinDesync-class refusal narrated + THIRD tripwire
+planted pinning that exact class), C2 H×T + 3-way with
+naive-refusal/decoupled-pass pair + 3 shadow-proof renders, C3
+15-op project box (exact dyadic V after EVERY op), C4
+split-of-boolean cutaway (no fallback needed — works on main), C5
+recipe heat sink (recomputed-1/reused-4 + 135/135 names ASSERTED),
+C9 torus-groove sheave (Pappus closed-form rel 2e-16), C10 one-
+session FreeCAD STEP renders (14 planar bodies; montage.png 17
+panels regenerated + visually inspected), tier-3′ modernization
+(clone hack deleted), retirements done (wedge kept). Kernel diff =
+exactly one test file. REPORT items: STEP lane planar-only until M5
+(curved stops refuse typed, narrated); Boolean-of-Pattern not
+wireable in F4 (possible future F4 item); crosslap refuses
+JoinDesync not NonMaximalFaces; FreeCAD offscreen pitfalls fixed
+in-script (incl. discovering the OLD montage had mid-animation
+captures); table narration drift (coplanar-touch + inset-overlap
+now union exactly — kernel caught up post-PR 5.5). Adversarial
+reviewer LAUNCHED (10 falsification claims, e2e execution
+required; report to demo-review-report.md).
+
+**Demo review returned (2026-07-25): MERGEABLE.** All 10
+falsification claims executed clean — oracles independently
+recomputed by Fraction integration (C2 = 1593/512, 3-way =
+12321/4096), sheave Pappus re-derived symbolically, C5 asserts
+proven real by tamper test, FreeCAD renders pixel-deterministic
+across sessions, sentinel correctly absent on simulated mid-run
+failure, kernel diff exactly one test file. Five MINOR + four NOTE
+findings; fix pass dispatched with rulings: M1 doc overclaim
+(projectbox 3′-once reality), M2 STEP arm must assert
+Unsupported*-class + planar-must-export (the silent F6-hollowing
+hole — the one finding with teeth), M3 README shadow-PNG caption,
+M4 narrate_naive becomes a real 4×DescriptionNotAdjacent pin
+(fires like a tripwire when Declare glues it), M5 pin the 135, N2
+honest Empty label; N1 implementer's discretion (tighten gate vs
+reword caption, REPORT which); N3/N4 accepted. Merge on green
+Actions after the fix push. Review report:
+~/.local/share/cad-work/demo-review-report.md.
+
+**Evan's demo review notes (2026-07-25, in-chat, PR #98 held
+open)**: six revisions dispatched to the demo implementer —
+(1) pulley likely redundant vs sheave: surface-kind audit; prefer
+folding a conical zone into the sheave and deleting pulley (cone
+was pulley's unique content per #91); (2) wedge dropped or
+replaced with a more interesting partial revolve, implementer's
+pick; (3) T resized to H's bounding height in both silhouettes;
+(4) silhouette3 diamond resized to genuinely shape the y-shadow
+(current one only bevels the H — not acceptable); (5) montage
+trims to silhouette3-only and full-heat-sink-only (other scenes
+stay in the tour script, montage:false); (6) cutaway view/cut
+plane rotated so the section actually reveals the interior.
+MERGE OF #98 IS HELD until the revision pass lands, renders
+regenerate, and I visually re-inspect the montage. Also: rustfmt
+row on #98 was a formatting-only miss in demo_tripwires.rs;
+orchestrator fixed directly (3ec8b18) — mechanical, no content.
+
+**DEMO REFRESH MERGED (2026-07-25): #98 → main `493ce7b`** on a
+10/10 green matrix at revision head `7cbd781`; closes #91. Final
+shape after Evan's in-chat review round (montage: "looks great"):
+13 panels; pulley DELETED (sheave gained conical rim shoulders —
+one part now carries plane+cylinder+cone+torus, census asserted);
+wedge → quarter-turn chute (C-channel × 270°, Pappus rel 0.0);
+letterforms equal-height; third silhouette shape = letter C
+(diamond dropped — only beveled the H); montage trimmed to
+silhouette3 + heat-sink-9 only (other scenes stay in the script);
+cutaway restaged to face the viewer. Orchestrator visually
+inspected montage/shadow-y/cutaway; Evan approved the montage.
+Main now carries THREE Declare-sensitive pins (crosslap tripwire,
+corner-table tripwire, narrate_naive 4×DescriptionNotAdjacent);
+PR 5 implementer briefed on which should fire (1-2) vs which
+flipping would signal a regression (3). demo-review clone removed.
+Away-channel note: the demo review + revision cycle ran while Evan
+was in-chat; both reports live under ~/.local/share/cad-work/.
+
+**PR 5 implementation COMPLETE (2026-07-25, `ev/m4-5-geomsource` @
+`a68e8e5`, pushed, main/#98 merged in; adversarial review
+launched)**: D1–D7 all done. GeomSource as topo side records with
+lowered pure-data fields (R1 accepted: layering necessity;
+Minted{index} = per-evaluation mint-order identity per the spec's
+own caveat); plane_eq/merge migrated to (GeomSource, orient) with
+the debug bits-agree assertion; tripwire allowlist EMPTY (memo.rs
+retained on its bit-hashing non-consumer justification — R3
+accepted); Declare threading LIVE end-to-end (die = 21 declared
+pips through 77 nodes, exact oracle); first eval-level Merged rows
+— PR 3 R4 + R8 and PR 4 Finding 10 all discharged (R8 collision =
+loud typed refusal, per-group discriminator BANKED — R4); D7
+landed as disposition 2 recursive naming key, naming miss = full
+op re-run (R8 accepted — emission not separable; D9 makes re-run
+bit-identical), both pins in. **R2 accepted and flagged for the PR
+body: the retirement is a designed NARROWING** — undeclared
+value-equal flush booleans now refuse typed at the coincidence
+door (the M3 bit rung was doing real, now-forbidden work); whole
+corpus + demos migrated to declared intent; goldens re-pinned with
+row-shape verification. **Corner-table PRIMARY WIRE FIRED** —
+four-leg corner-aligned table tier 3 GREEN, demo stop ships it;
+SECONDARY GAP CLOSED (in-plane seam edges consumed by the declared
+glue) — this supersedes the 2026-07-23 corner-table gap note
+above. **Crosslap wire could NOT fire (R7)**: the mate is a pure
+REST contact — M3 envelope (iii) join-stage gap, same frontier as
+the declared corner-flush REST pin; wire re-armed honestly as
+crosslap_rest.rs pinning both doors; join-stage REST lane BANKED
+(with #93 as the other join-stage kernel item). R9 accepted
+(ContactRecords carry same-operand vf rows; docs updated). R10 =
+pre-existing tour panic at ε=1e-6, filed as #99. Battery:
+1252/0 + 1252/0 + interval 1396/0, fmt/clippy clean, tour green
+default ε. Reviewer attack list: false-declaration laundering
+(both doors + orient/transform/carried paths), rung-(b) no-silent-
+widening, GeomSource composition + Minted determinism under
+parallel schedule, D7 tamper + re-run bit-identity + memoized
+recursion, R5 emit_topo machinery (PRIME: junction naming,
+skip-and-record, N4 totality), N5-verbatim Declare doors,
+tripwire-catches-smuggled-consumer, golden re-pin shape honesty,
+all showcases executed. First review with the fixed code-quality
+rubric (PR 5 = pre-experiment Fable reference row for
+docs/MODEL-AB-LOG.md).
+
+**PLANNED WSL RESTART (2026-07-25, ~12:00 local)**: pausing for the
+10GB RAM bump (memory=10GB already in .wslconfig; Evan runs `wsl
+--shutdown`). Pre-restart state flush: PR 5 reviewer TaskStopped
+CLEANLY mid-build (clone ~/.local/share/cad-work/pr5-review @
+a68e8e5 checked out, build partial — safe to resume; NO findings
+yet, report not started). RESUME CHECKLIST for this orchestrator
+(or a successor reading cold): (1) verify `free -h` shows ~10G —
+then the 5G sequential-battery discipline RELAXES to two parallel
+lanes max (update prompts accordingly); (2) re-arm the three
+monitors from ~/.local/share/cad-work/monitors/ (install step
+already done); (3) resume the PR 5 reviewer by SendMessage — point
+it at its clone, tell it the machine now has 10G, re-state: attack
+list unchanged, battery rows may run with more parallelism but
+still check pgrep first; (4) sign-off watchlist is EMPTY; (5) two
+other open items: #99 (tour ε-panic, between-seams), demo renders
+regeneration owed to the PR 5 fix pass (table + montage — PR 5
+changed stop 8 but didn't re-render; fresh table.png verified
+correct by orchestrator + Evan pre-restart). In flight NOTHING
+else: PR 4 merged (#96), demos merged (#98), state-sync #97
+merged, PR 5 implementation pushed @ a68e8e5 with report
+delivered; only the review cycle remains.
+
+**Post-restart parallel dispatch (2026-07-25)**: RAM verified 9.7G
+total / 8.2G available (memory=10GB took); monitors re-armed ×3;
+PR 5 reviewer resumed from transcript (told: possible torn target/
+from the mid-build stop — rebuild fresh; two cargo lanes now
+allowed). **#93 IMPLEMENTER LAUNCHED between seams** — first
+MODEL-AB row: difficulty M logged pre-flip, draw 197 → FABLE arm
+(row 1 in docs/MODEL-AB-LOG.md). Branch
+ev/issue93-seam-region-anchors off main; binding constraints:
+anchors through reified predicates only (k_stats funnel), no
+envelope widening (flush-plane pins must stay refusing), A×Z ×3
+variants become acceptance fixtures with independently-derived
+exact volumes, name-table goldens must not move (STOP+REPORT if
+they legitimately must). **PR 6 SPEC DRAFTED**
+(docs/M4-PR6-SPEC.md, DRAFT until PR 5 merges): D1 snapshot+edit-
+log versioned text with explicit migration chain, D2 Ryu bit-exact
+floats + NaN/inf typed refusal (-0.0 is data), D3 the-recipe-is-
+the-save (no tables/keys persisted), D4 recorded ε + SetTolerance
+= replay + PR-4 diff (discharges Finding 6), D5 content-key tag
+bump (Finding 8, one line), D6 three CI rows (round-trip identity,
+ε-diff golden, corrupt/unknown-version typed refusals), D7 Evan's
+#92 black-box appearance metadata at the schema-freeze point
+(opaque bytes, never interpreted), D8 scope walls, D9 standing
+process + A/B protocol.
+
+**#99 dispatched between seams (2026-07-25)**: A/B row 2 —
+difficulty S pre-flip, draw 220 → FABLE (two fable draws so far;
+fair coin). Branch ev/issue99-tour-eps-panic off main. Charter
+framing in the brief: panic is always a bug — outcome must be
+green run or typed refusal naming the profile; honest root-cause
+split (demo data vs kernel escalation) required, minimal kernel
+diff if kernel-side, REPORT prominently. Three lanes now active
+(PR 5 review, #93, #99); memory comfortable (8.1G available at
+dispatch). PR 6 spec fully ratified after two D7 rounds with Evan
+(final: MetaValue tree, serde-native boundary, v-field
+convention).
+
+**PR 5 review returned (2026-07-25): mergeable-after-fixes; ruled,
+fix pass dispatched.** Report at pr5-review-report.md. F1 MAJOR:
+the declared-merge SKIP lane emits Ok bodies failing tier-3
+DescriptionNotAdjacent ×4 (declared-identity classification
+rewrote edge descriptions anticipating a glue the skip never
+performed; reviewer probe = ordinary flush-caps/offset-walls union
+with only TRUE declarations, both doors) — ruling: on skip,
+descriptions must match ACTUAL unmerged adjacency; probe adopted
+as pin; typed refusal only if honest description impossible. F2
+skipped-outcome write-only → plumb public + test; F3 Err(_)
+catch-all launders tier-2 diagnostics → preserve real reasons; F4
+Declare eval-door gaps → adopt BothOperands probe + NodeGone
+deleted/foreign + Ambiguous payload; F6 pure-seam-vertex arm zero
+corpus instances → targeted fixture; F7 bit_identity doc ¶
+contradiction → one line. F5 NOTE accepted (verified-at-use
+semantics per contract; DESIGN wording banked for PR 8). Reviewer
+verified clean by execution: false declarations refuse at both
+doors, rung (b) holds, transform/revert + parallel-mint bitwise
+identity, D7 pins + re-run bit-identity, smuggled consumer fails
+CI-local, die golden re-pin survived independent 552-row
+reproduction. Quality rubric (A/B reference row, fable): 1 MAJ / 3
+MIN / 3 NOTE, ONE silent deviation (skip-lane tier-3 posture
+unstated), ratings idiom 4 / tests 4 / docs 4. Fix pass also owes
+the stale demo renders (table/montage regeneration). MODEL-AB-LOG
+reference row updated when fix pass concludes.
+
+**#99 implementation complete (2026-07-25, ev/issue99-tour-eps-
+panic @ 4745e9f)**: root cause = DATA bug — bracket fillet via
+point rounded to 1.146 vs exact tangent apex 1.5 − 0.5/√2
+(1.1464466…), arc carrier 2.315e-6 off tangency = genuinely inside
+the carrier_line_circle escalation band at ε=1e-6; the kernel's
+typed escalation was CORRECT, the demo's .expect made it a panic.
+Fix: exact-tangency constant (post-fix margin ~1.1e-16, definite
+Zero at all supported ε), ZERO kernel diff, regression pin runs
+the tour binary at default/1e-6/1e-12. Four pre-existing
+demos/tour clippy lints flagged (on main, untouched). Compact
+blinded review launched (same rubric — A/B row 2 needs comparable
+treatment; review scaled to surface, not rigor).
+
+**Docs/memory audit merged (2026-07-25, Evan's ask)**: 6 files
+edited (cad-project-state de-rotted — live status now delegated to
+this log's tail; CLAUDE.md milestone reference made rot-resistant;
+orchestration-model defers model choice to the A/B protocol;
+disk-watchdog/freecad-oracle/git-workflow refreshed; MEMORY.md
+index resynced), 1 deleted (boolean-consumer-findings — historical,
+facts in M3-LOG, action items discharged). Borderline rulings:
+KEEP multi-agent-capabilities (spawn mechanics still load-bearing),
+KEEP orchestrator-handoff's mngr caution (breakage was real, cheap
+to keep), name-candidates deletes when Q9 closes, monitor-arming
+consolidation in orchestration-model DEFERRED to the next audit
+pass. Report-only flags accepted as historical (M4-PLAN gate.sh
+convention text — condition lapsed naturally, policy change is
+logged; M4-PR5-SPEC "5G box" — harmless, fix pass told directly).
+Reaches main with the next state-sync PR.
+
+**#99 review APPROVE (2026-07-25); PR #100 opened.** Reviewer
+re-derived the apex + both margins in exact rationals, verified
+the escalation band at predicate level (genuine data bug, not band
+papering), reproduced the old panic byte-for-byte on main, and
+tamper-tested the pin. 0 MAJ / 1 MIN / 3 NOTE; rubric idiom 5 /
+tests 4 / docs 5 — A/B row 2 FILLED (first complete experiment
+row). The 1 MINOR (failure-message tail reversed) orchestrator-
+fixed directly (f4460a5, pin re-run 3/3). #100 merges on green
+checks. Review clone for #99 removed after merge.
+
+**#100 MERGED (2026-07-25): main `9b07465`, closes #99** on 10/10
+green checks. #99 lanes + docs-audit clone removed (pr5-review
+clone RETAINED until PR 5 merges, in case the fix pass needs the
+reviewer resumed). Remaining in flight: PR 5 fix pass, #93.
+
+**SESSION-LIMIT FLUSH (2026-07-25, 98%, reset ~25min; wakeup
+scheduled)**: PR 5 fix pass COMPLETE @ 386a900 (F1 skip-lane
+re-description at both doors, F2/F3 skip records public+honest,
+F4 door tests, F6 arms pinned ×2, F7; battery 1256/0 + 1256/0 +
+interval 1400/0; renders regenerated incl. corner-aligned table
+montage). **PR #102 OPENED** — checks watcher NOT yet armed (limit).
+#101 declared-tangency discipline RATIFIED in-session (5-point
+shape; between-seams unit, coin flip at dispatch). WAKE CHECKLIST:
+(1) arm PR 102 checks watcher → merge on green → clean pr5/
+pr5-review clones → state-sync PR to main; (2) check #93 lane
+(was mid-battery — likely died at the shared limit; resume from
+transcript, clone ~/.local/share/cad-work/issue93, branch pushed
+@ 40670fa+); (3) answer Evan's large-K demo lint question
+(recommendation drafted: fold into PR 8's K-telemetry wiring —
+sweep demo scenes alongside Band 4 corpus, |m|/ε percentile
+threshold from K-REPORT baselines, advisory-first; #99's 2.3ε
+margin at 1e-6 is the motivating catch); (4) A/B: PR 5 reference
+row fillable from review rubric (1MAJ/3MIN/3NOTE, 1 silent dev,
+4/4/4); #93 row awaits its review; (5) #101 + tangency unit and
+PR 6 dispatch (spec ratified) queue after PR 5 merges.
+
+**Post-limit wake (2026-07-25)**: monitors verified alive (no
+re-arm needed); PR #102 checks watcher armed; #93 lane resumed
+(had died 500-then-529 while finalizing its report — work done,
+report pending). A/B PR 5 reference row filled. Large-K demo lint
+(Evan's question): RULED — fold into PR 8's K-telemetry wiring;
+the Probe sweep gains the demo scenes alongside the Band 4 corpus,
+lint statistic = |m|/ε per K-REPORT's normalization, threshold
+from the K-REPORT baseline percentiles, ADVISORY first run then
+gating once the baseline is pinned; tooling-level threshold only
+(no kernel ε). Motivating catch: #99's margin was 2.3ε at 1e-6 —
+in-band there, but the lint would have flagged it as a bottom-
+percentile margin at EVERY ε row, before any band was entered.
+Added to PR 8's obligations.
+
+**PR 5 MERGED (2026-07-25): #102 → main `75166b8`** on 10/10 green
+checks. The M4 naming stack is now END-TO-END: GeomSource identity,
+bit_identity out of production, Declare threading live, first real
+Merged rows, corner-aligned table shipped, #95 recursive naming
+key. pr5 + pr5-review clones removed (disk 120G). Seam actions:
+state-sync PR; PR 6 + #101 dispatches (coin flips below); #93
+merges main + reviews when its report lands.
+
+**Seam dispatches post-PR-5 (2026-07-25)**: state-sync PR #103
+opened (watcher armed). #93 report received — three stacked
+join-stage repairs (anchor tiers via point_in_face-certified
+centroids, Newell ring-winding predicate, rehome_rings), all A×Z
+variants green with independently derived oracles; merge-under of
+PR 5 dispatched with the flush-pin ruling (pin the live post-merge
+outcome; undeclared flush refusing = correct N6; add declared
+success arm if cheap). **PR 6 implementer LAUNCHED** (A/B row 3:
+L pre-flip, draw 221 → fable; branch ev/m4-6-persistence).
+**#101 implementer LAUNCHED** (A/B row 4: M pre-flip, draw 218 →
+fable; branch ev/issue101-declared-tangency; 5-point discipline
+binding). FOUR consecutive fable draws — blocked-randomization
+proposal noted in MODEL-AB-LOG, pending Evan.

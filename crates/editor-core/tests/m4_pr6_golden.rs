@@ -33,8 +33,10 @@ const GOLDEN_PATH: &str = "tests/golden/v1_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
-/// profile, a param-expression slot, witness bytes, appearance attrs
-/// + D7 metadata (floats, -0.0, bytes, list, nesting).
+/// profile with a hand-DECLARED collinear tangency (#101), a
+/// fillet-CONSTRUCTED profile (tangent joints by construction), a
+/// param-expression slot, witness bytes, appearance attrs + D7
+/// metadata (floats, -0.0, bytes, list, nesting).
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
     let mut doc = ProfileDoc::empty();
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileDesc>| apply(d, e).expect("golden edit").doc;
@@ -69,6 +71,50 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
                 profile: editor_core::RecipeNodeId(0),
                 distance: Expr::param(ParamName::new("depth"), Dimension::Length),
             },
+        },
+    );
+    // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
+    // collinear tangency (node 2) and a fillet-CONSTRUCTED loop
+    // (node 3, joints declared by construction) — the wire's
+    // tangent_joints field is pinned by the golden from day one.
+    let mut collinear = profile::ProfileLoop::new(
+        [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+            .into_iter()
+            .map(|(x, y)| profile::ProfileVertex {
+                pos: geom_core::Point2::new(x, y),
+                bulge: 0.0,
+            })
+            .collect(),
+    );
+    collinear.tangent_joints = vec![1];
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileDesc(profile::Profile::new(
+                profile::SketchPlane::xy(),
+                vec![collinear],
+            ))),
+        },
+    );
+    let fillet_loop = profile::ProfileLoop::builder(geom_core::Point2::new(0.0, 0.0))
+        .line_to(geom_core::Point2::new(3.0, 0.0))
+        .line_to(geom_core::Point2::new(3.0, 1.0))
+        .fillet(
+            geom_core::Point2::new(1.0, 1.0),
+            geom_core::Point2::new(1.0, 3.0),
+            0.5,
+        )
+        .expect("golden fillet fits")
+        .line_to(geom_core::Point2::new(1.0, 3.0))
+        .line_to(geom_core::Point2::new(0.0, 3.0))
+        .close();
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileDesc(profile::Profile::new(
+                profile::SketchPlane::xy(),
+                vec![fillet_loop],
+            ))),
         },
     );
     doc = push(

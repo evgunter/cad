@@ -295,3 +295,56 @@ fn metadata_convention_doors_refuse_typed() {
         "non-map value must refuse, got {scalar:?}"
     );
 }
+
+#[test]
+fn tangent_joint_doors_refuse_typed_at_load() {
+    // A profile whose second loop-joint is declared tangent (#101):
+    // craft the file, then mangle the declaration each illegal way.
+    let mut lp = profile::ProfileLoop::new(
+        [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+            .into_iter()
+            .map(|(x, y)| profile::ProfileVertex {
+                pos: geom_core::Point2::new(x, y),
+                bulge: 0.0,
+            })
+            .collect(),
+    );
+    lp.tangent_joints = vec![1];
+    let (doc, _) = insert(
+        ProfileDoc::empty(),
+        Node::Profile(editor_core::ProfileDesc(profile::Profile::new(
+            profile::SketchPlane::xy(),
+            vec![lp],
+        ))),
+    );
+    let text = save(&doc, &[]).expect("save");
+    let needle = "\"tangent_joints\": [\n                1\n              ]";
+    assert!(text.contains(needle), "fixture must contain the joint");
+    for (bad, expect) in [
+        ("[\n                9\n              ]", "out of range"),
+        (
+            "[\n                1, 1\n              ]",
+            "strictly increasing",
+        ),
+        (
+            "[\n                3, 1\n              ]",
+            "strictly increasing",
+        ),
+    ] {
+        let crafted = text.replace(needle, &format!("\"tangent_joints\": {bad}"));
+        assert_ne!(crafted, text);
+        match load(&crafted) {
+            Err(PersistError::Parse { message, .. }) => assert!(
+                message.contains(expect),
+                "expected {expect:?} in refusal: {message}"
+            ),
+            other => panic!("mangled joints ({bad}) must refuse typed, got {other:?}"),
+        }
+    }
+    // The canonical declaration itself loads and survives bit-exactly.
+    let loaded = load(&text).expect("canonical joints load");
+    let Some(Node::Profile(desc)) = loaded.doc.node(RecipeNodeId(0)) else {
+        panic!("profile lost");
+    };
+    assert_eq!(desc.0.loops[0].tangent_joints, vec![1]);
+}
