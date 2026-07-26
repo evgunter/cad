@@ -311,37 +311,71 @@ fn near_tangent_join_escalates() {
     // exact-tangency direction (45 deg): carrier clearance to the
     // incoming line y=0 is r(1 - cos phi) ~ phi^2/2 with r = 1.
     let b = quarter_bulge();
-    let build = |phi: f64| {
+    let build = |phi: f64, declare: bool| {
         let l = std::f64::consts::SQRT_2;
         let ang = std::f64::consts::FRAC_PI_4 + phi;
         let end = p2(2.0 + l * ang.cos(), l * ang.sin());
+        let mut chain = ProfileLoop::builder(p2(0.0, 0.0)).line_to(p2(2.0, 0.0));
+        if declare {
+            chain = chain.declare_tangent();
+        }
+        // At phi = 0 the vertical exit line x = end.x is tangent to
+        // the SAME carrier at the arc's end -- a second tangent joint;
+        // declared under the same flag.
+        let mut chain = chain.arc_to(end, b);
+        if declare {
+            chain = chain.declare_tangent();
+        }
         profile(vec![
-            ProfileLoop::builder(p2(0.0, 0.0))
-                .line_to(p2(2.0, 0.0))
-                .arc_to(end, b)
-                .line_to(p2(end.x, 3.0))
-                .line_to(p2(0.0, 3.0))
-                .close(),
+            chain.line_to(p2(end.x, 3.0)).line_to(p2(0.0, 3.0)).close(),
         ])
     };
     // phi = 0: exact carrier tangency at the shared vertex -> smooth
-    // join, accepted (the tangent contact IS the shared vertex).
-    assert!(build(0.0).validate(tol()).is_ok(), "exact tangency accepts");
+    // join, accepted when DECLARED (#101: tangency is declared intent,
+    // verified never trusted)...
+    assert!(
+        build(0.0, true).validate(tol()).is_ok(),
+        "declared exact tangency accepts"
+    );
+    // ...and refused typed when the same exact tangency is undeclared.
+    match build(0.0, false)
+        .validate(tol())
+        .expect_err("undeclared tangency")
+    {
+        ProfileError::UndeclaredTangency { .. } => {}
+        other => panic!("expected undeclared tangency, got {other:?}"),
+    }
     // phi = sqrt(10 eps): clearance ~ 5 eps, inside the band ->
-    // escalation naming the tangency predicate.
+    // escalation naming the tangency predicate (declaration cannot
+    // rescue an in-band margin -- point 2 of the discipline).
     let phi = (10.0 * eps).sqrt();
-    match build(phi).validate(tol()).expect_err("near-tangent join") {
+    match build(phi, true)
+        .validate(tol())
+        .expect_err("near-tangent join")
+    {
         ProfileError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("carrier_line_circle"));
         }
         other => panic!("expected tangency escalation, got {other:?}"),
     }
-    // phi large: a definite corner, accepted (second carrier
-    // intersection lies outside the arc span).
+    // phi large: a definite corner, accepted undeclared (transversal
+    // joints are free geometry)...
     assert!(
-        build(0.3).validate(tol()).is_ok(),
+        build(0.3, false).validate(tol()).is_ok(),
         "definite corner accepts"
     );
+    // ...and a tangency DECLARATION on that definite corner is
+    // contradicted (point 3: the flag is verified, never trusted).
+    match build(0.3, true)
+        .validate(tol())
+        .expect_err("contradicted declaration")
+    {
+        ProfileError::TangencyContradicted {
+            same_carrier: false,
+            ..
+        } => {}
+        other => panic!("expected contradicted tangency, got {other:?}"),
+    }
 }
 
 // ------------------------------------------------------- ray parity --

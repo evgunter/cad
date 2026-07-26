@@ -30,16 +30,16 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
         SketchPlane::xy(),
         p.loops
             .iter()
-            .map(|lp| {
-                ProfileLoop::new(
-                    lp.vertices
-                        .iter()
-                        .map(|v| ProfileVertex {
-                            pos: Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                            bulge: T::from_f64(v.bulge),
-                        })
-                        .collect(),
-                )
+            .map(|lp| ProfileLoop {
+                vertices: lp
+                    .vertices
+                    .iter()
+                    .map(|v| ProfileVertex {
+                        pos: Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
+                        bulge: T::from_f64(v.bulge),
+                    })
+                    .collect(),
+                tangent_joints: lp.tangent_joints.clone(),
             })
             .collect(),
     )
@@ -101,7 +101,7 @@ pub fn circle_v(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 /// corners of radius `r`.
 pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
     let b = quarter_bulge();
-    chain(&[
+    let mut lp = chain(&[
         (r, 0.0, 0.0),
         (w - r, 0.0, b),
         (w, r, 0.0),
@@ -110,7 +110,26 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
         (r, h, b),
         (0.0, h - r, 0.0),
         (0.0, r, b),
-    ])
+    ]);
+    // Every joint is an exact quarter-arc/side tangency — declared
+    // (the #101 discipline).
+    lp.tangent_joints = (0..lp.vertices.len()).collect();
+    lp
+}
+
+/// The demo bracket's filleted-corner shape: an L with one r = 0.5
+/// tangent fillet, authored through the constructive path (declares
+/// its two joints by construction) — the mixed declared/undeclared
+/// fixture (2 tangent joints of 7).
+pub fn bracket() -> ProfileLoop<f64> {
+    ProfileLoop::builder(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(3.0, 0.0))
+        .line_to(Point2::new(3.0, 1.0))
+        .fillet(Point2::new(1.0, 1.0), Point2::new(1.0, 3.0), 0.5)
+        .expect("bracket fillet fits")
+        .line_to(Point2::new(1.0, 3.0))
+        .line_to(Point2::new(0.0, 3.0))
+        .close()
 }
 
 /// A lens (lune): a semicircular arc out and a shallower arc back —
