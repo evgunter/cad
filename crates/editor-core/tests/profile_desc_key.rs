@@ -1,8 +1,11 @@
-//! `ProfileDesc::float_bits` key-space pins (#101 review MINOR-1 /
-//! NOTE-1): the per-loop records are length-prefixed — no in-band
-//! sentinel can be forged by data (the old encoding let a garbage
-//! joint index of `usize::MAX` alias the loop marker) — and declared
-//! tangent joints feed the key as their canonical set.
+//! `ProfileDesc::tokens` key-space pins (#101 review MINOR-1 /
+//! NOTE-1, upheld across the PR 6 tagged-token retype): the traversal
+//! is TAGGED — structure (LoopStart), float data (Float), and joint
+//! indices (Index) travel under distinct tags, so no payload can
+//! forge a boundary (the pre-#101 encoding let a garbage joint index
+//! of `usize::MAX` alias the loop marker; the tag retype subsumes the
+//! length-prefix fix) — and declared tangent joints feed the key as
+//! their canonical set.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ProfileDesc;
@@ -49,7 +52,7 @@ fn garbage_joint_index_cannot_forge_a_loop_boundary() {
     b1.tangent_joints = joints;
     let b = desc(vec![b1]);
 
-    assert_ne!(a.float_bits(), b.float_bits(), "sentinel forged by data");
+    assert_ne!(a.tokens(), b.tokens(), "sentinel forged by data");
     assert_ne!(a, b);
 }
 
@@ -62,13 +65,13 @@ fn tangent_joint_set_semantics_key_identically() {
     a.tangent_joints = vec![1, 1, 3];
     let mut b = mk(&pts);
     b.tangent_joints = vec![3, 1];
-    assert_eq!(desc(vec![a]).float_bits(), desc(vec![b]).float_bits());
+    assert_eq!(desc(vec![a]).tokens(), desc(vec![b]).tokens());
     // ...and a different set is a different key.
     let mut c = mk(&pts);
     c.tangent_joints = vec![1];
     let mut d = mk(&pts);
     d.tangent_joints = vec![1, 3];
-    assert_ne!(desc(vec![c]).float_bits(), desc(vec![d]).float_bits());
+    assert_ne!(desc(vec![c]).tokens(), desc(vec![d]).tokens());
 }
 
 /// The original marker guarantee survives the re-encoding: loop
@@ -82,13 +85,10 @@ fn loop_partitioning_and_declarations_stay_key_distinct() {
         mk(&[(2.0, 0.0), (3.0, 0.0)]),
     ]);
     let one = desc(vec![mk(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0)])]);
-    assert_ne!(two.float_bits(), one.float_bits());
+    assert_ne!(two.tokens(), one.tokens());
 
     let plain = mk(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]);
     let mut declared = plain.clone();
     declared.tangent_joints = vec![0];
-    assert_ne!(
-        desc(vec![plain]).float_bits(),
-        desc(vec![declared]).float_bits()
-    );
+    assert_ne!(desc(vec![plain]).tokens(), desc(vec![declared]).tokens());
 }

@@ -19,12 +19,17 @@ use crate::names::StableName;
 /// with the params it solved under — all inside `bytes`, under
 /// `schema`'s vocabulary). Bytes are exact data: bit-exact
 /// persistence and content-key feeding need no float policy here.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
 pub struct WitnessDatum {
     /// The serialization vocabulary tag (versioned with the solver's
     /// contract; the M6 solver is its first author).
     pub schema: u32,
-    /// The serialized witness — opaque to editor-core.
+    /// The serialized witness — opaque to editor-core. Persists as a
+    /// hex string (D3: bit-exact, structural).
+    #[serde(with = "crate::persist::hexbytes")]
     pub bytes: Vec<u8>,
 }
 
@@ -36,13 +41,18 @@ pub struct WitnessDatum {
 /// **enforcement arrives with the M6 solver** (a checker that
 /// consumes this payload — an additive function, not a schema
 /// change).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
 pub struct BranchCertification {
     /// The certification evidence's vocabulary tag (M6's checker owns
     /// it).
     pub schema: u32,
     /// Serialized certified-same-branch evidence for every entry of
-    /// the bulk edit — opaque to editor-core.
+    /// the bulk edit — opaque to editor-core. Persists as a hex
+    /// string (D3: bit-exact, structural).
+    #[serde(with = "crate::persist::hexbytes")]
     pub bytes: Vec<u8>,
 }
 

@@ -64,6 +64,18 @@ num-dual = "0.14.1"
 # crate table). MIT OR Apache-2.0. 2.15.1 released 2026-03-24, well past the
 # 2-week age policy.
 spade = "2.15.1"
+# M4 PR 6 (F3 ratified): persistence is serde-based; editor-core only —
+# the kernel crates gain no serde dependency (G1 layering). MIT OR
+# Apache-2.0 both. serde 1.0.219 released 2025-03-09; serde_json 1.0.140
+# released 2025-03-09 — both far past the 2-week age policy. serde_json
+# is the schema-v1 text writer/reader: floats go through ryu (shortest
+# round-trip, spec D2) and parse errors carry line/column (D6.3's typed
+# position info). float_roundtrip is LOAD-BEARING for D2: serde_json's
+# default float parse takes a fast path that is not correctly rounded
+# (the PR 6 property tests caught last-ulp drift on e.g.
+# 0x3fefffffffffffff); the feature switches to full-precision parsing.
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
 # DEV-ONLY STEP parse-back oracles for step-export's tests (F6 decision,
 # docs/M4-LOG.md 2026-07-23: in-house subset writer, adopt nothing at
 # runtime; these two crates are test oracles only). ruststep gives
