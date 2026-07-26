@@ -56,7 +56,9 @@ mod vdiff;
 
 pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
 pub use vdiff::{
-    FlipSet, NodeVerdictDelta, PredicateDivergence, RunStatus, VerdictFlip, diff_verdicts,
+    FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
+    SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictFlip, VerdictSummary, diff_summaries,
+    diff_verdicts, verdict_summary,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

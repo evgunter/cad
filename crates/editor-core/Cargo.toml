@@ -35,6 +35,11 @@ topo = { path = "../topo" }
 # addendum's sanctioned idiom) — a runtime switch, so the determinism
 # cross-check can compare both schedules in one test run.
 rayon = { workspace = true }
+# M4 PR 6 (spec D1): the schema-v1 persistence layer. serde derives live
+# on the document types themselves (the recipe IS the save, D3); the
+# JSON writer/reader and the migration chain live in `persist`.
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
