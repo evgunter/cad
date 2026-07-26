@@ -1480,3 +1480,13 @@ tangent_joints extension scoped precisely (wire field + key/bit_eq
 TWO-PHASE: doors+golden now; tangent_joints after #101 merges.
 Quality (A/B row 3 pending): 2/2/3, 0 silent (5 reported devs),
 idiom 5 / tests 4 / docs 5.
+
+**Sentinel-disease structural ruling (2026-07-26, Evan: "deserves
+proper types")**: float_bits' in-band magic delimiters are the
+shared root of #101's usize::MAX alias AND PR 6's NaN-marker
+alias (+ the door blind spot) — ruled: retype the key-encoder
+stream as TAGGED TOKENS (tag byte + payload; Marker/Float/Index),
+no in-band sentinels anywhere; both classes become unrepresentable.
+Rides PR 6's existing content-key tag bump (keys process-internal
+per D3, zero persistence impact). Added to PR 6 fix pass phase 1
+with a STOP-and-REPORT scope valve.
