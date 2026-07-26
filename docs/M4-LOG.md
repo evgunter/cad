@@ -1447,3 +1447,11 @@ exercised-not-vestigial, CI tamper checks, tag-bump memo check,
 #101 SCHEMA-COLLISION SCOPING — sequencing: #108 → #101 → PR 6
 fix pass merges main + extends schema v1 to tangent_joints before
 freeze). A/B row 3 pending review.
+
+**#108 MERGED (2026-07-25 evening): main `6f7d79a`, closes #93 +
+#105** on 10/10 green checks. The join-stage seam-region gap is
+fixed, main's silent-wrong-volume bug is dead (exactness pin in
+place), and #106 remains the tracked coverage residue (next OPUS
+dispatch). issue93 clones removed. Merge order proceeding: #101
+(fix pass running; merges main before PR) → PR 6 (review running;
+fix pass merges main + extends schema v1 to tangent_joints).
