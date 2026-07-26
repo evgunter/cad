@@ -1622,3 +1622,22 @@ draw: (opus, fable) → 8a = OPUS (A/B row 9, L pre-assigned);
 branch ev/m4-8a-corpus off 78fe760. Remaining after 8a: az PR
 (review executing), #111 (in flight), 8b (fable, gated on 8a),
 8c (orchestrator + Evan).
+
+**#113 MERGED (2026-07-26): main `0251da7`, closes #106** on the
+FULL 13-row matrix (branch refreshed post-#112 before merge — the
+stale-10-row-green trap caught and dodged; watcher pattern now
+requires ≥13 rows). Depth-2+ nested islands classify; the join
+envelope's typed residue shrank honestly. #106 clones removed.
+**Interval-core lane delivered** (ev/interval-transcendentals @
+02c6147): proven-pad crate, 3.2M dual-oracle cases (computable
+REVIVED — zero rot, wired as second oracle 4/4), harness caught a
+real 1-ulp 2Prod underflow bug in itself, 93× build / 1.4-135×
+runtime evidence vs the gmp stack. Ops note: lane accidentally
+committed 252MB of target/ blobs in two pushed commits (removal
+COMMIT, no history rewrite — verified via reflog); orchestrator
+authored ev/interval-transcendentals-v2 (identical tree, clean
+history; original branch retained as the record) — the PR lands
+from v2. Blinded review LAUNCHED on v2 (pad-math per-function
+derivation checks, war-story reproduction incl. fix-revert,
+harness-direction integrity, degrade-boundary bombardment).
+Adoption = separate ratified decision (M5-PLAN candidate).
