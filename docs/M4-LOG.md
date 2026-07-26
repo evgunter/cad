@@ -1425,3 +1425,25 @@ family; reviewer probe inverted to pin. 1 MINOR (float_bits
 usize::MAX sentinel collision → tag the key space), 3 NOTEs. Fix
 pass dispatched. Quality rubric (A/B row 4 pending fix pass):
 1/1/3, 1 silent dev, idiom 5 / tests 4 / docs 4.
+
+**PR 6 implementation COMPLETE (2026-07-25 evening,
+ev/m4-6-persistence @ aebc39e, pushed)**: D1-D9 all landed —
+schema-1 JSON text format (REPORT: chosen for ryu floats +
+tooling; serde_json float_roundtrip feature LOAD-BEARING, caught
+real last-ulp parse drift day one), migration chain, full recipe
+persisted (Expr rebuilt through dimension checkers on load,
+ProfileDesc hand-wired keeping kernel crates serde-free, hex
+witness bytes, structural appearance keys), recorded-ε wiring with
+per-node evaluate refusal + the FIRST REAL two-ε diff through the
+PR 4 population core (Finding 6 discharged), content-key tag 1→2,
+three D6 CI rows built FIRST and wired both lanes, MetaValue tree
+per final D7. Battery: 150 suites, 1280/1280/1425, all D6 rows
+green. Blinded reviewer LAUNCHED (12-item attack list: float
+round-trip property attack incl. building WITHOUT float_roundtrip,
+non-finite smuggling doors, corrupt/truncation refusals, replay
+identity with an independent all-vocabulary doc, ε-conflict doors,
+MetaValue canonicality, serde-free layering grep, edit-log
+exercised-not-vestigial, CI tamper checks, tag-bump memo check,
+#101 SCHEMA-COLLISION SCOPING — sequencing: #108 → #101 → PR 6
+fix pass merges main + extends schema v1 to tangent_joints before
+freeze). A/B row 3 pending review.
