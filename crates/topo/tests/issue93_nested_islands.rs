@@ -1,21 +1,31 @@
 //! Issue #93 review pins — the doubly-nested island chain (adversarial
 //! review 2026-07-25, constructions adopted verbatim from the review
 //! probes). One general-position chain (no value-equal plane pair
-//! anywhere), two pins:
+//! anywhere), plus the deeper probes issue #106 added:
 //!
 //! - **#105 exactness pin**: on pre-#93 main the second union (pillar
 //!   into the plate patch inside the tube's hole) SILENTLY returned
 //!   22.5 (exact 22.4375) passing tiers 1/2/3′ — a fail-loud
 //!   violation; the #93 winding + laringmv repairs make it exact.
-//! - **#106 typed-refusal pin**: intersecting the exact chain with a
-//!   slab across the tube's midriff puts island(tube outer) ⊃
-//!   ring(tube inner) ⊃ island(pillar) on the slab faces; the depth-2
-//!   annulus defeats the consecutive-triple centroid generator (every
-//!   candidate lands in the hole → none certifies) and the resolver
-//!   refuses TYPED at the anchor-exhaustion arm. The arm is
-//!   load-bearing; the residue is refusal-only, never wrongness.
+//! - **#106 exactness pin** (was a typed-refusal pin until #106 closed
+//!   it, retired here per its own baked instructions): intersecting
+//!   the exact chain with a slab across the tube's midriff puts
+//!   island(tube outer) ⊃ ring(tube inner) ⊃ island(pillar) on the
+//!   slab faces. The depth-2 annulus defeats the consecutive-triple
+//!   centroid generator (every candidate lands in the hole → none
+//!   certifies), which used to exhaust the anchor ladder and refuse
+//!   TYPED; the vertex-pair-chord tier added for #106 certifies an
+//!   outer↔ring diagonal midpoint instead, and the chain builds at
+//!   exactly 3.25.
+//! - **#106 depth-3 probe**: one nesting level deeper (hollow pillar
+//!   holding a post) — pinned at its live outcome, which is likewise
+//!   build-exact (205/64) with tiers green.
 //!
 //! Depth-1 control (no pillar): same chain intersects exactly.
+//!
+//! The anchor-exhaustion arm stays load-bearing regardless: candidate
+//! generation is still not a complete triangulation, and any residue
+//! refuses typed rather than guessing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,8 +33,8 @@ mod common;
 
 use common::prism_z;
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, intersect, mass_properties, subtract, union,
-    validate, validate_closed, validate_pseudomanifold,
+    Body, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate,
+    validate_closed, validate_pseudomanifold,
 };
 
 /// Tube: outer [1,3]², hole [1.5,2.5]², z ∈ [0.5, 3] (cutter strictly
@@ -102,13 +112,24 @@ fn issue105_doubly_nested_union_exact() {
     );
 }
 
-/// #106 (completeness-gap pin): the depth-2 nested intersect refuses
-/// TYPED at the anchor-exhaustion arm — never a silent body. If this
-/// starts succeeding, verify the volume is EXACTLY 3.25 (annulus 3 +
-/// pillar 0.25, slab height 1) with all tiers green, then retire this
-/// pin as the #106 closure.
+/// #106 CLOSURE (was the completeness-gap refusal pin; retired per its
+/// own baked instructions once the chain started building). The
+/// depth-2 nested intersect now builds EXACTLY: the vertex-pair-chord
+/// anchor tier certifies an interior point of the annular region the
+/// consecutive-triple centroid generator could not reach.
+///
+/// Exact volume, derived independently of the kernel: the slab is
+/// z ∈ [1.375, 2.375], height exactly 1, and every operand's
+/// cross-section is constant over that z-interval, so V = area × 1.
+/// - plate `[0,4]²×[0,1]`: z-disjoint from the slab — contributes 0.
+/// - tube: z ∈ [0.5, 3] ⊃ slab; annulus area 2² − 1² = 3.
+/// - pillar `[1.75,2.25]²`: z ∈ [0.75, 2.75] ⊃ slab; area 0.5² = 0.25,
+///   and `[1.75,2.25]² ⊂ (1.5,2.5)²` lies strictly inside the tube's
+///   hole, so it is disjoint from the annulus — areas add.
+///
+/// V = (3 + 1/4) × 1 = **13/4 = 3.25**, exact in binary.
 #[test]
-fn issue106_depth2_nested_intersect_refuses_typed() {
+fn issue106_depth2_nested_intersect_exact() {
     let u1 = plate_with_tube();
     let pillar = prism_z::<f64>(
         &[(1.75, 1.75), (2.25, 1.75), (2.25, 2.25), (1.75, 2.25)],
@@ -119,26 +140,19 @@ fn issue106_depth2_nested_intersect_refuses_typed() {
         panic!("|pillar emptied");
     };
     match intersect(&u2.body, &slab()) {
-        Err(BooleanError::JoinDesync { what }) => {
-            assert_eq!(
-                what,
-                "neither section loop's regions hold a classifiable anchor \
-                 (vertices, edge midpoints, and verified interior candidates \
-                 all exhausted)",
-                "depth-2 refusal moved off the anchor-exhaustion arm"
-            );
-        }
-        Err(e) => panic!("depth-2 refusal moved off JoinDesync: {e:?}"),
         Ok(BooleanResult::Body(bb)) => {
-            let v = mass_properties(&bb.body).map(|m| m.volume);
-            panic!(
-                "PIN FIRED (not necessarily a regression): the depth-2 \
-                 nested intersect now builds (volume {v:?}, exact 3.25). \
-                 Verify exactness + tiers, then retire this pin as the \
-                 issue #106 closure."
+            tiers(&bb, "depth-2 intersect");
+            let v = mass_properties(&bb.body).expect("mass").volume;
+            assert!(
+                (v - 3.25).abs() < 1e-12,
+                "REGRESSION toward issue #106: depth-2 nested intersect \
+                 volume {v} != 3.25 exact"
             );
         }
-        Ok(BooleanResult::Empty) => panic!("nonempty overlap returned Empty"),
+        other => panic!(
+            "REGRESSION toward issue #106: the depth-2 nested intersect no \
+             longer builds: {other:?}"
+        ),
     }
 }
 
@@ -155,5 +169,101 @@ fn depth1_nested_intersect_control_exact() {
             assert!((v - 3.0).abs() < 1e-12, "control volume {v} != 3.0 exact");
         }
         other => panic!("depth-1 control did not build: {other:?}"),
+    }
+}
+
+/// Pillar-tube: outer [1.75,2.25]², hole [1.875,2.125]², z ∈ [0.75,
+/// 2.75] — the depth-3 probe's middle shell. All plane values dyadic
+/// and distinct from every other plane in the chain (general
+/// position: no coincidence declarations anywhere).
+fn pillar_tube() -> Body<f64> {
+    let outer = prism_z::<f64>(
+        &[(1.75, 1.75), (2.25, 1.75), (2.25, 2.25), (1.75, 2.25)],
+        0.75,
+        2.75,
+    );
+    let cutter = prism_z::<f64>(
+        &[
+            (1.875, 1.875),
+            (2.125, 1.875),
+            (2.125, 2.125),
+            (1.875, 2.125),
+        ],
+        0.625,
+        2.875,
+    );
+    let BooleanResult::Body(t) = subtract(&outer.body, &cutter.body).expect("pillar tube") else {
+        panic!("pillar-tube subtract emptied");
+    };
+    t.body
+}
+
+/// DEPTH-3 PROBE (issue #106, one level deeper than the closed gap):
+/// the same plate/tube chain, but the pillar is itself hollow and
+/// holds a post, so the slab section carries island(tube outer) ⊃
+/// ring(tube hole) ⊃ island(pillar outer) ⊃ ring(pillar hole) ⊃
+/// island(post). Outcome pinned LIVE, as observed: it BUILDS, exact,
+/// tiers green — the vertex-pair-chord tier is depth-agnostic (each
+/// annular region gets its own outer↔ring diagonal), so closing the
+/// depth-2 gap closed this one too. Result: 3 shells (two annular
+/// prisms, one box), which is the honest topology.
+///
+/// Exact intersect volume (independent derivation, the same
+/// constant-cross-section argument as the depth-2 pin — slab height
+/// exactly 1, every shell's z-range ⊃ [1.375, 2.375], plate
+/// z-disjoint, all three cross-sections pairwise disjoint since each
+/// sits strictly inside the next one's hole):
+/// - tube annulus 2² − 1² = 3
+/// - pillar annulus 0.5² − 0.25² = 1/4 − 1/16 = 3/16
+/// - post 0.125² = 1/64
+///
+/// V = (3 + 3/16 + 1/64) × 1 = 205/64 = **3.203125**, exact in binary.
+///
+/// The u3 chain itself is pinned exact first, so a volume miss here
+/// can never be blamed on a corrupt input: u3 = plate 16 + tube walls
+/// 3×2 + pillar walls above the plate 3/16 × 1.75 + post above the
+/// plate 1/64 × 1.6875 = 22.3544921875 (everything below z = 1 is
+/// already plate material).
+#[test]
+fn issue106_depth3_nested_intersect_probe() {
+    let u1 = plate_with_tube();
+    let BooleanResult::Body(u2) = union(&u1, &pillar_tube()).expect("|pillar tube") else {
+        panic!("|pillar tube emptied");
+    };
+    let post = prism_z::<f64>(
+        &[
+            (1.9375, 1.9375),
+            (2.0625, 1.9375),
+            (2.0625, 2.0625),
+            (1.9375, 2.0625),
+        ],
+        0.8125,
+        2.6875,
+    );
+    let BooleanResult::Body(u3) = union(&u2.body, &post.body).expect("|post") else {
+        panic!("|post emptied");
+    };
+    tiers(&u3, "u3");
+    let vu3 = mass_properties(&u3.body).expect("u3 mass").volume;
+    assert!(
+        (vu3 - 22.3544921875).abs() < 1e-12,
+        "depth-3 input chain u3 volume {vu3} != 22.3544921875 exact"
+    );
+    match intersect(&u3.body, &slab()) {
+        Ok(BooleanResult::Body(bb)) => {
+            tiers(&bb, "depth-3 intersect");
+            let v = mass_properties(&bb.body).expect("mass").volume;
+            assert!(
+                (v - 3.203125).abs() < 1e-12,
+                "depth-3 nested intersect volume {v} != 3.203125 exact"
+            );
+        }
+        // Honest live pin: if a future change makes this refuse, the
+        // refusal must be TYPED (never a silent body) — see the
+        // anchor-exhaustion arm in `boolean::join`.
+        other => panic!(
+            "depth-3 nested intersect no longer builds (was exact 3.203125): \
+             {other:?}"
+        ),
     }
 }
