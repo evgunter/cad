@@ -1581,3 +1581,20 @@ silent skip, no weakened shared check. #111 fix dispatched as its
 own kernel unit — A/B ROW 8: difficulty M pre-assigned, arm =
 OPUS (block-2 remainder). Suspected-class survey (other unreified
 CDT decisions) included report-only.
+
+**#110 design round 1 (2026-07-26, Evan)**: two forks — (1) Real-
+trait lineage ("Interval was a quasi-stand-in for uniform; where
+does moving measures out of Real leave the original design?") —
+answered: the Real channel is the PER-LEAF ENGINE, not demoted;
+measures can't ride the scalar channel because dependency makes
+distribution arithmetic WRONG (not interval-loose — no conservative
+direction; p-boxes/Fréchet collapse under the kernel's shared-
+parameter workload); the measure prices leaves of INPUT space only,
+so derived-quantity correlation never needs representing; Interval
+= the sound integration kernel for any input measure = the original
+purpose completed. E1/E2 to restate lineage explicitly. (2)
+Truncation hesitancy — CONCEDED: mandatory truncated support
+replaced by TAIL-MASS ACCOUNTING (unbounded supports welcome;
+analysis box is the knob; outside-mass carried as an explicit
+additive term in every result; truncation = optional sugar).
+Awaiting Evan's reaction before the drafter reworks.
