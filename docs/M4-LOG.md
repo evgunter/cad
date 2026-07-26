@@ -1395,3 +1395,15 @@ cd-per-command + foreground-battery rules restated; #93 verifying
 its final battery then done, PR 6 filling report placeholders,
 #101 review continuing. Reports outstanding: #93 final numbers,
 pr6-report placeholders, issue101-review-report (not started).
+
+**#93 PR OPENED (2026-07-25 evening): #108** (closes #93 AND #105
+— the main-silently-wrong bug this branch fixes). Post-crash
+re-attestation clean: full in-clone battery at a628040 (145
+suites: 1263 @ 1e-6 and 1e-12, 1408 interval), issue93_nested_
+islands 3/3 (#105 exactness pin, #106 typed-refusal pin with
+retire-on-closure instructions, depth-1 control), docs corrected
+(exhaustion arm load-bearing), O(n²) guard hoisted. Checks watcher
+armed; merge on green. A/B row 1 FILLED (fable, M: 2 claim-level
+MAJ / 1 MIN / 2 NOTE, 0 silent, 4/4/4, moderate fix pass). #106
+stays open as the coverage-gap tracker — NEXT OPUS DISPATCH per
+protocol v2 block 1.

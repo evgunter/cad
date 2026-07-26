@@ -29,7 +29,7 @@ day). Protocol:
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
-| 1 | 2026-07-25 | #93 join-stage seam-region anchors | M | fable (draw 197) | — | — | — | — | — | — | — | — | — |
+| 1 | 2026-07-25 | #93 join-stage seam-region anchors | M | fable (draw 197) | 2/1/2 (both MAJ = claim-level; one credited a main bug the fix already fixed) | 0 | 4 | 4 | 4 | moderate (doc corrections + 2 adopted pins + 2 minors) | 145 suites: 1263/1263/1408, all pin families green | ~1.15M (incl. 2 crash resumes) | ~19h wall incl. crash gap (~5h active) |
 | 2 | 2026-07-25 | #99 tour ε-panic | S | fable (draw 220) | 0/1/3 | 0 | 5 | 4 | 5 | 1 line (orchestrator-applied) | tour 3/3 ε rows; zero kernel diff | 58k | 6.4 min |
 | 3 | 2026-07-25 | M4 PR 6 persistence | L | fable (draw 221) | — | — | — | — | — | — | — | — | — |
 | 4 | 2026-07-25 | #101 declared tangency | M | fable (draw 218) | — | — | — | — | — | — | — | — | — |
