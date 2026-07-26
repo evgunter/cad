@@ -1568,3 +1568,16 @@ loaded in the PR body; sign-off comment on the watchlist. PR 6
 delta re-check dispatched to its reviewer (tagged-token retype +
 tangent_joints are post-review deltas — mid-flight-changes
 convention); PR + merge gate on APPROVE-DELTA.
+
+**#111 filed + dispatched (2026-07-26)**: the az-render lane found
+a REAL mesh bug — A×Z bodies are exact-kernel-perfect but
+tessellate non-watertight (CDT centroid-parity keeps an exterior
+needle triangle on 1-ulp-noisy collinear seam boundaries;
+BoundaryEdge refusal; δ-independent; suspected unreified in-band
+decision in the parity/culling path). Render UNBLOCKED via the
+STEP lane (all-planar body); scene ships with the mesh refusal
+PINNED tripwire-style (cites #111, retire-instructions) — no
+silent skip, no weakened shared check. #111 fix dispatched as its
+own kernel unit — A/B ROW 8: difficulty M pre-assigned, arm =
+OPUS (block-2 remainder). Suspected-class survey (other unreified
+CDT decisions) included report-only.
