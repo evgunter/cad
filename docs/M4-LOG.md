@@ -1688,3 +1688,15 @@ Quality (A/B row 6 pending fix pass): 1/4-ish MIN/…, idiom 5 /
 tests 4 / docs 3. Plan: after fix pass, the crate PRs to main as
 workspace-excluded tooling (zero kernel risk); ADOPTION stays an
 M5-PLAN ratified decision.
+
+**Interval-crate fix pass complete (2026-07-26, v2 @ 8c30882); PR
+#115 OPENED** (crate as workspace-excluded tooling; adoption =
+M5-PLAN decision). §2 rewritten as the real proof (source facts
+re-verified at libm-v0.2.16; Lemma P3 with negative-order-reversal
+explicit; margins: sin family 2, atan2 1 — future functions with
+CI bound >3 flagged); lucky-original kept as war story #4; powi
+2^50 tail explained + regime-split; D7/D8 divergences documented
+AND pinned; ops.rs 5 units + 300k×4-op differential lane; build
+claims restated as measured (1.6s withdrawn). Final: certify
+12/12 (~5.8M asserts / 4.0M cases), edges 9/9, computable 4/4,
+kernel untouched. Watcher armed (13-row floor).
