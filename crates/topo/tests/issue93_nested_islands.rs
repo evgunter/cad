@@ -20,6 +20,10 @@
 //! - **#106 depth-3 probe**: one nesting level deeper (hollow pillar
 //!   holding a post) — pinned at its live outcome, which is likewise
 //!   build-exact (205/64) with tiers green.
+//! - **#106 comb probe**: the #93 review's F4 note (a comb-shaped
+//!   nonconvex island) — pinned at its live outcome, build-exact
+//!   (405/128); an ablation against the pre-#106 join shows this one
+//!   never needed the new tier, unlike depth-2/depth-3.
 //!
 //! Depth-1 control (no pillar): same chain intersects exactly.
 //!
@@ -336,5 +340,78 @@ mod interval {
         };
         tiers(&d3, "depth-3 interval");
         census(&d3, 3, 26, "depth-3 interval");
+    }
+}
+
+// =====================================================================
+// Residue probe: the #93 review's F4 note ("a comb-like nonconvex
+// region can defeat all consecutive-triple centroids"). Same depth-2
+// nesting, but the island is a 12-vertex three-tooth comb whose every
+// consecutive-triple centroid is either outside the comb or in the
+// tube's hole. Outcome pinned LIVE.
+// =====================================================================
+
+/// Comb island, all coordinates dyadic and strictly inside the tube's
+/// hole `(1.5, 2.5)²`: spine `x ∈ [1.625, 1.8125]`, `y ∈ [1.625,
+/// 1.9375]`, three teeth reaching to `x = 2.375`. Area
+/// 0.1875×0.3125 + 3×(0.5625×0.0625) = 21/128 = 0.1640625.
+fn comb<T: Decide>() -> Body<T> {
+    prism_z::<T>(
+        &[
+            (1.625, 1.625),
+            (2.375, 1.625),
+            (2.375, 1.6875),
+            (1.8125, 1.6875),
+            (1.8125, 1.75),
+            (2.375, 1.75),
+            (2.375, 1.8125),
+            (1.8125, 1.8125),
+            (1.8125, 1.875),
+            (2.375, 1.875),
+            (2.375, 1.9375),
+            (1.625, 1.9375),
+        ],
+        0.75,
+        2.75,
+    )
+    .body
+}
+
+/// Depth-2 with a COMB island (the F4 note's shape). Live outcome as
+/// observed: BUILDS, exact, tiers green — and an ABLATION (this file
+/// run against the pre-#106 `boolean::join`) shows it built already,
+/// i.e. this shape never needed the new tier; the earlier tiers reach
+/// it. Recorded honestly: F4's comb worry is real about the CENTROID
+/// GENERATOR in isolation, but the region here is classifiable from
+/// its vertices/edge midpoints. The same ablation fails the depth-2
+/// and depth-3 pins, which is where the new tier is load-bearing.
+/// Exact intersect
+/// volume, same constant-cross-section derivation: tube annulus 3 +
+/// comb 21/128, slab height 1 → 405/128 = 3.1640625. Chain guard:
+/// u2 = 16 + 6 + (21/128)×1.75 = 22.287109375.
+#[test]
+fn issue106_comb_island_intersect_probe() {
+    let BooleanResult::Body(u2) = union(&plate_with_tube_f64(), &comb::<f64>()).expect("|comb")
+    else {
+        panic!("|comb emptied");
+    };
+    tiers(&u2, "comb u2");
+    let vu2 = mass_properties(&u2.body).expect("u2 mass").volume;
+    assert!(
+        (vu2 - 22.287109375).abs() < 1e-12,
+        "comb chain u2 volume {vu2} != 22.287109375 exact"
+    );
+    match intersect(&u2.body, &slab::<f64>()) {
+        Ok(BooleanResult::Body(bb)) => {
+            tiers(&bb, "comb intersect");
+            // Tube annulus (10 faces) + comb prism (12 sides + 2 caps).
+            census(&bb, 2, 24, "comb intersect");
+            let v = mass_properties(&bb.body).expect("mass").volume;
+            assert!(
+                (v - 3.1640625).abs() < 1e-12,
+                "comb intersect volume {v} != 3.1640625 exact"
+            );
+        }
+        other => panic!("comb intersect no longer builds (was exact 3.1640625): {other:?}"),
     }
 }
