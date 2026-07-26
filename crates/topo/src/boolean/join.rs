@@ -897,19 +897,29 @@ fn cut_pair<T: Decide>(
 /// seam loops — every vertex and midpoint on the other boundary):
 /// vertex-triple centroids accepted only when the reified
 /// `point_in_face` certifies them strictly interior, then probed the
-/// same way.
+/// same way. Fourth (issue #106), VERTEX-PAIR CHORD MIDPOINTS: the
+/// midpoint of the anchor vertex and every other vertex of the same
+/// region face, across its outer loop AND all its rings, under the
+/// same `point_in_face` certificate. The triple centroid is a local
+/// guess a nonconvex or annular region defeats (a square annulus
+/// between two seam loops — depth-2 island nesting, island ⊃ ring ⊃
+/// island on one face — lands every consecutive-triple centroid
+/// inside the hole); the chord tier is global, and finds an interior
+/// point whenever the region admits any vertex-to-vertex diagonal,
+/// which every polygon-with-holes region of ≥ 4 vertices does.
 ///
-/// The typed refusal below is LOAD-BEARING, not a dead backstop
-/// (issue #106): the centroid generator is heuristic-incomplete —
-/// e.g. a square annulus between two seam loops (depth-2 island
-/// nesting, island ⊃ ring ⊃ island on one face) can land every
-/// consecutive-triple centroid inside the hole, so no candidate
-/// certifies and the arm refuses typed. That residue is
-/// refusal-only, never wrongness (uncertified candidates are
-/// discarded unprobed). Regions lying INSIDE the other body's
-/// boundary surface (the coincident-plane class) also exhaust all
-/// tiers — every interior point is `OnBoundary` — though post-N6
-/// that class normally refuses earlier, at the coincidence door.
+/// The typed refusal below stays LOAD-BEARING, not a dead backstop.
+/// Post-#106 the known residue is: regions lying INSIDE the other
+/// body's boundary surface (the coincident-plane class) exhaust all
+/// four tiers — every candidate, interior or not, is `OnBoundary`
+/// against the other solid — though post-N6 that class normally
+/// refuses earlier, at the coincidence door; and any region whose
+/// every certified interior candidate still reads `OnBoundary`.
+/// Candidate generation remains a heuristic in the strict sense (it
+/// is not a full constrained triangulation), so the arm is kept
+/// unconditionally: an uncertified or inconclusive candidate is
+/// discarded unprobed and the refusal is typed — never wrongness,
+/// never classification by guess.
 fn resolve_roles_geometric<T: Decide>(
     body: &Body<T>,
     other_pristine: &Body<T>,
@@ -936,6 +946,32 @@ fn resolve_roles_geometric<T: Decide>(
         /// and every edge midpoint lies ON the other boundary, yet
         /// the region interior classifies definitively.
         RegionInterior,
+        /// A verified region-interior point from a VERTEX-PAIR CHORD
+        /// (issue #106's fourth tier): the midpoint of the half-edge's
+        /// start vertex and every other vertex of the region face
+        /// (its outer loop and ALL its rings), each accepted only
+        /// when `point_in_face` certifies it strictly interior.
+        /// Where the triple centroid is a local guess that a
+        /// nonconvex/annular region defeats, this tier sweeps the
+        /// face's full vertex set, so it finds an interior point
+        /// whenever the region admits a vertex-to-vertex diagonal —
+        /// the diagonal's midpoint is strictly interior by
+        /// construction, and every polygon-with-holes region of ≥ 4
+        /// vertices admits one (a triangulation without Steiner
+        /// points always exists; any of its non-boundary edges is
+        /// such a diagonal). Triangle regions carry no diagonal but
+        /// are already covered by [`Anchor::RegionInterior`].
+        RegionVertexChord,
+    }
+    impl Anchor {
+        /// Do this tier's candidates need the `point_in_face` strict-
+        /// interiority certificate before they may be probed? Tiers 1
+        /// and 2 sit ON the region boundary by construction (the
+        /// trilean's `OnBoundary` skips the ones that matter); tiers 3
+        /// and 4 are GUESSES until a reified predicate certifies them.
+        fn needs_interior_certificate(self) -> bool {
+            matches!(self, Anchor::RegionInterior | Anchor::RegionVertexChord)
+        }
     }
     let desync = |what| BooleanError::JoinDesync { what };
     let probe = |l: LoopKey, anchor: Anchor| -> Result<Option<bool>, BooleanError> {
@@ -991,9 +1027,9 @@ fn resolve_roles_geometric<T: Decide>(
                             .and_then(|vd| body.get_point(vd.point).copied())
                             .ok_or(desync("region half has no end point"))
                     };
-                    let p = match anchor {
-                        Anchor::Vertex => start,
-                        Anchor::EdgeMidpoint => start.lerp(end_of(rhe)?, T::from_f64(0.5)),
+                    let cands: Vec<geom_core::Point3<T>> = match anchor {
+                        Anchor::Vertex => vec![start],
+                        Anchor::EdgeMidpoint => vec![start.lerp(end_of(rhe)?, T::from_f64(0.5))],
                         Anchor::RegionInterior => {
                             let b = end_of(rhe)?;
                             let c = end_of(
@@ -1001,32 +1037,40 @@ fn resolve_roles_geometric<T: Decide>(
                                     .ok_or(desync("region half no longer resolves"))?
                                     .next,
                             )?;
-                            let cand = start + ((b - start) + (c - start)) * T::from_f64(1.0 / 3.0);
+                            vec![start + ((b - start) + (c - start)) * T::from_f64(1.0 / 3.0)]
+                        }
+                        Anchor::RegionVertexChord => face_vertex_points(body, region_face)?
+                            .into_iter()
+                            .map(|q| start.lerp(q, T::from_f64(0.5)))
+                            .collect(),
+                    };
+                    for p in cands {
+                        if anchor.needs_interior_certificate() {
                             let (_, normal) = super::solid_contain::face_plane(body, region_face)
                                 .map_err(BooleanError::Containment)?;
-                            match super::solid_contain::point_in_face(
+                            if super::solid_contain::point_in_face(
                                 body,
                                 region_face,
                                 normal,
-                                cand,
+                                p,
                                 band,
                             )
                             .map_err(BooleanError::Containment)?
+                                != Some(true)
                             {
-                                Some(true) => cand,
                                 // Not certified interior (outside, in a
                                 // ring, or grazing a loop): candidate
                                 // discarded, never probed.
-                                _ => continue,
+                                continue;
                             }
                         }
-                    };
-                    match super::solid_contain::point_in_solid(other_pristine, p, band)
-                        .map_err(BooleanError::Containment)?
-                    {
-                        super::solid_contain::SolidContainment::In => return Ok(Some(true)),
-                        super::solid_contain::SolidContainment::Out => return Ok(Some(false)),
-                        super::solid_contain::SolidContainment::OnBoundary => continue,
+                        match super::solid_contain::point_in_solid(other_pristine, p, band)
+                            .map_err(BooleanError::Containment)?
+                        {
+                            super::solid_contain::SolidContainment::In => return Ok(Some(true)),
+                            super::solid_contain::SolidContainment::Out => return Ok(Some(false)),
+                            super::solid_contain::SolidContainment::OnBoundary => continue,
+                        }
                     }
                 }
             }
@@ -1074,7 +1118,10 @@ fn resolve_roles_geometric<T: Decide>(
     if let Some(roles) = resolve(Anchor::EdgeMidpoint)? {
         return Ok(roles);
     }
-    match resolve(Anchor::RegionInterior)? {
+    if let Some(roles) = resolve(Anchor::RegionInterior)? {
+        return Ok(roles);
+    }
+    match resolve(Anchor::RegionVertexChord)? {
         Some(roles) => Ok(roles),
         None => Err(desync(
             "neither section loop's regions hold a classifiable anchor \
@@ -1082,4 +1129,43 @@ fn resolve_roles_geometric<T: Decide>(
              all exhausted)",
         )),
     }
+}
+
+/// Every vertex point of `face`, outer loop then rings in arena
+/// order — the candidate partner set for [`Anchor::RegionVertexChord`].
+/// Deterministic; duplicates (a vertex visited by two loops) are kept
+/// so the order never depends on point comparison.
+fn face_vertex_points<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<geom_core::Point3<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let f = body
+        .get_face(face)
+        .ok_or(desync("region face no longer resolves"))?;
+    let mut out = Vec::new();
+    for fl in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let crate::entity::LoopBoundary::Cycle { first } = body
+            .get_loop(fl)
+            .ok_or(desync("region loop no longer resolves"))?
+            .boundary
+        else {
+            continue;
+        };
+        for he in body
+            .loop_cycle(first)
+            .ok_or(desync("region loop not walkable"))?
+        {
+            let v = body
+                .get_half_edge(he)
+                .ok_or(desync("region half no longer resolves"))?
+                .start;
+            out.push(
+                body.get_vertex(v)
+                    .and_then(|vd| body.get_point(vd.point).copied())
+                    .ok_or(desync("region vertex has no point"))?,
+            );
+        }
+    }
+    Ok(out)
 }
