@@ -14,17 +14,23 @@
 mod common;
 
 use common::Rng;
-use computable::{Binary, Computable, XBinary, ops::pi::pi};
+use computable::{Binary, Computable, XBinary, pi};
 use interval_transcendentals::DInterval;
 
 const RANDOM_CASES: u64 = 1500;
 
 /// Refine `c` until its width is comfortably below `width_hint` (our
-/// interval's width), then return the dyadic bounds. `None` if the
+/// interval's width) AND absolutely tiny (2^-70), then return the dyadic
+/// bounds. The absolute floor matters: a sample's true value may sit
+/// within a few ulps of our interval's boundary even when our interval
+/// is wide (e.g. the midpoint of a wide input landing at the image
+/// minimum), so an oracle refined only relative to our width would
+/// spuriously stick out. Found live: `sin wide case 3` failed with a
+/// width-2^-8 oracle whose truth WAS inside our interval. `None` if the
 /// refinement budget is exhausted (caller counts and skips).
 fn refined_bounds(c: &Computable, width_hint: f64) -> Option<(XBinary, XBinary)> {
     let exp = if width_hint > 0.0 && width_hint.is_finite() {
-        (width_hint.log2().floor() as i32 - 8).clamp(-1080, 0)
+        (width_hint.log2().floor() as i32 - 8).clamp(-1080, -70)
     } else {
         -80
     };
