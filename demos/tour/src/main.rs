@@ -47,8 +47,9 @@ struct SceneBody {
     /// `BoundaryEdge` on the tessellation. The pin asserts the refusal
     /// stays EXACTLY that class and panics loudly the day the gap
     /// closes (retire-on-closure, the #106 pattern). Render + STEP are
-    /// unaffected (FreeCAD imports our STEP; the STL carries the
-    /// narrated defect).
+    /// unaffected (FreeCAD imports our STEP); NO STL is emitted — the
+    /// writer refuses the defective mesh typed, and that refusal is
+    /// pinned two-sided in `run_body`.
     mesh_gap: Option<&'static str>,
 }
 
@@ -185,7 +186,7 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     // itself is the assertion (and the ribbon is skipped: signed
     // volume of a non-closed mesh proves nothing).
     let mesh = mesh::tessellate(&sb.body, delta).expect("tessellate");
-    match (sb.mesh_gap, check_mesh(&mesh)) {
+    let mesh_defective = match (sb.mesh_gap, check_mesh(&mesh)) {
         (None, Ok(())) => {
             let v_mesh = signed_volume(&mesh);
             assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
@@ -199,15 +200,18 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
                 triangle_count(&mesh),
                 rel * 100.0
             );
+            false
         }
         (None, Err(e)) => panic!("{label}: check_mesh failed: {e:?}"),
         (Some(gap), Err(e @ MeshError::BoundaryEdge { .. })) => {
             println!(
                 "   [{label}] exact: V = {:.6} m^3, A = {:.6} m^2; mesh lane: PINNED \
-                 OPEN GAP — check_mesh refuses {e:?} ({gap}); the render rides our \
-                 STEP export, the STL carries the narrated defect",
+                 OPEN GAP — check_mesh refuses {e:?} ({gap}); no STL is emitted \
+                 (the writer refuses the defective mesh typed, asserted below) — \
+                 the render rides our STEP export",
                 props.volume, props.surface_area
             );
+            true
         }
         (Some(gap), Err(e)) => panic!(
             "{label}: the pinned mesh gap ({gap}) moved OFF the BoundaryEdge \
@@ -217,27 +221,48 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
             "{label}: the pinned mesh gap ({gap}) has CLOSED — retire the pin: \
              drop `mesh_gap` from this scene and let the standard mesh ribbon run"
         ),
-    }
-
-    // STL export. On a `mesh_gap`-pinned body the writer refusing the
-    // #111 needle triangle typed (`DegenerateTriangle`) is the pinned
-    // live outcome, not a failure; anything else stays fail-loud.
-    let stl_name = format!("{label}.stl");
-    let mut stl_buf = Vec::new();
-    let stl = match stl::write_binary(&mesh, &mut stl_buf) {
-        Ok(()) => {
-            std::fs::write(format!("{outdir}/{stl_name}"), &stl_buf).expect("write stl");
-            Some(stl_name.clone())
-        }
-        Err(e @ stl::StlError::DegenerateTriangle { .. }) if sb.mesh_gap.is_some() => {
-            println!(
-                "   [{label}] STL lane: PINNED OPEN GAP — the writer refuses the #111 \
-                 needle triangle typed ({e:?}); no STL emitted, the render rides STEP"
-            );
-            None
-        }
-        Err(e) => panic!("{label}: STL write failed: {e:?}"),
     };
+
+    // STL export. On the #111-pinned defective mesh the pin is
+    // TWO-SIDED: the writer must refuse the needle triangle typed
+    // (`DegenerateTriangle`), and no STL may land in the outdir — a
+    // future writer-tolerance change must not silently ship a leaky
+    // mesh. Everything else stays fail-loud.
+    let stl_name = format!("{label}.stl");
+    let stl_path = format!("{outdir}/{stl_name}");
+    let mut stl_buf = Vec::new();
+    let stl = if mesh_defective {
+        match stl::write_binary(&mesh, &mut stl_buf) {
+            Err(e @ stl::StlError::DegenerateTriangle { .. }) => {
+                // Clear any stale export from an earlier run so the
+                // outdir cannot carry a leaky {label}.stl either way.
+                let _ = std::fs::remove_file(&stl_path);
+                println!(
+                    "   [{label}] STL lane: PINNED OPEN GAP — the writer refuses the #111 \
+                     needle triangle typed ({e:?}); no STL emitted, the render rides STEP"
+                );
+                None
+            }
+            Err(e) => panic!(
+                "{label}: the pinned #111 STL refusal moved OFF the \
+                 DegenerateTriangle class: {e:?} — re-diagnose before re-pinning"
+            ),
+            Ok(()) => panic!(
+                "{label}: the STL writer ACCEPTED the #111-defective mesh — a \
+                 writer-tolerance change must not silently ship a leaky STL; \
+                 retire the pin deliberately or re-diagnose"
+            ),
+        }
+    } else {
+        stl::write_binary(&mesh, &mut stl_buf)
+            .unwrap_or_else(|e| panic!("{label}: STL write failed: {e:?}"));
+        std::fs::write(&stl_path, &stl_buf).expect("write stl");
+        Some(stl_name.clone())
+    };
+    assert!(
+        stl.is_some() || !std::path::Path::new(&stl_path).exists(),
+        "{label}: no STL was to be emitted, yet {stl_path} exists"
+    );
 
     // The STEP lane (#88): AP214 export beside every STL. The writer's
     // analytic subset is planes/lines today (M5 adds the curved arms),
