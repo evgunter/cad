@@ -1538,3 +1538,19 @@ transcendental additions with a size-it-first valve so the
 interval crate stays primary. Honest-fitness paragraph still
 required (computable reals ≠ fixed-precision interval lane;
 possible M6 clearance-check exactness role).
+
+**#106 implementation COMPLETE (2026-07-26, ev/issue106-depth2-
+coverage @ ccda018, pushed) — FIRST OPUS ROW.** Tier-4
+Anchor::RegionVertexChord (anchor-vertex-to-region-vertex chord
+midpoints, existing point_in_face certificate, no new predicate/ε),
+justified via the no-Steiner triangulation theorem. #106 refusal
+pin retired to exactness 13/4 per its baked instructions; #105 +
+depth-1 green; depth-3 (205/64) and comb (405/128) probes pinned
+at live outcomes. Notable HONESTY: self-ablation revealed the comb
+probe already built pre-fix — docstring corrected rather than
+credit claimed; residue enumerated with NO unreachability claim
+(the #93 lesson landed). Battery 1265/1265/1411, goldens unmoved.
+Blinded reviewer LAUNCHED (attack: anchor-only chord-existence gap
+vs the theorem's some-vertex guarantee, boundary-midpoint
+certification, oracle re-derivation, ablation-claim verification,
+tier-ordering verdict-log identity).
