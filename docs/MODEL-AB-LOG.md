@@ -36,6 +36,7 @@ day). Protocol:
 | 5 | 2026-07-26 | #106 depth-2 nested-island coverage | M | OPUS (block-1 forced slot) | — | — | — | — | — | — | — | — | — |
 | 6 | 2026-07-26 | interval transcendentals crate | L | fable (block-1 remainder) | — | — | — | — | — | — | — | — | — |
 | 7 | 2026-07-26 | A×Z render scene | S | fable (block 2 draw: fable,opus) | — | — | — | — | — | — | — | — | — |
+| 8 | 2026-07-26 | #111 CDT needle triangle | M | OPUS (block-2 remainder) | — | — | — | — | — | — | — | — | — |
 
 PROTOCOL CHANGE (2026-07-25, Evan approved: "shuffled pairs makes
 sense") after four consecutive fable draws (197, 220, 221, 218;
