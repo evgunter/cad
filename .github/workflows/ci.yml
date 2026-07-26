@@ -252,9 +252,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # D6.1 save/load/replay-identity + the D2 float property row.
-      - name: save/load/replay-identity (D6.1) + float bits (D2)
-        run: cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats
+      # D6.1 save/load/replay-identity + the D2 float property row +
+      # the committed golden v1 fixture (byte-exact freeze tripwire).
+      - name: save/load/replay-identity (D6.1) + float bits (D2) + golden v1
+        run: cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats --test m4_pr6_golden
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
       # D6.2 ε-change diff (cross-process, goldened): the two probe
@@ -264,8 +265,9 @@ jobs:
         run: cargo test -p editor-core --test m4_pr6_eps_diff
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
-      # D6.3 schema-version / corrupt-file refusal.
-      - name: schema + corruption refusal (D6.3)
-        run: cargo test -p editor-core --test m4_pr6_refusal
+      # D6.3 schema-version / corrupt-file refusal + the adopted
+      # adversarial probe suite (review pins) + token key-space pins.
+      - name: schema + corruption refusal (D6.3) + review probes
+        run: cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}

@@ -83,11 +83,11 @@ interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test --workspace --features interv
 persist_roundtrip() {
   local e
   for e in 1e-6 1e-9 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats || return 1
+    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats --test m4_pr6_golden || return 1
   done
 }
 persist_eps_diff() { cargo test -p editor-core --test m4_pr6_eps_diff; }
-persist_refusal() { cargo test -p editor-core --test m4_pr6_refusal; }
+persist_refusal() { cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key; }
 persist_interval() { cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval; }
 
 run_row "discipline (evaluation-code)" discipline
