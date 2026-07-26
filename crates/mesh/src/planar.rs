@@ -80,12 +80,29 @@ pub(crate) fn tessellate_planar(
         [w.dot(u_ref), w.dot(v_ref)]
     };
 
-    // Loop id cycles (outer first, then rings in face order).
+    // Loop id cycles (outer first, then rings in face order), each
+    // paired with its projection into the chart.
     let mut loops: Vec<Vec<u32>> = Vec::with_capacity(1 + face.rings.len());
+    let mut polygons: Vec<Vec<[f64; 2]>> = Vec::with_capacity(1 + face.rings.len());
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        loops.push(loop_ids(body, fk, lk, chords)?);
+        let ids = loop_ids(body, fk, lk, chords)?;
+        polygons.push(ids.iter().map(|&id| project(id)).collect());
+        loops.push(ids);
     }
 
+    triangulate_chart(fk, &loops, &polygons)
+}
+
+/// Triangulates a face already reduced to its chart: `loops[i][j]` is
+/// the mesh id of `polygons[i][j]`, outer loop first. Split out from
+/// [`tessellate_planar`] so that a face's exact projected coordinates
+/// can be replayed in isolation (the #111 regression is a property of
+/// the chart alone).
+fn triangulate_chart(
+    fk: FaceKey,
+    loops: &[Vec<u32>],
+    polygons: &[Vec<[f64; 2]>],
+) -> Result<Vec<[u32; 3]>, TessellateError> {
     // CDT: every loop's points first, then the boundary constraints.
     // The two passes must not interleave: inserting a vertex that lands
     // exactly on an existing constraint edge splits it, which would
@@ -93,14 +110,10 @@ pub(crate) fn tessellate_planar(
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
     let mut meta: Vec<u32> = Vec::new(); // handle index -> mesh id
-    let mut polygons: Vec<Vec<[f64; 2]>> = Vec::new();
     let mut handles: Vec<Vec<FixedVertexHandle>> = Vec::new();
-    for ids in &loops {
+    for (ids, poly) in loops.iter().zip(polygons) {
         let mut hs = Vec::with_capacity(ids.len());
-        let mut poly = Vec::with_capacity(ids.len());
-        for &id in ids {
-            let [u, v] = project(id);
-            poly.push([u, v]);
+        for (&id, &[u, v]) in ids.iter().zip(poly) {
             let h = cdt
                 .insert(SpadePoint::new(u, v))
                 .map_err(|_| TessellateError::Triangulation { face: fk })?;
@@ -110,7 +123,6 @@ pub(crate) fn tessellate_planar(
             hs.push(h);
         }
         handles.push(hs);
-        polygons.push(poly);
     }
 
     // Boundary constraints, counting how often each resulting CDT edge
@@ -167,7 +179,9 @@ pub(crate) fn tessellate_planar(
 }
 
 /// A CDT edge's identity as an unordered pair of vertex indices.
-fn edge_key(e: DirectedEdgeHandle<'_, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>) -> (usize, usize) {
+fn edge_key(
+    e: DirectedEdgeHandle<'_, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
+) -> (usize, usize) {
     let (p, q) = (e.from().fix().index(), e.to().fix().index());
     (p.min(q), p.max(q))
 }
@@ -193,7 +207,11 @@ fn classify_faces(
     // the outer face, which is outside every loop; a hull edge that is
     // itself a boundary segment toggles on the way in.
     for hull in cdt.convex_hull() {
-        let e = if hull.face().is_outer() { hull.rev() } else { hull };
+        let e = if hull.face().is_outer() {
+            hull.rev()
+        } else {
+            hull
+        };
         let Some(f) = e.face().as_inner() else {
             continue; // both sides outer: a degenerate, edge-only CDT
         };
@@ -255,4 +273,147 @@ fn shoelace2(poly: &[[f64; 2]]) -> f64 {
         s += p[0] * q[1] - q[0] * p[1];
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{shoelace2, triangulate_chart};
+    use topo::FaceKey;
+
+    /// Face `19v3` of the issue-#111 A×Z intersect (A's left inner-leg
+    /// slant), captured as the exact projected chart the tessellator
+    /// builds — bit patterns, because the defect lives in the last ulp.
+    ///
+    /// Boundary walk `48 → 34 → 1 → 2 → 13 → 52 → 24 → 48`. Vertices
+    /// `2`, `13`, `48` are exactly collinear (A's leg-top carrier);
+    /// vertex `24`, the boolean's crossing of that carrier with Z's
+    /// slope-3/5 diagonal, is exactly 5/8 in real arithmetic but lands
+    /// 1 ulp off the carrier, and `13 → 52 → 24` is the #93 seam
+    /// hexagon's notch dipping in between. The CDT therefore builds a
+    /// needle triangle `[24, 13, 48]` of twice-area 4e-18 that lies
+    /// OUTSIDE the face — verified present in the triangulation of this
+    /// very chart, and the exact triangle the predecessor kept: forming
+    /// a centroid rounds it by ~5e-17, ten times the needle's ~3e-18
+    /// half-thickness, so the constructed point crosses to the interior
+    /// side of boundary edge `24→48` and every point-in-polygon test,
+    /// f64 or exact, then answers "inside".
+    const FACE_19V3: [(u64, u64); 7] = [
+        (4581431797661461788, 4602803313439314012),  // 48
+        (4601278341968785480, 13826922315894092423), // 34
+        (4606183720244804921, 13827710779582984058), // 1
+        (4607527494452543132, 4599358972061524235),  // 2
+        (4603999415142092400, 4600811405172640406),  // 13
+        (4603471649560759920, 4590705563545250395),  // 52
+        (4602000164000415209, 4601433876505975908),  // 24
+    ];
+    const FACE_19V3_IDS: [u32; 7] = [48, 34, 1, 2, 13, 52, 24];
+
+    fn chart(bits: &[(u64, u64)]) -> Vec<[f64; 2]> {
+        bits.iter()
+            .map(|&(u, v)| [f64::from_bits(u), f64::from_bits(v)])
+            .collect()
+    }
+
+    fn sorted(t: [u32; 3]) -> [u32; 3] {
+        let mut t = t;
+        t.sort_unstable();
+        t
+    }
+
+    /// Twice the signed area of a triangle in the chart.
+    fn tri2(poly: &[[f64; 2]], ids: &[u32], t: [u32; 3]) -> f64 {
+        let at = |id: u32| poly[ids.iter().position(|&x| x == id).unwrap()];
+        let (a, b, c) = (at(t[0]), at(t[1]), at(t[2]));
+        (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    }
+
+    /// Every boundary segment must be an edge of exactly one emitted
+    /// triangle — the per-face half of watertightness, and precisely
+    /// what the centroid-parity filter broke (the shared segment went
+    /// to 3 uses, its neighbours to 1).
+    fn assert_covers_boundary(loops: &[Vec<u32>], tris: &[[u32; 3]]) {
+        let mut uses: std::collections::HashMap<(u32, u32), u32> = std::collections::HashMap::new();
+        for t in tris {
+            for k in 0..3 {
+                let (a, b) = (t[k], t[(k + 1) % 3]);
+                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+            }
+        }
+        for ids in loops {
+            for i in 0..ids.len() {
+                let (a, b) = (ids[i], ids[(i + 1) % ids.len()]);
+                if a == b {
+                    continue;
+                }
+                let key = (a.min(b), a.max(b));
+                assert_eq!(
+                    uses.get(&key).copied().unwrap_or(0),
+                    1,
+                    "boundary segment {key:?} used {:?} times, want 1",
+                    uses.get(&key)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn issue111_needle_on_the_az_leg_carrier_is_not_emitted() {
+        let poly = chart(&FACE_19V3);
+        let loops = vec![FACE_19V3_IDS.to_vec()];
+        let tris = triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
+            .expect("face 19v3 triangulates");
+
+        // The exterior needle the old centroid test kept.
+        assert!(
+            !tris.iter().any(|&t| sorted(t) == [13, 24, 48]),
+            "REGRESSION (issue #111): exterior needle [24, 13, 48] emitted; \
+             triangles = {tris:?}"
+        );
+        assert_covers_boundary(&loops, &tris);
+
+        // The kept triangles must tile the region exactly: signed areas
+        // sum to the loop's own signed area.
+        let total: f64 = tris.iter().map(|&t| tri2(&poly, &FACE_19V3_IDS, t)).sum();
+        let want = shoelace2(&poly);
+        assert!(
+            (total.abs() - want.abs()).abs() < 1e-12,
+            "emitted area {total} does not tile the loop area {want}"
+        );
+    }
+
+    #[test]
+    fn slit_traversed_twice_does_not_toggle_the_region() {
+        // A unit square with a slit cut in from the left edge to its
+        // centre, traversed out and back — the revolve-annulus seam
+        // pattern in miniature. The slit segment carries crossing
+        // multiplicity 2, so the fill must NOT treat it as a boundary;
+        // the whole square stays interior.
+        let poly = vec![
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 0.5],
+            [0.5, 0.5],
+            [0.0, 0.5],
+        ];
+        let ids = vec![0_u32, 1, 2, 3, 4, 5, 4];
+        let loops = vec![ids];
+        let tris = triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
+            .expect("slit square triangulates");
+        let total: f64 = tris
+            .iter()
+            .map(|&t| {
+                let at = |id: u32| poly[id as usize];
+                let (a, b, c) = (at(t[0]), at(t[1]), at(t[2]));
+                ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])).abs()
+            })
+            .sum();
+        assert!(
+            (total - 2.0).abs() < 1e-12,
+            "slit square tiled to twice-area {total}, want 2 (the full square)"
+        );
+    }
 }
