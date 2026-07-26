@@ -32,6 +32,7 @@
 mod common;
 
 use common::prism_z;
+use geom_core::Decide;
 use topo::{
     Body, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate,
     validate_closed, validate_pseudomanifold,
@@ -39,9 +40,9 @@ use topo::{
 
 /// Tube: outer [1,3]², hole [1.5,2.5]², z ∈ [0.5, 3] (cutter strictly
 /// taller so the subtract pierces cleanly).
-fn tube() -> Body<f64> {
-    let outer = prism_z::<f64>(&[(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)], 0.5, 3.0);
-    let cutter = prism_z::<f64>(
+fn tube<T: Decide>() -> Body<T> {
+    let outer = prism_z::<T>(&[(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)], 0.5, 3.0);
+    let cutter = prism_z::<T>(
         &[(1.5, 1.5), (2.5, 1.5), (2.5, 2.5), (1.5, 2.5)],
         0.25,
         3.25,
@@ -54,21 +55,67 @@ fn tube() -> Body<f64> {
 
 /// Plate [0,4]² × [0,1] ∪ tube: exact 22.0 (plate 16 + tube walls
 /// above the plate, annulus 3 × 2).
-fn plate_with_tube() -> Body<f64> {
-    let plate = prism_z::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 0.0, 1.0);
-    let BooleanResult::Body(u1) = union(&plate.body, &tube()).expect("plate|tube") else {
+fn plate_with_tube<T: Decide>() -> Body<T> {
+    let plate = prism_z::<T>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 0.0, 1.0);
+    let BooleanResult::Body(u1) = union(&plate.body, &tube::<T>()).expect("plate|tube") else {
         panic!("plate|tube emptied");
     };
-    let v = mass_properties(&u1.body).expect("u1 mass").volume;
-    assert!((v - 22.0).abs() < 1e-12, "u1 volume {v} != 22.0 exact");
     u1.body
+}
+
+/// The f64 lane's `plate_with_tube`, with the exact-volume guard the
+/// interval lane cannot state (Interval has no `PartialEq` oracle by
+/// design — the interval lane checks censuses instead).
+fn plate_with_tube_f64() -> Body<f64> {
+    let u1 = plate_with_tube::<f64>();
+    let v = mass_properties(&u1).expect("u1 mass").volume;
+    assert!((v - 22.0).abs() < 1e-12, "u1 volume {v} != 22.0 exact");
+    u1
+}
+
+/// The depth-2 chain's final operand: plate ∪ tube ∪ solid pillar.
+fn depth2_chain<T: Decide>() -> Body<T> {
+    let pillar = prism_z::<T>(
+        &[(1.75, 1.75), (2.25, 1.75), (2.25, 2.25), (1.75, 2.25)],
+        0.75,
+        2.75,
+    );
+    let BooleanResult::Body(u2) = union(&plate_with_tube::<T>(), &pillar.body).expect("|pillar")
+    else {
+        panic!("|pillar emptied");
+    };
+    u2.body
+}
+
+/// The depth-3 chain's final operand: plate ∪ tube ∪ hollow pillar ∪
+/// post.
+fn depth3_chain<T: Decide>() -> Body<T> {
+    let BooleanResult::Body(u2) =
+        union(&plate_with_tube::<T>(), &pillar_tube::<T>()).expect("|pillar tube")
+    else {
+        panic!("|pillar tube emptied");
+    };
+    let post = prism_z::<T>(
+        &[
+            (1.9375, 1.9375),
+            (2.0625, 1.9375),
+            (2.0625, 2.0625),
+            (1.9375, 2.0625),
+        ],
+        0.8125,
+        2.6875,
+    );
+    let BooleanResult::Body(u3) = union(&u2.body, &post.body).expect("|post") else {
+        panic!("|post emptied");
+    };
+    u3.body
 }
 
 /// Slab across the tube's midriff, z ∈ [1.375, 2.375] — every plane
 /// value distinct from every operand plane (general position, no
 /// declarations involved).
-fn slab() -> Body<f64> {
-    prism_z::<f64>(
+fn slab<T: Decide>() -> Body<T> {
+    prism_z::<T>(
         &[(-1.0, -1.0), (5.0, -1.0), (5.0, 5.0), (-1.0, 5.0)],
         1.375,
         2.375,
@@ -76,7 +123,15 @@ fn slab() -> Body<f64> {
     .body
 }
 
-fn tiers(bb: &BooleanBody<f64>, label: &str) {
+/// Structural census of a boolean result — the ONLY exactness the
+/// interval lane can state (Interval has no `PartialEq` value oracle
+/// by design), and a useful extra pin for the f64 lane.
+fn census<T: Decide>(bb: &BooleanBody<T>, shells: usize, faces: usize, label: &str) {
+    assert_eq!(bb.body.shells().count(), shells, "{label}: shell count");
+    assert_eq!(bb.body.faces().count(), faces, "{label}: face count");
+}
+
+fn tiers<T: Decide>(bb: &BooleanBody<T>, label: &str) {
     assert_eq!(validate(&bb.body), Ok(()), "{label}: tier 1");
     assert_eq!(validate_closed(&bb.body), Ok(()), "{label}: tier 2");
     assert_eq!(
@@ -94,13 +149,13 @@ fn tiers(bb: &BooleanBody<f64>, label: &str) {
 /// above plate 0.25×1.75 = 22.4375.
 #[test]
 fn issue105_doubly_nested_union_exact() {
-    let u1 = plate_with_tube();
     let pillar = prism_z::<f64>(
         &[(1.75, 1.75), (2.25, 1.75), (2.25, 2.25), (1.75, 2.25)],
         0.75,
         2.75,
     );
-    let BooleanResult::Body(u2) = union(&u1, &pillar.body).expect("|pillar") else {
+    let BooleanResult::Body(u2) = union(&plate_with_tube_f64(), &pillar.body).expect("|pillar")
+    else {
         panic!("|pillar emptied");
     };
     tiers(&u2, "u2");
@@ -130,18 +185,18 @@ fn issue105_doubly_nested_union_exact() {
 /// V = (3 + 1/4) × 1 = **13/4 = 3.25**, exact in binary.
 #[test]
 fn issue106_depth2_nested_intersect_exact() {
-    let u1 = plate_with_tube();
-    let pillar = prism_z::<f64>(
-        &[(1.75, 1.75), (2.25, 1.75), (2.25, 2.25), (1.75, 2.25)],
-        0.75,
-        2.75,
-    );
-    let BooleanResult::Body(u2) = union(&u1, &pillar.body).expect("|pillar") else {
-        panic!("|pillar emptied");
-    };
-    match intersect(&u2.body, &slab()) {
+    // The input chain's own exactness is pinned by
+    // `issue105_doubly_nested_union_exact` (u2 = 22.4375) and
+    // `plate_with_tube_f64` (u1 = 22.0), so a miss below is the
+    // intersect's fault, never a corrupt operand.
+    let u2 = depth2_chain::<f64>();
+    let vu2 = mass_properties(&u2).expect("u2 mass").volume;
+    assert!((vu2 - 22.4375).abs() < 1e-12, "u2 volume {vu2} != 22.4375");
+    match intersect(&u2, &slab::<f64>()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-2 intersect");
+            // Tube annulus prism (10 faces) + pillar box (6).
+            census(&bb, 2, 16, "depth-2 intersect");
             let v = mass_properties(&bb.body).expect("mass").volume;
             assert!(
                 (v - 3.25).abs() < 1e-12,
@@ -161,8 +216,7 @@ fn issue106_depth2_nested_intersect_exact() {
 /// precisely between depth 1 and depth 2.
 #[test]
 fn depth1_nested_intersect_control_exact() {
-    let u1 = plate_with_tube();
-    match intersect(&u1, &slab()) {
+    match intersect(&plate_with_tube_f64(), &slab::<f64>()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-1 control");
             let v = mass_properties(&bb.body).expect("mass").volume;
@@ -176,13 +230,13 @@ fn depth1_nested_intersect_control_exact() {
 /// 2.75] — the depth-3 probe's middle shell. All plane values dyadic
 /// and distinct from every other plane in the chain (general
 /// position: no coincidence declarations anywhere).
-fn pillar_tube() -> Body<f64> {
-    let outer = prism_z::<f64>(
+fn pillar_tube<T: Decide>() -> Body<T> {
+    let outer = prism_z::<T>(
         &[(1.75, 1.75), (2.25, 1.75), (2.25, 2.25), (1.75, 2.25)],
         0.75,
         2.75,
     );
-    let cutter = prism_z::<f64>(
+    let cutter = prism_z::<T>(
         &[
             (1.875, 1.875),
             (2.125, 1.875),
@@ -226,32 +280,17 @@ fn pillar_tube() -> Body<f64> {
 /// already plate material).
 #[test]
 fn issue106_depth3_nested_intersect_probe() {
-    let u1 = plate_with_tube();
-    let BooleanResult::Body(u2) = union(&u1, &pillar_tube()).expect("|pillar tube") else {
-        panic!("|pillar tube emptied");
-    };
-    let post = prism_z::<f64>(
-        &[
-            (1.9375, 1.9375),
-            (2.0625, 1.9375),
-            (2.0625, 2.0625),
-            (1.9375, 2.0625),
-        ],
-        0.8125,
-        2.6875,
-    );
-    let BooleanResult::Body(u3) = union(&u2.body, &post.body).expect("|post") else {
-        panic!("|post emptied");
-    };
-    tiers(&u3, "u3");
-    let vu3 = mass_properties(&u3.body).expect("u3 mass").volume;
+    let u3 = depth3_chain::<f64>();
+    let vu3 = mass_properties(&u3).expect("u3 mass").volume;
     assert!(
         (vu3 - 22.3544921875).abs() < 1e-12,
         "depth-3 input chain u3 volume {vu3} != 22.3544921875 exact"
     );
-    match intersect(&u3.body, &slab()) {
+    match intersect(&u3, &slab::<f64>()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-3 intersect");
+            // Tube annulus (10) + pillar annulus (10) + post box (6).
+            census(&bb, 3, 26, "depth-3 intersect");
             let v = mass_properties(&bb.body).expect("mass").volume;
             assert!(
                 (v - 3.203125).abs() < 1e-12,
@@ -265,5 +304,37 @@ fn issue106_depth3_nested_intersect_probe() {
             "depth-3 nested intersect no longer builds (was exact 3.203125): \
              {other:?}"
         ),
+    }
+}
+
+// =====================================================================
+// Interval lane: the same depth-2/depth-3 chains at T = Interval, to
+// prove the #106 vertex-pair-chord anchor tier is scalar-generic (its
+// candidates go through the same reified `point_in_face` /
+// `point_in_solid` funnel, so an Indeterminate escalates rather than
+// guessing). Censuses only — Interval has no exact-value oracle.
+// =====================================================================
+
+#[cfg(feature = "interval")]
+mod interval {
+    use super::*;
+    use geom_core::Interval;
+
+    #[test]
+    fn nested_intersects_interval() {
+        let BooleanResult::Body(d2) =
+            intersect(&depth2_chain::<Interval>(), &slab::<Interval>()).expect("depth-2 interval")
+        else {
+            panic!("depth-2 interval intersect returned Empty");
+        };
+        tiers(&d2, "depth-2 interval");
+        census(&d2, 2, 16, "depth-2 interval");
+        let BooleanResult::Body(d3) =
+            intersect(&depth3_chain::<Interval>(), &slab::<Interval>()).expect("depth-3 interval")
+        else {
+            panic!("depth-3 interval intersect returned Empty");
+        };
+        tiers(&d3, "depth-3 interval");
+        census(&d3, 3, 26, "depth-3 interval");
     }
 }
