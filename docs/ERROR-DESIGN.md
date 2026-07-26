@@ -79,22 +79,19 @@ is a typed document error).
 
 - **Compact support is mandatory.** An untruncated Normal is a typed
   refusal at the document layer. Every M6 certificate is "over the
-  box", and the box IS the support; unbounded support makes "certified
-  over the support" impossible, and the honest fallback — silently
-  certifying ±kσ — would bury the k as unrecorded policy. Forcing the
-  truncation into the document makes the certificate's domain explicit
-  and persisted. API-boundary sugar (`normal_3sigma(σ)`) may write
-  `lo = −3σ, hi = 3σ` *into the document*; the persisted form is
-  always truncated.
-- **Band carries no measure.** It is pure worst-case. Any report
-  requiring a measure (RSS, leaf mass) over a Band parameter is
-  refused with a typed reason, never defaulted to uniform — "I know
-  the limits but not the shape" is real information and uniform is a
-  different, stronger claim.
-- **Independence**: product measure only; one distribution per
-  parameter; correlated/joint distributions are v1-foreclosed (E11.2,
-  additive later — a `Joint` form is a new schema variant, no
-  migration pain).
+  box", and the box IS the support; unbounded support makes that
+  impossible, and the honest fallback — silently certifying ±kσ —
+  buries the k as unrecorded policy. API-boundary sugar
+  (`normal_3sigma(σ)`) may write `lo = −3σ, hi = 3σ` *into the
+  document*; the persisted form is always truncated, so the
+  certificate's domain is explicit and recorded.
+- **Band carries no measure** — pure worst-case. Any report needing
+  a measure (RSS, leaf mass) over a Band parameter refuses typed,
+  never defaults to uniform: "I know the limits but not the shape"
+  is real information; uniform is a different, stronger claim.
+- **Independence**: product measure only, one distribution per
+  parameter; joint distributions are v1-foreclosed (E11.2; a `Joint`
+  form is an additive schema variant later).
 
 ## E3 — A measurement is a recipe node (proposed)
 
@@ -422,26 +419,23 @@ F7. Document carries `Measure::Distance(hole1_wall, hole2_wall)`
 
 ## Open after this doc
 
-- **Driver constants**: split-rule details beyond the named default,
-  budget defaults (depth/work), leaf-coalescing presentation — M6
-  PR-spec work, not ratification blockers.
+- **Driver constants**: split-rule details, budget defaults,
+  leaf-coalescing presentation — M6 PR-spec work, not blockers.
 - **Assertion gating of `build()`** (E10's flag): report-only vs. a
-  refuses-while-violated document mode — needs editor-core UX
-  input.
+  refuses-while-violated mode — needs editor-core UX input.
 - **Vector-forward duals / reverse mode** — pure performance;
   revisit when the Band 4 corpus prices n-pass sensitivity runs.
 - **The MC advisory lane** (E11.1): whether it ever ships, and how
-  a labeled advisory lane coexists with the certified register.
-- **Correlated distributions** (`Joint` schema variant): real
-  tolerance chains correlate (same machining setup); additive, but
-  the leaf-mass accounting must then integrate non-product measures.
-- **Clearance `c` as a Band**: should the assertion bound itself
-  carry a tolerance (c ± band) instead of being exact? v1 says
-  exact; revisit with GD&T-adjacent use cases.
-- **SetTolerance × distributions**: bands are Lengths, ε-independent
-  — but terminal-sliver refusal mass depends on ε, so an ε change
-  changes coverage numbers. The SetTolerance diff should surface
-  coverage deltas; wiring is M6 PR-spec.
-- **Naming-pillar composition**: whether Measure nodes' verdict
-  vectors join the N-machinery diff reports (they should — same
-  verdict-diff substrate); confirm at implementation.
+  it coexists with the certified register.
+- **Correlated distributions**: real tolerance chains correlate
+  (same machining setup); additive schema, but leaf-mass accounting
+  must then integrate non-product measures.
+- **Clearance `c` as a Band**: should the assertion bound carry its
+  own tolerance? v1 says exact; revisit with GD&T-adjacent cases.
+- **SetTolerance × distributions**: bands are Lengths,
+  ε-independent — but sliver-refusal mass depends on ε, so ε changes
+  move coverage numbers; the SetTolerance diff should surface
+  coverage deltas. Wiring is M6 PR-spec.
+- **Naming-pillar composition**: Measure nodes' verdict vectors
+  should join the N-machinery diff reports (same verdict-diff
+  substrate); confirm at implementation.
