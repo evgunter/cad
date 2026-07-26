@@ -1607,3 +1607,18 @@ refusal). Full trail in the PR body. Checks watcher armed; merge
 on green → then 8a dispatch (block 3 draw). A/B row 3 rubric on
 merge: 2 MAJ / 2 MIN / 3 NOTE + 1 delta MAJ, 0 silent (5 reported
 devs), idiom 5 / tests 4 / docs 5.
+
+**PR 6 MERGED (2026-07-26): #112 → main `78fe760` — SCHEMA V1
+FROZEN, the M5 gate is through.** Matrix now carries three
+persistence rows (1e-6/1e-9/1e-12) hosted. pr6 clones removed.
+A/B row 3 final: fable, L — 2+1 MAJ / 2 MIN / 3 NOTE, 0 silent
+(5 reported), idiom 5 / tests 4 / docs 5, substantial fix passes
+(tagged-token retype + strict maps + goldens + tangent_joints +
+save-door symmetry sweep). **#106 review APPROVE 0/0/4** (opus row
+5 final: 0/0/4, 0 silent, 4/5/5, NO fix pass — first
+zero-fix-pass unit of the milestone; NOTEs banked for 8a latency
+data); PR #113 opened, watcher armed. **8a DISPATCHED** — block 3
+draw: (opus, fable) → 8a = OPUS (A/B row 9, L pre-assigned);
+branch ev/m4-8a-corpus off 78fe760. Remaining after 8a: az PR
+(review executing), #111 (in flight), 8b (fable, gated on 8a),
+8c (orchestrator + Evan).
