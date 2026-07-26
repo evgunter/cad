@@ -1407,3 +1407,21 @@ armed; merge on green. A/B row 1 FILLED (fable, M: 2 claim-level
 MAJ / 1 MIN / 2 NOTE, 0 silent, 4/4/4, moderate fix pass). #106
 stays open as the coverage-gap tracker — NEXT OPUS DISPATCH per
 protocol v2 block 1.
+
+**#101 review returned (2026-07-25 evening): discipline HOLDS at
+every door** — 17 executed probes clean across narrowing holes
+(direct/builder/recipe/embed/multi-loop), verification laundering
+(declared+in-band → typed Escalated with repair menu), R1
+same-carrier gate (near-cocircular escalates), migration intent
+spot-checks (definite-Zero proven by classifier), free arcs
+(validate undeclared), predicate discipline (zero new ε,
+bit-identical margins, interval escalation executed); fillet
+corner bit-exactness re-derived IEEE-step-by-step. 1 MAJOR:
+oversized fillet radius silently validates (arc never approaches
+the corner; sugar doc claim falsified — the review's one silent
+deviation) → RULED: refuse via TangentJointOutOfRange when a
+tangent point falls outside its leg; degenerate-radius test
+family; reviewer probe inverted to pin. 1 MINOR (float_bits
+usize::MAX sentinel collision → tag the key space), 3 NOTEs. Fix
+pass dispatched. Quality rubric (A/B row 4 pending fix pass):
+1/1/3, 1 silent dev, idiom 5 / tests 4 / docs 4.
