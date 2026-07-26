@@ -84,8 +84,16 @@ fn truncated_file_refuses_typed_with_position() {
     let (_, text) = small();
     let cut = &text[..text.len() * 2 / 3];
     match load(cut) {
-        Err(PersistError::Parse { line, column, .. }) => {
-            assert!(line >= 1 && column >= 1, "position info must be real");
+        Err(PersistError::Parse {
+            line,
+            column,
+            message,
+        }) => {
+            // serde_json's 1-based position; column is 0 exactly at a
+            // line boundary (where an eps-dependent file length can
+            // legitimately land the cut), so only the line is bounded.
+            assert!(line >= 1, "position info must be real: {line}:{column}");
+            assert!(!message.is_empty());
         }
         other => panic!("expected Parse with position, got {other:?}"),
     }
