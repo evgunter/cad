@@ -9,9 +9,10 @@ use crate::round::{down1, mul_hi, mul_lo, up1};
 
 /// Smallest `a` for which the FMA exactness witness for `sqrt` is valid:
 /// below this the residual `s·s − a` can itself underflow and the test
-/// becomes unreliable (docs/derivations.md §3). Exactly `2^-968`
-/// (IEEE 754 bit pattern: biased exponent 1023 − 968 = 55, zero mantissa).
-const SQRT_EXACT_WITNESS_MIN: f64 = f64::from_bits(0x0370_0000_0000_0000);
+/// becomes unreliable (docs/derivations.md §3). Exactly `2^-960`, the
+/// same 2Prod validity floor as `round.rs` (harness-hardened margin)
+/// (IEEE 754 bit pattern: biased exponent 1023 − 960 = 63, zero mantissa).
+const SQRT_EXACT_WITNESS_MIN: f64 = f64::from_bits(0x03F0_0000_0000_0000);
 
 impl DInterval {
     /// Enclosure of `sqrt` over `self ∩ [0, ∞)`. Partial domain miss

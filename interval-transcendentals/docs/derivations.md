@@ -76,11 +76,19 @@ including adversarial edge sweeps; a single violation fails the build.
 valid because the rounding error of a product is exactly representable
 when the product does not underflow (2Prod validity condition,
 Ogita–Rump–Oishi, *Accurate Sum and Dot Product*, SIAM J. Sci. Comput.
-2005). We require `a >= 2^−968` so the residual `s·s − a` (a multiple of
-`2^(2e_s−105)`, `e_s >= −484`) stays `>= 2^−1074`, i.e. cannot itself
-be flushed to an untruthful zero. Below the threshold: always pad.
-The same witness gates exact multiplication in `round.rs::mul_exact`
-(there guarded by `r.is_normal()`).
+2005; floor ≈ `2^−969` for binary64). We gate BOTH the sqrt witness and
+`round.rs::mul_exact` at `2^−960` — nine spare binades over the
+literature floor — so the residual can never be flushed to an
+untruthful zero. Below the gate: always pad.
+
+**Harness catch (kept as a war story because it is the whole point of
+the oracle):** the first implementation gated `mul_exact` on
+`r.is_normal()`. The differential harness found a barely-*normal*
+product of a subnormal factor whose residual underflowed: the witness
+returned "exact", the unpadded corner was 1 ulp short of the oracle's
+hull — a real containment violation at case 997 of the arithmetic
+sweep. `is_normal()` of the ROUNDED product is not the 2Prod validity
+condition; the magnitude gate is.
 
 ## §4 Extremum / pole localization (trig) and atan2 corners
 

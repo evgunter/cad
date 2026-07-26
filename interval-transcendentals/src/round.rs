@@ -99,8 +99,8 @@ fn two_sum_err(a: f64, b: f64, s: f64) -> f64 {
 /// corner value is the real number 0, even against an infinite bound, so
 /// `0.0` is exact — this is what interval multiplication needs and it
 /// sidesteps the `0 × inf = NaN` trap). Exactness test: the FMA residual
-/// `fma(a, b, -r)` equals the true rounding error whenever `r` is normal
-/// (2Prod validity requires no underflow — Ogita–Rump–Oishi); zero factors
+/// `fma(a, b, -r)` equals the true rounding error whenever the product
+/// clears the 2Prod validity floor ([`TWO_PROD_VALID_MIN`]); zero factors
 /// are exact by inspection; everything else pads one step (Lemma P1).
 #[inline]
 pub(crate) fn mul_lo(a: f64, b: f64) -> f64 {
@@ -121,12 +121,25 @@ pub(crate) fn mul_hi(a: f64, b: f64) -> f64 {
     if mul_exact(a, b, r) { r } else { up1(r) }
 }
 
+/// 2Prod validity floor: the FMA residual `a·b − r` is guaranteed exactly
+/// representable only when `|a·b| >= 2^-969` (Ogita–Rump–Oishi; below it
+/// the residual itself can underflow and a nonzero true residual can
+/// round to 0.0, making the witness LIE). We gate at `2^-960` — the
+/// literature floor is ~2^-969; the extra 9 binades absorb every
+/// boundary quibble (r vs exact-product magnitude, subnormal factors)
+/// at zero practical cost. Exactly `2^-960`
+/// (bit pattern: biased exponent 1023 − 960 = 63, zero mantissa).
+/// Found live by the differential harness: a barely-NORMAL product of a
+/// subnormal factor passed an `is_normal()` guard while its residual
+/// underflowed — a 1-ulp containment violation vs the oracle.
+const TWO_PROD_VALID_MIN: f64 = f64::from_bits(0x03F0_0000_0000_0000);
+
 #[inline]
 fn mul_exact(a: f64, b: f64, r: f64) -> bool {
-    // `is_normal()` excludes r == ±inf (overflow: pad; the pad saturates
-    // to MAX/inf correctly) and subnormal r (2Prod residual can itself
-    // underflow there, so the test would be unreliable — always pad).
-    r.is_normal() && f64::mul_add(a, b, -r) == 0.0
+    // The magnitude gate also rejects r == ±inf only via the FMA check
+    // (fma(a, b, ∓inf) is ±inf or NaN, never 0.0), and rejects all
+    // subnormal/underflow-adjacent products where the witness is invalid.
+    r.abs() >= TWO_PROD_VALID_MIN && f64::mul_add(a, b, -r) == 0.0
 }
 
 /// Lower bound of `a / b` (`b != 0`); always pads (division is rarely
