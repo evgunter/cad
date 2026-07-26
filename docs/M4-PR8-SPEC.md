@@ -1,9 +1,17 @@
 # M4 PR 8 binding spec — Band 4 corpus, K-telemetry + large-K lint, exit sweep
 
-Status: DRAFT until PR 6 merges (dispatch gate: PR 6 + #101 on
-main). BINDING once dispatched. M4-PLAN item 8; obligations
-accumulated across the milestone are inventoried here exhaustively.
-Deviations via the REPORT mechanism only.
+Status: DRAFT until PR 6 merges. **SPLIT (Evan, 2026-07-26) into
+three sequenced units**:
+- **PR 8a** (implementer dispatch; gate: PR 6 + #101 merged) =
+  D1 + D2 below. Difficulty L.
+- **PR 8b** (implementer dispatch; gate: 8a merged — the lint
+  baseline computes against the MERGED corpus) = D3 below.
+  Difficulty M.
+- **PR 8c** (ORCHESTRATOR work + Evan sign-off, per the
+  design-conversation-PR convention; gate: 8b merged; the exit
+  walk runs LAST against merged deliverables, never
+  self-attesting) = D4 + D5 + D6 below. Not an A/B row.
+D7/D8 apply to all three. Deviations via the REPORT mechanism.
 
 ## D1 — Band 4 model corpus
 

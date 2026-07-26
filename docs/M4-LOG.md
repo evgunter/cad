@@ -1455,3 +1455,11 @@ place), and #106 remains the tracked coverage residue (next OPUS
 dispatch). issue93 clones removed. Merge order proceeding: #101
 (fix pass running; merges main before PR) → PR 6 (review running;
 fix pass merges main + extends schema v1 to tangent_joints).
+
+**PR 8 SPLIT (2026-07-26, Evan's question — he's right)**: 8a =
+corpus + latency reporting (implementer, L, gate PR 6+#101); 8b =
+K-probe + large-K lint (implementer, M, gate 8a merged so the
+lint baseline is stable); 8c = DESIGN.md exit sweep + trim + exit
+walk (ORCHESTRATOR + Evan sign-off — design-ratification work per
+the M0-M3 convention; runs LAST, never self-attesting; not an A/B
+row). Spec restructured in place.
