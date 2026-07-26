@@ -1382,3 +1382,16 @@ invalid numbers); killed PID-scoped, stray target/ deleted (35G→
 freed, disk 87G), all three lanes corrected (cd-per-command now
 mandatory), lesson banked in subagent-death-recovery memory with
 the /proc-cwd sweep check.
+
+**Session crash + recovery (2026-07-25 ~16:20 → 21:21 PDT, cause
+unknown — Evan doesn't know either; not disk (87G free at the
+time), possibly WSL or host)**: whole Claude process died; all
+monitors and three subagent lanes orphaned. NOTHING LOST —
+push-per-unit held again: #93's fix-pass commit a628040 pushed
+pre-crash (docs corrected, #105/#106 pins, minors); PR 6's
+bb16238 pushed; #101-review clone intact. Recovery: monitors
+re-armed ×3; all three agents resumed from transcript with the
+cd-per-command + foreground-battery rules restated; #93 verifying
+its final battery then done, PR 6 filling report placeholders,
+#101 review continuing. Reports outstanding: #93 final numbers,
+pr6-report placeholders, issue101-review-report (not started).
