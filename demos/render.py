@@ -82,6 +82,11 @@ def draw(ax, scene, stl_dir):
     lo = np.full(3, np.inf)
     hi = np.full(3, -np.inf)
     for body in scene["bodies"]:
+        if body["stl"] is None:
+            # A #111-pinned body: the STL writer refused its defective
+            # tessellation typed; only the FreeCAD/STEP lane can draw it.
+            print(f"WARNING: {scene['name']}: body has no STL (#111 pin) — skipped")
+            continue
         verts = orient(read_binary_stl(stl_dir / body["stl"]), up)
         front = cull_backfaces(verts, elev, azim)
         colors = shade(front, body["color"])
