@@ -1507,3 +1507,21 @@ removed. PR 6 PHASE 2 GO sent (merge main + tangent_joints schema
 extension + regenerated golden + full battery). Remaining to M4
 code-complete: PR 6 merge → 8a → 8b; then 8c exit sweep
 (orchestrator + Evan). #106 (Opus row) in flight, not a gate.
+
+**Side-chain dispatches (2026-07-26, Evan's ask)**: (1) IN-HOUSE
+INTERVAL TRANSCENDENTALS (the tabled DESIGN.md post-M7 item pulled
+forward): standalone workspace-excluded crate, proven libm error
+pads + monotonicity/extremum handling, decoration semantics per
+the M0 poison ruling, differential containment/tightness harness
+vs inari-as-dev-dep-oracle, build/perf evidence; kernel UNTOUCHED
+(adoption = later ratified decision). A/B ROW 5: difficulty L
+pre-assigned, arm = FABLE (block-1 remainder, no draw). Branch
+ev/interval-transcendentals. (2) M6 PRE-DESIGN: ERROR-DESIGN.md
+DRAFT (error-propagation MVP — distributions, Dual sensitivities/
+stackups, interval-over-parameter-box checks; composes with W1-W9)
+per the NAMING/SOLVER/CURVED pre-milestone pattern; zero-cargo
+lane; design conversation with Evan later. Branch
+ev/m6-error-design. DEFERRED deliberately: REST-contact join lane
+(collides with #106's region — after it merges); arc-leg fillet
+sugar (filler). Four lanes now: PR 6 fix pass, #106 (opus),
+interval-core, m6-design.
