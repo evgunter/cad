@@ -1598,3 +1598,12 @@ replaced by TAIL-MASS ACCOUNTING (unbounded supports welcome;
 analysis box is the knob; outside-mass carried as an explicit
 additive term in every result; truncation = optional sugar).
 Awaiting Evan's reaction before the drafter reworks.
+
+**PR 6 PR OPENED (2026-07-26): #112 @ a4997ff** — schema v1 freeze
+(the M5 gate). Delta fix closed MAJOR-DELTA-1 (save-door joint
+bounds, both sites) + two symmetry-sweep holes beyond the ask
+(save-side EditReplay verification; to_value duplicate-key
+refusal). Full trail in the PR body. Checks watcher armed; merge
+on green → then 8a dispatch (block 3 draw). A/B row 3 rubric on
+merge: 2 MAJ / 2 MIN / 3 NOTE + 1 delta MAJ, 0 silent (5 reported
+devs), idiom 5 / tests 4 / docs 5.
