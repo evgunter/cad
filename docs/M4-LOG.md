@@ -1554,3 +1554,17 @@ Blinded reviewer LAUNCHED (attack: anchor-only chord-existence gap
 vs the theorem's some-vertex guarantee, boundary-midpoint
 certification, oracle re-derivation, ablation-claim verification,
 tier-ordering verdict-log identity).
+
+**ERROR-DESIGN.md DRAFT delivered (2026-07-26): PR #110 opened as
+a design conversation (WAITS for Evan — the pre-milestone design
+class; no self-merge).** E1-E11: distributions as document-layer
+ParamDef metadata (kernel sees boxes/seeds only), Measure sink
+nodes, chamber-certified-or-local_only Dual sensitivities,
+certified-interval worst-case gates with RSS advisory (refused
+under Band), read-only analysis lane composing with W1-W9 (leaf-
+box W2 certificates; no crossing witness walls — a flagged
+narrowing of Q1's union sentence). Five spiciest calls front-
+loaded in the PR body; sign-off comment on the watchlist. PR 6
+delta re-check dispatched to its reviewer (tagged-token retype +
+tangent_joints are post-review deltas — mid-flight-changes
+convention); PR + merge gate on APPROVE-DELTA.
