@@ -1700,3 +1700,20 @@ AND pinned; ops.rs 5 units + 300k×4-op differential lane; build
 claims restated as measured (1.6s withdrawn). Final: certify
 12/12 (~5.8M asserts / 4.0M cases), edges 9/9, computable 4/4,
 kernel untouched. Watcher armed (13-row floor).
+
+**Second limit outage + recovery (2026-07-26 ~11:21-23:30 PDT)**:
+Fable limit hit mid-day; Evan re-logged-in evening. Pre-limit
+landings survived pushed: #115 checks went green during the gap →
+MERGED on wake (main `12851a2` — the interval crate lands as
+tooling); **8a COMPLETED pre-limit** (ev/m4-8a-corpus @ 172ebe9:
+8 documents / 160 nodes, coverage ASSERTED with fails-on-unlisted-
+kind, 6 == mass pins with derivations, PR 6 rows rewired onto the
+corpus, latency lane report-only with counted-reuse asserts — die
+14.4s→1.0s incremental, cone 3/77; TWO findings: depth-2 chain
+pinned-refusal with promotion path since #106 postdates its base,
+and PR 6's kitchen-sink fixture carries a silently-Failed boolean
+its fingerprint comparison can't see). #111 reviewer died at the
+limit → resumed. **8a blinded reviewer LAUNCHED** (coverage-
+totality tamper, 3 oracle re-derivations, both findings verified
+incl. promotion-path execution, Recorder fidelity, cone-by-hand,
+no-gate grep, old-fixture coverage shrinkage).
