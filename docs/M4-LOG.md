@@ -1525,3 +1525,16 @@ ev/m6-error-design. DEFERRED deliberately: REST-contact join lane
 (collides with #106's region — after it merges); arc-leg fillet
 sugar (filler). Four lanes now: PR 6 fix pass, #106 (opus),
 interval-core, m6-design.
+
+**computable revival (2026-07-26, Evan)**: his prior computable-
+reals library (~/projects/computable — state/bounds/refinement
+formalism, dyadic bounds, refine_to) joins the interval-core lane
+as a potential SECOND ORACLE (inari-independent tight enclosures
+for the containment harness); Evan upgraded scope from read-only
+to fix-up-with-purpose ("inspiration to revive it"). Lane rules:
+guest conventions (its AGENTS.md/STYLE.md), new branch, no history
+rewrites, never push its default; scope ladder rot→bugs→
+transcendental additions with a size-it-first valve so the
+interval crate stays primary. Honest-fitness paragraph still
+required (computable reals ≠ fixed-precision interval lane;
+possible M6 clearance-check exactness role).
