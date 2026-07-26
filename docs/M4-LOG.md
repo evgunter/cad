@@ -1498,3 +1498,12 @@ FILLED: #101, fable, M — 1 MAJ / 1 MIN / 3 NOTE, 1 silent dev
 fix-pass moderate (fillet Result + fit predicate + 6 pins + key
 fix), ~880k tokens incl. crash resume, checks watcher armed.
 Merge on green → then PR 6 phase 2 ping.
+
+**#109 MERGED (2026-07-26): main `1f3be61`, closes #101** on 10/10
+green. The declared-tangency discipline is live: profiles refuse
+undeclared definite-Zero tangency, declarations verify, the fillet
+constructor authors exact tangency with fit gating. #101 clones
+removed. PR 6 PHASE 2 GO sent (merge main + tangent_joints schema
+extension + regenerated golden + full battery). Remaining to M4
+code-complete: PR 6 merge → 8a → 8b; then 8c exit sweep
+(orchestrator + Evan). #106 (Opus row) in flight, not a gate.
