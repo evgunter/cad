@@ -1641,3 +1641,11 @@ from v2. Blinded review LAUNCHED on v2 (pad-math per-function
 derivation checks, war-story reproduction incl. fix-revert,
 harness-direction integrity, degrade-boundary bombardment).
 Adoption = separate ratified decision (M5-PLAN candidate).
+
+**#114 MERGED (2026-07-26): main `1f7e1e9`** — the A×Z scene +
+render land (13-row green); az clones removed. A/B row 7 final:
+fable, S — 1 MAJ (fallback-lane crash) / 1 MIN / 2 NOTE, 0 silent,
+idiom 4 / tests 4 / docs 4, small fix pass, ~263k tokens. Open
+PRs now: #110 only (ERROR-DESIGN, Evan's careful pass). In
+flight: 8a (opus), #111 (opus), interval-review. M4 close =
+#111 merge + 8a + 8b + 8c.
