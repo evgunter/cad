@@ -1463,3 +1463,20 @@ lint baseline is stable); 8c = DESIGN.md exit sweep + trim + exit
 walk (ORCHESTRATOR + Evan sign-off — design-ratification work per
 the M0-M3 convention; runs LAST, never self-attesting; not an A/B
 row). Spec restructured in place.
+
+**PR 6 review returned (2026-07-26): REQUEST CHANGES — 2 MAJ / 2
+MIN / 3 NOTE, all narrow; every REPORT claim verified true**
+(float_roundtrip proven load-bearing by removal; independent
+14-edit-variant doc round-trips bit-identical at 3 ε + interval;
+ε-diff golden exact + tamper-fails; layering holds; memo works
+under tag 2). MAJ-1: NaN with all-ones bits skips the save-door
+walk (float_bits loop marker = real NaN; second sentinel-collision
+this milestone — pattern flagged) → save accepted NaN, wrote null,
+unloadable file. MAJ-2: duplicate JSON keys last-wins silently in
+serde-derived maps (no-silent-loads violated). MIN-3: no committed
+golden v1 fixture (drift CI-invisible — fixpoint-only row). MIN-4:
+tangent_joints extension scoped precisely (wire field + key/bit_eq
+/content-key sight + embed carry + corpus row). Fix pass dispatched
+TWO-PHASE: doors+golden now; tangent_joints after #101 merges.
+Quality (A/B row 3 pending): 2/2/3, 0 silent (5 reported devs),
+idiom 5 / tests 4 / docs 5.
