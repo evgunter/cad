@@ -1490,3 +1490,11 @@ no in-band sentinels anywhere; both classes become unrepresentable.
 Rides PR 6's existing content-key tag bump (keys process-internal
 per D3, zero persistence impact). Added to PR 6 fix pass phase 1
 with a STOP-and-REPORT scope valve.
+
+**#101 PR OPENED (2026-07-26): #109 @ b4f0eed** (post-merge of
+#108; 147 suites 1283/1283/1429, eps_regression 3/3). A/B ROW 4
+FILLED: #101, fable, M — 1 MAJ / 1 MIN / 3 NOTE, 1 silent dev
+(the falsified fillet doc claim), idiom 5 / tests 4 / docs 4,
+fix-pass moderate (fillet Result + fit predicate + 6 pins + key
+fix), ~880k tokens incl. crash resume, checks watcher armed.
+Merge on green → then PR 6 phase 2 ping.

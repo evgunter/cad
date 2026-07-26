@@ -32,7 +32,7 @@ day). Protocol:
 | 1 | 2026-07-25 | #93 join-stage seam-region anchors | M | fable (draw 197) | 2/1/2 (both MAJ = claim-level; one credited a main bug the fix already fixed) | 0 | 4 | 4 | 4 | moderate (doc corrections + 2 adopted pins + 2 minors) | 145 suites: 1263/1263/1408, all pin families green | ~1.15M (incl. 2 crash resumes) | ~19h wall incl. crash gap (~5h active) |
 | 2 | 2026-07-25 | #99 tour ε-panic | S | fable (draw 220) | 0/1/3 | 0 | 5 | 4 | 5 | 1 line (orchestrator-applied) | tour 3/3 ε rows; zero kernel diff | 58k | 6.4 min |
 | 3 | 2026-07-25 | M4 PR 6 persistence | L | fable (draw 221) | — | — | — | — | — | — | — | — | — |
-| 4 | 2026-07-25 | #101 declared tangency | M | fable (draw 218) | — | — | — | — | — | — | — | — | — |
+| 4 | 2026-07-25 | #101 declared tangency | M | fable (draw 218) | 1/1/3 | 1 (falsified doc claim) | 5 | 4 | 4 | moderate (fillet Result + fit predicate + 6 pins) | 147 suites: 1283/1283/1429 + eps 3/3 | ~880k | ~9h wall (incl. crash gap) |
 
 PROTOCOL CHANGE (2026-07-25, Evan approved: "shuffled pairs makes
 sense") after four consecutive fable draws (197, 220, 221, 218;
