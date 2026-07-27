@@ -1801,3 +1801,12 @@ designed-MAJ / 3 MIN / 3 NOTE, 0 silent, idiom 5 / tests 5 / docs
 4. Watcher armed (14-row floor — latency row joins the matrix).
 On green: merge → 8b dispatch (fable; #117 + demos hygiene + the
 K-lint) → 8c.
+
+**8a MERGED (2026-07-27): #118 → main `b86cfbb`** on the 16-row
+matrix (corpus ×2ε + latency rows now hosted). 8a clones removed.
+**8b DISPATCHED** (A/B row 10: M pre-assigned, fable per block-3
+remainder; branch ev/m4-8b-klint): D3 K-probe over corpus + demos,
+large-K advisory lint with the #99 datum as the litmus fixture,
+docs/k-report-data regeneration; pickups #117 (sick fixture +
+green-evaluation row assertion) and demos fmt/clippy hygiene with
+a ci-local guard. After 8b: 8c (orchestrator exit sweep + Evan).
