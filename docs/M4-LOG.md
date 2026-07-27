@@ -1860,3 +1860,11 @@ the PR, and proceed immediately on the recommended fork answers
 by him). Fork-independent units run first regardless (interval
 adoption GREEN-LIT, CURVED post-ratification obligations, C12
 seams). Handoff prompt updated.
+
+**8c MERGED (2026-07-27): #119 → main `3ac4d68` — THE M4 EXIT
+SWEEP IS RATIFIED** (Evan 👍 + two in-chat riders: interval
+adoption green-lit; GUI state/history separation note; convention
+2 sharpened to his structural-shared-validator form). DESIGN.md,
+exit walk, status headers, D5 trim, ERROR tails amendment — all
+on main. Remaining: #121 (8b) merges on green → final snapshot →
+handoff to cad-implement-m5 → self-stop.
