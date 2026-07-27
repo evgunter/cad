@@ -314,3 +314,41 @@ jobs:
         run: cargo test -p editor-core --test m4_pr8_corpus -- --nocapture
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+
+  # M4 PR 8b spec D3: the large-K fragility lint. ADVISORY first
+  # iteration — the lint tool prints flags and always exits 0 on
+  # findings; this job can only fail on harness breakage (sweep or
+  # parse failure), a hygiene regression, or the #99 litmus no longer
+  # firing. The committed baseline + threshold provenance:
+  # docs/k-report-data/m4-eps-*.csv.gz and tools/k-lint/src/lib.rs
+  # (docs/K-REPORT.md M4 addendum has the histogram + percentile
+  # reasoning).
+  k-lint:
+    name: k-lint (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: k-lint
+          workspaces: |
+            .
+            demos/tour
+            tools/k-lint
+      # Hosted mirror of ci-local's "demos tour (fmt + clippy)" row:
+      # the tour is workspace-excluded, so the fmt/clippy jobs above
+      # never see it — and this is the job that builds it anyway (the
+      # demo scenes are half the lint's subject matter).
+      - name: demos tour fmt + clippy
+        run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
+        run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
+        run: scripts/k_probe_sweep.sh target/k-fresh
+      - name: large-K lint (advisory — prints, never fails on findings)
+        run: |
+          cd tools/k-lint && cargo run -- \
+            ../../target/k-fresh/m4-eps-1e-6.csv \
+            ../../target/k-fresh/m4-eps-1e-9.csv \
+            ../../target/k-fresh/m4-eps-1e-12.csv

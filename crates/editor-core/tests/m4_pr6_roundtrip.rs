@@ -12,6 +12,10 @@
 //! 1e-12} and under the interval feature
 //! (`m4_pr6_roundtrip_interval` wraps the same corpus).
 //!
+//! Every evaluated fixture must also be GREEN (#117): fingerprint
+//! identity alone is blind to evaluation health, so a sick fixture
+//! would otherwise round-trip perfectly while proving almost nothing.
+//!
 //! D2 lives in `m4_pr6_floats.rs` (the bit-level float property row).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -29,8 +33,22 @@ use corpus::documents;
 /// (payload arenas, name tables, verdicts, content keys) plus the
 /// appearance resolution. `Debug` prints floats shortest-round-trip
 /// (bit-faithful for finite values, sign of zero included).
-fn eval_fingerprint(doc: &ProfileDoc) -> String {
+fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
     let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    // #117: fingerprint identity is BLIND to evaluation health — a sick
+    // document (Failed/Poisoned nodes) round-trips just as bit-perfectly
+    // as a green one, which is exactly how PR 6's legacy kitchen-sink
+    // fixture carried 2 Failed + 4 Poisoned of 20 nodes through two
+    // passing persistence rows. Assert green here so any future sick
+    // fixture fails loudly instead of proving less than the row appears
+    // to.
+    let bad = corpus::failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "{label}: persistence fixture did not evaluate green (#117 — \
+         fingerprint comparison cannot see evaluation health):\n{}",
+        bad.join("\n")
+    );
     format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
 }
 
@@ -82,8 +100,8 @@ fn save_load_replay_identity() {
         // bit-identical — name tables, bodies, verdicts, keys.
         if check_eval {
             assert_eq!(
-                eval_fingerprint(&expected),
-                eval_fingerprint(&loaded.doc),
+                eval_fingerprint(&label, &expected),
+                eval_fingerprint(&label, &loaded.doc),
                 "{label}: evaluation fingerprint drifted across save/load"
             );
         }

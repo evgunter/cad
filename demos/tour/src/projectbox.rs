@@ -22,16 +22,17 @@ use topo::BooleanBody;
 
 use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, try_subtract, try_union};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
-/// Builds the enclosure; returns the stop and a clone of the final
-/// body (the cutaway stop splits it).
-pub fn stop() -> (Stop, topo::Body<f64>) {
+/// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
+/// same ops); returns the final body and its exact volume.
+pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
-    let outer = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
+    let outer: topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
     let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0));
     let mut vol = 9.0 - 2.5 * 1.5 * 1.25;
-    let mut acc: BooleanBody<f64> = expect_seamed(
+    let mut acc: BooleanBody<S> = expect_seamed(
         "cavity subtract",
         check(try_subtract(&outer, &cavity), vol),
         vol,
@@ -84,7 +85,13 @@ pub fn stop() -> (Stop, topo::Body<f64>) {
         }
     }
     assert_eq!(ops, 15);
+    (acc, vol)
+}
 
+/// The tour stop; returns it with a clone of the final body (the
+/// cutaway stop splits it).
+pub fn stop() -> (Stop, topo::Body<f64>) {
+    let (acc, vol) = build::<f64>();
     let body_for_cutaway = acc.body.clone();
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \

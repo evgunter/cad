@@ -3,3 +3,7 @@
 *.local.*
 .claude/worktrees
 __pycache__/
+
+# Cargo build artifacts of the workspace-excluded projects
+demos/tour/target/
+tools/k-lint/target/

@@ -3,6 +3,10 @@
 //! any API shift is a one-file adaptation here — plus the shared
 //! exact-volume oracle every boolean scene runs its results through.
 //!
+//! Generic over [`Scalar`] (M4 PR 8b): the same wrappers serve the
+//! f64 tour and the Probe K-telemetry sweep; oracles compare through
+//! the exact `f()` extraction.
+//!
 //! Tier-3 posture: RETIRED as a workaround. Boolean results validate
 //! as they are, via `validate_pseudomanifold` with the op's own
 //! declared `contacts` (M3 PR 6a's 3′ contract) — see
@@ -14,38 +18,43 @@
 
 use topo::{Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
 
+use crate::scalar::Scalar;
+
 /// A ∪* B — refusals surface to the caller; every result goes through
 /// the scene builders' exact-volume oracle before it ships.
-pub fn try_union(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, BooleanError> {
+pub fn try_union<S: Scalar>(a: &Body<S>, b: &Body<S>) -> Result<BooleanResult<S>, BooleanError> {
     topo::union(a, b)
 }
 
 /// A ∖* B (same posture as [`try_union`]).
-pub fn try_subtract(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, BooleanError> {
+pub fn try_subtract<S: Scalar>(a: &Body<S>, b: &Body<S>) -> Result<BooleanResult<S>, BooleanError> {
     topo::subtract(a, b)
 }
 
 /// A ∩* B (same posture as [`try_union`]).
-pub fn try_intersect(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanResult<f64>, BooleanError> {
+pub fn try_intersect<S: Scalar>(
+    a: &Body<S>,
+    b: &Body<S>,
+) -> Result<BooleanResult<S>, BooleanError> {
     topo::intersect(a, b)
 }
 
 /// A ∪* B with the scene's flush contacts DECLARED (M4 PR 5: the
 /// author's coincidence intent, stated — the kernel never infers it
 /// from values).
-pub fn try_union_declared(
-    a: &Body<f64>,
-    b: &Body<f64>,
-) -> Result<BooleanResult<f64>, BooleanError> {
+pub fn try_union_declared<S: Scalar>(
+    a: &Body<S>,
+    b: &Body<S>,
+) -> Result<BooleanResult<S>, BooleanError> {
     topo::union_with(a, b, &flush_declarations(a, b))
 }
 
 /// A ∩* B with the scene's flush contacts declared
 /// ([`try_union_declared`]).
-pub fn try_intersect_declared(
-    a: &Body<f64>,
-    b: &Body<f64>,
-) -> Result<BooleanResult<f64>, BooleanError> {
+pub fn try_intersect_declared<S: Scalar>(
+    a: &Body<S>,
+    b: &Body<S>,
+) -> Result<BooleanResult<S>, BooleanError> {
     topo::intersect_with(a, b, &flush_declarations(a, b))
 }
 
@@ -55,20 +64,21 @@ pub fn try_intersect_declared(
 /// scene author BUILT the contact deliberately; this writes the
 /// intent down. Certification still happens inside the op through
 /// the verified declared rung.
-pub fn flush_declarations(a: &Body<f64>, b: &Body<f64>) -> topo::BooleanDeclarations {
+pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> topo::BooleanDeclarations {
     use geom_core::Sign;
     use geom_core::k_stats::decide;
     let band = geom_core::Band::linear().unwrap();
-    let planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> {
-        body.faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => {
-                    Some((k, origin, normal))
-                }
-                _ => None,
-            })
-            .collect()
-    };
+    let planes =
+        |body: &Body<S>| -> Vec<(topo::FaceKey, geom_core::Point3<S>, geom_core::Vec3<S>)> {
+            body.faces()
+                .filter_map(|(k, f)| match body.get_surface(f.surface) {
+                    Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => {
+                        Some((k, origin, normal))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
     let mut decls = topo::BooleanDeclarations::none();
     for &(fa, oa, na) in &planes(a) {
         for &(fb, ob, nb) in &planes(b) {
@@ -79,8 +89,8 @@ pub fn flush_declarations(a: &Body<f64>, b: &Body<f64>) -> topo::BooleanDeclarat
                 continue;
             }
             let sigma = match decide("demo_flush_orient", na.dot(nb), band) {
-                Ok(Sign::Positive) => 1.0,
-                Ok(Sign::Negative) => -1.0,
+                Ok(Sign::Positive) => S::from_f64(1.0),
+                Ok(Sign::Negative) => S::from_f64(-1.0),
                 _ => continue,
             };
             let da = na.dot(oa - geom_core::Point3::origin());
@@ -103,12 +113,12 @@ pub fn flush_declarations(a: &Body<f64>, b: &Body<f64>) -> topo::BooleanDeclarat
 // Size skew vs the slim failure variants is inherent (same posture as
 // the kernel's own `BooleanResult`).
 #[allow(clippy::large_enum_variant)]
-pub enum Verdict {
+pub enum Verdict<S: Scalar> {
     /// The bool records whether the volume matched the oracle
     /// BIT-EXACTLY (#91 review N1: the gate is 1e-9 because the
     /// table's non-dyadic dims carry a few-ulp integration gap;
     /// dyadic scenes are observed bit-exact and say so).
-    Good(BooleanBody<f64>, bool),
+    Good(BooleanBody<S>, bool),
     /// Op "succeeded" (tier 1+2 legal) with the WRONG volume — the
     /// silent wrong-component defect class (extinct since the PR 5
     /// fix pass; the oracle stays armed anyway).
@@ -120,12 +130,13 @@ pub enum Verdict {
     Empty,
 }
 
-pub fn check(r: Result<BooleanResult<f64>, BooleanError>, expected: f64) -> Verdict {
+pub fn check<S: Scalar>(r: Result<BooleanResult<S>, BooleanError>, expected: f64) -> Verdict<S> {
     match r {
         Ok(BooleanResult::Body(b)) => {
             let v = topo::mass_properties(&b.body)
                 .expect("mass properties")
-                .volume;
+                .volume
+                .f();
             if (v - expected).abs() <= 1e-9 {
                 Verdict::Good(b, v == expected)
             } else {
@@ -137,7 +148,7 @@ pub fn check(r: Result<BooleanResult<f64>, BooleanError>, expected: f64) -> Verd
     }
 }
 
-pub fn describe(v: &Verdict, expected: f64) -> String {
+pub fn describe<S: Scalar>(v: &Verdict<S>, expected: f64) -> String {
     match v {
         Verdict::Good(b, bit_exact) => format!(
             "OK (kind {:?}, volume = {expected}, {})",
@@ -161,7 +172,7 @@ pub fn describe(v: &Verdict, expected: f64) -> String {
 
 /// Unwraps a [`Verdict`] the scene REQUIRES to be good and `Seamed`,
 /// with the failure narrated in the panic.
-pub fn expect_seamed(what: &str, v: Verdict, expected: f64) -> BooleanBody<f64> {
+pub fn expect_seamed<S: Scalar>(what: &str, v: Verdict<S>, expected: f64) -> BooleanBody<S> {
     match v {
         Verdict::Good(b, _) => {
             assert_eq!(
