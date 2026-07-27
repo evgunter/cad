@@ -139,22 +139,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The `interval` feature builds inari's bundled GMP+MPFR from C
-      # source (gmp-mpfr-sys), whose autotools configure needs m4.
-      - name: install m4
-        run: sudo apt-get update && sudo apt-get install -y m4
+      # NOTE (M5 PR 1): this job used to `apt-get install m4` before
+      # anything else, because the `interval` feature built inari's
+      # bundled GMP+MPFR from C source and its autotools configure needs
+      # m4. The backend is now `interval-transcendentals` — pure Rust, no
+      # C, no system packages — so that step is gone. Every `run:` below
+      # is byte-for-byte what it was; the rows simply build gmp-free now.
       - uses: dtolnay/rust-toolchain@stable
-      # Distinct cache key: the GMP/MPFR C build takes minutes and its
-      # artifacts live in target/, so this job must not share (and evict)
-      # the default-feature jobs' caches. gmp-mpfr-sys also caches its
-      # compiled C libraries under ~/.cache/gmp-mpfr-sys — cache that too,
-      # so the C build survives even a target-cache eviction.
+      # Distinct cache key kept: this job builds a different feature set
+      # from the default-feature jobs, so a shared cache would have the
+      # two evicting each other. (The ~/.cache/gmp-mpfr-sys
+      # cache-directory entry went with the C build it existed for.)
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
-          cache-directories: ~/.cache/gmp-mpfr-sys
       # This job owns the interval feature's clippy pass (the default
-      # clippy job deliberately skips --all-features to stay C-free).
+      # clippy job deliberately skips --all-features).
       - run: cargo clippy --workspace --all-targets --features interval -- -D warnings
       - run: cargo test --workspace --features interval
       # One multi-ε row at interval type (D4 ¶1): the interval band test
