@@ -1,5 +1,8 @@
 # M4 PR 2 binding spec — the evaluation service
 
+Status: **LANDED — PR #83, merged 2026-07-24** (historical record;
+review outcomes and rulings in docs/M4-LOG.md).
+
 Orchestrator-authored binding spec (2026-07-23). Deviations REPORTED,
 never improvised. Charter: M4-PLAN PR 2 under ratified forks F2
 (result-DAG shape), F4 (node vocabulary); plus the two obligations

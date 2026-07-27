@@ -1,11 +1,17 @@
 # Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-M6 design doc)
 
-Status: **DRAFT for design conversation — not ratified.** Round 2
+Status: **RATIFIED (Evan, PR #110, merged 2026-07-27 — 👍 on the
+round-2 sign-off comment).** E1–E11 as revised are the M6
+error-propagation contract seed. Design history: Round 2
 (#110): E1 restated as the *completion* of the Real-trait vision;
 E2 truncation → **tail-mass accounting** (Evan). Round 3 (Evan's
 careful pass, "broadly looks good"): E3 collapsed to one dimension-
 generic Measure sink; E6 adopts **no-flips v1** (Evan's proposal);
 E11 MC softened to a labeled advisory lane; E11.6 histogram note.
+Post-ratification amendment on record (#110 thread, Evan's
+one-branch-tails observation, 2026-07-27): chamber containment
+added to E2 — committed on the orchestrator branch (10cdaff),
+reaches main with the next state-sync PR.
 
 Third of the pre-M6 docs (NAMING-DESIGN #74, SOLVER-DESIGN #79 are
 the pattern). Grounding: DESIGN.md's M6 roadmap entry and central
