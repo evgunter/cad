@@ -35,3 +35,30 @@ ring), PR 3 (linalg + NURBS substrate part 1), S3 (curvo audit —
 must report before PR 4). A/B block 4 opens with the first
 implementation dispatch (pre-flip difficulty logged per protocol
 v2; MODEL-AB-LOG is the log).
+
+**Openers dispatched (2026-07-27, same session)**: #123 opened
+with the sign-off comment watchlisted. Two seam surveys ran
+(interval seam: swap surface is exactly geom-core/src/interval.rs
++ two Cargo.tomls, zero inari use elsewhere; curve/surface
+substrate: no Curve2 exists, Surface::Nurbs is a unit placeholder,
+Real trait confirmed ring-complete for de Boor, no linear-solve
+code anywhere). **S3 curvo audit COMPLETE** (same day —
+docs/CURVO-AUDIT.md @ 1fbf0ad): Q5 default stance CONFIRMED,
+vendoring REJECTED on all four candidate areas (hardcoded
+epsilons/fail-quiet branches at every invariant-relevant surface;
+no A9.10 stack and NO SSI in curvo at all — the DESIGN.md
+landscape row's "incl. SSI" was wrong, corrected); oracle scope =
+evaluation/basis/derivatives, pinned at 47d19d5. Q5 lean revision
+applied to DESIGN.md per the OQ9-decided path. Plan amendments at
+spec time (recorded in #123): PR 1 takes a path-dep (crate keeps
+its own workspace so the gmp dev-oracle stays out of kernel
+builds); C12.8's LSQ/SVD move to their consumer PRs (4/7).
+Binding specs committed: M5-PR1-SPEC.md (API mapping, D1-D8
+divergence handling incl. the D8 floor pin flip, width-pin
+inventory), M5-PR3-SPEC.md (geom-core::spline home, Arc payloads
+with accepted Copy-loss, the SpanLocate seam, clamped-v1,
+Tiller-bound honesty test). **PR 1 implementer DISPATCHED (A/B row
+11: M, OPUS — block-4 draw byte 63) and PR 3 implementer
+DISPATCHED (row 12: L, fable remainder)** — the two cargo lanes;
+PR 2 (C9 ring) queues for the next free lane. Branches:
+ev/m5-pr1-interval-adoption, ev/m5-pr3-nurbs-substrate.
