@@ -1791,3 +1791,13 @@ leaves FlipCrossing ⇒ chamber ⊆ box ⇒ tail provably off-branch ⇒
 budget exact + box-growth stopping rule; free detection).
 Amendment committed to E2; lands on main with the next state-sync
 PR.
+
+**8a PR OPENED (2026-07-27): #118 @ 2b14861** (depth-2 promoted
+green V=13/4; corpus 9 docs / 174 nodes; sub_kinds compile-total;
+MIN-3 DISPUTED with evidence and upheld — reviewer's 14× faster
+run matches the opt-0/opt-2 factor, provenance block records the
+dispute + box-relative clause). A/B row 9 FINAL: opus, L — 1
+designed-MAJ / 3 MIN / 3 NOTE, 0 silent, idiom 5 / tests 5 / docs
+4. Watcher armed (14-row floor — latency row joins the matrix).
+On green: merge → 8b dispatch (fable; #117 + demos hygiene + the
+K-lint) → 8c.
