@@ -161,7 +161,10 @@ impl<T: Decide> Body<T> {
             .ok_or(EulerOpError::StaleGeometry {
                 key: GeomRef::Curve(edge_data.curve),
             })?;
-        let curve = *entry.certified().ok_or(EulerOpError::NullScaffoldCurve {
+        let curve = entry
+            .certified()
+            .cloned()
+            .ok_or(EulerOpError::NullScaffoldCurve {
             curve: edge_data.curve,
         })?;
         // Interiority (trilean, Q1): both sub-spans definitely
@@ -172,7 +175,7 @@ impl<T: Decide> Body<T> {
             geom_curves::Curve3::Circle { radius, .. } => radius,
             // Unreachable through certification (Nurbs carriers refuse
             // at the gate); the poison margin escalates honestly.
-            geom_curves::Curve3::Nurbs => T::from_f64(f64::NAN),
+            geom_curves::Curve3::Nurbs(_) => T::from_f64(f64::NAN),
         };
         let band = Band::linear().map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),

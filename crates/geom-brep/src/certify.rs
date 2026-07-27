@@ -51,6 +51,7 @@
 //! (no atan2 branch selection). It can never disagree with the vertices
 //! by more than ε without failing loudly — a cache, never a peer.
 
+use geom_core::spline::SpanLocate;
 use geom_core::{Band, BandError, Decide, Indeterminate, Point3, Real, Sign};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
@@ -257,7 +258,7 @@ impl std::error::Error for CertifyError {}
 /// carrier cache, and the carrier-parameter interval, exactly as the
 /// construction prepared them. Plain data — the certified product is
 /// [`EdgeCurve`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct EdgeCurveSpec<T: Real> {
     /// The intensional description (authoritative).
     pub description: EdgeGeometry<T>,
@@ -369,7 +370,7 @@ pub struct Certificate<T: Real> {
 /// [`Certificate`] of the attachment-time run. Constructible only
 /// through [`EdgeCurve::certify`] — fields are private so an
 /// uncertified value is unrepresentable (D4 ¶2 made structural).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct EdgeCurve<T: Real> {
     description: EdgeGeometry<T>,
     carrier: Curve3<T>,
@@ -504,6 +505,9 @@ impl<T: Real> EdgeCurve<T> {
         sample_param(self.param_start, self.param_end, i)
     }
 
+}
+
+impl<T: SpanLocate> EdgeCurve<T> {
     /// The two **uncertified child specs** of splitting this certified
     /// carrier at interior parameter `t` (M3 PR 1, for `split_edge`):
     /// the carrier is unchanged and the interval splits at `t`
@@ -543,7 +547,7 @@ impl<T: Real> EdgeCurve<T> {
             };
             EdgeCurveSpec {
                 description,
-                carrier: self.carrier,
+                carrier: self.carrier.clone(),
                 param_start: ta,
                 param_end: tb,
             }
@@ -555,7 +559,7 @@ impl<T: Real> EdgeCurve<T> {
     fn spec(&self) -> EdgeCurveSpec<T> {
         EdgeCurveSpec {
             description: self.description,
-            carrier: self.carrier,
+            carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
         }
@@ -612,7 +616,7 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(radius * (T::one() - half_span.cos()))
         }
-        Curve3::Line { .. } | Curve3::Nurbs => chord,
+        Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
     }
 }
 
@@ -652,12 +656,12 @@ fn run_checks<T: Decide>(
     band: Band,
 ) -> Result<Certificate<T>, CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
-    if matches!(spec.carrier, Curve3::Nurbs) {
+    if matches!(spec.carrier, Curve3::Nurbs(_)) {
         return Err(CertifyError::Unimplemented);
     }
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if matches!(s, Surface::Nurbs) {
+        if matches!(s, Surface::Nurbs(_)) {
             return Err(CertifyError::Unimplemented);
         }
         Ok(s)
@@ -731,7 +735,7 @@ fn run_checks<T: Decide>(
             }
         }
         // Unreachable: check 1 rejected Nurbs carriers already.
-        Curve3::Nurbs => {}
+        Curve3::Nurbs(_) => {}
     }
 
     // ---- Check 3: endpoint pinning. ----
@@ -1209,7 +1213,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::Nurbs;
+        spec.carrier = Curve3::nurbs_placeholder();
         assert_eq!(
             EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap_err(),
             CertifyError::Unimplemented

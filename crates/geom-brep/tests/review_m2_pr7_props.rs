@@ -702,7 +702,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     );
     // (g) Nurbs carrier.
     let e = LoopEdge {
-        carrier: Curve3::Nurbs,
+        carrier: Curve3::nurbs_placeholder(),
         t0: 0.0,
         t1: 1.0,
         forward: true,

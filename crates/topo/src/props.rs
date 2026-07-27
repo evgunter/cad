@@ -210,7 +210,7 @@ fn loop_edges<T: Decide>(body: &Body<T>, lk: LoopKey) -> Result<Vec<LoopEdge<T>>
         };
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
-            carrier: *curve.carrier(),
+            carrier: curve.carrier().clone(),
             t0,
             t1,
             forward: he_key == edge.he_plus,

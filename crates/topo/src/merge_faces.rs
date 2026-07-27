@@ -509,7 +509,7 @@ impl<T: Decide> Body<T> {
                 normal: n2,
                 u_ref: u2,
             },
-        ) = (*s1, *s2)
+        ) = (s1.clone(), s2.clone())
         else {
             return Ok(None);
         };

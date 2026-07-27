@@ -4,8 +4,10 @@
 //! Surface kinds form a **closed enum** per D3 (`docs/DESIGN.md`):
 //! intersection needs pairwise dispatch (plane×cylinder, cylinder×torus,
 //! …), and a closed enum makes every dispatch site exhaustively checked
-//! at compile time. The [`Surface::Nurbs`] variant is the
-//! universal-fallback placeholder — representable now, implemented at M5.
+//! at compile time. The [`Surface::Nurbs`] variant is the universal
+//! fallback — since M5 PR 3 it carries a validated [`NurbsSurface`]
+//! payload (see [`nurbs`]) and its evaluator arms are real; the "no
+//! description yet" state is [`Surface::nurbs_placeholder`].
 //!
 //! This crate deliberately does **not** depend on `geom-curves`: at M2
 //! PR 1 the two are peer evaluators over `geom-core` with no shared
@@ -63,11 +65,14 @@
 //! # Totality, poison, and the evaluation-code discipline
 //!
 //! Identical to `geom-curves` (crate docs there): every method is total
-//! and comparison-free, generic over [`Real`] with no extra bounds,
-//! `sin_cos` is the trig primitive, association orders are fixed and
-//! documented, the [`Surface::Nurbs`] placeholder evaluates to poison,
-//! and everything instantiates at `f64` / `Dual<f64>` / `Interval` /
-//! `Dual<Interval>`.
+//! and its arithmetic comparison-free, `sin_cos` is the trig primitive,
+//! association orders are fixed and documented, the
+//! [`Surface::nurbs_placeholder`] "no description yet" state evaluates
+//! to poison, and everything instantiates at `f64` / `Probe` /
+//! `Dual<f64>` / `Interval` / `Dual<Interval>`. Since M5 PR 3 the
+//! evaluators are bounded by [`geom_core::spline::SpanLocate`] (sole
+//! bound, sealed `Real` subtrait — the NURBS span-selection seam; the
+//! full discipline note lives in `geom-curves`'s crate docs).
 
 pub mod nurbs;
 

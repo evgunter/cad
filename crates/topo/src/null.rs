@@ -140,7 +140,7 @@ pub enum NewVertexSide {
 /// explicitly (typically by refusing with a typed error — tier 2 has
 /// already banned null entities from every at-rest body they should
 /// legitimately see).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum CurveGeom<T: Real> {
     /// A certified edge carrier (the only at-rest state; D4 ¶2).
     Certified(EdgeCurve<T>),

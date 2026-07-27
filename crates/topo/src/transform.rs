@@ -209,7 +209,7 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             minor_radius,
             u_ref: map_vec(map, u_ref),
         },
-        Surface::Nurbs => return Err(TransformError::NurbsPlaceholder),
+        Surface::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
     })
 }
 
@@ -230,7 +230,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             radius,
             u_ref: map_vec(map, u_ref),
         },
-        Curve3::Nurbs => return Err(TransformError::NurbsPlaceholder),
+        Curve3::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
     })
 }
 
@@ -290,7 +290,7 @@ pub fn transform_rigid<T: Decide>(
         let curve_key = edge.curve;
         let he_plus = edge.he_plus;
         let old = match out.curves.get(curve_key) {
-            Some(CurveGeom::Certified(ec)) => *ec,
+            Some(CurveGeom::Certified(ec)) => ec.clone(),
             Some(CurveGeom::NullScaffold(_)) => {
                 return Err(TransformError::NullScaffold { edge: ek });
             }
@@ -325,7 +325,7 @@ pub fn transform_rigid<T: Decide>(
             param_start,
             param_end,
         };
-        let surfaces = |k| out.surfaces.get(k).copied();
+        let surfaces = |k| out.surfaces.get(k).cloned();
         let mapped = EdgeCurve::certify(spec, start, end, surfaces, band)
             .map_err(|source| TransformError::Certify { edge: ek, source })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);

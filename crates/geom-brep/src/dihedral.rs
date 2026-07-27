@@ -263,7 +263,8 @@ mod tests {
     fn nurbs_escalates() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err =
-            classify_dihedral(&s1, &Surface::Nurbs, Point3::origin(), 1.0, band()).unwrap_err();
+            classify_dihedral(&s1, &Surface::nurbs_placeholder(), Point3::origin(), 1.0, band())
+                .unwrap_err();
         assert_eq!(err.margin, geom_core::MarginDiag::Invalid);
     }
 }
