@@ -104,6 +104,21 @@ is a typed document error).
   accounting the tail is `Unanalyzed` mass alongside the refusal
   reasons; one **unresolved-mass budget** (refused + tail) is the
   single honesty gate (E10). Truncation = optional sugar, tail ≡ 0.
+- **One-branch tails amendment (Evan, post-ratification 2026-07-27,
+  #110 thread)**: the no-flips commitment (E6) is what makes the
+  MERGED budget principled, not merely simple — under one branch,
+  tail, `FlipCrossing`, and undersubdivided mass all mean the same
+  thing ("the branch-valid analysis does not cover this mass"), so
+  one budget with a diagnostic breakdown (widen box / subdivide /
+  accept) is the honest shape. **Chamber containment**: if every
+  leaf touching the analyzed box's boundary is `FlipCrossing`-
+  refused, the witness chamber is contained in the box, ALL tail
+  mass is provably off-branch (not merely unexamined), the
+  unresolved budget becomes exact rather than conservative, and box
+  growth has a natural stopping rule (growth can only relabel
+  tail → `FlipCrossing`). Detection is a free predicate on the
+  existing leaf set; E6's driver SHOULD report containment when it
+  holds.
 - **Band carries no measure** — pure worst-case. Any report needing
   a measure (RSS, leaf mass) over a Band parameter refuses typed,
   never defaults to uniform: "I know the limits but not the shape"

@@ -1781,3 +1781,13 @@ advisory lane (never gates), densities post-v1 with the free
 histogram note. The pre-M6 design program now stands at ERROR
 ratified + SOLVER W1-W9 ratified (pre-M4); remaining M6 design =
 the solver itself (M6-adjacent) and whatever M5 surfaces.
+
+**ERROR-DESIGN post-ratification amendment (2026-07-27, Evan's
+one-branch-tails observation, #110 thread)**: no-flips is what
+makes the MERGED unresolved budget principled (all non-certified
+mass = one semantics under one branch) — settles the open
+merged-vs-separate question; CHAMBER CONTAINMENT (all box-boundary
+leaves FlipCrossing ⇒ chamber ⊆ box ⇒ tail provably off-branch ⇒
+budget exact + box-growth stopping rule; free detection).
+Amendment committed to E2; lands on main with the next state-sync
+PR.
