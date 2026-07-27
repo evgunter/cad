@@ -124,8 +124,9 @@ impl Default for KeyHasher {
 
 /// The bit representation of an evaluated scalar, fed to content keys
 /// (spec D4: "evaluated expression values AS BITS"). Implemented for
-/// the two scalars evaluation instantiates at; a new scalar joins by
-/// stating its exact representation here.
+/// the scalars evaluation instantiates at (f64, Interval, and the
+/// K-telemetry `Probe`); a new scalar joins by stating its exact
+/// representation here.
 pub trait ContentBits: Real {
     /// Feed this value's exact representation to the hasher.
     fn feed(&self, h: &mut KeyHasher);
@@ -134,6 +135,18 @@ pub trait ContentBits: Real {
 impl ContentBits for f64 {
     fn feed(&self, h: &mut KeyHasher) {
         h.write_f64_bits(*self);
+    }
+}
+
+/// The K-telemetry recording scalar (M4 PR 8b): `Probe` is a
+/// transparent `f64` whose every operation delegates exactly, so its
+/// exact representation IS the wrapped f64's bits. This impl is what
+/// lets the K-telemetry probe run a whole document evaluation at
+/// `T = Probe` (the M2 report's collection mechanics over the Band 4
+/// corpus); it feeds bits identical to the f64 lane by construction.
+impl ContentBits for geom_core::Probe {
+    fn feed(&self, h: &mut KeyHasher) {
+        h.write_f64_bits(self.0);
     }
 }
 

@@ -228,3 +228,114 @@ near-band-definite classes and the counterfactual-K table — no per-K
 reruns needed). The natural trigger remains the one Finding 4 named:
 refusal-path and near-coincidence statistics want an adversarial
 corpus, whose first real instance is D7 import adoption.
+
+## M4 addendum — the Band 4 + demo-scene telemetry run (2026-07-26, M4 PR 8b)
+
+**Scope: the Probe run the M3 addendum specified, now executed** —
+the harness gap is closed. This addendum reports the regenerated
+distribution and the derivation of the large-K lint's thresholds
+(`tools/k-lint`). It does NOT reopen K = 10 (FINAL above); on this
+corpus, as on M2's, every candidate K in {3, 10, 30, 100} decides
+identically (the band is empty; see the histogram).
+
+- **Harnesses** (new in PR 8b): `m4_pr8_k_probe.rs` evaluates every
+  Band 4 corpus document end-to-end at `T = Probe` (editor-core
+  gained `ContentBits for Probe`); the demo tour gained scalar-generic
+  scene constructors and a `k-probe` binary mode that rebuilds every
+  scene at Probe through the SAME constructors the f64 tour runs.
+  `scripts/k_probe_sweep.sh` runs both, one process per ε, and merges.
+- **Data**: `docs/k-report-data/m4-eps-{1e-6,1e-9,1e-12}.csv.gz` —
+  M2's columns exactly, shapes namespaced `corpus/<doc>` /
+  `demo/<scene>`. Deviation from M2's convention (REPORTED): the raw
+  rows are large — 203 MB at the 1e-6 row, ~162 MB at the tighter
+  rows (2,562,157 samples vs M2's 13,282) — so the committed record
+  is gzipped; `gzip -dc` reproduces the M2 format byte-for-byte
+  row-wise.
+
+| ε row | samples | zero | definite | indet. | invalid | in (ε, Kε) | definite within a decade of Kε |
+|-------|--------:|-----:|---------:|-------:|--------:|-----------:|---:|
+| each of 1e-6 / 1e-9 / 1e-12 | 2 562 157 | 458 734 | 2 103 423 | 0 | 0 | 0 | 0 |
+
+Counts are identical at all three ε rows (margins are geometry; only
+the bands move — the M2 ε-stability observation, reproduced at 193×
+the sample count, now including computed-intersection margins: the
+M3 `bool_*`/`pm_census_*`/`split_*` crops sample here for the first
+time). The first refusal-path samples also land (the tour finale's
+bowtie profile, 20 samples/row).
+
+**The distribution stays sharply bimodal.** Normalized decade
+histogram of |m|/ε for the DEFINITE population (ε = 1e-6 row; the
+other rows are the same histogram shifted by exactly 3/6 decades):
+
+```
+decade 3  |          240   (1.7e3 .. 1e4 — composition below)
+decade 4  |       47 622
+decade 5  |    1 023 036
+decade 6  |    1 031 564
+decade 7  |           95
+decade 39+|          866   (exact tie-break bands: canonical_order_*,
+                            split_join_order_*, fillet_leg_fit at
+                            band_zero 5e-324 / 1e-100 — order
+                            decisions, excluded from the lint's ratio
+                            rules)
+```
+
+The 240-sample decade-3 tail (the floor's neighborhood): 173
+demo/az (bool_point_in_solid_plane 89, bool_join_nearest 38, and the
+pm_census gap/residual family), 63 die `witness_at_mid_parameter`
+(42 corpus + 21 demo — the same document through both paths), 3
+demo/projectbox_cutaway `split_bisector_side`, 1 demo/table. All are
+real millimeter-scale feature clearances, not noise.
+
+Zero-side: 447 581 of 458 734 zero-classified margins are EXACTLY 0;
+the rest are ≤ 5.33e-15 m (worst: `pm_census_ee_span`, demo/az).
+Definite-side floor: **1.689e-3 m** (`pm_census_ee_gap`, demo/az —
+a real 1.7 mm feature gap). The gap between the clusters spans ~12
+decades and is EMPTY: 0 indeterminate, 0 invalid, nothing within a
+decade of any band edge at any ε row.
+
+### The large-K lint (Evan's ask, ruled 2026-07-25; spec D3)
+
+`tools/k-lint` (workspace-excluded tooling — thresholds are lint
+policy, never kernel ε) scans freshly regenerated sweep CSVs and
+FLAGS, **advisory-only in this first iteration**:
+
+1. any `indeterminate`/`invalid` outcome (in-band = the kernel
+   already refused; the lint makes it visible pre-merge);
+2. band proximity within 10^2 at any supported ε row: definite
+   |m| < 10²·Kε, or zero-classified |m| > ε/10²;
+3. **the baseline floor**: definite |m| < 1.5e-3 (the constant in
+   `tools/k-lint/src/lib.rs` with this provenance).
+
+**Percentile choice (reported per spec): P0 — the observed baseline
+minimum 1.689e-3, rounded down to 1.5e-3 (~11% of headroom below the
+observed floor).**
+Candidates from the baseline (1e-6 row, ratio units): P0.01 = 7.8e3,
+P0.1 = 3.2e4, P1 = 6.3e4. Any P > 0 permanently flags the baseline's
+own bottom tail (already at P0.01, the 240 real az census margins) on
+every advisory run — pure noise, no signal, because the 12-decade
+empty gap makes the population edge itself the maximally informative
+threshold: a NEW margin below the floor sits in the no-man's land
+between honest coincidence (≤ 5.3e-15) and honest feature (≥ 1.7e-3).
+The committed baseline lints CLEAN at all three ε rows (verified,
+2,562,157 × 3 samples, 0 flags), so every advisory line the CI row
+ever prints is a real distribution change.
+
+**The litmus (#99, replayed)**: `tools/k-lint/tests/litmus.rs`
+resurrects the pre-#100 bracket (via point 1.146) at Probe and
+re-measures its `carrier_line_circle` margin from the live
+predicates: 2.315e-6 m. The lint fires at EVERY supported ε row —
+in-band at 1e-6 (the row where #99 actually panicked), below the
+baseline floor at 1e-9 and 1e-12, where the margin was a DEFINITE
+outcome invisible to every pre-existing gate. The shipped
+fillet-constructed bracket (margin < 1e-15, definite Zero) lints
+clean at every row. The lint would have caught #99 before any
+escalation band was entered — the motivating claim, demonstrated.
+
+Observed headroom worth watching (honest caveat): the zero-side
+proximity rule's closest baseline approach is `pm_census_ee_span`'s
+5.3e-15 residual at the 1e-12 row — ratio 5.3e-3 against the 1e-2
+threshold, only 1.9× clear. A future scene with ~1e-14 float noise
+at model scale will advisory-flag at 1e-12; that is the intended
+signal (ε = 1e-12 has thin noise headroom at unit scale), not a
+false positive to tune away.

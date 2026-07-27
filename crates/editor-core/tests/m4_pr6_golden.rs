@@ -23,8 +23,9 @@
 mod fixture;
 
 use editor_core::{
-    Attr, Dimension, DocEdit, DocParam, EntityKind, Expr, MetaValue, Node, ParamName, PersistError,
-    ProfileDesc, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, apply, load, save,
+    Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, MetaValue,
+    Node, NodeResult, ParamName, PersistError, ProfileDesc, ProfileDoc, Rgba8, RoleSeg, StableName,
+    WitnessDatum, apply, evaluate, load, save,
 };
 use fixture::{desc, len};
 
@@ -33,10 +34,19 @@ const GOLDEN_PATH: &str = "tests/golden/v1_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
-/// profile with a hand-DECLARED collinear tangency (#101), a
+/// profile with a hand-DECLARED line/arc tangency (#101), a
 /// fillet-CONSTRUCTED profile (tangent joints by construction), a
 /// param-expression slot, witness bytes, appearance attrs + D7
 /// metadata (floats, -0.0, bytes, list, nesting).
+///
+/// #120 history: the original golden hand-declared a COLLINEAR
+/// tangency — exactly what #101's same-carrier-is-identity rule
+/// refuses — so the frozen exemplar evaluated sick (node 2 Failed,
+/// invisible to the byte rows). Regenerated 8b-fix-pass from this
+/// HEALTHY document (the corpus's legal line/arc bracket pattern,
+/// same `tangent_joints` wire coverage); content change only, format
+/// unchanged — both byte generations parse under the same schema-1
+/// loader.
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
     let mut doc = ProfileDoc::empty();
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileDesc>| apply(d, e).expect("golden edit").doc;
@@ -74,25 +84,38 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
         },
     );
     // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
-    // collinear tangency (node 2) and a fillet-CONSTRUCTED loop
-    // (node 3, joints declared by construction) — the wire's
-    // tangent_joints field is pinned by the golden from day one.
-    let mut collinear = profile::ProfileLoop::new(
-        [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
-            .into_iter()
-            .map(|(x, y)| profile::ProfileVertex {
-                pos: geom_core::Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
+    // line/arc tangency (node 2 — the #100 bracket: the quarter arc
+    // leaving (1.5,1), bulge −(√2−1), is exactly tangent to both
+    // neighboring lines; joints 3 and 4 declared BY HAND) and a
+    // fillet-CONSTRUCTED loop (node 3, joints declared by
+    // construction) — the wire's tangent_joints field is pinned by
+    // the golden from day one. (#120: this replaced the original
+    // COLLINEAR declaration, which the #101 same-carrier rule
+    // refuses — the old exemplar was sick.)
+    let mut bracket = profile::ProfileLoop::new(
+        [
+            (0.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+            (3.0, 1.0, 0.0),
+            (1.5, 1.0, -(std::f64::consts::SQRT_2 - 1.0)),
+            (1.0, 1.5, 0.0),
+            (1.0, 3.0, 0.0),
+            (0.0, 3.0, 0.0),
+        ]
+        .into_iter()
+        .map(|(x, y, bulge)| profile::ProfileVertex {
+            pos: geom_core::Point2::new(x, y),
+            bulge,
+        })
+        .collect(),
     );
-    collinear.tangent_joints = vec![1];
+    bracket.tangent_joints = vec![3, 4];
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileDesc(profile::Profile::new(
                 profile::SketchPlane::xy(),
-                vec![collinear],
+                vec![bracket],
             ))),
         },
     );
@@ -205,4 +228,43 @@ fn golden_v1_bytes_load() {
         }
         Err(other) => panic!("golden v1 file failed to load: {other:?}"),
     }
+}
+
+/// #117 follow-through (the green gate; #120): byte identity is as
+/// blind to evaluation health as fingerprint identity — the ORIGINAL
+/// golden froze a document whose declared collinear tangency #101's
+/// same-carrier rule refuses (node 2 Failed) while both byte rows
+/// stayed green. The exemplar is now healthy, and this gate keeps the
+/// class structurally dead: corpus docs assert green in their rows,
+/// the persistence fingerprints assert green (#117), and the golden
+/// asserts green HERE. Only meaningful at the golden's own pinned ε
+/// (every other matrix row refuses `ToleranceConflict` at the load
+/// door, asserted above), so other rows skip.
+#[test]
+fn golden_document_evaluates_green_at_its_pinned_eps() {
+    if geom_core::Tolerance::get().eps.to_bits() != 1e-9f64.to_bits() {
+        return;
+    }
+    let (mut doc, edits) = golden();
+    for e in &edits {
+        doc = apply(&doc, e).expect("golden edit").doc;
+    }
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let bad: Vec<String> = ev
+        .nodes
+        .iter()
+        .filter_map(|(id, r)| match r {
+            NodeResult::Ok(_) => None,
+            NodeResult::Failed(e) => Some(format!("{id:?} FAILED: {e:?}")),
+            NodeResult::Poisoned { through } => {
+                Some(format!("{id:?} poisoned through {through:?}"))
+            }
+        })
+        .collect();
+    assert!(
+        bad.is_empty(),
+        "the golden document must evaluate green (#117/#120 — a sick \
+         golden freezes sick bytes):\n{}",
+        bad.join("\n")
+    );
 }

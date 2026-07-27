@@ -41,6 +41,7 @@ use sweep::{Extrusion, extrude};
 use topo::Body;
 
 use crate::booleans::{check, expect_seamed, try_intersect};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
 /// Exact volume oracle: 880383/327680 (counter-hole A × Z), derived by
@@ -67,15 +68,15 @@ const A_OUTLINE: [(f64, f64); 8] = [
 /// prism is genus 1 before the boolean ever runs.
 const A_COUNTER: [(f64, f64); 3] = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)];
 
-fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
+fn lp<S: Scalar>(poly: &[(f64, f64)]) -> ProfileLoop<S> {
     ProfileLoop::polygon(
         poly.iter()
-            .map(|&(x, y)| Point2::new(x, y))
+            .map(|&(x, y)| Point2::new(S::from_f64(x), S::from_f64(y)))
             .collect::<Vec<_>>(),
     )
 }
 
-fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
+fn validated<S: Scalar>(plane: SketchPlane<S>, loops: Vec<ProfileLoop<S>>) -> ValidatedProfile<S> {
     Profile::new(plane, loops)
         .validate(Tolerance::get())
         .expect("A x Z profile")
@@ -85,15 +86,15 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 /// (strictly covering Z's z-extent — the C2 decoupling audit from #91:
 /// the only possible coincident carriers are y = const planes, and the
 /// two bodies' y-plane sets are disjoint by 1/16 straddles).
-fn a_prism() -> Body<f64> {
+fn a_prism<S: Scalar>() -> Body<S> {
     let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, -0.0625),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
+        Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(-0.0625)),
+        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
     extrude(
         &validated(plane, vec![lp(&A_OUTLINE), lp(&A_COUNTER)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance(S::from_f64(2.125)),
     )
     .expect("extrude A")
     .body
@@ -102,7 +103,7 @@ fn a_prism() -> Body<f64> {
 /// The Z prism: (y, z) sketch at x = -1/16 — bars z ∈ [0, 0.4375] and
 /// [1.5625, 2], diagonal at slope 3/5 — extruded 2.125 along +x
 /// (strictly covering A's x-extent).
-fn z_prism() -> Body<f64> {
+fn z_prism<S: Scalar>() -> Body<S> {
     let z_poly = [
         (-0.0625, 0.0),
         (2.5625, 0.0),
@@ -116,24 +117,30 @@ fn z_prism() -> Body<f64> {
         (-0.0625, 0.4375),
     ];
     let plane = SketchPlane::from_frame(
-        Point3::new(-0.0625, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+        Point3::new(S::from_f64(-0.0625), S::from_f64(0.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance(S::from_f64(2.125)),
     )
     .expect("extrude Z")
     .body
 }
 
-pub fn stops() -> Vec<Stop> {
-    let az = expect_seamed(
+/// Builds the A × Z intersect result (generic — the Probe sweep runs
+/// the same construction).
+pub(crate) fn build<S: Scalar>() -> topo::BooleanBody<S> {
+    expect_seamed(
         "A x Z intersect (counter-hole A)",
-        check(try_intersect(&a_prism(), &z_prism()), V_AZ),
+        check(try_intersect(&a_prism::<S>(), &z_prism::<S>()), V_AZ),
         V_AZ,
-    );
+    )
+}
+
+pub fn stops() -> Vec<Stop> {
+    let az = build::<f64>();
     vec![Stop {
         name: "az",
         caption: "A x Z (the #93 acceptance case)".to_string(),

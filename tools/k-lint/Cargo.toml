@@ -1,0 +1,19 @@
+# The large-K fragility lint (M4 PR 8b, spec D3). Deliberately OUTSIDE
+# the kernel workspace (the empty [workspace] table detaches it; the
+# root manifest lists `tools` in workspace.exclude): this is TOOLING —
+# its thresholds are lint policy derived from a committed baseline,
+# never kernel ε (D3: "tooling-level, no kernel ε"). The kernel crates
+# appear only as dev-dependencies of the litmus test, which resurrects
+# the #99 bracket datum at the recording scalar.
+[package]
+name = "k-lint"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dev-dependencies]
+geom-core = { path = "../../crates/geom-core" }
+profile = { path = "../../crates/profile" }

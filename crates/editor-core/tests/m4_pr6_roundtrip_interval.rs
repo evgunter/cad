@@ -18,8 +18,17 @@ use geom_core::Interval;
 
 use corpus::documents;
 
-fn fingerprint(doc: &ProfileDoc) -> String {
+fn fingerprint(label: &str, doc: &ProfileDoc) -> String {
     let ev = evaluate::<Interval>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    // #117: fingerprint identity is blind to evaluation health — assert
+    // green so a sick fixture fails loudly (rationale in the f64 lane,
+    // m4_pr6_roundtrip.rs).
+    let bad = corpus::failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "{label}: persistence fixture did not evaluate green (#117):\n{}",
+        bad.join("\n")
+    );
     format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
 }
 
@@ -34,8 +43,8 @@ fn interval_replay_identity_across_save_load() {
             d.name
         );
         assert_eq!(
-            fingerprint(&d.doc),
-            fingerprint(&loaded.doc),
+            fingerprint(d.name, &d.doc),
+            fingerprint(d.name, &loaded.doc),
             "{}: Interval evaluation fingerprint drifted across save/load",
             d.name
         );

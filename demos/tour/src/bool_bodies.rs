@@ -25,20 +25,21 @@ use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResultKind};
 
 use crate::booleans::{Verdict, check, describe, expect_seamed};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
-fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
-    geom_core::Point2::new(x, y)
+fn p2<S: Scalar>(x: f64, y: f64) -> geom_core::Point2<S> {
+    geom_core::Point2::new(S::from_f64(x), S::from_f64(y))
 }
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
 /// a rectangle on a z-offset xy sketch plane extruded up.
-pub fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
+pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<S> {
     let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
     let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, z.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
+        Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(z.0)),
+        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
@@ -46,7 +47,7 @@ pub fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     // Raw extrude output IS boolean-consumable since PR 5's
     // extrude-operand description remap (proven by the PR 5.5 review's
     // die e2e).
-    extrude(&profile, Extrusion::Distance(z.1 - z.0))
+    extrude(&profile, Extrusion::Distance(S::from_f64(z.1 - z.0)))
         .expect("extrude slab")
         .body
 }
@@ -62,7 +63,7 @@ pub fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 /// Pips are straight square pockets (extrude is straight-only;
 /// spherical pips await M5 curved booleans — the ratified OQ6
 /// acceptance target). Stays translation-authored by ruling.
-fn die() -> (topo::BooleanBody<f64>, String) {
+pub(crate) fn die<S: Scalar>() -> (topo::BooleanBody<S>, String) {
     const H: f64 = 0.125; // pip half-span; pocket 0.25 square, 0.125 deep
     const IN: (f64, f64) = (0.875, 1.5); // pocket span outward through +face
     const OUT: (f64, f64) = (-1.5, -0.875); // …and through the −face
@@ -73,14 +74,15 @@ fn die() -> (topo::BooleanBody<f64>, String) {
     let four = [(n, n), (n, p), (p, n), (p, p)].to_vec();
     let five = [(n, n), (n, p), (p, n), (p, p), (z, z)].to_vec();
     let six = [(n, n), (n, z), (n, p), (p, n), (p, z), (p, p)].to_vec();
-    type PipBox = fn((f64, f64), (f64, f64)) -> Body<f64>;
-    let px: PipBox = |a, b| slab(IN, a, b);
-    let nx: PipBox = |a, b| slab(OUT, a, b);
-    let py: PipBox = |a, b| slab(a, IN, b);
-    let ny: PipBox = |a, b| slab(a, OUT, b);
-    let pz: PipBox = |a, b| slab(a, b, IN);
-    let nz: PipBox = |a, b| slab(a, b, OUT);
-    let faces: [(&str, Vec<(f64, f64)>, PipBox); 6] = [
+    type PipBox<S> = fn((f64, f64), (f64, f64)) -> Body<S>;
+    let px: PipBox<S> = |a, b| slab(IN, a, b);
+    let nx: PipBox<S> = |a, b| slab(OUT, a, b);
+    let py: PipBox<S> = |a, b| slab(a, IN, b);
+    let ny: PipBox<S> = |a, b| slab(a, OUT, b);
+    let pz: PipBox<S> = |a, b| slab(a, b, IN);
+    let nz: PipBox<S> = |a, b| slab(a, b, OUT);
+    type Face<'a, S> = (&'a str, Vec<(f64, f64)>, PipBox<S>);
+    let faces: [Face<'_, S>; 6] = [
         ("+z=1", one, pz),
         ("-z=6", six, nz),
         ("+x=2", two, px),
@@ -89,7 +91,7 @@ fn die() -> (topo::BooleanBody<f64>, String) {
         ("-y=4", four, ny),
     ];
     let cube = slab((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0));
-    let mut acc: Option<topo::BooleanBody<f64>> = None;
+    let mut acc: Option<topo::BooleanBody<S>> = None;
     let mut pips = 0u32;
     for (label, centers, make) in faces {
         for (a, b) in centers {
@@ -128,7 +130,7 @@ const TOP_Z: (f64, f64) = (1.4, 1.7);
 const LEG_HALF: f64 = 0.13;
 
 /// A leg centered at `(cx, cy)`, floor to `z_top`.
-fn leg(cx: f64, cy: f64, z_top: f64) -> Body<f64> {
+fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64) -> Body<S> {
     slab(
         (cx - LEG_HALF, cx + LEG_HALF),
         (cy - LEG_HALF, cy + LEG_HALF),
@@ -153,8 +155,8 @@ fn leg(cx: f64, cy: f64, z_top: f64) -> Body<f64> {
 /// maximal operands. Attempt 1 (coplanar touch, undeclared) now
 /// refuses at the coincidence door — rung (b), value equality never
 /// classifies — and the narration says so.
-fn table() -> (topo::BooleanBody<f64>, String) {
-    let top = slab(TOP_X, TOP_Y, TOP_Z);
+pub(crate) fn table<S: Scalar>() -> (topo::BooleanBody<S>, String) {
+    let top: Body<S> = slab(TOP_X, TOP_Y, TOP_Z);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
 
     // Attempt 1: exact-coplanar touching, leg inset under the top.
@@ -203,7 +205,7 @@ fn table() -> (topo::BooleanBody<f64>, String) {
     // Each aligned leg: FULL footprint under the top, overlapping
     // 0.05 up into it.
     let per_leg_gain = leg_vol(z_top) - (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * 0.05;
-    let mut acc: Option<topo::BooleanBody<f64>> = None;
+    let mut acc: Option<topo::BooleanBody<S>> = None;
     let mut expected = top_vol();
     for (cx, cy) in corners {
         expected += per_leg_gain;
@@ -248,23 +250,32 @@ fn top_vol() -> f64 {
 /// refuses void shells typed — also narrated.
 pub fn voidbox_narration() {
     println!("\n== voidbox (narration only since the #91 refresh) ==");
-    let outer = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let inner = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5));
+    let b = voidbox::<f64>();
+    println!(
+        "   kind Voided, TWO shells (outer + reverted inner); volume = 8 - 1 = 7 \
+         exactly; the void is INTERNAL — the montage panel is retired for the \
+         cutaway split, which shows interiors honestly"
+    );
+    match step_export::step_string(&b.body, &step_export::StepOptions::default()) {
+        Ok(_) => {
+            println!("   STEP export of the voided body: OK (unexpected — update this narration)");
+        }
+        Err(e) => println!("   STEP export of the voided body refuses typed: {e:?}"),
+    }
+}
+
+/// The checked void subtract itself, scalar-generic (the Probe sweep
+/// samples its containment-fallback predicates too; the STEP-refusal
+/// narration stays in the f64-only wrapper above — the STEP writer is
+/// f64 by design).
+pub(crate) fn voidbox<S: Scalar>() -> topo::BooleanBody<S> {
+    let outer: Body<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let inner: Body<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5));
     match check(crate::booleans::try_subtract(&outer, &inner), 7.0) {
         Verdict::Good(b, _) => {
             assert_eq!(b.kind, BooleanResultKind::Voided);
             assert_eq!(b.body.shells().count(), 2);
-            println!(
-                "   kind Voided, TWO shells (outer + reverted inner); volume = 8 - 1 = 7 \
-                 exactly; the void is INTERNAL — the montage panel is retired for the \
-                 cutaway split, which shows interiors honestly"
-            );
-            match step_export::step_string(&b.body, &step_export::StepOptions::default()) {
-                Ok(_) => println!(
-                    "   STEP export of the voided body: OK (unexpected — update this narration)"
-                ),
-                Err(e) => println!("   STEP export of the voided body refuses typed: {e:?}"),
-            }
+            b
         }
         v => panic!("void subtract failed: {}", describe(&v, 7.0)),
     }
@@ -272,8 +283,8 @@ pub fn voidbox_narration() {
 
 /// The classic boolean stops, in tour order.
 pub fn stops() -> Vec<Stop> {
-    let (die_bb, die_note) = die();
-    let (table_bb, table_note) = table();
+    let (die_bb, die_note) = die::<f64>();
+    let (table_bb, table_note) = table::<f64>();
     vec![
         Stop {
             name: "die",
