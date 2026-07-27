@@ -1852,3 +1852,11 @@ exit-1 + pin); report +9 accounting false (+1 true). Light fix
 pass dispatched. Rubric (row 10 pending fix pass): 0/2/5, idiom
 —/tests —/docs — (in report). After 8b PR+merge: assemble final
 snapshot, Evan's #119 👍 → merge 8c → handoff.
+
+**Handoff authorization (Evan, 2026-07-27 late)**: the successor
+should NOT wait overnight for M5-PLAN sign-off — draft it, open
+the PR, and proceed immediately on the recommended fork answers
+(Evan reviews in the morning; patchable-not-fatal stance invoked
+by him). Fork-independent units run first regardless (interval
+adoption GREEN-LIT, CURVED post-ratification obligations, C12
+seams). Handoff prompt updated.
