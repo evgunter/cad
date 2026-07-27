@@ -1717,3 +1717,18 @@ limit → resumed. **8a blinded reviewer LAUNCHED** (coverage-
 totality tamper, 3 oracle re-derivations, both findings verified
 incl. promotion-path execution, Recorder fidelity, cone-by-hand,
 no-gate grep, old-fixture coverage shrinkage).
+
+**#111 review returned (2026-07-26 late): APPROVE, 0 MAJ / 2 MIN /
+3 NOTE, rubric 5/5/5 — milestone's cleanest.** Root cause
+re-derived exact-rationally (needle twice-area 3.996e-18; exact
+centroid 2.96e-18 OUTSIDE; spade center() +2.13e-17 inside —
+reification provably insufficient, confirming the implementer);
+flood fill survived 7 probes (depth-4, vertex-touching interiors,
+collinear multiplicity-2, nested slits, atomicity);
+watertight-by-construction verified as a THEOREM (closed walks →
+even subgraph → order-independence); pins non-vacuous vs main;
+oracles re-derived by independent Fubini. MINs report-level only.
+Final unit dispatched: demo retire-pin flip folded INTO the #111
+branch (scope amendment — merging without it leaves the tour
+panicking), report decimal slip, winding-backstop comment. PR on
+its ping.
