@@ -778,14 +778,22 @@ ratified; each earned by a concrete M4 incident):**
    NaN-marker alias + save-door blind spot; ruled structurally at
    the PR 6 fix pass (Evan: "deserves proper types") and landed as
    the tagged-token key-encoder retype (#112).
-2. **Save/load door symmetry.** Every load-side refusal door has a
-   mirrored save-side wall, and persistence changes run a symmetry
-   sweep over the door inventory: a file that would refuse to load
-   must be impossible to save (fail at write time, typed). Earned:
-   PR 6 review MAJ-1 — a NaN with all-ones bits walked past the
-   save doors and produced an unloadable file; the fix-pass
-   symmetry sweep then found two MORE save-side holes beyond the
-   reported one (#112).
+2. **Save/load validation is ONE shared validator, not two mirrored
+   door sets** (sharpened at ratification per Evan: structural
+   sharing beats a sweep — code that is literally the same cannot
+   drift). Every direction-independent document check lives in a
+   single validator invoked by BOTH doors: at save on the in-memory
+   doc before bytes are written, at load after parse; a document
+   that would refuse to load is therefore impossible to save by
+   construction. The symmetry SWEEP survives only as the audit for
+   the genuinely asymmetric residue (parse/position errors are
+   load-only by nature; byte-level corruption has no save-side
+   analogue). Earned: PR 6 review MAJ-1 — a NaN with all-ones bits
+   walked past the save doors and produced an unloadable file; the
+   fix-pass sweep then found two MORE save-side holes beyond the
+   reported one (#112). Migration note: PR 6's shipped doors are
+   sweep-style mirrors; consolidating them into the shared
+   validator is banked M5-adjacent hygiene, not a re-open of #112.
 3. **Full-matrix watcher floors.** Any merge-gating checks watcher
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the
