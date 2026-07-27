@@ -110,7 +110,9 @@
 
 use core::fmt;
 
+#[allow(unused_imports)] // doc links only since Decide's supertrait became SpanLocate
 use crate::real::Real;
+use crate::spline::SpanLocate;
 use crate::tolerance::Tolerance;
 
 /// The **default** ambiguity multiplier K = 10, re-exported from the
@@ -578,7 +580,15 @@ impl std::error::Error for Indeterminate {}
 /// PR 4 (enclosure-based classification, indeterminate when the enclosure
 /// straddles a boundary), and dual numbers in M0 PR 5 classify their
 /// value part only — a derivative never influences a branch.
-pub trait Decide: Real {
+///
+/// [`SpanLocate`] (M5 PR 3) is a supertrait (which brings [`Real`] with
+/// it): every decision-capable scalar has an authoritative
+/// value/enclosure channel, and knot-span selection reads exactly that —
+/// so `T: Decide` code (the topology layer's bound) can evaluate NURBS
+/// carriers without naming the sealed span seam. Purely additive:
+/// `SpanLocate` grants structure *selection* (span indices), never value
+/// comparison or bound extraction.
+pub trait Decide: SpanLocate {
     /// Classifies this value's sign against `band`, per the boundary
     /// semantics in the [module docs](self).
     ///

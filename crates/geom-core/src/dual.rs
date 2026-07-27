@@ -631,6 +631,32 @@ impl<T: KinkJacobian> Real for Dual<T> {
     }
 }
 
+/// Span selection by **value channel**, verbatim — the ratified kink
+/// convention applied to the knot lattice (see
+/// [`crate::spline::locate`]'s module docs): at a knot, `Dual` selects
+/// the span the base scalar's tie-break selects and differentiates the
+/// program as evaluated (the same branch-consistency rule as `floor`'s
+/// plateau derivative and `copysign`'s locally-constant σ). Multi-span
+/// enclosure combination hulls the two channels **independently** —
+/// each channel's hull is that channel's honest enclosure; a `min`/
+/// `max`-style selection would follow one branch's tangent and drop the
+/// other's.
+impl<T> crate::spline::SpanLocate for Dual<T>
+where
+    T: crate::spline::SpanLocate + KinkJacobian,
+{
+    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+        self.value.locate_spans(knots)
+    }
+
+    fn enclosure_hull(self, other: Self) -> Self {
+        Self {
+            value: self.value.enclosure_hull(other.value),
+            deriv: self.deriv.enclosure_hull(other.deriv),
+        }
+    }
+}
+
 /// Decide-by-value: classification delegates to the **value part only**;
 /// the derivative never influences a branch (the module-doc rationale:
 /// derivatives are tangent-space data, topology is decided in the base

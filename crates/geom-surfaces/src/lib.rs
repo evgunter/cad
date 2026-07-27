@@ -69,7 +69,13 @@
 //! and everything instantiates at `f64` / `Dual<f64>` / `Interval` /
 //! `Dual<Interval>`.
 
+pub mod nurbs;
+
+use std::sync::Arc;
+
+use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
+pub use nurbs::{NurbsSurface, SurfaceJet};
 
 /// An analytic surface — a **complete locus** (see the crate docs for
 /// the conventions: units, frames, seam placement, derived normals, and
@@ -77,7 +83,13 @@ use geom_core::{Point3, Real, Vec3};
 ///
 /// Fields are public data (D2: conventions are carried by data);
 /// construction is by struct-literal variant syntax.
-#[derive(Clone, Copy, Debug)]
+///
+/// **`Clone`, not `Copy` (M5 PR 3, accepted and binding):** the
+/// [`Surface::Nurbs`] payload is an [`Arc`]-shared [`NurbsSurface`], so
+/// the enum is cheap to clone (one refcount) but no longer `Copy`. The
+/// payload is immutable after validated construction — sharing is
+/// D9-clean (no address-dependent behavior, no interior mutability).
+#[derive(Clone, Debug)]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
@@ -230,25 +242,25 @@ pub enum Surface<T: Real> {
         u_ref: Vec3<T>,
     },
 
-    /// Placeholder for the NURBS fallback (D3: representable from day
-    /// one so the closed enum's dispatch sites are complete; implemented
-    /// at M5). Evaluating it yields poison — see the crate docs'
-    /// totality policy.
-    Nurbs,
+    /// The NURBS fallback (D3: representable from day one; evaluators
+    /// implemented at M5 PR 3). The payload is a validated
+    /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
+    /// see the enum docs on the `Copy` loss). The "no description yet"
+    /// state the former unit variant carried is
+    /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
+    /// the same all-poison evaluation behavior.
+    Nurbs(Arc<NurbsSurface<T>>),
 }
 
-/// The all-poison point — the totality outcome for the unimplemented
-/// [`Surface::Nurbs`] placeholder (NaN at `f64`, NaI at the interval
-/// scalar, a poisoned value channel at duals).
-fn poison_point<T: Real>() -> Point3<T> {
-    let nan = T::from_f64(f64::NAN);
-    Point3::new(nan, nan, nan)
-}
-
-/// The all-poison vector — [`poison_point`]'s tangent-side counterpart.
-fn poison_vec<T: Real>() -> Vec3<T> {
-    let nan = T::from_f64(f64::NAN);
-    Vec3::new(nan, nan, nan)
+impl<T: Real> Surface<T> {
+    /// The "no description yet" NURBS state (the former unit
+    /// placeholder variant, as data): a structurally valid payload
+    /// whose control points are all-poison, so evaluation yields the
+    /// all-poison point and every downstream certification fails
+    /// loudly (D4 ¶2) — representable ≠ described.
+    pub fn nurbs_placeholder() -> Self {
+        Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
+    }
 }
 
 /// The azimuthal frame at angle `u`: `(radial, tangential)` =
@@ -262,16 +274,19 @@ fn azimuth_frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> (Vec3<T>, Vec3
     (u_ref * c + v_ref * s, u_ref * (-s) + v_ref * c)
 }
 
-impl<T: Real> Surface<T> {
+impl<T: SpanLocate> Surface<T> {
     /// The point at parameters `(u, v)` — each variant's formula and
     /// conventions are on the variant (the crate docs carry the shared
     /// frame/seam/unit rules). Evaluation order per variant is exactly
     /// the documented formula with the azimuth-frame helper's fixed
     /// associations (`radial`/`tangential` from one `sin_cos`, crate
-    /// docs); poison for [`Surface::Nurbs`].
+    /// docs); [`Surface::Nurbs`] routes to the payload's evaluator
+    /// (span selection via the sealed [`SpanLocate`] seam — the
+    /// `impl`-block bound, a sealed `Real` subtrait; see
+    /// `geom_curves`'s crate docs for the shared discipline note).
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
-        match *self {
-            Surface::Plane {
+        match self {
+            &Surface::Plane {
                 origin,
                 normal,
                 u_ref,
@@ -279,7 +294,7 @@ impl<T: Real> Surface<T> {
                 let v_ref = normal.cross(u_ref);
                 origin + u_ref * u + v_ref * v
             }
-            Surface::Cylinder {
+            &Surface::Cylinder {
                 origin,
                 axis,
                 radius,
@@ -288,7 +303,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 origin + radial * radius + axis * v
             }
-            Surface::Cone {
+            &Surface::Cone {
                 apex,
                 axis,
                 half_angle,
@@ -298,7 +313,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 apex + axis * (v * c_a) + radial * (v * s_a)
             }
-            Surface::Sphere {
+            &Surface::Sphere {
                 center,
                 radius,
                 axis,
@@ -308,7 +323,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 center + (radial * c_v + axis * s_v) * radius
             }
-            Surface::Torus {
+            &Surface::Torus {
                 center,
                 axis,
                 major_radius,
@@ -319,7 +334,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
-            Surface::Nurbs => poison_point(),
+            Surface::Nurbs(n) => n.eval(u, v),
         }
     }
 
@@ -331,9 +346,9 @@ impl<T: Real> Surface<T> {
     /// **zero at the poles**. Torus:
     /// `tangential(u)·(R + r·cos v)`. Nurbs: poison.
     pub fn deriv_u(&self, u: T, v: T) -> Vec3<T> {
-        match *self {
-            Surface::Plane { u_ref, .. } => u_ref,
-            Surface::Cylinder {
+        match self {
+            &Surface::Plane { u_ref, .. } => u_ref,
+            &Surface::Cylinder {
                 axis,
                 radius,
                 u_ref,
@@ -342,7 +357,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * radius
             }
-            Surface::Cone {
+            &Surface::Cone {
                 axis,
                 half_angle,
                 u_ref,
@@ -352,7 +367,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * (v * s_a)
             }
-            Surface::Sphere {
+            &Surface::Sphere {
                 radius,
                 axis,
                 u_ref,
@@ -362,7 +377,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * (radius * c_v)
             }
-            Surface::Torus {
+            &Surface::Torus {
                 axis,
                 major_radius,
                 minor_radius,
@@ -373,7 +388,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * (major_radius + minor_radius * c_v)
             }
-            Surface::Nurbs => poison_vec(),
+            Surface::Nurbs(n) => n.ders(u, v).du,
         }
     }
 
@@ -386,10 +401,10 @@ impl<T: Real> Surface<T> {
     /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
     /// poison.
     pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
-        match *self {
-            Surface::Plane { normal, u_ref, .. } => normal.cross(u_ref),
-            Surface::Cylinder { axis, .. } => axis,
-            Surface::Cone {
+        match self {
+            &Surface::Plane { normal, u_ref, .. } => normal.cross(u_ref),
+            &Surface::Cylinder { axis, .. } => axis,
+            &Surface::Cone {
                 axis,
                 half_angle,
                 u_ref,
@@ -399,7 +414,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 axis * c_a + radial * s_a
             }
-            Surface::Sphere {
+            &Surface::Sphere {
                 radius,
                 axis,
                 u_ref,
@@ -409,7 +424,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 (radial * (-s_v) + axis * c_v) * radius
             }
-            Surface::Torus {
+            &Surface::Torus {
                 axis,
                 minor_radius,
                 u_ref,
@@ -419,7 +434,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 (radial * (-s_v) + axis * c_v) * minor_radius
             }
-            Surface::Nurbs => poison_vec(),
+            Surface::Nurbs(n) => n.ders(u, v).dv,
         }
     }
 
@@ -441,9 +456,9 @@ impl<T: Real> Surface<T> {
     /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: poison. (Each is the
     /// azimuthal-rotation second derivative: `radial″ = −radial`.)
     pub fn deriv_uu(&self, u: T, v: T) -> Vec3<T> {
-        match *self {
-            Surface::Plane { .. } => Vec3::zero(),
-            Surface::Cylinder {
+        match self {
+            &Surface::Plane { .. } => Vec3::zero(),
+            &Surface::Cylinder {
                 axis,
                 radius,
                 u_ref,
@@ -452,7 +467,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 radial * (-radius)
             }
-            Surface::Cone {
+            &Surface::Cone {
                 axis,
                 half_angle,
                 u_ref,
@@ -462,7 +477,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 radial * (-(v * s_a))
             }
-            Surface::Sphere {
+            &Surface::Sphere {
                 radius,
                 axis,
                 u_ref,
@@ -472,7 +487,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 radial * (-(radius * c_v))
             }
-            Surface::Torus {
+            &Surface::Torus {
                 axis,
                 major_radius,
                 minor_radius,
@@ -483,7 +498,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 radial * (-(major_radius + minor_radius * c_v))
             }
-            Surface::Nurbs => poison_vec(),
+            Surface::Nurbs(n) => n.ders(u, v).duu,
         }
     }
 
@@ -494,9 +509,9 @@ impl<T: Real> Surface<T> {
     /// `tangential(u)·(−(radius·sin v))`. Torus:
     /// `tangential(u)·(−(r·sin v))`. Nurbs: poison.
     pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
-        match *self {
-            Surface::Plane { .. } | Surface::Cylinder { .. } => Vec3::zero(),
-            Surface::Cone {
+        match self {
+            &Surface::Plane { .. } | &Surface::Cylinder { .. } => Vec3::zero(),
+            &Surface::Cone {
                 axis,
                 half_angle,
                 u_ref,
@@ -506,7 +521,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * s_a
             }
-            Surface::Sphere {
+            &Surface::Sphere {
                 radius,
                 axis,
                 u_ref,
@@ -516,7 +531,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * (-(radius * s_v))
             }
-            Surface::Torus {
+            &Surface::Torus {
                 axis,
                 minor_radius,
                 u_ref,
@@ -526,7 +541,7 @@ impl<T: Real> Surface<T> {
                 let (_, tangential) = azimuth_frame(axis, u_ref, u);
                 tangential * (-(minor_radius * s_v))
             }
-            Surface::Nurbs => poison_vec(),
+            Surface::Nurbs(n) => n.ders(u, v).duv,
         }
     }
 
@@ -537,9 +552,11 @@ impl<T: Real> Surface<T> {
     /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
     /// tube. Nurbs: poison.
     pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
-        match *self {
-            Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => Vec3::zero(),
-            Surface::Sphere {
+        match self {
+            &Surface::Plane { .. } | &Surface::Cylinder { .. } | &Surface::Cone { .. } => {
+                Vec3::zero()
+            }
+            &Surface::Sphere {
                 radius,
                 axis,
                 u_ref,
@@ -549,7 +566,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 (radial * c_v + axis * s_v) * (-radius)
             }
-            Surface::Torus {
+            &Surface::Torus {
                 axis,
                 minor_radius,
                 u_ref,
@@ -559,7 +576,7 @@ impl<T: Real> Surface<T> {
                 let (radial, _) = azimuth_frame(axis, u_ref, u);
                 (radial * c_v + axis * s_v) * (-minor_radius)
             }
-            Surface::Nurbs => poison_vec(),
+            Surface::Nurbs(n) => n.ders(u, v).dvv,
         }
     }
 }
@@ -715,7 +732,7 @@ mod tests {
                 minor_radius: Dual::constant(minor_radius),
                 u_ref: cv(u_ref),
             },
-            Surface::Nurbs => Surface::Nurbs,
+            Surface::Nurbs(_) => Surface::nurbs_placeholder(),
         }
     }
 
@@ -873,7 +890,7 @@ mod tests {
                         let dr = rho - major_radius;
                         (dr * dr + along * along).sqrt() - minor_radius
                     }
-                    Surface::Nurbs => 0.0,
+                    Surface::Nurbs(_) => 0.0,
                 };
                 prop_assert!(
                     residual.abs() <= 1e-12,
@@ -1020,7 +1037,7 @@ mod tests {
 
     #[test]
     fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Surface<f64> = Surface::Nurbs;
+        let n: Surface<f64> = Surface::nurbs_placeholder();
         assert!(n.eval(0.5, 0.5).x.is_nan());
         assert!(n.deriv_u(0.5, 0.5).x.is_nan());
         assert!(n.deriv_v(0.5, 0.5).x.is_nan());
