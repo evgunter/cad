@@ -1740,3 +1740,21 @@ opus, M — 0 MAJ / 2 report-level MIN / 3 NOTE, 0 silent, 5/5/5
 (milestone-best rubric), tiny fix pass. Watcher armed (13-row
 floor). Pre-existing demos clippy errors (4, identical on main)
 queued with fmt drift as 8b/8c hygiene.
+
+**8a review returned (2026-07-27): content APPROVED, merge blocked
+only on the designed promotion** — merging current main makes the
+depth-2 refusal pin FIRE (correct; #113 landed under it); the
+promotion path executes clean (V == 3.25 exact). All 6 mass pins
+re-derived by hand; coverage assertions tamper-verified BOTH
+directions + compile-time totality; Recorder bit-identical; cone
+3/77 hand-derived; no timing gate (a −93% run passes). **#117
+FILED**: PR 6's legacy kitchen-sink evaluates 2 Failed + 4
+Poisoned of 20 while both persistence rows pass (fingerprint
+identity is blind to evaluation health) — confirmed worse than 8a
+reported; disposition = corpus rewiring already retires its
+load-bearing role, delete-or-fix + green-evaluation row assertion
+folds into 8b. Other MINs: sub_kinds wildcard (make exhaustive),
+latency baseline ~10-14× inflated (regenerate quiet, label
+honestly — box-relative). Fix pass dispatched. Rubric (row 9
+pending): 1 mechanical MAJ / 3 MIN / 3 NOTE, idiom 5 / tests 5 /
+docs 4.
