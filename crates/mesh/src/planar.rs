@@ -153,7 +153,13 @@ fn triangulate_chart(
         }
     }
 
-    // Outer-loop orientation in the chart frame decides the flip.
+    // Outer-loop orientation in the chart frame decides the flip. This
+    // is an unreified float sign, but not an in-band one: getting it
+    // wrong needs a face whose projected area is ~0, and it flips the
+    // whole patch at once, so `check_mesh` catches it as
+    // `MismatchedWinding` against the neighbouring faces — unlike the
+    // #111 per-triangle decision, which could fail on one sliver and
+    // leak past every downstream check but `check_mesh`'s edge census.
     let flip = shoelace2(&polygons[0]) < 0.0;
 
     let inside = classify_faces(&cdt, &crossings);
