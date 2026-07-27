@@ -379,3 +379,20 @@ Persistence: schema v1 (PR 6) is a linear snapshot + edit log; the
 history tree is the additive evolution (log entries gain a parent
 pointer) via the F3 migration chain when the GUI needs it.
 Non-binding until a GUI milestone picks it up.
+
+### State/history separation (Evan, 2026-07-27 — the sharpened
+### form of the git-like instinct)
+
+What the undo-tree concept above still owed a name: Evan wants it
+POSSIBLE to share a document's state without bringing its entire
+history — the state and the edit DAG should be separable artifacts,
+not one inseparable file. Design facts already in place: F3's
+schema v1 is snapshot + edit log, so "state without history" is
+structurally just a save with a compacted (empty) log — an
+export/compact operation, not a format change; the future history
+TREE (parent-pointer log evolution) can live as a separable sidecar
+rather than inside the shared document. What this notes for the
+GUI milestone: sharing/compaction is a first-class operation
+(explicit, loud about what it drops), and the history sidecar's
+format is designed so the main document never depends on it.
+Non-binding until a GUI milestone picks it up.
