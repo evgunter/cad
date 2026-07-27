@@ -1,0 +1,32 @@
+# The SECOND independent dev-oracle lane, split out into its own crate so
+# that the parent `interval-transcendentals` manifest carries no local-path
+# dependency. That split is load-bearing since M5 PR 1: the kernel now
+# depends on `interval-transcendentals`, and cargo resolves the manifests of
+# path dependencies even when they are optional and disabled — a manifest
+# entry pointing at `/home/evan/projects/computable` would therefore break
+# every build on every machine that does not have that checkout (CI
+# included). Nothing else changed: the lane is still run by hand, on the
+# machine that has `computable`, with `cargo test` from this directory.
+[workspace]
+
+[package]
+name = "interval-transcendentals-oracle-computable"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.0"
+license = "MIT OR Apache-2.0"
+description = "Second-oracle (computable-reals) certification lane for interval-transcendentals"
+publish = false
+
+[dev-dependencies]
+# The crate under test.
+interval-transcendentals = { path = ".." }
+# Evan's computable-reals library: exact-real refinement with dyadic
+# bounds — no shared code, constants, or rounding model with inari, which
+# is the entire point of a second oracle. Local path: this lane only ever
+# builds on a machine with that checkout.
+computable = { path = "/home/evan/projects/computable" }
+# Needed by the shared harness module (`../tests/common/mod.rs`), which the
+# lane pulls in via `#[path]` rather than duplicating.
+inari = { version = "=2.0.0", features = ["gmp"] }
+libm = "=0.2.16"

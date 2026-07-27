@@ -1,9 +1,13 @@
-# Standalone crate, deliberately OUTSIDE the kernel workspace (like demos/):
-# the empty [workspace] table below opts out of the root workspace without
-# touching the kernel's Cargo.toml. This crate is the in-house rigorous
-# interval transcendentals unit (DESIGN.md "Tabled (far future)"), built as
-# side-chain evidence; the kernel does NOT depend on it (adoption is a later
-# ratified decision).
+# Its own workspace root (the empty [workspace] table below), deliberately
+# OUTSIDE the kernel workspace — the same posture as tools/ and demos/: this
+# crate stays buildable, testable, and certifiable on its own, and its
+# gmp-backed inari DEV-oracle can never reach a kernel build.
+#
+# Since M5 PR 1 the kernel DOES depend on it: geom-core's `interval` feature
+# takes a path dependency on this crate, which is the sole backend of the
+# `Interval` scalar. A path dependency does not make it a workspace member;
+# only its one non-dev dependency (libm — already a kernel dependency)
+# enters kernel builds.
 [workspace]
 
 [package]
@@ -23,23 +27,16 @@ libm = "=0.2.16"
 [dev-dependencies]
 # Certification oracle ONLY (dev-dependency: never ships, so the LGPL-3.0+
 # transitive deps of inari/gmp (gmp-mpfr-sys, rug) impose no obligation on
-# consumers of this crate). Requires AVX+FMA on x86-64; the repo-root
-# .cargo/config.toml's x86-64-v3 floor applies to builds rooted here via
-# cargo's hierarchical config discovery.
+# consumers of this crate — and, since M5 PR 1, none on the kernel either:
+# dev-dependencies of a path dependency are not part of the dependent's
+# graph). Requires AVX+FMA on x86-64; the repo-root .cargo/config.toml's
+# x86-64-v3 floor applies to builds rooted here via cargo's hierarchical
+# config discovery.
 inari = { version = "=2.0.0", features = ["gmp"] }
 
-[dependencies.computable]
-# Second, independent dev-oracle: Evan's computable-reals library
-# (state + bounds + refinement formalism, dyadic bounds). OPTIONAL and
-# feature-gated (dev-dependencies cannot be optional) because it is a local
-# path dep that only exists on machines with ~/projects/computable checked
-# out; enable with `--features oracle-computable` to run the second-oracle
-# tests. Never enabled by default; never ships.
-path = "/home/evan/projects/computable"
-optional = true
-
-[features]
-oracle-computable = ["dep:computable"]
-
-[profile.release]
-debug = false
+# The second, independent dev-oracle (Evan's computable-reals library) is
+# NOT declared here: it is a local path dependency, and cargo resolves the
+# manifests of path dependencies even when they are optional and disabled,
+# so an entry here would break every kernel build on every machine without
+# that checkout. The lane lives in its own sibling crate instead —
+# `oracle-computable/`, run by hand with `cargo test` from that directory.

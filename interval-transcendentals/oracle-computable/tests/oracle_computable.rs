@@ -7,10 +7,15 @@
 //! (`pow`, n ≥ 0). Point-sample containment: for dyadic sample points
 //! `x` in the input interval, computable's refined enclosure of `f(x)`
 //! (which contains the true `f(x)`) must lie INSIDE our interval result.
-//! Run with `--features oracle-computable` (path dev-oracle; targeted
-//! set, not millions — refinement is far slower than MPFR).
-#![cfg(feature = "oracle-computable")]
+//! Run with a plain `cargo test` **from this directory** (targeted set,
+//! not millions — refinement is far slower than MPFR). This lane lives in
+//! its own crate, outside `interval-transcendentals`, because `computable`
+//! is a local path dependency and the parent crate is now a dependency of
+//! the kernel: cargo resolves path-dependency manifests even for optional,
+//! disabled features, so the entry had to leave the parent manifest (M5
+//! PR 1). The harness module is shared by `#[path]`, not duplicated.
 
+#[path = "../../tests/common/mod.rs"]
 mod common;
 
 use common::Rng;
