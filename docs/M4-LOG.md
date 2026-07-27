@@ -1839,3 +1839,16 @@ assembled (exit walk + DESIGN sweep + final snapshot + handoff
 prompt) → EVAN'S MORNING SIGN-OFF → merge → state-sync → handoff
 → self-stop. Overnight plan: keep driving 8b + design-pass to
 PR-ready state autonomously; nothing else needs Evan.
+
+**8b review returned (2026-07-27): APPROVE, 0 MAJ / 2 MIN / 5
+NOTE.** Baselines independently scripted (counts, ceiling, floor,
+EMPTY gap, digit-exact histogram; fresh sweep byte-identical);
+planted 2^-13 fragility → 175 flags end-to-end (the lint catches
+what every prior gate missed — its reason to exist demonstrated);
+#117 rows fail loudly on a tampered sick doc; litmus circumcenter
+re-derived exact-rationally; advisory exit semantics executed.
+MINs: lint_csv silently-clean on unknown outcome strings (→ typed
+exit-1 + pin); report +9 accounting false (+1 true). Light fix
+pass dispatched. Rubric (row 10 pending fix pass): 0/2/5, idiom
+—/tests —/docs — (in report). After 8b PR+merge: assemble final
+snapshot, Evan's #119 👍 → merge 8c → handoff.
