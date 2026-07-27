@@ -64,7 +64,8 @@ Fable-verified, worktree fresh from main) — the orchestrator's
 job reduces to: (1) reach the drained seam; (2) `mngr message
 cad-implement-m5 --message-file <handoff-prompt>`; (3) `mngr
 capture cad-implement-m5` to confirm receipt + started working;
-(4) successor stops the predecessor once it confirms it has
-everything. The prompt should tell the successor to MERGE MAIN
+(4) after capture confirms the successor is working, the
+predecessor stops ITSELF: `mngr stop <own-name>` (Evan,
+2026-07-27 — replaces the successor-stops-predecessor shape). The prompt should tell the successor to MERGE MAIN
 first (its worktree is a creation-time snapshot). The old
 create/start/login-fallback dance is unnecessary on this path.
