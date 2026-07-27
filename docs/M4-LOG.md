@@ -1732,3 +1732,11 @@ Final unit dispatched: demo retire-pin flip folded INTO the #111
 branch (scope amendment — merging without it leaves the tour
 panicking), report decimal slip, winding-backstop comment. PR on
 its ping.
+
+**#111 PR OPENED (2026-07-27): #116 @ 12fc3cb** (main merged in;
+demo retire-pins flipped per instructions — mesh_gap machinery
+deleted, az now standard-lane watertight + STL). A/B row 8 FINAL:
+opus, M — 0 MAJ / 2 report-level MIN / 3 NOTE, 0 silent, 5/5/5
+(milestone-best rubric), tiny fix pass. Watcher armed (13-row
+floor). Pre-existing demos clippy errors (4, identical on main)
+queued with fmt drift as 8b/8c hygiene.
