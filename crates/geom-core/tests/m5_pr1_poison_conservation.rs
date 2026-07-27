@@ -102,7 +102,10 @@ fn partial_domain_misses_clamp_and_refuse_to_decide() {
         ("acos([0.5, 2])", Interval::from_bounds(0.5, 2.0).acos()),
         // tan over an enclosure containing a pole: no finite range is
         // honest, so the backend refuses with Entire + Trv.
-        ("tan([1, 2]) over π/2", Interval::from_bounds(1.0, 2.0).tan()),
+        (
+            "tan([1, 2]) over π/2",
+            Interval::from_bounds(1.0, 2.0).tan(),
+        ),
         // Division by a zero-straddling enclosure.
         (
             "[1, 2] / [-1, 1]",
@@ -215,17 +218,53 @@ fn every_binary_operation_conserves_poison_from_either_side() {
 fn healthy_inputs_still_decide_definitely() {
     let one = Interval::from_bounds(1.0, 2.0);
     let neg = Interval::from_bounds(-2.0, -1.0);
-    assert_decides("sqrt([1,4])", Interval::from_bounds(1.0, 4.0).sqrt(), Sign::Positive);
+    assert_decides(
+        "sqrt([1,4])",
+        Interval::from_bounds(1.0, 4.0).sqrt(),
+        Sign::Positive,
+    );
     assert_decides("abs", neg.abs(), Sign::Positive);
-    assert_decides("floor([2.2, 2.8])", Interval::from_bounds(2.2, 2.8).floor(), Sign::Positive);
+    assert_decides(
+        "floor([2.2, 2.8])",
+        Interval::from_bounds(2.2, 2.8).floor(),
+        Sign::Positive,
+    );
     // floor across a step is `Def` — honest discreteness, still decides.
-    assert_decides("floor([2.5, 3.5])", Interval::from_bounds(2.5, 3.5).floor(), Sign::Positive);
-    assert_decides("sin([0.1, 0.2])", Interval::from_bounds(0.1, 0.2).sin(), Sign::Positive);
-    assert_decides("cos([0.1, 0.2])", Interval::from_bounds(0.1, 0.2).cos(), Sign::Positive);
-    assert_decides("tan([0.1, 0.2])", Interval::from_bounds(0.1, 0.2).tan(), Sign::Positive);
-    assert_decides("asin([0.1, 0.2])", Interval::from_bounds(0.1, 0.2).asin(), Sign::Positive);
-    assert_decides("acos([0.1, 0.2])", Interval::from_bounds(0.1, 0.2).acos(), Sign::Positive);
-    assert_decides("atan([0.1, 0.2])", Interval::from_bounds(0.1, 0.2).atan(), Sign::Positive);
+    assert_decides(
+        "floor([2.5, 3.5])",
+        Interval::from_bounds(2.5, 3.5).floor(),
+        Sign::Positive,
+    );
+    assert_decides(
+        "sin([0.1, 0.2])",
+        Interval::from_bounds(0.1, 0.2).sin(),
+        Sign::Positive,
+    );
+    assert_decides(
+        "cos([0.1, 0.2])",
+        Interval::from_bounds(0.1, 0.2).cos(),
+        Sign::Positive,
+    );
+    assert_decides(
+        "tan([0.1, 0.2])",
+        Interval::from_bounds(0.1, 0.2).tan(),
+        Sign::Positive,
+    );
+    assert_decides(
+        "asin([0.1, 0.2])",
+        Interval::from_bounds(0.1, 0.2).asin(),
+        Sign::Positive,
+    );
+    assert_decides(
+        "acos([0.1, 0.2])",
+        Interval::from_bounds(0.1, 0.2).acos(),
+        Sign::Positive,
+    );
+    assert_decides(
+        "atan([0.1, 0.2])",
+        Interval::from_bounds(0.1, 0.2).atan(),
+        Sign::Positive,
+    );
     assert_decides("atan2(y>0, x>0)", one.atan2(one), Sign::Positive);
     // The D2 case: the closed upper half-plane against x < 0. The value
     // is near +π; the decoration reaches `Com` here (it was `Dac` under
