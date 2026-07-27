@@ -1860,3 +1860,35 @@ the PR, and proceed immediately on the recommended fork answers
 by him). Fork-independent units run first regardless (interval
 adoption GREEN-LIT, CURVED post-ratification obligations, C12
 seams). Handoff prompt updated.
+
+**8c MERGED (2026-07-27): #119 → main `3ac4d68` — THE M4 EXIT
+SWEEP IS RATIFIED** (Evan 👍 + two in-chat riders: interval
+adoption green-lit; GUI state/history separation note; convention
+2 sharpened to his structural-shared-validator form). DESIGN.md,
+exit walk, status headers, D5 trim, ERROR tails amendment — all
+on main. Remaining: #121 (8b) merges on green → final snapshot →
+handoff to cad-implement-m5 → self-stop.
+
+## M4 FINAL SNAPSHOT (2026-07-27 — milestone CLOSED; this is the
+## final entry of the cad-implement-m3-6plus orchestrator)
+
+**M4 is complete.** 8b merged (#121, 18/18 — the k-lint row joins
+the matrix); 8c ratified and merged (#119). Exit walk: docs/
+M4-EXIT-WALK.md, 12/12 (the 12th criterion was #119 itself).
+Milestone totals: PRs #96-#121 (26 merges incl. state syncs);
+issues opened AND closed in-milestone: #95, #99, #101, #105, #106,
+#111, #117, #120; kernel bugs found by review/demo lanes before
+they bit: the #105 silent-wrong-volume, the #111 needle, the #120
+sick golden. A/B experiment: 10 rows complete in MODEL-AB-LOG
+(readout in memories/model-ab-experiment.md — no evidence the
+opus arm is worse; continues into M5). Standing state: monitors
+scripted in scripts/monitors/ (arm 3 at session start); sign-off
+watchlist EMPTY; disk ~120G; matrix 18 rows; open non-blocking
+threads: Q9 (Evan), #104 (concept), interval adoption (GREEN-LIT,
+schedule anytime), CURVED post-ratification obligations
+(TangencyLocus sweep, Q5 revision — M5-PLAN inputs). **HANDOFF to
+cad-implement-m5 initiated immediately after this commit** (prompt
+per memories/orchestrator-handoff.md streamlined path; successor
+proceeds on M5-PLAN recommendations without overnight sign-off per
+Evan's explicit authorization above). This orchestrator self-stops
+after capture-verify.
