@@ -320,7 +320,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
   entirely M5-shaped — (a) intersection-locus representation (even a
   tilted plane×cylinder cut is an ellipse, outside `Line | Circle`),
   (b) general pcurves, (c) second-order sector classification (the
-  `TangencyLocus` regime), (d) certified marching numerics (the SSI
+  `TangentIntersection` regime), (d) certified marching numerics (the SSI
   contract). The inverse commitment holds too: M3 built **no
   speculative curved-readiness abstraction** beyond the thin
   face-intersection interface (plane×plane closed-form today); M5
@@ -443,7 +443,7 @@ the conventional variants carry their own defining data — so extensional
 input can be *adopted* by reconstructing (or directly adopting) the
 description it satisfies rather than admitted as second-class data. What import pressure-tests is
 the **completeness of the variant taxonomy** (e.g. imported fillets force
-`TangencyLocus`), not the need for an extensional fallback.
+`TangentIntersection`), not the need for an extensional fallback.
 
 Validity of `Intersection` requires *transversality*: normals of S₁, S₂
 linearly independent along the locus (equivalently `T_pS₁ + T_pS₂ = ℝ³`),
@@ -452,11 +452,15 @@ transversality margin (angle between normals) is a predicate-with-margin
 (Q1) and governs the conditioning of every derived cache. Cases that fail
 transversality get other variants: parameterization seams (`Seam`),
 tangential contact such as fillet–support contact curves (a future
-`TangencyLocus` variant — the fillet construction knows its contact locus
+`TangentIntersection` variant — *named `TangencyLocus` in pre-M5
+text; renamed as a ratified D2 sharpening per CURVED-DESIGN OQ7,
+Evan 👍 #85 2026-07-24, applied at M5 PR 0: the variant mirrors
+`Intersection` — same shape, same witness pin, margin one
+differential order up* — the fillet construction knows its contact locus
 directly, but *imported* fillets force the intrinsic form: along a fillet
 boundary edge the blend and support surfaces share tangent planes
 identically, so `Intersection`'s precondition fails everywhere on the
-locus). `TangencyLocus`'s intrinsic validity condition sits one
+locus). `TangentIntersection`'s intrinsic validity condition sits one
 differential order up: surfaces coincident within ε and normal-parallel
 within the derived angular threshold ε·κ_rel (D4 ¶1: lever arm
 r = 1/κ_rel) *along* the locus, separating quadratically *transverse* to it
@@ -464,7 +468,7 @@ r = 1/κ_rel) *along* the locus, separating quadratically *transverse* to it
 surfaces osculate over a patch and the "locus" is not a curve). The
 uniform pattern: **every variant is a validity predicate plus a margin**
 (Q1) — first-order (normal angle) for `Intersection`, second-order
-(relative transverse curvature) for `TangencyLocus`. Reconstructing a
+(relative transverse curvature) for `TangentIntersection`. Reconstructing a
 tangency locus from data is well-conditioned *despite* the tangency
 because its defining system includes the first-order (normal-alignment)
 equations, not just surface coincidence — the normal angle grows linearly
@@ -479,17 +483,17 @@ surfaces / endpoint of a locus, with a witness point).
 **Prefer-intrinsic rule.** Wherever an intrinsic description is
 certifiable, it *is* the stored description — including for native
 constructions: a fillet we build stores its boundary edges as
-`TangencyLocus`, with the rolling-ball construction demoted to supplying
+`TangentIntersection`, with the rolling-ball construction demoted to supplying
 the witness and initial caches. Construction history lives in D5
 provenance, never in the geometry description, so native and imported
 bodies carry identical descriptions. The taxonomy is thus a dichotomy:
-**intrinsic variants** (`Intersection`, `TangencyLocus`) describe loci
+**intrinsic variants** (`Intersection`, `TangentIntersection`) describe loci
 determined by their surfaces; **conventional variants** (`Seam`,
 `MappedCurve`) carry the defining data for loci the surfaces *under*-
 determine — parameterization seams (infinite-order contact; the seam's
 position is pure convention), face splits at smooth profile joins
 (iso-curve edges introduced by sketch entity boundaries; at a G2 join
-even `TangencyLocus` fails its margin, and rightly — nothing intrinsic
+even `TangentIntersection` fails its margin, and rightly — nothing intrinsic
 distinguishes that curve from its neighbors), and user splits.
 `MappedCurve` does not reintroduce `Explicit` through the back door
 because of its shape: one authoritative source (`curve = map ∘ source`,
@@ -497,7 +501,7 @@ pcurves derived as certified caches), never two peer representations
 needing cross-reconciliation. A locus in the ambiguous band — a dihedral
 within a few derived angular thresholds of tangent (θ ≲ K·ε/r at the
 governing lever arm), certifiable as neither `Intersection` nor
-`TangencyLocus` — fails loudly at construction exactly as at import (D4);
+`TangentIntersection` — fails loudly at construction exactly as at import (D4);
 a conventional description is not an escape hatch from ill-conditioned
 geometry.
 
@@ -1431,17 +1435,25 @@ fallback if ezpz's product-driven roadmap diverges from our needs.
 
 ### Q4: Units and model scale — **resolved**, folded into D4 (¶4) and D6.
 
-### Q5: Depend on, vendor, or merely study `curvo` for NURBS algorithms
+### Q5: Depend on, vendor, or merely study `curvo` for NURBS algorithms — **resolved (M5 audit, 2026-07-27)**
 
-The core invariants (certified residuals, trilean predicates, generic `T`,
-no hidden tolerance decisions) live *in the algorithms*, and an algorithm
-behind a foreign API can't uphold them — curvo uses its own internal
-epsilons and returns bare answers. Default stance: reference + test oracle
-(alongside opencascade-rs) from M3. But it's MIT, so vendoring specific
-algorithms and adapting them to carry our invariants is on the table;
-audit its source properly before M5. Contrast ezpz, which sits *upstream*
-of the certified core (its output is just numbers that then pass through
-our construction and checks), so arm's-length dependency is principled.
+**Study + dev-dependency test oracle; vendoring REJECTED by the M5
+S3 audit** (`docs/CURVO-AUDIT.md`, curvo @ 47d19d5, 2026-06-25).
+The standing rationale held and the audit closed the vendoring
+half: the core invariants (certified residuals, trilean predicates,
+generic `T`, no hidden tolerance decisions) live *in the
+algorithms*, and in every candidate routine the invariant-relevant
+surface (equality/acceptance gates, scalar trait, termination,
+error reporting) is exactly the part a retrofit would rewrite —
+while the two biggest hoped-for targets (an A9.10 fitting stack,
+SSI) do not exist in curvo at all (its `marching` module is an
+empty placeholder). Oracle scope, pinned at the audited commit:
+evaluation/derivatives/basis/degree-elevation/interpolation only;
+not bit-exact (std-routed math), not SSI/booleans (absent —
+opencascade-rs/truck remain those oracles). Contrast ezpz, which
+sits *upstream* of the certified core (its output is just numbers
+that then pass through our construction and checks), so
+arm's-length dependency stays principled.
 
 ### Q6: Recipe representation — **resolved**, promoted to D8.
 
@@ -1487,7 +1499,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M4). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
-| Interval arithmetic | `inari` | MIT | **Adopted** (M0, issue #4), quarantined. IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64. **The in-house replacement now EXISTS in-repo** (M4 side-chain, #115, 2026-07-26): `interval-transcendentals/`, workspace-excluded tooling — proven per-function libm error pads with the §2 bit-distance proofs, dual-oracle certification (inari + the revived `computable`, ~5.8M asserts / 4.0M cases), ~93× build-time advantage vs the gmp stack. **Adoption GREEN-LIT (Evan, in-session 2026-07-27: "replace it whenever it's convenient"; parallelizable with ~anything)** — no longer gated on M5-PLAN ratification; schedule as a standalone unit (normal implement/review pipeline, the M0 poison-channel contract is the acceptance bar); inari remains the default backend and this quarantine text stands until that unit merges |
+| Interval arithmetic | `inari` | MIT | **Adopted** (M0, issue #4), quarantined. IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64. **The in-house replacement now EXISTS in-repo** (M4 side-chain, #115, 2026-07-26): `interval-transcendentals/`, workspace-excluded tooling — proven per-function libm error pads with the §2 bit-distance proofs, dual-oracle certification (inari + the revived `computable`, ~5.8M asserts / 4.0M cases), ~93× build-time advantage vs the gmp stack. **Adoption GREEN-LIT (Evan, in-session 2026-07-27: "replace it whenever it's convenient"; parallelizable with ~anything)** — no longer gated on M5-PLAN ratification; schedule as a standalone unit (normal implement/review pipeline, the M0 poison-channel contract is the acceptance bar); inari remains the default backend and this quarantine text stands until that unit merges. **Transition state (C9, ratified #85; text update = the CURVED post-ratification obligation, applied at M5 PR 0)**: while the in-house interval RING (C9, M5 PR 2) lands, inari MAY sit on the default build path temporarily as the ring's seed/reference implementation and differential oracle — Evan explicitly accepted the temporary LGPL exposure for the private repo; the **exit condition is LGPL-free-before-publish** (dual MIT/Apache). The M5-PLAN path (PR 1 backend swap + PR 2 ring) satisfies it by RETIRING inari from the tree entirely, which supersedes re-quarantine; this row and issue #4 close when both merge |
 | Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
@@ -1499,8 +1511,10 @@ not the modeling core. Candidates, all verified active unless noted:
 
 Reference-only (read, don't depend): **truck** (only living Rust B-rep
 kernel; active on git but crates.io releases stale; booleans demo-grade),
-**curvo** (excellent active pure-Rust NURBS incl. SSI and trimming — study
-before M5), **vcad** (new Apache-2.0 half-edge B-rep kernel with
+**curvo** (active pure-Rust NURBS evaluation/fitting-interpolation;
+audited at M5 — NO SSI (empty placeholder module) and demo-grade 2-D
+clipping only, an earlier "incl. SSI" claim here was wrong; oracle
+scope per Q5/docs/CURVO-AUDIT.md), **vcad** (new Apache-2.0 half-edge B-rep kernel with
 booleans/fillets, too young to depend on but the most interesting recent
 effort), **Fornjot** (archived June 2026 — see below), **opencascade-rs**
 (the only production-grade-boolean route in Rust today; LGPL + C++ build
@@ -1524,7 +1538,7 @@ M6's stackup design should treat kinks/subdifferentials),
 (Computer-Aided Design 26(5) — the canonical blending survey, supplied
 by Evan 2026-07-16; primary source for M5's fillet scope-boxing:
 terminology/classification of blends, rolling-ball and trimline
-methods, the open problems that motivated D2's `TangencyLocus`
+methods, the open problems that motivated D2's `TangentIntersection`
 treatment), and `hoffmann/` (Hoffmann,
 *Geometric and Solid Modeling*, complete: front + chapters 1–7 + bib,
 recovered via the Internet Archive — the Purdue page is gone).
