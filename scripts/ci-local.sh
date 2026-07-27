@@ -106,6 +106,16 @@ corpus_interval() { cargo test -p editor-core --features interval --test m4_pr8_
 # Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
 rebuild_latency() { cargo test -p editor-core --test m4_pr8_latency -- --nocapture; }
 
+# Demos hygiene (M4 PR 8b pickup): demos/tour is workspace-excluded, so
+# the workspace fmt/clippy rows above never see it — fmt drift and
+# clippy errors accumulated invisibly until 8b. This row keeps them from
+# silently returning. Hosted mirror: the ci.yml `k-lint` job runs the
+# same two commands before its probe sweep (the tour must build there
+# anyway — the demo scenes are half the lint's subject matter).
+demos_hygiene() {
+  (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+}
+
 run_row "discipline (evaluation-code)" discipline
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy --workspace --all-targets -- -D warnings
@@ -123,6 +133,7 @@ run_row "persist roundtrip (interval)"    persist_interval
 run_row "band 4 corpus (3 eps rows)"      corpus_eps
 run_row "band 4 corpus (interval)"        corpus_interval
 run_row "rebuild latency (reporting)"     rebuild_latency
+run_row "demos tour (fmt + clippy)"       demos_hygiene
 run_row "watertight (admesh)"          watertight
 run_row "step import (freecad)"        step_import
 

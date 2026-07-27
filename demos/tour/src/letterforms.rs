@@ -213,7 +213,9 @@ fn narrate_naive() {
     let BooleanResult::Body(bb) = r else {
         panic!("declared naive 2-way cannot be empty");
     };
-    let v = topo::mass_properties(&bb.body).expect("declared naive volume").volume;
+    let v = topo::mass_properties(&bb.body)
+        .expect("declared naive volume")
+        .volume;
     assert!(
         (v - V_2WAY_NAIVE).abs() < 1e-9,
         "declared naive 2-way volume {v} vs {V_2WAY_NAIVE}"

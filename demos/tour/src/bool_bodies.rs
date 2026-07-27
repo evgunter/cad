@@ -80,7 +80,8 @@ fn die() -> (topo::BooleanBody<f64>, String) {
     let ny: PipBox = |a, b| slab(a, OUT, b);
     let pz: PipBox = |a, b| slab(a, b, IN);
     let nz: PipBox = |a, b| slab(a, b, OUT);
-    let faces: [(&str, Vec<(f64, f64)>, PipBox); 6] = [
+    type Face<'a> = (&'a str, Vec<(f64, f64)>, PipBox);
+    let faces: [Face; 6] = [
         ("+z=1", one, pz),
         ("-z=6", six, nz),
         ("+x=2", two, px),

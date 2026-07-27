@@ -59,16 +59,17 @@ pub fn flush_declarations(a: &Body<f64>, b: &Body<f64>) -> topo::BooleanDeclarat
     use geom_core::Sign;
     use geom_core::k_stats::decide;
     let band = geom_core::Band::linear().unwrap();
-    let planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> {
-        body.faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => {
-                    Some((k, origin, normal))
-                }
-                _ => None,
-            })
-            .collect()
-    };
+    let planes =
+        |body: &Body<f64>| -> Vec<(topo::FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> {
+            body.faces()
+                .filter_map(|(k, f)| match body.get_surface(f.surface) {
+                    Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => {
+                        Some((k, origin, normal))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
     let mut decls = topo::BooleanDeclarations::none();
     for &(fa, oa, na) in &planes(a) {
         for &(fb, ob, nb) in &planes(b) {

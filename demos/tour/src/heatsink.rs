@@ -150,9 +150,8 @@ pub fn stops() -> Vec<Stop> {
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
-    evs.push((5, ev5, format!("cold evaluation: all 5 nodes computed")));
-    let mut prior_idx = 0;
-    for n in [7usize, 9] {
+    evs.push((5, ev5, "cold evaluation: all 5 nodes computed".to_string()));
+    for (prior_idx, n) in [7usize, 9].into_iter().enumerate() {
         let applied = apply(
             &doc,
             &DocEdit::SetStructuralParam {
@@ -174,7 +173,6 @@ pub fn stops() -> Vec<Stop> {
         );
         assert_eq!(ev.reused, 4, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
-        prior_idx += 1;
     }
 
     // Stable names survive the structural edits (N1 Instance(i)).

@@ -209,6 +209,10 @@ fn chute() -> (topo::Body<f64>, String) {
     (body, note)
 }
 
+// Narration fields arrive as one flat argument list on purpose — the
+// call sites below read as a table of stops; a params struct would just
+// re-spell `Stop` itself.
+#[allow(clippy::too_many_arguments)]
 fn stop(
     name: &'static str,
     story: &'static str,
