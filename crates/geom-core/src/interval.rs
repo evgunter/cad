@@ -33,17 +33,26 @@
 //!
 //! # Certification semantics: truth containment, not f64 containment
 //!
-//! An enclosure brackets the TRUE value. A libm-computed `f64` of the same
-//! expression can land *outside* a tight enclosure of a transcendental
-//! result (libm makes no correct-rounding guarantee — its divergence from
-//! std reaches 4 ulps in the census; no faithful-rounding violation was
-//! found in 5.6M samples, but none is promised). Certification code
-//! therefore bounds *residual quantities*
-//! evaluated at interval type and never asserts "f64 value ∈ enclosure"
-//! for transcendental results; the same rule binds this module's tests.
-//! Exact single operations (`+`, `−`, `·`, `/`, `sqrt`) are correctly
-//! rounded at `f64` and the backend pads their endpoints outward, so their
-//! f64 results *are* contained — those may be asserted.
+//! An enclosure brackets the TRUE value — never, by contract, the `f64`
+//! evaluation of the same expression. Certification code therefore bounds
+//! *residual quantities* evaluated at interval type and never asserts
+//! "f64 value ∈ enclosure" for transcendental results; the same rule binds
+//! this module's tests. Exact single operations (`+`, `−`, `·`, `/`,
+//! `sqrt`) are correctly rounded at `f64` and the backend pads their
+//! endpoints outward, so their f64 results *are* contained — those may be
+//! asserted.
+//!
+//! Under the pre-M5 inari backend the rule had teeth of its own: inari's
+//! transcendentals are correctly rounded, so a libm-computed `f64` really
+//! could land outside a 1-ulp enclosure (libm promises no correct
+//! rounding — its divergence from std reaches 4 ulps in the census). The
+//! present backend derives its pads FROM libm's own error bound, so the
+//! f64 lane is now contained op-for-op in practice
+//! (`review_m0_pr4::powi_f64_lane_is_contained_by_the_padded_enclosure`
+//! pins exactly that, having been the inverse assertion before the swap).
+//! The discipline stands regardless: it must not depend on which backend
+//! is installed, and a future retightening would restore the old
+//! behavior without warning.
 //!
 //! # Tightness is a quality, containment is the contract
 //!
