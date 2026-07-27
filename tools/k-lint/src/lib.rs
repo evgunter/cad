@@ -48,7 +48,8 @@
 //!   0 invalid, nothing near either band edge.
 //!
 //! [`BASELINE_FLOOR_MARGIN`] is the **0th percentile** (the observed
-//! minimum, 1.689e-3, rounded down one significant figure to 1.5e-3).
+//! minimum, 1.689e-3, rounded down to 1.5e-3 — ~11% of headroom so the
+//! baseline's own floor sample never rides the threshold).
 //! Percentile choice rationale (spec: "REPORT the percentile choice"):
 //! any P > 0 would flag the baseline's own bottom tail on every
 //! advisory run (P0.01 ≈ 7.8e3·ε already strands the 240 real az
@@ -73,8 +74,8 @@ pub const PROXIMITY_FACTOR: f64 = 1e2;
 
 /// The baseline distribution's bottom edge (provenance in the module
 /// docs — the M4 baseline's smallest definite margin 1.689e-3, P0,
-/// rounded down to one significant figure so the baseline itself
-/// lints clean with honest headroom).
+/// rounded down to 1.5e-3 so the baseline itself lints clean with
+/// ~11% of headroom).
 pub const BASELINE_FLOOR_MARGIN: f64 = 1.5e-3;
 
 /// Why a sample was flagged.
@@ -161,7 +162,8 @@ pub fn lint_sample(margin: f64, band_zero: f64, band_escalate: f64, outcome: &st
 ///
 /// # Errors
 ///
-/// The first malformed line (harness breakage).
+/// The first malformed line — bad column count, unparseable float, or
+/// an UNKNOWN outcome string (harness breakage; findings never error).
 pub fn lint_csv(text: &str) -> Result<(usize, Vec<Flag>), ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
@@ -197,6 +199,15 @@ pub fn lint_csv(text: &str) -> Result<(usize, Vec<Flag>), ParseError> {
         let margin: f64 = m.parse().map_err(|_| err())?;
         let band_zero: f64 = bz.parse().map_err(|_| err())?;
         let band_escalate: f64 = be.parse().map_err(|_| err())?;
+        // An unknown outcome string is harness breakage, exactly like
+        // a malformed float: scoring it silently CLEAN would let a
+        // sweep-format drift disarm the whole lint (review MIN-2).
+        if !matches!(
+            out,
+            "zero" | "positive" | "negative" | "indeterminate" | "invalid"
+        ) {
+            return Err(err());
+        }
         scanned += 1;
         let reasons = lint_sample(margin, band_zero, band_escalate, out);
         if !reasons.is_empty() {
@@ -291,6 +302,14 @@ mod tests {
         assert_eq!(flags[0].predicate, "p2");
         assert_eq!(flags[0].reasons, vec![Reason::InBand]);
         assert!(lint_csv("bad header\n").is_err());
+        // MIN-2 pin: a typo'd outcome must FAIL the row, not score
+        // silently clean.
+        assert!(
+            lint_csv(
+                "shape,predicate,margin,band_zero,band_escalate,outcome\nx,y,2e0,1e-9,1e-8,positve\n"
+            )
+            .is_err()
+        );
         assert!(
             lint_csv(
                 "shape,predicate,margin,band_zero,band_escalate,outcome\nx,y,notafloat,1,1,zero\n"

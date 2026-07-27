@@ -12,7 +12,7 @@
 #
 # Writes <outdir>/m4-eps-<ε>.csv (plus .gz and no plain CSV when
 # --gzip). The committed baseline in docs/k-report-data/ was generated
-# by exactly this script with --gzip (raw rows are ~160 MB/row; the
+# by exactly this script with --gzip (raw rows are 162-203 MB; the
 # gzipped baseline is the durable record — same rows, same columns).
 # The ci `k-lint` job runs the same sweep into a scratch dir and lints
 # the fresh rows against the thresholds pinned in tools/k-lint.

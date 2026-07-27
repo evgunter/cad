@@ -247,9 +247,10 @@ identically (the band is empty; see the histogram).
 - **Data**: `docs/k-report-data/m4-eps-{1e-6,1e-9,1e-12}.csv.gz` —
   M2's columns exactly, shapes namespaced `corpus/<doc>` /
   `demo/<scene>`. Deviation from M2's convention (REPORTED): the raw
-  rows are ~160 MB per ε row (2,562,157 samples vs M2's 13,282), so
-  the committed record is gzipped; `gzip -dc` reproduces the M2
-  format byte-for-byte row-wise.
+  rows are large — 203 MB at the 1e-6 row, ~162 MB at the tighter
+  rows (2,562,157 samples vs M2's 13,282) — so the committed record
+  is gzipped; `gzip -dc` reproduces the M2 format byte-for-byte
+  row-wise.
 
 | ε row | samples | zero | definite | indet. | invalid | in (ε, Kε) | definite within a decade of Kε |
 |-------|--------:|-----:|---------:|-------:|--------:|-----------:|---:|
@@ -267,7 +268,7 @@ histogram of |m|/ε for the DEFINITE population (ε = 1e-6 row; the
 other rows are the same histogram shifted by exactly 3/6 decades):
 
 ```
-decade 3  |          240   (1.7e3 .. 1e4 — az census gaps, the floor)
+decade 3  |          240   (1.7e3 .. 1e4 — composition below)
 decade 4  |       47 622
 decade 5  |    1 023 036
 decade 6  |    1 031 564
@@ -278,6 +279,13 @@ decade 39+|          866   (exact tie-break bands: canonical_order_*,
                             decisions, excluded from the lint's ratio
                             rules)
 ```
+
+The 240-sample decade-3 tail (the floor's neighborhood): 173
+demo/az (bool_point_in_solid_plane 89, bool_join_nearest 38, and the
+pm_census gap/residual family), 63 die `witness_at_mid_parameter`
+(42 corpus + 21 demo — the same document through both paths), 3
+demo/projectbox_cutaway `split_bisector_side`, 1 demo/table. All are
+real millimeter-scale feature clearances, not noise.
 
 Zero-side: 447 581 of 458 734 zero-classified margins are EXACTLY 0;
 the rest are ≤ 5.33e-15 m (worst: `pm_census_ee_span`, demo/az).
@@ -300,7 +308,8 @@ FLAGS, **advisory-only in this first iteration**:
    `tools/k-lint/src/lib.rs` with this provenance).
 
 **Percentile choice (reported per spec): P0 — the observed baseline
-minimum 1.689e-3, rounded down one significant figure to 1.5e-3.**
+minimum 1.689e-3, rounded down to 1.5e-3 (~11% of headroom below the
+observed floor).**
 Candidates from the baseline (1e-6 row, ratio units): P0.01 = 7.8e3,
 P0.1 = 3.2e4, P1 = 6.3e4. Any P > 0 permanently flags the baseline's
 own bottom tail (already at P0.01, the 240 real az census margins) on

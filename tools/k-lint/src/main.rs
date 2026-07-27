@@ -7,6 +7,16 @@
 
 use k_lint::lint_csv;
 
+/// Stdout write guard: a closed pipe downstream (`k-lint … | head`)
+/// must end the run quietly, not panic — advisory output is not
+/// harness breakage. Everything loud goes to stderr + exit 1.
+fn say(args: std::fmt::Arguments<'_>) {
+    use std::io::Write as _;
+    if writeln!(std::io::stdout(), "{args}").is_err() {
+        std::process::exit(0);
+    }
+}
+
 fn main() {
     let paths: Vec<String> = std::env::args().skip(1).collect();
     if paths.is_empty() {
@@ -32,35 +42,43 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        println!("k-lint: {path}: {scanned} samples, {} flagged", flags.len());
+        say(format_args!(
+            "k-lint: {path}: {scanned} samples, {} flagged",
+            flags.len()
+        ));
         // Print every flag, but cap the per-file dump so a systematic
         // regression cannot drown the job log; the summary count above
         // is always complete.
         const CAP: usize = 200;
         for f in flags.iter().take(CAP) {
             for r in &f.reasons {
-                println!(
+                say(format_args!(
                     "  ADVISORY {}:{} line {}: |m|={:e} band_zero={:e} — {r}",
                     f.shape,
                     f.predicate,
                     f.line,
                     f.margin.abs(),
                     f.band_zero
-                );
+                ));
             }
         }
         if flags.len() > CAP {
-            println!("  … {} more flags (capped print)", flags.len() - CAP);
+            say(format_args!(
+                "  … {} more flags (capped print)",
+                flags.len() - CAP
+            ));
         }
         total_flags += flags.len();
     }
     if total_flags > 0 {
-        println!(
+        say(format_args!(
             "k-lint: {total_flags} ADVISORY flag(s) — printed, not failing \
              (first-iteration posture, M4 PR 8b D3; gate once the \
              baseline is trusted)"
-        );
+        ));
     } else {
-        println!("k-lint: clean — no margin crowds a decision boundary");
+        say(format_args!(
+            "k-lint: clean — no margin crowds a decision boundary"
+        ));
     }
 }
