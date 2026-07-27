@@ -16,15 +16,22 @@
 //! unchanged; this is the post-#108 victory lap, not a new panel.
 //!
 //! And the victory lap found the NEXT gap (#111, demo-driven
-//! development doing its job again): the exact kernel is green — tiers
-//! 1/2/3′ pass, the volume is the exact oracle — but the planar CDT's
-//! centroid-parity filter keeps an exterior needle triangle where the
+//! development doing its job again): the exact kernel was green — tiers
+//! 1/2/3′ passing, the volume the exact oracle — while the planar CDT's
+//! centroid-parity filter kept an exterior needle triangle where the
 //! boolean's seam vertices land 1 ulp off an existing boundary carrier
 //! line (Z's slope-3/5 diagonal arithmetic is non-dyadic), so
-//! `check_mesh` refuses `BoundaryEdge` on the tessellation. That
-//! refusal is PINNED here via `SceneBody::mesh_gap` (retire-on-closure,
-//! the #106 pattern); the render rides our own STEP export, which is
-//! untouched by the mesh lane.
+//! `check_mesh` refused `BoundaryEdge` on the tessellation. This scene
+//! PINNED that refusal for as long as it stood.
+//!
+//! #111 is CLOSED: the CDT now classifies regions by a constraint-
+//! crossing flood fill over the triangulation's face-adjacency graph
+//! instead of by ray-casting a constructed centroid, so every boundary
+//! segment is an edge of exactly one kept triangle by construction —
+//! no float decision is left to be 1 ulp wrong. The pin has been
+//! retired per its own instructions and this stop rides the standard
+//! mesh + STL lane like every other; the geometry never changed, so
+//! the shipped render still stands.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -149,14 +156,11 @@ pub fn stops() -> Vec<Stop> {
             azim: -65.0,
             up: 'y',
         },
-        bodies: vec![{
-            let mut sb = SceneBody::seamed("az", [0.42, 0.55, 0.74], az.body, az.contacts);
-            sb.mesh_gap = Some(
-                "issue #111: the planar CDT's centroid-parity filter keeps an \
-                 exterior needle triangle on the 1-ulp-noisy collinear seam \
-                 boundary — exact kernel green, tessellation not watertight",
-            );
-            sb
-        }],
+        bodies: vec![SceneBody::seamed(
+            "az",
+            [0.42, 0.55, 0.74],
+            az.body,
+            az.contacts,
+        )],
     }]
 }
