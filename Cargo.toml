@@ -2,7 +2,9 @@
 resolver = "3"
 # demos/ is a deliberately separate cargo project (pre-GUI visual demo
 # tour + STL viewer tooling); it must never join the kernel workspace.
-exclude = ["demos"]
+# tools/ holds CI tooling (the k-lint fragility lint) — same posture:
+# lint policy must never become a workspace dependency.
+exclude = ["demos", "tools"]
 members = [
     "crates/editor-core",
     "crates/geom-brep",
