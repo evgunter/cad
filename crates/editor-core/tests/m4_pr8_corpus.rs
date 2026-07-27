@@ -170,30 +170,3 @@ fn vocabulary_coverage_is_total() {
     );
     assert_eq!(edits.len(), EDIT_KINDS.len(), "unlisted edit kind covered");
 }
-
-/// The #106 residue, pinned at the RECIPE level: the depth-2 nested
-/// intersect refuses TYPED (never a silent wrong body). When #106
-/// lands this test fires — verify the exact volume 3.25 and the tiers,
-/// then RETIRE this pin and promote `depth2_refusal_probe` into a
-/// full corpus document (`corpus/islands.rs` module docs).
-#[test]
-fn issue106_depth2_recipe_refuses_typed() {
-    let (doc, cut) = corpus::islands::depth2_refusal_probe();
-    let ev = eval::<f64>(&doc);
-    match ev.nodes.get(&cut) {
-        Some(editor_core::NodeResult::Failed(e)) => {
-            let text = format!("{e:?}");
-            assert!(
-                text.contains("JoinDesync") && text.contains("anchor"),
-                "depth-2 refusal moved off the anchor-exhaustion arm: {text}"
-            );
-        }
-        Some(editor_core::NodeResult::Ok(_)) => panic!(
-            "PIN FIRED (not necessarily a regression): the depth-2 nested \
-             intersect now builds at the recipe level. Verify volume 3.25 \
-             exactly plus tiers 1/2/3', then retire this pin as the issue \
-             #106 closure and add the document to the corpus."
-        ),
-        other => panic!("unexpected depth-2 outcome: {other:?}"),
-    }
-}

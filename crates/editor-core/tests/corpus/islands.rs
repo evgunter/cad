@@ -1,6 +1,7 @@
-//! Corpus documents **nested_islands_105** and
-//! **nested_islands_106_depth1** — the doubly-nested island chain
-//! from the issue #93 adversarial review, as recipes.
+//! Corpus documents **nested_islands_105**,
+//! **nested_islands_106_depth1** and **nested_islands_106_depth2** —
+//! the doubly-nested island chain from the issue #93 adversarial
+//! review, as recipes.
 //!
 //! The chain is in GENERAL POSITION (no value-equal plane pair
 //! anywhere), so nothing here is declared: these documents exercise
@@ -12,14 +13,17 @@
 //!   exact value at the RECIPE level, so a regression shows up in the
 //!   model layer, not only in `topo`.
 //! - `nested_islands_106_depth1`: the same chain WITHOUT the pillar,
-//!   intersected with a slab across the tube's midriff — the depth-1
-//!   control that builds exactly. The depth-2 version (with the
-//!   pillar) still refuses TYPED at the anchor-exhaustion arm on this
-//!   branch's `main`; it is pinned as a refusal in
-//!   `m4_pr8_corpus.rs::issue106_depth2_recipe_refuses_typed` rather
-//!   than carried here, because every corpus document must evaluate
-//!   GREEN. Retire that pin (and promote the depth-2 chain into the
-//!   corpus proper) when #106 lands.
+//!   intersected with a slab across the tube's midriff.
+//! - `nested_islands_106_depth2`: WITH the pillar — island(tube outer)
+//!   ⊃ ring(tube inner) ⊃ island(pillar) on the slab faces. This one
+//!   was carried as a typed-REFUSAL pin through M4 PR 8a's first pass
+//!   (the anchor-exhaustion arm defeated the consecutive-triple
+//!   centroid generator); **#113 closed the gap** with the
+//!   vertex-pair-chord anchor tier, so the pin has been RETIRED per its
+//!   own baked instructions and the document promoted to a green,
+//!   exactness-pinned member of the corpus. `topo`'s
+//!   `issue93_nested_islands.rs` carries the kernel-level twin (and a
+//!   depth-3 case).
 //!
 //! Vocabulary: Profile, Extrude, Boolean (Subtract/Union/Intersect),
 //! `InsertNode`, `SetParam`.
@@ -32,6 +36,10 @@
 //! - ∪ pillar = `22 + 0.5 − 0.0625` (the pillar's `z ∈ [0.75,1]`
 //!   overlap with the plate, footprint `0.25`) = **22.4375**
 //! - depth-1 ∩ slab = annulus `3` × slab height `1` = **3.0**
+//! - depth-2 ∩ slab = (annulus `3` + pillar footprint `0.25`) × slab
+//!   height `1` = `13/4` = **3.25** (the slab `z ∈ [1.375,2.375]` sits
+//!   strictly inside both the tube's `[0.5,3]` and the pillar's
+//!   `[0.75,2.75]`, so the cross section is constant through it)
 
 use editor_core::{BooleanOp, Dimension, DocEdit, Expr, Node, RecipeNodeId, SlotId};
 
@@ -116,7 +124,7 @@ pub fn document_106_depth1() -> CorpusDoc {
     });
     CorpusDoc {
         name: "nested_islands_106_depth1",
-        about: "depth-1 nested-island intersect (the #106 coverage boundary's green side)",
+        about: "depth-1 nested-island intersect (the #93 coverage control)",
         edits: r.edits,
         doc: r.doc,
         result: Some(cut),
@@ -133,10 +141,10 @@ pub fn document_106_depth1() -> CorpusDoc {
     }
 }
 
-/// The depth-2 chain (u1 ∪ pillar) ∩ slab, as a document — the #106
-/// residue. NOT a corpus document (it does not evaluate green on this
-/// `main`); the refusal pin in `m4_pr8_corpus.rs` consumes it.
-pub fn depth2_refusal_probe() -> (editor_core::ProfileDoc, RecipeNodeId) {
+/// The **#106 depth-2 document**: (plate ∪ tube ∪ pillar) ∩ slab —
+/// island ⊃ ring ⊃ island on the slab faces. Promoted from a typed
+/// refusal pin to a green exactness pin by #113 (module docs).
+pub fn document_106_depth2() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
@@ -153,5 +161,24 @@ pub fn depth2_refusal_probe() -> (editor_core::ProfileDoc, RecipeNodeId) {
         b: slab,
         declare: None,
     });
-    (r.doc, cut)
+    CorpusDoc {
+        name: "nested_islands_106_depth2",
+        about: "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
+        edits: r.edits,
+        doc: r.doc,
+        result: Some(cut),
+        pin: Some(MassPin {
+            volume: 3.25,
+            area: None,
+        }),
+        // Mid-DAG: the pillar feeds the union, which feeds the
+        // intersect. Shortening it to 7/4 keeps z ∈ [0.75, 2.5] ⊃ the
+        // slab, so the depth-2 nesting (and the answer) is unchanged.
+        bump: DocEdit::SetParam {
+            node: pillar,
+            slot: SlotId::Distance,
+            expr: Expr::literal(1.75, Dimension::Length).expect("dyadic length literal"),
+        },
+        bump_root: pillar,
+    }
 }

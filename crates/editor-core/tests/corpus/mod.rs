@@ -77,7 +77,12 @@ pub struct CorpusDoc {
     pub result: Option<RecipeNodeId>,
     /// The exact mass oracle for `result`, where dyadic.
     pub pin: Option<MassPin>,
-    /// D2's incremental-recompute probe: ONE mid-DAG parameter edit.
+    /// D2's incremental-recompute probe: ONE parameter edit whose
+    /// downstream cone is a PROPER subset of the document, so the run
+    /// has something to reuse (asserted). It is a mid-DAG edit wherever
+    /// the document has interior nodes; `declared_tangency` is two
+    /// disjoint leaf chains and has none, so its bump edits a leaf and
+    /// the reuse comes from the sibling chain.
     pub bump: DocEdit<ProfileDesc>,
     /// The node the bump edits — the root of the cone that must
     /// recompute (the test derives the cone independently from the
@@ -113,6 +118,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         slots::document(),
         islands::document_105(),
         islands::document_106_depth1(),
+        islands::document_106_depth2(),
         tangency::document(),
         sink::document(),
     ]
@@ -231,7 +237,17 @@ pub fn sub_kinds(node: &Node<ProfileDesc>) -> Vec<&'static str> {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
         }],
-        _ => Vec::new(),
+        // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
+        // new `Node` variant — or a new `Datum`/`BooleanOp`/
+        // `PatternKind` flavour above — is a COMPILE error here rather
+        // than a silently uncovered sub-kind, matching the
+        // compile-time totality `node_kind`/`edit_kind` already have.
+        Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Split { .. }
+        | Node::Transform { .. }
+        | Node::Declare { .. } => Vec::new(),
     }
 }
 
