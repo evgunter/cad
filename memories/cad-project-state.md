@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 COMPLETE; M4 IN FLIGHT (plan ratified #80 — live status is docs/M4-LOG.md's tail snapshot, not this memory); merge gate = hosted Actions, gate.sh fallback (see git-workflow); references live in the MAIN checkout; name pending (Q9)
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M3 COMPLETE; M4 CODE-COMPLETE pending 8b merge + 8c exit sweep (2026-07-27; live status = docs/M4-LOG.md tail); merge gate = hosted Actions, gate.sh fallback (see git-workflow); references live in the MAIN checkout; name pending (Q9)
 metadata:
   node_type: memory
   type: project
