@@ -1825,3 +1825,17 @@ assertion, f64+interval). Demos hygiene done + guarded. Battery
 1342/1491 all green. Blinded reviewer LAUNCHED (bimodal-claim
 script verification, P0-vs-synthetic-fragility, litmus exit codes,
 #117 tamper, honesty checks).
+
+**8c pulled forward (2026-07-27, Evan signing off for the night)**:
+D5 memories updates committed (cad-project-state, A/B readout —
+"no evidence the opus arm is worse at this n; continues into M5");
+exit-walk table drafted (11/12 MET with evidence, 12th = 8c
+itself); successor handoff prompt DRAFTED (scratchpad
+m5-handoff-prompt.md — goes to cad-implement-m5 via mngr message
+after 8c merges; Evan may review it in the 8c PR). Remaining
+serialization: 8b review verdict (+fix pass if any) → 8b PR →
+merge; design-pass hunks reviewed by orchestrator → 8c PR
+assembled (exit walk + DESIGN sweep + final snapshot + handoff
+prompt) → EVAN'S MORNING SIGN-OFF → merge → state-sync → handoff
+→ self-stop. Overnight plan: keep driving 8b + design-pass to
+PR-ready state autonomously; nothing else needs Evan.
