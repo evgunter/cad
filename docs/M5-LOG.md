@@ -80,3 +80,32 @@ dominates after. One waiter-parking incident: the PR 3 implementer
 stopped on background builds mid-battery; nudged back to
 foreground rows with the cd-prefix rule (standard playbook), lane
 recovered and progressing.
+
+**PR 1 implementation COMPLETE (2026-07-27, ev/m5-pr1-interval-
+adoption @ 2dc8860 + report) — opus row 11.** Shape A: ring ops +
+transcendentals both from the in-repo crate; inari/gmp/rug gone
+from every kernel path incl. Cargo.lock. Headline: ONE predicate
+verdict flip found and fixed at the ROOT — split_join_order_u
+escalated because div_lo/div_hi padded exact quotients (axis-
+aligned v/||v|| stopped being exactly unit); fix = division
+exactness witness (fma residual == 0 above the 2Prod floor)
+mirroring mul_exact, D1 updated. 5 reported deviations, 0 silent
+(div witness beyond sanctioned scope; oracle-computable moved to
+sibling crate — cargo resolves path-dep manifests even disabled,
+would break builds without Evan's ~/projects/computable checkout;
+root exclude addition; acceptance item 3 skipped to avoid
+reintroducing the LGPL dev-dep — ruled ACCEPT conditional on
+reviewer verifying the wrapper is a pure delegating newtype;
+consts path nit). One tripwire consciously inverted:
+powi_diverges_from_the_tight_enclosure → containment pin (pad
+backends contain their own f64 lane; flagged for review
+assessment). Battery: 1342-1343/0 ×3ε default, 1498/0 ×3ε
+interval, clippy clean, certify 12/0 vs warm-cache inari oracle.
+Build delta measured PAIRED: workspace interval clean 665→478s
+(1.39×), isolated geom-core 280→47s (6.0×) — #115's 93× was
+crate-vs-crate, not claimed. **Blinded reviewer DISPATCHED**
+(F1-F10: div-witness soundness attack incl. subnormal/2Prod-floor
+edges, containment fuzz, with_dec_capped laundering, verdict-flip
+repro both directions, tripwire-loss assessment, 4 pin
+re-derivations, LGPL-free repro, doc-claims audit, e2e consumer
+run, battery honesty).
