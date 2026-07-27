@@ -8,6 +8,15 @@ and expensive to retrofit — several constrain M4's recipe/naming
 design, not just the eventual GUI. Same conventions as DESIGN.md:
 decisions marked *agreed* are settled; GQ items are open.
 
+*Freshness note (M4 8c exit sweep, 2026-07-27):* the middle layer this
+doc banks on is now REAL — `editor-core` exists with the recipe
+substrate (#81), the GQ2 per-node result DAG + evaluation service
+(#83), one stable-name type with resolution/Rebind (#87/#96/#102),
+GQ3 persist-all-edits as schema v1 (#112), and StableName-keyed
+appearance with the N3/N5 loss semantics (#92). References in the
+body to M4 as future work are historical; the GUI layer itself
+remains unbuilt as sequenced.
+
 ## G1 (agreed 2026-07-19): Three layers, and the boundary rules
 
 The separation is not GUI-vs-library (two layers) but **three**: the

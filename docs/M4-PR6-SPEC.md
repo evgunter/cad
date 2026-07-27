@@ -1,6 +1,9 @@
 # M4 PR 6 binding spec — persistence (schema v1)
 
-Status: DRAFT until PR 5 merges (implementation dispatch waits for
+Status: **LANDED — PR #112, merged 2026-07-26; schema v1 FROZEN**
+(historical record; review outcomes, the tagged-token retype, and
+the tangent_joints extension are in docs/M4-LOG.md). Originally:
+DRAFT until PR 5 merges (implementation dispatch waits for
 that merge; the spec is written at the PR-5-review seam so the
 implementer launches the moment main is ready). BINDING once
 dispatched. F3 + F8 ratified; M4-PLAN item 6. Deviations via the

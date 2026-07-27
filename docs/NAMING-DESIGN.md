@@ -13,6 +13,17 @@ open questions Q-a…Q-i; it does NOT cover GQ1 mechanism details
 (queued next), margin-based pre-flip warnings (far-future), or
 assembly pin representation.
 
+*IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
+record above unchanged):* N1–N7 are IMPLEMENTED across M4 PRs 3/4/5 —
+N1/N2/N3/N4 at #87 (StableName/RolePath, eager bidirectional name
+tables, N2 discriminators through reified predicates, the D5-style CI
+invariant); N5/N7 at #96 (resolution, Diagnosis/TieWitness/Tombstone,
+the diff engine, Rebind with the Declare carve-out); N6 at #102
+(GeomSource identity, Declare threading, production bit-identity
+retirement EXECUTED — empty allowlist, debug-only). The #95
+memo-naming staleness hole was closed by the recursive naming key
+(ratified on the #95 thread; landed #102).
+
 ## 0. The problem, stated in our terms
 
 A recipe (D8 operation DAG) references entities of intermediate

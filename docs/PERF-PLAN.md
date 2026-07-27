@@ -4,7 +4,13 @@
 2026-07-21). The ratified pieces — §2.2's deterministic-parallelism
 idioms and §3.3's GPU boundary table — are folded into DESIGN.md as
 the D9 addendum (M3 exit sweep); DESIGN.md is the single contract,
-this doc the advisory detail behind it.** Companion to `DESIGN.md`
+this doc the advisory detail behind it. Update at the M4 8c exit
+sweep (2026-07-27): the rebuild-latency lane EXISTS — M4 8a (#118)
+wired per-document full-rebuild and incremental-recompute timings
+into hosted CI as REPORTING rows over the Band 4 corpus (committed
+baseline JSON, box-relative numbers, no threshold gate), exactly the
+measured-not-gated posture F8 ratified; this doc stays advisory.**
+Companion to `DESIGN.md`
 (never overrides D1–D9) and
 `GUI-DESIGN.md`. Written at M3-start (2026-07-21) against the M2
 codebase; claims cite files. Purpose: decide *now* which performance
