@@ -1767,3 +1767,17 @@ demo pins (#116). CDT exterior classification is now structural
 (even-odd flood fill, watertight by construction). issue111 clone
 removed. Remaining M4: 8a fix pass → PR → merge; 8b (fable; picks
 up #117 + demos fmt/clippy hygiene); 8c (orchestrator + Evan).
+
+**ERROR-DESIGN RATIFIED (2026-07-27): Evan 👍 on the round-2
+sign-off; #110 MERGED.** E1-E11 as revised (06d60f8) is the M6
+error-propagation contract seed. Two design rounds: round 1 =
+Real-lineage restatement (per-leaf engine; wrong-not-loose
+dependency argument; p-boxes rejected) + tail-mass accounting
+replacing truncation; round 2 (Evan's careful pass) = dimension-
+generic Measure through the F1 lattice (lever-arm rejected as
+ad-hoc-constant class), NO-FLIPS V1 as the load-bearing narrowing
+(FlipCrossing refused mass; branch enumeration = v2 door), MC
+advisory lane (never gates), densities post-v1 with the free
+histogram note. The pre-M6 design program now stands at ERROR
+ratified + SOLVER W1-W9 ratified (pre-M4); remaining M6 design =
+the solver itself (M6-adjacent) and whatever M5 surfaces.
