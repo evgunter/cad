@@ -1810,3 +1810,18 @@ large-K advisory lint with the #99 datum as the litmus fixture,
 docs/k-report-data regeneration; pickups #117 (sick fixture +
 green-evaluation row assertion) and demos fmt/clippy hygiene with
 a ci-local guard. After 8b: 8c (orchestrator exit sweep + Evan).
+
+**8b implementation COMPLETE (2026-07-27, ev/m4-8b-klint @
+8365016) — fable row 10.** K-probe over corpus + demos (scalar-
+generic tour k-probe mode, same constructors): 2,562,157
+samples/ε-row, count-identical across ε, SHARPLY BIMODAL — zero
+mode ≤5.33e-15, definite floor 1.689e-3, 12-decade EMPTY gap,
+zero in-band anywhere ⇒ **K=10 unpressured on the analytic
+kernel** (the #89 K-revisit now has its baseline). Lint advisory
+(P0 percentile — the empty gap makes the population edge maximal
+signal; self-lints clean); #99 litmus fires at ALL ε rows, fixed
+bracket clean, both gate the CI row. #117 CLOSED (green-evaluation
+assertion, f64+interval). Demos hygiene done + guarded. Battery
+1342/1491 all green. Blinded reviewer LAUNCHED (bimodal-claim
+script verification, P0-vs-synthetic-fragility, litmus exit codes,
+#117 tamper, honesty checks).
