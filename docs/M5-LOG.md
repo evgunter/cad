@@ -109,3 +109,32 @@ edges, containment fuzz, with_dec_capped laundering, verdict-flip
 repro both directions, tripwire-loss assessment, 4 pin
 re-derivations, LGPL-free repro, doc-claims audit, e2e consumer
 run, battery honesty).
+
+**PR 3 implementation COMPLETE (2026-07-27 late, ev/m5-pr3-nurbs-
+substrate, 4 commits) — fable row 12.** geom-core::spline
+(knots/basis/locate/algebra as structure PLANS + generic
+appliers); NurbsCurve2/3 + NurbsSurface (SurfaceJet, per-column
+u-algebra, transpose trick for v); Arc payloads landed, Copy-loss
+rippled (~30 clone sites), placeholder constructors for the old
+unit-variant construction sites (poison-valued valid structure,
+claimed bit-identical). ONE structural deviation, well-argued:
+SpanLocate seam unimplementable as crate-private-in-geom-curves
+(open-generic T: Decide callers can't name it; the geom crates
+can't share a private trait) → shipped public-but-sealed in
+geom-core::spline with Decide: SpanLocate supertrait; remaining
+T: Real eval call sites became T: SpanLocate sole-bound.
+Removal bound = Eq 9.81 mechanism in projective form; planted
+Tiller-honesty case: bound 2.094e-3 vs realized 1.074e-3
+(ratio 1.95, containment 801/801). Mid-flight interval-lane
+catch: knot-straddling boxes hulled EMPTY spans (repeated
+interior knots → zero denominators → poisoned enclosures); fixed
+by empty-span poison + hull skip. Battery: 1365-1373/0 ×3ε
+default, 1529/0 ×3ε interval, clippy/doc/demos/tripwires clean.
+**Blinded reviewer DISPATCHED** (F1-F10; sharpest: the
+empty-span-skip containment attack — "[u,u] holds a parameter" —
+the Dual independent-channel hull soundness at C0/C1 kinks,
+rational deriv2 differential vs circle closed form + num-dual,
+adversarial removal-bound fuzz with wide weights, and the
+SpanLocate-home unimplementability premise verified by attempt).
+Lanes: both reviewers running = the two cargo lanes; PR 2 stays
+queued; S5 drafting next orchestrator work.
