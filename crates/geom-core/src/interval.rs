@@ -936,22 +936,11 @@ mod tests {
         let cubed = x.powi(3);
         assert_eq!((cubed.lo(), cubed.hi()), (-1.0, 8.0));
 
-        // Negative exponents: 2⁻² = 1/4, enclosed within one padded step
-        // either side.
-        //
-        // Backend change (M5 PR 1, semantics-diffs D1): inari returned
-        // the exact point [0.25, 0.25]; the present backend implements a
-        // negative exponent as `[1,1] / x^|n|` and its division always
-        // pads one step per endpoint (an exactness witness for division
-        // needs preconditions the backend deliberately does not track).
-        // Containment of the true 1/4 is what the contract asks for and
-        // is asserted here directly.
+        // Negative exponents: 2⁻² = 1/4 exactly. (The backend implements
+        // these as `[1,1] / x^|n|`, and its division takes no pad when
+        // the quotient is provably exact — semantics-diffs D1.)
         let quarter = Interval::from_f64(2.0).powi(-2);
-        assert!(quarter.0.contains(0.25));
-        assert_eq!(
-            (quarter.lo(), quarter.hi()),
-            (0.25_f64.next_down(), 0.25_f64.next_up())
-        );
+        assert_eq!((quarter.lo(), quarter.hi()), (0.25, 0.25));
     }
 
     #[test]
