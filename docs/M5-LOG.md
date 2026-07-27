@@ -62,3 +62,21 @@ Tiller-bound honesty test). **PR 1 implementer DISPATCHED (A/B row
 DISPATCHED (row 12: L, fable remainder)** — the two cargo lanes;
 PR 2 (C9 ring) queues for the next free lane. Branches:
 ev/m5-pr1-interval-adoption, ev/m5-pr3-nurbs-substrate.
+
+**M5-PLAN RATIFIED (2026-07-27): Evan "lgtm!" on #123 → MERGED to
+main `4642619` on 18/18 green**, with one rider folded in pre-merge
+(R3: the v1→v2 migration is NOT a commitment — no users yet; clean
+break if cleaner; the PR 10 spec records the call). Same sweep:
+Evan triaged open issues — #95 verified landed at #102 (memo.rs
+recursive naming key + grandparent pin) and CLOSED as a
+bookkeeping slip; #89 answered open-by-design until the M5 exit
+K-snapshot; #104 answered unresolved/banked for v2 (offered an M5
+design-unit slot if wanted). His `test (interval)` CI-duration
+question answered with run data: 8–12m is the historical norm
+(feature-set recompile + gmp on cache miss + genuinely slower
+interval instantiation); recommendation on record — no split
+before PR 1's gmp removal lands, shard per-crate only if it still
+dominates after. One waiter-parking incident: the PR 3 implementer
+stopped on background builds mid-battery; nudged back to
+foreground rows with the cd-prefix rule (standard playbook), lane
+recovered and progressing.
