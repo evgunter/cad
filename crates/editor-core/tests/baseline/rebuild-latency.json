@@ -1,0 +1,80 @@
+{
+  "documents": {
+    "corner_table": {
+      "about": "corner-aligned four-leg table (declared flush contacts)",
+      "cone": 5,
+      "full_ms": 1294.6,
+      "incremental_ms": 1298.39,
+      "nodes": 18
+    },
+    "crossing_slots": {
+      "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
+      "cone": 3,
+      "full_ms": 1457.1,
+      "incremental_ms": 1359.54,
+      "nodes": 9
+    },
+    "declared_tangency": {
+      "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
+      "cone": 1,
+      "full_ms": 137.4,
+      "incremental_ms": 54.58,
+      "nodes": 4
+    },
+    "die": {
+      "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
+      "cone": 3,
+      "full_ms": 16983.1,
+      "incremental_ms": 1273.59,
+      "nodes": 77
+    },
+    "heat_sink": {
+      "about": "parametric fin strip: Pattern instances + explicit union chain",
+      "cone": 12,
+      "full_ms": 2105.5,
+      "incremental_ms": 1215.96,
+      "nodes": 15
+    },
+    "kitchen_sink": {
+      "about": "every v1 node kind and every DocEdit kind in one document",
+      "cone": 2,
+      "full_ms": 406.9,
+      "incremental_ms": 13.67,
+      "nodes": 15
+    },
+    "nested_islands_105": {
+      "about": "doubly-nested island union chain (#105 exactness pin)",
+      "cone": 2,
+      "full_ms": 1268.7,
+      "incremental_ms": 240.96,
+      "nodes": 11
+    },
+    "nested_islands_106_depth1": {
+      "about": "depth-1 nested-island intersect (the #93 coverage control)",
+      "cone": 2,
+      "full_ms": 2183.1,
+      "incremental_ms": 984.18,
+      "nodes": 11
+    },
+    "nested_islands_106_depth2": {
+      "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
+      "cone": 3,
+      "full_ms": 2788.2,
+      "incremental_ms": 2244.23,
+      "nodes": 14
+    }
+  },
+  "provenance": {
+    "disputed_measurement": "M4 PR 8a review MIN-3 measured every row 90-94% lower on the same workstation (e.g. die full 985.9 ms vs the ~14-17 s recorded here) and concluded this baseline was taken under contention. NOT REPRODUCIBLE under the conditions above: two independent quiet refreshes (2026-07-25 and 2026-07-26) agree within +/-20%. A ~14x gap is the documented opt-0-vs-opt-2 factor for this workspace, so the likely explanation is a differently-optimised build (RUSTFLAGS / CARGO_PROFILE_* / a shared target dir), not machine load. Treat cross-environment comparisons of the absolute numbers as meaningless - see 'portability'.",
+    "epsilon": "CAD_TOLERANCE_EPS unset (the bootstrap default) - the row is ambient-eps agnostic by design.",
+    "load_conditions": "Refreshed with ZERO other cargo build/test lanes running (pgrep verified immediately before AND after the run), RUSTFLAGS unset, no CARGO_PROFILE_* overrides; the only rustflag in effect is the committed x86-64-v3 CPU floor in .cargo/config.toml.",
+    "machine": "developer workstation (WSL2, 8 cores, ~9 GB RAM) shared with other agent build lanes.",
+    "method": "median of 3 runs in one process, std::time::Instant, sequential evaluation schedule (EvalOptions::default()).",
+    "portability": "BOX-RELATIVE. Absolute milliseconds do not transfer between machines or load states; only the SHAPE is the signal (relative cost per document, and the full-vs-incremental ratio). Expect large +/-% on the first hosted-CI run and re-refresh from CI when hosted Actions returns.",
+    "profile": "cargo test dev profile: opt-level 0 for the kernel crates, opt-level 2 only for spade and mesh (root Cargo.toml). NOT release-representative.",
+    "refresh_with": "CAD_LATENCY_BASELINE_REFRESH=1 cargo test -p editor-core --test m4_pr8_latency -- --nocapture",
+    "refreshed_by": "M4 PR 8a fix pass (ev/m4-8a-corpus), 2026-07-26",
+    "status": "REPORTING ONLY - measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on these numbers.",
+    "what": "Per-document full-rebuild and incremental-recompute wall-clock medians for the M4 PR 8a Band 4 corpus."
+  }
+}

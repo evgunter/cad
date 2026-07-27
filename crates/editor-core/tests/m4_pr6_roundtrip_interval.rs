@@ -5,14 +5,18 @@
 //! evaluation is bit-identical to the original's — enclosures, name
 //! tables, verdicts and all (Debug encodes interval endpoints
 //! shortest-round-trip, bit-faithfully).
+//!
+//! M4 PR 8a: the fixture is the whole Band 4 corpus, not just the die.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod corpus;
 mod fixture;
 
 use editor_core::{CancelToken, EvalOptions, ProfileDoc, evaluate, load, save};
-use fixture::die;
 use geom_core::Interval;
+
+use corpus::documents;
 
 fn fingerprint(doc: &ProfileDoc) -> String {
     let ev = evaluate::<Interval>(doc, None, &CancelToken::new(), &EvalOptions::default());
@@ -21,13 +25,19 @@ fn fingerprint(doc: &ProfileDoc) -> String {
 
 #[test]
 fn interval_replay_identity_across_save_load() {
-    let d = die();
-    let text = save(&d.doc, &[]).expect("save");
-    let loaded = load(&text).expect("load");
-    assert!(loaded.doc.bit_eq(&d.doc), "die round-trip bit identity");
-    assert_eq!(
-        fingerprint(&d.doc),
-        fingerprint(&loaded.doc),
-        "Interval evaluation fingerprint drifted across save/load"
-    );
+    for d in documents() {
+        let text = save(&d.doc, &[]).expect("save");
+        let loaded = load(&text).expect("load");
+        assert!(
+            loaded.doc.bit_eq(&d.doc),
+            "{}: round-trip bit identity",
+            d.name
+        );
+        assert_eq!(
+            fingerprint(&d.doc),
+            fingerprint(&loaded.doc),
+            "{}: Interval evaluation fingerprint drifted across save/load",
+            d.name
+        );
+    }
 }
