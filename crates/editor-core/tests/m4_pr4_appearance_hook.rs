@@ -445,7 +445,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     assert!(!applied.record.structural);
     assert!(applied.doc.appearance_of(&cap).is_none());
     assert_eq!(
-        applied.doc.appearance_of(&target).unwrap()[&AttrKind::Color],
+        applied.doc.appearance_of(&target).unwrap().attrs[&AttrKind::Color],
         red()
     );
 
@@ -513,8 +513,8 @@ fn rebind_appearance_collision_is_refused_typed() {
         })
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
-    assert_eq!(merged.len(), 2);
-    assert_eq!(merged[&AttrKind::Label], Attr::Label("lid".into()));
+    assert_eq!(merged.attrs.len(), 2);
+    assert_eq!(merged.attrs[&AttrKind::Label], Attr::Label("lid".into()));
 }
 
 #[test]

@@ -163,6 +163,11 @@ jobs:
       - run: cargo test --workspace --features interval
         env:
           CAD_TOLERANCE_EPS: 1e-6
+      # M4 PR 6 D6.1, Interval member: the save/load/replay-identity
+      # row at the certified interval scalar (also inside the full
+      # workspace runs above; named here so the obligation is visible).
+      - name: persistence save/load/replay-identity (interval)
+        run: cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval
 
   watertight:
     name: watertight (admesh)
@@ -230,5 +235,39 @@ jobs:
       # Tolerance initialization in PR 2 (L3); for now it just parameterizes
       # the same test run so the matrix and the env var name land early.
       - run: cargo test --workspace
+        env:
+          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+
+  # M4 PR 6 spec D6: the three persistence obligations as NAMED gates
+  # (they also run inside the workspace rows; naming them keeps the
+  # contract visible and their failures attributable at a glance).
+  persistence:
+    name: persistence (eps = ${{ matrix.eps }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        eps: ["1e-6", "1e-9", "1e-12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # D6.1 save/load/replay-identity + the D2 float property row +
+      # the committed golden v1 fixture (byte-exact freeze tripwire).
+      - name: save/load/replay-identity (D6.1) + float bits (D2) + golden v1
+        run: cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats --test m4_pr6_golden
+        env:
+          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+      # D6.2 ε-change diff (cross-process, goldened): the two probe
+      # children pin their OWN ε values — the matrix ε only hosts the
+      # orchestrating parent.
+      - name: eps-change diff goldened (D6.2)
+        run: cargo test -p editor-core --test m4_pr6_eps_diff
+        env:
+          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+      # D6.3 schema-version / corrupt-file refusal + the adopted
+      # adversarial probe suite (review pins) + token key-space pins.
+      - name: schema + corruption refusal (D6.3) + review probes
+        run: cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}

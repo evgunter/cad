@@ -26,7 +26,10 @@ use crate::node::{RecipeNodeId, SlotId};
 
 /// The v1 quantity-dimension lattice (ratified F1, GQ5's banked
 /// decision): four dimensions, no products of dimensions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
 pub enum Dimension {
     /// A length, canonically meters (units erase before kernel `T`).
     Length,
@@ -115,7 +118,7 @@ pub struct Expr {
 /// Child order (the ExprPath byte at each level, spec D5): operands in
 /// argument order — 0 = first/only child, 1 = second.
 #[derive(Debug, Clone, PartialEq)]
-enum ExprKind {
+pub(crate) enum ExprKind {
     /// A continuous dimensioned literal, canonical kernel units
     /// (meters/radians); bit-exact f64 storage per D7 replay identity.
     Literal(f64),
@@ -163,6 +166,13 @@ impl Expr {
     /// This expression's dimension (cached; correct by construction).
     pub fn dim(&self) -> Dimension {
         self.dim
+    }
+
+    /// The AST node (persistence's wire conversion reads it; the type
+    /// stays crate-private so trees are only built through the
+    /// dimension-checking constructors).
+    pub(crate) fn kind(&self) -> &ExprKind {
+        &self.kind
     }
 
     /// A continuous dimensioned literal in canonical kernel units.
@@ -515,7 +525,8 @@ impl Expr {
 /// Consumers must re-derive their paths after any same-slot edit;
 /// PR 5's GeomSource must NOT assume same-slot staleness is
 /// detectable.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ExprPath {
     /// The recipe node owning the expression slot.
     pub node: RecipeNodeId,

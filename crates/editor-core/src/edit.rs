@@ -7,6 +7,7 @@
 use crate::appearance::{Attr, AttrKind};
 use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
+use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
 use crate::node::{Node, RecipeNodeId, SlotId, StableName};
 use crate::witness::{BranchCertification, WitnessDatum};
@@ -17,12 +18,12 @@ use crate::witness::{BranchCertification, WitnessDatum};
 /// decision) and `ReWitness`/`ReWitnessBulk` (SOLVER-DESIGN W4 — the
 /// recorded witness adoption; never silent write-back).
 ///
-/// # Reserved arms (planned evolution, spec D6 — NOT ad hoc)
-///
-/// - `SetTolerance` — the recorded-ε edit with its flipped-predicate
-///   audit (H4); PR 6 (the verdict-diff engine it reports through is
-///   [`crate::resolve::diff_verdicts`], already built).
-#[derive(Debug, Clone, PartialEq)]
+/// M4 PR 6 landed the reserved `SetTolerance` arm (the recorded-ε
+/// edit; its flipped-predicate audit reports through the PR 4
+/// verdict-diff engine) plus the D7 metadata pair
+/// (`SetAppearanceMeta`/`ClearAppearanceMeta`).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum DocEdit<P> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the
     /// document's monotone counter and returned in the
@@ -143,6 +144,49 @@ pub enum DocEdit<P> {
         name: StableName,
         /// The attribute kind removed.
         kind: AttrKind,
+    },
+    /// The recorded-ε edit (M4 PR 6 spec D4, H4's landing). Applying
+    /// records the new ε in the document — a pure value edit, and a
+    /// STRUCTURAL one (ε parameterizes every content key: the full
+    /// cone recomputes). The audit semantics — persist-grade replay
+    /// at the new ε plus the PR 4 diff engine's flipped-predicate
+    /// report — necessarily SPAN processes: one process hosts one ε
+    /// (`geom_core::Tolerance` commits once), so the replay happens
+    /// in a fresh process (save → load) and the two runs' serialized
+    /// verdict summaries diff through
+    /// [`crate::resolve::diff_summaries`]. In the editing
+    /// process, [`crate::eval::evaluate`] refuses a document whose
+    /// recorded ε disagrees with the committed process ε — loudly,
+    /// per node — so a SetTolerance result is never silently
+    /// evaluated at the old ε.
+    SetTolerance {
+        /// The new modeling tolerance (finite, strictly positive).
+        eps: f64,
+    },
+    /// Attach (or replace) one BLACK-BOX metadata value on a face or
+    /// body name's appearance record (M4 PR 6 spec D7). Validation
+    /// mirrors `SetAppearance` (kind + node-liveness carve-out), plus
+    /// the two metadata doors: the D7 producer convention (a map
+    /// carrying an integer `"v"` field — structural enforcement only,
+    /// the kernel never reads the version's meaning) and the D2 float
+    /// policy (NaN/inf refused at the edit door).
+    SetAppearanceMeta {
+        /// The face or body name attributed.
+        name: StableName,
+        /// The metadata key (a producer-owned namespace).
+        key: String,
+        /// The value tree (stored, round-tripped, never interpreted).
+        value: MetaValue,
+    },
+    /// Remove one metadata key from a name's appearance record. Like
+    /// `ClearAppearance`, does NOT require the node to be live
+    /// (clearing is the stranded-record repair path) and refuses
+    /// loudly when the key is not set.
+    ClearAppearanceMeta {
+        /// The attributed name.
+        name: StableName,
+        /// The metadata key removed.
+        key: String,
     },
 }
 
@@ -353,6 +397,50 @@ pub enum EditError {
         name: StableName,
         /// The kind that was not set on it.
         kind: AttrKind,
+    },
+    /// A `SetTolerance` whose ε is not finite and strictly positive.
+    InvalidTolerance {
+        /// The refused value.
+        value: f64,
+    },
+    /// A `SetAppearanceMeta` value violating the D7 producer
+    /// convention (a map carrying an integer `"v"` version field).
+    MetaUnversioned {
+        /// The name.
+        name: StableName,
+        /// The metadata key.
+        key: String,
+        /// The typed shape refusal.
+        error: MetaVersionError,
+    },
+    /// A `SetAppearanceMeta` value carrying a non-finite float (D2:
+    /// refused at the edit door, never stored).
+    MetaNonFinite {
+        /// The name.
+        name: StableName,
+        /// The metadata key.
+        key: String,
+        /// Path of the offending float within the value tree.
+        path: String,
+    },
+    /// A `ClearAppearanceMeta` for a key that is not set — loud
+    /// no-ops per the fail-loud charter.
+    MetaNotSet {
+        /// The name.
+        name: StableName,
+        /// The key that was not set on it.
+        key: String,
+    },
+    /// A `Rebind` whose appearance-record move would land two
+    /// metadata values under one key on the target name (the D7 twin
+    /// of [`EditError::RebindAppearanceCollision`]). Which value
+    /// survives would be an auto-pick — refused loudly; the repair is
+    /// an explicit `ClearAppearanceMeta` on either side first.
+    RebindMetadataCollision {
+        /// The target name that already carries the key.
+        name: StableName,
+        /// The colliding metadata key.
+        key: String,
     },
 }
 
@@ -650,14 +738,25 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             if let Some(moved) = new.appearance.remove(from) {
                 appearance_sites += 1;
                 let dst = new.appearance.entry(to.clone()).or_default();
-                for (kind, attr) in moved {
-                    if dst.contains_key(&kind) {
+                for (kind, attr) in moved.attrs {
+                    if dst.attrs.contains_key(&kind) {
                         return Err(EditError::RebindAppearanceCollision {
                             name: to.clone(),
                             kind,
                         });
                     }
-                    dst.insert(kind, attr);
+                    dst.attrs.insert(kind, attr);
+                }
+                // The D7 metadata rides the record through the same
+                // move, under the same no-auto-pick collision rule.
+                for (key, value) in moved.metadata {
+                    if dst.metadata.contains_key(&key) {
+                        return Err(EditError::RebindMetadataCollision {
+                            name: to.clone(),
+                            key,
+                        });
+                    }
+                    dst.metadata.insert(key, value);
                 }
             }
             if declare_sites + appearance_sites == 0 {
@@ -695,6 +794,7 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             new.appearance
                 .entry(name.clone())
                 .or_default()
+                .attrs
                 .insert(attr.kind(), attr.clone());
             // Presentation only: never structural, never a recompute.
             EditRecord {
@@ -732,13 +832,77 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 name: name.clone(),
                 kind: *kind,
             };
-            let Some(set) = new.appearance.get_mut(name) else {
+            let Some(rec) = new.appearance.get_mut(name) else {
                 return Err(not_set());
             };
-            if set.remove(kind).is_none() {
+            if rec.attrs.remove(kind).is_none() {
                 return Err(not_set());
             }
-            if set.is_empty() {
+            if rec.is_empty() {
+                new.appearance.remove(name);
+            }
+            EditRecord {
+                minted: None,
+                structural: false,
+            }
+        }
+        DocEdit::SetTolerance { eps } => {
+            if !(eps.is_finite() && *eps > 0.0) {
+                return Err(EditError::InvalidTolerance { value: *eps });
+            }
+            new.epsilon = *eps;
+            EditRecord {
+                minted: None,
+                // ε parameterizes every content key (and every
+                // predicate band): the whole cone recomputes.
+                structural: true,
+            }
+        }
+        DocEdit::SetAppearanceMeta { name, key, value } => {
+            // Same v1 scope and node-liveness carve-out as
+            // SetAppearance: the metadata rides the SAME record.
+            if !matches!(name.kind, EntityKind::Face | EntityKind::Body) {
+                return Err(EditError::AppearanceWrongKind { name: name.clone() });
+            }
+            if !new.nodes.contains_key(&name.node) {
+                return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
+            }
+            if let Err(error) = value.require_versioned() {
+                return Err(EditError::MetaUnversioned {
+                    name: name.clone(),
+                    key: key.clone(),
+                    error,
+                });
+            }
+            if let Some(path) = value.first_non_finite() {
+                return Err(EditError::MetaNonFinite {
+                    name: name.clone(),
+                    key: key.clone(),
+                    path,
+                });
+            }
+            new.appearance
+                .entry(name.clone())
+                .or_default()
+                .metadata
+                .insert(key.clone(), value.clone());
+            EditRecord {
+                minted: None,
+                structural: false,
+            }
+        }
+        DocEdit::ClearAppearanceMeta { name, key } => {
+            let not_set = || EditError::MetaNotSet {
+                name: name.clone(),
+                key: key.clone(),
+            };
+            let Some(rec) = new.appearance.get_mut(name) else {
+                return Err(not_set());
+            };
+            if rec.metadata.remove(key).is_none() {
+                return Err(not_set());
+            }
+            if rec.is_empty() {
                 new.appearance.remove(name);
             }
             EditRecord {

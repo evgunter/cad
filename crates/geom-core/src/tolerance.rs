@@ -337,6 +337,45 @@ impl Tolerance {
         }
     }
 
+    /// Commits a loaded DOCUMENT's recorded ε as the run's global
+    /// tolerance (M4 PR 6 spec D4): ε comes from the document (the
+    /// recorded value wins over an unread [`ENV_EPS`] — the ambient
+    /// env mechanism is process BOOTSTRAP, and a document that states
+    /// its ε outranks it), while K still resolves from the
+    /// environment ([`ENV_K`], with any malformed value recorded
+    /// exactly as `get()` records it).
+    ///
+    /// # Errors
+    ///
+    /// - [`ToleranceError::InvalidValue`] if `eps` is not finite and
+    ///   strictly positive (checked before touching the global).
+    /// - [`ToleranceError::AlreadyInitialized`] if the run's
+    ///   tolerance was already committed. The CALLER decides whether
+    ///   the committed ε matches the document (bit compare) — a match
+    ///   is a benign reload, a mismatch is the one-process-one-ε
+    ///   refusal (the persistence layer's `ToleranceConflict`).
+    pub fn init_document_eps(eps: f64) -> Result<(), ToleranceError> {
+        let (k, k_err) = resolve_var(&env_lookup, ENV_K, DEFAULT_K, |v| v > 1.0);
+        let tolerance = Tolerance { eps, k };
+        tolerance.validate()?;
+        let mut installed = false;
+        let global = GLOBAL.get_or_init(|| {
+            installed = true;
+            Global {
+                tolerance,
+                env_errors: k_err.into_iter().collect(),
+            }
+        });
+        if installed {
+            Ok(())
+        } else {
+            Err(ToleranceError::AlreadyInitialized {
+                current: global.tolerance,
+                attempted: tolerance,
+            })
+        }
+    }
+
     /// The run's global tolerance. Infallible and total.
     ///
     /// On first call without a prior [`Tolerance::init`], self-initializes
