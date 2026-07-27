@@ -27,6 +27,7 @@ use geom_core::{Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane};
 
 use crate::booleans::{check, expect_seamed, try_union};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
 fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
@@ -112,7 +113,7 @@ fn build_doc() -> Recipe {
 
 /// Unions the pattern's fin instances into the base — one solid, exact
 /// volume after every union (demo-side; see module docs).
-fn solidify(r: &Recipe, ev: &Evaluation<f64>, n: usize) -> topo::BooleanBody<f64> {
+fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::BooleanBody<S> {
     let base = match &ev.value(r.base_e).expect("base evaluated").payload {
         ValuePayload::Body(b) => (**b).clone(),
         other => panic!("base payload: {other:?}"),
@@ -124,7 +125,7 @@ fn solidify(r: &Recipe, ev: &Evaluation<f64>, n: usize) -> topo::BooleanBody<f64
     assert_eq!(fins.len(), n, "pattern instance count");
     let mut acc = base;
     let mut vol = BASE_VOL;
-    let mut last: Option<topo::BooleanBody<f64>> = None;
+    let mut last: Option<topo::BooleanBody<S>> = None;
     for (i, fin) in fins.iter().enumerate() {
         vol += FIN_GAIN;
         let bb = expect_seamed(
@@ -136,6 +137,36 @@ fn solidify(r: &Recipe, ev: &Evaluation<f64>, n: usize) -> topo::BooleanBody<f64
         last = Some(bb);
     }
     last.expect("at least one fin")
+}
+
+/// The recipe evaluated + solidified at every fin count the tour
+/// shows (5 → 7 → 9, each re-eval fed the prior as memo), generic —
+/// the Probe sweep records the document-evaluation predicates AND the
+/// union chain at every count.
+pub(crate) fn probe_solids<S: Scalar>() -> Vec<topo::BooleanBody<S>> {
+    let r = build_doc();
+    let cancel = CancelToken::new();
+    let opts = EvalOptions::default();
+    let ev5 = evaluate::<S>(&r.doc, None, &cancel, &opts);
+    let mut out = vec![solidify(&r, &ev5, 5)];
+    let mut doc = r.doc.clone();
+    let mut prior = ev5;
+    for n in [7usize, 9] {
+        let applied = apply(
+            &doc,
+            &DocEdit::SetStructuralParam {
+                node: r.pattern,
+                slot: SlotId::Count,
+                expr: Expr::count(n as i64),
+            },
+        )
+        .expect("count edit");
+        doc = applied.doc;
+        let ev = evaluate::<S>(&doc, Some(&prior), &cancel, &opts);
+        out.push(solidify(&r, &ev, n));
+        prior = ev;
+    }
+    out
 }
 
 pub fn stops() -> Vec<Stop> {

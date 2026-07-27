@@ -34,13 +34,14 @@ use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
 
 use crate::booleans::{check, expect_seamed, try_intersect};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
+fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
+    Point2::new(S::from_f64(x), S::from_f64(y))
 }
 
-fn validated(plane: SketchPlane<f64>, poly: &[(f64, f64)]) -> ValidatedProfile<f64> {
+fn validated<S: Scalar>(plane: SketchPlane<S>, poly: &[(f64, f64)]) -> ValidatedProfile<S> {
     let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| p2(x, y)).collect::<Vec<_>>());
     Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
@@ -49,27 +50,33 @@ fn validated(plane: SketchPlane<f64>, poly: &[(f64, f64)]) -> ValidatedProfile<f
 
 /// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —
 /// covering the full-height T).
-fn h_prism(poly: &[(f64, f64)]) -> Body<f64> {
+fn h_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
     let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, -0.25),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
+        Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(-0.25)),
+        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
-    extrude(&validated(plane, poly), Extrusion::Distance(3.5))
-        .expect("extrude H")
-        .body
+    extrude(
+        &validated(plane, poly),
+        Extrusion::Distance(S::from_f64(3.5)),
+    )
+    .expect("extrude H")
+    .body
 }
 
 /// "T" sketch: yz plane at x = -0.25, extruded 2.5 (x ∈ [-0.25, 2.25]).
-fn t_prism(poly: &[(f64, f64)]) -> Body<f64> {
+fn t_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
     let plane = SketchPlane::from_frame(
-        Point3::new(-0.25, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+        Point3::new(S::from_f64(-0.25), S::from_f64(0.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
-    extrude(&validated(plane, poly), Extrusion::Distance(2.5))
-        .expect("extrude T")
-        .body
+    extrude(
+        &validated(plane, poly),
+        Extrusion::Distance(S::from_f64(2.5)),
+    )
+    .expect("extrude T")
+    .body
 }
 
 /// Third letterform: a blocky "C" on the zx plane at y = -0.5,
@@ -84,11 +91,11 @@ fn t_prism(poly: &[(f64, f64)]) -> Body<f64> {
 /// shadow stays COMPLETE: the C's spine spans the stem's z-band over
 /// H's full-height left column, and its top arm spans every x at the
 /// T-bar band.
-fn c_prism() -> Body<f64> {
+fn c_prism<S: Scalar>() -> Body<S> {
     let plane = SketchPlane::from_frame(
-        Point3::new(0.0, -0.5, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        Point3::new(S::from_f64(0.0), S::from_f64(-0.5), S::from_f64(0.0)),
+        Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
+        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
     );
     // (z, x), counterclockwise; right-opening notch makes the C.
     let poly = [
@@ -101,9 +108,12 @@ fn c_prism() -> Body<f64> {
         (0.8125, 2.0625),
         (0.1875, 2.0625),
     ];
-    extrude(&validated(plane, &poly), Extrusion::Distance(4.0))
-        .expect("extrude C")
-        .body
+    extrude(
+        &validated(plane, &poly),
+        Extrusion::Distance(S::from_f64(4.0)),
+    )
+    .expect("extrude C")
+    .body
 }
 
 /// NAIVE letterforms: textbook proportions, T stem = H bar band, both
@@ -185,10 +195,10 @@ const V_3WAY: f64 = 2.798095703125;
 /// DescriptionNotAdjacent" posture is gone because the op refuses
 /// EARLIER and cleaner. DECLARED, the same geometry glues to the
 /// exact silhouette volume.
-fn narrate_naive() {
+fn narrate_naive<S: Scalar>() {
     println!("   -- the coincidence ladder, made visible (before/after, M4 PR 5) --");
     // BEFORE: undeclared flush contact refuses typed, loudly.
-    let (h, t) = (h_prism(&H_NAIVE), t_prism(&T_NAIVE));
+    let (h, t) = (h_prism::<S>(&H_NAIVE), t_prism::<S>(&T_NAIVE));
     match try_intersect(&h, &t) {
         Err(e) => {
             assert!(
@@ -215,7 +225,8 @@ fn narrate_naive() {
     };
     let v = topo::mass_properties(&bb.body)
         .expect("declared naive volume")
-        .volume;
+        .volume
+        .f();
     assert!(
         (v - V_2WAY_NAIVE).abs() < 1e-9,
         "declared naive 2-way volume {v} vs {V_2WAY_NAIVE}"
@@ -233,12 +244,12 @@ fn narrate_naive() {
 }
 
 /// Builds the decoupled 2-way and 3-way results.
-fn build() -> (BooleanBody<f64>, BooleanBody<f64>) {
-    narrate_naive();
+pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, BooleanBody<S>) {
+    narrate_naive::<S>();
     let two = expect_seamed(
         "decoupled H x T intersect",
         check(
-            try_intersect(&h_prism(&H_DECOUPLED), &t_prism(&T_DECOUPLED)),
+            try_intersect(&h_prism::<S>(&H_DECOUPLED), &t_prism::<S>(&T_DECOUPLED)),
             V_2WAY,
         ),
         V_2WAY,
@@ -252,7 +263,7 @@ fn build() -> (BooleanBody<f64>, BooleanBody<f64>) {
 }
 
 pub fn stops() -> Vec<Stop> {
-    let (two, three) = build();
+    let (two, three) = build::<f64>();
     // The shadow PROOF renders (standalone, not montage panels): the
     // 3-way solid viewed straight down each axis — orthographic, so
     // each frame IS the shadow: an H (z), a T (x), a C (y).

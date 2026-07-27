@@ -19,7 +19,9 @@ mod crosslap;
 mod cutaway;
 mod heatsink;
 mod letterforms;
+mod probe;
 mod projectbox;
+mod scalar;
 
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use topo::{Body, ContactRecords};
@@ -299,7 +301,15 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 }
 
 fn main() {
-    let outdir = std::env::args().nth(1).expect("usage: demo-tour <outdir>");
+    let outdir = std::env::args()
+        .nth(1)
+        .expect("usage: demo-tour <outdir> | demo-tour k-probe [out.csv]");
+    // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
+    // recording scalar and dump the margin CSV — see `probe`.
+    if outdir == "k-probe" {
+        probe::run(std::env::args().nth(2));
+        return;
+    }
     std::fs::create_dir_all(&outdir).expect("create outdir");
     let mut manifest = String::new();
     let mut scenes: Vec<String> = Vec::new();
@@ -350,7 +360,7 @@ fn main() {
         run(&stop);
     }
 
-    bodies::finale_fail_loud();
+    bodies::finale_fail_loud::<f64>();
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

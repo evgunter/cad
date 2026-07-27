@@ -28,7 +28,7 @@
 use core::cell::{Cell, RefCell};
 
 use crate::predicate::{Band, Decide, Indeterminate, Sign};
-use crate::real::Real;
+use crate::real::{Bounds, Real};
 
 thread_local! {
     /// The name of the predicate currently being decided (set by the
@@ -286,6 +286,20 @@ impl Real for Probe {
 
     fn copysign(self, sign: Self) -> Self {
         Self(Real::copysign(self.0, sign.0))
+    }
+}
+
+/// `Probe` brackets itself exactly, like `f64` (it IS an f64 with a
+/// recorder attached; delegation is exact, so the bracket is the
+/// value). Needed so `Bounds`-bounded construction sugar (e.g. the
+/// profile fillet constructor) runs at the recording scalar.
+impl Bounds for Probe {
+    fn lo(self) -> f64 {
+        self.0
+    }
+
+    fn hi(self) -> f64 {
+        self.0
     }
 }
 

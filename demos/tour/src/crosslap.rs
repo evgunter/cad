@@ -24,6 +24,7 @@ use topo::BooleanBody;
 
 use crate::bool_bodies::slab;
 use crate::booleans::{check, describe, expect_seamed, try_subtract, try_union};
+use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
 /// Beam cross-section 0.5 x 0.5, length 4; notches half-depth (0.25),
@@ -34,8 +35,8 @@ const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
 const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
 /// Beam A runs along x, notched from the TOP at the crossing.
-fn beam_a() -> BooleanBody<f64> {
-    let beam = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
+fn beam_a<S: Scalar>() -> BooleanBody<S> {
+    let beam: topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
     let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
     expect_seamed(
         "beam A notch subtract",
@@ -46,8 +47,8 @@ fn beam_a() -> BooleanBody<f64> {
 
 /// Beam B runs along y, notched from the BOTTOM — the two half-depth
 /// notches interlock.
-fn beam_b() -> BooleanBody<f64> {
-    let beam = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
+fn beam_b<S: Scalar>() -> BooleanBody<S> {
+    let beam: topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
     let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
     expect_seamed(
         "beam B notch subtract",
@@ -56,9 +57,13 @@ fn beam_b() -> BooleanBody<f64> {
     )
 }
 
-pub fn stops() -> Vec<Stop> {
-    let a = beam_a();
-    let b = beam_b();
+/// The joint's boolean work, generic (the Probe sweep runs the same
+/// ops): both notched beams, the naive AND declared mated-union
+/// refusal pins, and the lifted exploded copy. Returns the declared
+/// refusal's narration string for the f64 stop captions.
+pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, BooleanBody<S>, topo::Body<S>, String) {
+    let a = beam_a::<S>();
+    let b = beam_b::<S>();
 
     // The UNDECLARED union refuses at the coincidence door (rung (b);
     // post-PR 5 value equality never even classifies).
@@ -98,9 +103,17 @@ pub fn stops() -> Vec<Stop> {
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
     // edge witness is re-minted, and the moved body revalidates).
-    let lift = Affine3::translation(Vec3::new(0.0, 0.0, 1.25));
+    let lift = Affine3::translation(Vec3::new(
+        S::from_f64(0.0),
+        S::from_f64(0.0),
+        S::from_f64(1.25),
+    ));
     let b_lifted = topo::transform_rigid(&b.body, &lift).expect("lift beam B");
+    (a, b, b_lifted, declared_refusal)
+}
 
+pub fn stops() -> Vec<Stop> {
+    let (a, b, b_lifted, declared_refusal) = build::<f64>();
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
          bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
