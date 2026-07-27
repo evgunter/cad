@@ -77,9 +77,52 @@ pub fn square(cx: f64, cy: f64, h: f64) -> Vec<(f64, f64)> {
     ]
 }
 
+/// Applies-and-RECORDS: the edit-log author shared by the die
+/// fixture and the M4 PR 8a Band 4 corpus. The saved snapshot is the
+/// EMPTY document and the log is everything, so a load replays the
+/// whole document through `apply`'s doors.
+pub struct Recorder {
+    /// The document as edited so far.
+    pub doc: ProfileDoc,
+    /// The recorded log.
+    pub edits: Vec<DocEdit<ProfileDesc>>,
+}
+
+impl Default for Recorder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Recorder {
+    /// A recorder over the empty document.
+    pub fn new() -> Self {
+        Self {
+            doc: ProfileDoc::empty(),
+            edits: Vec::new(),
+        }
+    }
+
+    /// Applies an edit (the doors refusing is a loud test failure)
+    /// and records it; returns any minted id.
+    pub fn push(&mut self, edit: DocEdit<ProfileDesc>) -> Option<RecipeNodeId> {
+        let applied = editor_core::apply(&self.doc, &edit).expect("recorded edit must apply");
+        self.doc = applied.doc;
+        self.edits.push(edit);
+        applied.record.minted
+    }
+
+    /// Inserts a node, returning its minted id.
+    pub fn insert(&mut self, node: Node<ProfileDesc>) -> RecipeNodeId {
+        self.push(DocEdit::InsertNode { node }).expect("minted id")
+    }
+}
+
 /// The authored die and the ids the tests address.
 pub struct Die {
     pub doc: ProfileDoc,
+    /// The document's full edit log (snapshot = the empty document).
+    pub edits: Vec<DocEdit<ProfileDesc>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its
@@ -152,54 +195,37 @@ pub fn faces() -> [Face; 6] {
 
 /// Authors the die document (module docs).
 pub fn die() -> Die {
-    let mut doc = ProfileDoc::empty();
+    let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
-    (doc, _) = step(
-        doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: DEPTH,
-            },
+    r.push(DocEdit::SetDocParam {
+        name: ParamName::new("pip_depth"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: DEPTH,
         },
-    );
+    });
     // The cube: profile on the xy plane, extruded +2.
-    let (d, cube_profile) = insert(
-        doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
-    );
-    let (d, cube) = insert(
-        d,
-        Node::Extrude {
-            profile: cube_profile,
-            distance: len(2.0),
-        },
-    );
-    doc = d;
+    let cube_profile = r.insert(Node::Profile(desc(
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
+    )));
+    let cube = r.insert(Node::Extrude {
+        profile: cube_profile,
+        distance: len(2.0),
+    });
 
     // Per-face masters: pip profile centered at the plane origin,
     // extruded INWARD by pip_depth (normal points out ⇒ negative
     // distance).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let (d, prof) = insert(
-            doc,
-            Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])),
-        );
-        let (d, ext) = insert(
-            d,
-            Node::Extrude {
-                profile: prof,
-                distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
-            },
-        );
-        doc = d;
+        let prof = r.insert(Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])));
+        let ext = r.insert(Node::Extrude {
+            profile: prof,
+            distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
+        });
         masters.push((ext, u, v, pips));
     }
 
@@ -240,35 +266,25 @@ pub fn die() -> Die {
                 a * u[1] + b * v[1],
                 a * u[2] + b * v[2],
             ];
-            let (d, tr) = insert(
-                doc,
-                Node::Transform {
-                    input: ext,
-                    translation: [len(t[0]), len(t[1]), len(t[2])],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
-            );
+            let tr = r.insert(Node::Transform {
+                input: ext,
+                translation: [len(t[0]), len(t[1]), len(t[2])],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            });
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Bottom));
-            let (d, decl) = insert(
-                d,
-                Node::Declare {
-                    pairs: vec![(cube_face_names[face_idx].clone(), pip_cap)],
-                },
-            );
-            let (d, sub) = insert(
-                d,
-                Node::Boolean {
-                    op: editor_core::BooleanOp::Subtract,
-                    a: acc,
-                    b: tr,
-                    declare: Some(decl),
-                },
-            );
-            doc = d;
+            let decl = r.insert(Node::Declare {
+                pairs: vec![(cube_face_names[face_idx].clone(), pip_cap)],
+            });
+            let sub = r.insert(Node::Boolean {
+                op: editor_core::BooleanOp::Subtract,
+                a: acc,
+                b: tr,
+                declare: Some(decl),
+            });
             acc = sub;
             pz_transform = tr;
             // Every A-side face name wraps once per boolean (N1
@@ -279,9 +295,10 @@ pub fn die() -> Die {
         }
     }
 
-    let n_nodes = doc.len();
+    let n_nodes = r.doc.len();
     Die {
-        doc,
+        doc: r.doc,
+        edits: r.edits,
         final_node: acc,
         pz_extrude: masters[5].0,
         pz_transform,

@@ -168,6 +168,11 @@ jobs:
       # workspace runs above; named here so the obligation is visible).
       - name: persistence save/load/replay-identity (interval)
         run: cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval
+      # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
+      # at the certified interval scalar (also inside the full workspace
+      # runs above; named here so the obligation is visible).
+      - name: band 4 corpus (interval)
+        run: cargo test -p editor-core --features interval --test m4_pr8_corpus_interval
 
   watertight:
     name: watertight (admesh)
@@ -269,5 +274,43 @@ jobs:
       # adversarial probe suite (review pins) + token key-space pins.
       - name: schema + corruption refusal (D6.3) + review probes
         run: cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key
+        env:
+          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+
+  # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
+  # prints a per-document table (full rebuild + incremental recompute,
+  # median of 3) and diffs it against the committed baseline
+  # crates/editor-core/tests/baseline/rebuild-latency.json. It is
+  # DELIBERATELY NOT A GATE on any timing number — instrumentation, not
+  # a contract; PERF-PLAN stays advisory. The only assertions inside are
+  # the counted-reuse ones (cone complement), which are arithmetic, not
+  # wall clock. The table lands in the job LOG (no artifact upload: the
+  # numbers are advisory and the baseline JSON is the durable record).
+  rebuild-latency:
+    name: rebuild latency (reporting)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: per-document full-rebuild + incremental-recompute table
+        run: cargo test -p editor-core --test m4_pr8_latency -- --nocapture
+
+  # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
+  # inside the workspace rows; naming it keeps the milestone's
+  # proof-of-vocabulary attributable at a glance).
+  corpus:
+    name: band 4 corpus (eps = ${{ matrix.eps }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        eps: ["1e-6", "1e-9", "1e-12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: evaluation, exact mass pins, counted reuse, vocabulary totality
+        run: cargo test -p editor-core --test m4_pr8_corpus -- --nocapture
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
