@@ -40,14 +40,15 @@ fn poison_row<T: Real>(len: usize) -> Vec<T> {
 /// `N_{span−p,p}(t), …, N_{span,p}(t)` on `span` (Book A2.2 shape,
 /// structure-denominator form — module docs).
 ///
-/// Total: an out-of-range `span` returns all-poison; a poisoned `t`
+/// Total: an out-of-range or **empty** `span` returns all-poison; a
+/// poisoned `t`
 /// propagates through the arithmetic. Division safety: every
 /// denominator is `knots[span+1+r] − knots[span+1+r−j] ≥
 /// knots[span+1] − knots[span] > 0` for a valid (nonempty) span of a
 /// validated clamped vector.
 pub fn basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T) -> Vec<T> {
     let p = kv.degree();
-    if span < kv.first_span() || span > kv.last_span() {
+    if span < kv.first_span() || span > kv.last_span() || !kv.span_is_nonempty(span) {
         return poison_row(p + 1);
     }
     let u = kv.knots();
@@ -83,7 +84,7 @@ pub fn basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T) -> Vec<T> {
 /// accumulation `Σ a_{k,j}·N_{i+j,p−k}`, scaled by `p!/(p−k)!`.
 pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T, n_ders: usize) -> Vec<Vec<T>> {
     let p = kv.degree();
-    if span < kv.first_span() || span > kv.last_span() {
+    if span < kv.first_span() || span > kv.last_span() || !kv.span_is_nonempty(span) {
         return (0..=n_ders).map(|_| poison_row(p + 1)).collect();
     }
     let u = kv.knots();

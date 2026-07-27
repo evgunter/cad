@@ -10,7 +10,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Vec3};
 use geom_surfaces::{NurbsSurface, Surface};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;

@@ -1145,12 +1145,18 @@ fn upgrade_rim<T: Decide>(
     // construction.
     let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
-    let s_cap = body.get_surface(cap).cloned().ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(cap),
-    })?;
-    let s_wall = body.get_surface(wall).cloned().ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(wall),
-    })?;
+    let s_cap = body
+        .get_surface(cap)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(cap),
+        })?;
+    let s_wall = body
+        .get_surface(wall)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(wall),
+        })?;
     match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {

@@ -504,7 +504,6 @@ impl<T: Real> EdgeCurve<T> {
     pub fn sample_param(&self, i: u32) -> T {
         sample_param(self.param_start, self.param_end, i)
     }
-
 }
 
 impl<T: SpanLocate> EdgeCurve<T> {
@@ -910,7 +909,7 @@ mod tests {
     ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
         let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
         let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-        (keys, move |k| map.get(k).copied())
+        (keys, move |k| map.get(k).cloned())
     }
 
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
@@ -921,7 +920,7 @@ mod tests {
     fn self_loop_circle_certifies_at_its_anchor() {
         let p = Point3::new(-2.0, 0.5, 7.0);
         let spec = EdgeCurveSpec::self_loop_circle_at(p);
-        EdgeCurve::certify(spec, p, p, |_| None, band()).unwrap();
+        EdgeCurve::certify(spec.clone(), p, p, |_| None, band()).unwrap();
         // Coincident-endpoint LINE specs, by contrast, poison and are
         // refused (typed, no panic) — the reason the circle convention
         // exists.
@@ -934,8 +933,8 @@ mod tests {
         let p0 = Point3::new(0.25, -1.0, 2.0);
         let p1 = Point3::new(1.25, 0.5, 3.5);
         let spec = line_spec(p0, p1);
-        let a = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap();
-        let b = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap();
+        let a = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
+        let b = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
         // D9: byte-identical certification records across runs.
         assert_eq!(
             format!("{:?}", a.certificate()),
@@ -960,7 +959,7 @@ mod tests {
             origin: Point3::new(0.0, off, 0.0),
             dir: Vec3::unit_x(),
         };
-        let err = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap_err();
+        let err = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap_err();
         assert_eq!(
             err,
             CertifyError::ResidualExceeded {
@@ -974,7 +973,7 @@ mod tests {
             origin: Point3::new(0.0, 3.0 * eps(), 0.0),
             dir: Vec3::unit_x(),
         };
-        let err = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap_err();
+        let err = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap_err();
         assert!(matches!(err, CertifyError::Escalated { .. }), "{err:?}");
     }
 
@@ -1009,11 +1008,11 @@ mod tests {
             param_start: 0.0,
             param_end: 1.0,
         };
-        EdgeCurve::certify(spec, p0, p1, &lookup, band()).unwrap();
+        EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap();
 
         // Both-surface teeth: a carrier lying ON s1 but definitely off
         // s2 fails the s2 residual specifically.
-        let mut bad = spec;
+        let mut bad = spec.clone();
         bad.carrier = Curve3::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
             dir: Vec3::unit_x(),
@@ -1035,7 +1034,7 @@ mod tests {
         );
 
         // A displaced witness fails the witness checks.
-        let mut bad = spec;
+        let mut bad = spec.clone();
         bad.description = EdgeGeometry::Intersection {
             s1: keys[0],
             s2: keys[1],
@@ -1051,7 +1050,7 @@ mod tests {
         );
 
         // Same surface twice is structurally malformed.
-        let mut bad = spec;
+        let mut bad = spec.clone();
         bad.description = EdgeGeometry::Intersection {
             s1: keys[0],
             s2: keys[0],
@@ -1063,7 +1062,7 @@ mod tests {
         );
 
         // A stale key is a typed error.
-        let mut bad = spec;
+        let mut bad = spec.clone();
         bad.description = EdgeGeometry::Intersection {
             s1: keys[0],
             s2: SurfaceKey::default(),
@@ -1109,7 +1108,7 @@ mod tests {
             param_start: 0.0,
             param_end: 1.0,
         };
-        let err = EdgeCurve::certify(spec, p0, p1, &lookup, band()).unwrap_err();
+        let err = EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -1147,7 +1146,7 @@ mod tests {
             param_end: 1.0,
         };
         assert_eq!(
-            EdgeCurve::certify(spec, p0, p1, &lookup, band()).unwrap_err(),
+            EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap_err(),
             CertifyError::NotTransverse { sample: 1 }
         );
     }
@@ -1174,13 +1173,13 @@ mod tests {
             param_start: 0.0,
             param_end: 3.0,
         };
-        EdgeCurve::certify(spec, p0, p1, &lookup, band()).unwrap();
+        EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap();
 
         // The antipodal ruling (x = −r) is on the surface and in the
         // seam plane, but on the wrong side: the side check has teeth.
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
-        let mut bad = spec;
+        let mut bad = spec.clone();
         bad.carrier = Curve3::Line {
             origin: q0,
             dir: Vec3::unit_z(),
@@ -1200,7 +1199,7 @@ mod tests {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         }]);
-        let mut bad = spec;
+        let mut bad = spec.clone();
         bad.description = EdgeGeometry::Seam { surface: pkeys[0] };
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &plookup, band()).unwrap_err(),
@@ -1215,13 +1214,13 @@ mod tests {
         let mut spec = line_spec(p0, p1);
         spec.carrier = Curve3::nurbs_placeholder();
         assert_eq!(
-            EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap_err(),
+            EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap_err(),
             CertifyError::Unimplemented
         );
         // Poisoned endpoints: typed escalation, no panic (totality).
         let spec = line_spec(p0, p1);
         let nan = Point3::new(f64::NAN, 0.0, 0.0);
-        let err = EdgeCurve::certify(spec, nan, p1, |_| None, band()).unwrap_err();
+        let err = EdgeCurve::certify(spec.clone(), nan, p1, |_| None, band()).unwrap_err();
         assert!(matches!(err, CertifyError::Escalated { .. }));
     }
 
@@ -1250,7 +1249,7 @@ mod tests {
             param_start: 0.0,
             param_end: TAU,
         };
-        EdgeCurve::certify(spec, p, p, |_| None, band()).unwrap();
+        EdgeCurve::certify(spec.clone(), p, p, |_| None, band()).unwrap();
     }
 
     /// A placed-arc mapped curve against a circle carrier: the quarter
@@ -1280,6 +1279,6 @@ mod tests {
         };
         let p0 = Point3::new(1.0, 0.0, 1.0);
         let p1 = Point3::new(0.0, 1.0, 1.0);
-        EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap();
+        EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
     }
 }

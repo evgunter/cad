@@ -2,7 +2,7 @@
 //! B-spline evaluation.
 //!
 //! Generic evaluation code cannot compare a scalar `t` against knots —
-//! [`Real`](crate::Real) is comparison-free by design (Q1), and C12.8
+//! [`Real`] is comparison-free by design (Q1), and C12.8
 //! forbids growing its surface. Span selection is therefore a
 //! **structure-selection seam implemented per base scalar**, exactly
 //! like `floor`/`copysign`'s per-instantiation kink handling in

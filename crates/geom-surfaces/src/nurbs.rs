@@ -67,6 +67,9 @@ impl<T: Real> NurbsSurface<T> {
     /// # Errors
     ///
     /// [`SplineError`] naming the exact violation.
+    // `!(w > 0)` is deliberate (NaN-catching); same note as
+    // geom-core::spline::algebra.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     pub fn new(
         knots_u: KnotVector,
         knots_v: KnotVector,
@@ -273,8 +276,10 @@ impl<T: Real> NurbsSurface<T> {
     fn spans_valid(&self, span_u: usize, span_v: usize) -> bool {
         span_u >= self.knots_u.first_span()
             && span_u <= self.knots_u.last_span()
+            && self.knots_u.span_is_nonempty(span_u)
             && span_v >= self.knots_v.first_span()
             && span_v <= self.knots_v.last_span()
+            && self.knots_v.span_is_nonempty(span_v)
     }
 
     /// The transposed surface: `u` and `v` swapped (knot vectors
@@ -417,7 +422,7 @@ impl<T: Real> NurbsSurface<T> {
     pub fn elevate_degree_u(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
         let mut cur = self.clone();
         for _ in 0..raise {
-            cur = cur.map_u_columns(|kv, w| spline::algebra::elevate_plan(kv, w))?;
+            cur = cur.map_u_columns(spline::algebra::elevate_plan)?;
         }
         Ok(cur)
     }
@@ -534,6 +539,11 @@ impl<T: SpanLocate> NurbsSurface<T> {
                 if cu == su.first && cv == sv.first {
                     continue;
                 }
+                // Empty spans (interior multiplicity) hold no
+                // parameter — skipping preserves containment.
+                if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
+                    continue;
+                }
                 let jet = self.ders_in_span(cu, cv, u, v);
                 acc = SurfaceJet {
                     point: hull_point(acc.point, jet.point),
@@ -557,6 +567,9 @@ impl<T: SpanLocate> NurbsSurface<T> {
         for cu in su.first..=su.last {
             for cv in sv.first..=sv.last {
                 if cu == su.first && cv == sv.first {
+                    continue;
+                }
+                if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
                     continue;
                 }
                 acc = hull_point(acc, self.eval_in_span(cu, cv, u, v));

@@ -114,12 +114,18 @@ pub(super) fn upgrade_intersection<T: Decide>(
     sliver: impl FnOnce(geom_core::Indeterminate) -> RevolveError,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
-    let surf1 = body.get_surface(s1).cloned().ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(s1),
-    })?;
-    let surf2 = body.get_surface(s2).cloned().ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(s2),
-    })?;
+    let surf1 = body
+        .get_surface(s1)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(s1),
+        })?;
+    let surf2 = body
+        .get_surface(s2)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(s2),
+        })?;
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {

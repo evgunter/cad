@@ -259,6 +259,11 @@ impl KnotVector {
     /// garbage-out contract of `eval_in_span`), and **NaN returns the
     /// first span deterministically** (poison then propagates through
     /// the evaluation's arithmetic as a value, never a decision).
+    // The `!(t > …)` guard is deliberate: the negated form routes NaN
+    // to the first span (fn docs), where `t <= …` would be false for
+    // NaN and fall through into the binary search with a broken
+    // invariant.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     pub fn find_span(&self, t: f64) -> usize {
         let first = self.first_span();
         let last = self.last_span();
@@ -292,6 +297,16 @@ impl KnotVector {
     /// NaN ends land on the first span per `find_span`.
     pub fn span_range(&self, lo: f64, hi: f64) -> (usize, usize) {
         (self.find_span(lo), self.find_span(hi))
+    }
+
+    /// Whether `span` is a **nonempty** span (`knots[span] <
+    /// knots[span+1]`). Interior knot multiplicities create empty
+    /// spans; they contain no parameter, their basis denominators are
+    /// zero, and evaluation treats them as invalid (poison) —
+    /// [`KnotVector::find_span`] never returns one, and multi-span
+    /// hull iteration skips them.
+    pub fn span_is_nonempty(&self, span: usize) -> bool {
+        span + 1 < self.knots.len() && self.knots[span] < self.knots[span + 1]
     }
 
     /// The multiplicity of the exact value `u` among the knots (exact

@@ -125,7 +125,7 @@ fn split_circle_carrier_intersection_edge() {
     let (edge, parent) = body
         .edges()
         .find_map(|(k, e)| {
-            let c = *body.get_curve_geom(e.curve)?.certified()?;
+            let c = body.get_curve_geom(e.curve)?.certified()?.clone();
             matches!(c.carrier(), geom_curves::Curve3::Circle { .. }).then_some((k, c))
         })
         .expect("the D-body must carry a circular rim");
@@ -265,7 +265,7 @@ fn split_then_null_lifecycle_on_prism() {
     let (edge, curve) = body
         .edges()
         .find_map(|(k, e)| {
-            let c = *body.get_curve_geom(e.curve)?.certified()?;
+            let c = body.get_curve_geom(e.curve)?.certified()?.clone();
             matches!(c.carrier(), geom_curves::Curve3::Line { .. }).then_some((k, c))
         })
         .unwrap();

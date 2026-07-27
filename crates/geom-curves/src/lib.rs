@@ -661,7 +661,7 @@ mod tests {
             let ci = lift(&super::xy_circle(2.0));
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
-            let n: Curve3<Interval> = Curve3::Nurbs;
+            let n: Curve3<Interval> = Curve3::nurbs_placeholder();
             assert!(n.eval(Interval::zero()).x.lo().is_nan());
         }
 

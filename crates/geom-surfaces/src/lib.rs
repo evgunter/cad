@@ -1157,7 +1157,7 @@ mod tests {
                     minor_radius: Interval::from_f64(minor_radius),
                     u_ref: iviv(u_ref),
                 },
-                Surface::Nurbs => Surface::Nurbs,
+                Surface::Nurbs(_) => Surface::nurbs_placeholder(),
             }
         }
 
@@ -1230,7 +1230,7 @@ mod tests {
         /// is contained in the interval evaluation.
         #[test]
         fn plane_encloses_f64_evaluation() {
-            let p = all_surfaces()[0].1;
+            let p = all_surfaces()[0].1.clone();
             let pi_ = lift(&p);
             for (uu, vv) in [(0.0, 0.0), (1.75, -3.5), (1234.5, 0.125)] {
                 let q = p.eval(uu, vv);
@@ -1246,7 +1246,7 @@ mod tests {
         /// by the box arithmetic itself, using exact-op variants only).
         #[test]
         fn wide_boxes_enclose_sampled_images() {
-            let p = all_surfaces()[0].1; // plane: exact ops, assertable
+            let p = all_surfaces()[0].1.clone(); // plane: exact ops, assertable
             let pi_ = lift(&p);
             let ub = Interval::from_bounds(-1.0, 2.0);
             let vb = Interval::from_bounds(0.5, 0.75);
@@ -1269,7 +1269,7 @@ mod tests {
             let si = lift(&all_surfaces()[1].1);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.lo().is_nan());
-            let n: Surface<Interval> = Surface::Nurbs;
+            let n: Surface<Interval> = Surface::nurbs_placeholder();
             assert!(n.eval(Interval::zero(), Interval::zero()).x.lo().is_nan());
         }
     }

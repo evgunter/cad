@@ -45,6 +45,9 @@ use geom_core::{Point2, Point3, Real, Vec2, Vec3};
 
 /// Shared constructor validation: counts and weight positivity/
 /// finiteness (the knot vector validates itself at construction).
+// `!(w > 0)` is deliberate (NaN-catching — NaN refuses; `w <= 0`
+// would pass NaN). Same note as geom-core::spline::algebra.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn validate_counts(knots: &KnotVector, control: usize, weights: &[f64]) -> Result<(), SplineError> {
     if control != knots.control_count() {
         return Err(SplineError::ControlCountMismatch {
@@ -145,7 +148,10 @@ macro_rules! nurbs_curve {
             /// span index yields the all-poison point; `t` outside the
             /// span's interval yields the span's polynomial extension.
             pub fn eval_in_span(&self, span: usize, t: T) -> $Point<T> {
-                if span < self.knots.first_span() || span > self.knots.last_span() {
+                if span < self.knots.first_span()
+                    || span > self.knots.last_span()
+                    || !self.knots.span_is_nonempty(span)
+                {
                     return Self::poison_point();
                 }
                 let p = self.knots.degree();
@@ -171,7 +177,10 @@ macro_rules! nurbs_curve {
             /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
             /// Same totality contract as [`Self::eval_in_span`].
             pub fn ders_in_span(&self, span: usize, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                if span < self.knots.first_span() || span > self.knots.last_span() {
+                if span < self.knots.first_span()
+                    || span > self.knots.last_span()
+                    || !self.knots.span_is_nonempty(span)
+                {
                     return (Self::poison_point(), Self::poison_vector(), Self::poison_vector());
                 }
                 let p = self.knots.degree();
@@ -357,6 +366,11 @@ macro_rules! nurbs_curve {
                 let spans = t.locate_spans(&self.knots);
                 let mut acc = self.eval_in_span(spans.first, t);
                 for s in (spans.first + 1)..=spans.last {
+                    // Empty spans (interior multiplicity) hold no
+                    // parameter — skipping them preserves containment.
+                    if !self.knots.span_is_nonempty(s) {
+                        continue;
+                    }
                     let q = self.eval_in_span(s, t);
                     acc = $Point::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
@@ -370,6 +384,9 @@ macro_rules! nurbs_curve {
                 let spans = t.locate_spans(&self.knots);
                 let mut acc = self.deriv_in_span(spans.first, t);
                 for s in (spans.first + 1)..=spans.last {
+                    if !self.knots.span_is_nonempty(s) {
+                        continue;
+                    }
                     let q = self.deriv_in_span(s, t);
                     acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
@@ -382,6 +399,9 @@ macro_rules! nurbs_curve {
                 let spans = t.locate_spans(&self.knots);
                 let mut acc = self.deriv2_in_span(spans.first, t);
                 for s in (spans.first + 1)..=spans.last {
+                    if !self.knots.span_is_nonempty(s) {
+                        continue;
+                    }
                     let q = self.deriv2_in_span(s, t);
                     acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }

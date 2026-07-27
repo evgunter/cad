@@ -165,8 +165,8 @@ impl<T: Decide> Body<T> {
             .certified()
             .cloned()
             .ok_or(EulerOpError::NullScaffoldCurve {
-            curve: edge_data.curve,
-        })?;
+                curve: edge_data.curve,
+            })?;
         // Interiority (trilean, Q1): both sub-spans definitely
         // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();

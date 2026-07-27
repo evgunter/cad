@@ -611,7 +611,8 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
     let b = arc.carrier.eval(t0);
     let closing = line_edge(a, b);
     let got =
-        geom_brep::props::loop_vector_area(&[arc, closing], Point3::new(9.0, 9.0, 9.0)).unwrap();
+        geom_brep::props::loop_vector_area(&[arc.clone(), closing], Point3::new(9.0, 9.0, 9.0))
+            .unwrap();
     // Dense polyline oracle.
     let mut acc = Vec3::zero();
     let n = 20000;
@@ -775,7 +776,7 @@ fn torus_tag_contract_is_load_bearing() {
     let honest = curved_face(&s, &lp.edges, band()).unwrap();
     // Swap the two rims' tag pairs (a lie no topo flattening produces:
     // the loop is otherwise untouched).
-    let (r0, r1) = (lp.edges[0], lp.edges[2]);
+    let (r0, r1) = (lp.edges[0].clone(), lp.edges[2].clone());
     lp.edges[0].start = r1.start;
     lp.edges[0].end = r1.end;
     lp.edges[2].start = r0.start;

@@ -35,7 +35,7 @@ fn table(
 ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
     let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
     let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).copied())
+    (keys, move |k| map.get(k).cloned())
 }
 
 // =====================================================================

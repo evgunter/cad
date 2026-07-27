@@ -291,7 +291,7 @@ fn survives_wire_four_segment_dome_two_band_structure() {
         "axis run omitted"
     );
     // Wall catalog: plane, cylinder, cone, plane.
-    let kind_of = |f: FaceKey| *t.body.get_surface(wall_key(&t.body, f)).unwrap();
+    let kind_of = |f: FaceKey| t.body.get_surface(wall_key(&t.body, f)).unwrap().clone();
     assert!(matches!(
         kind_of(t.walls[0][0].unwrap()),
         Surface::Plane { .. }
@@ -698,7 +698,7 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
     let sphere_key = wall_key(&t.body, t.walls[0][0].unwrap());
     let e = t.body.get_edge(pi_edge).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    let (carrier, (t0, t1)) = (*c.carrier(), c.params());
+    let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeGeometry::Seam {
             surface: sphere_key,
@@ -839,7 +839,7 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let EdgeGeometry::Intersection { s1, s2, .. } = *c.description() else {
         panic!("intersection rim");
     };
-    let (carrier, (t0, t1)) = (*c.carrier(), c.params());
+    let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let start = carrier.eval(t0);
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeGeometry::Intersection {
@@ -1333,7 +1333,7 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     ));
     let e = t.body.get_edge(plane_meridian).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    let (carrier, (t0, t1)) = (*c.carrier(), c.params());
+    let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeGeometry::Seam { surface: plane_key },
         carrier,

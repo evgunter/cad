@@ -201,6 +201,10 @@ impl CurvePlan {
 
 /// Validates weights against a knot vector: count, positivity,
 /// finiteness (the shared precondition of every plan constructor).
+// `!(x > 0)`-shaped guards below are deliberate: the negated form is
+// NaN-catching (`NaN > 0` is false, so NaN refuses), where `x <= 0`
+// would silently pass NaN through — the fail-loud direction.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraError> {
     if weights.len() != kv.control_count() {
         return Err(KnotAlgebraError::Structure(
@@ -235,6 +239,8 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
 ///
 /// [`KnotAlgebraError`] on structure mismatch, out-of-domain `u`, or
 /// multiplicity overflow. `times == 0` is a no-op (empty chain).
+// NaN-catching negated comparisons — see `check_weights`' note.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn insert_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -437,6 +443,8 @@ pub fn remove_knot_plan(
 
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
+// NaN-catching negated comparisons — see `check_weights`' note.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
