@@ -171,9 +171,14 @@ the morning review will almost certainly have happened.
    kernel `interval` feature's transcendental backend inari →
    #115's crate; M0 poison-channel contract is the acceptance bar
    (decoration-equivalent refusal behavior, poison through values
-   never decisions); full battery at 3ε + Interval; the crate joins
-   the workspace (un-excluded). inari retires from the dependency
-   tree when PR 2 also lands (R2). [none; parallelizable]
+   never decisions); full battery at 3ε + Interval; kernel crates
+   PATH-depend on the crate, which keeps its own workspace — so its
+   gmp-backed dev-oracle (inari as dev-dependency of its certify
+   lane) never enters kernel builds or `cargo test --workspace`
+   (amended from "joins the workspace" at spec time for exactly
+   that reason; the k-lint tool is the precedent). inari retires
+   from the kernel dependency tree in this PR (Shape A of the spec)
+   or at latest when PR 2 lands (R2). [none; parallelizable]
 2. **The C9 interval ring** in geom-core: `IntervalRing` (name at
    PR spec), f64 endpoints, outward ulp-widening, ring ops only;
    the `Bounds` trait seam; control-coefficient hull-bound
@@ -181,9 +186,11 @@ the morning review will almost certainly have happened.
    B-spline form — the Eq. 9.81 mechanism, C2.2/C9); differential
    tests against inari/#115 as oracles. Entry requirement for all
    fitted-cache certification (OQ2). [none; parallelizable]
-3. **geom-core::linalg + NURBS substrate part 1** (C11, C12.8):
-   fixed-order small dense/banded LSQ + SVD (Givens/Householder,
-   D9 fixed-shape); NURBS curve (2-D/3-D) and surface types,
+3. **NURBS substrate part 1** (C11): (C12.8's linalg additions
+   land with their consumers per the no-speculative-abstraction
+   rule — the variable-size LSQ with PR 4's fitting stack, the
+   fixed-shape 2×3/3×4 SVD with PR 7's marcher; amended from the
+   first draft, which had bundled both here); NURBS curve (2-D/3-D) and surface types,
    de Boor evaluation + derivatives generic over `Real` (ring ops
    only), positive-weights invariant enforced at construction; knot
    insertion §5.2 / refinement §5.3 / removal §5.4 with Tiller
@@ -191,7 +198,9 @@ the morning review will almost certainly have happened.
    differential suite vs closed forms (circles as rational
    quadratics etc.), bit-replay rows at 3ε + Interval from day one
    (T4). [none]
-4. **NURBS substrate part 2** (C11, C6): point projection/inversion
+4. **NURBS substrate part 2** (C11, C6, C12.8): the fixed-order
+   dense/banded LSQ solver joins geom-core::linalg here (its first
+   consumer); point projection/inversion
    §6.1 with certified orthogonality residuals; the global fitting
    stack (LSQ Eqs. 9.63–9.67, bounded Type-2 loop A9.10) under C6's
    pinning rule — structure f64-selected, certification
@@ -219,7 +228,9 @@ the morning review will almost certainly have happened.
    one-branch periodic unwrap pinned at start); planar faces keep
    the derive-on-demand status. [4, 5]
 7. **SSI: march-then-certify + in-op exhaustiveness** (C2, C3,
-   OQ3): the Hoffmann §6.2 stepper (third-order Frenet approximant,
+   OQ3, C12.8): the fixed-shape 2×3/3×4 SVD (Givens/Householder,
+   fixed order) joins geom-core::linalg here (its first consumer);
+   the Hoffmann §6.2 stepper (third-order Frenet approximant,
    SVD, Newton refinement — f64, libm-only, UNTRUSTED candidate
    generator); ℝ⁴ trace for parametric×parametric (§6.3.2), per-arm
    chart choice documented in the C5 table; rung-3 fitted caches

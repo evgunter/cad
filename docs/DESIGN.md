@@ -1435,17 +1435,25 @@ fallback if ezpz's product-driven roadmap diverges from our needs.
 
 ### Q4: Units and model scale — **resolved**, folded into D4 (¶4) and D6.
 
-### Q5: Depend on, vendor, or merely study `curvo` for NURBS algorithms
+### Q5: Depend on, vendor, or merely study `curvo` for NURBS algorithms — **resolved (M5 audit, 2026-07-27)**
 
-The core invariants (certified residuals, trilean predicates, generic `T`,
-no hidden tolerance decisions) live *in the algorithms*, and an algorithm
-behind a foreign API can't uphold them — curvo uses its own internal
-epsilons and returns bare answers. Default stance: reference + test oracle
-(alongside opencascade-rs) from M3. But it's MIT, so vendoring specific
-algorithms and adapting them to carry our invariants is on the table;
-audit its source properly before M5. Contrast ezpz, which sits *upstream*
-of the certified core (its output is just numbers that then pass through
-our construction and checks), so arm's-length dependency is principled.
+**Study + dev-dependency test oracle; vendoring REJECTED by the M5
+S3 audit** (`docs/CURVO-AUDIT.md`, curvo @ 47d19d5, 2026-06-25).
+The standing rationale held and the audit closed the vendoring
+half: the core invariants (certified residuals, trilean predicates,
+generic `T`, no hidden tolerance decisions) live *in the
+algorithms*, and in every candidate routine the invariant-relevant
+surface (equality/acceptance gates, scalar trait, termination,
+error reporting) is exactly the part a retrofit would rewrite —
+while the two biggest hoped-for targets (an A9.10 fitting stack,
+SSI) do not exist in curvo at all (its `marching` module is an
+empty placeholder). Oracle scope, pinned at the audited commit:
+evaluation/derivatives/basis/degree-elevation/interpolation only;
+not bit-exact (std-routed math), not SSI/booleans (absent —
+opencascade-rs/truck remain those oracles). Contrast ezpz, which
+sits *upstream* of the certified core (its output is just numbers
+that then pass through our construction and checks), so
+arm's-length dependency stays principled.
 
 ### Q6: Recipe representation — **resolved**, promoted to D8.
 
@@ -1503,8 +1511,10 @@ not the modeling core. Candidates, all verified active unless noted:
 
 Reference-only (read, don't depend): **truck** (only living Rust B-rep
 kernel; active on git but crates.io releases stale; booleans demo-grade),
-**curvo** (excellent active pure-Rust NURBS incl. SSI and trimming — study
-before M5), **vcad** (new Apache-2.0 half-edge B-rep kernel with
+**curvo** (active pure-Rust NURBS evaluation/fitting-interpolation;
+audited at M5 — NO SSI (empty placeholder module) and demo-grade 2-D
+clipping only, an earlier "incl. SSI" claim here was wrong; oracle
+scope per Q5/docs/CURVO-AUDIT.md), **vcad** (new Apache-2.0 half-edge B-rep kernel with
 booleans/fillets, too young to depend on but the most interesting recent
 effort), **Fornjot** (archived June 2026 — see below), **opencascade-rs**
 (the only production-grade-boolean route in Rust today; LGPL + C++ build
