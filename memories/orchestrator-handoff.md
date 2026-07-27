@@ -57,3 +57,14 @@ lives in the PREDECESSOR's agent state dir — do not clean that
 dir while the successor runs. Confirm the model from the banner
 capture ("Fable 5 · Claude Max") before sending the prompt; a
 send-keys message may need a second Enter to submit.
+
+**Streamlined path when Evan pre-creates (2026-07-27, M4-close
+handoff)**: Evan created cad-implement-5 himself (logged in,
+Fable-verified, worktree fresh from main) — the orchestrator's
+job reduces to: (1) reach the drained seam; (2) `mngr message
+cad-implement-5 --message-file <handoff-prompt>`; (3) `mngr
+capture cad-implement-5` to confirm receipt + started working;
+(4) successor stops the predecessor once it confirms it has
+everything. The prompt should tell the successor to MERGE MAIN
+first (its worktree is a creation-time snapshot). The old
+create/start/login-fallback dance is unnecessary on this path.
