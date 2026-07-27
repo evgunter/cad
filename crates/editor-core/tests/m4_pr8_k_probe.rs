@@ -1,0 +1,130 @@
+//! M4 PR 8b spec D3 — the K-telemetry Probe run over the Band 4
+//! corpus (the harness the K-REPORT M3 addendum recorded as missing).
+//!
+//! Mechanics are the M2 report's, unchanged (docs/K-REPORT.md
+//! "Collection method for the future run"): every corpus document is
+//! evaluated end-to-end at the recording scalar `Probe` — decisions
+//! bit-identical to f64, every `k_stats::decide` classification
+//! recorded — then the result body runs the same tier-1/closed
+//! validation and mass-properties pass the corpus rows run, and every
+//! `MarginSample` dumps as CSV. One process per ε (`Tolerance` is a
+//! OnceLock):
+//!
+//! ```sh
+//! CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=/tmp/corpus-eps-1e-9.csv \
+//!   cargo test -p editor-core --test m4_pr8_k_probe -- --ignored --nocapture
+//! ```
+//!
+//! Without `CAD_K_REPORT_OUT` the CSV goes to stdout. Columns are the
+//! M2 file convention: `shape,predicate,margin,band_zero,
+//! band_escalate,outcome`, with shapes namespaced `corpus/<doc>` so a
+//! merged corpus+demos CSV stays attributable (the demo sweep — the
+//! tour binary's `k-probe` mode — namespaces `demo/<scene>`).
+//! `scripts/k_probe_sweep.sh` runs both and merges; the committed
+//! baseline lives in `docs/k-report-data/m4-eps-<ε>.csv`.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod corpus;
+mod fixture;
+
+use std::io::Write as _;
+
+use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
+use geom_core::{Sign, Tolerance};
+use topo::{mass_properties, validate, validate_closed};
+
+use corpus::{body_of, documents, eval, failures};
+
+fn outcome_str(o: SampleOutcome) -> &'static str {
+    match o {
+        SampleOutcome::Definite(Sign::Negative) => "negative",
+        SampleOutcome::Definite(Sign::Zero) => "zero",
+        SampleOutcome::Definite(Sign::Positive) => "positive",
+        SampleOutcome::Indeterminate => "indeterminate",
+        SampleOutcome::Invalid => "invalid",
+    }
+}
+
+/// One document's Probe sweep: evaluation (sequential — the sample
+/// sink is thread-local) plus the corpus rows' body pass.
+fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
+    k_stats::start_recording();
+    let ev = eval::<Probe>(&d.doc);
+    let bad = failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "{}: corpus document must evaluate green at Probe (decisions \
+         are bit-identical to f64, so this can only mean the f64 rows \
+         are broken too):\n{}",
+        d.name,
+        bad.join("\n")
+    );
+    if let Some(result) = d.result {
+        let body = body_of(&ev, result);
+        validate(body).expect("tier 1");
+        validate_closed(body).expect("closed");
+        mass_properties(body).expect("mass properties");
+    }
+    k_stats::take_samples()
+}
+
+/// The dump entry point (ignored: run explicitly, one process per ε).
+#[test]
+#[ignore = "K-telemetry collection run; one process per eps (see module docs)"]
+fn dump_corpus_k_samples() {
+    let eps = Tolerance::get().eps;
+    let mut csv = String::from("shape,predicate,margin,band_zero,band_escalate,outcome\n");
+    let mut total = 0usize;
+    let mut unnamed = 0usize;
+    for d in documents() {
+        let samples = run_doc(&d);
+        total += samples.len();
+        for s in &samples {
+            if s.predicate == "<unnamed>" {
+                unnamed += 1;
+            }
+            csv.push_str(&format!(
+                "corpus/{},{},{:e},{:e},{:e},{}\n",
+                d.name,
+                s.predicate,
+                s.margin,
+                s.band_zero,
+                s.band_escalate,
+                outcome_str(s.outcome)
+            ));
+        }
+    }
+    assert_eq!(
+        unnamed, 0,
+        "<unnamed> must be unreachable from shipped decide paths"
+    );
+    eprintln!("k_probe(corpus): eps={eps:e}, {total} samples");
+    match std::env::var("CAD_K_REPORT_OUT") {
+        Ok(path) => {
+            let mut f = std::fs::File::create(&path).expect("create CAD_K_REPORT_OUT");
+            f.write_all(csv.as_bytes()).expect("write csv");
+            eprintln!("k_probe(corpus): wrote {path}");
+        }
+        Err(_) => print!("{csv}"),
+    }
+}
+
+/// The Probe lane's decisions must be bit-identical to f64's — the
+/// recording scalar is a wrapper, never a different arithmetic. Cheap
+/// standing pin: the whole corpus evaluates green at Probe (any
+/// divergence from the f64 rows' green would fail here first). Runs
+/// in the normal (non-ignored) suite.
+#[test]
+fn corpus_evaluates_green_at_probe() {
+    for d in documents() {
+        let ev = eval::<Probe>(&d.doc);
+        let bad = failures(&ev);
+        assert!(
+            bad.is_empty(),
+            "{}: not green at Probe:\n{}",
+            d.name,
+            bad.join("\n")
+        );
+    }
+}
