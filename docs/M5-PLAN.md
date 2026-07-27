@@ -117,11 +117,16 @@ does not block on PR 1 either way.
 kinds (loft, sweep, fillet) and the `TangentIntersection` variant
 require a schema bump. *Resolution: schema v2 is minted ONCE, at
 the first PR that persists a new node kind (PR 10, sweeps/lofts),
-via the F3 explicit migration chain (v1 → v2 function; v1 documents
-load forever); later M5 PRs extend v2 before any release freezes
-it.* Per-PR schema versions are noise; deferring all persistence to
-milestone end would leave sweeps/lofts demo-only for weeks — the
-single mid-milestone bump is the honest middle.
+via the F3 explicit migration mechanics; later M5 PRs extend v2
+before any release freezes it.* Per-PR schema versions are noise;
+deferring all persistence to milestone end would leave sweeps/lofts
+demo-only for weeks — the single mid-milestone bump is the honest
+middle. **Ratification rider (Evan, #123, 2026-07-27): a v1 → v2
+migration is NOT a commitment** — there are no users yet, so if the
+v2 design is cleaner as a break (no migration function, v1 refuses
+with a typed too-old-schema error and the corpus regenerates),
+break it; write the migration only if it is genuinely cheap. The
+PR 10 spec makes the call and records which way it went.
 
 **R4 — Banked-opener scope-boxing.** REST-contact join lane and
 arc-leg fillet sugar are IN M5 as standalone planar units (both
@@ -271,7 +276,8 @@ the morning review will almost certainly have happened.
     surfaces as DEFINITIONAL feature nodes (Q8: the produced NURBS
     is the definition; no residual obligation; derived items carry
     certificates); recipe vocabulary + **schema v2 minted here**
-    (R3, F3 migration chain, v1 loads forever); corpus + demos.
+    (R3 as ratified with Evan's rider — migration only if cheap,
+    clean break otherwise, spec records the call); corpus + demos.
     Acceptance: shape (iii)'s loft body; round-trip + replay rows
     at 3ε + Interval. [3; 4 for derived-item certificates]
 11. **Curved tessellation + mass properties** (C12.6/7): UV-grid +
@@ -362,7 +368,8 @@ pinned both directions); the die-with-pips fillet demo builds,
 certifies, tessellates watertight, and exports; every C8 validity
 predicate has a fixture firing it as a typed pre-construction
 error; `FilletCornerUnsupported` payloads pinned; sweeps/lofts
-persist under schema v2 with v1 documents still loading; curved
+persist under schema v2 (v1 handling per the R3 rider — migration
+or typed refusal, whichever the PR 10 spec recorded); curved
 STEP exports (conics + NURBS) of the R5 corpus shapes import intact
 into FreeCAD; touching curved boolean results refuse typed at the
 3′ gate (envelope pinned); the BVH differential suite is green
