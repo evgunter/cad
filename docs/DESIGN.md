@@ -297,6 +297,18 @@ component-aware E–P form found and corrected in M1 PR 4).**
   internally). Downstream re-inspection of arc geometry uses the
   stored bulge/carrier data (θ = 4·atan|b| or minted parameter
   spans), never endpoint atan2.
+- **Declared-tangency discipline (#101, ratified 2026-07-25; landed
+  M4 #109):** profiles refuse undeclared definite-Zero tangency at
+  junctions (`UndeclaredTangency`, with a repair menu); declarations
+  are verified, never trusted (`TangencyContradicted`); the
+  `LoopBuilder::fillet` constructor authors exact tangency by
+  construction and declares it, with fit gating
+  (`TangentJointOutOfRange` when a tangent point falls outside its
+  leg); **same-carrier is identity, not tangency** — declared
+  cocircular/collinear joints refuse with `same_carrier: true`
+  (two-arc circles stay legal). Zero new ε: the per-junction
+  classifier reuses the existing carrier predicates verbatim.
+  Persistence keys the flags (`tangent_joints` in schema v1, #112).
 
 **M3 structural conventions (ratified at the M3 exit sweep,
 2026-07-23; forks resolved with Evan in #42, 2026-07-20/21):**
@@ -357,24 +369,39 @@ component-aware E–P form found and corrected in M1 PR 4).**
   and already supports holes. A void's inner shell carries zero
   coincidences and is census-invisible at tier 3′ — a valid void, not
   an undetected contact.
-- **The M3 envelope (typed refusals on record, never silent gaps):**
-  (i) **the operand-internal-declaration gap** — ops do not consume
-  their operands' contact declarations, so reusing a 3′ body as an
-  operand yields a result whose surviving operand-internal
-  coincidence 3′-refuses `UndeclaredContact` (loud + typed at the
-  at-rest gate). M4 fix direction: declarations become recipe data
-  (NAMING-DESIGN's N-decisions) and thread through op composition as
-  op inputs. (ii) **the both-sided pinch split frontier** — split's
-  below-copy completeness is delivered via the exact mirror identity
-  `split(S, n) ≡ swap(split(S, −n))` (piece-assignment equivariance;
-  ruled refinement-not-fork at PR 6a), so single-sided pinches
-  succeed symmetrically; a *both*-sided zero-area pinch refuses typed
-  (the BOTH_SIDED fixture pins the frontier); a native below-copy
-  insertion lane is the recorded future upgrade. (iii)
-  **boundary-on-boundary seams** (corner-flush/stacked-full unions —
-  seams along existing edges need an on-edge-run mechanism) and
-  **reflex-corner tilted crossings** refuse typed (PR 5.5 envelope,
-  with the sector-width bound documented at the error sites).
+- **The envelope (typed refusals on record, never silent gaps;
+  M3 entries updated at the M4 8c exit sweep, 2026-07-27):**
+  (i) **RETIRED (M4 PR 5, #102)** — the operand-internal-declaration
+  gap: ops now consume declarations as recipe data threaded by name
+  through op composition (F5/N-decisions, exactly the recorded M4
+  fix direction); the closure corpus certifies that a reused 3′
+  body's declared coincidences re-certify downstream. *(Historical
+  entry: reusing a 3′ body as an operand 3′-refused
+  `UndeclaredContact` because ops did not consume their operands'
+  contact declarations.)* (ii) **the both-sided pinch split
+  frontier** — split's below-copy completeness is delivered via the
+  exact mirror identity `split(S, n) ≡ swap(split(S, −n))`
+  (piece-assignment equivariance; ruled refinement-not-fork at PR
+  6a), so single-sided pinches succeed symmetrically; a *both*-sided
+  zero-area pinch refuses typed (the BOTH_SIDED fixture pins the
+  frontier); a native below-copy insertion lane is the recorded
+  future upgrade. (iii) **boundary-on-boundary seams** — narrowed at
+  M4: corner-flush/stacked-full unions and the corner-aligned table
+  now certify through declared intent (#102), and the seam-region
+  anchor repairs (#108, #113) closed the isolated-seam-loop and
+  nested-island classes; what REMAINS typed-refusing:
+  **REST-contact joins** (the crosslap mate — a pure rest contact
+  needs a join-stage lane; `crosslap_rest.rs` pins both doors;
+  banked opener, #102 R7) and **reflex-corner tilted crossings**
+  (PR 5.5 envelope, sector-width bound documented at the error
+  sites). (iv) **the post-#113/#116 join residue, honestly scoped**
+  — the anchor-exhaustion arm is LOAD-BEARING (no unreachability
+  claim, the #93 lesson): coincident-plane classes beyond the
+  declared/anchored repertoire, sub-ε grazes (genuine slivers
+  escalate typed per D4), and ill-formed input faces refuse typed
+  rather than classify; CDT exterior classification itself is now
+  structural (even-odd flood fill, watertight by construction,
+  #116), so the mesh lane no longer contributes residue of its own.
 
 Topology and geometry live in separate arenas: faces reference surfaces,
 edges reference curves, vertices reference points.
@@ -738,6 +765,43 @@ already cheap.
 grounds (rounding control, f64, portability) are re-checkable facts,
 and the table is revisited only if they change materially.
 
+**Engineering conventions PROPOSED at the M4 exit sweep
+(PROPOSED-8c — awaiting Evan's sign-off on the 8c PR; NOT yet
+ratified; each earned by a concrete M4 incident):**
+
+1. **Sentinel-free tagged encodings.** Internal byte/key encodings
+   never use in-band magic values (sentinel indices, marker floats);
+   any stream mixing kinds is TAGGED TOKENS — tag byte + typed
+   payload — so collisions are unrepresentable by construction.
+   Earned twice in one milestone from the same root (`float_bits`'
+   in-band delimiters): #101's `usize::MAX` key alias and PR 6's
+   NaN-marker alias + save-door blind spot; ruled structurally at
+   the PR 6 fix pass (Evan: "deserves proper types") and landed as
+   the tagged-token key-encoder retype (#112).
+2. **Save/load validation is ONE shared validator, not two mirrored
+   door sets** (sharpened at ratification per Evan: structural
+   sharing beats a sweep — code that is literally the same cannot
+   drift). Every direction-independent document check lives in a
+   single validator invoked by BOTH doors: at save on the in-memory
+   doc before bytes are written, at load after parse; a document
+   that would refuse to load is therefore impossible to save by
+   construction. The symmetry SWEEP survives only as the audit for
+   the genuinely asymmetric residue (parse/position errors are
+   load-only by nature; byte-level corruption has no save-side
+   analogue). Earned: PR 6 review MAJ-1 — a NaN with all-ones bits
+   walked past the save doors and produced an unloadable file; the
+   fix-pass sweep then found two MORE save-side holes beyond the
+   reported one (#112). Migration note: PR 6's shipped doors are
+   sweep-style mirrors; consolidating them into the shared
+   validator is banked M5-adjacent hygiene, not a re-open of #112.
+3. **Full-matrix watcher floors.** Any merge-gating checks watcher
+   asserts a MINIMUM green-row count equal to the current full CI
+   matrix, and the floor is bumped in the same PR that grows the
+   matrix — a stale shorter matrix can never gate a merge. Earned:
+   the #113 stale-10-row-green trap (branch predating new
+   persistence rows showed green on the old matrix); floors then
+   tracked the matrix 13 → 14 → 16 through #116/#118.
+
 ### D5 (agreed): Persistent topological identity from birth
 
 Every topological entity carries a provenance record from the moment it is
@@ -804,7 +868,20 @@ precursor of the error-propagation feature.
 - **M3** — Intersections for analytic pairs; booleans; mass properties.
   *(First useful parts.)*
 - **M4** — Parametric model layer: parameter vector → feature DAG → solid;
-  provenance-based naming; replay. STEP export. The naming layer also
+  provenance-based naming; replay. STEP export. *(Done-state recorded at
+  the 8c exit sweep, 2026-07-27 — shipped: `editor-core` recipe substrate
+  + expression sublanguage (#81); scalar-generic evaluation service with
+  memoized result DAG (#83); the naming stack end-to-end — StableName/
+  RolePath + eager tables (#87), resolution + diff engine + Rebind
+  (#96), GeomSource + Declare threading + the #95 recursive naming key
+  (#102); in-house AP214 STEP export with FreeCAD acceptance (#88, #94);
+  StableName-keyed appearance (#92); persistence schema v1 — snapshot +
+  edit log, bit-exact, **frozen** (#112); declared-tangency discipline
+  (#109); join-stage seam-region repairs closing a silently-wrong-volume
+  bug (#108, #113) and watertight CDT tessellation (#116); the Band 4
+  corpus + rebuild-latency reporting lane (#118); K-telemetry + large-K
+  lint in review (8b) at the time of writing. Fork outcomes F1–F8:
+  see "M4 fork outcomes" below.)* The naming layer also
   **retires production bit-identity coincidence checking** (Evan, #53,
   2026-07-21; M3 PR 4 / #57/#58): once surfaces carry global identity,
   the "declared" coincidence rung (M3's bit-fingerprint comparison of
@@ -819,9 +896,31 @@ precursor of the error-propagation feature.
   confined to the single `bit_identity` seam. The retirement
   *mechanism* is now ratified (NAMING-DESIGN N6, #74, 2026-07-23):
   `GeomSource` syntactic recipe-source identity — same source ⇒ same
-  bits by D9, converse deliberately unclaimed.
+  bits by D9, converse deliberately unclaimed. **Retirement EXECUTED
+  (M4 PR 5, #102, 2026-07-25): `bit_identity` is debug-only with an
+  EMPTY production allowlist** (memo.rs retained on its bit-hashing
+  non-consumer justification; tripwires stay armed); the designed
+  consequence, stated honestly (PR 5 review R2): undeclared value-equal
+  flush booleans now refuse typed at the coincidence door — the M3 bit
+  rung was doing real, now-forbidden work; the whole corpus and the
+  demos migrated to declared intent.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
-  fillets.
+  fillets. Design record ratified: `docs/CURVED-DESIGN.md` (#85,
+  2026-07-24). Banked M5 openers from the M4 exit (8c, 2026-07-27):
+  **curved STEP subset** (the export lane is planar-only until M5 —
+  curved stops refuse typed, narrated in the demo tour); **arc-leg
+  fillet sugar** (#101 R4 scoped `LoopBuilder::fillet` to line/line
+  corners; arc-leg is the noted follow-up, see #104); **REST-contact
+  join lane** (the crosslap mate is a pure rest contact — M3 envelope
+  frontier, `crosslap_rest.rs` pins both doors; banked at #102 R7);
+  **#89 K-revisit at the M5 exit**, now with its baseline: 8b's
+  K-probe over corpus + demos (≈2.56M samples/ε-row) is SHARPLY
+  BIMODAL — zero mode ≤ 5.33e-15, definite floor 1.689e-3, a
+  12-decade empty gap, zero in-band anywhere ⇒ K = 10 is unpressured
+  on the analytic kernel; **interval-crate adoption decision** — the
+  in-house `interval-transcendentals` crate (adoption GREEN-LIT, see crate table) exists as
+  workspace-excluded tooling (#115); adopting it in the kernel's
+  interval lane is an M5-PLAN ratified decision, not a default.
 - **M6** — Error-propagation MVP: distributions over parameters;
   dual-number sensitivities of measurements (tolerance stackups);
   interval-based self-intersection / minimum-clearance checks over the
@@ -834,6 +933,66 @@ precursor of the error-propagation feature.
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Licensing-hygiene work with no usability payoff is deliberately
   *not* sequenced here — it lives in [Tabled](#tabled-far-future).
+
+### M4 fork outcomes (F1–F8, ratified at the 8c exit sweep, 2026-07-27)
+
+The forks were recorded and resolved at M4 ratification
+(`docs/M4-PLAN.md`, #80); this is the outcome record — each fork:
+decision, where it landed, notable deviations. Full trail:
+`docs/M4-LOG.md`.
+
+- **F1 (restrictive dimension lattice)** — landed as ratified in
+  `editor-core`'s expression sublanguage (#81): {Length, Angle,
+  Count, Scalar}, dimension-changing products/quotients typed
+  refusals, same-dimension ratios refused in v1. No deviations.
+- **F2 (result-DAG shape)** — landed F2-verbatim (#83):
+  `Evaluation`/`NodeResult`/`NodeValue`, descendants-only poisoning,
+  scalar-generic evaluator, epochs + cancelation in the signature.
+  Notable accepted deviation (Evan, #81 rulings): **`Doc<P>`
+  genericity** — the document type is generic over the profile
+  payload rather than concrete.
+- **F3 (persistence concretes)** — landed as schema v1 (#112):
+  snapshot + edit log, leading integer schema version, explicit
+  migration chain, floats shortest-round-trip, NaN/inf typed refusal
+  at BOTH doors (save-side walls added at the review's symmetry
+  sweep). Format choice (PR-spec latitude, REPORTED): **JSON via
+  serde_json** — ryu floats + tooling; the `float_roundtrip` feature
+  is load-bearing (caught real last-ulp parse drift day one).
+  Metadata (Evan's #92 ask) landed as the **`MetaValue` tree after
+  two D7 rounds with Evan** (final: MetaValue tree, serde-native
+  boundary, v-field convention) rather than opaque bytes.
+- **F4 (v1 node vocabulary)** — landed as ratified (#81; Declare
+  live end-to-end at #102); `tangent_joints` joined schema v1 before
+  the freeze (#109 → #112). Revolved-hole sugar stayed deferred.
+  Noted gap (demo REPORT, #98): Boolean-of-Pattern is not wireable
+  in F4 — a possible future vocabulary item.
+- **F5 (Declare threading)** — landed at #102: declarations are
+  recipe data on the consuming node, resolved by name through
+  operand tables; the M3 operand-internal-declaration envelope entry
+  is retired (closure corpus certifies declared). **Verified-at-use
+  semantics (ratified wording, PR 5 review F5)**: a false
+  declaration that never meets geometry is a silent no-op;
+  contradiction fires where the lie meets an edge. The designed
+  narrowing (R2) is recorded under the M4 roadmap entry above.
+- **F6 (STEP export)** — decided EARLY per Evan's amendment; spike
+  outcome: **in-house AP214 analytic-subset writer, adopt nothing at
+  runtime** (#88); ruststep/truck-stepio survive as dev-dependency
+  parse-back oracles only. Tail of the story: FreeCAD acceptance
+  discharged locally then hosted (#94); the review added a
+  parse-based **signed-volume text oracle** closing the OCC-healing
+  blind spot (OCC silently rectifies inverted shells); the STEP lane
+  then became the demo RENDER path (#98) and the watertightness
+  gate's second leg alongside admesh (#116).
+- **F7 (expression AST + ExprPath)** — landed at #81: no
+  conditionals in v1 (held throughout); ExprPath stable under edits
+  to other expressions. Known caveat carried forward as designed:
+  same-slot ancestor replacement silently re-points stale paths —
+  documented at PR 1, made a binding caveat in the PR 5 spec.
+- **F8 (milestone boundary)** — held: the persisted file IS in M4
+  (schema v1 frozen, #112); the Band 4 corpus landed (#118, 9
+  documents / 174 nodes, coverage asserted) with rebuild latency
+  MEASURED AND REPORTED, not gated — PERF-PLAN stays advisory; the
+  latency rows joined the hosted matrix as reporting.
 
 ## Beyond the kernel: the usability gap
 
@@ -1139,6 +1298,13 @@ preceding the usability program above.
   `interval` cargo feature quarantines the copyleft obligation to
   interval-enabled builds only (issue #4). Licensing hygiene, not
   usability — do not schedule ahead of anything users can feel.
+  **STATUS (8c, 2026-07-27): no longer far-future — the crate was
+  pulled forward as an M4 side-chain and EXISTS in-repo**
+  (`interval-transcendentals/`, workspace-excluded tooling, #115;
+  dual-oracle certified — see the crate-landscape inari row). What
+  remains tabled is only the switch itself: **adoption in the kernel
+  interval lane is a pending M5-PLAN ratified decision.** This entry
+  retires when that decision lands.
 
 ## Open questions
 
@@ -1319,16 +1485,17 @@ not the modeling core. Candidates, all verified active unless noted:
 
 | Area | Crate | License | Notes |
 |---|---|---|---|
-| ID arenas | `slotmap` | Zlib | typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
-| Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | `im` is unmaintained with an open soundness advisory — use the `imbl` fork |
-| Interval arithmetic | `inari` | MIT | IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Probe (issue #4): transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64 (build with x86-64-v3; aarch64 unflagged); planned in-house replacement post-M7 (see Roadmap) |
-| Robust predicates | `robust` (georust) | MIT/Apache | Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
+| ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
+| Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M4). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
+| Interval arithmetic | `inari` | MIT | **Adopted** (M0, issue #4), quarantined. IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64. **The in-house replacement now EXISTS in-repo** (M4 side-chain, #115, 2026-07-26): `interval-transcendentals/`, workspace-excluded tooling — proven per-function libm error pads with the §2 bit-distance proofs, dual-oracle certification (inari + the revived `computable`, ~5.8M asserts / 4.0M cases), ~93× build-time advantage vs the gmp stack. **Adoption GREEN-LIT (Evan, in-session 2026-07-27: "replace it whenever it's convenient"; parallelizable with ~anything)** — no longer gated on M5-PLAN ratification; schedule as a standalone unit (normal implement/review pipeline, the M0 poison-channel contract is the acceptance bar); inari remains the default backend and this quarantine text stands until that unit merges |
+| Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
-| CDT / mesh refinement | `spade` | MIT/Apache | Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code) |
-| 2-D polygon booleans | `i_overlay` | MIT/Apache | robust integer-snapping booleans (now inside georust `geo`); useful for trim-loop ops in UV |
-| Display triangulation | `earcut` (georust) | MIT/Apache | cheap ear-clipping for viz only |
+| CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
+| Serialization | `serde` + `serde_json` | MIT/Apache | **Adopted at M4 PR 6 (#112)** for persistence schema v1; the `float_roundtrip` feature is LOAD-BEARING (last-ulp parse drift caught day one); kernel crates stay serde-free (layering enforced by CI grep) |
+| 2-D polygon booleans | `i_overlay` | MIT/Apache | candidate only — not a dependency; robust integer-snapping booleans (now inside georust `geo`); useful for trim-loop ops in UV |
+| Display triangulation | `earcut` (georust) | MIT/Apache | candidate only — not a dependency; cheap ear-clipping for viz only |
 | Sketch constraints | `ezpz` (Zoo) | MIT | see Q3 |
-| STEP | `truck-stepio`/`ruststep` | Apache | basic geometry round-trips only; full-AP coverage is nobody's solved problem in Rust — evaluate at M4 |
+| STEP | `truck-stepio`/`ruststep` | Apache | **Evaluated at M4 (F6 spike, 2026-07-23): adopt nothing at runtime.** ruststep cannot write STEP at all; truck-stepio's writer ships unfixable conformance defects. Both are DEV-DEPENDENCY parse-back oracles for the in-house AP214 analytic-subset writer (`crates/step-export`, #88) |
 
 Reference-only (read, don't depend): **truck** (only living Rust B-rep
 kernel; active on git but crates.io releases stale; booleans demo-grade),

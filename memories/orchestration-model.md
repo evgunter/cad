@@ -187,3 +187,14 @@ don't fork inline variants.
 scripts) must not accumulate a large unmerged delta — open a quick
 docs-only PR to main at pipeline seams (a PR merge, a lane launch)
 so an orchestrator switch never strands state. First one: #97.
+
+**Waiter-parking is endemic (2026-07-25, three lanes in one day)**:
+despite nudges, implementers and reviewers keep arming background
+waiters/monitors for their own build/test completion and then
+stopping — the wake-up loss then stalls the lane until a sweep.
+PREVENTION: every subagent prompt's verification section must say
+verbatim "run every build/battery row as a synchronous FOREGROUND
+Bash call, one at a time, reading each result before the next;
+NEVER arm waiters, monitors, or background chains for your own
+builds/tests". The OUTPUT DISCIPLINE header alone does not prevent
+it.

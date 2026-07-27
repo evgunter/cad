@@ -1,5 +1,8 @@
 # M4 PR 1 binding spec — recipe substrate + editor-core birth
 
+Status: **LANDED — PR #81, merged 2026-07-23** (historical record;
+review outcomes and rulings in docs/M4-LOG.md).
+
 Orchestrator-authored binding spec (2026-07-23). Deviations must be
 REPORTED, not improvised. Charter: M4-PLAN PR 1 under ratified forks
 F1 (dimension lattice), F2 (result-DAG shape — types only referenced

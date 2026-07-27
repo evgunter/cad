@@ -1294,3 +1294,569 @@ L pre-flip, draw 221 → fable; branch ev/m4-6-persistence).
 fable; branch ev/issue101-declared-tangency; 5-point discipline
 binding). FOUR consecutive fable draws — blocked-randomization
 proposal noted in MODEL-AB-LOG, pending Evan.
+
+**#104 filed (2026-07-25): PartialPath authoring algebra — CONCEPT
+status per Evan** ("not a mandate; needs to harmonize with
+whatever we already have"). Tangency-by-construction typed path
+builder; harmonization analysis in the issue: composes with #101
+(authoring layer lowering to its flag/verify document contract,
+reusing its junction predicates), closure = the care point
+(tangent closure overdetermined for one arc → constructor family),
+schema v1 unaffected (profiles-as-programs = determined v2 lift
+via F3 migrations; ladder rung below M6 constraint sketches). Open
+questions listed (LoopBuilder relationship, sugar inventory,
+multi-loop, constructor-quantity exactness contract). No
+implementation until ratified. #101 implementer nudged
+(structure-only): junction classification as a small callable API,
+5 points win any tension.
+
+**#104 sequencing settled (2026-07-25, Evan delegated the call)**:
+schema v1 = explicit geometry + #101 flags; profiles-as-programs
+DECLARED as the v2 end state (not optional) via the F3 migration
+chain, lift determined by the flags. Grounds: v1 must not freeze
+around an unratified algebra (closure family, multi-loop, sugar,
+exactness contract all open); the algebra gets exercised by real
+authoring before entering the file format. Evan's philosophy point
+(program = truer recipe form) accepted — it's what upgrades v2
+from option to commitment. Recorded on #104.
+
+**#93 merge-under complete (2026-07-25, @ 51d6244)**: clean merge
+with PR 5, post-merge battery green (1260/1405 baselines + 5
+acceptance tests), flush/rung-(b)/goldens unchanged, and the
+REPORT-item pin landed exactly per ruling — coupled flush A×Z
+refuses UndeclaredCoincidence undeclared, succeeds EXACTLY
+(2562165/950272) with all six pairs declared, through the new
+anchor tiers: PR 5's narrowing and #93's fix compose as designed.
+Adversarial reviewer LAUNCHED (blinded, rubric; attack list:
+oracle re-derivation, envelope non-widening + fresh opposite-side
+case, Newell-predicate soundness + Interval escalation, centroid
+boundary certification, doubly-nested rehome case, golden
+stability, declared-arm truth). Three lanes now: PR 6, #101,
+#93-review.
+
+**#101 implementation COMPLETE (2026-07-25, ev/issue101-declared-
+tangency @ b76834f, pushed)**: all 5 ratified points — per-junction
+classifier reusing existing carrier predicates verbatim (zero new
+ε), UndeclaredTangency with repair menu, TangencyContradicted
+(verified never trusted), LoopBuilder::fillet (bit-exact on dyadic
+right angles, declares by construction) + declare_tangent,
+persistence keys the flags. Migrations: bracket → constructor, 11
+corpus fixtures declared, free arcs verified transversal +
+untouched, no unintended definite-Zero found. Batteries green
+(1267/1412 new baselines; tour + eps_regression 3/3). Rulings
+R1-R6 ACCEPTED: R1 same-carrier = identity not tangency (declared
+cocircular/collinear joints refuse with same_carrier:true; two-arc
+circles stay legal — spec refinement, credit to implementer); R2
+cusps classify Tangent (smoothness = direction question, additive
+later); R3 pub(crate) + future public wrapper for #104; R4
+line/line fillet scope (arc-leg = sugar follow-up, noted on #104);
+R5 intent judgments (reviewer spot-checks two); R6 DESIGN.md sync
+→ PR 8 exit-sweep obligation. Blinded reviewer LAUNCHED (rubric;
+attack: narrowing holes at every door, verification laundering via
+in-band, same-carrier gate edge cases, fillet degeneracies,
+migration intent honesty, free-arc classification, predicate
+discipline). Foreground-battery clause now standard in prompts.
+
+**#93 review returned (2026-07-25): APPROVE CODE, CORRECT REPORT;
+two MAJOR claim-findings, both filed.** All four oracles
+independently re-derived exact; old winding probe's unsoundness
+empirically confirmed; no envelope widening (two fresh flush
+constructions bit-identical main vs branch); Newell predicate
+sound with typed Interval escalation; batteries exact-match. F1:
+implementer's unreachability claim FALSIFIED — general-position
+depth-2 nested island reaches the anchor-exhaustion arm (typed
+refusal, load-bearing) → #106 completeness gap (ready fixture).
+F2 (HEADLINE): **main 75166b8 silently returns V=22.5 vs exact
+22.4375 on a depth-2 chain, all tiers passing — fail-loud violated
+in general position; the #93 branch computes it exactly** → #105;
+push notification sent to Evan. Fix pass dispatched (correct the
+claim, adopt both constructions as pins — #106 as typed-refusal
+pin, #105 as exactness pin; stale titles; in-clone battery rerun
+mandatory per the cwd incident). Quality rubric (A/B row 1
+pending fix pass): idiom 4 / tests 4 / docs 4.
+
+**Ops incident (2026-07-25, caught by hourly sweep): resumed
+subagents' cwd resets to the orchestrator worktree** — five stray
+cargo processes found building MY worktree (wrong tree, green-but-
+invalid numbers); killed PID-scoped, stray target/ deleted (35G→
+freed, disk 87G), all three lanes corrected (cd-per-command now
+mandatory), lesson banked in subagent-death-recovery memory with
+the /proc-cwd sweep check.
+
+**Session crash + recovery (2026-07-25 ~16:20 → 21:21 PDT, cause
+unknown — Evan doesn't know either; not disk (87G free at the
+time), possibly WSL or host)**: whole Claude process died; all
+monitors and three subagent lanes orphaned. NOTHING LOST —
+push-per-unit held again: #93's fix-pass commit a628040 pushed
+pre-crash (docs corrected, #105/#106 pins, minors); PR 6's
+bb16238 pushed; #101-review clone intact. Recovery: monitors
+re-armed ×3; all three agents resumed from transcript with the
+cd-per-command + foreground-battery rules restated; #93 verifying
+its final battery then done, PR 6 filling report placeholders,
+#101 review continuing. Reports outstanding: #93 final numbers,
+pr6-report placeholders, issue101-review-report (not started).
+
+**#93 PR OPENED (2026-07-25 evening): #108** (closes #93 AND #105
+— the main-silently-wrong bug this branch fixes). Post-crash
+re-attestation clean: full in-clone battery at a628040 (145
+suites: 1263 @ 1e-6 and 1e-12, 1408 interval), issue93_nested_
+islands 3/3 (#105 exactness pin, #106 typed-refusal pin with
+retire-on-closure instructions, depth-1 control), docs corrected
+(exhaustion arm load-bearing), O(n²) guard hoisted. Checks watcher
+armed; merge on green. A/B row 1 FILLED (fable, M: 2 claim-level
+MAJ / 1 MIN / 2 NOTE, 0 silent, 4/4/4, moderate fix pass). #106
+stays open as the coverage-gap tracker — NEXT OPUS DISPATCH per
+protocol v2 block 1.
+
+**#101 review returned (2026-07-25 evening): discipline HOLDS at
+every door** — 17 executed probes clean across narrowing holes
+(direct/builder/recipe/embed/multi-loop), verification laundering
+(declared+in-band → typed Escalated with repair menu), R1
+same-carrier gate (near-cocircular escalates), migration intent
+spot-checks (definite-Zero proven by classifier), free arcs
+(validate undeclared), predicate discipline (zero new ε,
+bit-identical margins, interval escalation executed); fillet
+corner bit-exactness re-derived IEEE-step-by-step. 1 MAJOR:
+oversized fillet radius silently validates (arc never approaches
+the corner; sugar doc claim falsified — the review's one silent
+deviation) → RULED: refuse via TangentJointOutOfRange when a
+tangent point falls outside its leg; degenerate-radius test
+family; reviewer probe inverted to pin. 1 MINOR (float_bits
+usize::MAX sentinel collision → tag the key space), 3 NOTEs. Fix
+pass dispatched. Quality rubric (A/B row 4 pending fix pass):
+1/1/3, 1 silent dev, idiom 5 / tests 4 / docs 4.
+
+**PR 6 implementation COMPLETE (2026-07-25 evening,
+ev/m4-6-persistence @ aebc39e, pushed)**: D1-D9 all landed —
+schema-1 JSON text format (REPORT: chosen for ryu floats +
+tooling; serde_json float_roundtrip feature LOAD-BEARING, caught
+real last-ulp parse drift day one), migration chain, full recipe
+persisted (Expr rebuilt through dimension checkers on load,
+ProfileDesc hand-wired keeping kernel crates serde-free, hex
+witness bytes, structural appearance keys), recorded-ε wiring with
+per-node evaluate refusal + the FIRST REAL two-ε diff through the
+PR 4 population core (Finding 6 discharged), content-key tag 1→2,
+three D6 CI rows built FIRST and wired both lanes, MetaValue tree
+per final D7. Battery: 150 suites, 1280/1280/1425, all D6 rows
+green. Blinded reviewer LAUNCHED (12-item attack list: float
+round-trip property attack incl. building WITHOUT float_roundtrip,
+non-finite smuggling doors, corrupt/truncation refusals, replay
+identity with an independent all-vocabulary doc, ε-conflict doors,
+MetaValue canonicality, serde-free layering grep, edit-log
+exercised-not-vestigial, CI tamper checks, tag-bump memo check,
+#101 SCHEMA-COLLISION SCOPING — sequencing: #108 → #101 → PR 6
+fix pass merges main + extends schema v1 to tangent_joints before
+freeze). A/B row 3 pending review.
+
+**#108 MERGED (2026-07-25 evening): main `6f7d79a`, closes #93 +
+#105** on 10/10 green checks. The join-stage seam-region gap is
+fixed, main's silent-wrong-volume bug is dead (exactness pin in
+place), and #106 remains the tracked coverage residue (next OPUS
+dispatch). issue93 clones removed. Merge order proceeding: #101
+(fix pass running; merges main before PR) → PR 6 (review running;
+fix pass merges main + extends schema v1 to tangent_joints).
+
+**PR 8 SPLIT (2026-07-26, Evan's question — he's right)**: 8a =
+corpus + latency reporting (implementer, L, gate PR 6+#101); 8b =
+K-probe + large-K lint (implementer, M, gate 8a merged so the
+lint baseline is stable); 8c = DESIGN.md exit sweep + trim + exit
+walk (ORCHESTRATOR + Evan sign-off — design-ratification work per
+the M0-M3 convention; runs LAST, never self-attesting; not an A/B
+row). Spec restructured in place.
+
+**PR 6 review returned (2026-07-26): REQUEST CHANGES — 2 MAJ / 2
+MIN / 3 NOTE, all narrow; every REPORT claim verified true**
+(float_roundtrip proven load-bearing by removal; independent
+14-edit-variant doc round-trips bit-identical at 3 ε + interval;
+ε-diff golden exact + tamper-fails; layering holds; memo works
+under tag 2). MAJ-1: NaN with all-ones bits skips the save-door
+walk (float_bits loop marker = real NaN; second sentinel-collision
+this milestone — pattern flagged) → save accepted NaN, wrote null,
+unloadable file. MAJ-2: duplicate JSON keys last-wins silently in
+serde-derived maps (no-silent-loads violated). MIN-3: no committed
+golden v1 fixture (drift CI-invisible — fixpoint-only row). MIN-4:
+tangent_joints extension scoped precisely (wire field + key/bit_eq
+/content-key sight + embed carry + corpus row). Fix pass dispatched
+TWO-PHASE: doors+golden now; tangent_joints after #101 merges.
+Quality (A/B row 3 pending): 2/2/3, 0 silent (5 reported devs),
+idiom 5 / tests 4 / docs 5.
+
+**Sentinel-disease structural ruling (2026-07-26, Evan: "deserves
+proper types")**: float_bits' in-band magic delimiters are the
+shared root of #101's usize::MAX alias AND PR 6's NaN-marker
+alias (+ the door blind spot) — ruled: retype the key-encoder
+stream as TAGGED TOKENS (tag byte + payload; Marker/Float/Index),
+no in-band sentinels anywhere; both classes become unrepresentable.
+Rides PR 6's existing content-key tag bump (keys process-internal
+per D3, zero persistence impact). Added to PR 6 fix pass phase 1
+with a STOP-and-REPORT scope valve.
+
+**#101 PR OPENED (2026-07-26): #109 @ b4f0eed** (post-merge of
+#108; 147 suites 1283/1283/1429, eps_regression 3/3). A/B ROW 4
+FILLED: #101, fable, M — 1 MAJ / 1 MIN / 3 NOTE, 1 silent dev
+(the falsified fillet doc claim), idiom 5 / tests 4 / docs 4,
+fix-pass moderate (fillet Result + fit predicate + 6 pins + key
+fix), ~880k tokens incl. crash resume, checks watcher armed.
+Merge on green → then PR 6 phase 2 ping.
+
+**#109 MERGED (2026-07-26): main `1f3be61`, closes #101** on 10/10
+green. The declared-tangency discipline is live: profiles refuse
+undeclared definite-Zero tangency, declarations verify, the fillet
+constructor authors exact tangency with fit gating. #101 clones
+removed. PR 6 PHASE 2 GO sent (merge main + tangent_joints schema
+extension + regenerated golden + full battery). Remaining to M4
+code-complete: PR 6 merge → 8a → 8b; then 8c exit sweep
+(orchestrator + Evan). #106 (Opus row) in flight, not a gate.
+
+**Side-chain dispatches (2026-07-26, Evan's ask)**: (1) IN-HOUSE
+INTERVAL TRANSCENDENTALS (the tabled DESIGN.md post-M7 item pulled
+forward): standalone workspace-excluded crate, proven libm error
+pads + monotonicity/extremum handling, decoration semantics per
+the M0 poison ruling, differential containment/tightness harness
+vs inari-as-dev-dep-oracle, build/perf evidence; kernel UNTOUCHED
+(adoption = later ratified decision). A/B ROW 5: difficulty L
+pre-assigned, arm = FABLE (block-1 remainder, no draw). Branch
+ev/interval-transcendentals. (2) M6 PRE-DESIGN: ERROR-DESIGN.md
+DRAFT (error-propagation MVP — distributions, Dual sensitivities/
+stackups, interval-over-parameter-box checks; composes with W1-W9)
+per the NAMING/SOLVER/CURVED pre-milestone pattern; zero-cargo
+lane; design conversation with Evan later. Branch
+ev/m6-error-design. DEFERRED deliberately: REST-contact join lane
+(collides with #106's region — after it merges); arc-leg fillet
+sugar (filler). Four lanes now: PR 6 fix pass, #106 (opus),
+interval-core, m6-design.
+
+**computable revival (2026-07-26, Evan)**: his prior computable-
+reals library (~/projects/computable — state/bounds/refinement
+formalism, dyadic bounds, refine_to) joins the interval-core lane
+as a potential SECOND ORACLE (inari-independent tight enclosures
+for the containment harness); Evan upgraded scope from read-only
+to fix-up-with-purpose ("inspiration to revive it"). Lane rules:
+guest conventions (its AGENTS.md/STYLE.md), new branch, no history
+rewrites, never push its default; scope ladder rot→bugs→
+transcendental additions with a size-it-first valve so the
+interval crate stays primary. Honest-fitness paragraph still
+required (computable reals ≠ fixed-precision interval lane;
+possible M6 clearance-check exactness role).
+
+**#106 implementation COMPLETE (2026-07-26, ev/issue106-depth2-
+coverage @ ccda018, pushed) — FIRST OPUS ROW.** Tier-4
+Anchor::RegionVertexChord (anchor-vertex-to-region-vertex chord
+midpoints, existing point_in_face certificate, no new predicate/ε),
+justified via the no-Steiner triangulation theorem. #106 refusal
+pin retired to exactness 13/4 per its baked instructions; #105 +
+depth-1 green; depth-3 (205/64) and comb (405/128) probes pinned
+at live outcomes. Notable HONESTY: self-ablation revealed the comb
+probe already built pre-fix — docstring corrected rather than
+credit claimed; residue enumerated with NO unreachability claim
+(the #93 lesson landed). Battery 1265/1265/1411, goldens unmoved.
+Blinded reviewer LAUNCHED (attack: anchor-only chord-existence gap
+vs the theorem's some-vertex guarantee, boundary-midpoint
+certification, oracle re-derivation, ablation-claim verification,
+tier-ordering verdict-log identity).
+
+**ERROR-DESIGN.md DRAFT delivered (2026-07-26): PR #110 opened as
+a design conversation (WAITS for Evan — the pre-milestone design
+class; no self-merge).** E1-E11: distributions as document-layer
+ParamDef metadata (kernel sees boxes/seeds only), Measure sink
+nodes, chamber-certified-or-local_only Dual sensitivities,
+certified-interval worst-case gates with RSS advisory (refused
+under Band), read-only analysis lane composing with W1-W9 (leaf-
+box W2 certificates; no crossing witness walls — a flagged
+narrowing of Q1's union sentence). Five spiciest calls front-
+loaded in the PR body; sign-off comment on the watchlist. PR 6
+delta re-check dispatched to its reviewer (tagged-token retype +
+tangent_joints are post-review deltas — mid-flight-changes
+convention); PR + merge gate on APPROVE-DELTA.
+
+**#111 filed + dispatched (2026-07-26)**: the az-render lane found
+a REAL mesh bug — A×Z bodies are exact-kernel-perfect but
+tessellate non-watertight (CDT centroid-parity keeps an exterior
+needle triangle on 1-ulp-noisy collinear seam boundaries;
+BoundaryEdge refusal; δ-independent; suspected unreified in-band
+decision in the parity/culling path). Render UNBLOCKED via the
+STEP lane (all-planar body); scene ships with the mesh refusal
+PINNED tripwire-style (cites #111, retire-instructions) — no
+silent skip, no weakened shared check. #111 fix dispatched as its
+own kernel unit — A/B ROW 8: difficulty M pre-assigned, arm =
+OPUS (block-2 remainder). Suspected-class survey (other unreified
+CDT decisions) included report-only.
+
+**#110 design round 1 (2026-07-26, Evan)**: two forks — (1) Real-
+trait lineage ("Interval was a quasi-stand-in for uniform; where
+does moving measures out of Real leave the original design?") —
+answered: the Real channel is the PER-LEAF ENGINE, not demoted;
+measures can't ride the scalar channel because dependency makes
+distribution arithmetic WRONG (not interval-loose — no conservative
+direction; p-boxes/Fréchet collapse under the kernel's shared-
+parameter workload); the measure prices leaves of INPUT space only,
+so derived-quantity correlation never needs representing; Interval
+= the sound integration kernel for any input measure = the original
+purpose completed. E1/E2 to restate lineage explicitly. (2)
+Truncation hesitancy — CONCEDED: mandatory truncated support
+replaced by TAIL-MASS ACCOUNTING (unbounded supports welcome;
+analysis box is the knob; outside-mass carried as an explicit
+additive term in every result; truncation = optional sugar).
+Awaiting Evan's reaction before the drafter reworks.
+
+**PR 6 PR OPENED (2026-07-26): #112 @ a4997ff** — schema v1 freeze
+(the M5 gate). Delta fix closed MAJOR-DELTA-1 (save-door joint
+bounds, both sites) + two symmetry-sweep holes beyond the ask
+(save-side EditReplay verification; to_value duplicate-key
+refusal). Full trail in the PR body. Checks watcher armed; merge
+on green → then 8a dispatch (block 3 draw). A/B row 3 rubric on
+merge: 2 MAJ / 2 MIN / 3 NOTE + 1 delta MAJ, 0 silent (5 reported
+devs), idiom 5 / tests 4 / docs 5.
+
+**PR 6 MERGED (2026-07-26): #112 → main `78fe760` — SCHEMA V1
+FROZEN, the M5 gate is through.** Matrix now carries three
+persistence rows (1e-6/1e-9/1e-12) hosted. pr6 clones removed.
+A/B row 3 final: fable, L — 2+1 MAJ / 2 MIN / 3 NOTE, 0 silent
+(5 reported), idiom 5 / tests 4 / docs 5, substantial fix passes
+(tagged-token retype + strict maps + goldens + tangent_joints +
+save-door symmetry sweep). **#106 review APPROVE 0/0/4** (opus row
+5 final: 0/0/4, 0 silent, 4/5/5, NO fix pass — first
+zero-fix-pass unit of the milestone; NOTEs banked for 8a latency
+data); PR #113 opened, watcher armed. **8a DISPATCHED** — block 3
+draw: (opus, fable) → 8a = OPUS (A/B row 9, L pre-assigned);
+branch ev/m4-8a-corpus off 78fe760. Remaining after 8a: az PR
+(review executing), #111 (in flight), 8b (fable, gated on 8a),
+8c (orchestrator + Evan).
+
+**#113 MERGED (2026-07-26): main `0251da7`, closes #106** on the
+FULL 13-row matrix (branch refreshed post-#112 before merge — the
+stale-10-row-green trap caught and dodged; watcher pattern now
+requires ≥13 rows). Depth-2+ nested islands classify; the join
+envelope's typed residue shrank honestly. #106 clones removed.
+**Interval-core lane delivered** (ev/interval-transcendentals @
+02c6147): proven-pad crate, 3.2M dual-oracle cases (computable
+REVIVED — zero rot, wired as second oracle 4/4), harness caught a
+real 1-ulp 2Prod underflow bug in itself, 93× build / 1.4-135×
+runtime evidence vs the gmp stack. Ops note: lane accidentally
+committed 252MB of target/ blobs in two pushed commits (removal
+COMMIT, no history rewrite — verified via reflog); orchestrator
+authored ev/interval-transcendentals-v2 (identical tree, clean
+history; original branch retained as the record) — the PR lands
+from v2. Blinded review LAUNCHED on v2 (pad-math per-function
+derivation checks, war-story reproduction incl. fix-revert,
+harness-direction integrity, degrade-boundary bombardment).
+Adoption = separate ratified decision (M5-PLAN candidate).
+
+**#114 MERGED (2026-07-26): main `1f7e1e9`** — the A×Z scene +
+render land (13-row green); az clones removed. A/B row 7 final:
+fable, S — 1 MAJ (fallback-lane crash) / 1 MIN / 2 NOTE, 0 silent,
+idiom 4 / tests 4 / docs 4, small fix pass, ~263k tokens. Open
+PRs now: #110 only (ERROR-DESIGN, Evan's careful pass). In
+flight: 8a (opus), #111 (opus), interval-review. M4 close =
+#111 merge + 8a + 8b + 8c.
+
+**#111 implementation COMPLETE (2026-07-26, ev/issue111-cdt-needle
+@ d77ce5d, pushed) — opus row 8.** Root cause SHARPENED beyond the
+issue: the parity test POINT was wrong (spade center() rounds
+~5e-17, 10× the needle's half-thickness — reification alone could
+never fix it; exact parity on the rounded point still answers
+inside). Fix STRUCTURAL: even-odd flood fill over the CDT face-
+adjacency graph seeded at the outer face, toggling on odd
+constraint-crossing multiplicity — integer traversal, zero float
+comparisons, no new ε; watertightness across boundary edges by
+construction; revolve slit preserved via odd-multiplicity;
+try_add_constraint refusal kept typed + atomic. 6 pins incl.
+exact-chart unit replay + all three A×Z variants watertight +
+az_intersect ADDED TO THE EXTERNAL ADMESH GATE (passes). Battery
+1289/1289/1435 (baseline math reconciled vs #109). Survey: two
+same-class signed_area<0 winding flips reported not-in-band (
+reviewer to verify the bound). Post-merge follow-up owed: flip
+the demo scene's #111 retire-pins. Blinded reviewer LAUNCHED
+(flood-fill attack surfaces: seeding uniqueness, shared-sub-edge
+multiplicity, slit variants, disconnected interiors, depth-3
+holes; watertight-theorem-vs-bookkeeping; root-cause re-derivation;
+winding-flip band argument).
+
+**Interval-crate review returned (2026-07-26): VALUE-SOUND, PROOF
+PROSE NOT — fix pass dispatched.** No containment violation in
+3.7M dual-oracle cases; war stories fail-on-revert exactly; no
+second atan2 trap (15-config hunt); degrade boundary honest;
+re-land tree-identical. 1 MAJ: §2 claims libm atan2 = 1 ulp but
+libm's own CI table says 2 — PAD_ULPS=4 survives ONLY via the
+sharper bit-distance argument (atan2 margin 1), which must be
+WRITTEN as the proof before "certified" is honest. MINORs: report
+misquoted its own harness (cos p50, powi p99 = 2^50+2 needing
+honest explanation, 3.7M not 3.2M), hull() decoration divergence
+SILENT (doc honesty 3/5 — milestone low), ops.rs zero coverage,
+irreproducible build-time claim (measured: 48s CPU / 203MB RSS).
+Quality (A/B row 6 pending fix pass): 1/4-ish MIN/…, idiom 5 /
+tests 4 / docs 3. Plan: after fix pass, the crate PRs to main as
+workspace-excluded tooling (zero kernel risk); ADOPTION stays an
+M5-PLAN ratified decision.
+
+**Interval-crate fix pass complete (2026-07-26, v2 @ 8c30882); PR
+#115 OPENED** (crate as workspace-excluded tooling; adoption =
+M5-PLAN decision). §2 rewritten as the real proof (source facts
+re-verified at libm-v0.2.16; Lemma P3 with negative-order-reversal
+explicit; margins: sin family 2, atan2 1 — future functions with
+CI bound >3 flagged); lucky-original kept as war story #4; powi
+2^50 tail explained + regime-split; D7/D8 divergences documented
+AND pinned; ops.rs 5 units + 300k×4-op differential lane; build
+claims restated as measured (1.6s withdrawn). Final: certify
+12/12 (~5.8M asserts / 4.0M cases), edges 9/9, computable 4/4,
+kernel untouched. Watcher armed (13-row floor).
+
+**Second limit outage + recovery (2026-07-26 ~11:21-23:30 PDT)**:
+Fable limit hit mid-day; Evan re-logged-in evening. Pre-limit
+landings survived pushed: #115 checks went green during the gap →
+MERGED on wake (main `12851a2` — the interval crate lands as
+tooling); **8a COMPLETED pre-limit** (ev/m4-8a-corpus @ 172ebe9:
+8 documents / 160 nodes, coverage ASSERTED with fails-on-unlisted-
+kind, 6 == mass pins with derivations, PR 6 rows rewired onto the
+corpus, latency lane report-only with counted-reuse asserts — die
+14.4s→1.0s incremental, cone 3/77; TWO findings: depth-2 chain
+pinned-refusal with promotion path since #106 postdates its base,
+and PR 6's kitchen-sink fixture carries a silently-Failed boolean
+its fingerprint comparison can't see). #111 reviewer died at the
+limit → resumed. **8a blinded reviewer LAUNCHED** (coverage-
+totality tamper, 3 oracle re-derivations, both findings verified
+incl. promotion-path execution, Recorder fidelity, cone-by-hand,
+no-gate grep, old-fixture coverage shrinkage).
+
+**#111 review returned (2026-07-26 late): APPROVE, 0 MAJ / 2 MIN /
+3 NOTE, rubric 5/5/5 — milestone's cleanest.** Root cause
+re-derived exact-rationally (needle twice-area 3.996e-18; exact
+centroid 2.96e-18 OUTSIDE; spade center() +2.13e-17 inside —
+reification provably insufficient, confirming the implementer);
+flood fill survived 7 probes (depth-4, vertex-touching interiors,
+collinear multiplicity-2, nested slits, atomicity);
+watertight-by-construction verified as a THEOREM (closed walks →
+even subgraph → order-independence); pins non-vacuous vs main;
+oracles re-derived by independent Fubini. MINs report-level only.
+Final unit dispatched: demo retire-pin flip folded INTO the #111
+branch (scope amendment — merging without it leaves the tour
+panicking), report decimal slip, winding-backstop comment. PR on
+its ping.
+
+**#111 PR OPENED (2026-07-27): #116 @ 12fc3cb** (main merged in;
+demo retire-pins flipped per instructions — mesh_gap machinery
+deleted, az now standard-lane watertight + STL). A/B row 8 FINAL:
+opus, M — 0 MAJ / 2 report-level MIN / 3 NOTE, 0 silent, 5/5/5
+(milestone-best rubric), tiny fix pass. Watcher armed (13-row
+floor). Pre-existing demos clippy errors (4, identical on main)
+queued with fmt drift as 8b/8c hygiene.
+
+**8a review returned (2026-07-27): content APPROVED, merge blocked
+only on the designed promotion** — merging current main makes the
+depth-2 refusal pin FIRE (correct; #113 landed under it); the
+promotion path executes clean (V == 3.25 exact). All 6 mass pins
+re-derived by hand; coverage assertions tamper-verified BOTH
+directions + compile-time totality; Recorder bit-identical; cone
+3/77 hand-derived; no timing gate (a −93% run passes). **#117
+FILED**: PR 6's legacy kitchen-sink evaluates 2 Failed + 4
+Poisoned of 20 while both persistence rows pass (fingerprint
+identity is blind to evaluation health) — confirmed worse than 8a
+reported; disposition = corpus rewiring already retires its
+load-bearing role, delete-or-fix + green-evaluation row assertion
+folds into 8b. Other MINs: sub_kinds wildcard (make exhaustive),
+latency baseline ~10-14× inflated (regenerate quiet, label
+honestly — box-relative). Fix pass dispatched. Rubric (row 9
+pending): 1 mechanical MAJ / 3 MIN / 3 NOTE, idiom 5 / tests 5 /
+docs 4.
+
+**#116 MERGED (2026-07-27): main `4df63b8`, closes #111** on 13/13
+green. The A×Z thread is fully closed: exact kernel (#108),
+declared-flush composition (#109), scene + render (#114),
+watertight tessellation + external admesh coverage + retired
+demo pins (#116). CDT exterior classification is now structural
+(even-odd flood fill, watertight by construction). issue111 clone
+removed. Remaining M4: 8a fix pass → PR → merge; 8b (fable; picks
+up #117 + demos fmt/clippy hygiene); 8c (orchestrator + Evan).
+
+**ERROR-DESIGN RATIFIED (2026-07-27): Evan 👍 on the round-2
+sign-off; #110 MERGED.** E1-E11 as revised (06d60f8) is the M6
+error-propagation contract seed. Two design rounds: round 1 =
+Real-lineage restatement (per-leaf engine; wrong-not-loose
+dependency argument; p-boxes rejected) + tail-mass accounting
+replacing truncation; round 2 (Evan's careful pass) = dimension-
+generic Measure through the F1 lattice (lever-arm rejected as
+ad-hoc-constant class), NO-FLIPS V1 as the load-bearing narrowing
+(FlipCrossing refused mass; branch enumeration = v2 door), MC
+advisory lane (never gates), densities post-v1 with the free
+histogram note. The pre-M6 design program now stands at ERROR
+ratified + SOLVER W1-W9 ratified (pre-M4); remaining M6 design =
+the solver itself (M6-adjacent) and whatever M5 surfaces.
+
+**ERROR-DESIGN post-ratification amendment (2026-07-27, Evan's
+one-branch-tails observation, #110 thread)**: no-flips is what
+makes the MERGED unresolved budget principled (all non-certified
+mass = one semantics under one branch) — settles the open
+merged-vs-separate question; CHAMBER CONTAINMENT (all box-boundary
+leaves FlipCrossing ⇒ chamber ⊆ box ⇒ tail provably off-branch ⇒
+budget exact + box-growth stopping rule; free detection).
+Amendment committed to E2; lands on main with the next state-sync
+PR.
+
+**8a PR OPENED (2026-07-27): #118 @ 2b14861** (depth-2 promoted
+green V=13/4; corpus 9 docs / 174 nodes; sub_kinds compile-total;
+MIN-3 DISPUTED with evidence and upheld — reviewer's 14× faster
+run matches the opt-0/opt-2 factor, provenance block records the
+dispute + box-relative clause). A/B row 9 FINAL: opus, L — 1
+designed-MAJ / 3 MIN / 3 NOTE, 0 silent, idiom 5 / tests 5 / docs
+4. Watcher armed (14-row floor — latency row joins the matrix).
+On green: merge → 8b dispatch (fable; #117 + demos hygiene + the
+K-lint) → 8c.
+
+**8a MERGED (2026-07-27): #118 → main `b86cfbb`** on the 16-row
+matrix (corpus ×2ε + latency rows now hosted). 8a clones removed.
+**8b DISPATCHED** (A/B row 10: M pre-assigned, fable per block-3
+remainder; branch ev/m4-8b-klint): D3 K-probe over corpus + demos,
+large-K advisory lint with the #99 datum as the litmus fixture,
+docs/k-report-data regeneration; pickups #117 (sick fixture +
+green-evaluation row assertion) and demos fmt/clippy hygiene with
+a ci-local guard. After 8b: 8c (orchestrator exit sweep + Evan).
+
+**8b implementation COMPLETE (2026-07-27, ev/m4-8b-klint @
+8365016) — fable row 10.** K-probe over corpus + demos (scalar-
+generic tour k-probe mode, same constructors): 2,562,157
+samples/ε-row, count-identical across ε, SHARPLY BIMODAL — zero
+mode ≤5.33e-15, definite floor 1.689e-3, 12-decade EMPTY gap,
+zero in-band anywhere ⇒ **K=10 unpressured on the analytic
+kernel** (the #89 K-revisit now has its baseline). Lint advisory
+(P0 percentile — the empty gap makes the population edge maximal
+signal; self-lints clean); #99 litmus fires at ALL ε rows, fixed
+bracket clean, both gate the CI row. #117 CLOSED (green-evaluation
+assertion, f64+interval). Demos hygiene done + guarded. Battery
+1342/1491 all green. Blinded reviewer LAUNCHED (bimodal-claim
+script verification, P0-vs-synthetic-fragility, litmus exit codes,
+#117 tamper, honesty checks).
+
+**8c pulled forward (2026-07-27, Evan signing off for the night)**:
+D5 memories updates committed (cad-project-state, A/B readout —
+"no evidence the opus arm is worse at this n; continues into M5");
+exit-walk table drafted (11/12 MET with evidence, 12th = 8c
+itself); successor handoff prompt DRAFTED (scratchpad
+m5-handoff-prompt.md — goes to cad-implement-m5 via mngr message
+after 8c merges; Evan may review it in the 8c PR). Remaining
+serialization: 8b review verdict (+fix pass if any) → 8b PR →
+merge; design-pass hunks reviewed by orchestrator → 8c PR
+assembled (exit walk + DESIGN sweep + final snapshot + handoff
+prompt) → EVAN'S MORNING SIGN-OFF → merge → state-sync → handoff
+→ self-stop. Overnight plan: keep driving 8b + design-pass to
+PR-ready state autonomously; nothing else needs Evan.
+
+**8b review returned (2026-07-27): APPROVE, 0 MAJ / 2 MIN / 5
+NOTE.** Baselines independently scripted (counts, ceiling, floor,
+EMPTY gap, digit-exact histogram; fresh sweep byte-identical);
+planted 2^-13 fragility → 175 flags end-to-end (the lint catches
+what every prior gate missed — its reason to exist demonstrated);
+#117 rows fail loudly on a tampered sick doc; litmus circumcenter
+re-derived exact-rationally; advisory exit semantics executed.
+MINs: lint_csv silently-clean on unknown outcome strings (→ typed
+exit-1 + pin); report +9 accounting false (+1 true). Light fix
+pass dispatched. Rubric (row 10 pending fix pass): 0/2/5, idiom
+—/tests —/docs — (in report). After 8b PR+merge: assemble final
+snapshot, Evan's #119 👍 → merge 8c → handoff.
+
+**Handoff authorization (Evan, 2026-07-27 late)**: the successor
+should NOT wait overnight for M5-PLAN sign-off — draft it, open
+the PR, and proceed immediately on the recommended fork answers
+(Evan reviews in the morning; patchable-not-fatal stance invoked
+by him). Fork-independent units run first regardless (interval
+adoption GREEN-LIT, CURVED post-ratification obligations, C12
+seams). Handoff prompt updated.

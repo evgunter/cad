@@ -1,6 +1,8 @@
 # M4 PR 5 binding spec — GeomSource + bit-identity retirement + Declare threading
 
-Status: BINDING for the PR 5 implementer (M4-PLAN item 5; F5/F7
+Status: **LANDED — PR #102, merged 2026-07-25** (historical record;
+review outcomes and rulings in docs/M4-LOG.md). Originally:
+BINDING for the PR 5 implementer (M4-PLAN item 5; F5/F7
 ratified; NAMING-DESIGN N6 normative; DESIGN.md M4 roadmap entry the
 retirement contract). Deviations via the REPORT mechanism only.
 Written by the orchestrator 2026-07-25, post-PR-4 merge (#96).

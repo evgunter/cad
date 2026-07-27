@@ -8,7 +8,17 @@ doc (DESIGN.md; the first was NAMING-DESIGN.md, #74). Grounding:
 `references/notes/gq1-constraint-inventory.md` (ratified constraints
 quoted; tensions T1–T6) and `references/notes/gq1-solver-litreview.md`
 (branch-selection taxonomy A–D; certified-selection toolbox;
-bifurcation theory; SE(3)). GQ1's ratified core is NOT reopened here:
+bifurcation theory; SE(3)).
+
+*IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
+record unchanged):* the W-CONTRACTS landed at M4 PR 4 (#96) — witness
+datum in recipes, typed error surface, purity boundary, solver
+contracts as DATA ONLY (the W5 solved-assignment slot exists and stays
+empty); the solver itself remains M6-era as designed. ERROR-DESIGN.md
+(ratified 2026-07-27, #110) composes with W1–W9 as this doc
+anticipated.
+
+GQ1's ratified core is NOT reopened here:
 witness = authoritative branch selection; `solution(constraints,
 params, witness)` pure; continuation along the edit path banned;
 bifurcation = typed error with distance-to-singularity margin;

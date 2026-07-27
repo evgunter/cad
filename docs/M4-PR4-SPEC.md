@@ -1,5 +1,8 @@
 # M4 PR 4 binding spec — Naming part 2: resolution + the diff engine
 
+Status: **LANDED — PR #96, merged 2026-07-25** (historical record;
+review outcomes and rulings in docs/M4-LOG.md).
+
 Binding for the PR 4 implementer. Scope sentence: M4-PLAN item 4.
 Ratified ground: NAMING-DESIGN N5/N7 (verbatim contracts), SOLVER-DESIGN
 W1–W9 (contracts only — no solver implementation), DESIGN D8/D9.

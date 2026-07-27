@@ -8,6 +8,15 @@ and expensive to retrofit — several constrain M4's recipe/naming
 design, not just the eventual GUI. Same conventions as DESIGN.md:
 decisions marked *agreed* are settled; GQ items are open.
 
+*Freshness note (M4 8c exit sweep, 2026-07-27):* the middle layer this
+doc banks on is now REAL — `editor-core` exists with the recipe
+substrate (#81), the GQ2 per-node result DAG + evaluation service
+(#83), one stable-name type with resolution/Rebind (#87/#96/#102),
+GQ3 persist-all-edits as schema v1 (#112), and StableName-keyed
+appearance with the N3/N5 loss semantics (#92). References in the
+body to M4 as future work are historical; the GUI layer itself
+remains unbuilt as sequenced.
+
 ## G1 (agreed 2026-07-19): Three layers, and the boundary rules
 
 The separation is not GUI-vs-library (two layers) but **three**: the
@@ -345,3 +354,45 @@ contract it builds on.
   exactly the N5-banned shape; if one-click proves too manual, a
   "carry appearance through this boolean" policy can enter the N5
   menu as its own ratification.
+
+## Undo as a history tree, not a stack (concept — Evan, 2026-07-25)
+
+Motivation (Evan's pet peeve, common to most editors): undo N steps,
+make one edit, and the redo branch is silently destroyed — real work
+lost. Better design: edit history is a TREE (a DAG of document
+states); undo moves a pointer toward the root, a new edit after undo
+mints a sibling branch, and the abandoned branch remains reachable
+(branch picker / history-graph UI).
+
+Why this is nearly free here, unlike in most editors: `Doc` is an
+immutable value and every `DocEdit` is a recorded value (PR 1 —
+"undo/redo falls out of values"), so the tree is just parent
+pointers over states we already materialize. No git/gitoxide layer:
+wrong granularity (file blobs + text diffs vs recipe edits), and we
+already own the better primitives — content keys for addressing,
+the PR 1 structural node-granular diff for showing what a branch
+changed (a semantic diff between branches, something git can never
+give us). CRDTs (automerge/yrs) tabled: they solve concurrent
+merging, not single-user branching.
+
+Persistence: schema v1 (PR 6) is a linear snapshot + edit log; the
+history tree is the additive evolution (log entries gain a parent
+pointer) via the F3 migration chain when the GUI needs it.
+Non-binding until a GUI milestone picks it up.
+
+### State/history separation (Evan, 2026-07-27 — the sharpened
+### form of the git-like instinct)
+
+What the undo-tree concept above still owed a name: Evan wants it
+POSSIBLE to share a document's state without bringing its entire
+history — the state and the edit DAG should be separable artifacts,
+not one inseparable file. Design facts already in place: F3's
+schema v1 is snapshot + edit log, so "state without history" is
+structurally just a save with a compacted (empty) log — an
+export/compact operation, not a format change; the future history
+TREE (parent-pointer log evolution) can live as a separable sidecar
+rather than inside the shared document. What this notes for the
+GUI milestone: sharing/compaction is a first-class operation
+(explicit, loud about what it drops), and the history sidecar's
+format is designed so the main document never depends on it.
+Non-binding until a GUI milestone picks it up.

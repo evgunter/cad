@@ -13,6 +13,16 @@ boundary-text update for the transition state, and the
 LGPL-before-publish exit condition. The K = 10 tangent lives in
 issue #89.
 
+*IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
+record unchanged):* M5 has not started — nothing here is implemented
+yet. Two inputs matured during M4: the OQ8 in-house interval ring now
+EXISTS as the workspace-excluded `interval-transcendentals` crate
+(#115; dual-oracle certified; kernel adoption = M5-PLAN ratified
+decision), and #89's K-revisit gained its baseline (8b K-probe:
+sharply bimodal margins, K = 10 unpressured on the analytic kernel).
+The post-ratification obligations listed above remain open for M5
+planning.
+
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
 obligation and fillet-validity-is-reified-predicates); M3-PLAN F5 (the

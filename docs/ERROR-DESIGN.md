@@ -1,11 +1,17 @@
 # Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-M6 design doc)
 
-Status: **DRAFT for design conversation — not ratified.** Round 2
+Status: **RATIFIED (Evan, PR #110, merged 2026-07-27 — 👍 on the
+round-2 sign-off comment).** E1–E11 as revised are the M6
+error-propagation contract seed. Design history: Round 2
 (#110): E1 restated as the *completion* of the Real-trait vision;
 E2 truncation → **tail-mass accounting** (Evan). Round 3 (Evan's
 careful pass, "broadly looks good"): E3 collapsed to one dimension-
 generic Measure sink; E6 adopts **no-flips v1** (Evan's proposal);
 E11 MC softened to a labeled advisory lane; E11.6 histogram note.
+Post-ratification amendment on record (#110 thread, Evan's
+one-branch-tails observation, 2026-07-27): chamber containment
+added to E2 — committed on the orchestrator branch (10cdaff),
+reaches main with the next state-sync PR.
 
 Third of the pre-M6 docs (NAMING-DESIGN #74, SOLVER-DESIGN #79 are
 the pattern). Grounding: DESIGN.md's M6 roadmap entry and central
@@ -104,6 +110,21 @@ is a typed document error).
   accounting the tail is `Unanalyzed` mass alongside the refusal
   reasons; one **unresolved-mass budget** (refused + tail) is the
   single honesty gate (E10). Truncation = optional sugar, tail ≡ 0.
+- **One-branch tails amendment (Evan, post-ratification 2026-07-27,
+  #110 thread)**: the no-flips commitment (E6) is what makes the
+  MERGED budget principled, not merely simple — under one branch,
+  tail, `FlipCrossing`, and undersubdivided mass all mean the same
+  thing ("the branch-valid analysis does not cover this mass"), so
+  one budget with a diagnostic breakdown (widen box / subdivide /
+  accept) is the honest shape. **Chamber containment**: if every
+  leaf touching the analyzed box's boundary is `FlipCrossing`-
+  refused, the witness chamber is contained in the box, ALL tail
+  mass is provably off-branch (not merely unexamined), the
+  unresolved budget becomes exact rather than conservative, and box
+  growth has a natural stopping rule (growth can only relabel
+  tail → `FlipCrossing`). Detection is a free predicate on the
+  existing leaf set; E6's driver SHOULD report containment when it
+  holds.
 - **Band carries no measure** — pure worst-case. Any report needing
   a measure (RSS, leaf mass) over a Band parameter refuses typed,
   never defaults to uniform: "I know the limits but not the shape"

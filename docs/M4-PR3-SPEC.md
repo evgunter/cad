@@ -1,5 +1,8 @@
 # M4 PR 3 binding spec — naming part 1: RolePath, name tables, the CI invariant
 
+Status: **LANDED — PR #87, merged 2026-07-24** (historical record;
+review outcomes and rulings in docs/M4-LOG.md).
+
 Orchestrator-authored binding spec (2026-07-24). Deviations REPORTED,
 never improvised. Charter: M4-PLAN PR 3 = NAMING-DESIGN N1–N4 made
 concrete (the doc is RATIFIED #74 and binding — re-read N1/N2/N3/N4
