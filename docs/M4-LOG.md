@@ -1758,3 +1758,12 @@ latency baseline ~10-14× inflated (regenerate quiet, label
 honestly — box-relative). Fix pass dispatched. Rubric (row 9
 pending): 1 mechanical MAJ / 3 MIN / 3 NOTE, idiom 5 / tests 5 /
 docs 4.
+
+**#116 MERGED (2026-07-27): main `4df63b8`, closes #111** on 13/13
+green. The A×Z thread is fully closed: exact kernel (#108),
+declared-flush composition (#109), scene + render (#114),
+watertight tessellation + external admesh coverage + retired
+demo pins (#116). CDT exterior classification is now structural
+(even-odd flood fill, watertight by construction). issue111 clone
+removed. Remaining M4: 8a fix pass → PR → merge; 8b (fable; picks
+up #117 + demos fmt/clippy hygiene); 8c (orchestrator + Evan).
