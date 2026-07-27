@@ -11,6 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod az;
 mod bodies;
 mod bool_bodies;
 mod booleans;
@@ -20,7 +21,7 @@ mod heatsink;
 mod letterforms;
 mod projectbox;
 
-use mesh::validate::{check_mesh, signed_volume, triangle_count};
+use mesh::validate::{MeshError, check_mesh, signed_volume, triangle_count};
 use topo::{Body, ContactRecords};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
@@ -41,6 +42,15 @@ struct SceneBody {
     /// planar today (`gate_planar`); curved sweeps are the honest
     /// refusals until the M5 arms.
     step_expected: bool,
+    /// `Some(narration)` pins a KNOWN OPEN mesh-lane gap (#111): the
+    /// exact kernel is green (tiers + oracle) but `check_mesh` refuses
+    /// `BoundaryEdge` on the tessellation. The pin asserts the refusal
+    /// stays EXACTLY that class and panics loudly the day the gap
+    /// closes (retire-on-closure, the #106 pattern). Render + STEP are
+    /// unaffected (FreeCAD imports our STEP); NO STL is emitted — the
+    /// writer refuses the defective mesh typed, and that refusal is
+    /// pinned two-sided in `run_body`.
+    mesh_gap: Option<&'static str>,
 }
 
 impl SceneBody {
@@ -53,6 +63,7 @@ impl SceneBody {
             contacts: None,
             color,
             step_expected: false,
+            mesh_gap: None,
         }
     }
 
@@ -77,6 +88,7 @@ impl SceneBody {
             contacts: Some(contacts),
             color,
             step_expected: true,
+            mesh_gap: None,
         }
     }
 }
@@ -120,8 +132,11 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 }
 
 /// A body entry for the scene manifest: file stems + render color.
+/// `stl` is `None` only on a `mesh_gap`-pinned body whose defective
+/// tessellation the STL writer refuses typed (#111) — such bodies
+/// always carry a STEP export for the render.
 struct ManifestBody {
-    stl: String,
+    stl: Option<String>,
     step: Option<String>,
     color: [f64; 3],
 }
@@ -166,25 +181,88 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     let props = topo::mass_properties(&sb.body).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
-    // against the exact one as an end-to-end sanity ribbon.
+    // against the exact one as an end-to-end sanity ribbon — unless
+    // the scene pins the OPEN #111 mesh gap, in which case the refusal
+    // itself is the assertion (and the ribbon is skipped: signed
+    // volume of a non-closed mesh proves nothing).
     let mesh = mesh::tessellate(&sb.body, delta).expect("tessellate");
-    check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
-    let v_mesh = signed_volume(&mesh);
-    assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
-    let rel = ((v_mesh - props.volume) / props.volume).abs();
-    println!(
-        "   [{label}] exact: V = {:.6} m^3, A = {:.6} m^2; mesh (delta = {:.0e}): \
-         {} triangles, V_mesh = {v_mesh:.6} ({:.3}% off exact — chordal, inscribed)",
-        props.volume,
-        props.surface_area,
-        delta,
-        triangle_count(&mesh),
-        rel * 100.0
-    );
+    let mesh_defective = match (sb.mesh_gap, check_mesh(&mesh)) {
+        (None, Ok(())) => {
+            let v_mesh = signed_volume(&mesh);
+            assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
+            let rel = ((v_mesh - props.volume) / props.volume).abs();
+            println!(
+                "   [{label}] exact: V = {:.6} m^3, A = {:.6} m^2; mesh (delta = {:.0e}): \
+                 {} triangles, V_mesh = {v_mesh:.6} ({:.3}% off exact — chordal, inscribed)",
+                props.volume,
+                props.surface_area,
+                delta,
+                triangle_count(&mesh),
+                rel * 100.0
+            );
+            false
+        }
+        (None, Err(e)) => panic!("{label}: check_mesh failed: {e:?}"),
+        (Some(gap), Err(e @ MeshError::BoundaryEdge { .. })) => {
+            println!(
+                "   [{label}] exact: V = {:.6} m^3, A = {:.6} m^2; mesh lane: PINNED \
+                 OPEN GAP — check_mesh refuses {e:?} ({gap}); no STL is emitted \
+                 (the writer refuses the defective mesh typed, asserted below) — \
+                 the render rides our STEP export",
+                props.volume, props.surface_area
+            );
+            true
+        }
+        (Some(gap), Err(e)) => panic!(
+            "{label}: the pinned mesh gap ({gap}) moved OFF the BoundaryEdge \
+             class: {e:?} — re-diagnose before re-pinning"
+        ),
+        (Some(gap), Ok(())) => panic!(
+            "{label}: the pinned mesh gap ({gap}) has CLOSED — retire the pin: \
+             drop `mesh_gap` from this scene and let the standard mesh ribbon run"
+        ),
+    };
 
+    // STL export. On the #111-pinned defective mesh the pin is
+    // TWO-SIDED: the writer must refuse the needle triangle typed
+    // (`DegenerateTriangle`), and no STL may land in the outdir — a
+    // future writer-tolerance change must not silently ship a leaky
+    // mesh. Everything else stays fail-loud.
     let stl_name = format!("{label}.stl");
-    let mut file = std::fs::File::create(format!("{outdir}/{stl_name}")).expect("create stl");
-    stl::write_binary(&mesh, &mut file).expect("write stl");
+    let stl_path = format!("{outdir}/{stl_name}");
+    let mut stl_buf = Vec::new();
+    let stl = if mesh_defective {
+        match stl::write_binary(&mesh, &mut stl_buf) {
+            Err(e @ stl::StlError::DegenerateTriangle { .. }) => {
+                // Clear any stale export from an earlier run so the
+                // outdir cannot carry a leaky {label}.stl either way.
+                let _ = std::fs::remove_file(&stl_path);
+                println!(
+                    "   [{label}] STL lane: PINNED OPEN GAP — the writer refuses the #111 \
+                     needle triangle typed ({e:?}); no STL emitted, the render rides STEP"
+                );
+                None
+            }
+            Err(e) => panic!(
+                "{label}: the pinned #111 STL refusal moved OFF the \
+                 DegenerateTriangle class: {e:?} — re-diagnose before re-pinning"
+            ),
+            Ok(()) => panic!(
+                "{label}: the STL writer ACCEPTED the #111-defective mesh — a \
+                 writer-tolerance change must not silently ship a leaky STL; \
+                 retire the pin deliberately or re-diagnose"
+            ),
+        }
+    } else {
+        stl::write_binary(&mesh, &mut stl_buf)
+            .unwrap_or_else(|e| panic!("{label}: STL write failed: {e:?}"));
+        std::fs::write(&stl_path, &stl_buf).expect("write stl");
+        Some(stl_name.clone())
+    };
+    assert!(
+        stl.is_some() || !std::path::Path::new(&stl_path).exists(),
+        "{label}: no STL was to be emitted, yet {stl_path} exists"
+    );
 
     // The STEP lane (#88): AP214 export beside every STL. The writer's
     // analytic subset is planes/lines today (M5 adds the curved arms),
@@ -199,7 +277,10 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     ) {
         Ok(doc) => {
             std::fs::write(format!("{outdir}/{step_name}"), doc).expect("write step");
-            println!("   [{label}] exported {stl_name} + {step_name}");
+            match &stl {
+                Some(stl_name) => println!("   [{label}] exported {stl_name} + {step_name}"),
+                None => println!("   [{label}] exported {step_name} (no STL — pinned #111)"),
+            }
             Some(step_name)
         }
         // Only the analytic-subset class is an acceptable refusal, and
@@ -215,8 +296,9 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
                  but the writer refused: {e:?}"
             );
             println!(
-                "   [{label}] exported {stl_name}; STEP refused typed ({e:?}) — \
-                 the writer's analytic subset is planar until M5"
+                "   [{label}] exported {}; STEP refused typed ({e:?}) — \
+                 the writer's analytic subset is planar until M5",
+                stl.as_deref().unwrap_or("nothing")
             );
             None
         }
@@ -231,7 +313,7 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     );
 
     ManifestBody {
-        stl: stl_name,
+        stl,
         step,
         color: sb.color,
     }
@@ -263,13 +345,17 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
     let body_entries: Vec<String> = bodies
         .iter()
         .map(|b| {
-            let step = match &b.step {
+            let opt = |o: &Option<String>| match o {
                 Some(s) => format!("\"{s}\""),
                 None => "null".to_string(),
             };
             format!(
-                "{{\"stl\": \"{}\", \"step\": {step}, \"color\": [{}, {}, {}]}}",
-                b.stl, b.color[0], b.color[1], b.color[2]
+                "{{\"stl\": {}, \"step\": {}, \"color\": [{}, {}, {}]}}",
+                opt(&b.stl),
+                opt(&b.step),
+                b.color[0],
+                b.color[1],
+                b.color[2]
             )
         })
         .collect();
@@ -311,6 +397,11 @@ fn main() {
 
     println!("\n-- silhouettes (the first `intersect` in the tour) --");
     for stop in letterforms::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- A x Z (#93's acceptance case, building since #108) --");
+    for stop in az::stops() {
         run(&stop);
     }
 

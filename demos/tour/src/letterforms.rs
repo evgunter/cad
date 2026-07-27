@@ -9,9 +9,9 @@
 //! same 3-unit height): every face a plane, every edge a line —
 //! `gate_planar` passes, no curved geometry near a boolean (round
 //! letterforms are the M5 upgrade). A×Z was probed (#91, 2026-07-25)
-//! and refuses typed today
-//! — banked as the acceptance fixture for the cookie-cutter role
-//! resolver's vertex-only-probing gap; do not attempt it here.
+//! and refused typed then — banked as the acceptance fixture for the
+//! cookie-cutter role resolver's vertex-only-probing gap, closed by
+//! #108; it now runs as its own tour stop (`az.rs`).
 //!
 //! THE DESIGN RULE (from the #91 build evidence, and it generalizes to
 //! every boolean scene in this tour): operands must not share
