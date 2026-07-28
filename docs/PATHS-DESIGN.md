@@ -6,13 +6,19 @@ profiles-as-programs work per #104. The ratified doc is the
 deliverable). Rounds: 1 = forward-consuming vs junction-resolver
 fork; 2 = Evan's inline review (resolver set collapsed to binary;
 in-order authoring); 3 = coincident-corner fillet + pending
-resolver; 4–5 (this text, 2026-07-28 in-session) = **typed path
-ends**, the **fillet(r, anchor) form with a directed-awaiting
-state** (Evan: `.angle(θ).fillet(r, dd).angle(θ2)`), and the
-**directors-are-the-only-direction-source core** with every
-point-targeting constructor as sugar (Evan: "line_to is just
-sugar for .angle(theta).line(length)"), superseding parts of
-rounds 2–3 as recorded inline.
+resolver; 4–5 (2026-07-28 in-session) = typed path ends, the
+anchored fillet form (Evan: `.angle(θ).fillet(r, dd).angle(θ2)`),
+directors as the only direction source with every point-targeting
+constructor as sugar (Evan: "line_to is just sugar for
+.angle(theta).line(length)"); 6 (same session, Evan's
+"typestates are maybe Point, Angle, Directed — and Point always
+needs its angle", confirmed reading) = **the binding lattice**:
+the tip's state is WHICH OF {position, angle} it has bound —
+`Point` = {position}, `Angle` = {angle}, `Directed` = {both} —
+plus the transient `Open` = {} that only a fillet produces; the
+fillet becomes argument-minimal (`.fillet(r)`) with its arrival
+side bound in either order. Supersessions from rounds 2–5 are
+recorded inline.
 
 Lineage: Evan's concept (#104) + three in-session design rounds
 (2026-07-27/28). Harmonization constraint (ratified context):
@@ -32,71 +38,86 @@ exists: explicit segments + declared tangency flags, verified at
 build by the same junction predicates. No kernel or document
 semantics change.
 
-## 2. The core: typed ends, directors, anchored fillets
+## 2. The core: the binding lattice, directors, minimal fillets
 
-**End states.** A path end (start end and growing tip) is one of
-THREE types (the third is Evan's round-5 addition):
+**End states (round 6, Evan's lattice — the confirmed reading).**
+The tip's typestate is exactly WHICH OF {position, angle} it has
+bound:
 
-- **`Point`** — position bound, no direction commitment.
-  Produced by `start(p)` and by legs that terminate at a bound
-  position.
-- **`Directed`** — position + departure direction. Produced by a
-  *director* on a `Point` end.
-- **`AwaitingDirection`** — a fillet has bound its arrival-side
-  ANCHOR but the side's direction is pending; the next director
-  completes it. Produced only by `.fillet(r, anchor)`.
+- **`Point`** = {position}. Produced by `start(p)`, by legs
+  terminating at a bound position, and by `through(p)` on an
+  `Open`/`Angle` tip. Invariant, verbatim from the exchange:
+  **Point always needs its angle** — the only legal continuation
+  is angle-binding (a director, or sugar that computes one).
+- **`Angle`** = {angle}. Direction bound, position pending —
+  arises only on a fillet's arrival side when the angle is bound
+  first. Symmetric invariant: Angle always needs its point.
+- **`Directed`** = {both}. The only state legs and `.fillet(r)`
+  consume.
+- **`Open`** = {} — transient, produced ONLY by `.fillet(r)`
+  (the freshly opened arrival side); bound by the next call(s)
+  in either order. A path OPENS in either half-bound state
+  (Evan, round 6: "Angle at the very start seems fine + might
+  make the close operations more symmetrical"): `start(p)` →
+  Point, or `start_angle(θ)` → Angle — the opening is just the
+  first side's binding, in either order like any fillet arrival.
+  Consequence, recorded: the start side is not privileged — for
+  a fully-filleted loop, `close_fillet(r)` pairs with the
+  opening exactly as each interior fillet pairs with its
+  preceding side, and the loop is a cyclic sequence of
+  [corner, side-bindings] units. A bare Open opening (leading
+  `.fillet`) stays refused — a corner needs a preceding carrier.
 
-**Directors are the only way directions enter** (the round-5
-core-minimality rule): `.tangent()` (inherit the incoming leg's
-end tangent — emits the DECLARED flag on lowering) and
-`.angle(θ)` (explicit; a θ that happens to hit the incoming
-tangent direction is `UndeclaredTangency` — declaring is saying
-`.tangent()`, never guessing the angle; #101 verbatim).
-`.angle(θ)` serves two states: `Point → Directed` and
-`AwaitingDirection → Directed` (on the arrival side, direction
-θ through the bound anchor). `.tangent()` serves only `Point`
-ends — on `AwaitingDirection` it is refused as circular (tangent
-to the fillet arc, which is not determined until the direction
-is: the "fillets sit between defined geometry" rule, enforced by
-the state machine).
+**Directors are the only way angles enter**: `.tangent()`
+(inherit the incoming leg's end tangent — emits the DECLARED
+flag on lowering; legal only on a leg-end `Point`, refused on a
+fillet arrival side as circular — tangent to an arc that is not
+determined until the arrival binds: "fillets sit between defined
+geometry", enforced by the states) and `.angle(θ)` (explicit; a
+θ that happens to hit the incoming tangent direction is
+`UndeclaredTangency` — declaring is saying `.tangent()`, never
+guessing the angle; #101 verbatim). `.angle(θ)` adds the angle
+bit wherever it is missing: `Point → Directed`,
+`Open → Angle`. **`through(p)`** is the position-binder dual to
+it: `Open → Point`, `Angle → Directed` (the arrival anchor — a
+real on-path point on the side).
 
-**Legs (core).** Direction-consuming only, from a `Directed`
-end: `line(len)`; `arc(…)` forms (the unique tangent arc to a
-target point; explicit-sweep arcs at PR-spec time). A leg
-terminates at a bound position → `Point`.
+**Legs (core).** Direction-consuming only, from `Directed`:
+`line(len)`; `arc(…)` forms (the unique tangent arc to a target
+point; explicit-sweep arcs at PR-spec time). A leg terminates at
+a bound position → `Point`. No leg ever departs a half-bound
+tip.
 
-**Point-targeting constructors are SUGAR** (Evan, round 5:
-"line_to is just sugar for .angle(theta).line(length)"):
-`line_to(p)`
-= `.angle(θ toward p).line(|p − cur|)`; `arc_to(p, bulge)`
-desugars the same way (start direction computable from chord +
-bulge — the M2 bulge convention). The Sharp junction check rides
-the desugared `.angle(…)` uniformly. Sugar composes with the
-fillet state: `.fillet(r, dd).line_to(p)` = arrival direction
-from dd toward p, side terminating at p — well-defined because
-the anchor is bound. Round-1/2's `arc_tangent_to` and
-`start_dir` dissolve into `.tangent().arc_to(p)` and
-`start(p).angle(θ)`.
+**Point-targeting constructors are SUGAR** (round 5: "line_to is
+just sugar for .angle(theta).line(length)"): `line_to(p)` =
+`.angle(θ toward p).line(|p − cur|)`; `arc_to(p, bulge)`
+desugars the same way (start direction from chord + bulge — the
+M2 convention). The Sharp junction check rides the desugared
+`.angle(…)` uniformly, sharp corners included. Sugar composes
+with the lattice: `.fillet(r).through(dd).line_to(p)` = arrival
+direction from dd toward p, side terminating at p. Round-1/2's
+`arc_tangent_to` and `start_dir` dissolve into
+`.tangent().arc_to(p)` and `start(p).angle(θ)`; round-5's
+`fillet(r, dd)` survives as sugar for `.fillet(r).through(dd)`.
 
-**Fillet (round-5 form, Evan's).** One call on a `Directed` end
-carrying only the arrival ANCHOR; the arrival direction follows
-by director:
+**Fillet (round-6 form: argument-minimal).** `.fillet(r)`
+consumes the incoming `Directed` (the departure ray) and opens
+the arrival side `Open`; the arrival binds in EITHER order:
 
 ```text
-.angle(θ).fillet(r, dd).angle(θ2)
+.angle(θ).fillet(r).through(dd).angle(θ2)   // anchor-then-angle
+.angle(θ).fillet(r).angle(θ2).through(dd)   // angle-then-anchor
 ```
 
-Incoming carrier = the ray from the current position along θ;
-the call binds anchor `dd` and enters `AwaitingDirection`; the
-following director fixes the arrival carrier (line through `dd`
-along θ2); the r-arc tangent to both carriers is inserted at
-their implicit virtual corner, trimming both; the tip is then
-Directed on the open arrival side — subsequent
-direction-consuming forms TERMINATE OR CONTINUE that same leg
-(`.line(len)` ends it past the anchor; another `.fillet(…)` runs
-it into the next trim; `close_fillet` likewise) — one leg in the
-lowering, so no collinear-split/same-carrier hazard arises from
-the continuation. Grounds, recorded:
+Once the arrival side is `Directed` (line through `dd` along
+θ2), the r-arc tangent to both carriers is inserted at their
+implicit virtual corner, trimming both; the tip is then Directed
+on the open arrival side — subsequent direction-consuming forms
+TERMINATE OR CONTINUE that same leg (`.line(len)` ends it past
+the anchor; another `.fillet(…)` runs it into the next trim;
+`close_fillet` likewise) — one leg in the lowering, so no
+collinear-split/same-carrier hazard arises from the
+continuation. Grounds, recorded:
 
 - **The corner is never authored.** The trimmed corner exists
   only as the carrier intersection; fillet takes no corner point,
@@ -143,28 +164,44 @@ collinear rules refuse it; PQ4 records the possible relaxation).
 
 ## 3. Surface vocabulary and worked examples
 
-| Surface form | End-state transition | Core or sugar |
+| Surface form | Lattice transition | Core or sugar |
 |---|---|---|
 | `start(p)` | → Point | core |
-| `.angle(θ)` | Point → Directed; AwaitingDirection → Directed | core (the two-state director) |
-| `.tangent()` | Point → Directed (inherit + declared) | core; refused on AwaitingDirection (circular) |
+| `start_angle(θ)` | → Angle | core (angle-first opening — close symmetry) |
+| `.angle(θ)` | Point → Directed; Open → Angle | core (adds the angle bit) |
+| `.through(p)` | Open → Point; Angle → Directed | core (adds the position bit; arrival anchors) |
+| `.tangent()` | leg-end Point → Directed (inherit + declared) | core; refused on fillet arrivals (circular) |
 | `line(len)` / `arc(…)` | Directed → Point | core legs |
-| `.fillet(r, anchor)` | Directed → AwaitingDirection | core (the only corner primitive) |
-| `line_to(p)` | Point or AwaitingDirection → Point | sugar: `.angle(toward p).line(dist)` |
+| `.fillet(r)` | Directed → Open | core (the only corner primitive) |
+| `fillet(r, dd)` | Directed → Point | sugar: `.fillet(r).through(dd)` |
+| `line_to(p)` | Point → Point (also from a fillet-arrival Point) | sugar: `.angle(toward p).line(dist)` |
 | `arc_to(p, bulge)` | Point → Point | sugar (direction from chord + bulge) |
 | `arc_to(p)` | Directed → Point | sugar for the unique tangent arc |
-| `p1.then(p2)` | seam from the two end states | core, associative |
+| `p1.then(p2)` | seam from the two tips' states | core, associative |
 | `close()` / `close_tangent()` / `close_fillet(r)` | seam | same typing at last→first |
 
 All-rounded square, fully determined (4 anchors + 4 directions,
 sides read as anchor+direction pairs; every mᵢ a real on-path
-point, e.g. side midpoints):
+point, e.g. side midpoints; sugar form shown, core form spelled
+once):
 
 ```text
 start(m1).angle(east)
-    .fillet(r, m2).angle(north)
+    .fillet(r, m2).angle(north)        // ≡ .fillet(r).through(m2).angle(north)
     .fillet(r, m3).angle(west)
     .fillet(r, m4).angle(south)
+    .close_fillet(r)
+```
+
+or in the fully symmetric angle-first form (the opening reads
+exactly like every other side; the seam fillet is the fourth
+corner, indistinguishable from the interior three):
+
+```text
+start_angle(east).through(m1)
+    .fillet(r).angle(north).through(m2)
+    .fillet(r).angle(west).through(m3)
+    .fillet(r).angle(south).through(m4)
     .close_fillet(r)
 ```
 
