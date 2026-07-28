@@ -223,10 +223,11 @@ impl Neg for Interval {
     }
 }
 
-/// [`Real`] over enclosures: every operation is IEEE 1788-tightest via
-/// inari (MPFR-backed, correctly rounded outward for the transcendentals),
-/// total (out-of-domain input clamps with a degraded decoration or goes
-/// empty — the poison channel, see the [module docs](self)), and
+/// [`Real`] over enclosures: every operation returns an IEEE 1788
+/// decorated enclosure of the true image — outward-padded rather than
+/// MPFR-tight since the M5 PR 1 backend swap (see the
+/// [module docs](self) on tightness) — total (out-of-domain input clamps
+/// with a degraded decoration or goes empty — the poison channel), and
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
