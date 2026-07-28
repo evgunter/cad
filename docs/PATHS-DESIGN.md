@@ -1,6 +1,6 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5, design doc)
 
-Status: **DRAFT round 8, for Evan's sign-off** (design-conversation
+Status: **DRAFT round 9, for Evan's sign-off** (design-conversation
 PR; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104. The ratified doc is the
 deliverable). Rounds: 1 = forward-consuming vs junction-resolver
@@ -116,9 +116,46 @@ anchor — a real on-path point on the side).
 
 **Legs (core).** Direction-consuming only, from `Directed`:
 `line(len)`; `arc(…)` forms (the unique tangent arc to a target
-point; explicit-sweep arcs at PR-spec time). A leg terminates at
-a bound position → `Point`. No leg ever departs a half-bound
-tip.
+point; explicit-sweep arcs at PR-spec time); `nurbs(curve)` —
+see below. A leg terminates at a bound position → `Point`. No
+leg ever departs a half-bound tip.
+
+**NURBS legs (round 9, Evan's pre-commit check — thought through,
+and the DOF story extends exactly).** A NURBS leg is RIGID
+AUTHORED DATA: a `NurbsCurve2` authored in its own frame
+(clamped, w > 0 — the PR 3 invariants), whose end positions and
+end tangents are intrinsic (first/last control points; the
+end-leg control differences). Rigid placement in 2-D has exactly
+3 DOFs (translation 2 + rotation 1) — precisely what a `Directed`
+tip supplies (position 2 + direction 1). So `nurbs(curve)` is an
+ORDINARY direction-consuming core leg: placement translates the
+curve's start to the tip position and rotates its start tangent
+onto the departure direction ("rotate/translate this whole curve
+so the start is tangent" is the canonical placement semantics,
+not a sugar). Consequences, each falling out rather than ruled:
+- After a `.tangent()` director the placement gives G1 continuity
+  by construction (declared flag emitted); after `.angle(θ)` the
+  Sharp check runs against the placed start tangent as at any
+  junction. The leg's END is a directed point (intrinsic end
+  tangent), so `.tangent()` chains onward.
+- NO scale, no deformation: the algebra places authored curves,
+  never edits them (metric shape is data; scaled/stretched
+  placement is authoring-time transformation of the curve, out of
+  scope). `nurbs_reversed(curve)` (parameterization flip) is the
+  one free structural variant.
+- **Fillet carriers stay line/arc in v1**: a corner fillet
+  tangent to a NURBS carrier has no closed form (it is a small
+  iterative solve — and this algebra is deliberately solver-free,
+  §7). `fillet` adjacent to a NURBS leg refuses typed naming the
+  door (`FilletCarrierUnsupported`); tangent/sharp junctions
+  cover NURBS joins in v1.
+- **A NURBS leg cannot target `Start`**: its placement is fully
+  consumed at its departure junction, so its end lands where the
+  data says — a rigid leg targeting a fixed point is
+  overdetermined. Loops whose last authored leg is NURBS close
+  through a connecting line/arc leg (or a seam fillet between
+  line/arc carriers). Same reasoning as the tangent-line-close
+  refusal; the type story is uniform.
 
 **Point-targeting constructors are SUGAR** (round 5: "line_to is
 just sugar for .angle(theta).line(length)"): `line_to(p)` =
@@ -229,19 +266,22 @@ relaxation).
 
 | Surface form | Lattice transition | Core or sugar |
 |---|---|---|
-| `Open` | → Open | core (the entry — and every fillet arrival) |
-| `.at(p)` | Open → Point; Angle → Directed | core (position binder; replaces start/through) |
-| `.angle(θ)` | Point → Directed; Open → Angle | core (angle binder) |
-| `.tangent()` | directed point → Directed (inherit + declared) | core; ill-typed on plain points (nothing to inherit) |
-| `line(len)` / `arc(…)` | Directed → Point | core legs |
-| `.fillet(r)` | Directed → Open | core (the only corner primitive) |
-| `fillet(r, dd)` | Directed → Point | sugar: `.fillet(r).at(dd)` |
-| `line_to(p)` | Point → Point (also from a fillet-arrival Point) | sugar: `.angle(toward p).line(dist)` |
-| `arc_to(p, bulge)` | Point → Point | sugar (direction from chord + bulge) |
-| `arc_to(p)` | Directed → Point | sugar for the unique tangent arc |
-| `p1.then(p2)` | seam from the two tips' states | core, associative |
-| `Start` | a directed-point VALUE (the bound entry) | core — using it as a target closes, structurally (round 8) |
-| `close()` | ≡ `line_to(Start)` | sugar (the only survivor of the close family) |
+| **TIER 0 — CORE** (round 9: the two tiers are explicit; every sugar names its core expansion and nothing in tier 1 adds semantics) | | |
+| `Open` | → Open | the entry — and every fillet arrival |
+| `.at(p)` | Open → Point; Angle → Directed | position binder |
+| `.angle(θ)` | Point → Directed; Open → Angle | angle binder |
+| `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
+| `line(len)` / `arc(…)` / `nurbs(curve)` | Directed → Point | legs (nurbs = rigid placement, direction-matching whichever director bound the tip) |
+| `.fillet(r)` | Directed → Open | the only corner primitive |
+| `p1.then(p2)` | seam from the two tips' states | associative concatenation |
+| `Start` | directed-point VALUE (the bound entry) | targeting it closes, structurally |
+| **TIER 1 — SUGAR** (each row = one call, expands to core, may only append/insert one leg and/or set bindings) | | |
+| `fillet(r, dd)` | Directed → Point | `.fillet(r).at(dd)` |
+| `line_to(p)` | Point → Point (also from a fillet-arrival Point) | `.angle(toward p).line(dist)` |
+| `arc_to(p, bulge)` | Point → Point | direction from chord + bulge |
+| `arc_to(p)` | Directed → Point | the unique tangent arc |
+| `nurbs_reversed(curve)` | Directed → Point | `nurbs(reverse(curve))` — parameterization flip, structural |
+| `close()` | ≡ `line_to(Start)` | the only survivor of the close family |
 
 All-rounded square, fully determined (4 anchors + 4 directions,
 sides read as anchor+direction pairs; every mᵢ a real on-path
@@ -296,7 +336,10 @@ fillet an authored corner away"); `line(len)` from a non-
 `Directed` tip; a leg or `close()` from a half-bound tip
 (point-sugar excepted — it supplies the missing bit);
 `.tangent()` on a plain point (nothing to inherit — the former
-circularity rule, now structural); leading `.fillet`/`.tangent`
+circularity rule, now structural); `fillet` adjacent to a NURBS
+carrier (`FilletCarrierUnsupported` — no closed form, the
+solver-free line, §2 round 9); a NURBS leg targeting `Start`
+(rigid placement already consumed — §2 round 9); leading `.fillet`/`.tangent`
 (the seam belongs to the Start-targeting verbs at the BACK of the
 chain — §2's generalized entry rule, restated for round 8: one
 authoring site per seam, and only the back side can elaborate
