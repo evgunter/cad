@@ -377,7 +377,7 @@ impl Rng {
 
 /// Exact power of two (no `powi`, which would round).
 fn pow2(e: i32) -> f64 {
-    if e >= -1022 && e <= 1023 {
+    if (-1022..=1023).contains(&e) {
         f64::from_bits(((e + 1023) as u64) << 52)
     } else if e < -1022 {
         // Subnormal: build by repeated halving from 2^-1022 (exact).
