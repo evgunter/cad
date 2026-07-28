@@ -17,11 +17,29 @@ use geom_core::Decide;
 
 use super::{ang, desc, insert, len, scl, step};
 
+/// The corpus's evaluator — DELIBERATELY the idealized (brute-force)
+/// boolean sweep since M5 PR 8. The golden this corpus feeds pins
+/// "same recipe + same VERDICTS ⇒ byte-identical diagnosis output",
+/// so the fixture keeps the verdict-rich substrate the digest was
+/// pinned over: the idealized sweep decides `bool_vertex_face_side`
+/// on every pair, so scenario A's disjoint run still carries the
+/// recorded-flip evidence the flip-vanish row exists to exercise.
+/// The REALIZED sweep prunes non-interacting pairs (that is its job),
+/// which honestly removes that evidence on interaction-boundary
+/// edits; the production-path diagnosis degradation is pinned where
+/// it belongs — `m4_pr4_banked::dropped_fused_vertex_identity_…` runs
+/// its scenario under BOTH strategies. Results (bodies, names, keys)
+/// are strategy-independent (the M5 PR 8 differential suite pins
+/// them bit-equal); only the verdict LOG differs.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
+    let opts = EvalOptions {
+        boolean_sweep: topo::SweepStrategy::Idealized,
+        ..EvalOptions::default()
+    };
+    evaluate::<T>(doc, prior, &CancelToken::new(), &opts)
 }
 
 fn block(

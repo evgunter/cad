@@ -19,8 +19,19 @@ use editor_core::{
 };
 use fixture::{ang, desc, insert, len, scl, step};
 
+/// Idealized (brute-force) boolean sweep since M5 PR 8: this file
+/// pins the DIFF/RESOLVE engine's semantics, whose evidence substrate
+/// is the verdict log — the idealized sweep keeps interaction-boundary
+/// scenarios (overlapping ↔ disjoint) verdict-rich on both sides.
+/// The realized sweep prunes the disjoint side's pair space empty
+/// (its job); that production-path degradation is pinned in
+/// `m4_pr4_banked` (both strategies) — see `fixture/pr4.rs`'s note.
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &EvalOptions::default())
+    let opts = EvalOptions {
+        boolean_sweep: topo::SweepStrategy::Idealized,
+        ..EvalOptions::default()
+    };
+    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts)
 }
 
 fn block(
