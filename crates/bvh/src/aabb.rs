@@ -125,7 +125,7 @@ impl Aabb {
     /// pad. Conservative-only: a negative or NaN `pad` yields the
     /// poison box (which never prunes) rather than ever shrinking.
     pub fn padded(&self, pad: f64) -> Self {
-        if !(pad >= 0.0) {
+        if pad.is_nan() || pad < 0.0 {
             return Self::poison();
         }
         Self {
