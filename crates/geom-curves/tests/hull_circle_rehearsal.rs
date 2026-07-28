@@ -224,12 +224,12 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
     // revision of this file at full precision).
     assert_eq!(
         worst_sphere.to_bits(),
-        2.797_762_022_055_397_32e-14f64.to_bits(),
+        0x3d1f_8000_0000_0009, // 2.7977620220553973e-14
         "sphere bound drifted from the PR 2 rehearsal: {worst_sphere:.17e}"
     );
     assert_eq!(
         worst_plane.to_bits(),
-        2.826_166_425_630_796_24e-15f64.to_bits(),
+        0x3ce9_74b2_334f_2349, // 2.8261664256307962e-15
         "plane bound drifted from the PR 2 rehearsal: {worst_plane:.17e}"
     );
 }

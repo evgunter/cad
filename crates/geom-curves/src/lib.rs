@@ -88,12 +88,14 @@
 //! below rely on exactly that.
 
 pub mod nurbs;
+pub mod projection;
 
 use std::sync::Arc;
 
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 pub use nurbs::{NurbsCurve2, NurbsCurve3};
+pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
 /// An analytic 3-D curve — a **complete locus** (see the crate docs for
 /// the conventions: units, periodicity, the `he_plus` forward contract,
