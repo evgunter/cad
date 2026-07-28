@@ -146,3 +146,20 @@ test-binaries + surface C0-kink attack). Evan re-logged-in; both
 resumed from transcript with surviving clones (standard ladder,
 cwd-reset guard in the resume messages). No work lost; both
 implementations were already pushed pre-outage.
+
+**S5 PATHS-DESIGN drafted + PR #124 OPENED (2026-07-28)** —
+design-conversation PR, WAITS for Evan (watchlisted). J-core
+recommendation (legs + per-junction resolver {Sharp, TangentDirect,
+TangentArc(r)}), forward-sugar table as requirement, elaboration
+semantics with typed failure vocabulary, PQ1-PQ3 forks with firm
+recommendations. S2 sequenced after it.
+
+**computable oracle DROPPED (Evan, in-session 2026-07-28)**: "we
+can drop the computable oracle — i doubt it adds anything over
+inari" — record check confirms zero computable-only catches
+(its lane was 4 functions / ~1.5k cases vs inari's 12 families /
+~4M; value was theoretical MPFR-common-mode independence only).
+Action: PR 1 fix pass DELETES the oracle-computable sibling crate
++ feature plumbing (simpler than the relocation PR 1 shipped).
+Caveat on record: if inari-as-dev-oracle is ever dropped too, a
+second independent oracle should be reconsidered.
