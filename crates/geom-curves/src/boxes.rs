@@ -110,7 +110,8 @@ fn angle_in_span(phi: f64, lo: f64, hi: f64) -> bool {
     }
     let k = ((lo - phi) / core::f64::consts::TAU).ceil();
     let rep = phi + core::f64::consts::TAU * k;
-    !(rep > hi) // NaN-inclusive
+    // NaN-inclusive: a poisoned representative cannot prove exclusion.
+    rep.is_nan() || rep <= hi
 }
 
 /// The certified-conservative box of a **circular arc**: the carrier's
