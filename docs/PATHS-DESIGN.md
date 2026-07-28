@@ -44,11 +44,15 @@ semantics change.
 The tip's typestate is exactly WHICH OF {position, angle} it has
 bound:
 
-- **`Point`** = {position}. Produced by `start(p)`, by legs
-  terminating at a bound position, and by `through(p)` on an
-  `Open`/`Angle` tip. Invariant, verbatim from the exchange:
-  **Point always needs its angle** — the only legal continuation
-  is angle-binding (a director, or sugar that computes one).
+- **`Point`** = {position}. Two FLAVORS, distinguished by the
+  types (Evan, round 6b: ".tangent() actually consumes directed
+  points, not regular ones"): a **plain point** (`start(p)`,
+  `through(p)` — position only, no incoming carrier) and a
+  **directed point** (a LEG END — position + the leg's incoming
+  end tangent, carried latently). Invariant, verbatim from the
+  exchange: **Point always needs its angle** — the only legal
+  continuation is angle-binding (a director, or sugar that
+  computes one).
 - **`Angle`** = {angle}. Direction bound, position pending —
   arises only on a fillet's arrival side when the angle is bound
   first. Symmetric invariant: Angle always needs its point.
@@ -68,19 +72,28 @@ bound:
   [corner, side-bindings] units. A bare Open opening (leading
   `.fillet`) stays refused — a corner needs a preceding carrier.
 
-**Directors are the only way angles enter**: `.tangent()`
-(inherit the incoming leg's end tangent — emits the DECLARED
-flag on lowering; legal only on a leg-end `Point`, refused on a
-fillet arrival side as circular — tangent to an arc that is not
-determined until the arrival binds: "fillets sit between defined
-geometry", enforced by the states) and `.angle(θ)` (explicit; a
-θ that happens to hit the incoming tangent direction is
-`UndeclaredTangency` — declaring is saying `.tangent()`, never
-guessing the angle; #101 verbatim). `.angle(θ)` adds the angle
-bit wherever it is missing: `Point → Directed`,
-`Open → Angle`. **`through(p)`** is the position-binder dual to
-it: `Open → Point`, `Angle → Directed` (the arrival anchor — a
-real on-path point on the side).
+**Directors are the only way angles enter**, and the two-flavor
+split makes their typing exact (round 6b — the former
+"refused-as-circular" special rule is now plain ill-typedness):
+- `.tangent()` consumes a **directed point** ONLY — it re-uses
+  the incoming end tangent as the departure and emits the
+  DECLARED flag on lowering. On a plain point there is no
+  direction to inherit: a fillet-arrival `.tangent()` is not
+  refused by a rule, it does not typecheck ("fillets sit between
+  defined geometry", now structural).
+- `.angle(θ)` adds the angle bit wherever it is missing
+  (`Point → Directed`, `Open → Angle`); on a **directed point**
+  it additionally runs the junction check of θ against the
+  incoming tangent — the Sharp check IS the incoming-vs-outgoing
+  comparison (definite-tangent ⇒ `UndeclaredTangency`, "declaring
+  is saying `.tangent()`, never guessing the angle", #101
+  verbatim; in-band ⇒ `AmbiguousAtEps` per §4). On a plain point
+  there is no incoming carrier and hence no check — an arrival
+  side meets its fillet arc tangentially by construction, and a
+  start point's junction check happens at the seam, at close.
+**`through(p)`** is the position-binder dual to `.angle`:
+`Open → Point` (plain), `Angle → Directed` (the arrival anchor —
+a real on-path point on the side).
 
 **Legs (core).** Direction-consuming only, from `Directed`:
 `line(len)`; `arc(…)` forms (the unique tangent arc to a target
@@ -170,7 +183,7 @@ collinear rules refuse it; PQ4 records the possible relaxation).
 | `start_angle(θ)` | → Angle | core (angle-first opening — close symmetry) |
 | `.angle(θ)` | Point → Directed; Open → Angle | core (adds the angle bit) |
 | `.through(p)` | Open → Point; Angle → Directed | core (adds the position bit; arrival anchors) |
-| `.tangent()` | leg-end Point → Directed (inherit + declared) | core; refused on fillet arrivals (circular) |
+| `.tangent()` | directed point → Directed (inherit + declared) | core; ill-typed on plain points (nothing to inherit) |
 | `line(len)` / `arc(…)` | Directed → Point | core legs |
 | `.fillet(r)` | Directed → Open | core (the only corner primitive) |
 | `fillet(r, dd)` | Directed → Point | sugar: `.fillet(r).through(dd)` |
@@ -234,14 +247,17 @@ anchor the fillet trim would consume refuses typed
 fit-gating generalized). Same check for `start`'s point under
 `close_fillet`.
 
-Refusals from the typing (all typed): double director; `fillet`
-on a `Point` end (no departure — the type-level face of "you
-cannot fillet an authored corner away"); `line(len)` from a
-`Point` end; a leg or `close()` from `AwaitingDirection` (the
-arrival side has no direction yet — point-sugar excepted, since
-it supplies one); `.tangent()` on `AwaitingDirection` (circular);
-`NoCornerForFillet`; `AnchorOutsideTrimmedExtent`;
-`UndeclaredTangency` on an exactly-tangent `.angle(θ)`;
+Refusals/ill-typedness (compile-time where the lattice decides,
+typed errors where geometry does): double director; `fillet` on
+any non-`Directed` tip (the type-level face of "you cannot
+fillet an authored corner away"); `line(len)` from a non-
+`Directed` tip; a leg or `close()` from a half-bound tip
+(point-sugar excepted — it supplies the missing bit);
+`.tangent()` on a plain point (nothing to inherit — the former
+circularity rule, now structural); leading `.fillet` (a corner
+needs a preceding carrier); `NoCornerForFillet`;
+`AnchorOutsideTrimmedExtent`; `UndeclaredTangency` on an
+exactly-tangent `.angle(θ)` at a directed point;
 `TangencyContradicted` from the verify layer as today.
 
 ## 4. The safety invariants, restated
