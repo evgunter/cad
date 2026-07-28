@@ -353,3 +353,15 @@ fitting under C6 + the compose module promoted from the rehearsal
 branch cc25cdb). S5 at ROUND 9 (Start token + NURBS legs + two
 tiers — Evan iterating live; rounds 7b/8/9 all his design calls
 folded same-session). #129 two-tolerance awaiting 👍.
+
+**Fourth limit outage — MONTHLY SPEND LIMIT (2026-07-28 ~09:30Z →
+~11:15Z)**: both implementer lanes (PR 4 mid-battery group C, PR 8
+mid-battery chunk C) killed by the account monthly spend cap (a
+different mechanism from the Fable usage limits — only Evan's
+settings or month rollover clears it). Both resumed from
+transcript ~11:15Z and accepted work, so the limit is evidently
+cleared; clones survived, no work lost (per-unit push discipline
+held). Also this outage window: two PR 4 waiter-parking incidents
+pre-outage (the endemic pattern; second nudge needed the explicit
+"no notification will ever come" wording — future implementer
+prompts get that sentence verbatim).
