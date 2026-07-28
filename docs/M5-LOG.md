@@ -258,3 +258,18 @@ clippy/fmt clean, crate 21/0 gmp-free in 1.97s clean build,
 certify 12/12 with the oracle feature. PR 1 opens after #125
 merges (both branches touch interval.rs — the PR 1 clone resolves
 the merge with its warm context).
+
+**PR 1 MERGED (2026-07-28): #127 → main `bfab91f` on 19/19 (the
+interval-backend row joins the matrix; floor is 19 from here).**
+THE KERNEL IS COPYLEFT-FREE IN EVERY BUILD CONFIGURATION — inari/
+gmp/rug gone from the tree; quarantine issue #4's exit condition
+is met by removal. The pre-merge main-merge was conflict-free
+(disjoint interval.rs regions); a seventh stale attribution
+caught at the merge (grep-by-enumeration lesson noted in the PR).
+A/B row 11 CLOSED: opus, M — 0/3/2, 1 silent omission, 5/4/4,
+moderate fix pass. Both implementer clones reclaimed (disk 123G).
+PR 3 clone also reclaimed. Next: DESIGN.md quarantine-text
+retirement rides the next state-sync; PR 2 (ring) in flight
+(opus, row 13); PR 4 spec (fitting stack) is next orchestrator
+work once PR 2 lands; S5 at round 6d, converged, awaiting Evan's
+#124 👍.
