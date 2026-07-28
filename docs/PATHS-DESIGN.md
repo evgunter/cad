@@ -306,6 +306,28 @@ backstops (expected unreachable from the typed surface; a
 reachable case found at implementation is a design finding to
 bring back here, not a silent fix).
 
+## 5b. Implementation note: one representation, four states
+(round 6d, Evan's suggestion — recorded so the lattice is known
+to be cheap to implement)
+
+Under the hood the tip is ONE struct holding literally the pair
+of options — `pos: Option<PosData>`, `ang: Option<f64>` — with
+the lattice enforced by type-level markers over it
+(`Tip<P, A>`; Open/Point/Angle/Directed are the four
+instantiations, the position marker carrying the plain-vs-
+directed flavor). Binders are written ONCE, generic over the
+slot they do not touch: `.angle(θ): Tip<P, NoAng> → Tip<P,
+HasAng>` for any P (Evan: "functions which just set the angle
+from second-place-is-None and don't care what the first place
+is"), `.at(p)` dually; `.tangent()` exists only at
+`Tip<HasPos<WithIncoming>, NoAng>`. Inside `.angle`, the
+junction check consults the position flavor's OPTIONAL incoming
+tangent at runtime (directed points compare, plain points have
+nothing to compare) — one generic function, not a per-state
+fork. Invariant for the implementation: fields private, binders
+the only constructors — the Option-pair makes off-lattice states
+representable at runtime but unreachable through the surface.
+
 ## 6. Open questions for Evan
 
 **PQ1 — Direction/tangency vocabulary extent for v1** (updated;
