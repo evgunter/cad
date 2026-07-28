@@ -273,3 +273,26 @@ retirement rides the next state-sync; PR 2 (ring) in flight
 (opus, row 13); PR 4 spec (fitting stack) is next orchestrator
 work once PR 2 lands; S5 at round 6d, converged, awaiting Evan's
 #124 👍.
+
+**Design threads (2026-07-28, in-session with Evan)**:
+- **S5/#124 converged at round 7** (six design rounds in ~one
+  day): the binding lattice (Open/Point/Angle/Directed = which of
+  {position, angle} the tip has bound; two point flavors — plain
+  vs directed — making .tangent()'s typing and the Sharp check
+  structural), .at/.angle as dual binders, argument-minimal
+  .fillet(r) with either-order arrival binding, Open as the entry
+  (close symmetry — no privileged first side), all point-targeting
+  constructors as sugar, §5b one-Option-pair implementation note.
+  PR description rewritten to the converged state. Awaiting 👍.
+- **The two-tolerance principle: #129 OPENED** (from Evan's #124
+  inline comment + "a more general principle we should adopt"):
+  D4 ¶1 addendum PROPOSED — eps_precision ("what we represent")
+  vs eps_input ("least precision the user might care about"),
+  v1-bound eps_input = K·ε, uniform user recourse below eps_input
+  (kernel semantics untouched), D7's ε_in becomes an instance.
+  Backed by a 10-pair fork-site audit (incl. two single-decide
+  adjacent-arm forks: bool_plane_offset, census gap_is_zero; the
+  census escalated arm also LOSES its recourse sentence via {:?}
+  — sweep fixes regardless); merge_coplanar_faces is the in-repo
+  unification precedent. Rework sweep = M5 side unit on
+  ratification. Watchlisted.
