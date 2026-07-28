@@ -1,6 +1,6 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5, design doc)
 
-Status: **DRAFT round 9, for Evan's sign-off** (design-conversation
+Status: **DRAFT round 10, for Evan's sign-off** (design-conversation
 PR; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104. The ratified doc is the
 deliverable). Rounds: 1 = forward-consuming vs junction-resolver
@@ -112,7 +112,22 @@ split makes their typing exact (round 6b — the former
 **`.at(p)`** is the position-binder dual to `.angle` (round 6c
 naming — it replaces both `start(p)` and the interim
 `through(p)`): `Open → Point` (plain), `Angle → Directed` (the
-anchor — a real on-path point on the side).
+anchor — a real on-path point on the side). **`.to(dp)`** (round
+10) is the combined binder consuming a directed-point VALUE:
+`Open → Directed` in one step — `Start` (always a full directed
+point, never position-only) is its canonical argument.
+
+**Write-once, and incoming vs outgoing are different KINDS
+(round 10, Evan's invariant made explicit)**: the OUTGOING angle
+is a binding slot — set at most once per side (every director
+requires the slot empty; a second `.angle`/`.tangent`/`.turn` on
+a Directed tip is ill-typed, the "double director" refusal). The
+INCOMING direction is never a slot at all: it is read-only
+intrinsic data carried by a leg end (the directed-point flavor),
+consultable by `.tangent()`/`.turn(δ)`/the junction check, and
+not settable by any author verb. Nothing can set "tangent and/or
+angle twice on the same thing" — the first sets the slot, the
+slot then does not exist to set.
 
 **Legs (core).** Direction-consuming only, from `Directed`:
 `line(len)`; `arc(…)` forms (the unique tangent arc to a target
@@ -138,11 +153,25 @@ not a sugar). Consequences, each falling out rather than ruled:
   Sharp check runs against the placed start tangent as at any
   junction. The leg's END is a directed point (intrinsic end
   tangent), so `.tangent()` chains onward.
+- **Inline authoring (round 10, Evan: control points can BE the
+  tangency)**: alongside rigid placement of pre-authored curves,
+  a NURBS leg may be authored IN PLACE with its junction
+  constraints absorbed into the control polygon: `P0` is implied
+  (the tip position, never written), `P1` is given as a DISTANCE
+  along the departure direction (its direction is the consumed
+  angle bit — for clamped w > 0 curves the start tangent is the
+  P0→P1 direction, so tangency/sharpness is by construction),
+  and `P2…Pn` are authored in the leg's local frame. The end
+  directed point falls out of the last two control points. Same
+  DOF accounting, zero placement step — the two forms
+  (rigid-place a curve value / author the polygon in place) are
+  both core-legal and lower identically.
 - NO scale, no deformation: the algebra places authored curves,
   never edits them (metric shape is data; scaled/stretched
   placement is authoring-time transformation of the curve, out of
-  scope). `nurbs_reversed(curve)` (parameterization flip) is the
-  one free structural variant.
+  scope). `nurbs_reversed(curve)` (parameterization flip) and
+  `nurbs_mirrored(curve)` (reflection across the departure line;
+  curvature signs flip) are the free structural variants.
 - **Fillet carriers stay line/arc in v1**: a corner fillet
   tangent to a NURBS carrier has no closed form (it is a small
   iterative solve — and this algebra is deliberately solver-free,
@@ -274,14 +303,17 @@ relaxation).
 | `line(len)` / `arc(…)` / `nurbs(curve)` | Directed → Point | legs (nurbs = rigid placement, direction-matching whichever director bound the tip) |
 | `.fillet(r)` | Directed → Open | the only corner primitive |
 | `p1.then(p2)` | seam from the two tips' states | associative concatenation |
-| `Start` | directed-point VALUE (the bound entry) | targeting it closes, structurally |
+| `Start` | directed-point VALUE (the bound entry — ALWAYS both bits, never position-only) | targeting it closes, structurally |
+| `.to(dp)` | Open → Directed | combined binder consuming a directed-point VALUE (round 10: `fillet(r).to(Start)` is the seam fillet's honest unsugaring — not `.at(Start).angle(Start)`) |
 | **TIER 1 — SUGAR** (each row = one call, expands to core, may only append/insert one leg and/or set bindings) | | |
 | `fillet(r, dd)` | Directed → Point | `.fillet(r).at(dd)` |
 | `line_to(p)` | Point → Point (also from a fillet-arrival Point) | `.angle(toward p).line(dist)` |
 | `arc_to(p, bulge)` | Point → Point | direction from chord + bulge |
-| `arc_to(p)` | Directed → Point | the unique tangent arc |
+| `tangent_arc_to(p)` | Directed → Point | the unique tangent arc (round 10 rename: `arc_to` no longer means two things with different args) |
 | `nurbs_reversed(curve)` | Directed → Point | `nurbs(reverse(curve))` — parameterization flip, structural |
-| `close()` | ≡ `line_to(Start)` | the only survivor of the close family |
+| `nurbs_mirrored(curve)` | Directed → Point | reflection across the departure line (structural; curvature signs flip — a left-turning curve places right-turning) |
+| `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)` (round 10, Evan): relative director; `turn(0)` refuses → use `.tangent()`; `turn(π)` hits the reverse class (PQ5) |
+| *(no `close()` — dropped, round 10: a close alias would suggest it is THE way to close; Start-targeting through ordinary verbs is the mechanism)* | | |
 
 All-rounded square, fully determined (4 anchors + 4 directions,
 sides read as anchor+direction pairs; every mᵢ a real on-path
@@ -293,7 +325,7 @@ Open.at(m1).angle(east)
     .fillet(r, m2).angle(north)        // ≡ .fillet(r).at(m2).angle(north)
     .fillet(r, m3).angle(west)
     .fillet(r, m4).angle(south)
-    .fillet(r, Start)                  // the seam fillet — both carriers bound; closed
+    .fillet(r, Start)                  // ≡ .fillet(r).to(Start) — the seam fillet; closed
 ```
 
 with the opening reading exactly like every fillet arrival
@@ -328,6 +360,34 @@ anchor the fillet trim would consume refuses typed
 (`AnchorOutsideTrimmedExtent`; #101's `TangentJointOutOfRange`
 fit-gating generalized). Same check for the entry point under a
 seam fillet (`fillet(r, Start)`).
+
+**The reverse class (round 10, Evan's π-off question — PQ5).**
+The junction classifier gains a third direction class: an
+outgoing direction within the band of incoming + π is
+**reverse-tangent** (a cusp: `1 − sqrt(|x|)`'s peak; two kissing
+circles with their top halves cut). Like tangency it is refused
+when it arrives by VALUE (`.angle(θ)`/`.turn(δ)` landing at ≈ π
+off) — but unlike tangency, v1 offers NO declaration door that
+lowers: the kernel's ratified material-wedge invariant (tier 3:
+wedge ∈ (0, 2π), bounded away from the ends) refuses cusp wedges
+in any solid built from such a profile, so a declared-cusp
+authoring form would mint profiles whose every downstream use
+fails loudly. The refusal names both facts ("reverse-tangent
+junction: if intended, this needs the declared-cusp door, which
+does not exist yet — and solids from cusped profiles are refused
+by the wedge invariant regardless"). Whether declared cusps
+should become legal (profile-layer form + a kernel wedge-
+invariant conversation) is PQ5 — a genuine fork, Evan's call,
+out of this doc's power to decide.
+
+**Runtime checks are not only sharpness (round 10, explicit)**:
+the compile-time lattice cannot see geometry — sharpness/tangency
+classification, fillet FIT (`NoCornerForFillet` when r is too
+big for the corner or the carriers do not intersect;
+`AnchorOutsideTrimmedExtent` when a trim eats an anchor), and
+the anchor checks are all TYPED RUNTIME errors at elaboration,
+exactly like #101's fit gating today. The lattice guarantees
+well-formedness of the AUTHORING, never of the geometry.
 
 Refusals/ill-typedness (compile-time where the lattice decides,
 typed errors where geometry does): double director; `fillet` on
@@ -448,31 +508,42 @@ representable at runtime but unreachable through the surface.
 
 ## 6. Open questions for Evan
 
-**PQ1 — Direction/tangency vocabulary extent for v1** (updated;
-the earlier TangentArc question dissolved into the fillet call):
-- `TangentAt(p)`: tangency with a user-pinned contact point —
-  consumes leg DOFs to force contact at `p` (arc tangent to a
-  line AT a marked point ⇒ center on the normal at p). How an
-  author pins a tangency to a datum; cost: a second closed form
-  per leg-pair family + a new overdetermination refusal class.
+**PQ1 — Direction/tangency vocabulary extent for v1** (round 10:
+`TangentAt` is SUPERSEDED by the core — a tangent junction's
+contact point IS a bound leg-end position, and interior-contact
+pinning is expressible by splitting the leg at the pin
+(`…line_to(p).tangent()…`); it is deleted below, leaving only
+Smooth):
 - `Smooth` (G2): direction AND signed curvature agree. Nearly
   vacuous for line/arc legs (line–line G2 = collinear ⇒
   same-carrier; arc–arc G2 = same carrier; line–arc G2 = infinite
   radius); real only once spline legs exist, and D2 keeps G2
   joins in the conventional-`MappedCurve` regime deliberately.
-Recommendation: ship §3's vocabulary; `TangentAt` is the
-plausible v1.1; `Smooth` waits for spline legs on D2's grounds.
+Recommendation: ship §3's vocabulary; `Smooth` waits for spline
+legs on D2's grounds.
 
-**PQ2 — Mixed authoring** (shape from round 3, restated): raw
-vertex+bulge chains embed as sub-paths via an explicit
-`lift(chain)` — interior junctions keep today's #101 semantics;
-boundary seams are end-state-typed like any `then`. Ad-hoc
-per-segment interleaving inside one sub-path stays refused.
-Recommendation: as stated.
+**PQ2 — Mixed authoring: DECIDED AGAINST (Evan, round 10, on
+associativity/representation-uniqueness grounds)** — no
+`lift(chain)`, no mixing: a profile loop is authored EITHER in
+the algebra OR as a raw vertex+bulge chain (today's format),
+never both in one loop. A lifted chain would be a second spelling
+of content the algebra can express, exactly the redundancy the
+associativity principle exists to kill. Both authoring routes
+lower to the same persisted form; the verify layer treats them
+identically.
 
 **PQ3 — (dissolved in round 4)** — the elaboration-order cut
 went with the anchoring discipline (§5); recorded so the round-3
 trail stays legible.
+
+**PQ5 — Declared cusps (reverse-tangent junctions).** Should a
+declared-cusp door exist (a `.reverse_tangent()`-style director
++ profile form), given the kernel's ratified material-wedge
+invariant refuses cusp wedges at tier 3? Allowing it is a KERNEL
+design conversation (the wedge invariant is D1-tier ratified
+text), not an authoring-layer patch; v1 refuses with both facts
+named (§3). Evan's examples on record: `1 − sqrt(|x|)`; kissing
+circles, top halves cut.
 
 **PQ4 — Mid-carrier seams.** The v1 rule (seam at a junction or
 fillet only) forbids closing a loop mid-side. The M2
