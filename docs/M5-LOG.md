@@ -237,3 +237,24 @@ mid-carrier seam trips same-carrier rules) as the remaining
 sub-fork. Awaiting Evan's nod to fold as round 4 (supersedes the
 pending-resolver surface story; the pending resolver survives
 underneath).
+
+**PR 1 fix pass COMPLETE (2026-07-28, 12 commits pushed)**: all
+items landed — powi comment honesty (names the real tripwires),
+7 stale attributions retargeted (found one more than the review's
+6), computable oracle DELETED per Evan (the implementer also
+produced the missing repro: the disabled-optional-path-dep failure
+is real on `cargo build`, not metadata/check — moot now), the
+gmp-free crate tripwire row (inari → optional dep behind
+oracle-inari; edges.rs split in-place; hosted jobs 12→13; NO
+in-repo watcher-floor constant exists — floor 19 lives in
+orchestrator watcher invocations from here), NOTE-2 narrowed,
+reviewer suites adopted verbatim (fuzz at 1/35 default scale with
+floors scaling, full sweep #[ignore]). NEW FINDING from the
+adopted harness: Dual::powi(0) launders derivative-channel poison
+— M0-era, backend-independent, topology-safe (Decide reads value
+only); pinned as-behaves; FILED #126 (Dual contract decision,
+non-blocking). Battery: 1343/0 default, 1503/0 interval ×3ε,
+clippy/fmt clean, crate 21/0 gmp-free in 1.97s clean build,
+certify 12/12 with the oracle feature. PR 1 opens after #125
+merges (both branches touch interval.rs — the PR 1 clone resolves
+the merge with its warm context).
