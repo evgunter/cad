@@ -245,10 +245,11 @@ fn deriv_coeff<E: Enclosure>(kv: &KnotVector, coeffs: &[E], i: usize) -> RingInt
 
 /// Enclosures of **every** derivative coefficient of a nonrational
 /// scalar B-spline: `control_count() − 1` values, index `i` giving
-/// `Q_i`. Poison per entry on a bad knot difference; the whole vector is
-/// empty (not poison) only when the coefficient count is wrong — that
-/// case returns a single poison entry so a caller cannot read "no
-/// coefficients" as "nothing to bound".
+/// `Q_i`. A bad knot difference or a poisoned coefficient poisons that
+/// entry. A coefficient-count mismatch returns a **one-element poison
+/// vector** rather than an empty one, so a caller cannot read "no
+/// coefficients" as "nothing to bound" — the returned length is never
+/// zero, and hulling it yields poison.
 ///
 /// See the module docs for why the rational case is not here.
 pub fn derivative_coeffs<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> Vec<RingInterval> {

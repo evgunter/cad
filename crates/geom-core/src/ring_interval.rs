@@ -8,9 +8,10 @@
 //! The kernel now carries two interval-shaped types, and confusing them
 //! would be a design error:
 //!
-//! - [`crate::interval::Interval`] (behind the `interval` cargo feature)
-//!   is a **[`Real`](crate::Real) instantiation** — an evaluation
-//!   scalar. Geometry recipes are written generically over `Real` and
+//! - `geom_core::interval::Interval` (behind the `interval` cargo
+//!   feature — deliberately unlinked: the module does not exist in a
+//!   default build, and a broken intra-doc link would) is a
+//!   **[`Real`](crate::Real) instantiation** — an evaluation scalar. Geometry recipes are written generically over `Real` and
 //!   *replayed* at that type; it carries transcendentals, decorations,
 //!   and a [`Decide`](crate::Decide) impl.
 //! - [`RingInterval`] (this module, **always compiled**, no feature
@@ -19,7 +20,7 @@
 //!   does not implement `Real`: no transcendentals, no `Decide`, no
 //!   evaluation-generic code may name it. Certification code bounds
 //!   quantities with it and reads the bracket through
-//!   [`Enclosure`](crate::real::Enclosure).
+//!   [`Enclosure`].
 //!
 //! Because it is certification substrate rather than evaluation code,
 //! **raw `f64` comparisons inside this module are correct and
@@ -250,9 +251,9 @@ fn finish(lo: f64, hi: f64) -> RingInterval {
 /// NaN corner is an indeterminate form and must reach [`finish`]).
 fn corner_min_max(c: [f64; 4]) -> (f64, f64) {
     let (mut lo, mut hi) = (c[0], c[0]);
-    // Fixed ascending order (D9); NaN in any slot survives to the
-    // result because the comparisons below are false for NaN and the
-    // explicit test re-injects it.
+    // Fixed ascending order (D9). A NaN corner short-circuits: `<` and
+    // `>` are both false for NaN, so it would otherwise be silently
+    // dropped from the min/max instead of poisoning the result.
     for v in c {
         if v.is_nan() {
             return (f64::NAN, f64::NAN);
@@ -300,7 +301,7 @@ impl RingInterval {
     /// `n == 0` is `[1, 1]` for every non-poisoned argument and poison
     /// for poison (the `Real::powi` poison-guard convention: `NaN⁰` is
     /// not 1). Negative `n` is the reciprocal of the positive power, so
-    /// a zero-straddling base yields poison through [`Div`].
+    /// a zero-straddling base yields poison through [`core::ops::Div`].
     ///
     /// The squaring step is [`sqr`](Self::sqr), so **every even power
     /// of a zero-straddling enclosure keeps the exact lower bound 0**:
@@ -380,8 +381,8 @@ impl core::ops::Sub for RingInterval {
 /// floating-point rounding, only about the reals — the product of two
 /// nonnegative quantities is nonnegative, so an outward step that
 /// pushed the lower bound to `-5e-324` may be pulled back to `0`
-/// without losing containment. Both clauses fire when either factor is
-/// `[0, 0]`, giving the exact `[0, 0]` the memory-file lesson wants.
+/// without losing containment. (The `[0, 0]` factor itself never reaches
+/// here — `Mul`/`Div` answer it with the zero annihilator first.)
 fn sign_clamp(a: RingInterval, b: RingInterval, lo: f64, hi: f64) -> (f64, f64) {
     let (mut lo, mut hi) = (lo, hi);
     let nonneg = (a.lo() >= 0.0 && b.lo() >= 0.0) || (a.hi() <= 0.0 && b.hi() <= 0.0);

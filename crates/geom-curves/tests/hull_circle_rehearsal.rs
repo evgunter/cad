@@ -247,7 +247,10 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
     let (mut max_sampled_sphere, mut max_sampled_plane) = (0.0f64, 0.0f64);
     for arc in 0..4 {
         let b = arc_bound(&curve, arc);
-        assert!(b.sphere.is_finite() && b.plane.is_finite(), "poisoned bound");
+        assert!(
+            b.sphere.is_finite() && b.plane.is_finite(),
+            "poisoned bound"
+        );
         worst_sphere = worst_sphere.max(b.sphere);
         worst_plane = worst_plane.max(b.plane);
         // Soundness by falsification: dense sampling inside the arc.
