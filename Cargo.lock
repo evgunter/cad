@@ -341,6 +341,7 @@ dependencies = [
 name = "geom-curves"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom-core",
  "proptest",
 ]
@@ -349,6 +350,7 @@ dependencies = [
 name = "geom-surfaces"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom-core",
  "geom-curves",
  "proptest",
