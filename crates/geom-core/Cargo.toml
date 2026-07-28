@@ -23,6 +23,15 @@ interval-transcendentals = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# DEV-ONLY differential oracle for the M5 PR 2 interval ring (M5-PR2-SPEC
+# family 2). Since M5 PR 1 this crate is ALSO the `interval` feature's
+# backend (the optional dependency above) — the dev-entry is what makes it
+# available on the DEFAULT, featureless build path, where the ring lives
+# and where its differential lane must run. It is libm-only, so it drags
+# nothing new into geom-core's graph; its own inari/gmp certification
+# oracle is a dev-dependency of *that* crate and is never resolved from
+# here. The kernel's runtime dependency set is unchanged: `libm`.
+interval-transcendentals = { workspace = true }
 # Derivative oracle for Dual<f64> tests only — never a runtime dependency
 # (see the deviation note in src/dual.rs module docs).
 num-dual = { workspace = true }

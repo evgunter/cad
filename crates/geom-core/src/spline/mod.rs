@@ -32,6 +32,7 @@
 
 pub mod algebra;
 pub mod basis;
+pub mod hull;
 pub mod knots;
 pub mod locate;
 
