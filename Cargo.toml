@@ -67,7 +67,9 @@ slotmap = "1.1.1"
 # MIT/Apache and C-free like every other build configuration, and the
 # dependency-age policy is moot for an in-repo crate. inari survives only as
 # a DEV-dependency of that crate (its differential oracle); dev-dependencies
-# of a path dependency never enter the dependent's graph.
+# of a path dependency never enter the dependent's graph. M5 PR 2 also takes
+# it as a geom-core DEV-dependency — the differential oracle for the C9
+# interval ring on the DEFAULT (featureless) build path.
 interval-transcendentals = { path = "interval-transcendentals" }
 # DEV-ONLY derivative oracle for Dual<f64> tests (M0 PR 5). The crate table
 # originally slated num-dual as the Dual<f64> implementation; it was demoted
