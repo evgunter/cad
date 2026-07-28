@@ -163,3 +163,43 @@ Action: PR 1 fix pass DELETES the oracle-computable sibling crate
 + feature plumbing (simpler than the relocation PR 1 shipped).
 Caveat on record: if inari-as-dev-oracle is ever dropped too, a
 second independent oracle should be reconsidered.
+
+**BOTH reviews returned (2026-07-28): APPROVE-WITH-FIX-PASS ×2,
+zero MAJORs, both fix passes DISPATCHED.**
+- **PR 1 (opus row 11): 0 MAJ / 3 MIN / 2 NOTE, 1 silent omission
+  (stale-claims sweep left 6 live-rustdoc inari mentions).**
+  Review highlights: div witness attacked with a 17.5M-case
+  exact-rational fuzz (zero unsound firings, zero containment
+  violations; subnormal floor correctly refuses); outcome SETS
+  compared main-vs-branch — identical except designed changes;
+  MUTATION experiment proved the inverted powi test is NOT a pad
+  tripwire (the certify lane is; it becomes a gmp-free kernel CI
+  row per fix pass); deviation-2's cargo-necessity claim did NOT
+  reproduce (harmless move, wrong rationale — mooted by the
+  computable deletion); with_dec_capped laundering impossible
+  (min-only); e2e rotated-cutter interval boolean green. Rubric:
+  idiom 5 / tests 4 / docs 4. Fix pass: 3 MINs + NOTE-1 CI row
+  (watcher floor 18→19) + computable deletion + adopt 3 reviewer
+  suites.
+- **PR 3 (fable row 12): 0 MAJ / 2 MIN / 5 NOTE, 0 silent.**
+  Review highlights: empty-span skip HOLDS under degenerate
+  [u,u]/straddle boxes at multiplicity-p kinks (wording loose —
+  right mechanism: find_span always selects the nonempty span);
+  Dual kink conventions consistent (both-tangent enclosure under
+  straddle verified — independent-channel hull vindicated);
+  deriv/deriv2 + full surface jet FD-verified independently (the
+  implementer's circle oracle shared the quotient-rule shape —
+  the reviewer's FD is the independent check); removal bound
+  sound under adversarial weights/multi-pass, WeightCollapse
+  honest; SpanLocate sealing compile-fail-probed +
+  unimplementability premise verified by attempt; interval count
+  re-derived EXACTLY (1550 − 21 reviewer tests = 1529). Rubric:
+  idiom 5 / tests 4 / docs 3. Fix pass: 2 doc MINs + wording
+  NOTEs + adopt 21 reviewer tests across 5 suites.
+- S5 meanwhile: Evan caught his own fillet(continuation) example
+  ("shouldn't land on c→d"); orchestrator laid out the 4 semantic
+  options (overdetermined single arc / land-on-carrier /
+  coincident-corner fillet / extend-to-intersect) and recommended
+  v1 = coincident-nominal-corner fillet(r), uniform across
+  in-chain, seams, close; gap forms refuse typed naming
+  BiarcJoin/extension as future doors. Awaiting his pick.
