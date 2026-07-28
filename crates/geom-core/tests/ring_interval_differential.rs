@@ -17,9 +17,13 @@
 //!   It carries decorations and division exactness witnesses — precisely
 //!   the tightness craft the ring declines to duplicate — which makes it
 //!   the right upper reference for "how much conservatism did we buy?".
-//! - `geom_core::Interval`, the `interval`-feature evaluation scalar
-//!   (inari-backed at this revision), behind `#[cfg(feature =
-//!   "interval")]`.
+//! - `geom_core::Interval`, the `interval`-feature evaluation scalar,
+//!   behind `#[cfg(feature = "interval")]`. Since M5 PR 1 its backend is
+//!   `interval-transcendentals` too — so this lane and the one above now
+//!   share an arithmetic core, and it is the *scalar wrapper* (poison
+//!   convention, `Real` lifting, `powi` routing) that is differentially
+//!   compared, not a second independent library. The independent check on
+//!   the arithmetic itself is the exact-comparator fuzz.
 //!
 //! # What is asserted, and the asymmetry that is not
 //!
@@ -161,6 +165,12 @@ impl Tally {
         // ring's algebraic rules can only ever pull an endpoint to
         // *exactly* zero. Any other tightening would be a soundness
         // claim the ring has not earned, and fails here.
+        //
+        // The `== 0.0` clause is a TOLERANCE, not a soundness argument:
+        // it permits exactly the sign clamp's and zero annihilator's
+        // legitimate zero and nothing else. Soundness of that zero is
+        // carried by `ring_interval_fuzz.rs`, which compares against
+        // exact arithmetic and would catch a wrong zero here.
         assert!(
             !dominates || r.lo() <= olo || r.lo() == 0.0,
             "{what}: ring lo {:e} is above oracle lo {olo:e} without the zero rule",

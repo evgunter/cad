@@ -132,13 +132,21 @@ impl RingInterval {
     }
 
     /// The enclosure with the given endpoints. NaN endpoints or an
-    /// inverted bracket (`lo > hi`) are poison; infinite *endpoints*
-    /// are accepted (an honest unbounded side beats a lie).
+    /// inverted bracket (`lo > hi`) are poison; an infinite *endpoint*
+    /// is accepted on the open side (an honest unbounded side beats a
+    /// lie).
+    ///
+    /// `lo = +inf` or `hi = -inf` is **also poison**: `[+inf, +inf]`,
+    /// `[-inf, -inf]`, or any bracket whose closed side sits at infinity
+    /// contains no real number at all, so it cannot be an enclosure of
+    /// one. Admitting it would let arithmetic proceed on a value that
+    /// stands for nothing — and `[+inf, +inf]` would even pass `Div`'s
+    /// away-from-zero test.
     // `!(lo <= hi)` is deliberate NaN-catching: `lo > hi` would let NaN
     // through (same idiom as spline weight validation).
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     pub fn from_bounds(lo: f64, hi: f64) -> Self {
-        if !(lo <= hi) {
+        if !(lo <= hi) || lo == f64::INFINITY || hi == f64::NEG_INFINITY {
             return Self::poison();
         }
         Self { lo, hi }
@@ -477,6 +485,12 @@ mod tests {
         assert!(ri(f64::NAN, 1.0).is_poison());
         assert!(ri(0.0, f64::NAN).is_poison());
         assert!(!ri(f64::MAX, f64::INFINITY).is_poison());
+        assert!(!ri(f64::NEG_INFINITY, f64::MIN).is_poison());
+        // Brackets that contain no real number at all.
+        assert!(ri(f64::INFINITY, f64::INFINITY).is_poison());
+        assert!(ri(f64::NEG_INFINITY, f64::NEG_INFINITY).is_poison());
+        assert!(ri(f64::INFINITY, f64::NEG_INFINITY).is_poison());
+        assert!(ri(f64::NEG_INFINITY, f64::INFINITY).width().is_infinite());
         assert!(RingInterval::point(0.0).contains(0.0));
         assert!(!RingInterval::poison().contains(0.0));
         assert!(!RingInterval::point(0.0).contains(f64::NAN));

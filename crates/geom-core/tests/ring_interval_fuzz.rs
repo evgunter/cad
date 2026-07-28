@@ -514,7 +514,8 @@ fn ring_ops_are_sound_against_exact_arithmetic() {
     fuzz(REDUCED_DIVISOR, "reduced");
 }
 
-/// The full sweep the reduced default is a subset of (~26M cases).
+/// The full sweep the reduced default is a subset of (~9.7M cases,
+/// measured — ~78M exact endpoint comparisons).
 #[test]
 #[ignore = "full sweep: run explicitly with --ignored"]
 fn ring_ops_are_sound_against_exact_arithmetic_full() {
