@@ -1,295 +1,323 @@
-//! **Exact-rational fuzz of the division exactness witness** (adopted
-//! from the M5 PR 1 adversarial review's scratch harness).
+//! **Exact-rational fuzz of the division exactness witness.** Adopted
+//! verbatim (bar the case counts) from the M5 PR 1 adversarial review's
+//! scratch harness — an independent derivation, which is exactly its
+//! regression value: it shares no code with the implementation it checks.
 //!
-//! The witness added in M5 PR 1 claims: when `fma(q, b, -a) == 0` above
-//! the 2Prod validity floor, `q = RN(a/b)` is the *exact* quotient, so
-//! `div_lo`/`div_hi` may return it with no outward pad. If that claim is
-//! ever wrong, the interval silently stops containing the truth — the
-//! one failure mode an interval library may not have.
+//! F1: whenever division returns a DEGENERATE point [q, q] (the exactness
+//! witness fired on both endpoints), q*b must equal a in exact rational
+//! arithmetic. F2: the true quotient a/b always lies in [lo, hi], checked
+//! by exact integer comparison (never by f64 re-evaluation).
 //!
-//! This file checks it **without any oracle library**, which is the
-//! point: it is the pad tripwire that can run in the kernel's own CI
-//! with no C toolchain (README "Certification"). The comparator is exact
-//! rational arithmetic on `u128`. Every finite nonzero `f64` is
-//! `±m·2^e` with `m < 2^53`; for `a = ±ma·2^ea` and `b = ±mb·2^eb`,
-//!
-//! ```text
-//!   a/b == q   ⟺   ma·2^ea·mq·... — i.e. ma·2^(ea-eb) == mq·mb·2^(eq-eb)
-//! ```
-//!
-//! which is decided by comparing `ma << s1` against `mq·mb << s2` for
-//! non-negative shifts `s1`, `s2` chosen to clear the exponent
-//! difference. `mq·mb < 2^106` fits `u128`, and the shifts are rejected
-//! when they would overflow, so the comparator never lies — it either
-//! decides exactly or declines the case.
-//!
-//! Four lanes, each seeded (`xorshift64*`) and therefore bit-reproducible:
-//! random binades, exact-quotient-biased pairs, power-of-two divisors,
-//! and subnormal/extreme magnitudes. The default run is a reduced subset;
-//! the full 17.5M-case sweep the review ran is behind `#[ignore]`:
+//! Why it earns a place in CI: it needs **no oracle library**, so it runs
+//! in the kernel's own pipeline with no C toolchain (README
+//! "Certification", ci.yml's `interval-backend` job). The default run is
+//! a reduced seeded subset of ~500k cases across all four lanes; the full
+//! 17.5M-case sweep the review ran is behind `#[ignore]`:
 //!
 //! ```text
 //! cargo test --test review_fuzz_div -- --ignored --nocapture
 //! ```
 //!
-//! Two properties per case, both absolute:
-//! 1. **No unsound firing** — if the implementation returns an unpadded
-//!    endpoint, the exact comparator must agree the quotient is exact.
-//! 2. **Containment** — `[div_lo, div_hi]` must bracket the true `a/b`,
-//!    decided exactly (not by comparing to another f64 division).
+//! Both modes are bit-reproducible: one seed, `xorshift64*`, no threads.
 
-/// Cases per lane in the default run (~500k total across four lanes).
-const DEFAULT_PER_LANE: u64 = 125_000;
-/// Cases per lane in the `--ignored` full sweep (17.5M total).
-const FULL_PER_LANE: u64 = 4_375_000;
+use interval_transcendentals::DInterval;
 
-/// `xorshift64*` — seeded, tiny, dependency-free, bit-reproducible.
-struct Rng(u64);
-
-impl Rng {
-    fn next_u64(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    }
-}
-
-/// A finite nonzero `f64` decomposed as `sign · mantissa · 2^exponent`
-/// with an *integer* mantissa (subnormals included).
-struct Parts {
-    neg: bool,
-    mant: u128,
-    exp: i32,
-}
-
-fn decompose(x: f64) -> Option<Parts> {
-    if !x.is_finite() || x == 0.0 {
-        return None;
-    }
+/// Decompose a finite nonzero f64 into (negative, odd_mantissa u128, exp)
+/// with value = sign * m * 2^e and m odd (trailing zeros stripped).
+fn decomp(x: f64) -> (bool, u128, i32) {
+    assert!(x.is_finite() && x != 0.0);
     let bits = x.to_bits();
     let neg = bits >> 63 == 1;
     let biased = ((bits >> 52) & 0x7ff) as i32;
-    let frac = u128::from(bits & 0x000f_ffff_ffff_ffff);
-    // Normal: (2^52 + frac)·2^(biased-1075). Subnormal: frac·2^-1074.
-    let (mant, exp) = if biased == 0 {
-        (frac, -1074)
+    let frac = bits & 0xf_ffff_ffff_ffff;
+    let (mut m, mut e) = if biased == 0 {
+        (frac as u128, -1074)
     } else {
-        (frac + (1u128 << 52), biased - 1075)
+        ((frac | (1 << 52)) as u128, biased - 1075)
     };
-    Some(Parts { neg, mant, exp })
+    let tz = m.trailing_zeros() as i32;
+    m >>= tz;
+    e += tz;
+    (neg, m, e)
 }
 
-/// Exact three-way comparison of the real numbers `a/b` and `q`, or
-/// `None` when the comparator declines (overflow risk — never a lie).
-///
-/// `a/b` vs `q` has the sign structure of `a` vs `q·b`; with all three
-/// decomposed as integer-mantissa × power of two, that is
-/// `ma·2^ea` vs `mq·mb·2^(eq+eb)`, i.e. a comparison of two integers
-/// after shifting both up by the same amount to clear the exponents.
-fn cmp_quotient(a: f64, b: f64, q: f64) -> Option<core::cmp::Ordering> {
-    use core::cmp::Ordering;
-    let (pa, pb, pq) = (decompose(a)?, decompose(b)?, decompose(q)?);
-    // Sign first: a/b and q agree in sign iff (neg_a ^ neg_b) == neg_q.
-    let quotient_neg = pa.neg ^ pb.neg;
-    if quotient_neg != pq.neg {
-        // Different signs and both nonzero: ordering follows the sign.
-        return Some(if quotient_neg {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        });
-    }
-    // Magnitudes: |a|·2^ea  vs  |q|·|b|·2^(eq+eb).
-    let lhs_m = pa.mant;
-    let rhs_m = pq.mant.checked_mul(pb.mant)?; // < 2^106, always fits
-    let (lhs_e, rhs_e) = (pa.exp, pq.exp + pb.exp);
-    // Shift the smaller exponent up so both sides share exponent
-    // min(lhs_e, rhs_e); decline if a shift would overflow u128.
-    let base = lhs_e.min(rhs_e);
-    let (ls, rs) = ((lhs_e - base) as u32, (rhs_e - base) as u32);
-    let lhs = shift_checked(lhs_m, ls)?;
-    let rhs = shift_checked(rhs_m, rs)?;
-    let ord = lhs.cmp(&rhs);
-    // Negative magnitudes reverse the ordering of the real values.
-    Some(if quotient_neg { ord.reverse() } else { ord })
+fn bitlen(m: u128) -> i32 {
+    128 - m.leading_zeros() as i32
 }
 
-fn shift_checked(m: u128, s: u32) -> Option<u128> {
-    if s >= 128 {
-        return None;
+/// Compare |m1*2^e1| vs |m2*2^e2| for odd m (exact). Returns Ordering.
+fn cmp_mag(m1: u128, e1: i32, m2: u128, e2: i32) -> std::cmp::Ordering {
+    let p1 = bitlen(m1) + e1; // msb position + 1
+    let p2 = bitlen(m2) + e2;
+    if p1 != p2 {
+        return p1.cmp(&p2);
     }
-    let shifted = m.checked_shl(s)?;
-    // Reject a shift that dropped bits off the top.
-    if (shifted >> s) != m {
-        None
+    // Same msb position: align to common exponent. d = e1 - e2 = l2 - l1,
+    // so the shifted mantissa's bitlen is max(l1, l2) <= 107 — fits u128.
+    let d = e1 - e2;
+    if d >= 0 {
+        (m1 << d).cmp(&m2)
     } else {
-        Some(shifted)
+        m1.cmp(&(m2 << (-d)))
     }
 }
 
-/// The implementation under test, re-derived here from the public
-/// surface: `[a,a] / [b,b]` is exactly `[div_lo(a,b), div_hi(a,b)]` for
-/// one-signed nonzero `b`, so a point/point division exposes the
-/// rounding layer without making its internals public.
-fn div_endpoints(a: f64, b: f64) -> (f64, f64) {
-    use interval_transcendentals::DInterval;
+/// Exact signed compare of x (an f64) vs the rational p = pm*2^pe with
+/// sign pneg (p nonzero). Returns Ordering of x relative to p.
+///
+/// Kept from the review harness verbatim although `check_case`'s
+/// specialized closure supersedes it: it is the general-purpose form of
+/// the same comparison, and the next property test that needs one should
+/// reuse it rather than re-derive the bit twiddling.
+#[allow(dead_code)]
+fn cmp_f64_vs_rat(x: f64, pneg: bool, pm: u128, pe: i32) -> std::cmp::Ordering {
+    use std::cmp::Ordering::*;
+    if x == f64::INFINITY {
+        return Greater;
+    }
+    if x == f64::NEG_INFINITY {
+        return Less;
+    }
+    if x == 0.0 {
+        return if pneg { Greater } else { Less };
+    }
+    let (xneg, xm, xe) = decomp(x);
+    match (xneg, pneg) {
+        (false, true) => Greater,
+        (true, false) => Less,
+        (false, false) => cmp_mag(xm, xe, pm, pe),
+        (true, true) => cmp_mag(xm, xe, pm, pe).reverse(),
+    }
+}
+
+/// The oracle: check [lo, hi] = point(a)/point(b) against the EXACT
+/// rational a/b. Containment: lo <= a/b <= hi as rationals, i.e.
+/// lo*b <=> a with sign handling. Exactness (degenerate result): a == q*b.
+fn check_case(a: f64, b: f64) {
     let r = DInterval::point(a) / DInterval::point(b);
-    (r.lo(), r.hi())
-}
-
-/// One case: check no-unsound-firing and containment, exactly.
-/// Returns `true` when the comparator was able to decide.
-fn check(a: f64, b: f64) -> bool {
-    if !a.is_finite() || !b.is_finite() || a == 0.0 || b == 0.0 {
-        return false;
+    assert!(!r.is_nai() && !r.is_empty(), "a={a:e} b={b:e}: poisoned?");
+    let (lo, hi) = (r.lo(), r.hi());
+    assert!(lo <= hi, "a={a:e} b={b:e}: inverted [{lo:e}, {hi:e}]");
+    if a == 0.0 {
+        assert!(lo <= 0.0 && 0.0 <= hi, "a=0: zero not contained");
+        return;
     }
-    let (lo, hi) = div_endpoints(a, b);
-    if !lo.is_finite() || !hi.is_finite() {
-        return false; // overflow to an unbounded side: nothing to decide
-    }
-    // Property 1: an unpadded (exact-claimed) result must BE exact.
-    if lo == hi {
-        match cmp_quotient(a, b, lo) {
-            Some(core::cmp::Ordering::Equal) => {}
-            Some(other) => panic!(
-                "UNSOUND WITNESS: div claimed {a:e} / {b:e} == {lo:e} exactly, \
-                 but exact comparison says truth is {other:?} than that"
-            ),
-            None => return false,
+    // Exact rational a/b: sign and magnitude-compare helpers work on
+    // products, so express "lo <= a/b" as a comparison of lo against the
+    // rational (a, 1/b) — equivalently compare lo*b against a with the
+    // divisor's sign flipping the order. Do it directly: q = a/b as a
+    // rational has sign aneg^bneg and magnitude (am*2^ae)/(bm*2^be).
+    // cmp(x, a/b) == cmp(x*b, a) if b > 0 else reversed; x*b is exact as
+    // a rational product (xm*bm, xe+be).
+    let (aneg, am, ae) = decomp(a);
+    let (bneg, bm, be) = decomp(b);
+    let qneg = aneg ^ bneg;
+    let cmp_x_vs_q = |x: f64| -> std::cmp::Ordering {
+        use std::cmp::Ordering::*;
+        if x == f64::INFINITY {
+            return Greater;
         }
-        return true;
-    }
-    // Property 2: containment, decided exactly on both sides.
-    let below = cmp_quotient(a, b, lo);
-    let above = cmp_quotient(a, b, hi);
-    match (below, above) {
-        (Some(bl), Some(ab)) => {
-            assert!(
-                bl != core::cmp::Ordering::Less,
-                "CONTAINMENT VIOLATION: {a:e} / {b:e} is below lo = {lo:e}"
-            );
-            assert!(
-                ab != core::cmp::Ordering::Greater,
-                "CONTAINMENT VIOLATION: {a:e} / {b:e} is above hi = {hi:e}"
-            );
-            true
+        if x == f64::NEG_INFINITY {
+            return Less;
         }
-        _ => false,
-    }
-}
-
-/// Lane 1: uniformly random bit patterns, filtered to finite nonzero.
-fn lane_random(n: u64, decided: &mut u64) {
-    let mut rng = Rng(0x5DEE_CE66_D125_0001);
-    for _ in 0..n {
-        let a = f64::from_bits(rng.next_u64());
-        let b = f64::from_bits(rng.next_u64());
-        if check(a, b) {
-            *decided += 1;
+        if x == 0.0 {
+            return if qneg { Greater } else { Less };
         }
-    }
-}
-
-/// Lane 2: biased toward EXACT quotients — build `a = q·b` from small
-/// integer mantissas so the witness is constantly asked to fire.
-fn lane_exact_biased(n: u64, decided: &mut u64) {
-    let mut rng = Rng(0x1234_5678_9ABC_DEF1);
-    for _ in 0..n {
-        let mq = (rng.next_u64() % (1 << 26)) as f64 + 1.0;
-        let mb = (rng.next_u64() % (1 << 26)) as f64 + 1.0;
-        let eq = ((rng.next_u64() % 120) as i32) - 60;
-        let eb = ((rng.next_u64() % 120) as i32) - 60;
-        let sign = if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
-        let q = sign * mq * exp2i(eq);
-        let b = mb * exp2i(eb);
-        // a = q·b is exact whenever mq·mb < 2^53 and no over/underflow.
-        let a = q * b;
-        if check(a, b) {
-            *decided += 1;
+        let (xneg, xm, xe) = decomp(x);
+        match (xneg, qneg) {
+            (false, true) => Greater,
+            (true, false) => Less,
+            _ => {
+                // |x| vs |a|/|b|  <=>  |x|*|b| vs |a|
+                let ord = cmp_mag(xm * bm, xe + be, am, ae);
+                if xneg { ord.reverse() } else { ord }
+            }
         }
-        // Also probe the near-miss neighbours, where the witness must NOT fire.
-        if check(a.next_up(), b) {
-            *decided += 1;
-        }
-        if check(a.next_down(), b) {
-            *decided += 1;
-        }
-    }
-}
-
-/// Lane 3: power-of-two divisors — always exact, the `v / ‖v‖`
-/// axis-aligned case that motivated the witness.
-fn lane_pow2_divisor(n: u64, decided: &mut u64) {
-    let mut rng = Rng(0x0BAD_C0FF_EE0D_D001);
-    for _ in 0..n {
-        let a = f64::from_bits(rng.next_u64());
-        let e = ((rng.next_u64() % 200) as i32) - 100;
-        let b = exp2i(e) * if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
-        if check(a, b) {
-            *decided += 1;
-        }
-        // The identity case the kernel's exact-order band depends on.
-        if check(1.0, 1.0) {
-            *decided += 1;
-        }
-    }
-}
-
-/// Lane 4: subnormal and extreme-binade magnitudes, where the 2Prod
-/// validity floor is supposed to make the witness DECLINE.
-fn lane_extremes(n: u64, decided: &mut u64) {
-    let mut rng = Rng(0xFEED_FACE_CAFE_0001);
-    for _ in 0..n {
-        let pick = |r: &mut Rng| -> f64 {
-            let m = (r.next_u64() % (1 << 52)) as f64 + 1.0;
-            let e = match r.next_u64() % 4 {
-                0 => -1074 + (r.next_u64() % 60) as i32, // subnormal-ish
-                1 => -1022 + (r.next_u64() % 40) as i32,
-                2 => 900 + (r.next_u64() % 100) as i32, // near overflow
-                _ => -60 + (r.next_u64() % 120) as i32,
-            };
-            let s = if r.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
-            s * m * exp2i(e)
-        };
-        let (a, b) = (pick(&mut rng), pick(&mut rng));
-        if check(a, b) {
-            *decided += 1;
-        }
-    }
-}
-
-/// `2^e` without `powi`/`powf` rounding concerns.
-fn exp2i(e: i32) -> f64 {
-    libm::exp2(f64::from(e))
-}
-
-fn run(per_lane: u64, label: &str) {
-    let mut decided = 0u64;
-    lane_random(per_lane, &mut decided);
-    lane_exact_biased(per_lane, &mut decided);
-    lane_pow2_divisor(per_lane, &mut decided);
-    lane_extremes(per_lane, &mut decided);
-    println!("{label}: {decided} cases decided exactly (4 lanes × {per_lane})");
-    // The comparator declines on overflow-risky shapes; if it declined
-    // essentially everywhere the test would be vacuous.
+    };
+    // F2 containment.
     assert!(
-        decided > per_lane,
-        "{label}: comparator decided only {decided} cases — harness broken"
+        cmp_x_vs_q(lo) != std::cmp::Ordering::Greater,
+        "CONTAINMENT LO VIOLATED: a={a:e}({:#x}) b={b:e}({:#x}) lo={lo:e}",
+        a.to_bits(),
+        b.to_bits()
     );
+    assert!(
+        cmp_x_vs_q(hi) != std::cmp::Ordering::Less,
+        "CONTAINMENT HI VIOLATED: a={a:e}({:#x}) b={b:e}({:#x}) hi={hi:e}",
+        a.to_bits(),
+        b.to_bits()
+    );
+    // F1 witness soundness: a degenerate result claims exactness.
+    if lo == hi {
+        assert!(
+            cmp_x_vs_q(lo) == std::cmp::Ordering::Equal,
+            "UNSOUND EXACTNESS WITNESS: a={a:e}({:#x}) b={b:e}({:#x}) q={lo:e}({:#x})",
+            a.to_bits(),
+            b.to_bits(),
+            lo.to_bits()
+        );
+    }
+}
+
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        // xorshift64*
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
+    }
+    fn f64_raw(&mut self) -> f64 {
+        f64::from_bits(self.next())
+    }
+    /// Finite f64 with exponent forced near `center` (+/- 32 binades).
+    fn f64_near_exp(&mut self, center: i32) -> f64 {
+        let m = self.next() & 0xf_ffff_ffff_ffff;
+        let e = (center + 1023 + (self.next() % 65) as i32 - 32).clamp(0, 2046) as u64;
+        let s = self.next() & (1 << 63);
+        f64::from_bits(s | (e << 52) | m)
+    }
+    fn subnormal(&mut self) -> f64 {
+        let m = (self.next() & 0xf_ffff_ffff_ffff) | 1;
+        let s = self.next() & (1 << 63);
+        f64::from_bits(s | m)
+    }
+}
+
+fn ok_pair(a: f64, b: f64) -> bool {
+    a.is_finite() && b.is_finite() && b != 0.0
+}
+
+/// Divisor applied to every lane's case count in the default run; `1`
+/// is the review's full sweep. Chosen so the default lands near 500k
+/// total while keeping ALL FOUR lanes (a cheaper sweep that dropped a
+/// lane would lose the witness-floor and subnormal coverage that lanes
+/// 2-4 exist for).
+const REDUCED_DIVISOR: u64 = 35;
+
+fn fuzz(divisor: u64, label: &str) {
+    let mut rng = Rng(0x9e3779b97f4a7c15);
+    let mut n = 0u64;
+    let mut degenerate = 0u64;
+    // Lane 1: raw random bit patterns (full exponent sweep, subnormals,
+    // signed zeros in the numerator, everything).
+    for _ in 0..(6_000_000u64 / divisor) {
+        let (a, b) = (rng.f64_raw(), rng.f64_raw());
+        if !ok_pair(a, b) {
+            continue;
+        }
+        let r = DInterval::point(a) / DInterval::point(b);
+        if a != 0.0 && r.lo() == r.hi() {
+            degenerate += 1;
+        }
+        check_case(a, b);
+        n += 1;
+    }
+    // Lane 2: constructed EXACT divisions a = q*b with small mantissas,
+    // across the exponent range including the 2^-960 witness floor and
+    // the subnormal zone (witness must refuse; containment must hold).
+    for _ in 0..(4_000_000u64 / divisor) {
+        let mq = ((rng.next() & 0x3f_ffff) | 1) as f64; // odd, <= 22 bits
+        let mb = ((rng.next() & 0x3fff_ffff) | 1) as f64; // odd, <= 30 bits
+        let scale_b = ((rng.next() % 600) as i32) - 300;
+        let scale_q = ((rng.next() % 2400) as i32) - 1360; // reaches subnormal & near-max products
+        let b = mb * pow2(scale_b);
+        let q = mq * pow2(scale_q);
+        let a = q * b; // exact when the product mantissa fits (<= 52 bits) and no over/underflow rounding
+        if !ok_pair(a, b) || a == 0.0 {
+            continue;
+        }
+        let r = DInterval::point(a) / DInterval::point(b);
+        if r.lo() == r.hi() {
+            degenerate += 1;
+        }
+        check_case(a, b);
+        n += 1;
+    }
+    // Lane 3: magnitude-window pairs around the witness floor 2^-960,
+    // the subnormal boundary, and MAX.
+    for center in [-960i32, -1022, -900, -480, 0, 480, 900, 1020] {
+        for _ in 0..(500_000u64 / divisor) {
+            let a = rng.f64_near_exp(center);
+            let bc = (rng.next() % 41) as i32 - 20;
+            let b = rng.f64_near_exp(bc);
+            if ok_pair(a, b) && b != 0.0 {
+                check_case(a, b);
+                n += 1;
+            }
+            let bs = rng.subnormal();
+            if ok_pair(a, bs) {
+                check_case(a, bs);
+                n += 1;
+            }
+        }
+    }
+    // Lane 4: targeted edges.
+    for a in [
+        f64::MAX,
+        -f64::MAX,
+        f64::MIN_POSITIVE,
+        -f64::MIN_POSITIVE,
+        f64::from_bits(1),
+        f64::from_bits(0x000f_ffff_ffff_ffff),
+        f64::from_bits(0x03f0_0000_0000_0000), // 2^-960 exactly
+        f64::from_bits(0x03f0_0000_0000_0001),
+        f64::from_bits(0x03ef_ffff_ffff_ffff),
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+    ] {
+        for b in [
+            f64::MAX,
+            -f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+            1.0,
+            -1.0,
+            2.0,
+            0.5,
+            3.0,
+            f64::from_bits(0x03f0_0000_0000_0000),
+        ] {
+            if ok_pair(a, b) {
+                check_case(a, b);
+                n += 1;
+            }
+        }
+    }
+    // Floors scale with the run, so the reduced mode is still a real
+    // test rather than a smoke check: a harness that stopped generating
+    // cases, or a witness that stopped firing, fails here either way.
+    assert!(n > 10_000_000 / divisor, "{label}: coverage floor: n={n}");
+    assert!(
+        degenerate > 100_000 / divisor,
+        "{label}: witness rarely fired: {degenerate}"
+    );
+    println!("{label}: checked {n} cases, {degenerate} degenerate-exact");
 }
 
 #[test]
-fn div_witness_is_sound_and_containing_reduced() {
-    run(DEFAULT_PER_LANE, "review_fuzz_div (reduced)");
+fn fuzz_div_witness_soundness_and_containment() {
+    fuzz(REDUCED_DIVISOR, "review_fuzz_div (reduced)");
 }
 
-/// The full 17.5M-case sweep the adversarial review ran (minutes, not
-/// seconds — hence `#[ignore]`).
+/// The full 17.5M-case sweep exactly as the adversarial review ran it
+/// (minutes, not seconds — hence `#[ignore]`).
 #[test]
 #[ignore = "full 17.5M-case sweep; run with --ignored"]
-fn div_witness_is_sound_and_containing_full() {
-    run(FULL_PER_LANE, "review_fuzz_div (full)");
+fn fuzz_div_witness_soundness_and_containment_full() {
+    fuzz(1, "review_fuzz_div (full)");
+}
+
+fn pow2(e: i32) -> f64 {
+    if e >= -1022 {
+        f64::from_bits(((e + 1023) as u64) << 52)
+    } else {
+        // subnormal power of two
+        f64::from_bits(1u64 << (e + 1074).max(0))
+    }
 }

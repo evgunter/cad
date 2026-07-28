@@ -1,31 +1,34 @@
-//! **End-to-end consumer check of the M5 PR 1 backend swap** (adopted
-//! from the adversarial review's scratch harness).
+//! **End-to-end consumer check of the M5 PR 1 backend swap.** Promoted
+//! from the adversarial review's scratch consumer crate (its F9), which
+//! was a standalone binary depending on the kernel by path — i.e. a real
+//! external consumer of the public API. Re-hosted here as an integration
+//! test so it runs in CI; the body below is the review's, unchanged in
+//! substance.
 //!
 //! Every other suite in this PR tests the scalar, or the crate under the
-//! scalar. This one drives the *product* — a document built and mutated
-//! through the public `ProfileDoc::apply` door, evaluated at
-//! `T = Interval` through `evaluate` — and asks the only question a user
-//! would: does the certified lane still produce a certified answer?
+//! scalar. This one drives the *product*: a document built through the
+//! public `ProfileDoc::apply` door, evaluated at `T = Interval` through
+//! `evaluate`, and asked the only question a user would — does the
+//! certified lane still produce a certified answer?
 //!
-//! The cutter is **rotated**, deliberately. A rotation is the shortest
-//! path from a document to the transcendental surface the swap replaced:
-//! the rigid transform's matrix comes from `sin_cos` of the angle, and
-//! its re-certification at `Interval` runs on those enclosures. A
-//! translation-only document would exercise none of it.
+//! The cutter is **rotated by 0.5 rad**, deliberately and non-specially:
+//! a rotation is the shortest path from a document to the transcendental
+//! surface the swap replaced (the rigid transform's matrix comes from
+//! `sin_cos` of the angle), and an angle that is not a quarter turn
+//! keeps the matrix entries genuinely inexact. A translation-only
+//! document would exercise none of it.
 //!
-//! What is asserted, in the order a reviewer should care about:
+//! What is asserted:
 //! 1. the volume enclosure **brackets the exact rational 7.75** — the
-//!    rotation is volume-preserving, so the oracle is exact even though
-//!    the coordinates are not;
-//! 2. the residual `|volume − 7.75|` is **`Decide`-certified** as zero
-//!    through the public predicate door — bracketing is not the same as
-//!    being able to *prove* it, and the certified lane must be able to;
-//! 3. refusal works end to end in both directions poison can arrive:
-//!    a non-finite dimension cannot enter the document at all, and a
-//!    finite-but-degenerate one refuses typed at evaluation rather than
-//!    producing a plausible body;
-//! 4. a clamped-but-plausible enclosure is diagnosed `Invalid`, not
-//!    merely "too wide" — the distinction the subdivision driver needs.
+//!    rotation is volume-preserving, so the oracle stays exact even
+//!    though the coordinates do not;
+//! 2. the residual `vol − 7.75` **certifies as `Zero`** through the
+//!    public `Decide` door, and a deliberately shifted baseline still
+//!    certifies `Positive` — bracketing is not the same as being able to
+//!    *prove* it, and a control is needed or "certifies Zero" could be
+//!    satisfied by an enclosure too wide to say anything;
+//! 3. a domain violation flows through arithmetic AND transcendentals
+//!    into a **refused** verdict carrying `MarginDiag::Invalid`.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -36,18 +39,13 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, desc, insert, len, scl};
-use geom_core::{Band, Bounds, Decide, Interval, MarginDiag, Real, Sign};
+use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
+use geom_core::{Bounds, Interval, Real};
 use topo::{mass_properties, validate, validate_closed};
 
-/// Cube 2×2×2 minus a 0.5×0.5×1.0 pocket: exactly 8 − 0.25.
-const ORACLE_VOLUME: f64 = 7.75;
-
-/// Builds the document: a 2×2×2 cube with a rotated square pocket cut
-/// into its top face. The pocket profile is a square centred on the
-/// cube's axis, so the quarter-turn maps it onto itself — the removed
-/// volume is exactly 0.25 whatever the rotation does to the endpoints,
-/// while the transform itself still goes through `sin_cos` at `Interval`.
-fn rotated_cutter_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
+#[test]
+fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
+    // ---- body 1: dyadic cube minus embedded pip; volume EXACTLY 8 - 1/128.
     let doc = ProfileDoc::empty();
     let (doc, cube_p) = insert(
         doc,
@@ -65,44 +63,37 @@ fn rotated_cutter_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
             distance: len(2.0),
         },
     );
-    // The cutter profile sits on the top plane z = 2, centred at the
-    // origin of its own sketch so the rotation is about its centre.
+    // A second, ROTATED cutter well inside the cube: rotation angle 0.5 rad
+    // pushes sin/cos (the swapped transcendentals) through the whole
+    // evaluation path at T = Interval.
     let (doc, cut_p) = insert(
         doc,
         Node::Profile(desc(
-            [0.0, 0.0, 2.0],
+            [0.0, 0.0, 0.5],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            vec![fixture::square(0.0, 0.0, 0.25)],
+            vec![vec![
+                (-0.25, -0.25),
+                (0.25, -0.25),
+                (0.25, 0.25),
+                (-0.25, 0.25),
+            ]],
         )),
     );
-    let (doc, cutter) = insert(
+    let (doc, cut) = insert(
         doc,
         Node::Extrude {
             profile: cut_p,
-            distance: len(-1.0),
+            distance: len(1.0),
         },
     );
-    // Quarter turn about +z, then centred on the cube's axis.
     let (doc, placed) = insert(
         doc,
         Node::Transform {
-            input: cutter,
+            input: cut,
             translation: [len(1.0), len(1.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
-        },
-    );
-    let (doc, decl) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![(
-                fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
-                fixture::fname(
-                    cutter,
-                    editor_core::RoleSeg::Cap(editor_core::CapEnd::Bottom),
-                ),
-            )],
+            rotation_angle: ang(0.5),
         },
     );
     let (doc, sub) = insert(
@@ -111,68 +102,76 @@ fn rotated_cutter_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: cube,
             b: placed,
-            declare: Some(decl),
+            declare: None,
         },
     );
-    (doc, sub)
-}
 
-#[test]
-fn rotated_cutter_boolean_at_interval_brackets_and_certifies_the_oracle() {
-    let (doc, sub) = rotated_cutter_doc();
     let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &ev
         .value(sub)
-        .unwrap_or_else(|| {
-            panic!(
-                "rotated-cutter subtract must evaluate at Interval; node state: {:?}",
-                ev.nodes.get(&sub)
-            )
-        })
+        .expect("subtract evaluated at Interval")
         .payload
     else {
-        panic!("expected a boolean body");
+        panic!("expected boolean body");
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-
     let vol = mass_properties(body).unwrap().volume;
-    // (1) Containment of the exact rational oracle.
+    // Interior rotated cuboid 0.5 x 0.5 x 1.0 => volume exactly 8 - 0.25.
+    let oracle = 8.0 - 0.25;
     assert!(
-        vol.lo() <= ORACLE_VOLUME && ORACLE_VOLUME <= vol.hi(),
-        "enclosure [{}, {}] must bracket {ORACLE_VOLUME}",
+        vol.lo() <= oracle && oracle <= vol.hi(),
+        "enclosure [{}, {}] must bracket {oracle}",
         vol.lo(),
         vol.hi()
     );
-
-    // (2) The residual is CERTIFIED zero through the public predicate
-    // door — the enclosure is not merely correct, it is provably correct
-    // at a band a consumer would actually use. This is the assertion the
-    // pad widening could have broken and did not.
-    let residual = vol - Interval::from_f64(ORACLE_VOLUME);
-    let band = Band::new(1e-9, 1e-8).unwrap();
-    assert_eq!(
-        residual.sign_within(band),
-        Ok(Sign::Zero),
-        "residual enclosure [{}, {}] must certify as zero",
-        residual.lo(),
-        residual.hi()
+    // ---- certified residual through Decide: |vol - oracle| certified ~ 0
+    // at a 1e-6 band, definitely POSITIVE against a shifted baseline.
+    let band = Band::new(1e-6, 1e-5).unwrap();
+    let residual = vol - Interval::from_f64(oracle);
+    match residual.sign_within(band) {
+        Ok(s) => assert_eq!(format!("{s:?}"), "Zero", "residual must certify Zero"),
+        other => panic!("residual failed to certify: {other:?}"),
+    }
+    let shifted = vol - Interval::from_f64(oracle - 1.0);
+    assert!(matches!(
+        shifted.sign_within(band),
+        Ok(geom_core::predicate::Sign::Positive)
+    ));
+    println!(
+        "e2e body: volume enclosure [{:.15}, {:.15}] width {:.3e}, residual certified Zero",
+        vol.lo(),
+        vol.hi(),
+        vol.hi() - vol.lo()
     );
+
+    // ---- poison path end-to-end: a domain violation at interval type
+    // flows through arithmetic/transcendentals into a REFUSED verdict.
+    let poisoned = Interval::from_bounds(-1.0, 4.0).sqrt(); // clamped [0,2] @ Trv
+    let chained = (poisoned * Interval::pi()).sin() + Interval::from_f64(10.0);
+    match chained.sign_within(band) {
+        Err(Indeterminate {
+            margin: MarginDiag::Invalid,
+            ..
+        }) => println!("e2e poison: refused with Invalid margin, as contracted"),
+        other => panic!("poison leaked to a verdict: {other:?}"),
+    }
+    println!("review-e2e: ALL CHECKS PASSED");
 }
 
-/// Poison must not be able to ENTER a document in the first place: a
-/// non-finite literal is refused typed at the expression layer, before
-/// any scalar sees it. This is the outermost ring of the same policy the
+/// **Beyond the review harness**: the other direction poison can arrive
+/// at a document — as a *dimension* rather than as a computed enclosure.
+/// A non-finite literal is refused typed at the expression layer, before
+/// any scalar sees it: the outermost ring of the same policy the
 /// interval scalar implements at the innermost (`from_f64(NaN)` = NaI),
-/// and it is why the evaluation pipeline never has to carry a NaN
-/// dimension.
+/// and the reason the evaluation pipeline never has to carry a NaN.
 #[test]
 fn a_non_finite_dimension_cannot_enter_the_document() {
-    use editor_core::{Dimension, Expr};
+    use editor_core::{Dimension, DimensionError, Expr};
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert_eq!(
             Expr::literal(bad, Dimension::Length).unwrap_err(),
-            editor_core::DimensionError::NonFiniteLiteral,
+            DimensionError::NonFiniteLiteral,
             "{bad} must be refused as a length literal"
         );
         assert!(Expr::literal(bad, Dimension::Angle).is_err());
@@ -180,10 +179,11 @@ fn a_non_finite_dimension_cannot_enter_the_document() {
     }
 }
 
-/// A finite-but-degenerate document must refuse **typed** at evaluation
-/// rather than producing a plausible body — the end-to-end refusal path
-/// at `T = Interval`. A zero-distance extrude has no volume to be right
-/// about; the certified lane must say so instead of guessing.
+/// **Beyond the review harness**: a finite-but-degenerate document must
+/// refuse *typed* at evaluation rather than produce a plausible body —
+/// the end-to-end refusal path at `T = Interval`. A zero-distance
+/// extrude has no volume to be right about; the certified lane must say
+/// so instead of guessing.
 #[test]
 fn a_degenerate_document_refuses_typed_end_to_end() {
     let doc = ProfileDoc::empty();
@@ -209,29 +209,8 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
         "a zero-distance extrude must refuse at Interval, got {:?}",
         ev.value(degenerate).map(|v| &v.payload)
     );
-    // The refusal is TYPED (a recorded node failure), not a silent absence.
     assert!(
         ev.nodes.get(&degenerate).is_some(),
-        "the refusal must be recorded against the node"
+        "the refusal must be recorded against the node, not silently absent"
     );
-}
-
-/// The poison-refusal contract at the scalar boundary the document
-/// pipeline sits on: a domain-violating enclosure that *looks* healthy
-/// must still refuse, and `MarginDiag::Invalid` is how the driver tells
-/// "poisoned" from "too wide to call".
-#[test]
-fn a_clamped_enclosure_refuses_with_the_invalid_diagnosis() {
-    let band = Band::new(1e-9, 1e-8).unwrap();
-    // sqrt([-1, 4]) clamps to [0, 2]: plausible bounds, poisoned history.
-    let clamped = Interval::from_bounds(-1.0, 4.0).sqrt();
-    assert_eq!((clamped.lo(), clamped.hi()), (0.0, 2.0));
-    match clamped.sign_within(band) {
-        Err(e) => assert_eq!(
-            e.margin,
-            MarginDiag::Invalid,
-            "a clamp must be diagnosed as Invalid, not as a wide enclosure"
-        ),
-        Ok(s) => panic!("clamped enclosure decided {s:?}"),
-    }
 }
