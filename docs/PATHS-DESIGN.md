@@ -78,31 +78,51 @@ leg-with-both-junctions unit — still closed-form, still local to
 one leg and its two neighbors. Elaboration order and determinism
 are §5.
 
-**Composition is core (Evan's review, 2026-07-28).** `PartialPath`s
-compose: `p1.join(resolver-ish, p2)` concatenates two partial
-paths with a typed junction (or junction-plus-inserted-leg) at the
-seam. The draft's post-hoc `fillet(r)` (rewriting a junction two
-calls back) is WITHDRAWN — everything stays in authoring order.
-The two join forms:
+**Composition and the trailing pending resolver (settled with
+Evan, 2026-07-28 — round 2 of this section).** The round-1 text
+here proposed distinct join operators, and a path-valued
+`fillet(p2)` join whose land-on-the-next-carrier semantics Evan
+then rejected against his own example ("it shouldn't land on
+c→d"); the fillet semantics was re-forked and DECIDED as the
+coincident-corner form (option 3 of the recorded fork: an r-arc
+tangent to both carriers of an EXISTING nominal corner, trimming
+back into each — the classic corner fillet, uniform across
+in-chain corners, composition seams, and close; a corner always
+requires r since tangent-to-two-carriers is a 1-parameter
+family). The overdetermined single-arc, land-on-carrier, and
+extend-to-intersect/biarc gap forms are all OUT of v1; the biarc
+door may be named by a future refusal payload where a gap can
+even be expressed (see below — in chain style it cannot).
 
-- `p1.join_sharp(p2)` / `p1.join_tangent(p2)` — endpoint-coincident
-  concatenation, seam junction Sharp resp. TangentDirect.
-- `p1.fillet_join(p2)` — the two-sided tangent-arc join: an arc
-  leg is INSERTED at the seam, tangent to p1's end and tangent to
-  p2's first leg (trimming it). Reading of Evan's example
-  (`start(a).line_tangent(L).arc_tangent_to(b).fillet(start(c).line_to(d).arc_to(a, bulge).close())`),
-  recorded for his confirmation: p1 ends at `b` with a known
-  direction; the inserted arc starts AT `b` tangent to that
-  direction and lands tangentially ON p2's first leg (the c→d
-  line), trimming c away — an arc from a fixed point with fixed
-  direction tangent to a target line is exactly determined, so NO
-  radius argument is needed (the #104 unique-arc construction,
-  two-sided). The radius-r corner fillet remains available as the
-  in-chain `.fillet(r)` sugar (§3), which inserts the
-  r-bound/both-tangent arc leg at the CURRENT junction — also in
-  order, never post-hoc. `close()` composes the same way: the
-  seam junction (or fillet_join) applies at last-to-first,
-  same code path.
+The mechanism that makes composition and flat chains ONE algebra
+(Evan's associativity point — nested-call authoring must not be a
+distinct representation): a `PartialPath` value is legs + resolved
+junctions + an optional **trailing pending resolver**.
+
+- Every leg constructor CONSUMES the pending resolver (default
+  `Sharp`) as its incoming junction.
+- Junction markers (`.tangent()`, `.fillet(r)`) SET the pending
+  resolver; two markers with no leg between refuse typed (one
+  resolver per junction).
+- Concatenation `p1.then(p2)` uses p1's pending resolver as the
+  seam junction with p2's first leg. Hence
+  `(p1.then(p2)).then(p3) == p1.then(p2.then(p3))` — flat chains,
+  variables, and inline nesting all produce the identical value;
+  there is no separate "join" vocabulary.
+- `close()` / `close_tangent()` / `close_fillet(r)` resolve the
+  last-to-first seam junction through the same code path.
+
+Junction resolver spellings, complete: `Sharp` (default, checked),
+`Tangent` (the `TangentDirect` handoff), `Fillet(r)` (inserts the
+r-bound arc leg with both junctions tangent, trimming both
+neighbors — a resolver spelling in the surface syntax, an
+inserted leg in the core, per the DOF note above).
+
+A structural consequence worth recording: in chain style the next
+leg always starts where the previous ended, so the coincident-
+corner requirement is satisfied BY CONSTRUCTION — gap
+configurations (the biarc/extend-to-intersect family) are not
+refused in the chain surface, they are unrepresentable in it.
 
 **Why J-core wins (recommendation, with the honest counterweight):**
 
@@ -138,20 +158,47 @@ Turtle-style forward authoring remains first-class; every forward
 constructor is a single call desugaring mechanically to spine +
 resolvers. The v1 sugar table (each row: constructor → lowering):
 
-| Forward constructor | Lowering |
+| Surface form | Meaning under the pending-resolver mechanism (§2) |
 |---|---|
-| `line_to(p)` | line leg to `p`, incoming junction `Sharp` |
-| `line_tangent(len)` | line leg with only `len` bound; incoming junction `TangentDirect` |
-| `arc_to(p, bulge)` | arc leg (endpoint + bulge), incoming `Sharp` |
-| `arc_tangent_to(p)` | arc leg with endpoint only; incoming junction `TangentDirect` (center on the start normal, equidistant — the #104 unique-arc construction) |
-| `fillet(r)` (in-chain, at the CURRENT junction — in order, never post-hoc; revised per Evan's review) | insert an arc leg with only `r` bound; BOTH its junctions `TangentDirect` (neighbors' trim endpoints unbound until elaboration) |
-| `fillet_join(p2)` (composition) | insert an arc leg with NOTHING bound between the two paths; both junctions `TangentDirect`; determined by p1's fixed end + tangency onto p2's first leg (§2) |
-| `close()` / `close_tangent()` / `close_fillet(r)` | mark cycle; seam junction `Sharp` / `TangentDirect` / inserted r-arc, both-tangent |
+| `start(p)` | begin at `p`, no pending resolver |
+| `start_dir(p, d)` | begin at `p` with a start direction (required if the FIRST leg is direction-consuming — see the leading-tangent note) |
+| `line_to(p)` | consume pending (default `Sharp`) as incoming junction; line leg to `p` |
+| `arc_to(p, bulge)` | same; arc leg (endpoint + bulge) |
+| `.tangent()` | set pending = `Tangent`; next leg's direction-consuming DOF binds through the handoff |
+| `line_tangent(len)` | sugar for `.tangent().line(len)` — line leg with only `len` bound |
+| `arc_tangent_to(p)` | sugar for `.tangent().arc_endpoint(p)` — the #104 unique-arc construction |
+| `.fillet(r)` | set pending = `Fillet(r)` — the corner the previous leg's end and next leg's start form (coincident by chain construction) is rounded: r-arc inserted, both junctions tangent, both neighbors trimmed |
+| `p1.then(p2)` | concatenate; p1's pending resolver is the seam junction (associative — §2) |
+| `close()` / `close_tangent()` / `close_fillet(r)` | resolve the last-to-first seam with `Sharp` / `Tangent` / `Fillet(r)`, same code path |
+
+Worked flat chains (recorded from the 2026-07-28 exchange):
+
+```text
+rounded square:
+  start(p0).line_to(p1).fillet(r).line_to(p2).fillet(r)
+           .line_to(p3).fillet(r).line_to(p0).close_fillet(r)
+
+Evan's tangent shape, flat:
+  start_dir(a, d).line_tangent(len).arc_tangent_to(b)
+                 .fillet(r).line_to(dd).arc_to(a, bulge).close()
+```
+
+Refusals that fall out of the mechanism (all typed): two markers
+with no leg between (one resolver per junction);
+`.fillet(r).line_tangent(len)` — circular: the fillet needs the
+next carrier defined, the tangent line wants its direction FROM
+the fillet arc (fillets sit between defined geometry, the refusal
+says so); a leading tangent leg without `start_dir` — its
+direction would only resolve through the seam at close(), a
+cyclic elaboration step v1 refuses (`ElaborationOrderUnsupported`
+naming the seam; the one-pending-leg cyclic pass is a possible
+v1.1 relaxation, recorded not committed).
 
 Constraint on the table (binding on any future sugar): a sugar
-constructor may only (a) append/insert one leg and/or (b) set one
-junction resolver (an inserted leg sets its own two). Anything
-needing more is not sugar and must be argued as a core change.
+constructor may only (a) append/insert one leg and/or (b) set the
+pending resolver (an inserted fillet leg sets its own two
+junctions). Anything needing more is not sugar and must be argued
+as a core change.
 
 ## 4. The safety invariant, restated for J-core
 
