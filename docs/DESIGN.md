@@ -581,6 +581,47 @@ applied to error handling. Five commitments:
    micron-to-kilometer coverage with ~4 orders of f64 headroom at km
    scale. Import does *not* motivate loosening ε — see D7's input
    tolerance ε_in.
+   **The two-tolerance principle (PROPOSED 2026-07-28, Evan's #124
+   thread — awaiting his sign-off on the ratifying PR).** Two roles
+   that D7 already separates at the import boundary are adopted as
+   kernel-wide vocabulary: **ε_precision** (this section's ε — "the
+   precision we represent": certification residuals, D4 ¶2, what
+   gets built) and **ε_input** — "the least precision the user might
+   care about": what counts as too-close-to-a-coincidence when
+   interpreting input, and the threshold below which user-facing
+   distinctions are noise. They are fundamentally independent dials
+   with ε_input > ε_precision (differences below ε_precision are not
+   even representable claims); v1 BINDS ε_input = K·ε (one knob,
+   `Tolerance.k`), and decoupling it into its own `Tolerance` field
+   is licensed whenever a consumer needs it — the Q1 escalation band
+   itself remains PRECISION machinery (escalate-never-guess, f64
+   noise headroom) regardless of where ε_input sits. Consequences,
+   binding once ratified:
+   (i) **User-facing messages and recourse never fork on exactly-on
+   vs in-band below ε_input** — both are "coincident at any
+   precision you could care about"; ONE message, ONE recourse
+   (declare the coincidence / move the geometry / lower the
+   tolerance), with the margin riding the error payload as data.
+   Kernel SEMANTICS keep the distinction (ON-set classification,
+   escalation, declared-verification are unchanged — this is
+   message policy, not predicate policy).
+   (ii) The existing error taxonomy gets a message-level rework
+   sweep (an M5 side unit once ratified): the audited candidate
+   pairs are profile UndeclaredTangency/TangentialContact vs
+   Escalated, boolean UndeclaredCoincidence vs Escalated, census
+   UndeclaredContact vs CensusEscalated, split_edge
+   SplitParamNotInterior vs SplitParamEscalated, split-join
+   DegenerateSection vs Escalated, sweep Degenerate*/
+   VertexCrossesAxis vs *Escalated/SliverRadius, certify
+   NotTransverse vs Escalated, props DegenerateFace vs Escalated —
+   with `merge_coplanar_faces`' already-collapsed error as the
+   in-repo precedent and the shared `Indeterminate` Display string
+   as the natural carrier of the unified recourse. Variants may
+   stay distinct as DATA; their user stories converge.
+   (iii) D7's ε_in is an instance of ε_input (per-import override
+   of the interpretation threshold), not a separate concept —
+   adoption re-runs classification at a different ε_input, exactly
+   as CURVED-DESIGN's D7 leave-room obligation already requires.
    **Chordal tolerance δ is not a tolerance in this sense (ratified at
    M2, PR 6).** Tessellation/export take a per-call *display parameter*
    δ (chordal deviation), deliberately distinct from ε: δ is chosen per
