@@ -101,8 +101,8 @@ fn touching_boxes_overlap_and_identical_centroids_split_by_index() {
 fn padded_grows_strictly_and_never_shrinks() {
     let b = boxed([0.0; 3], [1.0; 3]);
     let p = b.padded(0.5);
-    assert!(p.min_x < -0.5 + 1e-12 && p.min_x <= -0.5);
-    assert!(p.max_x >= 1.5);
+    assert!(p.min_x <= -0.5 && p.min_x > -0.5 - 1e-12);
+    assert!(p.max_x >= 1.5 && p.max_x < 1.5 + 1e-12);
     // Conservative-only: a negative pad poisons rather than shrinks.
     let neg = b.padded(-0.1);
     assert!(neg.min_x.is_nan());
