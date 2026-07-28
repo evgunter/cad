@@ -1,10 +1,13 @@
-//! The [`Interval`] scalar over [inari] — Q1's certified instantiation of
-//! [`Real`] and [`Decide`] (M0 PR 4, behind the `interval` cargo feature).
+//! The [`Interval`] scalar over the in-repo `interval-transcendentals`
+//! crate — Q1's certified instantiation of [`Real`] and [`Decide`] (M0
+//! PR 4, behind the `interval` cargo feature; backend swapped from `inari`
+//! in M5 PR 1).
 //!
 //! An `Interval` is a machine-representable enclosure `[lo, hi]` of the
 //! **true real value** of a computation: every operation returns an
-//! interval guaranteed (IEEE 1788, MPFR-backed correct outward rounding)
-//! to contain the exact result over all inputs in the operand enclosures.
+//! interval guaranteed (IEEE 1788 decorations, outward-rounded endpoints
+//! with proven error pads) to contain the exact result over all inputs in
+//! the operand enclosures.
 //! Predicates decided at this type are therefore *certified*: a definite
 //! [`Sign`] holds for the true value, not merely for one f64 evaluation
 //! of it. An indeterminate outcome unwinds to Q1's subdivision driver,
@@ -12,10 +15,11 @@
 //!
 //! # The decoration is the poison channel
 //!
-//! The newtype wraps [`inari::DecInterval`] — the *decorated* interval —
-//! and not the bare [`inari::Interval`], deliberately. inari **clamps**
-//! partially-out-of-domain inputs to the domain (`sqrt([-1, 4]) = [0, 2]`;
-//! only a *fully* out-of-domain input goes empty) and records the
+//! The newtype wraps a *decorated* interval
+//! ([`interval_transcendentals::DInterval`]) and never a bare one,
+//! deliberately. The backend **clamps** partially-out-of-domain inputs to
+//! the domain (`sqrt([-1, 4]) = [0, 2]`; only a *fully* out-of-domain
+//! input goes empty) and records the
 //! violation solely in the IEEE 1788 decoration, which degrades
 //! monotonically through every subsequent operation. A bare-interval
 //! wrapper would launder domain violations into plausible enclosures;
@@ -29,41 +33,71 @@
 //!
 //! # Certification semantics: truth containment, not f64 containment
 //!
-//! An enclosure brackets the TRUE value. A libm-computed `f64` of the same
-//! expression can land *outside* a tight enclosure of a transcendental
-//! result (libm makes no correct-rounding guarantee — its divergence from
-//! std reaches 4 ulps in the census; no faithful-rounding violation was
-//! found in 5.6M samples, but none is promised — while the enclosure's
-//! endpoints are correctly rounded). Certification code therefore bounds *residual quantities*
-//! evaluated at interval type and never asserts "f64 value ∈ enclosure"
-//! for transcendental results; the same rule binds this module's tests.
-//! Exact single operations (`+`, `−`, `·`, `/`, `sqrt`) are correctly
-//! rounded at `f64`, so their f64 results *are* contained — those may be
+//! An enclosure brackets the TRUE value — never, by contract, the `f64`
+//! evaluation of the same expression. Certification code therefore bounds
+//! *residual quantities* evaluated at interval type and never asserts
+//! "f64 value ∈ enclosure" for transcendental results; the same rule binds
+//! this module's tests. Exact single operations (`+`, `−`, `·`, `/`,
+//! `sqrt`) are correctly rounded at `f64` and the backend pads their
+//! endpoints outward, so their f64 results *are* contained — those may be
 //! asserted.
 //!
-//! # Determinism and the CPU floor
+//! Under the pre-M5 inari backend the rule had teeth of its own: inari's
+//! transcendentals are correctly rounded, so a libm-computed `f64` really
+//! could land outside a 1-ulp enclosure (libm promises no correct
+//! rounding — its divergence from std reaches 4 ulps in the census). The
+//! present backend derives its pads FROM libm's own error bound, which
+//! *argues* that the f64 lane should now be contained op-for-op. Exactly
+//! one instance of that is PINNED —
+//! `review_m0_pr4::powi_f64_lane_is_contained_by_the_padded_enclosure`,
+//! which was the inverse assertion before the swap. The general claim is
+//! an argument, not a tested property; nothing may be built on it. The
+//! discipline stands regardless: it must not depend on which backend is
+//! installed, and a future retightening would restore the old behavior
+//! without warning.
 //!
-//! inari's enclosures are bit-identical across CPUs and SIMD paths at
-//! pinned dependency versions (probe findings, issue #4) — D9-compliant.
-//! Its directed-rounding inline assembly requires AVX+FMA on x86-64; the
-//! repo-wide `-C target-cpu=x86-64-v3` floor in `.cargo/config.toml`
-//! guarantees it (aarch64 needs no flags). inari's own `unsafe`/asm is a
-//! vetted-dependency exception under L4; this crate's `forbid(unsafe_code)`
-//! is untouched.
+//! # Tightness is a quality, containment is the contract
 //!
-//! A `.cargo/config.toml` applies only to builds *rooted* in this repo, so
-//! external crates enabling the `interval` feature do **not** inherit the
-//! floor: each downstream consumer must replicate the
-//! `-C target-cpu=x86-64-v3` rustflag in its own `.cargo/config.toml` (or
-//! an equivalent `RUSTFLAGS`) to build the interval path on x86-64.
+//! The backend cannot set the FPU rounding mode from portable Rust, so it
+//! pads every inexact endpoint outward instead: ≤ 1 ulp per arithmetic or
+//! `sqrt` endpoint, ≤ 4 ulp per transcendental endpoint, each pad *proven*
+//! conservative rather than guessed (`interval-transcendentals/docs/
+//! derivations.md`). Enclosures are therefore a few ulps wider than the
+//! MPFR-tight ones the `inari` backend produced before M5 PR 1 — wider is
+//! sound, narrower would be a correctness bug. Extremum bounds stay exact
+//! (`±1` for `sin`/`cos`, the clipped ranges of the inverse functions, the
+//! zero lower bound of even powers over zero-straddling enclosures).
 //!
-//! **Licensing obligation** (the second thing a downstream consumer of
-//! this feature inherits): the `interval` feature links LGPL-3.0+ code —
-//! `inari/gmp` pulls `gmp-mpfr-sys` and `rug` — so builds enabling it
-//! carry the corresponding LGPL compliance obligations. The kernel's own
-//! MIT OR Apache-2.0 dual license is unaffected in default builds, which
-//! have no LGPL dependencies (issue #4; an in-house replacement that
-//! drops the LGPL dependency is roadmapped post-M7 in `docs/DESIGN.md`).
+//! Three deliberate semantic divergences from the old backend survive into
+//! kernel-visible behavior, all documented in
+//! `interval-transcendentals/docs/semantics-diffs.md`: `floor` over a box
+//! it is *constant* on keeps `Com` (D8, restriction- rather than
+//! ambient-continuity); `atan2` over a box on the closed upper half-plane
+//! whose `x` is strictly negative likewise reaches `Com` (D2); and `atan2`
+//! over an origin-containing box returns the full `[-π, π]` hull rather
+//! than a quadrant-tight one (D4 — at the `Trv` decoration that box
+//! carries, the value cannot decide anything anyway).
+//!
+//! # Determinism, and no CPU floor of its own
+//!
+//! The backend is pure Rust over the pinned pure-Rust [`libm`] — the same
+//! transcendental implementation D9 already mandates for `f64` — plus f64
+//! arithmetic and `next_up`/`next_down` stepping. There is no
+//! platform-conditional path anywhere in it and no inline assembly: the
+//! same build on the same inputs yields bit-identical endpoints, and the
+//! `interval` feature imposes no instruction-set floor. (The repo-wide
+//! `-C target-cpu=x86-64-v3` rustflag in `.cargo/config.toml` predates the
+//! swap and is no longer *required* by this feature; it is left in place
+//! deliberately — relaxing it is a separate, separately-benchmarked
+//! decision.) This crate's `forbid(unsafe_code)` is untouched, and so is
+//! the backend's.
+//!
+//! **Licensing**: the `interval` feature is MIT OR Apache-2.0 and C-free,
+//! like every other build configuration of this kernel. The LGPL-3.0+
+//! `gmp-mpfr-sys`/`rug` obligation that `inari/gmp` used to impose on
+//! consumers of this feature is gone (issue #4's license fork, closed by
+//! M5 PR 1); inari remains only as the backend crate's *dev*-dependency
+//! differential oracle, which never enters a kernel build.
 //!
 //! # Non-real inputs
 //!
@@ -73,22 +107,22 @@
 
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use inari::{DecInterval, Decoration};
+use interval_transcendentals::{DInterval, Decoration};
 
 use crate::dual::KinkJacobian;
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, Real};
 
 /// An enclosure of a true real value: the interval scalar over
-/// [`inari::DecInterval`] (see the [module docs](self) for the poison and
-/// certification semantics).
+/// [`interval_transcendentals::DInterval`] (see the [module docs](self)
+/// for the poison and certification semantics).
 ///
 /// Deliberately **no** `PartialEq`: IEEE 1788's NaI is not equal to itself
 /// (like NaN), and comparing enclosures for equality is not a meaningful
 /// geometric question — classification goes through [`Decide`], bound
 /// extraction through [`Bounds`].
 #[derive(Debug, Clone, Copy)]
-pub struct Interval(DecInterval);
+pub struct Interval(DInterval);
 
 impl Interval {
     /// Constructs the enclosure `[lo, hi]` from explicit bounds — the
@@ -113,10 +147,7 @@ impl Interval {
     /// sub-boxes; it is never for reconstructing values that came out of
     /// [`Bounds`] mid-computation.
     pub fn from_bounds(lo: f64, hi: f64) -> Self {
-        match DecInterval::try_from((lo, hi)) {
-            Ok(x) => Self(x),
-            Err(_) => Self(DecInterval::NAI),
-        }
+        Self(DInterval::from_bounds(lo, hi))
     }
 
     /// The raw representation as bits — `(inf.to_bits(),
@@ -148,7 +179,7 @@ impl Interval {
             Decoration::Dac => 3,
             Decoration::Com => 4,
         };
-        (self.0.inf().to_bits(), self.0.sup().to_bits(), dec)
+        (self.0.lo().to_bits(), self.0.hi().to_bits(), dec)
     }
 }
 
@@ -192,10 +223,11 @@ impl Neg for Interval {
     }
 }
 
-/// [`Real`] over enclosures: every operation is IEEE 1788-tightest via
-/// inari (MPFR-backed, correctly rounded outward for the transcendentals),
-/// total (out-of-domain input clamps with a degraded decoration or goes
-/// empty — the poison channel, see the [module docs](self)), and
+/// [`Real`] over enclosures: every operation returns an IEEE 1788
+/// decorated enclosure of the true image — outward-padded rather than
+/// MPFR-tight since the M5 PR 1 backend swap (see the
+/// [module docs](self) on tightness) — total (out-of-domain input clamps
+/// with a degraded decoration or goes empty — the poison channel), and
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
@@ -205,10 +237,7 @@ impl Real for Interval {
     /// poison at construction rather than a silent clamp (the interval
     /// counterpart of `f64`'s NaN-in, NaN-through).
     fn from_f64(x: f64) -> Self {
-        match DecInterval::try_from((x, x)) {
-            Ok(p) => Self(p),
-            Err(_) => Self(DecInterval::NAI),
-        }
+        Self(DInterval::point(x))
     }
 
     /// The exact point `[0, 0]`.
@@ -221,15 +250,17 @@ impl Real for Interval {
         Self::from_f64(1.0)
     }
 
-    /// inari's 1-ulp enclosure of π (the two adjacent `f64`s bracketing
-    /// the true π), decoration `Com`.
+    /// The 1-ulp enclosure of π (the two adjacent `f64`s bracketing the
+    /// true π), decoration `Com` — endpoint-identical to the pre-M5 inari
+    /// constant.
     fn pi() -> Self {
-        Self(DecInterval::PI)
+        Self(interval_transcendentals::pi())
     }
 
-    /// inari's 1-ulp enclosure of τ = 2π, decoration `Com`.
+    /// The 1-ulp enclosure of τ = 2π, decoration `Com` — likewise
+    /// endpoint-identical to the pre-M5 constant.
     fn tau() -> Self {
-        Self(DecInterval::TAU)
+        Self(interval_transcendentals::tau())
     }
 
     /// Tight enclosure of the square root over `self ∩ [0, ∞)`. A
@@ -247,11 +278,17 @@ impl Real for Interval {
 
     /// The hull `[⌊lo⌋, ⌊hi⌋]` — floor spans integers ⇒ the hull is the
     /// honest enclosure (containment is the contract; a step function
-    /// has no tighter interval image). Decoration per IEEE 1788 via
-    /// inari: a box spanning a jump degrades to `Def` (defined
-    /// everywhere on the box, discontinuous in it); a box whose infimum
-    /// sits exactly on an integer is `Dac`; a jump-free interior box
-    /// keeps `Com`. Empty/NaI propagate. Note `Def` still classifies
+    /// has no tighter interval image). Decoration per IEEE 1788: a box
+    /// spanning a jump degrades to `Def` (defined everywhere on the box,
+    /// discontinuous in it); a jump-free box — including one whose
+    /// infimum sits exactly on an integer, since the *restriction* of
+    /// floor to such a box is still constant — keeps `Com`. (That last
+    /// case is the one visible change from the pre-M5 inari backend,
+    /// which charged the ambient discontinuity and returned `Dac`;
+    /// semantics-diffs D8. Both are 1788-compliant — a decoration may
+    /// always be weaker than the tightest true one — and the direction
+    /// here is *less* poison, so nothing that used to decide stops
+    /// deciding.) Empty/NaI propagate. Note `Def` still classifies
     /// through [`Decide`] (the threshold is `< Def`): a spanned floor
     /// step is honest discreteness, not a domain violation.
     fn floor(self) -> Self {
@@ -274,15 +311,15 @@ impl Real for Interval {
     /// allowance, as in [`Real::min`] at `f64`).
     fn copysign(self, sign: Self) -> Self {
         if self.0.is_nai() || sign.0.is_nai() {
-            return Self(DecInterval::NAI);
+            return Self(DInterval::nai());
         }
         if self.0.is_empty() || sign.0.is_empty() {
-            return Self(DecInterval::EMPTY);
+            return Self(DInterval::empty());
         }
         let mag = self.0.abs();
-        if sign.0.inf() > 0.0 {
+        if sign.0.lo() > 0.0 {
             Self(cap_decoration(mag, sign.0.decoration()))
-        } else if sign.0.sup() < 0.0 {
+        } else if sign.0.hi() < 0.0 {
             Self(cap_decoration(-mag, sign.0.decoration()))
         } else {
             // Zero-containing sign: hull of ±|self|, decoration ≤ Def.
@@ -294,7 +331,7 @@ impl Real for Interval {
         }
     }
 
-    /// **Overrides** the defaulted squaring algorithm with inari's
+    /// **Overrides** the defaulted squaring algorithm with the backend's
     /// dedicated integer power, per the override clause in
     /// [`Real::powi`]'s docs: the interval contract is a **tight
     /// enclosure of the true power**, and repeated interval
@@ -314,8 +351,8 @@ impl Real for Interval {
         Self(self.0.powi(n))
     }
 
-    /// The pair `(sin(self), cos(self))`, each component a correctly
-    /// rounded tight enclosure (MPFR). No paired/fused override could do
+    /// The pair `(sin(self), cos(self))`, each component an outward-padded
+    /// enclosure of its own. No paired/fused override could do
     /// better: at interval type the two components are independent
     /// enclosures of the same input interval either way, and their mutual
     /// consistency is automatic — both bracket the truth over exactly
@@ -350,12 +387,19 @@ impl Real for Interval {
         Self(self.0.atan())
     }
 
-    /// Tight enclosure of the four-quadrant arctangent of `self` (= y)
-    /// and `x`. An input box containing the origin (or straddling the
-    /// branch cut on the negative x-axis) widens the range and degrades
-    /// the decoration to `Trv` — the discontinuity is a domain-of-
-    /// definition violation for a *continuous* branch, and the poison
-    /// channel reports it.
+    /// Enclosure of the four-quadrant arctangent of `self` (= y) and `x`.
+    /// An input box containing the origin (where the function is simply
+    /// undefined) widens to the full `[-π, π]` hull and degrades the
+    /// decoration to `Trv`; a box straddling the branch cut on the
+    /// negative x-axis also widens to the full hull, decorated `Def` —
+    /// defined everywhere on the box, discontinuous inside it, which is
+    /// exactly the `floor`-style honest-discreteness case and still
+    /// classifies. A box on the *closed upper* half-plane with `x < 0`
+    /// touches the ray but not the cut: it is continuous there and keeps
+    /// `Com` (semantics-diffs D2; the pre-M5 inari backend said `Dac`,
+    /// also compliant, just weaker). The origin-box hull is likewise
+    /// wider than inari's quadrant-tight one (D4) — at `Trv` that value
+    /// can decide nothing regardless.
     fn atan2(self, x: Self) -> Self {
         Self(self.0.atan2(x.0))
     }
@@ -368,13 +412,13 @@ impl Real for Interval {
     /// "tie-keeps-self" at interval type: ties are a point notion, and
     /// the envelope contains both choices).
     fn min(self, other: Self) -> Self {
-        Self(self.0.min(other.0))
+        Self(self.0.min_i(other.0))
     }
 
     /// The interval envelope maximum — same contract as [`Real::min`]'s
     /// override above, mirrored.
     fn max(self, other: Self) -> Self {
-        Self(self.0.max(other.0))
+        Self(self.0.max_i(other.0))
     }
 }
 
@@ -388,7 +432,10 @@ impl Real for Interval {
 /// canonical reversed pair (+∞, −∞): that pair's *upper* accessor is −∞,
 /// which would PASS a `residual.hi() ≤ ε` certification check for a
 /// residual that was poisoned to empty — the exact laundering D4 ¶2
-/// exists to prevent. Empty and NaI are therefore indistinguishable
+/// exists to prevent. (The backend stores empty as NaN bounds, so this
+/// holds by construction rather than by a wrapper guard; under the
+/// pre-M5 inari backend the guard was explicit here.) Empty and NaI are
+/// therefore indistinguishable
 /// through `Bounds`, on purpose: failing certification outranks
 /// IEEE 1788 representational honesty. (Code that needs to tell them
 /// apart is driver/diagnostic code, which sees the decoration through
@@ -396,19 +443,11 @@ impl Real for Interval {
 /// trait.)
 impl Bounds for Interval {
     fn lo(self) -> f64 {
-        if self.0.is_empty() {
-            f64::NAN
-        } else {
-            self.0.inf()
-        }
+        self.0.lo()
     }
 
     fn hi(self) -> f64 {
-        if self.0.is_empty() {
-            f64::NAN
-        } else {
-            self.0.sup()
-        }
+        self.0.hi()
     }
 }
 
@@ -485,7 +524,7 @@ impl Decide for Interval {
                 predicate: None,
             });
         }
-        let (lo, hi) = (self.0.inf(), self.0.sup());
+        let (lo, hi) = (self.0.lo(), self.0.hi());
         if -band.zero() <= lo && hi <= band.zero() {
             Ok(Sign::Zero)
         } else if lo >= band.escalate() {
@@ -507,12 +546,9 @@ impl Decide for Interval {
 /// tangent selected or hulled by comparing *values* is only as
 /// trustworthy as those values, so their decoration caps it. Poison
 /// shapes pass through unchanged (NaI stays NaI; an empty interval can
-/// only carry `Trv`/`Ill`, which `set_dec` preserves).
-fn cap_decoration(x: DecInterval, floor: Decoration) -> DecInterval {
-    match x.interval() {
-        Some(bare) => DecInterval::set_dec(bare, x.decoration().min(floor)),
-        None => DecInterval::NAI,
-    }
+/// only carry `Trv`, already the minimum).
+fn cap_decoration(x: DInterval, floor: Decoration) -> DInterval {
+    x.with_dec_capped(floor)
 }
 
 /// The convex hull of two decorated tangents, decorated with the *minimum*
@@ -524,22 +560,19 @@ fn cap_decoration(x: DecInterval, floor: Decoration) -> DecInterval {
 /// operand NaI ⇒ NaI, either empty ⇒ empty (1788's "empty absorbs into
 /// the hull" would *drop* a poisoned tangent — the opposite of poison
 /// propagation).
-fn tangent_hull(x: DecInterval, y: DecInterval) -> DecInterval {
+fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
     if x.is_nai() || y.is_nai() {
-        return DecInterval::NAI;
+        return DInterval::nai();
     }
     if x.is_empty() || y.is_empty() {
-        return DecInterval::EMPTY;
+        return DInterval::empty();
     }
-    match (x.interval(), y.interval()) {
-        (Some(bare_x), Some(bare_y)) => DecInterval::set_dec(
-            bare_x.convex_hull(bare_y),
-            x.decoration().min(y.decoration()),
-        ),
-        // Unreachable (NaI was handled above), but total per D9 — poison,
-        // never a panic.
-        _ => DecInterval::NAI,
-    }
+    // The backend's `hull` carries `min` of the operand decorations by
+    // design (semantics-diffs D7) — the same non-1788 convention this
+    // function was written to express, so the two now agree by
+    // construction. The empty guard above still differs from `hull`'s own
+    // absorb-empty rule, deliberately (see the doc comment).
+    x.hull(y)
 }
 
 /// Interval kink selectors (see [`KinkJacobian`] in `crate::dual` for the
@@ -566,19 +599,19 @@ impl KinkJacobian for Interval {
     /// trustworthiness is exactly the value's).
     fn abs_sign_factor(self) -> Self {
         if self.0.is_nai() {
-            return Self(DecInterval::NAI);
+            return Self(DInterval::nai());
         }
         if self.0.is_empty() {
-            return Self(DecInterval::EMPTY);
+            return Self(DInterval::empty());
         }
-        let factor = if self.0.inf() >= 0.0 {
-            inari::const_interval!(1.0, 1.0)
-        } else if self.0.sup() <= 0.0 {
-            inari::const_interval!(-1.0, -1.0)
+        let factor = if self.0.lo() >= 0.0 {
+            DInterval::from_bounds(1.0, 1.0)
+        } else if self.0.hi() <= 0.0 {
+            DInterval::from_bounds(-1.0, -1.0)
         } else {
-            inari::const_interval!(-1.0, 1.0)
+            DInterval::from_bounds(-1.0, 1.0)
         };
-        Self(DecInterval::set_dec(factor, self.0.decoration()))
+        Self(cap_decoration(factor, self.0.decoration()))
     }
 
     /// Strict separation selects (`self` certainly below keeps its own
@@ -594,14 +627,14 @@ impl KinkJacobian for Interval {
     /// values' ([`cap_decoration`]).
     fn min_deriv(self, self_deriv: Self, other: Self, other_deriv: Self) -> Self {
         if self.0.is_nai() || other.0.is_nai() {
-            return Self(DecInterval::NAI);
+            return Self(DInterval::nai());
         }
         if self.0.is_empty() || other.0.is_empty() {
-            return Self(DecInterval::EMPTY);
+            return Self(DInterval::empty());
         }
-        let chosen = if self.0.sup() < other.0.inf() {
+        let chosen = if self.0.hi() < other.0.lo() {
             self_deriv.0
-        } else if other.0.sup() < self.0.inf() {
+        } else if other.0.hi() < self.0.lo() {
             other_deriv.0
         } else {
             tangent_hull(self_deriv.0, other_deriv.0)
@@ -626,20 +659,20 @@ impl KinkJacobian for Interval {
     /// a jump (mirroring the value channel's floor decoration).
     fn floor_jacobian_factor(self) -> Self {
         if self.0.is_nai() {
-            return Self(DecInterval::NAI);
+            return Self(DInterval::nai());
         }
         if self.0.is_empty() {
-            return Self(DecInterval::EMPTY);
+            return Self(DInterval::empty());
         }
         let stepped = self.0.floor();
-        if stepped.inf() == stepped.sup() {
-            Self(DecInterval::set_dec(
-                inari::const_interval!(0.0, 0.0),
+        if stepped.lo() == stepped.hi() {
+            Self(cap_decoration(
+                DInterval::from_bounds(0.0, 0.0),
                 self.0.decoration(),
             ))
         } else {
-            Self(DecInterval::set_dec(
-                inari::const_interval!(0.0, f64::INFINITY),
+            Self(cap_decoration(
+                DInterval::from_bounds(0.0, f64::INFINITY),
                 self.0.decoration().min(Decoration::Def),
             ))
         }
@@ -656,20 +689,20 @@ impl KinkJacobian for Interval {
     /// entire line). Empty/NaI in either value poisons.
     fn copysign_deriv(self, self_deriv: Self, sign: Self) -> Self {
         if self.0.is_nai() || sign.0.is_nai() {
-            return Self(DecInterval::NAI);
+            return Self(DInterval::nai());
         }
         if self.0.is_empty() || sign.0.is_empty() {
-            return Self(DecInterval::EMPTY);
+            return Self(DInterval::empty());
         }
-        if sign.0.inf() > 0.0 {
+        if sign.0.lo() > 0.0 {
             let t = self.abs_sign_factor() * self_deriv;
             Self(cap_decoration(t.0, sign.0.decoration()))
-        } else if sign.0.sup() < 0.0 {
+        } else if sign.0.hi() < 0.0 {
             let t = -(self.abs_sign_factor() * self_deriv);
             Self(cap_decoration(t.0, sign.0.decoration()))
         } else {
-            Self(DecInterval::set_dec(
-                inari::Interval::ENTIRE,
+            Self(cap_decoration(
+                DInterval::entire(),
                 self.0
                     .decoration()
                     .min(sign.0.decoration())
@@ -683,14 +716,14 @@ impl KinkJacobian for Interval {
     /// poison and decoration conventions.
     fn max_deriv(self, self_deriv: Self, other: Self, other_deriv: Self) -> Self {
         if self.0.is_nai() || other.0.is_nai() {
-            return Self(DecInterval::NAI);
+            return Self(DInterval::nai());
         }
         if self.0.is_empty() || other.0.is_empty() {
-            return Self(DecInterval::EMPTY);
+            return Self(DInterval::empty());
         }
-        let chosen = if self.0.inf() > other.0.sup() {
+        let chosen = if self.0.lo() > other.0.hi() {
             self_deriv.0
-        } else if other.0.inf() > self.0.sup() {
+        } else if other.0.lo() > self.0.hi() {
             other_deriv.0
         } else {
             tangent_hull(self_deriv.0, other_deriv.0)
@@ -742,8 +775,25 @@ mod tests {
 
     /// Set inclusion on the underlying intervals (empty ⊆ anything;
     /// false if either side is NaI — the proptests never build NaI).
+    /// Computed locally from the endpoints: set inclusion is a test-only
+    /// question here, so it stays out of the backend's public surface.
     fn subset(a: Interval, b: Interval) -> bool {
-        a.0.subset(b.0)
+        if a.0.is_nai() || b.0.is_nai() {
+            return false;
+        }
+        if a.0.is_empty() {
+            return true;
+        }
+        if b.0.is_empty() {
+            return false;
+        }
+        b.0.lo() <= a.0.lo() && a.0.hi() <= b.0.hi()
+    }
+
+    /// Width of a nonempty enclosure (NaN for empty/NaI — every width
+    /// assertion below then fails loudly, which is the intent).
+    fn wid(a: Interval) -> f64 {
+        a.0.hi() - a.0.lo()
     }
 
     /// The same generic consumer `real.rs`'s tests use — evaluation code
@@ -864,10 +914,19 @@ mod tests {
 
         // 0.1 + 0.2: a single correctly rounded op — the f64 result is
         // contained (allowed for exact ops, module docs) and the
-        // enclosure is at most 1 ulp wide.
+        // enclosure is at most 2 ulps wide.
+        //
+        // Backend change (M5 PR 1, semantics-diffs D1): the width budget
+        // was 1 ulp under inari, whose arithmetic is directed-rounded.
+        // The present backend cannot set the rounding mode from portable
+        // Rust, so it rounds to nearest and pads each inexact endpoint
+        // one step outward — 2 ulps total for one inexact op. Strictly
+        // wider, so containment (the actual contract) is unaffected;
+        // this is a tightness pin, and it is pinned rather than deleted
+        // so that any future *growth* of the pad is caught here.
         let s = Interval::from_f64(0.1) + Interval::from_f64(0.2);
         assert!(s.0.contains(0.1 + 0.2));
-        assert!(s.hi() <= s.lo().next_up());
+        assert!(s.hi() <= s.lo().next_up().next_up());
     }
 
     #[test]
@@ -911,7 +970,9 @@ mod tests {
         let cubed = x.powi(3);
         assert_eq!((cubed.lo(), cubed.hi()), (-1.0, 8.0));
 
-        // Negative exponents: 2⁻² = 1/4 exactly.
+        // Negative exponents: 2⁻² = 1/4 exactly. (The backend implements
+        // these as `[1,1] / x^|n|`, and its division takes no pad when
+        // the quotient is provably exact — semantics-diffs D1.)
         let quarter = Interval::from_f64(2.0).powi(-2);
         assert_eq!((quarter.lo(), quarter.hi()), (0.25, 0.25));
     }
@@ -1236,20 +1297,30 @@ mod tests {
     }
 
     /// floor over enclosures: the hull of the endpoint floors, with the
-    /// IEEE 1788 decoration story — `Com` strictly inside a plateau,
-    /// `Dac` when the infimum sits on an integer, `Def` across a step
-    /// (defined everywhere, discontinuous on the box — still classifies
-    /// through `Decide`, whose poison threshold is `< Def`).
+    /// IEEE 1788 decoration story — `Com` on any plateau (including one
+    /// whose infimum sits on an integer), `Def` across a step (defined
+    /// everywhere, discontinuous on the box — still classifies through
+    /// `Decide`, whose poison threshold is `< Def`).
     #[test]
     fn floor_hull_and_decorations() {
         // Strictly inside one plateau: a point integer result, Com.
         let plateau = iv(2.2, 2.8).floor();
         assert_eq!((plateau.lo(), plateau.hi()), (2.0, 2.0));
         assert_eq!(plateau.0.decoration(), Decoration::Com);
-        // Infimum exactly on an integer: still a point, but Dac.
+        // Infimum exactly on an integer: still a point, and still Com.
+        //
+        // Backend change (M5 PR 1, semantics-diffs D8): inari returned
+        // `Dac` here, charging the AMBIENT discontinuity of floor at the
+        // integer even though floor restricted to [3, 3.5] is constant
+        // (hence continuous and bounded on the box, which is what 1788's
+        // "restriction of f to x" wording asks about). The present
+        // backend returns the tighter-but-still-correct `Com`. Both are
+        // compliant — 1788 decorations are lower bounds on the true
+        // property level — and the direction is LESS poison, so nothing
+        // that classified before stops classifying.
         let at_edge = iv(3.0, 3.5).floor();
         assert_eq!((at_edge.lo(), at_edge.hi()), (3.0, 3.0));
-        assert_eq!(at_edge.0.decoration(), Decoration::Dac);
+        assert_eq!(at_edge.0.decoration(), Decoration::Com);
         // Across a step: the two-plateau hull, Def.
         let stepped = iv(2.5, 3.5).floor();
         assert_eq!((stepped.lo(), stepped.hi()), (2.0, 3.0));
@@ -1317,7 +1388,7 @@ mod tests {
         let theta = Interval::from_f64(1.5);
         let shifted = (theta + Interval::tau()).reduce_periodic(Interval::tau());
         assert!(shifted.0.contains(1.5));
-        assert!(shifted.0.wid() < 1e-14);
+        assert!(wid(shifted) < 1e-14);
         // A box straddling a period boundary: floor spans an integer, so
         // the reduction honestly widens toward the full period.
         let straddle = iv(6.2, 6.4).reduce_periodic(Interval::tau());
@@ -1478,12 +1549,19 @@ mod tests {
         }
 
         /// sqrt at nonnegative points contains the (exactly rounded)
-        /// f64 sqrt, and the enclosure is at most 1 ulp wide.
+        /// f64 sqrt, and the enclosure is at most 2 ulps wide.
+        ///
+        /// Backend change (M5 PR 1, semantics-diffs D1): the width budget
+        /// was 1 ulp under inari's directed rounding. The present backend
+        /// rounds to nearest and pads one step per inexact endpoint, so an
+        /// inexact sqrt is 2 ulps wide; an endpoint whose square root is
+        /// provably exact (FMA witness) still takes no pad at all, which
+        /// is why `sqrt(4) = [2, 2]` above still holds.
         #[test]
         fn sqrt_point_containment(x in 0.0..1.0e12f64) {
             let r = Interval::from_f64(x).sqrt();
             prop_assert!(r.0.contains(x.sqrt()));
-            prop_assert!(r.hi() <= r.lo().next_up());
+            prop_assert!(r.hi() <= r.lo().next_up().next_up());
         }
 
         /// The Pythagorean identity as a truth-containment statement:
@@ -1495,7 +1573,7 @@ mod tests {
             let (s, c) = Interval::from_f64(x).sin_cos();
             let residual = s * s + c * c - Interval::one();
             prop_assert!(residual.0.contains(0.0));
-            prop_assert!(residual.0.wid() < 1e-13);
+            prop_assert!(wid(residual) < 1e-13);
         }
 
         /// Classification at interval type agrees with f64 classification

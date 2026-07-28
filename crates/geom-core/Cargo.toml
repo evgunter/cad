@@ -8,25 +8,29 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Interval scalar over inari (M0 PR 4, issue #4): pulls the LGPL
-# `gmp-mpfr-sys` C build via `inari/gmp` (required for transcendentals), so
-# it is opt-in — the default build stays MIT/Apache and C-free. On x86-64
-# this feature additionally requires AVX+FMA at runtime; the repo-wide
-# `-C target-cpu=x86-64-v3` floor in `.cargo/config.toml` guarantees it.
-interval = ["dep:inari", "inari/gmp"]
+# Interval scalar (M0 PR 4, issue #4), opt-in: an enclosure is a different
+# cost regime from `f64`, so it never rides along in a default build. The
+# backend is the in-repo `interval-transcendentals` crate since M5 PR 1 —
+# pure Rust over the same `libm` the kernel already depends on. The feature
+# therefore no longer drags a C toolchain or the LGPL `gmp-mpfr-sys` build
+# (it did while the backend was `inari/gmp`), and no longer needs an
+# AVX+FMA floor of its own on x86-64.
+interval = ["dep:interval-transcendentals"]
 
 [dependencies]
 libm = { workspace = true }
-inari = { workspace = true, optional = true }
+interval-transcendentals = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 # DEV-ONLY differential oracle for the M5 PR 2 interval ring (M5-PR2-SPEC
-# family 2): the in-house rigorous interval unit, itself libm-only, so it
-# drags nothing into geom-core's dependency graph (its own inari/gmp oracle
-# is a dev-dependency of *that* crate and is never resolved from here). The
-# kernel's runtime dependency set is unchanged: libm, plus inari behind the
-# `interval` feature.
+# family 2). Since M5 PR 1 this crate is ALSO the `interval` feature's
+# backend (the optional dependency above) — the dev-entry is what makes it
+# available on the DEFAULT, featureless build path, where the ring lives
+# and where its differential lane must run. It is libm-only, so it drags
+# nothing new into geom-core's graph; its own inari/gmp certification
+# oracle is a dev-dependency of *that* crate and is never resolved from
+# here. The kernel's runtime dependency set is unchanged: `libm`.
 interval-transcendentals = { workspace = true }
 # Derivative oracle for Dual<f64> tests only — never a runtime dependency
 # (see the deviation note in src/dual.rs module docs).

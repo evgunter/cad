@@ -146,6 +146,31 @@ impl DInterval {
         self.dec
     }
 
+    /// Lowers the decoration to `min(self.decoration(), cap)`, keeping the
+    /// bounds untouched — the "honesty floor" primitive consumers need
+    /// when a *value* was selected or hulled by comparing other values
+    /// whose trustworthiness must bound the result's (the kernel scalar's
+    /// kink selectors are the motivating consumer).
+    ///
+    /// Only ever lowers, so poison is never laundered. Poison shapes are
+    /// preserved: NaI stays NaI, Empty stays Empty (its `Trv` is already
+    /// the minimum a non-NaI value can carry), and capping a normal
+    /// interval all the way to `Ill` yields NaI — `Ill` means "not an
+    /// interval", which is a shape, not a label.
+    pub fn with_dec_capped(self, cap: Decoration) -> Self {
+        if self.is_nai() {
+            return Self::nai();
+        }
+        let dec = self.dec.min(cap);
+        if dec == Decoration::Ill {
+            return Self::nai();
+        }
+        if self.is_empty() {
+            return Self::empty();
+        }
+        Self::make(self.lo, self.hi, dec)
+    }
+
     /// Does the enclosure contain the real number `x`? (`false` for
     /// empty/NaI: they contain no real.)
     pub fn contains(&self, x: f64) -> bool {
@@ -174,5 +199,48 @@ impl DInterval {
             return Some(Self::empty());
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_dec_capped_only_lowers_and_keeps_bounds() {
+        let x = DInterval::from_bounds(1.0, 2.0);
+        assert_eq!(x.decoration(), Decoration::Com);
+        let capped = x.with_dec_capped(Decoration::Trv);
+        assert_eq!((capped.lo(), capped.hi()), (1.0, 2.0), "bounds untouched");
+        assert_eq!(capped.decoration(), Decoration::Trv);
+        // A cap ABOVE the current level is a no-op (min, never a raise).
+        let raised = capped.with_dec_capped(Decoration::Com);
+        assert_eq!(raised.decoration(), Decoration::Trv, "never launders");
+    }
+
+    #[test]
+    fn with_dec_capped_preserves_poison_shapes() {
+        assert!(DInterval::nai().with_dec_capped(Decoration::Com).is_nai());
+        let e = DInterval::empty().with_dec_capped(Decoration::Com);
+        assert!(e.is_empty() && !e.is_nai());
+        assert_eq!(e.decoration(), Decoration::Trv);
+        // Capping to `Ill` is the NaI shape, not a labelled interval.
+        assert!(
+            DInterval::from_bounds(1.0, 2.0)
+                .with_dec_capped(Decoration::Ill)
+                .is_nai()
+        );
+    }
+
+    #[test]
+    fn with_dec_capped_respects_the_unbounded_com_rule() {
+        // `Com` requires boundedness: an unbounded enclosure stays `Dac`
+        // even when the cap would allow more.
+        let half = DInterval::from_bounds(0.0, f64::INFINITY);
+        assert_eq!(half.decoration(), Decoration::Dac);
+        assert_eq!(
+            half.with_dec_capped(Decoration::Com).decoration(),
+            Decoration::Dac
+        );
     }
 }

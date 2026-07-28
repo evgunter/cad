@@ -332,6 +332,18 @@ the morning review will almost certainly have happened.
   review policy.
 - **S4 — save/load shared-validator consolidation** (DESIGN
   convention 2 migration note): non-gating hygiene.
+- **S5 — PartialPath authoring-algebra DESIGN doc** (#104; added
+  at Evan's request, 2026-07-27, plan already ratified — design
+  now, implementation stays banked for v2 profiles-as-programs).
+  Deliverable: a PATHS-DESIGN doc harmonizing with #101's
+  flag/verify layer (the algebra LOWERS to explicit segments +
+  declared flags; closure semantics is where the care
+  concentrates), opened as a design-conversation PR for Evan's
+  sign-off. **Sequenced BEFORE S2 dispatches** — the arc-leg
+  fillet sugar touches the same constructor/junction surface and
+  should be shaped as sugar over the algebra's core forms.
+  Non-gating for M5 exit (implementation is not in M5); the
+  ratified doc is the deliverable.
 
 ## Deliberately not in M5
 

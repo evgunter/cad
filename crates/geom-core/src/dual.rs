@@ -357,7 +357,8 @@ impl<T: Real> Div for Dual<T> {
     /// division. The denominator square is `powi(2)`, not `b·b`: at `f64`
     /// that is bit-identical (`powi_by_squaring` reduces `powi(_, 2)` to
     /// `1·(b·b)`, and `×1` is exact), while at `Dual<Interval>` it is
-    /// inari's tight `pown` — squaring a zero-straddling denominator by
+    /// the interval backend's tight integer power — squaring a
+    /// zero-straddling denominator by
     /// dependent multiplication needlessly loses the `[0, ·]` lower bound
     /// (the dependency problem), so the tight square keeps the enclosure
     /// honest. `b = 0` poisons the derivative channel through the division
@@ -1892,7 +1893,8 @@ mod tests {
         /// Regression (review: the dependency problem this whole type
         /// exists to survive). Over a value enclosure that straddles zero,
         /// atan's derivative denominator `1 + a²` must be squared *tightly*
-        /// (`powi(2)` = inari's pown), not by dependent multiplication:
+        /// (`powi(2)`, the backend's dedicated integer power), not by
+        /// dependent multiplication:
         /// `a·a` over `[−1, 1.1]` returns `[−1.1, 1.21]`, so `1 + a·a`
         /// straddles zero and the division blows the derivative enclosure
         /// to `[−∞, ∞]`. With the tight square `a² = [0, 1.21] ≥ 0`, hence

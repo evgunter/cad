@@ -2,7 +2,8 @@
 //!
 //! `Real` is the scalar abstraction the entire evaluation layer is generic
 //! over (Q1 in `docs/DESIGN.md`). Planned instantiations: `f64` (here),
-//! `Interval` over inari (M0 PR 4), `Dual<f64>` and `Dual<Interval>` (M0
+//! `Interval` over `interval-transcendentals` (M0 PR 4, backend swapped
+//! in M5 PR 1), `Dual<f64>` and `Dual<Interval>` (M0
 //! PR 5). The trait surface is the *intersection* of what those types
 //! support honestly — anything one of them cannot do honestly stays out.
 //!

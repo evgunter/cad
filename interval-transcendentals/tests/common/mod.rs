@@ -1,10 +1,18 @@
 //! Shared harness support: seed-pinned PRNG, structured interval
 //! generators, and the containment/decoration/tightness checkers against
 //! the inari(+MPFR) oracle.
+//!
+//! Split by feature: everything that mentions `inari` is behind
+//! `oracle-inari`, so the oracle-free half (PRNG, generators) is
+//! available to the tier of tests the kernel's CI runs without a C
+//! toolchain. See the crate README's "Certification" section.
 
 #![allow(dead_code)] // shared by multiple integration-test binaries; each uses a subset
+#[cfg(feature = "oracle-inari")]
 use inari::DecInterval;
-use interval_transcendentals::{DInterval, Decoration};
+use interval_transcendentals::DInterval;
+#[cfg(feature = "oracle-inari")]
+use interval_transcendentals::Decoration;
 
 /// SplitMix64: tiny, seed-pinned, dependency-free. Every test names its
 /// own constant seed; runs are bit-reproducible.
@@ -70,10 +78,12 @@ pub fn gen_interval(rng: &mut Rng, emin: i32, emax: i32) -> DInterval {
 
 /// The same interval as an inari `DecInterval` (constructor decorations
 /// agree: Com bounded, Dac unbounded).
+#[cfg(feature = "oracle-inari")]
 pub fn to_inari(x: &DInterval) -> DecInterval {
     DecInterval::try_from((x.lo(), x.hi())).expect("generator produced valid bounds")
 }
 
+#[cfg(feature = "oracle-inari")]
 pub fn dec_of(d: inari::Decoration) -> Decoration {
     match d {
         inari::Decoration::Ill => Decoration::Ill,
@@ -86,6 +96,7 @@ pub fn dec_of(d: inari::Decoration) -> Decoration {
 
 /// Tightness accumulator: ratio of my width to oracle width where both
 /// are finite, nonempty, and the oracle width is positive.
+#[cfg(feature = "oracle-inari")]
 #[derive(Default)]
 pub struct Tightness {
     pub ratios: Vec<f64>,
@@ -93,6 +104,7 @@ pub struct Tightness {
     pub total: u64,
 }
 
+#[cfg(feature = "oracle-inari")]
 impl Tightness {
     pub fn record(&mut self, mine: &DInterval, oracle: &DecInterval) {
         self.total += 1;
@@ -138,6 +150,7 @@ impl Tightness {
 /// enumerated classes where the oracle is known-conservative and our
 /// stronger decoration is proven correct (docs/semantics-diffs.md);
 /// callers pass `dec_exception` for those.
+#[cfg(feature = "oracle-inari")]
 pub fn assert_contains(ctx: &str, mine: &DInterval, oracle: &DecInterval, dec_exception: bool) {
     if oracle.is_nai() {
         assert!(mine.is_nai(), "{ctx}: oracle NaI, mine {mine:?}");
