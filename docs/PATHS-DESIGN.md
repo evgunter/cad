@@ -36,32 +36,73 @@ Tangent-line takes only a length; tangent-arc takes only an
 endpoint; non-tangent constructors CHECK definite non-tangency.
 
 **J-core (this doc's recommendation, from the 2026-07-27
-exchange)**: a path is a sequence of **legs** (carrier-typed, some
-DOFs possibly unbound) plus one **resolver** per junction:
+exchange; resolver set REDUCED per Evan's review — see below)**:
+a path is a sequence of **legs** (carrier-typed, some DOFs
+possibly unbound) plus one **resolver** per junction:
 
 ```text
-Junction resolver (v1, closed set):
+Junction resolver (v1, closed and BINARY):
   | Sharp          -- checked definitively non-tangent (the
                       definite-Zero/band machinery concentrates
-                      here: definite-tangent => typed refusal
-                      pointing at a tangent resolver; in-band =>
-                      escalation. #101's classifier, verbatim)
+                      here; #101's classifier, verbatim; refusal
+                      payloads in §4)
   | TangentDirect  -- direction handoff across the junction
-                      (G1: the outgoing leg's start direction is
-                      determined by the incoming leg's end)
-  | TangentArc { r } -- a two-sided fillet join: an arc of radius
-                      r tangent to BOTH neighbors, trimming each
-                      to its tangent point (the #101
-                      LoopBuilder::fillet closed form, generalized
-                      to any leg pair with defined end directions)
+                      (G1: the two legs' directions agree at the
+                      shared point)
 ```
+
+*(Revision note, Evan's review 2026-07-28: the draft had a third
+resolver `TangentArc { r }` — a junction that synthesizes a
+fillet arc. Evan asked why it isn't just `TangentDirect` twice on
+an arc, and he is right: a fillet is an arc LEG with only its
+radius bound and BOTH its junctions `TangentDirect`; elaboration
+binds its center/endpoints and trims the neighbors. The resolver
+vocabulary collapses to the binary set above, the arc stays a
+first-class leg like any other, and "fillet" becomes pure sugar
+(§3). DOF check, recorded: an arc leg carries 5 DOFs
+(center 2, r 1, sweep endpoints 2); r bound leaves 4; each
+TangentDirect junction against a neighbor with a free trim
+endpoint contributes contact + direction agreement = 2 bindings;
+two tangent junctions = 4 — exactly determined, the classic
+corner-fillet closed form, #101's `LoopBuilder::fillet`
+generalized.)*
 
 Elaboration is a constraint pass over the spine: resolvers bind
 the unbound DOFs of adjacent legs; a leg left underdetermined
 after all its junctions resolve is a typed error naming the
 missing freedom; an overdetermined combination (both a fixed
 direction AND a tangent handoff) refuses at the junction that
-overdetermines it. Elaboration order and its determinism are §5.
+overdetermines it. A leg whose both junctions participate in its
+determination (the fillet arc above) resolves as a local
+leg-with-both-junctions unit — still closed-form, still local to
+one leg and its two neighbors. Elaboration order and determinism
+are §5.
+
+**Composition is core (Evan's review, 2026-07-28).** `PartialPath`s
+compose: `p1.join(resolver-ish, p2)` concatenates two partial
+paths with a typed junction (or junction-plus-inserted-leg) at the
+seam. The draft's post-hoc `fillet(r)` (rewriting a junction two
+calls back) is WITHDRAWN — everything stays in authoring order.
+The two join forms:
+
+- `p1.join_sharp(p2)` / `p1.join_tangent(p2)` — endpoint-coincident
+  concatenation, seam junction Sharp resp. TangentDirect.
+- `p1.fillet_join(p2)` — the two-sided tangent-arc join: an arc
+  leg is INSERTED at the seam, tangent to p1's end and tangent to
+  p2's first leg (trimming it). Reading of Evan's example
+  (`start(a).line_tangent(L).arc_tangent_to(b).fillet(start(c).line_to(d).arc_to(a, bulge).close())`),
+  recorded for his confirmation: p1 ends at `b` with a known
+  direction; the inserted arc starts AT `b` tangent to that
+  direction and lands tangentially ON p2's first leg (the c→d
+  line), trimming c away — an arc from a fixed point with fixed
+  direction tangent to a target line is exactly determined, so NO
+  radius argument is needed (the #104 unique-arc construction,
+  two-sided). The radius-r corner fillet remains available as the
+  in-chain `.fillet(r)` sugar (§3), which inserts the
+  r-bound/both-tangent arc leg at the CURRENT junction — also in
+  order, never post-hoc. `close()` composes the same way: the
+  seam junction (or fillet_join) applies at last-to-first,
+  same code path.
 
 **Why J-core wins (recommendation, with the honest counterweight):**
 
@@ -99,43 +140,73 @@ resolvers. The v1 sugar table (each row: constructor → lowering):
 
 | Forward constructor | Lowering |
 |---|---|
-| `line_to(p)` | line leg to `p`, trailing junction `Sharp` |
-| `line_tangent(len)` | line leg with only `len` bound; trailing junction of the PREVIOUS leg becomes `TangentDirect` |
-| `arc_to(p, bulge)` | arc leg (endpoint + bulge), trailing `Sharp` |
-| `arc_tangent_to(p)` | arc leg with endpoint only; previous junction `TangentDirect` (center on the start normal, equidistant — the #104 unique-arc construction) |
-| `fillet(r)` (post-hoc, between the two most recent legs) | rewrite the junction's resolver to `TangentArc { r }` |
-| `close()` / `close_tangent()` | mark cycle; seam junction `Sharp` resp. `TangentDirect` |
+| `line_to(p)` | line leg to `p`, incoming junction `Sharp` |
+| `line_tangent(len)` | line leg with only `len` bound; incoming junction `TangentDirect` |
+| `arc_to(p, bulge)` | arc leg (endpoint + bulge), incoming `Sharp` |
+| `arc_tangent_to(p)` | arc leg with endpoint only; incoming junction `TangentDirect` (center on the start normal, equidistant — the #104 unique-arc construction) |
+| `fillet(r)` (in-chain, at the CURRENT junction — in order, never post-hoc; revised per Evan's review) | insert an arc leg with only `r` bound; BOTH its junctions `TangentDirect` (neighbors' trim endpoints unbound until elaboration) |
+| `fillet_join(p2)` (composition) | insert an arc leg with NOTHING bound between the two paths; both junctions `TangentDirect`; determined by p1's fixed end + tangency onto p2's first leg (§2) |
+| `close()` / `close_tangent()` / `close_fillet(r)` | mark cycle; seam junction `Sharp` / `TangentDirect` / inserted r-arc, both-tangent |
 
 Constraint on the table (binding on any future sugar): a sugar
-constructor may only (a) append one leg and/or (b) set one
-junction resolver. Anything needing more is not sugar and must be
-argued as a core change.
+constructor may only (a) append/insert one leg and/or (b) set one
+junction resolver (an inserted leg sets its own two). Anything
+needing more is not sugar and must be argued as a core change.
 
 ## 4. The safety invariant, restated for J-core
 
 **Every junction carries exactly one resolver, and every resolver
 is total-or-typed.** Consequences: no junction can be silently
-sharp-but-nearly-tangent (Sharp CHECKS, per #101's classifier —
-definite-tangent refuses with the repair menu naming the tangent
-resolvers; in-band escalates per F6); no tangency exists without a
-resolver that declares it (the lowering emits the declared flag
-from the resolver — declaration by construction, never inferred);
+sharp-but-nearly-tangent; no tangency exists without a resolver
+that declares it (the lowering emits the declared flag from the
+resolver — declaration by construction, never inferred);
 same-carrier junctions refuse at elaboration exactly as #101's
-`same_carrier: true` (identity, not tangency). The #101 verify
-layer runs UNCHANGED on the lowered output — the algebra is
-upstream insurance, the flags remain the contract of record.
+`same_carrier: true` (identity, not tangency).
+
+**Refusal shape at a Sharp junction (clarified per Evan's review,
+2026-07-28 — one method, two payloads, his framing adopted):**
+both outcomes are the SAME typed refusal
+(`SharpJunctionRefused { junction, kind }`), differing only in
+payload:
+- `kind: ExactlyTangent` — the junction is definitively tangent;
+  message: "this junction is tangent — use a tangent resolver
+  (or change the geometry)". The author's one-step fix is to say
+  what is true.
+- `kind: AmbiguousAtEps` — the classification is in-band;
+  message: "tangent or sharp is ambiguous at this ε — move the
+  geometry, or declare tangent (which will then be VERIFIED and
+  refused as `TangencyContradicted` if false)". Note the
+  asymmetry, stated honestly: declaring tangent is a real escape
+  from the ambiguous band only when the geometry verifies exactly
+  downstream; declaring SHARP is not offered as an override at
+  all — an in-band junction under Sharp stays refused, because a
+  declaration cannot make ill-conditioned geometry
+  well-conditioned (F6's stance; the earlier draft called this
+  "escalation", which wrongly suggested some downstream handler —
+  at the authoring layer there is nothing downstream, it is just
+  this refusal).
+
+The #101 verify layer runs UNCHANGED on the lowered output — the
+algebra is upstream insurance, the flags remain the contract of
+record.
 
 ## 5. Elaboration semantics (determinism + failure vocabulary)
 
 - Single pass, spine order, then the seam junction for cycles;
-  each resolver is local (consumes only its two adjacent legs'
-  bound state). No fixpoint iteration in v1: a resolver whose
-  inputs are unbound because they await a LATER junction's
-  resolution is a typed `ElaborationOrderUnsupported` refusal
-  (v1 scope cut, honest: chains like line—TangentDirect—line—
-  TangentDirect—line with only outer endpoints bound elaborate
-  left-to-right fine; a chain requiring right-to-left propagation
-  refuses with the junction named). D9: elaboration is pure f64
+  each resolution step is local — a junction consumes its two
+  adjacent legs' bound state, and an inserted/underdetermined leg
+  whose determination spans both its junctions (the fillet arc)
+  resolves as one leg-plus-both-junctions closed-form unit. No
+  fixpoint iteration in v1: a step whose inputs are unbound
+  because they await a LATER step is a typed
+  `ElaborationOrderUnsupported` refusal (v1 scope cut, honest:
+  chains like line—TangentDirect—line—TangentDirect—line with
+  only outer endpoints bound elaborate left-to-right fine; a
+  chain requiring right-to-left propagation refuses with the
+  junction named — but see PQ3: composition makes these rare,
+  because each composed sub-path elaborates forward independently
+  and the join steps consume only both sides' already-determined
+  local end state). D9: elaboration is pure f64
   structure selection (C6 boundary — it decides leg parameters,
   never topology); the lowered profile then goes through the
   ordinary generic pipeline.
@@ -149,29 +220,68 @@ upstream insurance, the flags remain the contract of record.
 
 ## 6. Open questions for Evan (genuine forks in this doc)
 
-**PQ1 — Resolver vocabulary extent for v1.** Is the closed set
-{Sharp, TangentDirect, TangentArc(r)} enough, or should v1 include
-`TangentAt(p)` (tangency with a pinned contact point) and/or
-`Smooth` (G2) as vocabulary? Recommendation: the closed three —
-each extra resolver is a new closed-form family to verify, and G2
-at a junction is exactly the conventional-`MappedCurve` regime D2
-keeps OUT of intrinsic tangency; add by demand, the enum is
-additive.
+**PQ1 — Resolver vocabulary extent for v1** (revised: the set is
+now the binary {Sharp, TangentDirect} after your TangentArc
+collapse). The candidates the draft deferred, now spelled out per
+your ask:
+- `TangentAt(p)`: a tangent junction whose CONTACT POINT is
+  user-pinned at `p` rather than derived by elaboration. Where it
+  matters: today a tangent junction's contact point falls out of
+  the neighbors' bound data (e.g. the fillet arc's tangent points
+  land wherever the closed form puts them); `TangentAt(p)` says
+  "tangent, AND the contact is exactly here", consuming leg DOFs
+  to make it so — e.g. an arc leg tangent to a line AT a marked
+  point has its center forced onto the normal at `p`. It is how
+  an author pins a tangency to a datum. Cost: every leg-pair
+  family needs a second closed form (tangent-with-pinned-contact),
+  and overdetermination refusals get a new class.
+- `Smooth` (G2): curvature-continuous junction — directions AND
+  signed curvatures agree at the contact. For the v1 leg
+  vocabulary it is nearly vacuous: line–line G2 is collinear
+  (same-carrier ⇒ identity refusal), line–arc G2 forces infinite
+  radius, arc–arc G2 forces equal radius + same center side ⇒
+  same carrier ⇒ identity refusal. G2 only becomes a real
+  junction kind once spline legs exist — and D2 deliberately
+  keeps G2 joins in the conventional-`MappedCurve` regime (the
+  surfaces/carriers under-determine the locus at G2; that is why
+  the kernel's tangency enforcement is jet-determinate-only).
+Recommendation (unchanged in substance): ship the binary set;
+`TangentAt(p)` is the plausible v1.1 addition when a use appears
+(the enum is additive); `Smooth` waits for spline legs on D2's
+own grounds.
 
-**PQ2 — Mixed authoring.** May a single profile mix raw segment
-authoring (today's vertex+bulge chains) with PartialPath algebra,
-or is a profile all-one-or-the-other? Recommendation: all-one-or-
-the-other per profile LOOP (a loop is either authored as a path or
-as raw segments; both lower to the same persisted form) — mixing
-within a loop reopens exactly the silent-adjacent-tangency seam
-the algebra exists to close, for no authoring win.
+**PQ2 — Mixed authoring** (revised — your composition example
+changes the answer). The draft's all-one-or-the-other rule was
+written against ad-hoc interleaving. With composition in the core
+(§2), the principled middle exists: a raw vertex+bulge chain
+embeds as a sub-path via an explicit `lift(chain)` — its INTERIOR
+junctions keep exactly today's #101 semantics (flags as authored,
+verified at build), and the BOUNDARY junctions where it composes
+with algebra-authored sub-paths are resolver-typed like any seam.
+The dangerous seam (a silent near-tangency where two independently
+authored pieces meet) is precisely the composition junction, and
+that is now always guarded; interior raw junctions were already
+#101-verified. Recommendation (revised): allow mixing at
+composition granularity via explicit `lift`; still refuse ad-hoc
+per-segment interleaving inside one sub-path (no win, and it
+blurs which layer owns each junction).
 
-**PQ3 — Elaboration order cut.** Accept the v1 left-to-right-only
-elaboration (§5) with `ElaborationOrderUnsupported`, or require
-full local-propagation (both directions) before anything ships?
-Recommendation: accept the cut; the refusal names the fix, the
-common authoring patterns are forward-shaped, and bidirectional
-propagation is additive later.
+**PQ3 — Elaboration order cut** (revised — yes, your example
+addresses it). Accept the v1 left-to-right-only elaboration (§5)
+with `ElaborationOrderUnsupported`, or require bidirectional
+propagation first? Your multiple-forward-chains-joined shape is
+exactly the escape hatch: each composed sub-path elaborates
+forward independently, and join steps (including fillet_join)
+consume only both sides' already-determined LOCAL end state — so
+a construction that would need right-to-left propagation as one
+long chain is instead authored as two forward chains and a join.
+What remains refused in v1 is only the genuinely
+both-ends-underdetermined single chain (e.g. a middle leg whose
+every DOF waits on both neighbors, inside one sub-path, where no
+composition boundary can be drawn). Recommendation (unchanged,
+now with the stronger ground): accept the cut; the refusal names
+the junction and the fix ("split and join here"); bidirectional
+propagation stays additive later.
 
 ## 7. Explicitly out of scope
 
