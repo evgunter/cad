@@ -395,6 +395,63 @@ impl Bounds for f64 {
     }
 }
 
+/// **Bracket access without the `Real` obligation** — the certification
+/// seam (M5 PR 2, `docs/CURVED-DESIGN.md` C9).
+///
+/// [`Bounds`] is a subtrait of [`Real`], which is right for *evaluation
+/// scalars* that also carry a bracket (`f64`, the interval scalar): they
+/// are things geometry recipes are replayed at. But the C9 interval ring
+/// ([`crate::ring_interval::RingInterval`]) is deliberately **not** an
+/// evaluation scalar — it has no transcendentals and must never appear in
+/// an evaluation signature — so it cannot implement `Real`, and therefore
+/// cannot implement `Bounds`.
+///
+/// `Enclosure` is the smaller trait both sides can meet at: just the two
+/// bracket readers, no arithmetic obligation at all. Every `Bounds`
+/// implementor gets it by blanket impl (so `f64` and the interval scalar
+/// are covered without a line of change), and the ring implements it
+/// directly. Certification helpers — the spline hull bounds in
+/// [`crate::spline::hull`] are the first — take `T: Enclosure` and work
+/// for all three: an `f64` coefficient is a degenerate bracket, an
+/// interval-scalar coefficient is the replayed enclosure, a ring
+/// coefficient is the certification arithmetic's own.
+///
+/// # Semantics
+///
+/// Identical to [`Bounds`]: `[lo(), hi()]` brackets every real number the
+/// value stands for, and **poison surfaces as NaN from both accessors**
+/// rather than narrowing — a NaN bracket fails every `residual <= eps`
+/// check loudly (D4 ¶2). Implementors owe that convention.
+///
+/// # Style note (method-name shadowing)
+///
+/// The two traits share method names `lo`/`hi`. Generic code bounded by
+/// `T: Bounds` resolves through its own bound and is unaffected, but
+/// calling `x.lo()` on a **concrete** `Bounds` type with both traits in
+/// scope is ambiguous (E0034). Import one trait, or disambiguate with
+/// `Enclosure::lo(x)`. The names are worth the friction: a second spelling
+/// for "the bottom of the bracket" would be worse.
+pub trait Enclosure: Copy {
+    /// The lower end of the bracket (NaN if poisoned).
+    fn lo(self) -> f64;
+
+    /// The upper end of the bracket (NaN if poisoned).
+    fn hi(self) -> f64;
+}
+
+/// Every [`Bounds`] scalar is an [`Enclosure`] — the one-line seam that
+/// keeps `f64` and the interval scalar usable by certification helpers
+/// written against the smaller trait.
+impl<T: Bounds> Enclosure for T {
+    fn lo(self) -> f64 {
+        Bounds::lo(self)
+    }
+
+    fn hi(self) -> f64 {
+        Bounds::hi(self)
+    }
+}
+
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
 /// `n == 0` yields one **unconditionally** — the generic default takes the

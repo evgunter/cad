@@ -22,6 +22,7 @@ pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
 pub mod real;
+pub mod ring_interval;
 pub mod spline;
 pub mod tolerance;
 
@@ -35,6 +36,7 @@ pub use linalg::{Affine2, Affine3, Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign,
 };
-pub use real::{Bounds, Real};
+pub use real::{Bounds, Enclosure, Real};
+pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};
