@@ -8,7 +8,8 @@
 #![allow(missing_docs)]
 
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, Real, Vec3};
+// Promotion adaptation (mechanical): dropped an unused Real import.
+use geom_core::{Point3, Vec3};
 use geom_surfaces::nurbs::NurbsSurface;
 
 const SEED: u64 = 0x5EED_50F5;

@@ -19,7 +19,8 @@
 #![allow(missing_docs)]
 
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
-use geom_core::{Dual64, Point3, Real};
+// Promotion adaptation (mechanical): dropped an unused Real import.
+use geom_core::{Dual64, Point3};
 use geom_curves::{Curve3, NurbsCurve3};
 
 // ---------- deterministic RNG (report: SEED below) ----------
@@ -495,7 +496,9 @@ fn f7_find_span_fuzz_totality() {
             let t = rng.range(-2.0, 3.0);
             let s = kv.find_span(t);
             assert!(kv.span_is_nonempty(s));
-            if t >= 0.0 && t < 1.0 {
+            // Promotion adaptation (mechanical): clippy's
+            // manual_range_contains form.
+            if (0.0..1.0).contains(&t) {
                 let ks = kv.knots();
                 assert!(
                     ks[s] <= t && t < ks[s + 1],
