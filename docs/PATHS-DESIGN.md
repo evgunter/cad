@@ -1,6 +1,6 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5, design doc)
 
-Status: **DRAFT round 7, for Evan's sign-off** (design-conversation
+Status: **DRAFT round 8, for Evan's sign-off** (design-conversation
 PR; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104. The ratified doc is the
 deliverable). Rounds: 1 = forward-consuming vs junction-resolver
@@ -67,16 +67,17 @@ bound:
   position-binder **`.at(p)`** and the angle-binder `.angle(θ)`
   applied to Open. Consequence, recorded: no side is privileged
   — the opening reads exactly like every fillet arrival, and for
-  a fully-filleted loop `close_fillet(r)` pairs with the opening
+  a fully-filleted loop the seam fillet pairs with the opening
   exactly as interior fillets pair with their preceding sides:
   the loop is a cyclic sequence of [corner, side-bindings]
   units. **Entry rule, generalized (round 7b, Evan's review
   question — replacing the earlier shallow "the entry has none"
   justification):** the entry authors the FIRST SIDE; the SEAM is
-  authored by `close_*`, once. In the cyclic view the corner
-  "before" the first side IS the seam corner, so a leading
-  `.fillet(r)` is `close_fillet(r)`'s content authored from the
-  front, and a leading `.tangent()` is `close_tangent()`'s —
+  authored ONCE, at the back of the chain (round 8: by the verb
+  that targets `Start`). In the cyclic view the corner "before"
+  the first side IS the seam corner, so a leading `.fillet(r)` is
+  the seam fillet's content authored from the front, and a
+  leading `.tangent()` is the tangent seam's —
   allowing either would mint a second spelling of the same value
   (the round-3 associativity principle), and close-side is the
   only site that can even elaborate it (both adjacent carriers
@@ -146,7 +147,7 @@ implicit virtual corner, trimming both; the tip is then Directed
 on the open arrival side — subsequent direction-consuming forms
 TERMINATE OR CONTINUE that same leg (`.line(len)` ends it past
 the anchor; another `.fillet(…)` runs it into the next trim;
-`close_fillet` likewise) — one leg in the lowering, so no
+the seam fillet likewise) — one leg in the lowering, so no
 collinear-split/same-carrier hazard arises from the
 continuation. Grounds, recorded:
 
@@ -184,14 +185,45 @@ seam consumes only the two ends' typed states — flat chains,
 variables, and nesting produce the identical value (the round-2/3
 requirement, preserved through the retype).
 
-**Closure.** `close()` (Sharp seam, checked), `close_tangent()`
-(declared handoff last→first), `close_fillet(r)` (fillet between
-the final carrier and the START's directed departure — why
-`Open.at(p).angle(θ)`, anchoring side 1 at a real path point, is
-the natural opening of an all-filleted loop). v1 rule: the seam
-sits at a junction or fillet, never mid-carrier (a mid-carrier
-seam = two collinear legs across the seam — the same-carrier/
-collinear rules refuse it; PQ4 records the possible relaxation).
+**Closure: the `Start` token (round 8, Evan's thought experiment
+adopted — the `close_*` family DISSOLVES).** The entry, once
+bound, is addressable: **`Start`** is a first-class **directed
+point** value (side 1's position + departure direction — always
+fully bound by the time the loop returns), legal wherever a
+position/anchor argument goes. **Using it IS closing**, and it is
+closing STRUCTURALLY:
+- Sharp seam: `line_to(Start)` / `arc_to(Start, bulge)` — an
+  ordinary leg targeting Start; the seam's sharp check runs with
+  both directions known (last leg's arrival vs side 1's
+  departure — the check §2 already deferred to the seam).
+- Tangent seam: `.tangent().arc_to(Start)` — the unique tangent
+  arc landing at Start, arrival direction then checked/declared
+  against side 1's departure. (A tangent LINE close,
+  `.tangent().line_to(Start)`, is overdetermined — direction
+  inherited AND through Start — and refuses unless genuinely
+  collinear; the same overdetermination any
+  tangent-line-to-a-fixed-point has, but the seam is where
+  authors will hit it, so the refusal text names the fix: use an
+  arc, or drop the tangent.)
+- Seam fillet: `.angle(θ).fillet(r, Start)` — the most
+  determined fillet in the language: both carriers already bound
+  (the incoming ray and side 1), nothing pending, loop closed.
+- `close()` survives only as SUGAR for `line_to(Start)` if the
+  word is wanted; `close_tangent`/`close_fillet` are gone.
+
+**The latent defect this fixes, recorded**: the previous shape
+(`.arc_to(a, bulge).close()` — a re-authored as coordinates)
+relied on the last endpoint VALUE-matching the entry point — a
+coincidence between independently-authored numbers, exactly what
+the ratified coincidence ladder refuses to infer from. `Start`
+makes closure declared and structural: the endpoint IS the start
+point by reference, authored once (the authored-points-once
+discipline completing itself).
+
+v1 seam-placement rule unchanged: the seam sits at a junction or
+fillet, never mid-carrier (a mid-carrier seam = two collinear
+legs across it — same-carrier rules refuse; PQ4 records the
+relaxation).
 
 ## 3. Surface vocabulary and worked examples
 
@@ -208,7 +240,8 @@ collinear rules refuse it; PQ4 records the possible relaxation).
 | `arc_to(p, bulge)` | Point → Point | sugar (direction from chord + bulge) |
 | `arc_to(p)` | Directed → Point | sugar for the unique tangent arc |
 | `p1.then(p2)` | seam from the two tips' states | core, associative |
-| `close()` / `close_tangent()` / `close_fillet(r)` | seam | same typing at last→first |
+| `Start` | a directed-point VALUE (the bound entry) | core — using it as a target closes, structurally (round 8) |
+| `close()` | ≡ `line_to(Start)` | sugar (the only survivor of the close family) |
 
 All-rounded square, fully determined (4 anchors + 4 directions,
 sides read as anchor+direction pairs; every mᵢ a real on-path
@@ -220,7 +253,7 @@ Open.at(m1).angle(east)
     .fillet(r, m2).angle(north)        // ≡ .fillet(r).at(m2).angle(north)
     .fillet(r, m3).angle(west)
     .fillet(r, m4).angle(south)
-    .close_fillet(r)
+    .fillet(r, Start)                  // the seam fillet — both carriers bound; closed
 ```
 
 with the opening reading exactly like every fillet arrival
@@ -237,7 +270,8 @@ Open.at(p0).line_to(p1)                 // sharp corner at p1 (sugar over .angle
     .close()
 ```
 
-Evan's original tangent shape:
+Evan's original tangent shape (the seam leg now targets Start
+structurally — `a` is authored exactly once):
 
 ```text
 Open.at(a).angle(d)
@@ -245,16 +279,15 @@ Open.at(a).angle(d)
     .tangent().arc_to(b)
     .angle(θ).fillet(r, dd).angle(θ2)
     .line(len2)
-    .arc_to(a, bulge)
-    .close()
+    .arc_to(Start, bulge)
 ```
 
 **The anchor fit check** (invariant 3 made operational): an
 arrival anchor must land on the TRIMMED extent of its side — an
 anchor the fillet trim would consume refuses typed
 (`AnchorOutsideTrimmedExtent`; #101's `TangentJointOutOfRange`
-fit-gating generalized). Same check for `start`'s point under
-`close_fillet`.
+fit-gating generalized). Same check for the entry point under a
+seam fillet (`fillet(r, Start)`).
 
 Refusals/ill-typedness (compile-time where the lattice decides,
 typed errors where geometry does): double director; `fillet` on
@@ -264,8 +297,12 @@ fillet an authored corner away"); `line(len)` from a non-
 (point-sugar excepted — it supplies the missing bit);
 `.tangent()` on a plain point (nothing to inherit — the former
 circularity rule, now structural); leading `.fillet`/`.tangent`
-(the seam belongs to `close_*` — §2's generalized entry rule);
-`NoCornerForFillet`;
+(the seam belongs to the Start-targeting verbs at the BACK of the
+chain — §2's generalized entry rule, restated for round 8: one
+authoring site per seam, and only the back side can elaborate
+it); `.tangent().line_to(Start)` (the overdetermined tangent-line
+close — refusal text names the fix: use an arc, or drop the
+tangent); `NoCornerForFillet`;
 `AnchorOutsideTrimmedExtent`; `UndeclaredTangency` on an
 exactly-tangent `.angle(θ)` at a directed point;
 `TangencyContradicted` from the verify layer as today.
@@ -329,8 +366,9 @@ record.
 Strictly forward, single pass, seam last; every step local and
 closed-form: directors bind departures; direction-consuming legs
 bind from them; each fillet is the ray×line corner construction
-with both carriers already fixed when reached; `close_*` resolves
-the seam against the start's recorded state. Round 3's
+with both carriers already fixed when reached; the seam resolves
+when a verb targets `Start` (leg arrival check, tangent-arc
+check-and-declare, or the fully-bound seam fillet — §2). Round 3's
 `ElaborationOrderUnsupported` class is ELIMINATED by the round-4
 anchoring discipline — no chain expressible in this surface needs
 right-to-left propagation (recorded as a consequence to re-verify
