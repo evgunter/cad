@@ -276,7 +276,10 @@ exactly-tangent `.angle(θ)` at a directed point;
    geometry moves by ≤ the sub-threshold margin, an intended,
    reported change — the ratified repair-shaped resolution, not
    a verification gamble). `TangencyContradicted` remains the
-   verify-layer door for RAW-authored declared flags (#101),
+   verify-layer door for declared flags on RAW-AUTHORED segment
+   chains — today's explicit vertex+bulge profiles and PQ2's
+   `lift(chain)` sub-paths, where the flag is a claim about
+   independently-typed numbers and can therefore be false —
    untouched. Declaring SHARP is still never an override —
    kernel-side F6 semantics (exactly-on vs in-band) are
    unchanged by this; the unification is user-message policy at
