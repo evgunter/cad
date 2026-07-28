@@ -486,6 +486,14 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         if !(wq > 0.0) || !wq.is_finite() {
             return Err(KnotAlgebraError::WeightCollapse { index: i });
         }
+        // λ overflow note: wq passed the guard, but a subnormal-
+        // positive wq can still overflow `…/wq` to +∞ here; the lifted
+        // infinite λ then poisons the combined point (NaN through
+        // `x + (y − x)·λ`) rather than raising a typed error. Accepted:
+        // validated inputs (finite weights ≥ DBL_MIN-scale, α ∈ (0,1))
+        // cannot reach a subnormal wq without first tripping the
+        // WeightCollapse guard in a preceding pass, and poison fails
+        // certification loudly downstream (D4 ¶2) if they somehow do.
         let lambda = (weights[i] / a) / wq;
         steps.push(Step::Combo {
             target: i,
@@ -507,6 +515,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         if !(wq > 0.0) || !wq.is_finite() {
             return Err(KnotAlgebraError::WeightCollapse { index: i });
         }
+        // λ overflow note: as in the forward chain above.
         let lambda = (weights[i + 1] / (1.0 - a)) / wq;
         steps.push(Step::Combo {
             target: i,

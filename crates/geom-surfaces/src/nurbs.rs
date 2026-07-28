@@ -539,8 +539,12 @@ impl<T: SpanLocate> NurbsSurface<T> {
                 if cu == su.first && cv == sv.first {
                     continue;
                 }
-                // Empty spans (interior multiplicity) hold no
-                // parameter — skipping preserves containment.
+                // Skip empty spans (interior multiplicity):
+                // find_span assigns every parameter — a repeated knot
+                // value included — to the nonempty span starting at
+                // it, which the rectangle always covers, so nothing
+                // is discarded (containment preserved); an empty span
+                // would only contribute poison (zero denominators).
                 if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
                     continue;
                 }
@@ -569,6 +573,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
                 if cu == su.first && cv == sv.first {
                     continue;
                 }
+                // Empty-span skip: see `ders`'s note.
                 if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
                     continue;
                 }

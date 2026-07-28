@@ -349,7 +349,8 @@ impl<T: SpanLocate> Surface<T> {
     /// Cone: `tangential(u)·(v·sin α)` — **zero at the apex** (`v = 0`,
     /// the chart singularity). Sphere: `tangential(u)·(radius·cos v)` —
     /// **zero at the poles**. Torus:
-    /// `tangential(u)·(R + r·cos v)`. Nurbs: poison.
+    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`
+    /// (all-poison for the placeholder state).
     pub fn deriv_u(&self, u: T, v: T) -> Vec3<T> {
         match self {
             &Surface::Plane { u_ref, .. } => u_ref,
@@ -404,7 +405,7 @@ impl<T: SpanLocate> Surface<T> {
     /// generator direction (slant parameterization). Sphere:
     /// `(radial(u)·(−sin v) + axis·cos v)·radius` — the meridian
     /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
-    /// poison.
+    /// the payload jet's `dv` (all-poison for the placeholder state).
     pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
         match self {
             &Surface::Plane { normal, u_ref, .. } => normal.cross(u_ref),
@@ -458,7 +459,8 @@ impl<T: SpanLocate> Surface<T> {
     ///
     /// Plane: zero. Cylinder: `radial(u)·(−radius)`. Cone:
     /// `radial(u)·(−(v·sin α))`. Sphere: `radial(u)·(−(radius·cos v))`.
-    /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: poison. (Each is the
+    /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: the payload jet's
+    /// `duu` (all-poison for the placeholder state). (Each is the
     /// azimuthal-rotation second derivative: `radial″ = −radial`.)
     pub fn deriv_uu(&self, u: T, v: T) -> Vec3<T> {
         match self {
@@ -512,7 +514,8 @@ impl<T: SpanLocate> Surface<T> {
     ///
     /// Plane, cylinder: zero. Cone: `tangential(u)·sin α`. Sphere:
     /// `tangential(u)·(−(radius·sin v))`. Torus:
-    /// `tangential(u)·(−(r·sin v))`. Nurbs: poison.
+    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`
+    /// (all-poison for the placeholder state).
     pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
         match self {
             &Surface::Plane { .. } | &Surface::Cylinder { .. } => Vec3::zero(),
@@ -555,7 +558,8 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane, cylinder, cone: zero (rulings/generators are straight).
     /// Sphere: `(radial(u)·cos v + axis·sin v)·(−radius)` — the inward
     /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
-    /// tube. Nurbs: poison.
+    /// tube. Nurbs: the payload jet's `dvv` (all-poison for the
+    /// placeholder state).
     pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
         match self {
             &Surface::Plane { .. } | &Surface::Cylinder { .. } | &Surface::Cone { .. } => {

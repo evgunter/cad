@@ -301,10 +301,12 @@ impl KnotVector {
 
     /// Whether `span` is a **nonempty** span (`knots[span] <
     /// knots[span+1]`). Interior knot multiplicities create empty
-    /// spans; they contain no parameter, their basis denominators are
-    /// zero, and evaluation treats them as invalid (poison) —
-    /// [`KnotVector::find_span`] never returns one, and multi-span
-    /// hull iteration skips them.
+    /// spans; their basis denominators are zero, so evaluation treats
+    /// them as invalid (poison). [`KnotVector::find_span`] never
+    /// returns one — every parameter `t`, including a repeated knot
+    /// value `u` itself, is assigned to the nonempty span *starting*
+    /// at it — so multi-span hull iteration skips empty spans without
+    /// discarding any parameter's span.
     pub fn span_is_nonempty(&self, span: usize) -> bool {
         span + 1 < self.knots.len() && self.knots[span] < self.knots[span + 1]
     }
@@ -326,10 +328,15 @@ impl KnotVector {
 
     /// The clamped single-segment (Bézier) vector on `[0, 1]`:
     /// `degree + 1` zeros followed by `degree + 1` ones. Infallible —
-    /// statically valid for every `degree ≥ 1`; a `degree` of 0 is
-    /// clamped up to 1 (the degree-0 refusal belongs to
-    /// [`KnotVector::clamped`]; this convenience constructor has no
-    /// panic or error path).
+    /// statically valid for every `degree ≥ 1`.
+    ///
+    /// **`unit_segment(0)` silently yields the degree-1 vector** (the
+    /// argument is clamped up with `max(1)`, not refused): the
+    /// `DegreeZero` refusal is [`KnotVector::clamped`]'s job — the one
+    /// validating door for externally supplied structure — while this
+    /// constructor exists precisely to be panic- and error-free for
+    /// the placeholder/fixture paths, which never ask for degree 0.
+    /// Callers that must *distinguish* degree 0 go through `clamped`.
     pub fn unit_segment(degree: usize) -> Self {
         let p = degree.max(1);
         let mut knots = vec![0.0; p + 1];

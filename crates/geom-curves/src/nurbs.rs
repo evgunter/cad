@@ -366,8 +366,13 @@ macro_rules! nurbs_curve {
                 let spans = t.locate_spans(&self.knots);
                 let mut acc = self.eval_in_span(spans.first, t);
                 for s in (spans.first + 1)..=spans.last {
-                    // Empty spans (interior multiplicity) hold no
-                    // parameter — skipping them preserves containment.
+                    // Skip empty spans (interior multiplicity):
+                    // find_span assigns every parameter — a repeated
+                    // knot value included — to the nonempty span
+                    // starting at it, which this loop's range always
+                    // covers, so nothing is discarded (containment
+                    // preserved); an empty span itself would only
+                    // contribute poison (zero basis denominators).
                     if !self.knots.span_is_nonempty(s) {
                         continue;
                     }
@@ -384,6 +389,7 @@ macro_rules! nurbs_curve {
                 let spans = t.locate_spans(&self.knots);
                 let mut acc = self.deriv_in_span(spans.first, t);
                 for s in (spans.first + 1)..=spans.last {
+                    // Empty-span skip: see `eval`'s note.
                     if !self.knots.span_is_nonempty(s) {
                         continue;
                     }
@@ -399,6 +405,7 @@ macro_rules! nurbs_curve {
                 let spans = t.locate_spans(&self.knots);
                 let mut acc = self.deriv2_in_span(spans.first, t);
                 for s in (spans.first + 1)..=spans.last {
+                    // Empty-span skip: see `eval`'s note.
                     if !self.knots.span_is_nonempty(s) {
                         continue;
                     }

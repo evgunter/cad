@@ -7,7 +7,7 @@
 //! [`Tolerance`]. This module owns that classification primitive; the
 //! geometry layers build *named predicates* (side-of-plane,
 //! transversality, …) on top of it and never compare scalars directly.
-//! Evaluation code — generic over [`Real`] — can only compute: `Real`
+//! Evaluation code — generic over [`Real`](crate::real::Real) — can only compute: `Real`
 //! deliberately carries no comparisons. Code that needs to branch takes
 //! the separate [`Decide`] bound, and [`Decide::sign_within`] is the only
 //! passage from scalar values to control flow.
@@ -110,8 +110,6 @@
 
 use core::fmt;
 
-#[allow(unused_imports)] // doc links only since Decide's supertrait became SpanLocate
-use crate::real::Real;
 use crate::spline::SpanLocate;
 use crate::tolerance::Tolerance;
 
@@ -567,7 +565,7 @@ impl std::error::Error for Indeterminate {}
 /// Scalars that can classify their sign against a [`Band`] — the single
 /// door from numbers to decisions.
 ///
-/// Deliberately a **separate trait** from [`Real`] (a supertrait, not an
+/// Deliberately a **separate trait** from [`Real`](crate::real::Real) (a supertrait, not an
 /// extra bound at use sites): evaluation code that merely computes stays
 /// generic over `Real` alone and *cannot* branch on values; only code
 /// that genuinely decides — predicate definitions, classification steps —
@@ -581,7 +579,8 @@ impl std::error::Error for Indeterminate {}
 /// straddles a boundary), and dual numbers in M0 PR 5 classify their
 /// value part only — a derivative never influences a branch.
 ///
-/// [`SpanLocate`] (M5 PR 3) is a supertrait (which brings [`Real`] with
+/// [`SpanLocate`] (M5 PR 3) is a supertrait (which brings
+/// [`Real`](crate::real::Real) with
 /// it): every decision-capable scalar has an authoritative
 /// value/enclosure channel, and knot-span selection reads exactly that —
 /// so `T: Decide` code (the topology layer's bound) can evaluate NURBS
