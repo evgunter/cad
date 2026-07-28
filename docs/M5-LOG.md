@@ -321,3 +321,22 @@ zero-annihilator × infinity/poison; independent containment fuzz;
 rational hull-bound derivation re-check (ratio-of-hulls subtlety);
 C2.2 pipeline algebra verification; e2e corrupt-control-point
 catch at 2ε.
+
+**PR 2 review returned (2026-07-28): APPROVE-WITH-FIX-PASS, 0 MAJ
+/ 2 MIN / 2 NOTE, all 7 deviations reported, 0 silent.** The crux
+HELD: sign clamp proof-checked (cannot fire on straddlers; -0.0
+correctly nonneg) + 6.8M independent boundary verdicts, zero
+violations; zero-annihilator ordering verified (poison → straddle
+→ annihilate); rational hull bound re-derived — control-value
+convex combination, never ratio-of-hulls; 11.7M total independent
+exact verdicts; C2.2 rehearsal algebra hand-verified, numbers
+bit-reproduced; e2e plane-residual consumer certifies clean /
+refuses 2ε corruption exactly. MINs: from_bounds admits
+[+inf,+inf] (no-real bracket, public ctor — poison it); the
+branch now REALLY conflicts with main (PR 1 merged post-base —
+deviation 7's trivial-merge claim went stale; differential lane's
+inari-backed comment too). Rubric: idiom 5 / tests 5 / docs 4.
+Fix pass DISPATCHED (main merge + inf gap + comment fixes + 3
+reviewer-suite adoptions; clamp/annihilator/hull code frozen as
+verified). Meanwhile PR 8 (BVH, fable row 15) implementing on the
+other lane; PR 4 dispatches on PR 2 merge.
