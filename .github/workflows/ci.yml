@@ -174,6 +174,48 @@ jobs:
       - name: band 4 corpus (interval)
         run: cargo test -p editor-core --features interval --test m4_pr8_corpus_interval
 
+  interval-backend:
+    name: interval backend crate (gmp-free)
+    runs-on: ubuntu-latest
+    # The `interval` feature's backend lives in its own workspace
+    # (interval-transcendentals/), so the kernel's workspace rows never
+    # build its tests. Its pad tripwire therefore had no CI at all until
+    # M5 PR 1's review asked for one — and that tripwire is what catches a
+    # dropped outward round, which the kernel's own lane-agreement tests
+    # provably cannot (both lanes share the round-to-nearest chain).
+    #
+    # This row is deliberately the crate's DEFAULT feature set: unit
+    # tests, the edges sweep's oracle-free half, and review_fuzz_div's
+    # exact-rational division fuzz, which needs no oracle at all because
+    # it compares against u128 rational arithmetic. No `oracle-inari`,
+    # hence no gmp-mpfr-sys, no C toolchain, no m4 — the row takes
+    # seconds. The full differential lane (certify.rs, behind
+    # --features oracle-inari) stays a by-hand gate; see the crate
+    # README's "Certification" section.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-backend
+          workspaces: interval-transcendentals
+      - name: fmt + clippy
+        working-directory: interval-transcendentals
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: tests (no oracle feature — must not pull gmp)
+        working-directory: interval-transcendentals
+        run: cargo test
+      # Tripwire on the tripwire: if anything ever makes the gmp stack
+      # reachable from the default feature set, fail loudly here rather
+      # than silently reintroducing the C build this PR removed.
+      - name: assert the default graph is gmp-free
+        working-directory: interval-transcendentals
+        run: |
+          if cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'; then
+            echo "ERROR: the default feature set reaches the gmp stack"
+            exit 1
+          fi
+
   watertight:
     name: watertight (admesh)
     runs-on: ubuntu-latest
