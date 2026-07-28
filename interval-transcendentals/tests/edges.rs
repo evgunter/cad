@@ -1,9 +1,16 @@
 //! Edge sweeps: poison propagation, signed zeros, extremum capture,
 //! domain clamps, huge arguments, and the specific traps found during
 //! design (atan2 −0.0 branch cut; powi straddle-square tightness).
+//!
+//! This file runs in BOTH certification tiers. Its primary assertions are
+//! about our own values and need no oracle, so the kernel's CI can run it
+//! without a C toolchain; the inari cross-checks interleaved with them are
+//! behind `oracle-inari` (README "Certification"). Nothing was deleted to
+//! achieve that — the oracle rows are simply conditional.
 
 mod common;
 
+#[cfg(feature = "oracle-inari")]
 use common::{assert_contains, dec_of, to_inari};
 use interval_transcendentals::{DInterval, Decoration};
 
@@ -46,6 +53,7 @@ fn sin_extremum_capture() {
     assert_eq!(s.hi(), 1.0, "sup must be the exact extremum, got {s:?}");
     assert!(s.lo() <= libm::sin(1.5) && s.decoration() == Decoration::Com);
     // Same through the oracle lens.
+    #[cfg(feature = "oracle-inari")]
     assert_contains("sin ext", &s, &to_inari(&x).sin(), false);
     // Width ≥ 2π: both extrema.
     let w = DInterval::from_bounds(100.0, 107.0).sin();
@@ -84,6 +92,7 @@ fn huge_argument_honesty() {
         sm.hi() - sm.lo() < 2e-3,
         "moderate args must stay tight, got {sm:?}"
     );
+    #[cfg(feature = "oracle-inari")]
     assert_contains("sin 1e6", &sm, &to_inari(&m).sin(), false);
 }
 
@@ -129,6 +138,7 @@ fn atan2_branch_cut_and_signed_zero() {
     assert_eq!(yc.atan2(z).decoration(), Decoration::Trv);
     assert!(z.atan2(z).is_empty());
     // Oracle agreement on all four.
+    #[cfg(feature = "oracle-inari")]
     for (yy, xx) in [(y, x), (yc, x), (yc, z), (z, z)] {
         let mine = yy.atan2(xx);
         let oracle = to_inari(&yy).atan2(to_inari(&xx));
@@ -165,6 +175,12 @@ fn powi_straddle_square_is_tight_at_zero() {
 #[test]
 fn subnormal_and_zero_endpoints() {
     let tiny = DInterval::from_bounds(0.0, f64::MIN_POSITIVE);
+    // Oracle-free: subnormal endpoints must survive as enclosures at all,
+    // with sqrt's clamp-free `Com` and sin's identity-at-zero bracket.
+    assert!(tiny.sin().contains(0.0) && tiny.sqrt().contains(0.0));
+    assert_eq!(tiny.sqrt().decoration(), Decoration::Com);
+    assert!(tiny.atan().contains(0.0));
+    #[cfg(feature = "oracle-inari")]
     for (mine, oracle) in [
         (tiny.sin(), to_inari(&tiny).sin()),
         (tiny.sqrt(), to_inari(&tiny).sqrt()),
@@ -186,20 +202,26 @@ fn floor_d8_divergence_is_real_and_bounded() {
     // allowlist in certify_exact_ops can never silently widen.
     let s = DInterval::from_bounds(3.0, 3.0);
     assert_eq!(s.floor().decoration(), Decoration::Com);
-    assert_eq!(
-        to_inari(&s).floor().decoration(),
-        inari::Decoration::Dac,
-        "inari changed its floor decoration policy; revisit D8"
-    );
-    // Non-D8 shapes agree exactly.
+    // Our side of the non-D8 shapes, oracle-free.
     let c = DInterval::from_bounds(2.25, 2.75);
-    assert_eq!(
-        dec_of(to_inari(&c).floor().decoration()),
-        c.floor().decoration()
-    );
+    assert_eq!(c.floor().decoration(), Decoration::Com);
     let j = DInterval::from_bounds(2.25, 3.25);
-    assert_eq!(
-        dec_of(to_inari(&j).floor().decoration()),
-        j.floor().decoration()
-    );
+    assert_eq!(j.floor().decoration(), Decoration::Def);
+    // The oracle half: D8 is a real divergence and the other two agree.
+    #[cfg(feature = "oracle-inari")]
+    {
+        assert_eq!(
+            to_inari(&s).floor().decoration(),
+            inari::Decoration::Dac,
+            "inari changed its floor decoration policy; revisit D8"
+        );
+        assert_eq!(
+            dec_of(to_inari(&c).floor().decoration()),
+            c.floor().decoration()
+        );
+        assert_eq!(
+            dec_of(to_inari(&j).floor().decoration()),
+            j.floor().decoration()
+        );
+    }
 }

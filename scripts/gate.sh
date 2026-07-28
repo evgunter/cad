@@ -37,13 +37,17 @@
 #
 # HAZARDS (investigation cautions — do not "improve" these away):
 #   * NEVER export RUSTFLAGS (or any rustc flag env). It silently
-#     REPLACES .cargo/config.toml's `-C target-cpu=x86-64-v3`, which
-#     the interval feature REQUIRES for inari's directed rounding.
+#     REPLACES .cargo/config.toml's `-C target-cpu=x86-64-v3`. That was
+#     a hard correctness requirement while inari supplied the interval
+#     backend (directed rounding via inline asm); since M5 PR 1 it is a
+#     D9-consistency and performance floor — see the config's own STATUS
+#     note. Either way, dropping it silently is a bad surprise.
 #     This script defensively unsets inherited overrides below.
 #   * No shared CARGO_TARGET_DIR across worktrees (fingerprint
 #     ping-pong, no concurrency safety — rejected).
-#   * Leave ~/.cache/gmp-mpfr-sys alone (machine-wide GMP/MPFR C
-#     build cache — why interval libs build in 11s).
+#   * ~/.cache/gmp-mpfr-sys no longer matters for KERNEL builds (M5 PR 1
+#     dropped the gmp stack from the interval feature); it still speeds
+#     up interval-transcendentals' own inari dev-oracle lane.
 set -euo pipefail
 
 [[ $# -eq 1 ]] || { echo "usage: $0 <sha-or-ref>" >&2; exit 2; }

@@ -17,7 +17,18 @@ always CONTAINS inari's; it is never tighter. Exceptions that stay
 exact: extremum bounds (`±1.0` for sin/cos, clipped ranges of
 asin/acos/atan/atan2), zero lower bound of even powers over straddling
 intervals, FMA-witnessed exact squares/products, exact sums (TwoSum
-witness), `sqrt` of witnessed perfect squares.
+witness), FMA-witnessed exact quotients, `sqrt` of witnessed perfect
+squares.
+
+The exact-quotient witness was added during the M5 PR 1 adoption, when
+padding *every* division unconditionally proved to be a divergence with
+kernel-visible consequences rather than a mere tightness gap: `v / |v|`
+for an axis-aligned `v` stopped being exactly unit, which widened every
+coordinate taken against such a frame and made the kernel's exact-order
+band (topo's null-edge sort — a design that rests on axis-aligned splits
+over dyadic geometry classifying EXACTLY) escalate where it used to
+decide. The witness is `mul_exact`'s, mirrored: `fma(q, b, -a) == 0`
+above the 2Prod validity floor proves `q·b = a`, hence `a/b = q` exactly.
 
 ## D2 — Decoration on atan2's upper closed half-plane ray boxes
 
