@@ -138,3 +138,11 @@ adversarial removal-bound fuzz with wide weights, and the
 SpanLocate-home unimplementability premise verified by attempt).
 Lanes: both reviewers running = the two cargo lanes; PR 2 stays
 queued; S5 drafting next orchestrator work.
+
+**Third limit outage + recovery (2026-07-27 ~20:10Z → 2026-07-28
+~01:2xZ)**: Fable limit killed BOTH blinded reviewers mid-battery
+(PR 1's post-certify-lane/pre-division-fuzz; PR 3's mid
+test-binaries + surface C0-kink attack). Evan re-logged-in; both
+resumed from transcript with surviving clones (standard ladder,
+cwd-reset guard in the resume messages). No work lost; both
+implementations were already pushed pre-outage.
