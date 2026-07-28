@@ -15,6 +15,9 @@ dbg-join = []
 interval = ["geom-core/interval", "geom-brep/interval"]
 
 [dependencies]
+# The boolean sweep's candidate generation (M5 PR 8): the tree prunes,
+# predicates decide — see boolean/reduce.rs module docs.
+bvh = { path = "../bvh" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
 geom-curves = { path = "../geom-curves" }

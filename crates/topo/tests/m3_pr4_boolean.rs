@@ -14,15 +14,19 @@ use topo::{
     validate,
 };
 
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
+fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-fn counts<T: Decide>(b: &Body<T>) -> (usize, usize, usize) {
+fn counts<T: Decide + geom_core::Bounds>(b: &Body<T>) -> (usize, usize, usize) {
     (b.vertices().count(), b.edges().count(), b.faces().count())
 }
 
-fn reduce_ok<T: Decide>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> BooleanReduction<T> {
+fn reduce_ok<T: Decide + geom_core::Bounds>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+) -> BooleanReduction<T> {
     let before = (counts(a), counts(b));
     // M4 PR 5: intended flush contacts are DECLARED (the test author's
     // recipe intent); value-equality alone no longer classifies.
@@ -41,7 +45,7 @@ fn reduce_ok<T: Decide>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> BooleanReduc
 /// null edge + one ring strut in the pierced face (the vtxfacclassify
 /// ring sequence), all correspondence-keyed. Op-independent here (no
 /// Eq. 15.3 row is hit).
-fn two_bricks<T: Decide>(op: BooleanOp) {
+fn two_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp) {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
     let red = reduce_ok(op, &a, &b);
@@ -78,7 +82,7 @@ fn two_bricks_all_ops() {
 /// B-bottom edge (Tables II/III rows live), Eq. 15.3's ⁻ row decides
 /// (opposite orientation). Union sees crossings (the stacked bodies
 /// merge through the shared plane); the census is pinned per op.
-fn stacked_bricks<T: Decide>(op: BooleanOp, expect_pairs_nonzero: bool) {
+fn stacked_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp, expect_pairs_nonzero: bool) {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<T>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
     let red = reduce_ok(op, &a, &b);
@@ -108,7 +112,7 @@ fn stacked_bricks_full_coplanar_face() {
 /// search finds NO crossing (the cones touch at one point); the
 /// declared v-v contact is the entire result. Near-miss variants: a gap
 /// inside the sliver band escalates typed; a definite gap is clean.
-fn corner_kiss<T: Decide>() {
+fn corner_kiss<T: Decide + geom_core::Bounds>() {
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
@@ -149,7 +153,7 @@ fn corner_kiss_touch_and_near_miss() {
 /// an interior point of both (the OnEdge lane splits BOTH edges into a
 /// declared v-v pair). Census hand-traced: two such crossings, plus one
 /// vertex-on-face contact per side in the shared tangent plane z = 2.
-fn skew_edge_cross<T: Decide>(op: BooleanOp) -> BooleanReduction<T> {
+fn skew_edge_cross<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
     let red = reduce_ok(op, &a, &b);
@@ -211,7 +215,7 @@ fn vertex_on_face_tangential_rest() {
 /// coplanar edge-face pair itself is skipped — the documented catch),
 /// and the shared plane's collinear edge segments put the Tables II/III
 /// edge-edge machinery live at every minted v-v pair.
-fn collinear_overlap<T: Decide>(op: BooleanOp) -> BooleanReduction<T> {
+fn collinear_overlap<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<T>((1.0, 3.0), (0.0, 2.0), (2.0, 4.0));
     reduce_ok(op, &a, &b)

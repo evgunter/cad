@@ -474,7 +474,7 @@ pub fn evaluate<T>(
     opts: &EvalOptions,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -581,7 +581,7 @@ fn refuse_tolerance_conflict<T>(
     process_eps: f64,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut order = sched.order;
     order.extend(sched.unschedulable.iter().copied());
@@ -649,7 +649,7 @@ fn eval_node<T>(
     prior: Option<&Evaluation<T>>,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits,
+    T: Decide + ContentBits + geom_core::Bounds,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),

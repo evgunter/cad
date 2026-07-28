@@ -19,7 +19,7 @@ use super::{ang, desc, insert, len, scl, step};
 
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
 }
@@ -64,7 +64,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut out = Vec::new();
 

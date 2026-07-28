@@ -40,7 +40,7 @@ pub(crate) fn run_op<T>(
     vals: &SlotValues<T>,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits,
+    T: Decide + super::ContentBits + geom_core::Bounds,
 {
     match node {
         Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
@@ -383,7 +383,10 @@ fn wire_split<T: Decide>(
     Ok((ValuePayload::Split { above, below }, table))
 }
 
-fn wire_boolean<T: Decide>(
+// `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
+// BVH candidate generation reads coordinate brackets — the L7 driver-code
+// allowance, threaded from `run_op`'s service bound.
+fn wire_boolean<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
