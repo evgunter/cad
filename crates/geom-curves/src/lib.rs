@@ -87,11 +87,13 @@
 //! derivative-vs-dual consistency and enclosure-containment test axes
 //! below rely on exactly that.
 
+pub mod fit;
 pub mod nurbs;
 pub mod projection;
 
 use std::sync::Arc;
 
+pub use fit::{FitError, FitOutcome, FIT_REMOVAL_BUDGET};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 pub use nurbs::{NurbsCurve2, NurbsCurve3};

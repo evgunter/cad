@@ -305,6 +305,22 @@ macro_rules! nurbs_curve {
                 Ok((cur, bound))
             }
 
+            /// A certified sup-norm bound on `|C_self − C_other|` for
+            /// two curves **sharing one knot vector** (same degree,
+            /// same control count; weights may differ): the
+            /// [`Self::removal_pass_bound`] formula, which only uses
+            /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
+            /// of unity and the positive-weight convex hull. Poison
+            /// (NaN) when the structures do not match — total, never
+            /// a fabricated bound. Crate-internal: the fitting stack's
+            /// deviation measurements (M5 PR 4) ride it.
+            pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
+                if self.knots != other.knots || self.control.len() != other.control.len() {
+                    return T::from_f64(f64::NAN);
+                }
+                Self::removal_pass_bound(self, other)
+            }
+
             /// One removal pass's projected perturbation bound
             /// (derivation at [`Self::remove_knot`]); `orig` and `re`
             /// share a knot vector by construction. Reductions are
