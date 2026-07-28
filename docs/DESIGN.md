@@ -1295,20 +1295,18 @@ Deliberately unsequenced — kept off the roadmap so it never reads as
 preceding the usability program above.
 
 - **In-house rigorous interval transcendentals** *(moved from the
-  roadmap's post-M7 note, 2026-07-19)*: replace `inari`'s gmp/MPFR-
-  backed transcendentals with proven per-function error pads over
-  `libm` plus monotonicity/extremum handling, so interval builds can
-  drop the LGPL-3.0+ transitive dependencies. Until then the
-  `interval` cargo feature quarantines the copyleft obligation to
-  interval-enabled builds only (issue #4). Licensing hygiene, not
-  usability — do not schedule ahead of anything users can feel.
-  **STATUS (8c, 2026-07-27): no longer far-future — the crate was
-  pulled forward as an M4 side-chain and EXISTS in-repo**
-  (`interval-transcendentals/`, workspace-excluded tooling, #115;
-  dual-oracle certified — see the crate-landscape inari row). What
-  remains tabled is only the switch itself: **adoption in the kernel
-  interval lane is a pending M5-PLAN ratified decision.** This entry
-  retires when that decision lands.
+  roadmap's post-M7 note, 2026-07-19)*: **RETIRED FROM THIS LIST —
+  DONE EARLY (M5 PR 1, #127, 2026-07-28).** The entry's whole program
+  completed years ahead of its own sequencing stance: the crate was
+  built as an M4 side-chain (#115), and the kernel switch landed as
+  M5 PR 1 — inari and its LGPL stack are gone from the tree, not
+  re-quarantined. Kept as a tombstone because the entry's original
+  text explicitly warned against scheduling it ahead of user-facing
+  work: what actually happened is that M5's curved certification
+  made interval arithmetic load-bearing on the default path
+  (CURVED-DESIGN C9/T2), which converted the licensing hygiene into
+  user-facing infrastructure — the sequencing stance was right and
+  the trigger it waited for arrived.
 
 ## Open questions
 
@@ -1319,7 +1317,7 @@ persisted decision log**:
 
 - Evaluation code (evaluators, derivatives, transforms, measurements) is
   fully generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (inari `DecInterval`, behind the `interval` feature),
+  `Interval` (in-house `interval-transcendentals` backend since M5 PR 1 — inari retired; behind the `interval` feature),
   `Dual<f64>` and `Dual<Interval>` (one in-house generic `Dual<T>` —
   num-dual was demoted to a dev-only test oracle at M0 because its
   std-backed transcendentals cannot satisfy the value-channel
@@ -1364,7 +1362,7 @@ last-ulp accuracy; no order-implicit reductions (`Sum`/`Product`).
 through a test, never a panic. **Angular tolerance eliminated** (D4 ¶1
 revision).
 **All Q1 residue settled at M0 close (2026-07-16):**
-- **Interval scalar** (PR #7): inari `DecInterval` with the *decoration
+- **Interval scalar** (PR #7; backend swapped to interval-transcendentals at M5 PR 1, contract preserved): originally inari `DecInterval` with the *decoration
   as the poison channel* (`decoration < Def ⇒ Indeterminate(Invalid)` —
   silent domain clamps never decide); `Bounds` certification trait with
   poison-visible NaN brackets for empty AND NaI (failing certification
@@ -1499,7 +1497,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M4). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
-| Interval arithmetic | `inari` | MIT | **Adopted** (M0, issue #4), quarantined. IEEE 1788, full transcendentals via GMP build dep; dormant but feature-complete against a frozen standard. Transcendentals need the `gmp` feature → LGPL-3.0+ transitive deps (`gmp-mpfr-sys`, `rug`), quarantined behind the kernel's `interval` cargo feature; hard AVX+FMA floor on x86-64. **The in-house replacement now EXISTS in-repo** (M4 side-chain, #115, 2026-07-26): `interval-transcendentals/`, workspace-excluded tooling — proven per-function libm error pads with the §2 bit-distance proofs, dual-oracle certification (inari + the revived `computable`, ~5.8M asserts / 4.0M cases), ~93× build-time advantage vs the gmp stack. **Adoption GREEN-LIT (Evan, in-session 2026-07-27: "replace it whenever it's convenient"; parallelizable with ~anything)** — no longer gated on M5-PLAN ratification; schedule as a standalone unit (normal implement/review pipeline, the M0 poison-channel contract is the acceptance bar); inari remains the default backend and this quarantine text stands until that unit merges. **Transition state (C9, ratified #85; text update = the CURVED post-ratification obligation, applied at M5 PR 0)**: while the in-house interval RING (C9, M5 PR 2) lands, inari MAY sit on the default build path temporarily as the ring's seed/reference implementation and differential oracle — Evan explicitly accepted the temporary LGPL exposure for the private repo; the **exit condition is LGPL-free-before-publish** (dual MIT/Apache). The M5-PLAN path (PR 1 backend swap + PR 2 ring) satisfies it by RETIRING inari from the tree entirely, which supersedes re-quarantine; this row and issue #4 close when both merge |
+| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **History**: `inari` was the M0-M4 backend (issue #4) with its gmp/MPFR LGPL-3.0+ transitive deps quarantined behind the `interval` cargo feature; the M5 PR 1 swap RETIRED inari from the tree entirely (Cargo.lock zero hits, dev-deps included), so **the kernel is copyleft-free in every build configuration and issue #4's exit condition is met by removal** — inari survives only as the optional differential oracle inside the excluded crate's own workspace. The AVX+FMA target-cpu floor is now a D9-consistency/perf choice, not a dependency requirement (revisit with measurements) |
 | Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
