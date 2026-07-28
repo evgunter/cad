@@ -340,3 +340,16 @@ Fix pass DISPATCHED (main merge + inf gap + comment fixes + 3
 reviewer-suite adoptions; clamp/annihilator/hull code frozen as
 verified). Meanwhile PR 8 (BVH, fable row 15) implementing on the
 other lane; PR 4 dispatches on PR 2 merge.
+
+**PR 2 MERGED (2026-07-28): #130 → main `8e2a610` on 19/19.** The
+C9 ring + Enclosure seam + hull primitives are in — fitted-cache
+certification substrate complete. A/B row 13 CLOSED: opus, M —
+0/2/2, 0 silent, idiom 5 / tests 5 / docs 4, moderate fix pass
+(main-merge conflicts + inf gap + 3 suite adoptions). PR 2 clone
+reclaimed. **PR 4 DISPATCHED (fable row 14, L)** on the freed
+lane: LSQ + projection-with-certified-orthogonality + A9.10-shape
+fitting under C6 + the compose module promoted from the rehearsal
+(ev/m5-pr4-fitting). Lanes: PR 4 + PR 8 (BVH, mid-implementation,
+branch cc25cdb). S5 at ROUND 9 (Start token + NURBS legs + two
+tiers — Evan iterating live; rounds 7b/8/9 all his design calls
+folded same-session). #129 two-tolerance awaiting 👍.
