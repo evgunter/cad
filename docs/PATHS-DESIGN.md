@@ -70,9 +70,24 @@ bound:
   a fully-filleted loop `close_fillet(r)` pairs with the opening
   exactly as interior fillets pair with their preceding sides:
   the loop is a cyclic sequence of [corner, side-bindings]
-  units. A leading `.fillet` on the entry Open stays ill-typed —
-  fillet consumes a `Directed` departure, and the entry has
-  none.
+  units. **Entry rule, generalized (round 7b, Evan's review
+  question — replacing the earlier shallow "the entry has none"
+  justification):** the entry authors the FIRST SIDE; the SEAM is
+  authored by `close_*`, once. In the cyclic view the corner
+  "before" the first side IS the seam corner, so a leading
+  `.fillet(r)` is `close_fillet(r)`'s content authored from the
+  front, and a leading `.tangent()` is `close_tangent()`'s —
+  allowing either would mint a second spelling of the same value
+  (the round-3 associativity principle), and close-side is the
+  only site that can even elaborate it (both adjacent carriers
+  bound there; neither at entry). Both leading forms are refused
+  — and the lattice typing already enforces this uniformly
+  (each needs bits the entry Open lacks); the principle is why
+  that shape is right, not a third rule. Leading `.at`/`.angle`
+  are fine (they bind the first side itself, either order); the
+  only invariant at the entry is the ordinary one applied to
+  side 1 — both bits bound (sugar may compute them) before the
+  side extends.
 
 **Directors are the only way angles enter**, and the two-flavor
 split makes their typing exact (round 6b — the former
@@ -248,8 +263,9 @@ fillet an authored corner away"); `line(len)` from a non-
 `Directed` tip; a leg or `close()` from a half-bound tip
 (point-sugar excepted — it supplies the missing bit);
 `.tangent()` on a plain point (nothing to inherit — the former
-circularity rule, now structural); leading `.fillet` (a corner
-needs a preceding carrier); `NoCornerForFillet`;
+circularity rule, now structural); leading `.fillet`/`.tangent`
+(the seam belongs to `close_*` — §2's generalized entry rule);
+`NoCornerForFillet`;
 `AnchorOutsideTrimmedExtent`; `UndeclaredTangency` on an
 exactly-tangent `.angle(θ)` at a directed point;
 `TangencyContradicted` from the verify layer as today.
