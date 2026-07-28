@@ -1,9 +1,13 @@
-# Standalone crate, deliberately OUTSIDE the kernel workspace (like demos/):
-# the empty [workspace] table below opts out of the root workspace without
-# touching the kernel's Cargo.toml. This crate is the in-house rigorous
-# interval transcendentals unit (DESIGN.md "Tabled (far future)"), built as
-# side-chain evidence; the kernel does NOT depend on it (adoption is a later
-# ratified decision).
+# Its own workspace root (the empty [workspace] table below), deliberately
+# OUTSIDE the kernel workspace — the same posture as tools/ and demos/: this
+# crate stays buildable, testable, and certifiable on its own, and its
+# gmp-backed inari DEV-oracle can never reach a kernel build.
+#
+# Since M5 PR 1 the kernel DOES depend on it: geom-core's `interval` feature
+# takes a path dependency on this crate, which is the sole backend of the
+# `Interval` scalar. A path dependency does not make it a workspace member;
+# only its one non-dev dependency (libm — already a kernel dependency)
+# enters kernel builds.
 [workspace]
 
 [package]
@@ -20,26 +24,35 @@ publish = false
 # choice; 0.2.16 is the workspace-pinned version).
 libm = "=0.2.16"
 
-[dev-dependencies]
-# Certification oracle ONLY (dev-dependency: never ships, so the LGPL-3.0+
-# transitive deps of inari/gmp (gmp-mpfr-sys, rug) impose no obligation on
-# consumers of this crate). Requires AVX+FMA on x86-64; the repo-root
-# .cargo/config.toml's x86-64-v3 floor applies to builds rooted here via
-# cargo's hierarchical config discovery.
-inari = { version = "=2.0.0", features = ["gmp"] }
-
-[dependencies.computable]
-# Second, independent dev-oracle: Evan's computable-reals library
-# (state + bounds + refinement formalism, dyadic bounds). OPTIONAL and
-# feature-gated (dev-dependencies cannot be optional) because it is a local
-# path dep that only exists on machines with ~/projects/computable checked
-# out; enable with `--features oracle-computable` to run the second-oracle
-# tests. Never enabled by default; never ships.
-path = "/home/evan/projects/computable"
+[dependencies.inari]
+# CERTIFICATION ORACLE ONLY — never used by `src/`, only by
+# `tests/certify.rs`. It is an OPTIONAL regular dependency rather than a
+# dev-dependency because cargo does not allow dev-dependencies to be
+# optional, and unconditional dev-dependencies are built for EVERY test
+# target: a plain dev-dep would mean `cargo test` here always compiles
+# inari's bundled GMP+MPFR from C source. Gating it behind a feature is
+# what lets the kernel's CI run this crate's pad tripwire (unit tests +
+# edges + the division fuzz) gmp-free, on the same pipeline that gates
+# the kernel — see README "Certification".
+#
+# The `interval` feature of geom-core never enables `oracle-inari`, so no
+# kernel build in any configuration pulls inari, gmp-mpfr-sys or rug, and
+# their LGPL-3.0+ obligations reach neither this crate's consumers nor the
+# kernel's. Requires AVX+FMA on x86-64; the repo-root .cargo/config.toml's
+# x86-64-v3 floor applies to builds rooted here via cargo's hierarchical
+# config discovery.
+version = "=2.0.0"
+features = ["gmp"]
 optional = true
 
 [features]
-oracle-computable = ["dep:computable"]
+# Enables tests/certify.rs (the differential lane against inari+MPFR).
+# Test-only: `src/` must never reference `inari` or this feature.
+oracle-inari = ["dep:inari"]
 
-[profile.release]
-debug = false
+# The benchmark compares our timings against inari's, so it needs the
+# oracle too. `required-features` keeps it out of the default (gmp-free)
+# `cargo test` / `cargo build --examples` graph rather than failing them.
+[[example]]
+name = "bench"
+required-features = ["oracle-inari"]

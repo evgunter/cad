@@ -30,7 +30,7 @@ pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
         Surface::Cone { .. } => "cone",
         Surface::Sphere { .. } => "sphere",
         Surface::Torus { .. } => "torus",
-        Surface::Nurbs => "nurbs placeholder",
+        Surface::Nurbs(_) => "nurbs placeholder",
     }
 }
 
@@ -39,7 +39,7 @@ pub(crate) fn carrier_kind(carrier: &Curve3<f64>) -> &'static str {
     match carrier {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",
-        Curve3::Nurbs => "nurbs placeholder",
+        Curve3::Nurbs(_) => "nurbs placeholder",
     }
 }
 

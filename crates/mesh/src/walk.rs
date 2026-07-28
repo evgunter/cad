@@ -94,7 +94,7 @@ impl Chart {
     /// `Nurbs` is refused upstream).
     pub(crate) fn of(surface: &Surface<f64>) -> Option<Chart> {
         match *surface {
-            Surface::Plane { .. } | Surface::Nurbs => None,
+            Surface::Plane { .. } | Surface::Nurbs(_) => None,
             Surface::Cylinder {
                 origin,
                 axis,
@@ -345,7 +345,7 @@ fn classify(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Result<TravKind
                 })
             }
         }
-        Curve3::Nurbs => Err(TessellateError::MissingEntity {
+        Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
             what: "nurbs carrier past the chord pass",
         }),
     }

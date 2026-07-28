@@ -103,7 +103,7 @@ fn build_lamina<T: Decide>(
             he2: first.he_plus,
         },
         chain_spec(&segs[n - 1], place, frame.n3, qs[n - 1], qs[0]),
-        FaceSurface::New(Surface::Nurbs),
+        FaceSurface::New(Surface::nurbs_placeholder()),
     )?;
     hes.push(close.he_plus);
     let start_disc = close.face;

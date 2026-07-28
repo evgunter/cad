@@ -146,3 +146,130 @@ test-binaries + surface C0-kink attack). Evan re-logged-in; both
 resumed from transcript with surviving clones (standard ladder,
 cwd-reset guard in the resume messages). No work lost; both
 implementations were already pushed pre-outage.
+
+**S5 PATHS-DESIGN drafted + PR #124 OPENED (2026-07-28)** —
+design-conversation PR, WAITS for Evan (watchlisted). J-core
+recommendation (legs + per-junction resolver {Sharp, TangentDirect,
+TangentArc(r)}), forward-sugar table as requirement, elaboration
+semantics with typed failure vocabulary, PQ1-PQ3 forks with firm
+recommendations. S2 sequenced after it.
+
+**computable oracle DROPPED (Evan, in-session 2026-07-28)**: "we
+can drop the computable oracle — i doubt it adds anything over
+inari" — record check confirms zero computable-only catches
+(its lane was 4 functions / ~1.5k cases vs inari's 12 families /
+~4M; value was theoretical MPFR-common-mode independence only).
+Action: PR 1 fix pass DELETES the oracle-computable sibling crate
++ feature plumbing (simpler than the relocation PR 1 shipped).
+Caveat on record: if inari-as-dev-oracle is ever dropped too, a
+second independent oracle should be reconsidered.
+
+**BOTH reviews returned (2026-07-28): APPROVE-WITH-FIX-PASS ×2,
+zero MAJORs, both fix passes DISPATCHED.**
+- **PR 1 (opus row 11): 0 MAJ / 3 MIN / 2 NOTE, 1 silent omission
+  (stale-claims sweep left 6 live-rustdoc inari mentions).**
+  Review highlights: div witness attacked with a 17.5M-case
+  exact-rational fuzz (zero unsound firings, zero containment
+  violations; subnormal floor correctly refuses); outcome SETS
+  compared main-vs-branch — identical except designed changes;
+  MUTATION experiment proved the inverted powi test is NOT a pad
+  tripwire (the certify lane is; it becomes a gmp-free kernel CI
+  row per fix pass); deviation-2's cargo-necessity claim did NOT
+  reproduce (harmless move, wrong rationale — mooted by the
+  computable deletion); with_dec_capped laundering impossible
+  (min-only); e2e rotated-cutter interval boolean green. Rubric:
+  idiom 5 / tests 4 / docs 4. Fix pass: 3 MINs + NOTE-1 CI row
+  (watcher floor 18→19) + computable deletion + adopt 3 reviewer
+  suites.
+- **PR 3 (fable row 12): 0 MAJ / 2 MIN / 5 NOTE, 0 silent.**
+  Review highlights: empty-span skip HOLDS under degenerate
+  [u,u]/straddle boxes at multiplicity-p kinks (wording loose —
+  right mechanism: find_span always selects the nonempty span);
+  Dual kink conventions consistent (both-tangent enclosure under
+  straddle verified — independent-channel hull vindicated);
+  deriv/deriv2 + full surface jet FD-verified independently (the
+  implementer's circle oracle shared the quotient-rule shape —
+  the reviewer's FD is the independent check); removal bound
+  sound under adversarial weights/multi-pass, WeightCollapse
+  honest; SpanLocate sealing compile-fail-probed +
+  unimplementability premise verified by attempt; interval count
+  re-derived EXACTLY (1550 − 21 reviewer tests = 1529). Rubric:
+  idiom 5 / tests 4 / docs 3. Fix pass: 2 doc MINs + wording
+  NOTEs + adopt 21 reviewer tests across 5 suites.
+- S5 meanwhile: Evan caught his own fillet(continuation) example
+  ("shouldn't land on c→d"); orchestrator laid out the 4 semantic
+  options (overdetermined single arc / land-on-carrier /
+  coincident-corner fillet / extend-to-intersect) and recommended
+  v1 = coincident-nominal-corner fillet(r), uniform across
+  in-chain, seams, close; gap forms refuse typed naming
+  BiarcJoin/extension as future doors. Awaiting his pick.
+
+**PR 3 fix pass COMPLETE + PR #125 OPENED (2026-07-28)**: all fix
+items landed (doc-attachment MINOR, 5 stale surface-doc lines —
+one more than the reviewer's 4, honest catch; empty-span wording;
+unit_segment(0) + λ-overflow comments; allow-count corrected to
+6+0 with the unused_imports allow REMOVED as unneeded); all 21
+reviewer suites adopted verbatim from the salvaged scratch (2
+marked mechanical lint adaptations; zero discrepancies vs the
+review's results). Provenance note for the record: the fix-pass
+harness flagged the salvaged-scratch adoption as untrusted-code
+integration — the chain is fully in-session (blinded reviewer
+authored → orchestrator salvaged from the review clone pre-
+reclaim → implementer adopted, tests-only, results matching the
+review line for line); no action needed. Post-fix battery:
+1387/0 + 1550/0 interval, clippy/doc/fmt clean. Main merged into
+the branch (no conflicts); watcher armed (18-row floor). A/B rows
+11/12 filled (row 11 fix-pass columns pending). DISK: watchdog
+WARN 14G → salvaged scratch + reclaimed both review clones +
+curvo clone → 75G.
+
+**S5 round 4 direction (in-session, 2026-07-28)**: Evan proposed
+TYPED path ends — ends with/without direction as different types;
+fillet consumes only DIRECTED-OPEN ends so `.line_to(p).fillet(r)`
+becomes a type error (authored points always lie on the final
+path; carriers authored by direction; the trimmed corner is
+unauthorable). Orchestrator spelled out the end-state table
+(Point / Directed / OpenRay), the .tangent()/.angle() director
+unification (arc_tangent_to and start_dir dissolve), the
+Path::through carrier form (all-rounded square with no authored
+corner), and flagged closure typing (seam-at-junction v1 rule;
+mid-carrier seam trips same-carrier rules) as the remaining
+sub-fork. Awaiting Evan's nod to fold as round 4 (supersedes the
+pending-resolver surface story; the pending resolver survives
+underneath).
+
+**PR 1 fix pass COMPLETE (2026-07-28, 12 commits pushed)**: all
+items landed — powi comment honesty (names the real tripwires),
+7 stale attributions retargeted (found one more than the review's
+6), computable oracle DELETED per Evan (the implementer also
+produced the missing repro: the disabled-optional-path-dep failure
+is real on `cargo build`, not metadata/check — moot now), the
+gmp-free crate tripwire row (inari → optional dep behind
+oracle-inari; edges.rs split in-place; hosted jobs 12→13; NO
+in-repo watcher-floor constant exists — floor 19 lives in
+orchestrator watcher invocations from here), NOTE-2 narrowed,
+reviewer suites adopted verbatim (fuzz at 1/35 default scale with
+floors scaling, full sweep #[ignore]). NEW FINDING from the
+adopted harness: Dual::powi(0) launders derivative-channel poison
+— M0-era, backend-independent, topology-safe (Decide reads value
+only); pinned as-behaves; FILED #126 (Dual contract decision,
+non-blocking). Battery: 1343/0 default, 1503/0 interval ×3ε,
+clippy/fmt clean, crate 21/0 gmp-free in 1.97s clean build,
+certify 12/12 with the oracle feature. PR 1 opens after #125
+merges (both branches touch interval.rs — the PR 1 clone resolves
+the merge with its warm context).
+
+**PR 1 MERGED (2026-07-28): #127 → main `bfab91f` on 19/19 (the
+interval-backend row joins the matrix; floor is 19 from here).**
+THE KERNEL IS COPYLEFT-FREE IN EVERY BUILD CONFIGURATION — inari/
+gmp/rug gone from the tree; quarantine issue #4's exit condition
+is met by removal. The pre-merge main-merge was conflict-free
+(disjoint interval.rs regions); a seventh stale attribution
+caught at the merge (grep-by-enumeration lesson noted in the PR).
+A/B row 11 CLOSED: opus, M — 0/3/2, 1 silent omission, 5/4/4,
+moderate fix pass. Both implementer clones reclaimed (disk 123G).
+PR 3 clone also reclaimed. Next: DESIGN.md quarantine-text
+retirement rides the next state-sync; PR 2 (ring) in flight
+(opus, row 13); PR 4 spec (fitting stack) is next orchestrator
+work once PR 2 lands; S5 at round 6d, converged, awaiting Evan's
+#124 👍.

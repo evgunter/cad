@@ -8,6 +8,7 @@
 //! `set_edge_curve` door with the carrier and interval kept verbatim.
 
 use geom_brep::{DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, edge_extent};
+use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
 use geom_curves::Curve3;
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, SurfaceKey};
@@ -60,7 +61,7 @@ pub(super) fn vertex_point<T: Real>(
         })?)
 }
 
-fn edge_data<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
+fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
     let edge_rec = body.get_edge(edge).ok_or(EulerOpError::StaleKey {
         key: topo::EntityId::Edge(edge),
     })?;
@@ -73,7 +74,7 @@ fn edge_data<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, Revo
         .ok_or(EulerOpError::NullScaffoldCurve {
             curve: edge_rec.curve,
         })?;
-    let carrier = *curve.carrier();
+    let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
     let he_plus = edge_rec.he_plus;
@@ -113,12 +114,18 @@ pub(super) fn upgrade_intersection<T: Decide>(
     sliver: impl FnOnce(geom_core::Indeterminate) -> RevolveError,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
-    let surf1 = *body.get_surface(s1).ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(s1),
-    })?;
-    let surf2 = *body.get_surface(s2).ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(s2),
-    })?;
+    let surf1 = body
+        .get_surface(s1)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(s1),
+        })?;
+    let surf2 = body
+        .get_surface(s2)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(s2),
+        })?;
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {

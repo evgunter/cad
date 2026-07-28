@@ -106,6 +106,24 @@ corpus_interval() { cargo test -p editor-core --features interval --test m4_pr8_
 # Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
 rebuild_latency() { cargo test -p editor-core --test m4_pr8_latency -- --nocapture; }
 
+# M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire,
+# in its own workspace, on its DEFAULT feature set — so it pulls no gmp,
+# no C toolchain, and runs in seconds. This is the row that catches a
+# dropped outward round; the kernel's lane-agreement tests provably
+# cannot (both lanes share the round-to-nearest chain). The full
+# differential lane (certify.rs) is behind --features oracle-inari and
+# stays a by-hand gate. Hosted mirror: ci.yml's `interval-backend` job.
+interval_backend() {
+  (cd interval-transcendentals \
+    && cargo fmt --check \
+    && cargo clippy --all-targets -- -D warnings \
+    && cargo test) || return 1
+  if (cd interval-transcendentals && cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'); then
+    echo "ERROR: the interval backend's default feature set reaches the gmp stack"
+    return 1
+  fi
+}
+
 # Demos hygiene (M4 PR 8b pickup): demos/tour is workspace-excluded, so
 # the workspace fmt/clippy rows above never see it — fmt drift and
 # clippy errors accumulated invisibly until 8b. This row keeps them from
@@ -149,6 +167,7 @@ run_row "persist refusal (D6.3)"          persist_refusal
 run_row "persist roundtrip (interval)"    persist_interval
 run_row "band 4 corpus (3 eps rows)"      corpus_eps
 run_row "band 4 corpus (interval)"        corpus_interval
+run_row "interval backend (gmp-free)"     interval_backend
 run_row "rebuild latency (reporting)"     rebuild_latency
 run_row "demos tour (fmt + clippy)"       demos_hygiene
 run_row "k-lint tool (fmt+clippy+litmus)" klint_tool

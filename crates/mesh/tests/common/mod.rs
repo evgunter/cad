@@ -212,7 +212,7 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             let d_circle = ((rho - major_radius).powi(2) + h * h).sqrt();
             (d_circle - minor_radius).abs()
         }
-        Surface::Nurbs => f64::NAN,
+        Surface::Nurbs(_) => f64::NAN,
     }
 }
 

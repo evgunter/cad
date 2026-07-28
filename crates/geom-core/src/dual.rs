@@ -357,7 +357,8 @@ impl<T: Real> Div for Dual<T> {
     /// division. The denominator square is `powi(2)`, not `b·b`: at `f64`
     /// that is bit-identical (`powi_by_squaring` reduces `powi(_, 2)` to
     /// `1·(b·b)`, and `×1` is exact), while at `Dual<Interval>` it is
-    /// inari's tight `pown` — squaring a zero-straddling denominator by
+    /// the interval backend's tight integer power — squaring a
+    /// zero-straddling denominator by
     /// dependent multiplication needlessly loses the `[0, ·]` lower bound
     /// (the dependency problem), so the tight square keeps the enclosure
     /// honest. `b = 0` poisons the derivative channel through the division
@@ -627,6 +628,32 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self {
             value: self.value.max(other.value),
             deriv: self.value.max_deriv(self.deriv, other.value, other.deriv),
+        }
+    }
+}
+
+/// Span selection by **value channel**, verbatim — the ratified kink
+/// convention applied to the knot lattice (see
+/// [`crate::spline::locate`]'s module docs): at a knot, `Dual` selects
+/// the span the base scalar's tie-break selects and differentiates the
+/// program as evaluated (the same branch-consistency rule as `floor`'s
+/// plateau derivative and `copysign`'s locally-constant σ). Multi-span
+/// enclosure combination hulls the two channels **independently** —
+/// each channel's hull is that channel's honest enclosure; a `min`/
+/// `max`-style selection would follow one branch's tangent and drop the
+/// other's.
+impl<T> crate::spline::SpanLocate for Dual<T>
+where
+    T: crate::spline::SpanLocate + KinkJacobian,
+{
+    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+        self.value.locate_spans(knots)
+    }
+
+    fn enclosure_hull(self, other: Self) -> Self {
+        Self {
+            value: self.value.enclosure_hull(other.value),
+            deriv: self.deriv.enclosure_hull(other.deriv),
         }
     }
 }
@@ -1866,7 +1893,8 @@ mod tests {
         /// Regression (review: the dependency problem this whole type
         /// exists to survive). Over a value enclosure that straddles zero,
         /// atan's derivative denominator `1 + a²` must be squared *tightly*
-        /// (`powi(2)` = inari's pown), not by dependent multiplication:
+        /// (`powi(2)`, the backend's dedicated integer power), not by
+        /// dependent multiplication:
         /// `a·a` over `[−1, 1.1]` returns `[−1.1, 1.21]`, so `1 + a·a`
         /// straddles zero and the division blows the derivative enclosure
         /// to `[−∞, ∞]`. With the tight square `a² = [0, 1.21] ≥ 0`, hence

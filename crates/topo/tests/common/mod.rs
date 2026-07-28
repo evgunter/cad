@@ -317,8 +317,8 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
         let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
         let witness = p0.lerp(p1, T::from_f64(0.5));
         let (surf1, surf2) = (
-            *body.get_surface(s1).unwrap(),
-            *body.get_surface(s2).unwrap(),
+            body.get_surface(s1).unwrap().clone(),
+            body.get_surface(s2).unwrap().clone(),
         );
         match geom_brep::classify_dihedral(&surf1, &surf2, witness, p0.distance(p1), band).unwrap()
         {

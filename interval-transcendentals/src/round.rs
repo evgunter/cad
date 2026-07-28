@@ -141,15 +141,16 @@ fn mul_exact(a: f64, b: f64, r: f64) -> bool {
     r.abs() >= TWO_PROD_VALID_MIN && f64::mul_add(a, b, -r) == 0.0
 }
 
-/// Lower bound of `a / b` (`b != 0`); always pads (division is rarely
-/// exact and a reliable exactness witness needs preconditions we don't
-/// track), except for an exactly-zero numerator.
+/// Lower bound of `a / b` (`b != 0`), padded one step unless the
+/// quotient is provably exact ([`div_exact`]) or the numerator is
+/// exactly zero.
 #[inline]
 pub(crate) fn div_lo(a: f64, b: f64) -> f64 {
     if a == 0.0 {
         return 0.0;
     }
-    down1(a / b)
+    let q = a / b;
+    if div_exact(a, b, q) { q } else { down1(q) }
 }
 
 /// Upper bound of `a / b` (`b != 0`). Mirror of [`div_lo`].
@@ -158,5 +159,75 @@ pub(crate) fn div_hi(a: f64, b: f64) -> f64 {
     if a == 0.0 {
         return 0.0;
     }
-    up1(a / b)
+    let q = a / b;
+    if div_exact(a, b, q) { q } else { up1(q) }
+}
+
+/// Exactness witness for `q = RN(a / b)`, the division mirror of
+/// [`mul_exact`]: `fma(q, b, -a)` evaluates `q·b − a` with a SINGLE
+/// rounding, and by the same 2Prod representability theorem that backs
+/// `mul_exact` the true residual `q·b − a` is exactly representable
+/// whenever the product clears [`TWO_PROD_VALID_MIN`] (here `q·b ≈ a`,
+/// so the gate is on `|a|`). A representable residual is returned
+/// unrounded, so a `0.0` result means `q·b = a` exactly, i.e. `a/b = q`
+/// with no rounding error and no pad needed. Non-finite `q` (overflow,
+/// or `b` infinite) and underflow-adjacent magnitudes fail the test and
+/// take the padded path, as does every genuinely inexact quotient.
+///
+/// Why this is worth having rather than padding unconditionally: exact
+/// quotients are not a curiosity in geometry code — `v / |v|` for an
+/// axis-aligned `v` is the motivating case, and a 1-ulp pad there turns
+/// an exactly-unit frame vector into a 2-ulp-wide one, which propagates
+/// into every coordinate computed against that frame. The kernel's
+/// exact-order band (`topo`'s null-edge sort, whose whole design rests
+/// on axis-aligned splits over dyadic geometry classifying EXACTLY)
+/// escalates without it — found live by that suite during the M5 PR 1
+/// backend swap.
+#[inline]
+fn div_exact(a: f64, b: f64, q: f64) -> bool {
+    a.abs() >= TWO_PROD_VALID_MIN && q.is_finite() && f64::mul_add(q, b, -a) == 0.0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn div_of_provably_exact_quotients_takes_no_pad() {
+        // The motivating case: normalizing an already-unit component.
+        assert_eq!(div_lo(1.0, 1.0), 1.0);
+        assert_eq!(div_hi(1.0, 1.0), 1.0);
+        // Powers of two and their multiples divide exactly.
+        for (a, b, q) in [(1.0, 2.0, 0.5), (3.0, 4.0, 0.75), (-7.0, 0.5, -14.0)] {
+            assert_eq!(div_lo(a, b), q, "div_lo({a}, {b})");
+            assert_eq!(div_hi(a, b), q, "div_hi({a}, {b})");
+        }
+        // An exactly-zero numerator was already exact.
+        assert_eq!(div_lo(0.0, 3.0), 0.0);
+    }
+
+    #[test]
+    fn inexact_quotients_still_pad_outward_around_the_truth() {
+        // 1/3 is not representable: the enclosure must straddle it.
+        let (lo, hi) = (div_lo(1.0, 3.0), div_hi(1.0, 3.0));
+        let q = 1.0_f64 / 3.0;
+        assert_eq!(lo, q.next_down());
+        assert_eq!(hi, q.next_up());
+        assert!(lo < hi);
+    }
+
+    #[test]
+    fn div_witness_refuses_non_finite_and_underflow_adjacent_cases() {
+        // Overflow: the quotient is not finite, so the padded path runs
+        // (and saturates at the infinity that already bounds the truth).
+        assert_eq!(div_hi(f64::MAX, 0.5), f64::INFINITY);
+        // Infinite divisor: quotient 0, but the FMA witness is NaN — no
+        // exactness may be claimed, and the pad brackets the true 0.
+        assert!(div_lo(1.0, f64::INFINITY) < 0.0);
+        assert!(div_hi(1.0, f64::INFINITY) > 0.0);
+        // Below the 2Prod validity floor the witness is not trusted even
+        // when the quotient happens to be exact.
+        let tiny = f64::from_bits(0x0010_0000_0000_0000); // 2^-1022
+        assert!(div_lo(tiny, 2.0) < tiny / 2.0);
+    }
 }

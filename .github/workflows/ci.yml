@@ -139,22 +139,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The `interval` feature builds inari's bundled GMP+MPFR from C
-      # source (gmp-mpfr-sys), whose autotools configure needs m4.
-      - name: install m4
-        run: sudo apt-get update && sudo apt-get install -y m4
+      # NOTE (M5 PR 1): this job used to `apt-get install m4` before
+      # anything else, because the `interval` feature built inari's
+      # bundled GMP+MPFR from C source and its autotools configure needs
+      # m4. The backend is now `interval-transcendentals` — pure Rust, no
+      # C, no system packages — so that step is gone. Every `run:` below
+      # is byte-for-byte what it was; the rows simply build gmp-free now.
       - uses: dtolnay/rust-toolchain@stable
-      # Distinct cache key: the GMP/MPFR C build takes minutes and its
-      # artifacts live in target/, so this job must not share (and evict)
-      # the default-feature jobs' caches. gmp-mpfr-sys also caches its
-      # compiled C libraries under ~/.cache/gmp-mpfr-sys — cache that too,
-      # so the C build survives even a target-cache eviction.
+      # Distinct cache key kept: this job builds a different feature set
+      # from the default-feature jobs, so a shared cache would have the
+      # two evicting each other. (The ~/.cache/gmp-mpfr-sys
+      # cache-directory entry went with the C build it existed for.)
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
-          cache-directories: ~/.cache/gmp-mpfr-sys
       # This job owns the interval feature's clippy pass (the default
-      # clippy job deliberately skips --all-features to stay C-free).
+      # clippy job deliberately skips --all-features).
       - run: cargo clippy --workspace --all-targets --features interval -- -D warnings
       - run: cargo test --workspace --features interval
       # One multi-ε row at interval type (D4 ¶1): the interval band test
@@ -173,6 +173,48 @@ jobs:
       # runs above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
         run: cargo test -p editor-core --features interval --test m4_pr8_corpus_interval
+
+  interval-backend:
+    name: interval backend crate (gmp-free)
+    runs-on: ubuntu-latest
+    # The `interval` feature's backend lives in its own workspace
+    # (interval-transcendentals/), so the kernel's workspace rows never
+    # build its tests. Its pad tripwire therefore had no CI at all until
+    # M5 PR 1's review asked for one — and that tripwire is what catches a
+    # dropped outward round, which the kernel's own lane-agreement tests
+    # provably cannot (both lanes share the round-to-nearest chain).
+    #
+    # This row is deliberately the crate's DEFAULT feature set: unit
+    # tests, the edges sweep's oracle-free half, and review_fuzz_div's
+    # exact-rational division fuzz, which needs no oracle at all because
+    # it compares against u128 rational arithmetic. No `oracle-inari`,
+    # hence no gmp-mpfr-sys, no C toolchain, no m4 — the row takes
+    # seconds. The full differential lane (certify.rs, behind
+    # --features oracle-inari) stays a by-hand gate; see the crate
+    # README's "Certification" section.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-backend
+          workspaces: interval-transcendentals
+      - name: fmt + clippy
+        working-directory: interval-transcendentals
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: tests (no oracle feature — must not pull gmp)
+        working-directory: interval-transcendentals
+        run: cargo test
+      # Tripwire on the tripwire: if anything ever makes the gmp stack
+      # reachable from the default feature set, fail loudly here rather
+      # than silently reintroducing the C build this PR removed.
+      - name: assert the default graph is gmp-free
+        working-directory: interval-transcendentals
+        run: |
+          if cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'; then
+            echo "ERROR: the default feature set reaches the gmp stack"
+            exit 1
+          fi
 
   watertight:
     name: watertight (admesh)

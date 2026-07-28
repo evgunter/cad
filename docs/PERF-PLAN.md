@@ -80,8 +80,10 @@ writer; f32 narrowing documented), K-telemetry (`geom_core::k_stats`),
 the M6 interval subdivision driver (Q1 calls it embarrassingly
 parallel — correctly, see §2.2), fine-δ export tessellation.
 
-**The interval lane's cost, honestly.** Interval replay (inari
-`DecInterval`) costs roughly 4–8× f64 flops plus lost vectorization,
+**The interval lane's cost, honestly.** Interval replay costs roughly
+4–8× f64 flops plus lost vectorization (measured **pre-M5**, against
+the inari `DecInterval` backend; the `interval-transcendentals` backend
+that replaced it in M5 PR 1 has not been re-measured on this axis),
 and the subdivision driver multiplies whole-model replays by sub-box
 count. But it is *never* on the preview path — it is the M6
 certification lane and a CI lane — so it is a throughput problem

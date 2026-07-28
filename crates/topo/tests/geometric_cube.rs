@@ -59,7 +59,7 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     let t = geometric_cube::<f64>();
     let mut body = t.body;
     let seed_face = t.seed.face;
-    body.set_face_surface(seed_face, FaceSurface::New(Surface::Nurbs))
+    body.set_face_surface(seed_face, FaceSurface::New(Surface::nurbs_placeholder()))
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body).unwrap_err();
@@ -287,7 +287,7 @@ fn totality_no_panics_on_poison_inputs() {
         Err(EulerOpError::Certification { .. })
     ));
     let mut spec = EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::Nurbs;
+    spec.carrier = Curve3::nurbs_placeholder();
     assert!(matches!(
         body.mev(
             MevSite::Lone {

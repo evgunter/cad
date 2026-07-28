@@ -119,7 +119,7 @@ pub(crate) fn compute_chords(
                 }
                 n
             }
-            Curve3::Nurbs => return Err(TessellateError::UnsupportedCurve { edge: ek }),
+            Curve3::Nurbs(_) => return Err(TessellateError::UnsupportedCurve { edge: ek }),
         };
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {

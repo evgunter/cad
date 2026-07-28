@@ -956,13 +956,15 @@ fn sweep_loop<T: Decide>(
         if k_prev == k_next {
             continue;
         }
-        let s_prev = *body
+        let s_prev = body
             .get_surface(k_prev)
+            .cloned()
             .ok_or(EulerOpError::StaleGeometry {
                 key: topo::GeomRef::Surface(k_prev),
             })?;
-        let s_next = *body
+        let s_next = body
             .get_surface(k_next)
+            .cloned()
             .ok_or(EulerOpError::StaleGeometry {
                 key: topo::GeomRef::Surface(k_next),
             })?;
@@ -1135,7 +1137,7 @@ fn upgrade_rim<T: Decide>(
         })?
         .certified()
         .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
-    let carrier = *curve.carrier();
+    let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     // The mid-parameter point — the same association the certification
     // schedule's middle sample uses (t₀ + (t₁ − t₀)·½, exact dyadic
@@ -1143,12 +1145,18 @@ fn upgrade_rim<T: Decide>(
     // construction.
     let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
-    let s_cap = *body.get_surface(cap).ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(cap),
-    })?;
-    let s_wall = *body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
-        key: topo::GeomRef::Surface(wall),
-    })?;
+    let s_cap = body
+        .get_surface(cap)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(cap),
+        })?;
+    let s_wall = body
+        .get_surface(wall)
+        .cloned()
+        .ok_or(EulerOpError::StaleGeometry {
+            key: topo::GeomRef::Surface(wall),
+        })?;
     match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
