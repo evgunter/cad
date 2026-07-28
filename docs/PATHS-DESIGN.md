@@ -1,6 +1,6 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5, design doc)
 
-Status: **DRAFT round 6c, for Evan's sign-off** (design-conversation
+Status: **DRAFT round 7, for Evan's sign-off** (design-conversation
 PR; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104. The ratified doc is the
 deliverable). Rounds: 1 = forward-consuming vs junction-resolver
