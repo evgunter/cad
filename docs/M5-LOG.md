@@ -296,3 +296,28 @@ work once PR 2 lands; S5 at round 6d, converged, awaiting Evan's
   — sweep fixes regardless); merge_coplanar_faces is the in-repo
   unification precedent. Rework sweep = M5 side unit on
   ratification. Watchlisted.
+
+**PR 2 implementation COMPLETE (2026-07-28, ev/m5-pr2-interval-
+ring, 7 commits) — opus row 13.** RingInterval (always-compiled,
+outward-padded ring, NOT a Real — the two-role split held);
+Enclosure seam (spec option (a), blanket over Bounds, E0034
+hazard documented); spline::hull primitives (span/domain/rational
+with positive-weight re-check, ring-side derivative coeffs,
+sup-norm helpers). Numbers: 9.7M-case exact fuzz ZERO violations
+(comparator generalized to a 72×64-bit fixed-width integer — ±
+alignment needs ~2100 bits, PR 1's u128 technique cited); ~3M
+differential comparisons vs BOTH in-repo interval impls, max
+disagreement 1 step; C2.2 rehearsal bound 2.9× densest sampled
+max on an exactly-zero case (sphere limb 2.8e-14 m² = 20 ulps of
+r²); planted corruption 12k/12k refused with 59% INVISIBLE to a
+9-point schedule (OQ2's argument, measured). 7 reported
+deviations, most notably TWO algebraic rules beyond spec (sign
+clamp + zero annihilator — claimed ℝ-facts required for the
+even-power rule; the interval-square-poison lesson resurfacing).
+**Blinded reviewer DISPATCHED** — F1 (the crux): attack the sign
+clamp's soundness with an independent comparator (any true-range-
+below-zero clamp firing is MAJOR, repair-or-remove never keep);
+zero-annihilator × infinity/poison; independent containment fuzz;
+rational hull-bound derivation re-check (ratio-of-hulls subtlety);
+C2.2 pipeline algebra verification; e2e corrupt-control-point
+catch at 2ε.
