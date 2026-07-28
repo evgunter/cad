@@ -70,7 +70,7 @@ pub(crate) fn test_curve(anchor: Point3<f64>) -> geom_brep::EdgeCurve<f64> {
 /// anchor argument is accepted for call-site symmetry with
 /// [`test_curve`] and ignored — surfaces carry no certification).
 pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom_surfaces::Surface<f64> {
-    geom_surfaces::Surface::Nurbs
+    geom_surfaces::Surface::nurbs_placeholder()
 }
 
 /// A deep, order-sensitive snapshot of a body: one line per arena entry

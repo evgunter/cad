@@ -171,7 +171,7 @@ use crate::provenance::Provenance;
 /// How a face-minting operator obtains the new face's surface (M2 PR 3
 /// — the sweep supplies each face's surface explicitly; op parameters,
 /// not post-hoc patching).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum FaceSurface<T: Real> {
     /// Share the *affected* face's surface key: `mef`'s split face (a
     /// face split is two regions of one surface — the M1 semantics,
@@ -868,7 +868,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         let point_key = self.add_point(point);
-        let surface = self.add_surface(Surface::Nurbs);
+        let surface = self.add_surface(Surface::nurbs_placeholder());
         let vertex = self.add_vertex(
             Vertex {
                 point: point_key,
@@ -1756,7 +1756,7 @@ impl<T: Decide> Body<T> {
             spec,
             p_start,
             p_end,
-            |k| self.surfaces.get(k).copied(),
+            |k| self.surfaces.get(k).cloned(),
             band,
         )
         .map_err(|error| EulerOpError::Certification { error })

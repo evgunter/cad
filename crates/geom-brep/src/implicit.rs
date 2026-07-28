@@ -131,7 +131,10 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             // its plain square is already tight.
             (d.powi(2) + h.powi(2) - minor_radius * minor_radius) / (two * minor_radius)
         }
-        Surface::Nurbs => poison(),
+        // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
+        // carrier has no implicit form — foot-point machinery (C2.1,
+        // M5 PR 4) owns that story, not this module.
+        Surface::Nurbs(_) => poison(),
     }
 }
 
@@ -179,7 +182,10 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             let w_hat = w / rho;
             (w_hat * (rho - major_radius) + axis * h) / minor_radius
         }
-        Surface::Nurbs => poison_vec(),
+        // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
+        // carrier has no implicit form — foot-point machinery (C2.1,
+        // M5 PR 4) owns that story, not this module.
+        Surface::Nurbs(_) => poison_vec(),
     }
 }
 
@@ -202,7 +208,10 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             w.norm()
         }
         Surface::Torus { minor_radius, .. } => minor_radius,
-        Surface::Nurbs => poison(),
+        // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
+        // carrier has no implicit form — foot-point machinery (C2.1,
+        // M5 PR 4) owns that story, not this module.
+        Surface::Nurbs(_) => poison(),
     }
 }
 
@@ -217,7 +226,8 @@ pub(crate) fn seam_frame<T: Real>(
     p: Point3<T>,
 ) -> Option<(Vec3<T>, Vec3<T>, Vec3<T>)> {
     let (anchor, axis, u_ref) = match *s {
-        Surface::Plane { .. } | Surface::Nurbs => return None,
+        // Nurbs: no implicit/seam form (C2.1 foot points, M5 PR 4).
+        Surface::Plane { .. } | Surface::Nurbs(_) => return None,
         Surface::Cylinder {
             origin,
             axis,
@@ -385,7 +395,7 @@ mod tests {
         // The practical min identity — finite so the interval lane's
         // enclosure stays well-formed (module docs).
         assert_eq!(curvature_lever_arm(&plane, Point3::origin()), f64::MAX);
-        let n: Surface<f64> = Surface::Nurbs;
+        let n: Surface<f64> = Surface::nurbs_placeholder();
         assert!(implicit_residual(&n, Point3::origin()).is_nan());
         assert!(implicit_gradient(&n, Point3::origin()).x.is_nan());
         assert!(curvature_lever_arm(&n, Point3::origin()).is_nan());

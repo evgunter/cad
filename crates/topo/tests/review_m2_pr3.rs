@@ -426,7 +426,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
         normal: Vec3::new(0.0, theta.sin(), theta.cos()),
         u_ref: Vec3::unit_x(),
     };
-    body.set_face_surface(seed.face, FaceSurface::New(flat))
+    body.set_face_surface(seed.face, FaceSurface::New(flat.clone()))
         .unwrap();
     body.set_face_surface(split.face, FaceSurface::New(tilted))
         .unwrap();
@@ -443,7 +443,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
     // definitely smooth, tier 3 clean.
     let (mut body, seed, split) = lamina();
     let key = body
-        .set_face_surface(seed.face, FaceSurface::New(flat))
+        .set_face_surface(seed.face, FaceSurface::New(flat.clone()))
         .unwrap();
     body.set_face_surface(split.face, FaceSurface::Shared(key))
         .unwrap();
@@ -475,7 +475,7 @@ fn survives_nurbs_seed_gate_and_clear() {
         u_ref: Vec3::unit_x(),
     };
     let key = body
-        .set_face_surface(split.face, FaceSurface::New(flat))
+        .set_face_surface(split.face, FaceSurface::New(flat.clone()))
         .unwrap();
     let errs = validate_geometric(&body).unwrap_err();
     assert!(
@@ -671,7 +671,7 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     };
     body.set_face_surface(seed.face, FaceSurface::New(z0))
         .unwrap();
-    body.set_face_surface(split.face, FaceSurface::New(y0))
+    body.set_face_surface(split.face, FaceSurface::New(y0.clone()))
         .unwrap();
     // The circular face claims the y = 0 plane — its boundary circle
     // reaches y = ±1, a meter off; and its wedge against z = 0 is a
@@ -684,7 +684,7 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     // MappedCurve chords/circles by construction here — the two A–B
     // chords sit on the z0/y0 corner, the self-loop on its right-angle
     // wedge), in edge-arena order, before the boundary report.
-    body.set_face_surface(circ.face, FaceSurface::New(y0))
+    body.set_face_surface(circ.face, FaceSurface::New(y0.clone()))
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     assert_eq!(
@@ -732,7 +732,7 @@ fn fixed_n4_raw_mev_precondition_paths() {
                 he2: stale,
             },
             p,
-            spec,
+            spec.clone(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
@@ -746,7 +746,9 @@ fn fixed_n4_raw_mev_precondition_paths() {
         .copied()
         .find(|&(_, s)| s != s1)
         .expect("prism has half-edges at distinct vertices");
-    let err = body.mev(MevSite::Fan { he1, he2 }, p, spec).unwrap_err();
+    let err = body
+        .mev(MevSite::Fan { he1, he2 }, p, spec.clone())
+        .unwrap_err();
     assert!(
         matches!(err, EulerOpError::FanStartMismatch { .. }),
         "{err:?}"
@@ -756,7 +758,7 @@ fn fixed_n4_raw_mev_precondition_paths() {
     // Lone on a non-empty (cycle) loop: LoopNotEmpty from the raw op.
     let cycle_loop = body.get_half_edge(he1).unwrap().parent_loop;
     let err = body
-        .mev(MevSite::Lone { r#loop: cycle_loop }, p, spec)
+        .mev(MevSite::Lone { r#loop: cycle_loop }, p, spec.clone())
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "lone-on-cycle mutated body");
@@ -778,7 +780,7 @@ fn fixed_n4_raw_mef_precondition_paths() {
     let err = body
         .mef(
             MefSite::Chords { he1, he2: stale },
-            spec,
+            spec.clone(),
             FaceSurface::Inherit,
         )
         .unwrap_err();
@@ -797,14 +799,22 @@ fn fixed_n4_raw_mef_precondition_paths() {
         .find(|&(_, l)| l != l1)
         .expect("prism has multiple loops");
     let err = body
-        .mef(MefSite::Chords { he1, he2 }, spec, FaceSurface::Inherit)
+        .mef(
+            MefSite::Chords { he1, he2 },
+            spec.clone(),
+            FaceSurface::Inherit,
+        )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::NotSameLoop { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "cross-loop Chords mutated body");
 
     // Lone on a non-empty (cycle) loop: LoopNotEmpty from the raw op.
     let err = body
-        .mef(MefSite::Lone { r#loop: l1 }, spec, FaceSurface::Inherit)
+        .mef(
+            MefSite::Lone { r#loop: l1 },
+            spec.clone(),
+            FaceSurface::Inherit,
+        )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "lone-on-cycle mutated body");

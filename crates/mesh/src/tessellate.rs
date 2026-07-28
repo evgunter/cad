@@ -83,7 +83,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
                 what: "face surface",
             })?;
         let triangles = match *surface {
-            Surface::Nurbs => return Err(TessellateError::UnsupportedSurface { face: fk }),
+            Surface::Nurbs(_) => return Err(TessellateError::UnsupportedSurface { face: fk }),
             Surface::Plane {
                 origin,
                 normal,

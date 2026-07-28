@@ -450,6 +450,28 @@ impl Bounds for Interval {
     }
 }
 
+/// Span selection as **containment**: the inclusive hull of the spans
+/// overlapped by `[lo, hi]` (each end located by the f64 tie-break —
+/// see [`crate::spline::locate`]'s module docs). Sound because every
+/// span's polynomial extension agrees with the curve on the span
+/// itself, so hulling the per-span interval evaluations over the box
+/// contains the true image. Poison (NaI/empty) surfaces NaN brackets
+/// and lands on the first span deterministically — the poisoned `t`
+/// then propagates through the evaluation arithmetic as a value.
+impl crate::spline::SpanLocate for Interval {
+    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+        let (first, last) = knots.span_range(Bounds::lo(self), Bounds::hi(self));
+        crate::spline::SpanSet { first, last }
+    }
+
+    fn enclosure_hull(self, other: Self) -> Self {
+        // The convex hull with poison-first semantics — the same
+        // convention as the kink tangent hull below (NaI/empty
+        // propagate; 1788's empty-absorbing hull would drop poison).
+        Self(tangent_hull(self.0, other.0))
+    }
+}
+
 /// Certified sign classification of an enclosure `[lo, hi]` against a
 /// [`Band`] — the interval instantiation of the single door from numbers
 /// to decisions.

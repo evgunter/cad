@@ -23,6 +23,7 @@ pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
 pub mod real;
+pub mod spline;
 pub mod tolerance;
 
 #[cfg(feature = "interval")]
@@ -36,4 +37,5 @@ pub use predicate::{
     Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign,
 };
 pub use real::{Bounds, Real};
+pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};
