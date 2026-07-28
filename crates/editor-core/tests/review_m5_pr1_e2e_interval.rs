@@ -210,7 +210,7 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
         ev.value(degenerate).map(|v| &v.payload)
     );
     assert!(
-        ev.nodes.get(&degenerate).is_some(),
+        ev.nodes.contains_key(&degenerate),
         "the refusal must be recorded against the node, not silently absent"
     );
 }

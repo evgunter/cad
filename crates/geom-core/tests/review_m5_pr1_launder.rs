@@ -95,8 +95,8 @@ fn laundering_attempts_all_fail() {
 
     // Healthy sanity rows: the paths above do not poison healthy inputs.
     let m = Real::min(dvar(h(2.0)), dvar(h(5.0)));
-    assert!(matches!(m.value.sign_within(band()), Ok(_)));
-    assert!(matches!(m.deriv.sign_within(band()), Ok(_)));
+    assert!(m.value.sign_within(band()).is_ok());
+    assert!(m.deriv.sign_within(band()).is_ok());
     // Bounds stays poison-visible: NaN brackets for empty AND NaI.
     assert!(empty().lo().is_nan() && empty().hi().is_nan());
     assert!(nai().lo().is_nan() && nai().hi().is_nan());
