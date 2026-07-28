@@ -57,7 +57,11 @@ fn interpolation_passes_through_every_sample() {
         let t = f64::from(k) / 256.0;
         let p = curve.eval(t);
         let dist = ((p.x - 0.5).powi(2) + (p.y - 1.0).powi(2)).sqrt();
-        assert!((dist - R).abs() < 1e-5, "off-locus by {:e}", (dist - R).abs());
+        assert!(
+            (dist - R).abs() < 1e-5,
+            "off-locus by {:e}",
+            (dist - R).abs()
+        );
     }
 }
 
@@ -94,8 +98,15 @@ fn approximation_respects_tolerance_and_compresses() {
     let pts = arc_samples(65);
     let tol = 1e-2;
     let fit = NurbsCurve3::approximate(&pts, 3, tol).unwrap();
-    assert!(fit.bound <= tol, "achieved {:e} > tolerance {tol:e}", fit.bound);
-    assert!(fit.bound > 0.0, "no removal accepted at a coarse tolerance?");
+    assert!(
+        fit.bound <= tol,
+        "achieved {:e} > tolerance {tol:e}",
+        fit.bound
+    );
+    assert!(
+        fit.bound > 0.0,
+        "no removal accepted at a coarse tolerance?"
+    );
     // The Type-2 loop's point: far fewer control points than samples.
     assert!(
         fit.curve.knots().control_count() < pts.len() / 2,

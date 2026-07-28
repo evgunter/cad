@@ -83,7 +83,10 @@ impl core::fmt::Display for ComposeError {
                 write!(f, "compose: {dims} coordinate channels, need {expected}")
             }
             ComposeError::ChannelOutOfRange { channel, dims } => {
-                write!(f, "compose: channel {channel} out of range ({dims} channels)")
+                write!(
+                    f,
+                    "compose: channel {channel} out of range ({dims} channels)"
+                )
             }
         }
     }
@@ -142,12 +145,10 @@ impl<'a> CurveRingData<'a> {
         }
         for ch in coords {
             if ch.len() != n {
-                return Err(ComposeError::Structure(
-                    SplineError::ControlCountMismatch {
-                        control: ch.len(),
-                        expected: n,
-                    },
-                ));
+                return Err(ComposeError::Structure(SplineError::ControlCountMismatch {
+                    control: ch.len(),
+                    expected: n,
+                }));
             }
         }
         Ok(Self {
@@ -164,8 +165,11 @@ impl<'a> CurveRingData<'a> {
 
     /// The weight channel `W_i = w_i`, Bézier-decomposed.
     fn weight_channel(&self) -> BernsteinSpans {
-        let coeffs: Vec<RingInterval> =
-            self.weights.iter().map(|w| RingInterval::point(*w)).collect();
+        let coeffs: Vec<RingInterval> = self
+            .weights
+            .iter()
+            .map(|w| RingInterval::point(*w))
+            .collect();
         to_bezier_spans(self.kv, &coeffs)
     }
 
@@ -229,7 +233,11 @@ impl BernsteinSpans {
             .map(|row| {
                 let mut acc = RingInterval::poison();
                 for (n, c) in row.iter().enumerate() {
-                    acc = if n == 0 { *c } else { RingInterval::hull(acc, *c) };
+                    acc = if n == 0 {
+                        *c
+                    } else {
+                        RingInterval::hull(acc, *c)
+                    };
                 }
                 acc
             })
@@ -265,7 +273,13 @@ fn interior_values(kv: &KnotVector) -> Vec<(f64, usize)> {
 /// ring: `Q_i = c_{i−1} + (c_i − c_{i−1})·α_i` with
 /// `α_i = (u − U_i)/(U_{i+p} − U_i)` formed as a **ring quotient** of
 /// knot enclosures (module docs step 2). Fixed ascending index order.
-fn insert_once_ring(knots: &mut Vec<f64>, p: usize, s: usize, coeffs: &mut Vec<RingInterval>, u: f64) {
+fn insert_once_ring(
+    knots: &mut Vec<f64>,
+    p: usize,
+    s: usize,
+    coeffs: &mut Vec<RingInterval>,
+    u: f64,
+) {
     // Span k: the last index with knots[k] ≤ u (interior u of a valid
     // clamped vector, so 0 < k < len − 1).
     let mut k = 0;
@@ -318,9 +332,7 @@ fn to_bezier_spans(kv: &KnotVector, coeffs: &[RingInterval]) -> BernsteinSpans {
     // Full multiplicity everywhere: control count = nseg·p + 1; span j
     // owns coefficients j·p ..= j·p + p.
     let nseg = breaks.len() - 1;
-    let spans = (0..nseg)
-        .map(|j| c[j * p..=j * p + p].to_vec())
-        .collect();
+    let spans = (0..nseg).map(|j| c[j * p..=j * p + p].to_vec()).collect();
     BernsteinSpans {
         degree: p,
         breaks,
@@ -519,7 +531,11 @@ impl CompositeForm {
     pub fn bound(&self) -> RingInterval {
         let mut acc = RingInterval::poison();
         for (n, b) in self.span_bounds().into_iter().enumerate() {
-            acc = if n == 0 { b } else { RingInterval::hull(acc, b) };
+            acc = if n == 0 {
+                b
+            } else {
+                RingInterval::hull(acc, b)
+            };
         }
         acc
     }
@@ -913,7 +929,9 @@ mod tests {
     fn circle_fixture(rad: f64) -> (KnotVector, Vec<f64>, Vec<Vec<f64>>) {
         let s = core::f64::consts::FRAC_1_SQRT_2;
         let kv = KnotVector::clamped(
-            vec![0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0],
+            vec![
+                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+            ],
             2,
         )
         .unwrap();
@@ -952,10 +970,7 @@ mod tests {
         // Degree-2 spline with a single-multiplicity interior knot —
         // the Bézier decomposition actually inserts here.
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let coords = vec![
-            vec![0.0, 0.7, 1.3, 2.0],
-            vec![1.0, -0.4, 0.9, -1.5],
-        ];
+        let coords = vec![vec![0.0, 0.7, 1.3, 2.0], vec![1.0, -0.4, 0.9, -1.5]];
         let w = vec![1.0, 0.8, 1.3, 1.0];
         let ring = lift(&coords);
         let data = CurveRingData::new(&kv, &w, &ring).unwrap();
@@ -985,11 +1000,17 @@ mod tests {
         };
         assert!(matches!(
             implicit_composite(&data2, &sphere),
-            Err(ComposeError::DimensionMismatch { dims: 2, expected: 3 })
+            Err(ComposeError::DimensionMismatch {
+                dims: 2,
+                expected: 3
+            })
         ));
         assert!(matches!(
             coordinate_product(&data2, 0, 2),
-            Err(ComposeError::ChannelOutOfRange { channel: 2, dims: 2 })
+            Err(ComposeError::ChannelOutOfRange {
+                channel: 2,
+                dims: 2
+            })
         ));
         assert!(matches!(
             linear_composite(&data2, &[1.0], 0.0),
@@ -998,7 +1019,9 @@ mod tests {
         // Bad weights are typed at construction.
         assert!(matches!(
             CurveRingData::new(&kv, &[1.0, -1.0], &coords2),
-            Err(ComposeError::Structure(SplineError::NonPositiveWeight { .. }))
+            Err(ComposeError::Structure(
+                SplineError::NonPositiveWeight { .. }
+            ))
         ));
         // A zero axis reaches the denominator as a zero-touching
         // divisor: the ring refuses, the bound poisons (NaN), and NaN

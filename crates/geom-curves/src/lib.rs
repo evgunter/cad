@@ -93,7 +93,7 @@ pub mod projection;
 
 use std::sync::Arc;
 
-pub use fit::{FitError, FitOutcome, FIT_REMOVAL_BUDGET};
+pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 pub use nurbs::{NurbsCurve2, NurbsCurve3};

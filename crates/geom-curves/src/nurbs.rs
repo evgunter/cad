@@ -445,7 +445,10 @@ impl NurbsCurve3<f64> {
     /// build a `CurveRingData` for composite bounds.
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
         let lift = |f: fn(&Point3<f64>) -> f64| -> Vec<RingInterval> {
-            self.control.iter().map(|p| RingInterval::point(f(p))).collect()
+            self.control
+                .iter()
+                .map(|p| RingInterval::point(f(p)))
+                .collect()
         };
         vec![lift(|p| p.x), lift(|p| p.y), lift(|p| p.z)]
     }
@@ -456,7 +459,10 @@ impl NurbsCurve2<f64> {
     /// channels of ring point enclosures.
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
         let lift = |f: fn(&Point2<f64>) -> f64| -> Vec<RingInterval> {
-            self.control.iter().map(|p| RingInterval::point(f(p))).collect()
+            self.control
+                .iter()
+                .map(|p| RingInterval::point(f(p)))
+                .collect()
         };
         vec![lift(|p| p.x), lift(|p| p.y)]
     }

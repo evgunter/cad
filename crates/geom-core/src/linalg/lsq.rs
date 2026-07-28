@@ -85,10 +85,7 @@ impl core::fmt::Display for LsqError {
             LsqError::RhsShapeMismatch {
                 rhs_rows,
                 matrix_rows,
-            } => write!(
-                f,
-                "lsq: rhs has {rhs_rows} rows, matrix has {matrix_rows}"
-            ),
+            } => write!(f, "lsq: rhs has {rhs_rows} rows, matrix has {matrix_rows}"),
             LsqError::Underdetermined { rows, cols } => {
                 write!(f, "lsq: underdetermined ({rows} rows < {cols} cols)")
             }
@@ -363,7 +360,10 @@ mod tests {
         let a = vec![vec![0.0, 1.0], vec![1.0, 0.0]];
         let b = vec![vec![1.0], vec![1.0]];
         match solve_square(&a, &b) {
-            Err(LsqError::LsqDegenerate { pivot_index: 0, pivot }) => {
+            Err(LsqError::LsqDegenerate {
+                pivot_index: 0,
+                pivot,
+            }) => {
                 assert_eq!(pivot, 0.0);
             }
             other => panic!("expected LsqDegenerate at pivot 0, got {other:?}"),

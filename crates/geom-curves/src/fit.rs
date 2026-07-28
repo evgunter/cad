@@ -65,7 +65,7 @@
 //! eventuality must be dealt with" honesty, as a type.
 
 use geom_core::linalg::lsq::{self, LsqError};
-use geom_core::spline::{basis, KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError};
+use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
 use geom_core::{Point2, Point3};
 
 use crate::{NurbsCurve2, NurbsCurve3};
@@ -550,7 +550,10 @@ mod tests {
     fn budget_exhaustion_is_typed_and_carries_the_achieved_bound() {
         let pts = quarter_arc_samples(16);
         match NurbsCurve3::approximate_budgeted(&pts, 3, 1e-3, 1) {
-            Err(FitError::BudgetExhausted { budget: 1, achieved }) => {
+            Err(FitError::BudgetExhausted {
+                budget: 1,
+                achieved,
+            }) => {
                 assert_eq!(achieved, 0.0);
             }
             other => panic!("expected BudgetExhausted, got {other:?}"),

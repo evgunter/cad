@@ -197,9 +197,7 @@ macro_rules! nurbs_project {
                     last_dist = dist;
                     let speed = c1.norm();
                     // Acceptance: coincidence, then cosine.
-                    if dist <= PROJECT_EPS_POINT
-                        || g.abs() <= PROJECT_EPS_COSINE * speed * dist
-                    {
+                    if dist <= PROJECT_EPS_POINT || g.abs() <= PROJECT_EPS_COSINE * speed * dist {
                         return Ok($Projection {
                             t,
                             foot: c,

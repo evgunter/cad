@@ -12,8 +12,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::Point3;
+use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_curves::NurbsCurve3;
 
 const R: f64 = 2.5;
@@ -134,12 +134,7 @@ fn fit_then_certify_and_the_oq2_planted_excursion_pin() {
     let radial = control[idx] - c;
     let delta = 0.05; // meters — a real excursion, far above the band
     control[idx] = control[idx] + radial * (delta / radial.norm());
-    let corrupted = NurbsCurve3::new(
-        kv.clone(),
-        control,
-        interp.weights().to_vec(),
-    )
-    .unwrap();
+    let corrupted = NurbsCurve3::new(kv.clone(), control, interp.weights().to_vec()).unwrap();
 
     let corrupted_hull = hull_bound(&corrupted);
     let corrupted_schedule = sampled_max(&corrupted, 8);
