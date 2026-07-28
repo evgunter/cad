@@ -22,7 +22,7 @@ fn table(
     let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<f64>> =
         slotmap::SlotMap::with_key();
     let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).copied())
+    (keys, move |k| map.get(k).cloned())
 }
 
 /// Certifies the headroom fixture's line-intersection edge with a

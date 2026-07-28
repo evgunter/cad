@@ -51,7 +51,7 @@ fn coplanar_pillow() -> (Body<f64>, crate::MefCreated) {
                 he2: seg.he_minus,
             },
             EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)),
-            FaceSurface::New(plane),
+            FaceSurface::New(plane.clone()),
         )
         .unwrap();
     // The seed face shares the same geometric plane under its own key

@@ -63,7 +63,7 @@ pub fn curved_face<T: Decide>(
             minor_radius,
             ..
         } => torus(center, axis, major_radius, minor_radius, outer, band),
-        Surface::Nurbs => Err(PropsError::Unimplemented),
+        Surface::Nurbs(_) => Err(PropsError::Unimplemented),
     }
 }
 
@@ -250,7 +250,7 @@ fn cylinder<T: Decide>(
                 });
                 levels.push(v);
             }
-            Curve3::Nurbs => return Err(PropsError::Unimplemented),
+            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }
     }
     let du = du_of_rims(&rims, radius, band)?;
@@ -342,7 +342,7 @@ fn cone<T: Decide>(
                 });
                 levels.push(v);
             }
-            Curve3::Nurbs => return Err(PropsError::Unimplemented),
+            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }
     }
     let arm = rims
@@ -401,7 +401,7 @@ fn sphere<T: Decide>(
         } = e.carrier
         else {
             return Err(match e.carrier {
-                Curve3::Nurbs => PropsError::Unimplemented,
+                Curve3::Nurbs(_) => PropsError::Unimplemented,
                 _ => PropsError::NotIsoRectangle {
                     what: "sphere boundary edge is not a circle",
                 },
@@ -520,7 +520,7 @@ fn torus<T: Decide>(
         } = e.carrier
         else {
             return Err(match e.carrier {
-                Curve3::Nurbs => PropsError::Unimplemented,
+                Curve3::Nurbs(_) => PropsError::Unimplemented,
                 _ => PropsError::NotIsoRectangle {
                     what: "torus boundary edge is not a circle",
                 },

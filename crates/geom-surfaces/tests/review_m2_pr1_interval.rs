@@ -360,7 +360,7 @@ fn lift_surface(s: &Surface<f64>) -> Surface<Interval> {
             minor_radius: Interval::from_f64(minor_radius),
             u_ref: ivc(u_ref),
         },
-        Surface::Nurbs => Surface::Nurbs,
+        Surface::Nurbs(_) => Surface::nurbs_placeholder(),
     }
 }
 

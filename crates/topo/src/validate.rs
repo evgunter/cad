@@ -1393,7 +1393,7 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
     // Tier 3, check 1: surface implementedness (face-arena order).
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        if matches!(body.surfaces.get(face.surface), Some(Surface::Nurbs)) {
+        if matches!(body.surfaces.get(face.surface), Some(Surface::Nurbs(_))) {
             errors.push(ValidationError::UncertifiableSurface { face: face_key });
         }
     }
@@ -1414,7 +1414,7 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        if let Err(error) = curve.recertify(p_start, p_end, |k| body.surfaces.get(k).copied(), band)
+        if let Err(error) = curve.recertify(p_start, p_end, |k| body.surfaces.get(k).cloned(), band)
         {
             errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,

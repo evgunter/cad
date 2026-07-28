@@ -303,6 +303,22 @@ impl Bounds for Probe {
     }
 }
 
+/// `Probe` locates spans through its `f64` (module docs of
+/// [`crate::spline::locate`]): it IS an `f64` with a recorder, and span
+/// selection is structure selection, not a recorded decision — no
+/// margin sample is emitted (span choice never drives topology).
+impl crate::spline::SpanLocate for Probe {
+    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+        crate::spline::SpanLocate::locate_spans(self.0, knots)
+    }
+
+    fn enclosure_hull(self, _other: Self) -> Self {
+        // Unreachable through the evaluators (single-span locator, like
+        // f64); total anyway — poison, never a fabricated value.
+        Self(f64::NAN)
+    }
+}
+
 impl Decide for Probe {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         let outcome = self.0.sign_within(band);

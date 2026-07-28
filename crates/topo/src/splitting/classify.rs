@@ -120,7 +120,7 @@ pub(super) fn insert_crossings<T: Decide>(
             return Err(SplitReduceError::CorruptOperand { vertex: u });
         };
         let curve = match body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(c)) => *c,
+            Some(CurveGeom::Certified(c)) => c.clone(),
             _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
         };
         let (t0, t1) = curve.params();
