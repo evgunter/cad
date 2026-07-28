@@ -257,16 +257,34 @@ exactly-tangent `.angle(θ)` at a directed point;
 ## 4. The safety invariants, restated
 
 1. **No junction is silently near-tangent**: Sharp junctions are
-   checked; the refusal is ONE method with two payloads (Evan's
-   round-2 framing): `ExactlyTangent` ("this junction is tangent
-   — use `.tangent()`, or change the geometry") and
-   `AmbiguousAtEps` ("tangent or sharp is ambiguous at this ε —
-   move the geometry, or declare tangent, which is then VERIFIED
-   and refused as `TangencyContradicted` if false"). Declaring
-   SHARP is never an override — a declaration cannot make
-   ill-conditioned geometry well-conditioned (F6). At the
-   authoring layer there is nothing downstream; "escalation" is
-   just this refusal.
+   checked; the refusal is ONE method with ONE user story
+   (round 7, Evan's ε-framing — superseding the round-2/3
+   two-payload split): ε is "the precision we represent", Kε is
+   "the least precision the user might care about" — so for ANY
+   margin below the user-meaning threshold the recourse is
+   uniform: **"this junction is tangent at any precision you
+   could care about — if intended, use `.tangent()` (which makes
+   it exact BY CONSTRUCTION); otherwise move the geometry (or
+   lower ε)."** The exact margin rides the payload as data
+   (diagnostics may care whether it was 0 or 3ε); the message
+   and the recourse do not fork on it. Correction to the
+   round-3 text, recorded honestly: the old `AmbiguousAtEps` arm
+   claimed declaring tangent from the in-band case "gets
+   verified and refused if false" — wrong IN THE ALGEBRA, where
+   `.tangent()` is not a claim about the numbers but a
+   construction (the direction is inherited exactly; the
+   geometry moves by ≤ the sub-threshold margin, an intended,
+   reported change — the ratified repair-shaped resolution, not
+   a verification gamble). `TangencyContradicted` remains the
+   verify-layer door for RAW-authored declared flags (#101),
+   untouched. Declaring SHARP is still never an override —
+   kernel-side F6 semantics (exactly-on vs in-band) are
+   unchanged by this; the unification is user-message policy at
+   the authoring layer. (The deeper reconception this surfaced —
+   an `eps_input` decoupled from K·ε_precision, the D7 ε_in
+   split extended to native input — is Evan's #124 inline
+   comment, tracked as its own design conversation, not decided
+   here.)
 2. **No tangency without declaration**: tangency enters only via
    `.tangent()` or fillet construction (which lowers to declared
    trimline tangency exactly like `LoopBuilder::fillet` today);
