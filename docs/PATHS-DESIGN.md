@@ -1,341 +1,306 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5, design doc)
 
-Status: **DRAFT for Evan's sign-off** (design-conversation PR — the
-standing exception to self-merge; implementation is NOT scheduled:
-it stays banked for the v2 profiles-as-programs work per #104's
-sequencing record. This doc is the deliverable).
+Status: **DRAFT round 4, for Evan's sign-off** (design-conversation
+PR; implementation is NOT scheduled — banked for the v2
+profiles-as-programs work per #104. The ratified doc is the
+deliverable). Rounds: 1 = forward-consuming vs junction-resolver
+fork; 2 = Evan's inline review (resolver set collapsed to binary;
+in-order authoring); 3 = coincident-corner fillet + pending
+resolver; 4–5 (this text, 2026-07-28 in-session) = **typed path
+ends**, the **fillet(r, anchor) form with a directed-awaiting
+state** (Evan: `.angle(θ).fillet(r, dd).angle(θ2)`), and the
+**directors-are-the-only-direction-source core** with every
+point-targeting constructor as sugar (Evan: "line_to is just
+sugar for .angle(theta).line(length)"), superseding parts of
+rounds 2–3 as recorded inline.
 
-Lineage: Evan's concept (#104, 2026-07-25) + the 2026-07-27
-in-session exchange (junction-join primacy; forward sugar as a
-requirement). Harmonization constraint (ratified context): #101's
-declared-tangency discipline (flags verified-never-trusted,
+Lineage: Evan's concept (#104) + three in-session design rounds
+(2026-07-27/28). Harmonization constraint (ratified context):
+#101's declared-tangency discipline (flags verified-never-trusted,
 `UndeclaredTangency`/`TangencyContradicted`, fillet fit gating,
-same-carrier-is-identity) landed at #109/#112 and is the semantic
-layer this algebra LOWERS to — nothing here replaces it; schema v1
-persists explicit geometry + flags, and the lift to the algebra is
-determined by construction (the load-bearing reason the flags
-exist).
+same-carrier-is-identity) landed at #109/#112 and is the layer
+this algebra LOWERS to; schema v1 persists explicit geometry +
+flags, and the lift to the algebra is determined by construction.
 
 ## 1. What this is
 
 A typed authoring algebra for profile loops in which **accidental
-tangency is unrepresentable and intended tangency is exact by
-construction** — each constructor consumes exactly the degrees of
-freedom the neighboring geometry has not already determined. The
-algebra is a *generator-layer* surface (D8: user-facing Rust
-generates recipes); it lowers to what exists today: explicit
-segments (vertices + bulges) plus declared tangency flags, verified
-at build by the same junction predicates. No kernel or document
+tangency is unrepresentable, intended tangency is exact by
+construction, and every authored point lies on the final path**.
+The algebra is a generator-layer surface (D8); it lowers to what
+exists: explicit segments + declared tangency flags, verified at
+build by the same junction predicates. No kernel or document
 semantics change.
 
-## 2. The core fork: forward-consuming vs junction-resolver
+## 2. The core: typed ends, directors, anchored fillets
 
-**F-core (the #104 original)**: `PartialPath` grows end-to-end;
-each constructor eats the freedoms the previous END leaves.
-Tangent-line takes only a length; tangent-arc takes only an
-endpoint; non-tangent constructors CHECK definite non-tangency.
+**End states.** A path end (start end and growing tip) is one of
+THREE types (the third is Evan's round-5 addition):
 
-**J-core (this doc's recommendation, from the 2026-07-27
-exchange; resolver set REDUCED per Evan's review — see below)**:
-a path is a sequence of **legs** (carrier-typed, some DOFs
-possibly unbound) plus one **resolver** per junction:
+- **`Point`** — position bound, no direction commitment.
+  Produced by `start(p)` and by legs that terminate at a bound
+  position.
+- **`Directed`** — position + departure direction. Produced by a
+  *director* on a `Point` end.
+- **`AwaitingDirection`** — a fillet has bound its arrival-side
+  ANCHOR but the side's direction is pending; the next director
+  completes it. Produced only by `.fillet(r, anchor)`.
 
-```text
-Junction resolver (v1, closed and BINARY):
-  | Sharp          -- checked definitively non-tangent (the
-                      definite-Zero/band machinery concentrates
-                      here; #101's classifier, verbatim; refusal
-                      payloads in §4)
-  | TangentDirect  -- direction handoff across the junction
-                      (G1: the two legs' directions agree at the
-                      shared point)
-```
+**Directors are the only way directions enter** (the round-5
+core-minimality rule): `.tangent()` (inherit the incoming leg's
+end tangent — emits the DECLARED flag on lowering) and
+`.angle(θ)` (explicit; a θ that happens to hit the incoming
+tangent direction is `UndeclaredTangency` — declaring is saying
+`.tangent()`, never guessing the angle; #101 verbatim).
+`.angle(θ)` serves two states: `Point → Directed` and
+`AwaitingDirection → Directed` (on the arrival side, direction
+θ through the bound anchor). `.tangent()` serves only `Point`
+ends — on `AwaitingDirection` it is refused as circular (tangent
+to the fillet arc, which is not determined until the direction
+is: the "fillets sit between defined geometry" rule, enforced by
+the state machine).
 
-*(Revision note, Evan's review 2026-07-28: the draft had a third
-resolver `TangentArc { r }` — a junction that synthesizes a
-fillet arc. Evan asked why it isn't just `TangentDirect` twice on
-an arc, and he is right: a fillet is an arc LEG with only its
-radius bound and BOTH its junctions `TangentDirect`; elaboration
-binds its center/endpoints and trims the neighbors. The resolver
-vocabulary collapses to the binary set above, the arc stays a
-first-class leg like any other, and "fillet" becomes pure sugar
-(§3). DOF check, recorded: an arc leg carries 5 DOFs
-(center 2, r 1, sweep endpoints 2); r bound leaves 4; each
-TangentDirect junction against a neighbor with a free trim
-endpoint contributes contact + direction agreement = 2 bindings;
-two tangent junctions = 4 — exactly determined, the classic
-corner-fillet closed form, #101's `LoopBuilder::fillet`
-generalized.)*
+**Legs (core).** Direction-consuming only, from a `Directed`
+end: `line(len)`; `arc(…)` forms (the unique tangent arc to a
+target point; explicit-sweep arcs at PR-spec time). A leg
+terminates at a bound position → `Point`.
 
-Elaboration is a constraint pass over the spine: resolvers bind
-the unbound DOFs of adjacent legs; a leg left underdetermined
-after all its junctions resolve is a typed error naming the
-missing freedom; an overdetermined combination (both a fixed
-direction AND a tangent handoff) refuses at the junction that
-overdetermines it. A leg whose both junctions participate in its
-determination (the fillet arc above) resolves as a local
-leg-with-both-junctions unit — still closed-form, still local to
-one leg and its two neighbors. Elaboration order and determinism
-are §5.
+**Point-targeting constructors are SUGAR** (Evan, round 5:
+"line_to is just sugar for .angle(theta).line(length)"):
+`line_to(p)`
+= `.angle(θ toward p).line(|p − cur|)`; `arc_to(p, bulge)`
+desugars the same way (start direction computable from chord +
+bulge — the M2 bulge convention). The Sharp junction check rides
+the desugared `.angle(…)` uniformly. Sugar composes with the
+fillet state: `.fillet(r, dd).line_to(p)` = arrival direction
+from dd toward p, side terminating at p — well-defined because
+the anchor is bound. Round-1/2's `arc_tangent_to` and
+`start_dir` dissolve into `.tangent().arc_to(p)` and
+`start(p).angle(θ)`.
 
-**Composition and the trailing pending resolver (settled with
-Evan, 2026-07-28 — round 2 of this section).** The round-1 text
-here proposed distinct join operators, and a path-valued
-`fillet(p2)` join whose land-on-the-next-carrier semantics Evan
-then rejected against his own example ("it shouldn't land on
-c→d"); the fillet semantics was re-forked and DECIDED as the
-coincident-corner form (option 3 of the recorded fork: an r-arc
-tangent to both carriers of an EXISTING nominal corner, trimming
-back into each — the classic corner fillet, uniform across
-in-chain corners, composition seams, and close; a corner always
-requires r since tangent-to-two-carriers is a 1-parameter
-family). The overdetermined single-arc, land-on-carrier, and
-extend-to-intersect/biarc gap forms are all OUT of v1; the biarc
-door may be named by a future refusal payload where a gap can
-even be expressed (see below — in chain style it cannot).
-
-The mechanism that makes composition and flat chains ONE algebra
-(Evan's associativity point — nested-call authoring must not be a
-distinct representation): a `PartialPath` value is legs + resolved
-junctions + an optional **trailing pending resolver**.
-
-- Every leg constructor CONSUMES the pending resolver (default
-  `Sharp`) as its incoming junction.
-- Junction markers (`.tangent()`, `.fillet(r)`) SET the pending
-  resolver; two markers with no leg between refuse typed (one
-  resolver per junction).
-- Concatenation `p1.then(p2)` uses p1's pending resolver as the
-  seam junction with p2's first leg. Hence
-  `(p1.then(p2)).then(p3) == p1.then(p2.then(p3))` — flat chains,
-  variables, and inline nesting all produce the identical value;
-  there is no separate "join" vocabulary.
-- `close()` / `close_tangent()` / `close_fillet(r)` resolve the
-  last-to-first seam junction through the same code path.
-
-Junction resolver spellings, complete: `Sharp` (default, checked),
-`Tangent` (the `TangentDirect` handoff), `Fillet(r)` (inserts the
-r-bound arc leg with both junctions tangent, trimming both
-neighbors — a resolver spelling in the surface syntax, an
-inserted leg in the core, per the DOF note above).
-
-A structural consequence worth recording: in chain style the next
-leg always starts where the previous ended, so the coincident-
-corner requirement is satisfied BY CONSTRUCTION — gap
-configurations (the biarc/extend-to-intersect family) are not
-refused in the chain surface, they are unrepresentable in it.
-
-**Why J-core wins (recommendation, with the honest counterweight):**
-
-1. **The two-sided join is the paradigm case, not an add-on.**
-   Evan's litmus — "join these two lines by a circle tangent to
-   both" — is unwritable in F-core (the successor leg does not
-   exist when the arc is authored) and is one constructor call in
-   J-core. F-core would need a lookahead/patch-up mechanism that
-   breaks its own determined-prefix invariant.
-2. **Closure stops being special.** F-core's hardest residue
-   (#104 flagged it) is the last-to-first junction: the closing
-   constructor is overdetermined for a single arc. J-core closes
-   by applying an ordinary resolver to the seam junction — the
-   same code path as every interior junction; `close()` merely
-   marks the cycle and runs the same pass.
-3. **It matches #101's granularity exactly.** The classifier, the
-   refusal vocabulary, and fit gating are all per-junction
-   already; lowering is junction-by-junction with no impedance
-   mismatch.
-
-Counterweight, on record: F-core's "determined prefix + free end"
-is a simpler under-construction object with a simpler totality
-story; J-core's spine-with-holes needs the §4 invariant restated
-carefully and an elaboration pass F-core doesn't need. The
-recommendation stands because the complexity J-core adds is
-load-bearing (two-sided joins, uniform closure) while the
-complexity F-core adds under pressure (lookahead patches, special
-closure) is incidental.
-
-## 3. Forward sugar (REQUIREMENT, per Evan 2026-07-27)
-
-Turtle-style forward authoring remains first-class; every forward
-constructor is a single call desugaring mechanically to spine +
-resolvers. The v1 sugar table (each row: constructor → lowering):
-
-| Surface form | Meaning under the pending-resolver mechanism (§2) |
-|---|---|
-| `start(p)` | begin at `p`, no pending resolver |
-| `start_dir(p, d)` | begin at `p` with a start direction (required if the FIRST leg is direction-consuming — see the leading-tangent note) |
-| `line_to(p)` | consume pending (default `Sharp`) as incoming junction; line leg to `p` |
-| `arc_to(p, bulge)` | same; arc leg (endpoint + bulge) |
-| `.tangent()` | set pending = `Tangent`; next leg's direction-consuming DOF binds through the handoff |
-| `line_tangent(len)` | sugar for `.tangent().line(len)` — line leg with only `len` bound |
-| `arc_tangent_to(p)` | sugar for `.tangent().arc_endpoint(p)` — the #104 unique-arc construction |
-| `.fillet(r)` | set pending = `Fillet(r)` — the corner the previous leg's end and next leg's start form (coincident by chain construction) is rounded: r-arc inserted, both junctions tangent, both neighbors trimmed |
-| `p1.then(p2)` | concatenate; p1's pending resolver is the seam junction (associative — §2) |
-| `close()` / `close_tangent()` / `close_fillet(r)` | resolve the last-to-first seam with `Sharp` / `Tangent` / `Fillet(r)`, same code path |
-
-Worked flat chains (recorded from the 2026-07-28 exchange):
+**Fillet (round-5 form, Evan's).** One call on a `Directed` end
+carrying only the arrival ANCHOR; the arrival direction follows
+by director:
 
 ```text
-rounded square:
-  start(p0).line_to(p1).fillet(r).line_to(p2).fillet(r)
-           .line_to(p3).fillet(r).line_to(p0).close_fillet(r)
-
-Evan's tangent shape, flat:
-  start_dir(a, d).line_tangent(len).arc_tangent_to(b)
-                 .fillet(r).line_to(dd).arc_to(a, bulge).close()
+.angle(θ).fillet(r, dd).angle(θ2)
 ```
 
-Refusals that fall out of the mechanism (all typed): two markers
-with no leg between (one resolver per junction);
-`.fillet(r).line_tangent(len)` — circular: the fillet needs the
-next carrier defined, the tangent line wants its direction FROM
-the fillet arc (fillets sit between defined geometry, the refusal
-says so); a leading tangent leg without `start_dir` — its
-direction would only resolve through the seam at close(), a
-cyclic elaboration step v1 refuses (`ElaborationOrderUnsupported`
-naming the seam; the one-pending-leg cyclic pass is a possible
-v1.1 relaxation, recorded not committed).
+Incoming carrier = the ray from the current position along θ;
+the call binds anchor `dd` and enters `AwaitingDirection`; the
+following director fixes the arrival carrier (line through `dd`
+along θ2); the r-arc tangent to both carriers is inserted at
+their implicit virtual corner, trimming both; the tip is then
+Directed on the open arrival side — subsequent
+direction-consuming forms TERMINATE OR CONTINUE that same leg
+(`.line(len)` ends it past the anchor; another `.fillet(…)` runs
+it into the next trim; `close_fillet` likewise) — one leg in the
+lowering, so no collinear-split/same-carrier hazard arises from
+the continuation. Grounds, recorded:
 
-Constraint on the table (binding on any future sugar): a sugar
-constructor may only (a) append/insert one leg and/or (b) set the
-pending resolver (an inserted fillet leg sets its own two
-junctions). Anything needing more is not sugar and must be argued
-as a core change.
+- **The corner is never authored.** The trimmed corner exists
+  only as the carrier intersection; fillet takes no corner point,
+  and a bare `Point` end cannot fillet (no departure). Round 3's
+  blemish (`.line_to(p2).fillet(r).arc_to(p3)` — p2 authored,
+  then silently trimmed away) is unrepresentable at the type
+  level.
+- **Every side is anchored.** Each carrier is fixed by a real
+  authored on-path point plus a direction: the incoming ray by
+  the current end, the outgoing line by the arrival anchor. The
+  anchor-free side between two fillets (a `line_open()` sketch
+  from the round-3 chat) is UNDERDETERMINED — direction fixed,
+  both extents trimmed, offset free — and cannot be written in
+  this form. (The round-3 all-rounded-square sketch had exactly
+  that bug: one through-point, three floating sides. Corrected
+  example in §3.)
+- **DOF check**: arc 5 DOFs; r binds 1; tangency to each fixed
+  carrier binds 2 — exactly determined; #101's
+  `LoopBuilder::fillet` closed form generalized to a virtual
+  corner. Parallel/non-intersecting carriers, or an intersection
+  behind the ray start, refuse typed `NoCornerForFillet`.
+- Arrival vocabulary v1 = line arrivals (the anchor + a director
+  fix a LINE carrier). An arc-arrival variant (anchor + director
+  + radius fixing an arc carrier) is additive, added with a use
+  case.
 
-## 4. The safety invariant, restated for J-core
+**Composition.** Paths are values; `p1.then(p2)` concatenates
+with the seam typed by the meeting end states: `Point`↔`Point` =
+Sharp (checked); a Directed end into a direction-consuming first
+leg = tangent handoff; a Directed end may fillet onto p2 where
+p2's start supplies the arrival. Associativity holds because the
+seam consumes only the two ends' typed states — flat chains,
+variables, and nesting produce the identical value (the round-2/3
+requirement, preserved through the retype).
 
-**Every junction carries exactly one resolver, and every resolver
-is total-or-typed.** Consequences: no junction can be silently
-sharp-but-nearly-tangent; no tangency exists without a resolver
-that declares it (the lowering emits the declared flag from the
-resolver — declaration by construction, never inferred);
-same-carrier junctions refuse at elaboration exactly as #101's
-`same_carrier: true` (identity, not tangency).
+**Closure.** `close()` (Sharp seam, checked), `close_tangent()`
+(declared handoff last→first), `close_fillet(r)` (fillet between
+the final carrier and the START's directed departure — why
+`start(p).angle(θ)`, anchoring side 1 at a real path point, is
+the natural opening of an all-filleted loop). v1 rule: the seam
+sits at a junction or fillet, never mid-carrier (a mid-carrier
+seam = two collinear legs across the seam — the same-carrier/
+collinear rules refuse it; PQ4 records the possible relaxation).
 
-**Refusal shape at a Sharp junction (clarified per Evan's review,
-2026-07-28 — one method, two payloads, his framing adopted):**
-both outcomes are the SAME typed refusal
-(`SharpJunctionRefused { junction, kind }`), differing only in
-payload:
-- `kind: ExactlyTangent` — the junction is definitively tangent;
-  message: "this junction is tangent — use a tangent resolver
-  (or change the geometry)". The author's one-step fix is to say
-  what is true.
-- `kind: AmbiguousAtEps` — the classification is in-band;
-  message: "tangent or sharp is ambiguous at this ε — move the
-  geometry, or declare tangent (which will then be VERIFIED and
-  refused as `TangencyContradicted` if false)". Note the
-  asymmetry, stated honestly: declaring tangent is a real escape
-  from the ambiguous band only when the geometry verifies exactly
-  downstream; declaring SHARP is not offered as an override at
-  all — an in-band junction under Sharp stays refused, because a
-  declaration cannot make ill-conditioned geometry
-  well-conditioned (F6's stance; the earlier draft called this
-  "escalation", which wrongly suggested some downstream handler —
-  at the authoring layer there is nothing downstream, it is just
-  this refusal).
+## 3. Surface vocabulary and worked examples
+
+| Surface form | End-state transition | Core or sugar |
+|---|---|---|
+| `start(p)` | → Point | core |
+| `.angle(θ)` | Point → Directed; AwaitingDirection → Directed | core (the two-state director) |
+| `.tangent()` | Point → Directed (inherit + declared) | core; refused on AwaitingDirection (circular) |
+| `line(len)` / `arc(…)` | Directed → Point | core legs |
+| `.fillet(r, anchor)` | Directed → AwaitingDirection | core (the only corner primitive) |
+| `line_to(p)` | Point or AwaitingDirection → Point | sugar: `.angle(toward p).line(dist)` |
+| `arc_to(p, bulge)` | Point → Point | sugar (direction from chord + bulge) |
+| `arc_to(p)` | Directed → Point | sugar for the unique tangent arc |
+| `p1.then(p2)` | seam from the two end states | core, associative |
+| `close()` / `close_tangent()` / `close_fillet(r)` | seam | same typing at last→first |
+
+All-rounded square, fully determined (4 anchors + 4 directions,
+sides read as anchor+direction pairs; every mᵢ a real on-path
+point, e.g. side midpoints):
+
+```text
+start(m1).angle(east)
+    .fillet(r, m2).angle(north)
+    .fillet(r, m3).angle(west)
+    .fillet(r, m4).angle(south)
+    .close_fillet(r)
+```
+
+Mixed sharp + fillet (incl. the sugar-on-AwaitingDirection form):
+
+```text
+start(p0).line_to(p1)                 // sharp corner at p1 (sugar over .angle().line())
+    .angle(θ).fillet(r, m).angle(θ')  // rounded virtual corner; side anchored at m
+    .line(len)                        // arrival side ends len past m
+    .line_to(p2)                      // sharp corner
+    .close()
+```
+
+Evan's original tangent shape:
+
+```text
+start(a).angle(d)
+    .line(len)
+    .tangent().arc_to(b)
+    .angle(θ).fillet(r, dd).angle(θ2)
+    .line(len2)
+    .arc_to(a, bulge)
+    .close()
+```
+
+**The anchor fit check** (invariant 3 made operational): an
+arrival anchor must land on the TRIMMED extent of its side — an
+anchor the fillet trim would consume refuses typed
+(`AnchorOutsideTrimmedExtent`; #101's `TangentJointOutOfRange`
+fit-gating generalized). Same check for `start`'s point under
+`close_fillet`.
+
+Refusals from the typing (all typed): double director; `fillet`
+on a `Point` end (no departure — the type-level face of "you
+cannot fillet an authored corner away"); `line(len)` from a
+`Point` end; a leg or `close()` from `AwaitingDirection` (the
+arrival side has no direction yet — point-sugar excepted, since
+it supplies one); `.tangent()` on `AwaitingDirection` (circular);
+`NoCornerForFillet`; `AnchorOutsideTrimmedExtent`;
+`UndeclaredTangency` on an exactly-tangent `.angle(θ)`;
+`TangencyContradicted` from the verify layer as today.
+
+## 4. The safety invariants, restated
+
+1. **No junction is silently near-tangent**: Sharp junctions are
+   checked; the refusal is ONE method with two payloads (Evan's
+   round-2 framing): `ExactlyTangent` ("this junction is tangent
+   — use `.tangent()`, or change the geometry") and
+   `AmbiguousAtEps` ("tangent or sharp is ambiguous at this ε —
+   move the geometry, or declare tangent, which is then VERIFIED
+   and refused as `TangencyContradicted` if false"). Declaring
+   SHARP is never an override — a declaration cannot make
+   ill-conditioned geometry well-conditioned (F6). At the
+   authoring layer there is nothing downstream; "escalation" is
+   just this refusal.
+2. **No tangency without declaration**: tangency enters only via
+   `.tangent()` or fillet construction (which lowers to declared
+   trimline tangency exactly like `LoopBuilder::fillet` today);
+   the lowering emits the flags — declaration by construction,
+   never inference.
+3. **Every authored point lies on the final path** (round 4):
+   points enter only as path points (`start`, `line_to`,
+   `arc_to`, arrival anchors); fillets consume only directions
+   and anchors; the anchor fit check enforces the invariant
+   where trims could threaten it.
+4. Same-carrier junctions refuse at elaboration exactly as
+   #101's `same_carrier: true` (identity, not tangency); the
+   post-fillet continuation is exempt BY CONSTRUCTION because it
+   extends the same leg rather than minting a collinear neighbor
+   (§2).
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
-algebra is upstream insurance, the flags remain the contract of
+algebra is upstream insurance; the flags remain the contract of
 record.
 
-## 5. Elaboration semantics (determinism + failure vocabulary)
+## 5. Elaboration semantics
 
-- Single pass, spine order, then the seam junction for cycles;
-  each resolution step is local — a junction consumes its two
-  adjacent legs' bound state, and an inserted/underdetermined leg
-  whose determination spans both its junctions (the fillet arc)
-  resolves as one leg-plus-both-junctions closed-form unit. No
-  fixpoint iteration in v1: a step whose inputs are unbound
-  because they await a LATER step is a typed
-  `ElaborationOrderUnsupported` refusal (v1 scope cut, honest:
-  chains like line—TangentDirect—line—TangentDirect—line with
-  only outer endpoints bound elaborate left-to-right fine; a
-  chain requiring right-to-left propagation refuses with the
-  junction named — but see PQ3: composition makes these rare,
-  because each composed sub-path elaborates forward independently
-  and the join steps consume only both sides' already-determined
-  local end state). D9: elaboration is pure f64
-  structure selection (C6 boundary — it decides leg parameters,
-  never topology); the lowered profile then goes through the
-  ordinary generic pipeline.
-- Failure vocabulary (all typed, all naming their junction/leg):
-  `UnderdeterminedLeg { leg, missing }`,
-  `OverdeterminedJunction { junction, conflict }`,
-  `TangentArcUnfit { junction, .. }` (the #101
-  `TangentJointOutOfRange` generalized: tangent point off-leg),
-  `ElaborationOrderUnsupported { junction }`, plus the #101
-  vocabulary passing through from verification.
+Strictly forward, single pass, seam last; every step local and
+closed-form: directors bind departures; direction-consuming legs
+bind from them; each fillet is the ray×line corner construction
+with both carriers already fixed when reached; `close_*` resolves
+the seam against the start's recorded state. Round 3's
+`ElaborationOrderUnsupported` class is ELIMINATED by the round-4
+anchoring discipline — no chain expressible in this surface needs
+right-to-left propagation (recorded as a consequence to re-verify
+at implementation, not an axiom). D9: elaboration is pure f64
+structure selection (C6 boundary — it decides leg parameters,
+never topology); the lowered profile then runs the ordinary
+generic pipeline. Failure vocabulary: §3's refusals plus
+`UnderdeterminedLeg`/`OverdeterminedJunction` kept as elaborator
+backstops (expected unreachable from the typed surface; a
+reachable case found at implementation is a design finding to
+bring back here, not a silent fix).
 
-## 6. Open questions for Evan (genuine forks in this doc)
+## 6. Open questions for Evan
 
-**PQ1 — Resolver vocabulary extent for v1** (revised: the set is
-now the binary {Sharp, TangentDirect} after your TangentArc
-collapse). The candidates the draft deferred, now spelled out per
-your ask:
-- `TangentAt(p)`: a tangent junction whose CONTACT POINT is
-  user-pinned at `p` rather than derived by elaboration. Where it
-  matters: today a tangent junction's contact point falls out of
-  the neighbors' bound data (e.g. the fillet arc's tangent points
-  land wherever the closed form puts them); `TangentAt(p)` says
-  "tangent, AND the contact is exactly here", consuming leg DOFs
-  to make it so — e.g. an arc leg tangent to a line AT a marked
-  point has its center forced onto the normal at `p`. It is how
-  an author pins a tangency to a datum. Cost: every leg-pair
-  family needs a second closed form (tangent-with-pinned-contact),
-  and overdetermination refusals get a new class.
-- `Smooth` (G2): curvature-continuous junction — directions AND
-  signed curvatures agree at the contact. For the v1 leg
-  vocabulary it is nearly vacuous: line–line G2 is collinear
-  (same-carrier ⇒ identity refusal), line–arc G2 forces infinite
-  radius, arc–arc G2 forces equal radius + same center side ⇒
-  same carrier ⇒ identity refusal. G2 only becomes a real
-  junction kind once spline legs exist — and D2 deliberately
-  keeps G2 joins in the conventional-`MappedCurve` regime (the
-  surfaces/carriers under-determine the locus at G2; that is why
-  the kernel's tangency enforcement is jet-determinate-only).
-Recommendation (unchanged in substance): ship the binary set;
-`TangentAt(p)` is the plausible v1.1 addition when a use appears
-(the enum is additive); `Smooth` waits for spline legs on D2's
-own grounds.
+**PQ1 — Direction/tangency vocabulary extent for v1** (updated;
+the earlier TangentArc question dissolved into the fillet call):
+- `TangentAt(p)`: tangency with a user-pinned contact point —
+  consumes leg DOFs to force contact at `p` (arc tangent to a
+  line AT a marked point ⇒ center on the normal at p). How an
+  author pins a tangency to a datum; cost: a second closed form
+  per leg-pair family + a new overdetermination refusal class.
+- `Smooth` (G2): direction AND signed curvature agree. Nearly
+  vacuous for line/arc legs (line–line G2 = collinear ⇒
+  same-carrier; arc–arc G2 = same carrier; line–arc G2 = infinite
+  radius); real only once spline legs exist, and D2 keeps G2
+  joins in the conventional-`MappedCurve` regime deliberately.
+Recommendation: ship §3's vocabulary; `TangentAt` is the
+plausible v1.1; `Smooth` waits for spline legs on D2's grounds.
 
-**PQ2 — Mixed authoring** (revised — your composition example
-changes the answer). The draft's all-one-or-the-other rule was
-written against ad-hoc interleaving. With composition in the core
-(§2), the principled middle exists: a raw vertex+bulge chain
-embeds as a sub-path via an explicit `lift(chain)` — its INTERIOR
-junctions keep exactly today's #101 semantics (flags as authored,
-verified at build), and the BOUNDARY junctions where it composes
-with algebra-authored sub-paths are resolver-typed like any seam.
-The dangerous seam (a silent near-tangency where two independently
-authored pieces meet) is precisely the composition junction, and
-that is now always guarded; interior raw junctions were already
-#101-verified. Recommendation (revised): allow mixing at
-composition granularity via explicit `lift`; still refuse ad-hoc
-per-segment interleaving inside one sub-path (no win, and it
-blurs which layer owns each junction).
+**PQ2 — Mixed authoring** (shape from round 3, restated): raw
+vertex+bulge chains embed as sub-paths via an explicit
+`lift(chain)` — interior junctions keep today's #101 semantics;
+boundary seams are end-state-typed like any `then`. Ad-hoc
+per-segment interleaving inside one sub-path stays refused.
+Recommendation: as stated.
 
-**PQ3 — Elaboration order cut** (revised — yes, your example
-addresses it). Accept the v1 left-to-right-only elaboration (§5)
-with `ElaborationOrderUnsupported`, or require bidirectional
-propagation first? Your multiple-forward-chains-joined shape is
-exactly the escape hatch: each composed sub-path elaborates
-forward independently, and join steps (including fillet_join)
-consume only both sides' already-determined LOCAL end state — so
-a construction that would need right-to-left propagation as one
-long chain is instead authored as two forward chains and a join.
-What remains refused in v1 is only the genuinely
-both-ends-underdetermined single chain (e.g. a middle leg whose
-every DOF waits on both neighbors, inside one sub-path, where no
-composition boundary can be drawn). Recommendation (unchanged,
-now with the stronger ground): accept the cut; the refusal names
-the junction and the fix ("split and join here"); bidirectional
-propagation stays additive later.
+**PQ3 — (dissolved in round 4)** — the elaboration-order cut
+went with the anchoring discipline (§5); recorded so the round-3
+trail stays legible.
+
+**PQ4 — Mid-carrier seams.** The v1 rule (seam at a junction or
+fillet only) forbids closing a loop mid-side. The M2
+closed-carrier split precedent (full circles split ≥ 2 at the
+input layer) suggests a conventional-split relaxation;
+recommendation: keep the v1 rule, bank the relaxation — pure
+convenience, and it touches the same-carrier discipline, which
+deserves its own care.
 
 ## 7. Explicitly out of scope
 
 Implementation (banked for v2 profiles-as-programs, #104);
-persistence changes of any kind (the lowering targets the EXISTING
-v1 form: segments + tangent_joints flags); constraint-solver
-interactions (M6 — the algebra is deliberately solver-free:
-resolvers are closed forms, never iterative); 3-D paths; splines
-as legs (NURBS legs join the vocabulary when profiles grow them,
-the junction shape is carrier-generic by construction).
+persistence changes (the lowering targets the EXISTING form:
+segments + tangent_joints flags); constraint-solver interactions
+(M6 — fillets/directors are closed forms, never iterative); 3-D
+paths; spline legs (the end-state typing is carrier-generic; they
+join with their own G2 story); arc-arrival fillets (additive,
+with a use case); `TangentAt`/`Smooth` (PQ1).
