@@ -398,8 +398,17 @@ fn next_up(x: f64) -> f64 {
 /// defended is unchanged and still binding — certification code bounds
 /// residuals at interval type and never asserts `f64 ∈ enclosure` — but
 /// it is now a discipline that does not depend on a tightness accident.
-/// Anything that makes this test fail means the backend's `powi` stopped
-/// padding somewhere it must.
+/// **What this test is and is not** (M5 PR 1 review, MINOR-1). It pins
+/// CONTAINMENT: it fails if the `f64` lane ever escapes the enclosure.
+/// It is **not** a dropped-pad tripwire, and must not be relied on as
+/// one — the review demonstrated exactly that by mutating the backend's
+/// `pow_mag_hi` to drop both of its outward rounds, at which point this
+/// test still passed, because the `f64` lane shares the same
+/// round-to-nearest multiply chain and moves with the mutation. The
+/// crate's own lanes caught that mutation immediately: `certify.rs`
+/// (differential, against MPFR) and `edges.rs`, plus
+/// `review_fuzz_div.rs` for the division witness. Those are the pad
+/// tripwires; this is a lane-agreement pin.
 #[test]
 fn powi_f64_lane_is_contained_by_the_padded_enclosure() {
     let mut checked = 0u32;
@@ -411,7 +420,8 @@ fn powi_f64_lane_is_contained_by_the_padded_enclosure() {
             assert!(
                 f >= e.lo() && f <= e.hi(),
                 "x={x} n={n}: f64 powi {f:e} escaped the enclosure \
-                 [{:e}, {:e}] — the backend dropped a pad",
+                 [{:e}, {:e}] — the two lanes have diverged (for a \
+                 dropped pad, see the crate's certify/edges lanes)",
                 e.lo(),
                 e.hi()
             );

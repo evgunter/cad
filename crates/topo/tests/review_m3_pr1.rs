@@ -1109,7 +1109,8 @@ fn merge_coplanar_full_plateau_atomicity() {
 }
 
 /// TARGET 8, interval lane: the Debug channel over `Interval` - probe
-/// whether inari's Debug is faithful to the enclosure (bounds AND
+/// whether the interval scalar's Debug is faithful to the enclosure
+/// (bounds AND
 /// decoration). If two different enclosures print alike, the merge op's
 /// declared-equality (and every D9 dump comparison) is blind to the
 /// difference in the interval lane.

@@ -3,7 +3,8 @@
 //! `geom-core` is the bottom layer everything else stands on: the [`Real`]
 //! scalar trait (instantiated at `f64` here, at forward-mode [`dual`]
 //! numbers, and — behind the `interval` cargo feature — at the certified
-//! interval scalar over inari, including the dual-over-interval
+//! interval scalar over `interval-transcendentals`, including the
+//! dual-over-interval
 //! combination), the single global [`Tolerance`] value, the
 //! trilean predicate machinery ([`Decide`] / [`Sign`] / [`Band`] — the
 //! single door from numbers to decisions), and the small fixed-dimension
