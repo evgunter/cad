@@ -41,7 +41,7 @@
 //! with `λ` lifted once per combination.
 
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, SpanLocate, SplineError};
-use geom_core::{Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Point2, Point3, Real, RingInterval, Vec2, Vec3};
 
 /// Shared constructor validation: counts and weight positivity/
 /// finiteness (the knot vector validates itself at construction).
@@ -420,6 +420,31 @@ macro_rules! nurbs_curve {
 
 nurbs_curve!(NurbsCurve2, Point2, Vec2, x, y);
 nurbs_curve!(NurbsCurve3, Point3, Vec3, x, y, z);
+
+impl NurbsCurve3<f64> {
+    /// The control coordinates lifted to ring points — the data-in
+    /// shape of `geom_core::spline::compose` (M5 PR 4): channel `d`,
+    /// point `i`, as `[x, y, z]` channels of [`RingInterval::point`]
+    /// enclosures. Pair with [`Self::knots`] and [`Self::weights`] to
+    /// build a `CurveRingData` for composite bounds.
+    pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
+        let lift = |f: fn(&Point3<f64>) -> f64| -> Vec<RingInterval> {
+            self.control.iter().map(|p| RingInterval::point(f(p))).collect()
+        };
+        vec![lift(|p| p.x), lift(|p| p.y), lift(|p| p.z)]
+    }
+}
+
+impl NurbsCurve2<f64> {
+    /// The 2-D counterpart of [`NurbsCurve3::ring_coords`]: `[x, y]`
+    /// channels of ring point enclosures.
+    pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
+        let lift = |f: fn(&Point2<f64>) -> f64| -> Vec<RingInterval> {
+            self.control.iter().map(|p| RingInterval::point(f(p))).collect()
+        };
+        vec![lift(|p| p.x), lift(|p| p.y)]
+    }
+}
 
 impl<T: Real> NurbsCurve3<T> {
     /// The "no description yet" placeholder payload for
