@@ -35,7 +35,7 @@ fn table(
 ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
     let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
     let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).copied())
+    (keys, move |k| map.get(k).cloned())
 }
 
 // =====================================================================
@@ -817,7 +817,8 @@ mod interval_lane {
     /// squared the straddle through plain interval `Mul` (negative
     /// lo), so the sqrt clamped, degraded the decoration to Trv, and
     /// every decision downstream read poison. The fix: `norm_squared`
-    /// sums tight per-component squares (`powi(2)` — inari's `pown`),
+    /// sums tight per-component squares (`powi(2)` — the interval
+    /// backend's dedicated integer power),
     /// whose enclosures are `[0, hi]` with decoration preserved, so
     /// the sqrt never clamps and the endpoint residual classifies
     /// Zero through a clean enclosure. The scaffolding convention now

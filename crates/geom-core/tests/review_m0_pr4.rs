@@ -348,13 +348,21 @@ fn cross_instantiation_consistency_on_exact_and_single_ops() {
     }
 
     // Inexact single ops (division is correctly rounded at f64): the f64
-    // result is contained and the enclosure is at most 1 ulp wide.
+    // result is contained and the enclosure is at most 2 ulps wide.
+    //
+    // Backend change (M5 PR 1, interval-transcendentals semantics-diffs
+    // D1): the budget was 1 ulp while the backend was inari, whose
+    // arithmetic is directed-rounded. The present backend rounds to
+    // nearest and pads each inexact endpoint one step outward, so an
+    // inexact quotient is 2 ulps wide. The *exact* cases above are
+    // unaffected — the backend witnesses exactness for +, *, / and sqrt
+    // and takes no pad when it holds.
     for (a, b) in [(0.1, 0.2), (1.0, 3.0), (2.0, 7.0)] {
         let f = a / b;
         let e = Interval::from_f64(a) / Interval::from_f64(b);
         assert!(
-            f >= e.lo() && f <= e.hi() && e.hi() <= next_up(e.lo()),
-            "{a}/{b}: contained-and-1ulp failed: f64 = {f:e}, interval = [{:e}, {:e}]",
+            f >= e.lo() && f <= e.hi() && e.hi() <= next_up(next_up(e.lo())),
+            "{a}/{b}: contained-and-2ulp failed: f64 = {f:e}, interval = [{:e}, {:e}]",
             e.lo(),
             e.hi()
         );
@@ -365,32 +373,63 @@ fn next_up(x: f64) -> f64 {
     f64::from_bits(x.to_bits() + 1)
 }
 
-/// The SAME trait call `x.powi(n)` at f64 (exponentiation by squaring,
-/// several roundings) can land OUTSIDE the interval instantiation's tight
-/// 1-ulp enclosure of the true power — the review's `powi_hunt` binary,
-/// pinning the documented certification-semantics rule (enclosures
-/// bracket the TRUE value, not the f64 evaluation) with a deterministic
-/// scan instead of its random libm hunts.
+/// **Inverted by the M5 PR 1 backend swap — read the whole comment.**
+///
+/// Under the original inari backend this test was `powi_diverges_from_
+/// the_tight_enclosure`: it asserted that the SAME trait call `x.powi(n)`
+/// at `f64` (exponentiation by squaring, several roundings) can land
+/// OUTSIDE the interval instantiation's enclosure, and it existed to pin
+/// the certification-semantics rule that enclosures bracket the TRUE
+/// value, not the `f64` evaluation of the same expression. inari's
+/// `pown` is correctly rounded (MPFR), so its enclosure of `x^n` was
+/// ~1 ulp wide while the `f64` squaring chain drifted several ulps out
+/// of it — divergence witnesses were easy to find.
+///
+/// The present backend computes `powi` by the same square-and-multiply
+/// shape, padding one step outward at every step, which makes the `f64`
+/// chain contained INDUCTIVELY: each interval step's pad already covers
+/// the corresponding `f64` step's rounding. A witness therefore cannot
+/// exist any more, at any exponent — verified by a scan over
+/// `n ∈ {2 … 200}` across the same `x` range, which found zero.
+///
+/// So the test now pins the property that actually holds, and names why:
+/// a pad-based backend *contains its own f64 lane* op-for-op, which the
+/// MPFR-tight backend did not. The certification rule the old test
+/// defended is unchanged and still binding — certification code bounds
+/// residuals at interval type and never asserts `f64 ∈ enclosure` — but
+/// it is now a discipline that does not depend on a tightness accident.
+/// **What this test is and is not** (M5 PR 1 review, MINOR-1). It pins
+/// CONTAINMENT: it fails if the `f64` lane ever escapes the enclosure.
+/// It is **not** a dropped-pad tripwire, and must not be relied on as
+/// one — the review demonstrated exactly that by mutating the backend's
+/// `pow_mag_hi` to drop both of its outward rounds, at which point this
+/// test still passed, because the `f64` lane shares the same
+/// round-to-nearest multiply chain and moves with the mutation. The
+/// crate's own lanes caught that mutation immediately: `certify.rs`
+/// (differential, against MPFR) and `edges.rs`, plus
+/// `review_fuzz_div.rs` for the division witness. Those are the pad
+/// tripwires; this is a lane-agreement pin.
 #[test]
-fn powi_diverges_from_the_tight_enclosure() {
-    let mut found = 0u32;
-    for n in [5i32, 6, 7, 9, 12] {
+fn powi_f64_lane_is_contained_by_the_padded_enclosure() {
+    let mut checked = 0u32;
+    for n in [2i32, 3, 5, 6, 7, 9, 12, 17, 23, 31, 40] {
         let mut x = 1.0001f64;
         while x < 3.0 {
             let f = <f64 as Real>::powi(x, n);
             let e = Interval::from_f64(x).powi(n);
-            if f < e.lo() || f > e.hi() {
-                found += 1;
-                break; // first divergence per exponent suffices
-            }
+            assert!(
+                f >= e.lo() && f <= e.hi(),
+                "x={x} n={n}: f64 powi {f:e} escaped the enclosure \
+                 [{:e}, {:e}] — the two lanes have diverged (for a \
+                 dropped pad, see the crate's certify/edges lanes)",
+                e.lo(),
+                e.hi()
+            );
+            checked += 1;
             x += 0.000037;
         }
     }
-    assert!(
-        found >= 1,
-        "expected at least one f64 powi result outside the tight enclosure \
-         (the documented f64-vs-truth divergence)"
-    );
+    assert!(checked > 100_000, "the scan must actually cover ground");
 }
 
 // ------------------------------------------------- demo 5: determinism

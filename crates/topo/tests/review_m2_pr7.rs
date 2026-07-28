@@ -225,7 +225,7 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
         origin,
         normal,
         u_ref,
-    }) = body.get_surface(sk).copied()
+    }) = body.get_surface(sk).cloned()
     else {
         panic!("cube face must be planar");
     };

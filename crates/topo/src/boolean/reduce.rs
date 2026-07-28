@@ -251,7 +251,7 @@ pub(super) fn sweep_direction<T: Decide>(
                     // Proper plane crossing: locate p on the carrier and
                     // classify it against the face.
                     let curve = match x.get_curve_geom(edge.curve) {
-                        Some(CurveGeom::Certified(c)) => *c,
+                        Some(CurveGeom::Certified(c)) => c.clone(),
                         _ => {
                             return Err(BooleanError::ScaffoldingOperand {
                                 operand: x_is,
@@ -389,7 +389,7 @@ fn split_other_at_point<T: Decide>(
     p: Point3<T>,
 ) -> Result<VertexKey, BooleanError> {
     let curve = match y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)) {
-        Some(CurveGeom::Certified(c)) => *c,
+        Some(CurveGeom::Certified(c)) => c.clone(),
         _ => {
             return Err(BooleanError::ScaffoldingOperand {
                 operand: y_is,

@@ -4,6 +4,13 @@
 //! correctly rounded, hence contain truth; ours must contain the
 //! oracle's). Millions of seed-pinned property cases; tightness ratios
 //! are reported per function (visible with `--nocapture`).
+//!
+//! Gated on `oracle-inari` (M5 PR 1 fix pass): the oracle is inari with
+//! its bundled GMP/MPFR C build, and making it optional is what lets the
+//! kernel's CI run this crate's oracle-free tier without a C toolchain.
+//! Run this lane by hand — `cargo test --release --features oracle-inari`
+//! — whenever the rounding layer or the pads change.
+#![cfg(feature = "oracle-inari")]
 
 mod common;
 

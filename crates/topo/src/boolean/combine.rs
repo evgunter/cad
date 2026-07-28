@@ -91,7 +91,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
     for (k, sfc) in src.surfaces.iter() {
-        let dk = dst.surfaces.insert(*sfc);
+        let dk = dst.surfaces.insert(sfc.clone());
         surfaces.insert(k, dk);
         if let Some(gs) = src.surface_sources.get(k) {
             dst.surface_sources.insert(dk, gs.clone());
@@ -115,7 +115,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     let mut curves: SecondaryMap<CurveKey, CurveKey> = SecondaryMap::new();
     for (k, c) in src.curves.iter() {
         let mapped = match c {
-            CurveGeom::Certified(_) => *c,
+            CurveGeom::Certified(_) => c.clone(),
             CurveGeom::NullScaffold(attr) => {
                 let mut attr = *attr;
                 attr.below_end = *vertices.get(attr.below_end).ok_or_else(corrupt)?;
@@ -290,7 +290,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
         };
         let spec = geom_brep::EdgeCurveSpec {
             description,
-            carrier: *curve.carrier(),
+            carrier: curve.carrier().clone(),
             param_start: curve.params().0,
             param_end: curve.params().1,
         };

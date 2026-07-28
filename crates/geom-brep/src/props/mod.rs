@@ -69,6 +69,7 @@
 mod curved;
 mod loop_area;
 
+use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 use geom_curves::Curve3;
 
@@ -93,7 +94,7 @@ pub use loop_area::loop_vector_area;
 /// flattening satisfies the contract by construction (first-seen
 /// traversal order over the half-edge cycle); callers constructing
 /// `LoopEdge`s by hand own it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct LoopEdge<T: Real> {
     /// The edge's carrier locus.
     pub carrier: Curve3<T>,
@@ -110,7 +111,7 @@ pub struct LoopEdge<T: Real> {
     pub end: u32,
 }
 
-impl<T: Real> LoopEdge<T> {
+impl<T: SpanLocate> LoopEdge<T> {
     /// The carrier point at the interval start `t0` (the `he_plus`
     /// start; **not** the traversal start when `forward` is false).
     pub(crate) fn p0(&self) -> Point3<T> {
@@ -201,7 +202,7 @@ impl std::error::Error for PropsError {}
 /// # Errors
 ///
 /// [`PropsError::Unimplemented`] on a `Nurbs` carrier.
-pub fn planar_face<T: Real>(
+pub fn planar_face<T: SpanLocate>(
     origin: Point3<T>,
     loops: &[Vec<LoopEdge<T>>],
 ) -> Result<FaceContribution<T>, PropsError> {

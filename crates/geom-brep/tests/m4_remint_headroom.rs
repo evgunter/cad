@@ -20,7 +20,7 @@ fn table(
     let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<f64>> =
         slotmap::SlotMap::with_key();
     let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).copied())
+    (keys, move |k| map.get(k).cloned())
 }
 
 /// Line x-axis = intersection of z=0 and y=0 planes; witness offset
@@ -96,7 +96,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
             s2: keys[1],
             witness: ec.carrier().eval(ec.sample_param(mid_i)),
         },
-        carrier: *ec.carrier(),
+        carrier: ec.carrier().clone(),
         param_start: t0,
         param_end: t1,
     };

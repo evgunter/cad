@@ -4,8 +4,10 @@
 //! Curve kinds form a **closed enum** per D3 (`docs/DESIGN.md`):
 //! intersection and classification need pairwise dispatch, and a closed
 //! enum makes every dispatch site exhaustively checked at compile time.
-//! The [`Curve3::Nurbs`] variant is the universal-fallback placeholder —
-//! representable now, implemented at M5.
+//! The [`Curve3::Nurbs`] variant is the universal fallback — since M5
+//! PR 3 it carries a validated [`NurbsCurve3`] payload (see [`nurbs`])
+//! and its evaluator arms are real; the "no description yet" state is
+//! [`Curve3::nurbs_placeholder`].
 //!
 //! # Curve conventions (normative, stated once)
 //!
@@ -62,23 +64,36 @@
 //! # Totality and poison (geom-core's policy, inherited)
 //!
 //! Every evaluator is **total**: no panic, no `Result`. Out-of-domain
-//! and unimplemented cases produce the scalar's poison value (NaN at
+//! and undescribed cases produce the scalar's poison value (NaN at
 //! `f64`, NaI/empty at the interval scalar) which flows through values
 //! and is caught at the predicate/certification layer — in particular,
-//! evaluating the [`Curve3::Nurbs`] placeholder yields an all-poison
-//! point (representable ≠ implemented; the poison fails every
-//! downstream certification loudly, per D4 ¶2).
+//! evaluating the [`Curve3::nurbs_placeholder`] "no description yet"
+//! state yields an all-poison point (representable ≠ described; the
+//! poison fails every downstream certification loudly, per D4 ¶2).
 //!
 //! # Evaluation-code discipline
 //!
-//! All evaluation code here is generic over [`Real`] with no extra
-//! bounds, comparison-free, uses `sin_cos` as the trig primitive, no
-//! fused operations, and fixed documented association orders (D9). It
-//! instantiates at `f64`, `Dual<f64>`, `Interval`, and `Dual<Interval>`
-//! — the derivative-vs-dual consistency and enclosure-containment test
-//! axes below rely on exactly that.
+//! All evaluation *arithmetic* here is comparison-free ring/trig code:
+//! `sin_cos` is the trig primitive, no fused operations, fixed
+//! documented association orders (D9). Since M5 PR 3 the enum
+//! evaluators are bounded by [`geom_core::spline::SpanLocate`] (as the
+//! **sole bound** — a sealed `Real` subtrait, the same style rule as
+//! `Bounds`): NURBS evaluation needs per-instantiation knot-span
+//! *selection*, a structure decision the seam localizes per scalar
+//! (its module docs carry each instantiation's semantics and the
+//! `Dual` kink convention). The bound adds no comparison surface to
+//! generic code. Everything instantiates at `f64`, `Probe`,
+//! `Dual<f64>`, `Interval`, and `Dual<Interval>` — the
+//! derivative-vs-dual consistency and enclosure-containment test axes
+//! below rely on exactly that.
 
+pub mod nurbs;
+
+use std::sync::Arc;
+
+use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
+pub use nurbs::{NurbsCurve2, NurbsCurve3};
 
 /// An analytic 3-D curve — a **complete locus** (see the crate docs for
 /// the conventions: units, periodicity, the `he_plus` forward contract,
@@ -86,7 +101,13 @@ use geom_core::{Point3, Real, Vec3};
 ///
 /// Fields are public data (D2: conventions are carried by data);
 /// construction is by struct-literal variant syntax.
-#[derive(Clone, Copy, Debug)]
+///
+/// **`Clone`, not `Copy` (M5 PR 3, accepted and binding):** the
+/// [`Curve3::Nurbs`] payload is an [`Arc`]-shared [`NurbsCurve3`], so
+/// the enum is cheap to clone (one refcount) but no longer `Copy`. The
+/// payload is immutable after validated construction — sharing is
+/// D9-clean (no address-dependent behavior, no interior mutability).
+#[derive(Clone, Debug)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -131,29 +152,28 @@ pub enum Curve3<T: Real> {
         u_ref: Vec3<T>,
     },
 
-    /// Placeholder for the NURBS fallback (D3: representable from day
-    /// one so the closed enum's dispatch sites are complete; implemented
-    /// at M5). Evaluating it yields poison — see the crate docs'
-    /// totality policy.
-    Nurbs,
-}
-
-/// The all-poison point (every coordinate the scalar's poison value) —
-/// the totality outcome for the unimplemented [`Curve3::Nurbs`]
-/// placeholder. `from_f64(NaN)` maps to each scalar's own poison: NaN at
-/// `f64`, NaI at the interval scalar, a poisoned value channel at duals.
-fn poison_point<T: Real>() -> Point3<T> {
-    let nan = T::from_f64(f64::NAN);
-    Point3::new(nan, nan, nan)
-}
-
-/// The all-poison vector — [`poison_point`]'s tangent-side counterpart.
-fn poison_vec<T: Real>() -> Vec3<T> {
-    let nan = T::from_f64(f64::NAN);
-    Vec3::new(nan, nan, nan)
+    /// The NURBS fallback (D3: representable from day one; evaluators
+    /// implemented at M5 PR 3). The payload is a validated
+    /// [`NurbsCurve3`] behind an [`Arc`] (immutable, cheap to clone —
+    /// see the enum docs on the `Copy` loss). The "no description yet"
+    /// state that the former unit variant carried is now
+    /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
+    /// same all-poison evaluation behavior.
+    Nurbs(Arc<NurbsCurve3<T>>),
 }
 
 impl<T: Real> Curve3<T> {
+    /// The "no description yet" NURBS state (the former unit
+    /// placeholder variant, as data): a structurally valid payload
+    /// whose control points are all-poison, so evaluation yields the
+    /// all-poison point and every downstream certification fails
+    /// loudly (D4 ¶2) — representable ≠ described.
+    pub fn nurbs_placeholder() -> Self {
+        Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder()))
+    }
+}
+
+impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
     ///
@@ -162,10 +182,11 @@ impl<T: Real> Curve3<T> {
     /// - Circle: `(s, c) = θ.sin_cos()`; `radial = u_ref·c + v_ref·s`
     ///   with `v_ref = axis × u_ref` (the cross's own fixed order);
     ///   result `center + radial·radius` — exactly as parenthesized.
-    /// - Nurbs: the all-poison point (unimplemented placeholder).
+    /// - Nurbs: the payload's [`NurbsCurve3::eval`] (span selection via
+    ///   the sealed seam; all-poison for the placeholder state).
     pub fn eval(&self, t: T) -> Point3<T> {
-        match *self {
-            Curve3::Line { origin, dir } => origin + dir * t,
+        match self {
+            Curve3::Line { origin, dir } => *origin + *dir * t,
             Curve3::Circle {
                 center,
                 axis,
@@ -173,10 +194,10 @@ impl<T: Real> Curve3<T> {
                 u_ref,
             } => {
                 let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(u_ref);
-                center + (u_ref * c + v_ref * s) * radius
+                let v_ref = axis.cross(*u_ref);
+                *center + (*u_ref * c + v_ref * s) * *radius
             }
-            Curve3::Nurbs => poison_point(),
+            Curve3::Nurbs(n) => n.eval(t),
         }
     }
 
@@ -187,10 +208,10 @@ impl<T: Real> Curve3<T> {
     /// - Circle: the tangent `(u_ref·(−s) + v_ref·c)·radius`, evaluated
     ///   exactly as written from one `sin_cos` call (fixed order;
     ///   `|dP/dθ| = radius`, the radians-to-meters rate).
-    /// - Nurbs: all-poison.
+    /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     pub fn deriv(&self, t: T) -> Vec3<T> {
-        match *self {
-            Curve3::Line { dir, .. } => dir,
+        match self {
+            Curve3::Line { dir, .. } => *dir,
             Curve3::Circle {
                 axis,
                 radius,
@@ -198,10 +219,10 @@ impl<T: Real> Curve3<T> {
                 ..
             } => {
                 let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(u_ref);
-                (u_ref * (-s) + v_ref * c) * radius
+                let v_ref = axis.cross(*u_ref);
+                (*u_ref * (-s) + v_ref * c) * *radius
             }
-            Curve3::Nurbs => poison_vec(),
+            Curve3::Nurbs(n) => n.deriv(t),
         }
     }
 
@@ -211,9 +232,9 @@ impl<T: Real> Curve3<T> {
     /// - Line: the zero vector, exactly.
     /// - Circle: `(u_ref·(−c) + v_ref·(−s))·radius` (the inward radial,
     ///   scaled; fixed order as written).
-    /// - Nurbs: all-poison.
+    /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     pub fn deriv2(&self, t: T) -> Vec3<T> {
-        match *self {
+        match self {
             Curve3::Line { .. } => Vec3::zero(),
             Curve3::Circle {
                 axis,
@@ -222,10 +243,10 @@ impl<T: Real> Curve3<T> {
                 ..
             } => {
                 let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(u_ref);
-                (u_ref * (-c) + v_ref * (-s)) * radius
+                let v_ref = axis.cross(*u_ref);
+                (*u_ref * (-c) + v_ref * (-s)) * *radius
             }
-            Curve3::Nurbs => poison_vec(),
+            Curve3::Nurbs(n) => n.deriv2(t),
         }
     }
 }
@@ -457,7 +478,7 @@ mod tests {
                 radius: Dual::constant(radius),
                 u_ref: cv(u_ref),
             },
-            Curve3::Nurbs => Curve3::Nurbs,
+            Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
         }
     }
 
@@ -467,7 +488,7 @@ mod tests {
 
     #[test]
     fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Curve3<f64> = Curve3::Nurbs;
+        let n: Curve3<f64> = Curve3::nurbs_placeholder();
         let p = n.eval(0.5);
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
         let d = n.deriv(0.5);
@@ -550,7 +571,7 @@ mod tests {
                     radius: Interval::from_f64(radius),
                     u_ref: ivec(u_ref),
                 },
-                Curve3::Nurbs => Curve3::Nurbs,
+                Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
             }
         }
 
@@ -640,7 +661,7 @@ mod tests {
             let ci = lift(&super::xy_circle(2.0));
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
-            let n: Curve3<Interval> = Curve3::Nurbs;
+            let n: Curve3<Interval> = Curve3::nurbs_placeholder();
             assert!(n.eval(Interval::zero()).x.lo().is_nan());
         }
 

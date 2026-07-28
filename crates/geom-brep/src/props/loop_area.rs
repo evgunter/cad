@@ -1,7 +1,8 @@
 //! The vector-area boundary integral `(1/2)∮(p − ref)×dp` with exact
 //! per-carrier closed forms (module docs of [`super`]).
 
-use geom_core::{Point3, Real, Vec3};
+use geom_core::spline::SpanLocate;
+use geom_core::{Point3, Vec3};
 use geom_curves::Curve3;
 
 use super::{LoopEdge, PropsError};
@@ -21,7 +22,7 @@ use super::{LoopEdge, PropsError};
 /// # Errors
 ///
 /// [`PropsError::Unimplemented`] on a `Nurbs` carrier.
-pub fn loop_vector_area<T: Real>(
+pub fn loop_vector_area<T: SpanLocate>(
     edges: &[LoopEdge<T>],
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
@@ -44,7 +45,7 @@ pub fn loop_vector_area<T: Real>(
                 let chord = e.p1() - e.p0();
                 (w.cross(chord) + axis * (radius.powi(2) * (e.t1 - e.t0))) * half
             }
-            Curve3::Nurbs => return Err(PropsError::Unimplemented),
+            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         };
         // Reversed traversal flips the line integral's sign.
         acc = if e.forward {

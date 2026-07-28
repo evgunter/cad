@@ -830,7 +830,7 @@ fn survives_cosurface_bitwise_center_agreement() {
     let mut top_rims = 0;
     for (_, c) in t.body.curves() {
         if let Some(geom_curves::Curve3::Circle { center, .. }) =
-            c.certified().map(|c| *c.carrier())
+            c.certified().map(|c| c.carrier().clone())
         {
             if center.z.to_bits() == origin.z.to_bits() {
                 assert_eq!(center.x.to_bits(), origin.x.to_bits());

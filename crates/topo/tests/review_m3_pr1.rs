@@ -464,11 +464,12 @@ fn split_edge_intersection_witness_bitwise_remint() {
     describe_as_intersections(&mut cube.body);
     assert_eq!(validate_geometric(&cube.body), Ok(()));
     let edge = cube.mevs[0].edge;
-    let parent = *cube
+    let parent = cube
         .body
         .get_curve_geom(cube.body.get_edge(edge).unwrap().curve)
         .unwrap()
         .certified()
+        .cloned()
         .unwrap();
     let (t0, t1) = parent.params();
     let t = 0.3_f64; // deliberately not dyadic
@@ -696,7 +697,7 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
                 he2: e_rs.he_minus,
             },
             line(pp, ps),
-            FaceSurface::New(top_plane),
+            FaceSurface::New(top_plane.clone()),
         )
         .unwrap();
     // Identify the center square at runtime (4-cycle on {p,q,r,s}).
@@ -737,7 +738,7 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
             .mef(
                 MefSite::Chords { he1, he2 },
                 spec,
-                FaceSurface::New(top_plane),
+                FaceSurface::New(top_plane.clone()),
             )
             .unwrap();
     }
@@ -913,10 +914,11 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
                 .body
                 .get_point(cube.body.get_vertex(c1).unwrap().point)
                 .unwrap();
-            let top_surface = *cube
+            let top_surface = cube
                 .body
                 .get_surface(cube.body.get_face(top).unwrap().surface)
-                .unwrap();
+                .unwrap()
+                .clone();
             let variant = surface(&top_surface);
             cube.body
                 .mef(
@@ -1109,7 +1111,8 @@ fn merge_coplanar_full_plateau_atomicity() {
 }
 
 /// TARGET 8, interval lane: the Debug channel over `Interval` - probe
-/// whether inari's Debug is faithful to the enclosure (bounds AND
+/// whether the interval scalar's Debug is faithful to the enclosure
+/// (bounds AND
 /// decoration). If two different enclosures print alike, the merge op's
 /// declared-equality (and every D9 dump comparison) is blind to the
 /// difference in the interval lane.
