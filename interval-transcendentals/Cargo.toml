@@ -24,19 +24,35 @@ publish = false
 # choice; 0.2.16 is the workspace-pinned version).
 libm = "=0.2.16"
 
-[dev-dependencies]
-# Certification oracle ONLY (dev-dependency: never ships, so the LGPL-3.0+
-# transitive deps of inari/gmp (gmp-mpfr-sys, rug) impose no obligation on
-# consumers of this crate — and, since M5 PR 1, none on the kernel either:
-# dev-dependencies of a path dependency are not part of the dependent's
-# graph). Requires AVX+FMA on x86-64; the repo-root .cargo/config.toml's
+[dependencies.inari]
+# CERTIFICATION ORACLE ONLY — never used by `src/`, only by
+# `tests/certify.rs`. It is an OPTIONAL regular dependency rather than a
+# dev-dependency because cargo does not allow dev-dependencies to be
+# optional, and unconditional dev-dependencies are built for EVERY test
+# target: a plain dev-dep would mean `cargo test` here always compiles
+# inari's bundled GMP+MPFR from C source. Gating it behind a feature is
+# what lets the kernel's CI run this crate's pad tripwire (unit tests +
+# edges + the division fuzz) gmp-free, on the same pipeline that gates
+# the kernel — see README "Certification".
+#
+# The `interval` feature of geom-core never enables `oracle-inari`, so no
+# kernel build in any configuration pulls inari, gmp-mpfr-sys or rug, and
+# their LGPL-3.0+ obligations reach neither this crate's consumers nor the
+# kernel's. Requires AVX+FMA on x86-64; the repo-root .cargo/config.toml's
 # x86-64-v3 floor applies to builds rooted here via cargo's hierarchical
 # config discovery.
-inari = { version = "=2.0.0", features = ["gmp"] }
+version = "=2.0.0"
+features = ["gmp"]
+optional = true
 
-# The second, independent dev-oracle (Evan's computable-reals library) is
-# NOT declared here: it is a local path dependency, and cargo resolves the
-# manifests of path dependencies even when they are optional and disabled,
-# so an entry here would break every kernel build on every machine without
-# that checkout. The lane lives in its own sibling crate instead —
-# `oracle-computable/`, run by hand with `cargo test` from that directory.
+[features]
+# Enables tests/certify.rs (the differential lane against inari+MPFR).
+# Test-only: `src/` must never reference `inari` or this feature.
+oracle-inari = ["dep:inari"]
+
+# The benchmark compares our timings against inari's, so it needs the
+# oracle too. `required-features` keeps it out of the default (gmp-free)
+# `cargo test` / `cargo build --examples` graph rather than failing them.
+[[example]]
+name = "bench"
+required-features = ["oracle-inari"]
