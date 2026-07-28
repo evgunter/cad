@@ -6,7 +6,7 @@
 //! consumer's band, which is exactly how a bad projection cannot
 //! launder a bad cache.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3};
