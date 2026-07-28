@@ -203,3 +203,37 @@ zero MAJORs, both fix passes DISPATCHED.**
   v1 = coincident-nominal-corner fillet(r), uniform across
   in-chain, seams, close; gap forms refuse typed naming
   BiarcJoin/extension as future doors. Awaiting his pick.
+
+**PR 3 fix pass COMPLETE + PR #125 OPENED (2026-07-28)**: all fix
+items landed (doc-attachment MINOR, 5 stale surface-doc lines —
+one more than the reviewer's 4, honest catch; empty-span wording;
+unit_segment(0) + λ-overflow comments; allow-count corrected to
+6+0 with the unused_imports allow REMOVED as unneeded); all 21
+reviewer suites adopted verbatim from the salvaged scratch (2
+marked mechanical lint adaptations; zero discrepancies vs the
+review's results). Provenance note for the record: the fix-pass
+harness flagged the salvaged-scratch adoption as untrusted-code
+integration — the chain is fully in-session (blinded reviewer
+authored → orchestrator salvaged from the review clone pre-
+reclaim → implementer adopted, tests-only, results matching the
+review line for line); no action needed. Post-fix battery:
+1387/0 + 1550/0 interval, clippy/doc/fmt clean. Main merged into
+the branch (no conflicts); watcher armed (18-row floor). A/B rows
+11/12 filled (row 11 fix-pass columns pending). DISK: watchdog
+WARN 14G → salvaged scratch + reclaimed both review clones +
+curvo clone → 75G.
+
+**S5 round 4 direction (in-session, 2026-07-28)**: Evan proposed
+TYPED path ends — ends with/without direction as different types;
+fillet consumes only DIRECTED-OPEN ends so `.line_to(p).fillet(r)`
+becomes a type error (authored points always lie on the final
+path; carriers authored by direction; the trimmed corner is
+unauthorable). Orchestrator spelled out the end-state table
+(Point / Directed / OpenRay), the .tangent()/.angle() director
+unification (arc_tangent_to and start_dir dissolve), the
+Path::through carrier form (all-rounded square with no authored
+corner), and flagged closure typing (seam-at-junction v1 rule;
+mid-carrier seam trips same-carrier rules) as the remaining
+sub-fork. Awaiting Evan's nod to fold as round 4 (supersedes the
+pending-resolver surface story; the pending resolver survives
+underneath).
