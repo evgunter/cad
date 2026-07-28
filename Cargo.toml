@@ -4,7 +4,16 @@ resolver = "3"
 # tour + STL viewer tooling); it must never join the kernel workspace.
 # tools/ holds CI tooling (the k-lint fragility lint) — same posture:
 # lint policy must never become a workspace dependency.
-exclude = ["demos", "tools"]
+# interval-transcendentals/ keeps its own [workspace] table (buildable and
+# certifiable on its own) and is excluded here for the same reason as the
+# two above — but it IS reachable as a path dependency: geom-core takes a
+# DEV-dependency on it as the M5 PR 2 differential oracle for the C9 ring.
+# Dev-dependencies of a path dependency never enter the dependent's graph,
+# so its gmp-backed inari dev-oracle cannot reach a kernel build; a
+# workspace MEMBER's would be built by every `cargo test --workspace`,
+# which is exactly what the exclusion prevents. (The exclusion is also what
+# stops cargo reporting two workspace roots in one workspace.)
+exclude = ["demos", "tools", "interval-transcendentals"]
 members = [
     "crates/editor-core",
     "crates/geom-brep",
@@ -48,6 +57,11 @@ rayon = "1.11"
 # topology store; `SecondaryMap` carries D5 provenance. Zlib license.
 # 1.1.1 released 2025-12-06.
 slotmap = "1.1.1"
+# The in-house rigorous interval unit (issue #115): pure Rust over the same
+# libm the kernel already depends on, MIT/Apache, no C toolchain. Used by
+# geom-core as a DEV-only differential oracle for the C9 interval ring
+# (M5 PR 2); M5 PR 1 additionally makes it the `interval` feature's backend.
+interval-transcendentals = { path = "interval-transcendentals" }
 # Interval arithmetic (Q1's certified scalar), behind geom-core's `interval`
 # feature — never a default dependency. inari itself is MIT (2.0.0 released
 # 2024-08-07, well past the 2-week age policy; probe-vetted in issue #4),

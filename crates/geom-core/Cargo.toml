@@ -21,6 +21,13 @@ inari = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# DEV-ONLY differential oracle for the M5 PR 2 interval ring (M5-PR2-SPEC
+# family 2): the in-house rigorous interval unit, itself libm-only, so it
+# drags nothing into geom-core's dependency graph (its own inari/gmp oracle
+# is a dev-dependency of *that* crate and is never resolved from here). The
+# kernel's runtime dependency set is unchanged: libm, plus inari behind the
+# `interval` feature.
+interval-transcendentals = { workspace = true }
 # Derivative oracle for Dual<f64> tests only — never a runtime dependency
 # (see the deviation note in src/dual.rs module docs).
 num-dual = { workspace = true }

@@ -336,6 +336,7 @@ name = "geom-core"
 version = "0.0.0"
 dependencies = [
  "inari",
+ "interval-transcendentals",
  "libm",
  "num-dual",
  "proptest",
@@ -490,6 +491,13 @@ checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
+]
+
+[[package]]
+name = "interval-transcendentals"
+version = "0.1.0"
+dependencies = [
+ "libm",
 ]
 
 [[package]]
