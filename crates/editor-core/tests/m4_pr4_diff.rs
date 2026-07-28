@@ -257,6 +257,7 @@ fn parallel_schedule_preserves_verdict_logs() {
         &EvalOptions {
             epoch: editor_core::Epoch::mint(),
             parallel: true,
+            ..EvalOptions::default()
         },
     );
     for &id in &seq.order {

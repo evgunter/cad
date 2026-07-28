@@ -19,9 +19,12 @@
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
 //!    triggers the precondition (it is not coincidence; if it bites, it
 //!    bites later as a typed escalation — the ladder's honest shape).
-//! 2. **Reduction sweep** (`reduce`): all-pairs edge×face, BOTH
-//!    directions, quadratic (documented; BVH later per PERF-PLAN),
-//!    with `contfv`/`contfp` as typed trilean case codes. Proper
+//! 2. **Reduction sweep** (`reduce`): edge×face, BOTH directions,
+//!    candidate generation through the `bvh` tree since M5 PR 8 (the
+//!    tree prunes, predicates decide — `reduce` module docs; the
+//!    brute-force scan survives as [`SweepStrategy::Idealized`] under
+//!    the differential suite), with `contfv`/`contfp` as typed
+//!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing
 //!    ON an edge (both edges split → a v-v pair); coplanar edge-face

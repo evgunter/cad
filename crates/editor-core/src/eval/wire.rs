@@ -14,7 +14,6 @@ use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
     Body, BooleanDeclarations, BooleanResult, CarriedContacts, GeomSource, VfContact, VvContact,
-    intersect_with, subtract_with, union_with,
 };
 
 use super::slots::{self, SlotValues};
@@ -38,6 +37,7 @@ pub(crate) fn run_op<T>(
     doc: &crate::doc::Doc<ProfileDesc>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    boolean_sweep: topo::SweepStrategy,
 ) -> OpResult<T>
 where
     T: Decide + super::ContentBits + geom_core::Bounds,
@@ -49,7 +49,7 @@ where
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
-            wire_boolean(id, *op, *a, *b, *declare, doc, results)
+            wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
         }
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
@@ -386,6 +386,7 @@ fn wire_split<T: Decide>(
 // `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
+#[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
 fn wire_boolean<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     op: BooleanOp,
@@ -394,6 +395,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     declare: Option<RecipeNodeId>,
     doc: &crate::doc::Doc<ProfileDesc>,
     results: &Results<T>,
+    boolean_sweep: topo::SweepStrategy,
 ) -> OpResult<T> {
     // F5 threading (M4 PR 5): the Declare input's name pairs resolve
     // through the OPERANDS' name tables into the kernel's declared
@@ -415,12 +417,14 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
-    let run = match op {
-        BooleanOp::Union => union_with,
-        BooleanOp::Intersect => intersect_with,
-        BooleanOp::Subtract => subtract_with,
+    let kernel_op = match op {
+        BooleanOp::Union => topo::BooleanOp::Union,
+        BooleanOp::Intersect => topo::BooleanOp::Intersect,
+        BooleanOp::Subtract => topo::BooleanOp::Subtract,
     };
-    match run(&body_a, &body_b, &kernel_decls).map_err(NodeErrorKind::Boolean)? {
+    match topo::boolean_op_with(kernel_op, &body_a, &body_b, &kernel_decls, boolean_sweep)
+        .map_err(NodeErrorKind::Boolean)?
+    {
         BooleanResult::Empty => Ok((ValuePayload::Boolean(BooleanValue::Empty), names::empty())),
         BooleanResult::Body(bb) => {
             let a_table = Arc::clone(&value_of(results, a)?.name_table);
