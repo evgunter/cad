@@ -589,13 +589,12 @@ applied to error handling. Five commitments:
    gets built) and **ε_input** — "the least precision the user might
    care about": what counts as too-close-to-a-coincidence when
    interpreting input, and the threshold below which user-facing
-   distinctions are noise. They are fundamentally independent dials
-   with ε_input > ε_precision (differences below ε_precision are not
-   even representable claims); v1 BINDS ε_input = K·ε (one knob,
-   `Tolerance.k`), and decoupling it into its own `Tolerance` field
-   is licensed whenever a consumer needs it — the Q1 escalation band
-   itself remains PRECISION machinery (escalate-never-guess, f64
-   noise headroom) regardless of where ε_input sits. Consequences,
+   distinctions are noise. ε_input > ε_precision always (differences below ε_precision are
+   not even representable claims), and **ε_input IS K·ε — a synonym,
+   not a third dial** (simplified per Evan's #129 review: K stays
+   the one knob, `Tolerance.k`; the vocabulary contribution is the
+   ROLE NAMES, not new machinery). The Q1 escalation band remains
+   precision machinery (escalate-never-guess) as ever. Consequences,
    binding once ratified:
    (i) **User-facing messages and recourse never fork on exactly-on
    vs in-band below ε_input** — both are "coincident at any
