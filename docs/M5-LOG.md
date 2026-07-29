@@ -394,3 +394,33 @@ pass.
 **#129 simplified per Evan**: eps_input = SYNONYM for K·ε, K the
 one knob, decoupling license dropped. **#126 DECIDED (a)** (powi(0)
 derivative-poison propagation) — folds into PR 4's fix pass.
+
+**PR 8 implementation COMPLETE (2026-07-29, ev/m5-pr8-bvh, 14
+commits) — fable row 15.** crates/bvh BELOW the geom crates (box
+constructors in geom-curves/surfaces so PR 7's SSI can consume
+the tree — the layering call reported and sound); median-split/
+total-tie-break deterministic tree, poison-never-prunes;
+span-aware circle-arc boxes (trig in the inclusion TEST only,
+values through an outward bracket type); control-hull NURBS
+boxes; sweep_pad derived; reduce wired candidates-ascending
+(subsequence of the brute scan). Pins: superset 536⊇514 over 43
+corpus boolean nodes + disjoint-pruning-engages; bit-equal
+bodies/contacts/names/keys f64+Interval kernel+corpus with
+EXACTLY the verdict log scrubbed; planted degradation caught.
+Latency: die full −29%, corpus total −21% (contended, box-
+relative). Battery 1407/0 ×3 + 1582/0 ×3, clippy/doc/fmt clean.
+**THE FINDING FOR EVAN (production-path, honest)**: verdict-log
+populations are candidate-set-dependent and N5's vdiff consumes
+them — vanish diagnoses at interaction boundaries can degrade
+from PredicateFlip to the documented evidence-free fallback
+under pruning. Shipped: engine-semantics tests pinned under
+Idealized; one banked test runs BOTH strategies (realized admits
+flip OR exactly the documented fallback). Touches N5's ratified
+diagnosis story → goes in the PR writeup for Evan; candidate
+future rungs recorded (divergence-channel read; PERF-PLAN
+shadow-exec scalpel). Sweep-lane bound became Decide + Bounds
+(L7-licensed; Dual booleans statically excluded, never used).
+**Blinded reviewer DISPATCHED** (crux F1: independent bit-equal
+verification + diagnosis-regression blast radius; F3 circle-box
+extremal-inclusion attack; F4 sweep_pad re-derivation; F7
+error-channel divergence repro).
