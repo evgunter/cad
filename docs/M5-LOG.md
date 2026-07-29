@@ -552,3 +552,14 @@ Rubric: idiom 5 / tests 4 / docs 4. **Fix pass DISPATCHED**
 adopt 4 reviewer harness tests — file salvaged to
 review-scratch/pr4). PR 4's PR opens on its report; PR 8's on the
 ruling-increment report. A/B rows 14/15 rubrics now fillable.
+
+**PR 8 OPENED as #135 (2026-07-29)** after the ruling increment
+landed (a391f4a): N5 amended + golden re-pinned on the production
+path (0x9d9b_b962_4cac_3156, one-row flip-vanish→fallback change
+documented at the pin), L7 Bounds amendment ratified in real.rs
+with the CI/ci-local allowlist grep (verified to catch a
+synthetic site), bvh charter cites the ratified rule. #134
+confirmed filed. Writeup features both ruled MAJORs, the N5
+−51%-verdict characterization, and the latency wins (die −29%,
+corpus −21%). Tier-aware merge watcher armed (no-fail +
+no-pending, then merge). PR 4 fix pass still in flight.
