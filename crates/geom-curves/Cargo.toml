@@ -21,3 +21,12 @@ geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# DEV-ONLY interpolation oracle per docs/CURVO-AUDIT.md (Q5 verdict:
+# reference + test oracle; no curvo code enters the kernel). Pinned to
+# the audited commit; tolerant comparison only; NOT an oracle for
+# approximation/bounds (its knot-removal gate measures a different
+# quantity than our bound — audit §"As a test oracle").
+curvo = { git = "https://github.com/mattatz/curvo", rev = "47d19d560bf301108804dc43f933cb80381e76dd" }
+# nalgebra pinned to curvo's own major (its point types are curvo's API
+# surface); dev-only, rides in with the oracle above.
+nalgebra = "0.35"
