@@ -1,22 +1,5 @@
-# Repo-wide CPU floor for x86-64 builds: x86-64-v3 (AVX2 + FMA + BMI).
-#
-# Origin (issue #4): inari's directed-rounding kernels use inline assembly
-# requiring AVX and FMA, so an interval build without the flag either
-# failed to compile or could not round correctly. aarch64 needs no flags.
-# The floor was applied to ALL x86-64 builds, not just `--features
-# interval` ones — a deliberate, documented decision: one instruction set
-# per run keeps f64 and interval artifacts of the same build consistent
-# (D9), and pre-AVX2 x86-64 hardware (pre-2013) is out of scope for a CAD
-# kernel.
-#
-# STATUS since M5 PR 1: the *hard requirement* is gone. The interval
-# backend is now `interval-transcendentals` — portable Rust with no
-# assembly and no rounding-mode manipulation — so nothing in the tree
-# needs AVX+FMA to be CORRECT any more. The floor is kept anyway, and
-# deliberately: it is load-bearing for D9 consistency across the two
-# scalars, `f64::mul_add` (the exactness witnesses in the backend's
-# rounding layer) wants a hardware FMA to be fast, and relaxing it is a
-# performance question to answer with measurements, not a leftover to
-# tidy away. Do not remove it as cleanup.
-[target.'cfg(target_arch = "x86_64")']
-rustflags = ["-C", "target-cpu=x86-64-v3"]
+# No repo-wide target-cpu flags. The backend's f64::mul_add witness
+# paths are correctly-rounded with or without hardware FMA, so no
+# instruction-set floor is needed for correctness; if a measured perf
+# case ever wants one, it returns as a benchmarked decision.
+# (History: the M0-M4 x86-64-v3 floor — see #132 / the M5 log.)

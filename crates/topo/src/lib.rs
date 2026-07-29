@@ -169,10 +169,12 @@ pub use boolean::{
     BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CompletedPolygonPair,
     ContactRecords, FaceContainment, NullEdgePairRecord, Operand, OperandKeys, PairSite,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
-    SideCode, SolidContainment, VfContact, VvContact, boolean_reduce, boolean_reduce_declared,
-    contfp, intersect, intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with,
-    union, union_with,
+    SideCode, SolidContainment, SweepStrategy, SweepTrace, VfContact, VvContact, boolean_op_with,
+    boolean_reduce, boolean_reduce_declared, contfp, intersect, intersect_with, oriented_plane_eq,
+    point_in_solid, subtract, subtract_with, union, union_with,
 };
+#[cfg(feature = "sweep-testing")]
+pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,

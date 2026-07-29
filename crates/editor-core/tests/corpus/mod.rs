@@ -142,7 +142,9 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: Decide + ContentBits + Send + Sync>(doc: &ProfileDoc) -> Evaluation<T> {
+pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync>(
+    doc: &ProfileDoc,
+) -> Evaluation<T> {
     evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
 }
 

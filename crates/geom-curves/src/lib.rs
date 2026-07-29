@@ -87,6 +87,7 @@
 //! derivative-vs-dual consistency and enclosure-containment test axes
 //! below rely on exactly that.
 
+pub mod boxes;
 pub mod fit;
 pub mod nurbs;
 pub mod projection;

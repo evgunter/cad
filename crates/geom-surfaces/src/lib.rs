@@ -74,6 +74,7 @@
 //! bound, sealed `Real` subtrait — the NURBS span-selection seam; the
 //! full discipline note lives in `geom-curves`'s crate docs).
 
+pub mod boxes;
 pub mod nurbs;
 
 use std::sync::Arc;

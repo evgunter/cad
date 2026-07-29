@@ -17,9 +17,21 @@ use geom_core::Decide;
 
 use super::{ang, desc, insert, len, scl, step};
 
+/// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
+/// per Evan's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
+/// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
+/// digest in `m4_pr4_ci`) pin what production users actually get.
+/// Scenario A's flip-vanish row therefore exercises the AMENDED N5
+/// semantics: the disjoint run's pair space is pruned, the flip
+/// evidence is never computed, and the row diagnoses to the
+/// documented evidence-free minting-node fallback (NAMING-DESIGN N5
+/// as amended; recovery rung banked as #134). Engine-behavior tests
+/// that are genuinely about behavior-GIVEN-verdicts stay under the
+/// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
+/// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
 }
@@ -64,7 +76,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut out = Vec::new();
 
