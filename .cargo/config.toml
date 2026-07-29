@@ -1,15 +1,5 @@
-# No repo-wide target-cpu flags (dropped 2026-07-29 per Evan's #127
-# retroactive review).
-#
-# History: M0-M4 pinned x86-64 builds to x86-64-v3 (AVX2+FMA) because
-# inari's directed-rounding kernels required it (issue #4). The M5 PR 1
-# backend swap removed that hard requirement (portable Rust, no
-# assembly, no rounding-mode manipulation), and the floor was dropped
-# shortly after: it constrained flag usage (any RUSTFLAGS export
-# silently REPLACED it — a standing footgun documented in gate.sh) for
-# no correctness benefit. Value-safety note: the backend's exactness
-# witnesses use f64::mul_add, which is correctly-rounded (fused) with
-# or without hardware FMA — results are bit-identical either way, only
-# speed differs on pre-AVX2 hardware (out of scope for this kernel).
-# If a measured perf case ever wants the floor back, it returns as a
-# benchmarked decision, not a default.
+# No repo-wide target-cpu flags. The backend's f64::mul_add witness
+# paths are correctly-rounded with or without hardware FMA, so no
+# instruction-set floor is needed for correctness; if a measured perf
+# case ever wants one, it returns as a benchmarked decision.
+# (History: the M0-M4 x86-64-v3 floor — see #132 / the M5 log.)
