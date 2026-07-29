@@ -491,3 +491,21 @@ Actions budget recovers: gate.sh locally per merge-ref for code
 PRs** (the standing fallback); docs-only PRs merge on sign-off +
 verified doc-only delta. Watchers stand down; gate runs queue
 behind the active lanes (PR 8 fix pass, PR 4 review).
+
+**CI closure filter COMPLETE (2026-07-29, on #133) — opus row 16.**
+Tool verdict: hand-rolled beats both candidates (determinator =
+library-no-CLI; nextest = runner swap + doc-test loss). Shipped:
+scripts/ci-filter.py (~40-line cargo-metadata reverse-dep walk,
+allowlist ⇒ fails closed), three tiers (docs / closure / all —
+any member manifest ⇒ all for feature unification), per-job roots
+(watertight rooted at stl with the dev-dep-graph argument; k-lint
+deliberately always-on as the sole demos/tour compiler),
+ci-local.sh filtered by default with --full documented (Evan's
+local-equivalence refinement — the same-soundness argument won
+over my degraded-context caution), convention-3 floor text
+amended to per-tier row sets. Awaiting Evan's 👍 on #133
+(convention amendment) + green. Watcher semantics updated
+tier-aware (no-fail + filter-pass, not row-count floors).
+Also: #104 CLOSED (resolved by ratified #124); #89 re-confirmed
+open-by-design; PR 8's two MAJORs put to Evan directly in-session
+(N5 posture; L7 Bounds amendment) with recommendations.
