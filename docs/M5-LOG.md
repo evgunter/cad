@@ -624,3 +624,14 @@ reviewer harness adopted UNTRIMMED (13 tests, ~27s). Battery
 1454/0 + 1629/0, clippy/fmt clean, doc-neutral. Trivial main
 merge conflict (boxes vs fit module lines — kept both). Merge
 watcher armed. Row 14 rubric: fix pass moderate, complete.
+
+**S2 DISPATCHED (2026-07-29, opus per block-7 remainder — row 18
+at next A/B-log touch).** docs/M5-S2-SPEC.md committed: offset-
+carrier center construction for line×arc/arc×arc corners, exact
+tangent points, declared-tangency-by-construction, deterministic
+branch rule (zero candidates AND ambiguous-two both refuse
+typed), angular setback extending the reified fillet_leg_fit in
+the same exact-order band, message shape coordinated with the
+in-flight S6 carrier, PATHS §3-4 lowering consistency required
+with divergences reported. Clone m5-s2. Both cargo lanes now
+occupied (S6 + S2). ev/m5-state merged main (post-#135 sync).
