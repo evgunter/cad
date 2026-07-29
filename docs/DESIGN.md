@@ -581,8 +581,8 @@ applied to error handling. Five commitments:
    micron-to-kilometer coverage with ~4 orders of f64 headroom at km
    scale. Import does *not* motivate loosening ε — see D7's input
    tolerance ε_in.
-   **The two-tolerance principle (PROPOSED 2026-07-28, Evan's #124
-   thread — awaiting his sign-off on the ratifying PR).** Two roles
+   **The two-tolerance principle (RATIFIED 2026-07-29, Evan's lgtm on
+   #129; born in the #124 thread).** Two roles
    that D7 already separates at the import boundary are adopted as
    kernel-wide vocabulary: **ε_precision** (this section's ε — "the
    precision we represent": certification residuals, D4 ¶2, what
@@ -605,7 +605,9 @@ applied to error handling. Five commitments:
    escalation, declared-verification are unchanged — this is
    message policy, not predicate policy).
    (ii) The existing error taxonomy gets a message-level rework
-   sweep (an M5 side unit once ratified): the audited candidate
+   sweep — scheduled as M5 side unit S6, dispatching to the first
+   freed implementation lane (post the PR 4/PR 8 review cycles in
+   flight at ratification): the audited candidate
    pairs are profile UndeclaredTangency/TangentialContact vs
    Escalated, boolean UndeclaredCoincidence vs Escalated, census
    UndeclaredContact vs CensusEscalated, split_edge

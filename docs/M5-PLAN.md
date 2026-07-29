@@ -332,6 +332,15 @@ the morning review will almost certainly have happened.
   review policy.
 - **S4 — save/load shared-validator consolidation** (DESIGN
   convention 2 migration note): non-gating hygiene.
+- **S6 — error-message unification sweep** (added at #129
+  ratification, 2026-07-29): the two-tolerance principle's
+  consequence (ii) — one message, one recourse below eps_input
+  across the ~10 audited fork sites (inventory in #129's
+  description; merge_coplanar_faces is the precedent; the shared
+  Indeterminate Display string is the carrier; the census
+  escalated-arm {:?} recourse-loss bug fixed in passing). Message-
+  level only, zero semantic change; normal implement/review
+  pipeline; dispatches to the first freed lane. Non-gating.
 - **S5 — PartialPath authoring-algebra DESIGN doc** (#104; added
   at Evan's request, 2026-07-27, plan already ratified — design
   now, implementation stays banked for v2 profiles-as-programs).
