@@ -424,3 +424,47 @@ shadow-exec scalpel). Sweep-lane bound became Decide + Bounds
 verification + diagnosis-regression blast radius; F3 circle-box
 extremal-inclusion attack; F4 sweep_pad re-derivation; F7
 error-channel divergence repro).
+
+**PR 4 implementation COMPLETE (2026-07-29, ev/m5-pr4-fitting @
+7a17976) — fable row 14.** LSQ (Cholesky normal + no-pivot LU,
+D9-refusal-not-reorder pinned); projection carrying BOTH
+residuals — the wrong-branch fixture converges at the antipode
+with clean orthogonality and damning DISTANCE, the domain-clamp
+fixture the mirror (both laundering modes covered); the Type-2
+fit loop with a DIRECT union-refined deviation bound (reported
+deviation: PR 3's per-removal accumulation measured
+order-too-conservative — 190 ctrl pts from 65 samples;
+replacement certifies tighter: 30 pts, worked numbers pinned);
+compose module (rehearsal refactor BIT-IDENTICAL, to_bits pins);
+the OQ2 standing pin (planted excursion: 9-point schedule
+bit-blind, hull catches at 17× band). Battery 1440/0 ×3 +
+1615/0 ×3, clippy/doc/fmt clean. CI caveat flagged: curvo as GIT
+dev-dep = network on test lanes (review assesses). **Blinded
+reviewer DISPATCHED** (crux F1: f64-understatement attack on the
+union-refined bound + the bound-vs-locus honesty at the public
+surface; projection stagnation-laundering; torus composite
+hand-check; curvo dep-hygiene ruling input).
+
+**PR 8 review returned (2026-07-29): APPROVE-WITH-FIX-PASS — 2
+MAJOR (both DESIGN, held for Evan) / 6 MINOR / 4 NOTE.** The
+review independently verified the bit-equal pin (9 docs / 174
+nodes, every field, exactly verdicts differing on the 43 boolean
+nodes) and quantified what the report had not: verdict volume
+falls −51% under pruning. MAJOR-1: the N5 diagnosis regression is
+REAL on the production path (4 pins fail under Realized incl. the
+diagnosis-corpus golden; flip-vanish degrades to the fallback;
+the fallback arm exists in implementation docs but NOT in
+ratified N5, and the fixture re-pointing made the golden's
+byte-identity a consequence, not evidence). MAJOR-2: the
+Decide+Bounds widening violates L7's sole-bound rule at ~16 sites
+incl. editor_core::evaluate, self-licensed in comments, with the
+CI grep structurally blind to it. Both go to Evan in the PR 8
+writeup with recommendations. Also found: sweep_pad is prose-only
+(pad=0 passes the whole suite); circle_arc_aabb unsound for
+bracket half-widths > ANGLE_SLOP (unchecked precondition, MINOR
+— unconsumed constructor); the strategy-flip memo test is
+gold (0 recomputes across all 9 docs). Rubric: idiom 5 / tests 3
+/ docs 4. **Mechanical fix pass DISPATCHED** (pad pins incl.
+pad=0-must-fail, testing-feature gate on the injector,
+bracket-corner atan2, pin-2 vacuity, scrubbed() coverage, poison
+proptest, F7 value-channel pin, §4.4 note); the two MAJORs held.
