@@ -570,3 +570,13 @@ L7 allowlist grep), so both GraphQL and REST merges 403. Same
 reason #133 needed Evan's hand. Recourse: Evan merges in the web
 UI, or grants scope once (`gh auth refresh -s workflow`) so
 workflow-touching PRs self-merge from here on.
+
+**#135 MERGED (2026-07-29)** after Evan granted `workflow` scope
+(`gh auth refresh -s workflow`) — workflow-touching PRs now
+self-merge. C10 complete. **A/B block 7 drawn** (difficulty
+logged first: S6=S, S2=M; urandom coin): **S6=fable, S2=opus**.
+MODEL-AB-LOG rows to follow at dispatch. docs/M5-S6-SPEC.md
+committed (message-level sweep of the ten #129 pairs, variants
+stay, shared Indeterminate carrier, census {:?} fix; collapse
+candidates banked not executed). S6 dispatched to the freed lane
+(clone m5-s6); S2 waits for the PR 4 lane (two-cargo-lane cap).
