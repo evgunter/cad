@@ -492,7 +492,7 @@ impl<T: KinkJacobian> Real for Dual<T> {
     ///
     /// Derivative: `n = 0` yields the **exactly zero** tangent of the
     /// constant-one function, but *not* a fresh constant: the zero is
-    /// [`KinkJacobian::powi_zero_deriv_factor`]`(a) · a'` — exactly 0
+    /// `KinkJacobian::powi_zero_deriv_factor(a) · a'` — exactly 0
     /// whenever the value is describable (±∞ included; forcing `0·a⁻¹`
     /// instead would manufacture NaN at `a = 0`, where `a⁰ = 1` has
     /// honest derivative 0), while a poisoned VALUE channel poisons the
