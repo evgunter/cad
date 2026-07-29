@@ -635,3 +635,10 @@ the same exact-order band, message shape coordinated with the
 in-flight S6 carrier, PATHS §3-4 lowering consistency required
 with divergences reported. Clone m5-s2. Both cargo lanes now
 occupied (S6 + S2). ev/m5-state merged main (post-#135 sync).
+
+**#136 MERGED (2026-07-29): 21/21 green.** PR 4 lane closed —
+and with it THE ENTIRE M5 SUBSTRATE PHASE: PRs 1, 2, 3, 4, 8 all
+merged (interval backend, C9 ring, NURBS types, fitting stack +
+projection + LSQ, BVH). PR 5's dependency set [3; 4] is
+satisfied; it dispatches to the first freed lane (spec already
+committed). In flight: S6 (fable) + S2 (opus).
