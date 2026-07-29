@@ -2,8 +2,9 @@
 //! (C10, M5 PR 8) — the surface-side sibling of `geom_curves::boxes`
 //! (its module docs carry the placement rationale: the `bvh` crate
 //! stays below the geometry crates; constructors sit next to the
-//! invariants they cite). Certification/driver code — [`Bounds`] is in
-//! charter here (L7).
+//! invariants they cite). Certified-box driver code — an allowlisted
+//! [`Bounds`] seam (ratified 2026-07-29, see geom-core `real.rs`,
+//! Bounds scope rule).
 
 use bvh::Aabb;
 use geom_core::Bounds;

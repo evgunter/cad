@@ -38,8 +38,13 @@
 //! # Low-evidence diagnosis (reported)
 //!
 //! `Vanished`'s diagnosis diffs the last-good run against the current
-//! one. When those lanes are silent — no prior run, or the diff
-//! engine's population-cancel blind spot (`vdiff` module docs) — two
+//! one. When those lanes are silent — no prior run, the diff
+//! engine's population-cancel blind spot (`vdiff` module docs), or
+//! **sweep pruning** (ratified 2026-07-29, N5 as amended): the
+//! realized boolean sweep records no verdicts for pairs its candidate
+//! generation pruned, so a vanish whose flip evidence lived on a
+//! now-pruned pair (an interaction-boundary edit — overlapping ↔
+//! disjoint) has no recorded flip to cite — two
 //! honest rungs remain, in order: `Cascade` when an embedded operand
 //! name itself fails to resolve, and the QUALIFIER-DELTA rung
 //! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
@@ -664,10 +669,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
                 // recorded reference disagrees with the recipe as it
                 // stands and the CAUSE IS NOT IN EVIDENCE (no verdict
                 // flip, no doc delta, no recorded qualifier delta —
-                // reachable e.g. through the population-cancel blind
-                // spot, `vdiff` module docs). `NodeChanged` names the
-                // minting node as the site of the disagreement, not a
-                // claim that an edit happened.
+                // reachable through the population-cancel blind spot,
+                // `vdiff` module docs, and through SWEEP PRUNING: the
+                // realized sweep records no verdicts for pruned
+                // pairs, so interaction-boundary vanishes can land
+                // here — ratified 2026-07-29, NAMING-DESIGN N5 as
+                // amended; the shadow re-execution recovery rung is
+                // banked there). `NodeChanged` names the minting node
+                // as the site of the disagreement, not a claim that
+                // an edit happened.
                 edit: RecipeEditRef::NodeChanged { node: name.node },
             })
     };

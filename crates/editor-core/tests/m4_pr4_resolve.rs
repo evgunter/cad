@@ -4,6 +4,13 @@
 //! (PredicateFlip, StructuralParam, Cascade) + tombstones / typed
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
 //! the R6 name-level edit-time validation door.
+//!
+//! SWEEP-STRATEGY NOTE (Evan's 2026-07-29 ruling): this file's pins
+//! are about diff/resolve engine behavior GIVEN verdicts, so its
+//! evaluator deliberately runs the idealized (verdict-rich) sweep;
+//! the production-path degradation is pinned in `m4_pr4_banked`
+//! (both strategies side by side) and in the re-pinned `m4_pr4_ci`
+//! golden.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;

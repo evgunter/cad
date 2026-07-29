@@ -37,7 +37,15 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // DECLARES its flush planes (F5), shifting downstream node ids; the
 // row SHAPES are unchanged (verified: flip-vanish → PredicateFlip,
 // cascade → Cascade, structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0x6bdd_0267_c8f7_644b;
+// RE-PINNED at M5 PR 8 (ratified 2026-07-29): the corpus runs the
+// PRODUCTION (realized BVH) sweep, and exactly ONE row changed shape
+// — "flip-vanish" now diagnoses the documented evidence-free fallback
+// RecipeEdit{NodeChanged(minting node)} instead of PredicateFlip: the
+// scenario's disjoint run prunes the pair space, so the flip evidence
+// is never computed (NAMING-DESIGN N5 as amended; recovery rung
+// banked as #134). All other rows unchanged (cascade → Cascade,
+// structural-param, node-gone, ambiguous).
+const DIAGNOSIS_DIGEST: u64 = 0x9d9b_b962_4cac_3156;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

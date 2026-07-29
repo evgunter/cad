@@ -6,10 +6,10 @@
 //! for exactly that (its derivation below). No Q1 predicate runs on a
 //! box; classification is untouched (`reduce` module docs).
 //!
-//! [`geom_core::Bounds`] is in charter here (the L7 discipline names
-//! driver/certification code; the C10 tree is the subdivision driver):
-//! coordinates enter as `[lo(), hi()]` brackets, poison flows to the
-//! poison box, which never prunes.
+//! An allowlisted [`geom_core::Bounds`] seam (ratified 2026-07-29 —
+//! see geom-core `real.rs`, Bounds scope rule; the C10 tree is the
+//! subdivision driver): coordinates enter as `[lo(), hi()]` brackets,
+//! poison flows to the poison box, which never prunes.
 
 use bvh::Aabb;
 use geom_core::{Band, Bounds, Decide, Point3};

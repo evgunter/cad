@@ -10,10 +10,10 @@
 //! `bvh`'s crate docs) and each constructor sits next to the invariant
 //! it cites.
 //!
-//! This is certification/driver code, so [`Bounds`] is in charter (the
-//! L7 evaluation-code discipline names exactly this territory): every
-//! scalar enters as its `[lo(), hi()]` bracket, poison (NaN) flows to
-//! the poison box, which never prunes.
+//! This is certified-box driver code, an allowlisted [`Bounds`] seam
+//! (ratified 2026-07-29 — see geom-core `real.rs`, Bounds scope
+//! rule): every scalar enters as its `[lo(), hi()]` bracket, poison
+//! (NaN) flows to the poison box, which never prunes.
 
 use bvh::Aabb;
 use geom_core::{Bounds, Point3};

@@ -280,8 +280,9 @@ fn edge_chord_len<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
 /// of `y` its box can touch (module docs: the tree prunes, predicates
 /// decide). `x_is` names which operand `x` is (contact orientation).
 ///
-/// `T: Bounds` alongside `Decide` is the L7 driver-code allowance: the
-/// C10 tree is the subdivision driver, and box construction reads
+/// `T: Decide + Bounds` is the ratified compound-bound seam
+/// (2026-07-29 — geom-core `real.rs`, Bounds scope rule): the C10
+/// tree is the subdivision driver, and box construction reads
 /// coordinate brackets — never a value comparison in classification.
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, sinks, band, strategy, plant, trace)
 pub(super) fn sweep_direction<T: Decide + Bounds>(

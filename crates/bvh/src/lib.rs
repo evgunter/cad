@@ -40,6 +40,13 @@
 //! - Queries return candidate indices in **ascending input order** — a
 //!   subsequence of the arena order, independent of tree shape.
 //!
+//! # Bounds scope (ratified 2026-07-29)
+//!
+//! This crate reads coordinate brackets (`geom_core::Bounds`) as
+//! spatial-index driver code — ratified 2026-07-29, see geom-core
+//! `real.rs`, Bounds scope rule (the CI discipline grep allowlists
+//! exactly these seams).
+//!
 //! # The SSI-cell seam (PR 7, wiring deferred — API must not preclude)
 //!
 //! Items are addressed by dense input index, so any payload (entity

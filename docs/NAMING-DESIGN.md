@@ -250,6 +250,18 @@ Diagnosis =
   logs exist (k_stats names + D9 replay): diff the verdict vectors,
   attach the flip(s) on the name's derivation path. Same diff
   machinery as SetTolerance's ε-change audit — ratified to be shared.
+- **Verdict logs record what the evaluation RAN** (amended 2026-07-29,
+  with M5 PR 8): candidate pruning — the C10 BVH sweep — legitimately
+  shrinks that population, so a vanish whose flip evidence lived on a
+  pair the realized sweep pruned (interaction-boundary edits:
+  overlapping ↔ disjoint operands) diagnoses to the documented
+  evidence-free fallback `RecipeEdit { NodeChanged(minting node) }` —
+  a site, not a claim that an edit happened. Results are unaffected
+  (the differential suite pins them bit-equal); only diagnosis
+  RICHNESS degrades, and only where the evidence genuinely was never
+  computed. The recovery rung — on-demand shadow re-execution of the
+  vanished pair to mint the missing verdicts at diagnosis time — is
+  banked as #134.
 - `Tombstone` carries the last-good table entry (enough for GQ7's
   ghost rendering: entity kind, owning body name, the mesh patch key
   of the last evaluation). Selection tools survive vanishing entities

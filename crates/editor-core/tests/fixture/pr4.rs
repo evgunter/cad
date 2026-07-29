@@ -17,29 +17,23 @@ use geom_core::Decide;
 
 use super::{ang, desc, insert, len, scl, step};
 
-/// The corpus's evaluator — DELIBERATELY the idealized (brute-force)
-/// boolean sweep since M5 PR 8. The golden this corpus feeds pins
-/// "same recipe + same VERDICTS ⇒ byte-identical diagnosis output",
-/// so the fixture keeps the verdict-rich substrate the digest was
-/// pinned over: the idealized sweep decides `bool_vertex_face_side`
-/// on every pair, so scenario A's disjoint run still carries the
-/// recorded-flip evidence the flip-vanish row exists to exercise.
-/// The REALIZED sweep prunes non-interacting pairs (that is its job),
-/// which honestly removes that evidence on interaction-boundary
-/// edits; the production-path diagnosis degradation is pinned where
-/// it belongs — `m4_pr4_banked::dropped_fused_vertex_identity_…` runs
-/// its scenario under BOTH strategies. Results (bodies, names, keys)
-/// are strategy-independent (the M5 PR 8 differential suite pins
-/// them bit-equal); only the verdict LOG differs.
+/// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
+/// per Evan's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
+/// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
+/// digest in `m4_pr4_ci`) pin what production users actually get.
+/// Scenario A's flip-vanish row therefore exercises the AMENDED N5
+/// semantics: the disjoint run's pair space is pruned, the flip
+/// evidence is never computed, and the row diagnoses to the
+/// documented evidence-free minting-node fallback (NAMING-DESIGN N5
+/// as amended; recovery rung banked as #134). Engine-behavior tests
+/// that are genuinely about behavior-GIVEN-verdicts stay under the
+/// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
+/// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    let opts = EvalOptions {
-        boolean_sweep: topo::SweepStrategy::Idealized,
-        ..EvalOptions::default()
-    };
-    evaluate::<T>(doc, prior, &CancelToken::new(), &opts)
+    evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
 }
 
 fn block(
