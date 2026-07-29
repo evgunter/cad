@@ -36,7 +36,11 @@ fn dump<T: Decide>(b: &Body<T>) -> String {
     s
 }
 
-fn reduce_ok<T: Decide>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> BooleanReduction<T> {
+fn reduce_ok<T: Decide + geom_core::Bounds>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
     let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();

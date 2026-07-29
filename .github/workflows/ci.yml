@@ -101,6 +101,27 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
+      # Compound Bounds bounds (`T: Decide + Bounds`) are legal ONLY in
+      # the seams the 2026-07-29 amendment ratified (geom-core
+      # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
+      # lane in topo, the evaluation-service seam in editor-core, and
+      # profile's pre-amendment fillet gate. Sole-bound `T: Bounds`
+      # (certification/driver code) is untouched by this check. A NEW
+      # file writing a compound Bounds bound fails here until it is
+      # ratified into the real.rs rule AND this allowlist.
+      - name: Bounds compound-bound allowlist (ratified 2026-07-29)
+        run: |
+          hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
+            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+            | cut -d: -f1 | sort -u \
+            | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce)\.rs$' \
+            | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+            | grep -vE '^crates/profile/src/sugar\.rs$' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
+            exit 1
+          fi
       # Evaluation-code discipline tripwire (see the `real.rs` module docs):
       # a type parameter written `T: Real + PartialOrd` (or any other extra
       # bound) is the escape hatch that lets generic evaluation code smuggle

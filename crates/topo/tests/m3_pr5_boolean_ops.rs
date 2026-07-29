@@ -22,7 +22,7 @@ use topo::{
     subtract_with, union, union_with, validate, validate_closed, validate_geometric,
 };
 
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
+fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
@@ -47,7 +47,7 @@ type BoolOp<T> =
 /// Runs one op functionally with the author's flush contacts
 /// declared, checking the operands stayed bitwise untouched and the
 /// result passes tier 1 + 2.
-fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
+fn run<T: Decide + geom_core::Bounds>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let out = op(a, b, &common::flush_declarations(a, b)).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
@@ -59,7 +59,7 @@ fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     out
 }
 
-fn body_of<T: Decide>(r: &BooleanResult<T>) -> &BooleanBody<T> {
+fn body_of<T: Decide + geom_core::Bounds>(r: &BooleanResult<T>) -> &BooleanBody<T> {
     r.body().expect("non-empty boolean result")
 }
 
@@ -85,7 +85,7 @@ fn assert_tier3_posture(body: &Body<f64>) {
 /// Generic op-runner for the interval lane: censuses + kinds only
 /// (exact-value oracles are the f64 lane's; Interval has no PartialEq
 /// by design).
-fn generic_scenarios<T: Decide>() {
+fn generic_scenarios<T: Decide + geom_core::Bounds>() {
     let (a, b) = two_bricks::<T>();
     for (op, faces) in [
         (topo::intersect_with as BoolOp<T>, 6),
@@ -130,7 +130,7 @@ mod interval {
     }
 }
 
-fn two_bricks<T: Decide>() -> (Body<T>, Body<T>) {
+fn two_bricks<T: Decide + geom_core::Bounds>() -> (Body<T>, Body<T>) {
     (
         brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
         brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)),

@@ -5,6 +5,13 @@
 //! localized to the deciding node; structural edits surface as
 //! divergence/status rows; and the report is the `SetTolerance`
 //! audit surface (H4 — PR 6 reuses it untouched).
+//!
+//! SWEEP-STRATEGY NOTE (Evan's 2026-07-29 ruling): this file's pins
+//! are about diff/resolve engine behavior GIVEN verdicts, so its
+//! evaluator deliberately runs the idealized (verdict-rich) sweep;
+//! the production-path degradation is pinned in `m4_pr4_banked`
+//! (both strategies side by side) and in the re-pinned `m4_pr4_ci`
+//! golden.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;
@@ -15,8 +22,19 @@ use editor_core::{
 };
 use fixture::{ang, desc, insert, len, scl, step};
 
+/// Idealized (brute-force) boolean sweep since M5 PR 8: this file
+/// pins the DIFF/RESOLVE engine's semantics, whose evidence substrate
+/// is the verdict log — the idealized sweep keeps interaction-boundary
+/// scenarios (overlapping ↔ disjoint) verdict-rich on both sides.
+/// The realized sweep prunes the disjoint side's pair space empty
+/// (its job); that production-path degradation is pinned in
+/// `m4_pr4_banked` (both strategies) — see `fixture/pr4.rs`'s note.
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &EvalOptions::default())
+    let opts = EvalOptions {
+        boolean_sweep: topo::SweepStrategy::Idealized,
+        ..EvalOptions::default()
+    };
+    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts)
 }
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
@@ -257,6 +275,7 @@ fn parallel_schedule_preserves_verdict_logs() {
         &EvalOptions {
             epoch: editor_core::Epoch::mint(),
             parallel: true,
+            ..EvalOptions::default()
         },
     );
     for &id in &seq.order {

@@ -88,7 +88,7 @@
 //!   the unforced window. Face-interior and convex-corner crossings
 //!   of the same shape succeed exactly.
 
-use geom_core::{Band, Decide, MarginDiag, Real, Sign};
+use geom_core::{Band, Bounds, Decide, MarginDiag, Real, Sign};
 
 use super::combine::{GraftMap, graft_solid};
 use super::finish::{contact_skip_set, kept_side, setopfinish};
@@ -97,7 +97,7 @@ use super::solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 use super::zip::zip_seam;
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
-    ContactRecords, Operand, SideCode, VfContact, VvContact, boolean_reduce_declared,
+    ContactRecords, Operand, SideCode, SweepStrategy, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
@@ -243,8 +243,17 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Union, a, b, &BooleanDeclarations::none())
+pub fn union<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_with(
+        BooleanOp::Union,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+    )
 }
 
 /// A ∩* B (module docs).
@@ -252,8 +261,17 @@ pub fn union<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, Bo
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Intersect, a, b, &BooleanDeclarations::none())
+pub fn intersect<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_with(
+        BooleanOp::Intersect,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+    )
 }
 
 /// A ∖* B (module docs).
@@ -261,8 +279,17 @@ pub fn intersect<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Subtract, a, b, &BooleanDeclarations::none())
+pub fn subtract<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_with(
+        BooleanOp::Subtract,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+    )
 }
 
 /// A ∪* B with declared coincidence intents (F5, M4 PR 5) — see
@@ -271,12 +298,12 @@ pub fn subtract<T: Decide>(a: &Body<T>, b: &Body<T>) -> Result<BooleanResult<T>,
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide>(
+pub fn union_with<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Union, a, b, decls)
+    boolean_op_with(BooleanOp::Union, a, b, decls, SweepStrategy::Realized)
 }
 
 /// A ∩* B with declared coincidence intents ([`union_with`]).
@@ -284,12 +311,12 @@ pub fn union_with<T: Decide>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<T: Decide>(
+pub fn intersect_with<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Intersect, a, b, decls)
+    boolean_op_with(BooleanOp::Intersect, a, b, decls, SweepStrategy::Realized)
 }
 
 /// A ∖* B with declared coincidence intents ([`union_with`]).
@@ -297,23 +324,33 @@ pub fn intersect_with<T: Decide>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<T: Decide>(
+pub fn subtract_with<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op(BooleanOp::Subtract, a, b, decls)
+    boolean_op_with(BooleanOp::Subtract, a, b, decls, SweepStrategy::Realized)
 }
 
-/// The shared pipeline (module docs).
-fn boolean_op<T: Decide>(
+/// The shared pipeline (module docs), with an explicit
+/// [`SweepStrategy`] — the idealized/realized door (PERF-PLAN §4.4):
+/// the tree only changes candidate GENERATION, so both strategies
+/// produce bit-identical results; the differential suite runs full
+/// ops through both and pins exactly that. Production wrappers pass
+/// [`SweepStrategy::Realized`].
+///
+/// # Errors
+///
+/// [`BooleanError`] — identical to [`union`] and friends.
+pub fn boolean_op_with<T: Decide + Bounds>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
+    strategy: SweepStrategy,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear()?;
-    let mut red = boolean_reduce_declared(op, a, b, decls)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {

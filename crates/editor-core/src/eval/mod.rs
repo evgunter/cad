@@ -444,6 +444,18 @@ pub struct EvalOptions {
     /// compare both schedules in one test run; results land by node
     /// id either way — order is data, not schedule.
     pub parallel: bool,
+    /// Which candidate-generation path boolean nodes run (M5 PR 8) —
+    /// a runtime switch in the `parallel` mold so the BVH differential
+    /// suite can compare a tree-backed and a brute-force evaluation of
+    /// the SAME document in one test run. Results are bit-identical
+    /// either way (the tree prunes, predicates decide — the suite pins
+    /// it), which is also why the strategy is deliberately NOT part of
+    /// any content key. The one strategy-dependent OBSERVABLE is the
+    /// verdict LOG (`NodeValue::verdicts`): pruning runs strictly
+    /// fewer predicates, so logs are only comparable within one
+    /// strategy (the diff engine always compares production runs).
+    /// Production default: `Realized`.
+    pub boolean_sweep: topo::SweepStrategy,
 }
 
 impl Default for EvalOptions {
@@ -451,6 +463,7 @@ impl Default for EvalOptions {
         Self {
             epoch: Epoch::mint(),
             parallel: false,
+            boolean_sweep: topo::SweepStrategy::Realized,
         }
     }
 }
@@ -474,7 +487,7 @@ pub fn evaluate<T>(
     opts: &EvalOptions,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -503,7 +516,12 @@ where
             use rayon::prelude::*;
             let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
                 .par_iter()
-                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior)))
+                .map(|&id| {
+                    (
+                        id,
+                        eval_node(doc, &env, id, &nodes, prior, opts.boolean_sweep),
+                    )
+                })
                 .collect();
             for (id, step) in results {
                 bookkeep(&step, &mut recomputed, &mut reused);
@@ -516,7 +534,7 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_node(doc, &env, id, &nodes, prior);
+            let step = eval_node(doc, &env, id, &nodes, prior, opts.boolean_sweep);
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -581,7 +599,7 @@ fn refuse_tolerance_conflict<T>(
     process_eps: f64,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut order = sched.order;
     order.extend(sched.unschedulable.iter().copied());
@@ -647,9 +665,10 @@ fn eval_node<T>(
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
+    boolean_sweep: topo::SweepStrategy,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits,
+    T: Decide + ContentBits + geom_core::Bounds,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),
@@ -722,7 +741,7 @@ where
     // idiom-1 parallelism runs whole nodes on one worker each), so
     // logs never interleave across nodes.
     geom_core::k_stats::start_verdict_log();
-    let op = wire::run_op(id, node, doc, results, &slot_values);
+    let op = wire::run_op(id, node, doc, results, &slot_values, boolean_sweep);
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
         Ok((payload, name_table)) => NodeStep {

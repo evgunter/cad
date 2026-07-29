@@ -43,3 +43,7 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# The M5 PR 8 differential suite's doors (failure injection + traces)
+# are test-only surface in topo; dev-dependencies are the only place
+# the feature turns on.
+topo = { path = "../topo", features = ["sweep-testing"] }

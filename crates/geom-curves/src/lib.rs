@@ -87,6 +87,7 @@
 //! derivative-vs-dual consistency and enclosure-containment test axes
 //! below rely on exactly that.
 
+pub mod boxes;
 pub mod nurbs;
 
 use std::sync::Arc;

@@ -111,6 +111,20 @@ discipline() {
     echo "ERROR: found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
     rc=1
   fi
+  # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
+  # Bounds scope rule) — mirror of the hosted step.
+  local bhits
+  bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
+    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+    | cut -d: -f1 | sort -u \
+    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce)\.rs$' \
+    | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+    | grep -vE '^crates/profile/src/sugar\.rs$' || true)
+  if [ -n "$bhits" ]; then
+    echo "$bhits"
+    echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"
+    rc=1
+  fi
   # Production-consumer allowlist EMPTY since M4 PR 5 (N6 retirement):
   # remaining rows are non-consumers (the seam itself; interval.rs
   # scalar plumbing; memo.rs bit-hashing; source.rs debug assertion).

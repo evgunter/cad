@@ -310,7 +310,6 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
             declare: Some(decl),
         },
     );
-    let ev1 = run(&doc, None);
     let (doc2, _) = step(
         doc.clone(),
         DocEdit::SetParam {
@@ -319,7 +318,37 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
             expr: len(0.5),
         },
     );
-    let ev2 = run(&doc2, Some(&ev1));
+    // M5 PR 8: the scenario runs under BOTH sweep strategies. The
+    // idealized (brute-force) run keeps this pin at its original
+    // strength — the disjoint prior run decides `bool_vertex_face_side`
+    // on every pair, so the fusion edit leaves recorded flip evidence
+    // and the diagnosis MUST use it. The realized (production, BVH)
+    // run prunes the disjoint prior's pair space EMPTY — the flip
+    // evidence genuinely never existed — so the honest outcomes are
+    // the flip (when any survives) or the DOCUMENTED evidence-free
+    // fallback naming the minting node (resolve/mod.rs: "not a claim
+    // that an edit happened"); anything else (a specific edit blame, a
+    // structural-param blame) stays dishonest and fails here.
+    for strategy in [
+        topo::SweepStrategy::Idealized,
+        topo::SweepStrategy::Realized,
+    ] {
+        fused_vertex_scenario(&doc, &doc2, u, strategy);
+    }
+}
+
+fn fused_vertex_scenario(
+    doc: &ProfileDoc,
+    doc2: &ProfileDoc,
+    u: RecipeNodeId,
+    strategy: topo::SweepStrategy,
+) {
+    let opts = EvalOptions {
+        boolean_sweep: strategy,
+        ..EvalOptions::default()
+    };
+    let ev1 = evaluate::<f64>(doc, None, &CancelToken::new(), &opts);
+    let ev2 = evaluate::<f64>(doc2, Some(&ev1), &CancelToken::new(), &opts);
     let (r1, r2) = (rows(&ev1, u), rows(&ev2, u));
     // The dropped identities: operand-corner vertex names present in
     // the disjoint union, absent from the overlapping one.
@@ -340,13 +369,10 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
         // the loser as a Merged constituent.
         let res = resolve_with_prior(
             RunCtx {
-                doc: &doc2,
+                doc: doc2,
                 eval: &ev2,
             },
-            RunCtx {
-                doc: &doc,
-                eval: &ev1,
-            },
+            RunCtx { doc, eval: &ev1 },
             name,
         );
         let Resolution::Failed(f) = res else {
@@ -363,14 +389,30 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
         // The pin: the diagnosis is HONEST — the identity died at a
         // recorded flip (or through a vanished operand), never blamed
         // on a recipe edit or structural parameter that did not
-        // happen.
-        assert!(
-            matches!(
-                diagnosis,
-                Diagnosis::PredicateFlip { .. } | Diagnosis::Cascade { .. }
-            ),
-            "dishonest diagnosis for {name:?}: {diagnosis:?}"
+        // happen. Under the realized sweep the recorded evidence can
+        // honestly be ABSENT (the disjoint prior pruned every pair —
+        // module comment above), in which case exactly the documented
+        // evidence-free fallback naming the MINTING node is admitted.
+        let honest_flip = matches!(
+            diagnosis,
+            Diagnosis::PredicateFlip { .. } | Diagnosis::Cascade { .. }
         );
+        let honest_fallback = matches!(
+            diagnosis,
+            Diagnosis::RecipeEdit {
+                edit: editor_core::RecipeEditRef::NodeChanged { node }
+            } if *node == name.node
+        );
+        match strategy {
+            topo::SweepStrategy::Idealized => assert!(
+                honest_flip,
+                "dishonest diagnosis for {name:?} (idealized): {diagnosis:?}"
+            ),
+            topo::SweepStrategy::Realized => assert!(
+                honest_flip || honest_fallback,
+                "dishonest diagnosis for {name:?} (realized): {diagnosis:?}"
+            ),
+        }
         // The last-good entry survives as the tombstone (ghost
         // payload), and no merge offer is fabricated.
         assert!(last_good.is_some(), "prior run resolved {name:?}");
