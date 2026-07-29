@@ -642,3 +642,18 @@ merged (interval backend, C9 ring, NURBS types, fitting stack +
 projection + LSQ, BVH). PR 5's dependency set [3; 4] is
 satisfied; it dispatches to the first freed lane (spec already
 committed). In flight: S6 (fable) + S2 (opus).
+
+**529-outage on both lanes (2026-07-29 ~19:15Z, Anthropic
+server-side); recovered ~21:15Z with FRESH FINISHER agents per
+Evan's new resume-vs-fresh rule** (memories/resume-vs-fresh-
+subagent.md: stopped >1h + remaining work fully specifiable →
+fresh agent, not transcript resume). State at interruption: S2's
+implementation was COMPLETE and pushed (079dd04 — construction,
+gates, taxonomy, K-funnel test for seven fillet gates, main
+merged); only battery + report remained → fresh opus finisher
+(arm inherited per A/B protocol). S6's sweep was committed
+(dbb3c00) but coverage unverified → fresh fable finisher with an
+explicit audit-the-diff-against-the-ten-pairs step before
+battery. Both prompts carry the full foreground/cwd/discipline
+headers. First real application of the rule; saves two ~400k
+context replays.
