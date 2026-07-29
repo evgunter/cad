@@ -1,6 +1,6 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5)
 
-Status: **DRAFT round 12, for Evan's sign-off** (design-conversation
+Status: **DRAFT round 13, for Evan's sign-off** (design-conversation
 PR #124; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104; the ratified doc is the
 deliverable). Designed across twelve review rounds with Evan
@@ -12,8 +12,17 @@ Harmonization constraint (ratified context): #101's
 declared-tangency discipline (flags verified-never-trusted,
 `UndeclaredTangency`/`TangencyContradicted`, fillet fit gating,
 same-carrier-is-identity) landed at #109/#112 and is the layer this
-algebra LOWERS to; schema v1 persists explicit geometry + flags,
-and the lift to the algebra is determined by construction.
+algebra LOWERS to today. **End state (the #104 recorded v2
+commitment, affirmed here per Evan's round-13 note): the algebra
+IS the intended core representation of paths** — the program is
+the profile's definition and derived segments are caches/
+provenance, exactly as Q8 definitional surfaces work (the
+constructing function is the surface). Until v2, the algebra is a
+generator surface lowering to the v1 form; v1's declared flags
+are what make the eventual mechanical LIFT of a v1 document into
+an algebra program well-defined (declared junctions become
+`.tangent()` calls, fillet-authored arcs become `.fillet(r)` —
+each flag pins which constructor the lift chooses).
 
 ## 1. What this is
 
@@ -111,8 +120,13 @@ half-bound tip.
     structural variants (parameterization flip; reflection across
     the departure line — curvature signs flip).
   - Pose-preserving use of a curve value joins through its own
-    directed-point values: `.to(c.start())` then place — the pose
-    is referenced structurally, never re-typed.
+    directed-point values: `.to(c.start())` binds the tip to the
+    curve's OWN start pose (position + start tangent, read from
+    the curve data by reference); the subsequent `nurbs(curve)`
+    placement transform is then the IDENTITY BY CONSTRUCTION —
+    the tip's bits ARE the curve's start bits, so the curve lands
+    exactly at its authored absolute pose, with nothing re-typed
+    and nothing to value-match.
 - **Authoring frames, uniformly**: every authored point — anchors,
   targets, control points — is ABSOLUTE (profile frame); the only
   implied points are those the junction already owns (P0/P1 above,
@@ -121,10 +135,20 @@ half-bound tip.
 - **Fillet carriers are line/arc in v1**: a corner fillet tangent
   to a NURBS carrier has no closed form (an iterative solve — and
   this algebra is solver-free); `fillet` adjacent to a NURBS leg
-  refuses typed `FilletCarrierUnsupported`. A NURBS leg cannot
-  target `Start` (its placement is fully consumed at departure, so
-  its end lands where the data says); loops ending in a NURBS leg
-  close through a connecting line/arc leg or a seam fillet.
+  refuses typed `FilletCarrierUnsupported`.
+- **NURBS legs CAN close** (round 13, Evan's observation that
+  trailing DOFs can be left off exactly as leading ones are): the
+  FULLY-authored form cannot target `Start` (placement consumed
+  at departure, the end lands where the data says), but the
+  closing variants imply the trailing control points the seam
+  owns, mirroring `nurbs_in_place`'s start side: the sharp-seam
+  form implies `Pn := Start.pos` (interior points authored,
+  seam junction checked as usual); the tangent-seam form
+  additionally implies `Pn−1 := Start.pos − len_end·Start.dir`
+  (with `len_end` authored, the mirror of `len1`). Both-ends
+  forms compose (in-place start + Start-targeting end). Same
+  principle throughout: junction-owned control points are
+  implied, never authored.
 
 ### Fillet
 
@@ -169,8 +193,14 @@ coordinates value-matching.
   with both directions known.
 - Tangent seam: `.tangent().tangent_arc_to(Start)`. (A tangent
   LINE close is overdetermined — direction inherited AND through
-  Start — refusing unless genuinely collinear; the refusal names
-  the fix: use an arc, or drop the tangent.)
+  Start — and refuses ALWAYS, exact collinearity included: a ray
+  hitting an independently-authored point is a VALUE coincidence,
+  and the ratified ladder never infers from values — geometry
+  that works by luck is refused, not blessed. The refusal names
+  the two structural spellings: close with the tangent ARC
+  instead, or rotate the loop's authoring origin — the loop is
+  cyclic, so the straight run can always be authored forward as
+  side 1 and the arc becomes the closer.)
 - Seam fillet: `.angle(θ).fillet(r).to(Start)` — both carriers
   bound, nothing pending, loop closed.
 
@@ -297,8 +327,14 @@ closed-form (directors bind departures; legs bind from them; each
 fillet is the ray×carrier corner construction with both carriers
 fixed when reached; the seam resolves when a verb targets
 `Start`). No chain expressible in this surface needs
-right-to-left propagation — a consequence of the anchoring
-discipline, to re-verify at implementation, not an axiom. D9:
+right-to-left propagation, by induction over the chain: every
+binding verb consumes only its own arguments plus already-bound
+state (the entry binds side 1 from its args; a leg consumes the
+bound slot + its args; a fillet arrival binds from its own
+anchor/director args; the seam consumes `Start` — bound at entry
+— plus the final carrier), and the one construct that needed a
+LATER binding (the anchor-free both-ends-trimmed side) is
+unwritable. To re-verify at implementation, not an axiom. D9:
 elaboration is pure f64 structure selection (C6 boundary — it
 decides leg parameters, never topology); the lowered profile runs
 the ordinary generic pipeline. `UnderdeterminedLeg`/
