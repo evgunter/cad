@@ -1320,6 +1320,7 @@ dependencies = [
  "geom-surfaces",
  "proptest",
  "slotmap",
+ "topo",
 ]
 
 [[package]]

@@ -9,6 +9,12 @@ workspace = true
 
 [features]
 dbg-join = []
+# The differential suite's doors (M5 PR 8 fix pass): `sweep_traces`,
+# `PlantedDegradation`, and the pad-override knob are FAILURE-INJECTION /
+# instrumentation surface — test builds only. Enabled through the
+# self-dev-dependency below (and consumers' dev-dependencies), so no
+# production dependent can reach an injector.
+sweep-testing = []
 # Forwards geom-core's certified interval scalar so `Body<Interval>` is
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).
@@ -26,3 +32,6 @@ slotmap = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Self dev-dependency: turns `sweep-testing` on for THIS crate's own
+# integration tests without exposing it to production dependents.
+topo = { path = ".", features = ["sweep-testing"] }

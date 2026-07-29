@@ -22,7 +22,12 @@
 //!   an edge grazes a face's *infinite* plane far from the face
 //!   itself; the realized path never examines it. Pruning can drop
 //!   only such spurious escalations, never an accepted event — the
-//!   value channel is pinned bit-equal.
+//!   value channel is pinned bit-equal. In the full boolean the same
+//!   in-band margin typically resurfaces at a LATER stage anyway (the
+//!   disjoint-operands containment walk decides against the same
+//!   plane), so what actually diverges is the refusal SITE, not
+//!   success: pinned predicate-by-predicate in the suite's grazing
+//!   fixture.
 //! - **Worklist, not recursion** (Problem 15.3 / F12): a proper
 //!   crossing splits the edge through the certified `split_edge` lane
 //!   and pushes BOTH children back with the *next* face index (a line
@@ -84,12 +89,26 @@ pub struct SweepTrace {
 /// The suite's failure-injection seam (pin iii — "the suite must be
 /// able to fail"): shrink ONE face's box to the poison-free EMPTY box
 /// before building the tree, so candidate generation loses whatever
-/// events that face carries and the superset pin must catch it. Never
-/// constructed by production entries.
+/// events that face carries and the superset pin must catch it.
+/// `sweep-testing` feature only — no production consumer can name a
+/// failure injector (M5 PR 8 fix pass, item 2).
+#[cfg(feature = "sweep-testing")]
 #[derive(Debug, Clone, Copy)]
 pub struct PlantedDegradation {
     /// The face whose box is planted empty.
     pub face: FaceKey,
+}
+
+/// Internal candidate-generation knobs (private plumbing; the PUBLIC
+/// doors that can set anything non-default are `sweep-testing`-gated).
+/// Production entries always pass `SweepKnobs::default()`.
+#[derive(Debug, Default, Clone, Copy)]
+pub(super) struct SweepKnobs {
+    /// Pin (iii): plant this face's box empty.
+    pub(super) plant: Option<FaceKey>,
+    /// Pin 1(b): override [`boxes::sweep_pad`] (a DELIBERATELY
+    /// breakable knob — the suite proves a too-small pad is caught).
+    pub(super) pad_override: Option<f64>,
 }
 
 /// The (deduplicating, order-preserving) contact accumulator.
@@ -272,7 +291,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     contacts: &mut ContactAcc,
     band: Band,
     strategy: SweepStrategy,
-    plant: Option<&PlantedDegradation>,
+    knobs: &SweepKnobs,
     mut trace: Option<&mut SweepTrace>,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
@@ -280,12 +299,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     // snapshot (arena order = input order). Mid-sweep splits of `y`'s
     // edges only mint vertices ON existing boundary (within the pad),
     // so the snapshot boxes stay conservative for the whole direction.
-    let pad = boxes::sweep_pad(band);
+    let pad = knobs.pad_override.unwrap_or_else(|| boxes::sweep_pad(band));
     let tree = match strategy {
         SweepStrategy::Realized => {
             let mut face_boxes = Vec::with_capacity(faces.len());
             for &f in &faces {
-                let planted = plant.is_some_and(|p| p.face == f);
+                let planted = knobs.plant == Some(f);
                 face_boxes.push(if planted {
                     // Pin (iii)'s planted degradation: the inverted box
                     // overlaps nothing — this face's events get lost

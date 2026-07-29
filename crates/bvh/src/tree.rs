@@ -201,6 +201,11 @@ fn split_axis(boxes: &[Aabb], items: &[usize]) -> Axis {
                 if c.is_nan() {
                     return f64::NAN;
                 }
+                // Raw f64::min/max are sound HERE: the split-axis
+                // choice affects tree SHAPE only, never membership
+                // (queries re-test exact item boxes); NaN is already
+                // handled above. aabb.rs's NaN-propagating folds are
+                // for membership-bearing boxes.
                 lo = lo.min(c);
                 hi = hi.max(c);
             }

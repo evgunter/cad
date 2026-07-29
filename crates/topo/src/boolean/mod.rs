@@ -93,7 +93,9 @@ pub use ops::{
     intersect, intersect_with, subtract, subtract_with, union, union_with,
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-pub use reduce::{PlantedDegradation, SweepStrategy, SweepTrace};
+#[cfg(feature = "sweep-testing")]
+pub use reduce::PlantedDegradation;
+pub use reduce::{SweepStrategy, SweepTrace};
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the
@@ -729,11 +731,31 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
 ///
 /// [`BooleanError`] — the same gates and sweep refusals as
 /// [`boolean_reduce`].
+#[cfg(feature = "sweep-testing")]
 pub fn sweep_traces<T: Decide + Bounds>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
+) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None)
+}
+
+/// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
+/// proves a too-small pad (e.g. `Some(0.0)`) LOSES accepted pairs and
+/// the superset comparator catches it. A deliberately breakable knob —
+/// `sweep-testing` only, never production surface.
+///
+/// # Errors
+///
+/// [`BooleanError`] as [`sweep_traces`].
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_traces_with_pad<T: Decide + Bounds>(
+    a_operand: &Body<T>,
+    b_operand: &Body<T>,
+    strategy: SweepStrategy,
+    plant: Option<PlantedDegradation>,
+    pad_override: Option<f64>,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear()?;
     reduce::gate_planar(a_operand, Operand::A)?;
@@ -746,6 +768,16 @@ pub fn sweep_traces<T: Decide + Bounds>(
     let mut acc = reduce::ContactAcc::default();
     let mut ab = SweepTrace::default();
     let mut ba = SweepTrace::default();
+    let ab_knobs = reduce::SweepKnobs {
+        plant: plant.map(|p| p.face),
+        pad_override,
+    };
+    // The plant names a face of `b_operand`, so it applies to the A→B
+    // direction only; the pad override applies to both.
+    let ba_knobs = reduce::SweepKnobs {
+        plant: None,
+        pad_override,
+    };
     reduce::sweep_direction(
         &mut a,
         &mut b,
@@ -753,7 +785,7 @@ pub fn sweep_traces<T: Decide + Bounds>(
         &mut acc,
         band,
         strategy,
-        plant.as_ref(),
+        &ab_knobs,
         Some(&mut ab),
     )?;
     reduce::sweep_direction(
@@ -763,7 +795,7 @@ pub fn sweep_traces<T: Decide + Bounds>(
         &mut acc,
         band,
         strategy,
-        None,
+        &ba_knobs,
         Some(&mut ba),
     )?;
     Ok((ab, ba))
@@ -793,6 +825,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 
     // Reduction sweep, both directions (A's edges first — D9 order).
     let mut acc = reduce::ContactAcc::default();
+    let knobs = reduce::SweepKnobs::default();
     reduce::sweep_direction(
         &mut a,
         &mut b,
@@ -800,7 +833,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         &mut acc,
         band,
         strategy,
-        None,
+        &knobs,
         None,
     )?;
     reduce::sweep_direction(
@@ -810,7 +843,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         &mut acc,
         band,
         strategy,
-        None,
+        &knobs,
         None,
     )?;
     let contacts = acc.finish();

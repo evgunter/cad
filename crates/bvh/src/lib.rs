@@ -31,6 +31,12 @@
 //!   centroid ties break to the lower input index. Every comparison is
 //!   IEEE `total_cmp` — total even on NaN.
 //! - **Fixed leaf constant** [`LEAF_SIZE`].
+//! - Note vs PERF-PLAN §4.4's sketch: the realized form shipped here
+//!   is a MEDIAN-SPLIT recursive build with per-node stack traversal —
+//!   not §4.4's SAH build / flattened stackless traversal. The spec
+//!   licenses the shipped form (C10 names the rule, not SAH); §4.4's
+//!   form remains available behind the same differential suite if
+//!   profiling ever demands it.
 //! - Queries return candidate indices in **ascending input order** — a
 //!   subsequence of the arena order, independent of tree shape.
 //!
