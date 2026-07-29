@@ -19,56 +19,86 @@ concurrency:
 # the merge gate whenever hosted Actions is unavailable): a job added,
 # removed, or changed here gets the same change there, and vice versa.
 # There is no structural enforcement — this pair of cross-references is it.
+# The one thing that is NOT mirrored by hand is the change filter: both
+# files call scripts/ci-filter.py and act on its output, so the tiering and
+# the dependent closure have a single implementation and cannot drift.
 
 jobs:
   # Change filter (added 2026-07-29, Evan's ask after the Actions-budget
-  # exhaustion): docs-only changes skip the build matrix. Two-tier by
-  # design — docs-only vs EVERYTHING (no per-crate filtering: bit-replay
-  # and monomorphization effects are workspace-wide, and the full-matrix
-  # floor convention exists to kill partial-green traps). Conservative
-  # classification: only *.md files and memories/ are docs; anything
-  # else (scripts/, .cargo/, Cargo.*, docs/k-report-data/ which k-lint
-  # consumes, ...) is code and runs the full matrix. Floor convention
-  # rider: floors apply to CODE PRs; a docs-only PR gates on the
-  # `docs-only` marker job below.
+  # exhaustion; made dependency-aware 2026-07-28). THREE tiers, and all of
+  # the logic lives in scripts/ci-filter.py — this job is a thin wrapper
+  # that wires that script's KEY=value output onto the `if:` conditions and
+  # cargo arguments below. scripts/ci-local.sh calls the SAME script with
+  # the same semantics, so the hosted and local gates cannot drift and one
+  # set of tests covers both.
+  #
+  #   docs     only *.md / memories/ — nothing builds; the `docs-only ok`
+  #            marker job is the whole gate (floor convention: floors apply
+  #            to CODE PRs).
+  #   all      a workspace-level file moved (root Cargo.toml, Cargo.lock,
+  #            rust-toolchain.toml, .cargo/, .github/, scripts/, the
+  #            excluded workspaces demos/ tools/ interval-transcendentals/,
+  #            docs/k-report-data/, ANY member Cargo.toml, or anything the
+  #            allowlist does not recognise) — everything runs, unscoped.
+  #   closure  only crate sources moved — the changed members plus every
+  #            member that transitively depends on them (dev-dependencies
+  #            included) are built, and the pipeline rows run iff their root
+  #            package is in that closure.
+  #
+  # Fails CLOSED: any classification error or unrecognised path yields
+  # tier `all`. No third-party action here on purpose — checkout plus the
+  # runner's preinstalled rustup is the whole toolbox, so the gate that
+  # decides what runs has the smallest possible supply chain.
   filter:
     name: change filter
     runs-on: ubuntu-latest
     outputs:
-      docs_only: ${{ steps.classify.outputs.docs_only }}
+      tier: ${{ steps.classify.outputs.TIER }}
+      pkgs: ${{ steps.classify.outputs.PKGS }}
+      cargo_scope: ${{ steps.classify.outputs.CARGO_SCOPE }}
+      run_build: ${{ steps.classify.outputs.RUN_BUILD }}
+      run_editor_core: ${{ steps.classify.outputs.RUN_EDITOR_CORE }}
+      run_stl: ${{ steps.classify.outputs.RUN_STL }}
+      run_step_export: ${{ steps.classify.outputs.RUN_STEP_EXPORT }}
+      run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
+      run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - id: classify
+        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
+        # download: the script only runs `cargo metadata --no-deps`, which
+        # parses the workspace manifests and neither builds nor resolves the
+        # registry, so the compiler version is irrelevant — and if a future
+        # manifest ever did need the pinned toolchain to parse, the failure
+        # path is tier `all`, not a wrong answer.
+        env:
+          RUSTUP_TOOLCHAIN: stable
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="${{ github.event.pull_request.base.sha }}"
           else
             BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
           fi
-          CHANGED="$(git diff --name-only "$BASE"...HEAD 2>/dev/null || git diff --name-only "$BASE" HEAD)"
-          echo "changed files:"; echo "$CHANGED"
-          if [ -z "$CHANGED" ]; then
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-          elif echo "$CHANGED" | grep -qvE '^(memories/|.*\.md$)'; then
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "docs_only=true" >> "$GITHUB_OUTPUT"
-          fi
+          echo "base: $BASE"
+          echo "changed files:"
+          git diff --name-only "$BASE"...HEAD || true
+          echo "classification:"
+          scripts/ci-filter.py --base "$BASE" | tee -a "$GITHUB_OUTPUT"
 
   docs-only:
     name: docs-only ok
     runs-on: ubuntu-latest
     needs: filter
     steps:
-      - run: echo "change set is documentation-only (docs_only=${{ needs.filter.outputs.docs_only }})"
+      - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
   discipline:
     name: discipline (evaluation-code)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # Evaluation-code discipline tripwire (see the `real.rs` module docs):
@@ -148,7 +178,7 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -159,7 +189,7 @@ jobs:
     name: clippy
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -167,13 +197,15 @@ jobs:
       # No --all-features here: that would compile the gmp-mpfr-sys C
       # stack (GMP+MPFR from source, minutes of build) into this job; the
       # `interval` job owns that feature's clippy pass with its own cache.
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Scoped by the filter: `--workspace` in tier `all`, an explicit
+      # `-p <closure>` list in tier `closure`.
+      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
   test:
     name: test
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_build == 'true'
     # Test-speed handling lives in Cargo.toml as per-package opt-level
     # overrides for the measured hot spot (spade + mesh) — blanket opt 2
     # via profile env here was measured net-slower on core-crate PRs
@@ -183,13 +215,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace
+      # Scoped by the filter (`--workspace` or `-p <closure>`). Plain
+      # `cargo test` on purpose: it runs doc-tests, which a nextest-based
+      # runner would silently drop.
+      - run: cargo test ${{ needs.filter.outputs.cargo_scope }}
 
   interval:
     name: test (interval)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # NOTE (M5 PR 1): this job used to `apt-get install m4` before
@@ -208,30 +243,34 @@ jobs:
           key: interval
       # This job owns the interval feature's clippy pass (the default
       # clippy job deliberately skips --all-features).
-      - run: cargo clippy --workspace --all-targets --features interval -- -D warnings
-      - run: cargo test --workspace --features interval
+      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
+      - run: cargo test ${{ needs.filter.outputs.cargo_scope }} --features interval
       # One multi-ε row at interval type (D4 ¶1): the interval band test
       # re-derives every assertion from the run's ε, so this genuinely
       # exercises a different band.
-      - run: cargo test --workspace --features interval
+      - run: cargo test ${{ needs.filter.outputs.cargo_scope }} --features interval
         env:
           CAD_TOLERANCE_EPS: 1e-6
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity
       # row at the certified interval scalar (also inside the full
       # workspace runs above; named here so the obligation is visible).
       - name: persistence save/load/replay-identity (interval)
+        if: needs.filter.outputs.run_editor_core == 'true'
         run: cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the full workspace
       # runs above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
+        if: needs.filter.outputs.run_editor_core == 'true'
         run: cargo test -p editor-core --features interval --test m4_pr8_corpus_interval
 
   interval-backend:
     name: interval backend crate (gmp-free)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    # Tier `closure` never reaches this: interval-transcendentals/ is its
+    # own workspace, so ANY change under it is tier `all`.
+    if: needs.filter.outputs.run_interval_backend == 'true'
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
@@ -275,7 +314,11 @@ jobs:
     name: watertight (admesh)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    # Root package `stl`: the acceptance example lives there and its
+    # (dev-)dependency graph is the whole profile -> sweep -> topo -> mesh
+    # chain this job exercises, so `stl in closure` is exactly the
+    # condition under which any of it can have moved.
+    if: needs.filter.outputs.run_stl == 'true'
     steps:
       - uses: actions/checkout@v4
       # External STL verification (M2 PR 7): admesh 0.98.4 is
@@ -295,7 +338,10 @@ jobs:
     name: step import (freecad)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    # Root package `step-export`: this job builds nothing — it runs FreeCAD
+    # over the committed fixtures under crates/step-export/tests/fixtures,
+    # which are byte-golden against that crate's writer.
+    if: needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
       # External STEP import acceptance (M4 PR 7, the admesh pattern
@@ -329,7 +375,7 @@ jobs:
     name: test (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -342,7 +388,7 @@ jobs:
       # tolerance-sensitive algorithms. CAD_TOLERANCE_EPS gets wired to
       # Tolerance initialization in PR 2 (L3); for now it just parameterizes
       # the same test run so the matrix and the env var name land early.
-      - run: cargo test --workspace
+      - run: cargo test ${{ needs.filter.outputs.cargo_scope }}
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
 
@@ -353,7 +399,7 @@ jobs:
     name: persistence (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_editor_core == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -395,7 +441,7 @@ jobs:
     name: rebuild latency (reporting)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_editor_core == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -410,7 +456,7 @@ jobs:
     name: band 4 corpus (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    if: needs.filter.outputs.run_editor_core == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -436,7 +482,11 @@ jobs:
     name: k-lint (advisory)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.docs_only != 'true'
+    # No minimal root set, deliberately: this is the ONLY job that compiles
+    # demos/tour (a path-dependent of nine members) and tools/k-lint, and
+    # its probe sweep records margins from every kernel crate. So it runs
+    # whenever anything builds at all.
+    if: needs.filter.outputs.run_k_lint == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
