@@ -492,7 +492,9 @@ fn sliver_band_user_experience() {
     assert_eq!(e.band.escalate(), 1e-8);
     let msg = e.to_string();
     assert!(msg.contains("face_gap_classification"), "got: {msg}");
-    assert!(msg.contains("widen the feature"), "got: {msg}");
+    // The unified sub-ε_input recourse (two-tolerance principle, D4 ¶1
+    // addendum): pinned as a fragment of the shared carrier const.
+    assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "got: {msg}");
 }
 
 // ---------------------------------------------------------------------

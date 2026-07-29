@@ -162,7 +162,9 @@ impl core::fmt::Display for SplitJoinError {
             Self::DegenerateSection { face } => write!(
                 f,
                 "split join: section polygon at {face:?} bounds zero area — one-sided \
-                 tangency: the degenerate side has no real material (refused, never emitted)"
+                 tangency: the degenerate side has no real material (refused, never \
+                 emitted); {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::RingHoming(e) => write!(f, "split join: ring re-homing: {e}"),
             Self::RingHomingAmbiguous { ring } => write!(
@@ -733,4 +735,33 @@ fn ring_representative<T: Decide>(
         LoopBoundary::Empty { vertex } => vertex,
     };
     vertex_point(body, v)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::entity::FaceKey;
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the split-join pair —
+    /// exactly-zero section area (`DegenerateSection`) and in-band
+    /// (`Escalated`) — is one user situation; both arms carry the
+    /// shared recourse fragment.
+    #[test]
+    fn section_area_pair_carries_the_shared_recourse() {
+        let face = FaceKey::default();
+        let msg = SplitJoinError::DegenerateSection { face }.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+
+        let msg = SplitJoinError::Escalated {
+            face,
+            diag: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("split_section_area"),
+            },
+        }
+        .to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+    }
 }

@@ -218,9 +218,11 @@ impl fmt::Display for ExtrudeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "extrude could not form a band: {e}"),
-            Self::DegenerateExtrusion => f.write_str(
+            Self::DegenerateExtrusion => write!(
+                f,
                 "extrusion vector/distance has no definite normal component: in-plane or \
-                 sliver-thin extrusion (D4)",
+                 sliver-thin extrusion — {} (D4)",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::ObliqueExtrusion => f.write_str(
                 "extrusion vector has a definite in-plane component: oblique extrusion is \
@@ -1195,4 +1197,30 @@ fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey
             key: topo::EntityId::Face(face),
         })?
         .surface)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the extrusion pair —
+    /// definitely-degenerate (`DegenerateExtrusion`) and in-band
+    /// (`ExtrusionEscalated`) — is one user situation; both arms carry
+    /// the shared recourse fragment.
+    #[test]
+    fn extrusion_pair_carries_the_shared_recourse() {
+        let msg = ExtrudeError::DegenerateExtrusion.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+
+        let msg = ExtrudeError::ExtrusionEscalated {
+            source: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("extrusion_normal_component"),
+            },
+        }
+        .to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+    }
 }

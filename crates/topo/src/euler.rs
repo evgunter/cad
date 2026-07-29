@@ -783,7 +783,9 @@ impl fmt::Display for EulerOpError {
             Self::SplitParamNotInterior { edge } => write!(
                 f,
                 "split_edge: the parameter is definitely not interior to \
-                 edge {edge:?}'s certified interval"
+                 edge {edge:?}'s certified interval (it coincides with an \
+                 endpoint, or lies outside) — {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::SplitParamEscalated { edge, diag } => write!(
                 f,
@@ -2993,5 +2995,28 @@ mod tests {
         for error in errors {
             assert!(!error.to_string().is_empty());
         }
+    }
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`
+    /// interiority refusal arms describe one user situation — the
+    /// definite arm composes the shared recourse directly, the
+    /// escalated arm carries it through the `Indeterminate` Display.
+    #[test]
+    fn split_param_pair_carries_the_shared_recourse() {
+        let edge = EdgeKey::default();
+        let not_interior = EulerOpError::SplitParamNotInterior { edge };
+        let msg = not_interior.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+
+        let escalated = EulerOpError::SplitParamEscalated {
+            edge,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("split_edge_param_interior"),
+            },
+        };
+        let msg = escalated.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
     }
 }

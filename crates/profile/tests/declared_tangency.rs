@@ -51,6 +51,12 @@ fn undeclared_line_arc_tangency_is_refused_typed() {
             assert_eq!((first.loop_index, first.segment_index), (0, 2));
             assert_eq!((second.loop_index, second.segment_index), (0, 3));
             assert!(suggestion.contains("declare"), "repair menu: {suggestion}");
+            // S6: the definite-tangency arm composes the shared
+            // sub-ε_input recourse (two-tolerance principle).
+            assert!(
+                suggestion.contains(geom_core::COINCIDENCE_RECOURSE),
+                "repair menu: {suggestion}"
+            );
         }
         other => panic!("expected UndeclaredTangency, got {other:?}"),
     }

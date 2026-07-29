@@ -906,16 +906,20 @@ impl fmt::Display for ValidationError {
                 f,
                 "tier-3′ census: undeclared contact {contact:?} at {witness} — \
                  touching must be backed by a declared-contact record, never \
-                 blessed from discovery (F1/F2)"
+                 blessed from discovery (F1/F2); {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "tier-3′ census: declaration {declaration:?} has no geometric \
                  witness — stale contact records are defects, not noise"
             ),
+            // `{cause}` (Display), NOT `{cause:?}`: the S6 sweep fixed a
+            // Debug-format bug here that dropped the carrier's recourse
+            // sentence from the user-facing message entirely.
             Self::CensusEscalated { cause } => write!(
                 f,
-                "tier-3′ census predicate escalated: {cause:?} — indeterminate \
+                "tier-3′ census predicate escalated: {cause} — indeterminate \
                  coincidence geometry at rest is a defect"
             ),
             Self::CensusUnsupported { entity } => write!(
@@ -4037,5 +4041,40 @@ mod tests {
             prop_assert!(validate(&cloned).is_err());
             prop_assert_eq!(validate(&t.body), Ok(()));
         }
+    }
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the census pair —
+    /// exactly-touching (`UndeclaredContact`) and in-band
+    /// (`CensusEscalated`) — is one user situation, both arms carrying
+    /// the shared recourse fragment. Also the regression net for the
+    /// S6 `{:?}` bug: `CensusEscalated` used Debug formatting on its
+    /// cause, which dropped the recourse sentence entirely.
+    #[test]
+    fn census_pair_carries_the_shared_recourse() {
+        use crate::entity::VertexKey;
+
+        let contact = ValidationError::UndeclaredContact {
+            contact: CensusContact::VertexVertex {
+                a: VertexKey::default(),
+                b: VertexKey::default(),
+            },
+            witness: "(0e0, 0e0, 0e0)".to_string(),
+        };
+        let msg = contact.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+
+        let escalated = ValidationError::CensusEscalated {
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pm_census_vv_gap"),
+            },
+        };
+        let msg = escalated.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        // Debug leakage (the `{:?}` bug) would print the enum shape,
+        // not the carrier sentence.
+        assert!(!msg.contains("MarginDiag"), "{msg}");
+        assert!(!msg.contains("Value("), "{msg}");
     }
 }

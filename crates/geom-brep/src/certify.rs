@@ -237,7 +237,8 @@ impl core::fmt::Display for CertifyError {
             Self::NotTransverse { sample } => write!(
                 f,
                 "certification: tangent planes coincide at interior sample {sample} — the \
-                 Intersection transversality precondition fails (D2)"
+                 Intersection transversality precondition fails (D2); {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::Escalated {
                 check,
@@ -1280,5 +1281,27 @@ mod tests {
         let p0 = Point3::new(1.0, 0.0, 1.0);
         let p1 = Point3::new(0.0, 1.0, 1.0);
         EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
+    }
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the transversality pair —
+    /// exactly-coincident tangent planes (`NotTransverse`) and in-band
+    /// (`Escalated`) — is one user situation; both arms carry the
+    /// shared recourse fragment.
+    #[test]
+    fn transversality_pair_carries_the_shared_recourse() {
+        let msg = CertifyError::NotTransverse { sample: 1 }.to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+
+        let msg = CertifyError::Escalated {
+            check: CertCheck::Transversality,
+            sample: 1,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("transversality"),
+            },
+        }
+        .to_string();
+        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
     }
 }

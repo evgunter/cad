@@ -76,7 +76,7 @@ pub mod tables;
 pub(crate) mod vtxfac;
 mod zip;
 
-use geom_core::{Band, BandError, Bounds, Decide, Indeterminate, Real};
+use geom_core::{Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, Real};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
@@ -577,14 +577,15 @@ impl core::fmt::Display for BooleanError {
             Self::Escalated { diag } => write!(
                 f,
                 "boolean_reduce: predicate escalated ({diag}); the operand pair is \
-                 ill-conditioned at this tolerance — resolve by explicit repair/adoption, \
-                 never by snapping"
+                 ill-conditioned at this tolerance — never resolved by snapping"
             ),
             Self::UndeclaredCoincidence { diag } => write!(
                 f,
-                "boolean_reduce: geometric near-coincidence without a shared recipe source or \
-                 declared intent ({diag}); coincidence is structural or declared, never \
-                 inferred from values — declare the relation or repair the geometry"
+                "boolean_reduce: geometric coincidence (exact or within tolerance) without \
+                 a shared recipe source or declared intent ({payload}); coincidence is \
+                 structural or declared, never inferred from values — \
+                 {COINCIDENCE_RECOURSE}",
+                payload = diag.payload()
             ),
             Self::DeclarationContradicted { diag } => write!(
                 f,
@@ -957,4 +958,36 @@ fn validate_declarations<T: Decide>(
     carried(a, &decls.carried_a, Operand::A)?;
     carried(b, &decls.carried_b, Operand::B)?;
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
+    /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
+    /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
+    /// carries the shared recourse fragment, exactly once per message.
+    #[test]
+    fn coincidence_pair_carries_the_shared_recourse_once() {
+        let diag = |margin| Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("bool_plane_offset"),
+        };
+        // The escalated arm: recourse rides the Indeterminate carrier.
+        let msg = BooleanError::Escalated {
+            diag: diag(geom_core::MarginDiag::Value(5e-9)),
+        }
+        .to_string();
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+        // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
+        // exactly-on refusal (Invalid margin, as synthesized) and the
+        // in-band refusal (Value margin) — one message, one recourse.
+        for margin in [geom_core::MarginDiag::Invalid, geom_core::MarginDiag::Value(5e-9)] {
+            let msg = BooleanError::UndeclaredCoincidence { diag: diag(margin) }.to_string();
+            assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+        }
+    }
 }
