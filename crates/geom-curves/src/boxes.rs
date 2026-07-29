@@ -98,20 +98,60 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
 /// *includes* more extrema, so it errs outward (a looser box).
 const ANGLE_SLOP: f64 = 1e-6;
 
-/// Whether some representative `phi + 2πk` possibly lies in
-/// `[lo, hi]` (already slop-widened). Conservative-inclusive: any NaN
-/// answers `true` (poison never excludes).
-fn angle_in_span(phi: f64, lo: f64, hi: f64) -> bool {
-    if phi.is_nan() || lo.is_nan() || hi.is_nan() {
+/// Whether some 2πk-translate of the angle INTERVAL `[phi_lo, phi_hi]`
+/// possibly intersects `[lo, hi]` (already slop-widened).
+/// Conservative-inclusive: any NaN answers `true` (poison never
+/// excludes), and an interval spanning a full period is always in.
+fn angle_interval_in_span(phi_lo: f64, phi_hi: f64, lo: f64, hi: f64) -> bool {
+    if phi_lo.is_nan() || phi_hi.is_nan() || lo.is_nan() || hi.is_nan() {
         return true;
     }
-    if hi - lo >= core::f64::consts::TAU {
+    let tau = core::f64::consts::TAU;
+    if hi - lo >= tau || phi_hi - phi_lo >= tau {
         return true;
     }
-    let k = ((lo - phi) / core::f64::consts::TAU).ceil();
-    let rep = phi + core::f64::consts::TAU * k;
+    // Smallest k with phi_hi + τ·k ≥ lo; intersects iff the same
+    // translate's lower end clears hi from below.
+    let k = ((lo - phi_hi) / tau).ceil();
+    let rep_lo = phi_lo + tau * k;
     // NaN-inclusive: a poisoned representative cannot prove exclusion.
-    rep.is_nan() || rep <= hi
+    rep_lo.is_nan() || rep_lo <= hi
+}
+
+/// The extremal-angle INTERVAL of `atan2(v, u)` over the bracket
+/// rectangle `u × v` (fix-pass item 3 — the reviewer's wide-bracket
+/// gap): evaluated on the four corners, which carry the angular
+/// extremes of a convex region not containing the origin (a
+/// supporting ray through the origin touches a polygon at a vertex).
+/// `None` means "no bound" — the rectangle possibly contains the
+/// origin (amplitude sign unknown) or crosses the atan2 branch cut
+/// (the wedge wraps ±π): the caller must include BOTH extrema.
+fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
+    if u.lo.is_nan() || u.hi.is_nan() || v.lo.is_nan() || v.hi.is_nan() {
+        return None; // poison: no exclusion possible
+    }
+    let u_straddles = u.lo <= 0.0 && u.hi >= 0.0;
+    let v_straddles = v.lo <= 0.0 && v.hi >= 0.0;
+    if v_straddles && (u_straddles || u.hi <= 0.0) {
+        // Origin possibly inside, or the wedge crosses the ±π cut.
+        return None;
+    }
+    let corners = [
+        geom_core::Real::atan2(v.lo, u.lo),
+        geom_core::Real::atan2(v.lo, u.hi),
+        geom_core::Real::atan2(v.hi, u.lo),
+        geom_core::Real::atan2(v.hi, u.hi),
+    ];
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    for c in corners {
+        if c.is_nan() {
+            return None;
+        }
+        lo = lo.min(c);
+        hi = hi.max(c);
+    }
+    Some((lo, hi))
 }
 
 /// The certified-conservative box of a **circular arc**: the carrier's
@@ -205,13 +245,27 @@ pub fn circle_arc_aabb<T: Bounds>(
 #[allow(clippy::too_many_arguments)] // one bracket per named quantity
 fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, lo: f64, hi: f64) {
     let amp = r.mul(u.mul(u).add(v.mul(v)).sqrt_nonneg());
-    // Midpoint atan2 is fine: ANGLE_SLOP dwarfs both the bracket
-    // widths' effect on atan2 (session-box scale) and libm's error.
-    let phi = geom_core::Real::atan2((v.lo + v.hi) * 0.5, (u.lo + u.hi) * 0.5);
-    if angle_in_span(phi, lo, hi) {
+    // The extremal angle as an INTERVAL over the bracket corners
+    // (wide input brackets shift the extremum by up to the bracket's
+    // angular width — a midpoint angle would under-cover exactly
+    // there); ANGLE_SLOP still absorbs libm error and the membership
+    // arithmetic. `None` = no exclusion possible: include both.
+    let (include_max, include_min) = match extremal_angle_interval(u, v) {
+        None => (true, true),
+        Some((p_lo, p_hi)) => (
+            angle_interval_in_span(p_lo, p_hi, lo, hi),
+            angle_interval_in_span(
+                p_lo + core::f64::consts::PI,
+                p_hi + core::f64::consts::PI,
+                lo,
+                hi,
+            ),
+        ),
+    };
+    if include_max {
         *max = pfold(*max, c.add(amp).hi, f64::max);
     }
-    if angle_in_span(phi + core::f64::consts::PI, lo, hi) {
+    if include_min {
         *min = pfold(*min, c.sub(amp).lo, f64::min);
     }
 }

@@ -81,7 +81,19 @@ fn corpus_evaluations_bit_equal_realized_vs_idealized() {
     for d in documents() {
         let real: Evaluation<f64> = eval_with(&d.doc, SweepStrategy::Realized);
         let ideal: Evaluation<f64> = eval_with(&d.doc, SweepStrategy::Idealized);
+        // Evaluation-level fields (fix-pass item 5): everything but
+        // the per-run identity token (epoch, minted per options) and
+        // the per-node results (scrubbed-compared below).
         assert_eq!(real.order, ideal.order, "{}: evaluation order", d.name);
+        assert_eq!(real.outcome, ideal.outcome, "{}: outcome", d.name);
+        assert_eq!(real.recomputed, ideal.recomputed, "{}: recomputed", d.name);
+        assert_eq!(real.reused, ideal.reused, "{}: reused", d.name);
+        assert_eq!(
+            format!("{:?}", real.appearance),
+            format!("{:?}", ideal.appearance),
+            "{}: appearance resolution",
+            d.name
+        );
         // Node-by-node so a failure names the first divergent node
         // (and the first divergent byte region) instead of dumping
         // two whole evaluations.

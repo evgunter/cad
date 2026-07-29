@@ -149,3 +149,51 @@ fn placeholder_nurbs_box_is_poison() {
         max_z: 9e9,
     }));
 }
+
+/// Fix-pass item 3: the WIDE-BRACKET row — `u_ref.x` enters as a wide
+/// interval `[−w, w]` (half-widths up to 1e-1, far beyond the angular
+/// slop), and the box built from the bracketed inputs must contain
+/// every f64 realization's samples. This is exactly where a
+/// midpoint-angle extremum test under-covers; the corner-interval
+/// evaluation shipped in `boxes.rs` is pinned here.
+#[cfg(feature = "interval")]
+#[test]
+fn wide_bracket_arc_box_contains_every_realization() {
+    use geom_core::{Interval, Real};
+    let iv = <Interval as Real>::from_f64;
+    for w in [1e-6, 1e-4, 1e-2, 1e-1] {
+        // (0.0, 1.5) is the discriminating span: the min-x extremal
+        // angle sits at pi/2 shifted by up to atan(w) — inside the
+        // span for one end of the bracket, outside for the midpoint —
+        // exactly the case a midpoint-angle test under-covers.
+        for (t0, t1) in [(0.0, 0.9), (0.0, 1.5), (1.2, 4.0), (-2.0, 0.5), (0.0, 7.0)] {
+            // Bracketed carrier: u_ref.x = [−w, w], the rest exact.
+            let carrier_iv: Curve3<Interval> = Curve3::Circle {
+                center: Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
+                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                radius: iv(2.0),
+                u_ref: Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
+            };
+            let (e0, e1) = (carrier_iv.eval(iv(t0)), carrier_iv.eval(iv(t1)));
+            let b = circle_arc_aabb(&carrier_iv, iv(t0), iv(t1), e0, e1).unwrap();
+            // Dense f64 realizations across the bracket.
+            for i in 0..=8u32 {
+                let d = -w + 2.0 * w * f64::from(i) / 8.0;
+                let real: Curve3<f64> = Curve3::Circle {
+                    center: Point3::new(1.0, -2.0, 0.5),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 2.0,
+                    u_ref: Vec3::new(d, 1.0, 0.0),
+                };
+                for j in 0..=64u32 {
+                    let t = t0 + (t1 - t0) * f64::from(j) / 64.0;
+                    let p = real.eval(t);
+                    assert!(
+                        contains(&b, p, 1e-9 * (1.0 + w)),
+                        "w={w:e} d={d:e} t={t}: sample {p:?} escaped {b:?}"
+                    );
+                }
+            }
+        }
+    }
+}
