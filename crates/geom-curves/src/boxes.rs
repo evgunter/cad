@@ -118,12 +118,13 @@ fn angle_in_span(phi: f64, lo: f64, hi: f64) -> bool {
 /// `Circle` frame over the certified span `[theta0, theta1]`, seeded
 /// with the arc's (certified) endpoint points `end0`/`end1`.
 ///
-/// Closed form, outward-only ([`Brk`]): per world axis the coordinate
+/// Closed form, outward-only (the private `Brk` outward bracket): per
+/// world axis the coordinate
 /// is `cᵢ + r·Aᵢ·cos(θ − φᵢ)` with amplitude `Aᵢ = √(uᵢ² + vᵢ²)`
 /// (`v = axis × u_ref`, computed bracket-wise), so the span extremum on
 /// that axis is `cᵢ ± r·Aᵢ` — included exactly when the extremal angle
 /// `φᵢ = atan2(vᵢ, uᵢ)` (or `φᵢ + π`) possibly lies in the span
-/// ([`ANGLE_SLOP`]-widened, conservative-inclusive); otherwise the
+/// (`ANGLE_SLOP`-widened, conservative-inclusive); otherwise the
 /// endpoint hull already bounds the monotone piece. The endpoints
 /// enter as brackets; residual padding (vertices sit on carriers only
 /// up to certification) is the CALLER's `Aabb::padded` obligation,
