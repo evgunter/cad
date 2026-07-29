@@ -42,7 +42,9 @@ fn block(
     )
 }
 
-fn run<T: Decide + editor_core::ContentBits + geom_core::Bounds + Send + Sync>(doc: &ProfileDoc) -> Evaluation<T> {
+fn run<T: Decide + editor_core::ContentBits + geom_core::Bounds + Send + Sync>(
+    doc: &ProfileDoc,
+) -> Evaluation<T> {
     evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
 }
 
