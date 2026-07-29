@@ -480,3 +480,14 @@ closure), NURBS legs with implied junction-owned control points
 safety property migrated from runtime rules into types.
 Merging on green; S2 (arc-leg sugar) unblocks with its
 sugar-over-the-algebra shape constraint now ratified.
+
+**#124 MERGED (2026-07-29): main `5bb2d51` — PATHS-DESIGN is
+ratified text.** Merged on the docs-only fallback: Evan's lgtm +
+prior full-green run on the same branch, delta verified as
+docs/PATHS-DESIGN.md only (the 19/19 check failure was the
+GitHub ACTIONS BUDGET exhausting — 2-10s refusals, not tests;
+Evan confirmed in-session). **Merge-gate posture until the
+Actions budget recovers: gate.sh locally per merge-ref for code
+PRs** (the standing fallback); docs-only PRs merge on sign-off +
+verified doc-only delta. Watchers stand down; gate runs queue
+behind the active lanes (PR 8 fix pass, PR 4 review).
