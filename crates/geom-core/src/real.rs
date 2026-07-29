@@ -348,6 +348,19 @@ pub trait Real:
 /// evaluation type parameter is exactly the escape hatch the discipline's
 /// CI grep exists to catch.
 ///
+/// **Ratified amendment (2026-07-29, M5 PR 8):** spatial-index /
+/// candidate-pruning DRIVER code — the C10 `bvh` crate and the
+/// certified box constructors beside their invariants — and the
+/// boolean-sweep + evaluation-service seams that feed it may write
+/// `T: Decide + Bounds`: the sweep is simultaneously decision code
+/// (`Decide`) and the subdivision driver (`Bounds`), so the sole-bound
+/// form is unsatisfiable there and the compound bound is the honest
+/// signature. The sole-bound rule stands everywhere else, the CI grep
+/// enforces a per-file allowlist of exactly these seams, and brackets
+/// still never decide topology — every topology-determining branch
+/// remains a [`Decide`](crate::predicate::Decide) call site; boxes
+/// only ever prune.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

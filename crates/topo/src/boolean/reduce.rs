@@ -2,9 +2,32 @@
 //! all-pairs edge×face in BOTH directions, realizing the eight-step
 //! specification in one sweep with `contfp`/`contfv` typed case codes.
 //!
-//! - **Quadratic, documented**: `O(E_A·F_B + E_B·F_A)` face loops per
-//!   edge fragment — correctness first; a BVH/box filter is the
-//!   PERF-PLAN's later 10× and changes nothing here.
+//! - **Candidate generation through the `bvh` tree** (M5 PR 8, C10 —
+//!   the documented quadratic of M3, retired): each edge fragment
+//!   queries the per-direction face tree ([`super::boxes`], padded
+//!   vertex-extent boxes) instead of scanning every face. THE TREE
+//!   PRUNES, PREDICATES DECIDE: candidates arrive in ascending face
+//!   arena order (a subsequence of the brute-force scan), the exact
+//!   per-pair classification below is untouched, and the conservative
+//!   pad guarantees every pair the exact predicates would accept
+//!   survives — so results are bit-identical to the brute-force sweep
+//!   by construction, and the idealized/realized differential suite
+//!   (PERF-PLAN §4.4; `tests/m5_pr8_bvh_diff.rs`, the corpus suite in
+//!   editor-core) pins it: realized candidates ⊇ idealized accepted
+//!   pairs, final results bit-equal, planted degradation caught. The
+//!   brute-force scan survives as [`SweepStrategy::Idealized`] — the
+//!   ten-line definition of the candidate set. One documented
+//!   divergence, error channel only: a pair whose boxes are disjoint
+//!   can still ESCALATE the brute path's `bool_vertex_face_side` when
+//!   an edge grazes a face's *infinite* plane far from the face
+//!   itself; the realized path never examines it. Pruning can drop
+//!   only such spurious escalations, never an accepted event — the
+//!   value channel is pinned bit-equal. In the full boolean the same
+//!   in-band margin typically resurfaces at a LATER stage anyway (the
+//!   disjoint-operands containment walk decides against the same
+//!   plane), so what actually diverges is the refusal SITE, not
+//!   success: pinned predicate-by-predicate in the suite's grazing
+//!   fixture.
 //! - **Worklist, not recursion** (Problem 15.3 / F12): a proper
 //!   crossing splits the edge through the certified `split_edge` lane
 //!   and pushes BOTH children back with the *next* face index (a line
@@ -24,8 +47,9 @@
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
 //!   order, faces in arena snapshot order, worklist FIFO.
 
-use geom_core::{Band, Decide, Point3, Sign};
+use geom_core::{Band, Bounds, Decide, Point3, Sign};
 
+use super::boxes;
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
@@ -33,6 +57,59 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
+
+/// Which candidate-generation path the reduction sweep runs — the
+/// idealized/realized pair of PERF-PLAN §4.4 (the pattern is only
+/// permitted WITH its differential suite; see the module docs).
+/// Production entries always run [`SweepStrategy::Realized`]; the
+/// idealized path is the executable definition of the candidate set,
+/// kept alive for the suite's pins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SweepStrategy {
+    /// BVH-pruned candidate generation (the production path).
+    Realized,
+    /// Brute-force all-pairs (the reference definition).
+    Idealized,
+}
+
+/// One direction's sweep observations, for the differential suite's
+/// superset pin: `examined` = pairs whose exact classification ran
+/// (the candidate set), `accepted` = pairs where the exact predicates
+/// accepted at least one event (a crossing inside the face, or an
+/// endpoint contact). Pairs are `(edge of x, face of y)` in
+/// examination order.
+#[derive(Debug, Default, Clone)]
+pub struct SweepTrace {
+    /// Every candidate pair the exact path examined.
+    pub examined: Vec<(EdgeKey, FaceKey)>,
+    /// The subset of pairs that produced an accepted event.
+    pub accepted: Vec<(EdgeKey, FaceKey)>,
+}
+
+/// The suite's failure-injection seam (pin iii — "the suite must be
+/// able to fail"): shrink ONE face's box to the poison-free EMPTY box
+/// before building the tree, so candidate generation loses whatever
+/// events that face carries and the superset pin must catch it.
+/// `sweep-testing` feature only — no production consumer can name a
+/// failure injector (M5 PR 8 fix pass, item 2).
+#[cfg(feature = "sweep-testing")]
+#[derive(Debug, Clone, Copy)]
+pub struct PlantedDegradation {
+    /// The face whose box is planted empty.
+    pub face: FaceKey,
+}
+
+/// Internal candidate-generation knobs (private plumbing; the PUBLIC
+/// doors that can set anything non-default are `sweep-testing`-gated).
+/// Production entries always pass `SweepKnobs::default()`.
+#[derive(Debug, Default, Clone, Copy)]
+pub(super) struct SweepKnobs {
+    /// Pin (iii): plant this face's box empty.
+    pub(super) plant: Option<FaceKey>,
+    /// Pin 1(b): override [`boxes::sweep_pad`] (a DELIBERATELY
+    /// breakable knob — the suite proves a too-small pad is caught).
+    pub(super) pad_override: Option<f64>,
+}
 
 /// The (deduplicating, order-preserving) contact accumulator.
 #[derive(Default)]
@@ -199,23 +276,82 @@ fn edge_chord_len<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
     Some((pb - pa).norm())
 }
 
-/// One sweep direction: every edge (fragment) of `x` against every face
-/// of `y`. `x_is` names which operand `x` is (contact orientation).
-pub(super) fn sweep_direction<T: Decide>(
+/// One sweep direction: every edge (fragment) of `x` against the faces
+/// of `y` its box can touch (module docs: the tree prunes, predicates
+/// decide). `x_is` names which operand `x` is (contact orientation).
+///
+/// `T: Decide + Bounds` is the ratified compound-bound seam
+/// (2026-07-29 — geom-core `real.rs`, Bounds scope rule): the C10
+/// tree is the subdivision driver, and box construction reads
+/// coordinate brackets — never a value comparison in classification.
+#[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, sinks, band, strategy, plant, trace)
+pub(super) fn sweep_direction<T: Decide + Bounds>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
     contacts: &mut ContactAcc,
     band: Band,
+    strategy: SweepStrategy,
+    knobs: &SweepKnobs,
+    mut trace: Option<&mut SweepTrace>,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
+    // Realized: the per-direction face tree, built ONCE over the face
+    // snapshot (arena order = input order). Mid-sweep splits of `y`'s
+    // edges only mint vertices ON existing boundary (within the pad),
+    // so the snapshot boxes stay conservative for the whole direction.
+    let pad = knobs.pad_override.unwrap_or_else(|| boxes::sweep_pad(band));
+    let tree = match strategy {
+        SweepStrategy::Realized => {
+            let mut face_boxes = Vec::with_capacity(faces.len());
+            for &f in &faces {
+                let planted = knobs.plant == Some(f);
+                face_boxes.push(if planted {
+                    // Pin (iii)'s planted degradation: the inverted box
+                    // overlaps nothing — this face's events get lost
+                    // and the suite's superset pin must catch it.
+                    bvh::Aabb {
+                        min_x: f64::INFINITY,
+                        min_y: f64::INFINITY,
+                        min_z: f64::INFINITY,
+                        max_x: f64::NEG_INFINITY,
+                        max_y: f64::NEG_INFINITY,
+                        max_z: f64::NEG_INFINITY,
+                    }
+                } else {
+                    boxes::face_box(y, f, pad)?
+                });
+            }
+            Some(bvh::Bvh::build(&face_boxes))
+        }
+        SweepStrategy::Idealized => None,
+    };
     let mut worklist: std::collections::VecDeque<(EdgeKey, usize)> =
         x.edges().map(|(k, _)| (k, 0)).collect();
 
     while let Some((edge_key, start)) = worklist.pop_front() {
-        let mut j = start;
-        'faces: while j < faces.len() {
-            let face = faces[j];
+        // The fragment's candidate face indices, ascending — the
+        // realized set is a subsequence of the idealized scan, so the
+        // examination order (and with it every split/requeue) is
+        // preserved pair-for-pair.
+        let candidates: Vec<usize> = match &tree {
+            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)?),
+            None => (0..faces.len()).collect(),
+        };
+        let mut ci = 0;
+        'faces: while let Some(&j) = candidates.get(ci) {
+            ci += 1;
+            if j < start {
+                continue;
+            }
+            let Some(&face) = faces.get(j) else {
+                // Unreachable: candidate indices come from the face
+                // snapshot itself.
+                break;
+            };
+            if let Some(tr) = trace.as_deref_mut() {
+                tr.examined.push((edge_key, face));
+            }
             let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
                 what: "post-gate face lost its plane",
             })?;
@@ -264,7 +400,14 @@ pub(super) fn sweep_direction<T: Decide>(
                     let d2 = (pv - plane.origin).dot(plane.normal);
                     let t = t0 + (t1 - t0) * (d1 / (d1 - d2));
                     let p = curve.carrier().eval(t);
-                    match contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))? {
+                    let containment =
+                        contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                    if !matches!(containment, FaceContainment::Out)
+                        && let Some(tr) = trace.as_deref_mut()
+                    {
+                        tr.accepted.push((edge_key, face));
+                    }
+                    match containment {
                         FaceContainment::Out => {}
                         FaceContainment::In => {
                             let w = split_at(x, x_is, edge_key, t)?;
@@ -292,15 +435,18 @@ pub(super) fn sweep_direction<T: Decide>(
                 // deliberately gets endpoint treatment ONLY (module
                 // docs: interior events surface via neighbor faces).
                 (za, zb) => {
+                    let mut hit = false;
                     if za == Sign::Zero {
-                        vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band)?;
+                        hit |= vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band)?;
                     }
                     if zb == Sign::Zero {
-                        vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band)?;
+                        hit |= vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band)?;
+                    }
+                    if hit && let Some(tr) = trace.as_deref_mut() {
+                        tr.accepted.push((edge_key, face));
                     }
                 }
             }
-            j += 1;
         }
     }
     Ok(())
@@ -339,7 +485,10 @@ fn push_vv(contacts: &mut ContactAcc, x_is: Operand, wx: VertexKey, wy: VertexKe
 }
 
 /// `dovertexonface`: an existing vertex of `x` lies on `face`'s plane —
-/// classify it against the face and record the contact kind.
+/// classify it against the face and record the contact kind. Returns
+/// whether the exact predicates ACCEPTED an event (anything but `Out`)
+/// — the differential suite's accepted-pair channel; recording changes
+/// no classification.
 #[allow(clippy::too_many_arguments)]
 fn vertex_on_face<T: Decide>(
     x_is: Operand,
@@ -350,9 +499,9 @@ fn vertex_on_face<T: Decide>(
     plane: &PlaneDesc<T>,
     contacts: &mut ContactAcc,
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<bool, BooleanError> {
     match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other()))? {
-        FaceContainment::Out => {}
+        FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
             let wy = split_other_at_point(y, x_is.other(), ey, px)?;
@@ -360,7 +509,7 @@ fn vertex_on_face<T: Decide>(
         }
         FaceContainment::OnVertex(vy) => push_vv(contacts, x_is, vx, vy),
     }
-    Ok(())
+    Ok(true)
 }
 
 fn split_at<T: Decide>(

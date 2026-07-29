@@ -19,9 +19,12 @@
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
 //!    triggers the precondition (it is not coincidence; if it bites, it
 //!    bites later as a typed escalation — the ladder's honest shape).
-//! 2. **Reduction sweep** (`reduce`): all-pairs edge×face, BOTH
-//!    directions, quadratic (documented; BVH later per PERF-PLAN),
-//!    with `contfv`/`contfp` as typed trilean case codes. Proper
+//! 2. **Reduction sweep** (`reduce`): edge×face, BOTH directions,
+//!    candidate generation through the `bvh` tree since M5 PR 8 (the
+//!    tree prunes, predicates decide — `reduce` module docs; the
+//!    brute-force scan survives as [`SweepStrategy::Idealized`] under
+//!    the differential suite), with `contfv`/`contfp` as typed
+//!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing
 //!    ON an edge (both edges split → a v-v pair); coplanar edge-face
@@ -57,6 +60,7 @@
 //! `dot(dir, n_outward) < 0 ⇒ Enters ⇒ IN`; positive ⇒ OUT. Mirror
 //! tests pin both directions on brick fixtures.
 
+pub(crate) mod boxes;
 mod combine;
 mod contain;
 mod finish;
@@ -72,7 +76,7 @@ pub mod tables;
 pub(crate) mod vtxfac;
 mod zip;
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Real};
+use geom_core::{Band, BandError, Bounds, Decide, Indeterminate, Real};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
@@ -85,10 +89,13 @@ use crate::validate::ValidationError;
 pub use contain::{ContainError, FaceContainment, contfp};
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, intersect,
-    intersect_with, subtract, subtract_with, union, union_with,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
+    intersect, intersect_with, subtract, subtract_with, union, union_with,
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+#[cfg(feature = "sweep-testing")]
+pub use reduce::PlantedDegradation;
+pub use reduce::{SweepStrategy, SweepTrace};
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the
@@ -681,7 +688,7 @@ impl std::error::Error for BooleanError {}
 ///
 /// [`BooleanError`] — see each variant; the first failure wins and the
 /// operands are never mutated (the clones are dropped).
-pub fn boolean_reduce<T: Decide>(
+pub fn boolean_reduce<T: Decide + Bounds>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -698,11 +705,112 @@ pub fn boolean_reduce<T: Decide>(
 ///
 /// [`BooleanError`] — including [`BooleanError::InvalidDeclaration`]
 /// for payloads that do not resolve against the operands.
-pub fn boolean_reduce_declared<T: Decide>(
+pub fn boolean_reduce_declared<T: Decide + Bounds>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
+) -> Result<BooleanReduction<T>, BooleanError> {
+    boolean_reduce_declared_strategy(op, a_operand, b_operand, decls, SweepStrategy::Realized)
+}
+
+/// The differential suite's sweep-level door (PERF-PLAN §4.4 / C10,
+/// pins i and iii): clones the operands, runs the gates and BOTH
+/// reduction sweep directions under `strategy`, and returns the
+/// per-direction traces `(A→B, B→A)` — `examined` (the candidate set)
+/// and `accepted` (pairs where the exact predicates accepted an
+/// event). The suite pins `Realized.examined ⊇ Idealized.accepted`
+/// per direction.
+///
+/// `plant` is pin (iii)'s failure injection: it empties ONE face box
+/// of `b_operand` in the A→B direction (candidate generation loses
+/// that face's events), proving the superset pin can fail. Production
+/// code never passes it.
+///
+/// # Errors
+///
+/// [`BooleanError`] — the same gates and sweep refusals as
+/// [`boolean_reduce`].
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_traces<T: Decide + Bounds>(
+    a_operand: &Body<T>,
+    b_operand: &Body<T>,
+    strategy: SweepStrategy,
+    plant: Option<PlantedDegradation>,
+) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None)
+}
+
+/// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
+/// proves a too-small pad (e.g. `Some(0.0)`) LOSES accepted pairs and
+/// the superset comparator catches it. A deliberately breakable knob —
+/// `sweep-testing` only, never production surface.
+///
+/// # Errors
+///
+/// [`BooleanError`] as [`sweep_traces`].
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_traces_with_pad<T: Decide + Bounds>(
+    a_operand: &Body<T>,
+    b_operand: &Body<T>,
+    strategy: SweepStrategy,
+    plant: Option<PlantedDegradation>,
+    pad_override: Option<f64>,
+) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+    let band = Band::linear()?;
+    reduce::gate_planar(a_operand, Operand::A)?;
+    reduce::gate_planar(b_operand, Operand::B)?;
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+    let mut acc = reduce::ContactAcc::default();
+    let mut ab = SweepTrace::default();
+    let mut ba = SweepTrace::default();
+    let ab_knobs = reduce::SweepKnobs {
+        plant: plant.map(|p| p.face),
+        pad_override,
+    };
+    // The plant names a face of `b_operand`, so it applies to the A→B
+    // direction only; the pad override applies to both.
+    let ba_knobs = reduce::SweepKnobs {
+        plant: None,
+        pad_override,
+    };
+    reduce::sweep_direction(
+        &mut a,
+        &mut b,
+        Operand::A,
+        &mut acc,
+        band,
+        strategy,
+        &ab_knobs,
+        Some(&mut ab),
+    )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &mut acc,
+        band,
+        strategy,
+        &ba_knobs,
+        Some(&mut ba),
+    )?;
+    Ok((ab, ba))
+}
+
+/// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
+/// the idealized/realized door (PERF-PLAN §4.4): production always
+/// runs `Realized`; the differential suite runs both and pins
+/// bit-equality. Reached via [`boolean_op_with`] for full ops.
+pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
+    op: BooleanOp,
+    a_operand: &Body<T>,
+    b_operand: &Body<T>,
+    decls: &BooleanDeclarations,
+    strategy: SweepStrategy,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear()?;
     validate_declarations(a_operand, b_operand, decls)?;
@@ -717,8 +825,27 @@ pub fn boolean_reduce_declared<T: Decide>(
 
     // Reduction sweep, both directions (A's edges first — D9 order).
     let mut acc = reduce::ContactAcc::default();
-    reduce::sweep_direction(&mut a, &mut b, Operand::A, &mut acc, band)?;
-    reduce::sweep_direction(&mut b, &mut a, Operand::B, &mut acc, band)?;
+    let knobs = reduce::SweepKnobs::default();
+    reduce::sweep_direction(
+        &mut a,
+        &mut b,
+        Operand::A,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+    )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+    )?;
     let contacts = acc.finish();
 
     let mut null_edges = Vec::new();

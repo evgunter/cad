@@ -581,6 +581,48 @@ applied to error handling. Five commitments:
    micron-to-kilometer coverage with ~4 orders of f64 headroom at km
    scale. Import does *not* motivate loosening ε — see D7's input
    tolerance ε_in.
+   **The two-tolerance principle (RATIFIED 2026-07-29, Evan's lgtm on
+   #129; born in the #124 thread).** Two roles
+   that D7 already separates at the import boundary are adopted as
+   kernel-wide vocabulary: **ε_precision** (this section's ε — "the
+   precision we represent": certification residuals, D4 ¶2, what
+   gets built) and **ε_input** — "the least precision the user might
+   care about": what counts as too-close-to-a-coincidence when
+   interpreting input, and the threshold below which user-facing
+   distinctions are noise. ε_input > ε_precision always (differences below ε_precision are
+   not even representable claims), and **ε_input IS K·ε — a synonym,
+   not a third dial** (simplified per Evan's #129 review: K stays
+   the one knob, `Tolerance.k`; the vocabulary contribution is the
+   ROLE NAMES, not new machinery). The Q1 escalation band remains
+   precision machinery (escalate-never-guess) as ever. Consequences,
+   binding once ratified:
+   (i) **User-facing messages and recourse never fork on exactly-on
+   vs in-band below ε_input** — both are "coincident at any
+   precision you could care about"; ONE message, ONE recourse
+   (declare the coincidence / move the geometry / lower the
+   tolerance), with the margin riding the error payload as data.
+   Kernel SEMANTICS keep the distinction (ON-set classification,
+   escalation, declared-verification are unchanged — this is
+   message policy, not predicate policy).
+   (ii) The existing error taxonomy gets a message-level rework
+   sweep — scheduled as M5 side unit S6, dispatching to the first
+   freed implementation lane (post the PR 4/PR 8 review cycles in
+   flight at ratification): the audited candidate
+   pairs are profile UndeclaredTangency/TangentialContact vs
+   Escalated, boolean UndeclaredCoincidence vs Escalated, census
+   UndeclaredContact vs CensusEscalated, split_edge
+   SplitParamNotInterior vs SplitParamEscalated, split-join
+   DegenerateSection vs Escalated, sweep Degenerate*/
+   VertexCrossesAxis vs *Escalated/SliverRadius, certify
+   NotTransverse vs Escalated, props DegenerateFace vs Escalated —
+   with `merge_coplanar_faces`' already-collapsed error as the
+   in-repo precedent and the shared `Indeterminate` Display string
+   as the natural carrier of the unified recourse. Variants may
+   stay distinct as DATA; their user stories converge.
+   (iii) D7's ε_in is an instance of ε_input (per-import override
+   of the interpretation threshold), not a separate concept —
+   adoption re-runs classification at a different ε_input, exactly
+   as CURVED-DESIGN's D7 leave-room obligation already requires.
    **Chordal tolerance δ is not a tolerance in this sense (ratified at
    M2, PR 6).** Tessellation/export take a per-call *display parameter*
    δ (chordal deviation), deliberately distinct from ε: δ is chosen per
@@ -801,7 +843,30 @@ ratified; each earned by a concrete M4 incident):**
 3. **Full-matrix watcher floors.** Any merge-gating checks watcher
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the
-   matrix — a stale shorter matrix can never gate a merge. Earned:
+   matrix — a stale shorter matrix can never gate a merge.
+   *Change-filter rider (2026-07-29, Evan's ask post-Actions-budget;
+   made dependency-aware 2026-07-28):* CI carries a three-tier change
+   filter, implemented once in `scripts/ci-filter.py` and called by
+   both `ci.yml`'s filter job and `scripts/ci-local.sh`, so hosted and
+   local gating cannot drift. Tier `docs` — only `*.md`/`memories/` —
+   skips every build row and gates on the `docs-only` marker job.
+   Tier `all` — any workspace-level file, which includes the root
+   manifest, `Cargo.lock`, the toolchain file, `.cargo/`, `.github/`,
+   `scripts/`, the excluded workspaces, the k-lint input data, ANY
+   member `Cargo.toml` (feature unification is workspace-wide), and
+   anything the allowlist does not recognise — runs the whole matrix
+   unscoped. Tier `closure` — crate sources only — scopes the cargo
+   rows to the changed members plus every member that transitively
+   depends on them (dev-dependencies included), and runs each
+   pipeline row iff its root package is in that closure. Filtering is
+   never per-crate in the naive sense: the closure is what keeps
+   partial green from becoming the trap this convention kills, and
+   classification fails CLOSED — any uncertainty is tier `all`.
+   Floors apply to CODE change sets, and to the rows a tier actually
+   selects. `ci-local.sh` is filtered by default for equivalence with
+   hosted, with `--full` forcing tier `all` (suspect environments,
+   post-crash verification, torn caches, full-battery obligations).
+   Earned:
    the #113 stale-10-row-green trap (branch predating new
    persistence rows showed green on the old matrix); floors then
    tracked the matrix 13 → 14 → 16 through #116/#118.
@@ -831,6 +896,7 @@ Each layer depends only on the layers below it.
 | Crate | Contents |
 |---|---|
 | `geom-core` | Scalar trait (`f64`, intervals, duals), 2-D/3-D points/vectors/transforms (hand-rolled, small, fixed-dim — we control the scalar trait), robust predicates, root finding |
+| `bvh` | *(added M5 PR 8, C10)* Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide (D9). Deliberately BELOW the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom-curves`/`geom-surfaces` |
 | `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
 | `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic) |
 | `kernel-ops` | Primitives; extrude/revolve/sweep (build B-reps directly, no booleans needed — hence early); then booleans; then fillets/shell/offset |
@@ -1497,7 +1563,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M4). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
-| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **History**: `inari` was the M0-M4 backend (issue #4) with its gmp/MPFR LGPL-3.0+ transitive deps quarantined behind the `interval` cargo feature; the M5 PR 1 swap RETIRED inari from the tree entirely (Cargo.lock zero hits, dev-deps included), so **the kernel is copyleft-free in every build configuration and issue #4's exit condition is met by removal** — inari survives only as the optional differential oracle inside the excluded crate's own workspace. The AVX+FMA target-cpu floor is now a D9-consistency/perf choice, not a dependency requirement (revisit with measurements) |
+| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **History**: `inari` was the M0-M4 backend (issue #4) with its gmp/MPFR LGPL-3.0+ transitive deps quarantined behind the `interval` cargo feature; the M5 PR 1 swap RETIRED inari from the tree entirely (Cargo.lock zero hits, dev-deps included), so **the kernel is copyleft-free in every build configuration and issue #4's exit condition is met by removal** — inari survives only as the optional differential oracle inside the excluded crate's own workspace. The historical AVX+FMA target-cpu floor was DROPPED post-swap (2026-07-29, Evan's #127 retroactive review — no correctness need remains; mul_add witnesses are correctly-rounded regardless) |
 | Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
