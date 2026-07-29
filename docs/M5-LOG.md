@@ -509,3 +509,25 @@ tier-aware (no-fail + filter-pass, not row-count floors).
 Also: #104 CLOSED (resolved by ratified #124); #89 re-confirmed
 open-by-design; PR 8's two MAJORs put to Evan directly in-session
 (N5 posture; L7 Bounds amendment) with recommendations.
+
+**PR 8 MAJORs RULED (Evan, in-session 2026-07-29): N5 = option
+(a)** (accept + document: reachability enumeration + N5 amended
+to name sweep pruning; acceptance goldens re-pinned on the
+PRODUCTION path with the degraded row explicit; engine-semantics
+tests may stay idealized with header notes; shadow-exec recovery
+rung BANKED as #134) **and L7 = ratify the narrow amendment**
+(real.rs rule text gains the named seams; CI grep refined with a
+file allowlist failing on new unlisted `+ Bounds` sites; bvh
+charter wording ratified-not-self-asserted). Mechanical fix pass
+landed first (pad genuinely pinned — pad=0 now FAILS the suite;
+corner-evaluated arc-box extremal interval; injectors behind
+sweep-testing feature; pin-2 de-vacuoused; scrubbed() widened;
+poison proptest; grazing-plane divergence pinned WITH a
+sharpening: the value channel never diverges on the fixture —
+only the refusal SITE moves, sweep predicate vs containment
+predicate). Ruling increment dispatched to the same lane. Also:
+branch cleanup per Evan (31 merged remote branches deleted;
+remote now 6); #133 final head GREEN awaiting his 👍; a mid-turn
+text-delivery miss re-sent (decision elaborations had been
+written between tool calls — lesson: final-message-only for
+user-facing content).
