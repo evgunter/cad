@@ -843,7 +843,14 @@ ratified; each earned by a concrete M4 incident):**
 3. **Full-matrix watcher floors.** Any merge-gating checks watcher
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the
-   matrix — a stale shorter matrix can never gate a merge. Earned:
+   matrix — a stale shorter matrix can never gate a merge.
+   *Docs-only rider (2026-07-29, Evan's ask post-Actions-budget):*
+   the hosted matrix carries a change filter — a change set of only
+   `*.md`/`memories/` files skips the build rows and gates on the
+   `docs-only` marker job instead; floors apply to CODE change
+   sets. The filter is deliberately two-tier (docs vs everything;
+   never per-crate — partial green is the trap this convention
+   kills). Earned:
    the #113 stale-10-row-green trap (branch predating new
    persistence rows showed green on the old matrix); floors then
    tracked the matrix 13 → 14 → 16 through #116/#118.

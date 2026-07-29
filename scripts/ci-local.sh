@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# NOTE (2026-07-29): hosted ci.yml gained a change-filter — docs-only
+# changes (only *.md / memories/) skip the build matrix and gate on a
+# marker job; code changes run everything. This local mirror stays
+# UNFILTERED on purpose: a local gate run is always a full-matrix run.
 # Local mirror of .github/workflows/ci.yml — the merge gate while hosted
 # Actions is unavailable (GitHub free-plan minutes exhausted, 2026-07-22),
 # and a pre-push check any time. Keep the two IN SYNC: a job added to
