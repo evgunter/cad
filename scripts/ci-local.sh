@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+# CHANGE FILTER (2026-07-28): this script is filtered exactly like hosted
+# CI, ON BY DEFAULT, because both call the SAME classifier —
+# scripts/ci-filter.py. It reports one of three tiers for the change set
+# (see that script's docstring): `docs` runs nothing, `all` runs this whole
+# matrix unscoped, `closure` builds the changed workspace members plus every
+# member that transitively depends on them and runs only the pipeline rows
+# whose root package is in that closure. Filtered rows print SKIP (filter)
+# in the summary, so what was skipped is always visible.
+#
+# Pass --full to force the `all` tier. That is the right call for:
+#   * merge-gate runs on a suspect environment (mixed toolchains, a machine
+#     you have not gated on before);
+#   * post-crash / interrupted-run verification, where the tree state is not
+#     trustworthy enough for a diff-derived answer;
+#   * torn or poisoned target/ caches — the filter reasons about SOURCE
+#     changes, not about what a cache actually contains;
+#   * implementer full-battery obligations — the subagent battery prompts
+#     ask for the full matrix deliberately, and a filtered run does not
+#     discharge them.
+# Pass --base <ref> to classify against something other than the merge-base
+# with origin/main. Classification fails CLOSED: any uncertainty is `all`.
 # Local mirror of .github/workflows/ci.yml — the merge gate while hosted
 # Actions is unavailable (GitHub free-plan minutes exhausted, 2026-07-22),
 # and a pre-push check any time. Keep the two IN SYNC: a job added to
@@ -15,6 +36,54 @@
 set -u
 cd "$(dirname "$0")/.."
 
+# --- change filter: one shared implementation with .github/workflows/ci.yml
+FULL=0
+BASE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --full) FULL=1; shift ;;
+    --base) BASE="${2:?--base needs a ref}"; shift 2 ;;
+    *) echo "usage: ci-local.sh [--full] [--base <ref>]" >&2; exit 2 ;;
+  esac
+done
+
+TIER=all
+SCOPE=--workspace
+RUN_EDITOR_CORE=true
+RUN_STL=true
+RUN_STEP_EXPORT=true
+RUN_INTERVAL_BACKEND=true
+RUN_K_LINT=true
+if [ "$FULL" -eq 1 ]; then
+  echo "=== change filter: --full, forcing tier 'all'"
+else
+  if [ -z "$BASE" ]; then
+    BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)
+  fi
+  echo "=== change filter: classifying against $BASE"
+  # No `local`/subshell tricks: read the KEY=value lines straight into the
+  # variables above. If the script itself dies, the defaults stand and the
+  # run is a full one — fail closed, same as hosted.
+  while IFS='=' read -r k v; do
+    case "$k" in
+      TIER) TIER="$v" ;;
+      CARGO_SCOPE) SCOPE="$v" ;;
+      RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
+      RUN_STL) RUN_STL="$v" ;;
+      RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
+      RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
+      RUN_K_LINT) RUN_K_LINT="$v" ;;
+    esac
+  done < <(scripts/ci-filter.py --base "$BASE")
+fi
+echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+if [ "$TIER" = docs ]; then
+  echo "=== documentation-only change set: nothing to build."
+  echo "=== (hosted CI gates such a PR on the 'docs-only ok' marker job.)"
+  echo "=== re-run with --full to force the whole matrix anyway."
+  exit 0
+fi
+
 declare -a NAMES RESULTS
 run_row() {
   local name="$1"; shift
@@ -23,6 +92,16 @@ run_row() {
   local t0=$SECONDS
   if "$@"; then RESULTS+=("PASS $((SECONDS - t0))s"); else RESULTS+=("FAIL $((SECONDS - t0))s"); fi
   NAMES+=("$name")
+}
+# A row whose root package is outside the closure: recorded, not run.
+run_row_if() {
+  local cond="$1" name="$2"; shift 2
+  if [ "$cond" = true ]; then
+    run_row "$name" "$@"
+  else
+    echo; echo "=== [$name] SKIPPED (not in the change closure)"
+    NAMES+=("$name"); RESULTS+=("SKIP  0s")
+  fi
 }
 
 # --- discipline (evaluation-code): the three tripwire greps, verbatim ---
@@ -75,8 +154,13 @@ step_import() {
   scripts/check_step.sh
 }
 
-test_eps() { CAD_TOLERANCE_EPS="$1" cargo test --workspace; }
-interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test --workspace --features interval; }
+# $SCOPE is the filter's package scope: `--workspace` in tier `all`, an
+# explicit `-p <closure>` list in tier `closure`. Unquoted on purpose —
+# it must word-split into cargo arguments.
+# shellcheck disable=SC2086
+test_eps() { CAD_TOLERANCE_EPS="$1" cargo test $SCOPE; }
+# shellcheck disable=SC2086
+interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test $SCOPE --features interval; }
 
 # M4 PR 6 spec D6: the three persistence obligations as NAMED rows
 # (also covered by the workspace rows; named = attributable).
@@ -151,29 +235,42 @@ klint_advisory() {
     ../../target/k-fresh/m4-eps-1e-12.csv)
 }
 
+# Rows always run (discipline greps are cheap; rustfmt is --all by design
+# and cheap; the cargo rows are already package-scoped by $SCOPE).
+# shellcheck disable=SC2086
 run_row "discipline (evaluation-code)" discipline
 run_row "rustfmt"                      cargo fmt --all --check
-run_row "clippy"                       cargo clippy --workspace --all-targets -- -D warnings
-run_row "test"                         cargo test --workspace
+run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
+run_row "test"                         cargo test $SCOPE
 run_row "test (eps = 1e-6)"            test_eps 1e-6
 run_row "test (eps = 1e-9)"            test_eps 1e-9
 run_row "test (eps = 1e-12)"           test_eps 1e-12
-run_row "clippy (interval)"            cargo clippy --workspace --all-targets --features interval -- -D warnings
-run_row "test (interval)"              cargo test --workspace --features interval
+run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --features interval -- -D warnings
+run_row "test (interval)"              cargo test $SCOPE --features interval
 run_row "test (interval, eps = 1e-6)"  interval_eps
-run_row "persist save/load/replay (D6.1)" persist_roundtrip
-run_row "persist eps-diff golden (D6.2)"  persist_eps_diff
-run_row "persist refusal (D6.3)"          persist_refusal
-run_row "persist roundtrip (interval)"    persist_interval
-run_row "band 4 corpus (3 eps rows)"      corpus_eps
-run_row "band 4 corpus (interval)"        corpus_interval
-run_row "interval backend (gmp-free)"     interval_backend
-run_row "rebuild latency (reporting)"     rebuild_latency
-run_row "demos tour (fmt + clippy)"       demos_hygiene
-run_row "k-lint tool (fmt+clippy+litmus)" klint_tool
-run_row "k-lint sweep + advisory lint"    klint_advisory
-run_row "watertight (admesh)"          watertight
-run_row "step import (freecad)"        step_import
+# Root package editor-core (persistence D6.*, band 4 corpus D1, latency D2).
+run_row_if "$RUN_EDITOR_CORE" "persist save/load/replay (D6.1)" persist_roundtrip
+run_row_if "$RUN_EDITOR_CORE" "persist eps-diff golden (D6.2)"  persist_eps_diff
+run_row_if "$RUN_EDITOR_CORE" "persist refusal (D6.3)"          persist_refusal
+run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
+run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (3 eps rows)"      corpus_eps
+run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
+run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
+# interval-transcendentals/ is its own workspace, so tier `closure` can
+# never contain a change to it — this row belongs to tier `all` only.
+run_row_if "$RUN_INTERVAL_BACKEND" "interval backend (gmp-free)" interval_backend
+# demos/tour and tools/k-lint are excluded workspaces that path-depend on
+# nine members between them, and the probe sweep records margins from every
+# kernel crate — no minimal root set, so these run whenever anything builds.
+run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
+run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
+run_row_if "$RUN_K_LINT" "k-lint sweep + advisory lint"    klint_advisory
+# Root package stl: the acceptance example and its whole (dev-)dependency
+# chain profile -> sweep -> topo -> mesh live under it.
+run_row_if "$RUN_STL" "watertight (admesh)"          watertight
+# Root package step-export: no cargo build — FreeCAD over the committed
+# fixtures, which are byte-golden against that crate's writer.
+run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
 
 echo
 echo "=== ci-local summary ==="

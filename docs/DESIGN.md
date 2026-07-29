@@ -843,7 +843,30 @@ ratified; each earned by a concrete M4 incident):**
 3. **Full-matrix watcher floors.** Any merge-gating checks watcher
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the
-   matrix — a stale shorter matrix can never gate a merge. Earned:
+   matrix — a stale shorter matrix can never gate a merge.
+   *Change-filter rider (2026-07-29, Evan's ask post-Actions-budget;
+   made dependency-aware 2026-07-28):* CI carries a three-tier change
+   filter, implemented once in `scripts/ci-filter.py` and called by
+   both `ci.yml`'s filter job and `scripts/ci-local.sh`, so hosted and
+   local gating cannot drift. Tier `docs` — only `*.md`/`memories/` —
+   skips every build row and gates on the `docs-only` marker job.
+   Tier `all` — any workspace-level file, which includes the root
+   manifest, `Cargo.lock`, the toolchain file, `.cargo/`, `.github/`,
+   `scripts/`, the excluded workspaces, the k-lint input data, ANY
+   member `Cargo.toml` (feature unification is workspace-wide), and
+   anything the allowlist does not recognise — runs the whole matrix
+   unscoped. Tier `closure` — crate sources only — scopes the cargo
+   rows to the changed members plus every member that transitively
+   depends on them (dev-dependencies included), and runs each
+   pipeline row iff its root package is in that closure. Filtering is
+   never per-crate in the naive sense: the closure is what keeps
+   partial green from becoming the trap this convention kills, and
+   classification fails CLOSED — any uncertainty is tier `all`.
+   Floors apply to CODE change sets, and to the rows a tier actually
+   selects. `ci-local.sh` is filtered by default for equivalence with
+   hosted, with `--full` forcing tier `all` (suspect environments,
+   post-crash verification, torn caches, full-battery obligations).
+   Earned:
    the #113 stale-10-row-green trap (branch predating new
    persistence rows showed green on the old matrix); floors then
    tracked the matrix 13 → 14 → 16 through #116/#118.
