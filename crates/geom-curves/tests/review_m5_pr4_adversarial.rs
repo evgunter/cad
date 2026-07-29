@@ -14,6 +14,9 @@
     clippy::expect_used,
     clippy::panic,
     clippy::cast_precision_loss,
+    // The reviewer's QR/recurrence loops are index-explicit on purpose
+    // (they mirror the fixed elimination orders under test).
+    clippy::needless_range_loop,
     dead_code
 )]
 
@@ -67,7 +70,10 @@ fn f1_fit_bound_dominates_dense_sampling_randomized() {
             rng.range(0.1, 1.0),
             rng.range(0.05, 0.5),
         );
-        let (p1, p2) = (rng.range(0.0, 6.28), rng.range(0.0, 6.28));
+        let (p1, p2) = (
+            rng.range(0.0, core::f64::consts::TAU),
+            rng.range(0.0, core::f64::consts::TAU),
+        );
         let mut pts: Vec<Point3<f64>> = (0..n)
             .map(|k| {
                 let t = k as f64 / (n - 1) as f64;
