@@ -65,6 +65,19 @@
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
 //! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in [`crate::LoopBuilder::fillet`], not here |
+//! | `fillet_leg_reach` | tangent setback from the corner | exact-order band; the constructor's corner-side extent test (M5 S2) |
+//! | `fillet_corner_arm` | min leg lever arm | linear band; the collapsed-arm gate (M5 S2) |
+//! | `fillet_corner_turn` | sin φ · arm | linear band; φ the corner's turn, arm = min(leg extents, leg carrier radii) |
+//! | `fillet_offset_line_circle` | \|ρ\| − \|h\| clearance | linear band; offset-carrier intersection (M5 S2) |
+//! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
+//! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
+//!
+//! The six `fillet_*` rows above the line fire in
+//! [`crate::LoopBuilder::fillet_corner`] (construction sugar's one
+//! documented decision site), never in validation; the two exact-order
+//! rows are order/extent decisions on the same footing as
+//! `canonical_order_*` and are excluded from the K lint's ratio rules
+//! for the same reason.
 //!
 //! The band coherence worth noting for the K report: contact margins
 //! and the orientation margin share K, so a loop thin enough to look
@@ -147,10 +160,12 @@ pub enum EscalationSite {
         /// Index of the loop in [`Profile::loops`].
         loop_index: usize,
     },
-    /// While gating the fillet constructor's leg fit
-    /// ([`crate::LoopBuilder::fillet`] — the only decision construction
-    /// sugar takes; reachable only at scalars whose leg-fit enclosure
-    /// straddles the exact-order band, or on poisoned legs).
+    /// While constructing a fillet corner ([`crate::LoopBuilder::fillet`]
+    /// / [`crate::LoopBuilder::fillet_corner`] — the only decisions
+    /// construction sugar takes: the leg-fit and corner-side extent
+    /// gates against the exact-order band, and, on the arc-leg path, the
+    /// lever-arm, corner-turn and offset-carrier gates against the run's
+    /// linear band). The escalation's `source` names which.
     Fillet,
 }
 
@@ -160,7 +175,7 @@ impl fmt::Display for EscalationSite {
             Self::Segment(s) => write!(f, "at {s}"),
             Self::SegmentPair(a, b) => write!(f, "between {a} and {b}"),
             Self::Loop { loop_index } => write!(f, "on loop {loop_index}"),
-            Self::Fillet => f.write_str("in the fillet constructor's leg-fit gate"),
+            Self::Fillet => f.write_str("in the fillet constructor's gates"),
         }
     }
 }
@@ -183,6 +198,106 @@ impl fmt::Display for FilletLeg {
         })
     }
 }
+
+/// What kind of carrier a fillet leg runs on, with the diagnostic
+/// margin metered in that carrier's own currency (M5 S2): a straight
+/// leg's setback and length are linear distances; a circular leg's are
+/// **arc lengths** `R·Δθ`, and the same fit margin is also reported in
+/// radians so the author can read the angular room directly.
+///
+/// Diagnostic payload only (`f64`, the enclosure's lower bound at
+/// interval scalars) — for messages, never for re-deciding.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FilletLegCarrier {
+    /// A straight leg: setback and length are linear distances (m).
+    Line,
+    /// A circular leg on a carrier of radius `radius` (m): setback and
+    /// length are arc lengths, and `angular_margin` is the leg's fit
+    /// margin `(length − setback)/radius` in radians (negative when the
+    /// tangent point overruns the leg's swept extent).
+    Arc {
+        /// The leg carrier's radius, meters.
+        radius: f64,
+        /// The fit margin in radians (see the variant docs).
+        angular_margin: f64,
+    },
+}
+
+impl fmt::Display for FilletLegCarrier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Line => f.write_str("straight"),
+            Self::Arc {
+                radius,
+                angular_margin,
+            } => write!(
+                f,
+                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)"
+            ),
+        }
+    }
+}
+
+/// Why a fillet corner admits **no** tangent circle of the requested
+/// radius (the [`ProfileError::NoCornerForFillet`] payload — the
+/// situation `docs/PATHS-DESIGN.md` §3 names for the v2 algebra's
+/// `.fillet(r)`, reached here through the v1 constructor door).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoCornerReason {
+    /// The two offset carriers (each leg's carrier pushed `r` toward
+    /// the corner's turn side) do not meet at all: no circle of radius
+    /// `r` is tangent to both legs' carriers *anywhere*, so there is no
+    /// corner of that radius to construct — the radius is too large for
+    /// the corner's curvature, or the carriers are parallel /
+    /// non-intersecting.
+    OffsetCarriersDisjoint,
+    /// Tangent circles of radius `r` exist, but every one of them
+    /// touches a leg **past the corner** — the arc would round a corner
+    /// the legs do not actually reach (the branch rule's corner-side
+    /// extent test, `docs/M5-S2-SPEC.md` §1).
+    NoCornerSideCandidate,
+}
+
+impl fmt::Display for NoCornerReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::OffsetCarriersDisjoint => {
+                "no circle of that radius is tangent to both leg carriers"
+            }
+            Self::NoCornerSideCandidate => {
+                "every tangent circle of that radius touches a leg past the corner"
+            }
+        })
+    }
+}
+
+/// The recourse for a corner whose legs already meet tangentially —
+/// the single carrier of this user situation's text (the two-tolerance
+/// discipline, D4 ¶1 addendum; the shape `docs/M5-S6-SPEC.md` builds
+/// for the whole kernel): the same sentence is rendered whether the
+/// turn margin is exactly zero or merely in-band, and the margin rides
+/// the payload as data.
+const FILLET_TANGENT_CORNER_RECOURSE: &str =
+    "there is no corner to round — the legs already run into each other tangentially at any \
+     precision you could care about; keep the legs and declare the tangency \
+     (LoopBuilder::declare_tangent), or move the geometry so a corner exists (or lower the \
+     tolerance)";
+
+/// The recourse for a corner that admits no tangent circle of the
+/// requested radius — one sentence for the definite refusal and for the
+/// in-band escalation alike (see [`FILLET_TANGENT_CORNER_RECOURSE`]).
+const FILLET_NO_CORNER_RECOURSE: &str =
+    "use a smaller radius, or move the legs so a circle of that radius can sit in the corner";
+
+/// The recourse for a radius whose tangent points fall outside their
+/// legs — shared by the definite refusal and the in-band escalation.
+const FILLET_FIT_RECOURSE: &str =
+    "the arc would never approach the requested corner; use a smaller radius or longer legs";
+
+/// The recourse for a fillet leg with no extent to round against.
+const FILLET_LEG_EXTENT_RECOURSE: &str =
+    "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
+     radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
 
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
@@ -233,23 +348,87 @@ pub enum ProfileError {
         second: SegmentRef,
     },
     /// The fillet constructor's requested radius does not fit its
-    /// corner: a computed tangent point falls outside its leg segment
-    /// (setback r·tan(φ/2) exceeds the leg's length), so the arc
-    /// would never approach the corner the caller asked to round —
-    /// refused at construction ([`crate::LoopBuilder::fillet`]; the
-    /// constructor-door sibling of `TangentJointOutOfRange`: the
-    /// tangent joint the radius determines is out of the leg's range).
+    /// corner: a computed tangent point falls outside its leg's extent
+    /// (the setback exceeds the leg's length — `r·tan(φ/2)` on a
+    /// straight leg, the arc length `R·Δθ` back from the corner on a
+    /// circular one), so the arc would never approach the corner the
+    /// caller asked to round — refused at construction
+    /// ([`crate::LoopBuilder::fillet`] /
+    /// [`crate::LoopBuilder::fillet_corner`]; the constructor-door
+    /// sibling of `TangentJointOutOfRange`: the tangent joint the
+    /// radius determines is out of the leg's range).
     FilletDoesNotFit {
         /// The (first, in incoming→outgoing order) overrun leg.
         leg: FilletLeg,
-        /// The computed tangent setback from the corner along each leg,
-        /// r·tan(φ/2), in meters — an `f64` **diagnostic** (the
-        /// enclosure's lower bound at interval scalars; for messages,
-        /// not for re-deciding).
+        /// The overrun leg's carrier kind, carrying the angular margin
+        /// for circular legs (M5 S2).
+        carrier: FilletLegCarrier,
+        /// The computed tangent setback from the corner along the leg,
+        /// in meters (an arc length on a circular leg) — an `f64`
+        /// **diagnostic** (the enclosure's lower bound at interval
+        /// scalars; for messages, not for re-deciding).
         setback: f64,
         /// The overrun leg's length in meters (same diagnostic
-        /// channel).
+        /// channel; an arc length on a circular leg).
         leg_length: f64,
+    },
+    /// The fillet corner's legs meet **tangentially** (or reverse the
+    /// path onto itself): there is no corner to round. Refused at
+    /// construction rather than guessed — the fillet's whole contract
+    /// is that tangency is constructed and declared, so a corner that
+    /// is already tangent wants the declaration, not an arc (M5 S2;
+    /// `docs/PATHS-DESIGN.md` §4 item 1 is the same situation in the
+    /// v2 algebra).
+    FilletCornerAlreadyTangent {
+        /// `true` when the outgoing leg leaves along the **reverse** of
+        /// the incoming tangent (a cusp / doubled-back corner) rather
+        /// than continuing along it.
+        reversed: bool,
+        /// The turn margin `sin φ · arm` in meters (the classified
+        /// quantity; `f64` diagnostic channel).
+        margin: f64,
+        /// The lever arm the turn was metered at, meters (D4 ¶1: an
+        /// angle means nothing without one).
+        arm: f64,
+    },
+    /// No circle of the requested radius rounds the fillet corner —
+    /// the offset carriers do not meet, or every tangent circle touches
+    /// a leg past the corner. Named for the situation
+    /// `docs/PATHS-DESIGN.md` §3 reserves in the v2 algebra
+    /// (`NoCornerForFillet`), reached here through the v1 constructor.
+    NoCornerForFillet {
+        /// Which of the two ways the corner failed to exist.
+        reason: NoCornerReason,
+        /// The requested radius, meters (`f64` diagnostic channel).
+        radius: f64,
+    },
+    /// **Two** distinct circles of the requested radius are tangent to
+    /// both legs *within* their corner-side extents: the branch rule
+    /// does not determine which corner the author meant, and the
+    /// constructor refuses rather than picking one (M5 S2 §1 — "do not
+    /// pick"). Reachable on arc legs long enough to admit both roots
+    /// (near-concentric arc×arc especially).
+    AmbiguousFilletBranch {
+        /// The requested radius, meters (`f64` diagnostic channel).
+        radius: f64,
+        /// The two candidate centers' sketch coordinates (`f64`
+        /// diagnostic channel) — enough to see which two corners the
+        /// author is choosing between.
+        centers: [(f64, f64); 2],
+    },
+    /// A fillet leg has no extent to round against: a zero-length
+    /// straight leg, a zero-radius arc carrier, or an arc leg whose
+    /// sweep is empty. The corner's turn cannot be metered there (D4
+    /// ¶1's lever arm collapses — the `dihedral_arm` gate's profile
+    /// sibling), so no classification is honest and the constructor
+    /// refuses typed.
+    FilletLegDegenerate {
+        /// The leg with the collapsed extent (the smaller arm, when
+        /// both collapse).
+        leg: FilletLeg,
+        /// The collapsed lever arm in meters (`f64` diagnostic
+        /// channel).
+        arm: f64,
     },
     /// A declared-tangent joint index ([`crate::ProfileLoop::tangent_joints`])
     /// is not a vertex index of its loop.
@@ -369,13 +548,46 @@ impl fmt::Display for ProfileError {
             ),
             Self::FilletDoesNotFit {
                 leg,
+                carrier,
                 setback,
                 leg_length,
             } => write!(
                 f,
                 "fillet radius does not fit: the tangent setback {setback} m exceeds \
-                 the {leg}'s length {leg_length} m — the arc would never approach the \
-                 requested corner; use a smaller radius or longer legs"
+                 the {carrier} {leg}'s length {leg_length} m — {FILLET_FIT_RECOURSE}"
+            ),
+            Self::FilletCornerAlreadyTangent {
+                reversed,
+                margin,
+                arm,
+            } => {
+                let kind = if *reversed {
+                    "the legs double back on each other (a cusp)"
+                } else {
+                    "the legs continue smoothly into each other"
+                };
+                write!(
+                    f,
+                    "fillet corner: {kind} — turn margin {margin} m at lever arm {arm} m; \
+                     {FILLET_TANGENT_CORNER_RECOURSE}"
+                )
+            }
+            Self::NoCornerForFillet { reason, radius } => write!(
+                f,
+                "no corner for a fillet of radius {radius} m: {reason} — \
+                 {FILLET_NO_CORNER_RECOURSE}"
+            ),
+            Self::AmbiguousFilletBranch { radius, centers } => write!(
+                f,
+                "ambiguous fillet: two circles of radius {radius} m are tangent to both legs \
+                 inside their extents (centers {:?} and {:?}) — the constructor will not \
+                 guess which corner you meant; shorten a leg (or split it at a vertex) so \
+                 only one corner remains, or pick a radius that admits one",
+                centers[0], centers[1]
+            ),
+            Self::FilletLegDegenerate { leg, arm } => write!(
+                f,
+                "fillet {leg} has no extent (lever arm {arm} m) — {FILLET_LEG_EXTENT_RECOURSE}"
             ),
             Self::TangentJointOutOfRange {
                 loop_index,
@@ -467,6 +679,33 @@ impl fmt::Display for ProfileError {
                          declared tangency is verified); otherwise move the geometry \
                          out of the band",
                     )?;
+                }
+                // The fillet constructor's riders (M5 S2): each in-band
+                // fillet predicate renders the SAME recourse sentence as
+                // its definite refusal — one message and one recourse per
+                // user situation below eps_input, the margin riding the
+                // payload (D4 ¶1 addendum; docs/M5-S6-SPEC.md's shape,
+                // composed from these shared carriers).
+                if matches!(site, EscalationSite::Fillet) {
+                    match source.predicate {
+                        Some("fillet_corner_turn") => {
+                            write!(f, " — {FILLET_TANGENT_CORNER_RECOURSE}")?;
+                        }
+                        Some("fillet_corner_arm") => {
+                            write!(f, " — {FILLET_LEG_EXTENT_RECOURSE}")?;
+                        }
+                        Some(
+                            "fillet_offset_line_circle"
+                            | "fillet_offset_circles_external"
+                            | "fillet_offset_circles_internal",
+                        ) => {
+                            write!(f, " — {FILLET_NO_CORNER_RECOURSE}")?;
+                        }
+                        Some("fillet_leg_fit" | "fillet_leg_reach") => {
+                            write!(f, " — {FILLET_FIT_RECOURSE}")?;
+                        }
+                        _ => {}
+                    }
                 }
                 Ok(())
             }

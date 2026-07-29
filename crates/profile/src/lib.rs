@@ -122,10 +122,10 @@ mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
 
-pub use sugar::{ArcSweep, LoopBuilder, bulge_from_center, bulge_from_via};
+pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{
-    ContactKind, EscalationSite, FilletLeg, LoopRole, ProfileError, SegmentKind, SegmentRef,
-    ValidatedLoop, ValidatedProfile, ValidatedSegment,
+    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
+    ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the

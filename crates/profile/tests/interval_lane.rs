@@ -8,7 +8,7 @@
 mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
-use geom_core::{Interval, MarginDiag, Sign};
+use geom_core::{Interval, MarginDiag, Real, Sign};
 use profile::{LoopRole, ProfileError, SegmentKind};
 
 #[test]
@@ -139,5 +139,105 @@ fn declared_tangency_discipline_holds_at_interval() {
             core::mem::discriminant(&at_iv),
             "f64: {at_f64:?}, interval: {at_iv:?}"
         );
+    }
+}
+
+// ------------------------------- arc-leg fillet corners at the interval
+//
+// The exact-order predicates `fillet_leg_fit` / `fillet_leg_reach` have
+// no in-band row at `f64` — no representable `f64` lies strictly inside
+// the hairline band — so their third trio row lives here, where an
+// enclosure straddling the hairline escalates honestly (M5 S2).
+
+/// An `Interval` sketch point from exact `f64` coordinates.
+fn ip2(x: f64, y: f64) -> geom_core::Point2<Interval> {
+    geom_core::Point2::new(Interval::from_f64(x), Interval::from_f64(y))
+}
+
+fn iarc(cx: f64, cy: f64, sweep: profile::ArcSweep) -> profile::FilletLegShape<Interval> {
+    profile::FilletLegShape::Arc {
+        center: ip2(cx, cy),
+        sweep,
+    }
+}
+
+/// The line×arc fillet corner built directly at `Interval`: the
+/// definite rows of every gate decide from enclosures, and the declared
+/// tangencies verify (the residual is zero by construction in ℝ, and its
+/// enclosure is narrow enough to classify Zero).
+#[test]
+fn arc_leg_fillet_constructs_and_validates_at_interval() {
+    let lp = profile::ProfileLoop::builder(ip2(0.0, 0.0))
+        .fillet_corner(
+            profile::FilletLegShape::Line,
+            ip2(2.0, 0.0),
+            iarc(0.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, 2.0),
+            Interval::from_f64(0.5),
+            tol(),
+        )
+        .expect("the arc-leg fillet constructs at Interval")
+        .arc_to_center(ip2(0.0, 2.0), ip2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .close();
+    assert_eq!(lp.tangent_joints, vec![1, 2]);
+    profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .expect("the arc-leg fillet validates at Interval");
+}
+
+/// `fillet_leg_fit`, in-band row: at r = 1 both legs are consumed
+/// EXACTLY (a bit-zero margin at `f64`), so at the interval scalar the
+/// margin's enclosure straddles the hairline and the gate escalates
+/// rather than claiming an exact fit it cannot certify.
+#[test]
+fn exact_fit_arc_fillet_escalates_at_interval() {
+    let err = profile::ProfileLoop::builder(ip2(0.0, 0.0))
+        .fillet_corner(
+            profile::FilletLegShape::Line,
+            ip2(2.0, 0.0),
+            iarc(0.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, 2.0),
+            Interval::from_f64(1.0),
+            tol(),
+        )
+        .expect_err("the knife-edge fit must escalate at Interval");
+    match err {
+        ProfileError::Escalated {
+            site: profile::EscalationSite::Fillet,
+            ref source,
+        } => assert_eq!(source.predicate, Some("fillet_leg_fit"), "{err}"),
+        other => panic!("expected a fillet-site escalation, got {other:?}"),
+    }
+    // The escalation renders the SAME recourse sentence as the definite
+    // `FilletDoesNotFit` refusal (one situation, one message: D4 ¶1's
+    // two-tolerance addendum).
+    assert!(
+        err.to_string().contains("smaller radius or longer legs"),
+        "recourse: {err}"
+    );
+}
+
+/// `fillet_leg_reach`, in-band row: r = 0 puts both tangent points ON
+/// the corner (a bit-zero setback at `f64`); at the interval scalar the
+/// arc leg's setback encloses across the periodic wrap and the gate
+/// escalates instead of deciding the corner-side question.
+#[test]
+fn zero_radius_arc_fillet_escalates_at_interval() {
+    let err = profile::ProfileLoop::builder(ip2(0.0, 0.0))
+        .fillet_corner(
+            profile::FilletLegShape::Line,
+            ip2(2.0, 0.0),
+            iarc(0.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, 2.0),
+            Interval::from_f64(0.0),
+            tol(),
+        )
+        .expect_err("the zero-radius knife edge must escalate at Interval");
+    match err {
+        ProfileError::Escalated {
+            site: profile::EscalationSite::Fillet,
+            ref source,
+        } => assert_eq!(source.predicate, Some("fillet_leg_reach"), "{err}"),
+        other => panic!("expected a fillet-site escalation, got {other:?}"),
     }
 }
