@@ -609,3 +609,18 @@ from transcripts with cwd-reset guards; S6's first order is
 commit+push. Session-restart side effect: all three monitors were
 lost — re-armed (away-channel, disk watchdog, hourly heartbeat).
 Push-per-unit held for the fifth time.
+
+**PR 4 fix pass COMPLETE, PR OPENED as #136 (2026-07-29).** All
+six items shipped: binom_row capped at BINOM_EXACT_MAX=54 with
+all-NaN poison rows for n≥55 (ring quotients REJECTED in-code:
+RingInterval::Mul widens unconditionally, would break the
+rehearsal bit-identity pin) + u128 frontier pin at exactly
+C(55,26); curvo ruling recorded in the test header; speed=0
+cosine caveat (band the PAIR); #126(a) via
+KinkJacobian::powi_zero_deriv_factor with the launder pin FLIPPED
+to pin the fix; Underdetermined dual-use doc; RefitSkip surfaced
+on FitOutcome with the worked example pinned DegenerateSystem;
+reviewer harness adopted UNTRIMMED (13 tests, ~27s). Battery
+1454/0 + 1629/0, clippy/fmt clean, doc-neutral. Trivial main
+merge conflict (boxes vs fit module lines — kept both). Merge
+watcher armed. Row 14 rubric: fix pass moderate, complete.
