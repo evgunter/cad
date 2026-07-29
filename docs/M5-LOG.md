@@ -365,3 +365,32 @@ held). Also this outage window: two PR 4 waiter-parking incidents
 pre-outage (the endemic pattern; second nudge needed the explicit
 "no notification will ever come" wording — future implementer
 prompts get that sentence verbatim).
+
+**Spend-limit outages #2 and #3 (2026-07-28 ~16:30Z, then a long
+one ~17:15Z → 2026-07-29 ~00:30Z, taking the ORCHESTRATOR down
+too — 7 hourly ticks batched on recovery).** Both lanes resumed
+each time from transcript; per-unit pushes held; PR 8's battery
+was fully green pre-outage (1582/0 ×3 interval) with only
+clippy/doc/fmt remaining; PR 4 mid-interval-row.
+
+**S5 rounds 10–11 (2026-07-28, twelve + five inline comments from
+Evan)**: inline-authored NURBS (control polygon absorbs junction
+constraints; departure-frame rule made precise and GENERAL —
+internal shape data relative, anchors absolute); reverse-tangent/
+cusp class (refuse-by-value; NO v1 declaration door — the
+material-wedge tension; Evan TABLED the higher question → issue
+#131 filed); .turn(δ) sugar; .to(dp) combined binder (Start
+always a full directed point); close() dropped entirely;
+tangent_arc_to rename; nurbs_mirrored; write-once outgoing /
+read-only incoming made explicit; runtime-checks note; PQ1
+DELETED (TangentAt superseded; Smooth unplanned — docs don't
+reference unplanned things per Evan); PQ2 DECIDED AGAINST mixing
+(Evan, associativity); **then() DROPPED** (round 11: it
+reintroduced the value-matching seam Start killed; builder
+functions cover reuse); fillet(r,dd) sugar dropped; arc-vs-fillet
+recorded as one ArcLeg + three binding modes. Evan doing a final
+pass.
+
+**#129 simplified per Evan**: eps_input = SYNONYM for K·ε, K the
+one knob, decoupling license dropped. **#126 DECIDED (a)** (powi(0)
+derivative-poison propagation) — folds into PR 4's fix pass.
