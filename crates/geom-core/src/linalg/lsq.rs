@@ -59,9 +59,13 @@ pub enum LsqError {
         /// Matrix rows they must match.
         matrix_rows: usize,
     },
-    /// Fewer rows than columns: the least-squares system has no unique
-    /// minimizer (and the square solve no solution path). Typed refusal
-    /// rather than a pseudo-inverse guess.
+    /// The row/column shape rules out the requested solve. For
+    /// [`solve_normal`] this is the literal underdetermined case
+    /// (`rows < cols`: no unique minimizer — typed refusal rather than
+    /// a pseudo-inverse guess). **[`solve_square`] reuses the variant
+    /// for ANY non-square matrix, `rows > cols` included** — read it
+    /// there as "not the square shape this solve requires", with the
+    /// offending dimensions carried.
     Underdetermined {
         /// Equation rows.
         rows: usize,

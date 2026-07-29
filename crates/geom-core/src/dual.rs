@@ -228,6 +228,16 @@ pub(crate) trait KinkJacobian: Real {
     /// enclosure `[0, +∞]` when it may, with empty/NaI propagating.
     fn floor_jacobian_factor(self) -> Self;
 
+    /// The tangent factor of `powi(·, 0)` at `self`: the **exactly
+    /// zero** derivative of the constant-one function, *tainted by the
+    /// value's poison* — `0` (or `[0, 0]`) for every describable value
+    /// (±∞ included: the function is constant there too), with `f64`
+    /// NaN propagating and `Interval` empty/NaI propagating and the
+    /// zero's decoration capped by the value's. This is what keeps
+    /// `powi(0)` from laundering a poisoned value channel into a
+    /// fresh, cleanly-classifying zero tangent (#126, option (a)).
+    fn powi_zero_deriv_factor(self) -> Self;
+
     /// The tangent of `copysign(self, sign)` given `self`'s tangent:
     /// `σ(sign)·abs′(self)·self_deriv` per the module-doc conventions.
     /// The `sign` argument's own tangent is deliberately not a parameter
@@ -290,6 +300,12 @@ impl KinkJacobian for f64 {
     /// program as evaluated sits on the right-continuous plateau
     /// (branch-consistency, module docs). NaN propagates.
     fn floor_jacobian_factor(self) -> Self {
+        if self.is_nan() { f64::NAN } else { 0.0 }
+    }
+
+    /// 0 everywhere the value is describable (`x⁰` is the constant 1,
+    /// ±∞ included); NaN propagates (trait docs — the #126 fix).
+    fn powi_zero_deriv_factor(self) -> Self {
         if self.is_nan() { f64::NAN } else { 0.0 }
     }
 
@@ -474,11 +490,16 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// guard and the interval scalar's tight, decoration-preserving power
     /// come along for free (the module-level value-channel contract).
     ///
-    /// Derivative: `n = 0` yields an **exactly zero** tangent — the
-    /// derivative of the constant-one function — even when the value
-    /// channel is busy propagating poison (poison is signalled through
-    /// *values*; forcing `0·a⁻¹` here would instead manufacture NaN at
-    /// `a = 0`, where `a⁰ = 1` has honest derivative 0). Otherwise
+    /// Derivative: `n = 0` yields the **exactly zero** tangent of the
+    /// constant-one function, but *not* a fresh constant: the zero is
+    /// [`KinkJacobian::powi_zero_deriv_factor`]`(a) · a'` — exactly 0
+    /// whenever the value is describable (±∞ included; forcing `0·a⁻¹`
+    /// instead would manufacture NaN at `a = 0`, where `a⁰ = 1` has
+    /// honest derivative 0), while a poisoned VALUE channel poisons the
+    /// tangent too (#126 option (a): poison-in-poison-out per channel
+    /// pair — a fresh clean zero would launder a NaI/`Trv`/NaN input
+    /// into a classifiable derivative) and a poisoned tangent rides
+    /// through the multiplication as in `floor`. Otherwise
     /// `n·aⁿ⁻¹·a'`, association fixed as `(n · aⁿ⁻¹) · a'` with the power
     /// from `T::powi(n − 1)` — except at the one unrepresentable exponent
     /// `n = i32::MIN`, where `aⁿ⁻¹` is computed as `aⁿ / a` (reusing the
@@ -487,7 +508,7 @@ impl<T: KinkJacobian> Real for Dual<T> {
     fn powi(self, n: i32) -> Self {
         let value = self.value.powi(n);
         let deriv = if n == 0 {
-            T::zero()
+            self.value.powi_zero_deriv_factor() * self.deriv
         } else {
             let power = if n == i32::MIN {
                 value / self.value
@@ -1230,9 +1251,12 @@ mod tests {
     // powi: the n = 0 cases and the i32::MIN edge
     // ------------------------------------------------------------------
 
-    /// The two n = 0 clauses together: the tangent is an EXACT zero (the
-    /// derivative of the constant-one function) while the value channel
-    /// keeps f64's poison guard — NaN⁰ is NaN, not 1.
+    /// The n = 0 clauses together: the tangent is an EXACT zero (the
+    /// derivative of the constant-one function) for every describable
+    /// value, while poison in EITHER channel is conserved — the value
+    /// channel keeps f64's poison guard (NaN⁰ is NaN, not 1) and the
+    /// tangent is the value-tainted zero of `powi_zero_deriv_factor`
+    /// times the input tangent (#126 option (a)).
     #[test]
     fn powi_zero_exponent_channels() {
         // Healthy input: (x⁰, 0·) — value exactly 1, tangent exactly +0.
@@ -1244,13 +1268,24 @@ mod tests {
         let at_zero = Dual::variable(0.0).powi(0);
         assert_eq!(at_zero.value, 1.0);
         assert_eq!(at_zero.deriv.to_bits(), 0.0f64.to_bits());
-        // Poisoned input: the VALUE channel propagates NaN (f64's powi
-        // guard, inherited verbatim); the tangent of the constant-one
-        // function stays exactly zero — poison is signalled through
-        // values (module docs).
+        // ±∞: value (±∞)⁰ = 1 (not f64 poison), tangent exactly zero —
+        // the factor is 0 for every describable value.
+        let at_inf = Dual::variable(f64::INFINITY).powi(0);
+        assert_eq!(at_inf.value, 1.0);
+        assert_eq!(at_inf.deriv.to_bits(), 0.0f64.to_bits());
+        // Poisoned input: BOTH channels propagate NaN (#126 option (a),
+        // fixed at M5 PR 4 — the zero tangent is tainted by the value's
+        // poison through `powi_zero_deriv_factor`, never a fresh
+        // constant that would launder a poisoned value into a
+        // classifiable derivative).
         let poisoned = Dual::variable(f64::NAN).powi(0);
         assert!(poisoned.value.is_nan());
-        assert_eq!(poisoned.deriv.to_bits(), 0.0f64.to_bits());
+        assert!(poisoned.deriv.is_nan());
+        // A poisoned TANGENT with a clean value also stays poisoned
+        // (0·NaN — same conservation as `floor`'s factor product).
+        let bad_tan = Dual::new(2.0, f64::NAN).powi(0);
+        assert_eq!(bad_tan.value, 1.0);
+        assert!(bad_tan.deriv.is_nan());
     }
 
     /// The one unrepresentable exponent-minus-one: n = i32::MIN must not
@@ -1764,7 +1799,10 @@ mod tests {
         /// powi at interval: the value channel is the tight,
         /// poison-preserving pown verbatim ([−1, 2]² = [0, 4], not
         /// repeated multiplication's [−2, 4]) and the n = 0 tangent is
-        /// the exact zero point while value-channel poison persists.
+        /// the exact zero point for describable values while poison in
+        /// the value channel now poisons BOTH channels (#126 option
+        /// (a): the zero is tainted through `powi_zero_deriv_factor`,
+        /// never a fresh clean constant).
         #[test]
         fn powi_value_channel_is_interval_pown() {
             let x = di(-1.0, 2.0, 1.0, 1.0);
@@ -1772,15 +1810,20 @@ mod tests {
             assert_eq!(bounds_of(sq.value), (0.0, 4.0));
             // Tangent: 2·[−1, 2]·[1, 1] = [−2, 4].
             assert_eq!(bounds_of(sq.deriv), (-2.0, 4.0));
-            // n = 0: exact zero tangent; a poisoned value channel stays
-            // poisoned (inherits Interval::powi's no-laundering clause).
+            // n = 0: exact zero tangent for a describable value.
             let zero_exp = x.powi(0);
             assert_eq!(bounds_of(zero_exp.value), (1.0, 1.0));
             assert_eq!(bounds_of(zero_exp.deriv), (0.0, 0.0));
+            // A poisoned value channel poisons the tangent too (the
+            // #126 fix; the pre-fix laundering pinned a clean [0, 0]
+            // here — see review_m5_pr1_launder.rs for the flipped pin).
             let empty = Dual::variable(Interval::from_f64(-1.0)).sqrt();
             let poisoned = empty.powi(0);
             assert!(poisoned.value.lo().is_nan(), "empty value survives n = 0");
-            assert_eq!(bounds_of(poisoned.deriv), (0.0, 0.0));
+            assert!(
+                poisoned.deriv.lo().is_nan(),
+                "empty value must taint the n = 0 tangent"
+            );
         }
 
         /// Decide delegation at `Dual<Interval>`: enclosure semantics on

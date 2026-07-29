@@ -107,6 +107,18 @@ fn fit_then_certify_and_the_oq2_planted_excursion_pin() {
         pts.len(),
         fit.refit_applied,
     );
+    // NOTE pin (adversarial review): WHICH refit-skip path fires in
+    // this worked example — the compressed structure's C0 corners
+    // leave interior controls without data support, so the refit
+    // normal system is degenerate and the certified pipeline curve is
+    // returned. If structure selection ever changes this, the pin
+    // makes the change loud.
+    assert!(!fit.refit_applied);
+    assert_eq!(
+        fit.refit_skip,
+        Some(geom_curves::RefitSkip::DegenerateSystem),
+        "worked example's refit-skip path moved"
+    );
     assert!(
         fit_hull <= 4.0 * expected_scale,
         "hull bound {fit_hull:e} is out of scale with the fit bound \

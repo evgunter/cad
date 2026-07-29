@@ -32,7 +32,12 @@
 //! - **Acceptance** (the Book's two zero conditions plus its
 //!   parameter-stagnation condition, as named constants):
 //!   *point coincidence* `|C(t) − P| ≤` [`PROJECT_EPS_POINT`];
-//!   *cosine* `|g| ≤` [`PROJECT_EPS_COSINE`]`·|C′|·|C − P|`;
+//!   *cosine* `|g| ≤` [`PROJECT_EPS_COSINE`]`·|C′|·|C − P|` — note
+//!   that at a degenerate parameterization point (`|C′| = 0`, e.g. a
+//!   cusp or a stationary control layout) this criterion is met with a
+//!   trivially-zero orthogonality residual, so a consumer must band
+//!   the **pair**: the carried `distance` stays honest there and is
+//!   the value that refuses a bad foot (C2.1's both-residuals point);
 //!   *stagnation* `|Δt|·|C′| ≤` [`PROJECT_EPS_POINT`] (this is how a
 //!   domain-end foot converges: the clamp pins `t`, the step dies, and
 //!   the projection reports the **honest, possibly large**

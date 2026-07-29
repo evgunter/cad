@@ -146,6 +146,27 @@ impl core::fmt::Display for FitError {
 
 impl core::error::Error for FitError {}
 
+/// Why the final least-squares refit was NOT applied (deterministic
+/// structure information — every skip path is a documented branch, and
+/// the worked-example test pins which one fires).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefitSkip {
+    /// More control points than data samples (an LSQ over the interior
+    /// would be underdetermined) or too few of either to build the
+    /// pinned-endpoint system.
+    StructureRicherThanData,
+    /// The refit normal system was degenerate under the fixed
+    /// elimination order — a structural statement (some control point's
+    /// basis support contains no interior data site; C⁰ corners from
+    /// full-multiplicity interior knots do this). The certified
+    /// pipeline curve is returned instead.
+    DegenerateSystem,
+    /// The refit solved, but its direct certified deviation bound
+    /// exceeded the tolerance (or poisoned) — the pipeline curve, whose
+    /// bound already holds, is returned instead.
+    BoundExceeded,
+}
+
 /// An approximation result: the fitted curve plus the certified
 /// steering bound OUR semantics defines (module docs), and whether the
 /// final least-squares refit was accepted within tolerance.
@@ -156,10 +177,11 @@ pub struct FitOutcome<C> {
     /// The achieved sup-norm bound on deviation from the exact chord
     /// interpolant of the data (≤ the input tolerance on success).
     pub bound: f64,
-    /// Whether the final LSQ refit was applied (`false` when skipped:
-    /// structure richer than the data, nothing to solve, or accepting
-    /// it would have pushed the bound past tolerance).
+    /// Whether the final LSQ refit was applied.
     pub refit_applied: bool,
+    /// The skip reason when `refit_applied` is `false` (`None` exactly
+    /// when it is `true`).
+    pub refit_skip: Option<RefitSkip>,
 }
 
 /// The rational basis row at `t`: `(first, values)` with
@@ -397,12 +419,13 @@ macro_rules! nurbs_fit {
                         reference = reference.elevate_degree(1).map_err(FitError::KnotAlgebra)?;
                     }
                 }
-                let (curve, bound, refit_applied) =
+                let (curve, bound, refit_skip) =
                     Self::refit_within(cur, &reference, points, &params, bound, tolerance)?;
                 Ok(FitOutcome {
                     curve,
                     bound,
-                    refit_applied,
+                    refit_applied: refit_skip.is_none(),
+                    refit_skip,
                 })
             }
 
@@ -448,10 +471,9 @@ macro_rules! nurbs_fit {
             /// pinned to the end samples, interior control points by
             /// least squares on the pipeline structure), accepted only
             /// if ITS direct certified deviation from the interpolant
-            /// stays within tolerance (module docs). Skipped —
-            /// `refit = false`, pipeline curve returned — when the
-            /// structure is richer than the data or there is nothing
-            /// to solve.
+            /// stays within tolerance (module docs). A skip returns
+            /// the pipeline curve and names its path as a
+            /// [`RefitSkip`] (pinned by the worked-example test).
             fn refit_within(
                 cur: Self,
                 reference: &Self,
@@ -459,11 +481,11 @@ macro_rules! nurbs_fit {
                 params: &[f64],
                 bound: f64,
                 tolerance: f64,
-            ) -> Result<(Self, f64, bool), FitError> {
+            ) -> Result<(Self, f64, Option<RefitSkip>), FitError> {
                 let n_ctrl = cur.knots().control_count();
                 let n_data = points.len();
                 if n_ctrl > n_data || n_ctrl < 3 || n_data < 3 {
-                    return Ok((cur, bound, false));
+                    return Ok((cur, bound, Some(RefitSkip::StructureRicherThanData)));
                 }
                 let kv = cur.knots().clone();
                 let weights = cur.weights().to_vec();
@@ -497,7 +519,9 @@ macro_rules! nurbs_fit {
                 // structure selection. Other solve refusals propagate.
                 let sol = match lsq::solve_normal(&matrix, &rhs) {
                     Ok(sol) => sol,
-                    Err(LsqError::LsqDegenerate { .. }) => return Ok((cur, bound, false)),
+                    Err(LsqError::LsqDegenerate { .. }) => {
+                        return Ok((cur, bound, Some(RefitSkip::DegenerateSystem)));
+                    }
                     Err(e) => return Err(FitError::Lsq(e)),
                 };
                 let mut control = cur.control().to_vec();
@@ -515,9 +539,9 @@ macro_rules! nurbs_fit {
                 // the certified pipeline curve.
                 #[allow(clippy::neg_cmp_op_on_partial_ord)]
                 if !(refit_bound <= tolerance) {
-                    return Ok((cur, bound, false));
+                    return Ok((cur, bound, Some(RefitSkip::BoundExceeded)));
                 }
-                Ok((refit, refit_bound, true))
+                Ok((refit, refit_bound, None))
             }
         }
     };

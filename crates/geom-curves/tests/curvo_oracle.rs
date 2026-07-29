@@ -7,6 +7,20 @@
 //! and may be compared pointwise at matched parameters, at oracle
 //! (solver-difference) tolerance, never bitwise (curvo routes through
 //! std math and nalgebra LU).
+//!
+//! # Hermeticity (ruled at the M5 PR 4 review; accepted with the risk
+//! stated)
+//!
+//! curvo is a **git dev-dependency** pinned at the audited rev
+//! (`47d19d5`): resolving it needs the git database, so hermetic or
+//! offline builds of geom-curves' tests require that db to be present
+//! (CI's rust-cache covers the hosted lanes). One 51-line oracle test
+//! does not warrant an oracle crate today. If this oracle surface ever
+//! grows, the recorded escape hatch is the excluded-oracle-crate
+//! pattern (the `interval-transcendentals` precedent: a
+//! workspace-excluded crate owns the heavy/networked oracle
+//! dependency, and kernel `cargo test --workspace` lanes never resolve
+//! it).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 

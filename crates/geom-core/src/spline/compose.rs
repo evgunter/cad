@@ -344,10 +344,27 @@ fn to_bezier_spans(kv: &KnotVector, coeffs: &[RingInterval]) -> BernsteinSpans {
 // Bernstein algebra (module docs step 3) — fixed association orders
 // ---------------------------------------------------------------------
 
-/// Binomial row `C(n, 0..=n)` at `f64` — exact for every degree this
-/// module can produce from kernel-sized splines (`C(n, k) < 2⁵³` holds
-/// through n = 56; composite degrees are ≤ 4·p).
+/// The largest row degree [`binom_row`] serves exactly. **Exactness is
+/// the recurrence's, not the values'**: at `n = 55` the intermediate
+/// product `C(55, 25)·31` exceeds 2⁵³ and rounds even though
+/// `C(55, 26)` itself is representable, so the honest cap is `n ≤ 54`
+/// (differentially pinned against `u128` arithmetic in the tests).
+const BINOM_EXACT_MAX: usize = 54;
+
+/// Binomial row `C(n, 0..=n)` at `f64` — exact for `n ≤`
+/// [`BINOM_EXACT_MAX`], which covers every degree this module can
+/// produce from kernel-sized splines (composite degrees are ≤ 4·p).
+/// Beyond the cap the row is **all-poison** (NaN), which poisons every
+/// composite coefficient built from it and fails every `≤ ε`
+/// certification loudly (D4 ¶2) — a rounded weight would instead be a
+/// silently unsound enclosure. (Forming the weights as ring quotients
+/// was considered and rejected: the ring's products widen outward
+/// unconditionally, which would break the rehearsal's ratified
+/// bit-identity pin for the exact small-degree cases.)
 fn binom_row(n: usize) -> Vec<f64> {
+    if n > BINOM_EXACT_MAX {
+        return vec![f64::NAN; n + 1];
+    }
     let mut row = vec![1.0f64; n + 1];
     for k in 1..=n {
         row[k] = row[k - 1] * ((n - k + 1) as f64) / (k as f64);
@@ -359,7 +376,10 @@ fn binom_row(n: usize) -> Vec<f64> {
 /// `(ab)_k = Σ_{i+j=k} [C(da,i)·C(db,j)/C(da+db,k)] · a_i·b_j`, the
 /// binomial weight formed as a ring quotient. Fixed association (D9):
 /// ascending `k`, ascending `i`, terms exactly as written
-/// (`acc = acc + a_i·b_j·w`).
+/// (`acc = acc + a_i·b_j·w`). The `f64` numerator product is exact
+/// whenever the output row is served at all: by Vandermonde,
+/// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
+/// [`BINOM_EXACT_MAX`] already poisons through `binom_row`.
 fn bern_mul_row(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
     let da = a.len() - 1;
     let db = b.len() - 1;
@@ -1035,6 +1055,30 @@ mod tests {
         };
         let form = implicit_composite(&data3, &cyl).unwrap();
         assert!(form.sup_bound().is_nan());
+    }
+
+    /// MINOR-1 pin (adversarial review): the recurrence is exact through
+    /// `BINOM_EXACT_MAX` (differential vs `u128` integer arithmetic) and
+    /// refuses — all-poison, never a rounded weight — beyond it. The
+    /// first inexact recurrence row is n = 55, where the intermediate
+    /// product exceeds 2⁵³ although `C(55, 26)` is representable.
+    #[test]
+    fn binom_rows_are_exact_through_the_cap_and_poison_beyond_it() {
+        for n in 0..=BINOM_EXACT_MAX {
+            let row = binom_row(n);
+            let mut exact: u128 = 1;
+            for (k, v) in row.iter().enumerate() {
+                if k > 0 {
+                    exact = exact * (n as u128 - k as u128 + 1) / k as u128;
+                }
+                #[allow(clippy::cast_precision_loss)]
+                let e = exact as f64;
+                assert!(exact < (1u128 << 53), "C({n},{k}) not representable");
+                assert_eq!(v.to_bits(), e.to_bits(), "C({n},{k}): {v} vs {exact}");
+            }
+        }
+        assert!(binom_row(BINOM_EXACT_MAX + 1).iter().all(|v| v.is_nan()));
+        assert!(binom_row(80).iter().all(|v| v.is_nan()));
     }
 
     #[test]
