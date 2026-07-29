@@ -597,3 +597,15 @@ New-error Display text must follow the D4 two-tolerance shape —
 coordination note with in-flight S6 written into the spec.
 Dispatch when a lane frees (S2 first per queue; PR 5 = block-8
 draw).
+
+**Spend-limit outage #5 (2026-07-29, ~08:30–16:30Z, ~8h):** both
+lanes killed mid-run; Evan enabled usage credits and restored the
+session. Damage: NONE — PR 4's fix pass had fully committed and
+pushed before dying (through 65318c3: all review items + #126(a)
++ the 13-test adversarial harness adopted untrimmed; only battery
+re-verification was in flight); S6's 14-file sweep WIP survived
+uncommitted in its clone (verified intact). Both lanes RESUMED
+from transcripts with cwd-reset guards; S6's first order is
+commit+push. Session-restart side effect: all three monitors were
+lost — re-armed (away-channel, disk watchdog, hourly heartbeat).
+Push-per-unit held for the fifth time.
