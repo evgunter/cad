@@ -580,3 +580,20 @@ committed (message-level sweep of the ten #129 pairs, variants
 stay, shared Indeterminate carrier, census {:?} fix; collapse
 candidates banked not executed). S6 dispatched to the freed lane
 (clone m5-s6); S2 waits for the PR 4 lane (two-cargo-lane cap).
+
+**M5-PR5-SPEC.md DRAFTED (2026-07-29)** while both cargo lanes
+run (PR 4 fix pass, S6). Binding content: Curve3::Ellipse (a>b
+strictly — a=b refused at construction, one kind per
+configuration; corner-evaluated arc-AABB intervals per PR 8's
+wedge fix; persistence variant arm, no migration per R3); the
+exhaustive C5 table with NO wildcard arms, M2 pairs bit-invisible,
+trileans-before-rungs with named lever arms, rung-3 arms refuse
+typed until PR 7; closed forms = tilted plane×cylinder,
+equal-radius intersecting cylinder×cylinder (radius equality
+structural/declared ONLY), plane×cone exact-degenerates with
+generic tilt routed to rung 3 permanently (R1); split_edge conic
+lane; carrier-side conic pcurve constructors (storage = PR 6).
+New-error Display text must follow the D4 two-tolerance shape —
+coordination note with in-flight S6 written into the spec.
+Dispatch when a lane frees (S2 first per queue; PR 5 = block-8
+draw).
