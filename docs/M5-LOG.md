@@ -531,3 +531,24 @@ remote now 6); #133 final head GREEN awaiting his 👍; a mid-turn
 text-delivery miss re-sent (decision elaborations had been
 written between tool calls — lesson: final-message-only for
 user-facing content).
+
+**PR 4 review returned (2026-07-29): APPROVE-WITH-FIX-PASS — 0
+MAJ / 2 MIN / 5 NOTE, no substantive silent deviations.** The
+crux HELD: the direct fit bound survived ~1M-sample randomized
+falsification (worst dense/bound ratio 1.0000 — touched: tight
+AND sound); rehearsal bit-identity independently reproduced from
+origin/main; all five implicit composites hand-derived (incl. the
+degree-4 torus with exact |a|² ring normalization); projection
+fuzz 400 cases — 0.5% honest interior local-min feet whose
+carried distances fail bands (the C2.1 pair working as designed).
+Best find: binom_row's exactness claim is FALSE at C(55,26)
+(recurrence intermediate exceeds 2^53 — latent soundness edge at
+composite degree ≥ 55, unreachable today; MIN-1). MIN-2 curvo
+hermeticity RULED by orchestrator: accept-with-stated-risk, the
+excluded-oracle-crate pattern recorded as the escape hatch.
+Rubric: idiom 5 / tests 4 / docs 4. **Fix pass DISPATCHED**
+(binom fix + pin; curvo header; speed-0 cosine doc; #126 OPTION
+(a) folded per Evan with the launder-test flip; NOTE renames/pins;
+adopt 4 reviewer harness tests — file salvaged to
+review-scratch/pr4). PR 4's PR opens on its report; PR 8's on the
+ruling-increment report. A/B rows 14/15 rubrics now fillable.
