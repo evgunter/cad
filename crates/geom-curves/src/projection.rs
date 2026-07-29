@@ -1,7 +1,8 @@
 //! Point projection / inversion onto NURBS curves (The NURBS Book
 //! §6.1, pp. 229–234) — the C2.1 foot-point machinery: Newton on the
 //! orthogonality condition `g(t) = C′(t)·(C(t) − P)`, with the
-//! [`Projection`] **carrying its own certified orthogonality residual**
+//! [`Projection3`]/[`Projection2`] **carrying their own certified
+//! orthogonality residual**
 //! so a bad projection cannot launder a bad cache — the consumer
 //! re-checks the carried values through its own Decide/band machinery;
 //! this module pins their presence and honesty.
@@ -45,7 +46,7 @@
 //! Newton converges to *stationary points* of the distance: on a
 //! closed curve a deliberately bad seed can converge to the far branch
 //! with a tiny orthogonality residual but a large distance. Both
-//! values ride the [`Projection`], so the consumer's band check
+//! values ride the projection, so the consumer's band check
 //! catches every such case: wrong branch ⇒ `distance` fails the band;
 //! boundary clamp ⇒ `orthogonality` fails it. The planted-fixture
 //! tests (`tests/projection.rs`) pin both, via

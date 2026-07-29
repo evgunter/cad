@@ -1,5 +1,5 @@
-//! Interpolation differential vs curvo (docs/CURVO-AUDIT.md: reference
-//! + test oracle ONLY, pinned commit, tolerant comparison — NOT an
+//! Interpolation differential vs curvo (docs/CURVO-AUDIT.md: study
+//! and test oracle ONLY, pinned commit, tolerant comparison — NOT an
 //! oracle for approximation/bounds). Curvo's non-periodic
 //! `Interpolation::interpolate` is the same A9.1 shape as ours:
 //! chord-length parameters normalized to [0, 1], averaged knots, dense
