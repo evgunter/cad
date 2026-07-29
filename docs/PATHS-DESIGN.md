@@ -1,6 +1,6 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5, design doc)
 
-Status: **DRAFT round 10, for Evan's sign-off** (design-conversation
+Status: **DRAFT round 11, for Evan's sign-off** (design-conversation
 PR; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104. The ratified doc is the
 deliverable). Rounds: 1 = forward-consuming vs junction-resolver
@@ -161,7 +161,15 @@ not a sugar). Consequences, each falling out rather than ruled:
   along the departure direction (its direction is the consumed
   angle bit — for clamped w > 0 curves the start tangent is the
   P0→P1 direction, so tangency/sharpness is by construction),
-  and `P2…Pn` are authored in the leg's local frame. The end
+  and `P2…Pn` are authored in the DEPARTURE FRAME — origin at
+  the tip position, +x along the departure direction (round 11,
+  Evan's ask made precise and GENERAL: leg-INTERNAL shape data —
+  control points, and any directional non-point leg parameters —
+  is always relative to the current directed point's frame, so a
+  leg's shape is placement-invariant authored data; TARGET and
+  ANCHOR points — `line_to`, `.at`, `tangent_arc_to`, `Start` —
+  stay ABSOLUTE, because they are the profile's on-path datums
+  and pinning them to the world is their job). The end
   directed point falls out of the last two control points. Same
   DOF accounting, zero placement step — the two forms
   (rigid-place a curve value / author the polygon in place) are
@@ -241,15 +249,29 @@ continuation. Grounds, recorded:
   fix a LINE carrier). An arc-arrival variant (anchor + director
   + radius fixing an arc carrier) is additive, added with a use
   case.
+- **Arc vs fillet, at the data level (round 11, answering "is arc
+  technically a sugar for fillet?")**: no — but they are siblings.
+  One underlying ArcLeg carrier kind admits three BINDING MODES:
+  {endpoints + bulge} (the sharp-jointed arc), {tangent-to-prev +
+  endpoint} (the unique tangent arc), {tangent-both + r} (the
+  fillet). Neither is sugar for the other — different binding
+  sets — and fillet carries one thing plain arcs never do: the
+  neighbor-trimming insertion. The lowering may share one ArcLeg
+  representation with a mode tag; the surface verbs stay
+  distinct.
 
-**Composition.** Paths are values; `p1.then(p2)` concatenates
-with the seam typed by the meeting end states: `Point`↔`Point` =
-Sharp (checked); a Directed end into a direction-consuming first
-leg = tangent handoff; a Directed end may fillet onto p2 where
-p2's start supplies the arrival. Associativity holds because the
-seam consumes only the two ends' typed states — flat chains,
-variables, and nesting produce the identical value (the round-2/3
-requirement, preserved through the retype).
+**Composition: `then()` DROPPED (round 11, answering Evan's
+"what does p1.then(p2) do?").** It concatenated two path values
+with a seam typed by the meeting tips — and inspecting it under
+round 8's lens shows it reintroduces exactly the defect `Start`
+killed: p1's tip position and p2's start position are two
+independently-authored points that must value-match at the seam.
+Code reuse (repeated motifs, generator loops — the D8 layer's
+real need) is covered without it by BUILDER FUNCTIONS:
+`fn motif(p: PartialPath<Directed>) -> PartialPath<Directed>`
+appends to the one chain, composes associatively at the language
+level, and never mints a second path value to glue. One chain,
+one spelling, no seams except the loop's own.
 
 **Closure: the `Start` token (round 8, Evan's thought experiment
 adopted — the `close_*` family DISSOLVES).** The entry, once
@@ -302,11 +324,9 @@ relaxation).
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `line(len)` / `arc(…)` / `nurbs(curve)` | Directed → Point | legs (nurbs = rigid placement, direction-matching whichever director bound the tip) |
 | `.fillet(r)` | Directed → Open | the only corner primitive |
-| `p1.then(p2)` | seam from the two tips' states | associative concatenation |
 | `Start` | directed-point VALUE (the bound entry — ALWAYS both bits, never position-only) | targeting it closes, structurally |
 | `.to(dp)` | Open → Directed | combined binder consuming a directed-point VALUE (round 10: `fillet(r).to(Start)` is the seam fillet's honest unsugaring — not `.at(Start).angle(Start)`) |
 | **TIER 1 — SUGAR** (each row = one call, expands to core, may only append/insert one leg and/or set bindings) | | |
-| `fillet(r, dd)` | Directed → Point | `.fillet(r).at(dd)` |
 | `line_to(p)` | Point → Point (also from a fillet-arrival Point) | `.angle(toward p).line(dist)` |
 | `arc_to(p, bulge)` | Point → Point | direction from chord + bulge |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc (round 10 rename: `arc_to` no longer means two things with different args) |
@@ -322,10 +342,10 @@ once):
 
 ```text
 Open.at(m1).angle(east)
-    .fillet(r, m2).angle(north)        // ≡ .fillet(r).at(m2).angle(north)
-    .fillet(r, m3).angle(west)
-    .fillet(r, m4).angle(south)
-    .fillet(r, Start)                  // ≡ .fillet(r).to(Start) — the seam fillet; closed
+    .fillet(r).at(m2).angle(north)
+    .fillet(r).at(m3).angle(west)
+    .fillet(r).at(m4).angle(south)
+    .fillet(r).to(Start)               // the seam fillet; closed
 ```
 
 with the opening reading exactly like every fillet arrival
@@ -508,20 +528,6 @@ representable at runtime but unreachable through the surface.
 
 ## 6. Open questions for Evan
 
-**PQ1 — Direction/tangency vocabulary extent for v1** (round 10:
-`TangentAt` is SUPERSEDED by the core — a tangent junction's
-contact point IS a bound leg-end position, and interior-contact
-pinning is expressible by splitting the leg at the pin
-(`…line_to(p).tangent()…`); it is deleted below, leaving only
-Smooth):
-- `Smooth` (G2): direction AND signed curvature agree. Nearly
-  vacuous for line/arc legs (line–line G2 = collinear ⇒
-  same-carrier; arc–arc G2 = same carrier; line–arc G2 = infinite
-  radius); real only once spline legs exist, and D2 keeps G2
-  joins in the conventional-`MappedCurve` regime deliberately.
-Recommendation: ship §3's vocabulary; `Smooth` waits for spline
-legs on D2's grounds.
-
 **PQ2 — Mixed authoring: DECIDED AGAINST (Evan, round 10, on
 associativity/representation-uniqueness grounds)** — no
 `lift(chain)`, no mixing: a profile loop is authored EITHER in
@@ -536,14 +542,11 @@ identically.
 went with the anchoring discipline (§5); recorded so the round-3
 trail stays legible.
 
-**PQ5 — Declared cusps (reverse-tangent junctions).** Should a
-declared-cusp door exist (a `.reverse_tangent()`-style director
-+ profile form), given the kernel's ratified material-wedge
-invariant refuses cusp wedges at tier 3? Allowing it is a KERNEL
-design conversation (the wedge invariant is D1-tier ratified
-text), not an authoring-layer patch; v1 refuses with both facts
-named (§3). Evan's examples on record: `1 − sqrt(|x|)`; kissing
-circles, top halves cut.
+**PQ5 — Declared cusps: TABLED (Evan, round 11)** — cusps are
+refused here (the reverse-tangent class, §3), and the
+higher-level question (a declared-cusp door vs the kernel's
+ratified material-wedge invariant) is opened as its own design
+issue rather than decided in this doc.
 
 **PQ4 — Mid-carrier seams.** The v1 rule (seam at a junction or
 fillet only) forbids closing a loop mid-side. The M2
