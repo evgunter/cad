@@ -563,3 +563,10 @@ confirmed filed. Writeup features both ruled MAJORs, the N5
 −51%-verdict characterization, and the latency wins (die −29%,
 corpus −21%). Tier-aware merge watcher armed (no-fail +
 no-pending, then merge). PR 4 fix pass still in flight.
+
+**#135 GREEN (21/21) but merge REFUSED — token scope.** The gh
+OAuth token lacks `workflow` scope, and #135 touches ci.yml (the
+L7 allowlist grep), so both GraphQL and REST merges 403. Same
+reason #133 needed Evan's hand. Recourse: Evan merges in the web
+UI, or grants scope once (`gh auth refresh -s workflow`) so
+workflow-touching PRs self-merge from here on.
