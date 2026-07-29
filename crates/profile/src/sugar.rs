@@ -26,9 +26,7 @@
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
-use crate::validate::{
-    EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, ProfileError,
-};
+use crate::validate::{EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, ProfileError};
 use crate::{ProfileLoop, ProfileVertex};
 
 /// The sweep direction hint for [`bulge_from_center`] /
@@ -780,8 +778,7 @@ impl<T: Real> Leg<T> {
         match self.arc {
             None => center - left_normal(self.dir) * (sgn * radius),
             Some(arc) => {
-                arc.center
-                    + (center - arc.center) * (arc.radius / offset_radius(&arc, sgn, radius))
+                arc.center + (center - arc.center) * (arc.radius / offset_radius(&arc, sgn, radius))
             }
         }
     }

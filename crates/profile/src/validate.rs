@@ -277,8 +277,7 @@ impl fmt::Display for NoCornerReason {
 /// for the whole kernel): the same sentence is rendered whether the
 /// turn margin is exactly zero or merely in-band, and the margin rides
 /// the payload as data.
-const FILLET_TANGENT_CORNER_RECOURSE: &str =
-    "there is no corner to round — the legs already run into each other tangentially at any \
+const FILLET_TANGENT_CORNER_RECOURSE: &str = "there is no corner to round — the legs already run into each other tangentially at any \
      precision you could care about; keep the legs and declare the tangency \
      (LoopBuilder::declare_tangent), or move the geometry so a corner exists (or lower the \
      tolerance)";
@@ -295,8 +294,7 @@ const FILLET_FIT_RECOURSE: &str =
     "the arc would never approach the requested corner; use a smaller radius or longer legs";
 
 /// The recourse for a fillet leg with no extent to round against.
-const FILLET_LEG_EXTENT_RECOURSE: &str =
-    "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
+const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
      radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
 
 /// Typed validation failure — the closed error enum of

@@ -231,3 +231,69 @@ fn recording_is_opt_in() {
     let _ = lift::<Probe>(&annulus()).validate(tol());
     assert!(k_stats::take_samples().is_empty());
 }
+
+/// **K-funnel registration (M5 S2)**: every gate the arc-leg fillet
+/// constructor takes is a *reified* predicate through the same k_stats
+/// recorder validation uses — so the constructor's margins land in the
+/// K-experiment distribution with the rest of the kernel's. This pins
+/// that all seven fire under recording, with band semantics intact.
+#[test]
+fn probe_records_every_arc_fillet_gate() {
+    use geom_core::{Point2, Real};
+    use profile::{ArcSweep, FilletLegShape, ProfileLoop};
+
+    let pp = |x: f64, y: f64| Point2::new(Probe::from_f64(x), Probe::from_f64(y));
+    let leg_arc = |cx: f64, cy: f64, sweep| FilletLegShape::Arc {
+        center: pp(cx, cy),
+        sweep,
+    };
+    k_stats::start_recording();
+    // line×arc: fires the arm, turn, line/circle-offset, reach and fit
+    // gates.
+    ProfileLoop::builder(pp(0.0, 0.0))
+        .fillet_corner(
+            FilletLegShape::Line,
+            pp(2.0, 0.0),
+            leg_arc(0.0, 0.0, ArcSweep::Ccw),
+            pp(0.0, 2.0),
+            Probe::from_f64(0.5),
+            tol(),
+        )
+        .expect("the line×arc fillet constructs at Probe");
+    // arc×arc: fires the two circle-offset clearances as well.
+    let s3 = 3.0f64.sqrt();
+    ProfileLoop::builder(pp(1.0, 0.0))
+        .fillet_corner(
+            leg_arc(-1.0, 0.0, ArcSweep::Ccw),
+            pp(0.0, s3),
+            leg_arc(1.0, 0.0, ArcSweep::Ccw),
+            pp(-1.0, 0.0),
+            Probe::from_f64(0.5),
+            tol(),
+        )
+        .expect("the arc×arc fillet constructs at Probe");
+    let samples = k_stats::take_samples();
+    for name in [
+        "fillet_corner_arm",
+        "fillet_corner_turn",
+        "fillet_offset_line_circle",
+        "fillet_offset_circles_external",
+        "fillet_offset_circles_internal",
+        "fillet_leg_reach",
+        "fillet_leg_fit",
+    ] {
+        assert!(
+            samples.iter().any(|s| s.predicate == name),
+            "no sample recorded for predicate '{name}'"
+        );
+    }
+    // Healthy corners record no in-band or poisoned margins, and every
+    // sample obeys its own band.
+    for s in &samples {
+        match s.outcome {
+            SampleOutcome::Definite(Sign::Zero) => assert!(s.margin.abs() <= s.band_zero),
+            SampleOutcome::Definite(_) => assert!(s.margin.abs() >= s.band_escalate),
+            other => panic!("unexpected outcome {other:?} for '{}'", s.predicate),
+        }
+    }
+}

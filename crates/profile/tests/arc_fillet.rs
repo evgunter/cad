@@ -283,10 +283,11 @@ fn oversized_radius_on_an_arc_leg_names_the_carrier_and_angular_margin() {
     match err {
         ProfileError::FilletDoesNotFit {
             leg,
-            carrier: FilletLegCarrier::Arc {
-                radius,
-                angular_margin,
-            },
+            carrier:
+                FilletLegCarrier::Arc {
+                    radius,
+                    angular_margin,
+                },
             setback,
             leg_length,
         } => {
@@ -565,7 +566,10 @@ fn fillet_offset_line_circle_trio() {
     let err = line_arc_internal(0.5f64.mul_add(-in_band(), 1.0))
         .expect_err("an in-band offset clearance must escalate");
     assert_eq!(escalated_predicate(&err), "fillet_offset_line_circle");
-    assert!(err.to_string().contains("smaller radius"), "recourse: {err}");
+    assert!(
+        err.to_string().contains("smaller radius"),
+        "recourse: {err}"
+    );
 }
 
 #[test]
