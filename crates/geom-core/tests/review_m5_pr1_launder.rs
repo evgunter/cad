@@ -102,41 +102,35 @@ fn laundering_attempts_all_fail() {
     assert!(nai().lo().is_nan() && nai().hi().is_nan());
 }
 
-/// **Beyond the review harness** (found while adopting it): the one
-/// laundering door that is actually open, and why it is pinned rather
-/// than fixed here.
+/// **The door found while adopting the review harness — now CLOSED**
+/// (#126, Evan's option (a), fixed in the M5 PR 4 fix pass).
 ///
-/// `Dual::powi` (crates/geom-core/src/dual.rs) sets `deriv = T::zero()`
-/// unconditionally when `n == 0`, because d(x⁰)/dx is the constant 0.
-/// Mathematically right, and also a fresh constant: a NaI or `Trv` input
-/// yields a derivative that classifies cleanly. The VALUE channel does
-/// propagate poison (asserted above), and `Decide for Dual` reads only
-/// the value channel, so nothing in the kernel branches on this today —
-/// but a consumer that certified a derivative would be reading a
-/// laundered one.
-///
-/// This is M0-era `Dual` behavior, untouched by the M5 PR 1 backend swap
-/// (dual.rs has no diff in this PR), and closing it is a `Dual` contract
-/// question rather than an interval one. Pinned **as it actually
-/// behaves** so the gap is recorded rather than implied away, and so a
-/// future fix has to come past this test deliberately.
+/// `Dual::powi` at `n == 0` used to set `deriv = T::zero()`
+/// unconditionally — mathematically the constant 0, but a *fresh*
+/// constant: a NaI or `Trv` input yielded a derivative that classified
+/// cleanly (this test pinned that laundering while it stood). The fix
+/// routes the zero through `powi_zero_deriv_factor(value) · deriv`
+/// (dual.rs), so the tangent is still exactly zero for every
+/// describable value but inherits the VALUE channel's poison —
+/// poison-in-poison-out per channel pair. This test now pins the FIXED
+/// behavior: both channels of a poisoned `powi(0)` stay poisoned.
 #[test]
-fn powi_zero_launders_the_derivative_channel_pre_existing() {
+fn powi_zero_conserves_both_channels_poison_fixed_126() {
     for (tag, p) in [("Trv", clamped()), ("NaI", nai()), ("Empty", empty())] {
         let both = Dual::new(p, p).powi(0);
-        // Value channel: poison conserved, as contracted.
+        // Value channel: poison conserved, as always contracted.
         assert_still_poisoned(&format!("{tag}: Dual::powi(0).value"), both.value);
-        // Derivative channel: the fresh zero classifies. NOT an
-        // endorsement — if this ever refuses, the door was closed;
-        // update this test and the comment above it.
-        assert_eq!(
-            both.deriv.sign_within(band()),
-            Ok(Sign::Zero),
-            "{tag}: Dual::powi(0).deriv — known pre-existing laundering door"
-        );
+        // Derivative channel: poison conserved too (the #126 fix) —
+        // the zero is tainted by the value's poison, never fresh.
+        assert_still_poisoned(&format!("{tag}: Dual::powi(0).deriv"), both.deriv);
     }
-    // The contrast that shows the gap is specific, not systemic: every
-    // other exponent conserves derivative poison.
+    // A healthy pair keeps the honest exact-zero tangent (the fix must
+    // not manufacture poison for describable values).
+    let clean = dvar(h(2.0)).powi(0);
+    assert_eq!(clean.deriv.sign_within(band()), Ok(Sign::Zero));
+    assert!(clean.value.sign_within(band()).is_ok());
+    // The nonzero-exponent contrast (kept from the pre-fix pin): every
+    // other exponent conserves derivative poison too.
     for (tag, p) in [("Trv", clamped()), ("NaI", nai()), ("Empty", empty())] {
         for n in [1i32, 2, 3, -1, -2] {
             let d = Dual::new(h(2.0), p).powi(n);
