@@ -36,13 +36,12 @@
 #     instead of 13-25G).
 #
 # HAZARDS (investigation cautions — do not "improve" these away):
-#   * NEVER export RUSTFLAGS (or any rustc flag env). It silently
-#     REPLACES .cargo/config.toml's `-C target-cpu=x86-64-v3`. That was
-#     a hard correctness requirement while inari supplied the interval
-#     backend (directed rounding via inline asm); since M5 PR 1 it is a
-#     D9-consistency and performance floor — see the config's own STATUS
-#     note. Either way, dropping it silently is a bad surprise.
-#     This script defensively unsets inherited overrides below.
+#   * Avoid exporting RUSTFLAGS habitually: it silently REPLACES any
+#     .cargo/config.toml rustflags. Since 2026-07-29 the repo sets NONE
+#     (the x86-64-v3 floor was dropped after the M5 PR 1 backend swap
+#     removed its correctness need — see .cargo/config.toml's history
+#     note), so the old clobber hazard is gone; the unsets below remain
+#     as cheap defense against inherited environment surprises.
 #   * No shared CARGO_TARGET_DIR across worktrees (fingerprint
 #     ping-pong, no concurrency safety — rejected).
 #   * ~/.cache/gmp-mpfr-sys no longer matters for KERNEL builds (M5 PR 1
