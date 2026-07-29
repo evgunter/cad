@@ -468,3 +468,15 @@ gold (0 recomputes across all 9 docs). Rubric: idiom 5 / tests 3
 pad=0-must-fail, testing-feature gate on the injector,
 bracket-corner atan2, pin-2 vacuity, scrubbed() coverage, poison
 proptest, F7 value-channel pin, §4.4 note); the two MAJORs held.
+
+**PATHS-DESIGN RATIFIED (2026-07-29): Evan "lgtm!" on #124 after
+THIRTEEN design rounds in ~2 days** — the deepest design
+conversation of the project so far, all of it Evan-driven
+iteration: from his forward-consuming sketch to the binding
+lattice (which-bits-bound typestates), dual binders, directed
+points, argument-minimal fillets, the Start token (structural
+closure), NURBS legs with implied junction-owned control points
+(both ends), the v2 core-representation affirmation, and every
+safety property migrated from runtime rules into types.
+Merging on green; S2 (arc-leg sugar) unblocks with its
+sugar-over-the-algebra shape constraint now ratified.
