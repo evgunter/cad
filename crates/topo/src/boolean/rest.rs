@@ -786,7 +786,8 @@ fn patch_faces<T: Decide>(
         if assigned.contains_key(root) {
             continue;
         }
-        // BFS this region (deterministic queue order).
+        // Flood this region (DFS worklist, deterministic arena-seeded
+        // order; membership is order-independent).
         let mut region = vec![root];
         assigned.insert(root, ());
         let mut queue = vec![root];

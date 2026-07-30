@@ -5,13 +5,18 @@
 //! M4 PR 5's Declare to glue the mate. PR 5 opened the CLASSIFICATION
 //! half exactly as predicted — but the mate is a pure REST contact
 //! (the half-depth notches interlock exactly; the two interiors are
-//! DISJOINT), so the union then refused typed at the JOIN: every mate
-//! segment lies ON existing operand edges, no chord had a facing
-//! partner — the M3 envelope's boundary-on-boundary class (iii). The
-//! re-armed wire (this file's previous life) sat on that join-stage
-//! frontier until M5 S1 landed the declared-REST union zip; the wire
-//! FIRED with the exact expected volume and was retired per its own
-//! instructions. What remains are the certified pins at BOTH doors:
+//! DISJOINT), so the union then refused typed at the JOIN — the M3
+//! envelope's boundary-on-boundary class (iii). The mechanism (S1's
+//! diagnosis, `boolean::rest` module docs): at a REST site a seam
+//! direction lies in FOUR coincident planes (two per solid, coplanar
+//! via the declared rung), the two end records of one segment can
+//! resolve that ambiguity onto DIFFERENT face pairs, and the join's
+//! germ-identity match (face pairs agree) then never fires — the
+//! chords existed; their identity keys disagreed. The re-armed wire
+//! (this file's previous life) sat on that join-stage frontier until
+//! M5 S1 landed the declared-REST union zip; the wire FIRED with the
+//! exact expected volume and was retired per its own instructions.
+//! What remains are the certified pins at BOTH doors:
 //!
 //! - UNDECLARED, the mate still refuses at the coincidence door
 //!   (rung (b) — value equality never classifies; the ladder is law).

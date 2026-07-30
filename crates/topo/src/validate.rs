@@ -924,7 +924,11 @@ impl fmt::Display for ValidationError {
                  (the outer loop must wind positively around the outward normal, rings \
                  negatively — the planar region-bounding statement)"
             ),
-            Self::LoopRoleEscalated { face, r#loop, cause } => write!(
+            Self::LoopRoleEscalated {
+                face,
+                r#loop,
+                cause,
+            } => write!(
                 f,
                 "face {face:?}: loop {loop:?}'s winding cannot be classified definitely \
                  (sliver, D4 ¶3): {cause}"
@@ -1656,8 +1660,8 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
         let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
-        for (l, is_outer) in core::iter::once((face.outer, true))
-            .chain(face.rings.iter().map(|&r| (r, false)))
+        for (l, is_outer) in
+            core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
         {
             let Some(loop_data) = body.get_loop(l) else {
                 continue; // unreachable on tier-1 input

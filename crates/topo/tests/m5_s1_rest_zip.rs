@@ -9,11 +9,13 @@
 //!   `DeclarationContradicted` at the lane, never a silent no-op;
 //! - the honest sub-frontier refusal: an annular (ringed-patch)
 //!   contact refuses `RestZipUnsupported`, typed;
-//! - ∖/∩ disposition rows on pure REST contacts: they never reach a
-//!   join refusal — classification resolves them structurally
-//!   (operand A / typed Empty), so there is no refusing door to
-//!   re-text (M5-S1-SPEC §1's narrowed-frontier note, pinned as the
-//!   actual behavior);
+//! - ∖/∩ disposition rows on the PINNED REST fixtures (crosslap,
+//!   corner-flush): classification resolves them structurally
+//!   (operand A / typed Empty) without reaching a join door. NOT a
+//!   universal claim: a three-wall notch-fill REST ∖ refuses
+//!   `Containment(RayExhausted)` — a pre-existing containment-probe
+//!   exhaustion, unchanged by S1 (`review_s1_probes.rs` pins the
+//!   counterexample);
 //! - undeclared doors unchanged (the ladder is law);
 //! - re-run bit-identity for the stacked union.
 //!
@@ -194,10 +196,13 @@ fn annular_rest_contact_refuses_typed() {
     );
 }
 
-/// Crosslap ∖/∩ disposition rows (SPEC §1): pure REST contacts never
-/// reach a join refusal under ∖/∩ — classification resolves them
-/// structurally. Pinned so the narrowed frontier stays factual: there
-/// is no refusing ∖/∩ REST door to re-text.
+/// Crosslap ∖/∩ disposition rows (SPEC §1): on THIS fixture (and the
+/// corner-flush one above) classification resolves ∖/∩ structurally —
+/// no join door is reached, so there is no refusing door to re-text
+/// here. The claim is per-fixture, not universal: the three-wall
+/// notch-fill REST ∖ refuses `Containment(RayExhausted)` (pre-existing
+/// probe exhaustion, unchanged by S1) — `review_s1_probes.rs` pins
+/// that counterexample.
 #[test]
 fn rest_subtract_and_intersect_resolve_structurally() {
     let beam_a = prism_z::<f64>(
