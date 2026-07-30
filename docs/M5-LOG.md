@@ -770,3 +770,20 @@ e2e row; review probes adopted (review_s2.rs, 0.9s). -p profile
 124/0 + 134/0. This is the first PR gated by CI under the
 narrowed-local-battery process. Watcher armed. Row 18: fix pass
 moderate, complete.
+
+**S6 fix pass COMPLETE (0e7acef), PR OPENED as #138
+(2026-07-30).** All items: dishonest exactly-on payload fixed by
+branching on payload SHAPE only (Invalid → the honest definite
+statement; decision machinery untouched; verified via the
+reviewer's flush-stack repro); Indeterminate's Invalid arm now
+explains the poison AND ends with the carrier (count==1 pinned
+for both margin shapes); far-honest rephrasing at
+VertexCrossesAxis/SplitParamNotInterior (unconditional lever
+first, coincidence levers conditionally phrased, no value
+forking); 3 probe suites adopted; ALL S6 contains-pins tightened
+to exactly-once (16 assertions). Local touched-crate rows green
+both lanes. PR description carries the banked collapse
+candidates (review NOTE-1 discharged). Watcher armed. Both S
+units now gate on CI in parallel (#137 profile-only — the
+closure filter's first real selectivity test; #138 touches
+geom-core → full matrix expected).
