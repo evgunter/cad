@@ -751,7 +751,11 @@ mod tests {
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
 
         let msg = SplitJoinError::Escalated {
             face,
@@ -762,6 +766,10 @@ mod tests {
             },
         }
         .to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
     }
 }

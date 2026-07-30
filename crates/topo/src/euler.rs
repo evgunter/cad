@@ -3012,7 +3012,11 @@ mod tests {
         let edge = EdgeKey::default();
         let not_interior = EulerOpError::SplitParamNotInterior { edge };
         let msg = not_interior.to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
 
         let escalated = EulerOpError::SplitParamEscalated {
             edge,
@@ -3023,6 +3027,10 @@ mod tests {
             },
         };
         let msg = escalated.to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
     }
 }

@@ -53,8 +53,9 @@ fn undeclared_line_arc_tangency_is_refused_typed() {
             assert!(suggestion.contains("declare"), "repair menu: {suggestion}");
             // S6: the definite-tangency arm composes the shared
             // sub-ε_input recourse (two-tolerance principle).
-            assert!(
-                suggestion.contains(geom_core::COINCIDENCE_RECOURSE),
+            assert_eq!(
+                suggestion.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+                1,
                 "repair menu: {suggestion}"
             );
         }

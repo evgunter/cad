@@ -392,13 +392,21 @@ fn error_display_is_actionable() {
     assert!(msg.contains("tangential contact"), "{msg}");
     assert!(msg.contains("loop 0 segment 0"), "{msg}");
     assert!(msg.contains("loop 1 segment 0"), "{msg}");
-    assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+    assert_eq!(
+        msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+        1,
+        "{msg}"
+    );
 
     let e = err(&near_tangent_hole(tol().eps));
     let msg = e.to_string();
     assert!(msg.contains("carrier_circles_internal"), "{msg}");
     assert!(msg.contains("ambiguity band"), "{msg}");
-    assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+    assert_eq!(
+        msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+        1,
+        "{msg}"
+    );
 }
 
 #[test]

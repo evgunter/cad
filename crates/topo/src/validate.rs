@@ -4061,7 +4061,11 @@ mod tests {
             witness: "(0e0, 0e0, 0e0)".to_string(),
         };
         let msg = contact.to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
 
         let escalated = ValidationError::CensusEscalated {
             cause: Indeterminate {
@@ -4071,7 +4075,11 @@ mod tests {
             },
         };
         let msg = escalated.to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
         // Debug leakage (the `{:?}` bug) would print the enum shape,
         // not the carrier sentence.
         assert!(!msg.contains("MarginDiag"), "{msg}");

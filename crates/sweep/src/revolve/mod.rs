@@ -721,7 +721,11 @@ mod tests {
         ];
         for e in errors {
             let msg = e.to_string();
-            assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+            assert_eq!(
+                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+                1,
+                "{msg}"
+            );
         }
     }
 }

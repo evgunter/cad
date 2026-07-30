@@ -1290,7 +1290,11 @@ mod tests {
     #[test]
     fn transversality_pair_carries_the_shared_recourse() {
         let msg = CertifyError::NotTransverse { sample: 1 }.to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
 
         let msg = CertifyError::Escalated {
             check: CertCheck::Transversality,
@@ -1302,6 +1306,10 @@ mod tests {
             },
         }
         .to_string();
-        assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
     }
 }
