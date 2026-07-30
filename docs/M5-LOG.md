@@ -730,3 +730,25 @@ carry the carrier through Indeterminate's Invalid arm, rephrase
 the two far-honest sites without value forking, adopt the three
 reviewer probes + count==1 tightening. NOTE-1 (collapse
 candidates in the PR description) is the orchestrator's.
+
+**S2 review returned (2026-07-30): APPROVE-WITH-FIX-PASS — 1
+MAJ / 2 MIN / 3 NOTE, rubric 5/4/4.** The construction crux HELD
+completely: hand re-derivation of ρ = R − σ·τ·r for every sign
+combination (incl. enclosing r>R), 20k-corner fuzz with 12,714
+accepted constructions and zero wrong circles, bulge matched an
+independent atan2 oracle on all cases, verdict-sequence
+invariance probe-confirmed, straight-leg ambiguity unreachability
+proven structurally. MAJOR-1 (diagnostics cluster): arc-leg
+setback wraps mod 2π — behind-corner tangent points read as huge
+positive setbacks, reach can never classify Negative on arc legs,
+NoCornerSideCandidate unreachable for arc×arc, and
+FilletDoesNotFit can render the WRONG candidate's numbers
+(vesica repro). MINOR-1: one of seven trios breaks recourse
+parity (reach escalation renders the fit const). MINOR-2: the
+reversed/cusp arm advises declare_tangent — wrong per #131; also
+the one PATHS divergence the implementer missed (its two
+reported ones verified). **Fix pass DISPATCHED to the opus
+finisher** (resume justified — deep sugar.rs context): signed
+arc setback, trio parity, honest cusp text, NOTE docs, major-arc
+bulge row, probe adoption. Both fix passes now run in parallel;
+PRs open on their reports.
