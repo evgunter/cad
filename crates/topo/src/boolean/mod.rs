@@ -382,6 +382,11 @@ pub enum BooleanError {
         operand: Operand,
         /// The face.
         face: FaceKey,
+        /// Its surface kind — the C5 table row the refusal cites
+        /// (M5 PR 5: the boolean PIPELINE still executes only the
+        /// plane×plane arm; curved execution wires at M5 PR 9, and
+        /// the refusal retires per arm then, never wholesale).
+        kind: geom_brep::SurfaceKind,
     },
     /// An edge carrier is not a `Line` (F5).
     CurvedEdgeUnsupported {
@@ -567,15 +572,23 @@ impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "boolean_reduce: invalid band: {e}"),
-            Self::CurvedBooleanUnsupported { operand, face } => write!(
+            Self::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            } => write!(
                 f,
-                "boolean_reduce: face {face:?} of operand {operand:?} is not planar — M3 \
-                 booleans are planar-only (curved intersections arrive with M5 SSI)"
+                "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
+                 boolean pipeline executes only the plane×plane arm of the C5 table \
+                 (curved execution wires at M5 PR 9; pairs involving this kind route \
+                 per geom_brep::intersect::route, rung-3 arms unimplemented until SSI)",
+                kind.name()
             ),
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line carrier \
-                 (planar-only, M5)"
+                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line \
+                 carrier — the boolean pipeline's sweep is line-exact until curved \
+                 execution wires (M5 PR 9)"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,

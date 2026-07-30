@@ -230,6 +230,23 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             radius,
             u_ref: map_vec(map, u_ref),
         },
+        // A rigid map preserves the semi-axis lengths and the frame's
+        // orthonormality — the axis ordering invariant transfers
+        // unchanged, so no re-decision is needed (the constructor
+        // decided at mint; this is evaluation-lane data motion).
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => Curve3::Ellipse {
+            center: map.transform_point(center),
+            axis: map_vec(map, axis),
+            major,
+            minor,
+            u_ref: map_vec(map, u_ref),
+        },
         Curve3::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
     })
 }

@@ -418,24 +418,38 @@ fn sliver_vertex_escalates() {
 /// curved-unsupported error before any classification.
 #[test]
 fn curved_face_refuses() {
+    // Since M5 PR 5 the gate consults THE C5 table: cylinder faces
+    // PASS (the rung-2 arm landed); a torus face still refuses, typed,
+    // citing its rung routing (per-arm retirement, C12.1).
     let mut cube = common::geometric_cube::<f64>();
     cube.body
         .set_face_surface(
             cube.seed.face,
-            topo::FaceSurface::New(geom_surfaces::Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 1.0),
+            topo::FaceSurface::New(geom_surfaces::Surface::Torus {
+                center: Point3::new(0.0, 0.0, 1.0),
                 axis: Vec3::new(1.0, 0.0, 0.0),
-                radius: 1.0,
+                major_radius: 2.0,
+                minor_radius: 0.5,
                 u_ref: Vec3::new(0.0, 0.0, 1.0),
             }),
         )
         .unwrap();
     let plane = plane_y1();
     match split_reduce(&cube.body, &plane) {
-        Err(SplitReduceError::CurvedBooleanUnsupported { face }) => {
+        Err(
+            e @ SplitReduceError::CurvedBooleanUnsupported {
+                face,
+                kind: geom_brep::SurfaceKind::Torus,
+            },
+        ) => {
             assert_eq!(face, cube.seed.face);
+            let msg = e.to_string();
+            assert!(
+                msg.contains("routes to") && msg.contains("general rung"),
+                "{msg}"
+            );
         }
-        other => panic!("expected CurvedBooleanUnsupported, got {other:?}"),
+        other => panic!("expected CurvedBooleanUnsupported(Torus), got {other:?}"),
     }
 }
 

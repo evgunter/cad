@@ -122,7 +122,7 @@ pub(super) fn apply_rule_a<T: Decide>(
 ) -> Result<(), SplitReduceError> {
     let n = entries.len();
     for k in 0..n {
-        let (face, n_face) = sector_face(body, vertex, entries[k].he)?;
+        let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let extent = face_extent(body, vertex, face)?;
         // Distinct K name from neighborhood.rs's `split_sector_arm`
@@ -140,10 +140,18 @@ pub(super) fn apply_rule_a<T: Decide>(
         }
         // Oriented parallelism, part 1: are the normals parallel at
         // all? Margin ‖n_face × n_SP‖·extent (≥ 0; sin θ metered at
-        // the face extent).
+        // the face extent). For curved faces `n_face` is the LOCAL
+        // normal at the base vertex (M5 PR 5): a curved face is never
+        // coplanar with the split plane, so a parallel local normal is
+        // a **tangent contact** — C7 territory, refused typed (never
+        // marched into); the arm for that pair moves at M5 PR 9.
         let parallel_margin = n_face.cross(plane.normal).norm() * extent;
         match decide("split_sector_coplanar", parallel_margin, band) {
-            Ok(Sign::Zero) => {}
+            Ok(Sign::Zero) => {
+                if !is_plane {
+                    return Err(SplitReduceError::TangencyUnsupported { face, vertex });
+                }
+            }
             Ok(_) => continue, // definitely not coplanar: rule (a) silent
             Err(diag) => return Err(sliver(diag)),
         }
@@ -202,7 +210,7 @@ pub(super) fn apply_rule_b(
 /// farthest distance from the base vertex to any vertex of the face's
 /// loops — the largest displacement a normal-angle error can induce
 /// across this face (D4 ¶1's "face extent" arm, computed, named).
-fn face_extent<T: Decide>(
+pub(super) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,

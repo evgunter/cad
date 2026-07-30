@@ -14,6 +14,13 @@
       "incremental_ms": 1359.54,
       "nodes": 9
     },
+    "cut_cylinder": {
+      "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
+      "cone": 2,
+      "full_ms": 33.3,
+      "incremental_ms": 25.83,
+      "nodes": 4
+    },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "cone": 1,

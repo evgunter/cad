@@ -387,20 +387,55 @@ fn describe_section_boundary<T: Decide>(
             else {
                 return Err(corrupt());
             };
-            let witness = p0.lerp(p1, T::from_f64(0.5));
-            match geom_brep::classify_dihedral(
-                surf_self,
-                surf_other,
-                witness,
-                p0.distance(p1),
-                band,
-            ) {
+            // Conic section chords (M5 PR 5) keep their certified
+            // carrier and interval — only the description upgrades
+            // (the witness re-minted at the carrier's mid-parameter,
+            // the witness contract); line chords keep the M3 path
+            // byte-identically. The dihedral witness/arm likewise use
+            // the carrier's honest mid-point and extent for conics
+            // (the chord collapses on near-closed arcs).
+            let existing = body
+                .get_curve_geom(edge_data.curve)
+                .and_then(crate::null::CurveGeom::certified)
+                .cloned();
+            let conic = existing.as_ref().and_then(|c| match c.carrier() {
+                geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+                    let (t0, t1) = c.params();
+                    let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
+                    let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
+                    Some((c.clone(), mid, arm))
+                }
+                geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => None,
+            });
+            let (witness, arm) = match &conic {
+                Some((_, mid, arm)) => (*mid, *arm),
+                None => (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1)),
+            };
+            match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
-                    let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description = geom_brep::EdgeGeometry::Intersection {
-                        s1: s_self,
-                        s2: s_other,
-                        witness,
+                    let spec = match conic {
+                        Some((curve, _, _)) => {
+                            let (t0, t1) = curve.params();
+                            geom_brep::EdgeCurveSpec {
+                                description: geom_brep::EdgeGeometry::Intersection {
+                                    s1: s_self,
+                                    s2: s_other,
+                                    witness,
+                                },
+                                carrier: curve.carrier().clone(),
+                                param_start: t0,
+                                param_end: t1,
+                            }
+                        }
+                        None => {
+                            let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+                            spec.description = geom_brep::EdgeGeometry::Intersection {
+                                s1: s_self,
+                                s2: s_other,
+                                witness,
+                            };
+                            spec
+                        }
                     };
                     body.set_edge_curve(edge, spec)?;
                 }

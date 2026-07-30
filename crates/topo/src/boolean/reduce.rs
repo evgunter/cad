@@ -146,10 +146,18 @@ pub(super) fn gate_planar<T: Decide>(body: &Body<T>, operand: Operand) -> Result
     for (face_key, face) in body.faces() {
         match body.get_surface(face.surface) {
             Some(geom_surfaces::Surface::Plane { .. }) => {}
-            _ => {
+            Some(s) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face: face_key,
+                    kind: geom_brep::SurfaceKind::of(s),
+                });
+            }
+            None => {
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face: face_key,
+                    kind: geom_brep::SurfaceKind::Nurbs,
                 });
             }
         }

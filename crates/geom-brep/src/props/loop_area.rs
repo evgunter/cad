@@ -17,7 +17,11 @@ use super::{LoopEdge, PropsError};
 ///
 /// - line `a → b`: `(1/2)·(a − ref)×(b − ref)`;
 /// - circular arc: `(1/2)·[(C − ref)×(p1 − p0) + R²·(t1 − t0)·axis]`,
-///   negated for reversed traversal.
+///   negated for reversed traversal;
+/// - ellipse arc (M5 PR 5): the same form with `R² → a·b` —
+///   `(P−C)×dP = a·b·dθ·axis` exactly (the eccentric-anomaly
+///   parameterization's constant areal rate), so
+///   `(1/2)·[(C − ref)×(p1 − p0) + a·b·(t1 − t0)·axis]`.
 ///
 /// # Errors
 ///
@@ -44,6 +48,17 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let w = center - ref_point;
                 let chord = e.p1() - e.p0();
                 (w.cross(chord) + axis * (radius.powi(2) * (e.t1 - e.t0))) * half
+            }
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                ..
+            } => {
+                let w = center - ref_point;
+                let chord = e.p1() - e.p0();
+                (w.cross(chord) + axis * (major * minor * (e.t1 - e.t0))) * half
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         };
