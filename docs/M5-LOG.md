@@ -898,3 +898,22 @@ DISPATCHED** (fable implementer resumed): close the silent class
 contained), narrow the ∖/∩ claim (three-wall counterexample
 pinned), narrative alignments, adopt 6 probe files. PR 5 review
 still in flight.
+
+**PR 5 review returned (2026-07-30): REJECT — the milestone's
+first. 3 MAJ / 3 MIN / 3 NOTE, rubric 5/4/4.** The geometry HELD
+(hand re-derivation of all three closed-form families + 500 fuzz
+configs, residuals ≤5e-12·scale, interval enclosures contain 0;
+table exhaustiveness verified with E0004 break; declared-only
+pin real; M2 bit-identity independently confirmed by source-path
+walk). The REJECT is M1: even-count conic crossings between
+same-side endpoints are INVISIBLE to the endpoint-verdict rule
+and the un-cut fallback silently loses a sliver (reviewer repro
+on the PR's own corpus geometry: disc cylinder + offset plane →
+above=Empty, the 0.25<y≤0.5 sliver gone) — the exact
+never-silence class, and no committed test covers it. M2: D9
+violation — std trig in pcurve.rs (4 sites) that PR 6 would
+persist. M3: split-lane trileans shipped untested + 4 missing
+in-band rows. **Fix pass DISPATCHED (fable implementer resumed);
+a RE-REVIEW gates the PR** — this unit does NOT go to
+fix-then-merge; reviewer's verdict was fix + re-review, then
+approvable. S1 fix pass also in flight.
