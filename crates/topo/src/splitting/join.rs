@@ -1325,10 +1325,205 @@ fn ring_representative<T: Decide>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::entity::FaceKey;
+
+    // -----------------------------------------------------------------
+    // DIRECT rows for the arc-side selector (M5 PR 5 fix pass, M3):
+    // `split_conic_arc_side` definite ccw / definite cw / in-band, and
+    // the SectionInvariant refusal arms (no run sample; sample at the
+    // start azimuth) — driven straight through `chord_spec` on a
+    // hand-built cylinder-face body.
+    // -----------------------------------------------------------------
+
+    use geom_core::{Point3, Vec3};
+
+    /// A body with one cylinder face (unit radius about z) and two
+    /// vertices on the y = 0.25 section rim… actually on the tilted
+    /// section ellipse of `sec_plane()`, at conic parameters θ = 0 and
+    /// θ = π/2 — the chord endpoints `chord_spec` connects.
+    fn cyl_fixture() -> (
+        crate::Body<f64>,
+        crate::entity::FaceKey,
+        crate::entity::VertexKey,
+        crate::entity::VertexKey,
+        SectionCtx<f64>,
+    ) {
+        let phi = 0.5f64;
+        let normal = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let plane = super::SplitPlane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+        };
+        // The section ellipse of (plane × unit cylinder about z):
+        // center at the axis piercing (origin), minor dir ŵ =
+        // normalize(ẑ×n̂) = ŷ… compute points directly from the
+        // closed form: v̂ = ŷ, û = v̂×n̂; a = 1/cos φ, b = 1.
+        let v_e = Vec3::new(0.0, 1.0, 0.0);
+        let u_e = v_e.cross(normal);
+        let a = 1.0 / phi.cos();
+        let at = |theta: f64| -> Point3<f64> {
+            let (s, c) = geom_core::Real::sin_cos(theta);
+            Point3::origin() + u_e * (a * c) + v_e * s
+        };
+        let p1 = at(0.0);
+        let p2 = at(core::f64::consts::FRAC_PI_2);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(p1).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New(geom_surfaces::Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            }),
+        )
+        .unwrap();
+        let mev = body
+            .mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p2,
+            )
+            .unwrap();
+        let ctx = SectionCtx {
+            plane,
+            plane_key: None,
+        };
+        (body, seed.face, seed.vertex, mev.vertex, ctx)
+    }
+
+    /// A point on the unit cylinder at azimuth `u` (height 0) — the
+    /// arc-side azimuth sample probe.
+    fn cyl_point(u: f64) -> Point3<f64> {
+        let (s, c) = geom_core::Real::sin_cos(u);
+        Point3::new(c, s, 0.0)
+    }
+
+    #[test]
+    fn arc_side_definite_ccw_and_cw() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        // ccw: a sample strictly inside the ccw arc θ ∈ (0, π/2) —
+        // azimuth π/4.
+        let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
+        let spec = chord_spec(
+            &mut body,
+            band,
+            Some(&mut ctx),
+            face,
+            Some(cyl_point(core::f64::consts::FRAC_PI_4)),
+            u1,
+            u2,
+        )
+        .unwrap()
+        .expect("cylinder face mints a conic chord");
+        let geom_curves::Curve3::Ellipse { axis, .. } = spec.carrier else {
+            panic!("tilted section is an ellipse");
+        };
+        // ccw keeps the classification frame (axis ≈ the plane normal)
+        // and spans θ: 0 → π/2.
+        assert!(axis.dot(Vec3::new(0.5f64.sin(), 0.0, 0.5f64.cos())) > 0.9);
+        assert!(spec.param_start.abs() < 1e-12);
+        assert!((spec.param_end - core::f64::consts::FRAC_PI_2).abs() < 1e-12);
+
+        // cw: a sample on the OTHER arc (azimuth −π/2) flips the frame
+        // so the carrier still runs forward u1 → u2.
+        let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
+        let spec = chord_spec(
+            &mut body,
+            band,
+            Some(&mut ctx),
+            face,
+            Some(cyl_point(-core::f64::consts::FRAC_PI_2)),
+            u1,
+            u2,
+        )
+        .unwrap()
+        .expect("cylinder face mints a conic chord");
+        let geom_curves::Curve3::Ellipse { axis, .. } = spec.carrier else {
+            panic!("tilted section is an ellipse");
+        };
+        assert!(
+            axis.dot(Vec3::new(0.5f64.sin(), 0.0, 0.5f64.cos())) < -0.9,
+            "the cw arc takes the flipped frame"
+        );
+        assert!(
+            (spec.param_end - spec.param_start - 1.5 * core::f64::consts::PI).abs() < 1e-12,
+            "the cw arc spans the complement"
+        );
+    }
+
+    #[test]
+    fn arc_side_in_band_escalates() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        // A sample 5e-9 radians shy of the END azimuth: the headroom
+        // margin (Δ_arc − Δ_sample)·b lands in the band — F6, typed.
+        let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
+        let err = chord_spec(
+            &mut body,
+            band,
+            Some(&mut ctx),
+            face,
+            Some(cyl_point(core::f64::consts::FRAC_PI_2 - 5e-9)),
+            u1,
+            u2,
+        )
+        .unwrap_err();
+        let SplitJoinError::Escalated { diag, .. } = err else {
+            panic!("expected the arc-side escalation, got {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("split_conic_arc_side"));
+    }
+
+    #[test]
+    fn arc_side_refusal_arms_are_typed() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        // No conic edge in the joined run: no azimuth witness.
+        let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
+        let err = chord_spec(&mut body, band, Some(&mut ctx), face, None, u1, u2).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                SplitJoinError::SectionInvariant { what, .. }
+                    if what.contains("no conic edge")
+            ),
+            "{err:?}"
+        );
+        // A sample AT the chord's start azimuth cannot select a side —
+        // refused typed, never guessed (review m1).
+        let (mut body, face, u1, u2, mut ctx) = cyl_fixture();
+        let err = chord_spec(
+            &mut body,
+            band,
+            Some(&mut ctx),
+            face,
+            Some(cyl_point(0.0)),
+            u1,
+            u2,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                SplitJoinError::SectionInvariant { what, .. }
+                    if what.contains("start azimuth")
+            ),
+            "{err:?}"
+        );
+        // Outside the split lane (no section context) a conic chord is
+        // an invariant violation, typed.
+        let (mut body, face, u1, u2, _) = cyl_fixture();
+        let err =
+            chord_spec(&mut body, band, None, face, Some(cyl_point(1.0)), u1, u2).unwrap_err();
+        assert!(
+            matches!(err, SplitJoinError::SectionInvariant { .. }),
+            "{err:?}"
+        );
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the split-join pair —
     /// exactly-zero section area (`DegenerateSection`) and in-band

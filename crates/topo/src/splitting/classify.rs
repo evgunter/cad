@@ -329,3 +329,120 @@ pub(super) fn insert_crossings<T: Decide>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! DIRECT trilean rows for the conic crossing lane (M5 PR 5 fix
+    //! pass, review M3): `split_conic_belly_graze` and
+    //! `split_conic_crossing_root` each get their definite /
+    //! exactly-degenerate / in-band arms against a pure band (the
+    //! geom-core test discipline: never `Band::linear` in a lib test).
+
+    use geom_core::{Band, Point3, Vec3};
+    use geom_curves::Curve3;
+
+    use super::conic_crossing_roots;
+    use crate::splitting::SplitPlane;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// Unit circle in the xy-plane about the origin (meter = 1, so
+    /// parameter margins ARE meters).
+    fn circle() -> Curve3<f64> {
+        Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn plane_y(c: f64) -> SplitPlane<f64> {
+        SplitPlane {
+            origin: Point3::new(0.0, c, 0.0),
+            normal: Vec3::unit_y(),
+        }
+    }
+
+    /// `split_conic_belly_graze`, all three arms: definitely-secant
+    /// (two roots), definitely-missing (no roots), exactly-tangent
+    /// (one graze root), and in-band (typed escalation).
+    #[test]
+    fn belly_graze_trio() {
+        let c = circle();
+        // Secant (margin R − |D| = 1, definite): the two roots of
+        // sin θ = 0.5 land in the span, ascending.
+        let roots = conic_crossing_roots(&c, 0.1, 6.0, &plane_y(0.5), band())
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(roots.len(), 2);
+        assert!((roots[0] - core::f64::consts::FRAC_PI_6).abs() < 1e-12);
+        assert!((roots[1] - (core::f64::consts::PI - core::f64::consts::FRAC_PI_6)).abs() < 1e-12);
+        // Missing (margin −1, definite): no crossing at all.
+        assert!(
+            conic_crossing_roots(&c, 0.1, 6.0, &plane_y(2.0), band())
+                .unwrap()
+                .is_none()
+        );
+        // Exactly tangent (margin 0): ONE graze root at π/2.
+        let roots = conic_crossing_roots(&c, 0.1, 6.0, &plane_y(1.0), band())
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(roots.len(), 1);
+        assert!((roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-4);
+        // In-band (margin −3ε): typed escalation, named.
+        let diag = conic_crossing_roots(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(diag.predicate, Some("split_conic_belly_graze"));
+    }
+
+    /// `split_conic_crossing_root`, all three arms: definitely
+    /// interior (returned), exactly at an endpoint (skipped — the
+    /// vertex sweep owns it), and in-band of an endpoint (typed
+    /// escalation).
+    #[test]
+    fn crossing_root_trio() {
+        let c = circle();
+        // Roots of sin θ = 0 are θ ∈ {0, π}: with span [0, 2] the θ = 0
+        // root sits EXACTLY at the endpoint (skipped, Zero arm) and the
+        // θ = π root is definitely interior (returned).
+        let roots = conic_crossing_roots(&c, 0.0, 2.0 + 2.0, &plane_y(0.0), band())
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(roots.len(), 1);
+        assert!((roots[0] - core::f64::consts::PI).abs() < 1e-12);
+        // Both roots definitely interior: span (−1, 4).
+        let roots = conic_crossing_roots(&c, -1.0, 4.0, &plane_y(0.0), band())
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(roots.len(), 2);
+        assert!(roots[0].abs() < 1e-12 || (roots[0] - core::f64::consts::PI).abs() < 1e-12);
+        // In-band: a root 5e-9 (meters, meter = r = 1) inside the
+        // span end — typed escalation, named.
+        let diag = conic_crossing_roots(&c, -5e-9, 2.0, &plane_y(0.0), band())
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(diag.predicate, Some("split_conic_crossing_root"));
+    }
+
+    /// Line carriers refuse the conic lane (the `Err(())` sentinel the
+    /// caller maps to the bit-identical M3 interpolation path).
+    #[test]
+    fn line_carriers_take_the_m3_lane() {
+        let line = Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_x(),
+        };
+        assert!(conic_crossing_roots(&line, 0.0, 1.0, &plane_y(0.5), band()).is_err());
+    }
+}

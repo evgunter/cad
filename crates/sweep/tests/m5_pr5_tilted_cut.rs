@@ -509,3 +509,84 @@ fn even_crossing_belly_cut_at_interval() {
         "the pinned interval posture is the arc-side escalation, got: {msg}"
     );
 }
+
+// ---------------------------------------------------------------------
+// M3 fix rows: end-to-end trilean arms of the conic crossing lane
+// ---------------------------------------------------------------------
+
+/// `split_conic_crossing_root` Zero arm, end to end: the y = 0 plane's
+/// rim roots land EXACTLY on the profile corners — nothing is
+/// inserted (the vertex sweep owns them), and the ON set is exactly
+/// the four original corners.
+#[test]
+fn root_at_endpoint_inserts_nothing() {
+    let body = cylinder_body();
+    let originals: std::collections::BTreeSet<_> = body.vertices().map(|(k, _)| k).collect();
+    let plane = SplitPlane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+    };
+    let red = topo::splitting::split_reduce(&body, &plane).unwrap();
+    assert_eq!(red.on_vertices.len(), 4);
+    for v in &red.on_vertices {
+        assert!(originals.contains(v), "no crossing vertex minted");
+    }
+}
+
+/// The definite arm, end to end: the reviewer probe's plane mints
+/// exactly four NEW crossing vertices (two per doubly-crossed rim).
+#[test]
+fn definite_roots_mint_four_crossings() {
+    let body = cylinder_body();
+    let originals: std::collections::BTreeSet<_> = body.vertices().map(|(k, _)| k).collect();
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.25, 0.0),
+        normal: Vec3::unit_y(),
+    };
+    let red = topo::splitting::split_reduce(&body, &plane).unwrap();
+    assert_eq!(red.on_vertices.len(), 4);
+    for v in &red.on_vertices {
+        assert!(!originals.contains(v), "all four are minted crossings");
+    }
+}
+
+/// `split_conic_belly_graze` in-band, end to end: a plane 3ε shy of
+/// the rim apex is an ill-conditioned graze — CrossingEscalated, with
+/// the predicate named and the shared recourse riding the payload.
+#[test]
+fn near_graze_escalates_typed() {
+    let body = cylinder_body();
+    let eps = Tolerance::get().eps;
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.5 + 3.0 * eps, 0.0),
+        normal: Vec3::unit_y(),
+    };
+    let err = split(&body, &plane).unwrap_err();
+    let msg = format!("{err}");
+    assert!(msg.contains("split_conic_belly_graze"), "{msg}");
+    assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
+}
+
+/// The exact graze (plane through the rim apexes): the double root
+/// inserts a single ON contact per rim and the pipeline resolves the
+/// one-sided tangency through its established net — a typed refusal,
+/// never a degenerate body.
+#[test]
+fn exact_graze_refuses_typed() {
+    let body = cylinder_body();
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        normal: Vec3::unit_y(),
+    };
+    match split(&body, &plane) {
+        Ok(r) => panic!(
+            "a tangent graze must not produce a two-sided split: above={:?} below={:?}",
+            matches!(r.above, SplitPart::Body(_)),
+            matches!(r.below, SplitPart::Body(_))
+        ),
+        Err(e) => {
+            let msg = format!("{e}");
+            assert!(msg.contains("split"), "typed refusal expected: {msg}");
+        }
+    }
+}

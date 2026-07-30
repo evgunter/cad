@@ -684,3 +684,97 @@ mod interval {
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// Fix-pass M3 rows: the remaining in-band escalation arms
+// ---------------------------------------------------------------------
+
+/// `cc_axes_parallel` in-band: an axis pair 3ε off parallel (sine at
+/// extent 1) escalates typed after the radius declaration verifies.
+#[test]
+fn cc_axes_parallel_in_band_escalates() {
+    let s = 3.0 * eps();
+    let c1 = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let c2 = Surface::Cylinder {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        axis: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let err =
+        cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, 1.0, band()).unwrap_err();
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("cc_axes_parallel"));
+}
+
+/// `cc_coaxial` in-band: parallel equal-radius cylinders 3ε apart are
+/// too close to the coincident-surface coincidence — escalated typed.
+#[test]
+fn cc_coaxial_in_band_escalates() {
+    let mk = |offset: f64| Surface::Cylinder {
+        origin: Point3::new(offset, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let err = cylinder_cylinder_section(
+        &mk(0.0),
+        &mk(3.0 * eps()),
+        RadiusEvidence::Declared,
+        1.0,
+        band(),
+    )
+    .unwrap_err();
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("cc_coaxial"));
+}
+
+/// `pn_apex_section` in-band: an apex-through plane whose two-line
+/// discriminant sits 3ε inside the band (ψ = π/2 − α + 3ε at extent 1)
+/// escalates typed.
+#[test]
+fn pn_apex_section_in_band_escalates() {
+    let a = core::f64::consts::FRAC_PI_6;
+    let cone = cone_z(a);
+    let psi = core::f64::consts::FRAC_PI_2 - a + 3.0 * eps();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.0), // through the apex
+        normal: Vec3::new(psi.sin(), 0.0, psi.cos()),
+        u_ref: Vec3::unit_y(),
+    };
+    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pn_apex_section"));
+}
+
+/// `pn_axis_normal` in-band: an off-apex plane tilted so the
+/// alignment sine at the cut-radius arm lands in the band escalates
+/// typed (neither the circle nor the R1 routing may be guessed).
+#[test]
+fn pn_axis_normal_in_band_escalates() {
+    let a = core::f64::consts::FRAC_PI_6;
+    let cone = cone_z(a);
+    let rim_r = 2.0 * a.tan(); // h = 2 above the apex
+    let s = 3.0 * eps() / rim_r;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 3.0),
+        normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
+        u_ref: Vec3::unit_y(),
+    };
+    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pn_axis_normal"));
+}
