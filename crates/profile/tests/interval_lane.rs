@@ -240,4 +240,14 @@ fn zero_radius_arc_fillet_escalates_at_interval() {
         } => assert_eq!(source.predicate, Some("fillet_leg_reach"), "{err}"),
         other => panic!("expected a fillet-site escalation, got {other:?}"),
     }
+    // Trio parity (review MINOR-1): `fillet_leg_reach`'s situation is
+    // whether a corner of this radius exists on the corner side, and its
+    // definite refusal is `NoCornerForFillet` — so the in-band row must
+    // render the no-corner recourse, NOT the radius-does-not-fit one.
+    let text = err.to_string();
+    assert!(text.contains("can sit in the corner"), "recourse: {text}");
+    assert!(
+        !text.contains("longer legs"),
+        "reach must not render the fit recourse: {text}"
+    );
 }

@@ -400,10 +400,18 @@ impl<T: Real> LoopBuilder<T> {
     /// one. The arc's bulge is `tan(θ/4)` in the half-angle form
     /// σ·(L/2) / (r + copysign(|M − P|, σ·(T₁−P)×(T₂−P))) with L the
     /// chord |T₂ − T₁| and M its midpoint — algebraic, one square root
-    /// per length, correct for major arcs (|θ| > π) too. Every emitted
-    /// coordinate stays in those sqrt forms; the angular extents that
-    /// feed the gates use `atan2` (gate quantities, not emitted
-    /// geometry).
+    /// per length, correct for major arcs (|θ| > π) too.
+    ///
+    /// The tangent points, the fillet centre and the FILLET arc's bulge
+    /// stay in those sqrt forms, and the gate quantities use `atan2`
+    /// (gate inputs, not emitted geometry). The one emitted number that
+    /// is *not* algebraic is the trimmed circular leg's own bulge: that
+    /// piece is re-emitted through [`LoopBuilder::arc_to_center`], which
+    /// derives its bulge from the endpoints' angles about the centre —
+    /// `atan2` then `tan`. That is the pre-existing contract of the
+    /// `arc_to_center` door (this constructor adds no transcendental of
+    /// its own there), but it does mean "every emitted coordinate stays
+    /// in sqrt forms" is true of the fillet arc, not of the trimmed leg.
     ///
     /// # The branch rule (deterministic, never a guess)
     ///
@@ -531,11 +539,23 @@ impl<T: Real> LoopBuilder<T> {
         // (4/5) the branch rule and the fit gate, one pass in candidate
         // order: a candidate survives when both tangent points lie
         // *within* their legs' corner-side extents — setback ≥ 0
-        // (`fillet_leg_reach`, the corner end) and extent − setback ≥ 0
-        // (`fillet_leg_fit`, the far end, generalized to arc lengths
-        // R·Δθ on a circular leg). Four classifications per candidate,
-        // always all four: the recorded sample sequence must not depend
-        // on the data.
+        // (`fillet_leg_reach`, the corner end; SIGNED on both leg kinds,
+        // so "past the corner" really does classify Negative) and
+        // extent − setback ≥ 0 (`fillet_leg_fit`, the far end,
+        // generalized to arc lengths R·Δθ on a circular leg).
+        //
+        // Four classifications per candidate, always all four — no
+        // short-circuit, so the recorded sample sequence depends only on
+        // the corner CLASS (how many candidates the carriers admit), not
+        // on the numbers. That invariance is stated for the
+        // non-escalating path: any one of the four `decide` calls may
+        // return Indeterminate, and the `?` below aborts the whole
+        // constructor with that escalation, leaving the remaining
+        // classifications of this candidate and every later candidate
+        // unfired. This is deliberate — an escalation means the gate
+        // cannot be classified at this scalar, and continuing would be
+        // deciding the branch rule on a margin we just admitted we
+        // cannot read. The escalation names which predicate stopped it.
         let mut surviving: Vec<(Candidate<T>, Sign, Sign)> = Vec::with_capacity(centers.len());
         let mut overrun: Option<ProfileError> = None;
         for center in centers {
@@ -557,6 +577,15 @@ impl<T: Real> LoopBuilder<T> {
                 // the radius pushes a tangent point off the far end of
                 // its leg: the radius-does-not-fit situation, reported
                 // incoming leg first exactly as `fillet` gates it.
+                //
+                // Attribution is sound because `corner_side` is now a
+                // real test (signed setback, review MAJOR-1): a candidate
+                // rounding the OTHER intersection of the two carriers has
+                // a tangent point past the corner, classifies Negative,
+                // and never reaches this arm. So the setback and leg
+                // length rendered below are this candidate's own numbers,
+                // for the corner the author actually named — not a
+                // wrap-around distance to a corner they never mentioned.
                 let (leg, setback, margin) = if fit_in == Sign::Negative {
                     (&leg_in, sb_in, margin_in)
                 } else {
@@ -660,8 +689,53 @@ fn fillet_escalated(source: Indeterminate) -> ProfileError {
 /// The angle swept from `from` to `to` about a center, in the `turn`
 /// sense (+1 counterclockwise, −1 clockwise), reduced into [0, 2π) —
 /// the arc-leg analogue of "distance along the leg".
+///
+/// This is the right reduction for a leg's own **extent**, which is a
+/// forward sweep by construction and may legitimately exceed π. It is
+/// the WRONG reduction for a setback, which must be able to come out
+/// negative — see [`signed_swept`].
 fn swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic(T::tau())
+}
+
+/// The **signed** angle swept from `from` to `to` in the `turn` sense,
+/// reduced into [−π, π) — [`swept`]'s forward sweep folded so that
+/// "more than half a turn forward" reads as "backward", which is what a
+/// *setback* needs (review MAJOR-1).
+///
+/// The unsigned [`swept`] cannot express "behind the corner": a tangent
+/// point one degree past the corner reads as a setback of 359°·R. With
+/// that reading `fillet_leg_reach` could never classify Negative on an
+/// arc leg, the `NoCornerSideCandidate` refusal was unreachable for
+/// arc×arc, and an overrun refusal could render the wrap-around numbers
+/// of the candidate rounding the OTHER carrier intersection while naming
+/// the corner the author asked for.
+///
+/// # Why folding loses nothing
+///
+/// A fillet tangent point is never more than half a turn from the
+/// corner. It lies on the ray from the leg's centre O through the
+/// fillet centre P, so its angular offset from the corner is the
+/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] by
+/// definition. A genuine setback therefore always lies in the kept
+/// half, however far the leg itself sweeps — a leg may legitimately
+/// sweep more than π, and its extent still uses the unsigned [`swept`].
+///
+/// # Why the fold, and not `atan2` of the cross/dot
+///
+/// `atan2(τ·(u × w), u · w)` computes the same angle in one call, but as
+/// a *different* floating-point expression from the one [`swept`] uses
+/// for the leg's extent — and the exact-fit rows turn on `extent −
+/// setback` being bit-zero when the tangent point lands on the leg's far
+/// end. The fold below is `x − τ·⌊x/τ + ½⌋`, which for `x ∈ [0, π)`
+/// multiplies τ by a floored zero and returns `x − 0` — **bit-identical
+/// to [`swept`]**. So this changes the value only where the shipped code
+/// was wrong (past the corner), and the knife-edge exactness the fit
+/// gate relies on is preserved by construction rather than by luck.
+fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
+    let forward = swept(from, to, turn);
+    let tau = T::tau();
+    forward - tau * (forward / tau + T::from_f64(0.5)).floor()
 }
 
 /// The +90° rotation of `v` (its left normal).
@@ -785,7 +859,11 @@ impl<T: Real> Leg<T> {
 
     /// The tangent point's setback from the corner, measured **along
     /// the leg** (meters; an arc length R·Δθ on a circular leg).
-    /// Positive on the corner side, negative past the corner.
+    /// **Positive on the corner side, negative past the corner** — on
+    /// both leg kinds: a straight leg projects onto its travel
+    /// direction, a circular one takes the signed sweep
+    /// ([`signed_swept`], whose docs carry why the fold is both
+    /// necessary and lossless here).
     fn setback(&self, tangent: Point2<T>, corner: Point2<T>) -> T {
         match self.arc {
             None => match self.side {
@@ -797,8 +875,8 @@ impl<T: Real> Leg<T> {
                 let angle = to_tangent.y.atan2(to_tangent.x);
                 arc.radius
                     * match self.side {
-                        FilletLeg::Incoming => swept(angle, arc.corner_angle, arc.turn),
-                        FilletLeg::Outgoing => swept(arc.corner_angle, angle, arc.turn),
+                        FilletLeg::Incoming => signed_swept(angle, arc.corner_angle, arc.turn),
+                        FilletLeg::Outgoing => signed_swept(arc.corner_angle, angle, arc.turn),
                     }
             }
         }
@@ -939,6 +1017,25 @@ impl<T: Real> ArcCarrier<T> {
 /// |θ| < π). Then tan(θ/4) = σ·sin ψ/(1 + cos ψ), written below without
 /// dividing through by r. Correct for major arcs, no square root of a
 /// cancelling difference, and no transcendental.
+///
+/// # The negative-apothem (major-arc) branch is defensive
+///
+/// `copysign` flips the apothem when σ·(u × w) < 0, i.e. when the fillet
+/// sweeps MORE than half a turn. That branch is **not reachable through
+/// [`LoopBuilder::fillet_corner`]** (review NOTE): the corner-side
+/// extent gates put both tangent points on the corner side of their
+/// legs, which bounds the fillet's turn below π — a 200k-corner search
+/// over all four corner classes (line/arc × line/arc, radii 0.03–3,
+/// enclosing cases included, 106k accepted) tops out at |bulge| =
+/// 0.9804, i.e. θ = 0.987·π, approaching the bound from below and never
+/// crossing it. The nearest approach is a near-cusp line×line corner.
+///
+/// The general form is kept, and the branch is covered by a direct unit
+/// test (`fillet_bulge_major_arc_branch`) rather than an e2e row that
+/// cannot exist, because this is the general tan(θ/4) identity and the
+/// bound is a property of the *gates*, not of the formula: a future
+/// caller that relaxes the extent rule (or a v2 lowering that anchors
+/// sides differently) must not silently get a wrong bulge.
 fn fillet_bulge<T: Real>(t1: Point2<T>, t2: Point2<T>, center: Point2<T>, radius: T, sgn: T) -> T {
     let two = T::from_f64(2.0);
     let cross = (t1 - center).perp_dot(t2 - center);
@@ -974,6 +1071,45 @@ mod tests {
             p2(0.0, 1.0),
         );
         assert!((b - (core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-15);
+    }
+
+    /// [`fillet_bulge`]'s major-arc branch (review NOTE): the
+    /// `copysign`-negated apothem. Unreachable through `fillet_corner`
+    /// (its docs carry the search that establishes the θ < π bound), so
+    /// the general identity is pinned here directly, against `tan(θ/4)`
+    /// for sweeps on both sides of π and in both traversal senses.
+    #[test]
+    fn fillet_bulge_major_arc_branch() {
+        let radius = 1.5;
+        let center = p2(-0.25, 0.75);
+        let on = |deg: f64| {
+            let (s, c) = f64::to_radians(deg).sin_cos();
+            p2(center.x + radius * c, center.y + radius * s)
+        };
+        // θ swept from t1 to t2 in the `sgn` sense; the pairs straddle π
+        // so both signs of σ·(u × w) are exercised.
+        for &theta in &[60.0, 179.0, 181.0, 270.0, 359.0] {
+            for &sgn in &[1.0, -1.0] {
+                let start = 17.0;
+                let t1 = on(start);
+                let t2 = on(start + sgn * theta);
+                let b = fillet_bulge(t1, t2, center, radius, sgn);
+                let want = sgn * f64::tan(f64::to_radians(theta) / 4.0);
+                // Relative: tan(θ/4) blows up as θ → 2π (229 at 359°).
+                assert!(
+                    (b - want).abs() <= 1e-11 * want.abs().max(1.0),
+                    "theta {theta} sgn {sgn}: bulge {b} vs tan(theta/4) {want}"
+                );
+                // Above π the apothem must have been negated, which is
+                // exactly when |bulge| exceeds tan(π/4) = 1.
+                assert_eq!(
+                    b.abs() > 1.0,
+                    theta > 180.0,
+                    "theta {theta}: |bulge| {} on the wrong side of 1",
+                    b.abs()
+                );
+            }
+        }
     }
 
     #[test]

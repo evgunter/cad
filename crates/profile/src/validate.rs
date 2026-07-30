@@ -272,20 +272,53 @@ impl fmt::Display for NoCornerReason {
     }
 }
 
-/// The recourse for a corner whose legs already meet tangentially —
-/// the single carrier of this user situation's text (the two-tolerance
-/// discipline, D4 ¶1 addendum; the shape `docs/M5-S6-SPEC.md` builds
-/// for the whole kernel): the same sentence is rendered whether the
-/// turn margin is exactly zero or merely in-band, and the margin rides
-/// the payload as data.
+/// The recourse for a corner whose legs already meet **smoothly**
+/// tangentially — the single carrier of this user situation's text (the
+/// two-tolerance discipline, D4 ¶1 addendum; the shape
+/// `docs/M5-S6-SPEC.md` builds for the whole kernel): the same sentence
+/// is rendered whether the turn margin is exactly zero or merely
+/// in-band, and the margin rides the payload as data.
 const FILLET_TANGENT_CORNER_RECOURSE: &str = "there is no corner to round — the legs already run into each other tangentially at any \
      precision you could care about; keep the legs and declare the tangency \
      (LoopBuilder::declare_tangent), or move the geometry so a corner exists (or lower the \
      tolerance)";
 
+/// The recourse for a **reverse**-tangent corner: the legs double back
+/// on each other, so there is no corner *and* no declaration door.
+///
+/// `docs/PATHS-DESIGN.md` §4 item 1 makes reverse-tangency its own
+/// refusal class for exactly this reason — the kernel's material-wedge
+/// invariant refuses cusp wedges in any solid built from such a
+/// profile, so `declare_tangent` would only move the failure downstream
+/// (review MINOR-2: advising it here was wrong). The front door for
+/// cusps is #131, which is tabled, and the refusal says so rather than
+/// implying a door exists.
+const FILLET_CUSP_CORNER_RECOURSE: &str = "there is no corner to round and no tangency to declare — a doubled-back corner is a \
+     cusp, which the kernel refuses in any solid built from this profile (#131 is the tabled \
+     question of a front door for cusps); move the geometry so the legs leave the corner in \
+     different directions";
+
+/// The recourse for an in-band corner **turn**, where the constructor
+/// has admitted it cannot classify the margin and therefore cannot say
+/// which of the two degenerate classes above it is looking at.
+///
+/// Deliberately names both doors. The two-tolerance discipline asks for
+/// one sentence per user situation, and the situation here is precisely
+/// "this corner is degenerate and which kind is below the tolerance" —
+/// rendering either single-class sentence would assert the very thing
+/// the escalation declined to decide.
+const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
+     the tolerance: if the legs run smoothly into each other, keep them and declare the \
+     tangency (LoopBuilder::declare_tangent); if they double back, that is a cusp and the \
+     kernel refuses it (#131); otherwise move the geometry so a real corner exists (or lower \
+     the tolerance)";
+
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
 /// in-band escalation alike (see [`FILLET_TANGENT_CORNER_RECOURSE`]).
+/// Also carries `fillet_leg_reach`, whose situation is the same one:
+/// whether a corner of this radius exists on the corner side at all
+/// (review MINOR-1).
 const FILLET_NO_CORNER_RECOURSE: &str =
     "use a smaller radius, or move the legs so a circle of that radius can sit in the corner";
 
@@ -378,6 +411,18 @@ pub enum ProfileError {
     /// is already tangent wants the declaration, not an arc (M5 S2;
     /// `docs/PATHS-DESIGN.md` §4 item 1 is the same situation in the
     /// v2 algebra).
+    ///
+    /// **PATHS lowering divergence (M5 S2, review MINOR-2)**: §4 item 1
+    /// splits this into TWO classes — smooth-tangent, whose recourse is
+    /// `.tangent()` (here `declare_tangent`), and reverse-tangent, which
+    /// has *no* declaration door because the material-wedge invariant
+    /// refuses cusp wedges downstream, and which names #131 as the front
+    /// door that does not exist yet. This error keeps both classes in one
+    /// variant, discriminated by `reversed`, and renders the two
+    /// recourses accordingly. The v2 lowering should split the variant;
+    /// v1 keeps one because the constructor reaches both through the
+    /// single `fillet_corner_turn` gate, and an in-band turn margin
+    /// cannot commit to either class.
     FilletCornerAlreadyTangent {
         /// `true` when the outgoing leg leaves along the **reverse** of
         /// the incoming tangent (a cusp / doubled-back corner) rather
@@ -572,15 +617,21 @@ impl fmt::Display for ProfileError {
                 margin,
                 arm,
             } => {
-                let kind = if *reversed {
-                    "the legs double back on each other (a cusp)"
+                let (kind, recourse) = if *reversed {
+                    (
+                        "the legs double back on each other (a cusp)",
+                        FILLET_CUSP_CORNER_RECOURSE,
+                    )
                 } else {
-                    "the legs continue smoothly into each other"
+                    (
+                        "the legs continue smoothly into each other",
+                        FILLET_TANGENT_CORNER_RECOURSE,
+                    )
                 };
                 write!(
                     f,
                     "fillet corner: {kind} — turn margin {margin} m at lever arm {arm} m; \
-                     {FILLET_TANGENT_CORNER_RECOURSE}"
+                     {recourse}"
                 )
             }
             Self::NoCornerForFillet { reason, radius } => write!(
@@ -700,19 +751,26 @@ impl fmt::Display for ProfileError {
                 if matches!(site, EscalationSite::Fillet) {
                     match source.predicate {
                         Some("fillet_corner_turn") => {
-                            write!(f, " — {FILLET_TANGENT_CORNER_RECOURSE}")?;
+                            write!(f, " — {FILLET_TURN_INBAND_RECOURSE}")?;
                         }
                         Some("fillet_corner_arm") => {
                             write!(f, " — {FILLET_LEG_EXTENT_RECOURSE}")?;
                         }
+                        // `fillet_leg_reach` belongs with the offset
+                        // clearances, not with the fit gate (review
+                        // MINOR-1): its situation is whether a corner of
+                        // this radius exists on the corner side, and its
+                        // definite refusal is `NoCornerForFillet`, so the
+                        // trio renders one sentence end to end.
                         Some(
                             "fillet_offset_line_circle"
                             | "fillet_offset_circles_external"
-                            | "fillet_offset_circles_internal",
+                            | "fillet_offset_circles_internal"
+                            | "fillet_leg_reach",
                         ) => {
                             write!(f, " — {FILLET_NO_CORNER_RECOURSE}")?;
                         }
-                        Some("fillet_leg_fit" | "fillet_leg_reach") => {
+                        Some("fillet_leg_fit") => {
                             write!(f, " — {FILLET_FIT_RECOURSE}")?;
                         }
                         _ => {}

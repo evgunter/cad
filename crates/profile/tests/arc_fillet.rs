@@ -353,6 +353,52 @@ fn a_negative_radius_offsets_outside_the_corner_and_is_refused() {
     }
 }
 
+/// `NoCornerSideCandidate` on an **arc×arc** corner — unreachable before
+/// the signed-setback fix (review MAJOR-1), because an arc leg's setback
+/// was reduced into [0, 2π) and so could never classify Negative.
+///
+/// The corner is the origin, where a radius-1 carrier about (0, −1) meets
+/// a radius-1/2 carrier about (1/2, 0). Both legs wind counterclockwise,
+/// so the path arrives travelling −x and leaves travelling −y (a left
+/// turn, σ = +1). A radius-2 fillet is larger than *both* carriers, so
+/// both offset radii go negative (ρ₁ = −1, ρ₂ = −3/2) and the offset
+/// circles still meet — twice. But a circle that big can only touch these
+/// two small carriers on the far side from the origin, so both tangent
+/// circles reach their legs past the corner and neither is a candidate.
+#[test]
+fn an_arc_arc_corner_can_have_no_corner_side_candidate() {
+    // Far ends one radian along each carrier, so both legs have real
+    // extent and the arm/turn gates pass cleanly.
+    let along = |cx: f64, cy: f64, r: f64, delta: f64| {
+        let a = f64::atan2(-cy, -cx) + delta;
+        p2(cx + r * a.cos(), cy + r * a.sin())
+    };
+    let err = ProfileLoop::builder(along(0.0, -1.0, 1.0, -1.0))
+        .fillet_corner(
+            arc(0.0, -1.0, ArcSweep::Ccw),
+            p2(0.0, 0.0),
+            arc(0.5, 0.0, ArcSweep::Ccw),
+            along(0.5, 0.0, 0.5, 1.0),
+            2.0,
+            tol(),
+        )
+        .expect_err("every tangent circle of radius 2 touches past the corner");
+    match err {
+        ProfileError::NoCornerForFillet { reason, radius } => {
+            // NOT OffsetCarriersDisjoint — the offset carriers do meet.
+            assert_eq!(reason, NoCornerReason::NoCornerSideCandidate);
+            assert_eq!(radius, 2.0);
+        }
+        other => panic!("expected NoCornerSideCandidate, got {other:?}"),
+    }
+    // Trio parity (review MINOR-1): this definite refusal and the in-band
+    // `fillet_leg_reach` escalation render the SAME recourse sentence.
+    assert!(
+        err.to_string().contains("can sit in the corner"),
+        "recourse: {err}"
+    );
+}
+
 #[test]
 fn two_corner_side_candidates_refuse_rather_than_guess() {
     // The vesica of the two crossing circles has TWO corners; with both
@@ -416,7 +462,7 @@ fn an_already_tangent_corner_asks_for_the_declaration_instead() {
 fn a_reverse_tangent_corner_is_named_as_a_cusp() {
     // Same carriers, opposite sweep: the outgoing leg leaves along the
     // REVERSE of the incoming tangent — a cusp, not a corner.
-    match ProfileLoop::builder(p2(0.0, 0.0))
+    let err = ProfileLoop::builder(p2(0.0, 0.0))
         .fillet_corner(
             FilletLegShape::Line,
             p2(2.0, 0.0),
@@ -425,11 +471,22 @@ fn a_reverse_tangent_corner_is_named_as_a_cusp() {
             0.5,
             tol(),
         )
-        .expect_err("a cusp must refuse")
-    {
+        .expect_err("a cusp must refuse");
+    match err {
         ProfileError::FilletCornerAlreadyTangent { reversed, .. } => assert!(reversed),
         other => panic!("expected a reversed FilletCornerAlreadyTangent, got {other:?}"),
     }
+    // Review MINOR-2: a doubled-back corner has NO declaration door —
+    // the material-wedge invariant refuses cusp wedges downstream, so
+    // advising `declare_tangent` here would only move the failure. The
+    // reversed arm names the cusp class and #131 instead (PATHS-DESIGN
+    // §4 item 1), and must not offer the smooth-tangent recourse.
+    let text = err.to_string();
+    assert!(
+        !text.contains("declare_tangent"),
+        "the cusp arm must not advise declaring tangency: {text}"
+    );
+    assert!(text.contains("cusp") && text.contains("#131"), "{text}");
 }
 
 #[test]
@@ -695,7 +752,13 @@ fn fillet_leg_fit_trio_definite_and_exact() {
 #[test]
 fn fillet_leg_reach_trio_definite_and_exact() {
     // definitely positive: every validating fixture. definitely
-    // negative: the negative-radius row (no corner-side candidate).
+    // negative: the negative-radius row and the arc×arc
+    // no-corner-side row, both of which refuse `NoCornerForFillet` and
+    // both of which render the SAME recourse as reach's in-band
+    // escalation does in the interval lane (review MINOR-1 —
+    // `an_arc_arc_corner_can_have_no_corner_side_candidate` and
+    // `zero_radius_arc_fillet_escalates_at_interval` pin the two ends).
+    //
     // exactly zero: r = 0 puts both tangent points ON the corner — the
     // gate passes and the degenerate zero-length arc is refused
     // downstream, exactly as the straight-leg constructor documents.
