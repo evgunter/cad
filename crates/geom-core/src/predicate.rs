@@ -506,6 +506,59 @@ pub struct Indeterminate {
     pub predicate: Option<&'static str>,
 }
 
+/// The unified sub-ε_input recourse sentence (the two-tolerance
+/// principle, D4 ¶1 addendum, #129): below ε_input, "exactly on the
+/// coincidence" and "in the ambiguity band" are ONE user situation —
+/// coincident at any precision the user could care about — with one
+/// three-lever recourse, phrased once, here. The margin rides the
+/// error payload as data; kernel semantics keep the distinction.
+///
+/// Every site that refuses on a too-close-to-a-coincidence situation
+/// composes this fragment into its Display output — directly for
+/// definite arms (exactly-on refusals with no [`Indeterminate`]
+/// payload), or through [`Indeterminate`]'s own Display for escalated
+/// arms. Message-pinning tests pin the fragment with `contains`, never
+/// with full-string pins that rot.
+pub const COINCIDENCE_RECOURSE: &str =
+    "declare the coincidence, move the geometry, or lower the tolerance";
+
+/// Borrowed margin-payload view of an [`Indeterminate`]: the predicate
+/// name, the margin/enclosure data, and the band — WITHOUT the shared
+/// recourse tail. For per-site Display impls that compose the
+/// two-tolerance message themselves (site context + this payload +
+/// [`COINCIDENCE_RECOURSE`]) and must not double the recourse; the
+/// bare [`Indeterminate`] Display is this payload plus the shared
+/// tail.
+#[derive(Debug, Clone, Copy)]
+pub struct IndeterminatePayload<'a>(&'a Indeterminate);
+
+impl fmt::Display for IndeterminatePayload<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.predicate {
+            Some(name) => write!(f, "predicate '{name}' indeterminate: ")?,
+            None => f.write_str("sign indeterminate: ")?,
+        }
+        let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
+        match self.0.margin {
+            MarginDiag::Value(m) => write!(
+                f,
+                "margin {m:e} lies inside the ambiguity band (zero = {zero:e}, \
+                 escalate = {escalate:e})"
+            ),
+            MarginDiag::Enclosure { lo, hi } => write!(
+                f,
+                "enclosure [{lo:e}, {hi:e}] cannot be classified against the band \
+                 (zero = {zero:e}, escalate = {escalate:e})"
+            ),
+            MarginDiag::Invalid => write!(
+                f,
+                "margin is invalid (NaN or a poisoned enclosure); band \
+                 (zero = {zero:e}, escalate = {escalate:e})"
+            ),
+        }
+    }
+}
+
 impl Indeterminate {
     /// Attaches a predicate's static name, so an escalation names the
     /// *decision* that classified the margin rather than just the numbers.
@@ -526,35 +579,37 @@ impl Indeterminate {
             ..self
         }
     }
+
+    /// The margin-payload view (name + margin data + band, no recourse
+    /// tail) — see [`IndeterminatePayload`].
+    pub fn payload(&self) -> IndeterminatePayload<'_> {
+        IndeterminatePayload(self)
+    }
 }
 
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.predicate {
-            Some(name) => write!(f, "predicate '{name}' indeterminate: ")?,
-            None => f.write_str("sign indeterminate: ")?,
-        }
-        let (zero, escalate) = (self.band.zero, self.band.escalate);
+        write!(f, "{}", self.payload())?;
         match self.margin {
-            MarginDiag::Value(m) => write!(
+            MarginDiag::Value(_) => write!(
                 f,
-                "margin {m:e} lies inside the ambiguity band (zero = {zero:e}, \
-                 escalate = {escalate:e}) — distinct but too close to the coincidence \
-                 threshold to build sound geometry from; widen the feature, make it \
-                 exactly coincident, or shrink the tolerance (D4)"
+                " — coincident at any precision you could care about, too close \
+                 to build sound geometry from; {COINCIDENCE_RECOURSE} (D4)"
             ),
-            MarginDiag::Enclosure { lo, hi } => write!(
+            MarginDiag::Enclosure { .. } => write!(
                 f,
-                "enclosure [{lo:e}, {hi:e}] cannot be classified against the band \
-                 (zero = {zero:e}, escalate = {escalate:e}) — it straddles a decision \
-                 boundary or lies inside the ambiguity band; subdivide the parameter \
-                 box for a tighter enclosure, or widen the feature (D4, Q1)"
+                " — it straddles a decision boundary or lies inside the ambiguity \
+                 band; subdivide the parameter box for a tighter enclosure, or \
+                 {COINCIDENCE_RECOURSE} (D4, Q1)"
             ),
+            // Poison explains WHY the sign is indeterminate, but the
+            // user's levers at a coincidence site are unchanged — the
+            // Invalid arm carries the shared recourse like the others
+            // (S6 review, MINOR-1).
             MarginDiag::Invalid => write!(
                 f,
-                "margin is invalid (NaN or a poisoned enclosure) — a poisoned \
-                 computation can never take a branch; band (zero = {zero:e}, \
-                 escalate = {escalate:e}) — check the operation's inputs upstream (D4)"
+                " — a poisoned computation can never take a branch; check the \
+                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
             ),
         }
     }
@@ -931,10 +986,12 @@ mod tests {
             .expect_err("mid-band margin must be indeterminate");
         assert_eq!(
             bare.to_string(),
-            "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
-             (zero = 1e-9, escalate = 1e-8) — distinct but too close to the \
-             coincidence threshold to build sound geometry from; widen the \
-             feature, make it exactly coincident, or shrink the tolerance (D4)"
+            format!(
+                "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
+                 (zero = 1e-9, escalate = 1e-8) — coincident at any precision \
+                 you could care about, too close to build sound geometry from; \
+                 {COINCIDENCE_RECOURSE} (D4)"
+            )
         );
 
         let named = (-5e-9f64)
@@ -943,11 +1000,19 @@ mod tests {
             .with_predicate("side_of_plane");
         assert_eq!(
             named.to_string(),
+            format!(
+                "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
+                 the ambiguity band (zero = 1e-9, escalate = 1e-8) — coincident at \
+                 any precision you could care about, too close to build sound \
+                 geometry from; {COINCIDENCE_RECOURSE} (D4)"
+            )
+        );
+        // The payload view is the same message minus the shared tail —
+        // what a composing site embeds next to its own recourse.
+        assert_eq!(
+            named.payload().to_string(),
             "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-             the ambiguity band (zero = 1e-9, escalate = 1e-8) — distinct but \
-             too close to the coincidence threshold to build sound geometry \
-             from; widen the feature, make it exactly coincident, or shrink \
-             the tolerance (D4)"
+             the ambiguity band (zero = 1e-9, escalate = 1e-8)"
         );
 
         let invalid = f64::NAN
@@ -956,10 +1021,12 @@ mod tests {
             .with_predicate("transversality");
         assert_eq!(
             invalid.to_string(),
-            "predicate 'transversality' indeterminate: margin is invalid (NaN \
-             or a poisoned enclosure) — a poisoned computation can never take \
-             a branch; band (zero = 1e-9, escalate = 1e-8) — check the \
-             operation's inputs upstream (D4)"
+            format!(
+                "predicate 'transversality' indeterminate: margin is invalid (NaN \
+                 or a poisoned enclosure); band (zero = 1e-9, escalate = 1e-8) — a \
+                 poisoned computation can never take a branch; check the \
+                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
+            )
         );
 
         // The interval variant's wording (the variant itself is not
@@ -976,11 +1043,13 @@ mod tests {
         };
         assert_eq!(
             enclosure.to_string(),
-            "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
-             cannot be classified against the band (zero = 1e-9, escalate = 1e-8) \
-             — it straddles a decision boundary or lies inside the ambiguity \
-             band; subdivide the parameter box for a tighter enclosure, or \
-             widen the feature (D4, Q1)"
+            format!(
+                "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
+                 cannot be classified against the band (zero = 1e-9, escalate = 1e-8) \
+                 — it straddles a decision boundary or lies inside the ambiguity \
+                 band; subdivide the parameter box for a tighter enclosure, or \
+                 {COINCIDENCE_RECOURSE} (D4, Q1)"
+            )
         );
     }
 

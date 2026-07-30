@@ -342,15 +342,19 @@ impl fmt::Display for RevolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "revolve could not form a band: {e}"),
-            Self::DegenerateAxis => {
-                f.write_str("revolve axis direction has no definite length (zero or sliver)")
-            }
+            Self::DegenerateAxis => write!(
+                f,
+                "revolve axis direction has no definite length (zero or sliver) — {}",
+                geom_core::COINCIDENCE_RECOURSE
+            ),
             Self::AxisEscalated { source } => {
                 write!(f, "revolve axis classification escalated: {source}")
             }
-            Self::DegenerateAngle => f.write_str(
+            Self::DegenerateAngle => write!(
+                f,
                 "revolve angle is coincident with zero at tolerance (metered at the profile's \
-                 maximum radial extent)",
+                 maximum radial extent) — {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::FullRangeAngle => f.write_str(
                 "partial revolve angle reaches the full period at tolerance: an exactly-full \
@@ -359,13 +363,20 @@ impl fmt::Display for RevolveError {
             Self::AngleEscalated { source } => {
                 write!(f, "revolve angle classification escalated: {source}")
             }
+            // Definite at ANY magnitude (r = -0.5 fires this same arm),
+            // so the coincidence levers are offered conditionally — the
+            // unconditional fix is to move the profile off the negative
+            // side (S6 review, MINOR-2).
             Self::VertexCrossesAxis {
                 loop_index,
                 vertex_index,
             } => write!(
                 f,
                 "profile vertex at loop {loop_index} vertex {vertex_index} lies definitely on \
-                 the negative side of the revolve axis"
+                 the negative side of the revolve axis (a revolve never carries material \
+                 through the axis) — move the profile to the non-negative side; if the vertex \
+                 was meant to sit exactly on the axis, {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::SliverRadius {
                 loop_index,
@@ -670,5 +681,51 @@ pub fn revolve<T: Decide>(
         full::build_full(&frame, &loops, &classes, theta, band)
     } else {
         partial::build_partial(&frame, &loops, &classes, theta, reverse, band)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the three revolve pairs —
+    /// axis length, angle, and vertex radius — each describe one user
+    /// situation across their definite and in-band arms; every arm
+    /// carries the shared recourse fragment.
+    #[test]
+    fn revolve_pairs_carry_the_shared_recourse() {
+        let diag = |name| Indeterminate {
+            margin: geom_core::MarginDiag::Value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some(name),
+        };
+        let errors = [
+            RevolveError::DegenerateAxis,
+            RevolveError::AxisEscalated {
+                source: diag("revolve_axis_direction"),
+            },
+            RevolveError::DegenerateAngle,
+            RevolveError::AngleEscalated {
+                source: diag("revolve_angle"),
+            },
+            RevolveError::VertexCrossesAxis {
+                loop_index: 0,
+                vertex_index: 1,
+            },
+            RevolveError::SliverRadius {
+                loop_index: 0,
+                vertex_index: 1,
+                source: diag("axis_vertex_radius"),
+            },
+        ];
+        for e in errors {
+            let msg = e.to_string();
+            assert_eq!(
+                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+                1,
+                "{msg}"
+            );
+        }
     }
 }
