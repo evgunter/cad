@@ -797,3 +797,12 @@ The genuine selectivity demo still awaits a leaf-crate or
 docs-only PR (the next state-sync PR will be the docs-tier
 case). A/B rows 17+18 now filled through fix pass; block 7
 complete.
+
+**PR 5 DISPATCHED (2026-07-30) — block-8 draw (difficulty logged
+first: PR5=L, PR6=M; urandom coin 0→wait, printed draw): PR5=
+fable, PR6=opus.** Clone m5-pr5 from post-#137 main, spec
+imported; prompt carries the S6-carrier coordination (merge main
+when #138 lands), the R1 permanent cone routing, M2 bit-identity
+obligation, no-wildcard discipline, the narrowed local-battery
+scope, and the self-match-proof poll pattern. Row 19 to
+MODEL-AB-LOG at next touch. #138 still gating.
