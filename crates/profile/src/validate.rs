@@ -240,8 +240,9 @@ impl fmt::Display for FilletLegCarrier {
 
 /// Why a fillet corner admits **no** tangent circle of the requested
 /// radius (the [`ProfileError::NoCornerForFillet`] payload — the
-/// situation `docs/PATHS-DESIGN.md` §3 names for the v2 algebra's
-/// `.fillet(r)`, reached here through the v1 constructor door).
+/// situation `docs/PATHS-DESIGN.md` §2 (the Fillet section) names for
+/// the v2 algebra's `.fillet(r)`, reached here through the v1
+/// constructor door).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoCornerReason {
     /// The two offset carriers (each leg's carrier pushed `r` toward
@@ -392,8 +393,11 @@ pub enum ProfileError {
     /// No circle of the requested radius rounds the fillet corner —
     /// the offset carriers do not meet, or every tangent circle touches
     /// a leg past the corner. Named for the situation
-    /// `docs/PATHS-DESIGN.md` §3 reserves in the v2 algebra
-    /// (`NoCornerForFillet`), reached here through the v1 constructor.
+    /// `docs/PATHS-DESIGN.md` §2 (Fillet) reserves in the v2 algebra
+    /// (`NoCornerForFillet` — "parallel/non-intersecting carriers, or an
+    /// intersection behind the ray start"; [`NoCornerReason`] is the
+    /// finer split of those two), reached here through the v1
+    /// constructor.
     NoCornerForFillet {
         /// Which of the two ways the corner failed to exist.
         reason: NoCornerReason,
@@ -406,6 +410,15 @@ pub enum ProfileError {
     /// constructor refuses rather than picking one (M5 S2 §1 — "do not
     /// pick"). Reachable on arc legs long enough to admit both roots
     /// (near-concentric arc×arc especially).
+    ///
+    /// **PATHS lowering divergence (M5 S2)**: `docs/PATHS-DESIGN.md` §2
+    /// reserves no name for this — its DOF check calls `.fillet(r)`
+    /// "exactly determined", which holds only up to WHICH of the two
+    /// carrier-intersection roots is meant. With straight legs the ray
+    /// start disambiguates, so #101 never met the second root; arc
+    /// carriers can put both roots on the legs. The v2 algebra needs a
+    /// name for this situation (or an argument that its anchored-side
+    /// rules make the second root unreachable) before it lowers.
     AmbiguousFilletBranch {
         /// The requested radius, meters (`f64` diagnostic channel).
         radius: f64,
