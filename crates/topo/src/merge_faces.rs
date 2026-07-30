@@ -720,6 +720,21 @@ impl<T: Decide> Body<T> {
             return Ok(None);
         };
         let cycle = self.loop_cycle(first).ok_or_else(corrupt)?;
+        // Line-bounded cycles only (the tier-3 check-6 scope): an
+        // arc's vertex chord is not the boundary, so a curved-bounded
+        // loop's chord winding says nothing about the region — treat
+        // it as undecidable (`None`; the caller then refuses rather
+        // than guesses if roles hinge on it).
+        let all_lines = cycle.iter().all(|&he| {
+            self.get_half_edge(he)
+                .and_then(|hd| self.get_edge(hd.edge))
+                .and_then(|e| self.get_curve_geom(e.curve))
+                .and_then(crate::null::CurveGeom::certified)
+                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+        });
+        if !all_lines {
+            return Ok(None);
+        }
         let point_of = |he| -> Result<geom_core::Point3<T>, MergeCoplanarError> {
             let v = self.get_half_edge(he).ok_or_else(corrupt)?.start;
             self.get_vertex(v)

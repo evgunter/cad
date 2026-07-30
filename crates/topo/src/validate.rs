@@ -1639,8 +1639,13 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
     // join's ring lane and the merge role normalization decide on).
     // A role inversion passes every volume gate (they are
     // role-invariant) but silently corrupts tessellation/export;
-    // this closes that class structurally. Curved faces stay in the
-    // documented deferral (M5 pcurves).
+    // this closes that class structurally. Scope: LINE-BOUNDED loops
+    // only — the vertex-chord Newell functional IS the enclosed area
+    // exactly for straight boundaries; a planar face bounded by arcs
+    // (a revolve's annular sector) has chord windings that can
+    // legitimately disagree with the region's (a 270° sector's chord
+    // quad self-crosses), so curved-bounded faces stay in the
+    // documented deferral (M5 pcurves) along with curved faces.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
@@ -1658,6 +1663,18 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
             let Some(cycle) = body.loop_cycle(first) else {
                 continue; // unreachable on tier-1 input
             };
+            // Line-bounded only (banner): an arc's vertex chord is not
+            // the boundary, and its winding is not the region's.
+            let all_lines = cycle.iter().all(|&he| {
+                body.get_half_edge(he)
+                    .and_then(|hd| body.get_edge(hd.edge))
+                    .and_then(|e| body.get_curve_geom(e.curve))
+                    .and_then(crate::null::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+            });
+            if !all_lines {
+                continue;
+            }
             let point_of = |he| {
                 body.get_half_edge(he)
                     .and_then(|hd| body.get_vertex(hd.start))
