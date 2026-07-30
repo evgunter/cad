@@ -143,10 +143,7 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
     let (above, _) = tilted_cut();
     let mut sections = 0usize;
     for (_, edge) in above.edges() {
-        let Some(curve) = above
-            .get_curve_geom(edge.curve)
-            .and_then(|g| g.certified())
-        else {
+        let Some(curve) = above.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
             continue;
         };
         if !matches!(curve.carrier(), geom_curves::Curve3::Ellipse { .. }) {
@@ -167,7 +164,10 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
         // harmonic. This is the tilted-section chart image, exactly.
         assert!((pl.x.abs() - 1.0).abs() < 1e-12);
         assert!(pa.x.abs() < 1e-12 && pb.x.abs() < 1e-12 && pl.y.abs() < 1e-12);
-        assert!(pa.y.abs() + pb.y.abs() > 1e-3, "the graph really oscillates");
+        assert!(
+            pa.y.abs() + pb.y.abs() > 1e-3,
+            "the graph really oscillates"
+        );
     }
     assert!(sections > 0);
 }
@@ -261,7 +261,10 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         normal: Vec3::unit_z(),
     };
     let result = split(&prism, &plane).unwrap();
-    for part in [result.above.body(), result.below.body()].into_iter().flatten() {
+    for part in [result.above.body(), result.below.body()]
+        .into_iter()
+        .flatten()
+    {
         assert_eq!(part.pcurves().count(), 0);
         assert_eq!(validate_geometric(part), Ok(()));
     }
@@ -418,4 +421,68 @@ fn caches_replay_bit_identically() {
             .collect()
     };
     assert_eq!(dump(&a1), dump(&a2));
+}
+
+// ---------------------------------------------------------------------
+// Spec §3/§6: scalar-generic certification (C6) — the interval lane
+// ---------------------------------------------------------------------
+
+/// The same cut replayed at `T = Interval`: the caches mint and certify
+/// generically, and every certificate's limbs are rigorous enclosures
+/// rather than `f64` readings. The 3ε row is the CI matrix's
+/// (`CAD_TOLERANCE_EPS`), not a separate test — nothing here depends on
+/// the exact ε beyond "the residuals are rounding-scale".
+#[cfg(feature = "interval")]
+#[test]
+fn caches_certify_on_the_interval_lane() {
+    use geom_core::{Interval, Real};
+
+    let ip2 = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: ip2(-0.5, 0.0),
+            bulge: Interval::from_f64(1.0),
+        },
+        ProfileVertex {
+            pos: ip2(0.5, 0.0),
+            bulge: Interval::from_f64(1.0),
+        },
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    let body = extrude(&profile, Extrusion::Distance(Interval::from_f64(1.0)))
+        .unwrap()
+        .body;
+    let phi = 0.3f64;
+    let plane = SplitPlane {
+        origin: Point3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.5),
+        ),
+        normal: Vec3::new(
+            Interval::from_f64(phi.sin()),
+            Interval::from_f64(0.0),
+            Interval::from_f64(phi.cos()),
+        ),
+    };
+    let result = split(&body, &plane).unwrap();
+    let mut seen = 0usize;
+    for part in [result.above.body(), result.below.body()]
+        .into_iter()
+        .flatten()
+    {
+        assert!(part.pcurves().count() > 0, "curved faces mint on any T");
+        for (_, cache) in part.pcurves() {
+            seen += 1;
+            // Rigorous on this lane: the certified limbs are enclosures,
+            // and they are still rounding-scale in METRES.
+            let c = cache.certificate();
+            assert!(geom_core::Bounds::hi(c.max_residual) < 1e-11);
+            assert!(geom_core::Bounds::hi(c.envelope) < 1e-11);
+        }
+        assert!(topo::pcurves::validate_pcurves(part, Band::linear().unwrap()).is_empty());
+    }
+    assert!(seen > 0);
 }

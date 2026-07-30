@@ -73,9 +73,9 @@
 //! a mapped stored cache.
 
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
+use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Real, Sign};
-use geom_core::k_stats::decide;
 use geom_surfaces::Surface;
 
 use crate::body::Body;
@@ -209,10 +209,8 @@ pub fn pcurve_of<T: Decide>(
     }
     let (carrier, _, _) = half_edge_carrier(body, half_edge)?;
     let surface = half_edge_surface(body, half_edge)?;
-    chart_pcurve(&carrier, &surface, band).map_err(|error| PcurveMintError::Certify {
-        half_edge,
-        error,
-    })
+    chart_pcurve(&carrier, &surface, band)
+        .map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
 
 /// The certified carrier and parameter interval of `half_edge`'s edge.
@@ -220,7 +218,9 @@ fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<(geom_curves::Curve3<T>, T, T), PcurveMintError> {
-    let he = body.get_half_edge(half_edge).ok_or(PcurveMintError::Corrupt)?;
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
     let edge = body.get_edge(he.edge).ok_or(PcurveMintError::Corrupt)?;
     let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
         return Err(PcurveMintError::Corrupt);
@@ -234,8 +234,12 @@ fn half_edge_surface<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<Surface<T>, PcurveMintError> {
-    let he = body.get_half_edge(half_edge).ok_or(PcurveMintError::Corrupt)?;
-    let lp = body.get_loop(he.parent_loop).ok_or(PcurveMintError::Corrupt)?;
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let lp = body
+        .get_loop(he.parent_loop)
+        .ok_or(PcurveMintError::Corrupt)?;
     let face = body.get_face(lp.face).ok_or(PcurveMintError::Corrupt)?;
     body.get_surface(face.surface)
         .cloned()
@@ -245,7 +249,9 @@ fn half_edge_surface<T: Decide>(
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
 /// forward in the carrier parameter)?
 fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, PcurveMintError> {
-    let he = body.get_half_edge(half_edge).ok_or(PcurveMintError::Corrupt)?;
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
     let edge = body.get_edge(he.edge).ok_or(PcurveMintError::Corrupt)?;
     Ok(edge.he_plus == half_edge)
 }
@@ -342,13 +348,11 @@ fn mint_face<T: Decide>(
     };
     for w in walked {
         let (carrier, _, _) = half_edge_carrier(body, w.half_edge)?;
-        let cache =
-            PcurveCache::certify(w.pcurve, w.t0, w.t1, &carrier, &surface, window, band).map_err(
-                |error| PcurveMintError::Certify {
-                    half_edge: w.half_edge,
-                    error,
-                },
-            )?;
+        let cache = PcurveCache::certify(w.pcurve, w.t0, w.t1, &carrier, &surface, window, band)
+            .map_err(|error| PcurveMintError::Certify {
+                half_edge: w.half_edge,
+                error,
+            })?;
         body.pcurves.insert(w.half_edge, cache);
     }
     Ok(())
@@ -377,12 +381,11 @@ fn walk_loop<T: Decide>(
     let mut first_entry: Option<geom_core::Point2<T>> = None;
     for he in cycle {
         let (carrier, t0, t1) = half_edge_carrier(body, he)?;
-        let base = chart_pcurve(&carrier, surface, band).map_err(|error| {
-            PcurveMintError::Certify {
+        let base =
+            chart_pcurve(&carrier, surface, band).map_err(|error| PcurveMintError::Certify {
                 half_edge: he,
                 error,
-            }
-        })?;
+            })?;
         let plus = is_plus(body, he)?;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
@@ -551,7 +554,9 @@ pub fn validate_pcurves<T: Decide>(body: &Body<T>, band: Band) -> Vec<PcurveMint
         // Pass 2: replay every stored certificate against that window.
         for cycle in &cycles {
             for &he in cycle {
-                let Some(cache) = body.pcurve(he) else { continue };
+                let Some(cache) = body.pcurve(he) else {
+                    continue;
+                };
                 let carrier = match half_edge_carrier(body, he) {
                     Ok((c, _, _)) => c,
                     Err(e) => {
@@ -574,7 +579,9 @@ pub fn validate_pcurves<T: Decide>(body: &Body<T>, band: Band) -> Vec<PcurveMint
             let mut prev_exit: Option<geom_core::Point2<T>> = None;
             let mut first_entry: Option<geom_core::Point2<T>> = None;
             for &he in cycle {
-                let Some(cache) = body.pcurve(he) else { continue };
+                let Some(cache) = body.pcurve(he) else {
+                    continue;
+                };
                 let (t0, t1) = cache.params();
                 let plus = match is_plus(body, he) {
                     Ok(v) => v,

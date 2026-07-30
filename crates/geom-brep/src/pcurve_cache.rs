@@ -81,7 +81,8 @@
 //! residual has four coefficients, and the nine-sample schedule
 //! determines them — so a corruption that hides *between* samples is
 //! **unrepresentable** here, not merely caught. The envelope catches
-//! the rest (`tests/pcurve_cert.rs`).
+//! the rest (this module's `a_corrupted_pcurve_fails_typed` and
+//! `the_envelope_dominates_a_dense_resampling` rows).
 //!
 //! # Domain validity (spec §3)
 //!
@@ -1275,15 +1276,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let out = PcurveCache::certify(
-            p,
-            0.0,
-            TAU + 0.5,
-            &carrier,
-            &cyl,
-            wide_window(),
-            band(),
-        );
+        let out = PcurveCache::certify(p, 0.0, TAU + 0.5, &carrier, &cyl, wide_window(), band());
         assert!(matches!(
             out,
             Err(PcurveCertifyError::AzimuthPeriodExceeded)

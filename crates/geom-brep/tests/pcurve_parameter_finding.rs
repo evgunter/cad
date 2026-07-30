@@ -25,6 +25,8 @@
 //! and PR 7's SSI rung (which produces a fitted pcurve natively) will
 //! have to answer this one explicitly when it adds the fitted variant.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use core::f64::consts::PI;
 
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane};
@@ -138,7 +140,10 @@ fn plane_chain_is_locus_exact_and_parameter_non_affine() {
         gap > 1e-3,
         "expected a millimetre-scale parameter gap, measured {gap:e}"
     );
-    assert!(gap < 1e-1, "sanity: the gap is a parameter defect, not a locus one ({gap:e})");
+    assert!(
+        gap < 1e-1,
+        "sanity: the gap is a parameter defect, not a locus one ({gap:e})"
+    );
 }
 
 /// The PR 4 fitted cylinder graph is fitted in the **chord-length**
@@ -149,8 +154,7 @@ fn fitted_cylinder_graph_is_chord_parameterized() {
     let (t0, t1) = (0.0, PI);
     let cyl = cylinder();
     let carrier = section();
-    let fitted =
-        ellipse_pcurve_on_cylinder(&carrier, &cyl, t0, t1, 3, 1e-6).expect("cylinder fit");
+    let fitted = ellipse_pcurve_on_cylinder(&carrier, &cyl, t0, t1, 3, 1e-6).expect("cylinder fit");
     let gap = schedule_gap(&fitted.curve, &cyl, &carrier, t0, t1);
     assert!(
         gap > 1e-4,
