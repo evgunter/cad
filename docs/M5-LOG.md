@@ -976,3 +976,15 @@ merged into #141's branch (clean; topo lib 306/0 sanity row);
 watcher armed. A/B rows 19/20 filled; row-16 ordering slip
 fixed. Queue: PR 6 spec (opus, block-8 remainder) is next
 orchestrator drafting; S4 takes block-9's opus remainder after.
+
+**#141 MERGED (2026-07-30): 21/21 — PR 5 is on main.** The
+kernel's first curved boolean: exact Ellipse carriers, the
+exhaustive C5 table, root-based conic crossing detection. **PR 6
+DISPATCHED (opus, block-8 remainder — A/B row 21, difficulty M
+logged at block-8 draw time)**: clone m5-pr6 from post-#141
+main, spec imported; prompt names PR 5's constructors as
+sources, the meridian-unwrap history, the tier-gate consumer,
+and the meters-only certification rule (UV tolerances = review
+defect). M5 board: PRs 1-5,8 + S1,S2,S5,S6 + plan + CI filter
+merged; PR 6 implementing; then PR 7 (SSI — the milestone's
+heart), S4 on lulls, PRs 9-14 beyond.
