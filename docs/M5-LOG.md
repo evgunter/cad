@@ -1040,3 +1040,21 @@ justification independently confirmed (no env override on
 unparameterized rows). #142 is workflow-touching (workflow scope
 available) and classifies tier `all` — its own run demonstrates
 the 18-row battery. Watcher armed.
+
+**RESUMPTION CONTRACT refresh (2026-07-30, Evan warns usage
+limit imminent).** In flight: PR 6 implementer (opus, clone
+m5-pr6, branch ev/m5-pr6-pcurves, spec docs/M5-PR6-SPEC.md;
+nudged to checkpoint-push NOW); #142 (S7) gating with a local
+watcher that survives API outages (pure bash+gh — it will merge
+on green even during one). Monitors are local processes and
+survive. Recovery ladder (memories/resume-vs-fresh-subagent.md):
+stopped <1h or context-useful → SendMessage resume with cwd
+guard; >1h + fully-specifiable remainder → fresh finisher with
+clone path + pushed-commit state + narrowed battery + report
+format. After #142 merges: next orchestrator work = PR 7 spec
+(SSI, C2/C3; watch for OQ4 pressure → recommendation to Evan,
+not unilateral flip); S4 (validator consolidation) queued for a
+lull lane; PATHS amendment PR (ambiguity DOF + cusp variant
+split) offered to Evan, drafts on request. A/B: row 21 = PR 6
+(opus, M); row 22 = S7 (opus, S, review 0/0/2 APPROVE) — table
+rows to add at next MODEL-AB-LOG touch. All state pushed.
