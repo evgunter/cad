@@ -18,15 +18,14 @@ Licensed under either of
 at your option.
 
 This covers **every** build configuration, the optional `interval` cargo
-feature included. That feature used to be an exception: its
-transcendentals came from `inari/gmp`, which links LGPL-3.0+ code
-(`gmp-mpfr-sys`/`rug`) and needs a C toolchain, so enabling it carried
-LGPL compliance obligations (issue #4). Since M5 the backend is the
-in-repo `interval-transcendentals` crate — pure Rust over the same `libm`
-the kernel already uses — and the exception is retired: no build
-configuration has an LGPL dependency or a C build step. inari survives
-only as that crate's differential-certification *dev*-dependency, which
-no kernel build pulls in.
+feature included: that feature's transcendentals come from the in-repo
+`interval-transcendentals` crate — pure Rust over the same `libm` the
+kernel already uses — so no kernel build has a copyleft dependency or a
+C build step. The one LGPL-3.0+ dependency anywhere in the repo is
+`inari/gmp` as that crate's optional differential-certification
+*dev*-dependency, in its own excluded workspace; dev-dependencies of a
+path dependency never enter the dependent's graph, so no kernel build
+pulls it in.
 
 ### Contribution
 
