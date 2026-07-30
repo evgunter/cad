@@ -1058,3 +1058,19 @@ lull lane; PATHS amendment PR (ambiguity DOF + cusp variant
 split) offered to Evan, drafts on request. A/B: row 21 = PR 6
 (opus, M); row 22 = S7 (opus, S, review 0/0/2 APPROVE) — table
 rows to add at next MODEL-AB-LOG touch. All state pushed.
+
+**EVAN RULING (in-chat, 2026-07-30, on the ambiguous-fillet
+plot ~/.local/share/cad-work/ambiguous-fillet.png): fillet
+branch ambiguity resolves by NEAREST-THE-AUTHORED-CORNER.**
+Grounds: the far tangent circle is always deliberately
+authorable as the near fillet of the other corner (the second
+carrier intersection), so pick-nearest loses no expressiveness
+("is there a way to deliberately force the far one? if so i'm
+ok assuming the near one"). Consequences: AmbiguousFilletBranch
+retires; a named proximity predicate (total-setback comparison)
+picks, with in-band ties escalating F6; PATHS-DESIGN §2 DOF note
+amended (ruling = sign-off), resolving S2's recorded divergence
+2; the cusp variant split (divergence 3) stays open. **S8
+DISPATCHED (fable — block-10 draw, difficulty S logged first;
+A/B row 23)**, spec docs/M5-S8-SPEC.md; review charter includes
+attacking the sum-vs-max monotone-combination claim.
