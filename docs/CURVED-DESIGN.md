@@ -23,6 +23,18 @@ sharply bimodal margins, K = 10 unpressured on the analytic kernel).
 The post-ratification obligations listed above remain open for M5
 planning.
 
+*QUARANTINE OBLIGATIONS DISCHARGED (2026-07-30):* two of those
+obligations — the inari quarantine boundary-text update and the
+LGPL-before-publish exit condition — are now CLOSED by M5 PR 1, which
+made the in-repo `interval-transcendentals` crate the sole `Interval`
+backend and removed inari from the kernel tree rather than
+re-quarantining it (DESIGN.md crate table, README License). Every
+mention of "the quarantine", "LGPL-quarantined machinery" and the
+C9/T2 transition allowance below is therefore RECORD — the constraint
+these decisions were taken under, not a live one. The decision bodies
+are left verbatim; the DESIGN.md D2-sharpening pass and the Q5 lean
+revision are unaffected by this note.
+
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
 obligation and fillet-validity-is-reified-predicates); M3-PLAN F5 (the
@@ -563,6 +575,13 @@ the ring lands ⇒ inari returns behind the `interval` feature; the
 temporary LGPL exposure is acceptable for the private repo but must
 be resolved before any publish (dual MIT/Apache license).
 
+*(CLOSED 2026-07-30, better than the exit condition asked: M5 PR 1
+made the in-house crate `interval-transcendentals` the sole `Interval`
+backend, so inari did not return behind the `interval` feature — it
+left the kernel tree, surviving only as that crate's optional
+`oracle-inari` dev-oracle in its own excluded workspace. Nothing in
+this section is a pending obligation.)*
+
 **Alternatives:** (i) require the `interval` feature for curved
 certification — makes default builds unable to validate curved bodies
 (non-starter against D4 ¶2's "kernel invariant, the topo validator
@@ -953,6 +972,10 @@ whichever way, the quarantine boundary text needs an update.
 ring, with the temporary inari-on-default-path transition allowance —
 see C9's decided note. The quarantine boundary text update is now a
 committed obligation.)*
+*(RESOLVED 2026-07-30: M5 PR 1 retired inari from the kernel tree, so
+there is no quarantine left to have a boundary — the boundary text is
+now a plain dependency note in the DESIGN.md crate table. Flag
+cleared.)*
 
 **T3 — Witness component-selection semantics.** D2's S2 sharpening
 says the selection semantics "activates with real SSI at M5." It
