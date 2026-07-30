@@ -889,28 +889,41 @@ fn f_two_rings_same_face_from_one_operand() {
 // G. Boundary-on-boundary refusal honesty.
 // =====================================================================
 
-/// Corner-flush {4} and stacked-full {8}: typed, deterministic,
-/// operand-preserving, with the DOCUMENTED on-edge counts; the
-/// epsilon-perturbed neighbors (shift 1/16, far beyond any band)
-/// SUCCEED with exact oracles — the refusal boundary is the exact
-/// contact set, not a mask.
+/// Corner-flush {4} and stacked-full {8} — the PR 5.5 pinned
+/// refusals — FLIPPED to exact successes under M5 S1's declared-REST
+/// zip (the boundary-on-boundary class (iii) lane). The sharpness
+/// claim survives inverted: the exact contact set takes the REST
+/// lane, the epsilon-perturbed neighbors (shift 1/16, far beyond any
+/// band) take the transversal chord lane, and BOTH produce exact
+/// oracles — while the UNDECLARED exact contacts still refuse typed,
+/// deterministic, operand-preserving at the coincidence door (the
+/// boundary between the lanes is declared intent + the exact contact
+/// set, never a mask).
 #[test]
 fn g_boundary_on_boundary_refusals_sharp() {
     // Corner-flush pillar: 2 contact-square edges on A's face edges.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
-    let e = assert_typed_refusal(union_with, &a, &b);
-    assert!(
-        e.contains("UnpairedLooseEnds { count: 4 }"),
-        "corner-flush: {e}"
-    );
+    let undeclared_refusal = |a: &Body<f64>, b: &Body<f64>| {
+        let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
+        let e1 = topo::union(a, b).map(|_| ()).unwrap_err();
+        let e2 = topo::union(a, b).map(|_| ()).unwrap_err();
+        assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
+        assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
+        assert_eq!(format!("{e1:?}"), format!("{e2:?}"), "deterministic");
+        assert!(
+            format!("{e1:?}").contains("UndeclaredCoincidence"),
+            "{e1:?}"
+        );
+    };
+    undeclared_refusal(&a, &b);
+    let r = run(union_with, &a, &b);
+    assert_eq!(vol(&body_of(&r).body), 8.0 + 0.25, "corner-flush glued");
     // Stacked-full: B's bottom rim = A's top rim, all four on-edge.
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
-    let e = assert_typed_refusal(union_with, &a, &b);
-    assert!(
-        e.contains("UnpairedLooseEnds { count: 8 }"),
-        "stacked-full: {e}"
-    );
+    undeclared_refusal(&a, &b);
+    let r = run(union_with, &a, &b);
+    assert_eq!(vol(&body_of(&r).body), 8.0 + 4.0, "stacked-full glued");
     // Perturbed corner-flush (pulled 1/16 inside): exact union.
     let b = brick::<f64>((0.0625, 0.5625), (0.0625, 0.5625), (2.0, 3.0));
     let r = run(union_with, &a, &b);

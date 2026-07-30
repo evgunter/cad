@@ -127,10 +127,11 @@ pub fn run(out: Option<String>) {
     });
     sweep(s, t, u, "az", || vec![seamed("az", az::build())]);
     sweep(s, t, u, "crosslap", || {
-        let (a, b, b_lifted, _refusal) = crosslap::build();
+        let (a, b, glued, b_lifted, _refusal) = crosslap::build();
         vec![
             seamed("crosslap_a", a),
             seamed("crosslap_b", b),
+            seamed("crosslap_glued", glued),
             plain("crosslap_exp_b", b_lifted),
         ]
     });
