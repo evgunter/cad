@@ -686,3 +686,26 @@ clone m5-s6-review; charter: exactly-once recourse property
 probes across all ~20 arms, no-semantic-change proof, census
 leak fix, e2e triggers on three pairs; narrowed local-test scope
 per the new CI rule).
+
+**S2 finisher REPORTED (2026-07-30), branch green+pushed at
+7ad2995.** The opus implementation shipped complete:
+fillet_corner with carrier-named arc legs (trim-invariant datum,
+not bulge), signed-radius offset construction (ρ = R − σ·τ·r —
+one formula carries internal/external/enclosing), algebraic
+bulge (major-arc-correct, no transcendentals), data-independent
+four-classification branch rule, seven K-funnel gates with
+escalation/refusal recourse parity, 22+3+1 test rows incl. the
+vesica ambiguity fixture and the #100 bracket with a √10 arc
+leg. Finisher fixed one real bug (discipline-grep trip on scalar
+bounds — helpers moved onto typed impls) and added one arc-leg
+degenerate row. Reported deviations: 2 pre-existing line-line
+tests textually touched (new carrier field; values unchanged),
+no both-external arc×arc fixture (argued covered), PATHS
+divergences named incl. AmbiguousFilletBranch unnamed in
+PATHS-DESIGN (flagged for v2). Full workspace battery ALSO ran
+pre-process-change: 1492/0 default + 1672/0 interval. **Blinded
+adversarial review DISPATCHED** (fresh clone m5-s2-review;
+charter: hand re-derivation + fuzz of the signed-radius
+construction, bulge vs atan2 differential, verdict-sequence
+invariance, escalation parity, straight-leg unreachability of
+the ambiguity). Both reviews now run in parallel.
