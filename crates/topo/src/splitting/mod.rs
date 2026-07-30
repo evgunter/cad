@@ -11,12 +11,14 @@
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
 //!
-//! 1. **Planar gate (F5)**: every face must be a `Plane` and every edge
-//!    carrier a `Line`; anything else is the typed
-//!    [`SplitReduceError::CurvedBooleanUnsupported`] /
-//!    [`SplitReduceError::CurvedEdgeUnsupported`] refusal (curved
-//!    splitting is M5, and this module deliberately builds NO
-//!    curved-readiness abstraction).
+//! 1. **Operand gate (F5 → THE C5 table, M5 PR 5)**: every face's
+//!    `(kind × plane)` arm must be one the pipeline executes —
+//!    `Plane` (the M3 seam, bit-identical) or `Cylinder` (the rung-2
+//!    conic lane); other kinds refuse typed CITING their rung routing
+//!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
+//!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
+//!    pass; `Nurbs` refuses
+//!    ([`SplitReduceError::CurvedEdgeUnsupported`]).
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
 //!    through the Q1 trilean `split_vertex_side` — definitely-off ⇒
 //!    clean side, coincident ⇒ [`PlaneSide::On`], in-band ⇒ the typed
@@ -236,9 +238,14 @@ pub enum SplitReduceError {
         diag: Indeterminate,
     },
     /// Two cyclically-consecutive entries remained ON after rule (a) —
-    /// the "no consecutive ONs" invariant failed, which for a planar
-    /// operand means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed).
+    /// the "no consecutive ONs" invariant failed. For a planar operand
+    /// this means a coplanar sector escaped the gate (documented
+    /// invariant, checked loudly rather than assumed); for a conic
+    /// boundary (M5 PR 5) it marks an in-plane ON-edge chain — e.g. a
+    /// cut through both seam rulings, where arcs leave ON endpoints
+    /// toward ON endpoints — a configuration the first-order sector
+    /// machinery cannot classify (PR 9's second-order lane); refused
+    /// typed, never guessed.
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,

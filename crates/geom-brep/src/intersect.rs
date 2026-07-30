@@ -166,6 +166,13 @@ impl PairRoute {
 /// the exhaustive ordered match — no wildcard arm anywhere, so adding a
 /// `SurfaceKind` breaks this build at compile time (D3). Symmetric: the
 /// two orders of a pair share one arm via explicit `|` alternation.
+///
+/// **Compile-break note (spec §6's doc-note, deliberately not a
+/// committed test)**: verified at spec time by adding a scratch
+/// seventh `SurfaceKind` variant — this match (and `SurfaceKind::of`
+/// / `name`) fail with E0004 non-exhaustive-patterns before anything
+/// else in the workspace; the no-wildcard grep row in
+/// `tests/pcurve_conic.rs` keeps the property pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
     use SurfaceKind::{Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
     match (a, b) {
