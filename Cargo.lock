@@ -1839,8 +1839,11 @@ dependencies = [
  "geom-core",
  "geom-curves",
  "geom-surfaces",
+ "mesh",
  "proptest",
  "slotmap",
+ "step-export",
+ "stl",
  "topo",
 ]
 

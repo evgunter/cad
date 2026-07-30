@@ -117,7 +117,7 @@ discipline() {
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | cut -d: -f1 | sort -u \
-    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce)\.rs$' \
+    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' || true)
   if [ -n "$bhits" ]; then

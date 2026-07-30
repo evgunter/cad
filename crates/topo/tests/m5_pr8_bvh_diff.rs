@@ -135,13 +135,12 @@ fn results_bit_equal_realized_vs_idealized() {
     // refusal in BOTH strategies (probed; each is a genuine kernel
     // refusal, not a suite artifact).
     let expected_refusals: &[(&str, BooleanOp)] = &[
-        // Flush-stacked UNION: the whole contact set lies in the one
-        // shared plane and the join lane refuses typed
-        // (Join(UnpairedLooseEnds)) — identically in both strategies.
-        // Intersect/Subtract on the same pair complete green (their
-        // kept sides do not need the coplanar seam). The M3 flush
-        // lanes are exercised green via the corner_table corpus rows.
-        ("flush-stacked bricks", BooleanOp::Union),
+        // (Empty since M5 S1: the flush-stacked UNION — formerly the
+        // Join(UnpairedLooseEnds) row — now BUILDS through the
+        // declared-REST zip, identically in both strategies; its
+        // Ok payloads ride the byte-equality assertion below like
+        // every green row. Intersect/Subtract on the same pair were
+        // always green.)
     ];
     for (name, a, b) in scenarios() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {

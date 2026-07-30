@@ -70,6 +70,7 @@ mod ops;
 pub mod plane_eq;
 pub(crate) mod recl;
 pub(crate) mod reduce;
+mod rest;
 pub(crate) mod sectors;
 pub mod solid_contain;
 pub mod tables;
@@ -475,6 +476,16 @@ pub enum BooleanError {
     /// The joining stage's chord machinery refused (PR 5; nested
     /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
     Join(SplitJoinError),
+    /// The declared-REST union zip (M5 S1) recognized its frontier —
+    /// a declared boundary-on-boundary REST contact — but the
+    /// configuration is a named sub-frontier the lane does not cover
+    /// (no speculative region algebra is built for it); refused
+    /// typed, never a laundered catch-all (the `SkippedMerge`
+    /// precedent).
+    RestZipUnsupported {
+        /// The precise sub-frontier.
+        what: &'static str,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -651,6 +662,13 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::Euler(e) => write!(f, "boolean_reduce: euler operation refused: {e}"),
             Self::Join(e) => write!(f, "boolean op: joining refused: {e}"),
+            Self::RestZipUnsupported { what } => write!(
+                f,
+                "boolean op: declared-REST union zip (M5 S1): {what} — a named \
+                 sub-frontier of the boundary-on-boundary REST lane (planar declared \
+                 contacts whose seam splits cleanly are covered); \
+                 {COINCIDENCE_RECOURSE}"
+            ),
             Self::JoinDesync { what } => write!(
                 f,
                 "boolean op: A/B lockstep invariant violated: {what} (kernel bug or corrupt \
@@ -1025,5 +1043,19 @@ mod tests {
         .to_string();
         assert!(msg.contains("exactly zero"), "{msg}");
         assert!(!msg.contains("margin is invalid"), "{msg}");
+    }
+
+    /// The M5 S1 sub-frontier refusal follows the two-tolerance
+    /// message shape: it names the lane and the precise sub-frontier
+    /// and composes the shared recourse exactly once.
+    #[test]
+    fn rest_zip_unsupported_carries_the_shared_recourse_once() {
+        let msg = BooleanError::RestZipUnsupported {
+            what: "contact patch face carries rings",
+        }
+        .to_string();
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+        assert!(msg.contains("contact patch face carries rings"), "{msg}");
+        assert!(msg.contains("M5 S1"), "{msg}");
     }
 }
