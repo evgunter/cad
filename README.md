@@ -22,10 +22,10 @@ feature included: that feature's transcendentals come from the in-repo
 `interval-transcendentals` crate — pure Rust over the same `libm` the
 kernel already uses — so no kernel build has a copyleft dependency or a
 C build step. The one LGPL-3.0+ dependency anywhere in the repo is
-`inari/gmp` as that crate's optional differential-certification
-*dev*-dependency, in its own excluded workspace; dev-dependencies of a
-path dependency never enter the dependent's graph, so no kernel build
-pulls it in.
+`inari/gmp` behind that crate's optional `oracle-inari`
+differential-certification feature, in its own excluded workspace; the
+kernel's path dependency never enables that feature, so no kernel build
+pulls it in (`Cargo.lock` has zero inari/gmp entries).
 
 ### Contribution
 
