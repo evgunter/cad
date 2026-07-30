@@ -854,3 +854,29 @@ exhaustiveness attack, 6-predicate trio sample incl. the
 declared-equality door, independent M2 bit-identity, thin-ellipse
 winding attack, deviation re-verification esp. 1/2/8). S1 lane
 still implementing (last activity minutes ago).
+
+**S1 implementation COMPLETE (2026-07-30, 8 commits pushed;
+survived one 529 with immediate resume).** Root cause found: the
+join gated NOT on missing chord partners but on germ-meta
+inconsistency — at a REST site the seam direction lies in FOUR
+coincident planes, and recl's per-site record survival gives a
+segment's two end germs DIFFERENT (a_face,b_face) meta, so
+find_match's germ-identity test never fires. The zip
+(boolean/rest.rs, ~900 lines): triggers only AFTER a typed join
+refusal on a declared ∪; germ rematching with the ambiguous
+identity dropped; every declared pair re-verified
+(DeclarationContradicted on false pairs — deviation 2 makes
+false RESTs never-silent); strut undo in reverse mint order;
+seam realization via standard chords; patch discovery by
+antiparallel cycle congruence; graft-B-whole ⇒ exact dyadic
+volume additivity; slit-zip for adjacent pairs; sub-frontiers
+refuse typed RestZipUnsupported (annular pinned). TRIPWIRE FIRED
+with the exact volume (1.875); wire retired to certified pins;
+demos crosslap ships the glued union; tier3prime pin FLIPPED;
+four more embedded-instruction pins re-derived incl. the BVH
+diff expected-refusal row now byte-equal Ok. NO new numeric
+predicate (purely structural — the ladder is law). ∖/∩ turn out
+VACUOUS (classification resolves them: OperandA/Empty — pinned
+instead of dead door text). Local rows green both lanes.
+**Review dispatch in progress** (clone re-running after a
+network timeout).
