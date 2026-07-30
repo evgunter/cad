@@ -985,7 +985,10 @@ mod tests {
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
         // exactly-on refusal (Invalid margin, as synthesized) and the
         // in-band refusal (Value margin) — one message, one recourse.
-        for margin in [geom_core::MarginDiag::Invalid, geom_core::MarginDiag::Value(5e-9)] {
+        for margin in [
+            geom_core::MarginDiag::Invalid,
+            geom_core::MarginDiag::Value(5e-9),
+        ] {
             let msg = BooleanError::UndeclaredCoincidence { diag: diag(margin) }.to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
