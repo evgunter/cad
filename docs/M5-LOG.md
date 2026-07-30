@@ -752,3 +752,21 @@ finisher** (resume justified — deep sugar.rs context): signed
 arc setback, trio parity, honest cusp text, NOTE docs, major-arc
 bulge row, probe adoption. Both fix passes now run in parallel;
 PRs open on their reports.
+
+**S2 fix pass COMPLETE (342651b), PR OPENED as #137
+(2026-07-30).** MAJOR-1 fixed with the signed fold x − τ·⌊x/τ+½⌋
+— deliberately NOT atan2 (tried, broke exact-fit trios by one
+ulp): bit-identical to the shipped expression on the corner side,
+changing values only where wrong; fuzz still accepts exactly
+12,714. NoCornerSideCandidate now REACHABLE for arc×arc (492/60k
+search hits, clean pinned fixture); misattribution repro now
+names the author's own candidate. Trio parity restored (reach →
+no-corner recourse both ends + negative assertion); cusp arm got
+FILLET_CUSP_CORNER_RECOURSE naming #131 (judgment call flagged:
+in-band turn escalation names BOTH doors — it hasn't decided
+which class); major-arc branch proven structurally unreachable
+(200k search, max θ = 0.987π) and unit-pinned instead of a fake
+e2e row; review probes adopted (review_s2.rs, 0.9s). -p profile
+124/0 + 134/0. This is the first PR gated by CI under the
+narrowed-local-battery process. Watcher armed. Row 18: fix pass
+moderate, complete.
