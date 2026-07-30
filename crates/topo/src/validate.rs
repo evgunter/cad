@@ -392,29 +392,23 @@ pub enum ValidationError {
         edge: EdgeKey,
     },
     /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
-    /// windings — the outer loop must wind positively around the
-    /// face's outward normal and every cycle ring negatively (the
-    /// region-bounding statement's planar half, previously a
-    /// documented deferral; M5 S1 fix pass). A role inversion is
+    /// windings — the outer loop winds **definitely negatively** (or a
+    /// cycle ring definitely positively) around the face's outward
+    /// normal; the region-bounding statement's planar half, previously
+    /// a documented deferral (M5 S1 fix pass). A role inversion is
     /// invisible to every volume gate (they are role-invariant) but
     /// silently corrupts tessellation/export — exactly the defect
-    /// class this check closes structurally.
+    /// class this check closes structurally. `Zero` and escalated
+    /// windings are exempt (the check-7 posture: an orientation probe,
+    /// not a thinness gate — degenerate pillow fixtures stay legal and
+    /// ε-tightening never flips valid → invalid; a genuinely
+    /// positive-area loop never classifies `Negative` under a
+    /// tighter ε).
     LoopRoleInverted {
         /// The face whose loop roles disagree with the windings.
         face: FaceKey,
         /// The loop whose winding disagrees with its role.
         r#loop: LoopKey,
-    },
-    /// Tier 3 (check 6): a loop-winding margin escalated (in the
-    /// sliver band, or poisoned) — indeterminate geometry at rest is a
-    /// defect (D4 ¶3's escalate-never-guess, the check-5 posture).
-    LoopRoleEscalated {
-        /// The planar face.
-        face: FaceKey,
-        /// The loop whose winding escalated.
-        r#loop: LoopKey,
-        /// The classifier's diagnostic.
-        cause: Indeterminate,
     },
     /// Tier 3: the body's exact-B-rep signed volume is **definitely
     /// negative** — global orientation corruption (the +V invariant,
@@ -923,15 +917,6 @@ impl fmt::Display for ValidationError {
                 "face {face:?}: loop {loop:?}'s winding disagrees with its outer/ring role \
                  (the outer loop must wind positively around the outward normal, rings \
                  negatively — the planar region-bounding statement)"
-            ),
-            Self::LoopRoleEscalated {
-                face,
-                r#loop,
-                cause,
-            } => write!(
-                f,
-                "face {face:?}: loop {loop:?}'s winding cannot be classified definitely \
-                 (sliver, D4 ¶3): {cause}"
             ),
             Self::NegativeVolume => f.write_str(
                 "the body's exact-B-rep signed volume is definitely negative — global \
@@ -1646,7 +1631,8 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
     // region-bounding statement's PLANAR half, previously a documented
     // deferral of this battery: on every planar face, the outer loop
     // must wind positively around the outward normal and every cycle
-    // ring negatively (empty rings bound no area and are exempt). The
+    // ring negatively (empty rings bound no area and are exempt;
+    // Zero/escalated windings are exempt — the check-7 posture). The
     // margin is the Newell functional `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
     // twice the loop's signed enclosed area — through the reified
     // `bool_ring_run_winding` predicate (the same margin the boolean
@@ -1689,18 +1675,20 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
                 newell = newell + (prev - p0).cross(p - p0);
                 prev = p;
             }
-            match decide("bool_ring_run_winding", normal.dot(newell), band) {
-                Ok(Sign::Positive) if is_outer => {}
-                Ok(Sign::Negative) if !is_outer => {}
-                Ok(_) => errors.push(ValidationError::LoopRoleInverted {
+            // Only a DEFINITE wrong sign refuses (doc on the variant:
+            // the check-7 posture — Zero and escalated windings are
+            // exempt, so degenerate pillows stay legal and
+            // ε-tightening never flips valid → invalid).
+            let wrong = if is_outer {
+                Sign::Negative
+            } else {
+                Sign::Positive
+            };
+            if decide("bool_ring_run_winding", normal.dot(newell), band) == Ok(wrong) {
+                errors.push(ValidationError::LoopRoleInverted {
                     face: face_key,
                     r#loop: l,
-                }),
-                Err(cause) => errors.push(ValidationError::LoopRoleEscalated {
-                    face: face_key,
-                    r#loop: l,
-                    cause,
-                }),
+                });
             }
         }
     }
