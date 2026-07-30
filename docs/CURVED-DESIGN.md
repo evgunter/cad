@@ -13,17 +13,6 @@ boundary-text update for the transition state, and the
 LGPL-before-publish exit condition. The K = 10 tangent lives in
 issue #89.
 
-*QUARANTINE OBLIGATIONS DISCHARGED (2026-07-30):* the last two of
-those — the quarantine boundary-text update and the
-LGPL-before-publish exit condition — are CLOSED by M5 PR 1, which
-replaced inari with the in-repo `interval-transcendentals` backend and
-removed inari from the kernel tree rather than re-quarantining it
-(DESIGN.md crate table, README License). Every mention of "the
-quarantine", "LGPL-quarantined machinery", and the C9/T2 transition
-allowance below is therefore RECORD — the constraint these decisions
-were taken under, not a live one. The decision bodies are left
-verbatim.
-
 *IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
 record unchanged):* M5 has not started — nothing here is implemented
 yet. Two inputs matured during M4: the OQ8 in-house interval ring now
@@ -33,6 +22,18 @@ decision), and #89's K-revisit gained its baseline (8b K-probe:
 sharply bimodal margins, K = 10 unpressured on the analytic kernel).
 The post-ratification obligations listed above remain open for M5
 planning.
+
+*QUARANTINE OBLIGATIONS DISCHARGED (2026-07-30):* two of those
+obligations — the inari quarantine boundary-text update and the
+LGPL-before-publish exit condition — are now CLOSED by M5 PR 1, which
+made the in-repo `interval-transcendentals` crate the sole `Interval`
+backend and removed inari from the kernel tree rather than
+re-quarantining it (DESIGN.md crate table, README License). Every
+mention of "the quarantine", "LGPL-quarantined machinery" and the
+C9/T2 transition allowance below is therefore RECORD — the constraint
+these decisions were taken under, not a live one. The decision bodies
+are left verbatim; the DESIGN.md D2-sharpening pass and the Q5 lean
+revision are unaffected by this note.
 
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-

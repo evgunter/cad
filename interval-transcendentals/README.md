@@ -27,11 +27,11 @@ kernel build in any configuration links C or LGPL code.
 Two tiers, split so that the cheap one can run in kernel CI:
 
 **`cargo test`** (no features) needs **no oracle and no C toolchain** —
-unit tests, the
-`edges.rs` sweep (signed zeros, subnormals, extremum-straddling, huge
-arguments, poison propagation), and `review_fuzz_div.rs`'s exact-rational
-division fuzz, which needs no oracle at all because it compares against
-exact `u128` rational arithmetic. This is the tier the kernel's CI runs,
+unit tests, the `edges.rs` sweep (signed zeros, subnormals,
+extremum-straddling, huge arguments, poison propagation), and
+`review_fuzz_div.rs`'s exact-rational division fuzz, which needs no
+oracle at all because it compares against exact `u128` rational
+arithmetic. This is the tier the kernel's CI runs,
 so a dropped pad is caught by the same pipeline that gates the kernel.
 
 **`cargo test --release --features oracle-inari`** adds `certify.rs`, the
