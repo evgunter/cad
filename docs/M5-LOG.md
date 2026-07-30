@@ -1031,3 +1031,12 @@ baseline-matched telemetry, deliberately untouched).
 **Lightweight review dispatched** per spec §5. Note: my merge
 watchers are tier-aware (no-fail+no-pending), so the 21→18 row
 change needs no watcher edits.
+
+**S7 review APPROVE (0/0/2), PR OPENED as #142 (2026-07-30).**
+The pre-existing README shorthand (inari as "dev-dependency" —
+actually an optional regular dependency behind oracle-inari)
+fixed on-branch by the orchestrator per the NOTE. DEFAULT_EPS
+justification independently confirmed (no env override on
+unparameterized rows). #142 is workflow-touching (workflow scope
+available) and classifies tier `all` — its own run demonstrates
+the 18-row battery. Watcher armed.
