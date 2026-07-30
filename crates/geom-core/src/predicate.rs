@@ -602,9 +602,14 @@ impl fmt::Display for Indeterminate {
                  band; subdivide the parameter box for a tighter enclosure, or \
                  {COINCIDENCE_RECOURSE} (D4, Q1)"
             ),
-            MarginDiag::Invalid => f.write_str(
+            // Poison explains WHY the sign is indeterminate, but the
+            // user's levers at a coincidence site are unchanged — the
+            // Invalid arm carries the shared recourse like the others
+            // (S6 review, MINOR-1).
+            MarginDiag::Invalid => write!(
+                f,
                 " — a poisoned computation can never take a branch; check the \
-                 operation's inputs upstream (D4)",
+                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
             ),
         }
     }
@@ -1016,10 +1021,12 @@ mod tests {
             .with_predicate("transversality");
         assert_eq!(
             invalid.to_string(),
-            "predicate 'transversality' indeterminate: margin is invalid (NaN \
-             or a poisoned enclosure); band (zero = 1e-9, escalate = 1e-8) — a \
-             poisoned computation can never take a branch; check the \
-             operation's inputs upstream (D4)"
+            format!(
+                "predicate 'transversality' indeterminate: margin is invalid (NaN \
+                 or a poisoned enclosure); band (zero = 1e-9, escalate = 1e-8) — a \
+                 poisoned computation can never take a branch; check the \
+                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
+            )
         );
 
         // The interval variant's wording (the variant itself is not
