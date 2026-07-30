@@ -880,3 +880,21 @@ VACUOUS (classification resolves them: OperandA/Empty — pinned
 instead of dead door text). Local rows green both lanes.
 **Review dispatch in progress** (clone re-running after a
 network timeout).
+
+**S1 review returned (2026-07-30): APPROVE-WITH-FIX-PASS — 1
+MAJ / 2 MIN / 3 NOTE, rubric 4/4/4.** MAJOR-1 is the milestone's
+most serious catch: hole-creating declared merges (kept+absorbed
+sharing two disjoint seam runs) invert outer/ring loop roles —
+gates pass, volume exact, but tessellation fails
+MismatchedWinding and STL exports SILENTLY CORRUPT (1.8333 vs
+5.5). Pre-existing machinery, newly reachable through the lane;
+the volume backstop is role-invariant so no gate catches it.
+Root-cause claim (germ-meta inconsistency) CONFIRMED empirically
+at the merge-base with dbg-join instrumentation; all six pin
+flips verified faithful; mispairing attacks failed safe;
+deviation-2 stricter semantics regressed nothing. **Fix pass
+DISPATCHED** (fable implementer resumed): close the silent class
+(correct roles or refuse typed, plus a loop-role tier gate if
+contained), narrow the ∖/∩ claim (three-wall counterexample
+pinned), narrative alignments, adopt 6 probe files. PR 5 review
+still in flight.
