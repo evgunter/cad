@@ -147,6 +147,16 @@ pub enum MergeCoplanarError {
         /// The second face.
         f2: FaceKey,
     },
+    /// After absorbing a group, the survivor's loops admit no unique
+    /// positively-wound outline (zero or several positive windings) —
+    /// the outer/ring roles cannot be assigned; refused rather than
+    /// guessed (M5 S1 fix pass: the intra-face `kemr`'s provisional
+    /// ring designation is now RESOLVED by winding, and shapes the
+    /// resolution cannot decide are outside the inventory).
+    MergedFaceRoleAmbiguous {
+        /// The merged survivor face.
+        face: FaceKey,
+    },
     /// A plane-identity margin escalated while verifying a declared
     /// pair (in-band sliver) — typed, never guessed.
     Escalated {
@@ -195,6 +205,11 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
                  orientations — unmergeable in a closed solid"
+            ),
+            Self::MergedFaceRoleAmbiguous { face } => write!(
+                f,
+                "merge_coplanar_faces: merged face {face:?} has no unique positively-wound \
+                 outline among its loops — outer/ring roles cannot be assigned; refused"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -664,6 +679,105 @@ impl<T: Decide> Body<T> {
             group.killed_edges.push(edge_key);
             group.rings_made.push(result.ring);
         }
+        // Role normalization (M5 S1 fix pass, review MAJOR-1): the
+        // intra-face `kemr` above designates its ring PROVISIONALLY
+        // (the plus half's side — the module docs' documented
+        // containment question). A group absorbed across TWO disjoint
+        // shared runs closes a genuine hole, and the provisional side
+        // can put the OUTLINE in the ring slot and the hole in the
+        // outer slot — every downstream volume gate is role-invariant,
+        // but tessellation is not (the silent-corrupt-export class).
+        // Resolve by winding: the outline is the unique cycle winding
+        // POSITIVELY around the face's outward normal (the same
+        // Newell-functional predicate the boolean join's ring lane
+        // decides on); swap it into the outer slot if the kemr put it
+        // elsewhere; no unique positive cycle refuses typed.
+        if !group.rings_made.is_empty() {
+            self.normalize_merged_roles(rep)?;
+        }
         Ok(group)
+    }
+
+    /// The signed winding of a cycle loop around `normal`, through the
+    /// reified `bool_ring_run_winding` predicate (the plane's Newell
+    /// functional — twice the enclosed signed area; the same margin
+    /// the boolean join's ring lane decides on). `None` for empty
+    /// loops (a lone-vertex ring bounds no area and stays a ring).
+    fn loop_winding(
+        &self,
+        l: LoopKey,
+        normal: geom_core::Vec3<T>,
+        band: Band,
+    ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
+        let corrupt = || MergeCoplanarError::Op {
+            error: EulerOpError::StaleKey {
+                key: crate::entity::EntityId::Loop(l),
+            },
+        };
+        let crate::entity::LoopBoundary::Cycle { first } =
+            self.get_loop(l).ok_or_else(corrupt)?.boundary
+        else {
+            return Ok(None);
+        };
+        let cycle = self.loop_cycle(first).ok_or_else(corrupt)?;
+        let point_of = |he| -> Result<geom_core::Point3<T>, MergeCoplanarError> {
+            let v = self.get_half_edge(he).ok_or_else(corrupt)?.start;
+            self.get_vertex(v)
+                .and_then(|vd| self.get_point(vd.point).copied())
+                .ok_or_else(corrupt)
+        };
+        let p0 = point_of(cycle[0])?;
+        let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+        let mut prev = p0;
+        for &he in &cycle[1..] {
+            let p = point_of(he)?;
+            newell = newell + (prev - p0).cross(p - p0);
+            prev = p;
+        }
+        match crate::validate::decide("bool_ring_run_winding", normal.dot(newell), band) {
+            Ok(sign) => Ok(Some(sign)),
+            Err(diag) => Err(MergeCoplanarError::Escalated { diag }),
+        }
+    }
+
+    /// Assigns the merged survivor's outer/ring roles by winding
+    /// (doc at the call site): the unique positively-wound cycle
+    /// becomes the outer loop; everything else must wind negatively
+    /// (or be an empty ring). Zero/multiple positive cycles refuse
+    /// [`MergeCoplanarError::MergedFaceRoleAmbiguous`].
+    fn normalize_merged_roles(&mut self, face: FaceKey) -> Result<(), MergeCoplanarError> {
+        let band = Band::linear().map_err(|error| MergeCoplanarError::Band { error })?;
+        let Some(f) = self.get_face(face) else {
+            return Ok(()); // unreachable: the survivor is live
+        };
+        let normal = match self.get_surface(f.surface) {
+            Some(Surface::Plane { normal, .. }) => *normal,
+            _ => return Ok(()), // merges only fire on planar rungs
+        };
+        let (outer, rings) = (f.outer, f.rings.clone());
+        let mut positives: Vec<Option<usize>> = Vec::new(); // None = outer
+        if self.loop_winding(outer, normal, band)? == Some(geom_core::Sign::Positive) {
+            positives.push(None);
+        }
+        for (i, &r) in rings.iter().enumerate() {
+            if self.loop_winding(r, normal, band)? == Some(geom_core::Sign::Positive) {
+                positives.push(Some(i));
+            }
+        }
+        match positives[..] {
+            [None] => Ok(()), // roles already correct
+            [Some(i)] => {
+                // Swap the outline into the outer slot (pure role
+                // relabeling: loops, half-edges, and arena counts are
+                // untouched — both loops already belong to this face).
+                let Some(fm) = self.faces.get_mut(face) else {
+                    return Ok(()); // unreachable: checked live above
+                };
+                fm.outer = rings[i];
+                fm.rings[i] = outer;
+                Ok(())
+            }
+            _ => Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face }),
+        }
     }
 }

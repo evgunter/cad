@@ -391,6 +391,31 @@ pub enum ValidationError {
         /// conventional.
         edge: EdgeKey,
     },
+    /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
+    /// windings — the outer loop must wind positively around the
+    /// face's outward normal and every cycle ring negatively (the
+    /// region-bounding statement's planar half, previously a
+    /// documented deferral; M5 S1 fix pass). A role inversion is
+    /// invisible to every volume gate (they are role-invariant) but
+    /// silently corrupts tessellation/export — exactly the defect
+    /// class this check closes structurally.
+    LoopRoleInverted {
+        /// The face whose loop roles disagree with the windings.
+        face: FaceKey,
+        /// The loop whose winding disagrees with its role.
+        r#loop: LoopKey,
+    },
+    /// Tier 3 (check 6): a loop-winding margin escalated (in the
+    /// sliver band, or poisoned) — indeterminate geometry at rest is a
+    /// defect (D4 ¶3's escalate-never-guess, the check-5 posture).
+    LoopRoleEscalated {
+        /// The planar face.
+        face: FaceKey,
+        /// The loop whose winding escalated.
+        r#loop: LoopKey,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
     /// Tier 3: the body's exact-B-rep signed volume is **definitely
     /// negative** — global orientation corruption (the +V invariant,
     /// M2 PR 7). The margin is `V / A_total` (a length: the mean
@@ -893,6 +918,17 @@ impl fmt::Display for ValidationError {
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
             ),
+            Self::LoopRoleInverted { face, r#loop } => write!(
+                f,
+                "face {face:?}: loop {loop:?}'s winding disagrees with its outer/ring role \
+                 (the outer loop must wind positively around the outward normal, rings \
+                 negatively — the planar region-bounding statement)"
+            ),
+            Self::LoopRoleEscalated { face, r#loop, cause } => write!(
+                f,
+                "face {face:?}: loop {loop:?}'s winding cannot be classified definitely \
+                 (sliver, D4 ¶3): {cause}"
+            ),
             Self::NegativeVolume => f.write_str(
                 "the body's exact-B-rep signed volume is definitely negative — global \
                  orientation corruption (+V invariant; every closed body's outward-oriented \
@@ -1384,7 +1420,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
     }
 }
 
-/// Tier 3's local check battery (checks 1–5 + the +V invariant, check
+/// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_geometric`] and
 /// [`validate_pseudomanifold`] (M3 PR 6a: the tier-3′ validator runs
 /// the SAME local passes — extraction, not copy-paste; behavior under
@@ -1597,6 +1633,70 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
                     }
                 }
                 break;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 6: planar loop-role winding (M5 S1 fix pass) — the
+    // region-bounding statement's PLANAR half, previously a documented
+    // deferral of this battery: on every planar face, the outer loop
+    // must wind positively around the outward normal and every cycle
+    // ring negatively (empty rings bound no area and are exempt). The
+    // margin is the Newell functional `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
+    // twice the loop's signed enclosed area — through the reified
+    // `bool_ring_run_winding` predicate (the same margin the boolean
+    // join's ring lane and the merge role normalization decide on).
+    // A role inversion passes every volume gate (they are
+    // role-invariant) but silently corrupts tessellation/export;
+    // this closes that class structurally. Curved faces stay in the
+    // documented deferral (M5 pcurves).
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
+            continue;
+        };
+        for (l, is_outer) in core::iter::once((face.outer, true))
+            .chain(face.rings.iter().map(|&r| (r, false)))
+        {
+            let Some(loop_data) = body.get_loop(l) else {
+                continue; // unreachable on tier-1 input
+            };
+            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+                continue; // empty ring: bounds no area
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue; // unreachable on tier-1 input
+            };
+            let point_of = |he| {
+                body.get_half_edge(he)
+                    .and_then(|hd| body.get_vertex(hd.start))
+                    .and_then(|vd| body.get_point(vd.point).copied())
+            };
+            let Some(p0) = point_of(cycle[0]) else {
+                continue; // unreachable on tier-1 input
+            };
+            let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+            let mut prev = p0;
+            for &he in &cycle[1..] {
+                let Some(p) = point_of(he) else {
+                    continue;
+                };
+                newell = newell + (prev - p0).cross(p - p0);
+                prev = p;
+            }
+            match decide("bool_ring_run_winding", normal.dot(newell), band) {
+                Ok(Sign::Positive) if is_outer => {}
+                Ok(Sign::Negative) if !is_outer => {}
+                Ok(_) => errors.push(ValidationError::LoopRoleInverted {
+                    face: face_key,
+                    r#loop: l,
+                }),
+                Err(cause) => errors.push(ValidationError::LoopRoleEscalated {
+                    face: face_key,
+                    r#loop: l,
+                    cause,
+                }),
             }
         }
     }
