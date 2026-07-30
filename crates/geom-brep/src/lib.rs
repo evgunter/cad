@@ -37,6 +37,7 @@ pub mod dihedral;
 pub mod edge_geometry;
 pub mod enters;
 pub mod implicit;
+pub mod intersect;
 pub mod keys;
 pub mod newell;
 pub mod props;
@@ -48,6 +49,11 @@ pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use enters::{EntersMaterial, enters_material};
 pub use implicit::{curvature_lever_arm, implicit_gradient, implicit_residual};
+pub use intersect::{
+    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
+    SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
+    plane_cylinder_section, route,
+};
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
 pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
