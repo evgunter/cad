@@ -128,6 +128,10 @@ struct Segment {
 /// false declarations at the lane door,
 /// [`BooleanError::RestZipUnsupported`] for named sub-frontiers, and
 /// the shared output-stage refusals.
+///
+/// The `Decide + Bounds` compound bound is the boolean-seam bound
+/// (ratified 2026-07-29 — see geom-core `real.rs`, Bounds scope
+/// rule); this module is part of that seam alongside `ops`/`reduce`.
 pub(super) fn try_rest_union<T: Decide + Bounds>(
     mut red: BooleanReduction<T>,
     a_pristine: &Body<T>,
