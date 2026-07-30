@@ -815,3 +815,22 @@ satisfied). Side-unit queue: S1 (REST-contact) and S4
 (validator consolidation) remain; PR 6 spec (pcurve caches,
 opus) is the next orchestrator drafting work once PR 5's shape
 firms up. Row 17 final columns filled at next A/B touch.
+
+**State-sync #139 MERGED docs-only — THE DOCS TIER DEMONSTRATED
+LIVE**: only `change filter` + `docs-only ok` executed; the 13
+build rows were skipped matrix stubs. Zero build minutes for a
+docs PR vs 21 executed rows on kernel PRs. All three filter
+tiers now proven in production. (The 6-line monitor-script fix
+was deliberately excluded — scripts/** fail-closes — and rides
+the next mixed sync.)
+
+**S1 DISPATCHED (2026-07-30) — block-9 draw (difficulty logged
+first: S1=M; coin): S1=fable, remainder=opus (next unit, S4 or
+PR 7).** docs/M5-S1-SPEC.md committed: union-only declared-REST
+zip at the join stage (contact patches removed as interior, seam
+minted once, splitting reused — sub-frontiers refuse typed with
+honest records), undeclared door pinned unchanged, tripwire flip
+per the wire's embedded instructions + demos/tour crosslap
+upgrade + tier3prime revisit, exact dyadic volume additivity,
+purely-structural-or-trios requirement. Two lanes now: PR 5 +
+S1. Row 19/20 to MODEL-AB-LOG at next touch.
