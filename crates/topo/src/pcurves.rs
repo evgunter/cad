@@ -111,6 +111,14 @@ pub enum PcurveMintError {
         /// The face whose loop failed to close.
         face: FaceKey,
     },
+    /// A half-edge of a minting chart's face carries no stored
+    /// pcurve at rest: the cache set is incomplete. Absence is legal
+    /// on charts that do not mint (planar faces, the frontier charts);
+    /// it is a defect on one that does.
+    MissingCache {
+        /// The half-edge with no stored cache.
+        half_edge: HalfEdgeKey,
+    },
     /// A classification escalated (sliver band or poison).
     Escalated {
         /// The half-edge under classification.
@@ -142,6 +150,11 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "pcurve minting: the chart walk of a loop of face {face:?} did not close \
                  (its azimuth advance is neither zero nor one full period)"
+            ),
+            Self::MissingCache { half_edge } => write!(
+                f,
+                "pcurve minting: half-edge {half_edge:?} bounds a face whose chart mints \
+                 pcurve caches, but carries none at rest"
             ),
             Self::Escalated { half_edge, cause } => write!(
                 f,
@@ -430,4 +443,149 @@ fn walk_loop<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The at-rest pcurve pass the tier-3 validator runs (spec §5:
+/// **certificate present + replay passes + trim containment**).
+///
+/// For every face whose chart mints caches ([`chart_mints`]):
+///
+/// 1. every half-edge of every loop carries a stored cache (a missing
+///    one on a minting chart is a defect, not a licence to derive);
+/// 2. the face's chart window is re-derived from the STORED caches and
+///    each cache is **re-certified** against it — the stored
+///    certificate is never consulted (re-certification re-derives, it
+///    does not trust, exactly as [`geom_brep::EdgeCurve::recertify`]);
+/// 3. the loop's one-branch continuity is re-checked on the stored
+///    pcurves, so a body whose branches were tampered with fails here
+///    even if each pcurve certifies in isolation.
+///
+/// Returns the findings in face-arena / loop / cycle order (D9),
+/// empty when the body is clean. Bodies with no stored caches (every
+/// all-planar body, and every body built before a curved face existed)
+/// produce no findings — absence is not a defect.
+pub fn validate_pcurves<T: Decide>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
+    let mut findings = Vec::new();
+    for (face_key, face) in body.faces() {
+        let Some(surface) = body.get_surface(face.surface) else {
+            continue;
+        };
+        if !chart_mints(surface) {
+            continue;
+        }
+        let surface = surface.clone();
+        let loops: Vec<LoopKey> = core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .collect();
+        // Pass 1: presence + the face's window from the stored caches.
+        let mut cycles: Vec<Vec<HalfEdgeKey>> = Vec::new();
+        let mut window: Option<ChartWindow<T>> = None;
+        let mut complete = true;
+        for lp in &loops {
+            let Some(loop_data) = body.get_loop(*lp) else {
+                findings.push(PcurveMintError::Corrupt);
+                complete = false;
+                continue;
+            };
+            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+                continue;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                findings.push(PcurveMintError::Corrupt);
+                complete = false;
+                continue;
+            };
+            for &he in &cycle {
+                match body.pcurve(he) {
+                    None => {
+                        findings.push(PcurveMintError::MissingCache { half_edge: he });
+                        complete = false;
+                    }
+                    Some(cache) => {
+                        let (t0, t1) = cache.params();
+                        let b = cache.pcurve().chart_box(t0, t1);
+                        window = Some(match window {
+                            None => b,
+                            Some(acc) => acc.hull(b),
+                        });
+                    }
+                }
+            }
+            cycles.push(cycle);
+        }
+        let (Some(window), true) = (window, complete) else {
+            continue;
+        };
+        // Pass 2: replay every stored certificate against that window.
+        for cycle in &cycles {
+            for &he in cycle {
+                let Some(cache) = body.pcurve(he) else { continue };
+                let carrier = match half_edge_carrier(body, he) {
+                    Ok((c, _, _)) => c,
+                    Err(e) => {
+                        findings.push(e);
+                        continue;
+                    }
+                };
+                if let Err(error) = cache.recertify(&carrier, &surface, window, band) {
+                    findings.push(PcurveMintError::Certify {
+                        half_edge: he,
+                        error,
+                    });
+                }
+            }
+        }
+        // Pass 3: the one-branch loop continuity of the STORED pcurves.
+        let arm = azimuth_arm(&surface);
+        let tau = T::tau();
+        for cycle in &cycles {
+            let mut prev_exit: Option<geom_core::Point2<T>> = None;
+            let mut first_entry: Option<geom_core::Point2<T>> = None;
+            for &he in cycle {
+                let Some(cache) = body.pcurve(he) else { continue };
+                let (t0, t1) = cache.params();
+                let plus = match is_plus(body, he) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        findings.push(e);
+                        continue;
+                    }
+                };
+                let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+                let entry = cache.pcurve().eval(entry_t);
+                if let Some(prev) = prev_exit {
+                    for margin in [(entry.x - prev.x) * arm, entry.y - prev.y] {
+                        match decide("pcurve_loop_continuity", margin, band) {
+                            Ok(Sign::Zero) => {}
+                            Ok(Sign::Positive | Sign::Negative) => {
+                                findings.push(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                            }
+                            Err(cause) => findings.push(PcurveMintError::Escalated {
+                                half_edge: he,
+                                cause,
+                            }),
+                        }
+                    }
+                }
+                if first_entry.is_none() {
+                    first_entry = Some(entry);
+                }
+                prev_exit = Some(cache.pcurve().eval(exit_t));
+            }
+            if let (Some(start), Some(end)) = (first_entry, prev_exit) {
+                let du = end.x - start.x;
+                let closes = [du, du - tau, du + tau].into_iter().any(|m| {
+                    matches!(decide("pcurve_loop_closure", m * arm, band), Ok(Sign::Zero))
+                });
+                let height_closes = matches!(
+                    decide("pcurve_loop_closure_height", end.y - start.y, band),
+                    Ok(Sign::Zero)
+                );
+                if !(closes && height_closes) {
+                    findings.push(PcurveMintError::LoopNotClosed { face: face_key });
+                }
+            }
+        }
+    }
+    findings
 }

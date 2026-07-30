@@ -426,6 +426,16 @@ pub enum ValidationError {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
     },
+    /// **Tier 3, check 8 (M5 PR 6).** A stored pcurve cache failed its
+    /// at-rest pass: missing on a chart that mints, failed
+    /// re-certification (the meters-through-the-map residual, the
+    /// closed-form envelope, or trim containment), or broke its
+    /// face loop's one-branch chart continuity. The typed finding is
+    /// nested whole.
+    Pcurve {
+        /// The pcurve pass's typed finding.
+        finding: crate::pcurves::PcurveMintError,
+    },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
     /// contact record backs (directly, or via the D3 segment
@@ -1135,6 +1145,7 @@ impl fmt::Display for ValidationError {
                 "face {face:?} carries a null-face record at rest (tier 2 bans \
                  unconsumed M3 surgery transients)"
             ),
+            Self::Pcurve { finding } => write!(f, "tier 3: {finding}"),
         }
     }
 }
@@ -1738,6 +1749,20 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
             }
             Err(source) => errors.push(ValidationError::VolumeUncomputable { source }),
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 8 (M5 PR 6, C4): the stored pcurve caches — the
+    // certificate must be PRESENT on every half-edge of a minting
+    // chart's face, the certification must REPLAY at rest (re-derived,
+    // never trusted), and domain validity (trim containment + the
+    // loop's one-branch continuity) must hold. Bodies carrying no
+    // stored pcurves — every all-planar body — contribute nothing.
+    // Ungated on the volume check: a pcurve defect is local evidence
+    // about a specific half-edge, not cascade noise.
+    // ------------------------------------------------------------------
+    for finding in crate::pcurves::validate_pcurves(body, band) {
+        errors.push(ValidationError::Pcurve { finding });
     }
 
     errors
