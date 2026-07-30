@@ -787,3 +787,13 @@ candidates (review NOTE-1 discharged). Watcher armed. Both S
 units now gate on CI in parallel (#137 profile-only — the
 closure filter's first real selectivity test; #138 touches
 geom-core → full matrix expected).
+
+**#137 MERGED (2026-07-30): 21/21.** S2 done — arc-leg fillet
+corners shipped; row 18 columns filled. NOTE on the closure
+filter: the full matrix ran for a profile-only change, which is
+CORRECT closure behavior — profile feeds sweep→topo→editor-core,
+so its reverse-dependency closure is nearly the whole workspace.
+The genuine selectivity demo still awaits a leaf-crate or
+docs-only PR (the next state-sync PR will be the docs-tier
+case). A/B rows 17+18 now filled through fix pass; block 7
+complete.
