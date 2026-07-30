@@ -60,8 +60,15 @@
 //! **fixed, documented association order** (D9: deterministic evaluation;
 //! reassociating floating-point sums changes results). The order is stated
 //! in each operation's doc comment and is part of its contract.
+//!
+//! The [`lsq`] submodule (M5 PR 4) is the one variable-size resident:
+//! `f64`-only structure machinery for the fitting systems (C6's f64
+//! lane), `Vec`-based with shapes validated at entry so every internal
+//! index is justified — the no-panic rule holds there too, with typed
+//! refusals in place of the fixed-dimension types' totality.
 
 mod affine;
+pub mod lsq;
 mod mat;
 mod point;
 mod vec;

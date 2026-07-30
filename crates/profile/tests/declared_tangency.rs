@@ -51,6 +51,13 @@ fn undeclared_line_arc_tangency_is_refused_typed() {
             assert_eq!((first.loop_index, first.segment_index), (0, 2));
             assert_eq!((second.loop_index, second.segment_index), (0, 3));
             assert!(suggestion.contains("declare"), "repair menu: {suggestion}");
+            // S6: the definite-tangency arm composes the shared
+            // sub-ε_input recourse (two-tolerance principle).
+            assert_eq!(
+                suggestion.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+                1,
+                "repair menu: {suggestion}"
+            );
         }
         other => panic!("expected UndeclaredTangency, got {other:?}"),
     }
@@ -294,9 +301,11 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
     {
         ProfileError::FilletDoesNotFit {
             leg,
+            carrier,
             setback,
             leg_length,
         } => {
+            assert_eq!(carrier, profile::FilletLegCarrier::Line);
             // Incoming→outgoing gate order: the shorter incoming leg
             // reports first; right angle + dyadic legs: exact values.
             assert_eq!(leg, profile::FilletLeg::Incoming);
@@ -316,9 +325,11 @@ fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
     {
         ProfileError::FilletDoesNotFit {
             leg,
+            carrier,
             setback,
             leg_length,
         } => {
+            assert_eq!(carrier, profile::FilletLegCarrier::Line);
             assert_eq!(leg, profile::FilletLeg::Outgoing);
             assert_eq!(setback, 2.5);
             assert_eq!(leg_length, 2.0);

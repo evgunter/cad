@@ -179,9 +179,11 @@ impl core::fmt::Display for PropsError {
                 "integral properties: face boundary outside the M2 iso-rectangle inventory ({what})"
             ),
             Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
-            Self::DegenerateFace => {
-                f.write_str("integral properties: face parameter extent is degenerate (zero area)")
-            }
+            Self::DegenerateFace => write!(
+                f,
+                "integral properties: face parameter extent is degenerate (zero area) — {}",
+                geom_core::COINCIDENCE_RECOURSE
+            ),
             Self::Escalated { cause } => {
                 write!(f, "integral properties: classification escalated: {cause}")
             }
@@ -285,5 +287,33 @@ mod tests {
         let (v_in, a_in) = volume(true);
         assert!((v_in + 1.0).abs() < 1e-12, "inside-out cube volume {v_in}");
         assert!((a_in - 6.0).abs() < 1e-12, "area is orientation-blind");
+    }
+
+    /// S6 (two-tolerance, D4 ¶1 addendum): the face-extent pair —
+    /// exactly-zero extent (`DegenerateFace`) and in-band
+    /// (`Escalated`) — is one user situation; both arms carry the
+    /// shared recourse fragment.
+    #[test]
+    fn face_extent_pair_carries_the_shared_recourse() {
+        let msg = PropsError::DegenerateFace.to_string();
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
+
+        let msg = PropsError::Escalated {
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("props_face_extent"),
+            },
+        }
+        .to_string();
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            1,
+            "{msg}"
+        );
     }
 }

@@ -679,6 +679,24 @@ impl KinkJacobian for Interval {
         }
     }
 
+    /// `[0, 0]` for every nonempty enclosure — `x⁰` is the constant 1
+    /// over any box, so the exact tangent factor is zero — with the
+    /// zero's decoration capped by the value's (a `Trv`-or-worse value
+    /// yields a zero that refuses classification instead of a fresh
+    /// clean constant — the #126 laundering fix). Empty/NaI propagates.
+    fn powi_zero_deriv_factor(self) -> Self {
+        if self.0.is_nai() {
+            return Self(DInterval::nai());
+        }
+        if self.0.is_empty() {
+            return Self(DInterval::empty());
+        }
+        Self(cap_decoration(
+            DInterval::from_bounds(0.0, 0.0),
+            self.0.decoration(),
+        ))
+    }
+
     /// Sign-definite `sign` selects `±abs_sign_factor(self)·self_deriv`
     /// (σ applied as an exact negation — no extra rounding), decoration
     /// capped by `sign`'s; a `sign` enclosure **containing zero** yields

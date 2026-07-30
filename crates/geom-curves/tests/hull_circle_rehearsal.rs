@@ -1,5 +1,9 @@
 //! **The C2.2 shape rehearsal** (M5 PR 2, `docs/M5-PR2-SPEC.md` family
-//! 4): the acceptance the whole PR exists for.
+//! 4): the acceptance the whole PR exists for — since M5 PR 4 running
+//! ON the promoted substrate (`geom_core::spline::compose`) instead of
+//! test-local Bernstein plumbing. The numbers this test publishes must
+//! reproduce the PR 2 rehearsal's bit-for-bit (the refactor pins that
+//! below); the prose history lives in this file's PR 2 revision.
 //!
 //! A fitted cache is certified by bounding the *residual composite*
 //! `f ∘ C` — the analytic surface/curve's implicit function evaluated
@@ -12,7 +16,7 @@
 //! machinery produces measures nothing but the `f64` representation of
 //! the control data plus the ring's own conservatism. If hull bounds
 //! were too coarse to certify an exact case, they would be useless for
-//! the near-exact ones M5 PR 4 must certify — so the observed magnitude
+//! the near-exact ones M5 PR 4 certifies — so the observed magnitude
 //! is the number this test exists to publish.
 //!
 //! # Why the *implicit* residual and not a coordinate difference
@@ -26,29 +30,21 @@
 //! schedule of |f₁(C(t))|, |f₂(C(t))|"). Both of the circle's implicit
 //! limbs are checked:
 //!
-//! - `f₁(P) = |P − c|² − r²` (on the sphere about the center), and
-//! - `f₂(P) = (P − c)·n` (in the circle's plane).
+//! - `f₁(P) = |P − c|² − r²` (on the sphere about the center — the
+//!   compose module's [`ImplicitSurface::Sphere`]), and
+//! - `f₂(P) = (P − c)·n` (in the circle's plane —
+//!   [`ImplicitSurface::Plane`]).
 //!
-//! # The pipeline, which is PR 4's in miniature
-//!
-//! 1. Per 90° arc, lift the control data to homogeneous Bernstein
-//!    coefficients **in the ring** (`RingInterval`).
-//! 2. Form the composite's numerator coefficients by exact Bernstein
-//!    products — degree 2 × degree 2 = degree 4, with the binomial
-//!    weights (`C(2,i)C(2,j)/C(4,k)`, several of which are not
-//!    representable in `f64`) computed as ring quotients.
-//! 3. Hull-bound those coefficients with `spline::hull` over a degree-4
-//!    Bézier knot vector — no evaluation, no sampling.
-//! 4. Divide by the strictly-positive hull bound of the denominator
-//!    `W²` to get the residual in meters² (the ring refuses a
-//!    zero-touching divisor, so this step cannot silently succeed on
-//!    degenerate weights).
-//! 5. Falsify by dense sampling: every sampled residual must lie inside
-//!    the bound.
+//! The pipeline the PR 2 revision of this file spelled out inline
+//! (homogeneous ring lift, center-shift before products, exact
+//! Bernstein products with ring-quotient binomials, hull bounds, the
+//! zero-refusing denominator division) is now `compose`'s module
+//! contract, verbatim — the per-arc handling maps to the composite's
+//! per-span bounds (the circle's arcs *are* its Bézier spans).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::spline::{KnotVector, hull};
+use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point3, RingInterval, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
 
@@ -91,7 +87,7 @@ fn nurbs_circle() -> NurbsCurve3<f64> {
         p(1.0, 0.0),
     ];
     let weights = vec![1.0, SQRT2_2, 1.0, SQRT2_2, 1.0, SQRT2_2, 1.0, SQRT2_2, 1.0];
-    let knots = KnotVector::clamped(
+    let knots = geom_core::spline::KnotVector::clamped(
         vec![
             0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
         ],
@@ -110,124 +106,50 @@ fn analytic_circle() -> Curve3<f64> {
     }
 }
 
-/// Binomial coefficients used by the Bernstein product.
-const BIN2: [f64; 3] = [1.0, 2.0, 1.0];
-const BIN4: [f64; 5] = [1.0, 4.0, 6.0, 4.0, 1.0];
-
-/// Product of two degree-2 Bernstein polynomials, as degree-4 Bernstein
-/// coefficients:
-/// `(AB)_k = Σ_{i+j=k} [C(2,i)·C(2,j)/C(4,k)] · a_i · b_j`.
-///
-/// The weights `1/4`, `1/6` are not all representable in `f64`, so each
-/// is formed as a ring quotient — an enclosure, not a rounded constant.
-/// Fixed association (D9): ascending `k`, ascending `i`, the term order
-/// written below.
-fn bern2_mul(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 5] {
-    let mut out = [RingInterval::zero(); 5];
-    for k in 0..5 {
-        let mut acc = RingInterval::zero();
-        for i in 0..3 {
-            let j = k as i32 - i as i32;
-            if !(0..3).contains(&j) {
-                continue;
-            }
-            let j = j as usize;
-            let w = RingInterval::point(BIN2[i] * BIN2[j]) / RingInterval::point(BIN4[k]);
-            acc = acc + a[i] * b[j] * w;
-        }
-        out[k] = acc;
-    }
-    out
-}
-
-/// A degree-`n` Bézier knot vector on `[0, 1]` — the structure the
-/// per-arc composite coefficients live on.
-fn bezier_kv(degree: usize) -> KnotVector {
-    let mut knots = vec![0.0; degree + 1];
-    knots.extend(std::iter::repeat_n(1.0, degree + 1));
-    KnotVector::clamped(knots, degree).unwrap()
-}
-
-/// The homogeneous, center-shifted Bernstein coefficients of one 90°
-/// arc: `g_d,i = w_i·(P_d,i − c_d)` for each coordinate, plus the weight
-/// coefficients `W_i = w_i`.
-///
-/// Center-shifting *before* the products is what keeps the composite
-/// honest: forming `|P|² − 2P·c + |c|² − r²` instead would cancel
-/// catastrophically in the coefficients, and an interval bound reports
-/// that cancellation as width rather than hiding it.
-fn arc_coeffs(curve: &NurbsCurve3<f64>, arc: usize) -> ([[RingInterval; 3]; 3], [RingInterval; 3]) {
-    let c = center();
-    let ctrl = curve.control();
-    let w = curve.weights();
-    let cc = [c.x, c.y, c.z];
-    let mut g = [[RingInterval::zero(); 3]; 3];
-    let mut wc = [RingInterval::zero(); 3];
-    for i in 0..3 {
-        let idx = 2 * arc + i;
-        let p = ctrl[idx];
-        let wi = RingInterval::point(w[idx]);
-        wc[i] = wi;
-        for (d, pd) in [p.x, p.y, p.z].into_iter().enumerate() {
-            g[d][i] = wi * (RingInterval::point(pd) - RingInterval::point(cc[d]));
-        }
-    }
-    (g, wc)
-}
-
 /// The per-arc certificate: hull bounds on both implicit residuals, in
-/// meters² and meters respectively, plus the denominator's own bound.
+/// meters² and meters respectively, plus the denominator's own bound —
+/// read off the compose module's per-span forms (arc = Bézier span).
 struct ArcBound {
     sphere: f64,
     plane: f64,
     w2_lo: f64,
 }
 
-fn arc_bound(curve: &NurbsCurve3<f64>, arc: usize) -> ArcBound {
-    let (g, wc) = arc_coeffs(curve, arc);
+/// All four arcs' bounds from ONE composite build per implicit limb —
+/// PR 4's one-call story where PR 2 had a hand-rolled pipeline per arc.
+fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
+    let c = center();
     let n = axis();
-    let nd = [n.x, n.y, n.z];
-    let r = RingInterval::point(RADIUS);
+    let coords = curve.ring_coords();
+    let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
 
-    // f₁ numerator: Σ_d G_d² − r²·W², degree 4.
-    let w2 = bern2_mul(wc, wc);
-    let mut num = [RingInterval::zero(); 5];
-    for gd in g {
-        let sq = bern2_mul(gd, gd);
-        for k in 0..5 {
-            num[k] = num[k] + sq[k];
-        }
-    }
-    let r2 = r * r;
-    for k in 0..5 {
-        num[k] = num[k] - r2 * w2[k];
-    }
+    let sphere = compose::implicit_composite(
+        &data,
+        &ImplicitSurface::Sphere {
+            center: [c.x, c.y, c.z],
+            radius: RADIUS,
+        },
+    )
+    .unwrap();
+    let plane = compose::implicit_composite(
+        &data,
+        &ImplicitSurface::Plane {
+            point: [c.x, c.y, c.z],
+            normal: [n.x, n.y, n.z],
+        },
+    )
+    .unwrap();
 
-    // f₂ numerator: Σ_d n_d·G_d, degree 2 (the plane condition).
-    let mut pl = [RingInterval::zero(); 3];
-    for (d, ndd) in nd.into_iter().enumerate() {
-        let nk = RingInterval::point(ndd);
-        for i in 0..3 {
-            pl[i] = pl[i] + g[d][i] * nk;
-        }
-    }
-
-    // Hull bounds — no evaluation anywhere below this line.
-    let kv4 = bezier_kv(4);
-    let kv2 = bezier_kv(2);
-    let num_hull = hull::domain_hull(&kv4, &num);
-    let w2_hull = hull::domain_hull(&kv4, &w2);
-    let pl_hull = hull::domain_hull(&kv2, &pl);
-    let w_hull = hull::domain_hull(&kv2, &wc);
-    assert!(w2_hull.lo() > 0.0, "denominator hull must exclude zero");
-
-    // The ring refuses a zero-touching divisor, so these divisions are
-    // the certificate that the rational composite is bounded at all.
-    ArcBound {
-        sphere: (num_hull / w2_hull).mag(),
-        plane: (pl_hull / w_hull).mag(),
-        w2_lo: w2_hull.lo(),
-    }
+    let sphere_bounds = sphere.span_bounds();
+    let plane_bounds = plane.span_bounds();
+    let w2_hulls: Vec<RingInterval> = sphere.den.span_hulls();
+    (0..sphere_bounds.len())
+        .map(|arc| ArcBound {
+            sphere: sphere_bounds[arc].mag(),
+            plane: plane_bounds[arc].mag(),
+            w2_lo: w2_hulls[arc].lo(),
+        })
+        .collect()
 }
 
 /// The residual oracle: the same implicit forms, evaluated at `f64` on a
@@ -243,10 +165,11 @@ fn residuals_at(p: Point3<f64>) -> (f64, f64) {
 #[test]
 fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
     let curve = nurbs_circle();
+    let bounds = arc_bounds(&curve);
+    assert_eq!(bounds.len(), 4, "four 90° arcs = four Bézier spans");
     let (mut worst_sphere, mut worst_plane) = (0.0f64, 0.0f64);
     let (mut max_sampled_sphere, mut max_sampled_plane) = (0.0f64, 0.0f64);
-    for arc in 0..4 {
-        let b = arc_bound(&curve, arc);
+    for (arc, b) in bounds.iter().enumerate() {
         assert!(
             b.sphere.is_finite() && b.plane.is_finite(),
             "poisoned bound"
@@ -294,6 +217,20 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
     assert!(
         worst_plane < 64.0 * RADIUS * f64::EPSILON,
         "plane bound {worst_plane:e} is far above the fp scale"
+    );
+    // The refactor pin: the promoted compose module reproduces the PR 2
+    // test-local pipeline BIT-identically (same lifts, same association
+    // orders, same hull folds — captured 2026-07-27 from the pre-refactor
+    // revision of this file at full precision).
+    assert_eq!(
+        worst_sphere.to_bits(),
+        0x3d1f_8000_0000_0009, // 2.7977620220553973e-14
+        "sphere bound drifted from the PR 2 rehearsal: {worst_sphere:.17e}"
+    );
+    assert_eq!(
+        worst_plane.to_bits(),
+        0x3ce9_74b2_334f_2349, // 2.8261664256307962e-15
+        "plane bound drifted from the PR 2 rehearsal: {worst_plane:.17e}"
     );
 }
 
