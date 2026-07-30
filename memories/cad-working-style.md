@@ -26,3 +26,11 @@ challenge. Fail-loud over limp-along, always. During implementation,
 treat the deferred Q1 items as design discussions in the first PRs, not
 things to batch-implement silently. See [[evan-profile]],
 [[cad-project-state]].
+
+**Doc prose discipline (Evan, 2026-07-28/29, #124 round 11 +
+#132)**: living docs state the PRESENT design only — no history
+narration (that lives in the M-logs, PR descriptions, and git),
+and no references to things not planned ("the docs don't need to
+reference things that we don't plan on doing unless it's a change
+from before"). When retiring a mechanism, a one-line pointer at
+the log/PR suffices; cut the story.
