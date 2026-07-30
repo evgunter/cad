@@ -988,3 +988,18 @@ and the meters-only certification rule (UV tolerances = review
 defect). M5 board: PRs 1-5,8 + S1,S2,S5,S6 + plan + CI filter
 merged; PR 6 implementing; then PR 7 (SSI — the milestone's
 heart), S4 on lulls, PRs 9-14 beyond.
+
+**S7 DISPATCHED (2026-07-30, opus — block-9 remainder, A/B row
+22, difficulty S logged pre-assignment): Evan-directed CI/docs
+hygiene.** Three rulings from chat: (1) retire the stale
+gmp/LGPL/copyleft-free campaign language (present-tense docs;
+factual record stays once; logs untouched); (2) DROP the ε=1e-9
+rows from all matrices — 1e-6/1e-12 straddle it — and sync the
+"3ε" convention text (ruling supersedes the 3ε battery
+convention); (3) keep the interval feature/job but verify the
+rust-cache key separates feature sets + optional pure-YAML
+split. Demo ruling also recorded: the M5 showcase demo rides PR
+11/12 (tessellation/props make the ellipse cut visible; die pips
+are PR 12's acceptance); an S2 arc-leg fillet demo stop is ripe
+now and rides opportunistically. PR 6 (opus) implementing in the
+other lane.
