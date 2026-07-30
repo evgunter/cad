@@ -933,3 +933,21 @@ interval; tour green (22 bodies; a chute regression caught and
 fixed mid-pass). Watcher armed. Session-limit outage #7 (both
 lanes, ~1h) recovered with immediate resumes at the 5am reset.
 PR 5 fix pass still in flight (re-review gates it).
+
+**PR 5 fix pass COMPLETE (b08beed), RE-REVIEW DISPATCHED
+(2026-07-30).** M1 fixed root-based (conic_crossing_roots;
+split_conic_belly_graze R−|D| in meters; per-end
+split_conic_crossing_root with typed CrossingEscalated;
+split_conic_root_order; lines keep M3's lane bit-identically) —
+and the fix EXPOSED TWO further downstream defects, both fixed:
+orbit entries now classify by outgoing-tangent side
+(split_conic_departure; far-vertex verdicts misread belly arcs)
+and adjacency-skip guards verify the in-between edge in-plane
+(split_conic_inplane_mid). Belly audit complete: ON-endpoint two-
+sided row, tilted 4-ellipse+2-chord row, exact-graze typed row,
+and the seam-coincident y=0 cut UPGRADED from refusal to correct
+seam-split. M2: libm at all four sites, no committed bit row
+moved. M3/m1/m2/m3/n2 all closed (9 unrelated latency rows
+reverted verbatim). Re-review focuses on attacking the new
+crossing lane (multi-period arcs, start-azimuth straddles, the
+seam-cut upgrade's soundness) + regression re-runs.
