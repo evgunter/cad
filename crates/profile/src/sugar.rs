@@ -523,9 +523,9 @@ impl<T: Real> LoopBuilder<T> {
             // Two straight legs: the ratified line×line closed form,
             // bit-identical to `fillet`'s (one door, one construction).
             (None, None) => return self.fillet(corner, next, radius),
-            (Some(arc), None) => offset_line_circle(&leg_out, corner, sgn, radius, arc, band)?,
-            (None, Some(arc)) => offset_line_circle(&leg_in, corner, sgn, radius, arc, band)?,
-            (Some(a), Some(b)) => offset_circles(a, b, sgn, radius, band)?,
+            (Some(arc), None) => leg_out.offset_line_circle(corner, sgn, radius, arc, band)?,
+            (None, Some(arc)) => leg_in.offset_line_circle(corner, sgn, radius, arc, band)?,
+            (Some(a), Some(b)) => a.offset_circles(b, sgn, radius, band)?,
         };
 
         // (4/5) the branch rule and the fit gate, one pass in candidate
@@ -831,82 +831,104 @@ struct Candidate<T: Real> {
     t2: Point2<T>,
 }
 
-/// The candidate centers where a straight leg's offset line meets a
-/// circular leg's offset circle (0, 1 or 2, in fixed order).
-fn offset_line_circle<T: Real + Decide + Bounds>(
-    line: &Leg<T>,
-    corner: Point2<T>,
-    sgn: T,
-    radius: T,
-    arc: ArcCarrier<T>,
-    band: Band,
-) -> Result<Vec<Point2<T>>, ProfileError> {
-    let normal = left_normal(line.dir);
-    let on_offset = corner + normal * (sgn * radius);
-    let rho = offset_radius(&arc, sgn, radius);
-    let h = (arc.center - on_offset).dot(normal);
-    let foot = arc.center - normal * h;
-    Ok(
-        match decide("fillet_offset_line_circle", rho.abs() - h.abs(), band)
-            .map_err(fillet_escalated)?
-        {
-            // powi(2)-discipline squares: ρ and h both straddle zero in
-            // general (memories/interval-square-poison.md).
-            Sign::Positive => {
-                let half = (rho.powi(2) - h.powi(2)).sqrt();
-                vec![foot + line.dir * half, foot - line.dir * half]
-            }
-            // Decided tangent: the single candidate IS the foot — no
-            // sqrt of a rounding-signed zero.
-            Sign::Zero => vec![foot],
-            Sign::Negative => {
-                return Err(ProfileError::NoCornerForFillet {
-                    reason: NoCornerReason::OffsetCarriersDisjoint,
-                    radius: radius.lo(),
-                });
-            }
-        },
-    )
+// The two offset-carrier intersections live as inherent methods on the
+// types they belong to, and NOT as free functions, for a discipline
+// reason worth stating: their scalar parameter carries decision
+// capability (`Decide + Bounds`) on top of the scalar bound, and the
+// evaluation-code tripwire greps `crates/*/src` for a scalar type
+// parameter widened in place, while clippy's `multiple_bound_locations`
+// rejects splitting one function's bounds across the parameter list and
+// a `where` clause. An impl block whose scalar bound is the plain one,
+// with the decision capability declared on the method, satisfies both —
+// and it is the same shape `LoopBuilder`'s own gated methods use.
+
+impl<T: Real> Leg<T> {
+    /// The candidate centers where THIS (straight) leg's offset line
+    /// meets the other leg's offset circle `arc` (0, 1 or 2, in fixed
+    /// order).
+    fn offset_line_circle(
+        &self,
+        corner: Point2<T>,
+        sgn: T,
+        radius: T,
+        arc: ArcCarrier<T>,
+        band: Band,
+    ) -> Result<Vec<Point2<T>>, ProfileError>
+    where
+        T: Decide + Bounds,
+    {
+        let normal = left_normal(self.dir);
+        let on_offset = corner + normal * (sgn * radius);
+        let rho = offset_radius(&arc, sgn, radius);
+        let h = (arc.center - on_offset).dot(normal);
+        let foot = arc.center - normal * h;
+        Ok(
+            match decide("fillet_offset_line_circle", rho.abs() - h.abs(), band)
+                .map_err(fillet_escalated)?
+            {
+                // powi(2)-discipline squares: ρ and h both straddle zero
+                // in general (memories/interval-square-poison.md).
+                Sign::Positive => {
+                    let half = (rho.powi(2) - h.powi(2)).sqrt();
+                    vec![foot + self.dir * half, foot - self.dir * half]
+                }
+                // Decided tangent: the single candidate IS the foot — no
+                // sqrt of a rounding-signed zero.
+                Sign::Zero => vec![foot],
+                Sign::Negative => {
+                    return Err(ProfileError::NoCornerForFillet {
+                        reason: NoCornerReason::OffsetCarriersDisjoint,
+                        radius: radius.lo(),
+                    });
+                }
+            },
+        )
+    }
 }
 
-/// The candidate centers where two circular legs' offset circles meet
-/// (0, 1 or 2, in fixed order).
-fn offset_circles<T: Real + Decide + Bounds>(
-    first: ArcCarrier<T>,
-    second: ArcCarrier<T>,
-    sgn: T,
-    radius: T,
-    band: Band,
-) -> Result<Vec<Point2<T>>, ProfileError> {
-    let rho1 = offset_radius(&first, sgn, radius);
-    let rho2 = offset_radius(&second, sgn, radius);
-    let r1 = rho1.abs();
-    let r2 = rho2.abs();
-    let link = second.center - first.center;
-    let dist_squared = link.norm_squared();
-    let dist = dist_squared.sqrt();
-    let external =
-        decide("fillet_offset_circles_external", r1 + r2 - dist, band).map_err(fillet_escalated)?;
-    let internal = decide(
-        "fillet_offset_circles_internal",
-        dist - (r1 - r2).abs(),
-        band,
-    )
-    .map_err(fillet_escalated)?;
-    if external == Sign::Negative || internal == Sign::Negative {
-        return Err(ProfileError::NoCornerForFillet {
-            reason: NoCornerReason::OffsetCarriersDisjoint,
-            radius: radius.lo(),
-        });
+impl<T: Real> ArcCarrier<T> {
+    /// The candidate centers where this carrier's offset circle meets
+    /// `other`'s (0, 1 or 2, in fixed order).
+    fn offset_circles(
+        self,
+        other: ArcCarrier<T>,
+        sgn: T,
+        radius: T,
+        band: Band,
+    ) -> Result<Vec<Point2<T>>, ProfileError>
+    where
+        T: Decide + Bounds,
+    {
+        let rho1 = offset_radius(&self, sgn, radius);
+        let rho2 = offset_radius(&other, sgn, radius);
+        let r1 = rho1.abs();
+        let r2 = rho2.abs();
+        let link = other.center - self.center;
+        let dist_squared = link.norm_squared();
+        let dist = dist_squared.sqrt();
+        let external = decide("fillet_offset_circles_external", r1 + r2 - dist, band)
+            .map_err(fillet_escalated)?;
+        let internal = decide(
+            "fillet_offset_circles_internal",
+            dist - (r1 - r2).abs(),
+            band,
+        )
+        .map_err(fillet_escalated)?;
+        if external == Sign::Negative || internal == Sign::Negative {
+            return Err(ProfileError::NoCornerForFillet {
+                reason: NoCornerReason::OffsetCarriersDisjoint,
+                radius: radius.lo(),
+            });
+        }
+        let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
+        let base = self.center + link * (along / dist);
+        if external == Sign::Zero || internal == Sign::Zero {
+            return Ok(vec![base]);
+        }
+        let half = (rho1.powi(2) - along.powi(2)).sqrt();
+        let offset = left_normal(link) * (half / dist);
+        Ok(vec![base + offset, base - offset])
     }
-    let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
-    let base = first.center + link * (along / dist);
-    if external == Sign::Zero || internal == Sign::Zero {
-        return Ok(vec![base]);
-    }
-    let half = (rho1.powi(2) - along.powi(2)).sqrt();
-    let offset = left_normal(link) * (half / dist);
-    Ok(vec![base + offset, base - offset])
 }
 
 /// The fillet arc's bulge tan(θ/4) from its tangent points and center.

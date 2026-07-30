@@ -456,6 +456,56 @@ fn a_leg_with_no_extent_is_refused_before_any_angle_is_classified() {
 }
 
 #[test]
+fn an_arc_leg_with_no_extent_is_refused_the_same_way() {
+    // The straight-leg row above collapses a CHORD; these two collapse an
+    // arc leg the two ways `FilletLegDegenerate` documents — an empty
+    // sweep (far end at the corner) and a zero-radius carrier (center at
+    // the corner, whose tangent direction is poison). Both must come out
+    // as the typed arm refusal naming the arc leg, never a panic and
+    // never a classification taken on a collapsed lever arm (D4 ¶1).
+    let empty_sweep = ProfileLoop::builder(p2(0.0, 0.0))
+        .fillet_corner(
+            FilletLegShape::Line,
+            p2(2.0, 0.0),
+            arc(0.0, 0.0, ArcSweep::Ccw),
+            // `next` IS the corner: the outgoing leg sweeps nothing.
+            p2(2.0, 0.0),
+            0.5,
+            tol(),
+        )
+        .expect_err("an empty-sweep arc leg must refuse");
+    match empty_sweep {
+        ProfileError::FilletLegDegenerate { leg, arm } => {
+            assert_eq!(leg, FilletLeg::Outgoing);
+            assert_eq!(arm, 0.0);
+        }
+        other => panic!("expected FilletLegDegenerate, got {other:?}"),
+    }
+    assert!(
+        empty_sweep.to_string().contains("real extent"),
+        "recourse: {empty_sweep}"
+    );
+    let zero_radius = ProfileLoop::builder(p2(0.0, 0.0))
+        .fillet_corner(
+            FilletLegShape::Line,
+            p2(2.0, 0.0),
+            // The carrier's center IS the corner: R = 0.
+            arc(2.0, 0.0, ArcSweep::Ccw),
+            p2(0.0, 2.0),
+            0.5,
+            tol(),
+        )
+        .expect_err("a zero-radius arc carrier must refuse");
+    match zero_radius {
+        ProfileError::FilletLegDegenerate { leg, arm } => {
+            assert_eq!(leg, FilletLeg::Outgoing);
+            assert_eq!(arm, 0.0);
+        }
+        other => panic!("expected FilletLegDegenerate, got {other:?}"),
+    }
+}
+
+#[test]
 fn a_line_line_corner_delegates_to_the_ratified_closed_form() {
     // Bit-identity, not near-equality: `fillet_corner` with two straight
     // legs must emit the SAME chain as `fillet` (one construction).
