@@ -1102,3 +1102,8 @@ Principle persisted to memories/equivariance-principle.md with
 the unaudited-premise caveat honored; equivariance audit BANKED,
 not assumed. Spec re-amended; implementer re-corrected
 mid-flight (second amendment).
+
+**#142 MERGED (2026-07-30): 18/18 — the S7 hygiene sweep's own
+gate demonstrated the new two-ε battery.** Hosted rows now 18.
+In flight: PR 6 (pcurves, opus) and S8 (equivariant fillet
+selection, fable). A/B rows 21-23 to the table at next touch.
