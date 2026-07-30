@@ -361,7 +361,33 @@ pub fn boolean_op_with<T: Decide + Bounds>(
         return fallback(op, &red, a, b, decls, band);
     }
 
-    let connected = bool_connect(&mut red, a, b, band)?;
+    // The declared-REST union door (M5 S1): a declared âª whose join
+    // refuses typed may be the boundary-on-boundary REST frontier â
+    // the lane re-examines the UNMUTATED reduction and either zips the
+    // mate or reproduces the original refusal verbatim. The clones are
+    // taken only when the door can open (declared âª), so undeclared
+    // and non-union ops pay nothing.
+    let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
+    let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
+    let connected = match bool_connect(&mut red, a, b, band) {
+        Ok(c) => c,
+        Err(err @ (BooleanError::Join(_) | BooleanError::JoinDesync { .. }))
+            if saved.is_some() =>
+        {
+            let Some((sa, sb)) = saved else {
+                unreachable!("guarded by saved.is_some()");
+            };
+            red.a = sa;
+            red.b = sb;
+            return match super::rest::try_rest_union(red, a, b, decls, band)? {
+                Some(result) => Ok(result),
+                // Not the REST frontier: the original join refusal
+                // stands, verbatim.
+                None => Err(err),
+            };
+        }
+        Err(e) => return Err(e),
+    };
     if connected.completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",
@@ -433,7 +459,7 @@ type GraftRows = (
     Vec<(FaceKey, FaceKey)>,
 );
 
-fn graft_rows(g: &GraftMap) -> GraftRows {
+pub(super) fn graft_rows(g: &GraftMap) -> GraftRows {
     (
         g.vertices.iter().map(|(k, &v)| (k, v)).collect(),
         g.edges.iter().map(|(k, &v)| (k, v)).collect(),
@@ -442,7 +468,7 @@ fn graft_rows(g: &GraftMap) -> GraftRows {
 }
 
 /// The merge outcome as naming rows.
-fn merge_rows(m: &crate::merge_faces::MergeCoplanarOutcome) -> Vec<(FaceKey, Vec<FaceKey>)> {
+pub(super) fn merge_rows(m: &crate::merge_faces::MergeCoplanarOutcome) -> Vec<(FaceKey, Vec<FaceKey>)> {
     m.groups
         .iter()
         .map(|g| (g.kept, g.absorbed.clone()))
@@ -474,7 +500,7 @@ fn merge_rows(m: &crate::merge_faces::MergeCoplanarOutcome) -> Vec<(FaceKey, Vec
 /// only when its reference operand's volume is certified POSITIVE
 /// (bounded solid); against a complement the set bound is vacuous
 /// and is skipped, never misread as a violation.
-fn volume_backstop<T: Decide>(
+pub(super) fn volume_backstop<T: Decide>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -561,7 +587,7 @@ fn volume_backstop<T: Decide>(
 /// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
 /// the existing conventional description stays (D2's split — the
 /// surfaces under-determine the locus); escalation refuses typed.
-fn describe_minted_edges<T: Decide>(
+pub(super) fn describe_minted_edges<T: Decide>(
     body: &mut Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
     merged: &crate::merge_faces::MergeCoplanarOutcome,
@@ -674,7 +700,7 @@ fn describe_minted_edges<T: Decide>(
 }
 
 /// How one operand's keys map into the result body.
-enum KeyView<'a> {
+pub(super) enum KeyView<'a> {
     /// Keys carried through unchanged (carve preserves keys).
     Direct,
     /// Keys bridged by the combine door's graft.
@@ -709,7 +735,7 @@ impl KeyView<'_> {
 /// renamed). Re-derivation at the 3′ gate is rejected as
 /// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
 #[derive(Default)]
-struct Descendants {
+pub(super) struct Descendants {
     vertices: std::collections::BTreeMap<VertexKey, VertexKey>,
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
     /// Every vertex that participated in a zip fusion (dead OR kept):
@@ -718,7 +744,7 @@ struct Descendants {
 }
 
 impl Descendants {
-    fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
+    pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
         for &(dead, kept) in &rep.vertex_merges {
             self.vertices.insert(dead, kept);
             self.fused.insert(dead);
@@ -726,7 +752,7 @@ impl Descendants {
         }
     }
 
-    fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {
+    pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {
         for group in &merged.groups {
             for &absorbed in &group.absorbed {
                 self.faces.insert(absorbed, group.kept);
@@ -764,7 +790,7 @@ impl Descendants {
 /// Remaps the declared contacts into result keys — operand views
 /// first (graft lineage), then the D5 descendant chase — dropping
 /// records only when the entity is genuinely consumed (module docs).
-fn remap_contacts<T: Real>(
+pub(super) fn remap_contacts<T: Real>(
     body: &Body<T>,
     contacts: &ContactRecords,
     a_view: KeyView<'_>,
@@ -824,7 +850,7 @@ fn remap_contacts<T: Real>(
 /// the op (the same consumed-record rule as contact rows);
 /// resolution-level dangling was already refused at the door
 /// (`validate_declarations`).
-fn declared_surface_pairs<T: Real>(
+pub(super) fn declared_surface_pairs<T: Real>(
     result: &Body<T>,
     a: &Body<T>,
     b: &Body<T>,
@@ -852,7 +878,7 @@ fn declared_surface_pairs<T: Real>(
 /// re-added. Carried A rows land in `vv`/`a_on_b`, carried B rows in
 /// `vv`/`b_on_a` (the census flattens the split; the fields record
 /// which lineage carried the row).
-fn remap_carried<T: Real>(
+pub(super) fn remap_carried<T: Real>(
     out: &mut ContactRecords,
     body: &Body<T>,
     decls: &BooleanDeclarations,
@@ -909,7 +935,7 @@ fn remap_carried<T: Real>(
 /// The tier gates: tier 1 + tier 2 on the finished result (tier 3 is
 /// an at-rest posture with the PR 3 description gap — see the
 /// acceptance suite's documented posture).
-fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
+pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     Ok(())
