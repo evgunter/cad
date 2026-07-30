@@ -917,3 +917,19 @@ in-band rows. **Fix pass DISPATCHED (fable implementer resumed);
 a RE-REVIEW gates the PR** — this unit does NOT go to
 fix-then-merge; reviewer's verdict was fix + re-review, then
 approvable. S1 fix pass also in flight.
+
+**S1 fix pass COMPLETE, PR OPENED as #140 (2026-07-30).**
+MAJOR-1 closed BOTH ways: normalize_merged_roles (Newell winding
+through the existing bool_ring_run_winding funnel — outer = the
+unique positively-wound cycle; no unique positive ⇒ typed
+MergedFaceRoleAmbiguous) PLUS tier-3 check 6 (planar loop-role
+winding gate, LoopRoleInverted — fills the battery's own
+documented deferral, scoped by the corpus: digon exemption,
+line-bounded loops only, curved loops stay deferred/undecidable).
+Bridge fixture: exact 5.5, watertight, STL 5.5. Claim narrowing,
+comment/narrative fixes, 6 probe files adopted (F1 merge-base
+repro as history note). topo 300+568/0 default, 300+296/0
+interval; tour green (22 bodies; a chute regression caught and
+fixed mid-pass). Watcher armed. Session-limit outage #7 (both
+lanes, ~1h) recovered with immediate resumes at the 5am reset.
+PR 5 fix pass still in flight (re-review gates it).
