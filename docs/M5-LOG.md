@@ -1088,3 +1088,17 @@ order, exact-tie broken first-classified), NO Q1 predicate, NO
 K-funnel entry, NO new error; one determinism row replaces the
 trio. Implementer corrected mid-flight; PATHS amendment text
 carries the tie-pick rule.
+
+**RULING REFINEMENT 2 (Evan): equivariant tie-break "at this
+point may as well" + the recorded principle** "everything is
+equivariant right now, so maintain that if it's free (if that
+is indeed true)". S8's selection became a three-rung ladder:
+total setback < → incoming-leg setback < (both isometry-
+invariant ⇒ rungs 1-2 fully equivariant in ℝ) → enumeration
+order ONLY where identical per-leg pairs make equivariance
+impossible (candidate-swapping symmetry) — the kernel's first
+knowingly-designed non-equivariant residual, documented as such.
+Principle persisted to memories/equivariance-principle.md with
+the unaudited-premise caveat honored; equivariance audit BANKED,
+not assumed. Spec re-amended; implementer re-corrected
+mid-flight (second amendment).

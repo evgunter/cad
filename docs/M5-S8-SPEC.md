@@ -21,19 +21,36 @@ main. Profile-only; small.
   valid fillets tangent to both declared legs, so an ε-scale
   pick asserts nothing about geometric truth, and below ε_input
   the author cannot have meant a distinguishable preference (D4
-  ¶1). Strict `<` on total setback in fixed evaluation order;
-  EXACT equality breaks by a fixed documented rule (the
-  first-classified candidate — incoming-leg-first order). No
-  K-funnel entry, no escalation arm, no new error. Document at
-  the selection site: within-ε picks are
-  arbitrary-but-deterministic and both-valid per the ruling; an
-  author who cares forces the choice by authoring (spec §2).
-  A committed row pins the exact-tie determinism (symmetric lens,
-  bit-identical pick across runs and lanes).
+  ¶1). The selection ladder (amended again per Evan,
+  2026-07-30 — equivariant where equivariance is possible):
+  (1) strict `<` on total setback; (2) exact tie → strict `<`
+  on the incoming leg's setback alone (arc length is isometry-
+  invariant, so rungs 1–2 commute with all rigid motions AND
+  reflections in ℝ); (3) both tied — the candidates carry
+  IDENTICAL per-leg setback pairs, exactly the class where a
+  candidate-swapping symmetry makes an equivariant pick
+  impossible — → fixed enumeration order (first-classified,
+  incoming-leg-first), documented as the sole designed
+  non-equivariant residual. No K-funnel entry, no escalation
+  arm, no new error. Document at the selection site: within-ε
+  picks are arbitrary-but-deterministic and both-valid per the
+  ruling; an author who cares forces the choice by authoring
+  (spec §2). Committed rows pin: rung 2 breaking a constructed
+  total-setback tie (asymmetric legs, equal sums), and rung-3
+  exact-tie determinism (symmetric lens, bit-identical pick
+  across runs and both lanes).
+- **Equivariance principle (Evan, 2026-07-30, recorded)**: "the
+  kernel has no designed orientation/handedness asymmetry so
+  far; maintain that where it's free" — noted as a working
+  principle pending an actual audit (the claim is unverified;
+  semantic equivariance in ℝ, not bitwise f64 equivariance,
+  which fixed evaluation orders already forgo). Rung 3 above is
+  the first knowingly-designed residual and is documented as
+  such.
 - `AmbiguousFilletBranch` RETIRES (the two-survivor case now
-  resolves; the tie is the standard escalated form naming the new
-  predicate). Remove the variant; update its tests; report any
-  ripple beyond profile.
+  resolves; ties PICK per the ladder — no escalated form).
+  Remove the variant; update its tests; report any ripple
+  beyond profile.
 
 ## 2. Reachability (the ruling's premise, pinned)
 

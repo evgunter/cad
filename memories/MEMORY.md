@@ -19,3 +19,4 @@
 - [Model A/B experiment](model-ab-experiment.md) — standing (2026-07-25): coin-flip Opus 5 vs Fable 5 for implementation; blinded reviewers + fixed quality rubric; data in docs/MODEL-AB-LOG.md
 - [Resume vs fresh subagent](resume-vs-fresh-subagent.md) — stalled >1h + remaining work fully specifiable → fresh agent, not transcript resume
 - [Local battery scope](local-battery-scope.md) — touched-crate checks only; the full matrix is hosted CI's job
+- [Equivariance principle](equivariance-principle.md) — maintain isometry-equivariance where free; premise unaudited; S8 rung 3 is the first designed residual
