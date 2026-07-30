@@ -86,6 +86,9 @@ pub enum TessellateError {
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
+        /// The frontier note — WHICH lane is missing and the PR that
+        /// lands it (runtime-visible through Debug; review m2).
+        note: &'static str,
     },
     /// An edge is M3 null-edge scaffolding (`topo::null` — no carrier
     /// by type): the body is mid-surgery; tier 2 refuses null entities

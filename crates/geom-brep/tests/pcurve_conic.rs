@@ -147,6 +147,18 @@ fn pcurve_wrong_lanes_and_degenerate_spans_are_typed() {
     assert!(ellipse_pcurve_on_cylinder(&circle, &cyl(), 0.0, 1.0, 3, 1e-7).is_err());
     assert!(ellipse_pcurve_on_cylinder(&e, &plane(0.5), 0.0, 1.0, 3, 1e-7).is_err());
     assert!(ellipse_pcurve_on_cylinder(&e, &cyl(), 1.0, f64::NAN, 3, 1e-7).is_err());
+    // n2: a span beyond one full period is a self-overlapping chain —
+    // refused typed by BOTH constructors (the winding-gate bound).
+    let err = ellipse_pcurve_on_plane(&e, &plane(0.5), 0.0, 6.5).unwrap_err();
+    assert!(
+        matches!(err, geom_brep::PcurveError::SpanExceedsPeriod),
+        "{err:?}"
+    );
+    let err = ellipse_pcurve_on_cylinder(&e, &cyl(), 0.0, 6.5, 3, 1e-7).unwrap_err();
+    assert!(
+        matches!(err, geom_brep::PcurveError::SpanExceedsPeriod),
+        "{err:?}"
+    );
 }
 
 // ---------------------------------------------------------------------

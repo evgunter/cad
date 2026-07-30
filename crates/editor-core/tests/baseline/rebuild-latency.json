@@ -3,15 +3,15 @@
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
       "cone": 5,
-      "full_ms": 2227.0,
-      "incremental_ms": 1534.05,
+      "full_ms": 1294.6,
+      "incremental_ms": 1298.39,
       "nodes": 18
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
       "cone": 3,
-      "full_ms": 2243.8,
-      "incremental_ms": 1726.25,
+      "full_ms": 1457.1,
+      "incremental_ms": 1359.54,
       "nodes": 9
     },
     "cut_cylinder": {
@@ -24,50 +24,50 @@
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "cone": 1,
-      "full_ms": 221.1,
-      "incremental_ms": 90.04,
+      "full_ms": 137.4,
+      "incremental_ms": 54.58,
       "nodes": 4
     },
     "die": {
       "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
       "cone": 3,
-      "full_ms": 24006.0,
-      "incremental_ms": 1096.61,
+      "full_ms": 16983.1,
+      "incremental_ms": 1273.59,
       "nodes": 77
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
       "cone": 12,
-      "full_ms": 2387.2,
-      "incremental_ms": 2238.34,
+      "full_ms": 2105.5,
+      "incremental_ms": 1215.96,
       "nodes": 15
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
       "cone": 2,
-      "full_ms": 770.6,
-      "incremental_ms": 29.63,
+      "full_ms": 406.9,
+      "incremental_ms": 13.67,
       "nodes": 15
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
       "cone": 2,
-      "full_ms": 1456.7,
-      "incremental_ms": 250.85,
+      "full_ms": 1268.7,
+      "incremental_ms": 240.96,
       "nodes": 11
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
       "cone": 2,
-      "full_ms": 2013.0,
-      "incremental_ms": 1010.8,
+      "full_ms": 2183.1,
+      "incremental_ms": 984.18,
       "nodes": 11
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
       "cone": 3,
-      "full_ms": 4289.7,
-      "incremental_ms": 3527.46,
+      "full_ms": 2788.2,
+      "incremental_ms": 2244.23,
       "nodes": 14
     }
   },

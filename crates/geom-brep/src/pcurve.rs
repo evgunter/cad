@@ -49,6 +49,11 @@ pub enum PcurveError {
     },
     /// The arc span is empty or not finite — no pcurve to build.
     DegenerateSpan,
+    /// The arc span exceeds one full period: the rational-quadratic
+    /// chain would self-overlap (review n2 — the carrier-side
+    /// constructors enforce the same |span| ≤ τ bound certification's
+    /// winding gate pins on edges).
+    SpanExceedsPeriod,
     /// The rational-quadratic chain's structure refused (unreachable
     /// for valid spans; typed rather than assumed).
     Structure(geom_core::spline::SplineError),
@@ -63,6 +68,12 @@ impl core::fmt::Display for PcurveError {
                 write!(f, "pcurve: wrong lane — this constructor maps {expected}")
             }
             Self::DegenerateSpan => write!(f, "pcurve: degenerate parameter span"),
+            Self::SpanExceedsPeriod => write!(
+                f,
+                "pcurve: the arc span exceeds one full period (a self-overlapping \
+                 chain) — split the edge first; certified edges never carry one \
+                 (the winding gate)"
+            ),
             Self::Structure(e) => write!(f, "pcurve: {e}"),
             Self::Fit(e) => write!(f, "pcurve: {e}"),
         }
@@ -125,6 +136,9 @@ pub fn ellipse_pcurve_on_plane(
     if !(span.is_finite() && span > 0.0) {
         return Err(PcurveError::DegenerateSpan);
     }
+    if span > core::f64::consts::TAU {
+        return Err(PcurveError::SpanExceedsPeriod);
+    }
     // Chart frame: S(u, v) = q + pu·u + pv·v with pv = n × pu.
     let pv = n.cross(pu);
     // The ellipse's chart-affine data: E(θ) = c₂ + A₂·cos θ + B₂·sin θ.
@@ -133,8 +147,11 @@ pub fn ellipse_pcurve_on_plane(
     let c2 = Point2::new(w0.dot(pu), w0.dot(pv));
     let a2 = Point2::new(u_ref.dot(pu) * major, u_ref.dot(pv) * major);
     let b2 = Point2::new(e_v.dot(pu) * minor, e_v.dot(pv) * minor);
+    // D9: all trig through the geom_core::Real routes (libm) — std
+    // f64 trig differs cross-platform in the last ulp, and PR 6 will
+    // STORE these caches (M2 fix, adversarial review).
     let at = |theta: f64| -> Point2<f64> {
-        let (s, c) = theta.sin_cos();
+        let (s, c) = geom_core::Real::sin_cos(theta);
         Point2::new(c2.x + a2.x * c + b2.x * s, c2.y + a2.y * c + b2.y * s)
     };
     // Tangent-intersection "shoulder" of the segment [α, α + δ]: the
@@ -142,8 +159,8 @@ pub fn ellipse_pcurve_on_plane(
     // the same affine map — control points map, weights transfer.
     let shoulder = |alpha: f64, delta: f64| -> Point2<f64> {
         let m = alpha + delta * 0.5;
-        let (s, c) = m.sin_cos();
-        let k = 1.0 / (delta * 0.5).cos();
+        let (s, c) = geom_core::Real::sin_cos(m);
+        let k = 1.0 / geom_core::Real::cos(delta * 0.5);
         Point2::new(
             c2.x + (a2.x * c + b2.x * s) * k,
             c2.y + (a2.y * c + b2.y * s) * k,
@@ -157,7 +174,7 @@ pub fn ellipse_pcurve_on_plane(
     };
     #[allow(clippy::cast_precision_loss)]
     let delta = span / segments as f64;
-    let w_mid = (delta * 0.5).cos();
+    let w_mid = geom_core::Real::cos(delta * 0.5);
     let mut control = Vec::with_capacity(2 * segments + 1);
     let mut weights = Vec::with_capacity(2 * segments + 1);
     let mut knots = Vec::with_capacity(2 * segments + 4);
@@ -227,6 +244,9 @@ pub fn ellipse_pcurve_on_cylinder(
     if !(span.is_finite() && span > 0.0) {
         return Err(PcurveError::DegenerateSpan);
     }
+    if span > core::f64::consts::TAU {
+        return Err(PcurveError::SpanExceedsPeriod);
+    }
     let cv = ax.cross(cu);
     // The chart coordinates of a carrier point: azimuth from atan2 in
     // the cylinder frame (unwrapped continuously from the previous
@@ -240,7 +260,7 @@ pub fn ellipse_pcurve_on_cylinder(
         let p = carrier.eval(theta);
         let w = p - o;
         let radial = w - ax * w.dot(ax);
-        let mut u = radial.dot(cv).atan2(radial.dot(cu));
+        let mut u = geom_core::Real::atan2(radial.dot(cv), radial.dot(cu));
         if i > 0 {
             // Unwrap: shift by whole periods to land within (−π, π]
             // of the previous sample.

@@ -352,7 +352,11 @@ fn classify(
         // A conic cut boundary (M5 PR 5) is neither a rim nor a
         // meridian of the chart: the iso-rectangle UV walk cannot
         // traverse it — typed refusal until PR 11's trimmed-face lane.
-        Curve3::Ellipse { .. } => Err(TessellateError::UnsupportedCurve { edge: ek }),
+        Curve3::Ellipse { .. } => Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "conic cut boundary on a curved chart — the trimmed-face lane \
+                   lands at M5 PR 11",
+        }),
         Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
             what: "nurbs carrier past the chord pass",
         }),

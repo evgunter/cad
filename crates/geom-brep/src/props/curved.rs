@@ -255,7 +255,7 @@ fn cylinder<T: Decide>(
             // requires — typed refusal until the PR 11 quadrature lane.
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cylinder boundary carries an ellipse arc (curved cut)",
+                    what: "cylinder boundary carries an ellipse arc (curved cut; the quadrature lane lands at M5 PR 11)",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
@@ -352,7 +352,7 @@ fn cone<T: Decide>(
             }
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (curved cut)",
+                    what: "cone boundary carries an ellipse arc (curved cut; the quadrature lane lands at M5 PR 11)",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),

@@ -144,7 +144,12 @@ pub(crate) fn compute_chords(
             Curve3::Ellipse { major, minor, .. } => {
                 ceil_count(span, ellipse_step(delta_s, major, minor))?
             }
-            Curve3::Nurbs(_) => return Err(TessellateError::UnsupportedCurve { edge: ek }),
+            Curve3::Nurbs(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS carriers tessellate with the general SSI lane (M5 PR 7+)",
+                });
+            }
         };
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
