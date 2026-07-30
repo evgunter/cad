@@ -951,3 +951,13 @@ moved. M3/m1/m2/m3/n2 all closed (9 unrelated latency rows
 reverted verbatim). Re-review focuses on attacking the new
 crossing lane (multi-period arcs, start-azimuth straddles, the
 seam-cut upgrade's soundness) + regression re-runs.
+
+**#140's only red row = the L7 allowlist grep CATCHING ITS FIRST
+REAL SITE (2026-07-30)**: boolean/rest.rs carries the boolean-
+seam Decide+Bounds compound bound but was not in the per-file
+allowlist — the grep refused, exactly the deliberate-step design
+from Evan's L7 ruling. Orchestrator judgment: rest.rs IS the
+boolean seam (sibling of ops/reduce/mod, called from the ops
+door), so it joins the allowlist in ci.yml + ci-local.sh with a
+doc note at the bound site citing the ratified real.rs rule.
+Pushed; watcher re-armed.
