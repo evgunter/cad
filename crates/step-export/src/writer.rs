@@ -39,6 +39,10 @@ pub(crate) fn carrier_kind(carrier: &Curve3<f64>) -> &'static str {
     match carrier {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",
+        // AP214 has an exact ELLIPSE entity; the curved STEP subset is
+        // M5 PR 13's — until then ellipse edges refuse typed through
+        // the same unsupported-carrier door as every unmapped kind.
+        Curve3::Ellipse { .. } => "ellipse (STEP mapping lands at M5 PR 13)",
         Curve3::Nurbs(_) => "nurbs placeholder",
     }
 }

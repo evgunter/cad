@@ -250,6 +250,14 @@ fn cylinder<T: Decide>(
                 });
                 levels.push(v);
             }
+            // An ellipse arc on a wall boundary (a curved-boolean cut,
+            // M5 PR 5) breaks the iso-rectangle patch shape this pass
+            // requires — typed refusal until the PR 11 quadrature lane.
+            Curve3::Ellipse { .. } => {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "cylinder boundary carries an ellipse arc (curved cut)",
+                });
+            }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }
     }
@@ -341,6 +349,11 @@ fn cone<T: Decide>(
                     tags: (e.start, e.end),
                 });
                 levels.push(v);
+            }
+            Curve3::Ellipse { .. } => {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "cone boundary carries an ellipse arc (curved cut)",
+                });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }

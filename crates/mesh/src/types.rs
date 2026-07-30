@@ -78,8 +78,11 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
     },
-    /// An edge's cached carrier is [`geom_curves::Curve3::Nurbs`] —
-    /// no evaluable locus for chord points.
+    /// An edge's cached carrier is [`geom_curves::Curve3::Nurbs`] (no
+    /// evaluable locus for chord points), or a conic cut boundary
+    /// (`Curve3::Ellipse`, M5 PR 5) on a curved chart whose
+    /// iso-rectangle UV walk cannot traverse it (the trimmed-face lane
+    /// is M5 PR 11's).
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,

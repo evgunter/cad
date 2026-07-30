@@ -96,7 +96,7 @@ use std::sync::Arc;
 
 pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Point3, Real, Sign, Vec3};
 pub use nurbs::{NurbsCurve2, NurbsCurve3};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -157,6 +157,47 @@ pub enum Curve3<T: Real> {
         u_ref: Vec3<T>,
     },
 
+    /// The full ellipse
+    /// `P(θ) = center + u_ref·(major·cos θ) + v_ref·(minor·sin θ)`,
+    /// where `v_ref = axis × u_ref` (computed, never stored — the frame
+    /// is right-handed by construction). C1 rung 2 (M5 PR 5): the exact
+    /// conic carrier of the common curved-boolean cuts (tilted
+    /// plane×cylinder, equal-radius cylinder×cylinder).
+    ///
+    /// - `axis` is the unit ellipse-plane normal, `u_ref` the unit
+    ///   **semi-major** direction with `u_ref ⊥ axis` (both
+    ///   conventional, unchecked); `u_ref` carries the seam — `θ = 0`
+    ///   lives at `center + u_ref·major`.
+    /// - θ in radians, domain ℝ, period 2π; increasing θ winds
+    ///   counterclockwise viewed from the tip of `axis` (right-hand
+    ///   rule), exactly the circle convention. θ is **not** arc length
+    ///   and not the polar angle of the point — it is the conic's
+    ///   eccentric anomaly; `|dP/dθ|` varies in `[minor, major]`.
+    /// - `major > minor > 0` **strictly** (meters). Equal semi-axes are
+    ///   a `Circle` — one kind per configuration (D3's closed-enum
+    ///   discipline) — and are refused by [`Curve3::ellipse`], the one
+    ///   deciding constructor. Like every conventional invariant the
+    ///   ordering is *data* here: evaluators consume the fields as
+    ///   given, tier-3 certification owns the invariant at rest, and a
+    ///   struct-literal that bypasses the constructor owns the
+    ///   consequences (well-defined garbage, not poison).
+    Ellipse {
+        /// The ellipse's center.
+        center: Point3<T>,
+        /// The unit normal of the ellipse's plane (right-hand winding
+        /// rule; conventional, unchecked).
+        axis: Vec3<T>,
+        /// The semi-major axis length in meters (`major > minor` by
+        /// the constructor's refusal).
+        major: T,
+        /// The semi-minor axis length in meters (positive by the
+        /// constructor's refusal).
+        minor: T,
+        /// The unit semi-major direction ⊥ `axis` where θ = 0 lives —
+        /// the seam, carried as conventional data per D2.
+        u_ref: Vec3<T>,
+    },
+
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsCurve3`] behind an [`Arc`] (immutable, cheap to clone —
@@ -166,6 +207,62 @@ pub enum Curve3<T: Real> {
     /// same all-poison evaluation behavior.
     Nurbs(Arc<NurbsCurve3<T>>),
 }
+
+/// Typed refusal of [`Curve3::ellipse`] — the one place that decides an
+/// ellipse's axis ordering (spec M5-PR5 §1: one kind per configuration;
+/// the constructor is the only decision point).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EllipseInvalid {
+    /// The semi-axes coincide (|major − minor| ≤ ε): this configuration
+    /// is a `Circle`, and D3's one-kind-per-configuration discipline
+    /// refuses to mint it as a degenerate `Ellipse`.
+    CircularAxes,
+    /// `major` is definitely smaller than `minor`: the caller swapped
+    /// the axes (the frame convention is major-first; swap `u_ref` to
+    /// the true major direction and reorder).
+    AxesSwapped,
+    /// The minor semi-axis is not definitely positive (zero or
+    /// negative: a degenerate segment, not an ellipse).
+    MinorNotPositive,
+    /// A constructor predicate landed in the ambiguity band or was
+    /// poisoned (`ellipse_axes_distinct` / `ellipse_minor_positive`):
+    /// the configuration is too close to the circular (or degenerate)
+    /// coincidence to name a kind soundly.
+    Escalated(Indeterminate),
+}
+
+impl core::fmt::Display for EllipseInvalid {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CircularAxes => write!(
+                f,
+                "ellipse construction: the semi-axes coincide — this configuration is a \
+                 Circle, one kind per configuration (D3); construct the Circle carrier, or {}",
+                geom_core::COINCIDENCE_RECOURSE
+            ),
+            Self::AxesSwapped => write!(
+                f,
+                "ellipse construction: major < minor — the frame convention is major-first \
+                 (u_ref is the semi-major direction); swap the axes"
+            ),
+            Self::MinorNotPositive => write!(
+                f,
+                "ellipse construction: the minor semi-axis is not positive (a degenerate \
+                 segment, not an ellipse)"
+            ),
+            Self::Escalated(diag) => write!(
+                f,
+                "ellipse construction escalated: {} — the configuration sits too close to \
+                 the circular coincidence to name a kind; construct the Circle carrier, \
+                 or {} (D4)",
+                diag.payload(),
+                geom_core::COINCIDENCE_RECOURSE
+            ),
+        }
+    }
+}
+
+impl std::error::Error for EllipseInvalid {}
 
 impl<T: Real> Curve3<T> {
     /// The "no description yet" NURBS state (the former unit
@@ -178,6 +275,57 @@ impl<T: Real> Curve3<T> {
     }
 }
 
+impl<T: Decide> Curve3<T> {
+    /// The one deciding door into [`Curve3::Ellipse`] (M5 PR 5 spec §1):
+    /// refuses `major = minor` (that configuration is a `Circle` — one
+    /// kind per configuration, D3), swapped axes, and a non-positive
+    /// minor, each through a named Q1 trilean:
+    ///
+    /// - `ellipse_axes_distinct` — margin `major − minor` (meters):
+    ///   Positive ⇒ a genuine ellipse; Zero ⇒
+    ///   [`EllipseInvalid::CircularAxes`]; Negative ⇒
+    ///   [`EllipseInvalid::AxesSwapped`]; in-band/poison ⇒
+    ///   [`EllipseInvalid::Escalated`].
+    /// - `ellipse_minor_positive` — margin `minor` (meters): Positive
+    ///   required; Zero/Negative ⇒ [`EllipseInvalid::MinorNotPositive`];
+    ///   in-band/poison ⇒ escalated.
+    ///
+    /// Frame fields stay conventional data exactly as for `Circle`
+    /// (unit, orthogonal, unchecked here — tier-3 certification owns
+    /// them at rest).
+    ///
+    /// # Errors
+    ///
+    /// [`EllipseInvalid`] — see each variant.
+    pub fn ellipse(
+        center: Point3<T>,
+        axis: Vec3<T>,
+        major: T,
+        minor: T,
+        u_ref: Vec3<T>,
+        band: Band,
+    ) -> Result<Self, EllipseInvalid> {
+        match geom_core::k_stats::decide("ellipse_minor_positive", minor, band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
+            Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
+        }
+        match geom_core::k_stats::decide("ellipse_axes_distinct", major - minor, band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero) => return Err(EllipseInvalid::CircularAxes),
+            Ok(Sign::Negative) => return Err(EllipseInvalid::AxesSwapped),
+            Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
+        }
+        Ok(Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        })
+    }
+}
+
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
@@ -187,6 +335,11 @@ impl<T: SpanLocate> Curve3<T> {
     /// - Circle: `(s, c) = θ.sin_cos()`; `radial = u_ref·c + v_ref·s`
     ///   with `v_ref = axis × u_ref` (the cross's own fixed order);
     ///   result `center + radial·radius` — exactly as parenthesized.
+    /// - Ellipse: `(s, c) = θ.sin_cos()`;
+    ///   `center + (u_ref·(major·c) + v_ref·(minor·s))` with
+    ///   `v_ref = axis × u_ref` — exactly as parenthesized (the per-axis
+    ///   scales multiply the trig values first, then scale the frame
+    ///   vectors).
     /// - Nurbs: the payload's [`NurbsCurve3::eval`] (span selection via
     ///   the sealed seam; all-poison for the placeholder state).
     pub fn eval(&self, t: T) -> Point3<T> {
@@ -202,6 +355,17 @@ impl<T: SpanLocate> Curve3<T> {
                 let v_ref = axis.cross(*u_ref);
                 *center + (*u_ref * c + v_ref * s) * *radius
             }
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let (s, c) = t.sin_cos();
+                let v_ref = axis.cross(*u_ref);
+                *center + (*u_ref * (*major * c) + v_ref * (*minor * s))
+            }
             Curve3::Nurbs(n) => n.eval(t),
         }
     }
@@ -213,6 +377,9 @@ impl<T: SpanLocate> Curve3<T> {
     /// - Circle: the tangent `(u_ref·(−s) + v_ref·c)·radius`, evaluated
     ///   exactly as written from one `sin_cos` call (fixed order;
     ///   `|dP/dθ| = radius`, the radians-to-meters rate).
+    /// - Ellipse: `u_ref·(−(major·s)) + v_ref·(minor·c)` — fixed order;
+    ///   `|dP/dθ|` varies in `[minor, major]` (θ is the eccentric
+    ///   anomaly, not arc length).
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
@@ -227,6 +394,17 @@ impl<T: SpanLocate> Curve3<T> {
                 let v_ref = axis.cross(*u_ref);
                 (*u_ref * (-s) + v_ref * c) * *radius
             }
+            Curve3::Ellipse {
+                axis,
+                major,
+                minor,
+                u_ref,
+                ..
+            } => {
+                let (s, c) = t.sin_cos();
+                let v_ref = axis.cross(*u_ref);
+                *u_ref * (-(*major * s)) + v_ref * (*minor * c)
+            }
             Curve3::Nurbs(n) => n.deriv(t),
         }
     }
@@ -237,6 +415,9 @@ impl<T: SpanLocate> Curve3<T> {
     /// - Line: the zero vector, exactly.
     /// - Circle: `(u_ref·(−c) + v_ref·(−s))·radius` (the inward radial,
     ///   scaled; fixed order as written).
+    /// - Ellipse: `u_ref·(−(major·c)) + v_ref·(−(minor·s))` — the
+    ///   negated radial offset from the center (`P + P″ = center`
+    ///   exactly in ℝ), fixed order as written.
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     pub fn deriv2(&self, t: T) -> Vec3<T> {
         match self {
@@ -250,6 +431,17 @@ impl<T: SpanLocate> Curve3<T> {
                 let (s, c) = t.sin_cos();
                 let v_ref = axis.cross(*u_ref);
                 (*u_ref * (-c) + v_ref * (-s)) * *radius
+            }
+            Curve3::Ellipse {
+                axis,
+                major,
+                minor,
+                u_ref,
+                ..
+            } => {
+                let (s, c) = t.sin_cos();
+                let v_ref = axis.cross(*u_ref);
+                *u_ref * (-(*major * c)) + v_ref * (-(*minor * s))
             }
             Curve3::Nurbs(n) => n.deriv2(t),
         }
@@ -450,6 +642,227 @@ mod tests {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Ellipse (M5 PR 5): constructor trileans, locus, derivatives
+    // ------------------------------------------------------------------
+
+    /// A pure band (the geom-core test discipline: never `Band::linear`
+    /// in a lib test — the global `Tolerance` stays untouched).
+    fn band() -> geom_core::Band {
+        geom_core::Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// The tilted-frame ellipse fixture (same exact orthonormal frame
+    /// as [`tilted_circle`]).
+    fn tilted_ellipse() -> Curve3<f64> {
+        Curve3::ellipse(
+            Point3::new(-0.5, 4.0, 1.25),
+            Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+            2.5,
+            1.0,
+            Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
+            band(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn ellipse_cardinal_points() {
+        let e = Curve3::ellipse(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::unit_z(),
+            2.0,
+            0.5,
+            Vec3::unit_x(),
+            band(),
+        )
+        .unwrap();
+        // θ = 0: center + u_ref·major — exact.
+        let p0 = e.eval(0.0);
+        assert_eq!((p0.x, p0.y, p0.z), (3.0, 2.0, 3.0));
+        // θ = π/2: center + v_ref·minor to rounding.
+        assert_point_close(e.eval(FRAC_PI_2), Point3::new(1.0, 2.5, 3.0), 1e-15);
+        // θ = π: center − u_ref·major.
+        assert_point_close(e.eval(PI), Point3::new(-1.0, 2.0, 3.0), 1e-15);
+        // Winding: CCW viewed from +axis — tangent at θ = 0 is +v̂·minor.
+        let t0 = e.deriv(0.0);
+        assert_eq!((t0.x, t0.y, t0.z), (0.0, 0.5, 0.0));
+        // deriv2 at θ = 0 is the negated radial offset: −u_ref·major.
+        let a0 = e.deriv2(0.0);
+        assert_eq!((a0.x, a0.y, a0.z), (-2.0, 0.0, 0.0));
+    }
+
+    /// The constructor trilean trios (M5 PR 5 acceptance: each named
+    /// predicate gets exactly-degenerate, definitely-generic, and
+    /// in-band rows).
+    #[test]
+    fn ellipse_constructor_trios() {
+        let b = band();
+        let mk = |major: f64, minor: f64| {
+            Curve3::ellipse(
+                Point3::origin(),
+                Vec3::unit_z(),
+                major,
+                minor,
+                Vec3::unit_x(),
+                b,
+            )
+        };
+        // ellipse_axes_distinct: definitely-generic passes …
+        assert!(mk(2.0, 1.0).is_ok());
+        // … exactly-degenerate (major = minor, margin 0) refuses as the
+        // circular coincidence …
+        assert_eq!(mk(1.0, 1.0).unwrap_err(), EllipseInvalid::CircularAxes);
+        // … a sub-ε separation (dyadic 2⁻³¹ ≈ 4.7e-10, exact under
+        // subtraction) still refuses as the coincidence …
+        assert_eq!(
+            mk(1.0 + 2.0f64.powi(-31), 1.0).unwrap_err(),
+            EllipseInvalid::CircularAxes
+        );
+        // … in-band escalates typed …
+        let err = mk(1.0 + 5e-9, 1.0).unwrap_err();
+        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
+        // … and definitely-swapped refuses with the swap story.
+        assert_eq!(mk(1.0, 2.0).unwrap_err(), EllipseInvalid::AxesSwapped);
+
+        // ellipse_minor_positive: zero and negative refuse, in-band
+        // escalates, poison escalates (total, never a panic).
+        assert_eq!(mk(2.0, 0.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
+        assert_eq!(mk(2.0, -1.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
+        let err = mk(2.0, 5e-9).unwrap_err();
+        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
+        let err = mk(2.0, f64::NAN).unwrap_err();
+        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
+
+        // The circular-coincidence refusals compose the shared
+        // two-tolerance recourse (S6 / D4 ¶1 addendum), exactly once.
+        for e in [
+            mk(1.0, 1.0).unwrap_err().to_string(),
+            mk(1.0 + 5e-9, 1.0).unwrap_err().to_string(),
+        ] {
+            assert_eq!(e.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1, "{e}");
+        }
+    }
+
+    proptest! {
+        /// The ellipse's defining residuals at arbitrary θ on the tilted
+        /// frame: the frame-coordinate quadratic (x/a)² + (y/b)² − 1
+        /// vanishes and the point lies in the ellipse's plane.
+        #[test]
+        fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
+            let e = tilted_ellipse();
+            let Curve3::Ellipse { center, axis, major, minor, u_ref } = e else {
+                panic!("fixture is an ellipse");
+            };
+            let v_ref = axis.cross(u_ref);
+            let p = e.eval(theta);
+            let d = p - center;
+            let (x, y) = (d.dot(u_ref), d.dot(v_ref));
+            let quad = (x / major) * (x / major) + (y / minor) * (y / minor) - 1.0;
+            prop_assert!(quad.abs() <= 1e-12, "quadratic residual {quad:e}");
+            prop_assert!(d.dot(axis).abs() <= 1e-13, "planarity");
+        }
+
+        /// Derivative geometry: P + P″ = center (the eccentric-anomaly
+        /// identity), P′ ⊥ axis, and the speed interpolates the axes:
+        /// |P′|² = major²·sin²θ + minor²·cos²θ.
+        #[test]
+        fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
+            let e = tilted_ellipse();
+            let Curve3::Ellipse { center, axis, major, minor, .. } = e else {
+                panic!("fixture is an ellipse");
+            };
+            let p = e.eval(theta);
+            let d1 = e.deriv(theta);
+            let d2 = e.deriv2(theta);
+            prop_assert!((p.x + d2.x - center.x).abs() <= 1e-12);
+            prop_assert!((p.y + d2.y - center.y).abs() <= 1e-12);
+            prop_assert!((p.z + d2.z - center.z).abs() <= 1e-12);
+            prop_assert!(d1.dot(axis).abs() <= 1e-12);
+            let (s, c) = theta.sin_cos();
+            let speed2 = major * major * s * s + minor * minor * c * c;
+            prop_assert!((d1.norm_squared() - speed2).abs() <= 1e-11);
+        }
+
+        /// Derivative-vs-Dual consistency (the M2 test axis) for the
+        /// new variant: dual-of-eval reproduces `deriv`, value channel
+        /// bit-identical; one order up for `deriv2`.
+        #[test]
+        fn ellipse_derivs_match_duals(theta in -50.0..50.0f64) {
+            let e = tilted_ellipse();
+            let ed: Curve3<Dual64> = lift_to_dual(&e);
+            let p = ed.eval(Dual::variable(theta));
+            let pf = e.eval(theta);
+            prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
+            prop_assert_eq!(p.y.value.to_bits(), pf.y.to_bits());
+            prop_assert_eq!(p.z.value.to_bits(), pf.z.to_bits());
+            let d = e.deriv(theta);
+            prop_assert!((p.x.deriv - d.x).abs() <= 1e-11);
+            prop_assert!((p.y.deriv - d.y).abs() <= 1e-11);
+            prop_assert!((p.z.deriv - d.z).abs() <= 1e-11);
+            let dd = ed.deriv(Dual::variable(theta));
+            let d2 = e.deriv2(theta);
+            prop_assert!((dd.x.deriv - d2.x).abs() <= 1e-11);
+            prop_assert!((dd.y.deriv - d2.y).abs() <= 1e-11);
+            prop_assert!((dd.z.deriv - d2.z).abs() <= 1e-11);
+        }
+
+        /// Periodicity at the value level (the honest statement — the
+        /// crate-doc policy; never bitwise).
+        #[test]
+        fn ellipse_periodicity_value_level(
+            theta in -10.0..10.0f64,
+            k in -100i32..100,
+        ) {
+            let e = tilted_ellipse();
+            let p = e.eval(theta);
+            let q = e.eval(theta + f64::from(k) * TAU);
+            let slack = 1e-15 + 5e-15 * f64::from(k).abs();
+            assert_point_close(p, q, slack);
+        }
+    }
+
+    #[cfg(feature = "interval")]
+    mod ellipse_interval {
+        use geom_core::{Bounds, Interval};
+
+        use super::*;
+
+        /// Truth containment through identities at the interval scalar:
+        /// the frame quadratic and planarity residuals enclose zero.
+        #[test]
+        fn ellipse_residuals_enclose_zero() {
+            let e = super::tilted_ellipse();
+            let ei = super::interval::lift(&e);
+            let Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } = ei
+            else {
+                panic!("fixture is an ellipse");
+            };
+            let v_ref = axis.cross(u_ref);
+            for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
+                let p = ei.eval(Interval::from_f64(theta));
+                let d = p - center;
+                let (x, y) = (d.dot(u_ref), d.dot(v_ref));
+                let quad = (x / major) * (x / major) + (y / minor) * (y / minor) - Interval::one();
+                assert!(
+                    quad.lo() <= 0.0 && 0.0 <= quad.hi(),
+                    "θ = {theta}: quadratic [{}, {}]",
+                    quad.lo(),
+                    quad.hi()
+                );
+                assert!(quad.hi() - quad.lo() < 1e-12);
+                let plane_res = d.dot(axis);
+                assert!(plane_res.lo() <= 0.0 && 0.0 <= plane_res.hi());
+            }
+        }
+    }
+
     /// Lifts an f64 curve to `Curve3<Dual64>` with constant (∂/∂θ = 0)
     /// geometry — only the evaluation parameter is the variable.
     fn lift_to_dual(c: &Curve3<f64>) -> Curve3<Dual64> {
@@ -481,6 +894,19 @@ mod tests {
                 center: cp(center),
                 axis: cv(axis),
                 radius: Dual::constant(radius),
+                u_ref: cv(u_ref),
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Curve3::Ellipse {
+                center: cp(center),
+                axis: cv(axis),
+                major: Dual::constant(major),
+                minor: Dual::constant(minor),
                 u_ref: cv(u_ref),
             },
             Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
@@ -559,7 +985,7 @@ mod tests {
             )
         }
 
-        fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
+        pub(super) fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
             match *c {
                 Curve3::Line { origin, dir } => Curve3::Line {
                     origin: ipoint(origin),
@@ -574,6 +1000,19 @@ mod tests {
                     center: ipoint(center),
                     axis: ivec(axis),
                     radius: Interval::from_f64(radius),
+                    u_ref: ivec(u_ref),
+                },
+                Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } => Curve3::Ellipse {
+                    center: ipoint(center),
+                    axis: ivec(axis),
+                    major: Interval::from_f64(major),
+                    minor: Interval::from_f64(minor),
                     u_ref: ivec(u_ref),
                 },
                 Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),

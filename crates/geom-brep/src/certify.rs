@@ -225,9 +225,9 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::WindingExceeded => write!(
                 f,
-                "certification: a circle carrier's parameter interval spans more than one \
-                 full period — |t₁ − t₀| ≤ τ is required to close the sample-schedule \
-                 winding alias (8kτ family)"
+                "certification: a periodic (circle/ellipse) carrier's parameter interval \
+                 spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
+                 sample-schedule winding alias (8kτ family)"
             ),
             Self::ResidualExceeded { check, sample } => write!(
                 f,
@@ -593,6 +593,13 @@ fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 /// arm escalates more, never definitely misclassifies):
 ///
 /// - **Line** — the chord (exact).
+/// - **Ellipse** (semi-axes a > b, span Δt): `max(chord,
+///   b·(1 − cos(Δt/2)))` — the circle fold at the MINOR semi-axis. A
+///   lower bound because the ellipse is the image of the radius-b
+///   circle (same parameter θ) under a one-axis expansion by a/b ≥ 1,
+///   which never shrinks a distance — so the ellipse arc's point-set
+///   diameter dominates the b-circle arc's, and the circle bound below
+///   applies to that circle verbatim.
 /// - **Circle** (radius r, span Δt = t₁ − t₀): `max(chord,
 ///   r·(1 − cos(Δt/2)))`. The second term is the arc's sagitta-style
 ///   bulge height, an even, branch-free function of Δt with the two
@@ -615,6 +622,12 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
         Curve3::Circle { radius, .. } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(radius * (T::one() - half_span.cos()))
+        }
+        // The minor semi-axis is the certified direction (doc above):
+        // the ellipse dominates its minor-radius circle pointwise.
+        Curve3::Ellipse { minor, .. } => {
+            let half_span = (t1 - t0) * T::from_f64(0.5);
+            chord.max(minor * (T::one() - half_span.cos()))
         }
         Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
     }
@@ -723,6 +736,25 @@ fn run_checks<T: Decide>(
             // Positive (a partial arc) both pass; definitely negative
             // is the alias family.
             let headroom = (T::tau() - span) * *radius;
+            match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
+                Sign::Positive | Sign::Zero => {}
+                Sign::Negative => return Err(CertifyError::WindingExceeded),
+            }
+        }
+        // Ellipse spans are metered at the MINOR semi-axis — the
+        // conservative meter (|dP/dθ| ≥ minor, so `span·minor` is a
+        // certified lower bound on the child's arc length: a span this
+        // gate accepts as forward is truly forward, and near-threshold
+        // spans escalate rather than sneak through). The same winding
+        // bound applies: the 8kτ sample-alias argument is about the
+        // parameter period, which the ellipse shares with the circle.
+        Curve3::Ellipse { minor, .. } => {
+            let arc = span * *minor;
+            match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
+            }
+            let headroom = (T::tau() - span) * *minor;
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),

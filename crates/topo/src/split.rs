@@ -173,6 +173,11 @@ impl<T: Decide> Body<T> {
         let scale = match *curve.carrier() {
             geom_curves::Curve3::Line { .. } => T::one(),
             geom_curves::Curve3::Circle { radius, .. } => radius,
+            // The conic lane (M5 PR 5, C12.3): metered at the MINOR
+            // semi-axis — the conservative meter (|dP/dθ| ≥ minor), so
+            // a sub-span this gate accepts as definitely interior is
+            // truly clear of the endpoints in meters.
+            geom_curves::Curve3::Ellipse { minor, .. } => minor,
             // Unreachable through certification (Nurbs carriers refuse
             // at the gate); the poison margin escalates honestly.
             geom_curves::Curve3::Nurbs(_) => T::from_f64(f64::NAN),
