@@ -842,7 +842,7 @@ impl ChordJoiner {
             let spec = chord_spec(
                 body,
                 self.band,
-                section.as_deref_mut(),
+                section,
                 owner,
                 l2_now,
                 start_of(body, h2)?,

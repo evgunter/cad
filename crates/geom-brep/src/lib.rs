@@ -40,6 +40,7 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 pub mod newell;
+pub mod pcurve;
 pub mod props;
 
 pub use certify::{
@@ -56,4 +57,7 @@ pub use intersect::{
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
+pub use pcurve::{
+    PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
+};
 pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};

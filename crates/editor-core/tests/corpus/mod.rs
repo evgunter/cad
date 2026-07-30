@@ -40,6 +40,7 @@ use editor_core::{
 use geom_core::Decide;
 use topo::Body;
 
+pub mod cut_cylinder;
 pub mod die;
 pub mod heatsink;
 pub mod islands;
@@ -121,6 +122,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         islands::document_106_depth2(),
         tangency::document(),
         sink::document(),
+        cut_cylinder::document(),
     ]
 }
 
