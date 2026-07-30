@@ -15,21 +15,42 @@ main. Profile-only; small.
   sum of the two legs' arc-length setbacks — the fillet_leg_fit
   datum; near pocket ⇒ both small, far pocket ⇒ both large; any
   monotone combination agrees, sum is the symmetric choice).
-- The comparison is a named Q1 predicate (suggested
-  `fillet_branch_proximity`, lever arm in meters), K-funnel
-  registered, run in fixed order after the four per-candidate
-  classifications. Definitely-nearer wins; **in-band tie ⇒ F6
-  escalated typed error** (never guess) with honest recourse
-  (adjust r or the leg extents so one pocket wins; margins as
-  payload). Trio rows (definite/exact/in-band) required — note
-  the exactly-tied case IS constructible (symmetric lens with the
-  corner equidistant is measure-zero but representable; if no
-  exact-tie fixture exists at f64, the interval-lane hairline row
-  is the exact arm, per the S2 precedent).
+- The comparison is a **plain deterministic selection rule, NOT
+  a Q1 predicate** (amended per Evan's follow-up ruling,
+  2026-07-30): near-ties do NOT escalate — both candidates are
+  valid fillets tangent to both declared legs, so an ε-scale
+  pick asserts nothing about geometric truth, and below ε_input
+  the author cannot have meant a distinguishable preference (D4
+  ¶1). The selection ladder (amended again per Evan,
+  2026-07-30 — equivariant where equivariance is possible):
+  (1) strict `<` on total setback; (2) exact tie → strict `<`
+  on the incoming leg's setback alone (arc length is isometry-
+  invariant, so rungs 1–2 commute with all rigid motions AND
+  reflections in ℝ); (3) both tied — the candidates carry
+  IDENTICAL per-leg setback pairs, exactly the class where a
+  candidate-swapping symmetry makes an equivariant pick
+  impossible — → fixed enumeration order (first-classified,
+  incoming-leg-first), documented as the sole designed
+  non-equivariant residual. No K-funnel entry, no escalation
+  arm, no new error. Document at the selection site: within-ε
+  picks are arbitrary-but-deterministic and both-valid per the
+  ruling; an author who cares forces the choice by authoring
+  (spec §2). Committed rows pin: rung 2 breaking a constructed
+  total-setback tie (asymmetric legs, equal sums), and rung-3
+  exact-tie determinism (symmetric lens, bit-identical pick
+  across runs and both lanes).
+- **Equivariance principle (Evan, 2026-07-30, recorded)**: "the
+  kernel has no designed orientation/handedness asymmetry so
+  far; maintain that where it's free" — noted as a working
+  principle pending an actual audit (the claim is unverified;
+  semantic equivariance in ℝ, not bitwise f64 equivariance,
+  which fixed evaluation orders already forgo). Rung 3 above is
+  the first knowingly-designed residual and is documented as
+  such.
 - `AmbiguousFilletBranch` RETIRES (the two-survivor case now
-  resolves; the tie is the standard escalated form naming the new
-  predicate). Remove the variant; update its tests; report any
-  ripple beyond profile.
+  resolves; ties PICK per the ladder — no escalated form).
+  Remove the variant; update its tests; report any ripple
+  beyond profile.
 
 ## 2. Reachability (the ruling's premise, pinned)
 
