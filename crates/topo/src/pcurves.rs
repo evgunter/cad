@@ -405,14 +405,6 @@ fn walk_loop<T: Decide>(
             first_entry = Some(entry);
         }
         prev_exit = Some(pcurve.eval(exit_t));
-        if std::env::var("PCURVE_DEBUG").is_ok() {
-            let ex = pcurve.eval(exit_t);
-            let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve;
-            eprintln!(
-                "he={he:?} plus={plus} t=[{t0:?},{t1:?}] entry=({:?},{:?}) exit=({:?},{:?}) p0={p0:?} pa={pa:?} pb={pb:?} pl={pl:?}",
-                entry.x, entry.y, ex.x, ex.y
-            );
-        }
         out.push(Walked {
             half_edge: he,
             pcurve,

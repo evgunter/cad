@@ -402,39 +402,58 @@ fn even_crossing_recovers_the_sliver() {
     assert!(ellipse_edges(&below).is_empty());
 }
 
-/// The tilted belly (both rims crossed twice, seams crossed once): a
-/// full two-sided split whose section is the mixed hexagon — four
-/// exact ellipse arcs (walls) + two cap chords — and every section
-/// edge lies in the plane.
+/// The tilted belly (both rims crossed twice, seams crossed once) —
+/// **REFUSED typed since M5 PR 6, and this row pins WHY.**
+///
+/// PR 5's arc-side rule (`splitting::join::chord_spec`,
+/// `split_conic_arc_side`) picks which of the section conic's two arcs
+/// bounds the divided face from a single azimuth sample taken on the
+/// RUN the chord co-bounds, whose stated premise is that the sample's
+/// azimuth "lies strictly inside the azimuth interval the chord must
+/// span". On this configuration that premise is FALSE: the above-side
+/// wall piece is bounded by two short ellipse arcs (≈44.4° and ≈17.5°)
+/// AND by a 91° bottom-rim arc whose midpoint the rule samples — so the
+/// sample lands outside the chord's own interval and the rule selects
+/// the COMPLEMENT arc (≈315.6°, ≈342.5°) every time.
+///
+/// The defect is real and pre-dates this PR: the resulting edges'
+/// carriers sweep `z ∈ [−0.297, 1.689]` on a cylinder of height 1, i.e.
+/// the stored edge leaves the finite wall entirely. Nothing at tier 3
+/// could see it — every point of the long arc lies on both surfaces,
+/// the endpoints pin, and the witness is `carrier(mid)` of the same
+/// wrong arc — which is exactly why C4 makes **domain validity part of
+/// the certificate**. PR 6's per-face one-branch chart walk is the
+/// first thing that can: the face's azimuth advance comes out −2τ
+/// instead of 0, and the split refuses rather than shipping the body.
+///
+/// This row therefore asserts the typed refusal, and the geometric
+/// evidence behind it, until the arc-side rule is repaired (its correct
+/// criterion is containment in the divided face's own azimuth window —
+/// the same statement PR 6 certifies for pcurves). The simple tilted
+/// cut, the perpendicular cut, the axis-parallel cut and the
+/// ON-endpoint belly variant are all unaffected and stay green.
 #[test]
-fn tilted_belly_cut_splits_with_mixed_section() {
+fn tilted_belly_cut_refuses_on_the_long_way_arc_defect() {
     let body = cylinder_body();
     let n = 1.0 / 5.0f64.sqrt();
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.1, 0.5),
         normal: Vec3::new(0.0, 2.0 * n, n),
     };
-    let result = split(&body, &plane).unwrap();
-    let (above, below) = assert_two_sided(&result);
-    for part in [&above, &below] {
-        let ellipses = ellipse_edges(part);
-        assert_eq!(ellipses.len(), 4, "four wall arcs bound the section");
-        for (_, c) in &ellipses {
-            assert!(
-                matches!(c.description(), EdgeGeometry::Intersection { .. }),
-                "section arcs are described intersections"
-            );
-            assert!(c.certificate().max_residual < 1e-12);
-            // Every sampled point lies in the split plane.
-            let (t0, t1) = c.params();
-            for i in 0..=8 {
-                let t = t0 + (t1 - t0) * f64::from(i) / 8.0;
-                let p = c.carrier().eval(t);
-                let d = (p - plane.origin).dot(plane.normal);
-                assert!(d.abs() < 1e-12, "section arc off-plane: {d:e}");
-            }
-        }
-    }
+    let err = split(&body, &plane).unwrap_err();
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("azimuth advance is neither zero nor one full period"),
+        "{msg}"
+    );
+
+    // Evidence recorded from the investigation (reproducible by
+    // making the mint pass non-fatal for one run): each of the eight
+    // section-arc edges the two sides carry stores a parameter
+    // interval of τ − 0.305 or τ − 0.775 rad — exactly the complement
+    // of the correct ≈17.5°/≈44.4° arc — and sweeps
+    // z ∈ [−0.297, 1.689] on a wall of height 1. The simple tilted cut
+    // stores π and sweeps z ∈ [0.345, 0.655], i.e. stays on the wall.
 }
 
 /// The ON-endpoint belly variant (audit row): the plane passes through
