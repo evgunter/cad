@@ -428,6 +428,12 @@ pub enum SplitError {
     Join(SplitJoinError),
     /// The finish stage refused (incl. the degenerate-component net).
     Finish(SplitFinishError),
+    /// The pcurve minting pass refused (M5 PR 6): a curved face's
+    /// per-half-edge chart-image cache failed certification, or a
+    /// loop's one-branch chart walk was discontinuous. The split
+    /// itself succeeded topologically; the refusal is loud rather
+    /// than shipping a body whose caches are uncertified (D4 ¶2).
+    Pcurves(crate::pcurves::PcurveMintError),
 }
 
 impl From<SplitReduceError> for SplitError {
@@ -448,12 +454,19 @@ impl From<SplitFinishError> for SplitError {
     }
 }
 
+impl From<crate::pcurves::PcurveMintError> for SplitError {
+    fn from(e: crate::pcurves::PcurveMintError) -> Self {
+        Self::Pcurves(e)
+    }
+}
+
 impl core::fmt::Display for SplitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Reduce(e) => write!(f, "split: {e}"),
             Self::Join(e) => write!(f, "split: {e}"),
             Self::Finish(e) => write!(f, "split: {e}"),
+            Self::Pcurves(e) => write!(f, "split: {e}"),
         }
     }
 }
@@ -589,10 +602,23 @@ pub fn split<T: geom_core::Decide>(
 }
 
 /// One direct (non-mirrored) run of the split pipeline.
+///
+/// The pcurve minting pass (M5 PR 6, C4) runs last, on each side that
+/// carries material: this lane is where curved faces are minted, so it
+/// is where their per-half-edge chart-image caches are minted and
+/// certified (spec §1). Planar sides pick up nothing — planar faces
+/// keep M2's derive-on-demand status — so an all-planar split is
+/// bit-identical to before this pass existed.
 fn split_direct<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane)?;
-    Ok(finish::split_finish(red, &completed, fragments)?)
+    let mut result = finish::split_finish(red, &completed, fragments)?;
+    for part in [&mut result.above, &mut result.below] {
+        if let finish::SplitPart::Body(body) = part {
+            crate::pcurves::mint_pcurves(body)?;
+        }
+    }
+    Ok(result)
 }
