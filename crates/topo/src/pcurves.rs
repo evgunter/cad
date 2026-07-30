@@ -285,6 +285,12 @@ struct Walked<T: Real> {
 /// skip of a face the lane covers.
 pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError> {
     let band = Band::linear().map_err(PcurveMintError::Band)?;
+    // Start from empty. A body reaching this pass may have been carved
+    // from a scratch clone that inherited rows for half-edges the
+    // surgery killed (a `SecondaryMap` row outlives its key until the
+    // slot is reused), and a stale cache is worse than no cache. What
+    // this pass leaves behind is exactly what it minted and certified.
+    body.pcurves.clear();
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for face in faces {
         mint_face(body, face, band)?;

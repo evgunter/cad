@@ -65,6 +65,14 @@ use crate::null::CurveGeom;
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TransformError {
+    /// Re-deriving the body's pcurve caches against the mapped
+    /// geometry refused (M5 PR 6). A rigid map cannot break a valid
+    /// body's chart images, so this is loud by design rather than
+    /// expected.
+    Pcurve {
+        /// The typed pcurve-pass refusal, nested whole.
+        source: crate::pcurves::PcurveMintError,
+    },
     /// The run's tolerance could not form a classification band.
     Band(BandError),
     /// Re-certification of a mapped edge carrier failed — the map is
@@ -357,6 +365,19 @@ pub fn transform_rigid<T: Decide>(
         return Err(TransformError::Corrupt {
             what: "curve entry referenced by no edge (left unmapped)",
         });
+    }
+
+    // Pcurve caches (M5 PR 6, C4): the SAME posture as carriers and
+    // witnesses above — construction-fresh re-derivation against the
+    // mapped geometry, never a mapped stored cache. A rigid map carries
+    // the chart frame with the surface, so chart coordinates are
+    // invariant and the re-derived caches are the same numbers; running
+    // the derivation anyway is what keeps the certificate honest (D4 ¶2)
+    // and costs a body that carried none exactly nothing — the pass only
+    // runs when the operand actually carried caches, so transform never
+    // MINTS caches a body did not have.
+    if out.pcurves().next().is_some() {
+        crate::pcurves::mint_pcurves(&mut out).map_err(|source| TransformError::Pcurve { source })?;
     }
     Ok(out)
 }

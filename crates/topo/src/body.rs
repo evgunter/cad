@@ -880,6 +880,29 @@ impl<T: Real> Body<T> {
         self.pcurves.get(half_edge)
     }
 
+    /// Attaches a **certified** pcurve cache to `half_edge`, returning
+    /// the row it replaced.
+    ///
+    /// The argument's type is the guarantee: a [`PcurveCache`] cannot
+    /// be built except through certification, so no uncertified pcurve
+    /// can enter a body through this door (or any other). What this
+    /// door cannot check is *coherence with this body* — that the cache
+    /// was certified against THIS half-edge's carrier, THIS face's
+    /// surface, and a branch consistent with its loop. That is the
+    /// tier-3 pcurve pass's job ([`crate::pcurves::validate_pcurves`]),
+    /// which re-derives all three and never consults the stored
+    /// certificate.
+    ///
+    /// The ordinary producer is [`crate::pcurves::mint_pcurves`], which
+    /// the splitting lane runs on every side it mints.
+    pub fn attach_pcurve(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        cache: PcurveCache<T>,
+    ) -> Option<PcurveCache<T>> {
+        self.pcurves.insert(half_edge, cache)
+    }
+
     /// All null-face annotations (F9 — see [`crate::null`]), in
     /// face-slot order (deterministic per D9).
     pub fn null_faces(&self) -> impl Iterator<Item = (FaceKey, &NullFacePair)> {
