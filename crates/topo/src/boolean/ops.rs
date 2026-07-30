@@ -69,14 +69,20 @@
 //! Still refusing — typed, deterministic, operands untouched; never a
 //! silent wrong body:
 //!
-//! - **Boundary-on-boundary seams**: configurations whose seam
-//!   segments lie ALONG existing operand edges (the full-overlap
-//!   stacked union; corner-flush rests whose contact-square edges are
-//!   collinear with the face's own edges). The on-edge germs have no
-//!   facing chord partner — such seams need on-edge RUNS (reusing the
-//!   existing edges) rather than chords, a mechanism this pipeline
-//!   does not yet have. Refusal:
-//!   `Join(UnpairedLooseEnds)`.
+//! - **Boundary-on-boundary seams** — NARROWED by M5 S1: declared
+//!   UNIONS of pure REST contacts (the full-overlap stacked union,
+//!   corner-flush rests, the mated cross-lap) now build through the
+//!   declared-REST zip (`rest` module): when the chord join refuses
+//!   typed on a declared ∪, the lane re-examines the reduction,
+//!   realizes the seam structurally (existing edges reused, single
+//!   chords minted), removes the coincident contact patches, and
+//!   fuses the boundary — exact dyadic volume additivity. What still
+//!   refuses, typed: undeclared mates (the coincidence door, ladder
+//!   rung (b)); REST sub-frontiers the lane names
+//!   (`RestZipUnsupported` — e.g. ring-carrying contact patches,
+//!   non-star patch adjacency); and boundary-on-boundary
+//!   configurations that are not pure REST contacts (the original
+//!   `Join(UnpairedLooseEnds)` surfaces verbatim).
 //! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
 //!   seam through the VERTEX of a reflex boundary corner under a
 //!   tilted section plane (a 315°-corner pierced by a z-sheared

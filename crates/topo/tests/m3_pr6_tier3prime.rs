@@ -175,8 +175,12 @@ fn edge_rest_promoted_d4_pin() {
 /// "interior-rest flush contact") and consumes every rest record into
 /// structure: the consumed class, census agrees, 3′ ≡ tier 3.
 /// Corner-flush (contact-square edges collinear with the slab's own
-/// rim) is the documented boundary-on-boundary refusal for ∪ — typed,
-/// never silent — while ∖ returns operand A at tier 3.
+/// rim) was the documented boundary-on-boundary ∪ refusal (M3
+/// envelope class (iii)) until M5 S1's declared-REST union zip: the
+/// declared ∪ now BUILDS through the same consumed class, and the
+/// undeclared door refuses unchanged (the ladder is law). ∖ returns
+/// operand A at tier 3, as before — pure REST subtracts never reach
+/// a join door.
 fn flush_rests_scenario<T: Decide + geom_core::Bounds>() {
     let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
@@ -193,18 +197,19 @@ fn flush_rests_scenario<T: Decide + geom_core::Bounds>() {
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
         "undeclared corner-flush ∪ must refuse at the coincidence door, got {err:?}"
     );
-    // Declared: classification now proceeds (the declared rung), but
-    // the REST-contact corner (no volumetric overlap — pure
-    // boundary-on-boundary seam) still refuses typed at the JOIN: the
-    // M3 envelope entry (iii) frontier is a join-stage gap, not a
-    // classification gap. Overlap-class flush contacts (the
-    // corner-table legs) DID open with M4 PR 5; this pins the part
-    // that remains.
-    let err = union_with(&slab, &corner, &common::flush_declarations(&slab, &corner)).unwrap_err();
+    // Declared: the M5 S1 REST lane zips the corner-flush mate — the
+    // former Join(_) pin flipped to a certified pass (the same
+    // frontier as the crosslap; `crosslap_rest.rs` holds the headline
+    // pins, `m5_s1_rest_zip.rs` the exact-volume row for this shape).
+    let glued = run_body(union_with as BoolOp<T>, &slab, &corner);
     assert!(
-        matches!(err, BooleanError::Join(_)),
-        "declared corner-flush REST ∪ frontier moved (envelope (iii)): {err:?}"
+        glued.contacts.vv.is_empty()
+            && glued.contacts.a_on_b.is_empty()
+            && glued.contacts.b_on_a.is_empty(),
+        "corner-flush REST records are consumed into seam structure"
     );
+    assert_eq!(validate_pseudomanifold(&glued.body, &glued.contacts), Ok(()));
+    assert_eq!(validate_geometric(&glued.body), Ok(()));
     let sub = run_body(subtract_with as BoolOp<T>, &slab, &corner);
     assert_eq!(validate_pseudomanifold(&sub.body, &sub.contacts), Ok(()));
 }
