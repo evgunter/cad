@@ -111,10 +111,11 @@ pub enum PcurveMintError {
         /// The face whose loop failed to close.
         face: FaceKey,
     },
-    /// A half-edge of a minting chart's face carries no stored
-    /// pcurve at rest: the cache set is incomplete. Absence is legal
-    /// on charts that do not mint (planar faces, the frontier charts);
-    /// it is a defect on one that does.
+    /// A half-edge carries no stored pcurve at rest although its face
+    /// carries some: the face's cache set is incomplete. A face with
+    /// NO caches is legal everywhere (planar faces, frontier charts,
+    /// and any body that never ran the minting pass); a half-minted
+    /// one is a defect.
     MissingCache {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
@@ -448,10 +449,13 @@ fn walk_loop<T: Decide>(
 /// The at-rest pcurve pass the tier-3 validator runs (spec §5:
 /// **certificate present + replay passes + trim containment**).
 ///
-/// For every face whose chart mints caches ([`chart_mints`]):
+/// For every face that **carries at least one** stored cache (a body
+/// that never ran the minting pass has none, and the pass says nothing
+/// about it — absence is never a claim):
 ///
-/// 1. every half-edge of every loop carries a stored cache (a missing
-///    one on a minting chart is a defect, not a licence to derive);
+/// 1. the cache set of that face is COMPLETE — every half-edge of
+///    every loop carries one (a half-minted face is a defect, not a
+///    licence to derive the rest);
 /// 2. the face's chart window is re-derived from the STORED caches and
 ///    each cache is **re-certified** against it — the stored
 ///    certificate is never consulted (re-certification re-derives, it
@@ -477,8 +481,30 @@ pub fn validate_pcurves<T: Decide>(body: &Body<T>, band: Band) -> Vec<PcurveMint
         let loops: Vec<LoopKey> = core::iter::once(face.outer)
             .chain(face.rings.iter().copied())
             .collect();
-        // Pass 1: presence + the face's window from the stored caches.
+        // Pass 0: does this face carry caches at all? A body that
+        // never ran the minting pass (every sweep output, every
+        // pre-M5 body) simply has none — absence is not a defect, and
+        // the pass says nothing about it. Once ONE half-edge of a face
+        // carries a cache, the set must be COMPLETE: a half-minted
+        // face is the defect this checks for.
         let mut cycles: Vec<Vec<HalfEdgeKey>> = Vec::new();
+        let mut any_cache = false;
+        for lp in &loops {
+            let Some(loop_data) = body.get_loop(*lp) else {
+                continue;
+            };
+            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+                continue;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue;
+            };
+            any_cache |= cycle.iter().any(|he| body.pcurve(*he).is_some());
+        }
+        if !any_cache {
+            continue;
+        }
+        // Pass 1: presence + the face's window from the stored caches.
         let mut window: Option<ChartWindow<T>> = None;
         let mut complete = true;
         for lp in &loops {
