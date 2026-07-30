@@ -363,13 +363,19 @@ impl fmt::Display for RevolveError {
             Self::AngleEscalated { source } => {
                 write!(f, "revolve angle classification escalated: {source}")
             }
+            // Definite at ANY magnitude (r = -0.5 fires this same arm),
+            // so the coincidence levers are offered conditionally — the
+            // unconditional fix is to move the profile off the negative
+            // side (S6 review, MINOR-2).
             Self::VertexCrossesAxis {
                 loop_index,
                 vertex_index,
             } => write!(
                 f,
                 "profile vertex at loop {loop_index} vertex {vertex_index} lies definitely on \
-                 the negative side of the revolve axis — {}",
+                 the negative side of the revolve axis (a revolve never carries material \
+                 through the axis) — move the profile to the non-negative side; if the vertex \
+                 was meant to sit exactly on the axis, {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::SliverRadius {

@@ -780,11 +780,17 @@ impl fmt::Display for EulerOpError {
                 "curve {curve:?} is M3 null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
+            // Definite at ANY magnitude (a parameter far outside the
+            // interval fires this same arm), so the coincidence levers
+            // are offered conditionally — the unconditional fix is a
+            // strictly interior parameter (S6 review, MINOR-2).
             Self::SplitParamNotInterior { edge } => write!(
                 f,
                 "split_edge: the parameter is definitely not interior to \
                  edge {edge:?}'s certified interval (it coincides with an \
-                 endpoint, or lies outside) — {}",
+                 endpoint, or lies outside) — pick a parameter strictly \
+                 inside the interval; if it was meant to land exactly on \
+                 an endpoint, {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::SplitParamEscalated { edge, diag } => write!(
