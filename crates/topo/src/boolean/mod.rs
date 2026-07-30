@@ -76,7 +76,9 @@ pub mod tables;
 pub(crate) mod vtxfac;
 mod zip;
 
-use geom_core::{Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, Real};
+use geom_core::{
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real,
+};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
@@ -579,14 +581,37 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: predicate escalated ({diag}); the operand pair is \
                  ill-conditioned at this tolerance — never resolved by snapping"
             ),
-            Self::UndeclaredCoincidence { diag } => write!(
-                f,
-                "boolean_reduce: geometric coincidence (exact or within tolerance) without \
-                 a shared recipe source or declared intent ({payload}); coincidence is \
-                 structural or declared, never inferred from values — \
-                 {COINCIDENCE_RECOURSE}",
-                payload = diag.payload()
-            ),
+            Self::UndeclaredCoincidence { diag } => {
+                f.write_str(
+                    "boolean_reduce: geometric coincidence (exact or within tolerance) without \
+                     a shared recipe source or declared intent (",
+                )?;
+                // The rung-4 definite arm synthesizes `MarginDiag::Invalid`
+                // for a decided-zero offset (plane_eq keeps the decision
+                // machinery); rendering that payload verbatim would claim a
+                // poisoned margin on clean geometry. Say the honest thing
+                // instead: the measure is definitely zero (S6 review,
+                // MAJOR-1).
+                if matches!(diag.margin, MarginDiag::Invalid) {
+                    match diag.predicate {
+                        Some(name) => write!(
+                            f,
+                            "predicate '{name}' definite: the coincidence measure is \
+                             exactly zero — the geometry coincides"
+                        )?,
+                        None => f.write_str(
+                            "the coincidence measure is exactly zero — the geometry coincides",
+                        )?,
+                    }
+                } else {
+                    write!(f, "{}", diag.payload())?;
+                }
+                write!(
+                    f,
+                    "); coincidence is structural or declared, never inferred from values — \
+                     {COINCIDENCE_RECOURSE}"
+                )
+            }
             Self::DeclarationContradicted { diag } => write!(
                 f,
                 "boolean op: a declared coincidence contradicts the geometry ({diag}) — the \
@@ -976,21 +1001,29 @@ mod tests {
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some("bool_plane_offset"),
         };
-        // The escalated arm: recourse rides the Indeterminate carrier.
-        let msg = BooleanError::Escalated {
-            diag: diag(geom_core::MarginDiag::Value(5e-9)),
+        // The escalated arm: recourse rides the Indeterminate carrier —
+        // for every margin shape, including Invalid (the reachable
+        // bool_plane_orient Zero path synthesizes one; S6 review,
+        // MINOR-1).
+        for margin in [MarginDiag::Value(5e-9), MarginDiag::Invalid] {
+            let msg = BooleanError::Escalated { diag: diag(margin) }.to_string();
+            assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
-        .to_string();
-        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
         // exactly-on refusal (Invalid margin, as synthesized) and the
         // in-band refusal (Value margin) — one message, one recourse.
-        for margin in [
-            geom_core::MarginDiag::Invalid,
-            geom_core::MarginDiag::Value(5e-9),
-        ] {
+        for margin in [MarginDiag::Invalid, MarginDiag::Value(5e-9)] {
             let msg = BooleanError::UndeclaredCoincidence { diag: diag(margin) }.to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
+        // The synthesized-Invalid definite arm renders the honest
+        // statement, never the poisoned-margin text (S6 review,
+        // MAJOR-1).
+        let msg = BooleanError::UndeclaredCoincidence {
+            diag: diag(MarginDiag::Invalid),
+        }
+        .to_string();
+        assert!(msg.contains("exactly zero"), "{msg}");
+        assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 }
