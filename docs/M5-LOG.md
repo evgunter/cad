@@ -1074,3 +1074,17 @@ amended (ruling = sign-off), resolving S2's recorded divergence
 DISPATCHED (fable — block-10 draw, difficulty S logged first;
 A/B row 23)**, spec docs/M5-S8-SPEC.md; review charter includes
 attacking the sum-vs-max monotone-combination claim.
+
+**RULING REFINEMENT (Evan, minutes later): near-ties do NOT
+escalate — pick anyway.** "It is still safe to pick nearest,
+since we only can't tell when they're the-same-up-to-epsilon":
+both candidates are valid fillets, so the pick asserts no
+geometric fact, and below eps_input the author cannot have meant
+a distinguishable preference (D4 ¶1 applied to SELECTION, a
+nice precedent: escalation is for decisions about truth, not
+choices among valid constructions). Spec §1 amended: plain
+deterministic selection rule (strict < on total setback, fixed
+order, exact-tie broken first-classified), NO Q1 predicate, NO
+K-funnel entry, NO new error; one determinism row replaces the
+trio. Implementer corrected mid-flight; PATHS amendment text
+carries the tie-pick rule.
