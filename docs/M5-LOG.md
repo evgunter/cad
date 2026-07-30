@@ -1003,3 +1003,15 @@ split. Demo ruling also recorded: the M5 showcase demo rides PR
 are PR 12's acceptance); an S2 arc-leg fillet demo stop is ripe
 now and rides opportunistically. PR 6 (opus) implementing in the
 other lane.
+
+**Branch cleanup (2026-07-30, Evan-prompted):**
+ev/interval-transcendentals confirmed superseded — main's crate
+is strictly newer where they differ (round.rs exactness-witness
+division vs the branch's always-pad; certify.rs evolved; the
+branch's unique content is the DROPPED computable oracle) — so
+it was archived as tag archive/interval-transcendentals-v1
+(commits stay reachable, merge-only ethos) and deleted.
+ev/m5-state-sync (merged #139) deleted. Remote is now just main
++ ev/m5-state + live work branches as they open. Interval-lane
+ruling recorded: the feature flag stays (build-cost boundary,
+not quarantine); S7 handles the cache-key question.
