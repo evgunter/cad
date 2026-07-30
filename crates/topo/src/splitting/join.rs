@@ -46,7 +46,8 @@
 //! tangency residue PR 2's adjudication record promised to refuse
 //! here, typed [`SplitJoinError::DegenerateSection`].
 
-use geom_core::{Band, Decide, Indeterminate, Point3, Sign};
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Band, Decide, Indeterminate, Point3, Real, Sign};
 use slotmap::SecondaryMap;
 
 use super::containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -54,9 +55,10 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{EulerOpError, MefSite};
+use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
-use crate::null::NullFacePair;
+use crate::geometry::SurfaceKey;
+use crate::null::{CurveGeom, NullFacePair};
 use crate::validate::decide;
 
 /// One completed section polygon: the null face and its role loops
@@ -136,6 +138,33 @@ pub enum SplitJoinError {
     Corrupt,
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
+    /// The C5 section classification refused while minting a curved
+    /// face's section chord (M5 PR 5) — the typed table verdict nested
+    /// whole (escalations carry the shared recourse through it).
+    Section {
+        /// The face being divided.
+        face: FaceKey,
+        /// The table's refusal.
+        source: geom_brep::SectionError,
+    },
+    /// The split plane meets a curved face tangentially along the
+    /// section (a `TangentLine` classification): tangent loci are
+    /// `TangentIntersection` (C7) territory — constructed at M5 PR 9,
+    /// refused typed here, never marched into.
+    SectionTangency {
+        /// The tangent face.
+        face: FaceKey,
+    },
+    /// A curved-section invariant failed (an empty classification under
+    /// a minted chord, no azimuth sample on a cylinder loop, or an
+    /// arc-side sample on a section endpoint) — kernel bug or a
+    /// configuration this PR's lane deliberately refuses, loudly.
+    SectionInvariant {
+        /// The face being divided.
+        face: FaceKey,
+        /// What failed.
+        what: &'static str,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -186,6 +215,21 @@ impl core::fmt::Display for SplitJoinError {
             ),
             Self::Corrupt => write!(f, "split join: traversal failed (corrupt body)"),
             Self::Euler(e) => write!(f, "split join: euler operation refused: {e}"),
+            Self::Section { face, source } => {
+                write!(f, "split join: section chord in face {face:?}: {source}")
+            }
+            Self::SectionTangency { face } => write!(
+                f,
+                "split join: the split plane is tangent to curved face {face:?} along \
+                 the section — TangentIntersection (C7) territory, constructed at M5 \
+                 PR 9; refused typed, never marched into"
+            ),
+            Self::SectionInvariant { face, what } => {
+                write!(
+                    f,
+                    "split join: curved-section invariant at face {face:?}: {what}"
+                )
+            }
         }
     }
 }
@@ -231,6 +275,10 @@ pub(super) fn split_connect<T: Decide>(
         above_set,
         plane: red.plane,
         band,
+        section: SectionCtx {
+            plane: red.plane,
+            plane_key: None,
+        },
     };
 
     for idx in sorted {
@@ -257,7 +305,10 @@ pub(super) fn split_connect<T: Decide>(
         let mut joined = [false, false];
         for (slot, half) in [(0, up), (1, down)] {
             if let Some(end) = st.take_neighbor(&red.body, half)? {
-                st.joiner.join(&mut red.body, end, half)?;
+                let Sweep {
+                    joiner, section, ..
+                } = &mut st;
+                joiner.join(&mut red.body, end, half, Some(section))?;
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.
@@ -359,6 +410,8 @@ struct Sweep<T: Decide> {
     plane: SplitPlane<T>,
     /// The run band.
     band: Band,
+    /// The section-geometry context (M5 PR 5: the conic chord lane).
+    section: SectionCtx<T>,
 }
 
 impl ChordJoiner {
@@ -376,6 +429,276 @@ impl ChordJoiner {
     pub(crate) fn take_fragments(&mut self) -> FragmentRows {
         core::mem::take(&mut self.fragments)
     }
+}
+
+/// The split lane's section-geometry context (M5 PR 5): the split
+/// plane plus the lazily-minted auxiliary plane SURFACE the conic
+/// section chords' `Intersection` descriptions resolve against (minted
+/// once per split, at the first conic chord; the finish step's
+/// promoted section faces carry their own oriented copies — this one
+/// stays alive through description references, the carve orphan
+/// sweep's rule). The boolean joining passes `None` — its operands are
+/// gated all-planar and take the straight-chord lane bit-identically.
+pub(crate) struct SectionCtx<T: Real> {
+    /// The split plane.
+    pub(crate) plane: SplitPlane<T>,
+    /// The minted auxiliary plane surface, once needed.
+    pub(crate) plane_key: Option<SurfaceKey>,
+}
+
+/// The chord spec for dividing `face` between vertices `u1 → u2`
+/// (the mef/mekr `he_plus` direction): `None` for planar faces and
+/// for ruling sections (the straight chord IS the honest carrier —
+/// the M3 lane, bit-identical), `Some(spec)` with the C5 conic arc
+/// for curved faces.
+///
+/// The conic lane (M5 PR 5):
+///
+/// 1. Classify (plane × wall surface) through THE table's
+///    [`geom_brep::plane_cylinder_section`] — trileans before any
+///    rung; `TiltedEllipse`/`Rim` proceed, `ParallelLines` falls back
+///    to the ruling chord, `TangentLine` refuses typed (C7),
+///    escalations pass through whole.
+/// 2. Select WHICH arc of the section conic lies in `face` by the
+///    azimuth-sample rule: any conic boundary edge of `sample_loop`
+///    (rim arcs, prior section chords) has its parameter-midpoint
+///    azimuth strictly inside the face's azimuth interval, and an
+///    increasing circle map preserves cyclic order — so the named
+///    trilean `split_conic_arc_side` (margin the azimuth headroom
+///    `(Δ_arc − Δ_sample)` metered at the minor semi-axis) decides
+///    ccw-vs-cw; the cw arc takes the axis-flipped frame so the
+///    carrier still runs forward `u1 → u2`.
+/// 3. Describe as `Intersection { wall, aux plane, witness }` with the
+///    witness minted at the carrier's mid-parameter (the witness
+///    contract) — certification then pins endpoints, residuals, and
+///    transversality through the ordinary gate.
+#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
+fn chord_spec<T: Decide>(
+    body: &mut Body<T>,
+    band: Band,
+    ctx: Option<&mut SectionCtx<T>>,
+    face: FaceKey,
+    sample_loop: LoopKey,
+    u1: VertexKey,
+    u2: VertexKey,
+) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
+    let corrupt = || SplitJoinError::Corrupt;
+    // Self-loop chords keep the scaffolding-circle convention.
+    if u1 == u2 {
+        return Ok(None);
+    }
+    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let wall_key = face_data.surface;
+    let (o_c, a_c) = match body.get_surface(wall_key) {
+        Some(geom_surfaces::Surface::Plane { .. }) => return Ok(None),
+        Some(&geom_surfaces::Surface::Cylinder { origin, axis, .. }) => (origin, axis),
+        // Post-gate unreachable kinds — typed, never assumed.
+        Some(_) | None => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "section chord requested on a face kind the gate refuses",
+            });
+        }
+    };
+    let Some(ctx) = ctx else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "curved section chord outside the split lane (no section context)",
+        });
+    };
+    let cyl_s = body.get_surface(wall_key).cloned().ok_or_else(corrupt)?;
+    // A transient classification value: only origin/normal are read by
+    // the table (u_ref is a placement convention the classification
+    // never consumes; the STORED aux plane below gets an honest one).
+    let plane_s = geom_surfaces::Surface::Plane {
+        origin: ctx.plane.origin,
+        normal: ctx.plane.normal,
+        u_ref: ctx.plane.normal,
+    };
+    let extent = super::rules::face_extent(body, u1, face).map_err(|_| corrupt())?;
+    let sec =
+        geom_brep::plane_cylinder_section(&plane_s, &cyl_s, extent, band).map_err(|e| match e {
+            geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
+            other => SplitJoinError::Section {
+                face,
+                source: other,
+            },
+        })?;
+    // The conic frame (center, plane normal, major dir, semi-axes).
+    let (c_e, n_e, u_e, sa, sb, carrier) = match sec {
+        geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
+            let geom_curves::Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } = e
+            else {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "tilted classification carried a non-ellipse",
+                });
+            };
+            (center, axis, u_ref, major, minor, e.clone())
+        }
+        geom_brep::PlaneCylinderSection::Rim(c) => {
+            let geom_curves::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } = c
+            else {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "rim classification carried a non-circle",
+                });
+            };
+            (center, axis, u_ref, radius, radius, c.clone())
+        }
+        // Ruling sections: the straight chord is the honest carrier.
+        geom_brep::PlaneCylinderSection::ParallelLines { .. } => return Ok(None),
+        geom_brep::PlaneCylinderSection::TangentLine(_) => {
+            return Err(SplitJoinError::SectionTangency { face });
+        }
+        geom_brep::PlaneCylinderSection::Empty => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "empty plane×cylinder classification under a minted section chord",
+            });
+        }
+    };
+    let v_e = n_e.cross(u_e);
+    let point_of = |body: &Body<T>, v: VertexKey| -> Result<Point3<T>, SplitJoinError> {
+        vertex_point(body, v)
+    };
+    let p1 = point_of(body, u1)?;
+    let p2 = point_of(body, u2)?;
+    // Exact conic parameters of the (on-locus) endpoints.
+    let theta_of = |p: Point3<T>| -> T {
+        let d = p - c_e;
+        (d.dot(v_e) / sb).atan2(d.dot(u_e) / sa)
+    };
+    let th1 = theta_of(p1);
+    let th2 = theta_of(p2);
+    // The azimuth sample: the first conic boundary edge of the loop
+    // being divided (a cylinder face's closed loop always carries one;
+    // rulings alone cannot close on a cylinder).
+    let LoopBoundary::Cycle { first } = body.get_loop(sample_loop).ok_or_else(corrupt)?.boundary
+    else {
+        return Err(corrupt());
+    };
+    let mut sample = None;
+    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+        let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
+        let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+            continue; // null scaffolding carries no locus
+        };
+        match curve.carrier() {
+            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+                let (t0, t1) = curve.params();
+                sample = Some(curve.carrier().eval((t0 + t1) * T::from_f64(0.5)));
+                break;
+            }
+            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {}
+        }
+    }
+    let Some(sample) = sample else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "no conic boundary sample on a cylinder face loop",
+        });
+    };
+    // Azimuths in the cylinder cross-section frame (m̂ = the major
+    // direction's radial part, ŵ = the minor direction): an increasing
+    // circle map of the conic parameter, so cyclic order transfers.
+    let m_hat = {
+        let radial = u_e - a_c * u_e.dot(a_c);
+        radial.normalize()
+    };
+    let az = |p: Point3<T>| -> T {
+        let w = p - o_c;
+        let radial = w - a_c * w.dot(a_c);
+        radial.dot(v_e).atan2(radial.dot(m_hat))
+    };
+    let tau = T::tau();
+    let d_arc = (az(p2) - az(p1)).reduce_periodic(tau);
+    let d_sample = (az(sample) - az(p1)).reduce_periodic(tau);
+    let side = decide("split_conic_arc_side", (d_arc - d_sample) * sb, band)
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
+    let (carrier, t_start, t_end) = match side {
+        // The ccw arc from p1 lies in the face.
+        Sign::Positive => {
+            let span = (th2 - th1).reduce_periodic(tau);
+            (carrier, th1, th1 + span)
+        }
+        // The cw arc: flip the carrier's axis so it runs forward.
+        Sign::Negative => {
+            let span = tau - (th2 - th1).reduce_periodic(tau);
+            let flipped = match carrier {
+                geom_curves::Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } => geom_curves::Curve3::Ellipse {
+                    center,
+                    axis: -axis,
+                    major,
+                    minor,
+                    u_ref,
+                },
+                geom_curves::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                } => geom_curves::Curve3::Circle {
+                    center,
+                    axis: -axis,
+                    radius,
+                    u_ref,
+                },
+                other => other,
+            };
+            let th1f = T::zero() - th1;
+            (flipped, th1f, th1f + span)
+        }
+        Sign::Zero => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "arc-side sample coincides with a section endpoint azimuth",
+            });
+        }
+    };
+    // The aux plane surface (honest u_ref: the section's major
+    // direction, ⊥ normal by construction), minted once per split.
+    let plane_key = match ctx.plane_key {
+        Some(k) => k,
+        None => {
+            let k = body.add_surface(geom_surfaces::Surface::Plane {
+                origin: ctx.plane.origin,
+                normal: ctx.plane.normal,
+                u_ref: u_e,
+            });
+            ctx.plane_key = Some(k);
+            k
+        }
+    };
+    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    Ok(Some(EdgeCurveSpec {
+        description: geom_brep::EdgeGeometry::Intersection {
+            s1: wall_key,
+            s2: plane_key,
+            witness,
+        },
+        carrier,
+        param_start: t_start,
+        param_end: t_end,
+    }))
 }
 
 impl<T: Decide> Sweep<T> {
@@ -423,6 +746,7 @@ impl ChordJoiner {
         body: &mut Body<T>,
         h1: HalfEdgeKey,
         h2: HalfEdgeKey,
+        mut section: Option<&mut SectionCtx<T>>,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let corrupt = || SplitJoinError::Corrupt;
         let l1 = body.get_half_edge(h1).ok_or_else(corrupt)?.parent_loop;
@@ -433,6 +757,9 @@ impl ChordJoiner {
         };
         let prev = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, SplitJoinError> {
             Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.prev)
+        };
+        let start_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<VertexKey, SplitJoinError> {
+            Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.start)
         };
 
         let mut chords = Vec::new();
@@ -445,10 +772,26 @@ impl ChordJoiner {
                 // is geometrically coincident with the run and would
                 // land OnBoundary; issue #93).
                 let outside = next(body, h2)?;
-                let created = body.mef_chord(MefSite::Chords {
+                // Curved faces get their C5 section carrier (M5 PR 5);
+                // planar faces keep the straight mef_chord lane
+                // BIT-IDENTICALLY (chord_spec returns None for planes).
+                let site = MefSite::Chords {
                     he1: h1,
                     he2: outside,
-                })?;
+                };
+                let spec = chord_spec(
+                    body,
+                    self.band,
+                    section.as_deref_mut(),
+                    oldf,
+                    l1,
+                    start_of(body, h1)?,
+                    start_of(body, outside)?,
+                )?;
+                let created = match spec {
+                    None => body.mef_chord(site)?,
+                    Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
+                };
                 self.slivers.insert(created.face, ());
                 self.fragments.push((created.face, oldf));
                 chords.push(created.edge);
@@ -464,7 +807,20 @@ impl ChordJoiner {
             } else {
                 (h1, next(body, h2)?)
             };
-            let made = body.mekr_chord(MekrSite::Cycles { target, ring })?;
+            let site = MekrSite::Cycles { target, ring };
+            let spec = chord_spec(
+                body,
+                self.band,
+                section.as_deref_mut(),
+                oldf,
+                l1,
+                start_of(body, target)?,
+                start_of(body, ring)?,
+            )?;
+            let made = match spec {
+                None => body.mekr_chord(site)?,
+                Some(spec) => body.mekr(site, spec)?,
+            };
             chords.push(made.edge);
         }
         // Second-chord guard: when the two halves are already adjacent
@@ -474,18 +830,28 @@ impl ChordJoiner {
             // after a first mef that is not necessarily `oldf` (`h2`
             // may have landed in the new face). Capture the owner at
             // call time, BEFORE the surgery moves loops.
-            let owner = body
-                .get_loop(
-                    body.get_half_edge(h2)
-                        .ok_or(SplitJoinError::Corrupt)?
-                        .parent_loop,
-                )
+            let l2_now = body
+                .get_half_edge(h2)
                 .ok_or(SplitJoinError::Corrupt)?
-                .face;
-            let created = body.mef_chord(MefSite::Chords {
+                .parent_loop;
+            let owner = body.get_loop(l2_now).ok_or(SplitJoinError::Corrupt)?.face;
+            let site = MefSite::Chords {
                 he1: h2,
                 he2: next(body, h1)?,
-            })?;
+            };
+            let spec = chord_spec(
+                body,
+                self.band,
+                section.as_deref_mut(),
+                owner,
+                l2_now,
+                start_of(body, h2)?,
+                start_of(body, next(body, h1)?)?,
+            )?;
+            let created = match spec {
+                None => body.mef_chord(site)?,
+                Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
+            };
             self.slivers.insert(created.face, ());
             self.fragments.push((created.face, owner));
             chords.push(created.edge);
@@ -662,12 +1028,24 @@ impl<T: Decide> Sweep<T> {
     /// (margin 2·|A|/P — mean width in meters, profile's
     /// `loop_orientation` lever-arm story); Zero ⇒ the degenerate
     /// one-sided-tangency section, refused typed.
+    ///
+    /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
+    /// exact for straight chords and stays BIT-IDENTICAL for all-planar
+    /// sections; each circle/ellipse section edge then adds its exact
+    /// closed-form segment excess
+    /// `[(c − O)×(B − A)]·n̂ + s_a·s_b·(axis·n̂)·Δt − [(A − O)×(B − O)]·n̂`
+    /// (the eccentric-anomaly parameterization's constant areal rate —
+    /// the same fact as `loop_vector_area`'s ellipse arm), and its
+    /// perimeter contribution is raised from the chord to the
+    /// conservative arc-length bound `s_a·|Δt|` (a larger perimeter
+    /// only shrinks the mean-width margin — refuses more, never less).
     fn certify_section_area(
         &self,
         body: &Body<T>,
         face: FaceKey,
         below_loop: LoopKey,
     ) -> Result<(), SplitJoinError> {
+        let corrupt = || SplitJoinError::Corrupt;
         let points = loop_points_of(body, below_loop)?;
         let origin = points[0];
         let mut twice_area = T::zero();
@@ -677,6 +1055,47 @@ impl<T: Decide> Sweep<T> {
             let b = points[(i + 1) % points.len()] - origin;
             twice_area = twice_area + a.cross(b).dot(self.plane.normal);
             perimeter = perimeter + (b - a).norm();
+        }
+        // The conic excess pass (adds nothing for all-planar loops).
+        let LoopBoundary::Cycle { first } = body.get_loop(below_loop).ok_or_else(corrupt)?.boundary
+        else {
+            return Err(corrupt());
+        };
+        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+            let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
+            let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+            let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+                continue;
+            };
+            let (c_e, axis_e, sa, sb) = match *curve.carrier() {
+                geom_curves::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => (center, axis, radius, radius),
+                geom_curves::Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    ..
+                } => (center, axis, major, minor),
+                geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => continue,
+            };
+            let (t0, t1) = curve.params();
+            let span = t1 - t0;
+            let forward = edge.he_plus == he;
+            let a_pt = vertex_point(body, he_data.start)?;
+            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(corrupt)?)?;
+            let dt_signed = if forward { span } else { T::zero() - span };
+            let a = a_pt - origin;
+            let b = b_pt - origin;
+            let excess = (c_e - origin).cross(b_pt - a_pt).dot(self.plane.normal)
+                + sa * sb * axis_e.dot(self.plane.normal) * dt_signed
+                - a.cross(b).dot(self.plane.normal);
+            twice_area = twice_area + excess;
+            perimeter = perimeter + (sa * span.abs() - (b - a).norm());
         }
         let margin = twice_area.abs() / (perimeter * T::from_f64(0.5));
         match decide("split_section_area", margin, self.band) {

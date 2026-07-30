@@ -518,6 +518,7 @@ fn curved_face_gate_witness() {
         Err(BooleanError::CurvedBooleanUnsupported {
             operand: topo::Operand::B,
             face: f,
+            kind: geom_brep::SurfaceKind::Cylinder,
         }) => assert_eq!(f, face),
         other => panic!("expected CurvedBooleanUnsupported(B), got {other:?}"),
     }

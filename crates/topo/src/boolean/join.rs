@@ -296,10 +296,10 @@ pub(super) fn bool_connect<T: Decide>(
         let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, band)?;
         let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, band)?;
         sa.joiner
-            .join(&mut red.a, a1, a2)
+            .join(&mut red.a, a1, a2, None)
             .map_err(BooleanError::Join)?;
         sb.joiner
-            .join(&mut red.b, b1, b2)
+            .join(&mut red.b, b1, b2, None)
             .map_err(BooleanError::Join)?;
         open[m.entry].a[m.entry_slot].1 = true;
         open[m.entry].b[m.entry_slot].1 = true;
