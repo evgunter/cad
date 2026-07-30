@@ -670,3 +670,19 @@ S2: profile only) — this also resolves the 6-hour-battery
 pathology (cold interval targets × two concurrent workspace
 builds on 9G, compounded by S6's self-matching pgrep poll loops,
 killed by the orchestrator; poll pattern corrected to pgrep -x).
+
+**S6 finisher REPORTED (2026-07-30): the interrupted
+implementer's sweep was ALREADY COMPLETE** — all ten pairs
+correct in dbb3c00; finisher added only the main merge, one fmt
+fix, and the battery (touched crates green both lanes locally;
+multi-ε interval rows left to CI per the new process). Census
+{:?} bug fixed with a no-Debug-leakage regression test; shared
+COINCIDENCE_RECOURSE carrier with Indeterminate::payload() view
+against double-composition; both collapse candidates BANKED as
+spec required; deviations: none substantive (+1 out-of-scope
+tone-pass observation on SliverVertex/SliverSector, +1 internal
+doc note). **Blinded adversarial review DISPATCHED** (fresh
+clone m5-s6-review; charter: exactly-once recourse property
+probes across all ~20 arms, no-semantic-change proof, census
+leak fix, e2e triggers on three pairs; narrowed local-test scope
+per the new CI rule).
