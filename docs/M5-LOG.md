@@ -806,3 +806,12 @@ when #138 lands), the R1 permanent cone routing, M2 bit-identity
 obligation, no-wildcard discipline, the narrowed local-battery
 scope, and the self-match-proof poll pattern. Row 19 to
 MODEL-AB-LOG at next touch. #138 still gating.
+
+**#138 MERGED (2026-07-30): 21/21. Both block-7 side units are
+on main.** The two-tolerance message unification is live
+kernel-wide (ten pairs, one carrier, exactly-once pinned). PR 5
+implementer notified to merge main (carrier dependency
+satisfied). Side-unit queue: S1 (REST-contact) and S4
+(validator consolidation) remain; PR 6 spec (pcurve caches,
+opus) is the next orchestrator drafting work once PR 5's shape
+firms up. Row 17 final columns filled at next A/B touch.
