@@ -961,3 +961,18 @@ boolean seam (sibling of ops/reduce/mod, called from the ops
 door), so it joins the allowlist in ci.yml + ci-local.sh with a
 doc note at the bound site citing the ratified real.rs rule.
 Pushed; watcher re-armed.
+
+**PR 5 RE-REVIEW: APPROVE (2026-07-30, rubric 5/5/5 — up from
+5/4/4).** All three MAJORs verified closed adversarially; fresh
+attacks on the root-based lane held (seam-straddling bellies,
+steep tilts, 25ε slivers, grazes both sides); multi-period spans
+proven unreachable via the span≤τ gate; the seam-cut upgrade
+proven sound (the old refusal guarded a classification gap the
+departure lane closes, not a certification); whole_body_side
+honest again. **#141 OPENED** with the full REJECT→fix→APPROVE
+story. **#140 MERGED (21/21)** — S1 done; the crosslap frontier
+closed after living through three milestones. Post-#140 main
+merged into #141's branch (clean; topo lib 306/0 sanity row);
+watcher armed. A/B rows 19/20 filled; row-16 ordering slip
+fixed. Queue: PR 6 spec (opus, block-8 remainder) is next
+orchestrator drafting; S4 takes block-9's opus remainder after.
