@@ -100,7 +100,10 @@
 
 use core::fmt;
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Point2, Real, Sign, Tolerance,
+    Vec2,
+};
 
 use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
@@ -599,8 +602,7 @@ impl fmt::Display for ProfileError {
             Self::TangentialContact { first, second } => write!(
                 f,
                 "tangential contact between {first} and {second}: touching without \
-                 crossing is semantically indeterminate — separate the geometry or make \
-                 it cross cleanly (D4)"
+                 crossing is semantically indeterminate — {COINCIDENCE_RECOURSE} (D4)"
             ),
             Self::FilletDoesNotFit {
                 leg,
@@ -721,10 +723,10 @@ impl fmt::Display for ProfileError {
             ),
             Self::Escalated { site, source } => {
                 write!(f, "validation escalated {site}: {source}")?;
-                // The declare-or-move repair menu (#101 point 2): an
-                // in-band carrier-clearance margin between two profile
-                // segments is a *near-tangency* — the refusal names
-                // both exits.
+                // The near-tangency site note (#101 point 2, reworked by
+                // the S6 two-tolerance sweep): the recourse levers ride
+                // `{source}` (the shared carrier); this addendum adds
+                // only the site-specific mechanics of the declare lever.
                 let near_tangency = matches!(site, EscalationSite::SegmentPair(_, _))
                     && matches!(
                         source.predicate,
@@ -736,10 +738,8 @@ impl fmt::Display for ProfileError {
                     );
                 if near_tangency {
                     f.write_str(
-                        " — near-tangency: if tangency is intended, make it exact and \
-                         declare it (LoopBuilder::fillet computes and declares it; \
-                         declared tangency is verified); otherwise move the geometry \
-                         out of the band",
+                        " — near-tangency: LoopBuilder::fillet computes and declares \
+                         an exact tangency (declared tangency is verified)",
                     )?;
                 }
                 // The fillet constructor's riders (M5 S2): each in-band
@@ -1237,10 +1237,10 @@ fn judge_joints<T: Decide>(
                     second,
                     joint,
                     suggestion: format!(
-                        "declare it (add {joint} to loop {loop_index}'s tangent_joints — \
-                         LoopBuilder::declare_tangent, or author the arc with \
-                         LoopBuilder::fillet, which declares by construction) or move \
-                         the vertex off the tangency"
+                        "{COINCIDENCE_RECOURSE} (declare: add {joint} to loop \
+                         {loop_index}'s tangent_joints — LoopBuilder::declare_tangent — \
+                         or author the arc with LoopBuilder::fillet, which declares by \
+                         construction)"
                     ),
                 });
             }
