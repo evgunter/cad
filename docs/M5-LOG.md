@@ -657,3 +657,16 @@ explicit audit-the-diff-against-the-ten-pairs step before
 battery. Both prompts carry the full foreground/cwd/discipline
 headers. First real application of the rule; saves two ~400k
 context replays.
+
+**PROCESS CHANGE (Evan, 2026-07-30): local batteries stop
+duplicating CI.** The full-local-matrix discipline (a relic of
+the Actions-budget era) is retired: implementers now run only
+touched-crate tests (lanes as relevant), fmt, and touched-crate
+clippy; hosted CI on the PR is the gate and proves the full
+matrix. Persisted to memories/local-battery-scope.md; all future
+dispatch prompts carry the narrowed battery clause. Both in-
+flight finishers redirected mid-run (S6: four touched crates;
+S2: profile only) — this also resolves the 6-hour-battery
+pathology (cold interval targets × two concurrent workspace
+builds on 9G, compounded by S6's self-matching pgrep poll loops,
+killed by the orchestrator; poll pattern corrected to pgrep -x).
