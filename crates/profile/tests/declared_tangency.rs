@@ -294,9 +294,11 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
     {
         ProfileError::FilletDoesNotFit {
             leg,
+            carrier,
             setback,
             leg_length,
         } => {
+            assert_eq!(carrier, profile::FilletLegCarrier::Line);
             // Incoming→outgoing gate order: the shorter incoming leg
             // reports first; right angle + dyadic legs: exact values.
             assert_eq!(leg, profile::FilletLeg::Incoming);
@@ -316,9 +318,11 @@ fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
     {
         ProfileError::FilletDoesNotFit {
             leg,
+            carrier,
             setback,
             leg_length,
         } => {
+            assert_eq!(carrier, profile::FilletLegCarrier::Line);
             assert_eq!(leg, profile::FilletLeg::Outgoing);
             assert_eq!(setback, 2.5);
             assert_eq!(leg_length, 2.0);
