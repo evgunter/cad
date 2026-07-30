@@ -276,28 +276,23 @@ fn flush_pillar_rest_union_honest() {
 }
 
 /// Corner-flush rest: the pillar's bottom rests flush at A's top-face
-/// corner, its bottom edges partly collinear with A's top edges —
-/// PR 5.5 re-adjudication: still a typed refusal, for the DOCUMENTED
-/// boundary-on-boundary reason (the two seam segments lying ON A's
-/// top-face edges have no facing chord partner — the on-edge germs
-/// need seam-runs along existing edges, not chords; `UnpairedLooseEnds
-/// { count: 4 }`, deterministic, operands untouched). The honesty form
-/// stays: if it ever succeeds it must be exact.
+/// corner, its bottom edges partly collinear with A's top edges. The
+/// PR 5.5 re-adjudication pinned this a typed boundary-on-boundary
+/// refusal (`UnpairedLooseEnds { count: 4 }`); its own honesty form
+/// ("if it ever succeeds it must be exact") is now the pin: M5 S1's
+/// declared-REST zip glues the mate with the exact volume.
 #[test]
 fn corner_flush_pillar_union_honest() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
     match union_with(&a, &b, &flush_declarations(&a, &b)) {
-        Err(_) => {
-            let e = assert_typed_refusal(union_with, &a, &b);
-            assert!(e.contains("UnpairedLooseEnds"), "got {e}");
-        }
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
             let m = mass_properties(&body.body).unwrap();
             assert_eq!(m.volume, 8.25, "corner-flush union volume");
         }
         Ok(BooleanResult::Empty) => panic!("cannot be empty"),
+        Err(e) => panic!("M5 S1 glues the declared corner-flush rest: {e:?}"),
     }
 }
 
