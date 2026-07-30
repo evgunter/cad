@@ -121,7 +121,7 @@ fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>), SplitReduceError> {
+) -> Result<(VertexKey, Vec3<T>, bool), SplitReduceError> {
     let corrupt = || SplitReduceError::CorruptOperand { vertex };
     let final_vertex = body.half_edge_end(he).ok_or_else(corrupt)?;
     let p_base = *body
@@ -138,7 +138,7 @@ fn chord<T: Decide>(
         .ok_or_else(corrupt)?;
     match curve.carrier() {
         geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
-            Ok((final_vertex, p_final - p_base))
+            Ok((final_vertex, p_final - p_base, false))
         }
         geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
@@ -149,7 +149,7 @@ fn chord<T: Decide>(
             };
             let chord_len = p_final.distance(p_base);
             let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
-            Ok((final_vertex, tangent.normalize() * extent))
+            Ok((final_vertex, tangent.normalize() * extent, true))
         }
     }
 }
@@ -181,8 +181,35 @@ pub fn classify_neighborhood<T: Decide>(
 
     let mut entries = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
-        let (final_vertex, dir_a) = chord(body, vertex, he)?;
-        let class = *sides.get(final_vertex).ok_or_else(corrupt)?;
+        let (final_vertex, dir_a, conic) = chord(body, vertex, he)?;
+        // Entry class — "which side does this edge lead to":
+        // - LINE edges: the far vertex's cached verdict, bit-identical
+        //   to M3 (a straight edge's interior is the chord).
+        // - CONIC edges (M1 fix, M5 PR 5 review): the OUTGOING TANGENT
+        //   side through the named trilean `split_conic_departure`
+        //   (margin `t̂·n̂` metered at the edge's honest extent — dir_a
+        //   is exactly t̂·extent). The far vertex misleads on conics:
+        //   a belly arc between ON vertices departs into its own side
+        //   while both endpoints read On. Post-root-insertion the
+        //   interior is sign-constant (every interior crossing was
+        //   split out), so the departure IS the interior side; a Zero
+        //   margin (in-plane departure — an in-plane arc or a graze
+        //   contact) classifies On for rule (b)'s adjudication;
+        //   in-band escalates typed.
+        let class = if conic {
+            let margin = dir_a.dot(plane.normal);
+            match decide("split_conic_departure", margin, band) {
+                Ok(Sign::Negative) => PlaneSide::Below,
+                Ok(Sign::Positive) => PlaneSide::Above,
+                Ok(Sign::Zero) => PlaneSide::On,
+                Err(diag) => {
+                    let (face, _, _) = sector_face(body, vertex, he)?;
+                    return Err(SplitReduceError::SliverSector { vertex, face, diag });
+                }
+            }
+        } else {
+            *sides.get(final_vertex).ok_or_else(corrupt)?
+        };
         entries.push(SectorEntry {
             he,
             kind: SectorEntryKind::Edge,
@@ -193,7 +220,7 @@ pub fn classify_neighborhood<T: Decide>(
         // next orbit edge): margin (b̂ × â)·n · arm = sin(interior
         // angle) metered at the shorter bounding chord.
         let next_he = orbit[(i + 1) % orbit.len()];
-        let (_, dir_b) = chord(body, vertex, next_he)?;
+        let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let arm = dir_a.norm().min(dir_b.norm());

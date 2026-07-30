@@ -460,14 +460,18 @@ pub(crate) struct SectionCtx<T: Real> {
 ///    to the ruling chord, `TangentLine` refuses typed (C7),
 ///    escalations pass through whole.
 /// 2. Select WHICH arc of the section conic lies in `face` by the
-///    azimuth-sample rule: any conic boundary edge of `sample_loop`
-///    (rim arcs, prior section chords) has its parameter-midpoint
-///    azimuth strictly inside the face's azimuth interval, and an
-///    increasing circle map preserves cyclic order — so the named
-///    trilean `split_conic_arc_side` (margin the azimuth headroom
-///    `(Δ_arc − Δ_sample)` metered at the minor semi-axis) decides
-///    ccw-vs-cw; the cw arc takes the axis-flipped frame so the
-///    carrier still runs forward `u1 → u2`.
+///    RUN-sample rule (M1 fix pass): the caller samples a conic edge
+///    of the RUN between the two null halves being joined (the real
+///    boundary the chord co-bounds a face with) — its
+///    parameter-midpoint azimuth lies strictly inside the azimuth
+///    interval the chord must span, and an increasing circle map
+///    preserves cyclic order — so the named trilean
+///    `split_conic_arc_side` (margin the azimuth headroom
+///    `(Δ_arc − Δ_sample)` metered at the minor semi-axis, guarded by
+///    a definitely-positive `Δ_sample` — a sample AT the start
+///    azimuth cannot select a side) decides ccw-vs-cw; the cw arc
+///    takes the axis-flipped frame so the carrier still runs forward
+///    `u1 → u2`.
 /// 3. Describe as `Intersection { wall, aux plane, witness }` with the
 ///    witness minted at the carrier's mid-parameter (the witness
 ///    contract) — certification then pins endpoints, residuals, and
@@ -478,7 +482,7 @@ fn chord_spec<T: Decide>(
     band: Band,
     ctx: Option<&mut SectionCtx<T>>,
     face: FaceKey,
-    sample_loop: LoopKey,
+    sample: Option<Point3<T>>,
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
@@ -582,33 +586,13 @@ fn chord_spec<T: Decide>(
     };
     let th1 = theta_of(p1);
     let th2 = theta_of(p2);
-    // The azimuth sample: the first conic boundary edge of the loop
-    // being divided (a cylinder face's closed loop always carries one;
-    // rulings alone cannot close on a cylinder).
-    let LoopBoundary::Cycle { first } = body.get_loop(sample_loop).ok_or_else(corrupt)?.boundary
-    else {
-        return Err(corrupt());
-    };
-    let mut sample = None;
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-        let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
-        let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
-            continue; // null scaffolding carries no locus
-        };
-        match curve.carrier() {
-            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
-                let (t0, t1) = curve.params();
-                sample = Some(curve.carrier().eval((t0 + t1) * T::from_f64(0.5)));
-                break;
-            }
-            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {}
-        }
-    }
+    // The azimuth sample: computed by the caller from the RUN the
+    // chord co-bounds (a cylinder-face run carrying no conic edge has
+    // no azimuth witness — refused typed, never guessed).
     let Some(sample) = sample else {
         return Err(SplitJoinError::SectionInvariant {
             face,
-            what: "no conic boundary sample on a cylinder face loop",
+            what: "no conic edge in the joined run to witness the arc side",
         });
     };
     // Azimuths in the cylinder cross-section frame (m̂ = the major
@@ -626,6 +610,32 @@ fn chord_spec<T: Decide>(
     let tau = T::tau();
     let d_arc = (az(p2) - az(p1)).reduce_periodic(tau);
     let d_sample = (az(sample) - az(p1)).reduce_periodic(tau);
+    // Guard (review m1): a sample AT p1's azimuth (Δ_sample ≈ 0 or τ)
+    // cannot discriminate the sides — a wrong choice is not
+    // downstream-catchable (both arcs lie on both surfaces), so it
+    // refuses typed here, never guesses.
+    match decide("split_conic_arc_side", d_sample * sb, band)
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "arc-side sample coincides with the chord's start azimuth",
+            });
+        }
+    }
+    match decide("split_conic_arc_side", (tau - d_sample) * sb, band)
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "arc-side sample coincides with the chord's start azimuth",
+            });
+        }
+    }
     let side = decide("split_conic_arc_side", (d_arc - d_sample) * sb, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let (carrier, t_start, t_end) = match side {
@@ -736,6 +746,95 @@ impl<T: Decide> Sweep<T> {
     }
 }
 
+/// Whether the (real) edge under `he` lies IN the split plane over its
+/// whole span — the adjacency-skip guard's question (M1 fix pass):
+/// `None` = escalated. Lines and null scaffolding answer `true` with
+/// NO predicate evaluation (the M3 path, bit-identical: a line whose
+/// join-adjacent role puts it between two ON copies is the in-plane
+/// section edge); conics ask the named trilean
+/// `split_conic_inplane_mid` — margin the mid-parameter plane distance
+/// (meters). With both endpoints ON and the interior sign-constant
+/// (root insertion split every interior crossing out), a Zero midpoint
+/// pins the whole arc in-plane; a definite midpoint is a belly arc —
+/// the skipped chord MUST be minted or the section face inherits an
+/// off-plane boundary edge.
+fn between_edge_in_plane<T: Decide>(
+    body: &Body<T>,
+    section: Option<&SectionCtx<T>>,
+    he: HalfEdgeKey,
+    band: Band,
+) -> Result<Option<bool>, SplitJoinError> {
+    let corrupt = || SplitJoinError::Corrupt;
+    let edge = body
+        .get_edge(body.get_half_edge(he).ok_or_else(corrupt)?.edge)
+        .ok_or_else(corrupt)?;
+    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+        return Ok(Some(true)); // null scaffolding: zero-length, ON
+    };
+    match curve.carrier() {
+        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(Some(true)),
+        geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+            // Conic between-edges exist only in the split lane (the
+            // boolean lane's operands are gated all-planar).
+            let ctx = section.ok_or_else(corrupt)?;
+            let (t0, t1) = curve.params();
+            let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
+            let margin = (mid - ctx.plane.origin).dot(ctx.plane.normal);
+            match decide("split_conic_inplane_mid", margin, band) {
+                Ok(Sign::Zero) => Ok(Some(true)),
+                Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
+                Err(_) => Ok(None),
+            }
+        }
+    }
+}
+
+/// The arc-side azimuth sample for a section chord: the first conic
+/// real edge's mid-parameter point among `halves` (the RUN the chord
+/// co-bounds — see `chord_spec`'s selection note). `None` when the run
+/// carries no conic edge (planar-face chords never consume it).
+fn run_conic_sample<T: Decide>(
+    body: &Body<T>,
+    halves: &[HalfEdgeKey],
+) -> Result<Option<Point3<T>>, SplitJoinError> {
+    let corrupt = || SplitJoinError::Corrupt;
+    for &he in halves {
+        let edge = body
+            .get_edge(body.get_half_edge(he).ok_or_else(corrupt)?.edge)
+            .ok_or_else(corrupt)?;
+        let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+            continue;
+        };
+        match curve.carrier() {
+            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+                let (t0, t1) = curve.params();
+                return Ok(Some(curve.carrier().eval((t0 + t1) * T::from_f64(0.5))));
+            }
+            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {}
+        }
+    }
+    Ok(None)
+}
+
+/// The halves of the loop cycle strictly between `from` (exclusive)
+/// and `to` (exclusive), walking `next`.
+fn run_between<T: Decide>(
+    body: &Body<T>,
+    from: HalfEdgeKey,
+    to: HalfEdgeKey,
+) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
+    let corrupt = || SplitJoinError::Corrupt;
+    let cycle = body.loop_cycle(from).ok_or_else(corrupt)?;
+    let mut out = Vec::new();
+    for he in cycle.into_iter().skip(1) {
+        if he == to {
+            return Ok(out);
+        }
+        out.push(he);
+    }
+    Err(corrupt())
+}
+
 impl ChordJoiner {
     /// `join` (module docs): connect the old loose end `h1` and the
     /// new half `h2` with up to two chord edges; the minted chord
@@ -764,8 +863,40 @@ impl ChordJoiner {
 
         let mut chords = Vec::new();
         let mut newf = None;
+        // The RUN the section chords co-bound (real halves between h1
+        // and h2 in next order) and its conic azimuth sample (the
+        // M1-fix arc-side witness — see `chord_spec`).
+        let run_sample: Option<Point3<T>> = if l1 == l2 {
+            run_conic_sample(body, &run_between(body, h1, h2)?)?
+        } else {
+            None
+        };
+        // Adjacency of the two null halves on the prev side of h1
+        // (h2 → between → h1) — consulted by both chord guards' sample
+        // routing below.
+        let prev_adjacent = l1 == l2 && prev(body, prev(body, h1)?)? == h2;
         if l1 == l2 {
-            if prev(body, prev(body, h1)?)? != h2 {
+            // Adjacency skip (M3): when exactly one edge sits between
+            // h2 and h1 AND it lies in the plane, that edge IS the
+            // section segment — no chord needed. A belly conic between
+            // them (M1 fix) is NOT a section segment: the chord must
+            // be minted or the section face inherits an off-plane
+            // boundary; an escalated in-plane verdict refuses typed.
+            let adjacent = prev_adjacent;
+            let skip_first = if adjacent {
+                match between_edge_in_plane(body, section.as_deref(), prev(body, h1)?, self.band)? {
+                    Some(in_plane) => in_plane,
+                    None => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face: oldf,
+                            what: "in-plane classification of the join-adjacent edge escalated",
+                        });
+                    }
+                }
+            } else {
+                false
+            };
+            if !skip_first {
                 // `outside` is the first half past the run; after the
                 // mef its parent loop is the split's REMAINDER — the
                 // loop ring re-homing must skip (a ring-lane remainder
@@ -779,12 +910,17 @@ impl ChordJoiner {
                     he1: h1,
                     he2: outside,
                 };
+                // In BOTH configurations the first chord co-bounds
+                // the run [h1 .. h2] (in the prev-adjacent belly mint
+                // the mef run walks the long way to the between edge,
+                // which is exactly cycle[h1..h2]) — one sample.
+                let sample = run_sample;
                 let spec = chord_spec(
                     body,
                     self.band,
                     section.as_deref_mut(),
                     oldf,
-                    l1,
+                    sample,
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
@@ -808,12 +944,17 @@ impl ChordJoiner {
                 (h1, next(body, h2)?)
             };
             let site = MekrSite::Cycles { target, ring };
+            // Cross-loop joins have no single co-bounded run; sample
+            // from the target's whole cycle (unreached by any curved
+            // fixture in this PR — typed doors downstream).
+            let target_cycle = body.loop_cycle(target).ok_or_else(corrupt)?;
+            let sample = run_conic_sample(body, &target_cycle)?;
             let spec = chord_spec(
                 body,
                 self.band,
                 section.as_deref_mut(),
                 oldf,
-                l1,
+                sample,
                 start_of(body, target)?,
                 start_of(body, ring)?,
             )?;
@@ -824,8 +965,24 @@ impl ChordJoiner {
             chords.push(made.edge);
         }
         // Second-chord guard: when the two halves are already adjacent
-        // the second mef is skipped (the chord already exists).
-        if next(body, next(body, h1)?)? != h2 {
+        // AND the between edge is in-plane, the chord already exists
+        // (M3); a belly conic between them still needs its chord (M1
+        // fix — same rule as the first guard).
+        let adjacent2 = next(body, next(body, h1)?)? == h2;
+        let skip_second = if adjacent2 {
+            match between_edge_in_plane(body, section.as_deref(), next(body, h1)?, self.band)? {
+                Some(in_plane) => in_plane,
+                None => {
+                    return Err(SplitJoinError::SectionInvariant {
+                        face: oldf,
+                        what: "in-plane classification of the join-adjacent edge escalated",
+                    });
+                }
+            }
+        } else {
+            false
+        };
+        if !skip_second {
             // The second chord divides the face `h2` sits on NOW —
             // after a first mef that is not necessarily `oldf` (`h2`
             // may have landed in the new face). Capture the owner at
@@ -839,12 +996,23 @@ impl ChordJoiner {
                 he1: h2,
                 he2: next(body, h1)?,
             };
+            // The second chord co-bounds [h2, between, h1] in either
+            // adjacent configuration (its mef run walks h2 → between →
+            // h1), so the between edge is its sample there; otherwise
+            // it spans the same interval as the first chord.
+            let sample = if adjacent2 {
+                run_conic_sample(body, &[next(body, h1)?])?
+            } else if prev_adjacent {
+                run_conic_sample(body, &[prev(body, h1)?])?
+            } else {
+                run_sample
+            };
             let spec = chord_spec(
                 body,
                 self.band,
                 section,
                 owner,
-                l2_now,
+                sample,
                 start_of(body, h2)?,
                 start_of(body, next(body, h1)?)?,
             )?;
