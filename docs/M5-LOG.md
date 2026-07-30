@@ -1015,3 +1015,19 @@ ev/m5-state-sync (merged #139) deleted. Remote is now just main
 + ev/m5-state + live work branches as they open. Interval-lane
 ruling recorded: the feature flag stays (build-cost boundary,
 not quarantine); S7 handles the cache-key question.
+
+**S7 implementation COMPLETE (2026-07-30, 2 work commits).** Key
+finding: DEFAULT_EPS = 1e-9 (tolerance.rs:49) — the retired rows
+were RE-RUNS of the unparameterized rows; no coverage lost.
+Hosted rows 21 → 18. Cache key verified CORRECT against
+rust-cache source (add-job-id-key defaults true; no shared-key
+anywhere; interval job doubly keyed) — the interval lane's cost
+is genuine compile, and the freed 1e-9 runners shorten its queue
+wait at zero cost; optional split declined (10G LRU budget
+competition, cold first run — didn't clear cheap-and-safe). Four
+honest deviations (grep-binding manifests prose-only; LGPL
+workspace-exclusion note kept; k-lint/k-probe 3ε inputs are
+baseline-matched telemetry, deliberately untouched).
+**Lightweight review dispatched** per spec §5. Note: my merge
+watchers are tier-aware (no-fail+no-pending), so the 21→18 row
+change needs no watcher edits.
