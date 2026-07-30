@@ -834,3 +834,23 @@ per the wire's embedded instructions + demos/tour crosslap
 upgrade + tier3prime revisit, exact dyadic volume additivity,
 purely-structural-or-trios requirement. Two lanes now: PR 5 +
 S1. Row 19/20 to MODEL-AB-LOG at next touch.
+
+**PR 5 implementation COMPLETE (2026-07-30, e7a2ec8, 8 commits;
+survived one transient 529 with an immediate resume).** The C5
+table EXISTS: 36 arms, zero wildcards, trileans-before-rungs,
+rung-3 arms refuse naming the routing; splitting executes
+Plane+Cylinder; boolean gate stays plane×plane until PR 9. Shape
+(i) green e2e: disc cut by tilted plane → exact Ellipse arcs
+both parts, bit-identical replay, corpus doc cut_cylinder in
+Band 4. 14 new predicates (named lever arms) via k_stats.
+Declared-only radius equality PINNED (bit-equal w/o declaration
+→ rung 3). M2 bit-identity pinned across the m3/m4/m5 suites
+both lanes. 8 reported deviations (notably: no persisted Curve3
+in schema v1 → D6.1 rows instead; tilted-cut volume refuses
+typed to PR 11; near-circular double gate documented).
+**Adversarial review DISPATCHED** (fresh clone m5-pr5-review;
+charter: hand re-derivation + fuzz of both closed forms, table
+exhaustiveness attack, 6-predicate trio sample incl. the
+declared-equality door, independent M2 bit-identity, thin-ellipse
+winding attack, deviation re-verification esp. 1/2/8). S1 lane
+still implementing (last activity minutes ago).
