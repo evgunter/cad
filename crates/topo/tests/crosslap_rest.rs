@@ -26,8 +26,8 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use topo::{
-    BooleanError, BooleanResult, mass_properties, subtract, union, union_with,
-    validate_geometric, validate_pseudomanifold,
+    BooleanError, BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
+    validate_pseudomanifold,
 };
 
 const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;

@@ -329,18 +329,38 @@ fn interior_column_union_works() {
     assert_props(&body.body, 15.03125, 39.0);
 }
 
-/// The one still-refusing lane is DETERMINISTIC and operand-
-/// preserving: boundary-on-boundary seams (the full-overlap stack —
-/// the seam runs entirely along existing operand edges, so the
-/// on-edge germs have no facing chord partner). Through-pillar,
-/// inset-leg and the Fig 15.1 coplanar overlap FLIPPED to exact
-/// successes under PR 5.5 (asserted in their own tests).
+/// The full-overlap stack, both doors (this pin's third life):
+/// PR 5.5 pinned the boundary-on-boundary DECLARED refusal
+/// (`UnpairedLooseEnds`); M5 S1's declared-REST zip flipped it to an
+/// exact success — the union is one brick, contact faces gone. The
+/// still-refusing door is the UNDECLARED one (the coincidence
+/// ladder), pinned deterministic and operand-preserving, exactly as
+/// the refusal contract demands.
 #[test]
 fn pinned_refusals_deterministic() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    let e = assert_typed_refusal(union_with, &a, &b);
-    assert!(e.contains("UnpairedLooseEnds"), "got {e}");
+    // Undeclared: typed, deterministic, operands untouched.
+    let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
+    let e1 = topo::union(&a, &b).map(|_| ()).unwrap_err();
+    let e2 = topo::union(&a, &b).map(|_| ()).unwrap_err();
+    assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
+    assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
+    assert_eq!(
+        format!("{e1:?}"),
+        format!("{e2:?}"),
+        "refusal deterministic"
+    );
+    assert!(
+        format!("{e1:?}").contains("UndeclaredCoincidence"),
+        "got {e1:?}"
+    );
+    // Declared: the M5 S1 REST zip glues the stack — exact volume and
+    // area of the (0..2)²×(0..4) brick.
+    let r = run(union_with, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_props(&body.body, 16.0, 40.0);
 }
 
 /// NEW NAMED ACCEPTANCE (PR 5.5): the Fig 15.1 coplanar-overlap ∩ —

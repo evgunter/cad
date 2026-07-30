@@ -184,10 +184,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments
-            .iter()
-            .map(|s| (s.a_u, s.a_v))
-            .collect::<Vec<_>>(),
+        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
     )?;
@@ -196,10 +193,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments
-            .iter()
-            .map(|s| (s.b_u, s.b_v))
-            .collect::<Vec<_>>(),
+        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
     )?;
@@ -444,6 +438,10 @@ fn enumerate_segments<T: Decide>(
 // 2. The lane door.
 // ---------------------------------------------------------------
 
+/// The per-operand verified REST-contact (opposite-oriented declared)
+/// surface sets.
+type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>);
+
 /// Verifies every declared face pair through the declared rung and
 /// returns the opposite-oriented (REST-contact) surface sets per
 /// operand. A definitely-distinct declared pair is the typed
@@ -454,7 +452,7 @@ fn verify_declared_pairs<T: Decide>(
     b: &Body<T>,
     decls: &BooleanDeclarations,
     band: Band,
-) -> Result<(SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>), BooleanError> {
+) -> Result<RestSurfaces, BooleanError> {
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     for &(fa, fb) in &decls.coincident_faces {
@@ -660,10 +658,7 @@ fn mint_chord<T: Decide>(
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
                 let created = body
-                    .mef_chord(MefSite::Chords {
-                        he1: *hu,
-                        he2: *hv,
-                    })
+                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv })
                     .map_err(|_| unsupported("seam chord mef refused on its host face"))?;
                 fragments.push((created.face, face));
                 created.edge
@@ -694,9 +689,7 @@ fn mint_chord<T: Decide>(
                 .edge
         }
         ([], []) => {
-            return Err(unsupported(
-                "seam chord between two isolated pierce points",
-            ));
+            return Err(unsupported("seam chord between two isolated pierce points"));
         }
         _ => {
             return Err(unsupported(
@@ -1138,15 +1131,18 @@ fn slit_zip<T: Decide>(
             .get_edge(first_run_edge)
             .ok_or_else(|| desync("REST lane: run edge no longer resolves"))?
             .clone();
-        if ed.he_plus == run[0] { ed.he_minus } else { ed.he_plus }
+        if ed.he_plus == run[0] {
+            ed.he_minus
+        } else {
+            ed.he_plus
+        }
     };
     body.kef(fb_half)
         .map_err(|_| desync("REST lane: run kef refused"))?;
-    for t in 1..k {
+    for &he in run.iter().skip(1) {
         // The shared vertex with the previous (now dead) run edge is
         // this half's START (run halves run start→end along fa's
         // cycle; the previous edge ended where this one starts).
-        let he = run[t];
         let hd = body
             .get_half_edge(he)
             .ok_or_else(|| desync("REST lane: run half no longer resolves"))?;
@@ -1205,11 +1201,9 @@ fn slit_zip<T: Decide>(
             } else {
                 return Err(corr("slit-zip final pair is not one copy per side"));
             };
-            report.seam_edges.push(if b_edges.contains_key(e0) {
-                e1
-            } else {
-                e0
-            });
+            report
+                .seam_edges
+                .push(if b_edges.contains_key(e0) { e1 } else { e0 });
             body.kef(b_half)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
@@ -1236,9 +1230,7 @@ fn slit_zip<T: Decide>(
             .half_edge_end(hb)
             .ok_or_else(|| desync("REST lane: fold half has no end"))?;
         if sa == eb {
-            return Err(unsupported(
-                "pre-fused vertex pair inside a slit-zip fold",
-            ));
+            return Err(unsupported("pre-fused vertex pair inside a slit-zip fold"));
         }
         if vmap.get(sa).copied() != Some(eb) {
             return Err(corr("slit-zip vertex pair off the seam correspondence"));

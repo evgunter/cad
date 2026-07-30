@@ -208,7 +208,10 @@ fn flush_rests_scenario<T: Decide + geom_core::Bounds>() {
             && glued.contacts.b_on_a.is_empty(),
         "corner-flush REST records are consumed into seam structure"
     );
-    assert_eq!(validate_pseudomanifold(&glued.body, &glued.contacts), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&glued.body, &glued.contacts),
+        Ok(())
+    );
     assert_eq!(validate_geometric(&glued.body), Ok(()));
     let sub = run_body(subtract_with as BoolOp<T>, &slab, &corner);
     assert_eq!(validate_pseudomanifold(&sub.body, &sub.contacts), Ok(()));

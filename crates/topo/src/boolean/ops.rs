@@ -367,31 +367,29 @@ pub fn boolean_op_with<T: Decide + Bounds>(
         return fallback(op, &red, a, b, decls, band);
     }
 
-    // The declared-REST union door (M5 S1): a declared âª whose join
-    // refuses typed may be the boundary-on-boundary REST frontier â
-    // the lane re-examines the UNMUTATED reduction and either zips the
-    // mate or reproduces the original refusal verbatim. The clones are
-    // taken only when the door can open (declared âª), so undeclared
-    // and non-union ops pay nothing.
+    // The declared-REST union door (M5 S1): a declared union whose
+    // join refuses typed may be the boundary-on-boundary REST
+    // frontier — the lane re-examines the UNMUTATED reduction and
+    // either zips the mate or reproduces the original refusal
+    // verbatim. The clones are taken only when the door can open
+    // (declared union), so undeclared and non-union ops pay nothing.
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     let connected = match bool_connect(&mut red, a, b, band) {
         Ok(c) => c,
-        Err(err @ (BooleanError::Join(_) | BooleanError::JoinDesync { .. }))
-            if saved.is_some() =>
-        {
-            let Some((sa, sb)) = saved else {
-                unreachable!("guarded by saved.is_some()");
-            };
-            red.a = sa;
-            red.b = sb;
-            return match super::rest::try_rest_union(red, a, b, decls, band)? {
-                Some(result) => Ok(result),
-                // Not the REST frontier: the original join refusal
-                // stands, verbatim.
-                None => Err(err),
-            };
-        }
+        Err(err @ (BooleanError::Join(_) | BooleanError::JoinDesync { .. })) => match saved {
+            Some((sa, sb)) => {
+                red.a = sa;
+                red.b = sb;
+                return match super::rest::try_rest_union(red, a, b, decls, band)? {
+                    Some(result) => Ok(result),
+                    // Not the REST frontier: the original join
+                    // refusal stands, verbatim.
+                    None => Err(err),
+                };
+            }
+            None => return Err(err),
+        },
         Err(e) => return Err(e),
     };
     if connected.completed.is_empty() {
@@ -474,7 +472,9 @@ pub(super) fn graft_rows(g: &GraftMap) -> GraftRows {
 }
 
 /// The merge outcome as naming rows.
-pub(super) fn merge_rows(m: &crate::merge_faces::MergeCoplanarOutcome) -> Vec<(FaceKey, Vec<FaceKey>)> {
+pub(super) fn merge_rows(
+    m: &crate::merge_faces::MergeCoplanarOutcome,
+) -> Vec<(FaceKey, Vec<FaceKey>)> {
     m.groups
         .iter()
         .map(|g| (g.kept, g.absorbed.clone()))
