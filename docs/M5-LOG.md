@@ -709,3 +709,24 @@ charter: hand re-derivation + fuzz of the signed-radius
 construction, bulge vs atan2 differential, verdict-sequence
 invariance, escalation parity, straight-leg unreachability of
 the ambiguity). Both reviews now run in parallel.
+
+**S6 review returned (2026-07-30): APPROVE-WITH-FIX-PASS — 1
+MAJ / 2 MIN / 3 NOTE, rubric 4/4/5.** MAJOR-1 is the good catch
+of the unit: the boolean pair's exactly-on arm embeds plane_eq's
+synthesized MarginDiag::Invalid verbatim, so a clean undeclared
+flush stack renders "margin is invalid (NaN or a poisoned
+enclosure)" — actively false. MINOR-1: Invalid-margin escalated
+arms carry ZERO recourse (Indeterminate's Invalid Display omits
+the carrier; bool Escalated dropped its old lever) — the
+exactly-once property holds only for Value/Enclosure margins.
+MINOR-2: two definite arms (VertexCrossesAxis at any magnitude,
+SplitParamNotInterior) carry band-recourse that is nonsense far
+from the band. F1 no-semantic-change PROVEN (full diff read: only
+Display/view/re-export/tests). Four pairs triggered e2e. **Fix
+pass DISPATCHED to the S6 finisher** (fable inherited; resume
+justified — fresh context): render the honest definite statement
+at the Invalid exactly-on arm (decision machinery untouched),
+carry the carrier through Indeterminate's Invalid arm, rephrase
+the two far-honest sites without value forking, adopt the three
+reviewer probes + count==1 tightening. NOTE-1 (collapse
+candidates in the PR description) is the orchestrator's.
