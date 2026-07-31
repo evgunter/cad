@@ -525,10 +525,16 @@ pub enum ValidationError {
     },
     /// Tier 3′: the census met an entity outside its exact planar
     /// inventory (non-`Line` carrier / non-`Plane` surface). The
-    /// coincidence census is exact on the F5 planar corpus — the same
-    /// boundary the M3 booleans that produce 3′ bodies enforce; curved
-    /// census geometry is deferred with the curved boolean work (M5),
-    /// and meeting it here refuses loudly rather than sampling.
+    /// census stays **exact-on-planar through M5** (C12.4, OQ5 as
+    /// decided): the curved coincidence census — coincident-cylinder
+    /// classes, tangency contacts as declared records (C7's regime) —
+    /// is a coincidence-ladder design of its own, deferred to its own
+    /// design doc. Consequence, stated honestly: M5's curved booleans
+    /// produce tier-3 transverse, NON-touching results; a curved
+    /// boolean result that TOUCHES refuses typed at this 3′ gate —
+    /// the M5 envelope's frontier, exactly as boundary-on-boundary
+    /// seams were M3's. Meeting curved geometry here refuses loudly
+    /// rather than sampling.
     CensusUnsupported {
         /// The unsupported entity.
         entity: EntityId,
@@ -1030,7 +1036,13 @@ impl fmt::Display for ValidationError {
             Self::CensusUnsupported { entity } => write!(
                 f,
                 "tier-3′ census: {entity} is outside the exact planar census \
-                 inventory (F5 planar corpus; curved census is M5)"
+                 inventory — the census stays exact-on-planar through M5 (C12.4; \
+                 OQ5: the curved coincidence census is its own deferred design). \
+                 M5 curved booleans produce tier-3 transverse, non-touching \
+                 results; a touching curved result refuses HERE by design (the \
+                 C7 tangency/coincidence classes have no census records yet) — \
+                 separate the operands or declare the contact once the curved \
+                 census lands"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -1735,8 +1747,7 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
             for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                 let t = curve.sample_param(i);
                 let p = curve.carrier().eval(t);
-                let jet =
-                    geom_brep::tangent_jet(s_plus, s_minus, p, curve.carrier().deriv(t));
+                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, curve.carrier().deriv(t));
                 let arm = geom_brep::curvature_lever_arm(s_plus, p)
                     .min(geom_brep::curvature_lever_arm(s_minus, p))
                     .min(extent);
