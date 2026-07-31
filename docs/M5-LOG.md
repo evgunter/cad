@@ -1208,3 +1208,16 @@ fillet selection live; AmbiguousFilletBranch retired; PATHS §2
 amended; the equivariance principle recorded. Fourteen PRs
 merged this milestone. In flight: PR 6 fix pass only (active,
 last activity seconds ago). A/B rows 21-24 owed to the table.
+
+**PR 6 fix pass COMPLETE (7feb37d), PR OPENED as #144
+(2026-07-31).** Snap-slack fix shipped (r·(|pa.x|+|pb.x|+
+|pl.x−β|·reach) added to the envelope; provably ZERO on every
+minted cache — pinned; reviewer probes adopted with an
+O(ε)-tightness bound so the slack can't blanket-pad); trim-
+window doc states what IS certified; max_residual split from
+the envelope accumulator; stale-row posture documented
+module-level; seam probes adopted; belly merge-base probe = a
+history note (unreachable at HEAD by design). Writeup features
+the chord_spec finding prominently. Watcher armed. Next
+orchestrator drafting: the chord_spec repair spec (azimuth-
+window containment) + PR 7 (SSI).
