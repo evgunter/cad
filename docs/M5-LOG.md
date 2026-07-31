@@ -1137,3 +1137,24 @@ azimuth than the chord). Branch posture: refuse typed
 window containment — the same statement PR 6 certifies) needs
 its own unit. **Review DISPATCHED** (fresh clone m5-pr6-review;
 F7 requires independent merge-base verification of the defect).
+
+**S8 implementation COMPLETE (6f5b1c0, pushed).** The ladder
+shipped as a plain selection on the f64 diagnostic channel
+(enclosure .lo() at interval, the FilletLegDegenerate
+precedent). The monotone-combination question got a PROOF:
+non-enclosing two-survivor candidates are mirror-symmetric about
+the offset-centers line with same-side radial-projection tangent
+points ⇒ componentwise dominance ⇒ sum/max/every monotone
+combination agree; crossed setbacks would need enclosing
+tangencies, and 27M trials (incl. targeted searches) found ZERO
+enclosing two-survivor corners — observed-structural to the
+non-enclosing lens class. AmbiguousFilletBranch retired
+(no ripple beyond profile); vesica flipped to near-pick (exact
+tangency); far-author row yields exactly the old far circle;
+PATHS §2 amended dated (divergence 2 resolved, cusp split open).
+3 honest deviations (stale spec §3/§4 text noted; rungs 2-3
+unit-level with the dominance argument; equivariance memory
+imported to the branch). **Review DISPATCHED** — charter: hand
+re-derivation of the dominance proof, smarter-than-uniform
+enclosing search (construct-from-circles), cross-lane pick
+agreement, retirement grep.
