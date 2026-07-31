@@ -1530,3 +1530,29 @@ logged pre-assignment: PR 9 = L, PR 7b = M.** Arms: PR 9 = FABLE
 draw (byte 172, coin 1) = (fable, opus) → PR 7b = FABLE (slot 1),
 OPUS remainder owed to the next unit (PR 10 or S4). Two cargo
 lanes = at cap; reviews stagger behind implementations.
+
+**PR 7b implementation COMPLETE (2026-07-31, 7be02c7, pushed) —
+the EXIT GATE is MET: shape (iii) substrate row GREEN** at
+1e-6/1e-9/1e-12 + Interval, all three limbs, bit-replay.
+Composite bound within 1.009 of dense-scan truth on the measured
+fixture — 6.5 orders tighter than the first-order enclosure it
+replaces. ssi_hull_sup_chart kept its K name; zero new funnel
+entries; plane×NURBS arm RETIRED with its proof (C12.1). One stall
+en route: lane idle 67 min post-headline; the foreground nudge
+revived it (waiter-parking pattern held off by the verbatim
+clause + hourly sweep working as designed). THREE numbered
+deviations, notably (2): the substrate row certifies on a
+curvature-monotone wall; PR 7's inflected wall gets an HONEST
+band-forked verdict instead (the tight bound exposed a real
+march/fit deviation ~3.8e-9 m at the curvature-zero crossing —
+h_fit ∝ (ε/κ³)^¼ unbinds there; marcher pricing fix banked in
+ssi.rs module docs, out of scope per spec §6). Also (1) aligned
+fallback ABSORBED (merged break list serves the unaligned case
+exactly). FitSampleBudget mechanism unchanged (march-side).
+**Review DISPATCHED** (charter: independent tensor-decomposition
+algebra re-derivation executed as differentials; cancellation
+probes with forced-failure geometries; bound-below-truth = auto
+MAJOR; per-deviation verdicts with (2) as the centerpiece —
+reproduce the inflection deviation, rule fixture-swap honest or
+gamed; merge-base retirement differential; rubric report). PR 9
+implementing in the other lane (U8 done at last sweep).
