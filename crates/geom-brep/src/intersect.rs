@@ -49,6 +49,23 @@
 //!    point), axis-normal cut (`Circle`); generic tilt refuses typed as
 //!    permanently routed to rung 3.
 //!
+//! # What M5 PR 7 added (rung 3 becomes real)
+//!
+//! Two arms retired their refusals — per-arm, never wholesale (C12.1),
+//! each with its trace shape as a **compile-time** decision documented
+//! at the arm (C5: no runtime fallback, so an arm's shape is not
+//! something a caller can influence):
+//!
+//! - **plane × NURBS** — the ℝ⁴ parametric×parametric trace (3×4 SVD).
+//! - **cylinder × sphere** — the ℝ³ implicit-pair march (2×3 SVD).
+//!
+//! Both go through `geom_brep::ssi`, which marches (untrusted), fits
+//! (PR 4), certifies all three C2 limbs, and proves the domain
+//! exhausted or refuses typed. Every other rung-3 arm keeps its typed
+//! refusal and now **cites the trace shape it would use** and what is
+//! actually missing — which is, for most of them, not the trace but the
+//! exact meters conversion of their C9 composite.
+//!
 //! Tangential outcomes (`TangentLine` variants) are **classification
 //! data**, not constructible edges: a pair whose transversality margin
 //! dies along the locus is C7 (`TangentIntersection`) territory — M5
@@ -236,65 +253,111 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "a plane×torus section is quartic (special Villarceau/profile \
                    circles are not classified here); this pair routes to the \
-                   general rung, unimplemented until SSI (M5 PR 7)",
+                   general rung with the ℝ³ IMPLICIT-PAIR trace shape, which M5 \
+                   PR 7 built — but the torus's C9 composite is quartic (m⁴) and \
+                   its exact conversion back to meters needs a certified root the \
+                   ring does not have, so the arm stays refused until that \
+                   conversion lands (C12.1: per-arm, with its proof)",
         },
         (Cylinder, Cone) | (Cone, Cylinder) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher); the cone's meters composite \
+                   needs a certified root the C9 ring lacks, so its certificate — \
+                   not its trace — is what is missing",
         },
+        // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
+        // march. Both operands' C9 composites convert to meters
+        // exactly, so all three C2 limbs certify without an invented
+        // scale factor — which is why this is the pair the milestone's
+        // planted small-loop fixture is built on. ----
         (Cylinder, Sphere) | (Sphere, Cylinder) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7); the coaxial circle special case is not classified \
-                   here",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) and \
+                   fitted, with the full three-limb C2 certificate and in-op \
+                   exhaustiveness (geom_brep::ssi::cylinder_sphere_ssi); the \
+                   coaxial circle special case is not classified here — it is \
+                   marched like any other configuration",
         },
         (Cylinder, Torus) | (Torus, Cylinder) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher); blocked on the torus's exact \
+                   meters conversion, as plane×torus is",
         },
         (Cone, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7); the common-apex line-pair special case is not \
-                   classified here",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher), blocked on the cone's exact \
+                   meters conversion; the common-apex line-pair special case is \
+                   not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher), blocked on the cone's exact \
+                   meters conversion",
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher), blocked on both operands' \
+                   exact meters conversions",
         },
         (Sphere, Torus) | (Torus, Sphere) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher), blocked on the torus's exact \
+                   meters conversion",
         },
         (Torus, Torus) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "this pair routes to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
+                   trace shape (M5 PR 7's marcher), blocked on the torus's exact \
+                   meters conversion",
         },
-        // ---- Nurbs × anything: the universal general-rung route. ----
-        (Nurbs, Plane | Cylinder | Cone | Sphere | Torus | Nurbs)
-        | (Plane | Cylinder | Cone | Sphere | Torus, Nurbs) => PairRoute {
+        // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ⁴ trace. The
+        // plane and the wall are both charts, so the state is
+        // (u₁,v₁,u₂,v₂) on G₁ − G₂ = 0 (3×4 SVD, Hoffmann §6.3.2) and
+        // BOTH pcurves fall out as coordinate projections of the one
+        // traced object — the shared parameter PR 6's cache contract
+        // wants, which is how OQ4 discharged. ----
+        (Plane, Nurbs) | (Nurbs, Plane) => PairRoute {
             rung: Rung::General,
             implemented: false,
-            note: "NURBS pairs route to the general rung, unimplemented until SSI \
-                   (M5 PR 7)",
+            note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD, Hoffmann §6.3.2) — \
+                   the trace, the shared-parameter fit of the carrier and BOTH \
+                   pcurves, the certified foot points, the chart uniqueness tube and \
+                   the UV-domain exhaustiveness all land in M5 PR 7 \
+                   (geom_brep::ssi::plane_nurbs_ssi). What is missing is C2.2's \
+                   between-samples SUP bound against the NURBS operand: the \
+                   per-span first-order enclosure PR 7 ships is sound but scales \
+                   like the span width, and a TIGHT bound needs the residual as a \
+                   single composite — Bernstein composition of the surface with the \
+                   pcurve, which `geom_core::spline::compose` (curve-only by design) \
+                   does not have. Until that lands the arm refuses typed rather than \
+                   ship a carrier whose sup-norm honesty is unproved (C12.1: per-arm, \
+                   with its proof)",
+        },
+        // ---- Nurbs × the rest: the universal general-rung route. ----
+        (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
+        | (Cylinder | Cone | Sphere | Torus, Nurbs) => PairRoute {
+            rung: Rung::General,
+            implemented: false,
+            note: "a NURBS operand routes to the general rung with the ℝ⁴ \
+                   PARAMETRIC-PAIR trace shape (M5 PR 7's marcher traces it \
+                   today); what is missing is the CERTIFICATE: the analytic \
+                   partner needs its chart-form uniqueness tube (written for the \
+                   plane), and NURBS×NURBS needs both — per-arm retirement, with \
+                   their proofs (C12.1)",
         },
     }
 }

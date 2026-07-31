@@ -314,6 +314,81 @@ macro_rules! nurbs_curve {
             /// (NaN) when the structures do not match — total, never
             /// a fabricated bound. Crate-internal: the fitting stack's
             /// deviation measurements (M5 PR 4) ride it.
+            /// A **certified lower bound** on `‖C′(t)‖` over the whole
+            /// domain, in meters per parameter unit — the "meter" a
+            /// parameter-space margin must be multiplied by to become a
+            /// length (D4 ¶1).
+            ///
+            /// This is the rung-3 analogue of the conic lane's
+            /// conservative meters (`Circle` ⇒ radius, `Ellipse` ⇒ the
+            /// MINOR semi-axis): without it, a fitted SSI carrier
+            /// reaching `split_edge` has no honest way to state
+            /// "definitely interior in meters", and the parameter gate
+            /// would either poison or, far worse, use an *upper* bound
+            /// and accept a split that is not clear of the endpoints.
+            ///
+            /// # How it is certified
+            ///
+            /// The derivative of a clamped B-spline is a B-spline of
+            /// degree `p − 1` over the derivative control points
+            /// `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so on every span
+            /// `C′(t)` is a **convex combination** of the local `Qᵢ`.
+            /// Fix any unit direction `d`: then
+            /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)`. The direction taken is the
+            /// curve's own chord (first to last control point), which
+            /// is the one a monotone carrier advances along. The result
+            /// may be zero or negative — a curve that doubles back has
+            /// no positive lower bound in any single direction — and
+            /// that is reported honestly, so the margin collapses and
+            /// the caller's trilean escalates rather than guessing.
+            ///
+            /// **Rational carriers yield poison**: the derivative of a
+            /// rational B-spline is not a convex combination of any
+            /// control net, so this argument does not apply. Fitted
+            /// carriers are integral (the fitting stack produces unit
+            /// weights), which is exactly the case this serves.
+            pub fn speed_lower_bound(&self) -> T {
+                let poison = T::from_f64(f64::NAN);
+                // Rational ⇒ the convexity argument does not hold.
+                if self.weights.iter().any(|w| *w != 1.0) {
+                    return poison;
+                }
+                let p = self.knots.degree();
+                if p == 0 || self.control.len() < 2 {
+                    return poison;
+                }
+                let knots = self.knots.knots();
+                // The chord direction (first to last control point);
+                // a clamped curve interpolates both, so this is the
+                // curve's own end-to-end direction.
+                let Some((first, last)) = self.control.first().zip(self.control.last()) else {
+                    return poison;
+                };
+                let chord = *last - *first;
+                let n = chord.norm();
+                let d = chord / n;
+                let mut acc: Option<T> = None;
+                for i in 0..(self.control.len() - 1) {
+                    let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
+                        return poison;
+                    };
+                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
+                        return poison;
+                    };
+                    #[allow(clippy::cast_precision_loss)]
+                    let scale = T::from_f64(p as f64) / T::from_f64(hi - lo);
+                    let q = (*b - *a) * scale;
+                    let v = d.dot(q);
+                    acc = Some(match acc {
+                        None => v,
+                        // `Real::min` is NaN-propagating (poison in,
+                        // poison out) and total — no comparison here.
+                        Some(m) => m.min(v),
+                    });
+                }
+                acc.unwrap_or(poison)
+            }
+
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
                 if self.knots != other.knots || self.control.len() != other.control.len() {
                     return T::from_f64(f64::NAN);

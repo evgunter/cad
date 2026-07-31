@@ -168,10 +168,6 @@ fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     ]
 }
 
-fn boxv(b: Box3) -> [RingInterval; 3] {
-    [b.x, b.y, b.z]
-}
-
 fn constv(v: Vec3<f64>) -> [RingInterval; 3] {
     [ring(v.x), ring(v.y), ring(v.z)]
 }
@@ -214,10 +210,23 @@ pub(crate) fn implicit_enclosure(surface: &Surface<f64>, b: Box3) -> RingInterva
             ..
         } => {
             let q = subp(b, origin);
-            let h = dot3(q, constv(axis));
-            // |w|² = |q|² − (q·â)², with a tight square on h.
-            let w2 = norm_sq(q) - h.sqr();
-            (w2 - ring(radius * radius)) / ring(2.0 * radius)
+            let a = constv(axis);
+            let h = dot3(q, a);
+            // |w|² from the radial vector itself, NOT as |q|² − (q·â)².
+            //
+            // The algebraic identity is exact in ℝ and catastrophic in
+            // interval arithmetic: the two terms share `q`, and
+            // subtracting them as independent operands adds twice the
+            // axial square to the width. On a box straddling `z ≈ 1`
+            // that is a width of ~0.8 m² where the true width is zero,
+            // which — divided by 2r for a thin cylinder — makes the
+            // enclosure so wide it can never exclude anything, and the
+            // exhaustiveness subdivision then refines the entire slab
+            // to the floor. Forming `w = q − â(q·â)` first keeps the
+            // cancellation inside one expression, and for an
+            // axis-aligned cylinder it is exact.
+            let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
+            (norm_sq(w) - ring(radius * radius)) / ring(2.0 * radius)
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => RingInterval::poison(),
     }
@@ -232,7 +241,11 @@ pub(crate) fn implicit_gradient_enclosure(surface: &Surface<f64>, b: Box3) -> [R
         Surface::Plane { normal, .. } => constv(normal),
         Surface::Sphere { center, radius, .. } => {
             let q = subp(b, center);
-            [q[0] / ring(radius), q[1] / ring(radius), q[2] / ring(radius)]
+            [
+                q[0] / ring(radius),
+                q[1] / ring(radius),
+                q[2] / ring(radius),
+            ]
         }
         Surface::Cylinder {
             origin,
@@ -289,10 +302,21 @@ impl<'a> NurbsBoxes<'a> {
     }
 
     /// The (span_u, span_v) cell range touched by the rectangle.
+    ///
+    /// The rectangle is **clamped to the knot domains** first. Callers
+    /// pad windows by a tube radius, which routinely pushes them past
+    /// the clamped ends; a parameter outside the domain has no span,
+    /// and letting that poison the enclosure would make every branch
+    /// that reaches a surface edge fail its own uniqueness tube. The
+    /// clamp is sound because the objects being enclosed — a pcurve, a
+    /// foot point — cannot leave the domain either.
     fn cells(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> ((usize, usize), (usize, usize)) {
         let ku = self.surface.knots_u();
         let kv = self.surface.knots_v();
-        (ku.span_range(u0, u1), kv.span_range(v0, v1))
+        let (ud, vd) = (ku.domain(), kv.domain());
+        let cu = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
+        let cv = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
+        (ku.span_range(cu.0, cu.1), kv.span_range(cv.0, cv.1))
     }
 
     /// The hull of the Cartesian control block of one span cell.
@@ -326,7 +350,12 @@ impl<'a> NurbsBoxes<'a> {
     /// The homogeneous derivative-net hull in one direction, plus the
     /// weight and weight-derivative hulls, over one span cell:
     /// `(A_d hull, w_d hull, w hull)`.
-    fn cell_homogeneous_deriv(&self, su: usize, sv: usize, along_u: bool) -> (Box3, RingInterval, RingInterval) {
+    fn cell_homogeneous_deriv(
+        &self,
+        su: usize,
+        sv: usize,
+        along_u: bool,
+    ) -> (Box3, RingInterval, RingInterval) {
         let s = self.surface;
         let (pu, pv) = (s.knots_u().degree(), s.knots_v().degree());
         let nv = s.knots_v().control_count();
@@ -463,6 +492,12 @@ impl<'a> NurbsBoxes<'a> {
     /// the intersection, but only containment is load-bearing, so the
     /// caller takes whichever it needs and never both.
     pub(crate) fn rect_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
+        let (ud, vd) = (
+            self.surface.knots_u().domain(),
+            self.surface.knots_v().domain(),
+        );
+        let (u0, u1) = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
+        let (v0, v1) = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
         let um = 0.5 * (u0 + u1);
         let vm = 0.5 * (v0 + v1);
         let hu = 0.5 * (u1 - u0);
@@ -544,7 +579,12 @@ mod tests {
             let g = implicit_gradient_enclosure(&s, b);
             let at = implicit_gradient(&s, b.center());
             for (i, v) in [at.x, at.y, at.z].iter().enumerate() {
-                assert!(g[i].contains(*v), "{v} not in [{}, {}]", g[i].lo(), g[i].hi());
+                assert!(
+                    g[i].contains(*v),
+                    "{v} not in [{}, {}]",
+                    g[i].lo(),
+                    g[i].hi()
+                );
             }
         }
     }

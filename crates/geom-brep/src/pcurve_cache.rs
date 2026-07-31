@@ -149,10 +149,37 @@ use crate::certify::CERT_SAMPLES;
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
 ///
-/// One variant today. The closed enum is the D3 shape: the general
-/// rung — a fitted/marched 2-D NURBS, the form SSI produces natively —
-/// arrives with M5 PR 7 and is added here as a variant then, with the
-/// C2.2 control-coefficient hull bound as its between-samples limb.
+/// One variant today. The closed enum is the D3 shape.
+///
+/// # Status of the general rung after M5 PR 7 (read before assuming)
+///
+/// PR 7 landed the ℝ⁴ SSI trace, and with it the thing this note was
+/// waiting for: a fitted 2-D NURBS pcurve **on the carrier's own
+/// parameter**, by construction rather than by coincidence (the trace
+/// yields the 3-D curve and both pcurves as projections of one
+/// parameterized object, and
+/// `geom_curves::NurbsCurve2::interpolate_with_params` fits them on the
+/// carrier's chord parameters). What PR 7 did **not** do is add the
+/// storage variant here, and the reason is worth stating rather than
+/// leaving as an absence:
+///
+/// - the residual and envelope obligations for that shape are **not**
+///   the closed-form harmonic ones this module is built around — they
+///   are the C2.2 control-hull bounds, which `geom_brep::ssi::certify`
+///   now computes (limb 1 through certified foot points, limb 2 as a
+///   per-span `rad_C + |C(m) − S(P(m))| + rad_S` enclosure). An SSI
+///   pcurve is therefore already certified in metres through the map,
+///   with a *bound* rather than this module's sampled schedule;
+/// - admitting it here means a second certification lane plus dropping
+///   `Copy` from [`Pcurve`] and [`PcurveCache`] (an `Arc` payload, as
+///   `Surface` did at M5 PR 3), which ripples through `topo`'s storage.
+///
+/// So the variant is a **storage** item, not a certification one, and
+/// it lands with the PR that first needs a rung-3 pcurve to survive in
+/// an at-rest body — M5 PR 9's curved-boolean zip. Until then a
+/// rung-3 carrier's faces keep derive-on-demand status and
+/// [`PcurveCertifyError::UnsupportedCarrier`] is the honest answer
+/// here.
 #[derive(Clone, Copy, Debug)]
 pub enum Pcurve<T: Real> {
     /// The closed-form chart image

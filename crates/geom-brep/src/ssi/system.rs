@@ -62,10 +62,18 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
     fn point(&self, x: &[f64; N]) -> Point3<f64>;
 
     /// A per-coordinate scale for the state space, in meters per unit
-    /// of that coordinate. The closure and step trileans need it to
+    /// of that coordinate. The closure and domain trileans need it to
     /// state parameter-space distances **in meters** (D4 ¶1: no
     /// dimensionless margins).
     fn coordinate_scale(&self, x: &[f64; N]) -> [f64; N];
+
+    /// `‖d/ds P(x + s·d)‖` at `s = 0`, in meters per unit of the
+    /// state-space parameter — the **exact** speed of the traced point,
+    /// which converts a step in state units into a step in meters.
+    /// Separate from [`LocalSystem::coordinate_scale`] because the ℝ⁴
+    /// state carries two charts and only the carrier-primary one
+    /// generates the 3-D curve.
+    fn tangent_speed(&self, x: &[f64; N], d: &[f64; N]) -> f64;
 }
 
 // ---------------------------------------------------------------------
@@ -130,6 +138,11 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
         // The state already is meters.
         [1.0, 1.0, 1.0]
+    }
+
+    fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
+        // The state IS the point: the speed is the tangent's length.
+        v3(d).norm()
     }
 }
 
@@ -290,8 +303,8 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
     fn rhs3(&self, x: &[f64; 4], d1: &[f64; 4], d2: &[f64; 4]) -> [f64; 3] {
         let ja = self.a.jet3(x[0], x[1]);
         let jb = self.b.jet3(x[2], x[3]);
-        let s = chart_d3(&ja, d1[0], d1[1], d2[0], d2[1])
-            - chart_d3(&jb, d1[2], d1[3], d2[2], d2[3]);
+        let s =
+            chart_d3(&ja, d1[0], d1[1], d2[0], d2[1]) - chart_d3(&jb, d1[2], d1[3], d2[2], d2[3]);
         [-s.x, -s.y, -s.z]
     }
 
@@ -314,6 +327,58 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
             jb.jet.du.norm(),
             jb.jet.dv.norm(),
         ]
+    }
+
+    fn tangent_speed(&self, x: &[f64; 4], d: &[f64; 4]) -> f64 {
+        // Carrier-primary: the 3-D curve is chart A's image, so its
+        // velocity is the one that converts state steps to meters.
+        let ja = self.a.jet3(x[0], x[1]);
+        (ja.jet.du * d[0] + ja.jet.dv * d[1]).norm()
+    }
+}
+
+impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
+    fn normals(&self, x: &[f64; 3]) -> super::march::NormalPair {
+        let p = p3(x);
+        (
+            crate::implicit::implicit_gradient(self.a, p),
+            crate::implicit::implicit_gradient(self.b, p),
+        )
+    }
+
+    fn lever_arm(&self, x: &[f64; 3]) -> f64 {
+        let p = p3(x);
+        crate::implicit::curvature_lever_arm(self.a, p)
+            .min(crate::implicit::curvature_lever_arm(self.b, p))
+    }
+}
+
+impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
+    fn normals(&self, x: &[f64; 4]) -> super::march::NormalPair {
+        let ja = self.a.jet3(x[0], x[1]);
+        let jb = self.b.jet3(x[2], x[3]);
+        (ja.jet.du.cross(ja.jet.dv), jb.jet.du.cross(jb.jet.dv))
+    }
+
+    fn lever_arm(&self, x: &[f64; 4]) -> f64 {
+        // Chart curvature is not bounded in closed form for a NURBS
+        // patch, so the honest arm at this shape is the CHART SPEED
+        // over the second-derivative magnitude — the local radius of
+        // curvature of the two parameter lines, folded min-wins, with
+        // `f64::MAX` where the chart is flat (the plane identity, so a
+        // plane operand never shrinks the arm).
+        let mut arm = f64::MAX;
+        for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
+            for (speed, second) in [
+                (j.jet.du.norm(), j.jet.duu.norm()),
+                (j.jet.dv.norm(), j.jet.dvv.norm()),
+            ] {
+                if second > 0.0 {
+                    arm = arm.min(speed * speed / second);
+                }
+            }
+        }
+        arm
     }
 }
 
@@ -388,8 +453,7 @@ mod tests {
         let b3 = sys.rhs3(&x, &d1, &d2);
         for k in 0..2 {
             // Third central difference, Richardson-extrapolated.
-            let d3a = (f_at(2.0 * h, k) - 2.0 * f_at(h, k) + 2.0 * f_at(-h, k)
-                - f_at(-2.0 * h, k))
+            let d3a = (f_at(2.0 * h, k) - 2.0 * f_at(h, k) + 2.0 * f_at(-h, k) - f_at(-2.0 * h, k))
                 / (2.0 * h * h * h);
             let d3b = (f_at(4.0 * h, k) - 2.0 * f_at(2.0 * h, k) + 2.0 * f_at(-2.0 * h, k)
                 - f_at(-4.0 * h, k))
@@ -451,8 +515,7 @@ mod tests {
         };
         let b3 = sys.rhs3(&x, &d1, &d2);
         for k in 0..3 {
-            let d3a = (f_at(2.0 * h, k) - 2.0 * f_at(h, k) + 2.0 * f_at(-h, k)
-                - f_at(-2.0 * h, k))
+            let d3a = (f_at(2.0 * h, k) - 2.0 * f_at(h, k) + 2.0 * f_at(-h, k) - f_at(-2.0 * h, k))
                 / (2.0 * h * h * h);
             let d3b = (f_at(4.0 * h, k) - 2.0 * f_at(2.0 * h, k) + 2.0 * f_at(-2.0 * h, k)
                 - f_at(-4.0 * h, k))

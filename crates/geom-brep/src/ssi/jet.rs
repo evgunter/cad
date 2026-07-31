@@ -62,20 +62,30 @@ pub(crate) struct Poly3 {
 impl Poly3 {
     /// The constant series `x`.
     pub(crate) fn constant(x: f64) -> Self {
-        Self { c: [x, 0.0, 0.0, 0.0] }
+        Self {
+            c: [x, 0.0, 0.0, 0.0],
+        }
     }
 
     /// The series `c0 + c1·s + c2·s² + c3·s³`.
     pub(crate) fn new(c0: f64, c1: f64, c2: f64, c3: f64) -> Self {
-        Self { c: [c0, c1, c2, c3] }
+        Self {
+            c: [c0, c1, c2, c3],
+        }
     }
 
-    /// The value at `s = 0`.
+    /// The value at `s = 0`. Read by the tests, which pin it against
+    /// `implicit_residual` — the production path only ever wants the
+    /// higher coefficients, since the value it already has.
+    #[cfg(test)]
     pub(crate) fn value(self) -> f64 {
         self.c[0]
     }
 
-    /// `h′(0)` = the `s` coefficient.
+    /// `h′(0)` = the `s` coefficient. Read by the tests (the
+    /// production path gets the first-order data from the Jacobian,
+    /// which is where the SVD needs it anyway).
+    #[cfg(test)]
     pub(crate) fn d1(self) -> f64 {
         self.c[1]
     }
@@ -147,7 +157,9 @@ impl Poly3 {
         let q1 = c[1] / (2.0 * q0);
         let q2 = (c[2] - q1 * q1) / (2.0 * q0);
         let q3 = (c[3] - 2.0 * q1 * q2) / (2.0 * q0);
-        Self { c: [q0, q1, q2, q3] }
+        Self {
+            c: [q0, q1, q2, q3],
+        }
     }
 
     /// `|P|` where the sign is taken from the **constant term** —
@@ -392,15 +404,28 @@ mod tests {
                 (4.0 * a - b) / 3.0
             };
             let d3n = {
-                let a = (at(2.0 * h) - 2.0 * at(h) + 2.0 * at(-h) - at(-2.0 * h)) / (2.0 * h * h * h);
+                let a =
+                    (at(2.0 * h) - 2.0 * at(h) + 2.0 * at(-h) - at(-2.0 * h)) / (2.0 * h * h * h);
                 let b = (at(4.0 * h) - 2.0 * at(2.0 * h) + 2.0 * at(-2.0 * h) - at(-4.0 * h))
                     / (16.0 * h * h * h);
                 (4.0 * a - b) / 3.0
             };
             let kind = crate::SurfaceKind::of(&s);
-            assert!((j.d1() - d1n).abs() < 1e-8, "{kind:?} h′: {} vs {d1n}", j.d1());
-            assert!((j.d2() - d2n).abs() < 1e-6, "{kind:?} h″: {} vs {d2n}", j.d2());
-            assert!((j.d3() - d3n).abs() < 1e-4, "{kind:?} h‴: {} vs {d3n}", j.d3());
+            assert!(
+                (j.d1() - d1n).abs() < 1e-8,
+                "{kind:?} h′: {} vs {d1n}",
+                j.d1()
+            );
+            assert!(
+                (j.d2() - d2n).abs() < 1e-6,
+                "{kind:?} h″: {} vs {d2n}",
+                j.d2()
+            );
+            assert!(
+                (j.d3() - d3n).abs() < 1e-4,
+                "{kind:?} h‴: {} vs {d3n}",
+                j.d3()
+            );
         }
     }
 
