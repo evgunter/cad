@@ -1192,3 +1192,13 @@ lens can legally split lanes — ruling-compatible, both valid);
 fix = say what's true (deterministic per lane; agreement above
 enclosure width). **Fix pass DISPATCHED (doc-level).** Both fix
 passes now in flight; PRs follow.
+
+**S8 fix pass COMPLETE (52ed526), PR OPENED as #143
+(2026-07-31).** All six items landed: honest cross-lane wording
+(each lane deterministic; agreement above enclosure width;
+sub-width split harmless per ruling) + ulp-perturbed-lens
+determinism rows both lanes; line×arc mirror proof written; spec
+§3/§4 aligned; committed-evidence citations; reviewer probe
+adopted as-is + trimmed 300k dominance-fuzz row (4.5s). Watcher
+armed. Writeup carries the full ruling story incl. the
+componentwise-dominance/impossibility results.
