@@ -1202,3 +1202,9 @@ determinism rows both lanes; line×arc mirror proof written; spec
 adopted as-is + trimmed 300k dominance-fuzz row (4.5s). Watcher
 armed. Writeup carries the full ruling story incl. the
 componentwise-dominance/impossibility results.
+
+**#143 MERGED (2026-07-31): 18/18 — S8 done.** Nearest-corner
+fillet selection live; AmbiguousFilletBranch retired; PATHS §2
+amended; the equivariance principle recorded. Fourteen PRs
+merged this milestone. In flight: PR 6 fix pass only (active,
+last activity seconds ago). A/B rows 21-24 owed to the table.
