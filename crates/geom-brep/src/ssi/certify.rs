@@ -65,25 +65,43 @@
 //!   what does not exist for a surface: `geom_core::spline::compose`
 //!   is curve-only by design, and `φ∘P` for a tensor-product surface is
 //!   a Bernstein *composition*, not a product. That machinery is the
-//!   entry requirement for retiring the plane×NURBS arm, and it is not
-//!   in this PR. See the C5 table's `(Plane, Nurbs)` note, which says
-//!   the same thing where a caller will read it.
+//!   entry requirement for retiring the plane×NURBS arm and is **banked
+//!   as M5 PR 7b**. See the C5 table's `(Plane, Nurbs)` note, which
+//!   says the same thing where a caller will read it.
 //!
 //! # Limb 3 — the uniqueness tube (component selection, made real)
 //!
 //! D2's "the connected component selected by the witness" is only
 //! checkable if branch-uniqueness near the cache is **proved**. Over a
 //! chain of boxes covering the carrier with certified radius ρ, this
-//! module proves the solution set inside the chain is a **single arc**:
+//! module proves what the enclosures actually support — stated exactly,
+//! because a slightly-too-strong claim here is the one that would
+//! matter:
 //!
-//! > On each box, enclose `(∇f₁ × ∇f₂)·e` (analytic pair) or
-//! > `∇φ · e⊥` (the plane×NURBS chart form). If the enclosure excludes
-//! > zero, then on every slice transverse to `e` the defining system
-//! > has non-singular Jacobian, so by the implicit function theorem the
-//! > solution set in the box is a graph over the `e` axis: one arc, no
-//! > branch point, no second component, no loop. Consecutive boxes
-//! > overlap, so the arcs concatenate and the union carries exactly one
-//! > component — the one the witness `carrier(mid)` selects.
+//! > On each box `B`, enclose `(∇f₁ × ∇f₂)·e` (analytic pair) or the
+//! > chart form `∇φ·e⊥ / ‖chart stretch‖` (plane×NURBS). Suppose the
+//! > enclosure excludes zero. The enclosure is valid at **every** point
+//! > of `B`, so on any slice `{e·x = c} ∩ B` the two constraint
+//! > gradients restricted to that slice stay linearly independent
+//! > throughout. Take two solutions in one slice: the mean value
+//! > theorem applied along the segment joining them (which lies in `B`,
+//! > a convex box) forces `f₁` and `f₂` to have a common critical
+//! > direction somewhere on it — which the enclosure has just excluded.
+//! > So each slice holds **at most one** solution, and the solution set
+//! > in `B` is a graph over the `e` axis: one arc, no branch point, no
+//! > loop, no second sheet **at the same `e`-level**.
+//!
+//! Note what that does *not* say. It is a convexity/mean-value
+//! argument over the enclosure, not a bare appeal to the implicit
+//! function theorem (which is local and would not, by itself, cover the
+//! whole box). And it says nothing about a **disjoint component
+//! threading the padded chain at `e`-levels the carrier never
+//! occupies**: the slice argument is silent there. What excludes that
+//! is the other obligation entirely — [`super::exhaust`]'s accounting
+//! pass, which requires every cell of the bounded domain to be
+//! excluded by enclosure or *contained* in a tube, and refuses typed at
+//! the floor otherwise. Uniqueness in this module and completeness
+//! there are two theorems, and neither is doing the other's work.
 //!
 //! An enclosure that **straddles** zero at the chain's box size is not
 //! a resolution failure to retry: two branches passing within the band
@@ -598,7 +616,26 @@ fn probe_tube_chart(
         // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
         let ex = RingInterval::point(-t.y / tn);
         let ey = RingInterval::point(t.x / tn);
-        let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey);
+        // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
+        // not yet a margin: multiplying it by a lever arm in metres
+        // would give metres² per chart unit (D4 ¶1 forbids exactly
+        // that). Dividing by the chart's own stretch along e⊥ —
+        // ‖S_u·ex + S_v·ey‖, metres per chart unit — cancels the chart
+        // units and leaves the dimensionless sine-like quantity the ℝ³
+        // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
+        // stretch is used, which can only shrink the margin: the safe
+        // direction.
+        let vt = Box3 {
+            x: du.x * ex + dv.x * ey,
+            y: du.y * ex + dv.y * ey,
+            z: du.z * ex + dv.z * ey,
+        };
+        let stretch =
+            (vt.x.mag() * vt.x.mag() + vt.y.mag() * vt.y.mag() + vt.z.mag() * vt.z.mag()).sqrt();
+        if stretch.is_nan() || stretch <= 0.0 {
+            return None;
+        }
+        let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
         if margin < worst {
             worst = margin;
         }

@@ -341,11 +341,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    between-samples SUP bound against the NURBS operand: the \
                    per-span first-order enclosure PR 7 ships is sound but scales \
                    like the span width, and a TIGHT bound needs the residual as a \
-                   single composite — Bernstein composition of the surface with the \
-                   pcurve, which `geom_core::spline::compose` (curve-only by design) \
-                   does not have. Until that lands the arm refuses typed rather than \
-                   ship a carrier whose sup-norm honesty is unproved (C12.1: per-arm, \
-                   with its proof)",
+                   single composite — tensor-product Bernstein composition of the \
+                   surface with the pcurve, which `geom_core::spline::compose` \
+                   (curve-only by design) does not have. That is BANKED AS M5 PR 7b, \
+                   its own reviewed unit; until it lands the arm refuses typed rather \
+                   than ship a carrier whose sup-norm honesty is unproved (C12.1: \
+                   per-arm, with its proof)",
         },
         // ---- Nurbs × the rest: the universal general-rung route. ----
         (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)

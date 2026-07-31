@@ -60,6 +60,14 @@
 //! surface with a spline pair. `geom_core::spline::compose` is
 //! curve-only by design and that composition is not in this PR.
 //!
+//! That work is **banked as M5 PR 7b** (tensor-product Bernstein
+//! composition + the limb-2 tightening it enables) — its own reviewed
+//! unit, not a loose end: a centred second-order enclosure is
+//! constructible but is not expected to reach ε at practical
+//! refinement, so the composition is the clean fix rather than a
+//! patch. When 7b lands, this arm's `implemented` flag flips and
+//! nothing else here changes.
+//!
 //! So the arm refuses typed and says exactly that. C12.1's rule is that
 //! an arm retires **with its proof**; shipping a rung-3 carrier whose
 //! sup-norm honesty is unproved would be precisely the "sampled max
@@ -598,14 +606,25 @@ pub fn cylinder_sphere_ssi(
     let mut branches: Vec<SsiBranch> = Vec::new();
     let mut tubes: Vec<Box3> = Vec::new();
     for seed in seeds.iter() {
-        // Already covered by a branch we have: no need to re-march it.
+        // Dedup against where the seed LANDS, not where it starts.
+        //
+        // A cell centre is not on the locus — Newton moves it there,
+        // and it can move it a long way. Testing the raw centre against
+        // the tubes therefore misses the case that matters: a seed
+        // outside every tube whose refined landing point is squarely
+        // inside one, which would re-march a branch already found and
+        // hand back a duplicate `SsiBranch` (two carriers for one
+        // component, and an exhaustiveness receipt that double-counts
+        // the same tube). Refine first, then test.
+        let state = [seed.x, seed.y, seed.z];
+        let landed = march::newton_refine::<2, 3, _>(&sys, state, domain.eps);
+        let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
         if tubes
             .iter()
-            .any(|t| Box3::around(*seed, domain.eps).contained_in(*t))
+            .any(|t| Box3::around(probe, domain.eps).contained_in(*t))
         {
             continue;
         }
-        let state = [seed.x, seed.y, seed.z];
         let trace = match march_both::<2, 3, _>(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
             // A seed that will not settle is not a branch; the
@@ -671,9 +690,10 @@ fn finish_r3(
 /// **This arm is not retired**: it marches, fits, and proves its
 /// uniqueness tube, and then refuses at limb 2 because the tight
 /// between-samples bound against a NURBS operand needs machinery this
-/// PR does not have (module docs, and the C5 table's `(Plane, Nurbs)`
-/// note). It is public because the refusal is the contract, and because
-/// the PR that lands the composite turns it on by deleting nothing.
+/// PR does not have and **M5 PR 7b** is banked to land (module docs,
+/// and the C5 table's `(Plane, Nurbs)` note). It is public because the
+/// refusal is the contract, and because 7b turns it on by deleting
+/// nothing.
 ///
 /// # Errors
 ///

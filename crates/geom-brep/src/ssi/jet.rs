@@ -277,7 +277,14 @@ pub(crate) fn implicit_path_jet(
             half_angle,
             ..
         } => {
-            let (s_a, c_a) = half_angle.sin_cos();
+            // `Real::sin_cos`, not the inherent `f64::sin_cos` route:
+            // `implicit_residual` takes the former, and a second route
+            // to the same constant is a latent value fork the moment
+            // the two disagree in the last bit (they can — libm vs std).
+            // The cone arm refuses at both the enclosure and the
+            // certificate today, so nothing depends on it yet; that is
+            // exactly when a fork is cheap to remove.
+            let (s_a, c_a) = geom_core::Real::sin_cos(half_angle);
             let (h, w) = axial_radial(r, apex, axis);
             let rho = w.dot(w).sqrt();
             rho.scale(c_a).sub(h.abs_stable().scale(s_a))

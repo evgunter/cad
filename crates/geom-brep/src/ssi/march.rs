@@ -96,9 +96,12 @@
 //! - **`ssi_branch_open_end`** — "the branch ends on the domain
 //!   boundary": the margin is the signed distance to the named domain
 //!   in meters. `Negative` ends the branch open; `Zero` also ends it
-//!   but **marks the end in-band**, and the exhaustiveness accounting
-//!   then declines to count the terminal cell as accounted rather than
-//!   quietly closing over an ambiguity.
+//!   and **labels the end in-band** ([`BranchEnd::BoundaryInBand`]).
+//!   The label is a report, not a mechanism: nothing keys off it. A
+//!   region no tube covers — including one past an in-band end — is
+//!   refined by the accounting pass and refuses typed at the floor,
+//!   which is the guarantee, and it holds whether or not the end was
+//!   in band.
 
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Indeterminate, Point3, Sign, Vec3};
@@ -185,8 +188,15 @@ pub enum BranchEnd {
     Boundary,
     /// The trace reached the domain boundary **in band**: the end is
     /// within ε of the boundary and the honest report is that we do not
-    /// know which side it fell on. Accounting treats the terminal cell
-    /// as unaccounted (module docs).
+    /// know which side it fell on.
+    ///
+    /// This is a *label on the branch*, not a special case anywhere
+    /// else: there is no accounting mechanism keyed on it. What
+    /// actually happens to the region past such an end is what happens
+    /// to any region no tube covers — [`super::exhaust`]'s accounting
+    /// pass fails to contain those cells, refines them, and refuses
+    /// typed at the floor. That is the honest guarantee, and it does
+    /// not depend on this label at all.
     BoundaryInBand,
 }
 
@@ -382,8 +392,16 @@ where
                 // governs the 3-D fit is κ/speed², so convert once.
                 let kappa3d = kappa / (speed * speed);
                 let h_fit = if kappa3d > 0.0 {
+                    // ¼ power as TWO square roots, not `powf(0.25)`:
+                    // `f64::sqrt` is IEEE-correctly-rounded and so is
+                    // its composition, while `powf` is a libm routine
+                    // with no such guarantee and no libm-only contract
+                    // behind it. Same value to within an ulp, but the
+                    // D9 promise ("libm-only, bit-replayable") is only
+                    // true of the sqrt route.
                     ((24.0 * SSI_STEP_DEVIATION * ctx.eps) / (kappa3d * kappa3d * kappa3d))
-                        .powf(0.25)
+                        .sqrt()
+                        .sqrt()
                         / speed
                 } else {
                     f64::INFINITY
