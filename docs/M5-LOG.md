@@ -1241,3 +1241,20 @@ Review charter: construct any old-vs-new disagreement outside
 the belly class (spec claims none); attack seam-placement
 independence. PR 7 spec drafting begins now in parallel
 (orchestrator; OQ4 checkpoint per the standing note).
+
+**M5-PR7-SPEC.md DRAFTED (2026-07-31).** OQ4 DISCHARGED at spec
+time, carrier-primary stands — the ℝ⁴ trace's shared parameter
+is exactly PR 6's ratified parameter-identity contract (both
+pcurves as projections of one traced object; the 3-D carrier
+stays the certified authority; no re-plumbing) — no fork goes to
+Evan. Binding content: Hoffmann §6.2 stepper (untrusted, the
+PERF-PLAN dual-code pilot with the idealized tiny-h suite in CI
+from day one), fixed-shape SVD joins linalg here, ℝ⁴ trace,
+per-arm trace shapes in the table, the FULL three-limb C2
+certificate (OQ2: both always), in-op exhaustiveness doubling as
+seed generation (brute-force cells OK; BVH swap rides the merged
+differential suite), σ₂-sliver → C7 refusals, shape (iv)
+small-loop found-or-typed as the signature acceptance + a
+directly-authored NURBS wall for shape (iii)'s substrate.
+Dispatch: next freed lane (block-11 draw at dispatch; S9 opus in
+flight now).
