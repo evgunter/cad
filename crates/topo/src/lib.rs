@@ -209,6 +209,6 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
-    CensusContact, StaleDeclaration, ValidationError, validate, validate_closed,
-    validate_geometric, validate_pseudomanifold,
+    CensusContact, ContactMark, StaleDeclaration, ValidationError, contact_marks, validate,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };

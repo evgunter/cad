@@ -991,7 +991,49 @@ fn sweep_loop<T: Decide>(
                 };
                 body.set_edge_curve(struts[j].edge, spec)?;
             }
-            Ok(DihedralClass::Smooth) => {}
+            Ok(DihedralClass::Smooth) => {
+                // OQ7's must-carry, applied at construction (M5 PR 9):
+                // a definitely-smooth join whose SECOND-ORDER
+                // separation is definite is a jet-determinate tangency
+                // (the surfaces determine the locus — the fillet-grade
+                // line–arc profile join), upgraded to
+                // `TangentIntersection` exactly as the transverse arm
+                // upgrades to `Intersection`. A zero-side second order
+                // (G2/under-determined) keeps the conventional
+                // description BY THE PREDICATE; in-band escalates as
+                // the same typed sliver (F6).
+                let jet = geom_brep::tangent_jet(&s_prev, &s_next, mid, w);
+                let arm = geom_brep::curvature_lever_arm(&s_prev, mid)
+                    .min(geom_brep::curvature_lever_arm(&s_next, mid))
+                    .min(w_norm);
+                let margin = jet.kappa_rel.abs() * arm * arm * T::from_f64(0.5);
+                match geom_core::k_stats::decide("tangent_second_order", margin, band) {
+                    Ok(geom_core::Sign::Positive) => {
+                        let spec = EdgeCurveSpec {
+                            description: EdgeGeometry::TangentIntersection {
+                                s1: k_prev,
+                                s2: k_next,
+                                witness: mid,
+                            },
+                            carrier: Curve3::Line {
+                                origin: qs[j],
+                                dir: w.normalize(),
+                            },
+                            param_start: T::zero(),
+                            param_end: w_norm,
+                        };
+                        body.set_edge_curve(struts[j].edge, spec)?;
+                    }
+                    Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {}
+                    Err(source) => {
+                        return Err(ExtrudeError::SliverJoin {
+                            loop_index,
+                            vertex_index: segs[j].canonical_vertex,
+                            source,
+                        });
+                    }
+                }
+            }
             Err(source) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,

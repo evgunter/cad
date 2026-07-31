@@ -112,3 +112,152 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
         Ok(_) | Err(_) => {}
     }
 }
+
+/// A unit square with ONE filleted corner: line → tangent arc → line —
+/// the fillet-grade tangency (two tangent joins at the arc's ends).
+fn filleted_block() -> Body<f64> {
+    // Corner at (1, 1) filleted with radius 0.25: the arc runs from
+    // (1, 0.75) to (0.75, 1), bulge tan(π/8) (a CCW quarter arc).
+    let b = (std::f64::consts::PI / 8.0).tan();
+    let mut lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.75),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(0.75, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.0),
+            bulge: 0.0,
+        },
+    ]);
+    // The tangency is authored, so it is DECLARED (the #101
+    // discipline): joints 3 (arc→line) and 2 (line→arc).
+    lp.tangent_joints = vec![2, 3];
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+}
+
+#[test]
+fn a_fillet_grade_tangency_must_carry_and_does() {
+    // OQ7 both levels, the MUST side: the filleted corner's two
+    // tangent struts come out of construction described
+    // TangentIntersection (the upgrade pass descended), the body is
+    // tier-3 valid, and the MARK records the tangency.
+    let body = filleted_block();
+    let marks = topo::contact_marks(&body).expect("the filleted block is tier-3 valid");
+    let tangent_edges: Vec<_> = body
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(geom_brep::EdgeCurve::description),
+                Some(geom_brep::EdgeGeometry::TangentIntersection { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(
+        tangent_edges.len(),
+        2,
+        "the fillet's two tangent struts carry the intrinsic description"
+    );
+    for e in tangent_edges {
+        assert_eq!(marks.get(e), Some(&topo::ContactMark::Tangent));
+    }
+}
+
+#[test]
+fn the_must_carry_fires_when_the_description_is_conventional() {
+    // The enforcement direction: strip one tangent strut back to its
+    // conventional MappedCurve description (certifiable — the
+    // residual schedule cannot see the dihedral) and tier 3 must
+    // refuse TangentNotIntrinsic, naming the edge.
+    let mut body = filleted_block();
+    let (edge, curve) = body
+        .edges()
+        .find_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve).and_then(|g| g.certified())?;
+            matches!(
+                c.description(),
+                geom_brep::EdgeGeometry::TangentIntersection { .. }
+            )
+            .then(|| (k, c.clone()))
+        })
+        .expect("a tangent strut exists");
+    let (t0, t1) = curve.params();
+    let geom_curves::Curve3::Line { origin, dir } = *curve.carrier() else {
+        panic!("a strut is a line");
+    };
+    // The conventional description extrude would have kept: the
+    // extruded profile point under the identity placement.
+    let spec = geom_brep::EdgeCurveSpec {
+        description: geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::ExtrudedPoint {
+            point: p2(origin.x, origin.y),
+            place: geom_core::Affine3::identity(),
+            vec: dir * (t1 - t0),
+        }),
+        carrier: geom_curves::Curve3::Line { origin, dir },
+        param_start: t0,
+        param_end: t1,
+    };
+    body.set_edge_curve(edge, spec)
+        .expect("the conventional description certifies (residuals only)");
+    let errs = topo::validate_geometric(&body).expect_err("the must-carry fires");
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::TangentNotIntrinsic { edge: k } if *k == edge
+        )),
+        "expected TangentNotIntrinsic for {edge:?}: {errs:?}"
+    );
+    let msg = errs
+        .iter()
+        .find(|e| matches!(e, topo::ValidationError::TangentNotIntrinsic { .. }))
+        .map(|e| format!("{e}"))
+        .unwrap();
+    assert!(msg.contains("jet-determinate"), "{msg}");
+    assert!(msg.contains("G2"), "{msg}");
+}
+
+#[test]
+fn a_g2_underdetermined_join_must_not_carry() {
+    // The exempt-BY-PREDICATE direction: the plain disc cylinder's
+    // two meridian struts join two wall faces on ONE shared surface —
+    // κ_rel is exactly zero (same surface both sides: the locus is
+    // under-determined), the mark says so, the description stays
+    // conventional, and the body stays valid. No exemption list
+    // anywhere — the zero-side margin IS the exemption.
+    let body = cylinder_body();
+    let marks = topo::contact_marks(&body).expect("the disc cylinder is tier-3 valid");
+    let mut saw_underdetermined = 0;
+    for (k, e) in body.edges() {
+        let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+            continue;
+        };
+        if matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+            && matches!(c.carrier(), geom_curves::Curve3::Line { .. })
+        {
+            assert_eq!(
+                marks.get(k),
+                Some(&topo::ContactMark::SmoothUnderdetermined),
+                "a same-surface smooth strut is under-determined by the predicate"
+            );
+            saw_underdetermined += 1;
+        }
+    }
+    assert_eq!(saw_underdetermined, 2, "the disc has two meridian struts");
+}
