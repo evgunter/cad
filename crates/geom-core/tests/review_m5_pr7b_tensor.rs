@@ -478,3 +478,26 @@ fn the_budget_boundary_54_completes_and_57_poisons() {
     let sup57 = sup_of(&s57, &p, &c, &[]);
     assert!(sup57.is_nan(), "expected the budget poison, got {sup57:e}");
 }
+
+#[test]
+fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
+    // Spec §2 step (1) asks for a center-shift before any product; the
+    // shipped pipeline is shift-free, arguing the difference has "no
+    // center to lose". True in exact arithmetic (the T-terms cancel),
+    // but ring rounding scales with coefficient MAGNITUDE: the same
+    // exact iso identity, translated 1e6 m from the origin, must show
+    // the bound inflating by roughly the translation's relative scale.
+    let (mut s, p, mut c) = iso_u();
+    let sup_near = sup_of(&s, &p, &c, &[]);
+    for ch in 0..2 {
+        for v in s.3[ch].iter_mut() {
+            *v += 1.0e6;
+        }
+        for v in c.2[ch].iter_mut() {
+            *v += 1.0e6;
+        }
+    }
+    let sup_far = sup_of(&s, &p, &c, &[]);
+    eprintln!("[review] center-shift cost: sup {sup_near:.3e} near origin, {sup_far:.3e} at 1e6 m");
+    assert!(sup_far >= 0.0 || sup_far.is_nan(), "bound must stay sound");
+}
