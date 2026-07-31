@@ -706,10 +706,16 @@ fn fillet_escalated(source: Indeterminate) -> ProfileError {
 /// **diagnostic channel** (the enclosure's lower bound at interval
 /// scalars — the same channel `FilletLegDegenerate`'s leg naming uses):
 /// a representation-level choice between two already-classified
-/// constructions, never a re-decision of geometry. The lanes' channels
-/// differ by enclosure width, but the survivors' setback gap is
-/// macroscopic next to it (the dominance argument below), so the lanes
-/// pick the same candidate — the cross-lane row pins it.
+/// constructions, never a re-decision of geometry. Each lane's pick is
+/// deterministic, and the lanes agree whenever the survivors' setback
+/// gap exceeds the interval channel's enclosure width — the macroscopic
+/// case the cross-lane vesica row pins. In a hairline-asymmetric lens
+/// (the corner an ulp off the configuration's mirror line) the
+/// strict-but-tiny gap can sit inside that width, and the lanes may
+/// then legally pick DIFFERENT pockets — harmless per the ruling, since
+/// both candidates are valid fillets of the authored legs; the
+/// perturbed-lens rows pin each lane's own determinism there, not
+/// cross-lane agreement.
 ///
 /// # The ladder (fixed order)
 ///
@@ -736,22 +742,33 @@ fn fillet_escalated(source: Indeterminate) -> ProfileError {
 /// Among survivors of the corner-side extent gates, the nearer candidate
 /// is nearer on BOTH legs, so every monotone combination (sum, max, …)
 /// agrees and sum is the symmetric spelling. The argument, for
-/// non-enclosing tangencies (offset radius ρ > 0): both candidates lie
-/// on both offset circles, mirror-symmetric about the line L through the
-/// offset centers; each tangent point is its candidate's same-side
-/// radial projection, so the candidate on the corner's side of L is
-/// angularly nearer the corner on both carriers at once. The corner
-/// strictly off L and distinct candidates are guaranteed by the
+/// non-enclosing tangencies (offset radius ρ > 0): the two candidates
+/// are mirror-symmetric about a line L — arc×arc, the line through the
+/// two offset-circle centers; line×arc, the line through the single
+/// offset circle's center perpendicular to the offset line (re-derived
+/// and confirmed by the S8 review) — and each tangent point is its
+/// candidate's same-side radial projection (resp. same-side foot on the
+/// straight leg), so the candidate on the corner's side of L is nearer
+/// the corner on both carriers at once: by symmetric distances along
+/// the line, and angularly about each arc center. The corner strictly
+/// off L and distinct candidates are guaranteed by the
 /// `fillet_corner_turn` and offset-clearance gates, so the dominance is
 /// strict and rungs 2–3 are unreachable through this constructor in
 /// exact arithmetic — they exist as the total, documented fallback for
 /// computed-value collisions on the diagnostic channel. Enclosing
-/// tangencies (ρ < 0, the tangent point antipodally flipped) were never
-/// observed to admit two corner-side survivors at all (S8 probe: 20M+
-/// random corners across all leg classes plus a targeted
-/// mixed-tangency search, zero hits), so the two-survivor situation
-/// arises only in the non-enclosing lens class where the dominance
-/// argument holds.
+/// tangencies (ρ < 0, the tangent point antipodally flipped) never
+/// participate in a two-survivor corner: the S8 review's hand proof
+/// rules the mixed enclosing/non-enclosing pair out outright and shows
+/// even a both-enclosing pair (never reached by any search) would still
+/// be componentwise dominated. Committed evidence:
+/// `tests/review_s8_probe.rs` (the constructor cross-check on
+/// fuzz-found two-survivor corners, plus the trimmed independent
+/// dominance fuzz over the arc×arc and line×arc classes); the
+/// full-scale runs — the review's 5M-trial phases, targeted
+/// both-enclosing construction and hill-climb search, and this unit's
+/// ~27M-corner exploration — are uncommitted review artifacts. The
+/// two-survivor situation therefore arises only in the non-enclosing
+/// lens class, where the dominance argument holds.
 fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
     let mut best = 0;
     for (i, pair) in setbacks.iter().enumerate().skip(1) {

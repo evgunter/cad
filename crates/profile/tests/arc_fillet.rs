@@ -521,6 +521,43 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
     }
 }
 
+/// The hairline-asymmetric lens (S8 review MINOR-1): the authored
+/// corner nudged ~1 ulp off the vesica's mirror axis. What is pinned is
+/// each lane's OWN determinism — bit-identical output across runs and a
+/// definite pocket committed to — NOT cross-lane agreement: a setback
+/// gap below the interval channel's enclosure width may legally resolve
+/// to the other pocket at Interval, and per the ruling both candidates
+/// are valid fillets of the authored legs (the interval twin is
+/// `ulp_perturbed_lens_pick_is_deterministic_at_interval`).
+#[test]
+fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
+    let build = || {
+        ProfileLoop::builder(p2(0.0, -s3()))
+            .fillet_corner(
+                arc(-1.0, 0.0, ArcSweep::Ccw),
+                p2(f64::EPSILON, s3()),
+                arc(1.0, 0.0, ArcSweep::Ccw),
+                p2(0.0, -s3()),
+                0.5,
+                tol(),
+            )
+            .expect("the perturbed lens constructs")
+            .close_arc_center(p2(1.0, 0.0), ArcSweep::Ccw)
+    };
+    let a = build();
+    let b = build();
+    assert_eq!(a.tangent_joints, b.tangent_joints);
+    assert_eq!(a.vertices.len(), b.vertices.len());
+    for (va, vb) in a.vertices.iter().zip(&b.vertices) {
+        assert_eq!(va.pos.x.to_bits(), vb.pos.x.to_bits());
+        assert_eq!(va.pos.y.to_bits(), vb.pos.y.to_bits());
+        assert_eq!(va.bulge.to_bits(), vb.bulge.to_bits());
+    }
+    // One pocket was definitely committed to (which one is the lane's
+    // own business).
+    assert!(a.vertices[1].pos.y.abs() > 0.5);
+}
+
 #[test]
 fn an_already_tangent_corner_asks_for_the_declaration_instead() {
     // The line y = 0 is tangent to the circle about (2,2) at (2,0):
