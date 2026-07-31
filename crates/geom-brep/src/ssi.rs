@@ -36,42 +36,47 @@
 //!
 //! | arm | trace shape | why |
 //! |---|---|---|
-//! | [`cylinder_sphere_ssi`] | **ℝ³** implicit pair, 2×3 SVD | shape (iv)'s planted small loop and the σ₂-sliver row — **retired**, all three limbs |
-//! | [`plane_nurbs_ssi`] | **ℝ⁴** parametric×parametric, 3×4 SVD | traced, fitted and tubed; **still refuses** at limb 2 (below) |
+//! | [`cylinder_sphere_ssi`] | **ℝ³** implicit pair, 2×3 SVD | shape (iv)'s planted small loop and the σ₂-sliver row — **retired**, all three limbs (M5 PR 7) |
+//! | [`plane_nurbs_ssi`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b) |
 //!
-//! # The plane×NURBS arm, and why it is not retired
+//! # The plane×NURBS arm's retirement (M5 PR 7b)
 //!
-//! Everything the ℝ⁴ shape needs landed here and is exercised: the 3×4
-//! SVD, third-order surface jets, the trace itself, the shared-parameter
-//! fit of the carrier and **both** pcurves (the OQ4 identity, which
-//! [`trace_plane_nurbs_uncertified`] exposes and the acceptance suite
-//! pins), certified surface foot points for limb 1, the chart-form
-//! uniqueness tube for limb 3, and UV-domain exhaustiveness.
+//! Everything the ℝ⁴ shape needs landed in PR 7 and is exercised: the
+//! 3×4 SVD, third-order surface jets, the trace itself, the
+//! shared-parameter fit of the carrier and **both** pcurves (the OQ4
+//! identity, which [`trace_plane_nurbs_uncertified`] exposes and the
+//! acceptance suite pins), certified surface foot points for limb 1,
+//! the chart-form uniqueness tube for limb 3, and UV-domain
+//! exhaustiveness. The one missing limb — **limb 2 against the NURBS
+//! operand**, a *tight* between-samples sup bound — refused typed: the
+//! per-span first-order enclosure was sound but scaled like the span
+//! width (~1e-2 m reported where the true residual is ~1e-10 m),
+//! because it enclosed the curve's and the surface image's variations
+//! separately and threw away the cancellation that is the whole
+//! content of `S(P(t)) = C(t)`.
 //!
-//! What is missing is **limb 2 against the NURBS operand**: a *tight*
-//! between-samples sup bound. The per-span first-order enclosure this
-//! PR ships is sound and scales like the span width, so on a real wall
-//! it reports ~1e-2 m where the true residual is ~1e-10 m. The two
-//! variation terms it adds very nearly cancel — the curve and its
-//! surface image move together, which is the whole content of
-//! `S(P(t)) = C(t)` — and enclosing them separately throws that
-//! cancellation away. Recovering it means enclosing the *difference* as
-//! one composite, i.e. Bernstein **composition** of a tensor-product
-//! surface with a spline pair. `geom_core::spline::compose` is
-//! curve-only by design and that composition is not in this PR.
+//! M5 PR 7b landed the machinery that refusal named: **tensor-product
+//! Bernstein composition** (`geom_core::spline::compose::tensor`),
+//! which encloses the difference `S(P(t)) − C(t)` as ONE composite at
+//! the coefficient level, so the bound tracks the residual's own scale
+//! (measured within ~1% of a 2·10⁵-sample dense scan on the wall
+//! fixture). Limb 2 flipped to that bound, the `implemented` flag
+//! flipped, and nothing else here changed — the arm retired **with its
+//! proof** (C12.1), never as a "sampled max pretending to be a bound"
+//! (C2.2).
 //!
-//! That work is **banked as M5 PR 7b** (tensor-product Bernstein
-//! composition + the limb-2 tightening it enables) — its own reviewed
-//! unit, not a loose end: a centred second-order enclosure is
-//! constructible but is not expected to reach ε at practical
-//! refinement, so the composition is the clean fix rather than a
-//! patch. When 7b lands, this arm's `implemented` flag flips and
-//! nothing else here changes.
-//!
-//! So the arm refuses typed and says exactly that. C12.1's rule is that
-//! an arm retires **with its proof**; shipping a rung-3 carrier whose
-//! sup-norm honesty is unproved would be precisely the "sampled max
-//! pretending to be a bound" that C2.2 exists to forbid.
+//! One honesty note the tight bound surfaced: the certificate now sees
+//! the *fit pair's* real between-samples deviation, which the loose
+//! bound used to drown. Where the wall's section curvature crosses
+//! zero, the step rule's fit rung (`h_fit ∝ (ε/κ³)^¼`) unbinds and the
+//! realized deviation of the two independent fits can genuinely exceed
+//! ε (measured ~3.8ε on a gently inflected wall) — the certificate
+//! then refuses **in-band at `ssi_hull_sup_chart`**, which is the
+//! honest verdict about that carrier, not a bound artifact (the bound
+//! sits within ~1% of the dense-scan truth there). A wall with
+//! slowly-varying section curvature certifies with two orders of
+//! headroom. Pricing inflection spans into the step rule is marcher
+//! work, out of PR 7b's scope by its spec §6.
 //!
 //! **Why cylinder×sphere and not cylinder×torus** (the spec's own "or
 //! equivalent"): both operands' polynomial composites convert to meters
@@ -728,20 +733,22 @@ fn finish_r3(
 }
 
 /// **plane × NURBS wall** — the ℝ⁴ parametric×parametric arm (3×4 SVD,
-/// module docs).
-///
-/// **This arm is not retired**: it marches, fits, and proves its
-/// uniqueness tube, and then refuses at limb 2 because the tight
-/// between-samples bound against a NURBS operand needs machinery this
-/// PR does not have and **M5 PR 7b** is banked to land (module docs,
-/// and the C5 table's `(Plane, Nurbs)` note). It is public because the
-/// refusal is the contract, and because 7b turns it on by deleting
-/// nothing.
+/// module docs). **Retired 2026-07-31 (M5 PR 7b)**: marches, fits, and
+/// proves all three C2 limbs — limb 2 through the tensor-product
+/// Bernstein composite of `S(P(t)) − C(t)`
+/// (`geom_core::spline::compose::tensor`; module docs carry the
+/// retirement record, the C5 table's `(Plane, Nurbs)` note carries it
+/// where a caller reads it). PR 7b turned the arm on by deleting
+/// nothing: the refusal path IS the certification path, minus the
+/// refusal.
 ///
 /// # Errors
 ///
-/// Any [`SsiError`]; today, in practice,
-/// [`SsiError::CertificateLimb`] naming limb 2.
+/// Any [`SsiError`]. Notably: [`SsiError::Escalated`] naming
+/// `ssi_hull_sup_chart` when the fitted pair's real between-samples
+/// deviation lands in the band (an inflected wall can genuinely earn
+/// this — module docs), and [`SsiError::FitSampleBudget`] at
+/// tolerances whose sample demand exceeds the fit budget.
 pub fn plane_nurbs_ssi(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -931,9 +938,11 @@ fn finish_r4(
 /// **Nothing may build a body from this.** It is uncertified by
 /// definition — the certified product of this module is [`SsiBranch`],
 /// which cannot be constructed without [`SsiCertificate`]. This entry
-/// exists so the OQ4 identity can be *shown* while the arm's limb 2 is
-/// still missing (module docs), and so the PR that lands that limb has
-/// a fixture to compare against.
+/// exists so the OQ4 identity can be *shown* independently of any
+/// certificate, and it is the certified arm's comparison substrate:
+/// PR 7b's acceptance rows dense-scan the triple it returns against
+/// the tensor composite bound that retired limb 2 (the fixture role
+/// the PR 7 refusal reserved for it).
 ///
 /// # Errors
 ///

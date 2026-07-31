@@ -330,23 +330,33 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         // BOTH pcurves fall out as coordinate projections of the one
         // traced object — the shared parameter PR 6's cache contract
         // wants, which is how OQ4 discharged. ----
+        // ---- Rung 3, RETIRED 2026-07-31 (M5 PR 7b): the ℝ⁴ arm's
+        // last limb landed. PR 7 shipped the trace, the
+        // shared-parameter fit of the carrier and BOTH pcurves, the
+        // certified foot points, the chart uniqueness tube and the
+        // UV-domain exhaustiveness, and refused at C2.2's
+        // between-samples sup bound against the NURBS operand (the
+        // per-span first-order enclosure was sound but scaled like
+        // the span width). PR 7b landed the tensor-product Bernstein
+        // composition (`geom_core::spline::compose::tensor`): the
+        // residual S(P(t)) − C(t) is enclosed as ONE composite so the
+        // cancellation survives, limb 2 flipped to the tight bound,
+        // and the arm retired by deleting nothing (C12.1: per-arm,
+        // WITH its proof). ----
         (Plane, Nurbs) | (Nurbs, Plane) => PairRoute {
             rung: Rung::General,
-            implemented: false,
+            implemented: true,
             note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD, Hoffmann §6.3.2) — \
-                   the trace, the shared-parameter fit of the carrier and BOTH \
-                   pcurves, the certified foot points, the chart uniqueness tube and \
-                   the UV-domain exhaustiveness all land in M5 PR 7 \
-                   (geom_brep::ssi::plane_nurbs_ssi). What is missing is C2.2's \
-                   between-samples SUP bound against the NURBS operand: the \
-                   per-span first-order enclosure PR 7 ships is sound but scales \
-                   like the span width, and a TIGHT bound needs the residual as a \
-                   single composite — tensor-product Bernstein composition of the \
-                   surface with the pcurve, which `geom_core::spline::compose` \
-                   (curve-only by design) does not have. That is BANKED AS M5 PR 7b, \
-                   its own reviewed unit; until it lands the arm refuses typed rather \
-                   than ship a carrier whose sup-norm honesty is unproved (C12.1: \
-                   per-arm, with its proof)",
+                   RETIRED 2026-07-31 by M5 PR 7b (geom_brep::ssi::plane_nurbs_ssi): \
+                   PR 7 landed the trace, the shared-parameter fit of the carrier \
+                   and BOTH pcurves, the certified foot points, the chart uniqueness \
+                   tube and the UV-domain exhaustiveness; PR 7b landed the last limb, \
+                   C2.2's between-samples SUP bound against the NURBS operand, as the \
+                   tensor-product Bernstein composition of the surface with the \
+                   pcurve (geom_core::spline::compose::tensor) — the residual \
+                   S(P(t)) − C(t) enclosed as a single composite, so the \
+                   cancellation the first-order enclosure threw away survives into \
+                   the bound (~1e-2 m reported where ~1e-10 m is true, closed)",
         },
         // ---- Nurbs × the rest: the universal general-rung route. ----
         (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
@@ -355,10 +365,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "a NURBS operand routes to the general rung with the ℝ⁴ \
                    PARAMETRIC-PAIR trace shape (M5 PR 7's marcher traces it \
-                   today); what is missing is the CERTIFICATE: the analytic \
-                   partner needs its chart-form uniqueness tube (written for the \
-                   plane), and NURBS×NURBS needs both — per-arm retirement, with \
-                   their proofs (C12.1)",
+                   today, and PR 7b's tensor-composite sup bound — the machinery \
+                   that retired plane×NURBS — is the limb-2 substrate these arms \
+                   will reuse); what is missing is the rest of the CERTIFICATE: \
+                   the analytic partner needs its chart-form uniqueness tube \
+                   (written for the plane), and NURBS×NURBS needs both charts' \
+                   tube plus its own exhaustiveness/seeding story — per-arm \
+                   retirement, with their proofs (C12.1)",
         },
     }
 }

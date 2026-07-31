@@ -588,6 +588,27 @@ fn nurbs_wall() -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
 }
 
+/// The wall the substrate row CERTIFIES: same construction, section
+/// curvature one-signed and slowly varying. `nurbs_wall`'s section
+/// inflects (y swings 0.18 → −0.12), and at an inflection the step
+/// rule's fit rung `h_fit ∝ (ε/κ³)^¼` unbinds (κ → 0), so the realized
+/// between-samples deviation of the two independent fits genuinely
+/// exceeds ε there (~3.8ε measured) — which PR 7b's tight bound now
+/// SEES and refuses honestly (its own row below). The certified
+/// acceptance wall is the one the step rule's own documented
+/// assumption (slowly-varying curvature) actually covers.
+fn certifiable_wall() -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let cols = [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)];
+    let mut control = Vec::with_capacity(8);
+    for (x, y) in cols {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
 /// A plane slicing the wall at mid height, tilted so the cut is not a
 /// parameter line.
 fn cutting_plane() -> Surface<f64> {
@@ -613,32 +634,219 @@ fn wall_domain() -> SsiDomain {
     }
 }
 
+/// The certified outcome for the substrate wall, once per process (the
+/// operation runs a full march + exhaustiveness sweep; several rows
+/// read it). `None` when the fit budget refuses at this ε — pinned by
+/// its own row, and the budget's demand is march-side, which PR 7b
+/// deliberately did not touch.
+fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
+    static ONCE: std::sync::OnceLock<Option<geom_brep::SsiOutcome>> = std::sync::OnceLock::new();
+    ONCE.get_or_init(|| {
+        let (p, w) = (cutting_plane(), certifiable_wall());
+        match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
+            Ok(o) => Some(o),
+            Err(SsiError::FitSampleBudget { .. }) => None,
+            Err(e) => panic!("shape (iii) substrate must certify: {e}"),
+        }
+    })
+    .clone()
+}
+
 #[test]
-fn the_r4_trace_runs_and_its_certificate_refuses_at_the_named_limb() {
-    // The plane×NURBS arm is NOT retired, and this row pins exactly
-    // where it stops: the trace, the fit and the tube all run, and the
-    // certificate refuses at limb 2 — the between-samples sup bound
-    // against a NURBS operand, which needs a surface composite this PR
-    // does not have. A refusal that names its own missing mechanism is
-    // the C12.1 posture; silently shipping the carrier would be the
-    // "sampled max pretending to be a bound" C2.2 forbids.
+fn shape_iii_the_wall_cut_certifies_all_three_limbs() {
+    // THE SUBSTRATE ROW (M5-PR7-SPEC §6, left unmet at PR 7 as its
+    // deviation 1; exit-gating for shape (iii)): a directly-authored
+    // NURBS wall cut by a plane — rung-3 marched + fitted + certified,
+    // ALL THREE limbs, through the retired arm. Limb 2 is the tensor
+    // composite bound; every pin scales from the resolved band.
+    let Some(out) = wall_outcome() else { return };
+    assert_eq!(out.branches.len(), 1, "one open branch, edge to edge");
+    let b = &out.branches[0];
+    let cert = &b.certificate;
+    assert_eq!(cert.samples, CERT_SAMPLES);
+    // Limb 1 and limb 2 certified within the band's zero region — and
+    // limb 2 is the number that certifies (C2.2), so it is the pin
+    // that matters: the composite bound reaches the fit's own scale.
+    assert!(cert.on_locus_max <= eps(), "{:e}", cert.on_locus_max);
+    assert!(cert.hull_sup <= eps(), "{:e}", cert.hull_sup);
+    // The measured bound-improvement, order-of-magnitude (spec §5):
+    // where the first-order enclosure reported span-width scale
+    // (~1e-2 m at any ε), the composite lands ~1e-8·(ε/1e-9) — an
+    // order above the certified fixture's measured 4.3e-11 at the
+    // default ε, band-relative so the row means the same at 1e-6.
+    assert!(
+        cert.hull_sup <= 10.0 * eps(),
+        "the composite bound lost its tightness: {:e}",
+        cert.hull_sup
+    );
+    // Limb 3: a real tube with a real margin.
+    assert!(cert.tube_radius > 0.0 && cert.tube_boxes > 0);
+    assert!(cert.tube_transversality > 0.0);
+    // The ℝ⁴ shape's products: both pcurves, on the carrier's own
+    // parameter (the OQ4 identity the certified path now consumes).
+    assert!(b.pcurve_a.is_some() && b.pcurve_b.is_some());
+    // And the table says RETIRED where a caller reads it (C12.1: the
+    // arm retires WITH its proof, and the note records the date).
+    let r = geom_brep::route(geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Nurbs);
+    assert!(r.implemented);
+    assert!(r.note.contains("RETIRED 2026-07-31"), "{}", r.note);
+    assert!(r.note.contains("Bernstein composition"), "{}", r.note);
+}
+
+#[test]
+fn shape_iii_bit_replay() {
+    // The same operation twice is the same certificate and the same
+    // carrier to the BIT (D9) — the certified path includes the ring
+    // composite, so this replays the whole PR 7b pipeline.
+    let Some(a) = wall_outcome() else { return };
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    let b = ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()).expect("replay");
+    assert_eq!(a.branches.len(), b.branches.len());
+    for (x, y) in a.branches.iter().zip(b.branches.iter()) {
+        assert_eq!(
+            x.certificate.hull_sup.to_bits(),
+            y.certificate.hull_sup.to_bits()
+        );
+        assert_eq!(
+            x.certificate.on_locus_max.to_bits(),
+            y.certificate.on_locus_max.to_bits()
+        );
+        assert_eq!(
+            x.certificate.tube_transversality.to_bits(),
+            y.certificate.tube_transversality.to_bits()
+        );
+        let (Curve3::Nurbs(cx), Curve3::Nurbs(cy)) = (&x.carrier, &y.carrier) else {
+            panic!("rung-3 carriers are NURBS curves");
+        };
+        for (u, v) in cx.control().iter().zip(cy.control().iter()) {
+            assert_eq!(u.x.to_bits(), v.x.to_bits());
+            assert_eq!(u.y.to_bits(), v.y.to_bits());
+            assert_eq!(u.z.to_bits(), v.z.to_bits());
+        }
+    }
+}
+
+#[test]
+fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
+    // PR 7's original wall inflects (κ crosses zero along the section),
+    // where the step rule's fit rung unbinds — the realized fit pair
+    // genuinely deviates ~3.8ε between samples there. The OLD loose
+    // bound would have refused at ~1e7·ε and called the geometry
+    // hopeless; the tight bound refuses IN BAND at the same predicate,
+    // which is the honest verdict about this carrier (the bound sits
+    // within ~1% of dense-scan truth — the measured row below). The
+    // deviation scales with the march's ε, so this row means the same
+    // thing at every battery ε until the fit budget preempts it.
     let (p, w) = (cutting_plane(), nurbs_wall());
-    let err = ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()).expect_err("not retired yet");
+    match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
+        Err(SsiError::Escalated(ref d)) if d.predicate == Some("ssi_hull_sup_chart") => {}
+        Err(SsiError::CertificateLimb {
+            limb: SsiLimb::HullSup,
+            value,
+        }) => {
+            // Definite refusal is also honest — but only just above
+            // the band; anything at the old bound's scale means the
+            // cancellation was lost.
+            assert!(value <= definitely_positive(), "{value:e}");
+        }
+        // The finest ε: the march demands more samples than the fit
+        // budget affords, pinned by its own row.
+        Err(SsiError::FitSampleBudget { .. }) => {}
+        Ok(_) => panic!("the inflected wall's fit pair is out of band by measurement"),
+        Err(other) => panic!("expected limb 2 in-band, got {other}"),
+    }
+}
+
+#[test]
+fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
+    // THE MEASURED IMPROVEMENT ROW (spec §5): on the very fixture where
+    // the first-order enclosure reported ~1e-2 m, the composite bound
+    // is compared against a 1e5-sample dense scan of the true residual
+    // |S(P(t)) − C(t)| on the SAME fitted triple: it must dominate it
+    // (a bound) and track it (the cancellation) — measured 1.009× at
+    // the default ε, asserted ≤ 2× for headroom. At the default ε the
+    // spec's conservative order-of-magnitude ceiling (≤ 1e-8 m, seven
+    // orders under the old report) is pinned literally.
+    let (p, w) = (cutting_plane(), nurbs_wall());
+    let (carrier, _pa, pb) =
+        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band()) {
+            Ok(t) => t,
+            Err(SsiError::FitSampleBudget { .. }) => return,
+            Err(e) => panic!("the ℝ⁴ trace: {e}"),
+        };
+    use geom_core::spline::compose::{CurveRingData, tensor};
+    let scoords = w.ring_coords();
+    let sdata =
+        tensor::SurfaceRingData::new(w.knots_u(), w.knots_v(), w.weights(), &scoords).unwrap();
+    let ccoords = carrier.ring_coords();
+    let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &ccoords).unwrap();
+    let pcoords = pb.ring_coords();
+    let pdata = CurveRingData::new(pb.knots(), pb.weights(), &pcoords).unwrap();
+    let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &[])
+        .unwrap()
+        .sup_bound();
+    let (t0, t1) = carrier.domain();
+    let samples = 100_000u32;
+    let mut max = 0.0f64;
+    for i in 0..=samples {
+        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(samples));
+        let q = pb.eval(t);
+        let r = (w.eval(q.x, q.y) - carrier.eval(t)).norm();
+        if r > max {
+            max = r;
+        }
+    }
+    assert!(sup >= max, "not a bound: {sup:e} < dense max {max:e}");
+    assert!(
+        sup <= 2.0 * max,
+        "the cancellation was lost: bound {sup:e} vs truth {max:e}"
+    );
+    if (eps() - 1e-9).abs() < f64::EPSILON {
+        assert!(sup <= 1e-8, "the measured-improvement ceiling: {sup:e}");
+    }
+}
+
+#[test]
+fn a_corrupted_pcurve_is_caught_by_the_hull_limb_alone() {
+    // Exclusion-cannot-lie against the NEW bound, and limb separation:
+    // a pcurve corruption leaves limb 1 clean — the foot-point check
+    // re-projects from the corrupted warm start and converges to the
+    // true foot, so on-locus distance and orthogonality stay in band —
+    // while limb 2, which consumes the pcurve AS the parameter map,
+    // must see |S(P(t)) − C(t)| at the corruption's full size. The
+    // displacement scales from the resolved band (definitely positive
+    // at any battery ε).
+    let Some(out) = wall_outcome() else { return };
+    let b = &out.branches[0];
+    let Curve3::Nurbs(ref carrier) = b.carrier else {
+        panic!("a rung-3 carrier is a NURBS curve");
+    };
+    let pb = b.pcurve_b.as_ref().expect("the ℝ⁴ arm fits both pcurves");
+    let mut control = pb.control().to_vec();
+    let mid = control.len() / 2;
+    let d = definitely_positive();
+    control[mid] = geom_core::Point2::new(control[mid].x + d, control[mid].y);
+    let bad = geom_curves::NurbsCurve2::new(pb.knots().clone(), control, pb.weights().to_vec())
+        .expect("structure unchanged");
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    let err = ssi::certify_rung3(
+        carrier,
+        Some(&bad),
+        &SsiOperand::Analytic(&p),
+        &SsiOperand::Nurbs(&w),
+        wall_domain().extent,
+        wall_domain().extent,
+        eps(),
+        band(),
+    )
+    .expect_err("a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
-            ..
-        } => {}
-        SsiError::Escalated(ref d) if d.predicate == Some("ssi_hull_sup_chart") => {}
-        // At the finest ε the fit budget fires first — a different
-        // typed refusal of the same unretired arm.
-        SsiError::FitSampleBudget { .. } => {}
-        other => panic!("expected limb 2 to be the blocker, got {other}"),
+            value,
+        } => assert!(value > eps(), "{value:e}"),
+        other => panic!("expected limb 2 alone, got {other}"),
     }
-    // And the table says so where a caller reads it.
-    let r = geom_brep::route(geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Nurbs);
-    assert!(!r.implemented);
-    assert!(r.note.contains("Bernstein composition"), "{}", r.note);
 }
 
 #[test]
@@ -774,16 +982,17 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
         assert!(r.implemented, "{a:?}×{b:?} should be retired by PR 7");
         assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
     }
-    // Not retired, and the note says what is missing rather than
-    // "unimplemented": C12.1 retires an arm WITH its proof.
+    // Retired by PR 7b: the ℝ⁴ arm, all three limbs, and the note
+    // records the retirement and its date (C12.1: WITH its proof).
     for (a, b) in [
         (SurfaceKind::Plane, SurfaceKind::Nurbs),
         (SurfaceKind::Nurbs, SurfaceKind::Plane),
     ] {
         let r = route(a, b);
         assert_eq!(r.rung, Rung::General);
-        assert!(!r.implemented);
+        assert!(r.implemented, "{a:?}×{b:?} retired by PR 7b");
         assert!(r.note.contains("PARAMETRIC PAIR"), "{}", r.note);
+        assert!(r.note.contains("RETIRED 2026-07-31"), "{}", r.note);
         assert!(r.note.contains("Bernstein composition"), "{}", r.note);
     }
     // Everything else on the general rung still refuses, and now names
