@@ -1,0 +1,1466 @@
+//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4, and the
+//! `docs/M5-PR6-SPEC.md` sections it mechanizes): the chart-image cache
+//! of an edge's certified 3-D carrier, certified **in meters through
+//! the map**.
+//!
+//! This module owns the cache *value* and its certification gate; the
+//! per-half-edge storage, the minting pass, and the face-level branch
+//! walk live in `topo` (`topo::pcurves`), which is where half-edges,
+//! faces, and loops exist.
+//!
+//! # What a pcurve is here (and what it is not)
+//!
+//! D2/OQ4 stand carrier-primary: the intensional description is
+//! authoritative, the 3-D carrier is the authoritative *machinery*, and
+//! a pcurve is a peer **cache** — never a peer of the description. A
+//! [`PcurveCache`] is therefore constructible only through
+//! [`PcurveCache::certify`] (its fields are private), exactly as
+//! [`crate::EdgeCurve`] is: an uncertified pcurve is unrepresentable.
+//!
+//! # The parameter contract (spec §2, D1 verbatim)
+//!
+//! **The pcurve's parameter IS the edge's carrier parameter** — the
+//! `he_plus`-forward `t ∈ [t₀, t₁]` of [`crate::EdgeCurve::params`].
+//! There is no re-parameterization and no per-face parameter flip in
+//! storage: the traversal sense per face is *derived* from the
+//! half-edge, never stored. Both half-edges of an edge therefore carry
+//! pcurves over the same `[t₀, t₁]` in the same direction; what differs
+//! between them is the *chart* (different faces, possibly different
+//! surfaces) and, on a periodic chart, the **branch** (the seam case —
+//! see `topo::pcurves`).
+//!
+//! This contract is why the stored form is [`Pcurve::Harmonic`] and not
+//! either of PR 5's `pcurve` constructors. Both of those are
+//! **locus**-exact but **parameter**-non-affine: the rational-quadratic
+//! chain's parameter is the conic's rational one (its θ correspondence
+//! is pinned only at 0, ½, 1 of each segment), and the fitted cylinder
+//! graph's parameter is the PR 4 loop's chord-length parameter. Fed
+//! through the map at the certification schedule, both land millimetres
+//! from `C(tᵢ)` on ordinary metre-scale geometry — orders above any ε
+//! this kernel runs at. `tests/pcurve_parameter_finding.rs` pins that
+//! measurement rather than asserting it. See the report/PR description
+//! for the deviation this justifies.
+//!
+//! # The certified statement (spec §3, C4 verbatim)
+//!
+//! `|S(P(t)) − C(t)| ≤ ε` — a **3-D displacement in metres** between
+//! the surface-composed pcurve and the carrier cache, on the shared
+//! [`crate::CERT_SAMPLES`] schedule, plus a **between-samples envelope**
+//! that bounds the same displacement over the whole span (below).
+//! **No UV-space tolerance appears in any certified statement or in any
+//! message this module emits**: chart steps are implementation dials,
+//! the map's local stretch is the lever arm, and a certification
+//! quoting chart units would be dimensionally dishonest (C4; D4 ¶1
+//! transposed).
+//!
+//! ## The between-samples limb, and why it is not a hull bound
+//!
+//! C2.2 requires a *sup-norm* statement, not a sampled max: between
+//! samples is exactly where a cache lies. For the fitted rung that limb
+//! is a control-coefficient hull bound (`geom_core::spline::compose`).
+//! For the forms this PR mints it is **stronger and closed-form**: for
+//! every (chart, carrier) pair in the certified lane, both `S ∘ P` and
+//! `C` lie in the four-dimensional function space
+//! `span{1, cos t, sin t, t}` with **exactly computable coefficients**,
+//! so the residual does too, and
+//!
+//! ```text
+//! sup |D(t)| ≤ |Δ₀| + |Δ_a| + |Δ_b| + |Δ_l|·max(|t₀|, |t₁|)
+//! ```
+//!
+//! is a certified sup bound over the *whole* span with nothing sampled
+//! and nothing hulled — the envelope IS the between-samples limb, and
+//! it is tighter in kind than a hull over an unknown polynomial (a hull
+//! bound exists to bound what sampling cannot see; here nothing is
+//! sampled). It is evaluated at `T`, so it is scalar-generic exactly
+//! like every other residual in [`crate::certify`]: `f64` on the value
+//! lane, a rigorous enclosure on the interval lane (C6/C9).
+//!
+//! A corollary worth stating, because it is the [`Pcurve`] type doing
+//! the work rather than a check: within the certified family the
+//! residual has four coefficients, and the nine-sample schedule
+//! determines them — so a corruption that hides *between* samples is
+//! **unrepresentable** here, not merely caught. The envelope catches
+//! the rest (this module's `a_corrupted_pcurve_fails_typed` and
+//! `the_envelope_dominates_a_dense_resampling` rows).
+//!
+//! One boundary on that corollary, because the trilean has a band:
+//! certification admits an **ε-shell around the family** (the winding
+//! decision classifies `|pl.x − β|·r ≤ ε` as Zero), and a pcurve in
+//! that shell is not exactly of the four-coefficient shape. The
+//! envelope carries the discarded drift explicitly — the *snap slack*
+//! of [`PcurveCache::certify`] step 4 — so the stored bound dominates
+//! the true sup for every input the gate admits, not merely for the
+//! exact-in-family caches the minting lane produces.
+//!
+//! # Domain validity (spec §3)
+//!
+//! Two limbs, both part of the certificate:
+//!
+//! - **One branch, pinned at the start.** On a periodic chart the
+//!   azimuth channel of a [`Pcurve::Harmonic`] is `α + β·t` with a
+//!   *single* stored `α` and a winding `β ∈ {−1, 0, +1}`. There is no
+//!   per-sample branch choice to get wrong: the M2 PR 5 meridian
+//!   finding ("nearest-previous per-sample unwrapping is a bug",
+//!   `docs/M2-LOG.md`) is generalized here by making the wrong unwrap
+//!   **unrepresentable** — a τ jump cannot be expressed. Which branch
+//!   (`α + kτ`) a given half-edge takes is chosen once per face by the
+//!   loop walk in `topo::pcurves` and *certified* by loop continuity
+//!   there.
+//! - **Trim containment.** The certificate records exactly one thing:
+//!   that the pcurve's chart-box enclosure lies inside the face's chart
+//!   window ([`ChartWindow`], supplied by the caller — the face's own
+//!   one-branch hull); escaping it is the typed
+//!   [`PcurveCertifyError::TrimEscape`]. Two honesty notes, both
+//!   binding:
+//!   - The window is a conservative *over-approximation* of the trim
+//!     region (a box, not the region bounded by the loop).
+//!     Point-in-trim-region is the tessellation trim-loop consumer's,
+//!     arriving with PR 11.
+//!   - **No bound on the window's own azimuth width is certified
+//!     here.** The one-period statement that IS certified is the
+//!     per-pcurve azimuth extent ([`PcurveCheck::AzimuthPeriod`]) plus,
+//!     at body level, the loop-closure check in `topo::pcurves` (a
+//!     loop's total azimuth advance is 0 or exactly ±τ). A naive
+//!     "window width ≤ τ" check would be WRONG as stated: the window
+//!     is a hull of *conservative* chart boxes, and a rim pcurve's box
+//!     spans ±(reach) in azimuth, so a legitimately minted seam-closed
+//!     wall's window is already ~2τ wide. Tightening the window (exact
+//!     ranges instead of conservative boxes) is a separate unit.
+//!
+//! # Consumers
+//!
+//! Wired here: the tier-3 validator's pcurve pass (`topo::validate`).
+//! **Not** wired here, and named so nobody wonders: tessellation trim
+//! loops and curved-face quadrature (M5 PR 11), SSI on trimmed faces
+//! and native ℝ⁴ pcurve production (M5 PR 7), the census extension
+//! (PR 12). Those are the hot-path consumers C4 cites as the reason to
+//! store at all; until they land, a stored pcurve is exercised by its
+//! certification and by nothing else.
+
+use geom_core::k_stats::decide;
+use geom_core::predicate::{Band, BandError};
+use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_curves::Curve3;
+use geom_surfaces::Surface;
+
+use crate::certify::CERT_SAMPLES;
+
+/// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
+/// **the carrier's own parameter** (module docs).
+///
+/// One variant today. The closed enum is the D3 shape: the general
+/// rung — a fitted/marched 2-D NURBS, the form SSI produces natively —
+/// arrives with M5 PR 7 and is added here as a variant then, with the
+/// C2.2 control-coefficient hull bound as its between-samples limb.
+#[derive(Clone, Copy, Debug)]
+pub enum Pcurve<T: Real> {
+    /// The closed-form chart image
+    /// `P(t) = p0 + pa·cos t + pb·sin t + pl·t`.
+    ///
+    /// This one form is exact for every (chart, carrier) pair the C5
+    /// table mints: a rim circle on its cylinder chart (`pl = (β, 0)`,
+    /// the `v = const` line), a seam/meridian line (`pl = (0, dv)`, the
+    /// `u = const` line), a tilted-section conic on its cylinder chart
+    /// (the sinusoid graph `pa = pb = (0, ·)`, `pl = (β, 0)`), and any
+    /// conic or line in a plane chart (the chart map is affine, so the
+    /// carrier's own `{1, cos, sin, t}` form maps through coefficient
+    /// by coefficient).
+    Harmonic {
+        /// The constant term (chart coordinates).
+        p0: Point2<T>,
+        /// The `cos t` coefficient.
+        pa: Vec2<T>,
+        /// The `sin t` coefficient.
+        pb: Vec2<T>,
+        /// The linear-in-`t` coefficient.
+        pl: Vec2<T>,
+    },
+}
+
+impl<T: Real> Pcurve<T> {
+    /// The chart point at the **carrier parameter** `t` (module docs:
+    /// the parameter is not re-mapped). Fixed evaluation order (D9);
+    /// total.
+    pub fn eval(&self, t: T) -> Point2<T> {
+        match *self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => {
+                let (s, c) = t.sin_cos();
+                Point2::new(
+                    p0.x + pa.x * c + pb.x * s + pl.x * t,
+                    p0.y + pa.y * c + pb.y * s + pl.y * t,
+                )
+            }
+        }
+    }
+
+    /// A **conservative** chart-box enclosure of the pcurve over
+    /// `[t₀, t₁]`: the constant term widened by the trigonometric
+    /// amplitudes and the linear term's reach. Deliberately coarse
+    /// (module docs: the trim limb is a box over-approximation at M5)
+    /// and always sound in the containment direction — it can only make
+    /// a containment claim harder to satisfy, never falsely satisfied.
+    pub fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
+        match *self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => {
+                let reach = t0.abs().max(t1.abs());
+                let du = pa.x.abs() + pb.x.abs() + pl.x.abs() * reach;
+                let dv = pa.y.abs() + pb.y.abs() + pl.y.abs() * reach;
+                ChartWindow {
+                    u_min: p0.x - du,
+                    u_max: p0.x + du,
+                    v_min: p0.y - dv,
+                    v_max: p0.y + dv,
+                }
+            }
+        }
+    }
+
+    /// The azimuth channel shifted by `k` whole periods — the only
+    /// branch freedom a pcurve on a periodic chart has (module docs:
+    /// the branch is chosen once, by the face's loop walk, and never
+    /// per sample).
+    pub fn shift_branch(&self, k: T, period: T) -> Self {
+        match *self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+                p0: Point2::new(p0.x + k * period, p0.y),
+                pa,
+                pb,
+                pl,
+            },
+        }
+    }
+}
+
+/// A chart-space axis-aligned window: the conservative
+/// over-approximation of a face's trim region the domain-validity limb
+/// certifies against (module docs).
+#[derive(Clone, Copy, Debug)]
+pub struct ChartWindow<T: Real> {
+    /// Lower azimuth/first-parameter bound.
+    pub u_min: T,
+    /// Upper azimuth/first-parameter bound.
+    pub u_max: T,
+    /// Lower second-parameter bound.
+    pub v_min: T,
+    /// Upper second-parameter bound.
+    pub v_max: T,
+}
+
+impl<T: Real> ChartWindow<T> {
+    /// The hull of two windows (fixed order, D9).
+    pub fn hull(self, other: Self) -> Self {
+        Self {
+            u_min: self.u_min.min(other.u_min),
+            u_max: self.u_max.max(other.u_max),
+            v_min: self.v_min.min(other.v_min),
+            v_max: self.v_max.max(other.v_max),
+        }
+    }
+}
+
+/// Which certified statement a [`PcurveCertifyError`] names — one
+/// variant per documented check (the [`crate::certify::CertCheck`]
+/// idiom).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PcurveCheck {
+    /// The carrier-parameter interval's forward-span check.
+    ParamSpan,
+    /// `|S(P(tᵢ)) − C(tᵢ)|` at a schedule sample — metres through the
+    /// map (module docs).
+    MapResidual,
+    /// The closed-form between-samples envelope — metres.
+    Envelope,
+    /// The chart winding `β` selection on a periodic chart.
+    ChartWinding,
+    /// The pcurve's azimuth extent against one period.
+    AzimuthPeriod,
+    /// The pcurve's chart box against the face's window.
+    TrimContainment,
+}
+
+/// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PcurveCertifyError {
+    /// The face's chart is outside the certified lane. Plane and
+    /// cylinder charts have exact closed-form images for every carrier
+    /// the C5 table mints; cone/sphere/torus charts and `Nurbs`
+    /// surfaces keep derive-on-demand status until their consumers land
+    /// (M5 PR 7 for SSI-produced pcurves, PR 11 for tessellation trim).
+    /// This is a *routing decision*, permanent until a PR moves it —
+    /// never a runtime fallback (C5).
+    UnsupportedChart {
+        /// The surface kind, named.
+        chart: &'static str,
+    },
+    /// The carrier kind is outside the certified lane (the `Nurbs`
+    /// representable-unimplemented placeholder; the general rung
+    /// arrives with PR 7).
+    UnsupportedCarrier,
+    /// The stored carrier-parameter interval is not forward — the same
+    /// `he_plus` contract [`crate::certify::CertifyError::IntervalNotForward`]
+    /// enforces on the carrier itself.
+    IntervalNotForward,
+    /// The pcurve's azimuth channel is not `α + β·t` with
+    /// `β ∈ {−1, 0, +1}` on a periodic chart: a chart image this lane
+    /// cannot certify in closed form (a helix-like or
+    /// multiply-wound azimuth). Typed, never approximated.
+    ChartWindingUnsupported,
+    /// The pcurve's azimuth extent definitely exceeds one full period —
+    /// the chart-side counterpart of
+    /// [`crate::certify::CertifyError::WindingExceeded`].
+    AzimuthPeriodExceeded,
+    /// A certified residual definitely exceeded the tolerance band: the
+    /// pcurve does not represent the carrier through the map (D4 ¶2).
+    ResidualExceeded {
+        /// The check that failed.
+        check: PcurveCheck,
+        /// The schedule sample index (0 for span-wide checks).
+        sample: u32,
+    },
+    /// The pcurve leaves the face's chart window — the trim-containment
+    /// limb of domain validity (module docs: a box over-approximation
+    /// at M5).
+    TrimEscape,
+    /// A classification escalated (sliver band or poison) — D4 ¶3's
+    /// escalate-never-guess.
+    Escalated {
+        /// The check that escalated.
+        check: PcurveCheck,
+        /// The schedule sample index.
+        sample: u32,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// The linear band could not be built from the run's tolerance.
+    Band(BandError),
+}
+
+impl core::fmt::Display for PcurveCertifyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnsupportedChart { chart } => write!(
+                f,
+                "pcurve certification: a {chart} chart has no certified pcurve lane yet — \
+                 its faces keep derive-on-demand status (SSI-produced pcurves arrive with \
+                 M5 PR 7, tessellation trim loops with PR 11)"
+            ),
+            Self::UnsupportedCarrier => write!(
+                f,
+                "pcurve certification: the carrier kind has no certified pcurve lane yet \
+                 (the general fitted/marched rung arrives with M5 PR 7)"
+            ),
+            Self::IntervalNotForward => write!(
+                f,
+                "pcurve certification: the carrier-parameter interval is not forward — a \
+                 pcurve shares the edge's he_plus-forward parameter (D1)"
+            ),
+            Self::ChartWindingUnsupported => write!(
+                f,
+                "pcurve certification: the chart azimuth is not α + β·t with β in \
+                 {{−1, 0, +1}} — this lane certifies closed-form chart images only"
+            ),
+            Self::AzimuthPeriodExceeded => write!(
+                f,
+                "pcurve certification: the pcurve winds more than one full period around \
+                 the chart — split the edge first (the winding gate, chart side)"
+            ),
+            Self::ResidualExceeded { check, sample } => write!(
+                f,
+                "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
+                 tolerance band — the pcurve does not represent the carrier through the \
+                 map (D4 ¶2; the residual is a 3-D displacement in metres)"
+            ),
+            Self::TrimEscape => write!(
+                f,
+                "pcurve certification: the pcurve leaves its face's chart window — domain \
+                 validity is part of the certificate (C4)"
+            ),
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } => write!(
+                f,
+                "pcurve certification: {check:?} at sample {sample} escalated: {cause}"
+            ),
+            Self::Band(e) => write!(f, "pcurve certification: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for PcurveCertifyError {}
+
+/// The certification record stored with a certified pcurve: the
+/// schedule that ran, the worst sampled displacement, and the
+/// closed-form between-samples envelope — **all metres** (module docs).
+/// Byte-identical across replays of the same construction (D9).
+#[derive(Clone, Copy, Debug)]
+pub struct PcurveCertificate<T: Real> {
+    /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
+    pub samples: u32,
+    /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres) —
+    /// **the sampled max only**. The between-samples statement is
+    /// [`Self::envelope`], deliberately a separate field: folding them
+    /// into one number would let a reader mistake a sup bound for a
+    /// measurement or the reverse.
+    pub max_residual: T,
+    /// The certified sup bound on `|S(P(t)) − C(t)|` over the whole
+    /// span (metres) — the C2.2 between-samples limb (module docs).
+    /// Always ≥ the true sup, hence ≥ [`Self::max_residual`] for an
+    /// exact-in-family pcurve; it additionally carries the winding
+    /// snap's slack (see [`PcurveCache::certify`] step 4), so it is the
+    /// number to quote for "how far can this cache be from its
+    /// carrier".
+    pub envelope: T,
+}
+
+/// A certified pcurve cache: the chart image, the carrier-parameter
+/// interval it is certified over, and the [`PcurveCertificate`] of the
+/// run. Constructible only through [`PcurveCache::certify`] — the
+/// fields are private, so an uncertified pcurve is unrepresentable
+/// (D4 ¶2 made structural, exactly as for [`crate::EdgeCurve`]).
+#[derive(Clone, Copy, Debug)]
+pub struct PcurveCache<T: Real> {
+    pcurve: Pcurve<T>,
+    param_start: T,
+    param_end: T,
+    certificate: PcurveCertificate<T>,
+}
+
+impl<T: Real> PcurveCache<T> {
+    /// The cached chart image.
+    pub fn pcurve(&self) -> &Pcurve<T> {
+        &self.pcurve
+    }
+
+    /// The carrier-parameter interval `(t₀, t₁)` this pcurve is
+    /// certified over — the edge's own interval (spec §2).
+    pub fn params(&self) -> (T, T) {
+        (self.param_start, self.param_end)
+    }
+
+    /// The certification record of the run that admitted this cache.
+    pub fn certificate(&self) -> &PcurveCertificate<T> {
+        &self.certificate
+    }
+}
+
+impl<T: Decide> PcurveCache<T> {
+    /// Certifies `pcurve` as the chart image of `carrier` on `surface`
+    /// over `[t0, t1]`, inside the face's chart `window`.
+    ///
+    /// The check sequence (fixed order, D9; every margin in metres):
+    ///
+    /// 1. **Lane**: the chart and carrier kinds are ones this module
+    ///    certifies in closed form; the azimuth channel of a periodic
+    ///    chart is `α + β·t` with `β ∈ {−1, 0, +1}` (a named trilean
+    ///    selection over a finite structural set, not a guess).
+    /// 2. **Interval**: `t₁ − t₀` is definitely forward, metered
+    ///    through the carrier's own rate; the pcurve's azimuth extent
+    ///    does not definitely exceed one period.
+    /// 3. **Schedule**: `|S(P(tᵢ)) − C(tᵢ)| ≤ ε` at the
+    ///    [`CERT_SAMPLES`] schedule — evaluated through
+    ///    `Surface::eval` and `Curve3::eval` directly, so the harmonic
+    ///    decomposition step 4 uses is *verified*, never trusted.
+    /// 4. **Envelope**: the closed-form sup bound of the same
+    ///    displacement over the whole span ≤ ε (module docs), **plus
+    ///    the winding snap's slack** — step 1 admits an ε-shell around
+    ///    the exact harmonic family, and the stored envelope must bound
+    ///    the pcurve that was actually certified, not the snapped one
+    ///    the closed form describes. Zero on every minted cache (they
+    ///    are exact in family); the term exists so the certificate is
+    ///    honest for every input `certify` admits, including
+    ///    attach-path ones.
+    /// 5. **Trim containment**: the pcurve's chart box lies inside
+    ///    `window`.
+    ///
+    /// # Errors
+    ///
+    /// The first failing check, as a typed [`PcurveCertifyError`].
+    pub fn certify(
+        pcurve: Pcurve<T>,
+        t0: T,
+        t1: T,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        window: ChartWindow<T>,
+        band: Band,
+    ) -> Result<Self, PcurveCertifyError> {
+        let certificate = run_pcurve_checks(&pcurve, t0, t1, carrier, surface, window, band)?;
+        Ok(Self {
+            pcurve,
+            param_start: t0,
+            param_end: t1,
+            certificate,
+        })
+    }
+
+    /// Re-runs the full certification at rest — the tier-3 validator's
+    /// per-half-edge pass. Same checks, same schedule, same errors; the
+    /// stored certificate is not consulted (re-certification
+    /// re-derives, it does not trust).
+    ///
+    /// # Errors
+    ///
+    /// As [`PcurveCache::certify`].
+    pub fn recertify(
+        &self,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        window: ChartWindow<T>,
+        band: Band,
+    ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+        run_pcurve_checks(
+            &self.pcurve,
+            self.param_start,
+            self.param_end,
+            carrier,
+            surface,
+            window,
+            band,
+        )
+    }
+}
+
+/// The carrier parameter at schedule sample `i` — bitwise the schedule
+/// [`crate::EdgeCurve::sample_param`] uses (D9: one schedule, shared).
+fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
+    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+    t0 + (t1 - t0) * frac
+}
+
+/// A 3-D curve in the certified basis: `c + a·cos t + b·sin t + l·t`.
+/// Both `S ∘ P` and `C` land here for every pair in the lane (module
+/// docs), which is what makes the envelope closed-form.
+#[derive(Clone, Copy, Debug)]
+struct Harmonic3<T: Real> {
+    c: Point3<T>,
+    a: Vec3<T>,
+    b: Vec3<T>,
+    l: Vec3<T>,
+}
+
+/// The carrier in the certified basis. Total for the analytic kinds;
+/// `Nurbs` carriers are refused at the lane check.
+fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
+    match *carrier {
+        Curve3::Line { origin, dir } => Some(Harmonic3 {
+            c: origin,
+            a: Vec3::zero(),
+            b: Vec3::zero(),
+            l: dir,
+        }),
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => Some(Harmonic3 {
+            c: center,
+            a: u_ref * radius,
+            b: axis.cross(u_ref) * radius,
+            l: Vec3::zero(),
+        }),
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => Some(Harmonic3 {
+            c: center,
+            a: u_ref * major,
+            b: axis.cross(u_ref) * minor,
+            l: Vec3::zero(),
+        }),
+        Curve3::Nurbs(_) => None,
+    }
+}
+
+/// The periodic chart's azimuth **winding**: the finite structural set
+/// `{−1, 0, +1}` a certified chart image may traverse per unit carrier
+/// parameter. Structure, not a scalar — so the branch on it below is a
+/// match on a named decision, never a comparison on `T`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Winding {
+    /// `β = −1`: the chart azimuth runs against the chart frame.
+    Neg,
+    /// `β = 0`: a constant azimuth — a meridian.
+    Zero,
+    /// `β = +1`: the chart azimuth runs with the chart frame.
+    Pos,
+}
+
+impl Winding {
+    fn value<T: Real>(self) -> T {
+        match self {
+            Winding::Neg => T::zero() - T::one(),
+            Winding::Zero => T::zero(),
+            Winding::Pos => T::one(),
+        }
+    }
+
+    const ALL: [Winding; 3] = [Winding::Neg, Winding::Zero, Winding::Pos];
+}
+
+/// The chart image `S ∘ P` in the certified basis.
+///
+/// - **Plane chart**: the map is affine, so the pcurve's coefficients
+///   map through one by one.
+/// - **Cylinder chart**: the azimuth channel is `α + β·t` with
+///   `β ∈ {−1, 0, +1}` (named by [`chart_winding`]). For `β = 0` the
+///   radial vector is constant and folds into the constant term; for
+///   `β = ±1` the angle-sum identity
+///   `cos(α + βt) = cos α·cos t − β·sin α·sin t` puts the radial
+///   channel exactly in the basis.
+fn chart_image_harmonic<T: Real>(
+    pcurve: &Pcurve<T>,
+    surface: &Surface<T>,
+    winding: Winding,
+) -> Option<Harmonic3<T>> {
+    let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve;
+    match *surface {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
+            let v_ref = normal.cross(u_ref);
+            Some(Harmonic3 {
+                c: origin + (u_ref * p0.x + v_ref * p0.y),
+                a: u_ref * pa.x + v_ref * pa.y,
+                b: u_ref * pb.x + v_ref * pb.y,
+                l: u_ref * pl.x + v_ref * pl.y,
+            })
+        }
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let cv = axis.cross(u_ref);
+            let (sa, ca) = p0.x.sin_cos();
+            // radial(α) and tangential(α) in the chart frame.
+            let rad = u_ref * ca + cv * sa;
+            let tang = u_ref * (T::zero() - sa) + cv * ca;
+            match winding {
+                Winding::Zero => Some(Harmonic3 {
+                    c: origin + rad * radius + axis * p0.y,
+                    a: axis * pa.y,
+                    b: axis * pb.y,
+                    l: axis * pl.y,
+                }),
+                Winding::Pos | Winding::Neg => Some(Harmonic3 {
+                    c: origin + axis * p0.y,
+                    a: rad * radius + axis * pa.y,
+                    b: tang * (radius * winding.value()) + axis * pb.y,
+                    l: axis * pl.y,
+                }),
+            }
+        }
+        Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. }
+        | Surface::Nurbs(_) => None,
+    }
+}
+
+/// Names the chart's periodic azimuth winding `β` for the pcurve's
+/// linear channel: selection over the finite structural set
+/// [`Winding::ALL`] by a named trilean metered at the chart's own
+/// radius (metres — an azimuth slope is dimensionless, so it is metered
+/// through the lever arm, D4 ¶1; no UV-space tolerance is ever
+/// compared against ε).
+fn chart_winding<T: Decide>(
+    pcurve: &Pcurve<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Winding, PcurveCertifyError> {
+    let Pcurve::Harmonic { pa, pb, pl, .. } = *pcurve;
+    let Surface::Cylinder { radius, .. } = *surface else {
+        // Non-periodic charts have no winding; the value is unused.
+        return Ok(Winding::Zero);
+    };
+    let esc = |cause: Indeterminate| PcurveCertifyError::Escalated {
+        check: PcurveCheck::ChartWinding,
+        sample: 0,
+        cause,
+    };
+    // The azimuth channel carries no trigonometric part in this lane.
+    for coeff in [pa.x, pb.x] {
+        match decide("pcurve_chart_azimuth_affine", coeff * radius, band).map_err(esc)? {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(PcurveCertifyError::ChartWindingUnsupported);
+            }
+        }
+    }
+    for candidate in Winding::ALL {
+        match decide(
+            "pcurve_chart_winding",
+            (pl.x - candidate.value()) * radius,
+            band,
+        ) {
+            Ok(Sign::Zero) => return Ok(candidate),
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(cause) => return Err(esc(cause)),
+        }
+    }
+    Err(PcurveCertifyError::ChartWindingUnsupported)
+}
+
+/// The rate that meters this carrier's parameter into metres — the
+/// lever arm the forward-span and period checks use (the
+/// [`crate::certify`] convention: radians × the conservative radius).
+fn param_rate<T: Real>(carrier: &Curve3<T>) -> T {
+    match *carrier {
+        Curve3::Line { .. } | Curve3::Nurbs(_) => T::one(),
+        Curve3::Circle { radius, .. } => radius,
+        Curve3::Ellipse { minor, .. } => minor,
+    }
+}
+
+/// Folds a residual into the running max and classifies it against the
+/// band (the [`crate::certify::check_residual`] idiom, one module over).
+fn check_residual<T: Decide>(
+    name: &'static str,
+    check: PcurveCheck,
+    sample: u32,
+    residual: T,
+    band: Band,
+    max_residual: &mut T,
+) -> Result<(), PcurveCertifyError> {
+    *max_residual = max_residual.max(residual.abs());
+    match decide(name, residual, band) {
+        Ok(Sign::Zero) => Ok(()),
+        Ok(Sign::Positive | Sign::Negative) => {
+            Err(PcurveCertifyError::ResidualExceeded { check, sample })
+        }
+        Err(cause) => Err(PcurveCertifyError::Escalated {
+            check,
+            sample,
+            cause,
+        }),
+    }
+}
+
+/// The shared pcurve-certification engine (sequence documented on
+/// [`PcurveCache::certify`]).
+fn run_pcurve_checks<T: Decide>(
+    pcurve: &Pcurve<T>,
+    t0: T,
+    t1: T,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    window: ChartWindow<T>,
+    band: Band,
+) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    // ---- Check 1: the certified lane. ----
+    let chart = match surface {
+        Surface::Plane { .. } => "plane",
+        Surface::Cylinder { .. } => "cylinder",
+        Surface::Cone { .. } => "cone",
+        Surface::Sphere { .. } => "sphere",
+        Surface::Torus { .. } => "torus",
+        Surface::Nurbs(_) => "Nurbs (representable-unimplemented)",
+    };
+    if !matches!(surface, Surface::Plane { .. } | Surface::Cylinder { .. }) {
+        return Err(PcurveCertifyError::UnsupportedChart { chart });
+    }
+    let Some(carrier_form) = carrier_harmonic(carrier) else {
+        return Err(PcurveCertifyError::UnsupportedCarrier);
+    };
+    let winding = chart_winding(pcurve, surface, band)?;
+    let Some(image_form) = chart_image_harmonic(pcurve, surface, winding) else {
+        return Err(PcurveCertifyError::UnsupportedChart { chart });
+    };
+
+    let mut max_residual = T::zero();
+
+    // ---- Check 2: the parameter interval, metered into metres. ----
+    let rate = param_rate(carrier);
+    let span = t1 - t0;
+    let span_escalated = |cause: Indeterminate| PcurveCertifyError::Escalated {
+        check: PcurveCheck::ParamSpan,
+        sample: 0,
+        cause,
+    };
+    match decide("pcurve_interval_forward", span * rate, band).map_err(span_escalated)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
+    }
+    // The chart-side winding gate: the azimuth extent of a periodic
+    // chart's pcurve, metered at the chart radius.
+    if let Surface::Cylinder { radius, .. } = *surface {
+        let Pcurve::Harmonic { pl, .. } = *pcurve;
+        let extent = (pl.x * span).abs();
+        let headroom = (T::tau() - extent) * radius;
+        match decide("pcurve_azimuth_period", headroom, band).map_err(|cause| {
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::AzimuthPeriod,
+                sample: 0,
+                cause,
+            }
+        })? {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
+        }
+    }
+
+    // ---- Check 3: the schedule, in metres through the map. ----
+    for i in 0..CERT_SAMPLES {
+        let t = sample_param(t0, t1, i);
+        let chart_point = pcurve.eval(t);
+        let mapped = surface.eval(chart_point.x, chart_point.y);
+        let on_carrier = carrier.eval(t);
+        check_residual(
+            "pcurve_map_residual",
+            PcurveCheck::MapResidual,
+            i,
+            mapped.distance(on_carrier),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
+    // ---- Check 4: the closed-form between-samples envelope. ----
+    let d_c = image_form.c - carrier_form.c;
+    let d_a = image_form.a - carrier_form.a;
+    let d_b = image_form.b - carrier_form.b;
+    let d_l = image_form.l - carrier_form.l;
+    let reach = t0.abs().max(t1.abs());
+    // **The snap slack.** Check 1's winding trilean classifies
+    // `|pa.x|·r`, `|pb.x|·r` and `|pl.x − β|·r` as Zero anywhere inside
+    // the band, so `certify` admits pcurves in an ε-shell OUTSIDE the
+    // exact harmonic family — and `image_form` above is built from the
+    // SNAPPED azimuth channel `α + β·t`. The envelope of the snapped
+    // image would therefore under-report the true sup of the pcurve
+    // actually being certified, by exactly the drift the snap discarded
+    // (measured at 7 orders on an attach-path `pl.x = 1 + 0.6e-9` — the
+    // reviewer's probe, now `envelope_dominates_a_winding_snapped_pcurve`).
+    // Add it back: the discarded channel is
+    // `δu(t) = pa.x·cos t + pb.x·sin t + (pl.x − β)·t`, and moving the
+    // azimuth by `δu` moves the mapped point by `2r·|sin(δu/2)| ≤ r·|δu|`
+    // — so `r·(|pa.x| + |pb.x| + |pl.x − β|·reach)` bounds it. Minted
+    // caches are exact in family (`pa.x = pb.x = 0`, `pl.x ∈ {−1,0,1}`
+    // bitwise), so this term is exactly zero on the ship path.
+    let snap_slack = match *surface {
+        Surface::Cylinder { radius, .. } => {
+            let Pcurve::Harmonic { pa, pb, pl, .. } = *pcurve;
+            (pa.x.abs() + pb.x.abs() + (pl.x - winding.value::<T>()).abs() * reach) * radius
+        }
+        _ => T::zero(),
+    };
+    let envelope = d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach + snap_slack;
+    // The envelope is classified against the band like every other
+    // residual, but it is NOT folded into `max_residual`: that field is
+    // the sampled max, and the two statements stay separate (the
+    // certificate's field docs).
+    let mut envelope_margin = T::zero();
+    check_residual(
+        "pcurve_envelope",
+        PcurveCheck::Envelope,
+        0,
+        envelope,
+        band,
+        &mut envelope_margin,
+    )?;
+
+    // ---- Check 5: trim containment (the chart-box limb). ----
+    let boxed = pcurve.chart_box(t0, t1);
+    // Escapes are metered through the map: an azimuth overshoot times
+    // the chart radius, a `v` overshoot directly (both metres — no UV
+    // tolerance is ever compared against ε).
+    let (u_arm, v_arm) = match *surface {
+        Surface::Cylinder { radius, .. } => (radius, T::one()),
+        _ => (T::one(), T::one()),
+    };
+    let escapes = [
+        ((window.u_min - boxed.u_min) * u_arm),
+        ((boxed.u_max - window.u_max) * u_arm),
+        ((window.v_min - boxed.v_min) * v_arm),
+        ((boxed.v_max - window.v_max) * v_arm),
+    ];
+    for over in escapes {
+        match decide("pcurve_trim_containment", over, band) {
+            Ok(Sign::Negative | Sign::Zero) => {}
+            Ok(Sign::Positive) => return Err(PcurveCertifyError::TrimEscape),
+            Err(cause) => {
+                return Err(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::TrimContainment,
+                    sample: 0,
+                    cause,
+                });
+            }
+        }
+    }
+
+    Ok(PcurveCertificate {
+        samples: CERT_SAMPLES,
+        max_residual,
+        envelope,
+    })
+}
+
+/// Derives the **exact closed-form chart image** of `carrier` on
+/// `surface` — the constructor every minted cache goes through, and the
+/// derive-on-demand answer for the faces that store nothing (planar
+/// faces keep M2's status, C4 verbatim).
+///
+/// Total arithmetic with one named trilean (the periodic chart's
+/// orientation): degenerate or incoherent inputs produce a pcurve whose
+/// certification fails loudly rather than a guess (the established
+/// posture — nothing here decides what certification can check).
+///
+/// The azimuth branch is the **principal** one; a face that needs
+/// another branch shifts it by whole periods exactly once, through
+/// [`Pcurve::shift_branch`] (the loop walk in `topo::pcurves`). No
+/// per-sample unwrapping exists anywhere in this lane.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::UnsupportedChart`] / `UnsupportedCarrier` for
+/// kinds outside the certified lane; `Escalated` when the orientation
+/// trilean lands in the sliver band.
+pub fn chart_pcurve<T: Decide>(
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PcurveCertifyError> {
+    let Some(form) = carrier_harmonic(carrier) else {
+        return Err(PcurveCertifyError::UnsupportedCarrier);
+    };
+    match *surface {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
+            // Affine chart: the coefficients map through one by one.
+            let v_ref = normal.cross(u_ref);
+            let chart = |v: Vec3<T>| Vec2::new(v.dot(u_ref), v.dot(v_ref));
+            let w = form.c - origin;
+            Ok(Pcurve::Harmonic {
+                p0: Point2::new(w.dot(u_ref), w.dot(v_ref)),
+                pa: chart(form.a),
+                pb: chart(form.b),
+                pl: chart(form.l),
+            })
+        }
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let cv = axis.cross(u_ref);
+            let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+            let w = form.c - origin;
+            // The axial channel is exact for every carrier kind (`v` is
+            // a linear functional of the point); only the azimuth
+            // channel needs a case.
+            let a_r = radial(form.a);
+            let b_r = radial(form.b);
+            let l_r = radial(form.l);
+            // The azimuth channel. A carrier whose radial part is
+            // constant (`a_r = b_r = l_r = 0`) is a meridian: β = 0,
+            // α from the constant radial part. Otherwise the radial
+            // part must be the chart circle traversed once — the
+            // section/rim case — and β is its orientation against the
+            // chart frame.
+            let w_r = radial(w);
+            let moving = a_r.norm() + b_r.norm() + l_r.norm();
+            let alpha_const = w_r.dot(cv).atan2(w_r.dot(u_ref));
+            match decide("pcurve_chart_radial_moving", moving * radius, band) {
+                Ok(Sign::Zero) => Ok(Pcurve::Harmonic {
+                    p0: Point2::new(alpha_const, w.dot(axis)),
+                    pa: Vec2::new(T::zero(), form.a.dot(axis)),
+                    pb: Vec2::new(T::zero(), form.b.dot(axis)),
+                    pl: Vec2::new(T::zero(), form.l.dot(axis)),
+                }),
+                Ok(Sign::Positive | Sign::Negative) => {
+                    // The moving case: radial(t) = a_r·cos t + b_r·sin t
+                    // (a linear radial part would not close a chart
+                    // circle; certification refuses it through the
+                    // residual). α is the azimuth of `a_r`; β is the
+                    // orientation of (a_r, b_r) against the chart's own
+                    // frame, a named trilean metered at the radius.
+                    let alpha = a_r.dot(cv).atan2(a_r.dot(u_ref));
+                    let orient = a_r.cross(b_r).dot(axis);
+                    let beta = match decide("pcurve_chart_orientation", orient / radius, band) {
+                        Ok(Sign::Positive) => T::one(),
+                        Ok(Sign::Negative) => T::zero() - T::one(),
+                        Ok(Sign::Zero) => T::zero(),
+                        Err(cause) => {
+                            return Err(PcurveCertifyError::Escalated {
+                                check: PcurveCheck::ChartWinding,
+                                sample: 0,
+                                cause,
+                            });
+                        }
+                    };
+                    Ok(Pcurve::Harmonic {
+                        p0: Point2::new(alpha, w.dot(axis)),
+                        pa: Vec2::new(T::zero(), form.a.dot(axis)),
+                        pb: Vec2::new(T::zero(), form.b.dot(axis)),
+                        pl: Vec2::new(beta, form.l.dot(axis)),
+                    })
+                }
+                Err(cause) => Err(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::ChartWinding,
+                    sample: 0,
+                    cause,
+                }),
+            }
+        }
+        Surface::Cone { .. } => Err(PcurveCertifyError::UnsupportedChart { chart: "cone" }),
+        Surface::Sphere { .. } => Err(PcurveCertifyError::UnsupportedChart { chart: "sphere" }),
+        Surface::Torus { .. } => Err(PcurveCertifyError::UnsupportedChart { chart: "torus" }),
+        Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: "Nurbs (representable-unimplemented)",
+        }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use core::f64::consts::{FRAC_PI_2, PI, TAU};
+
+    use super::*;
+
+    fn band() -> Band {
+        Band::linear().unwrap()
+    }
+
+    /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.
+    fn cylinder(r: f64) -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// The tilted plane×cylinder section ellipse of `cylinder(r)` cut
+    /// at height `h` by a plane tilted `tilt` off the axis (the corpus
+    /// shape (i) configuration, built by hand here).
+    fn tilted_section(r: f64, h: f64, tilt: f64) -> Curve3<f64> {
+        // The section plane's normal is (sin tilt, 0, cos tilt); the
+        // ellipse's minor axis is +y (in the cross-section plane), its
+        // major axis is the tilt direction (cos tilt, 0, -sin tilt)
+        // ... with semi-axis r/cos(tilt).
+        Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, h),
+            // The ellipse's own axis is the section plane's normal.
+            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+            major: r / tilt.cos(),
+            minor: r,
+            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        }
+    }
+
+    /// The chart image of a tilted section on its cylinder chart is the
+    /// exact sinusoid graph `(t, h + r·tan(tilt)·cos t)` — derived, not
+    /// fitted, and certified in metres through the map.
+    #[test]
+    fn tilted_section_on_cylinder_is_the_exact_sinusoid_graph() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = p;
+        assert!(p0.x.abs() < 1e-15, "azimuth anchored at the major axis");
+        assert!((p0.y - h).abs() < 1e-15);
+        assert!((pl.x - 1.0).abs() < 1e-15, "one azimuth turn per period");
+        assert!(pl.y.abs() < 1e-15);
+        // v(t) = h − (major·sin tilt)·cos t = h − r·tan(tilt)·cos t
+        // (the ellipse's major direction tilts DOWN the axis by
+        // construction, so the graph's amplitude is signed).
+        assert!((pa.y + r * tilt.tan()).abs() < 1e-15);
+        assert!(pb.y.abs() < 1e-15);
+        assert!(pa.x.abs() < 1e-15 && pb.x.abs() < 1e-15);
+        // And it certifies over the half-arc the corpus cuts.
+        let cache =
+            PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, wide_window(), band()).unwrap();
+        assert!(cache.certificate().max_residual < 1e-14);
+        assert!(cache.certificate().envelope < 1e-14);
+    }
+
+    fn wide_window() -> ChartWindow<f64> {
+        ChartWindow {
+            u_min: -100.0,
+            u_max: 100.0,
+            v_min: -100.0,
+            v_max: 100.0,
+        }
+    }
+
+    /// A rim circle on its cylinder chart is the `v = const` line —
+    /// closed form, kept exact (spec §4).
+    #[test]
+    fn rim_circle_on_cylinder_is_the_v_const_line() {
+        let (r, h) = (0.5, 1.0);
+        let cyl = cylinder(r);
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, h),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = p;
+        assert!(p0.x.abs() < 1e-15 && (p0.y - h).abs() < 1e-15);
+        assert!(pa.y.abs() < 1e-15 && pb.y.abs() < 1e-15 && pl.y.abs() < 1e-15);
+        assert!((pl.x - 1.0).abs() < 1e-15);
+        let cache =
+            PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, wide_window(), band()).unwrap();
+        assert!(cache.certificate().envelope < 1e-15);
+    }
+
+    /// A rim traversed the other way (the split lane's axis-flipped
+    /// frame) is the `β = −1` winding — named, not approximated.
+    #[test]
+    fn reversed_rim_takes_the_negative_winding() {
+        let (r, h) = (0.5, 1.0);
+        let cyl = cylinder(r);
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, h),
+            axis: -Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { pl, .. } = p;
+        assert!((pl.x + 1.0).abs() < 1e-15);
+        PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, wide_window(), band()).unwrap();
+    }
+
+    /// A meridian (seam) line on a cylinder chart is the `u = const`
+    /// line: the azimuth channel is a single stored `α`, so there is no
+    /// branch to choose per sample — the wrong unwrap is
+    /// unrepresentable (module docs).
+    #[test]
+    fn meridian_line_on_cylinder_is_the_u_const_line() {
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let carrier = Curve3::Line {
+            origin: Point3::new(r, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        };
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = p;
+        assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);
+        assert!(pa.x.abs() < 1e-15 && pb.x.abs() < 1e-15 && pl.x.abs() < 1e-15);
+        assert!((pl.y - 1.0).abs() < 1e-15);
+        PcurveCache::certify(p, 0.0, 1.0, &carrier, &cyl, wide_window(), band()).unwrap();
+    }
+
+    /// The SAME seam edge, on the SAME surface, carries two DIFFERENT
+    /// pcurves — the `u = 0` and `u = 2π` branches. This is the
+    /// under-keying counterexample in miniature (the body-level row
+    /// lives in `topo`): a per-edge-per-face key cannot hold both.
+    #[test]
+    fn a_seam_edge_carries_two_different_branches_of_one_surface() {
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let carrier = Curve3::Line {
+            origin: Point3::new(r, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        };
+        let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let wrapped = base.shift_branch(1.0, TAU);
+        let Pcurve::Harmonic { p0: a, .. } = base;
+        let Pcurve::Harmonic { p0: b, .. } = wrapped;
+        assert!((b.x - a.x - TAU).abs() < 1e-15, "different chart curves");
+        // Both certify against the same carrier and the same surface —
+        // the chart is periodic, so both branches map to the same locus.
+        let w = ChartWindow {
+            u_min: -1.0,
+            u_max: 1.0,
+            v_min: -1.0,
+            v_max: 2.0,
+        };
+        PcurveCache::certify(base, 0.0, 1.0, &carrier, &cyl, w, band()).unwrap();
+        let w2 = ChartWindow {
+            u_min: TAU - 1.0,
+            u_max: TAU + 1.0,
+            v_min: -1.0,
+            v_max: 2.0,
+        };
+        PcurveCache::certify(wrapped, 0.0, 1.0, &carrier, &cyl, w2, band()).unwrap();
+        // And each escapes the OTHER face's window — typed, not silent.
+        assert!(matches!(
+            PcurveCache::certify(wrapped, 0.0, 1.0, &carrier, &cyl, w, band()),
+            Err(PcurveCertifyError::TrimEscape)
+        ));
+    }
+
+    /// A conic in a plane chart maps coefficient by coefficient (the
+    /// chart map is affine) and certifies to rounding.
+    #[test]
+    fn conic_in_a_plane_chart_is_exact() {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = Curve3::Ellipse {
+            center: Point3::new(0.1, -0.2, 0.5),
+            axis: Vec3::unit_z(),
+            major: 0.7,
+            minor: 0.3,
+            u_ref: Vec3::unit_x(),
+        };
+        let p = chart_pcurve(&carrier, &plane, band()).unwrap();
+        let cache =
+            PcurveCache::certify(p, 0.2, 2.0, &carrier, &plane, wide_window(), band()).unwrap();
+        assert!(cache.certificate().max_residual < 1e-15);
+        assert!(cache.certificate().envelope < 1e-15);
+    }
+
+    /// A perturbed stored pcurve FAILS certification. Every coefficient
+    /// of the certified family is visible to the nine-sample schedule
+    /// (four coefficients, nine samples), and the closed-form envelope
+    /// bounds the whole span — so there is no "between the samples"
+    /// hiding place to construct (module docs).
+    #[test]
+    fn a_corrupted_pcurve_fails_typed() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let good = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = good;
+        let nudge = 1e-3;
+        let corruptions = [
+            Pcurve::Harmonic {
+                p0: Point2::new(p0.x + nudge, p0.y),
+                pa,
+                pb,
+                pl,
+            },
+            Pcurve::Harmonic {
+                p0: Point2::new(p0.x, p0.y + nudge),
+                pa,
+                pb,
+                pl,
+            },
+            Pcurve::Harmonic {
+                p0,
+                pa: Vec2::new(pa.x, pa.y + nudge),
+                pb,
+                pl,
+            },
+            Pcurve::Harmonic {
+                p0,
+                pa,
+                pb: Vec2::new(pb.x, pb.y + nudge),
+                pl,
+            },
+        ];
+        for (i, bad) in corruptions.into_iter().enumerate() {
+            let out = PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, wide_window(), band());
+            assert!(
+                matches!(out, Err(PcurveCertifyError::ResidualExceeded { .. })),
+                "corruption {i} certified: {out:?}"
+            );
+        }
+    }
+
+    /// The envelope is a genuine sup bound over the whole span, not a
+    /// sampled max: it dominates a dense resampling of the residual.
+    #[test]
+    fn the_envelope_dominates_a_dense_resampling() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        // A deliberately imperfect pcurve, so the envelope is not a
+        // degenerate zero.
+        let bad = Pcurve::Harmonic {
+            p0,
+            pa: Vec2::new(pa.x, pa.y * 1.01),
+            pb,
+            pl,
+        };
+        let Some(image) = chart_image_harmonic(&bad, &cyl, Winding::Pos) else {
+            panic!("lane")
+        };
+        let cform = carrier_harmonic(&carrier).unwrap();
+        let envelope = (image.c - cform.c).norm()
+            + (image.a - cform.a).norm()
+            + (image.b - cform.b).norm()
+            + (image.l - cform.l).norm() * PI;
+        for k in 0..=2048 {
+            let t = PI * (f64::from(k) / 2048.0);
+            let q = bad.eval(t);
+            let d = cyl.eval(q.x, q.y).distance(carrier.eval(t));
+            assert!(d <= envelope, "sample {d:e} exceeds envelope {envelope:e}");
+        }
+    }
+
+    /// The dense-resampling sup of a pcurve against its carrier — an
+    /// independent oracle for the envelope rows (no closed form on
+    /// either side of the comparison).
+    fn true_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> f64 {
+        let mut sup: f64 = 0.0;
+        for k in 0..=8192 {
+            let t = t0 + (t1 - t0) * (f64::from(k) / 8192.0);
+            let q = p.eval(t);
+            sup = sup.max(s.eval(q.x, q.y).distance(c.eval(t)));
+        }
+        sup
+    }
+
+    /// **The snap-slack row** (adopted from the adversarial review's
+    /// envelope probe, assertion flipped to the fixed behaviour).
+    ///
+    /// The winding trilean admits `pl.x = β + δ` for any `δ·r ≤ ε`, so
+    /// `certify` accepts a pcurve an ε-shell outside the exact harmonic
+    /// family — and the closed-form envelope is computed from the
+    /// SNAPPED image. Before the fix the stored envelope read 5.6e-17
+    /// against a true sup of 9.4e-10 (false by seven orders). The
+    /// stored envelope must dominate the true sup for **every** input
+    /// certification admits, not only for the exact-in-family caches
+    /// the minting lane produces.
+    #[test]
+    fn envelope_dominates_a_winding_snapped_pcurve() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        // δ·r just inside the Zero band at the default ε = 1e-9; the
+        // drift residual r·δ·t peaks at ~0.94e-9 at the last schedule
+        // sample, so the 9-sample limb passes as well.
+        let delta = 0.3e-9 / r;
+        let drifted = Pcurve::Harmonic {
+            p0,
+            pa,
+            pb,
+            pl: Vec2::new(pl.x + delta, pl.y),
+        };
+        let Ok(cache) =
+            PcurveCache::certify(drifted, 0.0, PI, &carrier, &cyl, wide_window(), band())
+        else {
+            // At a tighter ε row the snap does not admit it at all —
+            // also honest, and nothing left to check.
+            return;
+        };
+        let stored = cache.certificate().envelope;
+        let sup = true_sup(&drifted, &cyl, &carrier, 0.0, PI);
+        assert!(
+            stored >= sup,
+            "stored envelope {stored:e} under-reports the true sup {sup:e}"
+        );
+        // And it stays O(ε): the slack is the discarded drift, not a
+        // blanket pad that would make the certificate useless.
+        assert!(
+            stored < 4.0 * sup + 1e-15,
+            "slack {stored:e} vs sup {sup:e}"
+        );
+        // The sampled max stays the SAMPLED max — the two statements do
+        // not get folded into one number.
+        assert!(cache.certificate().max_residual <= sup * (1.0 + 1e-12));
+    }
+
+    /// An exact-in-family (minted-shape) cache pays no slack: the
+    /// snap term is bitwise zero, so the fix costs the ship path
+    /// nothing.
+    #[test]
+    fn a_minted_shape_cache_pays_no_snap_slack() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { pa, pb, pl, .. } = p;
+        assert_eq!((pa.x, pb.x), (0.0, 0.0));
+        assert_eq!(pl.x, 1.0);
+        let cache =
+            PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, wide_window(), band()).unwrap();
+        assert!(cache.certificate().envelope < 1e-14);
+    }
+
+    /// The review probe's second attack, kept: tuned near-cancelling
+    /// harmonic + linear corruptions cannot hide under the envelope
+    /// (the residual lives in `span{1, cos, sin, t}` and the envelope
+    /// dominates it termwise), and certification refuses them.
+    #[test]
+    fn cancellation_cannot_beat_the_envelope() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let d = 1e-4;
+        let combos = [
+            (d, -d, 0.0, 0.0),
+            (d, -d, 2.0 * d / PI, -d),
+            (-d, d, -2.0 * d / PI, d),
+            (d, d, -2.0 * d / PI, 0.0),
+        ];
+        for (ca, cb, cl, c0) in combos {
+            let bad = Pcurve::Harmonic {
+                p0: Point2::new(p0.x, p0.y + c0),
+                pa: Vec2::new(pa.x, pa.y + ca),
+                pb: Vec2::new(pb.x, pb.y + cb),
+                pl: Vec2::new(pl.x, pl.y + cl),
+            };
+            let env = c0.abs() + ca.abs() + cb.abs() + cl.abs() * PI;
+            let sup = true_sup(&bad, &cyl, &carrier, 0.0, PI);
+            assert!(
+                sup <= env * (1.0 + 1e-12),
+                "sup {sup:e} beats envelope {env:e} for ({ca},{cb},{cl},{c0})"
+            );
+            assert!(
+                PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, wide_window(), band()).is_err(),
+                "an off-by-1e-4 pcurve certified"
+            );
+        }
+    }
+
+    /// A chart outside the certified lane refuses typed and names the
+    /// arriving PR — never a silent fallback (C5).
+    #[test]
+    fn frontier_charts_refuse_typed() {
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let err = chart_pcurve(&carrier, &sphere, band()).unwrap_err();
+        assert!(matches!(
+            err,
+            PcurveCertifyError::UnsupportedChart { chart: "sphere" }
+        ));
+        assert!(err.to_string().contains("PR 7"));
+    }
+
+    /// A pcurve that winds more than one full period around the chart
+    /// refuses typed — the chart side of the winding gate.
+    #[test]
+    fn azimuth_beyond_one_period_refuses_typed() {
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let carrier = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let out = PcurveCache::certify(p, 0.0, TAU + 0.5, &carrier, &cyl, wide_window(), band());
+        assert!(matches!(
+            out,
+            Err(PcurveCertifyError::AzimuthPeriodExceeded)
+        ));
+    }
+}

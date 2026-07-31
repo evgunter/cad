@@ -49,7 +49,7 @@
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
 
-use geom_brep::{EdgeCurve, EdgeGeometry};
+use geom_brep::{EdgeCurve, EdgeGeometry, PcurveCache};
 use geom_core::{Point3, Real};
 use geom_surfaces::Surface;
 use slotmap::{SecondaryMap, SlotMap};
@@ -143,6 +143,17 @@ pub struct Body<T: Real> {
     pub(crate) points: SlotMap<PointKey, Point3<T>>,
     pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
     pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
+    // M5 PR 6 pcurve caches (C4): the per-HALF-EDGE certified chart
+    // image of an edge's carrier. Parallel to the half-edge arena
+    // exactly as provenance is — and per half-edge, not per edge and
+    // not per (edge, face), because a SEAM edge's two half-edges lie
+    // on the SAME surface with DIFFERENT pcurves (the u = 0 vs u = 2π
+    // branches), which any coarser key cannot hold (C4, spec §1). A
+    // row is present only where a cache was minted and certified
+    // (`crate::pcurves`); planar faces store nothing (M2's
+    // derive-on-demand status, C4 verbatim), so an all-planar body
+    // carries an empty map. Absence is never a claim about geometry.
+    pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
     // M3 PR 1 null-face annotations (F9): typed loop-role attributes on
     // null (section-polygon) faces, parallel to the face arena like the
     // provenance maps — a record never outlives its face (kill-op
@@ -184,6 +195,7 @@ impl<T: Real> Body<T> {
             points: SlotMap::with_key(),
             curves: SlotMap::with_key(),
             surfaces: SlotMap::with_key(),
+            pcurves: SecondaryMap::new(),
             null_faces: SecondaryMap::new(),
             solid_provenance: SecondaryMap::new(),
             shell_provenance: SecondaryMap::new(),
@@ -848,6 +860,47 @@ impl<T: Real> Body<T> {
     /// scaffolding alike), in slot-index order (deterministic per D9).
     pub fn curves(&self) -> impl Iterator<Item = (CurveKey, &CurveGeom<T>)> {
         self.curves.iter()
+    }
+
+    /// All stored pcurve caches (C4 — see [`crate::pcurves`]), in
+    /// half-edge-slot order (deterministic per D9).
+    ///
+    /// Emptiness is the normal state: planar faces keep M2's
+    /// derive-on-demand status and store nothing, and only the charts
+    /// with a certified closed-form image mint caches at M5, so a
+    /// prism, a box, or any all-planar body yields zero rows here.
+    pub fn pcurves(&self) -> impl Iterator<Item = (HalfEdgeKey, &PcurveCache<T>)> {
+        self.pcurves.iter()
+    }
+
+    /// The stored pcurve cache of `half_edge`, or `None` when the
+    /// half-edge stores none (derive it on demand through
+    /// [`crate::pcurves::pcurve_of`]).
+    pub fn pcurve(&self, half_edge: HalfEdgeKey) -> Option<&PcurveCache<T>> {
+        self.pcurves.get(half_edge)
+    }
+
+    /// Attaches a **certified** pcurve cache to `half_edge`, returning
+    /// the row it replaced.
+    ///
+    /// The argument's type is the guarantee: a [`PcurveCache`] cannot
+    /// be built except through certification, so no uncertified pcurve
+    /// can enter a body through this door (or any other). What this
+    /// door cannot check is *coherence with this body* — that the cache
+    /// was certified against THIS half-edge's carrier, THIS face's
+    /// surface, and a branch consistent with its loop. That is the
+    /// tier-3 pcurve pass's job ([`crate::pcurves::validate_pcurves`]),
+    /// which re-derives all three and never consults the stored
+    /// certificate.
+    ///
+    /// The ordinary producer is [`crate::pcurves::mint_pcurves`], which
+    /// the splitting lane runs on every side it mints.
+    pub fn attach_pcurve(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        cache: PcurveCache<T>,
+    ) -> Option<PcurveCache<T>> {
+        self.pcurves.insert(half_edge, cache)
     }
 
     /// All null-face annotations (F9 — see [`crate::null`]), in
