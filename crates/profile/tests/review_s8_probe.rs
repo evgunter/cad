@@ -6,6 +6,10 @@
 //! builder emits must lie at distance r from the predicted winner's
 //! center and NOT at distance r from the loser's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The fixture coordinates are fuzz-dumped at 17 significant digits (the
+// f64 round-trip length); trimming digits to appease the lint could
+// change the bits under test.
+#![allow(clippy::excessive_precision)]
 
 mod common;
 use common::tol;

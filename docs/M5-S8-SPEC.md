@@ -66,21 +66,27 @@ row: the original vesica fixture now PICKS the near candidate
 
 The §2 Fillet DOF note ("exactly determined") is amended, dated:
 `.fillet(r)` selects the tangent circle nearest the authored
-corner among valid candidates; near-ties are refused typed
-(escalation); the far circle is authorable via its own corner.
-This RESOLVES recorded divergence 2 in
-`AmbiguousFilletBranch`'s… now-retired rustdoc — move the
-divergence note's resolution into the PATHS amendment. (The cusp
-variant split, divergence 3, stays open — not ruled.)
+corner among valid candidates; ties fall down the §1 selection
+ladder — picked, never escalated (this section amended with §1;
+the original "refused typed" wording predated the follow-up
+rulings and the log keeps that history); the far circle is
+authorable via its own corner. This RESOLVES recorded
+divergence 2 in `AmbiguousFilletBranch`'s… now-retired rustdoc —
+move the divergence note's resolution into the PATHS amendment.
+(The cusp variant split, divergence 3, stays open — not ruled.)
 
 ## 4. Acceptance
 
 - Vesica near-pick row (exact tangency, both junctions declared
-  and verified); far-author reachability row; tie-escalation trio
-  incl. interval-lane hairline; existing refusal classes
-  (NoCornerForFillet both sub-kinds, FilletDoesNotFit,
-  already-tangent/cusp, degenerate) bit-unchanged; line×line
-  fillets bit-identical (delegation untouched).
+  and verified); far-author reachability row; selection-ladder
+  rows per §1 as amended — no escalation arm exists, so no trio:
+  rungs 1–3 pinned at the unit level, per-lane determinism rows
+  (symmetric + ulp-perturbed lens) in BOTH lanes, cross-lane
+  agreement pinned on the macroscopic-gap vesica; existing
+  refusal classes (NoCornerForFillet both sub-kinds,
+  FilletDoesNotFit, already-tangent/cusp, degenerate)
+  bit-unchanged; line×line fillets bit-identical (delegation
+  untouched).
 - Messages compose the shared carrier per the two-tolerance
   shape.
 - Local: -p profile both lanes, fmt, clippy -p profile. CI gates

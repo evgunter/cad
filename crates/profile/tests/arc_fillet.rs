@@ -460,9 +460,12 @@ fn two_corner_side_candidates_pick_the_near_one() {
 /// The ruling's premise, pinned (S8 §2): the far tangent circle is
 /// always deliberately authorable as the NEAR fillet of the OTHER
 /// corner. Authoring the vesica corner at the second carrier
-/// intersection (0, −√3), legs swept from there, yields exactly the
-/// circle that was the far candidate of the original corner — center
-/// (0, −√(1.5² − 1)) — with clean tangency.
+/// intersection (0, −√3), legs swept from there, yields the circle
+/// that was the far candidate of the original corner — the recovered
+/// center is asserted to agree with (0, −√(1.5² − 1)) to 1e-14, and
+/// the tangent points to lie on their leg carriers to 1e-14 (the same
+/// closed form up to rounding, not bit-identity: the two authorings
+/// mirror the arithmetic, which f64 does not commute with exactly).
 #[test]
 fn the_far_pocket_is_authored_as_the_other_corners_near_fillet() {
     let lp = ProfileLoop::builder(p2(0.0, s3()))
