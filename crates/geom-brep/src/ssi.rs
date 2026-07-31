@@ -109,6 +109,24 @@ use exhaust::UvRect;
 use march::{MarchContext, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
+/// The two chart-parameter sample sequences of an ℝ⁴ trace — the
+/// coordinate projections that become the two pcurves, on the carrier's
+/// own parameter (the OQ4 identity).
+type ChartSamples<'a> = (&'a [geom_core::Point2<f64>], &'a [geom_core::Point2<f64>]);
+
+/// A fitted rung-3 branch's curves: the 3-D carrier, and the two
+/// pcurves when the trace shape produced them (the ℝ⁴ shape does; the
+/// ℝ³ shape has no chart to project onto).
+type FittedBranch = (
+    NurbsCurve3<f64>,
+    Option<NurbsCurve2<f64>>,
+    Option<NurbsCurve2<f64>>,
+);
+
+/// The ℝ⁴ trace's fitted triple: the carrier and both pcurves, on one
+/// shared parameter.
+pub type TracedTriple = (NurbsCurve3<f64>, NurbsCurve2<f64>, NurbsCurve2<f64>);
+
 /// The degree of a fitted rung-3 carrier (C1 rung 3 / C11): cubic, the
 /// standard choice for a curve that must carry curvature and torsion.
 pub const SSI_FIT_DEGREE: usize = 3;
@@ -444,15 +462,8 @@ impl SsiDomain {
 /// without any re-plumbing.
 fn fit_branch(
     points: &[Point3<f64>],
-    charts: Option<(&[geom_core::Point2<f64>], &[geom_core::Point2<f64>])>,
-) -> Result<
-    (
-        NurbsCurve3<f64>,
-        Option<NurbsCurve2<f64>>,
-        Option<NurbsCurve2<f64>>,
-    ),
-    SsiError,
-> {
+    charts: Option<ChartSamples<'_>>,
+) -> Result<FittedBranch, SsiError> {
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is the
     // marcher's step rule.** The stepper already chose its spacing so
@@ -710,7 +721,7 @@ pub fn plane_nurbs_ssi(
     let mag =
         |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
     let speed = mag(du).max(mag(dv));
-    if !(speed > 0.0) {
+    if speed.is_nan() || speed <= 0.0 {
         return Err(SsiError::UnsupportedCertificate {
             what: "the NURBS wall's certified chart speed is zero or poison, so no \
                    floor in meters can be translated into its parameter domain",
@@ -870,7 +881,7 @@ pub fn trace_plane_nurbs_uncertified(
     seed_uv: (f64, f64),
     domain: SsiDomain,
     band: Band,
-) -> Result<(NurbsCurve3<f64>, NurbsCurve2<f64>, NurbsCurve2<f64>), SsiError> {
+) -> Result<TracedTriple, SsiError> {
     let Surface::Plane {
         origin: p0,
         normal,

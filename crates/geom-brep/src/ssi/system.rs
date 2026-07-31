@@ -383,6 +383,12 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop
+)]
 mod tests {
     use super::*;
     use geom_core::spline::KnotVector;

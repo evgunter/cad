@@ -150,7 +150,7 @@ impl Poly3 {
     /// of lie the untrusted-stepper discipline exists to prevent.
     fn sqrt(self) -> Self {
         let c = self.c;
-        if !(c[0] > 0.0) {
+        if c[0].is_nan() || c[0] <= 0.0 {
             return Self { c: [f64::NAN; 4] };
         }
         let q0 = c[0].sqrt();
@@ -316,6 +316,7 @@ fn axial_radial(r: Vec3Poly, anchor: Point3<f64>, axis: Vec3<f64>) -> (Poly3, Ve
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::implicit::implicit_residual;

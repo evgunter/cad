@@ -26,7 +26,12 @@
 //!    boundary-terminated branch, and the tangent-match arm.
 //! 8. **Idealized vs realized**, the T4 differential pin.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;

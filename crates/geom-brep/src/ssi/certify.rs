@@ -464,7 +464,9 @@ fn nurbs_limbs(
         let rad_s = mag(du) * ru + mag(dv) * rv;
         let mid = (fine.eval(m) - surface.eval(pm.x, pm.y)).norm();
         let bound = rad_c + mid + rad_s;
-        if !(bound <= f64::INFINITY) || bound > sup {
+        // NaN-catching: a poisoned term must become the reported sup,
+        // not be skipped by a comparison it silently fails.
+        if bound.is_nan() || bound > sup {
             sup = bound;
         }
     }
@@ -540,10 +542,8 @@ fn probe_tube_analytic(
         // the span endpoint the carrier passes through, so a definite
         // separation means the cover is not connected and the
         // concatenation argument does not hold.
-        if let Some(p) = prev {
-            if p.definitely_disjoint(bx) {
-                return None;
-            }
+        if prev.is_some_and(|p| p.definitely_disjoint(bx)) {
+            return None;
         }
         prev = Some(bx);
         let m = zero_free_lower_bound(graph_margin(s1, s2, bx, *e));
@@ -592,7 +592,7 @@ fn probe_tube_chart(
         let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
         let t = pcurve.deriv(m);
         let tn = (t.x * t.x + t.y * t.y).sqrt();
-        if !(tn > 0.0) {
+        if tn.is_nan() || tn <= 0.0 {
             return None;
         }
         // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.

@@ -337,7 +337,7 @@ where
         // Meters per unit of the march parameter (the state-space
         // tangent is a unit vector; the 3-D speed converts it).
         let speed = sys.tangent_speed(&x, &d1);
-        if !(speed > 0.0) {
+        if speed.is_nan() || speed <= 0.0 {
             // A collapsed chart speed: the state moves and the point
             // does not. Nothing downstream can be stated in meters,
             // so refuse rather than divide by it.
@@ -530,8 +530,8 @@ where
         let mut worst = 0.0f64;
         for v in f.iter() {
             let a = v.abs();
-            if !(a <= f64::INFINITY) {
-                return None; // NaN
+            if a.is_nan() {
+                return None;
             }
             if a > worst {
                 worst = a;
