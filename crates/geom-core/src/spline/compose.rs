@@ -52,6 +52,8 @@
 use super::knots::{KnotVector, SplineError};
 use crate::ring_interval::RingInterval;
 
+pub mod tensor;
+
 /// A typed compose refusal (entry-point structure validation).
 #[derive(Clone, Debug, PartialEq)]
 pub enum ComposeError {
@@ -73,6 +75,15 @@ pub enum ComposeError {
         /// The channel count.
         dims: usize,
     },
+    /// A curve pair fed to a shared-parameter composite lives on two
+    /// different knot domains, so "the same `t`" is not a statement
+    /// (the OQ4 identity is the entry requirement, exact in `f64`).
+    DomainMismatch {
+        /// The first curve's `(lo, hi)` domain.
+        a: (f64, f64),
+        /// The second curve's `(lo, hi)` domain.
+        b: (f64, f64),
+    },
 }
 
 impl core::fmt::Display for ComposeError {
@@ -86,6 +97,15 @@ impl core::fmt::Display for ComposeError {
                 write!(
                     f,
                     "compose: channel {channel} out of range ({dims} channels)"
+                )
+            }
+            ComposeError::DomainMismatch { a, b } => {
+                write!(
+                    f,
+                    "compose: a shared-parameter composite needs one knot domain, \
+                     got [{}, {}] and [{}, {}] — refit the pair on one \
+                     parameterization (the OQ4 identity) before composing",
+                    a.0, a.1, b.0, b.1
                 )
             }
         }
@@ -314,17 +334,41 @@ fn insert_once_ring(
 /// interior multiplicity (structure from `kv`, coefficients in the
 /// ring), then the per-span coefficient rows read off by chunks.
 fn to_bezier_spans(kv: &KnotVector, coeffs: &[RingInterval]) -> BernsteinSpans {
+    to_bezier_spans_extra(kv, coeffs, &[])
+}
+
+/// [`to_bezier_spans`] with **extra break parameters** injected: each
+/// `extra` value strictly inside the domain and not already a knot is
+/// inserted to full multiplicity, so two channels decomposed with each
+/// other's knots as extras land on one shared break list (the tensor
+/// composite's alignment substrate, and knot insertion is exact in ℝ —
+/// the represented function is unchanged). Values outside the open
+/// domain or duplicating a knot are structure-filtered, not errors.
+fn to_bezier_spans_extra(
+    kv: &KnotVector,
+    coeffs: &[RingInterval],
+    extra: &[f64],
+) -> BernsteinSpans {
     let p = kv.degree();
     let mut knots = kv.knots().to_vec();
     let mut c = coeffs.to_vec();
-    let interior = interior_values(kv);
+    let (lo, hi) = kv.domain();
+    // Merge the existing interior values (multiplicity from the vector)
+    // with the fresh extras (multiplicity 0), ascending, exact-`f64`
+    // dedup — pure structure (C6's f64 lane).
+    let mut interior = interior_values(kv);
+    for &v in extra {
+        if v > lo && v < hi && !interior.iter().any(|(w, _)| *w == v) {
+            interior.push((v, 0));
+        }
+    }
+    interior.sort_by(|a, b| a.0.total_cmp(&b.0));
     for (v, m) in &interior {
         for step in *m..p {
             insert_once_ring(&mut knots, p, step, &mut c, *v);
         }
     }
     // Breaks: domain ends plus the distinct interior values (ascending).
-    let (lo, hi) = kv.domain();
     let mut breaks = Vec::with_capacity(interior.len() + 2);
     breaks.push(lo);
     breaks.extend(interior.iter().map(|(v, _)| *v));
