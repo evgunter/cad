@@ -1376,3 +1376,20 @@ limb 3's doc claims bare IFT but the code supports the stronger
 mean-value/convexity argument; disjoint-component exclusion is
 the ACCOUNTING's job (stated honestly now). m4 = refined-seed
 dedup (duplicate SsiBranch possible). **Fix pass DISPATCHED.**
+
+**PR 7 fix pass COMPLETE, PR OPENED as #146 (2026-07-31).** All
+nine items: powf → sqrt·sqrt + jet sin_cos route unified (M1);
+limb-3 doc states the real mean-value/convexity theorem and the
+uniqueness/completeness division of labor (m3); refined-seed
+dedup with the distinguishing fixture (m4); BoundaryInBand
+labeled honestly (m5); trios + SelfCrossingLocus row + k-funnel
+verdict-log row (m6 — note: Probe's margin sink is generic-T,
+the SSI lane is f64-only, so the verdict log is the recorder);
+chart-lane tube margin ÷ chart stretch, upper bound = safe
+direction (m7); the split_edge meter boundary pinned in topo
+with PR 9 named as the end-to-end trigger (m8 partial —
+unconstructible until the zip); PR 7b citations everywhere (M2);
+all three review probes adopted verbatim (8000 matrices in
+1.0s). Watcher armed on #146. When it merges: the M5 spine
+through SSI is DONE; next = PR 9 spec (curved booleans + 
+tangency) and PR 7b spec, then S4 on a lull.
