@@ -1328,3 +1328,30 @@ SectionArcWindow). Sole lane in flight: PR 7 (SSI, opus). Queue:
 S4 on a lull; PR 9 spec after PR 7's shape firms; A/B table rows
 21-25 owed (PR 6, S7, S8, S9, PR 7 draws recorded in log
 entries).
+
+**PR 7 implementation COMPLETE (2026-07-31, 3e4a201, pushed) —
+SSI IS REAL.** Highlights: fixed-shape Householder+Jacobi SVD in
+linalg (min-norm solve IS Frenet's γ₂=0 — documented derivation
+unifying both trace shapes); jet-based RHS (Poly3, no derivative
+tensors); the full three-limb certificate incl. a NEW
+geom-surfaces::projection (surface foot points didn't exist) and
+the box-chain graph criterion with a LADDER-searched tube
+radius; exhaustiveness with an asserted receipt (examined ==
+excluded+accounted+refined) doubling as seeding. Shape (iv)
+signature met: sphere×0.08-cylinder whose ENTIRE locus is two
+interior polar loops — boundary seeding reaches nothing, found
+by subdivision (166 seeds), floor-refusal variant pinned. 13 new
+ssi_* predicates. cylinder×sphere retired (all limbs). A real
+interval-cancellation bug found+fixed en route (w = q − â(q·â)
+form recovers ~0.8 m² of hull width; exclusion never fired
+before). FIVE numbered deviations, notably (1) plane×NURBS NOT
+retired — limb 2 needs tensor-product Bernstein composition
+(compose is curve-only); shape (iii)'s substrate row UNMET,
+refusal names the blocker; disposition (accept+bank as a unit vs
+fix) rides the review's feasibility assessment. (3) pcurve
+storage variant deferred to PR 9's zip with the identity
+demonstrated by SSI's own (stronger) limbs. S9 fold was clean
+(split.rs vs join.rs — no overlap). **Review DISPATCHED**
+(charter: hand re-derivation of the graph criterion — can a
+disjoint branch thread the tube?; exclusion-cannot-lie probes;
+independent SVD differential; per-deviation verdicts).
