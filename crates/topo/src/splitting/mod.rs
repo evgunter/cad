@@ -74,7 +74,7 @@ use slotmap::SecondaryMap;
 
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
-pub use join::SplitJoinError;
+pub use join::{ArcWindowCase, SplitJoinError};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionPolygon, plane_section};
 

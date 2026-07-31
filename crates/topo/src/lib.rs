@@ -202,9 +202,9 @@ pub use revert::RevertError;
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionPolygon,
-    SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart,
-    SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
+    ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,
+    SectionPolygon, SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError,
+    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
