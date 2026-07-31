@@ -258,6 +258,66 @@ macro_rules! nurbs_curve {
                 Ok(self.apply_plans(&plans))
             }
 
+            /// Splits the curve at interior parameter `u` into two
+            /// clamped curves covering `[t₀, u]` and `[u, t₁]` — knot
+            /// insertion to full interior multiplicity, then the
+            /// control/knot partition (§5.2; C12.3: the NURBS
+            /// `split_edge` substrate, M5 PR 9). Evaluation-invariant
+            /// in ℝ, and each child keeps the PARENT's parameter (the
+            /// split value is not re-normalized), so a caller's
+            /// `[t₀, u]` interval on the child means exactly what it
+            /// meant on the parent.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotAlgebraError`]: `u` outside the open knot domain
+            /// (boundary splits are refused — a clamped end already
+            /// has full multiplicity and an empty child is not a
+            /// curve), or the insertion path's structure refusals.
+            pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
+                let p = self.knots.degree();
+                let (d0, d1) = self.knots.domain();
+                if !u.is_finite() || !(u > d0 && u < d1) {
+                    return Err(KnotAlgebraError::ParameterOutsideDomain { u });
+                }
+                let have = self.knots.multiplicity_of(u).map_or(0, |(m, _)| m);
+                let full = if have < p {
+                    self.insert_knot(u, p - have)?
+                } else {
+                    self.clone()
+                };
+                // First occurrence of `u` in the saturated vector
+                // (multiplicity is exactly `p` there). Present by
+                // construction; `ok_or` keeps the path total.
+                let knots = full.knots.knots();
+                let f = knots
+                    .iter()
+                    .position(|k| *k == u)
+                    .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
+                // Child 1: every knot below `u` plus `p + 1` copies of
+                // `u`; control points 0..f (C(u) is control index
+                // f − 1 of the saturated curve, shared by both).
+                let mut k1: Vec<f64> = knots[..f + p].to_vec();
+                k1.push(u);
+                let c1 = Self::new(
+                    KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?,
+                    full.control[..f].to_vec(),
+                    full.weights[..f].to_vec(),
+                )
+                .map_err(KnotAlgebraError::Structure)?;
+                // Child 2: one extra copy of `u`, then every knot from
+                // index f on; control points f − 1 onward.
+                let mut k2: Vec<f64> = vec![u];
+                k2.extend_from_slice(&knots[f..]);
+                let c2 = Self::new(
+                    KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?,
+                    full.control[f - 1..].to_vec(),
+                    full.weights[f - 1..].to_vec(),
+                )
+                .map_err(KnotAlgebraError::Structure)?;
+                Ok((c1, c2))
+            }
+
             /// Knot refinement (§5.3): inserts every value of `add`
             /// (ascending, ties consecutive). Evaluation-invariant in ℝ.
             ///
