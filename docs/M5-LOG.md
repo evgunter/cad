@@ -1556,3 +1556,31 @@ MAJOR; per-deviation verdicts with (2) as the centerpiece —
 reproduce the inflection deviation, rule fixture-swap honest or
 gamed; merge-base retirement differential; rubric report). PR 9
 implementing in the other lane (U8 done at last sweep).
+
+**PR 7b review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 4 MIN / 2 NOTE, rubric 5/4/4, 1 SILENT deviation found.**
+The core HELD: hand re-derivation of the tensor algebra clean
+(α-quotients both directions, Boehm windows, denominator-cleared
+rows vs NURBS Book A5.1); ~1.6M adversarial falsification samples,
+ZERO bound-below-truth; retirement executed at merge base
+(2.929e-2 m limb-2 refusal → certified ≤10ε); decide inventories
+base-vs-branch IDENTICAL (37 names). Review earned its keep
+twice: REFUTED deviation 2's "geometry-capped/sub-linear" claim
+(march-ε scaling measured 4×→4.36×, 16×→16.92×, 64×→6.83× —
+phase-noisy, non-monotone; shipped refusal still honest) and
+caught the SILENT center-shift omission (M2, weighted worst):
+"no center to lose" is exact-arithmetic-true but ring-false —
+1.128e-12 near origin → 1.866e-6 at 1e6 m, sound but
+certification-killing far from origin. Fixture swap RULED honest
+by the reviewer (deviation 2a reproduced by pure-eval scan;
+composite within 1% of truth — the certificate reports the fits,
+not itself). Max forced looseness 108× at extreme weight ranges
+(NOTE; SSI weights ≈1). **Fix pass DISPATCHED (inherits arm),
+orchestrator rulings: F1 IMPLEMENT the center-shift (spec's own
+step; far-origin row added); F2 reword capped→non-monotone with
+the three measured points (the banked marcher note must not
+misdirect); F3 pin DomainMismatch Display; F4 breadth-honesty
+sentence (single-cell walls today) in retirement records; F5 bank
+both NOTEs as dated observations, no core churn in a fix pass.
+Reviewer probes (10 rows, 2 files) adopted verbatim.** PR opens
+at fix-pass completion. Evan status posted to #148 on request.
