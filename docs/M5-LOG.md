@@ -1420,3 +1420,19 @@ was converging to a clamped domain end (5.6e-4 m reported where
 a dense scan puts ~0) — replaced with scan+seeded-projection
 min. Local: 21/21 at 1e-6/1e-9/1e-12/interval. Watcher
 re-armed.
+
+**#146 MERGED (2026-07-31): 18/18 — SSI IS ON MAIN. The M5
+spine through PR 7 is DONE.** Seventeen PRs this milestone. The
+kernel now: represents/fits/certifies NURBS (PRs 2-4), cuts
+exact conics through the exhaustive table (PR 5 + S9), stores
+certified pcurves (PR 6), spatially indexes (PR 8), marches and
+certifies general curved intersections with proven
+exhaustiveness (PR 7) — plus the planar side units (S1 REST
+zip, S2/S8 arc fillets with the equivariant ladder, S6
+messages) and the process/CI improvements (S7, #133, #139).
+Remaining to exit: PR 7b (tensor compose, exit-gating), PR 9
+(curved booleans + tangency), PR 10 (sweeps/lofts), PR 11
+(tessellation/props — the demo moment), PR 12 (fillets/die),
+PR 13 (STEP), PR 14 (exit sweep + #89 K-snapshot), S4
+(non-gating). Next orchestrator drafting: PR 9 spec + PR 7b
+spec; board currently idle.
