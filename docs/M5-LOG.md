@@ -1280,3 +1280,13 @@ verification of member 2 is load-bearing (main ships a wrong
 body); charter attacks the mixed-run/seam-crossing walk, the
 centre-reduction, and the exactly-two claim with constructed
 counter-candidates.
+
+**PR 7 DISPATCHED (2026-07-31, opus — block-11 draw, difficulty
+L logged first; remainder fable to the next unit).** Clone
+m5-pr7 from post-#144 main, spec imported; prompt carries the
+OQ4 discharge, the untrusted-stepper contract, the dual-code
+pilot obligation, the three-limb certificate, the S9
+fold-mid-flight note, resilience checkpointing, and the full
+consumed-machinery reading list (PR 2 hulls, PR 4 fit/projection
+/compose, PR 5 table, PR 6 doors). Two lanes: S9 review + PR 7
+implementation. S4 remains the lull-queue unit.
