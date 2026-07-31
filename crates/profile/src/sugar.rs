@@ -416,15 +416,21 @@ impl<T: Real> LoopBuilder<T> {
     /// # The branch rule (deterministic, never a guess)
     ///
     /// Two carriers meet in at most two points, so at most two circles
-    /// of radius r are tangent to both legs' carriers. The rule picks
-    /// **the candidate whose tangent points lie on the legs' corner-side
-    /// extents** — on each leg, `0 ≤ setback ≤ extent`, the two ends
-    /// classified by `fillet_leg_reach` and `fillet_leg_fit` against the
-    /// exact-order band. Outcomes:
+    /// of radius r are tangent to both legs' carriers. Candidates whose
+    /// tangent points lie on the legs' **corner-side extents** survive —
+    /// on each leg, `0 ≤ setback ≤ extent`, the two ends classified by
+    /// `fillet_leg_reach` and `fillet_leg_fit` against the exact-order
+    /// band. Outcomes:
     ///
     /// - exactly one survivor ⇒ that is the fillet;
-    /// - **two** survivors ⇒ [`ProfileError::AmbiguousFilletBranch`] —
-    ///   the constructor refuses rather than picking;
+    /// - **two** survivors ⇒ the candidate **nearest the authored
+    ///   corner** wins (M5 S8, Evan's ruling 2026-07-30): smallest total
+    ///   tangent setback, ties falling down [`nearest_candidate`]'s
+    ///   documented ladder. Both survivors are valid tangent fillets of
+    ///   the authored legs, so the selection is between constructions,
+    ///   not geometric truths — and the far circle stays deliberately
+    ///   authorable as the NEAR fillet of the other carrier intersection
+    ///   (the S8 reachability rows pin both directions);
     /// - none, but some candidate did reach the corner side and only
     ///   overran a leg's far end ⇒ [`ProfileError::FilletDoesNotFit`]
     ///   (the radius-does-not-fit situation, first candidate and
@@ -472,7 +478,6 @@ impl<T: Real> LoopBuilder<T> {
     /// [`ProfileError::FilletLegDegenerate`],
     /// [`ProfileError::FilletCornerAlreadyTangent`],
     /// [`ProfileError::NoCornerForFillet`],
-    /// [`ProfileError::AmbiguousFilletBranch`],
     /// [`ProfileError::FilletDoesNotFit`], [`ProfileError::Escalated`]
     /// (site [`crate::EscalationSite::Fillet`]), or
     /// [`ProfileError::Band`] (only for a misconfigured ε) — see the
@@ -556,7 +561,8 @@ impl<T: Real> LoopBuilder<T> {
         // cannot be classified at this scalar, and continuing would be
         // deciding the branch rule on a margin we just admitted we
         // cannot read. The escalation names which predicate stopped it.
-        let mut surviving: Vec<(Candidate<T>, Sign, Sign)> = Vec::with_capacity(centers.len());
+        let mut surviving: Vec<(Candidate<T>, Sign, Sign, [f64; 2])> =
+            Vec::with_capacity(centers.len());
         let mut overrun: Option<ProfileError> = None;
         for center in centers {
             let t1 = leg_in.tangent_point(center, sgn, radius);
@@ -571,7 +577,12 @@ impl<T: Real> LoopBuilder<T> {
             let fit_out = decide("fillet_leg_fit", margin_out, exact).map_err(fillet_escalated)?;
             let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
             if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
-                surviving.push((Candidate { center, t1, t2 }, fit_in, fit_out));
+                surviving.push((
+                    Candidate { center, t1, t2 },
+                    fit_in,
+                    fit_out,
+                    [sb_in.lo(), sb_out.lo()],
+                ));
             } else if corner_side && overrun.is_none() {
                 // This candidate rounds the corner the caller named, but
                 // the radius pushes a tangent point off the far end of
@@ -599,24 +610,14 @@ impl<T: Real> LoopBuilder<T> {
                 });
             }
         }
-        let (picked, fit_in, fit_out) = match surviving.as_slice() {
-            [] => {
-                return Err(overrun.unwrap_or(ProfileError::NoCornerForFillet {
-                    reason: NoCornerReason::NoCornerSideCandidate,
-                    radius: radius.lo(),
-                }));
-            }
-            [only] => *only,
-            [a, b, ..] => {
-                return Err(ProfileError::AmbiguousFilletBranch {
-                    radius: radius.lo(),
-                    centers: [
-                        (a.0.center.x.lo(), a.0.center.y.lo()),
-                        (b.0.center.x.lo(), b.0.center.y.lo()),
-                    ],
-                });
-            }
-        };
+        if surviving.is_empty() {
+            return Err(overrun.unwrap_or(ProfileError::NoCornerForFillet {
+                reason: NoCornerReason::NoCornerSideCandidate,
+                radius: radius.lo(),
+            }));
+        }
+        let setbacks: Vec<[f64; 2]> = surviving.iter().map(|s| s.3).collect();
+        let (picked, fit_in, fit_out, _) = surviving[nearest_candidate(&setbacks)];
 
         let bulge = fillet_bulge(picked.t1, picked.t2, picked.center, radius, sgn);
         let mut chain = self;
@@ -684,6 +685,99 @@ fn fillet_escalated(source: Indeterminate) -> ProfileError {
         site: EscalationSite::Fillet,
         source,
     }
+}
+
+/// Nearest-the-authored-corner branch selection (M5 S8; Evan's ruling,
+/// in-chat 2026-07-30): the index of the surviving candidate to build,
+/// given each survivor's `[incoming, outgoing]` tangent setbacks in
+/// meters (arc lengths `R·Δθ` on circular legs).
+///
+/// This is a **plain deterministic selection rule, not a Q1 predicate**
+/// (amended per the follow-up ruling, same day): every surviving
+/// candidate is a valid fillet, exactly tangent to both authored legs,
+/// so choosing between them asserts nothing about geometric truth — and
+/// below ε_input the author cannot have meant a distinguishable
+/// preference (D4 ¶1). A within-ε pick is therefore
+/// arbitrary-but-deterministic and both-valid; an author who wants the
+/// other pocket forces it by authoring that pocket's own corner (the
+/// far circle is always the near fillet of the second carrier
+/// intersection — the S8 reachability rows pin this). No K-funnel
+/// entry, no escalation arm, no error. It compares the f64
+/// **diagnostic channel** (the enclosure's lower bound at interval
+/// scalars — the same channel `FilletLegDegenerate`'s leg naming uses):
+/// a representation-level choice between two already-classified
+/// constructions, never a re-decision of geometry. Each lane's pick is
+/// deterministic, and the lanes agree whenever the survivors' setback
+/// gap exceeds the interval channel's enclosure width — the macroscopic
+/// case the cross-lane vesica row pins. In a hairline-asymmetric lens
+/// (the corner an ulp off the configuration's mirror line) the
+/// strict-but-tiny gap can sit inside that width, and the lanes may
+/// then legally pick DIFFERENT pockets — harmless per the ruling, since
+/// both candidates are valid fillets of the authored legs; the
+/// perturbed-lens rows pin each lane's own determinism there, not
+/// cross-lane agreement.
+///
+/// # The ladder (fixed order)
+///
+/// 1. strict `<` on **total setback** (incoming + outgoing) — the near
+///    pocket sets both tangent points back a little, the far pocket a
+///    lot;
+/// 2. exact tie ⇒ strict `<` on the **incoming** setback alone;
+/// 3. both tied ⇒ the **first-classified** candidate (enumeration
+///    order, incoming-leg-first construction order).
+///
+/// # Equivariance (`memories/equivariance-principle.md`)
+///
+/// Rungs 1–2 compare arc lengths, which are isometry-invariant, so in ℝ
+/// the selection commutes with every rigid motion AND reflection of the
+/// sketch (bitwise f64 equivariance is already forgone by D9's fixed
+/// evaluation orders). Rung 3 cannot be equivariant: candidates carrying
+/// identical per-leg setback pairs are exactly the class where a
+/// candidate-swapping symmetry would have to swap the pick, so it falls
+/// to enumeration order — the kernel's first knowingly-designed
+/// non-equivariant residual, recorded as such.
+///
+/// # Why sum (and when the later rungs can even fire)
+///
+/// Among survivors of the corner-side extent gates, the nearer candidate
+/// is nearer on BOTH legs, so every monotone combination (sum, max, …)
+/// agrees and sum is the symmetric spelling. The argument, for
+/// non-enclosing tangencies (offset radius ρ > 0): the two candidates
+/// are mirror-symmetric about a line L — arc×arc, the line through the
+/// two offset-circle centers; line×arc, the line through the single
+/// offset circle's center perpendicular to the offset line (re-derived
+/// and confirmed by the S8 review) — and each tangent point is its
+/// candidate's same-side radial projection (resp. same-side foot on the
+/// straight leg), so the candidate on the corner's side of L is nearer
+/// the corner on both carriers at once: by symmetric distances along
+/// the line, and angularly about each arc center. The corner strictly
+/// off L and distinct candidates are guaranteed by the
+/// `fillet_corner_turn` and offset-clearance gates, so the dominance is
+/// strict and rungs 2–3 are unreachable through this constructor in
+/// exact arithmetic — they exist as the total, documented fallback for
+/// computed-value collisions on the diagnostic channel. Enclosing
+/// tangencies (ρ < 0, the tangent point antipodally flipped) never
+/// participate in a two-survivor corner: the S8 review's hand proof
+/// rules the mixed enclosing/non-enclosing pair out outright and shows
+/// even a both-enclosing pair (never reached by any search) would still
+/// be componentwise dominated. Committed evidence:
+/// `tests/review_s8_probe.rs` (the constructor cross-check on
+/// fuzz-found two-survivor corners, plus the trimmed independent
+/// dominance fuzz over the arc×arc and line×arc classes); the
+/// full-scale runs — the review's 5M-trial phases, targeted
+/// both-enclosing construction and hill-climb search, and this unit's
+/// ~27M-corner exploration — are uncommitted review artifacts. The
+/// two-survivor situation therefore arises only in the non-enclosing
+/// lens class, where the dominance argument holds.
+fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
+    let mut best = 0;
+    for (i, pair) in setbacks.iter().enumerate().skip(1) {
+        let (total, best_total) = (pair[0] + pair[1], setbacks[best][0] + setbacks[best][1]);
+        if total < best_total || (total == best_total && pair[0] < setbacks[best][0]) {
+            best = i;
+        }
+    }
+    best
 }
 
 /// The angle swept from `from` to `to` about a center, in the `turn`
@@ -1110,6 +1204,30 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The S8 selection ladder, rung by rung (`nearest_candidate` docs):
+    /// rungs 2–3 are unreachable through `fillet_corner` in exact
+    /// arithmetic (strict dominance among survivors — see the fn docs),
+    /// so the total fallback rule is pinned here at the unit level, in
+    /// both enumeration orders where an order exists to swap.
+    #[test]
+    fn nearest_candidate_ladder() {
+        // Rung 1: strictly smaller total setback wins, either side.
+        assert_eq!(nearest_candidate(&[[2.0, 2.0], [1.0, 1.5]]), 1);
+        assert_eq!(nearest_candidate(&[[1.0, 1.5], [2.0, 2.0]]), 0);
+        // Rung 1 sees the sum, not the parts: a crossed pair with the
+        // strictly smaller total wins even with the larger incoming.
+        assert_eq!(nearest_candidate(&[[1.0, 4.0], [3.0, 1.0]]), 1);
+        // Rung 2: exactly tied totals — the smaller INCOMING setback
+        // wins, either side.
+        assert_eq!(nearest_candidate(&[[2.0, 1.0], [1.0, 2.0]]), 1);
+        assert_eq!(nearest_candidate(&[[1.0, 2.0], [2.0, 1.0]]), 0);
+        // Rung 3: identical pairs — the first-classified candidate (the
+        // sole designed non-equivariant residual).
+        assert_eq!(nearest_candidate(&[[1.5, 2.5], [1.5, 2.5]]), 0);
+        // The single-survivor path funnels through the same rule.
+        assert_eq!(nearest_candidate(&[[3.0, 4.0]]), 0);
     }
 
     #[test]
