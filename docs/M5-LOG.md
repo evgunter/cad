@@ -1613,3 +1613,26 @@ tube-threading attack; merge-base props answer PROMINENT;
 per-deviation verdicts all 11 with dispositions; maximal-faces
 curved exemption gate-weakening probe; two-tolerance audit;
 K inventory diff). Lanes: PR 7b fix pass + PR 9 review.
+
+**PR 10 design PULLED FORWARD (2026-07-31, Evan's ask on #148) +
+demos queued.** Evan: can PR 10 design run now? Answer: yes —
+depends on PR 3/4 only. R3 migrate-vs-break ASSESSED against the
+real v1 wire (FileBody = ProfileDoc snapshot + DocEdit log;
+recipe posture, bodies re-derive on replay): the v2 delta is
+purely additive (Node::Loft/Sweep + slots), so **recommendation =
+identity-shaped migration (parse-v1-as-v2 + header bump), write
+it**; flip condition (forced ProfileDoc restructure) stated;
+posted to #148 (comment 5147668504) with the 👍 affordance,
+watchlisted. docs/M5-PR10-SPEC.md DRAFTED recording the call:
+Loft/Sweep as ordinary Q8-definitional nodes; iso-parameter
+edges get EXACT UV-line pcurves (the definitional payoff — in
+scope, distinct from PR 9's deferred Fitted variant); schema v2
+minted with a v1 golden migration row; the cut-loft e2e row
+coordinates honestly with the boolean-layer state at merge time.
+Consultation commitment honored: implementation will not
+dispatch before Evan's 👍 on the R3 call (or a flip ruling).
+Demo unit (Evan yes on #148): S2 arc-fillet demo stop + staged
+curved-surface demo (render activates at PR 11) — dispatches to
+the first freed lane; takes the owed OPUS remainder (block 12)
+as the next unit; PR 9 reviewer additionally probing
+TangentIntersection-at-rest save/load (R3 wire question).
