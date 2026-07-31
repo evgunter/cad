@@ -706,8 +706,10 @@ fn fillet_escalated(source: Indeterminate) -> ProfileError {
 /// **diagnostic channel** (the enclosure's lower bound at interval
 /// scalars — the same channel `FilletLegDegenerate`'s leg naming uses):
 /// a representation-level choice between two already-classified
-/// constructions, never a re-decision of geometry, so both lanes pick
-/// the same candidate by construction.
+/// constructions, never a re-decision of geometry. The lanes' channels
+/// differ by enclosure width, but the survivors' setback gap is
+/// macroscopic next to it (the dominance argument below), so the lanes
+/// pick the same candidate — the cross-lane row pins it.
 ///
 /// # The ladder (fixed order)
 ///
