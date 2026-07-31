@@ -100,6 +100,29 @@ pub enum CertCheck {
     /// (the dihedral displacement margin — must be definitely
     /// transverse).
     Transversality,
+    /// TangentIntersection: the normal-parallelism defect at an
+    /// interior sample — `sin θ` metered at the lever arm `1/κ_rel`
+    /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule,
+    /// M5 PR 9).
+    TangentParallel,
+    /// TangentIntersection: the second-order margin at an interior
+    /// sample — the relative transverse normal curvature `|κ_rel|`
+    /// metered as the displacement it induces at the folded lever arm
+    /// (D4 ¶1), which must be definitely positive (the jet system's
+    /// IFT denominator).
+    TangentSecondOrder,
+    /// TangentIntersection: the C2.2 between-samples statement — the
+    /// worst sampled residual plus the certified quadratic sag bound
+    /// must stay within ε (a sup bound, never a sampled max
+    /// pretending to be one).
+    TangentHull,
+    /// TangentIntersection: the C2.3-style tube statement on the JET
+    /// system — the sampled `|κ_rel|` minus its certified
+    /// between-samples drift stays definitely positive over every
+    /// span, so the second-order separation (and with it local
+    /// uniqueness of the locus) holds along the WHOLE edge, not just
+    /// at the schedule points.
+    TangentTube,
     /// MappedCurve: `|carrier(t_i) − description(s_i)|` at a sample.
     MappedSource,
     /// Seam: implicit residual against the seam's surface at a sample.
@@ -177,12 +200,37 @@ pub enum CertifyError {
     },
     /// `Intersection` only: the tangent planes coincide at a sample —
     /// the transversality precondition fails, so the locus is not an
-    /// `Intersection` (a tangential contact is `TangencyLocus`
-    /// territory, M5; a seam is `Seam`).
+    /// `Intersection` (a tangential contact is `TangentIntersection`
+    /// territory; a seam is `Seam`).
     NotTransverse {
         /// The interior sample index.
         sample: u32,
     },
+    /// `TangentIntersection` only: the second-order margin (relative
+    /// transverse normal curvature, metered at the folded lever arm)
+    /// is exactly zero at a sample — the surfaces under-determine the
+    /// locus there (a G2 conventional join's zero-side margin, or an
+    /// osculating patch), so the intrinsic tangent description is not
+    /// certifiable; the honest description is conventional
+    /// (`MappedCurve`), exactly D2's G2-join split. The **definite**
+    /// half of a two-tolerance pair: one band-width away the same
+    /// margin escalates as [`CertifyError::Escalated`] under
+    /// [`CertCheck::TangentSecondOrder`] instead (F6 — an osculating
+    /// pair is a sliver at this ε).
+    NotSecondOrderSeparated {
+        /// The sample index.
+        sample: u32,
+        /// The band the margin was classified against (the
+        /// two-tolerance pair's shared frame).
+        band: Band,
+    },
+    /// `TangentIntersection` only: the (carrier kind, surface kinds)
+    /// triple is outside the jet certificate's certified span-bound
+    /// lane (`Line` carriers on `Plane`/`Cylinder`/`Sphere` pairs —
+    /// the class the C5 tangent arms mint at M5). A routing boundary
+    /// (C12.1: per-class retirement with its proof), never a runtime
+    /// fallback.
+    TangentCertificateUnsupported,
     /// A classification escalated: the margin landed in the sliver band
     /// or was poisoned (D4 ¶3's escalate-never-guess).
     Escalated {
@@ -244,6 +292,25 @@ impl core::fmt::Display for CertifyError {
                 "certification: tangent planes coincide at interior sample {sample} — the \
                  Intersection transversality precondition fails (D2); {}",
                 geom_core::COINCIDENCE_RECOURSE
+            ),
+            Self::NotSecondOrderSeparated { sample, band } => write!(
+                f,
+                "certification: the tangency's second-order margin (relative transverse \
+                 normal curvature, tangent_second_order) is exactly zero at sample \
+                 {sample} against band [zero {:e}, escalate {:e}] — the surfaces \
+                 under-determine the locus there (a G2 conventional join keeps its \
+                 MappedCurve description BY THIS PREDICATE, D2's split); the same \
+                 margin one band-width away escalates as a sliver instead (F6); {}",
+                band.zero(),
+                band.escalate(),
+                geom_core::COINCIDENCE_RECOURSE
+            ),
+            Self::TangentCertificateUnsupported => write!(
+                f,
+                "certification: this (carrier, surface-pair) class is outside the jet \
+                 certificate's certified span-bound lane — Line carriers on \
+                 Plane/Cylinder/Sphere pairs are the M5 class (C12.1: per-class \
+                 retirement with its proof; no runtime fallback)"
             ),
             Self::Escalated {
                 check,
@@ -550,6 +617,18 @@ impl<T: SpanLocate> EdgeCurve<T> {
                         .carrier
                         .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
                 },
+                // TangentIntersection splits exactly as Intersection:
+                // surfaces kept, witness re-minted at the child's own
+                // mid-parameter (the witness contract, one order up).
+                EdgeGeometry::TangentIntersection { s1: k1, s2: k2, .. } => {
+                    EdgeGeometry::TangentIntersection {
+                        s1: k1,
+                        s2: k2,
+                        witness: self
+                            .carrier
+                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                    }
+                }
                 EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(mc.restrict(s0, s1)),
                 EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface },
             };
@@ -688,7 +767,10 @@ fn run_checks<T: Decide>(
     // nothing mints one, and its residual story (a fitted carrier
     // "matching" a mapped source) has no certified meter.
     if matches!(spec.carrier, Curve3::Nurbs(_))
-        && !matches!(spec.description, EdgeGeometry::Intersection { .. })
+        && !matches!(
+            spec.description,
+            EdgeGeometry::Intersection { .. } | EdgeGeometry::TangentIntersection { .. }
+        )
     {
         return Err(CertifyError::Unimplemented);
     }
@@ -705,6 +787,11 @@ fn run_checks<T: Decide>(
             surf2: Surface<T>,
             witness: Point3<T>,
         },
+        Tangent {
+            surf1: Surface<T>,
+            surf2: Surface<T>,
+            witness: Point3<T>,
+        },
         Mapped(crate::edge_geometry::MappedCurve<T>),
         Seam(Surface<T>),
     }
@@ -714,6 +801,18 @@ fn run_checks<T: Decide>(
                 return Err(CertifyError::IntersectionSameSurface { key: s1 });
             }
             Resolved::Intersection {
+                surf1: resolve(s1)?,
+                surf2: resolve(s2)?,
+                witness,
+            }
+        }
+        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+            // A same-surface "tangency" is a Seam exactly as a
+            // same-surface intersection is (D2's taxonomy).
+            if s1 == s2 {
+                return Err(CertifyError::IntersectionSameSurface { key: s1 });
+            }
+            Resolved::Tangent {
                 surf1: resolve(s1)?,
                 surf2: resolve(s2)?,
                 witness,
@@ -837,6 +936,12 @@ fn run_checks<T: Decide>(
     // diameter for closed circle carriers ([`edge_extent`]'s docs).
     let chord = start.distance(end);
     let extent = edge_extent(&spec.carrier, t0, t1, chord);
+    // Jet-schedule accumulators (TangentIntersection only): the worst
+    // sampled residual for the C2.2 hull statement, and the weakest
+    // sampled second-order data for the tube statement.
+    let mut tangent_resid_max = T::zero();
+    let mut tangent_kappa_min = T::from_f64(f64::MAX);
+    let mut tangent_arm_min = T::from_f64(f64::MAX);
     for i in 0..CERT_SAMPLES {
         let p = spec.carrier.eval(sample_param(t0, t1, i));
         match &resolved {
@@ -871,6 +976,69 @@ fn run_checks<T: Decide>(
                             });
                         }
                     }
+                }
+            }
+            // The C7 jet schedule (M5 PR 9), per sample: both implicit
+            // residuals within ε; at interior samples the second-order
+            // margin definitely positive FIRST (the IFT denominator —
+            // and the parallelism lever arm's own validity gate), then
+            // normal parallelism within the derived threshold at lever
+            // arm r = 1/κ_rel (D2 verbatim, D4 ¶1).
+            Resolved::Tangent { surf1, surf2, .. } => {
+                let r1 = implicit_residual(surf1, p);
+                let r2 = implicit_residual(surf2, p);
+                tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
+                check_residual(
+                    "tangent_on_surface_1",
+                    CertCheck::Surface1Residual,
+                    i,
+                    r1,
+                    band,
+                    &mut max_residual,
+                )?;
+                check_residual(
+                    "tangent_on_surface_2",
+                    CertCheck::Surface2Residual,
+                    i,
+                    r2,
+                    band,
+                    &mut max_residual,
+                )?;
+                if i > 0 && i < CERT_SAMPLES - 1 {
+                    let tau = spec.carrier.deriv(sample_param(t0, t1, i));
+                    let jet = crate::tangent::tangent_jet(surf1, surf2, p, tau);
+                    let arm = crate::implicit::curvature_lever_arm(surf1, p)
+                        .min(crate::implicit::curvature_lever_arm(surf2, p))
+                        .min(extent);
+                    let half = T::from_f64(0.5);
+                    let so_margin = jet.kappa_rel.abs() * arm * arm * half;
+                    match decide("tangent_second_order", so_margin, band) {
+                        Ok(Sign::Positive) => {}
+                        // A magnitude margin: Zero is the G2/osculating
+                        // zero-side (typed, definite); Negative is
+                        // unreachable for a true magnitude and refuses
+                        // the same conservative way.
+                        Ok(Sign::Zero | Sign::Negative) => {
+                            return Err(CertifyError::NotSecondOrderSeparated { sample: i, band });
+                        }
+                        Err(cause) => {
+                            return Err(CertifyError::Escalated {
+                                check: CertCheck::TangentSecondOrder,
+                                sample: i,
+                                cause,
+                            });
+                        }
+                    }
+                    tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
+                    tangent_arm_min = tangent_arm_min.min(arm);
+                    check_residual(
+                        "tangent_normal_parallel",
+                        CertCheck::TangentParallel,
+                        i,
+                        jet.sin_theta / jet.kappa_rel.abs(),
+                        band,
+                        &mut max_residual,
+                    )?;
                 }
             }
             Resolved::Mapped(mc) => {
@@ -917,10 +1085,56 @@ fn run_checks<T: Decide>(
         }
     }
 
+    // ---- TangentIntersection only: the span-wide jet statements
+    // (M5 PR 9). C2.2: the worst sampled residual plus the certified
+    // quadratic sag stays within ε — a SUP bound, not a sampled max.
+    // C2.3-style tube on the jet system: the sampled |κ_rel| minus
+    // its certified drift stays definitely positive over every span,
+    // so second-order separation (local uniqueness of the tangency
+    // locus — the jet system's IFT margin) holds along the whole
+    // edge. Outside the certified span-bound lane: typed refusal,
+    // never a fallback. ----
+    if let Resolved::Tangent { surf1, surf2, .. } = &resolved {
+        let Some(bounds) = crate::tangent::tangent_span_bounds(surf1, surf2, &spec.carrier, t0, t1)
+        else {
+            return Err(CertifyError::TangentCertificateUnsupported);
+        };
+        check_residual(
+            "tangent_hull_sup",
+            CertCheck::TangentHull,
+            0,
+            tangent_resid_max + bounds.residual_sag,
+            band,
+            &mut max_residual,
+        )?;
+        let half = T::from_f64(0.5);
+        let tube =
+            (tangent_kappa_min - bounds.kappa_drift) * tangent_arm_min * tangent_arm_min * half;
+        match decide("tangent_tube_margin", tube, band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => {
+                return Err(CertifyError::NotSecondOrderSeparated { sample: 0, band });
+            }
+            Err(cause) => {
+                return Err(CertifyError::Escalated {
+                    check: CertCheck::TangentTube,
+                    sample: 0,
+                    cause,
+                });
+            }
+        }
+    }
+
     // ---- Check 5: witness residuals + mid-parameter pin
-    // (Intersection; see the check-sequence docs for the witness
-    // contract: the witness IS the edge's mid-parameter point). ----
+    // (Intersection and TangentIntersection; see the check-sequence
+    // docs for the witness contract: the witness IS the edge's
+    // mid-parameter point). ----
     if let Resolved::Intersection {
+        surf1,
+        surf2,
+        witness,
+    }
+    | Resolved::Tangent {
         surf1,
         surf2,
         witness,

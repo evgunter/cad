@@ -149,7 +149,9 @@ fn body_with_rung3_edge() -> Option<(
     let mid = h0 + (h1 - h0) * 0.5;
     let made = body
         .mev(
-            topo::MevSite::Lone { r#loop: seed.r#loop },
+            topo::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
             p1,
             EdgeCurveSpec {
                 description: geom_brep::EdgeGeometry::Intersection {

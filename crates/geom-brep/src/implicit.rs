@@ -215,6 +215,67 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     }
 }
 
+/// The quadratic form `dᵀ (∇²F) d` of [`implicit_residual`]'s Hessian
+/// at `p`, along direction `d` (NOT normalized — the form is
+/// homogeneous of degree 2 in `d`). With `d` a unit surface tangent,
+/// `dᵀ∇²F d / |∇F|` is the surface's **normal curvature** along `d`
+/// (signed against the outward implicit gradient) — the second-order
+/// jet datum C7's tangency schedule and the second-order sector
+/// trilean consume (M5 PR 9).
+///
+/// Derived per kind from the module-doc forms (fixed order, D9);
+/// squares of possibly-zero components go through `powi(2)` (the
+/// interval-square rule). Honest poison at surface singularities
+/// (cone axis, torus axis) and for [`Surface::Nurbs`].
+pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) -> T {
+    match *s {
+        // F = (p − o)·n̂: linear, Hessian 0.
+        Surface::Plane { .. } => T::zero(),
+        // F = (|q|² − r²)/2r: ∇²F = I/r.
+        Surface::Sphere { radius, .. } => d.norm_squared() / radius,
+        // F = (|w|² − r²)/2r, w = q − a(q·a): ∇²F = (I − aaᵀ)/r.
+        Surface::Cylinder { axis, radius, .. } => {
+            let d_ax = d.dot(axis);
+            (d.norm_squared() - d_ax.powi(2)) / radius
+        }
+        // F = |w|·cos α − |h|·sin α: away from h = 0 the |h| term is
+        // linear; ∇²(|w|) = (I − aaᵀ − ŵŵᵀ)/ρ. Poison on the axis
+        // (ρ = 0), as the gradient already is.
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let (_, c_a) = half_angle.sin_cos();
+            let (_, w) = axial_radial(p, apex, axis);
+            let rho = w.norm();
+            let w_hat = w / rho;
+            let d_ax = d.dot(axis);
+            let d_w = d.dot(w_hat);
+            (d.norm_squared() - d_ax.powi(2) - d_w.powi(2)) * c_a / rho
+        }
+        // F = ((ρ − R)² + h² − r²)/2r: ∇²F = ((I − aaᵀ − ŵŵᵀ)·(ρ − R)/ρ
+        // + ŵŵᵀ + aaᵀ)/r. Poison on the axis (ρ = 0).
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (_, w) = axial_radial(p, center, axis);
+            let rho = w.norm();
+            let w_hat = w / rho;
+            let d_ax = d.dot(axis);
+            let d_w = d.dot(w_hat);
+            let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);
+            (d_perp2 * (rho - major_radius) / rho + d_w.powi(2) + d_ax.powi(2)) / minor_radius
+        }
+        Surface::Nurbs(_) => poison(),
+    }
+}
+
 /// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
 /// `w` the radial component of `p` relative to the surface's own
 /// anchor/axis and `v_ref = axis × u_ref` — the pieces the

@@ -686,7 +686,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     .ok_or_else(corrupt)?
                     .description()
                 {
-                    geom_brep::EdgeGeometry::Intersection { s1: d1, s2: d2, .. } => {
+                    geom_brep::EdgeGeometry::Intersection { s1: d1, s2: d2, .. }
+                    | geom_brep::EdgeGeometry::TangentIntersection { s1: d1, s2: d2, .. } => {
                         !((d1 == s1 && d2 == s2) || (d1 == s2 && d2 == s1))
                     }
                     geom_brep::EdgeGeometry::Seam { surface } => !(surface == s1 && surface == s2),

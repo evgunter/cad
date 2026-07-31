@@ -1466,7 +1466,8 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
             continue;
         };
         let adjacent = match *curve.description() {
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
+            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
+            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
                 (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
             }
             geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,

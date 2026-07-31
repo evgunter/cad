@@ -462,7 +462,8 @@ impl<T: Real> Body<T> {
     pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
         match curve {
             CurveGeom::Certified(curve) => match *curve.description() {
-                EdgeGeometry::Intersection { s1, s2, .. } => vec![s1, s2],
+                EdgeGeometry::Intersection { s1, s2, .. }
+                | EdgeGeometry::TangentIntersection { s1, s2, .. } => vec![s1, s2],
                 EdgeGeometry::Seam { surface } => vec![surface],
                 EdgeGeometry::MappedCurve(_) => Vec::new(),
             },

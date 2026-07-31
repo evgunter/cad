@@ -339,6 +339,13 @@ pub fn transform_rigid<T: Decide>(
                 s2: *s2,
                 witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
             },
+            // TangentIntersection maps as Intersection does: keys are
+            // stable, the witness re-mints from the mapped carrier.
+            EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
+                s1: *s1,
+                s2: *s2,
+                witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+            },
             // A seam is defined intrinsically by its (key-stable)
             // surface; the mapped surface carries the whole map.
             EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface: *surface },
