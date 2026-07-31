@@ -3,6 +3,12 @@
 //! `Ellipse` carrier on the minted section edges
 //! (zero-residual-by-construction), plus the rim (perpendicular) and
 //! ruling (axis-parallel) cut lanes and the determinism row.
+//!
+//! The **belly rows** at the end of the M1 fix block are the arc-side
+//! rule's end-to-end acceptance: since M5 S9 the rule is azimuth-window
+//! containment, and those rows pin what it selects (the short arcs, on
+//! the finite wall), its seam-placement independence, and the PR 6
+//! pcurve certification closing the loop on the repaired bodies.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -402,89 +408,190 @@ fn even_crossing_recovers_the_sliver() {
     assert!(ellipse_edges(&below).is_empty());
 }
 
+/// Every certified ellipse arc's carrier stays on the FINITE wall over
+/// its own stored interval: the domain-validity statement the arc-side
+/// defect violated. Returns the (sorted) spans so callers can pin them.
+fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
+    let mut spans = Vec::new();
+    for (_, curve) in ellipse_edges(part) {
+        let (t0, t1) = curve.params();
+        for i in 0..=64u32 {
+            let t = t0 + (t1 - t0) * f64::from(i) / 64.0;
+            let z = curve.carrier().eval(t).z;
+            assert!(
+                (-1e-12..=height + 1e-12).contains(&z),
+                "section arc leaves the finite wall: z = {z} at t = {t} \
+                 over [{t0}, {t1}]"
+            );
+        }
+        spans.push(t1 - t0);
+    }
+    spans.sort_by(|a, b| a.partial_cmp(b).expect("finite spans"));
+    spans
+}
+
 /// The tilted belly (both rims crossed twice, seams crossed once) —
-/// **REFUSED typed since M5 PR 6, and this row pins WHY.**
+/// **the certified-pass row since M5 S9**, and the row that pins the
+/// repaired arc-side rule end to end.
 ///
 /// PR 5's arc-side rule (`splitting::join::chord_spec`,
-/// `split_conic_arc_side`) picks which of the section conic's two arcs
+/// `split_conic_arc_side`) picked which of the section conic's two arcs
 /// bounds the divided face from a single azimuth sample taken on the
-/// RUN the chord co-bounds, whose stated premise is that the sample's
-/// azimuth "lies strictly inside the azimuth interval the chord must
-/// span". On this configuration that premise is FALSE: the above-side
-/// wall piece is bounded by two short ellipse arcs (≈44.4° and ≈17.5°)
-/// AND by a 91° bottom-rim arc whose midpoint the rule samples — so the
-/// sample lands outside the chord's own interval and the rule selects
-/// the COMPLEMENT arc (≈315.6°, ≈342.5°) every time.
+/// RUN the chord co-bounds, premised on that sample's azimuth "lying
+/// strictly inside the azimuth interval the chord must span". On this
+/// configuration the premise is FALSE: the above-side wall piece is
+/// bounded by two short ellipse arcs (≈17.5° and ≈44.4°) AND by a 91°
+/// bottom-rim arc whose midpoint the rule sampled — so the sample
+/// landed outside the chord's own interval and the rule selected the
+/// COMPLEMENT arc (≈342.5°, ≈315.6°) every time.
 ///
-/// The defect is real and pre-dates this PR: the resulting edges'
-/// carriers sweep `z ∈ [−0.297, 1.689]` on a cylinder of height 1, i.e.
-/// the stored edge leaves the finite wall entirely. Nothing at tier 3
-/// could see it — every point of the long arc lies on both surfaces,
-/// the endpoints pin, and the witness is `carrier(mid)` of the same
-/// wrong arc — which is exactly why C4 makes **domain validity part of
-/// the certificate**. Exactly (independently re-measured at the merge
-/// base during adversarial review): tier 3's ONLY refusal on the
-/// defective bodies is `VolumeUncomputable{NotIsoRectangle}` — the
-/// props curved-face quadrature frontier carried to M5 PR 11 — and
-/// that same single refusal fires identically on the CORRECT simple
-/// tilted cut. It is therefore **defect-independent**: tier 3 does not
-/// distinguish the wrong body from the right one at all.
-/// PR 6's per-face one-branch chart walk is the
-/// first thing that can: the face's azimuth advance comes out −2τ
-/// instead of 0, and the split refuses rather than shipping the body.
+/// S9 replaced the premise with **containment in the divided face's own
+/// azimuth window** (`split_arc_window`), derived from the run through
+/// the same closed-form chart machinery PR 6 certifies pcurves with.
+/// This row now asserts what the repair produces: a two-sided split
+/// whose eight section arcs are the SHORT ones, each staying on the
+/// finite wall over its whole stored interval.
 ///
-/// This row therefore asserts the typed refusal, and the geometric
-/// evidence behind it, until the arc-side rule is repaired (its correct
-/// criterion is containment in the divided face's own azimuth window —
-/// the same statement PR 6 certifies for pcurves). The simple tilted
-/// cut, the perpendicular cut, the axis-parallel cut and the
-/// ON-endpoint belly variant are all unaffected and stay green.
+/// ---- The defect's evidence, kept as a history note ----
+///
+/// It cannot be asserted at HEAD (the wrong bodies are no longer
+/// reachable). The measurement was taken at the PR 6 merge base, twice
+/// and independently — once during implementation (by making the mint
+/// pass non-fatal for one run) and once by the adversarial review (its
+/// own probe against an unmodified merge-base checkout), with agreeing
+/// numbers:
+///
+///   * each of the EIGHT section-arc edges across the two sides stored
+///     a parameter interval of τ − 0.305 or τ − 0.775 rad — bitwise the
+///     complement of the correct ≈17.5° / ≈44.4° arc this row now pins;
+///   * those carriers swept z ∈ [−0.297, 1.689] on a wall of height 1,
+///     i.e. they left the finite wall on both ends;
+///   * `validate_geometric` on those bodies returned exactly one error,
+///     `VolumeUncomputable{NotIsoRectangle}` — the same one the CORRECT
+///     simple tilted cut returns (see
+///     `tilted_cut_mints_exact_ellipse_carriers`), so tier 3 was blind
+///     to the defect rather than merely quiet about it.
+///
+/// Between PR 6 and S9 the configuration REFUSED typed instead
+/// (`LoopNotClosed`: PR 6's per-face one-branch chart walk measured the
+/// face's azimuth advance as −2τ), which is the posture that row
+/// pinned. Both are now history: the split succeeds with the right
+/// arcs.
 #[test]
-fn tilted_belly_cut_refuses_on_the_long_way_arc_defect() {
+fn tilted_belly_cut_mints_wall_contained_section_arcs() {
     let body = cylinder_body();
     let n = 1.0 / 5.0f64.sqrt();
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.1, 0.5),
         normal: Vec3::new(0.0, 2.0 * n, n),
     };
-    let err = split(&body, &plane).unwrap_err();
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("azimuth advance is neither zero nor one full period"),
-        "{msg}"
-    );
-
-    // ---- The evidence, as a history note ----
-    //
-    // It cannot be asserted at HEAD: reaching the defective bodies
-    // requires the split to SUCCEED, and it now (correctly) refuses.
-    // The measurement below was taken at the merge base, twice and
-    // independently — once during implementation (by making the mint
-    // pass non-fatal for one run) and once by the adversarial review
-    // (its own probe against an unmodified merge-base checkout), with
-    // agreeing numbers:
-    //
-    //   * each of the EIGHT section-arc edges across the two sides
-    //     stores a parameter interval of τ − 0.305 or τ − 0.775 rad —
-    //     bitwise the complement of the correct ≈17.5° / ≈44.4° arc;
-    //   * those carriers sweep z ∈ [−0.297, 1.689] on a wall of
-    //     height 1, i.e. they leave the finite wall on both ends;
-    //   * `validate_geometric` on those bodies returns exactly one
-    //     error, `VolumeUncomputable{NotIsoRectangle}` — the same one
-    //     the CORRECT simple tilted cut returns (see
-    //     `tilted_cut_mints_exact_ellipse_carriers`), so tier 3 is
-    //     blind to the defect rather than merely quiet about it.
-    //
-    // For contrast, at HEAD and at the merge base alike the simple
-    // tilted cut stores π per arc and sweeps z ∈ [0.345, 0.655] — on
-    // the wall, as it must be.
+    let result = split(&body, &plane).unwrap();
+    let (above, below) = assert_two_sided(&result);
+    for part in [&above, &below] {
+        // Four section arcs per side: the two short ones per wall
+        // piece, NOT their ≈342.5°/≈315.6° complements.
+        let spans = wall_contained_ellipse_spans(part, 1.0);
+        assert_eq!(spans.len(), 4, "{spans:?}");
+        for (got, want) in spans.iter().zip([0.304693, 0.304693, 0.775397, 0.775397]) {
+            assert!((got - want).abs() < 1e-6, "{spans:?}");
+        }
+        // The two wall pieces' arcs sum to the section's total sweep on
+        // this side — the same total on both sides (one section).
+        let sum: f64 = spans.iter().sum();
+        assert!((sum - 2.160180).abs() < 1e-6, "{sum}");
+    }
+    // Determinism (D9): the repaired selection replays bit-identically.
+    let rows = |part: &Body<f64>| {
+        let mut rows: Vec<String> = ellipse_edges(part)
+            .iter()
+            .map(|(_, c)| format!("{:?} {:?}", c.carrier(), c.params()))
+            .collect();
+        rows.sort();
+        rows
+    };
+    let again = split(&body, &plane).unwrap();
+    let (above2, below2) = assert_two_sided(&again);
+    assert_eq!(rows(&above), rows(&above2));
+    assert_eq!(rows(&below), rows(&below2));
 }
 
-/// The ON-endpoint belly variant (audit row): the plane passes through
-/// one bottom corner and the arcs leave it with one MORE interior
-/// crossing each — the root lane inserts the interior crossings, the
-/// endpoint root lands on the existing ON vertex, and the split is
-/// two-sided.
+/// Seam-placement independence of the window computation (S9): the
+/// belly cut, rotated about the cylinder axis by 0.7 rad. The chart's
+/// `u_ref` does NOT rotate with it, so the run's azimuth window, the
+/// chord endpoints and the section arcs all land on a different part of
+/// the chart — including across the chart seam. The window rule
+/// compares only differences of azimuths, so the answer must not care:
+/// both sides split, every arc stays on the wall, and the section's
+/// TOTAL sweep is the rotation-invariant it must be (the individual
+/// arcs differ because the profile seams cut the section elsewhere).
+#[test]
+fn rotated_belly_cut_is_seam_placement_independent() {
+    let body = cylinder_body();
+    let a = 0.7f64;
+    let (s, c) = (a.sin(), a.cos());
+    let n0 = Vec3::new(0.0, 2.0, 1.0).normalize();
+    let o0 = Point3::new(0.0, 0.1, 0.5);
+    let plane = SplitPlane {
+        origin: Point3::new(c * o0.x - s * o0.y, s * o0.x + c * o0.y, o0.z),
+        normal: Vec3::new(c * n0.x - s * n0.y, s * n0.x + c * n0.y, n0.z),
+    };
+    let result = split(&body, &plane).unwrap();
+    let (above, below) = assert_two_sided(&result);
+    for part in [&above, &below] {
+        let spans = wall_contained_ellipse_spans(part, 1.0);
+        assert_eq!(spans.len(), 3, "{spans:?}");
+        let sum: f64 = spans.iter().sum();
+        assert!(
+            (sum - 2.160180).abs() < 1e-6,
+            "the section's total sweep is rotation-invariant, got {sum}"
+        );
+    }
+}
+
+/// The ON-endpoint belly variant: the plane passes through one bottom
+/// corner and the arcs leave it with one MORE interior crossing each —
+/// the root lane inserts the interior crossings, the endpoint root
+/// lands on the existing ON vertex, and the split is two-sided.
+///
+/// **This row is the second member of the belly class, and S9 repaired
+/// it too.** It has passed since PR 5, but only because it asserted
+/// two-sidedness and the presence of ellipse arcs — never their extent.
+/// At the merge base its four section arcs each stored a span of
+/// 5.895799 rad (τ − 0.387386, the complement) sweeping
+/// z ∈ [−1.860, 3.360] on a wall of height 1, and — unlike the tilted
+/// belly cut — PR 6's pcurve mint pass ACCEPTED those bodies (the
+/// wrong-arc loops still closed on the chart). So this configuration
+/// was shipping a wrong body silently, with nothing in the kernel able
+/// to see it. The window rule selects 0.387386 rad here, on the wall;
+/// the extent assertions below are what makes that visible.
+///
+/// ---- The merge-base measurement, as a history note (probe F2) ----
+///
+/// It cannot be asserted at HEAD — the wrong bodies are unreachable —
+/// so the probe is recorded rather than committed as a row. It was run
+/// twice on unmodified merge-base checkouts (implementation and
+/// adversarial review, independently) with agreeing numbers. To re-run
+/// it: check out the PR 6 merge base, drop a test into
+/// `crates/sweep/tests/` that builds this exact body and plane, splits,
+/// and for each side prints every certified `Curve3::Ellipse` edge's
+/// `params()` span, the min/max `z` of `carrier().eval` over a dense
+/// sweep of that interval, `topo::pcurves::validate_pcurves(part,
+/// Band::linear())`, and `topo::mint_pcurves(&mut part.clone())`.
+/// It reports, per side:
+///
+///   * two section-arc edges, each span 5.8957988 rad
+///     (= τ − 0.387386, bitwise the complement of the arc pinned
+///     below);
+///   * those carriers sweeping z ∈ [−1.860, 3.360] on a wall of
+///     height 1 — off the wall by nearly two heights at each end;
+///   * `validate_pcurves` returning **zero** findings and the fresh
+///     re-mint returning `Ok` — the PR 6 machinery that caught the
+///     tilted belly cut does not catch this one.
+///
+/// That last line is the point of keeping the note: the pcurve
+/// loop-closure limb is not a general detector of wrong-arc selection,
+/// it happened to fire on one member of the class. Containment at
+/// selection time is what actually covers it.
 #[test]
 fn on_endpoint_belly_cut_splits() {
     let body = cylinder_body();
@@ -495,28 +602,69 @@ fn on_endpoint_belly_cut_splits() {
     };
     let result = split(&body, &plane).unwrap();
     let (above, below) = assert_two_sided(&result);
-    // The mixed section carries ellipse arcs on both sides.
-    assert!(!ellipse_edges(&above).is_empty());
-    assert!(!ellipse_edges(&below).is_empty());
+    // The mixed section carries ellipse arcs on both sides, and every
+    // one of them stays on the finite wall over its stored interval.
+    for part in [&above, &below] {
+        let spans = wall_contained_ellipse_spans(part, 1.0);
+        assert_eq!(spans.len(), 2, "{spans:?}");
+        for got in &spans {
+            assert!(
+                (got - 0.387386).abs() < 1e-6,
+                "the short arc, not its τ − 0.387386 complement: {spans:?}"
+            );
+        }
+    }
 }
 
-/// Even-count crossings at `T = Interval` (both lanes, per the fix
-/// order). The belly class currently ESCALATES TYPED at the interval
-/// scalar inside the join's arc-side selector: the azimuth-difference
-/// enclosures of coincident-copy chords straddle a period boundary,
-/// and `reduce_periodic`'s containment-honest floor widens them to a
-/// full period — `split_conic_arc_side` then refuses (the Q1
-/// subdivision posture: a value-channel refusal, never wrong
-/// geometry; the f64 lane splits the same document correctly, and
-/// the non-belly tilted cut replays two-sided at Interval in
-/// `interval::tilted_cut_at_interval_encloses_zero_residuals`).
-/// Wrap-free angular enclosures are C9-hull territory (PR 6/7) — the
-/// row pins today's typed posture so any sharpening is a deliberate
-/// repin.
+/// M5 PR 6 acceptance on the repaired bodies (S9 §2): the belly-cut
+/// sides now mint and certify pcurve caches — the very machinery whose
+/// mint pass found the defect closes the loop on the repair. (The split
+/// pipeline already runs `mint_pcurves` on each side it produces, so
+/// reaching a `SplitPart::Body` at all is one certification; this row
+/// re-mints from scratch and re-validates at rest, so the caches are
+/// pinned as *re-derivable* and *re-certifiable*, not merely as
+/// once-accepted.)
+#[test]
+fn repaired_belly_bodies_mint_certified_pcurves() {
+    let body = cylinder_body();
+    let n = 1.0 / 5.0f64.sqrt();
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.1, 0.5),
+        normal: Vec3::new(0.0, 2.0 * n, n),
+    };
+    let result = split(&body, &plane).unwrap();
+    let (above, below) = assert_two_sided(&result);
+    let band = geom_core::Band::linear().unwrap();
+    for part in [above, below] {
+        // The split's own caches re-validate at rest.
+        assert!(topo::pcurves::validate_pcurves(&part, band).is_empty());
+        // And a fresh mint over the same body is accepted and clean.
+        let mut again = part.clone();
+        topo::mint_pcurves(&mut again).unwrap();
+        assert!(topo::pcurves::validate_pcurves(&again, band).is_empty());
+        // The curved wall pieces really do carry caches (the row would
+        // be vacuous on an all-planar body).
+        assert!(
+            again.half_edges().any(|(he, _)| again.pcurve(he).is_some()),
+            "the repaired belly sides carry pcurve caches"
+        );
+    }
+}
+
+/// Even-count crossings at `T = Interval` (the belly row's second
+/// lane). Before S9 this configuration ESCALATED TYPED inside the
+/// arc-side selector: that rule reduced azimuth differences taken *at*
+/// the coincident-copy chord endpoints, whose enclosures straddle a
+/// period boundary, and `reduce_periodic`'s containment-honest floor
+/// widened them to a full period. The window rule reduces against the
+/// window's CENTRE instead — half a window away from the boundary by
+/// construction — so the enclosures stay narrow and the interval lane
+/// now splits the belly document two-sided, with every section arc on
+/// the finite wall.
 #[cfg(feature = "interval")]
 #[test]
 fn even_crossing_belly_cut_at_interval() {
-    use geom_core::{Interval, Real};
+    use geom_core::{Bounds, Interval, Real};
     let iv = <Interval as Real>::from_f64;
     let lp = profile::ProfileLoop::new(vec![
         profile::ProfileVertex {
@@ -545,12 +693,72 @@ fn even_crossing_belly_cut_at_interval() {
         origin: Point3::new(iv(0.03), iv(0.11), iv(0.47)),
         normal: Vec3::new(iv(nv.x), iv(nv.y), iv(nv.z)),
     };
-    let err = split(&body, &plane).unwrap_err();
-    let msg = format!("{err}");
+    // The same §2 assertions the f64 belly row carries, at Interval:
+    // wall containment, the spans summing per part, and bit-identical
+    // replay.
+    let section_rows = |part: &Body<Interval>| -> (Vec<String>, Interval) {
+        let mut rows = Vec::new();
+        let mut sum = iv(0.0);
+        for (_, edge) in part.edges() {
+            let Some(c) = part.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            if !matches!(c.carrier(), Curve3::Ellipse { .. }) {
+                continue;
+            }
+            let (t0, t1) = c.params();
+            // Every section arc's carrier stays on the finite wall over
+            // its stored interval — the enclosure form of the
+            // domain-validity statement the defect violated.
+            for i in 0..=16u32 {
+                let t = t0 + (t1 - t0) * iv(f64::from(i) / 16.0);
+                let z = c.carrier().eval(t).z;
+                assert!(
+                    z.lo() >= -1e-9 && z.hi() <= 1.0 + 1e-9,
+                    "section arc leaves the finite wall: z in [{}, {}]",
+                    z.lo(),
+                    z.hi()
+                );
+            }
+            sum = sum + (t1 - t0);
+            rows.push(format!("{:?} {:?}", c.carrier(), c.params()));
+        }
+        rows.sort();
+        (rows, sum)
+    };
+    let run = || {
+        let result = split(&body, &plane).unwrap();
+        let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
+            panic!("both sides carry material at Interval");
+        };
+        assert_eq!(validate_closed(&above), Ok(()));
+        assert_eq!(validate_closed(&below), Ok(()));
+        (section_rows(&above), section_rows(&below))
+    };
+    let ((above_rows, above_sum), (below_rows, below_sum)) = run();
+    assert!(!above_rows.is_empty(), "the belly section carries arcs");
+    assert!(!below_rows.is_empty(), "the belly section carries arcs");
+    // One section, so the two sides' arcs sum to the same total sweep —
+    // enclosures that overlap, the interval form of "spans summing per
+    // part" (and both well under a full period: the belly cut's section
+    // is cut short by the caps).
     assert!(
-        msg.contains("split_conic_arc_side"),
-        "the pinned interval posture is the arc-side escalation, got: {msg}"
+        above_sum.lo() <= below_sum.hi() && below_sum.lo() <= above_sum.hi(),
+        "per-part span sums must agree: [{}, {}] vs [{}, {}]",
+        above_sum.lo(),
+        above_sum.hi(),
+        below_sum.lo(),
+        below_sum.hi()
     );
+    assert!(
+        above_sum.hi() < core::f64::consts::TAU,
+        "a belly section sweeps less than a full period, got {}",
+        above_sum.hi()
+    );
+    // Determinism (D9) at Interval: identical histories, identical bits.
+    let ((above2, _), (below2, _)) = run();
+    assert_eq!(above_rows, above2);
+    assert_eq!(below_rows, below2);
 }
 
 // ---------------------------------------------------------------------
