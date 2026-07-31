@@ -85,6 +85,12 @@ pub(super) fn build_sectors<T: Decide>(
     let orbit = body
         .vertex_orbit(anchor)
         .ok_or_else(|| corrupt(operand, vertex))?;
+    // The outgoing direction of an orbit half-edge, scaled to the
+    // edge's honest extent — the M3 chord for `Line` carriers
+    // (bit-identical), the carrier's outgoing TANGENT at the base
+    // vertex scaled by `edge_extent` for conic carriers (M5 PR 9: the
+    // ON-set machinery consumes curved carrier tangents instead of
+    // assuming straight edges — the splitting lane's C12.2 idiom).
     let chord = |he: HalfEdgeKey| -> Result<Vec3<T>, BooleanError> {
         let end = body
             .half_edge_end(he)
@@ -103,7 +109,30 @@ pub(super) fn build_sectors<T: Decide>(
                     .point,
             )
             .ok_or_else(|| corrupt(operand, vertex))?;
-        Ok(p_end - p_base)
+        let he_data = body
+            .get_half_edge(he)
+            .ok_or_else(|| corrupt(operand, vertex))?;
+        let edge = body
+            .get_edge(he_data.edge)
+            .ok_or_else(|| corrupt(operand, vertex))?;
+        let curve = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or_else(|| corrupt(operand, vertex))?;
+        match curve.carrier() {
+            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(p_end - p_base),
+            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+                let (t0, t1) = curve.params();
+                let tangent = if he == edge.he_plus {
+                    curve.carrier().deriv(t0)
+                } else {
+                    -curve.carrier().deriv(t1)
+                };
+                let extent =
+                    geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
+                Ok(tangent.normalize() * extent)
+            }
+        }
     };
     let mut sectors = Vec::with_capacity(orbit.len() + 2);
     for (i, &he) in orbit.iter().enumerate() {
@@ -177,7 +206,12 @@ pub(super) fn build_sectors<T: Decide>(
     Ok(sectors)
 }
 
-/// The sector's face + outward normal (post-F5: always a plane).
+/// The sector's face + outward normal at the base vertex. Planes keep
+/// the stored normal (the M3 path, bit-identical); `Cylinder`/`Sphere`
+/// faces (M5 PR 9) use the LOCAL chart-outward normal at the vertex —
+/// the same convention the splitting lane's PR 5 sector machinery
+/// established. Kinds without a wired sector arm refuse typed
+/// (C12.1, per arm).
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -193,10 +227,33 @@ pub(super) fn sector_face<T: Decide>(
         .get_loop(parent)
         .ok_or_else(|| corrupt(operand, vertex))?
         .face;
-    let plane = face_plane(body, face).ok_or(BooleanError::ClassificationInvariant {
-        what: "post-gate sector face lost its plane",
-    })?;
-    Ok((face, plane.normal))
+    if let Some(plane) = face_plane(body, face) {
+        return Ok((face, plane.normal));
+    }
+    let p = *body
+        .get_point(
+            body.get_vertex(vertex)
+                .ok_or_else(|| corrupt(operand, vertex))?
+                .point,
+        )
+        .ok_or_else(|| corrupt(operand, vertex))?;
+    let surface = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .ok_or_else(|| corrupt(operand, vertex))?;
+    match surface {
+        geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
+            let w = p - *origin;
+            let radial = w - *axis * w.dot(*axis);
+            Ok((face, radial.normalize()))
+        }
+        geom_surfaces::Surface::Sphere { center, .. } => Ok((face, (p - *center).normalize())),
+        s => Err(BooleanError::CurvedBooleanUnsupported {
+            operand,
+            face,
+            kind: geom_brep::SurfaceKind::of(s),
+        }),
+    }
 }
 
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {

@@ -54,6 +54,7 @@
 
 mod classify;
 pub mod containment;
+pub(crate) use classify::conic_plane_crossing_roots;
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;

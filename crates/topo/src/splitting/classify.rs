@@ -137,6 +137,21 @@ fn conic_crossing_roots<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
+    conic_plane_crossing_roots(carrier, t0, t1, plane.origin, plane.normal, band)
+}
+
+/// The plane-form core of [`conic_crossing_roots`], shared with the
+/// boolean reduction sweep (M5 PR 9 — the same C12.1 machinery, the
+/// same named trileans, against ANY plane rather than the split
+/// lane's one). Semantics and return shape documented above.
+pub(crate) fn conic_plane_crossing_roots<T: Decide>(
+    carrier: &geom_curves::Curve3<T>,
+    t0: T,
+    t1: T,
+    plane_origin: geom_core::Point3<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
     let (center, axis, u_ref, s_u, s_v) = match *carrier {
         geom_curves::Curve3::Circle {
             center,
@@ -154,9 +169,9 @@ fn conic_crossing_roots<T: Decide>(
         geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => return Err(()),
     };
     let v_ref = axis.cross(u_ref);
-    let d0 = (center - plane.origin).dot(plane.normal);
-    let a = u_ref.dot(plane.normal) * s_u;
-    let b = v_ref.dot(plane.normal) * s_v;
+    let d0 = (center - plane_origin).dot(plane_normal);
+    let a = u_ref.dot(plane_normal) * s_u;
+    let b = v_ref.dot(plane_normal) * s_v;
     let r = (a * a + b * b).sqrt();
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", r - d0.abs(), band) {

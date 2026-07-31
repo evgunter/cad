@@ -12,7 +12,9 @@
 //!
 //! Pipeline of [`boolean_reduce`]:
 //!
-//! 1. **Gates**: planar-only (F5, [`BooleanError::CurvedBooleanUnsupported`]);
+//! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
+//!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
+//!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
 //!    no scaffolding operands; **maximal faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
@@ -375,18 +377,41 @@ impl<T: Real> BooleanReduction<T> {
 pub enum BooleanError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
-    /// A face of `operand` is not a `Plane` — M3 booleans are
-    /// planar-only (F5).
+    /// A face's kind has no wired boolean arm at the classification
+    /// site that met it (M5 PR 9: the F5 planar-only gate retired PER
+    /// C5 TABLE ARM — `Plane`/`Cylinder`/`Sphere`/`Nurbs` faces pass
+    /// the operand gate and pair-level refusals fire where an arm is
+    /// actually exercised, citing the table's routing; `Cone`/`Torus`
+    /// keep the gate refusal — no wired arm involves them).
     CurvedBooleanUnsupported {
         /// The offending operand and face.
         operand: Operand,
         /// The face.
         face: FaceKey,
-        /// Its surface kind — the C5 table row the refusal cites
-        /// (M5 PR 5: the boolean PIPELINE still executes only the
-        /// plane×plane arm; curved execution wires at M5 PR 9, and
-        /// the refusal retires per arm then, never wholesale).
+        /// Its surface kind — the C5 table row the refusal cites.
         kind: geom_brep::SurfaceKind,
+    },
+    /// A sweep event definitely lands on a CURVED face away from its
+    /// boundary, a vertex sits ON a curved surface, or a curved-carrier
+    /// edge cannot be cleared against a curved face: the curved PIERCE
+    /// door — point-in-face trim containment on a curved chart at
+    /// boolean classification, and the v-on-curved-face ring insertion
+    /// behind it — does not exist yet (the M5 envelope's frontier; the
+    /// C5 table routes the SECTIONS, this is the crossing layer). The
+    /// **definite** half of a two-tolerance pair: the very same
+    /// clearance margin one band-width away escalates as
+    /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
+    /// instead, and both halves quote the band and end on the shared
+    /// recourse.
+    CurvedPierceUnsupported {
+        /// The operand whose edge met the curved face.
+        operand: Operand,
+        /// The curved face (in the other operand).
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The band the clearance margins were classified against.
+        band: Band,
     },
     /// An edge carrier is not a `Line` (F5).
     CurvedEdgeUnsupported {
@@ -579,16 +604,35 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
-                 boolean pipeline executes only the plane×plane arm of the C5 table \
-                 (curved execution wires at M5 PR 9; pairs involving this kind route \
-                 per geom_brep::intersect::route, rung-3 arms unimplemented until SSI)",
+                 classification this site required has no wired boolean arm for the \
+                 kind in this build (the refusal retires per C5 table arm, never \
+                 wholesale — C12.1; pairs involving this kind route per \
+                 geom_brep::intersect::route, and their notes say what is missing)",
                 kind.name()
+            ),
+            Self::CurvedPierceUnsupported {
+                operand,
+                face,
+                edge,
+                band,
+            } => write!(
+                f,
+                "boolean_reduce: edge {edge:?} of operand {operand:?} definitely meets \
+                 curved face {face:?} away from a shared boundary (clearance classified \
+                 against band [zero {:e}, escalate {:e}]) — the curved pierce door \
+                 (point-in-face trim containment on a curved chart, and the ring \
+                 insertion behind it) does not exist yet: the M5 envelope's typed \
+                 frontier. The same margin one band-width away escalates as a sliver \
+                 instead (F6); {}",
+                band.zero(),
+                band.escalate(),
+                COINCIDENCE_RECOURSE
             ),
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line \
-                 carrier — the boolean pipeline's sweep is line-exact until curved \
-                 execution wires (M5 PR 9)"
+                "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
+                 (Nurbs) carrier — rung-3 INPUT operands are outside the M5 envelope \
+                 (rung-3 edges are what the curved zip MINTS, not what it consumes)"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,

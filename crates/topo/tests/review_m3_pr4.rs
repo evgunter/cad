@@ -494,10 +494,12 @@ fn generic_edge_edge_mixed_order_pair() {
     }
 }
 
-/// The F5 curved gate itself (the shipped `curved_operand_refuses`
-/// exercises only the SCAFFOLDING arm): a face swapped to a cylinder
-/// must refuse as CurvedBooleanUnsupported with the offending operand
-/// and face named.
+/// The per-arm curved gate (M5 PR 9 narrowed this witness: `Cylinder`
+/// faces now PASS the operand gate — the conic arms are wired — so
+/// the gate-refusal witness moved to a kind with no wired boolean arm
+/// at all): a face swapped to a torus must refuse as
+/// CurvedBooleanUnsupported with the offending operand and face
+/// named, AT THE GATE.
 #[test]
 fn curved_face_gate_witness() {
     use geom_core::{Point3, Vec3};
@@ -506,10 +508,11 @@ fn curved_face_gate_witness() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom_surfaces::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
+        topo::FaceSurface::New(geom_surfaces::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 1.0),
             axis: Vec3::new(1.0, 0.0, 0.0),
-            radius: 1.0,
+            major_radius: 1.0,
+            minor_radius: 0.25,
             u_ref: Vec3::new(0.0, 0.0, 1.0),
         }),
     )
@@ -518,7 +521,7 @@ fn curved_face_gate_witness() {
         Err(BooleanError::CurvedBooleanUnsupported {
             operand: topo::Operand::B,
             face: f,
-            kind: geom_brep::SurfaceKind::Cylinder,
+            kind: geom_brep::SurfaceKind::Torus,
         }) => assert_eq!(f, face),
         other => panic!("expected CurvedBooleanUnsupported(B), got {other:?}"),
     }
