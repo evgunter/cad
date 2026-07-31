@@ -142,6 +142,11 @@ struct SolidJoin {
     in_set: SecondaryMap<VertexKey, ()>,
     /// OUT-side end vertices (above ends).
     out_set: SecondaryMap<VertexKey, ()>,
+    /// Aux partner surfaces minted into THIS body for curved germ
+    /// pairs (M5 PR 9), keyed by the OTHER body's germ face — one
+    /// mint per partner surface, every chord of the same germ face
+    /// shares it (the descriptions stay key-coherent for D6).
+    aux_partner: std::collections::BTreeMap<FaceKey, crate::geometry::SurfaceKey>,
 }
 
 impl SolidJoin {
@@ -156,6 +161,7 @@ impl SolidJoin {
             joiner: ChordJoiner::new(band),
             in_set,
             out_set,
+            aux_partner: std::collections::BTreeMap::new(),
         }
     }
 
@@ -295,12 +301,121 @@ pub(super) fn bool_connect<T: Decide>(
         // solid resolves against its OWN geometry.
         let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, band)?;
         let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, band)?;
-        sa.joiner
-            .join(&mut red.a, a1, a2, None)
-            .map_err(BooleanError::Join)?;
-        sb.joiner
-            .join(&mut red.b, b1, b2, None)
-            .map_err(BooleanError::Join)?;
+        // Curved germ pairs (M5 PR 9): each solid's chord lane comes
+        // from the germ FACE PAIR — plane×plane keeps the M3
+        // straight-chord lane bit-identically; plane×cylinder mints
+        // the C5 section conic on both sides (the wall side through
+        // the S9 window machinery with the germ plane as context, the
+        // planar side against the wall face's own window, so both
+        // solids select the SAME geometric arc); any other pair
+        // refuses typed citing its C5 routing (per-arm, C12.1).
+        let germ = open[m.entry].a[m.entry_slot].0;
+        let surf_of =
+            |body: &Body<T>, f: FaceKey| -> Result<geom_surfaces::Surface<T>, BooleanError> {
+                body.get_face(f)
+                    .and_then(|fd| body.get_surface(fd.surface))
+                    .cloned()
+                    .ok_or(desync("germ face surface no longer resolves"))
+            };
+        let ga = surf_of(&red.a, germ.a_face)?;
+        let gb = surf_of(&red.b, germ.b_face)?;
+        use crate::splitting::SplitPlane;
+        use crate::splitting::join::{JoinLane, SectionCtx, face_azimuth_window};
+        use geom_surfaces::Surface as Sf;
+        match (&ga, &gb) {
+            (Sf::Plane { .. }, Sf::Plane { .. }) => {
+                sa.joiner
+                    .join(&mut red.a, a1, a2, JoinLane::Planar)
+                    .map_err(BooleanError::Join)?;
+                sb.joiner
+                    .join(&mut red.b, b1, b2, JoinLane::Planar)
+                    .map_err(BooleanError::Join)?;
+            }
+            (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
+                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
+                    .map_err(BooleanError::Join)?
+                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                let mut partner = sa.aux_partner.get(&germ.b_face).copied();
+                sa.joiner
+                    .join(
+                        &mut red.a,
+                        a1,
+                        a2,
+                        JoinLane::BoolPlanar {
+                            wall: gb.clone(),
+                            window,
+                            partner_key: &mut partner,
+                        },
+                    )
+                    .map_err(BooleanError::Join)?;
+                if let Some(k) = partner {
+                    sa.aux_partner.insert(germ.b_face, k);
+                }
+                let mut ctx = SectionCtx {
+                    plane: SplitPlane {
+                        origin: *origin,
+                        normal: *normal,
+                    },
+                    plane_key: sb.aux_partner.get(&germ.a_face).copied(),
+                };
+                sb.joiner
+                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx))
+                    .map_err(BooleanError::Join)?;
+                if let Some(k) = ctx.plane_key {
+                    sb.aux_partner.insert(germ.a_face, k);
+                }
+            }
+            (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
+                let mut ctx = SectionCtx {
+                    plane: SplitPlane {
+                        origin: *origin,
+                        normal: *normal,
+                    },
+                    plane_key: sa.aux_partner.get(&germ.b_face).copied(),
+                };
+                sa.joiner
+                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx))
+                    .map_err(BooleanError::Join)?;
+                if let Some(k) = ctx.plane_key {
+                    sa.aux_partner.insert(germ.b_face, k);
+                }
+                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
+                    .map_err(BooleanError::Join)?
+                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                let mut partner = sb.aux_partner.get(&germ.a_face).copied();
+                sb.joiner
+                    .join(
+                        &mut red.b,
+                        b1,
+                        b2,
+                        JoinLane::BoolPlanar {
+                            wall: ga.clone(),
+                            window,
+                            partner_key: &mut partner,
+                        },
+                    )
+                    .map_err(BooleanError::Join)?;
+                if let Some(k) = partner {
+                    sb.aux_partner.insert(germ.a_face, k);
+                }
+            }
+            (a_s, b_s) => {
+                // No wired join arm for this germ pair (cyl×cyl's
+                // equal-radius ellipse pair, cyl×sphere's rung-3
+                // fitted chords, plane×NURBS behind PR 7b): typed,
+                // citing the kind whose join arm is missing.
+                let (operand, face, s) = if matches!(a_s, Sf::Plane { .. }) {
+                    (Operand::B, germ.b_face, b_s)
+                } else {
+                    (Operand::A, germ.a_face, a_s)
+                };
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind: geom_brep::SurfaceKind::of(s),
+                });
+            }
+        }
         open[m.entry].a[m.entry_slot].1 = true;
         open[m.entry].b[m.entry_slot].1 = true;
         open[m.cand].a[m.cand_slot].1 = true;

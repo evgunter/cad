@@ -503,6 +503,14 @@ pub enum BooleanError {
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
+    /// The result body's pcurve mint pass refused (M5 PR 9: curved
+    /// results carry certified per-half-edge pcurves at rest — the
+    /// PR 6 contract; loud rather than shipping uncertified caches,
+    /// D4 ¶2).
+    Pcurves {
+        /// The typed pcurve-pass refusal, nested whole.
+        source: crate::pcurves::PcurveMintError,
+    },
     /// The joining stage's chord machinery refused (PR 5; nested
     /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
     Join(SplitJoinError),
@@ -643,6 +651,11 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
                  {edge:?} (not maximal-faced, F7); run merge_coplanar_faces explicitly first"
+            ),
+            Self::Pcurves { source } => write!(
+                f,
+                "boolean: the result's pcurve mint pass refused (curved results carry \
+                 certified per-half-edge pcurves at rest, M5 PR 9): {source}"
             ),
             Self::Escalated { diag } => write!(
                 f,

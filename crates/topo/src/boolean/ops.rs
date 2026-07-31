@@ -431,6 +431,12 @@ pub fn boolean_op_with<T: Decide + Bounds>(
         &KeyView::Graft(&fin.graft),
         &desc,
     );
+    // Curved results carry certified per-half-edge pcurves at rest
+    // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
+    // the finished body — the same pass the split lane runs. A planar
+    // body mints nothing (no curved faces), so the M3 lane is
+    // untouched bit-identically.
+    crate::pcurves::mint_pcurves(&mut body).map_err(|source| BooleanError::Pcurves { source })?;
     gate(&body)?;
     volume_backstop(op, a, b, &body, band)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
@@ -659,11 +665,44 @@ pub(super) fn describe_minted_edges<T: Decide>(
         let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(corrupt());
         };
-        let witness = p0.lerp(p1, T::from_f64(0.5));
-        match geom_brep::classify_dihedral(surf1, surf2, witness, p0.distance(p1), band) {
+        // Curved seam edges (M5 PR 9) keep their minted conic carrier
+        // and pin the witness at the carrier's mid parameter (the S2
+        // contract); planar chords keep the M3 line lane bit-
+        // identically (fresh chord carrier, lerp witness).
+        let existing = body
+            .get_curve_geom(edge_data.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .cloned();
+        let curved = existing
+            .as_ref()
+            .is_some_and(|c| !matches!(c.carrier(), geom_curves::Curve3::Line { .. }));
+        let (witness, extent) = if curved {
+            let c = existing.as_ref().ok_or_else(corrupt)?;
+            let (t0, t1) = c.params();
+            let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
+            (
+                mid,
+                geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
+            )
+        } else {
+            (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1))
+        };
+        match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
             Ok(geom_brep::DihedralClass::Transverse) => {
-                let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                spec.description = geom_brep::EdgeGeometry::Intersection { s1, s2, witness };
+                let spec = if curved {
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    let (t0, t1) = c.params();
+                    geom_brep::EdgeCurveSpec {
+                        description: geom_brep::EdgeGeometry::Intersection { s1, s2, witness },
+                        carrier: c.carrier().clone(),
+                        param_start: t0,
+                        param_end: t1,
+                    }
+                } else {
+                    let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+                    spec.description = geom_brep::EdgeGeometry::Intersection { s1, s2, witness };
+                    spec
+                };
                 body.set_edge_curve(edge, spec)
                     .map_err(|_| BooleanError::JoinDesync {
                         what: "minted-edge description failed certification",
@@ -694,6 +733,16 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     geom_brep::EdgeGeometry::MappedCurve(_) => false,
                 };
                 if stale {
+                    if curved {
+                        // A curved smooth seam whose description went
+                        // stale has no honest conventional line form —
+                        // refuse rather than replace an arc with its
+                        // chord (M5 PR 9: no silent geometric rewrite).
+                        return Err(BooleanError::JoinDesync {
+                            what: "stale CURVED smooth-seam description (no conventional \
+                                   re-description lane exists for arcs)",
+                        });
+                    }
                     body.set_edge_curve(edge, geom_brep::EdgeCurveSpec::line_between(p0, p1))
                         .map_err(|_| BooleanError::JoinDesync {
                             what: "stale in-plane description failed re-certification",

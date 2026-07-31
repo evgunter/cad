@@ -251,10 +251,23 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             body.get_face(f2).map(|f| f.surface),
         );
         if k1.is_some() && k1 == k2 {
-            return Err(BooleanError::NonMaximalFaces {
-                operand,
-                edge: edge_key,
-            });
+            // Same-key CURVED adjacency is the CANONICAL maximal form
+            // (M5 PR 9, C12.5): a periodic wall cannot be one face
+            // without its parameterization cut, so two half-walls
+            // sharing one cylinder key across a meridian strut are
+            // exactly what a maximal-faced curved operand looks like
+            // (the cosurface merge itself KEEPS such a cut). Only the
+            // PLANAR same-key pair is the F7 defect.
+            let planar = k1
+                .and_then(|k| body.get_surface(k))
+                .is_some_and(|s| matches!(s, geom_surfaces::Surface::Plane { .. }));
+            if planar {
+                return Err(BooleanError::NonMaximalFaces {
+                    operand,
+                    edge: edge_key,
+                });
+            }
+            continue;
         }
         let (Some(p1), Some(p2)) = (face_plane(body, f1), face_plane(body, f2)) else {
             continue;

@@ -172,6 +172,129 @@ pub(super) fn face_plane<T: Decide>(
     }
 }
 
+/// A face's resolved query geometry (M5 PR 9): the planar datum, or a
+/// cylinder wall with its exact chart trim — azimuth window from the
+/// outer cycle's closed-form chart images (the S9 machinery), height
+/// range from the boundary vertices (exact for the iso-bounded wall
+/// class every M5 operand mints: rims are height iso-lines, meridians
+/// azimuth iso-lines, and the boolean's own seam arcs are height
+/// iso-lines too).
+enum FaceGeo<T: geom_core::Real> {
+    Plane(Point3<T>, Vec3<T>),
+    Cylinder {
+        origin: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        u_ref: Vec3<T>,
+        az: (T, T),
+        h: (T, T),
+    },
+}
+
+/// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder} refuse as
+/// [`PointInSolidError::CorruptFace`] (per-arm, C12.1 — the sphere
+/// wall arm arrives with the rung-3 zip).
+fn face_geo<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<FaceGeo<T>, PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    match body.get_surface(f.surface) {
+        Some(Surface::Plane { origin, normal, .. }) => Ok(FaceGeo::Plane(*origin, *normal)),
+        Some(&Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        }) => {
+            let surf = body
+                .get_surface(f.surface)
+                .cloned()
+                .ok_or(PointInSolidError::CorruptFace { face })?;
+            let az = crate::splitting::join::face_azimuth_window(body, &surf, face, band)
+                .ok()
+                .flatten()
+                .ok_or(PointInSolidError::CorruptFace { face })?;
+            // Height range from the outer cycle's vertices (exact for
+            // the iso-bounded wall class).
+            let mut h_min = T::from_f64(f64::INFINITY);
+            let mut h_max = T::from_f64(f64::NEG_INFINITY);
+            let LoopBoundary::Cycle { first } = body
+                .get_loop(f.outer)
+                .ok_or(PointInSolidError::CorruptFace { face })?
+                .boundary
+            else {
+                return Err(PointInSolidError::CorruptFace { face });
+            };
+            for he in body
+                .loop_cycle(first)
+                .ok_or(PointInSolidError::CorruptFace { face })?
+            {
+                let v = body
+                    .get_half_edge(he)
+                    .ok_or(PointInSolidError::CorruptFace { face })?
+                    .start;
+                let p = *body
+                    .get_vertex(v)
+                    .and_then(|v| body.get_point(v.point))
+                    .ok_or(PointInSolidError::CorruptFace { face })?;
+                let h = (p - origin).dot(axis);
+                h_min = h_min.min(h);
+                h_max = h_max.max(h);
+            }
+            Ok(FaceGeo::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+                az,
+                h: (h_min, h_max),
+            })
+        }
+        _ => Err(PointInSolidError::CorruptFace { face }),
+    }
+}
+
+/// Is the ON-WALL point `p` within the wall face's chart trim?
+/// `Some(true/false)` definite, `None` a boundary graze. Margins are
+/// metres (azimuth × radius; height directly), the S9 centred
+/// periodic reduction keeps the azimuth branch away from the seam.
+fn point_on_wall_in_face<T: Decide>(
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    az: (T, T),
+    h: (T, T),
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<bool>, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let w = p - origin;
+    let height = w.dot(axis);
+    let radial = w - axis * height;
+    let azimuth = radial.dot(axis.cross(u_ref)).atan2(radial.dot(u_ref));
+    let tau = T::tau();
+    let (w_min, w_max) = az;
+    let width = w_max - w_min;
+    let half = T::from_f64(0.5);
+    let x = (azimuth - (w_min + width * half) + tau * half).reduce_periodic(tau) - tau * half
+        + width * half;
+    let mut verdict = Some(true);
+    for margin in [x * radius, (width - x) * radius, height - h.0, h.1 - height] {
+        match decide("bool_wall_trim", margin, band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Negative => return Ok(Some(false)),
+            Sign::Zero => verdict = None, // boundary graze
+        }
+    }
+    Ok(verdict)
+}
+
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
 /// loop is reported as `None` (graze).
@@ -232,15 +355,41 @@ pub fn point_in_solid<T: Decide>(
 
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
     for &face in &faces {
-        let (origin, normal) = face_plane(body, face)?;
-        let elev = (q - origin).dot(normal);
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        if decide("bool_point_in_solid_plane", elev, band).map_err(escalate)? == Sign::Zero {
-            // In-plane: ON the boundary iff within the face region (a
-            // loop-boundary graze is also ON).
-            match point_in_face(body, face, normal, q, band)? {
-                Some(true) | None => return Ok(SolidContainment::OnBoundary),
-                Some(false) => {}
+        match face_geo(body, face, band)? {
+            FaceGeo::Plane(origin, normal) => {
+                let elev = (q - origin).dot(normal);
+                if decide("bool_point_in_solid_plane", elev, band).map_err(escalate)? == Sign::Zero
+                {
+                    // In-plane: ON the boundary iff within the face
+                    // region (a loop-boundary graze is also ON).
+                    match point_in_face(body, face, normal, q, band)? {
+                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
+                        Some(false) => {}
+                    }
+                }
+            }
+            FaceGeo::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+                az,
+                h,
+            } => {
+                let w = q - origin;
+                let radial = w - axis * w.dot(axis);
+                // The linearized residual (metres) — the same form the
+                // certification layer classifies.
+                let elev = (radial.norm_squared() - radius * radius) / (T::from_f64(2.0) * radius);
+                if decide("bool_point_in_solid_plane", elev, band).map_err(escalate)? == Sign::Zero
+                {
+                    match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, q, band)?
+                    {
+                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
+                        Some(false) => {}
+                    }
+                }
             }
         }
     }
@@ -265,44 +414,123 @@ fn cast_ray<T: Decide>(
     band: Band,
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
-    for &face in faces {
+    // A candidate crossing (advance, outward sign), or a graze.
+    let mut fold = |best: &mut Option<(T, Sign)>,
+                    face: FaceKey,
+                    t: T,
+                    outward: Sign|
+     -> Result<Option<()>, PointInSolidError> {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        let (origin, normal) = face_plane(body, face)?;
-        let denom = d.dot(normal);
-        let denom_sign = decide("bool_point_in_solid_denom", denom, band).map_err(escalate)?;
-        if denom_sign == Sign::Zero {
-            // Parallel ray: q is definitely off this plane (the
-            // pre-pass returned), so the ray misses it entirely.
-            continue;
-        }
-        let t = (origin - q).dot(normal) / denom;
-        // In-face test FIRST: a plane hit outside the face region is
-        // no crossing at all — in particular a `t = 0` hit on a face
-        // plane through `q` (a corner-aligned query) must be skipped,
-        // not grazed, when the face itself is elsewhere.
-        let p = q + d * t;
-        match point_in_face(body, face, normal, p, band)? {
-            Some(false) => continue,
-            None => return Ok(None), // edge/vertex hit: graze
-            Some(true) => {}
-        }
         match decide("bool_point_in_solid_advance", t, band).map_err(escalate)? {
             Sign::Positive => {}
-            Sign::Negative => continue,
+            Sign::Negative => return Ok(Some(())),
             // A genuine crossing at q contradicts the boundary
             // pre-pass — graze, retry.
             Sign::Zero => return Ok(None),
         }
-        best = match best {
-            None => Some((t, denom_sign)),
+        *best = match *best {
+            None => Some((t, outward)),
             Some((tb, sb)) => {
                 match decide("bool_point_in_solid_order", t - tb, band).map_err(escalate)? {
-                    Sign::Negative => Some((t, denom_sign)),
+                    Sign::Negative => Some((t, outward)),
                     Sign::Positive => Some((tb, sb)),
                     Sign::Zero => return Ok(None), // tie: graze
                 }
             }
         };
+        Ok(Some(()))
+    };
+    for &face in faces {
+        let escalate = |diag| PointInSolidError::Escalated { face, diag };
+        match face_geo(body, face, band)? {
+            FaceGeo::Plane(origin, normal) => {
+                let denom = d.dot(normal);
+                let denom_sign =
+                    decide("bool_point_in_solid_denom", denom, band).map_err(escalate)?;
+                if denom_sign == Sign::Zero {
+                    // Parallel ray: q is definitely off this plane (the
+                    // pre-pass returned), so the ray misses it entirely.
+                    continue;
+                }
+                let t = (origin - q).dot(normal) / denom;
+                // In-face test FIRST: a plane hit outside the face
+                // region is no crossing at all — in particular a
+                // `t = 0` hit on a face plane through `q` (a
+                // corner-aligned query) must be skipped, not grazed,
+                // when the face itself is elsewhere.
+                let p = q + d * t;
+                match point_in_face(body, face, normal, p, band)? {
+                    Some(false) => continue,
+                    None => return Ok(None), // edge/vertex hit: graze
+                    Some(true) => {}
+                }
+                if fold(&mut best, face, t, denom_sign)?.is_none() {
+                    return Ok(None);
+                }
+            }
+            // The cylinder wall arm (M5 PR 9): the ray meets the
+            // infinite wall at the roots of a quadratic in metres
+            // (the linearized residual along the ray); each definite
+            // root inside the face's chart trim folds like a planar
+            // hit, with the outward sign read from the radial
+            // gradient at the hit. A tangent ray (discriminant in the
+            // zero band) grazes and retries — never a parity guess.
+            FaceGeo::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+                az,
+                h,
+            } => {
+                let w0 = q - origin;
+                let w0p = w0 - axis * w0.dot(axis);
+                let dp = d - axis * d.dot(axis);
+                let a2 = dp.norm_squared();
+                let two_r = T::from_f64(2.0) * radius;
+                // Axis-parallel ray: constant residual; the pre-pass
+                // said q is off the wall, so it misses entirely.
+                match decide("bool_point_in_solid_denom", a2 / two_r, band).map_err(escalate)? {
+                    Sign::Positive => {}
+                    _ => continue,
+                }
+                let b2 = w0p.dot(dp);
+                let c2 = w0p.norm_squared() - radius * radius;
+                let disc = b2.powi(2) - a2 * c2;
+                // Metre-scaled discriminant: Positive ⇒ two definite
+                // roots; Zero ⇒ a tangent ray (graze, retry the next
+                // schedule member); Negative ⇒ definite miss; in-band
+                // escalates through the funnel.
+                match decide("bool_ray_cylinder_disc", disc / (two_r * two_r), band)
+                    .map_err(escalate)?
+                {
+                    Sign::Positive => {}
+                    Sign::Zero => return Ok(None), // tangent ray: graze
+                    Sign::Negative => continue,    // definite miss
+                }
+                let root = disc.max(T::zero()).sqrt();
+                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                    let p = q + d * t;
+                    match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, p, band)?
+                    {
+                        Some(false) => continue,
+                        None => return Ok(None), // trim-boundary hit: graze
+                        Some(true) => {}
+                    }
+                    // Outward sign: d · (radial gradient) at the hit.
+                    let wp = p - origin;
+                    let rad = wp - axis * wp.dot(axis);
+                    let outward = decide("bool_point_in_solid_denom", d.dot(rad) / radius, band)
+                        .map_err(escalate)?;
+                    if outward == Sign::Zero {
+                        return Ok(None); // grazing incidence at the hit
+                    }
+                    if fold(&mut best, face, t, outward)?.is_none() {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
     }
     match best {
         // Closest crossing exits material (d·n > 0) ⇒ q is In.

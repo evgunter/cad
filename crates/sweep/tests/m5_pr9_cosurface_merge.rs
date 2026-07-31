@@ -1,22 +1,24 @@
 //! M5 PR 9 (C12.5): `merge_coplanar_faces` generalizes to cosurface
 //! (same-surface) merging for curved faces — the same never-numeric
-//! ladder, now kind-agnostic on its hard rungs.
+//! ladder, kind-agnostic on its hard rungs.
 //!
-//! The fixture is the extruded disc: its two half-wall faces share
-//! ONE cylinder surface key (the cosurface run) and meet along the
-//! two meridian struts — exactly the shape the boolean zip
-//! manufactures when a through cut re-splits a wall. Before PR 9 the
-//! op skipped curved same-key neighbors by design; now the structural
-//! rung merges them: one strut dies, the other is KEPT as the
-//! periodic run's parameterization cut (the classical seam-form),
-//! and the result re-passes the full tier-3 gate.
+//! The live case is the SUB-PERIOD re-merge (the through-cut shape
+//! the boolean zip manufactures): a cylinder split by a plane leaves
+//! each part's wall as same-key fragments meeting across a strut —
+//! the structural rung glues them, the strut dies, volumes are
+//! untouched, tier 3 holds. The FULL-PERIOD closure (the plain disc's
+//! two half-walls) is outside the inventory at M5 — the exact-B-rep
+//! props cannot integrate a full-wrap wall yet — and is recorded as a
+//! LOUD skip naming `PeriodClosure`, never a silent no-op and never a
+//! wrong-volume body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
+use geom_core::{Point2, Point3, Tolerance, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
+use topo::splitting::{SplitPlane, split};
 
 fn disc_cylinder() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
@@ -35,70 +37,82 @@ fn disc_cylinder() -> Body<f64> {
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
 
-#[test]
-fn same_key_wall_pieces_remerge_structurally() {
-    let mut body = disc_cylinder();
-    let faces_before = body.faces().count();
-    let walls_before: Vec<_> = body
-        .faces()
+/// Cylinder wall faces of `body`.
+fn wall_count(body: &Body<f64>) -> usize {
+    body.faces()
         .filter(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
                 Some(geom_surfaces::Surface::Cylinder { .. })
             )
         })
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(walls_before.len(), 2, "the disc extrudes two half-walls");
+        .count()
+}
 
-    let out = body.merge_coplanar_faces().expect("the cosurface merge");
+#[test]
+fn sub_period_wall_pieces_remerge_structurally() {
+    // Split the disc cylinder by the vertical plane x = 0.2: the
+    // below part's wall is TWO same-key fragments meeting across one
+    // original meridian strut (the C12.5 through-cut shape).
+    let body = disc_cylinder();
+    let plane = SplitPlane {
+        origin: Point3::new(0.2, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let parts = split(&body, &plane).expect("the tilted-cut lane splits it");
+    let mut part = parts.below.body().expect("a below part exists").clone();
+    assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
+    let vol_before = topo::mass_properties(&part).unwrap().volume;
+
+    let out = part.merge_coplanar_faces().expect("the cosurface merge");
     assert!(
         out.skipped.is_empty(),
-        "nothing may be silently skipped: {:?}",
+        "sub-period runs commit: {:?}",
         out.skipped
     );
     assert_eq!(out.groups.len(), 1, "one cosurface run: {:?}", out.groups);
-    let g = &out.groups[0];
-    assert_eq!(g.absorbed.len(), 1, "one wall absorbed into the other");
-    // ONE strut dies (the kev); the other is KEPT as the periodic
-    // run's parameterization cut — the classical seam-form (killing
-    // it would close the chart with no cut). No ring is minted.
-    assert_eq!(
-        g.killed_edges.len(),
-        1,
-        "exactly one strut dies: {:?}",
-        g.killed_edges
-    );
-    assert!(g.rings_made.is_empty(), "no ring on a curved survivor");
-    assert_eq!(body.faces().count(), faces_before - 1);
+    assert_eq!(out.groups[0].killed_edges.len(), 1, "the shared strut dies");
+    assert!(out.groups[0].rings_made.is_empty());
+    assert_eq!(wall_count(&part), 1, "one maximal sub-period wall face");
 
-    // The merged body is still a closed solid — and tier-3 valid
-    // (dihedrals, pcurve caches, volume: the whole geometric gate).
-    topo::validate_closed(&body).expect("the merged body stays closed");
-    if let Err(errs) = topo::validate_geometric(&body) {
-        panic!("the merged body must stay tier-3 valid: {errs:?}");
+    // Volume untouched exactly (the merge is pure structure).
+    let vol_after = topo::mass_properties(&part).unwrap().volume;
+    assert!(
+        (vol_after - vol_before).abs() < 1e-12,
+        "merge must not move volume: {vol_before} -> {vol_after}"
+    );
+    if let Err(errs) = topo::validate_geometric(&part) {
+        panic!("the merged part must stay tier-3 valid: {errs:?}");
     }
-    let walls_after = body
-        .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom_surfaces::Surface::Cylinder { .. })
-            )
-        })
-        .count();
-    assert_eq!(walls_after, 1, "one maximal wall face");
+}
+
+#[test]
+fn full_period_closure_skips_loudly() {
+    // The plain disc's two half-walls span the whole period: merging
+    // them would need a ring-on-curved-face or a full-wrap seam-form
+    // loop, neither of which the exact-B-rep props can integrate yet
+    // — recorded as a LOUD skip naming the period closure; the body
+    // is untouched and its volume stays exact.
+    let mut body = disc_cylinder();
+    let vol_before = topo::mass_properties(&body).unwrap().volume;
+    let out = body.merge_coplanar_faces().expect("the merge call itself");
+    assert!(out.groups.is_empty(), "no group commits: {:?}", out.groups);
+    assert_eq!(out.skipped.len(), 1, "the closure is a loud skip");
+    assert!(
+        out.skipped[0].reason.contains("full chart period"),
+        "the skip names the period closure: {}",
+        out.skipped[0].reason
+    );
+    let vol_after = topo::mass_properties(&body).unwrap().volume;
+    assert!((vol_after - vol_before).abs() == 0.0, "body untouched");
+    topo::validate_closed(&body).unwrap();
 }
 
 #[test]
 fn distinct_key_curved_neighbors_stay_unmerged() {
-    // The never-numeric rule, curved edition: two DISTINCT-key,
-    // value-different cylinder walls (a filleted block's fillet wall
-    // next to nothing cylindrical) never merge — and, sharper, a body
-    // with two distinct-key curved walls that are not even adjacent
-    // reports no groups at all. The ladder infers nothing from
-    // values; with no shared key, no shared source, and no declared
-    // pair, the op is a no-op.
+    // The never-numeric rule, curved edition: two distinct-key,
+    // value-different cylinder walls (a lens) never merge — no rung
+    // licenses, the op is a no-op.
     let lp = ProfileLoop::new(vec![
         ProfileVertex {
             pos: Point2::new(-0.5, 0.0),
@@ -109,8 +123,6 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
             bulge: 0.3,
         },
     ]);
-    // Two shallow arcs: a lens. The two wall faces lie on DIFFERENT
-    // cylinders (different centers), so no rung licenses a merge.
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();

@@ -120,6 +120,17 @@ pub enum MergeCoplanarError {
         /// The edge the op cannot safely kill.
         edge: EdgeKey,
     },
+    /// A CURVED cosurface run would close its chart's full period
+    /// (M5 PR 9, C12.5): killing the last shared edge leaves either a
+    /// ring on a curved face or a full-wrap seam-form loop — shapes
+    /// the exact-B-rep props cannot integrate yet, so the run refuses
+    /// here and the driver records a loud skip (the operands'
+    /// cut-carrying canonical form stays; sub-period re-merges — the
+    /// through-cut case — commit normally).
+    PeriodClosure {
+        /// The shared edge whose kill would close the period.
+        edge: EdgeKey,
+    },
     /// An internal Euler step refused — surfaced typed (unreachable on
     /// tier-2 input in the supported inventory; never a panic, D9).
     Op {
@@ -194,6 +205,14 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: shared edge {edge:?} spans two loops of \
                  one face — unsupported configuration, refused"
+            ),
+            Self::PeriodClosure { edge } => write!(
+                f,
+                "merge_coplanar_faces: killing shared edge {edge:?} would close the \
+                 curved cosurface run's full chart period — outside the merge's \
+                 inventory at M5 (C12.5: sub-period re-merges commit; full closures \
+                 stay in their cut-carrying canonical form and are recorded as a loud \
+                 skip)"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::InvalidDeclaration { surface, what } => write!(
@@ -429,7 +448,19 @@ impl<T: Decide> Body<T> {
         let mut outcome = MergeCoplanarOutcome::default();
         for members in groups {
             let licensed = members.iter().any(|f| declared_faces.contains(f));
-            if !licensed {
+            // Curved structural runs (C12.5, M5 PR 9) go through the
+            // trial/skip stage too: a run that closes the full period
+            // refuses `PeriodClosure` inside its trial and is recorded
+            // as a LOUD skip (the operands' canonical cut-carrying
+            // form stays), while sub-period re-merges commit. Planar
+            // structural groups keep the ratified whole-refusal
+            // semantics bit-identically.
+            let curved = members.first().is_some_and(|&f| {
+                work.get_face(f)
+                    .and_then(|fd| work.get_surface(fd.surface))
+                    .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
+            });
+            if !licensed && !curved {
                 outcome.groups.push(work.merge_group(&members)?);
                 continue;
             }
@@ -675,15 +706,14 @@ impl<T: Decide> Body<T> {
         // Intra-face duplicates: edges now occurring twice within the
         // survivor's loops. On a PLANAR survivor a same-loop duplicate
         // bounds a genuine hole and `kemr` mints the ring. On a CURVED
-        // survivor (C12.5, M5 PR 9) the duplicate is the
-        // parameterization CUT of a periodic cosurface run and is
-        // KEPT: killing it would close the chart with no cut (a ring
-        // on a curved face — a shape the at-rest pcurve/loop-closure
-        // and props machinery is deliberately not built for), while
-        // keeping it is exactly the classical seam-form a revolve
-        // mints (the edge stays a same-surface, definitely-smooth,
-        // zero-side-second-order conventional split — tier-3 exempt
-        // by the predicate).
+        // survivor (C12.5, M5 PR 9) a same-face duplicate means the
+        // cosurface run CLOSED THE FULL PERIOD — a shape outside the
+        // merge's inventory at M5 (neither the ring form nor the
+        // kept-cut seam form is integrable by the exact-B-rep props
+        // yet), refused typed here; the driver records it as a LOUD
+        // skip for curved structural runs, so sub-period re-merges
+        // (the C12.5 through-cut case) proceed and full closures stay
+        // unmerged exactly as the operands arrived.
         let survivor_curved = {
             let key = self
                 .get_face(rep)
@@ -695,13 +725,9 @@ impl<T: Decide> Body<T> {
                 })?;
             !matches!(self.get_surface(key), Some(Surface::Plane { .. }))
         };
-        let mut kept_cuts = std::collections::BTreeSet::new();
         loop {
             let mut found = None;
             for (edge_key, edge) in self.edges() {
-                if kept_cuts.contains(&edge_key) {
-                    continue;
-                }
                 let (Some(hp), Some(hm)) = (
                     self.get_half_edge(edge.he_plus),
                     self.get_half_edge(edge.he_minus),
@@ -724,12 +750,11 @@ impl<T: Decide> Body<T> {
             let Some((edge_key, he_plus, he_minus, same_loop)) = found else {
                 break;
             };
+            if survivor_curved {
+                return Err(MergeCoplanarError::PeriodClosure { edge: edge_key });
+            }
             if !same_loop {
                 return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
-            }
-            if survivor_curved {
-                kept_cuts.insert(edge_key);
-                continue;
             }
             let result = self
                 .kemr(he_plus, he_minus)
