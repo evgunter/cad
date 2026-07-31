@@ -1158,3 +1158,19 @@ imported to the branch). **Review DISPATCHED** — charter: hand
 re-derivation of the dominance proof, smarter-than-uniform
 enclosing search (construct-from-circles), cross-lane pick
 agreement, retirement grep.
+
+**PR 6 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 3 MIN / 3 NOTE, rubric 5/4/4.** Envelope re-derived and
+held (angle-sum identity verified symbolically; cancellation
+probes never beat the formula); unwrap-unrepresentability
+verified; deviation-1 reasoning CONFIRMED (parameter identity is
+the binding contract; nothing lost). **chord_spec defect
+INDEPENDENTLY CONFIRMED at merge-base** — exact complement arcs
+(τ−0.305/τ−0.775), z∈[−0.30,1.70] on height-1, and tier 3's
+only refusal (NotIsoRectangle) fires identically on the CORRECT
+cut ⇒ genuinely defect-blind. No other configuration regressed
+by the branch's typed refusal. Best MIN: certify()'s
+snap-to-family admits an ε-shell where the stored envelope is
+false by 7 orders (attach path only; minted caches exact);
+fix = snap slack added to the envelope. **Fix pass DISPATCHED**
+(opus implementer resumed). S8 review in flight in parallel.
