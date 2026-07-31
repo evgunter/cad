@@ -174,41 +174,10 @@ collinear-split/same-carrier hazard.
   both-ends-trimmed side — underdetermined (offset free) — cannot
   be written.
 - DOF check: arc 5; r binds 1; tangency to each fixed carrier
-  binds 2 + 2 — exactly determined **up to the branch choice**
-  (#101's `LoopBuilder::fillet` closed form at a virtual corner;
-  see the amendment below). Parallel/non-intersecting carriers,
-  or an intersection behind the ray start, refuse typed
+  binds 2 + 2 — exactly determined (#101's `LoopBuilder::fillet`
+  closed form at a virtual corner). Parallel/non-intersecting
+  carriers, or an intersection behind the ray start, refuse typed
   `NoCornerForFillet`.
-- **Branch selection (amended 2026-07-30; Evan's in-chat S8
-  ruling, twice refined the same day — the ruling is the
-  sign-off)**: "exactly determined" holds only up to WHICH of the
-  two carrier-intersection roots is meant. With straight legs the
-  ray start disambiguates, so #101 never met the second root; arc
-  carriers can put both roots on the legs — the recorded
-  divergence 2, formerly in `AmbiguousFilletBranch`'s rustdoc,
-  now RESOLVED here and the variant retired. `.fillet(r)`
-  **selects the tangent circle nearest the authored corner**
-  among candidates surviving the corner-side extent
-  classification: strict `<` on total tangent setback (the sum of
-  the two legs' arc-length setbacks), an exact tie falling to
-  strict `<` on the incoming leg's setback alone, and identical
-  per-leg setback pairs falling to enumeration order (the v1
-  rule, rationale and reachability analysis live on
-  `sugar.rs::nearest_candidate`). No escalation and no error:
-  both survivors are valid tangent fillets of the authored legs,
-  so an ε-scale pick asserts nothing about geometric truth, and
-  below ε_input the author cannot have meant a distinguishable
-  preference (D4 ¶1); the far circle stays deliberately
-  authorable as the NEAR fillet of the other carrier
-  intersection. Equivariance
-  (`memories/equivariance-principle.md`): the first two rungs
-  compare arc lengths — isometry-invariant, so the selection
-  commutes with rigid motions and reflections in ℝ; the
-  enumeration-order rung is the kernel's first knowingly-designed
-  non-equivariant residual, reachable only where a
-  candidate-swapping symmetry makes an equivariant pick
-  impossible. (The cusp variant split — divergence 3, on
-  `FilletCornerAlreadyTangent` — stays open: not ruled.)
 
 ### Closure: the `Start` token
 

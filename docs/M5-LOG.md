@@ -815,3 +815,681 @@ satisfied). Side-unit queue: S1 (REST-contact) and S4
 (validator consolidation) remain; PR 6 spec (pcurve caches,
 opus) is the next orchestrator drafting work once PR 5's shape
 firms up. Row 17 final columns filled at next A/B touch.
+
+**State-sync #139 MERGED docs-only — THE DOCS TIER DEMONSTRATED
+LIVE**: only `change filter` + `docs-only ok` executed; the 13
+build rows were skipped matrix stubs. Zero build minutes for a
+docs PR vs 21 executed rows on kernel PRs. All three filter
+tiers now proven in production. (The 6-line monitor-script fix
+was deliberately excluded — scripts/** fail-closes — and rides
+the next mixed sync.)
+
+**S1 DISPATCHED (2026-07-30) — block-9 draw (difficulty logged
+first: S1=M; coin): S1=fable, remainder=opus (next unit, S4 or
+PR 7).** docs/M5-S1-SPEC.md committed: union-only declared-REST
+zip at the join stage (contact patches removed as interior, seam
+minted once, splitting reused — sub-frontiers refuse typed with
+honest records), undeclared door pinned unchanged, tripwire flip
+per the wire's embedded instructions + demos/tour crosslap
+upgrade + tier3prime revisit, exact dyadic volume additivity,
+purely-structural-or-trios requirement. Two lanes now: PR 5 +
+S1. Row 19/20 to MODEL-AB-LOG at next touch.
+
+**PR 5 implementation COMPLETE (2026-07-30, e7a2ec8, 8 commits;
+survived one transient 529 with an immediate resume).** The C5
+table EXISTS: 36 arms, zero wildcards, trileans-before-rungs,
+rung-3 arms refuse naming the routing; splitting executes
+Plane+Cylinder; boolean gate stays plane×plane until PR 9. Shape
+(i) green e2e: disc cut by tilted plane → exact Ellipse arcs
+both parts, bit-identical replay, corpus doc cut_cylinder in
+Band 4. 14 new predicates (named lever arms) via k_stats.
+Declared-only radius equality PINNED (bit-equal w/o declaration
+→ rung 3). M2 bit-identity pinned across the m3/m4/m5 suites
+both lanes. 8 reported deviations (notably: no persisted Curve3
+in schema v1 → D6.1 rows instead; tilted-cut volume refuses
+typed to PR 11; near-circular double gate documented).
+**Adversarial review DISPATCHED** (fresh clone m5-pr5-review;
+charter: hand re-derivation + fuzz of both closed forms, table
+exhaustiveness attack, 6-predicate trio sample incl. the
+declared-equality door, independent M2 bit-identity, thin-ellipse
+winding attack, deviation re-verification esp. 1/2/8). S1 lane
+still implementing (last activity minutes ago).
+
+**S1 implementation COMPLETE (2026-07-30, 8 commits pushed;
+survived one 529 with immediate resume).** Root cause found: the
+join gated NOT on missing chord partners but on germ-meta
+inconsistency — at a REST site the seam direction lies in FOUR
+coincident planes, and recl's per-site record survival gives a
+segment's two end germs DIFFERENT (a_face,b_face) meta, so
+find_match's germ-identity test never fires. The zip
+(boolean/rest.rs, ~900 lines): triggers only AFTER a typed join
+refusal on a declared ∪; germ rematching with the ambiguous
+identity dropped; every declared pair re-verified
+(DeclarationContradicted on false pairs — deviation 2 makes
+false RESTs never-silent); strut undo in reverse mint order;
+seam realization via standard chords; patch discovery by
+antiparallel cycle congruence; graft-B-whole ⇒ exact dyadic
+volume additivity; slit-zip for adjacent pairs; sub-frontiers
+refuse typed RestZipUnsupported (annular pinned). TRIPWIRE FIRED
+with the exact volume (1.875); wire retired to certified pins;
+demos crosslap ships the glued union; tier3prime pin FLIPPED;
+four more embedded-instruction pins re-derived incl. the BVH
+diff expected-refusal row now byte-equal Ok. NO new numeric
+predicate (purely structural — the ladder is law). ∖/∩ turn out
+VACUOUS (classification resolves them: OperandA/Empty — pinned
+instead of dead door text). Local rows green both lanes.
+**Review dispatch in progress** (clone re-running after a
+network timeout).
+
+**S1 review returned (2026-07-30): APPROVE-WITH-FIX-PASS — 1
+MAJ / 2 MIN / 3 NOTE, rubric 4/4/4.** MAJOR-1 is the milestone's
+most serious catch: hole-creating declared merges (kept+absorbed
+sharing two disjoint seam runs) invert outer/ring loop roles —
+gates pass, volume exact, but tessellation fails
+MismatchedWinding and STL exports SILENTLY CORRUPT (1.8333 vs
+5.5). Pre-existing machinery, newly reachable through the lane;
+the volume backstop is role-invariant so no gate catches it.
+Root-cause claim (germ-meta inconsistency) CONFIRMED empirically
+at the merge-base with dbg-join instrumentation; all six pin
+flips verified faithful; mispairing attacks failed safe;
+deviation-2 stricter semantics regressed nothing. **Fix pass
+DISPATCHED** (fable implementer resumed): close the silent class
+(correct roles or refuse typed, plus a loop-role tier gate if
+contained), narrow the ∖/∩ claim (three-wall counterexample
+pinned), narrative alignments, adopt 6 probe files. PR 5 review
+still in flight.
+
+**PR 5 review returned (2026-07-30): REJECT — the milestone's
+first. 3 MAJ / 3 MIN / 3 NOTE, rubric 5/4/4.** The geometry HELD
+(hand re-derivation of all three closed-form families + 500 fuzz
+configs, residuals ≤5e-12·scale, interval enclosures contain 0;
+table exhaustiveness verified with E0004 break; declared-only
+pin real; M2 bit-identity independently confirmed by source-path
+walk). The REJECT is M1: even-count conic crossings between
+same-side endpoints are INVISIBLE to the endpoint-verdict rule
+and the un-cut fallback silently loses a sliver (reviewer repro
+on the PR's own corpus geometry: disc cylinder + offset plane →
+above=Empty, the 0.25<y≤0.5 sliver gone) — the exact
+never-silence class, and no committed test covers it. M2: D9
+violation — std trig in pcurve.rs (4 sites) that PR 6 would
+persist. M3: split-lane trileans shipped untested + 4 missing
+in-band rows. **Fix pass DISPATCHED (fable implementer resumed);
+a RE-REVIEW gates the PR** — this unit does NOT go to
+fix-then-merge; reviewer's verdict was fix + re-review, then
+approvable. S1 fix pass also in flight.
+
+**S1 fix pass COMPLETE, PR OPENED as #140 (2026-07-30).**
+MAJOR-1 closed BOTH ways: normalize_merged_roles (Newell winding
+through the existing bool_ring_run_winding funnel — outer = the
+unique positively-wound cycle; no unique positive ⇒ typed
+MergedFaceRoleAmbiguous) PLUS tier-3 check 6 (planar loop-role
+winding gate, LoopRoleInverted — fills the battery's own
+documented deferral, scoped by the corpus: digon exemption,
+line-bounded loops only, curved loops stay deferred/undecidable).
+Bridge fixture: exact 5.5, watertight, STL 5.5. Claim narrowing,
+comment/narrative fixes, 6 probe files adopted (F1 merge-base
+repro as history note). topo 300+568/0 default, 300+296/0
+interval; tour green (22 bodies; a chute regression caught and
+fixed mid-pass). Watcher armed. Session-limit outage #7 (both
+lanes, ~1h) recovered with immediate resumes at the 5am reset.
+PR 5 fix pass still in flight (re-review gates it).
+
+**PR 5 fix pass COMPLETE (b08beed), RE-REVIEW DISPATCHED
+(2026-07-30).** M1 fixed root-based (conic_crossing_roots;
+split_conic_belly_graze R−|D| in meters; per-end
+split_conic_crossing_root with typed CrossingEscalated;
+split_conic_root_order; lines keep M3's lane bit-identically) —
+and the fix EXPOSED TWO further downstream defects, both fixed:
+orbit entries now classify by outgoing-tangent side
+(split_conic_departure; far-vertex verdicts misread belly arcs)
+and adjacency-skip guards verify the in-between edge in-plane
+(split_conic_inplane_mid). Belly audit complete: ON-endpoint two-
+sided row, tilted 4-ellipse+2-chord row, exact-graze typed row,
+and the seam-coincident y=0 cut UPGRADED from refusal to correct
+seam-split. M2: libm at all four sites, no committed bit row
+moved. M3/m1/m2/m3/n2 all closed (9 unrelated latency rows
+reverted verbatim). Re-review focuses on attacking the new
+crossing lane (multi-period arcs, start-azimuth straddles, the
+seam-cut upgrade's soundness) + regression re-runs.
+
+**#140's only red row = the L7 allowlist grep CATCHING ITS FIRST
+REAL SITE (2026-07-30)**: boolean/rest.rs carries the boolean-
+seam Decide+Bounds compound bound but was not in the per-file
+allowlist — the grep refused, exactly the deliberate-step design
+from Evan's L7 ruling. Orchestrator judgment: rest.rs IS the
+boolean seam (sibling of ops/reduce/mod, called from the ops
+door), so it joins the allowlist in ci.yml + ci-local.sh with a
+doc note at the bound site citing the ratified real.rs rule.
+Pushed; watcher re-armed.
+
+**PR 5 RE-REVIEW: APPROVE (2026-07-30, rubric 5/5/5 — up from
+5/4/4).** All three MAJORs verified closed adversarially; fresh
+attacks on the root-based lane held (seam-straddling bellies,
+steep tilts, 25ε slivers, grazes both sides); multi-period spans
+proven unreachable via the span≤τ gate; the seam-cut upgrade
+proven sound (the old refusal guarded a classification gap the
+departure lane closes, not a certification); whole_body_side
+honest again. **#141 OPENED** with the full REJECT→fix→APPROVE
+story. **#140 MERGED (21/21)** — S1 done; the crosslap frontier
+closed after living through three milestones. Post-#140 main
+merged into #141's branch (clean; topo lib 306/0 sanity row);
+watcher armed. A/B rows 19/20 filled; row-16 ordering slip
+fixed. Queue: PR 6 spec (opus, block-8 remainder) is next
+orchestrator drafting; S4 takes block-9's opus remainder after.
+
+**#141 MERGED (2026-07-30): 21/21 — PR 5 is on main.** The
+kernel's first curved boolean: exact Ellipse carriers, the
+exhaustive C5 table, root-based conic crossing detection. **PR 6
+DISPATCHED (opus, block-8 remainder — A/B row 21, difficulty M
+logged at block-8 draw time)**: clone m5-pr6 from post-#141
+main, spec imported; prompt names PR 5's constructors as
+sources, the meridian-unwrap history, the tier-gate consumer,
+and the meters-only certification rule (UV tolerances = review
+defect). M5 board: PRs 1-5,8 + S1,S2,S5,S6 + plan + CI filter
+merged; PR 6 implementing; then PR 7 (SSI — the milestone's
+heart), S4 on lulls, PRs 9-14 beyond.
+
+**S7 DISPATCHED (2026-07-30, opus — block-9 remainder, A/B row
+22, difficulty S logged pre-assignment): Evan-directed CI/docs
+hygiene.** Three rulings from chat: (1) retire the stale
+gmp/LGPL/copyleft-free campaign language (present-tense docs;
+factual record stays once; logs untouched); (2) DROP the ε=1e-9
+rows from all matrices — 1e-6/1e-12 straddle it — and sync the
+"3ε" convention text (ruling supersedes the 3ε battery
+convention); (3) keep the interval feature/job but verify the
+rust-cache key separates feature sets + optional pure-YAML
+split. Demo ruling also recorded: the M5 showcase demo rides PR
+11/12 (tessellation/props make the ellipse cut visible; die pips
+are PR 12's acceptance); an S2 arc-leg fillet demo stop is ripe
+now and rides opportunistically. PR 6 (opus) implementing in the
+other lane.
+
+**Branch cleanup (2026-07-30, Evan-prompted):**
+ev/interval-transcendentals confirmed superseded — main's crate
+is strictly newer where they differ (round.rs exactness-witness
+division vs the branch's always-pad; certify.rs evolved; the
+branch's unique content is the DROPPED computable oracle) — so
+it was archived as tag archive/interval-transcendentals-v1
+(commits stay reachable, merge-only ethos) and deleted.
+ev/m5-state-sync (merged #139) deleted. Remote is now just main
++ ev/m5-state + live work branches as they open. Interval-lane
+ruling recorded: the feature flag stays (build-cost boundary,
+not quarantine); S7 handles the cache-key question.
+
+**S7 implementation COMPLETE (2026-07-30, 2 work commits).** Key
+finding: DEFAULT_EPS = 1e-9 (tolerance.rs:49) — the retired rows
+were RE-RUNS of the unparameterized rows; no coverage lost.
+Hosted rows 21 → 18. Cache key verified CORRECT against
+rust-cache source (add-job-id-key defaults true; no shared-key
+anywhere; interval job doubly keyed) — the interval lane's cost
+is genuine compile, and the freed 1e-9 runners shorten its queue
+wait at zero cost; optional split declined (10G LRU budget
+competition, cold first run — didn't clear cheap-and-safe). Four
+honest deviations (grep-binding manifests prose-only; LGPL
+workspace-exclusion note kept; k-lint/k-probe 3ε inputs are
+baseline-matched telemetry, deliberately untouched).
+**Lightweight review dispatched** per spec §5. Note: my merge
+watchers are tier-aware (no-fail+no-pending), so the 21→18 row
+change needs no watcher edits.
+
+**S7 review APPROVE (0/0/2), PR OPENED as #142 (2026-07-30).**
+The pre-existing README shorthand (inari as "dev-dependency" —
+actually an optional regular dependency behind oracle-inari)
+fixed on-branch by the orchestrator per the NOTE. DEFAULT_EPS
+justification independently confirmed (no env override on
+unparameterized rows). #142 is workflow-touching (workflow scope
+available) and classifies tier `all` — its own run demonstrates
+the 18-row battery. Watcher armed.
+
+**RESUMPTION CONTRACT refresh (2026-07-30, Evan warns usage
+limit imminent).** In flight: PR 6 implementer (opus, clone
+m5-pr6, branch ev/m5-pr6-pcurves, spec docs/M5-PR6-SPEC.md;
+nudged to checkpoint-push NOW); #142 (S7) gating with a local
+watcher that survives API outages (pure bash+gh — it will merge
+on green even during one). Monitors are local processes and
+survive. Recovery ladder (memories/resume-vs-fresh-subagent.md):
+stopped <1h or context-useful → SendMessage resume with cwd
+guard; >1h + fully-specifiable remainder → fresh finisher with
+clone path + pushed-commit state + narrowed battery + report
+format. After #142 merges: next orchestrator work = PR 7 spec
+(SSI, C2/C3; watch for OQ4 pressure → recommendation to Evan,
+not unilateral flip); S4 (validator consolidation) queued for a
+lull lane; PATHS amendment PR (ambiguity DOF + cusp variant
+split) offered to Evan, drafts on request. A/B: row 21 = PR 6
+(opus, M); row 22 = S7 (opus, S, review 0/0/2 APPROVE) — table
+rows to add at next MODEL-AB-LOG touch. All state pushed.
+
+**EVAN RULING (in-chat, 2026-07-30, on the ambiguous-fillet
+plot ~/.local/share/cad-work/ambiguous-fillet.png): fillet
+branch ambiguity resolves by NEAREST-THE-AUTHORED-CORNER.**
+Grounds: the far tangent circle is always deliberately
+authorable as the near fillet of the other corner (the second
+carrier intersection), so pick-nearest loses no expressiveness
+("is there a way to deliberately force the far one? if so i'm
+ok assuming the near one"). Consequences: AmbiguousFilletBranch
+retires; a named proximity predicate (total-setback comparison)
+picks, with in-band ties escalating F6; PATHS-DESIGN §2 DOF note
+amended (ruling = sign-off), resolving S2's recorded divergence
+2; the cusp variant split (divergence 3) stays open. **S8
+DISPATCHED (fable — block-10 draw, difficulty S logged first;
+A/B row 23)**, spec docs/M5-S8-SPEC.md; review charter includes
+attacking the sum-vs-max monotone-combination claim.
+
+**RULING REFINEMENT (Evan, minutes later): near-ties do NOT
+escalate — pick anyway.** "It is still safe to pick nearest,
+since we only can't tell when they're the-same-up-to-epsilon":
+both candidates are valid fillets, so the pick asserts no
+geometric fact, and below eps_input the author cannot have meant
+a distinguishable preference (D4 ¶1 applied to SELECTION, a
+nice precedent: escalation is for decisions about truth, not
+choices among valid constructions). Spec §1 amended: plain
+deterministic selection rule (strict < on total setback, fixed
+order, exact-tie broken first-classified), NO Q1 predicate, NO
+K-funnel entry, NO new error; one determinism row replaces the
+trio. Implementer corrected mid-flight; PATHS amendment text
+carries the tie-pick rule.
+
+**RULING REFINEMENT 2 (Evan): equivariant tie-break "at this
+point may as well" + the recorded principle** "everything is
+equivariant right now, so maintain that if it's free (if that
+is indeed true)". S8's selection became a three-rung ladder:
+total setback < → incoming-leg setback < (both isometry-
+invariant ⇒ rungs 1-2 fully equivariant in ℝ) → enumeration
+order ONLY where identical per-leg pairs make equivariance
+impossible (candidate-swapping symmetry) — the kernel's first
+knowingly-designed non-equivariant residual, documented as such.
+Principle persisted to memories/equivariance-principle.md with
+the unaudited-premise caveat honored; equivariance audit BANKED,
+not assumed. Spec re-amended; implementer re-corrected
+mid-flight (second amendment).
+
+**#142 MERGED (2026-07-30): 18/18 — the S7 hygiene sweep's own
+gate demonstrated the new two-ε battery.** Hosted rows now 18.
+In flight: PR 6 (pcurves, opus) and S8 (equivariant fillet
+selection, fable). A/B rows 21-23 to the table at next touch.
+
+**Usage-limit outage #8 (~16:00Z 2026-07-30 → ~03:45Z
+2026-07-31, ~11h; Evan re-logged in). Recovered.** PR 6 had
+COMPLETED before the cut — implementation pushed at bfc531a
+(main merged through #142). S8 died mid-probe (nothing pushed;
+clone intact at spec-amendment-1; resumed with the amendment-2
+reminder and its open question: 2M trials found NO
+enclosing-involved two-survivor cases — probing whether that
+class is structurally single-survivor).
+
+**PR 6 report highlights:** SecondaryMap<HalfEdgeKey,
+PcurveCache> with certify-only construction (uncertified caches
+unrepresentable); CLOSED-FORM ENVELOPE certification (span{1,
+cos t, sin t, t} exact coefficients — stronger in kind than the
+C2.2 hull, which becomes the fitted-Nurbs limb in PR 7);
+unwrap-by-unrepresentability (β ∈ {−1,0,+1}, τ jumps cannot be
+expressed); persistence = re-derived on load (recipe-level
+posture), pinned both ways. FIVE numbered deviations, notably
+(1) PR 5's constructors NOT stored — parameter-non-affine
+(~7mm/~0.5mm at-schedule mismatch, MEASURED); the Harmonic chart
+image stored instead. **AND a pre-existing PR 5 DEFECT found:
+chord_spec's arc-side rule stores the COMPLEMENT arc on the
+tilted belly cut** (8 section arcs sweep z∈[−0.297,1.689] on a
+height-1 wall; tier 3 blind — both surfaces contain every point
+of the wrong arc; premise fails when the divided face spans more
+azimuth than the chord). Branch posture: refuse typed
+(LoopNotClosed) with a pinned evidence row; the repair (azimuth-
+window containment — the same statement PR 6 certifies) needs
+its own unit. **Review DISPATCHED** (fresh clone m5-pr6-review;
+F7 requires independent merge-base verification of the defect).
+
+**S8 implementation COMPLETE (6f5b1c0, pushed).** The ladder
+shipped as a plain selection on the f64 diagnostic channel
+(enclosure .lo() at interval, the FilletLegDegenerate
+precedent). The monotone-combination question got a PROOF:
+non-enclosing two-survivor candidates are mirror-symmetric about
+the offset-centers line with same-side radial-projection tangent
+points ⇒ componentwise dominance ⇒ sum/max/every monotone
+combination agree; crossed setbacks would need enclosing
+tangencies, and 27M trials (incl. targeted searches) found ZERO
+enclosing two-survivor corners — observed-structural to the
+non-enclosing lens class. AmbiguousFilletBranch retired
+(no ripple beyond profile); vesica flipped to near-pick (exact
+tangency); far-author row yields exactly the old far circle;
+PATHS §2 amended dated (divergence 2 resolved, cusp split open).
+3 honest deviations (stale spec §3/§4 text noted; rungs 2-3
+unit-level with the dominance argument; equivariance memory
+imported to the branch). **Review DISPATCHED** — charter: hand
+re-derivation of the dominance proof, smarter-than-uniform
+enclosing search (construct-from-circles), cross-lane pick
+agreement, retirement grep.
+
+**PR 6 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 3 MIN / 3 NOTE, rubric 5/4/4.** Envelope re-derived and
+held (angle-sum identity verified symbolically; cancellation
+probes never beat the formula); unwrap-unrepresentability
+verified; deviation-1 reasoning CONFIRMED (parameter identity is
+the binding contract; nothing lost). **chord_spec defect
+INDEPENDENTLY CONFIRMED at merge-base** — exact complement arcs
+(τ−0.305/τ−0.775), z∈[−0.30,1.70] on height-1, and tier 3's
+only refusal (NotIsoRectangle) fires identically on the CORRECT
+cut ⇒ genuinely defect-blind. No other configuration regressed
+by the branch's typed refusal. Best MIN: certify()'s
+snap-to-family admits an ε-shell where the stored envelope is
+false by 7 orders (attach path only; minted caches exact);
+fix = snap slack added to the envelope. **Fix pass DISPATCHED**
+(opus implementer resumed). S8 review in flight in parallel.
+
+**S8 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 3 MIN (doc-level) / 3 NOTE, rubric 5/4/4. The math got
+STRONGER in review:** the reviewer's hand proof confirmed
+dominance and went further — mixed enclosing/non-enclosing
+two-candidate corners PROVABLY impossible (|ρ1|=r−R1 forces a
+triangle-inequality contradiction in both στ sub-cases;
+line×enclosing-arc likewise); both-enclosing never passed reach
+gates in 3M targeted + guided hill-climb (violation→0 only in
+the degenerate corner-on-L limit), and even if reachable the
+mirror argument still gives dominance. ~160k independent
+two-survivor fuzz cases, zero violations; 3 constructor
+cross-checks picked the predicted winner. Honest MIN-1: the
+cross-lane "same candidate" sentence is an overclaim (hairline
+lens can legally split lanes — ruling-compatible, both valid);
+fix = say what's true (deterministic per lane; agreement above
+enclosure width). **Fix pass DISPATCHED (doc-level).** Both fix
+passes now in flight; PRs follow.
+
+**S8 fix pass COMPLETE (52ed526), PR OPENED as #143
+(2026-07-31).** All six items landed: honest cross-lane wording
+(each lane deterministic; agreement above enclosure width;
+sub-width split harmless per ruling) + ulp-perturbed-lens
+determinism rows both lanes; line×arc mirror proof written; spec
+§3/§4 aligned; committed-evidence citations; reviewer probe
+adopted as-is + trimmed 300k dominance-fuzz row (4.5s). Watcher
+armed. Writeup carries the full ruling story incl. the
+componentwise-dominance/impossibility results.
+
+**#143 MERGED (2026-07-31): 18/18 — S8 done.** Nearest-corner
+fillet selection live; AmbiguousFilletBranch retired; PATHS §2
+amended; the equivariance principle recorded. Fourteen PRs
+merged this milestone. In flight: PR 6 fix pass only (active,
+last activity seconds ago). A/B rows 21-24 owed to the table.
+
+**PR 6 fix pass COMPLETE (7feb37d), PR OPENED as #144
+(2026-07-31).** Snap-slack fix shipped (r·(|pa.x|+|pb.x|+
+|pl.x−β|·reach) added to the envelope; provably ZERO on every
+minted cache — pinned; reviewer probes adopted with an
+O(ε)-tightness bound so the slack can't blanket-pad); trim-
+window doc states what IS certified; max_residual split from
+the envelope accumulator; stale-row posture documented
+module-level; seam probes adopted; belly merge-base probe = a
+history note (unreachable at HEAD by design). Writeup features
+the chord_spec finding prominently. Watcher armed. Next
+orchestrator drafting: the chord_spec repair spec (azimuth-
+window containment) + PR 7 (SSI).
+
+**#144 MERGED (2026-07-31): 18/18 — PR 6 done, C4 discharged.**
+Fifteen PRs merged this milestone. Board is CLEAR — no lanes in
+flight. Next: chord_spec repair spec + PR 7 (SSI) spec, then
+dispatch both (block-10 remainder = opus owed to the next unit;
+block-11 draws fresh).
+
+**S9 DISPATCHED (2026-07-31, opus — block-10 remainder; A/B row
+owed at next table touch, difficulty S logged here pre-
+assignment): the chord_spec azimuth-window repair.** Spec
+docs/M5-S9-SPEC.md: the divided face's azimuth window from the
+run structure replaces sample-membership; exact interval
+containment selects; neither/both refuse typed; in-band window
+boundaries escalate (azimuth×radius arm); the belly refusal row
+FLIPS to certified pass + the PR 6 mint-on-repaired-bodies row
+closes the loop with the machinery that found the defect.
+Review charter: construct any old-vs-new disagreement outside
+the belly class (spec claims none); attack seam-placement
+independence. PR 7 spec drafting begins now in parallel
+(orchestrator; OQ4 checkpoint per the standing note).
+
+**M5-PR7-SPEC.md DRAFTED (2026-07-31).** OQ4 DISCHARGED at spec
+time, carrier-primary stands — the ℝ⁴ trace's shared parameter
+is exactly PR 6's ratified parameter-identity contract (both
+pcurves as projections of one traced object; the 3-D carrier
+stays the certified authority; no re-plumbing) — no fork goes to
+Evan. Binding content: Hoffmann §6.2 stepper (untrusted, the
+PERF-PLAN dual-code pilot with the idealized tiny-h suite in CI
+from day one), fixed-shape SVD joins linalg here, ℝ⁴ trace,
+per-arm trace shapes in the table, the FULL three-limb C2
+certificate (OQ2: both always), in-op exhaustiveness doubling as
+seed generation (brute-force cells OK; BVH swap rides the merged
+differential suite), σ₂-sliver → C7 refusals, shape (iv)
+small-loop found-or-typed as the signature acceptance + a
+directly-authored NURBS wall for shape (iii)'s substrate.
+Dispatch: next freed lane (block-11 draw at dispatch; S9 opus in
+flight now).
+
+**S9 implementation COMPLETE (f45d4e1, pushed) — and it found a
+SECOND belly-class member shipping silently at main:**
+on_endpoint_belly_cut stored complement arcs (5.8958 rad,
+z∈[−1.860,3.360] on height-1) and PR 6's mint pass ACCEPTED the
+bodies — unlike member 1, this one produced a wrong body TODAY
+with no refusal anywhere. Repaired along with the tilted case.
+The exactly-two claim is instrumented (both rules diffed across
+all 28 mints in topo+sweep, both lanes: 2 changed, both belly,
+16 SAME). Window = hull of run half-edges' exact chart extents,
+branch-pinned by PR 6's loop walk; selection = exact interval
+containment with four metered margins; deviations incl. the
+centre-reduction fix (edge-anchored reduction straddled the
+period boundary and widened interval enclosures to a full
+period) and the width≥τ early BothContained arm. Belly rows
+flipped to certified passes; rotation-invariance row (total
+sweep invariant under 0.7 rad rotation); repaired bodies mint
+certified pcurves. **Review DISPATCHED** — merge-base
+verification of member 2 is load-bearing (main ships a wrong
+body); charter attacks the mixed-run/seam-crossing walk, the
+centre-reduction, and the exactly-two claim with constructed
+counter-candidates.
+
+**PR 7 DISPATCHED (2026-07-31, opus — block-11 draw, difficulty
+L logged first; remainder fable to the next unit).** Clone
+m5-pr7 from post-#144 main, spec imported; prompt carries the
+OQ4 discharge, the untrusted-stepper contract, the dual-code
+pilot obligation, the three-limb certificate, the S9
+fold-mid-flight note, resilience checkpointing, and the full
+consumed-machinery reading list (PR 2 hulls, PR 4 fit/projection
+/compose, PR 5 table, PR 6 doors). Two lanes: S9 review + PR 7
+implementation. S4 remains the lull-queue unit.
+
+**S9 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 3 MIN / 3 NOTE, rubric 4/5/4, no re-review.** F2 CONFIRMED
+INDEPENDENTLY at merge-base 5fab705: the on-endpoint belly
+stores complement arcs and validate_pcurves returns ZERO errors
+— main ships a silent wrong body today. F3 supported with the
+right property: any constructible old-vs-new disagreement
+outside the belly class refuses (NeitherContained) rather than
+picking wrong geometry. F4/F5 soundness verified with explicit
+headroom arithmetic. MIN-1 is a nice catch: the new
+SectionArcWindow definite arms miss the S6 message shape while
+their band-adjacent Escalated arm carries it — the exact fork
+the sweep unified, recreated by fresh code (process note: new
+error sites need the two-tolerance shape called out in specs;
+S9's spec said so for escalation but not the definite arms).
+**Fix pass DISPATCHED; S9 merges with PRIORITY on its report**
+(main is wrong until then). PR 7 implementing in parallel.
+
+**S9 fix pass COMPLETE (bbb19f4), PR OPENED as #145 with MERGE
+PRIORITY (2026-07-31)** — the writeup leads with the fact that
+main ships a silent wrong body until this lands. All fix items
+shipped: SectionArcWindow definite arms carry the two-tolerance
+shape (width-τ-exact vs τ−5e-9 message pair pinned);
+centre-reduction comment states the true (τ−width)/2 bound;
+interval belly row completed (span sums + bit-replay at
+Interval); short-circuit metering + uncertified-input rustdoc;
+reviewer's disagreement probe committed verbatim; the
+merge-base silent-acceptance measurement recorded as the history
+note explaining WHY loop-closure isn't a wrong-arc detector.
+Watcher armed. PR 7 implementing in the other lane.
+
+**#145 MERGED (2026-07-31): 18/18 — the silent wrong body is
+FIXED on main.** S9 done; sixteen PRs this milestone. PR 7
+implementer notified to fold main (chord_spec signature change +
+SectionArcWindow). Sole lane in flight: PR 7 (SSI, opus). Queue:
+S4 on a lull; PR 9 spec after PR 7's shape firms; A/B table rows
+21-25 owed (PR 6, S7, S8, S9, PR 7 draws recorded in log
+entries).
+
+**PR 7 implementation COMPLETE (2026-07-31, 3e4a201, pushed) —
+SSI IS REAL.** Highlights: fixed-shape Householder+Jacobi SVD in
+linalg (min-norm solve IS Frenet's γ₂=0 — documented derivation
+unifying both trace shapes); jet-based RHS (Poly3, no derivative
+tensors); the full three-limb certificate incl. a NEW
+geom-surfaces::projection (surface foot points didn't exist) and
+the box-chain graph criterion with a LADDER-searched tube
+radius; exhaustiveness with an asserted receipt (examined ==
+excluded+accounted+refined) doubling as seeding. Shape (iv)
+signature met: sphere×0.08-cylinder whose ENTIRE locus is two
+interior polar loops — boundary seeding reaches nothing, found
+by subdivision (166 seeds), floor-refusal variant pinned. 13 new
+ssi_* predicates. cylinder×sphere retired (all limbs). A real
+interval-cancellation bug found+fixed en route (w = q − â(q·â)
+form recovers ~0.8 m² of hull width; exclusion never fired
+before). FIVE numbered deviations, notably (1) plane×NURBS NOT
+retired — limb 2 needs tensor-product Bernstein composition
+(compose is curve-only); shape (iii)'s substrate row UNMET,
+refusal names the blocker; disposition (accept+bank as a unit vs
+fix) rides the review's feasibility assessment. (3) pcurve
+storage variant deferred to PR 9's zip with the identity
+demonstrated by SSI's own (stronger) limbs. S9 fold was clean
+(split.rs vs join.rs — no overlap). **Review DISPATCHED**
+(charter: hand re-derivation of the graph criterion — can a
+disjoint branch thread the tube?; exclusion-cannot-lie probes;
+independent SVD differential; per-deviation verdicts).
+
+**PR 7 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 2
+MAJ / 6 MIN, rubric 4/4/4.** The core HELD: 8000-matrix
+independent SVD differential clean; min-norm-is-Frenet
+re-derived exact; w-form cancellation verified 30× with
+exclusion-cannot-lie probes (~1400 boxes incl. locus-planted);
+the reviewer's own adversarial loop pair SMALLER than the seed
+floor was FOUND; receipt asserted; h_fit-cap reasoning
+confirmed; tube ladder deterministic. M1 = std powf(0.25) in the
+step rule (one line, → sqrt().sqrt()) + latent jet sin_cos fork.
+**M2 RULED (orchestrator): ACCEPT-AND-BANK as PR 7b** — the
+reviewer confirmed the centered second-order tightening is
+constructible but likely not ε-practical; tensor-product
+Bernstein composition is the clean fix and is its own reviewed
+unit. PR 7b = tensor compose + plane×NURBS retirement + shape
+(iii) substrate row; MUST land before M5 exit (shape (iii) is
+exit-gating); sequence alongside/after PR 9. Best MIN: m3 —
+limb 3's doc claims bare IFT but the code supports the stronger
+mean-value/convexity argument; disjoint-component exclusion is
+the ACCOUNTING's job (stated honestly now). m4 = refined-seed
+dedup (duplicate SsiBranch possible). **Fix pass DISPATCHED.**
+
+**PR 7 fix pass COMPLETE, PR OPENED as #146 (2026-07-31).** All
+nine items: powf → sqrt·sqrt + jet sin_cos route unified (M1);
+limb-3 doc states the real mean-value/convexity theorem and the
+uniqueness/completeness division of labor (m3); refined-seed
+dedup with the distinguishing fixture (m4); BoundaryInBand
+labeled honestly (m5); trios + SelfCrossingLocus row + k-funnel
+verdict-log row (m6 — note: Probe's margin sink is generic-T,
+the SSI lane is f64-only, so the verdict log is the recorder);
+chart-lane tube margin ÷ chart stretch, upper bound = safe
+direction (m7); the split_edge meter boundary pinned in topo
+with PR 9 named as the end-to-end trigger (m8 partial —
+unconstructible until the zip); PR 7b citations everywhere (M2);
+all three review probes adopted verbatim (8000 matrices in
+1.0s). Watcher armed on #146. When it merges: the M5 spine
+through SSI is DONE; next = PR 9 spec (curved booleans + 
+tangency) and PR 7b spec, then S4 on a lull.
+
+**#146 gate RED (2026-07-31): the multi-ε battery caught the new
+SSI suite hardcoding ε=1e-9 assumptions** — corruption magnitude
+4.889e-7 correctly ACCEPTED at eps=1e-6 (the test's premise
+wrong, not the kernel); differential band and trio in-band
+probes placed at default-band scale. The narrowed local battery
+runs touched crates at DEFAULT ε only, so this class now
+surfaces at the gate — by design, and it worked. Implementer
+redirected: scale probes/corruptions from the resolved band (the
+multi-ε-green suites' idiom), explicit skip-with-reason only
+where scaling is dishonest, verify locally at 1e-6/1e-12/
+interval before re-push.
+
+**#146 ε-fix pushed (2026-07-31).** All test placements scaled
+from the resolved band (definitely_positive = escalate·100,
+in-band = midpoint; corruption = definitely-outside at every ε;
+tangent-arc sample count derived from the ε^(1/4) law). One
+resource-bound case became a KERNEL budget, not a test skip:
+SSI_MAX_FIT_SAMPLES=1200 with typed FitSampleBudget (the
+ε=1e-12 row wants ~4015 samples and a cubic-cost fit; the row
+stands down on the typed refusal, pinned by its own row —
+scaling the fixture instead would hold r/ε constant, an 80 m
+"small loop"). Bonus find: the differential's distance probe
+was converging to a clamped domain end (5.6e-4 m reported where
+a dense scan puts ~0) — replaced with scan+seeded-projection
+min. Local: 21/21 at 1e-6/1e-9/1e-12/interval. Watcher
+re-armed.
+
+**#146 MERGED (2026-07-31): 18/18 — SSI IS ON MAIN. The M5
+spine through PR 7 is DONE.** Seventeen PRs this milestone. The
+kernel now: represents/fits/certifies NURBS (PRs 2-4), cuts
+exact conics through the exhaustive table (PR 5 + S9), stores
+certified pcurves (PR 6), spatially indexes (PR 8), marches and
+certifies general curved intersections with proven
+exhaustiveness (PR 7) — plus the planar side units (S1 REST
+zip, S2/S8 arc fillets with the equivariant ladder, S6
+messages) and the process/CI improvements (S7, #133, #139).
+Remaining to exit: PR 7b (tensor compose, exit-gating), PR 9
+(curved booleans + tangency), PR 10 (sweeps/lofts), PR 11
+(tessellation/props — the demo moment), PR 12 (fillets/die),
+PR 13 (STEP), PR 14 (exit sweep + #89 K-snapshot), S4
+(non-gating). Next orchestrator drafting: PR 9 spec + PR 7b
+spec; board currently idle.
+
+## HANDOFF SEAM (2026-07-31): successor orchestrator briefing
+
+Predecessor (cad-implement-m5 session) hands off at the
+spine-through-PR-7 seam by Evan's suggestion. State: 17 PRs
+merged, board idle, no lanes in flight, all clones deletable
+(verify unpushed-commit-free first per standing rule).
+
+**Immediate work order for the successor:**
+1. Draft docs/M5-PR9-SPEC.md (curved booleans end-to-end + the
+   C7 tangency regime — TangentIntersection, second-order sector
+   classification, the K-funnel predicate family; consumes
+   PR 5/6/7 + the S1 zip precedent; PR 9 also triggers the
+   pcurve storage variant deferred at PR 7 deviation 3 and the
+   end-to-end Nurbs split row at m5_pr7_split_meter).
+2. Draft docs/M5-PR7B-SPEC.md (tensor-product Bernstein
+   composition in geom-core; limb-2 tight bound; plane×NURBS arm
+   retirement; the shape (iii) substrate row — EXIT-GATING).
+3. Dispatch both to fresh A/B draws (block 12; log difficulty
+   FIRST; blocked pairs; MODEL-AB-LOG rows 21-25 need their
+   table entries — draws recorded in log entries above).
+4. Then per plan: PR 10 (sweeps/lofts + the R3 migrate-vs-break
+   consultation with Evan), PR 11 (tessellation/props — the
+   DEMO moment, Evan's ruling above), PR 12 (die pips), PR 13
+   (STEP), PR 14 (exit + #89), S4 in any lull.
+
+**Standing process (all verbatim-binding, sources in memories/
+and this log):** one implementer + one blinded adversarial
+reviewer + one fix pass per unit; binding orchestrator specs
+BEFORE dispatch; OUTPUT DISCIPLINE headers; the foreground
+clause verbatim + "THAT NOTIFICATION WILL NEVER ARRIVE" + the
+pgrep -x (never self-matching -f) poll pattern; cwd-reset guard
+in every prompt AND every resume; narrowed local battery
+(touched crates, default ε + interval; CI is the gate —
+memories/local-battery-scope.md); resume-vs-fresh rule
+(memories/resume-vs-fresh-subagent.md); push-per-unit; clones
+under ~/.local/share/cad-work/; two cargo lanes max; tier-aware
+merge watchers (no-fail + no-pending via gh pr checks loops);
+monitors re-armed at session start (scripts/monitors/); A/B
+blocked pairs with blinded reviewers (fix pass inherits arm;
+design/specs/reviews stay Fable); state-sync PRs at seams;
+disk watch (~30G per active lane); new error arms follow the
+two-tolerance shape INCLUDING definite arms (S9 lesson);
+equivariance principle (memories/equivariance-principle.md).
+
+**Open with Evan:** Q9 (name), #131 (cusps), PQ4, #89 display
+half, the PATHS cusp-variant split (divergence 3, unruled), the
+PR 10 schema consultation (commitment: consult BEFORE executing
+either migrate or break).
+
+**Watch out for:** spend/usage limits (8 outages this session;
+the recovery ladder is in this log; Evan re-logs-in), waiter
+parking (the verbatim clause prevents it), sed on MODEL-AB-LOG
+(use Edit — two ordering slips this session), away-channel
+echoes of your own comments (not Evan), the demo ruling (M5
+showcase rides PR 11; an S2 arc-fillet demo stop is ripe
+anytime).
