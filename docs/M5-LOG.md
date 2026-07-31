@@ -1393,3 +1393,15 @@ all three review probes adopted verbatim (8000 matrices in
 1.0s). Watcher armed on #146. When it merges: the M5 spine
 through SSI is DONE; next = PR 9 spec (curved booleans + 
 tangency) and PR 7b spec, then S4 on a lull.
+
+**#146 gate RED (2026-07-31): the multi-ε battery caught the new
+SSI suite hardcoding ε=1e-9 assumptions** — corruption magnitude
+4.889e-7 correctly ACCEPTED at eps=1e-6 (the test's premise
+wrong, not the kernel); differential band and trio in-band
+probes placed at default-band scale. The narrowed local battery
+runs touched crates at DEFAULT ε only, so this class now
+surfaces at the gate — by design, and it worked. Implementer
+redirected: scale probes/corruptions from the resolved band (the
+multi-ε-green suites' idiom), explicit skip-with-reason only
+where scaling is dishonest, verify locally at 1e-6/1e-12/
+interval before re-push.
