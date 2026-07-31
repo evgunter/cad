@@ -1290,3 +1290,20 @@ fold-mid-flight note, resilience checkpointing, and the full
 consumed-machinery reading list (PR 2 hulls, PR 4 fit/projection
 /compose, PR 5 table, PR 6 doors). Two lanes: S9 review + PR 7
 implementation. S4 remains the lull-queue unit.
+
+**S9 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 3 MIN / 3 NOTE, rubric 4/5/4, no re-review.** F2 CONFIRMED
+INDEPENDENTLY at merge-base 5fab705: the on-endpoint belly
+stores complement arcs and validate_pcurves returns ZERO errors
+— main ships a silent wrong body today. F3 supported with the
+right property: any constructible old-vs-new disagreement
+outside the belly class refuses (NeitherContained) rather than
+picking wrong geometry. F4/F5 soundness verified with explicit
+headroom arithmetic. MIN-1 is a nice catch: the new
+SectionArcWindow definite arms miss the S6 message shape while
+their band-adjacent Escalated arm carries it — the exact fork
+the sweep unified, recreated by fresh code (process note: new
+error sites need the two-tolerance shape called out in specs;
+S9's spec said so for escalation but not the definite arms).
+**Fix pass DISPATCHED; S9 merges with PRIORITY on its report**
+(main is wrong until then). PR 7 implementing in parallel.
