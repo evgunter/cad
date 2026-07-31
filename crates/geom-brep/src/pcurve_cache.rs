@@ -84,6 +84,15 @@
 //! the rest (this module's `a_corrupted_pcurve_fails_typed` and
 //! `the_envelope_dominates_a_dense_resampling` rows).
 //!
+//! One boundary on that corollary, because the trilean has a band:
+//! certification admits an **ε-shell around the family** (the winding
+//! decision classifies `|pl.x − β|·r ≤ ε` as Zero), and a pcurve in
+//! that shell is not exactly of the four-coefficient shape. The
+//! envelope carries the discarded drift explicitly — the *snap slack*
+//! of [`PcurveCache::certify`] step 4 — so the stored bound dominates
+//! the true sup for every input the gate admits, not merely for the
+//! exact-in-family caches the minting lane produces.
+//!
 //! # Domain validity (spec §3)
 //!
 //! Two limbs, both part of the certificate:
@@ -98,15 +107,26 @@
 //!   (`α + kτ`) a given half-edge takes is chosen once per face by the
 //!   loop walk in `topo::pcurves` and *certified* by loop continuity
 //!   there.
-//! - **Trim containment.** The certificate records that the pcurve's
-//!   chart-box enclosure lies inside the face's chart window
-//!   ([`ChartWindow`], supplied by the caller — the face's own
-//!   one-branch hull) and that the window's azimuth width does not
-//!   exceed one period. **Honesty note**: the window is a conservative
-//!   *over-approximation* of the trim region (a box, not the region
-//!   bounded by the loop). Point-in-trim-region is the tessellation
-//!   trim-loop consumer's, arriving with PR 11; escaping the box is
-//!   already a typed refusal ([`PcurveCertifyError::TrimEscape`]).
+//! - **Trim containment.** The certificate records exactly one thing:
+//!   that the pcurve's chart-box enclosure lies inside the face's chart
+//!   window ([`ChartWindow`], supplied by the caller — the face's own
+//!   one-branch hull); escaping it is the typed
+//!   [`PcurveCertifyError::TrimEscape`]. Two honesty notes, both
+//!   binding:
+//!   - The window is a conservative *over-approximation* of the trim
+//!     region (a box, not the region bounded by the loop).
+//!     Point-in-trim-region is the tessellation trim-loop consumer's,
+//!     arriving with PR 11.
+//!   - **No bound on the window's own azimuth width is certified
+//!     here.** The one-period statement that IS certified is the
+//!     per-pcurve azimuth extent ([`PcurveCheck::AzimuthPeriod`]) plus,
+//!     at body level, the loop-closure check in `topo::pcurves` (a
+//!     loop's total azimuth advance is 0 or exactly ±τ). A naive
+//!     "window width ≤ τ" check would be WRONG as stated: the window
+//!     is a hull of *conservative* chart boxes, and a rim pcurve's box
+//!     spans ±(reach) in azimuth, so a legitimately minted seam-closed
+//!     wall's window is already ~2τ wide. Tightening the window (exact
+//!     ranges instead of conservative boxes) is a separate unit.
 //!
 //! # Consumers
 //!
@@ -379,10 +399,19 @@ impl std::error::Error for PcurveCertifyError {}
 pub struct PcurveCertificate<T: Real> {
     /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
     pub samples: u32,
-    /// The maximum sampled `|S(P(tᵢ)) − C(tᵢ)|` (metres).
+    /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres) —
+    /// **the sampled max only**. The between-samples statement is
+    /// [`Self::envelope`], deliberately a separate field: folding them
+    /// into one number would let a reader mistake a sup bound for a
+    /// measurement or the reverse.
     pub max_residual: T,
     /// The certified sup bound on `|S(P(t)) − C(t)|` over the whole
     /// span (metres) — the C2.2 between-samples limb (module docs).
+    /// Always ≥ the true sup, hence ≥ [`Self::max_residual`] for an
+    /// exact-in-family pcurve; it additionally carries the winding
+    /// snap's slack (see [`PcurveCache::certify`] step 4), so it is the
+    /// number to quote for "how far can this cache be from its
+    /// carrier".
     pub envelope: T,
 }
 
@@ -435,7 +464,14 @@ impl<T: Decide> PcurveCache<T> {
     ///    `Surface::eval` and `Curve3::eval` directly, so the harmonic
     ///    decomposition step 4 uses is *verified*, never trusted.
     /// 4. **Envelope**: the closed-form sup bound of the same
-    ///    displacement over the whole span ≤ ε (module docs).
+    ///    displacement over the whole span ≤ ε (module docs), **plus
+    ///    the winding snap's slack** — step 1 admits an ε-shell around
+    ///    the exact harmonic family, and the stored envelope must bound
+    ///    the pcurve that was actually certified, not the snapped one
+    ///    the closed form describes. Zero on every minted cache (they
+    ///    are exact in family); the term exists so the certificate is
+    ///    honest for every input `certify` admits, including
+    ///    attach-path ones.
     /// 5. **Trim containment**: the pcurve's chart box lies inside
     ///    `window`.
     ///
@@ -795,14 +831,41 @@ fn run_pcurve_checks<T: Decide>(
     let d_b = image_form.b - carrier_form.b;
     let d_l = image_form.l - carrier_form.l;
     let reach = t0.abs().max(t1.abs());
-    let envelope = d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach;
+    // **The snap slack.** Check 1's winding trilean classifies
+    // `|pa.x|·r`, `|pb.x|·r` and `|pl.x − β|·r` as Zero anywhere inside
+    // the band, so `certify` admits pcurves in an ε-shell OUTSIDE the
+    // exact harmonic family — and `image_form` above is built from the
+    // SNAPPED azimuth channel `α + β·t`. The envelope of the snapped
+    // image would therefore under-report the true sup of the pcurve
+    // actually being certified, by exactly the drift the snap discarded
+    // (measured at 7 orders on an attach-path `pl.x = 1 + 0.6e-9` — the
+    // reviewer's probe, now `envelope_dominates_a_winding_snapped_pcurve`).
+    // Add it back: the discarded channel is
+    // `δu(t) = pa.x·cos t + pb.x·sin t + (pl.x − β)·t`, and moving the
+    // azimuth by `δu` moves the mapped point by `2r·|sin(δu/2)| ≤ r·|δu|`
+    // — so `r·(|pa.x| + |pb.x| + |pl.x − β|·reach)` bounds it. Minted
+    // caches are exact in family (`pa.x = pb.x = 0`, `pl.x ∈ {−1,0,1}`
+    // bitwise), so this term is exactly zero on the ship path.
+    let snap_slack = match *surface {
+        Surface::Cylinder { radius, .. } => {
+            let Pcurve::Harmonic { pa, pb, pl, .. } = *pcurve;
+            (pa.x.abs() + pb.x.abs() + (pl.x - winding.value::<T>()).abs() * reach) * radius
+        }
+        _ => T::zero(),
+    };
+    let envelope = d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach + snap_slack;
+    // The envelope is classified against the band like every other
+    // residual, but it is NOT folded into `max_residual`: that field is
+    // the sampled max, and the two statements stay separate (the
+    // certificate's field docs).
+    let mut envelope_margin = T::zero();
     check_residual(
         "pcurve_envelope",
         PcurveCheck::Envelope,
         0,
         envelope,
         band,
-        &mut max_residual,
+        &mut envelope_margin,
     )?;
 
     // ---- Check 5: trim containment (the chart-box limb). ----
@@ -1236,6 +1299,124 @@ mod tests {
             let q = bad.eval(t);
             let d = cyl.eval(q.x, q.y).distance(carrier.eval(t));
             assert!(d <= envelope, "sample {d:e} exceeds envelope {envelope:e}");
+        }
+    }
+
+    /// The dense-resampling sup of a pcurve against its carrier — an
+    /// independent oracle for the envelope rows (no closed form on
+    /// either side of the comparison).
+    fn true_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> f64 {
+        let mut sup: f64 = 0.0;
+        for k in 0..=8192 {
+            let t = t0 + (t1 - t0) * (f64::from(k) / 8192.0);
+            let q = p.eval(t);
+            sup = sup.max(s.eval(q.x, q.y).distance(c.eval(t)));
+        }
+        sup
+    }
+
+    /// **The snap-slack row** (adopted from the adversarial review's
+    /// envelope probe, assertion flipped to the fixed behaviour).
+    ///
+    /// The winding trilean admits `pl.x = β + δ` for any `δ·r ≤ ε`, so
+    /// `certify` accepts a pcurve an ε-shell outside the exact harmonic
+    /// family — and the closed-form envelope is computed from the
+    /// SNAPPED image. Before the fix the stored envelope read 5.6e-17
+    /// against a true sup of 9.4e-10 (false by seven orders). The
+    /// stored envelope must dominate the true sup for **every** input
+    /// certification admits, not only for the exact-in-family caches
+    /// the minting lane produces.
+    #[test]
+    fn envelope_dominates_a_winding_snapped_pcurve() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        // δ·r just inside the Zero band at the default ε = 1e-9; the
+        // drift residual r·δ·t peaks at ~0.94e-9 at the last schedule
+        // sample, so the 9-sample limb passes as well.
+        let delta = 0.3e-9 / r;
+        let drifted = Pcurve::Harmonic {
+            p0,
+            pa,
+            pb,
+            pl: Vec2::new(pl.x + delta, pl.y),
+        };
+        let Ok(cache) =
+            PcurveCache::certify(drifted, 0.0, PI, &carrier, &cyl, wide_window(), band())
+        else {
+            // At a tighter ε row the snap does not admit it at all —
+            // also honest, and nothing left to check.
+            return;
+        };
+        let stored = cache.certificate().envelope;
+        let sup = true_sup(&drifted, &cyl, &carrier, 0.0, PI);
+        assert!(
+            stored >= sup,
+            "stored envelope {stored:e} under-reports the true sup {sup:e}"
+        );
+        // And it stays O(ε): the slack is the discarded drift, not a
+        // blanket pad that would make the certificate useless.
+        assert!(
+            stored < 4.0 * sup + 1e-15,
+            "slack {stored:e} vs sup {sup:e}"
+        );
+        // The sampled max stays the SAMPLED max — the two statements do
+        // not get folded into one number.
+        assert!(cache.certificate().max_residual <= sup * (1.0 + 1e-12));
+    }
+
+    /// An exact-in-family (minted-shape) cache pays no slack: the
+    /// snap term is bitwise zero, so the fix costs the ship path
+    /// nothing.
+    #[test]
+    fn a_minted_shape_cache_pays_no_snap_slack() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { pa, pb, pl, .. } = p;
+        assert_eq!((pa.x, pb.x), (0.0, 0.0));
+        assert_eq!(pl.x, 1.0);
+        let cache =
+            PcurveCache::certify(p, 0.0, PI, &carrier, &cyl, wide_window(), band()).unwrap();
+        assert!(cache.certificate().envelope < 1e-14);
+    }
+
+    /// The review probe's second attack, kept: tuned near-cancelling
+    /// harmonic + linear corruptions cannot hide under the envelope
+    /// (the residual lives in `span{1, cos, sin, t}` and the envelope
+    /// dominates it termwise), and certification refuses them.
+    #[test]
+    fn cancellation_cannot_beat_the_envelope() {
+        let (r, h, tilt) = (0.5, 0.5, 0.3);
+        let cyl = cylinder(r);
+        let carrier = tilted_section(r, h, tilt);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let d = 1e-4;
+        let combos = [
+            (d, -d, 0.0, 0.0),
+            (d, -d, 2.0 * d / PI, -d),
+            (-d, d, -2.0 * d / PI, d),
+            (d, d, -2.0 * d / PI, 0.0),
+        ];
+        for (ca, cb, cl, c0) in combos {
+            let bad = Pcurve::Harmonic {
+                p0: Point2::new(p0.x, p0.y + c0),
+                pa: Vec2::new(pa.x, pa.y + ca),
+                pb: Vec2::new(pb.x, pb.y + cb),
+                pl: Vec2::new(pl.x, pl.y + cl),
+            };
+            let env = c0.abs() + ca.abs() + cb.abs() + cl.abs() * PI;
+            let sup = true_sup(&bad, &cyl, &carrier, 0.0, PI);
+            assert!(
+                sup <= env * (1.0 + 1e-12),
+                "sup {sup:e} beats envelope {env:e} for ({ca},{cb},{cl},{c0})"
+            );
+            assert!(
+                PcurveCache::certify(bad, 0.0, PI, &carrier, &cyl, wide_window(), band()).is_err(),
+                "an off-by-1e-4 pcurve certified"
+            );
         }
     }
 
