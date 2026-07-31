@@ -486,3 +486,72 @@ fn caches_certify_on_the_interval_lane() {
     }
     assert!(seen > 0);
 }
+
+// ---------------------------------------------------------------------
+// Adopted from the adversarial review's seam probe (F6 attack): shapes
+// beyond the committed fixture, where the branch walk has the most to
+// get wrong.
+// ---------------------------------------------------------------------
+
+/// The seam-closed tube split by a tilted plane: its wall pieces' loops
+/// contain seam-meridian fragments AND section arcs, so the walk must
+/// keep one branch across a boundary that crosses the chart seam.
+/// Whatever the outcome, it must be TYPED — mint success with clean
+/// validation, or a typed refusal; never a wrong branch shipped.
+#[test]
+fn a_seam_closed_tube_split_is_typed_either_way() {
+    let tube = revolved_tube();
+    let phi = 0.25f64;
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.3, 0.0),
+        normal: Vec3::new(phi.sin(), phi.cos(), 0.0),
+    };
+    match split(&tube, &plane) {
+        Ok(result) => {
+            let band = Band::linear().unwrap();
+            for part in [result.above.body(), result.below.body()]
+                .into_iter()
+                .flatten()
+            {
+                let findings = topo::pcurves::validate_pcurves(part, band);
+                assert!(findings.is_empty(), "{findings:?}");
+            }
+        }
+        Err(e) => {
+            // A typed refusal is an acceptable outcome for a frontier
+            // configuration; a panic or a silently wrong body is not.
+            let msg = format!("{e}");
+            assert!(msg.starts_with("split: "), "{msg}");
+        }
+    }
+}
+
+/// The tilted cut ROTATED 0.5 rad about the axis, so the section
+/// ellipse's major direction — which anchors the pcurve azimuth — sits
+/// at a non-seam azimuth and the arcs cross `u = 0` in their interior.
+/// The walk must still be continuous and closed on both wall pieces.
+#[test]
+fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
+    let body = cylinder_body();
+    let phi = 0.3f64;
+    let rot = 0.5f64;
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(phi.sin() * rot.cos(), phi.sin() * rot.sin(), phi.cos()),
+    };
+    let result = split(&body, &plane).unwrap();
+    let band = Band::linear().unwrap();
+    let mut caches = 0usize;
+    for part in [result.above.body(), result.below.body()]
+        .into_iter()
+        .flatten()
+    {
+        caches += part.pcurves().count();
+        for (_, c) in part.pcurves() {
+            assert!(c.certificate().max_residual < 1e-12);
+            assert!(c.certificate().envelope < 1e-12);
+        }
+        assert!(topo::pcurves::validate_pcurves(part, band).is_empty());
+    }
+    assert!(caches > 0, "the rotated cut minted caches");
+}

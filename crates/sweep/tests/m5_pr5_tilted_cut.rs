@@ -422,7 +422,14 @@ fn even_crossing_recovers_the_sliver() {
 /// could see it — every point of the long arc lies on both surfaces,
 /// the endpoints pin, and the witness is `carrier(mid)` of the same
 /// wrong arc — which is exactly why C4 makes **domain validity part of
-/// the certificate**. PR 6's per-face one-branch chart walk is the
+/// the certificate**. Exactly (independently re-measured at the merge
+/// base during adversarial review): tier 3's ONLY refusal on the
+/// defective bodies is `VolumeUncomputable{NotIsoRectangle}` — the
+/// props curved-face quadrature frontier carried to M5 PR 11 — and
+/// that same single refusal fires identically on the CORRECT simple
+/// tilted cut. It is therefore **defect-independent**: tier 3 does not
+/// distinguish the wrong body from the right one at all.
+/// PR 6's per-face one-branch chart walk is the
 /// first thing that can: the face's azimuth advance comes out −2τ
 /// instead of 0, and the split refuses rather than shipping the body.
 ///
@@ -447,13 +454,30 @@ fn tilted_belly_cut_refuses_on_the_long_way_arc_defect() {
         "{msg}"
     );
 
-    // Evidence recorded from the investigation (reproducible by
-    // making the mint pass non-fatal for one run): each of the eight
-    // section-arc edges the two sides carry stores a parameter
-    // interval of τ − 0.305 or τ − 0.775 rad — exactly the complement
-    // of the correct ≈17.5°/≈44.4° arc — and sweeps
-    // z ∈ [−0.297, 1.689] on a wall of height 1. The simple tilted cut
-    // stores π and sweeps z ∈ [0.345, 0.655], i.e. stays on the wall.
+    // ---- The evidence, as a history note ----
+    //
+    // It cannot be asserted at HEAD: reaching the defective bodies
+    // requires the split to SUCCEED, and it now (correctly) refuses.
+    // The measurement below was taken at the merge base, twice and
+    // independently — once during implementation (by making the mint
+    // pass non-fatal for one run) and once by the adversarial review
+    // (its own probe against an unmodified merge-base checkout), with
+    // agreeing numbers:
+    //
+    //   * each of the EIGHT section-arc edges across the two sides
+    //     stores a parameter interval of τ − 0.305 or τ − 0.775 rad —
+    //     bitwise the complement of the correct ≈17.5° / ≈44.4° arc;
+    //   * those carriers sweep z ∈ [−0.297, 1.689] on a wall of
+    //     height 1, i.e. they leave the finite wall on both ends;
+    //   * `validate_geometric` on those bodies returns exactly one
+    //     error, `VolumeUncomputable{NotIsoRectangle}` — the same one
+    //     the CORRECT simple tilted cut returns (see
+    //     `tilted_cut_mints_exact_ellipse_carriers`), so tier 3 is
+    //     blind to the defect rather than merely quiet about it.
+    //
+    // For contrast, at HEAD and at the merge base alike the simple
+    // tilted cut stores π per arc and sweeps z ∈ [0.345, 0.655] — on
+    // the wall, as it must be.
 }
 
 /// The ON-endpoint belly variant (audit row): the plane passes through

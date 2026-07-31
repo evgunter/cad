@@ -71,6 +71,29 @@
 //! the same posture as it already does for carriers and witnesses:
 //! construction-fresh re-derivation against the mapped geometry, never
 //! a mapped stored cache.
+//!
+//! ## Stale rows: which ops maintain this map, and which do not
+//!
+//! Read this before storing a cache from a new call site. **Only two
+//! ops maintain the map**: the splitting lane (which runs
+//! [`mint_pcurves`] on each side it produces, and that pass CLEARS the
+//! map before re-minting) and [`crate::transform`] (which re-derives
+//! when the operand carried caches). **Every other op — the Euler
+//! operators, the kill ops, ring surgery, `merge_coplanar_faces`,
+//! `split_edge`, the boolean graft — neither clears nor re-mints.**
+//!
+//! The consequence is bounded but real: a `SecondaryMap` row outlives
+//! its key until the slot is reused, so surgery on a body that already
+//! carries caches can leave a row attached to a half-edge that no
+//! longer means what the cache says (or, once a slot is recycled, to a
+//! different half-edge entirely). Nothing at M5 reaches that state on
+//! the ship path — caches are minted last, at the end of the split
+//! pipeline, and the pass clears first — and the tier-3 pcurve pass
+//! catches it LOUD if it ever happens: a stale row re-certifies against
+//! the current carrier/surface/window and fails, or breaks its face
+//! loop's continuity. So the posture is fail-loud, not silent-wrong —
+//! but an op that starts mutating already-minted bodies must either
+//! clear the map or re-mint, and should say which in its own docs.
 
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
 use geom_core::k_stats::decide;
@@ -335,6 +358,20 @@ fn mint_face<T: Decide>(
     // (conservative) chart boxes — the over-approximation of the trim
     // region the domain-validity limb certifies against (C4; the exact
     // point-in-region test is PR 11's tessellation consumer).
+    //
+    // **Where this limb has teeth, stated plainly.** At MINT time the
+    // containment check is vacuous by construction: the window IS the
+    // hull of exactly the boxes being checked against it, so no minted
+    // pcurve can escape it. That is deliberate, not an oversight — a
+    // freshly derived face has no independent prior notion of its own
+    // trim region, and inventing one (say, the loop's vertex box) would
+    // refuse legitimate faces whose boundary arcs bulge past their
+    // endpoints. The limb bites at RE-certification
+    // (`validate_pcurves`) and on the attach path, where the window
+    // comes from the OTHER stored caches and from a body the checked
+    // pcurve did not help build: a swapped, shifted or hand-attached
+    // cache is then measured against a window it had no part in
+    // setting. `TrimEscape` rows exercise exactly that direction.
     let mut window: Option<ChartWindow<T>> = None;
     for w in &walked {
         let b = w.pcurve.chart_box(w.t0, w.t1);
