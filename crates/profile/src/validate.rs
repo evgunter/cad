@@ -452,29 +452,6 @@ pub enum ProfileError {
         /// The requested radius, meters (`f64` diagnostic channel).
         radius: f64,
     },
-    /// **Two** distinct circles of the requested radius are tangent to
-    /// both legs *within* their corner-side extents: the branch rule
-    /// does not determine which corner the author meant, and the
-    /// constructor refuses rather than picking one (M5 S2 §1 — "do not
-    /// pick"). Reachable on arc legs long enough to admit both roots
-    /// (near-concentric arc×arc especially).
-    ///
-    /// **PATHS lowering divergence (M5 S2)**: `docs/PATHS-DESIGN.md` §2
-    /// reserves no name for this — its DOF check calls `.fillet(r)`
-    /// "exactly determined", which holds only up to WHICH of the two
-    /// carrier-intersection roots is meant. With straight legs the ray
-    /// start disambiguates, so #101 never met the second root; arc
-    /// carriers can put both roots on the legs. The v2 algebra needs a
-    /// name for this situation (or an argument that its anchored-side
-    /// rules make the second root unreachable) before it lowers.
-    AmbiguousFilletBranch {
-        /// The requested radius, meters (`f64` diagnostic channel).
-        radius: f64,
-        /// The two candidate centers' sketch coordinates (`f64`
-        /// diagnostic channel) — enough to see which two corners the
-        /// author is choosing between.
-        centers: [(f64, f64); 2],
-    },
     /// A fillet leg has no extent to round against: a zero-length
     /// straight leg, a zero-radius arc carrier, or an arc leg whose
     /// sweep is empty. The corner's turn cannot be metered there (D4
@@ -640,14 +617,6 @@ impl fmt::Display for ProfileError {
                 f,
                 "no corner for a fillet of radius {radius} m: {reason} — \
                  {FILLET_NO_CORNER_RECOURSE}"
-            ),
-            Self::AmbiguousFilletBranch { radius, centers } => write!(
-                f,
-                "ambiguous fillet: two circles of radius {radius} m are tangent to both legs \
-                 inside their extents (centers {:?} and {:?}) — the constructor will not \
-                 guess which corner you meant; shorten a leg (or split it at a vertex) so \
-                 only one corner remains, or pick a radius that admits one",
-                centers[0], centers[1]
             ),
             Self::FilletLegDegenerate { leg, arm } => write!(
                 f,

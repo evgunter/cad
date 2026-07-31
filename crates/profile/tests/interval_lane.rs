@@ -251,3 +251,78 @@ fn zero_radius_arc_fillet_escalates_at_interval() {
         "reach must not render the fit recourse: {text}"
     );
 }
+
+/// The S8 two-survivor vesica corner at the interval scalar: the
+/// nearest-corner selection is a diagnostic-channel choice (enclosure
+/// lower bounds), and here the survivors' setback gap is macroscopic
+/// next to the enclosure width, so this lane picks the SAME near
+/// candidate as the f64 lane —
+/// `symmetric_lens_pick_is_bit_deterministic_across_runs`'s cross-lane
+/// half. (Sub-width gaps carry no such guarantee: see
+/// `ulp_perturbed_lens_pick_is_deterministic_at_interval`.)
+#[test]
+fn vesica_near_pick_agrees_at_interval() {
+    let s3 = 3.0f64.sqrt();
+    let lp = profile::ProfileLoop::builder(ip2(0.0, -s3))
+        .fillet_corner(
+            iarc(-1.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, s3),
+            iarc(1.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, -s3),
+            Interval::from_f64(0.5),
+            tol(),
+        )
+        .expect("the two-survivor vesica corner resolves at Interval")
+        .close_arc_center(ip2(1.0, 0.0), profile::ArcSweep::Ccw);
+    assert_eq!(lp.tangent_joints, vec![1, 2]);
+    use geom_core::Bounds;
+    // The near (top-pocket) candidate: both tangent points above the
+    // lens' waist, exactly as the f64 row asserts.
+    assert!(lp.vertices[1].pos.y.lo() > 0.0);
+    assert!(lp.vertices[2].pos.y.lo() > 0.0);
+    profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .expect("the near-pick vesica validates at Interval");
+}
+
+/// The hairline-asymmetric lens at the interval scalar (S8 review
+/// MINOR-1): this lane's pick is bit-deterministic across runs and
+/// commits to a definite pocket. Deliberately NOT asserted equal to
+/// the f64 lane's pick — a setback gap below this lane's enclosure
+/// width may legally resolve to the other pocket, both being valid
+/// fillets per the ruling (the f64 twin is
+/// `ulp_perturbed_lens_pick_is_deterministic_within_the_lane`).
+#[test]
+fn ulp_perturbed_lens_pick_is_deterministic_at_interval() {
+    use geom_core::Bounds;
+    let s3 = 3.0f64.sqrt();
+    let build = || {
+        profile::ProfileLoop::builder(ip2(0.0, -s3))
+            .fillet_corner(
+                iarc(-1.0, 0.0, profile::ArcSweep::Ccw),
+                ip2(f64::EPSILON, s3),
+                iarc(1.0, 0.0, profile::ArcSweep::Ccw),
+                ip2(0.0, -s3),
+                Interval::from_f64(0.5),
+                tol(),
+            )
+            .expect("the perturbed lens constructs at Interval")
+            .close_arc_center(ip2(1.0, 0.0), profile::ArcSweep::Ccw)
+    };
+    let a = build();
+    let b = build();
+    assert_eq!(a.tangent_joints, b.tangent_joints);
+    assert_eq!(a.vertices.len(), b.vertices.len());
+    for (va, vb) in a.vertices.iter().zip(&b.vertices) {
+        for (ea, eb) in [
+            (va.pos.x, vb.pos.x),
+            (va.pos.y, vb.pos.y),
+            (va.bulge, vb.bulge),
+        ] {
+            assert_eq!(ea.lo().to_bits(), eb.lo().to_bits());
+            assert_eq!(ea.hi().to_bits(), eb.hi().to_bits());
+        }
+    }
+    // A definite pocket was committed to in this lane.
+    assert!(a.vertices[1].pos.y.lo().abs() > 0.5);
+}
