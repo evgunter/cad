@@ -30,3 +30,7 @@ M0 lesson). Dead mngr worktrees belong to other agents — `cargo
 clean` their target/ but leave the checkout for mngr's bookkeeping.
 Sandbox note: the permission classifier may block batch/loop removal
 commands and `kill` — issue `git worktree remove` one per Bash call.
+For agent lanes under `~/.local/share/cad-work/` use
+`scripts/clean-lanes.sh`, which re-checks pushed/clean/no-stash
+immediately before each lane's rm and refuses loudly otherwise:
+`scripts/clean-lanes.sh [--dry-run] [--force-nongit] DIR...`
