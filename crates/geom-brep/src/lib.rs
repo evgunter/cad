@@ -17,6 +17,11 @@
 //! - [`newell_plane`] — certified planes from loop vertex data,
 //!   translate-to-origin by default.
 //!
+//! [`ssi`] is M5 PR 7's addition: rung 3 of the C1 ladder — surface
+//! intersection by march-then-certify, with the full three-limb C2
+//! certificate and the in-op exhaustiveness subdivision that makes
+//! "every branch found" a theorem or a typed refusal.
+//!
 //! The geometry-arena key types ([`PointKey`], [`CurveKey`],
 //! [`SurfaceKey`]) are defined here (descriptions reference surfaces by
 //! arena key) and re-exported by `topo` for its `Body<T>` arenas —
@@ -37,9 +42,13 @@ pub mod dihedral;
 pub mod edge_geometry;
 pub mod enters;
 pub mod implicit;
+pub mod intersect;
 pub mod keys;
 pub mod newell;
+pub mod pcurve;
+pub mod pcurve_cache;
 pub mod props;
+pub mod ssi;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
@@ -48,6 +57,23 @@ pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use enters::{EntersMaterial, enters_material};
 pub use implicit::{curvature_lever_arm, implicit_gradient, implicit_residual};
+pub use intersect::{
+    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
+    SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
+    plane_cylinder_section, route,
+};
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
+pub use pcurve::{
+    PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
+};
+pub use pcurve_cache::{
+    ChartWindow, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
+    chart_pcurve,
+};
 pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+pub use ssi::{
+    Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,
+    idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+};

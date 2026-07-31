@@ -114,7 +114,7 @@ jobs:
           hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
             | grep -vE ':[0-9]+:\s*(//|///|//!)' \
             | cut -d: -f1 | sort -u \
-            | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce)\.rs$' \
+            | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/sugar\.rs$' || true)
           if [ -n "$hits" ]; then
@@ -215,9 +215,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # No --all-features here: that would compile the gmp-mpfr-sys C
-      # stack (GMP+MPFR from source, minutes of build) into this job; the
-      # `interval` job owns that feature's clippy pass with its own cache.
+      # No --all-features here: the `interval` feature is a different
+      # build graph, and the `interval` job owns its clippy pass with its
+      # own cache — building it here too would double this job's compile
+      # time for no extra coverage, and mix two feature sets into one
+      # cache entry.
       # Scoped by the filter: `--workspace` in tier `all`, an explicit
       # `-p <closure>` list in tier `closure`.
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
@@ -248,17 +250,25 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # NOTE (M5 PR 1): this job used to `apt-get install m4` before
-      # anything else, because the `interval` feature built inari's
-      # bundled GMP+MPFR from C source and its autotools configure needs
-      # m4. The backend is now `interval-transcendentals` — pure Rust, no
-      # C, no system packages — so that step is gone. Every `run:` below
-      # is byte-for-byte what it was; the rows simply build gmp-free now.
+      # The `interval` feature's backend is the in-repo
+      # `interval-transcendentals` crate — pure Rust over libm — so this
+      # job installs no system packages and needs no C toolchain:
+      # checkout, toolchain, cache, cargo.
       - uses: dtolnay/rust-toolchain@stable
-      # Distinct cache key kept: this job builds a different feature set
-      # from the default-feature jobs, so a shared cache would have the
-      # two evicting each other. (The ~/.cache/gmp-mpfr-sys
-      # cache-directory entry went with the C build it existed for.)
+      # CACHE SEPARATION (verified against the action's source,
+      # 2026-07-30): this job builds a DIFFERENT feature set from the
+      # default-feature jobs, so it must never share their cache entry —
+      # a shared entry would have the two graphs evicting each other on
+      # every run. Two things guarantee the separation. (1) rust-cache@v2
+      # composes its key as prefix + (shared-key OR key + job id) + os +
+      # arch + env/lockfile hashes, and its `add-job-id-key` input
+      # defaults to "true" — so with no `shared-key` anywhere in this
+      # file, every JOB here already gets its own cache by construction
+      # (matrix legs of one job share a key, which is what we want: same
+      # feature set). (2) The explicit `key` below makes THIS job's
+      # separation intentional rather than incidental, and survives a
+      # rename. Do NOT add `shared-key` to any job here: it replaces the
+      # job component outright and is exactly the thrash this prevents.
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
@@ -286,7 +296,7 @@ jobs:
         run: cargo test -p editor-core --features interval --test m4_pr8_corpus_interval
 
   interval-backend:
-    name: interval backend crate (gmp-free)
+    name: interval backend crate
     runs-on: ubuntu-latest
     needs: filter
     # Tier `closure` never reaches this: interval-transcendentals/ is its
@@ -302,11 +312,11 @@ jobs:
     # This row is deliberately the crate's DEFAULT feature set: unit
     # tests, the edges sweep's oracle-free half, and review_fuzz_div's
     # exact-rational division fuzz, which needs no oracle at all because
-    # it compares against u128 rational arithmetic. No `oracle-inari`,
-    # hence no gmp-mpfr-sys, no C toolchain, no m4 — the row takes
-    # seconds. The full differential lane (certify.rs, behind
-    # --features oracle-inari) stays a by-hand gate; see the crate
-    # README's "Certification" section.
+    # it compares against u128 rational arithmetic. Without
+    # `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
+    # the graph, so the row takes seconds. The full differential lane
+    # (certify.rs, behind --features oracle-inari) stays a by-hand gate;
+    # see the crate README's "Certification" section.
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -317,13 +327,14 @@ jobs:
       - name: fmt + clippy
         working-directory: interval-transcendentals
         run: cargo fmt --check && cargo clippy --all-targets -- -D warnings
-      - name: tests (no oracle feature — must not pull gmp)
+      - name: tests (default features — the oracle stack must stay out)
         working-directory: interval-transcendentals
         run: cargo test
-      # Tripwire on the tripwire: if anything ever makes the gmp stack
-      # reachable from the default feature set, fail loudly here rather
-      # than silently reintroducing the C build this PR removed.
-      - name: assert the default graph is gmp-free
+      # Tripwire on the tripwire: the dev-oracle stack (inari and its
+      # gmp/MPFR C build) belongs to `--features oracle-inari` only. If
+      # anything ever makes it reachable from the default feature set,
+      # fail loudly here rather than silently reintroducing a C build.
+      - name: assert the oracle stack stays out of the default graph
         working-directory: interval-transcendentals
         run: |
           if cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'; then
@@ -400,15 +411,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        eps: ["1e-6", "1e-9", "1e-12"]
+        eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # D4 ¶1: run the suite at several ε values to smoke out
-      # tolerance-sensitive algorithms. CAD_TOLERANCE_EPS gets wired to
-      # Tolerance initialization in PR 2 (L3); for now it just parameterizes
-      # the same test run so the matrix and the env var name land early.
+      # tolerance-sensitive algorithms. CAD_TOLERANCE_EPS is wired to
+      # Tolerance initialization (geom-core/src/tolerance.rs).
+      # THE BATTERY IS {1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
+      # rows straddle the compiled default three orders either side, and
+      # the default itself — DEFAULT_EPS = 1e-9 — is what the
+      # unparameterized `test` job runs, so the retired 1e-9 row was a
+      # byte-for-byte re-run of that job, not a third band.
       - run: cargo test ${{ needs.filter.outputs.cargo_scope }}
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
@@ -416,6 +431,9 @@ jobs:
   # M4 PR 6 spec D6: the three persistence obligations as NAMED gates
   # (they also run inside the workspace rows; naming them keeps the
   # contract visible and their failures attributable at a glance).
+  # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
+  # (1e-9) pass of these same test targets is inside the `test` job's
+  # workspace run, so no band is lost.
   persistence:
     name: persistence (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
@@ -424,7 +442,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        eps: ["1e-6", "1e-9", "1e-12"]
+        eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -473,6 +491,8 @@ jobs:
   # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
   # inside the workspace rows; naming it keeps the milestone's
   # proof-of-vocabulary attributable at a glance).
+  # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
+  # (1e-9) pass of this corpus is inside the `test` job's workspace run.
   corpus:
     name: band 4 corpus (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
@@ -481,7 +501,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        eps: ["1e-6", "1e-9", "1e-12"]
+        eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

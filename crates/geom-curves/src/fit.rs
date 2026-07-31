@@ -107,6 +107,17 @@ pub enum FitError {
     Structure(SplineError),
     /// A knot-algebra operation refused unexpectedly.
     KnotAlgebra(KnotAlgebraError),
+    /// Explicit parameters were supplied whose count, ordering, or
+    /// endpoints do not describe a valid clamped parameterization of
+    /// the given points: one parameter per point, strictly ascending,
+    /// finite, running exactly `0 → 1` (the averaged-knot construction
+    /// pins those ends, Book Eq. 9.8).
+    ParamCountMismatch {
+        /// Parameters supplied.
+        params: usize,
+        /// Points supplied.
+        points: usize,
+    },
     /// The Type-2 loop spent [`FIT_REMOVAL_BUDGET`] removal attempts
     /// without finishing; carries the bound achieved so far (OUR
     /// semantics — module docs).
@@ -133,6 +144,12 @@ impl core::fmt::Display for FitError {
             FitError::InvalidTolerance { tolerance } => {
                 write!(f, "fit: invalid tolerance {tolerance}")
             }
+            FitError::ParamCountMismatch { params, points } => write!(
+                f,
+                "fit: {params} explicit parameters for {points} points — the fitting \
+                 stack needs one strictly-ascending finite parameter per point running \
+                 exactly 0 to 1"
+            ),
             FitError::Lsq(e) => write!(f, "fit: {e}"),
             FitError::Structure(e) => write!(f, "fit: {e}"),
             FitError::KnotAlgebra(e) => write!(f, "fit: {e}"),
@@ -273,6 +290,78 @@ macro_rules! nurbs_fit {
                 Ok(params)
             }
 
+            /// The chord-length parameters this stack would choose for
+            /// `points` (Book Eqs. 9.4–9.5) — **exposed so a consumer
+            /// can fit several curves on ONE shared parameterization**.
+            ///
+            /// That is the M5 PR 7 / OQ4 need: the ℝ⁴ SSI trace yields
+            /// a 3-D curve and two pcurves that must share a parameter
+            /// by *construction*, because PR 6's cache contract is
+            /// `|S(P(t)) − C(t)| ≤ ε` **at the same `t`**. Fitting each
+            /// with its own chord lengths would break that identity
+            /// silently; taking the carrier's parameters and handing
+            /// them to the pcurve fits keeps it.
+            ///
+            /// # Errors
+            ///
+            /// [`FitError::NonFinitePoint`], [`FitError::DegenerateChord`].
+            pub fn chord_parameters(points: &[$Point<f64>]) -> Result<Vec<f64>, FitError> {
+                if points.len() < 2 {
+                    return Err(FitError::TooFewPoints {
+                        have: points.len(),
+                        need: 2,
+                    });
+                }
+                Self::chord_params(points)
+            }
+
+            /// Validate explicit fitting parameters (module docs on
+            /// [`Self::chord_parameters`]).
+            #[allow(clippy::neg_cmp_op_on_partial_ord)]
+            fn check_params(points: &[$Point<f64>], params: &[f64]) -> Result<(), FitError> {
+                if params.len() != points.len() {
+                    return Err(FitError::ParamCountMismatch {
+                        params: params.len(),
+                        points: points.len(),
+                    });
+                }
+                // `!(a < b)` is NaN-catching: a NaN parameter refuses.
+                let ends_ok = params.first() == Some(&0.0) && params.last() == Some(&1.0);
+                if !ends_ok {
+                    return Err(FitError::ParamCountMismatch {
+                        params: params.len(),
+                        points: points.len(),
+                    });
+                }
+                for w in params.windows(2) {
+                    if !(w[0] < w[1]) {
+                        return Err(FitError::ParamCountMismatch {
+                            params: params.len(),
+                            points: points.len(),
+                        });
+                    }
+                }
+                Ok(())
+            }
+
+            /// [`Self::interpolate`] on **explicit** parameters — the
+            /// shared-parameterization entry (see
+            /// [`Self::chord_parameters`] for why it exists).
+            ///
+            /// # Errors
+            ///
+            /// [`FitError::ParamCountMismatch`] for parameters that do
+            /// not describe a clamped `0 → 1` parameterization, plus
+            /// every refusal [`Self::interpolate`] has.
+            pub fn interpolate_with_params(
+                points: &[$Point<f64>],
+                degree: usize,
+                params: &[f64],
+            ) -> Result<Self, FitError> {
+                Self::check_params(points, params)?;
+                Self::interpolate_core(points, degree, params)
+            }
+
             /// Global chord-length interpolation (the A9.1 shape): the
             /// curve of `degree` through every point, on the averaged
             /// knot vector, via the exact square collocation solve
@@ -302,7 +391,30 @@ macro_rules! nurbs_fit {
                     });
                 }
                 let params = Self::chord_params(points)?;
-                let kv = averaged_knots(&params, degree)?;
+                Self::interpolate_core(points, degree, &params)
+            }
+
+            /// The shared body of [`Self::interpolate`] and
+            /// [`Self::interpolate_with_params`] — one implementation,
+            /// so the two can never drift (D9).
+            fn interpolate_core(
+                points: &[$Point<f64>],
+                degree: usize,
+                params: &[f64],
+            ) -> Result<Self, FitError> {
+                if degree == 0 {
+                    return Err(FitError::Structure(SplineError::KnotVectorInvalid {
+                        reason: KnotVectorIssue::DegreeZero,
+                    }));
+                }
+                let n = points.len();
+                if n < degree + 1 || n < 2 {
+                    return Err(FitError::TooFewPoints {
+                        have: n,
+                        need: (degree + 1).max(2),
+                    });
+                }
+                let kv = averaged_knots(params, degree)?;
                 let weights = vec![1.0f64; n];
                 let mut matrix = vec![vec![0.0f64; n]; n];
                 for (k, u) in params.iter().enumerate() {
@@ -349,6 +461,24 @@ macro_rules! nurbs_fit {
                 Self::approximate_budgeted(points, degree, tolerance, FIT_REMOVAL_BUDGET)
             }
 
+            /// [`Self::approximate`] on **explicit** parameters — the
+            /// shared-parameterization entry (see
+            /// [`Self::chord_parameters`]).
+            ///
+            /// # Errors
+            ///
+            /// [`FitError::ParamCountMismatch`] plus every refusal
+            /// [`Self::approximate`] has.
+            pub fn approximate_with_params(
+                points: &[$Point<f64>],
+                degree: usize,
+                tolerance: f64,
+                params: &[f64],
+            ) -> Result<FitOutcome<Self>, FitError> {
+                Self::check_params(points, params)?;
+                Self::approximate_core(points, degree, tolerance, FIT_REMOVAL_BUDGET, Some(params))
+            }
+
             /// [`Self::approximate`] with an explicit attempt budget —
             /// crate-internal so the public entry keeps the ONE named
             /// constant (D9) while the refusal path stays testable.
@@ -357,6 +487,19 @@ macro_rules! nurbs_fit {
                 degree: usize,
                 tolerance: f64,
                 budget: usize,
+            ) -> Result<FitOutcome<Self>, FitError> {
+                Self::approximate_core(points, degree, tolerance, budget, None)
+            }
+
+            /// The shared body: `None` parameters means "chord-length,
+            /// as always", which reproduces the previous code path bit
+            /// for bit (same values, same order).
+            fn approximate_core(
+                points: &[$Point<f64>],
+                degree: usize,
+                tolerance: f64,
+                budget: usize,
+                given: Option<&[f64]>,
             ) -> Result<FitOutcome<Self>, FitError> {
                 // `!(tolerance > 0)` is NaN-catching (NaN refuses;
                 // `<= 0` would pass NaN) — the fail-loud direction.
@@ -369,8 +512,11 @@ macro_rules! nurbs_fit {
                         reason: KnotVectorIssue::DegreeZero,
                     }));
                 }
-                let params = Self::chord_params(points)?;
-                let interp = Self::interpolate(points, 1)?;
+                let params = match given {
+                    Some(p) => p.to_vec(),
+                    None => Self::chord_params(points)?,
+                };
+                let interp = Self::interpolate_core(points, 1, &params)?;
                 let mut cur = interp.clone();
                 // The reference at the current rung's degree: the
                 // exact-in-ℝ elevation of the chord interpolant.

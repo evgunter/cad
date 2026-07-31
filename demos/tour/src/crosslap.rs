@@ -4,18 +4,16 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! M4 PR 5 status (the crosslap wire did NOT fire — refusal moved
-//! one stage deeper, honestly): UNDECLARED, the mated union now
-//! refuses at the COINCIDENCE door (rung (b) — value equality never
-//! classifies); DECLARED, classification opens but the union still
-//! refuses typed at the JOIN — the mate is a pure REST contact (the
-//! notches interlock exactly, interiors disjoint), the M3 envelope's
-//! boundary-on-boundary class (iii), which is a join-stage gap, not
-//! a classification gap (the corner-table legs glue because they
-//! OVERLAP into the top; the crosslap has no overlap to seam).
-//! Both refusals are narrated; the joint ships as two mated bodies;
-//! the kernel wire (`crosslap_rest.rs`) stays armed on the join
-//! frontier.
+//! M5 S1 status (the crosslap wire FIRED and was retired): the
+//! declared mated union now BUILDS through the join-stage
+//! declared-REST zip — the contact patches (notch floor/ceiling and
+//! the four flush walls) are removed as interior and the seam is
+//! fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
+//! GLUED union (watertight STL + STEP exported by the tour like every
+//! stop body). UNDECLARED, the mate still refuses at the coincidence
+//! door (rung (b) — value equality never classifies; the ladder is
+//! law) — that refusal stays narrated: it is the declared/undeclared
+//! contrast the joint exists to demonstrate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -58,10 +56,17 @@ fn beam_b<S: Scalar>() -> BooleanBody<S> {
 }
 
 /// The joint's boolean work, generic (the Probe sweep runs the same
-/// ops): both notched beams, the naive AND declared mated-union
-/// refusal pins, and the lifted exploded copy. Returns the declared
-/// refusal's narration string for the f64 stop captions.
-pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, BooleanBody<S>, topo::Body<S>, String) {
+/// ops): both notched beams, the naive-union refusal pin, the DECLARED
+/// glued union (M5 S1 — the REST zip), and the lifted exploded copy.
+/// Returns the undeclared refusal's narration string for the f64 stop
+/// captions.
+pub(crate) fn build<S: Scalar>() -> (
+    BooleanBody<S>,
+    BooleanBody<S>,
+    BooleanBody<S>,
+    topo::Body<S>,
+    String,
+) {
     let a = beam_a::<S>();
     let b = beam_b::<S>();
 
@@ -77,28 +82,21 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, BooleanBody<S>, topo::Body<
         );
     }
     println!("   mated-union WITHOUT declarations: {refusal}");
-    // DECLARED, classification opens — and the union still refuses
-    // typed at the JOIN: the mate is a pure REST contact (interiors
-    // disjoint), the M3 envelope's boundary-on-boundary class (iii).
-    // A join-stage gap, distinct from PR 5's declared-classification
-    // opener; the kernel wire stays armed on it.
-    let declared = check(
-        crate::booleans::try_union_declared(&a.body, &b.body),
+    // DECLARED, the union BUILDS (M5 S1): the join-stage REST zip
+    // removes the coincident contact patches and fuses the seam —
+    // exact dyadic volume additivity (interiors disjoint).
+    let glued = expect_seamed(
+        "declared mated union (M5 S1 REST zip)",
+        check(
+            crate::booleans::try_union_declared(&a.body, &b.body),
+            expected,
+        ),
         expected,
     );
-    let declared_refusal = describe(&declared, expected);
-    if !matches!(declared, crate::booleans::Verdict::Refused(_)) {
-        panic!(
-            "the DECLARED mated union now builds ({declared_refusal}) — the \
-             crosslap_rest.rs wire should have fired; upgrade this stop to ship \
-             the glued union"
-        );
-    }
     println!(
-        "   mated-union WITH the mate declared: {declared_refusal}\n\
-         \x20  — classification OPENED (M4 PR 5); the remaining refusal is the \
-         join-stage boundary-on-boundary REST gap (M3 envelope iii): no overlap \
-         to seam, every mate segment lies ON existing edges"
+        "   mated-union WITH the mate declared: GLUED (volume {expected} exactly) — \
+         the M5 S1 declared-REST zip; the former join-stage refusal is retired \
+         (crosslap_rest.rs pins both doors)"
     );
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
@@ -109,27 +107,29 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, BooleanBody<S>, topo::Body<
         S::from_f64(1.25),
     ));
     let b_lifted = topo::transform_rigid(&b.body, &lift).expect("lift beam B");
-    (a, b, b_lifted, declared_refusal)
+    (a, b, glued, b_lifted, refusal)
 }
 
 pub fn stops() -> Vec<Stop> {
-    let (a, b, b_lifted, declared_refusal) = build::<f64>();
+    let (a, _b, glued, b_lifted, refusal) = build::<f64>();
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
          bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
-         door; DECLARED (M4 PR 5) classification opens and the join-stage REST gap \
-         refuses typed ({declared_refusal}) — shipped as two mated bodies, wire armed",
-        BEAM_VOL - NOTCH_VOL
+         door ({refusal}); DECLARED, the M5 S1 REST zip GLUES the joint — one \
+         watertight body, volume {} exactly (2·(beam − notch); interiors \
+         disjoint, nothing discarded)",
+        BEAM_VOL - NOTCH_VOL,
+        2.0 * (BEAM_VOL - NOTCH_VOL)
     );
     vec![
         Stop {
             name: "crosslap",
-            caption: "cross-lap (assembled)".to_string(),
+            caption: "cross-lap (glued)".to_string(),
             montage: true,
-            story: "cross-lap joint, assembled: two half-depth-notched beams interlocked \
-                    — mated flush, shipped as two bodies (declared classification opened \
-                    with M4 PR 5; the glued union waits on the join-stage REST lane)",
-            ops: "2 x (extrude beam, extrude cutter -> subtract); mate by construction",
+            story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
+                    UNIONED into one body through the declared-REST zip (M5 S1) — the \
+                    contact patches are interior now; only the seam edges remain",
+            ops: "2 x (extrude beam, extrude cutter -> subtract); declared mate -> union",
             delta: 1e-2,
             note: Some(note.clone()),
             view: View {
@@ -137,20 +137,12 @@ pub fn stops() -> Vec<Stop> {
                 azim: -60.0,
                 up: 'z',
             },
-            bodies: vec![
-                SceneBody::seamed(
-                    "crosslap_a",
-                    [0.72, 0.53, 0.30],
-                    a.body.clone(),
-                    a.contacts.clone(),
-                ),
-                SceneBody::seamed(
-                    "crosslap_b",
-                    [0.55, 0.42, 0.65],
-                    b.body.clone(),
-                    b.contacts.clone(),
-                ),
-            ],
+            bodies: vec![SceneBody::seamed(
+                "crosslap_glued",
+                [0.72, 0.53, 0.30],
+                glued.body.clone(),
+                glued.contacts.clone(),
+            )],
         },
         Stop {
             name: "crosslap_exploded",

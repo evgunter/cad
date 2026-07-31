@@ -61,6 +61,13 @@
 //! reassociating floating-point sums changes results). The order is stated
 //! in each operation's doc comment and is part of its contract.
 //!
+//! The [`svd`] submodule (M5 PR 7) is the second C12.8 addition: the
+//! fixed-shape 2×3/3×4 decomposition of the SSI marcher's underdetermined
+//! derivative systems (Householder QR + one-sided Jacobi, fixed
+//! reflection/rotation order). Like [`lsq`] it is `f64`-only — the
+//! marcher is a candidate generator and the certificate, not the
+//! stepper, is what runs at every `T`.
+//!
 //! The [`lsq`] submodule (M5 PR 4) is the one variable-size resident:
 //! `f64`-only structure machinery for the fitting systems (C6's f64
 //! lane), `Vec`-based with shapes validated at entry so every internal
@@ -71,9 +78,11 @@ mod affine;
 pub mod lsq;
 mod mat;
 mod point;
+pub mod svd;
 mod vec;
 
 pub use affine::{Affine2, Affine3};
 pub use mat::{Mat2, Mat3};
 pub use point::{Point2, Point3};
+pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use vec::{Vec2, Vec3};

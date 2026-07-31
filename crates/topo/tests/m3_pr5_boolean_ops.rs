@@ -434,23 +434,26 @@ fn subtract_equals_intersect_revert_oracle() {
 #[test]
 fn merge_ladder_fires_only_on_declared_planes() {
     // Full-overlap stacked bricks: the whole seam runs ALONG existing
-    // operand edges (boundary-on-boundary coincidence), the one family
-    // still outside PR 5.5's joining envelope — the on-edge germs have
-    // no facing chord partner and the join refuses typed
-    // (UnpairedLooseEnds; ops module "Known limitations"). Verify the
-    // DECLARED and UNDECLARED variants behave identically
-    // typed-or-body-wise; if this starts succeeding, extend this test
-    // to assert the declared-rung merge census per the F7 contract.
+    // operand edges (boundary-on-boundary coincidence). UNDECLARED,
+    // the coincidence ladder refuses — no numeric rung, nothing
+    // merges without declaration. DECLARED, the union builds since
+    // M5 S1 (the REST zip), and — per this test's own extension
+    // instruction — the declared-rung merge census holds (F7): the
+    // four declared same-plane side pairs merge, leaving exactly the
+    // (0..2)²×(0..4) brick's six maximal faces.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
     let undeclared = union(&a, &b);
     assert!(
         undeclared.is_err(),
-        "stacked-full union currently refuses typed (boundary-on-\
-         boundary seam limitation); if this starts succeeding, extend \
-         this test to assert the declared-rung merge census per the F7 \
-         contract"
+        "the undeclared stacked-full union must keep refusing typed \
+         (coincidence is declared, never value-inferred)"
     );
+    let r = run(union_with, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.faces().count(), 6, "declared-rung merge census");
+    assert_props(&body.body, 16.0, 40.0);
 }
 
 #[test]

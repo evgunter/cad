@@ -51,6 +51,24 @@ pub fn sagitta_angle(delta_s: f64, rho: f64) -> f64 {
     }
 }
 
+/// The per-chord parameter step for chord deviation ≤ `delta_s` on an
+/// ellipse with semi-axes `major > minor` (M5 PR 5), capped at π/4.
+///
+/// Certified-conservative from the standard C² chord bound
+/// `deviation ≤ κ_max·L²/8`: over a parameter span φ the arc length is
+/// `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the ellipse's maximum
+/// curvature is `κ_max = major/minor²` (at the major vertices), so
+/// `deviation ≤ R_eff·φ²/8` with `R_eff = major·(major/minor)²` and
+/// `φ = √(8·δ_s/R_eff)` guarantees the bound. Coarser than the
+/// circle's exact sagitta near `major = minor` — conservative is the
+/// promised direction.
+pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+    let cap = core::f64::consts::FRAC_PI_4;
+    let r_eff = major * (major / minor) * (major / minor);
+    let phi = (8.0 * delta_s / r_eff).sqrt();
+    if phi < cap { phi } else { cap }
+}
+
 /// `ceil(span/step)` as a chord/grid count, with the `MAX_STEPS` (2^24)
 /// sanity cap surfaced as a typed error and a floor of 1.
 pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
@@ -119,7 +137,19 @@ pub(crate) fn compute_chords(
                 }
                 n
             }
-            Curve3::Nurbs(_) => return Err(TessellateError::UnsupportedCurve { edge: ek }),
+            // Ellipse arcs (curved-cut boundaries, M5 PR 5): the
+            // certified-conservative curvature-bound step; no torus
+            // tightening applies (an ellipse never lies on a torus
+            // chart of this kernel's constructions).
+            Curve3::Ellipse { major, minor, .. } => {
+                ceil_count(span, ellipse_step(delta_s, major, minor))?
+            }
+            Curve3::Nurbs(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS carriers tessellate with the general SSI lane (M5 PR 7+)",
+                });
+            }
         };
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {

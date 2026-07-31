@@ -32,15 +32,15 @@ libm = "=0.2.16"
 # target: a plain dev-dep would mean `cargo test` here always compiles
 # inari's bundled GMP+MPFR from C source. Gating it behind a feature is
 # what lets the kernel's CI run this crate's pad tripwire (unit tests +
-# edges + the division fuzz) gmp-free, on the same pipeline that gates
-# the kernel — see README "Certification".
+# edges + the division fuzz) without that C build, on the same pipeline
+# that gates the kernel — see README "Certification".
 #
 # The `interval` feature of geom-core never enables `oracle-inari`, so no
 # kernel build in any configuration pulls inari, gmp-mpfr-sys or rug, and
 # their LGPL-3.0+ obligations reach neither this crate's consumers nor the
-# kernel's. Requires AVX+FMA on x86-64; the repo-root .cargo/config.toml's
-# x86-64-v3 floor applies to builds rooted here via cargo's hierarchical
-# config discovery.
+# kernel's. inari itself requires AVX+FMA on x86-64, so the ORACLE lane
+# needs a machine that has them; the repo sets no target-cpu floor
+# (.cargo/config.toml) and this crate's own code needs none.
 version = "=2.0.0"
 features = ["gmp"]
 optional = true
@@ -51,7 +51,7 @@ optional = true
 oracle-inari = ["dep:inari"]
 
 # The benchmark compares our timings against inari's, so it needs the
-# oracle too. `required-features` keeps it out of the default (gmp-free)
+# oracle too. `required-features` keeps it out of the default (oracle-less)
 # `cargo test` / `cargo build --examples` graph rather than failing them.
 [[example]]
 name = "bench"

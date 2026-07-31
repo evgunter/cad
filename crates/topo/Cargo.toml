@@ -35,3 +35,10 @@ proptest = { workspace = true }
 # Self dev-dependency: turns `sweep-testing` on for THIS crate's own
 # integration tests without exposing it to production dependents.
 topo = { path = ".", features = ["sweep-testing"] }
+# Downstream export/tessellation consumers, dev-only (M5 S1): the
+# glued-union acceptance rows pin watertight STL + STEP export of the
+# REST-zip results (dev-dependency cycles are cargo-legal and never
+# reach production dependents).
+mesh = { path = "../mesh" }
+stl = { path = "../stl" }
+step-export = { path = "../step-export" }

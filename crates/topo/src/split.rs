@@ -173,9 +173,22 @@ impl<T: Decide> Body<T> {
         let scale = match *curve.carrier() {
             geom_curves::Curve3::Line { .. } => T::one(),
             geom_curves::Curve3::Circle { radius, .. } => radius,
-            // Unreachable through certification (Nurbs carriers refuse
-            // at the gate); the poison margin escalates honestly.
-            geom_curves::Curve3::Nurbs(_) => T::from_f64(f64::NAN),
+            // The conic lane (M5 PR 5, C12.3): metered at the MINOR
+            // semi-axis — the conservative meter (|dP/dθ| ≥ minor), so
+            // a sub-span this gate accepts as definitely interior is
+            // truly clear of the endpoints in meters.
+            geom_curves::Curve3::Ellipse { minor, .. } => minor,
+            // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
+            // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
+            // the same conservative posture as the conic lane's minor
+            // semi-axis, derived from the derivative control net's
+            // convex-hull property (see
+            // `NurbsCurve3::speed_lower_bound`). A carrier that
+            // doubles back, or a rational one, yields a non-positive
+            // or poison meter, and the interiority trilean below then
+            // escalates honestly instead of accepting a split that is
+            // not clear of the endpoints in meters.
+            geom_curves::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         };
         let band = Band::linear().map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),

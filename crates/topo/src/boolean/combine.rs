@@ -245,6 +245,15 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
         dst.null_faces.insert(dk, mapped);
     }
 
+    // ---- Pcurve caches (M5 PR 6): remapped like provenance. The
+    // boolean lane's operands are gated all-planar, so this is empty in
+    // practice today — carrying it anyway keeps the graft total, so a
+    // future curved boolean cannot lose caches silently. ----
+    for (k, cache) in src.pcurves.iter() {
+        let dk = *half_edges.get(k).ok_or_else(corrupt)?;
+        dst.pcurves.insert(dk, *cache);
+    }
+
     // ---- Description surface-key remap (M3 PR 5, the extrude-operand
     // finding): `Intersection`/`Seam` descriptions reference SURFACE
     // KEYS, which are body-lineage-scoped — the grafted copies must

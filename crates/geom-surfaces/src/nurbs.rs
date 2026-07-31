@@ -47,6 +47,37 @@ pub struct SurfaceJet<T: Real> {
     pub dvv: Vec3<T>,
 }
 
+/// [`SurfaceJet`] extended to **third** order — the ten partials with
+/// `k + l ≤ 3` (M5 PR 7).
+///
+/// # Why third order exists
+///
+/// Hoffmann's SSI stepper (§6.2, §6.3.2) is a **third-order** Taylor
+/// approximant of the local parameterization, so the ℝ⁴
+/// parametric×parametric trace needs `d³/ds³ G(u(s), v(s))`, whose
+/// chain rule reaches `∂³S`. Nothing else in the kernel does: this jet
+/// is the marcher's substrate, computed once per step.
+///
+/// The `k + l ≤ 2` entries are computed by **exactly the expressions
+/// [`NurbsSurface::ders_in_span`] uses**, in the same order, so
+/// [`NurbsSurface::ders3_in_span`] and [`NurbsSurface::ders_in_span`]
+/// agree **bit for bit** on their common fields (pinned by test) — a
+/// second implementation of the same quantity would otherwise be a
+/// silent D9 fork.
+#[derive(Clone, Copy, Debug)]
+pub struct SurfaceJet3<T: Real> {
+    /// The second-order jet: point and all partials with `k + l ≤ 2`.
+    pub jet: SurfaceJet<T>,
+    /// `∂³S/∂u³`.
+    pub duuu: Vec3<T>,
+    /// `∂³S/∂u²∂v`.
+    pub duuv: Vec3<T>,
+    /// `∂³S/∂u∂v²`.
+    pub duvv: Vec3<T>,
+    /// `∂³S/∂v³`.
+    pub dvvv: Vec3<T>,
+}
+
 /// A validated tensor-product NURBS surface (module docs; immutable
 /// after construction — every knot-algebra operation returns a new
 /// surface).
@@ -268,6 +299,130 @@ impl<T: Real> NurbsSurface<T> {
             duu: s_uu,
             duv: s_uv,
             dvv: s_vv,
+        }
+    }
+
+    /// The all-poison third-order jet.
+    fn poison_jet3() -> SurfaceJet3<T> {
+        SurfaceJet3 {
+            jet: Self::poison_jet(),
+            duuu: Self::poison_vec(),
+            duuv: Self::poison_vec(),
+            duvv: Self::poison_vec(),
+            dvvv: Self::poison_vec(),
+        }
+    }
+
+    /// Point plus **all partials with `k + l ≤ 3`** at `(u, v)` in the
+    /// given span pair — one homogeneous tensor pass (basis orders
+    /// `0..=3` in each direction), then the rational corrections.
+    ///
+    /// The `k + l ≤ 2` block is written **character for character** as
+    /// in [`NurbsSurface::ders_in_span`] so the two agree bit for bit
+    /// (D9; pinned by test). The four third-order corrections are the
+    /// Book's general rational-derivative recursion (Eq. 4.20 /
+    /// A4.4) specialized and written out — each subtraction in a fixed
+    /// ascending order:
+    ///
+    /// ```text
+    /// S30 = (A30 − 3·w10·S20 − 3·w20·S10 −   w30·S00) / w00
+    /// S21 = (A21 − 2·w10·S11 −   w20·S01 −   w01·S20 − 2·w11·S10 − w21·S00) / w00
+    /// S12 = (A12 − 2·w01·S11 −   w02·S10 −   w10·S02 − 2·w11·S01 − w12·S00) / w00
+    /// S03 = (A03 − 3·w01·S02 − 3·w02·S01 −   w03·S00) / w00
+    /// ```
+    pub fn ders3_in_span(&self, span_u: usize, span_v: usize, u: T, v: T) -> SurfaceJet3<T> {
+        if !self.spans_valid(span_u, span_v) {
+            return Self::poison_jet3();
+        }
+        let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
+        let nv = self.knots_v.control_count();
+        let du = spline::basis::ders_basis_funs(&self.knots_u, span_u, u, 3);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, span_v, v, 3);
+        // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
+        // indexed [k][l]; each lane accumulated in the double
+        // ascending pass (the second-order pass's shape, one order up).
+        let mut ax = [[T::zero(); 4]; 4];
+        let mut ay = [[T::zero(); 4]; 4];
+        let mut az = [[T::zero(); 4]; 4];
+        let mut aw = [[T::zero(); 4]; 4];
+        for (i, _) in du[0].iter().enumerate() {
+            let iu = span_u - pu + i;
+            for (j, _) in dv[0].iter().enumerate() {
+                let iv = span_v - pv + j;
+                let idx = iu * nv + iv;
+                let wf = T::from_f64(self.weights[idx]);
+                let pt = self.control[idx];
+                for k in 0..4usize {
+                    for l in 0..4usize {
+                        if k + l > 3 {
+                            continue;
+                        }
+                        let cw = (du[k][i] * dv[l][j]) * wf;
+                        ax[k][l] = ax[k][l] + cw * pt.x;
+                        ay[k][l] = ay[k][l] + cw * pt.y;
+                        az[k][l] = az[k][l] + cw * pt.z;
+                        aw[k][l] = aw[k][l] + cw;
+                    }
+                }
+            }
+        }
+        let two = T::from_f64(2.0);
+        let three = T::from_f64(3.0);
+        let w00 = aw[0][0];
+        // ---- k + l ≤ 2: verbatim `ders_in_span`, for bit-identity ----
+        let s = Point3::new(ax[0][0] / w00, ay[0][0] / w00, az[0][0] / w00);
+        let sv3 = Vec3::new(s.x, s.y, s.z);
+        let s_u = (Vec3::new(ax[1][0], ay[1][0], az[1][0]) - sv3 * aw[1][0]) / w00;
+        let s_v = (Vec3::new(ax[0][1], ay[0][1], az[0][1]) - sv3 * aw[0][1]) / w00;
+        let s_uu =
+            (Vec3::new(ax[2][0], ay[2][0], az[2][0]) - sv3 * aw[2][0] - s_u * (aw[1][0] * two))
+                / w00;
+        let s_vv =
+            (Vec3::new(ax[0][2], ay[0][2], az[0][2]) - sv3 * aw[0][2] - s_v * (aw[0][1] * two))
+                / w00;
+        let s_uv = (Vec3::new(ax[1][1], ay[1][1], az[1][1])
+            - sv3 * aw[1][1]
+            - s_u * aw[0][1]
+            - s_v * aw[1][0])
+            / w00;
+        // ---- k + l = 3 ----
+        let s_uuu = (Vec3::new(ax[3][0], ay[3][0], az[3][0])
+            - s_uu * (aw[1][0] * three)
+            - s_u * (aw[2][0] * three)
+            - sv3 * aw[3][0])
+            / w00;
+        let s_uuv = (Vec3::new(ax[2][1], ay[2][1], az[2][1])
+            - s_uv * (aw[1][0] * two)
+            - s_v * aw[2][0]
+            - s_uu * aw[0][1]
+            - s_u * (aw[1][1] * two)
+            - sv3 * aw[2][1])
+            / w00;
+        let s_uvv = (Vec3::new(ax[1][2], ay[1][2], az[1][2])
+            - s_uv * (aw[0][1] * two)
+            - s_u * aw[0][2]
+            - s_vv * aw[1][0]
+            - s_v * (aw[1][1] * two)
+            - sv3 * aw[1][2])
+            / w00;
+        let s_vvv = (Vec3::new(ax[0][3], ay[0][3], az[0][3])
+            - s_vv * (aw[0][1] * three)
+            - s_v * (aw[0][2] * three)
+            - sv3 * aw[0][3])
+            / w00;
+        SurfaceJet3 {
+            jet: SurfaceJet {
+                point: s,
+                du: s_u,
+                dv: s_v,
+                duu: s_uu,
+                duv: s_uv,
+                dvv: s_vv,
+            },
+            duuu: s_uuu,
+            duuv: s_uuv,
+            duvv: s_uvv,
+            dvvv: s_vvv,
         }
     }
 
@@ -556,6 +711,41 @@ impl<T: SpanLocate> NurbsSurface<T> {
                     duu: hull_vec(acc.duu, jet.duu),
                     duv: hull_vec(acc.duv, jet.duv),
                     dvv: hull_vec(acc.dvv, jet.dvv),
+                };
+            }
+        }
+        acc
+    }
+
+    /// The third-order jet at `(u, v)` — [`NurbsSurface::ders`]'s span
+    /// selection and channel-independent cell hulling, one order up
+    /// (M5 PR 7's ℝ⁴ trace).
+    pub fn ders3(&self, u: T, v: T) -> SurfaceJet3<T> {
+        let su = u.locate_spans(&self.knots_u);
+        let sv = v.locate_spans(&self.knots_v);
+        let mut acc = self.ders3_in_span(su.first, sv.first, u, v);
+        for cu in su.first..=su.last {
+            for cv in sv.first..=sv.last {
+                if cu == su.first && cv == sv.first {
+                    continue;
+                }
+                if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
+                    continue;
+                }
+                let j = self.ders3_in_span(cu, cv, u, v);
+                acc = SurfaceJet3 {
+                    jet: SurfaceJet {
+                        point: hull_point(acc.jet.point, j.jet.point),
+                        du: hull_vec(acc.jet.du, j.jet.du),
+                        dv: hull_vec(acc.jet.dv, j.jet.dv),
+                        duu: hull_vec(acc.jet.duu, j.jet.duu),
+                        duv: hull_vec(acc.jet.duv, j.jet.duv),
+                        dvv: hull_vec(acc.jet.dvv, j.jet.dvv),
+                    },
+                    duuu: hull_vec(acc.duuu, j.duuu),
+                    duuv: hull_vec(acc.duuv, j.duuv),
+                    duvv: hull_vec(acc.duvv, j.duvv),
+                    dvvv: hull_vec(acc.dvvv, j.dvvv),
                 };
             }
         }

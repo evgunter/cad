@@ -391,6 +391,25 @@ pub enum ValidationError {
         /// conventional.
         edge: EdgeKey,
     },
+    /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
+    /// windings — the outer loop winds **definitely negatively** (or a
+    /// cycle ring definitely positively) around the face's outward
+    /// normal; the region-bounding statement's planar half, previously
+    /// a documented deferral (M5 S1 fix pass). A role inversion is
+    /// invisible to every volume gate (they are role-invariant) but
+    /// silently corrupts tessellation/export — exactly the defect
+    /// class this check closes structurally. `Zero` and escalated
+    /// windings are exempt (the check-7 posture: an orientation probe,
+    /// not a thinness gate — degenerate pillow fixtures stay legal and
+    /// ε-tightening never flips valid → invalid; a genuinely
+    /// positive-area loop never classifies `Negative` under a
+    /// tighter ε).
+    LoopRoleInverted {
+        /// The face whose loop roles disagree with the windings.
+        face: FaceKey,
+        /// The loop whose winding disagrees with its role.
+        r#loop: LoopKey,
+    },
     /// Tier 3: the body's exact-B-rep signed volume is **definitely
     /// negative** — global orientation corruption (the +V invariant,
     /// M2 PR 7). The margin is `V / A_total` (a length: the mean
@@ -406,6 +425,16 @@ pub enum ValidationError {
     VolumeUncomputable {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
+    },
+    /// **Tier 3, check 8 (M5 PR 6).** A stored pcurve cache failed its
+    /// at-rest pass: missing on a chart that mints, failed
+    /// re-certification (the meters-through-the-map residual, the
+    /// closed-form envelope, or trim containment), or broke its
+    /// face loop's one-branch chart continuity. The typed finding is
+    /// nested whole.
+    Pcurve {
+        /// The pcurve pass's typed finding.
+        finding: crate::pcurves::PcurveMintError,
     },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
@@ -893,6 +922,12 @@ impl fmt::Display for ValidationError {
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
             ),
+            Self::LoopRoleInverted { face, r#loop } => write!(
+                f,
+                "face {face:?}: loop {loop:?}'s winding disagrees with its outer/ring role \
+                 (the outer loop must wind positively around the outward normal, rings \
+                 negatively — the planar region-bounding statement)"
+            ),
             Self::NegativeVolume => f.write_str(
                 "the body's exact-B-rep signed volume is definitely negative — global \
                  orientation corruption (+V invariant; every closed body's outward-oriented \
@@ -1110,6 +1145,7 @@ impl fmt::Display for ValidationError {
                 "face {face:?} carries a null-face record at rest (tier 2 bans \
                  unconsumed M3 surgery transients)"
             ),
+            Self::Pcurve { finding } => write!(f, "tier 3: {finding}"),
         }
     }
 }
@@ -1384,7 +1420,7 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
     }
 }
 
-/// Tier 3's local check battery (checks 1–5 + the +V invariant, check
+/// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_geometric`] and
 /// [`validate_pseudomanifold`] (M3 PR 6a: the tier-3′ validator runs
 /// the SAME local passes — extraction, not copy-paste; behavior under
@@ -1602,6 +1638,90 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
     }
 
     // ------------------------------------------------------------------
+    // Tier 3, check 6: planar loop-role winding (M5 S1 fix pass) — the
+    // region-bounding statement's PLANAR half, previously a documented
+    // deferral of this battery: on every planar face, the outer loop
+    // must wind positively around the outward normal and every cycle
+    // ring negatively (empty rings bound no area and are exempt;
+    // Zero/escalated windings are exempt — the check-7 posture). The
+    // margin is the Newell functional `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
+    // twice the loop's signed enclosed area — through the reified
+    // `bool_ring_run_winding` predicate (the same margin the boolean
+    // join's ring lane and the merge role normalization decide on).
+    // A role inversion passes every volume gate (they are
+    // role-invariant) but silently corrupts tessellation/export;
+    // this closes that class structurally. Scope: LINE-BOUNDED loops
+    // only — the vertex-chord Newell functional IS the enclosed area
+    // exactly for straight boundaries; a planar face bounded by arcs
+    // (a revolve's annular sector) has chord windings that can
+    // legitimately disagree with the region's (a 270° sector's chord
+    // quad self-crosses), so curved-bounded faces stay in the
+    // documented deferral (M5 pcurves) along with curved faces.
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
+            continue;
+        };
+        for (l, is_outer) in
+            core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
+        {
+            let Some(loop_data) = body.get_loop(l) else {
+                continue; // unreachable on tier-1 input
+            };
+            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+                continue; // empty ring: bounds no area
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue; // unreachable on tier-1 input
+            };
+            // Line-bounded only (banner): an arc's vertex chord is not
+            // the boundary, and its winding is not the region's.
+            let all_lines = cycle.iter().all(|&he| {
+                body.get_half_edge(he)
+                    .and_then(|hd| body.get_edge(hd.edge))
+                    .and_then(|e| body.get_curve_geom(e.curve))
+                    .and_then(crate::null::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+            });
+            if !all_lines {
+                continue;
+            }
+            let point_of = |he| {
+                body.get_half_edge(he)
+                    .and_then(|hd| body.get_vertex(hd.start))
+                    .and_then(|vd| body.get_point(vd.point).copied())
+            };
+            let Some(p0) = point_of(cycle[0]) else {
+                continue; // unreachable on tier-1 input
+            };
+            let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+            let mut prev = p0;
+            for &he in &cycle[1..] {
+                let Some(p) = point_of(he) else {
+                    continue;
+                };
+                newell = newell + (prev - p0).cross(p - p0);
+                prev = p;
+            }
+            // Only a DEFINITE wrong sign refuses (doc on the variant:
+            // the check-7 posture — Zero and escalated windings are
+            // exempt, so degenerate pillows stay legal and
+            // ε-tightening never flips valid → invalid).
+            let wrong = if is_outer {
+                Sign::Negative
+            } else {
+                Sign::Positive
+            };
+            if decide("bool_ring_run_winding", normal.dot(newell), band) == Ok(wrong) {
+                errors.push(ValidationError::LoopRoleInverted {
+                    face: face_key,
+                    r#loop: l,
+                });
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Tier 3, check 7: the +V global orientation invariant (M2 PR 7).
     // Exact-B-rep signed volume, classified through the dimensionally
     // honest margin V / A_total — a *length*: the mean boundary
@@ -1629,6 +1749,20 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
             }
             Err(source) => errors.push(ValidationError::VolumeUncomputable { source }),
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 8 (M5 PR 6, C4): the stored pcurve caches — the
+    // certificate must be PRESENT on every half-edge of a minting
+    // chart's face, the certification must REPLAY at rest (re-derived,
+    // never trusted), and domain validity (trim containment + the
+    // loop's one-branch continuity) must hold. Bodies carrying no
+    // stored pcurves — every all-planar body — contribute nothing.
+    // Ungated on the volume check: a pcurve defect is local evidence
+    // about a specific half-edge, not cascade noise.
+    // ------------------------------------------------------------------
+    for finding in crate::pcurves::validate_pcurves(body, band) {
+        errors.push(ValidationError::Pcurve { finding });
     }
 
     errors

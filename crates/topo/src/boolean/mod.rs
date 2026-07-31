@@ -70,6 +70,7 @@ mod ops;
 pub mod plane_eq;
 pub(crate) mod recl;
 pub(crate) mod reduce;
+mod rest;
 pub(crate) mod sectors;
 pub mod solid_contain;
 pub mod tables;
@@ -381,6 +382,11 @@ pub enum BooleanError {
         operand: Operand,
         /// The face.
         face: FaceKey,
+        /// Its surface kind — the C5 table row the refusal cites
+        /// (M5 PR 5: the boolean PIPELINE still executes only the
+        /// plane×plane arm; curved execution wires at M5 PR 9, and
+        /// the refusal retires per arm then, never wholesale).
+        kind: geom_brep::SurfaceKind,
     },
     /// An edge carrier is not a `Line` (F5).
     CurvedEdgeUnsupported {
@@ -475,6 +481,16 @@ pub enum BooleanError {
     /// The joining stage's chord machinery refused (PR 5; nested
     /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
     Join(SplitJoinError),
+    /// The declared-REST union zip (M5 S1) recognized its frontier —
+    /// a declared boundary-on-boundary REST contact — but the
+    /// configuration is a named sub-frontier the lane does not cover
+    /// (no speculative region algebra is built for it); refused
+    /// typed, never a laundered catch-all (the `SkippedMerge`
+    /// precedent).
+    RestZipUnsupported {
+        /// The precise sub-frontier.
+        what: &'static str,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -556,15 +572,23 @@ impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "boolean_reduce: invalid band: {e}"),
-            Self::CurvedBooleanUnsupported { operand, face } => write!(
+            Self::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            } => write!(
                 f,
-                "boolean_reduce: face {face:?} of operand {operand:?} is not planar — M3 \
-                 booleans are planar-only (curved intersections arrive with M5 SSI)"
+                "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
+                 boolean pipeline executes only the plane×plane arm of the C5 table \
+                 (curved execution wires at M5 PR 9; pairs involving this kind route \
+                 per geom_brep::intersect::route, rung-3 arms unimplemented until SSI)",
+                kind.name()
             ),
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line carrier \
-                 (planar-only, M5)"
+                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line \
+                 carrier — the boolean pipeline's sweep is line-exact until curved \
+                 execution wires (M5 PR 9)"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
@@ -651,6 +675,13 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::Euler(e) => write!(f, "boolean_reduce: euler operation refused: {e}"),
             Self::Join(e) => write!(f, "boolean op: joining refused: {e}"),
+            Self::RestZipUnsupported { what } => write!(
+                f,
+                "boolean op: declared-REST union zip (M5 S1): {what} — a named \
+                 sub-frontier of the boundary-on-boundary REST lane (planar declared \
+                 contacts whose seam splits cleanly are covered); \
+                 {COINCIDENCE_RECOURSE}"
+            ),
             Self::JoinDesync { what } => write!(
                 f,
                 "boolean op: A/B lockstep invariant violated: {what} (kernel bug or corrupt \
@@ -1025,5 +1056,19 @@ mod tests {
         .to_string();
         assert!(msg.contains("exactly zero"), "{msg}");
         assert!(!msg.contains("margin is invalid"), "{msg}");
+    }
+
+    /// The M5 S1 sub-frontier refusal follows the two-tolerance
+    /// message shape: it names the lane and the precise sub-frontier
+    /// and composes the shared recourse exactly once.
+    #[test]
+    fn rest_zip_unsupported_carries_the_shared_recourse_once() {
+        let msg = BooleanError::RestZipUnsupported {
+            what: "contact patch face carries rings",
+        }
+        .to_string();
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+        assert!(msg.contains("contact patch face carries rings"), "{msg}");
+        assert!(msg.contains("M5 S1"), "{msg}");
     }
 }

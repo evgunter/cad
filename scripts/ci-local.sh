@@ -28,8 +28,9 @@
 # all rows run even after a failure (ci.yml's fail-fast: false), summary
 # at the end, nonzero exit if any row failed.
 #
-# Prereqs beyond the Rust toolchain: m4 (interval row's GMP/MPFR C build),
-# admesh (watertight row; apt or built from source — 0.98.4+).
+# Prereqs beyond the Rust toolchain: admesh (watertight row; apt or built
+# from source — 0.98.4+). Nothing here needs a C toolchain: the `interval`
+# feature's backend is the in-repo, pure-Rust `interval-transcendentals`.
 #
 # Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
@@ -117,7 +118,7 @@ discipline() {
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | cut -d: -f1 | sort -u \
-    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce)\.rs$' \
+    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' || true)
   if [ -n "$bhits" ]; then
@@ -178,9 +179,10 @@ interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test $SCOPE --features interval; }
 
 # M4 PR 6 spec D6: the three persistence obligations as NAMED rows
 # (also covered by the workspace rows; named = attributable).
+# ε battery {1e-6, 1e-12} — see the run_row block below.
 persist_roundtrip() {
   local e
-  for e in 1e-6 1e-9 1e-12; do
+  for e in 1e-6 1e-12; do
     CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats --test m4_pr6_golden || return 1
   done
 }
@@ -192,7 +194,7 @@ persist_interval() { cargo test -p editor-core --features interval --test m4_pr6
 # the workspace rows; named = attributable).
 corpus_eps() {
   local e
-  for e in 1e-6 1e-9 1e-12; do
+  for e in 1e-6 1e-12; do
     CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr8_corpus -- --nocapture || return 1
   done
 }
@@ -204,11 +206,11 @@ corpus_interval() { cargo test -p editor-core --features interval --test m4_pr8_
 # Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
 rebuild_latency() { cargo test -p editor-core --test m4_pr8_latency -- --nocapture; }
 
-# M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire,
-# in its own workspace, on its DEFAULT feature set — so it pulls no gmp,
-# no C toolchain, and runs in seconds. This is the row that catches a
-# dropped outward round; the kernel's lane-agreement tests provably
-# cannot (both lanes share the round-to-nearest chain). The full
+# M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
+# its own workspace, on its DEFAULT feature set — which reaches neither
+# inari nor a C toolchain, so it runs in seconds. This is the row that
+# catches a dropped outward round; the kernel's lane-agreement tests
+# provably cannot (both lanes share the round-to-nearest chain). The full
 # differential lane (certify.rs) is behind --features oracle-inari and
 # stays a by-hand gate. Hosted mirror: ci.yml's `interval-backend` job.
 interval_backend() {
@@ -256,8 +258,13 @@ run_row "discipline (evaluation-code)" discipline
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 run_row "test"                         cargo test $SCOPE
+# ε battery {1e-6, 1e-12} (Evan's ruling, 2026-07-30). The two rows
+# straddle the compiled default three orders either side; the default
+# itself — DEFAULT_EPS = 1e-9, geom-core/src/tolerance.rs — is what the
+# unparameterized `test` row above runs, so the retired `eps = 1e-9` row
+# was a re-run of that row rather than a third band. Mirror of ci.yml's
+# `multi-eps` matrix; keep the two in sync.
 run_row "test (eps = 1e-6)"            test_eps 1e-6
-run_row "test (eps = 1e-9)"            test_eps 1e-9
 run_row "test (eps = 1e-12)"           test_eps 1e-12
 run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --features interval -- -D warnings
 run_row "test (interval)"              cargo test $SCOPE --features interval
@@ -267,12 +274,12 @@ run_row_if "$RUN_EDITOR_CORE" "persist save/load/replay (D6.1)" persist_roundtri
 run_row_if "$RUN_EDITOR_CORE" "persist eps-diff golden (D6.2)"  persist_eps_diff
 run_row_if "$RUN_EDITOR_CORE" "persist refusal (D6.3)"          persist_refusal
 run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
-run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (3 eps rows)"      corpus_eps
+run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (2 eps rows)"      corpus_eps
 run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
 run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can
 # never contain a change to it — this row belongs to tier `all` only.
-run_row_if "$RUN_INTERVAL_BACKEND" "interval backend (gmp-free)" interval_backend
+run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 # demos/tour and tools/k-lint are excluded workspaces that path-depend on
 # nine members between them, and the probe sweep records margins from every
 # kernel crate — no minimal root set, so these run whenever anything builds.

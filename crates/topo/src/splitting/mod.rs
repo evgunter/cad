@@ -11,12 +11,14 @@
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
 //!
-//! 1. **Planar gate (F5)**: every face must be a `Plane` and every edge
-//!    carrier a `Line`; anything else is the typed
-//!    [`SplitReduceError::CurvedBooleanUnsupported`] /
-//!    [`SplitReduceError::CurvedEdgeUnsupported`] refusal (curved
-//!    splitting is M5, and this module deliberately builds NO
-//!    curved-readiness abstraction).
+//! 1. **Operand gate (F5 → THE C5 table, M5 PR 5)**: every face's
+//!    `(kind × plane)` arm must be one the pipeline executes —
+//!    `Plane` (the M3 seam, bit-identical) or `Cylinder` (the rung-2
+//!    conic lane); other kinds refuse typed CITING their rung routing
+//!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
+//!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
+//!    pass; `Nurbs` refuses
+//!    ([`SplitReduceError::CurvedEdgeUnsupported`]).
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
 //!    through the Q1 trilean `split_vertex_side` — definitely-off ⇒
 //!    clean side, coincident ⇒ [`PlaneSide::On`], in-band ⇒ the typed
@@ -72,7 +74,7 @@ use slotmap::SecondaryMap;
 
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
-pub use join::SplitJoinError;
+pub use join::{ArcWindowCase, SplitJoinError};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionPolygon, plane_section};
 
@@ -173,17 +175,42 @@ pub struct SplitReduction<T: Real> {
 pub enum SplitReduceError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
-    /// A face of the operand is not a `Plane` — M3 splitting is
-    /// planar-only (F5); curved booleans/splitting are M5.
+    /// A face's `(kind × plane)` arm of THE C5 dispatch table is not
+    /// executed by the split pipeline (M5 PR 5: `Plane` and `Cylinder`
+    /// are; the refusal retires PER ARM, never wholesale — C12.1). The
+    /// Display cites the arm's rung routing from
+    /// [`geom_brep::intersect::route`].
     CurvedBooleanUnsupported {
         /// The offending face.
         face: FaceKey,
+        /// Its surface kind (the table row).
+        kind: geom_brep::SurfaceKind,
     },
-    /// An edge carrier is not a `Line` (unreachable for a legal
-    /// all-planar operand, but typed rather than assumed — F5).
+    /// An edge carrier is the `Nurbs` fallback — rung 3, unimplemented
+    /// until SSI (M5 PR 7). Line/circle/ellipse carriers all pass the
+    /// gate since M5 PR 5.
     CurvedEdgeUnsupported {
         /// The offending edge.
         edge: EdgeKey,
+    },
+    /// A conic edge's plane-crossing root landed in the ambiguity band
+    /// of the edge's far end (the crossing grazes a vertex): the
+    /// operand/plane pair is ill-conditioned at this ε (F6).
+    CrossingEscalated {
+        /// The crossing edge.
+        edge: EdgeKey,
+        /// The escalation diagnostics.
+        diag: Indeterminate,
+    },
+    /// The split plane is tangent to a curved face at an ON vertex
+    /// (the local normal is plane-parallel): the pair's transversality
+    /// margin dies along the contact — `TangentIntersection` (C7)
+    /// territory, constructed at M5 PR 9, never marched into here.
+    TangencyUnsupported {
+        /// The tangent face.
+        face: FaceKey,
+        /// The ON vertex where the contact was classified.
+        vertex: VertexKey,
     },
     /// The operand already contains null-edge scaffolding — it is a
     /// mid-surgery body, not a splittable operand.
@@ -211,9 +238,14 @@ pub enum SplitReduceError {
         diag: Indeterminate,
     },
     /// Two cyclically-consecutive entries remained ON after rule (a) —
-    /// the "no consecutive ONs" invariant failed, which for a planar
-    /// operand means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed).
+    /// the "no consecutive ONs" invariant failed. For a planar operand
+    /// this means a coplanar sector escaped the gate (documented
+    /// invariant, checked loudly rather than assumed); for a conic
+    /// boundary (M5 PR 5) it marks an in-plane ON-edge chain — e.g. a
+    /// cut through both seam rulings, where arcs leave ON endpoints
+    /// toward ON endpoints — a configuration the first-order sector
+    /// machinery cannot classify (PR 9's second-order lane); refused
+    /// typed, never guessed.
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,
@@ -259,14 +291,29 @@ impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "split_reduce: invalid band: {e}"),
-            Self::CurvedBooleanUnsupported { face } => write!(
+            Self::CurvedBooleanUnsupported { face, kind } => write!(
                 f,
-                "split_reduce: face {face:?} is not planar — M3 splitting/booleans are \
-                 planar-only (curved intersections arrive with M5 SSI)"
+                "split_reduce: face {face:?}: {}",
+                geom_brep::intersect::route(*kind, geom_brep::SurfaceKind::Plane)
+                    .refusal(*kind, geom_brep::SurfaceKind::Plane)
             ),
             Self::CurvedEdgeUnsupported { edge } => write!(
                 f,
-                "split_reduce: edge {edge:?} has a non-line carrier — planar-only (M5)"
+                "split_reduce: edge {edge:?} has a NURBS carrier — this routes to the \
+                 general rung, unimplemented until SSI (M5 PR 7)"
+            ),
+            Self::CrossingEscalated { edge, diag } => write!(
+                f,
+                "split_reduce: the plane-crossing root on conic edge {edge:?} grazes the \
+                 edge end — an ill-conditioned operand/plane pair at this tolerance \
+                 (F6): {diag}"
+            ),
+            Self::TangencyUnsupported { face, vertex } => write!(
+                f,
+                "split_reduce: the split plane is tangent to curved face {face:?} at \
+                 vertex {vertex:?} — the transversality margin dies along the contact; \
+                 tangent loci are TangentIntersection (C7) territory, constructed at \
+                 M5 PR 9, never marched into"
             ),
             Self::ScaffoldingOperand { edge } => write!(
                 f,
@@ -325,7 +372,7 @@ pub fn vertex_sides<T: geom_core::Decide>(
     plane: &SplitPlane<T>,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let band = geom_core::Band::linear()?;
-    classify::gate_planar(body)?;
+    classify::gate_operand(body)?;
     classify::classify_vertices(body, plane, band)
 }
 
@@ -349,7 +396,7 @@ pub fn split_reduce<T: geom_core::Decide>(
     let band = geom_core::Band::linear()?;
     let mut body = operand.clone();
 
-    classify::gate_planar(&body)?;
+    classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
     classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices)?;
 
@@ -381,6 +428,12 @@ pub enum SplitError {
     Join(SplitJoinError),
     /// The finish stage refused (incl. the degenerate-component net).
     Finish(SplitFinishError),
+    /// The pcurve minting pass refused (M5 PR 6): a curved face's
+    /// per-half-edge chart-image cache failed certification, or a
+    /// loop's one-branch chart walk was discontinuous. The split
+    /// itself succeeded topologically; the refusal is loud rather
+    /// than shipping a body whose caches are uncertified (D4 ¶2).
+    Pcurves(crate::pcurves::PcurveMintError),
 }
 
 impl From<SplitReduceError> for SplitError {
@@ -401,12 +454,19 @@ impl From<SplitFinishError> for SplitError {
     }
 }
 
+impl From<crate::pcurves::PcurveMintError> for SplitError {
+    fn from(e: crate::pcurves::PcurveMintError) -> Self {
+        Self::Pcurves(e)
+    }
+}
+
 impl core::fmt::Display for SplitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Reduce(e) => write!(f, "split: {e}"),
             Self::Join(e) => write!(f, "split: {e}"),
             Self::Finish(e) => write!(f, "split: {e}"),
+            Self::Pcurves(e) => write!(f, "split: {e}"),
         }
     }
 }
@@ -542,10 +602,23 @@ pub fn split<T: geom_core::Decide>(
 }
 
 /// One direct (non-mirrored) run of the split pipeline.
+///
+/// The pcurve minting pass (M5 PR 6, C4) runs last, on each side that
+/// carries material: this lane is where curved faces are minted, so it
+/// is where their per-half-edge chart-image caches are minted and
+/// certified (spec §1). Planar sides pick up nothing — planar faces
+/// keep M2's derive-on-demand status — so an all-planar split is
+/// bit-identical to before this pass existed.
 fn split_direct<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane)?;
-    Ok(finish::split_finish(red, &completed, fragments)?)
+    let mut result = finish::split_finish(red, &completed, fragments)?;
+    for part in [&mut result.above, &mut result.below] {
+        if let finish::SplitPart::Body(body) = part {
+            crate::pcurves::mint_pcurves(body)?;
+        }
+    }
+    Ok(result)
 }

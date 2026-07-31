@@ -56,12 +56,17 @@ use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
-/// `face(loop(mate(he)))`) together with its outward plane normal.
+/// `face(loop(mate(he)))`) together with its outward normal **at the
+/// base vertex** and whether the surface is a plane. For a `Plane` the
+/// normal is the stored one (the M3 path, bit-identical); for a
+/// `Cylinder` (M5 PR 5) it is the chart-outward radial at the vertex
+/// point — the local normal every sector predicate meters through.
+/// Kinds the gate refuses are typed here too (unreachable post-gate).
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(FaceKey, Vec3<T>), SplitReduceError> {
+) -> Result<(FaceKey, Vec3<T>, bool), SplitReduceError> {
     let corrupt = SplitReduceError::CorruptOperand { vertex };
     let mate = body
         .mate(he)
@@ -75,20 +80,48 @@ pub(super) fn sector_face<T: Decide>(
         .get_face(face_key)
         .ok_or(SplitReduceError::CorruptOperand { vertex })?;
     match body.get_surface(face.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok((face_key, *normal)),
-        // Unreachable after the F5 gate; kept typed.
-        _ => Err(SplitReduceError::CurvedBooleanUnsupported { face: face_key }),
+        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok((face_key, *normal, true)),
+        Some(geom_surfaces::Surface::Cylinder { origin, axis, .. }) => {
+            let p = *body
+                .get_point(
+                    body.get_vertex(vertex)
+                        .ok_or(SplitReduceError::CorruptOperand { vertex })?
+                        .point,
+                )
+                .ok_or(SplitReduceError::CorruptOperand { vertex })?;
+            let w = p - *origin;
+            let radial = w - *axis * w.dot(*axis);
+            Ok((face_key, radial.normalize(), false))
+        }
+        Some(s) => Err(SplitReduceError::CurvedBooleanUnsupported {
+            face: face_key,
+            kind: geom_brep::SurfaceKind::of(s),
+        }),
+        None => Err(SplitReduceError::CurvedBooleanUnsupported {
+            face: face_key,
+            kind: geom_brep::SurfaceKind::Nurbs,
+        }),
     }
 }
 
-/// The chord direction of orbit half-edge `he` out of the base vertex:
-/// `p(final vertex) − p(base)` (all carriers are lines after the F5
-/// gate, so the chord IS the edge direction at the vertex).
+/// The outgoing direction of orbit half-edge `he` out of the base
+/// vertex, scaled to the edge's honest extent (its `.norm()` is the
+/// sector predicates' lever arm, its `.normalize()` the direction):
+///
+/// - **Line** carriers: the chord `p(final) − p(base)` — the M3 path,
+///   bit-identical (the chord IS the direction, and its length the
+///   extent).
+/// - **Circle/Ellipse** carriers (M5 PR 5): the carrier's outgoing
+///   unit tangent at the base vertex (`+deriv(t₀)` when `he` is the
+///   plus half, `−deriv(t₁)` when the minus half — the `he_plus`
+///   forward contract), scaled by [`geom_brep::edge_extent`] (the
+///   certified point-set-diameter lower bound; the chord collapses on
+///   near-closed arcs).
 fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>), SplitReduceError> {
+) -> Result<(VertexKey, Vec3<T>, bool), SplitReduceError> {
     let corrupt = || SplitReduceError::CorruptOperand { vertex };
     let final_vertex = body.half_edge_end(he).ok_or_else(corrupt)?;
     let p_base = *body
@@ -97,7 +130,28 @@ fn chord<T: Decide>(
     let p_final = *body
         .get_point(body.get_vertex(final_vertex).ok_or_else(corrupt)?.point)
         .ok_or_else(corrupt)?;
-    Ok((final_vertex, p_final - p_base))
+    let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
+    let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+    let curve = body
+        .get_curve_geom(edge.curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or_else(corrupt)?;
+    match curve.carrier() {
+        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
+            Ok((final_vertex, p_final - p_base, false))
+        }
+        geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+            let (t0, t1) = curve.params();
+            let tangent = if he == edge.he_plus {
+                curve.carrier().deriv(t0)
+            } else {
+                -curve.carrier().deriv(t1)
+            };
+            let chord_len = p_final.distance(p_base);
+            let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
+            Ok((final_vertex, tangent.normalize() * extent, true))
+        }
+    }
 }
 
 /// Builds and fully classifies the typed sector array of ON vertex
@@ -127,8 +181,35 @@ pub fn classify_neighborhood<T: Decide>(
 
     let mut entries = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
-        let (final_vertex, dir_a) = chord(body, vertex, he)?;
-        let class = *sides.get(final_vertex).ok_or_else(corrupt)?;
+        let (final_vertex, dir_a, conic) = chord(body, vertex, he)?;
+        // Entry class — "which side does this edge lead to":
+        // - LINE edges: the far vertex's cached verdict, bit-identical
+        //   to M3 (a straight edge's interior is the chord).
+        // - CONIC edges (M1 fix, M5 PR 5 review): the OUTGOING TANGENT
+        //   side through the named trilean `split_conic_departure`
+        //   (margin `t̂·n̂` metered at the edge's honest extent — dir_a
+        //   is exactly t̂·extent). The far vertex misleads on conics:
+        //   a belly arc between ON vertices departs into its own side
+        //   while both endpoints read On. Post-root-insertion the
+        //   interior is sign-constant (every interior crossing was
+        //   split out), so the departure IS the interior side; a Zero
+        //   margin (in-plane departure — an in-plane arc or a graze
+        //   contact) classifies On for rule (b)'s adjudication;
+        //   in-band escalates typed.
+        let class = if conic {
+            let margin = dir_a.dot(plane.normal);
+            match decide("split_conic_departure", margin, band) {
+                Ok(Sign::Negative) => PlaneSide::Below,
+                Ok(Sign::Positive) => PlaneSide::Above,
+                Ok(Sign::Zero) => PlaneSide::On,
+                Err(diag) => {
+                    let (face, _, _) = sector_face(body, vertex, he)?;
+                    return Err(SplitReduceError::SliverSector { vertex, face, diag });
+                }
+            }
+        } else {
+            *sides.get(final_vertex).ok_or_else(corrupt)?
+        };
         entries.push(SectorEntry {
             he,
             kind: SectorEntryKind::Edge,
@@ -139,8 +220,8 @@ pub fn classify_neighborhood<T: Decide>(
         // next orbit edge): margin (b̂ × â)·n · arm = sin(interior
         // angle) metered at the shorter bounding chord.
         let next_he = orbit[(i + 1) % orbit.len()];
-        let (_, dir_b) = chord(body, vertex, next_he)?;
-        let (face, n_face) = sector_face(body, vertex, he)?;
+        let (_, dir_b, _) = chord(body, vertex, next_he)?;
+        let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let arm = dir_a.norm().min(dir_b.norm());
         match decide("split_sector_arm", arm, band) {

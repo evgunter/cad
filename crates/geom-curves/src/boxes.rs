@@ -270,6 +270,98 @@ fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, l
     }
 }
 
+/// The certified-conservative box of an **ellipse arc** (M5 PR 5): the
+/// carrier's `Ellipse` frame over the certified span
+/// `[theta0, theta1]`, seeded with the arc's certified endpoints —
+/// [`circle_arc_aabb`]'s corner-evaluated extremal-interval shape,
+/// generalized.
+///
+/// Per world axis the coordinate is
+/// `cᵢ + major·uᵢ·cos θ + minor·vᵢ·sin θ = cᵢ + Aᵢ·cos(θ − φᵢ)` with
+/// amplitude `Aᵢ = √((major·uᵢ)² + (minor·vᵢ)²)` and extremal angle
+/// `φᵢ = atan2(minor·vᵢ, major·uᵢ)` — exactly the circle formula with
+/// the frame components pre-scaled by the semi-axes. The same
+/// wide-bracket rules apply verbatim: the extremal angle is evaluated
+/// as an INTERVAL over the scaled-bracket corners, branch-cut wedges
+/// (and possibly-origin rectangles) include BOTH extrema, span
+/// membership is `ANGLE_SLOP`-widened and conservative-inclusive, and
+/// poison never prunes.
+///
+/// `None` when `carrier` is not an `Ellipse` (wrong lane — refuse
+/// loudly rather than guess). Residual padding stays the caller's
+/// `Aabb::padded` obligation, as for every certified box.
+pub fn ellipse_arc_aabb<T: Bounds>(
+    carrier: &Curve3<T>,
+    theta0: T,
+    theta1: T,
+    end0: Point3<T>,
+    end1: Point3<T>,
+) -> Option<Aabb> {
+    let Curve3::Ellipse {
+        center,
+        axis,
+        major,
+        minor,
+        u_ref,
+    } = carrier
+    else {
+        return None;
+    };
+    // Endpoint hull: always inside the box (2 points — never empty).
+    let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
+
+    let a = Brk::of(*major);
+    let bm = Brk::of(*minor);
+    let (ax, ay, az) = (Brk::of(axis.x), Brk::of(axis.y), Brk::of(axis.z));
+    let (ux, uy, uz) = (Brk::of(u_ref.x), Brk::of(u_ref.y), Brk::of(u_ref.z));
+    // v = axis × u_ref, bracket-wise (the same fixed component order as
+    // `Vec3::cross`).
+    let vx = ay.mul(uz).sub(az.mul(uy));
+    let vy = az.mul(ux).sub(ax.mul(uz));
+    let vz = ax.mul(uy).sub(ay.mul(ux));
+
+    // The slop-widened span (orientation-normalized outward).
+    let (s0, s1) = (theta0.lo(), theta1.hi());
+    let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
+    let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
+
+    // Pre-scale the frame brackets by the semi-axes; the unit `r`
+    // bracket keeps `axis_extremum`'s amplitude arithmetic outward
+    // (an extra [1, 1] multiply only ever widens).
+    let unit = Brk { lo: 1.0, hi: 1.0 };
+    axis_extremum(
+        &mut b.min_x,
+        &mut b.max_x,
+        Brk::of(center.x),
+        a.mul(ux),
+        bm.mul(vx),
+        unit,
+        lo,
+        hi,
+    );
+    axis_extremum(
+        &mut b.min_y,
+        &mut b.max_y,
+        Brk::of(center.y),
+        a.mul(uy),
+        bm.mul(vy),
+        unit,
+        lo,
+        hi,
+    );
+    axis_extremum(
+        &mut b.min_z,
+        &mut b.max_z,
+        Brk::of(center.z),
+        a.mul(uz),
+        bm.mul(vz),
+        unit,
+        lo,
+        hi,
+    );
+    Some(b)
+}
+
 /// The certified-conservative box of a NURBS curve: the AABB of its
 /// control-point brackets. Sound by the convex-hull property — every
 /// curve point is a convex combination of control points because the

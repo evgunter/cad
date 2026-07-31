@@ -302,7 +302,7 @@ pub(crate) fn traversals(
         if !forward {
             ids.reverse();
         }
-        let kind = classify(chart, curve)?;
+        let kind = classify(chart, curve, ek)?;
         out.push(Trav { ids, kind });
     }
     Ok(out)
@@ -319,7 +319,11 @@ pub(crate) fn traversals(
 /// ordinary kinds but π on a cone's mirror nappe (the kernel defines
 /// the seam spatially via `u_ref`; `u_of` carries the nappe
 /// correction).
-fn classify(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Result<TravKind, TessellateError> {
+fn classify(
+    chart: &Chart,
+    curve: &geom_brep::EdgeCurve<f64>,
+    ek: EdgeKey,
+) -> Result<TravKind, TessellateError> {
     if matches!(curve.description(), EdgeGeometry::Seam { .. }) {
         return Ok(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
@@ -345,6 +349,14 @@ fn classify(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Result<TravKind
                 })
             }
         }
+        // A conic cut boundary (M5 PR 5) is neither a rim nor a
+        // meridian of the chart: the iso-rectangle UV walk cannot
+        // traverse it — typed refusal until PR 11's trimmed-face lane.
+        Curve3::Ellipse { .. } => Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "conic cut boundary on a curved chart — the trimmed-face lane \
+                   lands at M5 PR 11",
+        }),
         Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
             what: "nurbs carrier past the chord pass",
         }),
