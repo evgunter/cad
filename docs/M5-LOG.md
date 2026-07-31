@@ -1436,3 +1436,60 @@ Remaining to exit: PR 7b (tensor compose, exit-gating), PR 9
 PR 13 (STEP), PR 14 (exit sweep + #89 K-snapshot), S4
 (non-gating). Next orchestrator drafting: PR 9 spec + PR 7b
 spec; board currently idle.
+
+## HANDOFF SEAM (2026-07-31): successor orchestrator briefing
+
+Predecessor (cad-implement-m5 session) hands off at the
+spine-through-PR-7 seam by Evan's suggestion. State: 17 PRs
+merged, board idle, no lanes in flight, all clones deletable
+(verify unpushed-commit-free first per standing rule).
+
+**Immediate work order for the successor:**
+1. Draft docs/M5-PR9-SPEC.md (curved booleans end-to-end + the
+   C7 tangency regime — TangentIntersection, second-order sector
+   classification, the K-funnel predicate family; consumes
+   PR 5/6/7 + the S1 zip precedent; PR 9 also triggers the
+   pcurve storage variant deferred at PR 7 deviation 3 and the
+   end-to-end Nurbs split row at m5_pr7_split_meter).
+2. Draft docs/M5-PR7B-SPEC.md (tensor-product Bernstein
+   composition in geom-core; limb-2 tight bound; plane×NURBS arm
+   retirement; the shape (iii) substrate row — EXIT-GATING).
+3. Dispatch both to fresh A/B draws (block 12; log difficulty
+   FIRST; blocked pairs; MODEL-AB-LOG rows 21-25 need their
+   table entries — draws recorded in log entries above).
+4. Then per plan: PR 10 (sweeps/lofts + the R3 migrate-vs-break
+   consultation with Evan), PR 11 (tessellation/props — the
+   DEMO moment, Evan's ruling above), PR 12 (die pips), PR 13
+   (STEP), PR 14 (exit + #89), S4 in any lull.
+
+**Standing process (all verbatim-binding, sources in memories/
+and this log):** one implementer + one blinded adversarial
+reviewer + one fix pass per unit; binding orchestrator specs
+BEFORE dispatch; OUTPUT DISCIPLINE headers; the foreground
+clause verbatim + "THAT NOTIFICATION WILL NEVER ARRIVE" + the
+pgrep -x (never self-matching -f) poll pattern; cwd-reset guard
+in every prompt AND every resume; narrowed local battery
+(touched crates, default ε + interval; CI is the gate —
+memories/local-battery-scope.md); resume-vs-fresh rule
+(memories/resume-vs-fresh-subagent.md); push-per-unit; clones
+under ~/.local/share/cad-work/; two cargo lanes max; tier-aware
+merge watchers (no-fail + no-pending via gh pr checks loops);
+monitors re-armed at session start (scripts/monitors/); A/B
+blocked pairs with blinded reviewers (fix pass inherits arm;
+design/specs/reviews stay Fable); state-sync PRs at seams;
+disk watch (~30G per active lane); new error arms follow the
+two-tolerance shape INCLUDING definite arms (S9 lesson);
+equivariance principle (memories/equivariance-principle.md).
+
+**Open with Evan:** Q9 (name), #131 (cusps), PQ4, #89 display
+half, the PATHS cusp-variant split (divergence 3, unruled), the
+PR 10 schema consultation (commitment: consult BEFORE executing
+either migrate or break).
+
+**Watch out for:** spend/usage limits (8 outages this session;
+the recovery ladder is in this log; Evan re-logs-in), waiter
+parking (the verbatim clause prevents it), sed on MODEL-AB-LOG
+(use Edit — two ordering slips this session), away-channel
+echoes of your own comments (not Evan), the demo ruling (M5
+showcase rides PR 11; an S2 arc-fillet demo stop is ripe
+anytime).
