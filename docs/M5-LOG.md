@@ -1307,3 +1307,16 @@ error sites need the two-tolerance shape called out in specs;
 S9's spec said so for escalation but not the definite arms).
 **Fix pass DISPATCHED; S9 merges with PRIORITY on its report**
 (main is wrong until then). PR 7 implementing in parallel.
+
+**S9 fix pass COMPLETE (bbb19f4), PR OPENED as #145 with MERGE
+PRIORITY (2026-07-31)** — the writeup leads with the fact that
+main ships a silent wrong body until this lands. All fix items
+shipped: SectionArcWindow definite arms carry the two-tolerance
+shape (width-τ-exact vs τ−5e-9 message pair pinned);
+centre-reduction comment states the true (τ−width)/2 bound;
+interval belly row completed (span sums + bit-replay at
+Interval); short-circuit metering + uncertified-input rustdoc;
+reviewer's disagreement probe committed verbatim; the
+merge-base silent-acceptance measurement recorded as the history
+note explaining WHY loop-closure isn't a wrong-arc detector.
+Watcher armed. PR 7 implementing in the other lane.
