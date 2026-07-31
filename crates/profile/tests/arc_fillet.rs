@@ -399,12 +399,34 @@ fn an_arc_arc_corner_can_have_no_corner_side_candidate() {
     );
 }
 
+/// The picked fillet circle of a 3-vertex vesica chain (start, T1, T2),
+/// recovered through validation's segment classification: the one
+/// radius-`r` arc. Returns (center, radius) and asserts both declared
+/// joints verified on the way.
+fn picked_fillet_circle(lp: ProfileLoop<f64>, r: f64) -> (Point2<f64>, f64) {
+    let p = validates_with_declared_joints(lp, &[1, 2]);
+    let vp = p.validate(tol()).expect("validates");
+    vp.loops()[0]
+        .segments()
+        .iter()
+        .find_map(|s| match s.kind {
+            profile::SegmentKind::Arc { center, radius, .. } if (radius - r).abs() < 1e-12 => {
+                Some((center, radius))
+            }
+            _ => None,
+        })
+        .expect("the fillet arc classifies at its authored radius")
+}
+
+/// The S8 ruling flips the M5 S2 refusal: the vesica of the two
+/// crossing circles has TWO corners, and with both legs long enough to
+/// contain both tangent circles the corner at (0, √3) now PICKS the
+/// candidate nearest it — the top pocket — instead of refusing
+/// `AmbiguousFilletBranch` (retired). Exact tangency asserted; both
+/// junctions declared and verified.
 #[test]
-fn two_corner_side_candidates_refuse_rather_than_guess() {
-    // The vesica of the two crossing circles has TWO corners; with both
-    // legs long enough to contain both tangent circles, "the corner at
-    // (0, √3)" no longer picks one out. The constructor will not guess.
-    match ProfileLoop::builder(p2(0.0, -s3()))
+fn two_corner_side_candidates_pick_the_near_one() {
+    let lp = ProfileLoop::builder(p2(0.0, -s3()))
         .fillet_corner(
             arc(-1.0, 0.0, ArcSweep::Ccw),
             p2(0.0, s3()),
@@ -413,16 +435,89 @@ fn two_corner_side_candidates_refuse_rather_than_guess() {
             0.5,
             tol(),
         )
-        .expect_err("two surviving candidates must refuse")
-    {
-        ProfileError::AmbiguousFilletBranch { radius, centers } => {
-            assert_eq!(radius, 0.5);
-            // Mirror-image centers on the circles' radical line x = 0.
-            assert!(centers[0].0.abs() < 1e-15 && centers[1].0.abs() < 1e-15);
-            assert!((centers[0].1 + centers[1].1).abs() < 1e-15);
-            assert!(centers[0].1 > 0.0 && centers[1].1 < 0.0);
-        }
-        other => panic!("expected AmbiguousFilletBranch, got {other:?}"),
+        .expect("the near candidate resolves the two-survivor corner")
+        .close_arc_center(p2(1.0, 0.0), ArcSweep::Ccw);
+    // start, T1, T2: trimmed incoming leg, fillet arc, closing leg.
+    assert_eq!(lp.vertices.len(), 3);
+    let t1 = lp.vertices[1].pos;
+    let t2 = lp.vertices[2].pos;
+    // Tangent points exactly on their leg carriers (tangency by
+    // construction), and in the TOP pocket — the near candidate's.
+    assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
+    assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
+    assert!(t1.y > 0.0 && t2.y > 0.0, "far pocket picked: {lp:?}");
+    // The picked center is the near root of the offset circles (radius
+    // 2 − r about (±1, 0)): (0, +√(1.5² − 1)) — its mirror below the
+    // waist was the old refusal's other center.
+    let (center, _) = picked_fillet_circle(lp, 0.5);
+    assert!(center.x.abs() < 1e-14, "center {center:?}");
+    assert!(
+        (center.y - 1.25f64.sqrt()).abs() < 1e-14,
+        "center {center:?}"
+    );
+}
+
+/// The ruling's premise, pinned (S8 §2): the far tangent circle is
+/// always deliberately authorable as the NEAR fillet of the OTHER
+/// corner. Authoring the vesica corner at the second carrier
+/// intersection (0, −√3), legs swept from there, yields exactly the
+/// circle that was the far candidate of the original corner — center
+/// (0, −√(1.5² − 1)) — with clean tangency.
+#[test]
+fn the_far_pocket_is_authored_as_the_other_corners_near_fillet() {
+    let lp = ProfileLoop::builder(p2(0.0, s3()))
+        .fillet_corner(
+            arc(-1.0, 0.0, ArcSweep::Cw),
+            p2(0.0, -s3()),
+            arc(1.0, 0.0, ArcSweep::Cw),
+            p2(0.0, s3()),
+            0.5,
+            tol(),
+        )
+        .expect("the second intersection's near fillet constructs")
+        .close_arc_center(p2(1.0, 0.0), ArcSweep::Cw);
+    assert_eq!(lp.vertices.len(), 3);
+    let t1 = lp.vertices[1].pos;
+    let t2 = lp.vertices[2].pos;
+    assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
+    assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
+    assert!(t1.y < 0.0 && t2.y < 0.0, "wrong pocket: {lp:?}");
+    let (center, _) = picked_fillet_circle(lp, 0.5);
+    assert!(center.x.abs() < 1e-14, "center {center:?}");
+    assert!(
+        (center.y + 1.25f64.sqrt()).abs() < 1e-14,
+        "expected the original corner's far candidate, got {center:?}"
+    );
+}
+
+/// S8 rung-3 pin at the constructor door: the symmetric lens is the
+/// configuration whose candidate-swapping symmetry class motivates the
+/// documented enumeration-order residual, and the whole selection must
+/// be bit-deterministic run to run (the interval-lane twin asserts the
+/// same pick from the other lane).
+#[test]
+fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
+    let build = || {
+        ProfileLoop::builder(p2(0.0, -s3()))
+            .fillet_corner(
+                arc(-1.0, 0.0, ArcSweep::Ccw),
+                p2(0.0, s3()),
+                arc(1.0, 0.0, ArcSweep::Ccw),
+                p2(0.0, -s3()),
+                0.5,
+                tol(),
+            )
+            .expect("constructs")
+            .close_arc_center(p2(1.0, 0.0), ArcSweep::Ccw)
+    };
+    let a = build();
+    let b = build();
+    assert_eq!(a.tangent_joints, b.tangent_joints);
+    assert_eq!(a.vertices.len(), b.vertices.len());
+    for (va, vb) in a.vertices.iter().zip(&b.vertices) {
+        assert_eq!(va.pos.x.to_bits(), vb.pos.x.to_bits());
+        assert_eq!(va.pos.y.to_bits(), vb.pos.y.to_bits());
+        assert_eq!(va.bulge.to_bits(), vb.bulge.to_bits());
     }
 }
 

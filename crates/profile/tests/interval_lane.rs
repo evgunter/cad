@@ -251,3 +251,33 @@ fn zero_radius_arc_fillet_escalates_at_interval() {
         "reach must not render the fit recourse: {text}"
     );
 }
+
+/// The S8 two-survivor vesica corner at the interval scalar: the
+/// nearest-corner selection is a diagnostic-channel choice (enclosure
+/// lower bounds), so this lane picks the SAME near candidate as the
+/// f64 lane — `symmetric_lens_pick_is_bit_deterministic_across_runs`'s
+/// cross-lane half.
+#[test]
+fn vesica_near_pick_agrees_at_interval() {
+    let s3 = 3.0f64.sqrt();
+    let lp = profile::ProfileLoop::builder(ip2(0.0, -s3))
+        .fillet_corner(
+            iarc(-1.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, s3),
+            iarc(1.0, 0.0, profile::ArcSweep::Ccw),
+            ip2(0.0, -s3),
+            Interval::from_f64(0.5),
+            tol(),
+        )
+        .expect("the two-survivor vesica corner resolves at Interval")
+        .close_arc_center(ip2(1.0, 0.0), profile::ArcSweep::Ccw);
+    assert_eq!(lp.tangent_joints, vec![1, 2]);
+    use geom_core::Bounds;
+    // The near (top-pocket) candidate: both tangent points above the
+    // lens' waist, exactly as the f64 row asserts.
+    assert!(lp.vertices[1].pos.y.lo() > 0.0);
+    assert!(lp.vertices[2].pos.y.lo() > 0.0);
+    profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .expect("the near-pick vesica validates at Interval");
+}
