@@ -1584,3 +1584,32 @@ sentence (single-cell walls today) in retirement records; F5 bank
 both NOTEs as dated observations, no core churn in a fix pass.
 Reviewer probes (10 rows, 2 files) adopted verbatim.** PR opens
 at fix-pass completion. Evan status posted to #148 on request.
+
+**PR 9 implementation COMPLETE (2026-07-31, 4000ca0, pushed).**
+Shape (ii) GREEN end-to-end (3-arc boss ∪ plate, exact volume
+16+π·0.25·0.6, tier-3 valid incl. pcurves, 1e-6/1e-9/1e-12); the
+full C7 regime landed (TangentIntersection + jet schedule with
+second-order-margin-first; SectionTangency door FLIPS to
+construction; second-order sector lane; ContactMark + jet-
+determinate TangentNotIntrinsic, G2 exempt by zero-side
+predicate); cosurface merge (sub-period through-cut re-merge,
+volume bit-untouched); census/3′ text; EdgeCurve::certify Nurbs
+flip + split_at knot insertion + end-to-end split rows (m8
+DONE); 16 new K predicate names, verdict-log pinned. Bonus find:
+du_of_rims first-arc rule silently undercounted multi-arc rims —
+fixed; merge-base reachability = REVIEW CHARTER ITEM (S9
+precedent if reachable). ELEVEN numbered deviations, the big
+three: (2)+(3) cylinder×sphere boolean arm + Pcurve::Fitted
+variant deferred (blockers: fitted-chord join lane, sphere
+doors); (4) the spec's "one-7b-flag-flip" claim ruled
+unsatisfiable at the boolean layer by the implementer (the
+edge×NURBS-face sweep layer is not behind 7b's flag — if
+confirmed, the SPEC erred); (8) 2-arc semicircle seam pairs
+refuse (germ facing is chord-perpendicular) — possible common-
+authoring hole. **Review DISPATCHED** (charter: independent
+boss∪plate consumer + the unauthored Interval bit-replay row;
+jet-certificate re-derivation incl. drift-0 symbolic check +
+tube-threading attack; merge-base props answer PROMINENT;
+per-deviation verdicts all 11 with dispositions; maximal-faces
+curved exemption gate-weakening probe; two-tolerance audit;
+K inventory diff). Lanes: PR 7b fix pass + PR 9 review.
