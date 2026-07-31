@@ -117,6 +117,7 @@ pub(super) fn sector_face<T: Decide>(
 ///   forward contract), scaled by [`geom_brep::edge_extent`] (the
 ///   certified point-set-diameter lower bound; the chord collapses on
 ///   near-closed arcs).
+#[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic jet) — one internal tuple
 fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,

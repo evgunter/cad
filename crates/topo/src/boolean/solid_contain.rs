@@ -262,6 +262,7 @@ fn face_geo<T: Decide>(
 /// `Some(true/false)` definite, `None` a boundary graze. Margins are
 /// metres (azimuth × radius; height directly), the S9 centred
 /// periodic reduction keeps the azimuth branch away from the seam.
+#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
     origin: Point3<T>,
@@ -415,10 +416,10 @@ fn cast_ray<T: Decide>(
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
     // A candidate crossing (advance, outward sign), or a graze.
-    let mut fold = |best: &mut Option<(T, Sign)>,
-                    face: FaceKey,
-                    t: T,
-                    outward: Sign|
+    let fold = |best: &mut Option<(T, Sign)>,
+                face: FaceKey,
+                t: T,
+                outward: Sign|
      -> Result<Option<()>, PointInSolidError> {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
         match decide("bool_point_in_solid_advance", t, band).map_err(escalate)? {
