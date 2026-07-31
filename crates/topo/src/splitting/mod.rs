@@ -203,9 +203,14 @@ pub enum SplitReduceError {
         diag: Indeterminate,
     },
     /// The split plane is tangent to a curved face at an ON vertex
-    /// (the local normal is plane-parallel): the pair's transversality
-    /// margin dies along the contact — `TangentIntersection` (C7)
-    /// territory, constructed at M5 PR 9, never marched into here.
+    /// (the local normal is plane-parallel) AND the second-order
+    /// descent ties: the surface osculates the plane (its largest
+    /// tangent-plane normal curvature is exactly zero at the site —
+    /// `tangent_sector_osculation`), so even the C12.2 lane cannot
+    /// classify the contact — the surfaces under-determine it. Since
+    /// M5 PR 9 a DEFINITELY-bending tangent contact classifies one
+    /// order down instead of refusing here; in-band bending escalates
+    /// (F6).
     TangencyUnsupported {
         /// The tangent face.
         face: FaceKey,
@@ -240,12 +245,14 @@ pub enum SplitReduceError {
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed); for a conic
-    /// boundary (M5 PR 5) it marks an in-plane ON-edge chain — e.g. a
-    /// cut through both seam rulings, where arcs leave ON endpoints
-    /// toward ON endpoints — a configuration the first-order sector
-    /// machinery cannot classify (PR 9's second-order lane); refused
-    /// typed, never guessed.
+    /// invariant, checked loudly rather than assumed). Since M5 PR 9
+    /// the conic in-plane-departure chain resolves ONE ORDER DOWN
+    /// first (the C12.2 second-order trilean,
+    /// `tangent_sector_order2`: an arc grazing the plane classifies
+    /// by which side it CURVES to), so reaching this refusal on a
+    /// conic boundary means the chain tied at second order too — a
+    /// genuinely osculating configuration this machinery will not
+    /// guess at (in-band second order escalates F6 upstream instead).
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,

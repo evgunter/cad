@@ -207,14 +207,6 @@ pub enum SplitJoinError {
         /// The table's refusal.
         source: geom_brep::SectionError,
     },
-    /// The split plane meets a curved face tangentially along the
-    /// section (a `TangentLine` classification): tangent loci are
-    /// `TangentIntersection` (C7) territory — constructed at M5 PR 9,
-    /// refused typed here, never marched into.
-    SectionTangency {
-        /// The tangent face.
-        face: FaceKey,
-    },
     /// The arc-side containment rule did not name exactly one arc
     /// (M5 S9): the sub-case says which way it failed.
     ///
@@ -298,12 +290,6 @@ impl core::fmt::Display for SplitJoinError {
             Self::Section { face, source } => {
                 write!(f, "split join: section chord in face {face:?}: {source}")
             }
-            Self::SectionTangency { face } => write!(
-                f,
-                "split join: the split plane is tangent to curved face {face:?} along \
-                 the section — TangentIntersection (C7) territory, constructed at M5 \
-                 PR 9; refused typed, never marched into"
-            ),
             Self::SectionArcWindow { face, case, band } => {
                 write!(
                     f,
@@ -701,8 +687,70 @@ fn chord_spec<T: Decide>(
         }
         // Ruling sections: the straight chord is the honest carrier.
         geom_brep::PlaneCylinderSection::ParallelLines { .. } => return Ok(None),
-        geom_brep::PlaneCylinderSection::TangentLine(_) => {
-            return Err(SplitJoinError::SectionTangency { face });
+        // C7 (M5 PR 9): the tangent locus is CONSTRUCTED by
+        // classification, never marched — the table's exact ruling
+        // line, described `TangentIntersection { wall, aux plane }`
+        // and pushed through the ordinary certification gate (the jet
+        // schedule) by the mef/mekr caller. No arc-side rule applies:
+        // a line has no complementary candidate.
+        geom_brep::PlaneCylinderSection::TangentLine(line) => {
+            let geom_curves::Curve3::Line { origin, dir } = line else {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "tangent classification carried a non-line",
+                });
+            };
+            let p1 = vertex_point(body, u1)?;
+            let p2 = vertex_point(body, u2)?;
+            let len = dir.norm();
+            let t1 = (p1 - origin).dot(dir) / (len * len);
+            let t2 = (p2 - origin).dot(dir) / (len * len);
+            // The spec must run u1 → u2 (the mef `he_plus` direction):
+            // whether that is the classified direction or its reverse
+            // is a named trilean (metered in metres), never a raw
+            // comparison; a zero span is a degenerate chord site.
+            let (carrier, s1, s2) =
+                match decide("split_tangent_chord_forward", (t2 - t1) * len, band)
+                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                {
+                    Sign::Positive => (geom_curves::Curve3::Line { origin, dir }, t1, t2),
+                    Sign::Negative => (
+                        geom_curves::Curve3::Line { origin, dir: -dir },
+                        T::zero() - t1,
+                        T::zero() - t2,
+                    ),
+                    Sign::Zero => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face,
+                            what: "tangent section chord endpoints coincide along the ruling",
+                        });
+                    }
+                };
+            let plane_key = match ctx.plane_key {
+                Some(k) => k,
+                None => {
+                    let k = body.add_surface(geom_surfaces::Surface::Plane {
+                        origin: ctx.plane.origin,
+                        normal: ctx.plane.normal,
+                        // Honest u_ref: the ruling direction lies in
+                        // the plane by the tangency classification.
+                        u_ref: dir / len,
+                    });
+                    ctx.plane_key = Some(k);
+                    k
+                }
+            };
+            let witness = carrier.eval(s1 + (s2 - s1) * T::from_f64(0.5));
+            return Ok(Some(EdgeCurveSpec {
+                description: geom_brep::EdgeGeometry::TangentIntersection {
+                    s1: wall_key,
+                    s2: plane_key,
+                    witness,
+                },
+                carrier,
+                param_start: s1,
+                param_end: s2,
+            }));
         }
         geom_brep::PlaneCylinderSection::Empty => {
             return Err(SplitJoinError::SectionInvariant {

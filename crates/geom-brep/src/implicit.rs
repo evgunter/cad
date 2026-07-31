@@ -276,6 +276,57 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
     }
 }
 
+/// The **largest normal-curvature magnitude** of `s` at `p` over its
+/// tangent plane (1/meters) — the direction-free second-order datum
+/// the C12.2 tangent-contact descent classifies against (M5 PR 9):
+/// zero iff the surface osculates its tangent plane (locally
+/// plane-like — the under-determined case), definitely positive iff
+/// it bends off it in SOME direction.
+///
+/// Branch-free (no basis choice — D9/equivariance): the Hessian is
+/// assembled from six [`implicit_hessian_form`] evaluations by
+/// polarization; the tangent-plane restriction's eigen extremum comes
+/// from the two invariants `tr_r = tr H − n̂ᵀHn̂` and
+/// `det_r = n̂ᵀ adj(H) n̂` (the adjugate identity), giving
+/// `|λ|max = |tr_r/2| + √((tr_r/2)² − det_r)`, divided by `|∇F|`.
+/// Poison in, poison out (singular points, `Nurbs`).
+pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
+    let g = implicit_gradient(s, p);
+    let n_hat = g / g.norm();
+    let ex = Vec3::new(T::one(), T::zero(), T::zero());
+    let ey = Vec3::new(T::zero(), T::one(), T::zero());
+    let ez = Vec3::new(T::zero(), T::zero(), T::one());
+    let hxx = implicit_hessian_form(s, p, ex);
+    let hyy = implicit_hessian_form(s, p, ey);
+    let hzz = implicit_hessian_form(s, p, ez);
+    let two = T::from_f64(2.0);
+    let hxy = (implicit_hessian_form(s, p, ex + ey) - hxx - hyy) / two;
+    let hyz = (implicit_hessian_form(s, p, ey + ez) - hyy - hzz) / two;
+    let hxz = (implicit_hessian_form(s, p, ex + ez) - hxx - hzz) / two;
+    // Restricted trace: tr H − n̂ᵀHn̂.
+    let n_form = implicit_hessian_form(s, p, n_hat);
+    let tr_r = hxx + hyy + hzz - n_form;
+    // Restricted determinant: n̂ᵀ adj(H) n̂ (cofactors, fixed order).
+    let adj_xx = hyy * hzz - hyz * hyz;
+    let adj_yy = hxx * hzz - hxz * hxz;
+    let adj_zz = hxx * hyy - hxy * hxy;
+    let adj_xy = hxz * hyz - hxy * hzz;
+    let adj_yz = hxy * hxz - hyz * hxx;
+    let adj_xz = hxy * hyz - hyy * hxz;
+    let det_r = adj_xx * n_hat.x.powi(2)
+        + adj_yy * n_hat.y.powi(2)
+        + adj_zz * n_hat.z.powi(2)
+        + two
+            * (adj_xy * n_hat.x * n_hat.y
+                + adj_yz * n_hat.y * n_hat.z
+                + adj_xz * n_hat.x * n_hat.z);
+    let half_tr = tr_r / two;
+    // (tr/2)² − det ≥ 0 in ℝ (a real symmetric restriction); the
+    // clamp guards rounding, powi keeps the interval square tight.
+    let disc = (half_tr.powi(2) - det_r).max(T::zero());
+    (half_tr.abs() + disc.sqrt()) / g.norm()
+}
+
 /// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
 /// `w` the radial component of `p` relative to the surface's own
 /// anchor/axis and `v_ref = axis × u_ref` — the pieces the
