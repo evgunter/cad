@@ -61,21 +61,24 @@ clause. Binding; deviations numbered and reported.
 
 ## 4. Schema v2 (R3 — minted HERE)
 
-- **The call: MIGRATE, identity-shaped** (recorded per the rider;
-  consultation posted 2026-07-31, #148 comment 5147668504).
-  Grounds: v1 = `ProfileDoc` snapshot + `DocEdit<ProfileDesc>`
-  log; the v2 delta is purely additive (new Node variants + slot
-  ids); every v1 file parses under v2 types. `migrate(1→2)` =
-  parse v1 body with v2 types + bump header, through the existing
-  chain (persist/mod.rs:191). Write one v1 GOLDEN file into the
-  test tree and pin: loads under v2, replays identically, re-saves
-  as v2. **Flip condition**: if drafting-to-code finds the loft
-  input model forces a ProfileDoc/DescToken restructure, STOP and
-  report — the call flips to clean-break only via the orchestrator
-  and Evan (#148 thread), never silently.
-- `SCHEMA_VERSION = 2`; UnknownSchema stays the too-new refusal;
-  round-trip + replay rows at the post-S7 battery convention
-  (default + 1e-6 + 1e-12 + Interval).
+- **The call: CLEAN BREAK, zero live compat code** (Evan, #148
+  comment 5148423716, 2026-07-31, superseding the same-day migrate
+  recommendation of comment 5147668504; this is the rider's break
+  option, chosen because the kernel is unreleased and the only v1
+  files in existence are the repo's own goldens/corpus — recipes
+  that replay from source). Mechanics: `SCHEMA_VERSION = 2`; NO
+  `migrate` step is written; a v1 file refuses TYPED (the
+  too-old-schema arm of the existing version door — message names
+  the version found, the supported version, and the regenerate
+  recourse); every in-tree v1 golden/corpus file is REGENERATED
+  as v2 in this PR (one-shot, committed; nothing converts at
+  runtime). The empty migration-chain mechanism (persist/
+  mod.rs:191) stays as machinery — it costs nothing and D6.3's
+  forward-only rule is unchanged — but carries no steps.
+- Round-trip + replay rows at the post-S7 battery convention
+  (default + 1e-6 + 1e-12 + Interval); one checked-in v1 file
+  pins the typed too-old refusal (message asserted exactly once,
+  two-tolerance shape N/A — version comparison is exact integer).
 
 ## 5. Acceptance
 
@@ -91,7 +94,8 @@ clause. Binding; deviations numbered and reported.
   hand the green row to the PR that closes it. Never a silent
   skip.
 - Sweep acceptance: a path-swept profile body, same rows.
-- v1 golden migration row (§4). Demos: loft + sweep demo stops
+- v1 typed-refusal row + regenerated-corpus row (§4). Demos:
+  loft + sweep demo stops
   authored (render rides tessellation's current planar-cap
   ability; full curved-wall render lands with PR 11 — say so in
   the demo text).

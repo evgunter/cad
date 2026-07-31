@@ -1636,3 +1636,22 @@ curved-surface demo (render activates at PR 11) — dispatches to
 the first freed lane; takes the owed OPUS remainder (block 12)
 as the next unit; PR 9 reviewer additionally probing
 TangentIntersection-at-rest save/load (R3 wire question).
+
+**R3 RULING FLIPPED by Evan (#148, 2026-07-31): CLEAN BREAK,
+zero live compat code** — "avoid any backwards compatibility
+stuff while the kernel is as yet unreleased." The rider's break
+option: SCHEMA_VERSION=2, NO migrate step, v1 refuses typed with
+the regenerate recourse, in-tree v1 goldens/corpus regenerated
+once in the PR (recipes replay). Spec §4/§5 updated; my migrate
+recommendation superseded (I optimized "cheap", Evan's variable
+was "any compat surface at all" — his framing right).
+Consultation CLOSED (comment 5148434798).
+
+**Usage-limit outage #9 (~22:5xZ 2026-07-31, reset 4:30pm PT):
+both lanes killed mid-work.** PR 7b fix pass died AFTER "Both
+green. Full battery" — work complete-looking but UNCOMMITTED in
+clone m5-pr7b (center-shift in tensor.rs + adopted probes + 5
+modified files; survives on disk). PR 9 reviewer died
+mid-tube-derivation, clone clean, transcript carries state. Both
+RESUMED via SendMessage post-reset (the M1 transient-kill rung:
+transcript + clone survive; cwd guards re-stated).
