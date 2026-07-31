@@ -564,6 +564,34 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 /// was shipping a wrong body silently, with nothing in the kernel able
 /// to see it. The window rule selects 0.387386 rad here, on the wall;
 /// the extent assertions below are what makes that visible.
+///
+/// ---- The merge-base measurement, as a history note (probe F2) ----
+///
+/// It cannot be asserted at HEAD — the wrong bodies are unreachable —
+/// so the probe is recorded rather than committed as a row. It was run
+/// twice on unmodified merge-base checkouts (implementation and
+/// adversarial review, independently) with agreeing numbers. To re-run
+/// it: check out the PR 6 merge base, drop a test into
+/// `crates/sweep/tests/` that builds this exact body and plane, splits,
+/// and for each side prints every certified `Curve3::Ellipse` edge's
+/// `params()` span, the min/max `z` of `carrier().eval` over a dense
+/// sweep of that interval, `topo::pcurves::validate_pcurves(part,
+/// Band::linear())`, and `topo::mint_pcurves(&mut part.clone())`.
+/// It reports, per side:
+///
+///   * two section-arc edges, each span 5.8957988 rad
+///     (= τ − 0.387386, bitwise the complement of the arc pinned
+///     below);
+///   * those carriers sweeping z ∈ [−1.860, 3.360] on a wall of
+///     height 1 — off the wall by nearly two heights at each end;
+///   * `validate_pcurves` returning **zero** findings and the fresh
+///     re-mint returning `Ok` — the PR 6 machinery that caught the
+///     tilted belly cut does not catch this one.
+///
+/// That last line is the point of keeping the note: the pcurve
+/// loop-closure limb is not a general detector of wrong-arc selection,
+/// it happened to fire on one member of the class. Containment at
+/// selection time is what actually covers it.
 #[test]
 fn on_endpoint_belly_cut_splits() {
     let body = cylinder_body();
@@ -665,13 +693,12 @@ fn even_crossing_belly_cut_at_interval() {
         origin: Point3::new(iv(0.03), iv(0.11), iv(0.47)),
         normal: Vec3::new(iv(nv.x), iv(nv.y), iv(nv.z)),
     };
-    let result = split(&body, &plane).unwrap();
-    let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
-        panic!("both sides carry material at Interval");
-    };
-    for part in [above, below] {
-        assert_eq!(validate_closed(part), Ok(()));
-        let mut arcs = 0;
+    // The same §2 assertions the f64 belly row carries, at Interval:
+    // wall containment, the spans summing per part, and bit-identical
+    // replay.
+    let section_rows = |part: &Body<Interval>| -> (Vec<String>, Interval) {
+        let mut rows = Vec::new();
+        let mut sum = iv(0.0);
         for (_, edge) in part.edges() {
             let Some(c) = part.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
                 continue;
@@ -679,11 +706,10 @@ fn even_crossing_belly_cut_at_interval() {
             if !matches!(c.carrier(), Curve3::Ellipse { .. }) {
                 continue;
             }
-            arcs += 1;
+            let (t0, t1) = c.params();
             // Every section arc's carrier stays on the finite wall over
             // its stored interval — the enclosure form of the
             // domain-validity statement the defect violated.
-            let (t0, t1) = c.params();
             for i in 0..=16u32 {
                 let t = t0 + (t1 - t0) * iv(f64::from(i) / 16.0);
                 let z = c.carrier().eval(t).z;
@@ -694,9 +720,45 @@ fn even_crossing_belly_cut_at_interval() {
                     z.hi()
                 );
             }
+            sum = sum + (t1 - t0);
+            rows.push(format!("{:?} {:?}", c.carrier(), c.params()));
         }
-        assert!(arcs > 0, "the belly section carries ellipse arcs");
-    }
+        rows.sort();
+        (rows, sum)
+    };
+    let run = || {
+        let result = split(&body, &plane).unwrap();
+        let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
+            panic!("both sides carry material at Interval");
+        };
+        assert_eq!(validate_closed(&above), Ok(()));
+        assert_eq!(validate_closed(&below), Ok(()));
+        (section_rows(&above), section_rows(&below))
+    };
+    let ((above_rows, above_sum), (below_rows, below_sum)) = run();
+    assert!(!above_rows.is_empty(), "the belly section carries arcs");
+    assert!(!below_rows.is_empty(), "the belly section carries arcs");
+    // One section, so the two sides' arcs sum to the same total sweep —
+    // enclosures that overlap, the interval form of "spans summing per
+    // part" (and both well under a full period: the belly cut's section
+    // is cut short by the caps).
+    assert!(
+        above_sum.lo() <= below_sum.hi() && below_sum.lo() <= above_sum.hi(),
+        "per-part span sums must agree: [{}, {}] vs [{}, {}]",
+        above_sum.lo(),
+        above_sum.hi(),
+        below_sum.lo(),
+        below_sum.hi()
+    );
+    assert!(
+        above_sum.hi() < core::f64::consts::TAU,
+        "a belly section sweeps less than a full period, got {}",
+        above_sum.hi()
+    );
+    // Determinism (D9) at Interval: identical histories, identical bits.
+    let ((above2, _), (below2, _)) = run();
+    assert_eq!(above_rows, above2);
+    assert_eq!(below_rows, below2);
 }
 
 // ---------------------------------------------------------------------

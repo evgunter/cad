@@ -97,6 +97,21 @@ pub enum ArcWindowCase {
     BothContained,
 }
 
+impl ArcWindowCase {
+    /// Is this a **containment verdict** — a definite classification of
+    /// `split_arc_window` against the run's band, and so one half of the
+    /// two-tolerance pair whose other half is
+    /// [`SplitJoinError::Escalated`] on the very same margin (S6, D4 ¶1
+    /// addendum)? [`Self::NoChartedRun`] is not: nothing was classified
+    /// there, so the shared recourse would be a false lead.
+    fn is_containment_verdict(self) -> bool {
+        match self {
+            Self::NeitherContained | Self::BothContained => true,
+            Self::NoChartedRun => false,
+        }
+    }
+}
+
 impl core::fmt::Display for ArcWindowCase {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -202,11 +217,23 @@ pub enum SplitJoinError {
     },
     /// The arc-side containment rule did not name exactly one arc
     /// (M5 S9): the sub-case says which way it failed.
+    ///
+    /// The two containment sub-cases are the **definite** half of a
+    /// two-tolerance pair (D4 ¶1 addendum, the S6 sweep): the very same
+    /// `split_arc_window` margin one band-width away escalates as
+    /// [`Self::Escalated`] instead, and a user cannot tell the two
+    /// situations apart from the geometry. So both halves name the
+    /// predicate, both quote the band that decided, and both end on the
+    /// one shared recourse carrier — composed exactly once.
     SectionArcWindow {
         /// The face being divided.
         face: FaceKey,
         /// Which containment verdict refused.
         case: ArcWindowCase,
+        /// The band the containment margins were classified against —
+        /// the two tolerances, so the definite verdict and its in-band
+        /// neighbour read as one situation.
+        band: Band,
     },
     /// A curved-section invariant failed (an empty classification under
     /// a minted chord, a run edge with no closed-form chart image, or a
@@ -277,10 +304,25 @@ impl core::fmt::Display for SplitJoinError {
                  the section — TangentIntersection (C7) territory, constructed at M5 \
                  PR 9; refused typed, never marched into"
             ),
-            Self::SectionArcWindow { face, case } => write!(
-                f,
-                "split join: section chord in face {face:?}: arc-side selection refused — {case}"
-            ),
+            Self::SectionArcWindow { face, case, band } => {
+                write!(
+                    f,
+                    "split join: section chord in face {face:?}: arc-side selection \
+                     refused — {case}"
+                )?;
+                if case.is_containment_verdict() {
+                    write!(
+                        f,
+                        "; predicate 'split_arc_window' classified definite against the band \
+                         (zero = {:e}, escalate = {:e}) — the same margin inside that band \
+                         escalates instead, and it is the same ill-conditioning either way; {}",
+                        band.zero(),
+                        band.escalate(),
+                        geom_core::COINCIDENCE_RECOURSE
+                    )?;
+                }
+                Ok(())
+            }
             Self::SectionInvariant { face, what } => {
                 write!(
                     f,
@@ -691,6 +733,7 @@ fn chord_spec<T: Decide>(
         return Err(SplitJoinError::SectionArcWindow {
             face,
             case: ArcWindowCase::NoChartedRun,
+            band,
         });
     };
     let width = w_max - w_min;
@@ -724,6 +767,7 @@ fn chord_spec<T: Decide>(
         return Err(SplitJoinError::SectionArcWindow {
             face,
             case: ArcWindowCase::BothContained,
+            band,
         });
     }
     // The chord's start, window-relative: the unique branch of its
@@ -733,7 +777,17 @@ fn chord_spec<T: Decide>(
     // run's own ends), and a periodic reduction taken there straddles a
     // period boundary, which at interval type widens to a full period
     // by containment honesty and would escalate every curved cut.
-    // Centred, the reduction stays half a window away from the boundary.
+    //
+    // Centred, the reduction's argument lies in
+    // [τ/2 − width/2, τ/2 + width/2] for a start inside the window, so
+    // its distance to the nearest period boundary is **(τ − width)/2** —
+    // half the window's COMPLEMENT, not half the window. That distance
+    // is positive only because the `width ≥ τ` arm above already
+    // returned, and it is that arm's own band that makes it more than
+    // infinitesimally positive: a window a hair under a full period
+    // escalates there rather than reaching a knife-edge reduction here.
+    // On the shipped belly/tilted cuts the complement is most of a
+    // period, which is why the margin is comfortable in practice.
     let half_w = width * T::from_f64(0.5);
     let half_tau = tau * T::from_f64(0.5);
     let x1 = (a1 - (w_min + half_w) + half_tau).reduce_periodic(tau) - half_tau + half_w;
@@ -746,6 +800,16 @@ fn chord_spec<T: Decide>(
     // lying in the window is a consequence of the run's own geometry,
     // not an assumption: a run that does not actually end where this
     // chord starts fails the x₁ rows and lands in `NeitherContained`.
+    //
+    // `&&` short-circuits, and the semantics of that are stated rather
+    // than left to be discovered: an in-band boundary escalates on the
+    // rows that are EVALUATED; a row skipped because an earlier
+    // containment on the same candidate was definitely FALSE never gets
+    // metered. That is deterministic (the order is fixed, D9) and
+    // refusal-safe (the candidate is already excluded, so a skipped row
+    // could only have excluded it again or escalated — never admitted
+    // it), and it keeps a definite non-containment from being masked by
+    // an unrelated ill-conditioned boundary on the same candidate.
     let up_in = contains(x1)? && contains(width - x1 - g)?;
     let dn_in = contains(width - x1)? && contains(x1 + g - tau)?;
     // Which candidate is the conic parameter's CCW arc: θ runs ccw
@@ -779,6 +843,7 @@ fn chord_spec<T: Decide>(
             return Err(SplitJoinError::SectionArcWindow {
                 face,
                 case: ArcWindowCase::NeitherContained,
+                band,
             });
         }
         // Unreachable in exact arithmetic once the window is under a
@@ -789,6 +854,7 @@ fn chord_spec<T: Decide>(
             return Err(SplitJoinError::SectionArcWindow {
                 face,
                 case: ArcWindowCase::BothContained,
+                band,
             });
         }
     };
@@ -958,6 +1024,18 @@ fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> (T, T) {
 /// branch-continuously along the run — PR 6's per-face window
 /// derivation ([`crate::pcurves`]), transplanted to selection time.
 /// `None` when the run carries no charted edge.
+///
+/// **The chart images here are consumed UNCERTIFIED.** This is a
+/// selection-time read of [`geom_brep::chart_pcurve`]'s closed form, not
+/// a minted cache: no residual, envelope, winding or trim check runs on
+/// it. That is deliberate and bounded — the run's edges are already
+/// certified against their own surfaces, so a chart image that does not
+/// represent one is corrupt-input territory, and the *chord this rule
+/// selects* is certified by the ordinary `mef` gate and then re-derived
+/// and certified again by PR 6's mint pass at the end of the split. A
+/// wrong window can therefore only make this rule REFUSE (or, in the
+/// unreachable corrupt case, mint an arc the downstream certification
+/// rejects) — never quietly widen what ships.
 ///
 /// The branch of each run edge is pinned exactly as the PR 6 loop walk
 /// pins it: the whole number of periods that lands this edge's entry
@@ -1764,6 +1842,83 @@ mod tests {
         assert!(
             matches!(err, SplitJoinError::SectionInvariant { .. }),
             "{err:?}"
+        );
+    }
+
+    /// The S9 adversarial review's disagreement probe, **adopted as a
+    /// committed row**: the one direction in which the old sample rule
+    /// and the new window rule disagree outside the belly class, and the
+    /// proof that the disagreement is refusal-vs-guess.
+    ///
+    /// The run is chained arcs whose FIRST edge's midpoint azimuth
+    /// (0.25) lies inside the chord's interval [0, π/2] — so the OLD
+    /// rule's premise holds and it would have selected ccw — while the
+    /// run's hull [0.1, 5.0] contains NEITHER candidate (the chord's
+    /// start, azimuth 0, sits outside the window: this run does not
+    /// actually end where the chord starts). The window rule refuses
+    /// `NeitherContained` rather than selecting anything. Every
+    /// constructible disagreement has this shape: the sample rule
+    /// answers from one point and the window rule declines from the
+    /// face, so a disagreement costs a refusal, never wrong geometry.
+    #[test]
+    fn s9_review_probe_old_premise_holds_new_refuses() {
+        let err = spec_with(&[(0.1, 0.4), (0.4, 5.0)]).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                SplitJoinError::SectionArcWindow {
+                    case: ArcWindowCase::NeitherContained,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+
+    /// The two-tolerance pair of the containment rule (S6, D4 ¶1
+    /// addendum): a window of exactly one period is a DEFINITE
+    /// `BothContained` refusal, and the same window 5e-9 rad narrower
+    /// is the in-band `Escalated` — one user situation, so both
+    /// messages name `split_arc_window`, quote the same two tolerances,
+    /// and carry the shared recourse carrier exactly once.
+    #[test]
+    fn arc_window_two_tolerance_pair_shares_the_carrier() {
+        let pi = core::f64::consts::PI;
+        // width = τ exactly (to rounding): definite.
+        let definite = spec_with(&[(-1.5 * pi, -pi), (-pi, pi / 2.0)]).unwrap_err();
+        assert!(
+            matches!(
+                definite,
+                SplitJoinError::SectionArcWindow {
+                    case: ArcWindowCase::BothContained,
+                    ..
+                }
+            ),
+            "{definite:?}"
+        );
+        // width = τ − 5e-9: inside the band.
+        let escalated = spec_with(&[(-1.5 * pi, -pi), (-pi, pi / 2.0 - 5e-9)]).unwrap_err();
+        let SplitJoinError::Escalated { diag, .. } = &escalated else {
+            panic!("expected the in-band neighbour, got {escalated:?}");
+        };
+        assert_eq!(diag.predicate, Some("split_arc_window"));
+
+        for msg in [definite.to_string(), escalated.to_string()] {
+            assert_eq!(
+                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+                1,
+                "{msg}"
+            );
+            assert!(msg.contains("split_arc_window"), "{msg}");
+            assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
+        }
+        // The sub-case that classified nothing must NOT carry the
+        // recourse — there is no ill-conditioned margin behind it.
+        let no_run = spec_with(&[]).unwrap_err().to_string();
+        assert_eq!(
+            no_run.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            0,
+            "{no_run}"
         );
     }
 
