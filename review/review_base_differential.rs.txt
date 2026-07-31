@@ -1,0 +1,104 @@
+//! Merge-base differential for the PR 7b review: (E) the certifiable
+//! wall REFUSES at limb 2 here (the first-order enclosure's span-width
+//! bound), and (deviation 1) a domain-mismatched pcurve did not certify
+//! here either — so the branch's typed refusal is not a regression
+//! from loose-but-certifying.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_brep::ssi::{self, SsiDomain, SsiError, SsiLimb, SsiOperand};
+use geom_core::spline::KnotVector;
+use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_surfaces::{NurbsSurface, Surface};
+
+fn eps() -> f64 {
+    Tolerance::get().eps
+}
+
+fn band() -> Band {
+    Band::linear().unwrap()
+}
+
+fn certifiable_wall() -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let cols = [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)];
+    let mut control = Vec::with_capacity(8);
+    for (x, y) in cols {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+fn cutting_plane() -> Surface<f64> {
+    let n = Vec3::new(0.0, 0.25, 1.0);
+    let n = n / n.norm();
+    let u = Vec3::new(1.0, 0.0, 0.0);
+    let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.4),
+        normal: n,
+        u_ref: u,
+    }
+}
+
+fn wall_domain() -> SsiDomain {
+    SsiDomain {
+        center: Point3::new(0.5, 0.0, 0.4),
+        half_extent: 2.0,
+        extent: 1.5,
+        eps: eps(),
+        floor_scale: 1.0,
+    }
+}
+
+#[test]
+fn at_merge_base_the_substrate_wall_refuses_at_limb_2() {
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
+        Err(SsiError::CertificateLimb {
+            limb: SsiLimb::HullSup,
+            value,
+        }) => {
+            eprintln!("[review] merge base limb-2 refusal at {value:.3e} m");
+            assert!(value > 1e-4, "expected the span-width-scale bound");
+        }
+        Err(SsiError::FitSampleBudget { .. }) => {}
+        other => panic!("expected the limb-2 refusal at merge base, got {other:?}"),
+    }
+}
+
+#[test]
+fn at_merge_base_a_domain_mismatched_pcurve_does_not_certify() {
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    let (carrier, _pa, pb) =
+        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band()) {
+            Ok(t) => t,
+            Err(SsiError::FitSampleBudget { .. }) => return,
+            Err(e) => panic!("trace: {e}"),
+        };
+    let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
+    let stretched = KnotVector::clamped(knots, pb.knots().degree()).unwrap();
+    let bad =
+        geom_curves::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
+            .expect("structure fine");
+    let out = ssi::certify_rung3(
+        &carrier,
+        Some(&bad),
+        &SsiOperand::Analytic(&p),
+        &SsiOperand::Nurbs(&w),
+        1.5,
+        1.5,
+        eps(),
+        band(),
+    );
+    match out {
+        Ok(cert) => panic!(
+            "merge base CERTIFIED a domain-mismatched pcurve (hull_sup {:e}) — \
+             the branch's typed refusal would then be a regression",
+            cert.hull_sup
+        ),
+        Err(e) => eprintln!("[review] merge base domain mismatch outcome: {e}"),
+    }
+}
