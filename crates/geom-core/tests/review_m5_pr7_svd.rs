@@ -5,7 +5,16 @@
 //! against independent closed-form eigenvalues of A·Aᵀ, on random
 //! matrices including near-rank-deficient ones.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    // Adopted verbatim from the reviewer's probe: the indexing and
+    // cast shapes are theirs, and rewriting them would weaken the
+    // "independent second implementation" the row exists to be.
+    clippy::needless_range_loop,
+    clippy::unnecessary_cast
+)]
 
 use geom_core::linalg::svd::{Svd2x3, Svd3x4};
 

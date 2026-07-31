@@ -10,7 +10,17 @@
 //! enclosure always CONTAINS the pointwise linearized residual — the
 //! soundness fact "excluded cell has no locus" reduces to.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    // Adopted verbatim from the reviewer's probe: the indexing and
+    // cast shapes are theirs, and rewriting them would weaken the
+    // "independent second implementation" the row exists to be.
+    clippy::needless_range_loop,
+    clippy::unnecessary_cast,
+    clippy::unreachable
+)]
 
 use geom_brep::implicit_residual;
 use geom_core::{Point3, RingInterval, Vec3};

@@ -686,3 +686,160 @@ fn the_accounting_receipt_is_bounded_and_reported() {
         "the accounting should terminate at the tube's scale, not at ε: {e:?}"
     );
 }
+
+// ---------------------------------------------------------------------
+// Per-predicate trios, the closure-tangent arm, and the K-funnel
+// ---------------------------------------------------------------------
+
+/// The three verdicts of one named predicate at a chosen margin — the
+/// `intersect_table` trio convention, applied to the SSI funnel.
+fn trio(name: &'static str) -> (geom_core::Sign, geom_core::Sign, bool) {
+    let b = band();
+    let definite = geom_core::k_stats::decide(name, 1.0e-3, b).expect("definitely positive");
+    let degenerate = geom_core::k_stats::decide(name, 0.0, b).expect("exactly zero");
+    // Between `zero` and `escalate`: the F6 band.
+    let escalated = geom_core::k_stats::decide(name, 5.0e-9, b).is_err();
+    (definite, degenerate, escalated)
+}
+
+#[test]
+fn ssi_transversality_trio() {
+    // Positive ⇒ march; Zero ⇒ the sliver band, refused toward C7
+    // (`TransversalityBand`); in-band ⇒ F6 escalation. A definite
+    // NEGATIVE is unreachable — the margin is `sin θ · arm`, a
+    // magnitude — and the marcher folds it into the same refusal as
+    // Zero rather than leaving an unhandled arm.
+    let (d, z, e) = trio("ssi_transversality");
+    assert_eq!(d, geom_core::Sign::Positive);
+    assert_eq!(z, geom_core::Sign::Zero);
+    assert!(e, "the F6 band must escalate");
+}
+
+#[test]
+fn ssi_closure_return_trio() {
+    // Margin is `h − ‖x − x₀‖`: Positive ⇒ the next step would step
+    // over the seed (returned); Negative ⇒ still away; Zero ⇒ in-band,
+    // and the marcher treats it as a return (the conservative reading —
+    // closing a loop that then has to certify is safer than marching
+    // past a seed forever).
+    let (d, z, e) = trio("ssi_closure_return");
+    assert_eq!(d, geom_core::Sign::Positive);
+    assert_eq!(z, geom_core::Sign::Zero);
+    assert!(e);
+    let neg = geom_core::k_stats::decide("ssi_closure_return", -1.0e-3, band()).unwrap();
+    assert_eq!(neg, geom_core::Sign::Negative, "still away from the seed");
+}
+
+#[test]
+fn ssi_tube_transversality_trio() {
+    // Positive ⇒ the chain proves one arc; Zero ⇒ the enclosure
+    // straddles, which is a genuine sliver (`TubeStraddles`, F6), not a
+    // resolution to refine away; in-band ⇒ escalation.
+    let (d, z, e) = trio("ssi_tube_transversality");
+    assert_eq!(d, geom_core::Sign::Positive);
+    assert_eq!(z, geom_core::Sign::Zero);
+    assert!(e);
+}
+
+#[test]
+fn the_closure_tangent_arm_that_refuses_a_cusp_or_crossing() {
+    // `ssi_closure_tangent`'s margin is `cos φ · arc`, and its
+    // Zero/Negative arm is the one no end-to-end fixture reaches: from
+    // the kinds this PR retires (cylinder × sphere) every closed
+    // component is a smooth loop, so the trace always returns running
+    // the way it left. The arm is exercised at the predicate, and the
+    // refusal it produces is pinned by its payload and message — which
+    // is what a consumer actually sees.
+    let b = band();
+    let closed = geom_core::k_stats::decide("ssi_closure_tangent", 0.5, b).unwrap();
+    assert_eq!(closed, geom_core::Sign::Positive, "a genuine closure");
+    let perpendicular = geom_core::k_stats::decide("ssi_closure_tangent", 0.0, b).unwrap();
+    assert_eq!(perpendicular, geom_core::Sign::Zero, "a crossing");
+    let reversed = geom_core::k_stats::decide("ssi_closure_tangent", -0.5, b).unwrap();
+    assert_eq!(reversed, geom_core::Sign::Negative, "a cusp / retrace");
+    // Both non-Positive arms produce this refusal, and it says so.
+    let err = SsiError::SelfCrossingLocus {
+        cos_phi: -0.87,
+        arc_length: 0.42,
+    };
+    let msg = format!("{err}");
+    assert!(msg.contains("wrong way"), "{msg}");
+    assert!(msg.contains("cusps or crosses itself"), "{msg}");
+}
+
+#[test]
+fn the_ssi_predicates_reach_the_k_funnel() {
+    // Telemetry from birth (T5): every SSI decision goes through the
+    // one funnel, so the verdict log — which records at f64, unlike the
+    // `Probe` margin sink — sees them by name. This is the row that
+    // would catch a raw comparison sneaking into the marcher.
+    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    let (s, c) = (sphere(), threaded_cylinder());
+    let mut d = SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.996),
+        half_extent: 0.2,
+        extent: 0.4,
+        eps: eps(),
+        floor_scale: 1.0,
+    };
+    d.floor_scale = 1.0;
+    start_verdict_log();
+    let _ = ssi::cylinder_sphere_ssi(&c, &s, d, band());
+    let v = take_verdict_log();
+    for name in [
+        "ssi_cs_tangency",
+        "ssi_transversality",
+        "ssi_step_progress",
+        "ssi_on_locus",
+        "ssi_hull_sup",
+        "ssi_tube_transversality",
+    ] {
+        assert!(
+            v.iter().any(|x| x.predicate == name),
+            "{name} never reached the funnel (recorded: {:?})",
+            v.iter()
+                .map(|x| x.predicate)
+                .collect::<std::collections::BTreeSet<_>>()
+        );
+    }
+}
+
+#[test]
+fn a_seed_refining_onto_a_found_branch_does_not_mint_a_duplicate() {
+    // The dedup guards the LANDING point, not the seed location. This
+    // row builds the case that distinguishes them: a point well outside
+    // every tube (so the old location test would have let it through)
+    // whose Newton refinement lands squarely on a branch already found.
+    let out = fixture();
+    assert_eq!(out.branches.len(), 2, "the fixture has two components");
+    let Curve3::Nurbs(ref carrier) = out.branches[0].carrier else {
+        panic!("a rung-3 carrier is a NURBS curve");
+    };
+    let radius = out.branches[0].certificate.tube_radius;
+    // A point off the locus by several tube radii — a tube box is the
+    // span hull padded by exactly `radius`, so nothing contains this.
+    let off = out.branches[0].witness + Vec3::new(0.0, 0.0, 3.0 * radius);
+    assert!(
+        carrier.project(off).unwrap().distance > radius,
+        "the probe must start outside every tube or the row proves nothing"
+    );
+    // Marched from there, it re-traces the branch that already exists:
+    // Newton pulls the seed onto the locus first, and the component it
+    // lands on is the one already found. Under the old
+    // seed-LOCATION dedup this seed passed the filter and this trace
+    // became a second `SsiBranch` for one component.
+    let (s, c) = (sphere(), threaded_cylinder());
+    let (pts, end) = ssi::idealized_trace_r3(&c, &s, off, slab(), band())
+        .expect("the off-locus probe refines onto the locus");
+    assert_eq!(end, BranchEnd::Closed, "it re-traced a closed component");
+    for (i, p) in pts.iter().enumerate() {
+        assert!(
+            carrier.project(*p).unwrap().distance <= radius,
+            "sample {i} of the duplicate trace left the found branch's tube"
+        );
+    }
+    // And the operation minted no duplicate: two components, two
+    // branches, witnesses on opposite poles.
+    let z: Vec<f64> = out.branches.iter().map(|b| b.witness.z).collect();
+    assert!(z[0] * z[1] < 0.0, "one branch per component, got {z:?}");
+}

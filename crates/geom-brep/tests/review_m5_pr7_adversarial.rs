@@ -6,7 +6,16 @@
 //! The contract under attack: found or refused typed — never silent.
 //! "Silent" here means `Ok` with fewer branches than the geometry has.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    // Adopted verbatim from the reviewer's probe: the indexing and
+    // cast shapes are theirs, and rewriting them would weaken the
+    // "independent second implementation" the row exists to be.
+    clippy::needless_range_loop,
+    clippy::unnecessary_cast
+)]
 
 use geom_brep::ssi::{self, BranchEnd, SsiDomain, SsiError};
 use geom_core::{Band, Point3, Tolerance, Vec3};
