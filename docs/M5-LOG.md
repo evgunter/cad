@@ -1227,3 +1227,17 @@ Fifteen PRs merged this milestone. Board is CLEAR — no lanes in
 flight. Next: chord_spec repair spec + PR 7 (SSI) spec, then
 dispatch both (block-10 remainder = opus owed to the next unit;
 block-11 draws fresh).
+
+**S9 DISPATCHED (2026-07-31, opus — block-10 remainder; A/B row
+owed at next table touch, difficulty S logged here pre-
+assignment): the chord_spec azimuth-window repair.** Spec
+docs/M5-S9-SPEC.md: the divided face's azimuth window from the
+run structure replaces sample-membership; exact interval
+containment selects; neither/both refuse typed; in-band window
+boundaries escalate (azimuth×radius arm); the belly refusal row
+FLIPS to certified pass + the PR 6 mint-on-repaired-bodies row
+closes the loop with the machinery that found the defect.
+Review charter: construct any old-vs-new disagreement outside
+the belly class (spec claims none); attack seam-placement
+independence. PR 7 spec drafting begins now in parallel
+(orchestrator; OQ4 checkpoint per the standing note).
