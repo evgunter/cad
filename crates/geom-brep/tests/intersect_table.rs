@@ -44,7 +44,9 @@ fn route_inventory() {
         (Plane, Nurbs, Rung::General, false),
         (Cylinder, Cylinder, Rung::Conic, true),
         (Cylinder, Cone, Rung::General, false),
-        (Cylinder, Sphere, Rung::General, false),
+        // M5 PR 7 retired this arm: the ℝ³ implicit-pair march, all
+        // three C2 limbs, in-op exhaustiveness.
+        (Cylinder, Sphere, Rung::General, true),
         (Cylinder, Torus, Rung::General, false),
         (Cylinder, Nurbs, Rung::General, false),
         (Cone, Cone, Rung::General, false),
@@ -69,10 +71,13 @@ fn route_inventory() {
                 let msg = r.refusal(x, y);
                 assert!(msg.contains("routes to"), "{msg}");
             }
-            // Every rung-3 arm cites the C5 refusal sentence.
+            // Every rung-3 arm names its TRACE SHAPE — a compile-time
+            // decision per C5, and after M5 PR 7 the honest thing to
+            // cite: the general rung exists now, so an arm that still
+            // refuses must say what is missing, not "unimplemented".
             if rung == Rung::General {
                 assert!(
-                    r.note.contains("general rung") && r.note.contains("unimplemented until SSI"),
+                    r.note.contains("IMPLICIT") || r.note.contains("PARAMETRIC"),
                     "{}×{}: {}",
                     x.name(),
                     y.name(),
