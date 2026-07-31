@@ -1258,3 +1258,25 @@ small-loop found-or-typed as the signature acceptance + a
 directly-authored NURBS wall for shape (iii)'s substrate.
 Dispatch: next freed lane (block-11 draw at dispatch; S9 opus in
 flight now).
+
+**S9 implementation COMPLETE (f45d4e1, pushed) — and it found a
+SECOND belly-class member shipping silently at main:**
+on_endpoint_belly_cut stored complement arcs (5.8958 rad,
+z∈[−1.860,3.360] on height-1) and PR 6's mint pass ACCEPTED the
+bodies — unlike member 1, this one produced a wrong body TODAY
+with no refusal anywhere. Repaired along with the tilted case.
+The exactly-two claim is instrumented (both rules diffed across
+all 28 mints in topo+sweep, both lanes: 2 changed, both belly,
+16 SAME). Window = hull of run half-edges' exact chart extents,
+branch-pinned by PR 6's loop walk; selection = exact interval
+containment with four metered margins; deviations incl. the
+centre-reduction fix (edge-anchored reduction straddled the
+period boundary and widened interval enclosures to a full
+period) and the width≥τ early BothContained arm. Belly rows
+flipped to certified passes; rotation-invariance row (total
+sweep invariant under 0.7 rad rotation); repaired bodies mint
+certified pcurves. **Review DISPATCHED** — merge-base
+verification of member 2 is load-bearing (main ships a wrong
+body); charter attacks the mixed-run/seam-crossing walk, the
+centre-reduction, and the exactly-two claim with constructed
+counter-candidates.
