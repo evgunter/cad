@@ -49,6 +49,55 @@ fn band() -> Band {
     Band::linear().unwrap()
 }
 
+/// A margin the resolved band calls **definitely positive**, at any ε.
+///
+/// The battery runs this suite at ε ∈ {1e-6, 1e-9, 1e-12} and at the
+/// interval scalar, so every probe value and every planted corruption
+/// has to be placed *relative to the band the run resolved*, never at a
+/// literal that happens to straddle the default one. `Band::linear()`
+/// puts `zero` at ε and `escalate` at K·ε; these three helpers name the
+/// three regions.
+fn definitely_positive() -> f64 {
+    band().escalate() * 100.0
+}
+
+/// A margin inside the F6 escalation band at any ε — strictly between
+/// `zero` and `escalate`, placed at their midpoint so no rounding of K
+/// can push it out either side.
+fn inside_the_band() -> f64 {
+    0.5 * (band().zero() + band().escalate())
+}
+
+/// The distance from `p` to the carrier **as a set**, measured honestly
+/// on a closed curve.
+///
+/// `NurbsCurve3::project` converges to a *stationary* point of the
+/// distance and says so in its own docs; on a closed carrier a foot
+/// near the seam can settle at the clamped domain end and report a
+/// residual three orders too large (5.6e-4 m where the true distance is
+/// ~0, observed at ε = 1e-6). That is the projection being honest, not
+/// wrong — but a differential row that took it at face value would be
+/// measuring the projection, not the two steppers. So: a fixed coarse
+/// parameter scan picks the seed, Newton refines from there, and the
+/// scan's own minimum is kept as the fallback bound.
+fn distance_to_carrier(carrier: &NurbsCurve3<f64>, p: Point3<f64>) -> f64 {
+    let (t0, t1) = carrier.domain();
+    let n = 8 * carrier.control().len();
+    let mut best = (t0, f64::INFINITY);
+    for i in 0..=n {
+        #[allow(clippy::cast_precision_loss)]
+        let t = t0 + (t1 - t0) * (i as f64 / n as f64);
+        let d = (carrier.eval(t) - p).norm();
+        if d < best.1 {
+            best = (t, d);
+        }
+    }
+    match carrier.project_from_seed(p, best.0) {
+        Ok(pr) => pr.distance.min(best.1),
+        Err(_) => best.1,
+    }
+}
+
 // ---------------------------------------------------------------------
 // Shape (iv): the planted two-interior-loop fixture
 // ---------------------------------------------------------------------
@@ -101,18 +150,69 @@ fn slab() -> SsiDomain {
 /// per row would make the suite's cost a multiple of the operation's
 /// for no extra coverage — the rows below ask different questions of
 /// the *same* result.
-fn fixture() -> geom_brep::SsiOutcome {
-    static ONCE: std::sync::OnceLock<geom_brep::SsiOutcome> = std::sync::OnceLock::new();
+/// The fixture, or `None` when the run's ε makes it exceed the named
+/// fit-sample budget.
+///
+/// The battery runs at ε ∈ {1e-6, 1e-9, 1e-12}. The step rule spaces
+/// samples as `ε^{−1/4}`, so this 0.08 m loop wants ~126 samples at
+/// 1e-6, ~570 at 1e-9 and ~4000 at 1e-12 — and the fit's solve is cubic
+/// in that. At the finest row the operation therefore refuses
+/// [`SsiError::FitSampleBudget`], which is the kernel behaving exactly
+/// as designed (a named budget, a typed refusal, never a carrier fitted
+/// from too coarse a set).
+///
+/// This is a **skip gated on a typed kernel refusal**, not on an ε
+/// literal: the rows below run wherever the operation runs, and the
+/// refusal itself is pinned by its own row rather than being stepped
+/// around. Scaling the fixture instead would mean holding `r/ε`
+/// constant — an 80 m loop at 1e-6 and an 0.08 mm one at 1e-12 — which
+/// stops being the planted small-loop shape the row exists to test.
+fn fixture_or_budget() -> Option<geom_brep::SsiOutcome> {
+    static ONCE: std::sync::OnceLock<Option<geom_brep::SsiOutcome>> = std::sync::OnceLock::new();
     ONCE.get_or_init(|| {
         let (s, c) = (sphere(), threaded_cylinder());
-        ssi::cylinder_sphere_ssi(&c, &s, slab(), band()).expect("the planted fixture")
+        match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) {
+            Ok(o) => Some(o),
+            Err(SsiError::FitSampleBudget { .. }) => None,
+            Err(e) => panic!("the planted fixture: {e}"),
+        }
     })
     .clone()
 }
 
+/// `return` from a row when the fixture is budget-refused at this ε.
+macro_rules! fixture_or_return {
+    () => {
+        match fixture_or_budget() {
+            Some(o) => o,
+            None => return,
+        }
+    };
+}
+
+#[test]
+fn the_fit_sample_budget_refuses_typed_rather_than_grinding() {
+    // The refusal the rows above stand down for, pinned where it can be
+    // read: whichever ε the run resolved, the operation either produces
+    // certified branches or says — in one typed error, naming the fix —
+    // that this tolerance and this curvature need more control points
+    // than the fit can afford. It never truncates the sample set.
+    let (s, c) = (sphere(), threaded_cylinder());
+    match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) {
+        Ok(o) => assert_eq!(o.branches.len(), 2),
+        Err(SsiError::FitSampleBudget { samples, budget }) => {
+            assert!(samples > budget, "{samples} vs {budget}");
+            let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
+            assert!(msg.contains("fit budget"), "{msg}");
+            assert!(msg.contains("raise the tolerance"), "{msg}");
+        }
+        Err(e) => panic!("unexpected: {e}"),
+    }
+}
+
 #[test]
 fn shape_iv_both_interior_loops_are_found_and_certified() {
-    let out = fixture();
+    let out = fixture_or_return!();
     assert_eq!(
         out.branches.len(),
         2,
@@ -189,12 +289,17 @@ fn the_floor_clamped_variant_refuses_typed_even_though_branches_were_found() {
             cell_width, floor, ..
         } => {
             assert!(cell_width <= floor, "{cell_width} vs {floor}");
+            // The refusal says what it means and what to do.
+            assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
+            assert!(msg.contains("refuses"), "{msg}");
         }
+        // At the finest ε the fit budget fires before any branch is
+        // fitted, so the floor never gets its turn. Both are typed
+        // refusals of the same operation and neither is silence, which
+        // is the property this row exists to hold.
+        SsiError::FitSampleBudget { .. } => {}
         other => panic!("expected the exhaustiveness refusal, got {other}"),
     }
-    // The refusal says what it means and what to do.
-    assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
-    assert!(msg.contains("refuses"), "{msg}");
 }
 
 // ---------------------------------------------------------------------
@@ -248,16 +353,32 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
     // Interpolated, not approximated, and densely: the row is about
     // limb 3, so limbs 1 and 2 must pass on their own merits. A cubic
     // interpolant through 400 exact circle points deviates by
-    // ≈ ((π/2)/200)⁴/384 ≈ 1e-11 m, comfortably inside ε even after the
-    // control-hull bound's conservatism.
     // A quarter arc, not the whole circle: the row is about limb 3, so
     // limbs 1 and 2 must pass on their own merits, and a short arc
     // reaches the same interpolation accuracy with a quarter of the
     // samples — which matters, because the interpolation solve is cubic
     // in the sample count.
-    let pts: Vec<Point3<f64>> = (0..=200)
+    //
+    // The count is DERIVED from the resolved ε, not fixed: a cubic
+    // interpolant's error is `h⁴/384` on a unit circle, and what limb 2
+    // actually reports is the control-hull bound over it — conservative
+    // by ~20× on these fixtures — so the design point is `ε/200`, not
+    // `ε/10`: `n = ((π/2)⁴ / (384·0.005·ε))^{1/4}`. At the finest ε that
+    // lands past the fit-sample budget, and the row stands down for the
+    // same reason the fixture rows do.
+    let need = (std::f64::consts::FRAC_PI_2.powi(4) / (384.0 * 0.005 * eps()))
+        .sqrt()
+        .sqrt()
+        .ceil();
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = (need as usize).max(64);
+    if n > geom_brep::ssi::SSI_MAX_FIT_SAMPLES {
+        return;
+    }
+    let pts: Vec<Point3<f64>> = (0..=n)
         .map(|i| {
-            let t = std::f64::consts::FRAC_PI_2 * (f64::from(i) / 200.0);
+            #[allow(clippy::cast_precision_loss)]
+            let t = std::f64::consts::FRAC_PI_2 * (i as f64 / n as f64);
             Point3::new(t.cos(), t.sin(), 0.0)
         })
         .collect();
@@ -293,16 +414,26 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
 /// A good carrier for one loop of the planted fixture. Computed once
 /// per process: the operation runs a full exhaustiveness sweep, and the
 /// corruption rows only need the carrier it produced.
-fn good_carrier() -> NurbsCurve3<f64> {
-    static ONCE: std::sync::OnceLock<NurbsCurve3<f64>> = std::sync::OnceLock::new();
+fn good_carrier() -> Option<NurbsCurve3<f64>> {
+    static ONCE: std::sync::OnceLock<Option<NurbsCurve3<f64>>> = std::sync::OnceLock::new();
     ONCE.get_or_init(|| {
-        let out = fixture();
+        let out = fixture_or_budget()?;
         let Curve3::Nurbs(ref n) = out.branches[0].carrier else {
             panic!("a rung-3 carrier is a NURBS curve");
         };
-        (**n).clone()
+        Some((**n).clone())
     })
     .clone()
+}
+
+/// `return` from a row when the carrier is budget-refused at this ε.
+macro_rules! carrier_or_return {
+    () => {
+        match good_carrier() {
+            Some(c) => c,
+            None => return,
+        }
+    };
 }
 
 /// The same carrier with control point `i` displaced by `d` metres in
@@ -336,7 +467,7 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
 
 #[test]
 fn a_good_carrier_certifies_all_three_limbs() {
-    let carrier = good_carrier();
+    let carrier = carrier_or_return!();
     let cert = certify_against(&carrier).expect("the branch this came from certified");
     assert_eq!(cert.samples, CERT_SAMPLES);
     assert!(cert.hull_sup <= eps());
@@ -345,10 +476,14 @@ fn a_good_carrier_certifies_all_three_limbs() {
 
 #[test]
 fn corrupting_a_carrier_grossly_fails_the_on_locus_limb() {
-    let carrier = good_carrier();
+    let carrier = carrier_or_return!();
     let n = carrier.control().len() / 2;
-    // A micron is a thousand ε: the schedule sees it immediately.
-    let bad = displaced(&carrier, n, 1.0e-6);
+    // A hundred escalation-bands' worth of displacement: whatever ε the
+    // run resolved, the schedule sees this immediately. A literal
+    // (a micron, say) is definitely-outside only at the default ε and
+    // silently *inside* limb 1 at ε = 1e-6, where the row would then be
+    // asserting the kernel is wrong for being right.
+    let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
         Err(SsiError::CertificateLimb { limb, value }) => {
             assert_eq!(limb, SsiLimb::OnLocus, "value = {value}");
@@ -363,7 +498,7 @@ fn a_between_samples_excursion_is_caught_by_the_hull_limb_alone() {
     // small enough that the nine-point schedule still passes, but large
     // enough that the certified control-hull bound does not. The
     // sampled max steers; the hull bound certifies.
-    let carrier = good_carrier();
+    let carrier = carrier_or_return!();
     // Deliberately NOT the middle: a control point at the parameter
     // midpoint sits on a schedule sample, so its bump would be seen by
     // limb 1 and the row would be testing nothing. Three sixteenths
@@ -495,6 +630,9 @@ fn the_r4_trace_runs_and_its_certificate_refuses_at_the_named_limb() {
             ..
         } => {}
         SsiError::Escalated(ref d) if d.predicate == Some("ssi_hull_sup_chart") => {}
+        // At the finest ε the fit budget fires first — a different
+        // typed refusal of the same unretired arm.
+        SsiError::FitSampleBudget { .. } => {}
         other => panic!("expected limb 2 to be the blocker, got {other}"),
     }
     // And the table says so where a caller reads it.
@@ -515,8 +653,14 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     // `PcurveCache::certify` makes.
     let (p, w) = (cutting_plane(), nurbs_wall());
     let (carrier, pa, pb) =
-        ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band())
-            .expect("the ℝ⁴ trace");
+        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band()) {
+            Ok(t) => t,
+            // Same budget stand-down as the ℝ³ fixture: at ε = 1e-12
+            // the wall's cut wants more samples than the fit affords,
+            // and the refusal is pinned by its own row.
+            Err(SsiError::FitSampleBudget { .. }) => return,
+            Err(e) => panic!("the ℝ⁴ trace: {e}"),
+        };
     let (t0, t1) = carrier.domain();
     // Same parameter interval, not merely the same shape.
     assert!((pa.domain().0 - t0).abs() < 1e-15 && (pa.domain().1 - t1).abs() < 1e-15);
@@ -590,7 +734,7 @@ fn idealized_and_realized_steppers_agree_on_the_locus_they_trace() {
     // sample within the realized branch's own certified band of the
     // realized carrier.
     let (s, c) = (sphere(), threaded_cylinder());
-    let out = fixture();
+    let out = fixture_or_return!();
     for b in out.branches.iter() {
         let Curve3::Nurbs(ref carrier) = b.carrier else {
             panic!("a rung-3 carrier is a NURBS curve");
@@ -602,13 +746,16 @@ fn idealized_and_realized_steppers_agree_on_the_locus_they_trace() {
         // The certified band the realized branch actually earned, plus
         // the tolerance itself for the idealized stepper's own Newton
         // residual.
+        // The band the realized branch actually earned, plus a term for
+        // the idealized stepper's own Newton residual — both scale with
+        // the resolved ε, so this row means the same thing at every row
+        // of the battery.
         let tol = b.certificate.hull_sup + 2.0 * eps();
         for (i, p) in pts.iter().enumerate() {
-            let pr = carrier.project(*p).expect("a foot on the realized carrier");
+            let d = distance_to_carrier(carrier, *p);
             assert!(
-                pr.distance <= tol,
-                "idealized sample {i} is {:e} m off the realized carrier (band {tol:e})",
-                pr.distance
+                d <= tol,
+                "idealized sample {i} is {d:e} m off the realized carrier (band {tol:e})"
             );
         }
     }
@@ -665,7 +812,7 @@ fn the_accounting_receipt_is_bounded_and_reported() {
     // scale — so this row pins both the accounting numbers and the
     // radius they depend on, and would fail loudly if the tube ladder
     // ever started bottoming out.
-    let out = fixture();
+    let out = fixture_or_return!();
     let e = out.exhaustiveness;
     println!("exhaustiveness = {e:?}, seeds = {}", out.seeds);
     for b in out.branches.iter() {
@@ -695,10 +842,12 @@ fn the_accounting_receipt_is_bounded_and_reported() {
 /// `intersect_table` trio convention, applied to the SSI funnel.
 fn trio(name: &'static str) -> (geom_core::Sign, geom_core::Sign, bool) {
     let b = band();
-    let definite = geom_core::k_stats::decide(name, 1.0e-3, b).expect("definitely positive");
+    let definite =
+        geom_core::k_stats::decide(name, definitely_positive(), b).expect("definitely positive");
     let degenerate = geom_core::k_stats::decide(name, 0.0, b).expect("exactly zero");
-    // Between `zero` and `escalate`: the F6 band.
-    let escalated = geom_core::k_stats::decide(name, 5.0e-9, b).is_err();
+    // Between `zero` and `escalate`: the F6 band, placed relative to
+    // the band this run resolved (module note on `inside_the_band`).
+    let escalated = geom_core::k_stats::decide(name, inside_the_band(), b).is_err();
     (definite, degenerate, escalated)
 }
 
@@ -726,7 +875,8 @@ fn ssi_closure_return_trio() {
     assert_eq!(d, geom_core::Sign::Positive);
     assert_eq!(z, geom_core::Sign::Zero);
     assert!(e);
-    let neg = geom_core::k_stats::decide("ssi_closure_return", -1.0e-3, band()).unwrap();
+    let neg =
+        geom_core::k_stats::decide("ssi_closure_return", -definitely_positive(), band()).unwrap();
     assert_eq!(neg, geom_core::Sign::Negative, "still away from the seed");
 }
 
@@ -751,11 +901,13 @@ fn the_closure_tangent_arm_that_refuses_a_cusp_or_crossing() {
     // refusal it produces is pinned by its payload and message — which
     // is what a consumer actually sees.
     let b = band();
-    let closed = geom_core::k_stats::decide("ssi_closure_tangent", 0.5, b).unwrap();
+    let closed =
+        geom_core::k_stats::decide("ssi_closure_tangent", definitely_positive(), b).unwrap();
     assert_eq!(closed, geom_core::Sign::Positive, "a genuine closure");
     let perpendicular = geom_core::k_stats::decide("ssi_closure_tangent", 0.0, b).unwrap();
     assert_eq!(perpendicular, geom_core::Sign::Zero, "a crossing");
-    let reversed = geom_core::k_stats::decide("ssi_closure_tangent", -0.5, b).unwrap();
+    let reversed =
+        geom_core::k_stats::decide("ssi_closure_tangent", -definitely_positive(), b).unwrap();
     assert_eq!(reversed, geom_core::Sign::Negative, "a cusp / retrace");
     // Both non-Positive arms produce this refusal, and it says so.
     let err = SsiError::SelfCrossingLocus {
@@ -784,16 +936,17 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     };
     d.floor_scale = 1.0;
     start_verdict_log();
-    let _ = ssi::cylinder_sphere_ssi(&c, &s, d, band());
+    let outcome = ssi::cylinder_sphere_ssi(&c, &s, d, band());
     let v = take_verdict_log();
-    for name in [
-        "ssi_cs_tangency",
-        "ssi_transversality",
-        "ssi_step_progress",
-        "ssi_on_locus",
-        "ssi_hull_sup",
-        "ssi_tube_transversality",
-    ] {
+    // The marching predicates run before anything is fitted, so they
+    // are recorded at every ε; the certificate's only run once a branch
+    // was actually fitted, which the fit-sample budget can prevent at
+    // the finest row.
+    let mut expected = vec!["ssi_cs_tangency", "ssi_transversality", "ssi_step_progress"];
+    if !matches!(outcome, Err(SsiError::FitSampleBudget { .. })) {
+        expected.extend(["ssi_on_locus", "ssi_hull_sup", "ssi_tube_transversality"]);
+    }
+    for name in expected {
         assert!(
             v.iter().any(|x| x.predicate == name),
             "{name} never reached the funnel (recorded: {:?})",
@@ -810,7 +963,7 @@ fn a_seed_refining_onto_a_found_branch_does_not_mint_a_duplicate() {
     // row builds the case that distinguishes them: a point well outside
     // every tube (so the old location test would have let it through)
     // whose Newton refinement lands squarely on a branch already found.
-    let out = fixture();
+    let out = fixture_or_return!();
     assert_eq!(out.branches.len(), 2, "the fixture has two components");
     let Curve3::Nurbs(ref carrier) = out.branches[0].carrier else {
         panic!("a rung-3 carrier is a NURBS curve");

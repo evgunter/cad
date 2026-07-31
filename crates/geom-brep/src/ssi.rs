@@ -143,6 +143,24 @@ pub const SSI_FIT_DEGREE: usize = 3;
 /// typed refusal, never a truncated branch.
 pub const SSI_MAX_STEPS: usize = 20_000;
 
+/// How many marched samples one branch's fit may consume.
+///
+/// The step rule spaces samples so a cubic through them stays inside ε
+/// between them, which makes the count scale as `(L·κ^{3/4})·ε^{−1/4}`
+/// — at ε = 1e-12 a 0.08 m loop wants ~4000 of them. The fit's solve is
+/// **cubic** in that count, so a tolerance three decades finer than the
+/// default turns a two-second operation into an hour-long one. That is
+/// a resource wall, and this kernel's rule for resource walls is the
+/// same everywhere ([`SSI_MAX_STEPS`], [`SSI_MAX_CELLS`]): a named
+/// budget and a typed refusal, never a silent truncation and never a
+/// carrier fitted from a sample set too coarse for its own tolerance.
+///
+/// Raising it is not the fix when it fires; the fix is the banked
+/// compaction work (least-squares fitting on a chosen knot structure
+/// via `approximate_with_params`, whose cost is linear in the samples),
+/// which is why the refusal names it.
+pub const SSI_MAX_FIT_SAMPLES: usize = 1200;
+
 /// An operand of a rung-3 intersection, tagged by which certificate
 /// machinery its limbs use.
 pub enum SsiOperand<'a> {
@@ -246,6 +264,17 @@ pub enum SsiError {
     },
     /// The fitting stack refused the marched polyline.
     Fit(FitError),
+    /// One branch's marched polyline exceeded
+    /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
+    /// curvature together demand more samples than the (cubic) fit can
+    /// afford — refused, never fitted from a coarser set than the
+    /// certificate would need.
+    FitSampleBudget {
+        /// Samples the branch produced.
+        samples: usize,
+        /// The budget.
+        budget: usize,
+    },
     /// This configuration routes to a certificate mechanism this build
     /// does not have — a documented per-arm boundary (C12.1), never a
     /// fallback.
@@ -351,6 +380,14 @@ impl core::fmt::Display for SsiError {
                  NURBS operand cannot be stated"
             ),
             Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
+            Self::FitSampleBudget { samples, budget } => write!(
+                f,
+                "ssi: one branch marched {samples} samples against a {budget}-sample fit \
+                 budget — at this tolerance and this operand curvature the carrier needs \
+                 more control points than the fit's cubic solve can afford; raise the \
+                 tolerance, or wait for the compaction work that fits a chosen knot \
+                 structure by least squares instead of interpolating every sample"
+            ),
             Self::UnsupportedCertificate { what } => {
                 write!(f, "ssi: {what}")
             }
@@ -472,6 +509,12 @@ fn fit_branch(
     points: &[Point3<f64>],
     charts: Option<ChartSamples<'_>>,
 ) -> Result<FittedBranch, SsiError> {
+    if points.len() > SSI_MAX_FIT_SAMPLES {
+        return Err(SsiError::FitSampleBudget {
+            samples: points.len(),
+            budget: SSI_MAX_FIT_SAMPLES,
+        });
+    }
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is the
     // marcher's step rule.** The stepper already chose its spacing so
