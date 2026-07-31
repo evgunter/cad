@@ -1221,3 +1221,9 @@ history note (unreachable at HEAD by design). Writeup features
 the chord_spec finding prominently. Watcher armed. Next
 orchestrator drafting: the chord_spec repair spec (azimuth-
 window containment) + PR 7 (SSI).
+
+**#144 MERGED (2026-07-31): 18/18 — PR 6 done, C4 discharged.**
+Fifteen PRs merged this milestone. Board is CLEAR — no lanes in
+flight. Next: chord_spec repair spec + PR 7 (SSI) spec, then
+dispatch both (block-10 remainder = opus owed to the next unit;
+block-11 draws fresh).
