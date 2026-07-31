@@ -1107,3 +1107,33 @@ mid-flight (second amendment).
 gate demonstrated the new two-ε battery.** Hosted rows now 18.
 In flight: PR 6 (pcurves, opus) and S8 (equivariant fillet
 selection, fable). A/B rows 21-23 to the table at next touch.
+
+**Usage-limit outage #8 (~16:00Z 2026-07-30 → ~03:45Z
+2026-07-31, ~11h; Evan re-logged in). Recovered.** PR 6 had
+COMPLETED before the cut — implementation pushed at bfc531a
+(main merged through #142). S8 died mid-probe (nothing pushed;
+clone intact at spec-amendment-1; resumed with the amendment-2
+reminder and its open question: 2M trials found NO
+enclosing-involved two-survivor cases — probing whether that
+class is structurally single-survivor).
+
+**PR 6 report highlights:** SecondaryMap<HalfEdgeKey,
+PcurveCache> with certify-only construction (uncertified caches
+unrepresentable); CLOSED-FORM ENVELOPE certification (span{1,
+cos t, sin t, t} exact coefficients — stronger in kind than the
+C2.2 hull, which becomes the fitted-Nurbs limb in PR 7);
+unwrap-by-unrepresentability (β ∈ {−1,0,+1}, τ jumps cannot be
+expressed); persistence = re-derived on load (recipe-level
+posture), pinned both ways. FIVE numbered deviations, notably
+(1) PR 5's constructors NOT stored — parameter-non-affine
+(~7mm/~0.5mm at-schedule mismatch, MEASURED); the Harmonic chart
+image stored instead. **AND a pre-existing PR 5 DEFECT found:
+chord_spec's arc-side rule stores the COMPLEMENT arc on the
+tilted belly cut** (8 section arcs sweep z∈[−0.297,1.689] on a
+height-1 wall; tier 3 blind — both surfaces contain every point
+of the wrong arc; premise fails when the divided face spans more
+azimuth than the chord). Branch posture: refuse typed
+(LoopNotClosed) with a pinned evidence row; the repair (azimuth-
+window containment — the same statement PR 6 certifies) needs
+its own unit. **Review DISPATCHED** (fresh clone m5-pr6-review;
+F7 requires independent merge-base verification of the defect).
