@@ -1,0 +1,341 @@
+//! S8 adversarial review probe: three fuzz-found arc x arc two-survivor
+//! corners (independent re-derivation of the offset/gate machinery in
+//! `review-scratch/s8/dominance_fuzz.rs`), cross-checking that the real
+//! constructor's pick is the componentwise-dominant (smaller-total)
+//! candidate my re-implementation predicts. The tangent point the
+//! builder emits must lie at distance r from the predicted winner's
+//! center and NOT at distance r from the loser's.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod common;
+use common::tol;
+use geom_core::Point2;
+use profile::{ArcSweep, FilletLegShape, ProfileLoop};
+fn p2(x: f64, y: f64) -> Point2<f64> {
+    Point2::new(x, y)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check(
+    o1: (f64, f64),
+    s1: ArcSweep,
+    o2: (f64, f64),
+    s2: ArcSweep,
+    corner: (f64, f64),
+    far1: (f64, f64),
+    far2: (f64, f64),
+    r: f64,
+    win: (f64, f64),
+    lose: (f64, f64),
+) {
+    let lp = ProfileLoop::builder(p2(far1.0, far1.1))
+        .fillet_corner(
+            FilletLegShape::Arc {
+                center: p2(o1.0, o1.1),
+                sweep: s1,
+            },
+            p2(corner.0, corner.1),
+            FilletLegShape::Arc {
+                center: p2(o2.0, o2.1),
+                sweep: s2,
+            },
+            p2(far2.0, far2.1),
+            r,
+            tol(),
+        )
+        .expect("two-survivor corner must construct")
+        .close_arc_center(p2(o2.0, o2.1), s2);
+    let t1 = lp.vertices[1].pos;
+    let dw = ((t1.x - win.0).powi(2) + (t1.y - win.1).powi(2)).sqrt();
+    let dl = ((t1.x - lose.0).powi(2) + (t1.y - lose.1).powi(2)).sqrt();
+    assert!(
+        (dw - r).abs() < 1e-9,
+        "picked tangent not on predicted winner circle: |t1-win|={dw}, r={r}"
+    );
+    assert!(
+        (dl - r).abs() > 1e-3,
+        "pick is ambiguous against the losing candidate: |t1-lose|={dl}, r={r}"
+    );
+}
+
+#[test]
+fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
+    check(
+        (0.0, 0.0),
+        ArcSweep::Cw,
+        (0.95562179434455674, 0.0),
+        ArcSweep::Ccw,
+        (-0.22946874909608578, 1.65519209137498335),
+        (0.06171648071802562, -1.66988258334824113),
+        (2.98666833485438410, 0.13766047285183547),
+        0.15189083980143034,
+        (-0.81863298895661929, 1.27968806714547267),
+        (-0.81863298895661929, -1.27968806714547267),
+    );
+    check(
+        (0.0, 0.0),
+        ArcSweep::Ccw,
+        (3.82055744659083052, 0.0),
+        ArcSweep::Ccw,
+        (1.17316720402785357, 1.21354460418236210),
+        (0.06048447681684566, 1.68681754289278429),
+        (4.81136266143260016, -2.73855265222345867),
+        0.31664440369683866,
+        (1.27464246658060087, 0.50560149083164663),
+        (1.27464246658060087, -0.50560149083164663),
+    );
+    check(
+        (0.0, 0.0),
+        ArcSweep::Cw,
+        (1.68543221900967244, 0.0),
+        ArcSweep::Ccw,
+        (0.24842682255474419, 0.89584175565974999),
+        (0.48588598188942012, 0.79256744189472206),
+        (3.15605941461580208, 0.83950736278354254),
+        0.32427394642951701,
+        (-0.25623799695610200, 0.54847219060938479),
+        (-0.25623799695610200, -0.54847219060938479),
+    );
+}
+
+// ------------------------------------------------------------------
+// The review's standalone dominance fuzz, trimmed into one committed
+// row (independent re-implementation — none of `sugar.rs`'s private
+// machinery). Two sampled classes: uniform arc×arc corners and
+// line×arc corners. Asserts, over every two-survivor corner found:
+// componentwise dominance of the smaller-total candidate (the S8
+// monotone-combination claim) and that no enclosing tangency (ρ < 0)
+// participates. The review's full-scale artifacts (5M-trial phases,
+// the targeted both-enclosing construction, and the hill-climb search
+// that failed to force an enclosing two-survivor corner) live in the
+// S8 review scratch; this row keeps the claim continuously exercised
+// at a CI-friendly trial count.
+
+mod dominance {
+    use std::f64::consts::TAU;
+
+    pub fn signed_swept(from: f64, to: f64, turn: f64) -> f64 {
+        let s = ((to - from) * turn).rem_euclid(TAU);
+        s - TAU * (s / TAU + 0.5).floor()
+    }
+
+    /// xorshift64* — deterministic fuzz.
+    pub struct Rng(pub u64);
+    impl Rng {
+        pub fn next(&mut self) -> f64 {
+            let mut x = self.0;
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            self.0 = x;
+            (x >> 11) as f64 / (1u64 << 53) as f64
+        }
+        pub fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.next()
+        }
+        pub fn sign(&mut self) -> f64 {
+            if self.next() < 0.5 { 1.0 } else { -1.0 }
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct Arc {
+        pub ox: f64,
+        pub oy: f64,
+        pub r: f64,
+        pub turn: f64,
+        pub corner_angle: f64,
+        pub len: f64,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Survivor {
+        pub sb_in: f64,
+        pub sb_out: f64,
+    }
+
+    /// Survivors + signed offset radii for an arc×arc corner (the
+    /// reviewer's `classify`, verbatim semantics).
+    pub fn classify(a1: &Arc, a2: &Arc, sgn: f64, r: f64) -> Option<(Vec<Survivor>, f64, f64)> {
+        let rho1 = a1.r - sgn * a1.turn * r;
+        let rho2 = a2.r - sgn * a2.turn * r;
+        let (r1, r2) = (rho1.abs(), rho2.abs());
+        let (lx, ly) = (a2.ox - a1.ox, a2.oy - a1.oy);
+        let d2 = lx * lx + ly * ly;
+        let d = d2.sqrt();
+        // Clearance gates with a fat margin so band details cannot matter.
+        if r1 + r2 - d < 1e-9 || d - (r1 - r2).abs() < 1e-9 {
+            return None;
+        }
+        let along = (d2 + rho1 * rho1 - rho2 * rho2) / (2.0 * d);
+        let (bx, by) = (a1.ox + lx * along / d, a1.oy + ly * along / d);
+        let half2 = rho1 * rho1 - along * along;
+        if half2 < 1e-18 {
+            return None;
+        }
+        let half = half2.sqrt();
+        let (nx, ny) = (-ly / d, lx / d);
+        let cands = [
+            (bx + nx * half, by + ny * half),
+            (bx - nx * half, by - ny * half),
+        ];
+        let mut surv = Vec::new();
+        for &(px, py) in &cands {
+            let t = |a: &Arc, rho: f64| {
+                let (vx, vy) = (px - a.ox, py - a.oy);
+                (a.ox + vx * a.r / rho, a.oy + vy * a.r / rho)
+            };
+            let (t1x, t1y) = t(a1, rho1);
+            let (t2x, t2y) = t(a2, rho2);
+            let ang1 = (t1y - a1.oy).atan2(t1x - a1.ox);
+            let ang2 = (t2y - a2.oy).atan2(t2x - a2.ox);
+            let sb_in = a1.r * signed_swept(ang1, a1.corner_angle, a1.turn);
+            let sb_out = a2.r * signed_swept(a2.corner_angle, ang2, a2.turn);
+            if sb_in >= 0.0 && sb_out >= 0.0 && a1.len - sb_in >= 0.0 && a2.len - sb_out >= 0.0 {
+                surv.push(Survivor { sb_in, sb_out });
+            }
+        }
+        Some((surv, rho1, rho2))
+    }
+
+    /// Dominance + no-enclosing bookkeeping for one classified corner.
+    /// `stats` = (two-survivor count, violations, enclosing-involved).
+    pub fn tally(surv: &[Survivor], rho1: f64, rho2: f64, stats: &mut (u64, u64, u64)) {
+        if surv.len() != 2 {
+            return;
+        }
+        stats.0 += 1;
+        if rho1 < 0.0 || rho2 < 0.0 {
+            stats.2 += 1;
+        }
+        let (a, b) = (&surv[0], &surv[1]);
+        let (win, lose) = if a.sb_in + a.sb_out <= b.sb_in + b.sb_out {
+            (a, b)
+        } else {
+            (b, a)
+        };
+        if !(win.sb_in <= lose.sb_in && win.sb_out <= lose.sb_out) {
+            stats.1 += 1;
+        }
+    }
+}
+
+/// The trimmed dominance fuzz: over every two-survivor corner the
+/// independent machinery finds, the smaller-total candidate dominates
+/// componentwise (so sum, max and every monotone combination agree on
+/// the S8 pick) and no enclosing tangency participates.
+#[test]
+fn dominance_fuzz_two_survivor_corners() {
+    use dominance::{Arc, Rng, classify, signed_swept, tally};
+    use std::f64::consts::TAU;
+
+    // --- arc×arc, uniform over crossing carriers -------------------
+    let mut rng = Rng(0x5eed_5eed_5eed_5eed);
+    let mut stats = (0u64, 0u64, 0u64);
+    for _ in 0..150_000u64 {
+        let d = rng.range(0.05, 4.0);
+        let r1c = rng.range(0.05, 3.0);
+        let r2c = rng.range(0.05, 3.0);
+        if d >= r1c + r2c || d <= (r1c - r2c).abs() {
+            continue;
+        }
+        let along = (d * d + r1c * r1c - r2c * r2c) / (2.0 * d);
+        let h2 = r1c * r1c - along * along;
+        if h2 <= 1e-14 {
+            continue;
+        }
+        let (cx, cy) = (along, h2.sqrt());
+        let (t1, t2) = (rng.sign(), rng.sign());
+        let a1 = Arc {
+            ox: 0.0,
+            oy: 0.0,
+            r: r1c,
+            turn: t1,
+            corner_angle: cy.atan2(cx),
+            len: r1c * rng.range(0.05, TAU - 0.05),
+        };
+        let a2 = Arc {
+            ox: d,
+            oy: 0.0,
+            r: r2c,
+            turn: t2,
+            corner_angle: cy.atan2(cx - d),
+            len: r2c * rng.range(0.05, TAU - 0.05),
+        };
+        let dir = |a: &Arc| {
+            let (vx, vy) = (cx - a.ox, cy - a.oy);
+            (-vy * a.turn / a.r, vx * a.turn / a.r)
+        };
+        let (d1x, d1y) = dir(&a1);
+        let (d2x, d2y) = dir(&a2);
+        let turn = d1x * d2y - d1y * d2x;
+        if turn.abs() < 1e-9 {
+            continue;
+        }
+        let r = rng.range(0.01, 3.0);
+        if let Some((surv, rho1, rho2)) = classify(&a1, &a2, turn.signum(), r) {
+            tally(&surv, rho1, rho2, &mut stats);
+        }
+    }
+    assert_eq!(stats.1, 0, "dominance violations (arc x arc)");
+    assert_eq!(stats.2, 0, "enclosing two-survivor corners (arc x arc)");
+    assert!(
+        stats.0 > 500,
+        "coverage floor: only {} two-survivor",
+        stats.0
+    );
+
+    // --- line×arc ---------------------------------------------------
+    let mut rng = Rng(0x0ddb_a11c_0ffe_e123);
+    let mut stats = (0u64, 0u64, 0u64);
+    for _ in 0..150_000u64 {
+        // Corner at the origin; straight incoming leg travelling (dx, dy).
+        let phi = rng.range(0.0, TAU);
+        let (dx, dy) = (phi.cos(), phi.sin());
+        let line_len = rng.range(0.1, 6.0);
+        let rc = rng.range(0.05, 3.0);
+        let th = rng.range(0.0, TAU);
+        let (ox, oy) = (rc * th.cos(), rc * th.sin());
+        let tau = rng.sign();
+        let ca = (-oy).atan2(-ox);
+        let alen = rc * rng.range(0.05, TAU - 0.05);
+        let r = rng.range(0.01, 2.5);
+        let (adx, ady) = (oy * tau / rc, -ox * tau / rc);
+        let turn = dx * ady - dy * adx;
+        if turn.abs() < 1e-6 {
+            continue;
+        }
+        let sgn = turn.signum();
+        let (nx, ny) = (-dy, dx);
+        let rho = rc - sgn * tau * r;
+        let h = (ox - nx * sgn * r) * nx + (oy - ny * sgn * r) * ny;
+        if rho.abs() - h.abs() < 1e-9 {
+            continue;
+        }
+        let (fx, fy) = (ox - nx * h, oy - ny * h);
+        let half = (rho * rho - h * h).sqrt();
+        let mut surv = Vec::new();
+        for (px, py) in [
+            (fx + dx * half, fy + dy * half),
+            (fx - dx * half, fy - dy * half),
+        ] {
+            let (t1x, t1y) = (px - nx * sgn * r, py - ny * sgn * r);
+            let sb_in = -(t1x * dx + t1y * dy);
+            // Tangent point O + (P − O)·R/ρ; its angle about O.
+            let (wx, wy) = (px - ox, py - oy);
+            let an = (wy * rc / rho).atan2(wx * rc / rho);
+            let sb_out = rc * signed_swept(ca, an, tau);
+            if sb_in >= 0.0 && sb_out >= 0.0 && line_len - sb_in >= 0.0 && alen - sb_out >= 0.0 {
+                surv.push(dominance::Survivor { sb_in, sb_out });
+            }
+        }
+        tally(&surv, rho, 1.0, &mut stats);
+    }
+    assert_eq!(stats.1, 0, "dominance violations (line x arc)");
+    assert_eq!(stats.2, 0, "enclosing two-survivor corners (line x arc)");
+    assert!(
+        stats.0 > 500,
+        "coverage floor: only {} two-survivor",
+        stats.0
+    );
+}
