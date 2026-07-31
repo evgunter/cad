@@ -569,17 +569,6 @@ applied to error handling. Five commitments:
    mixed-tolerance semantics one level up). Per-run initialization also
    enables running the test suite at several ε values to smoke out
    tolerance-sensitive algorithms.
-   **The CI ε battery is {1e-6, 1e-12}** *(revised 2026-07-30, Evan's
-   ruling; previously {1e-6, 1e-9, 1e-12})*: two rows that STRADDLE the
-   compiled default three orders either side. The default itself
-   (`DEFAULT_EPS` = 1e-9) is what every unparameterized row runs, so the
-   retired 1e-9 row re-ran those rows rather than adding a band. The
-   battery is realized as matrix rows in `.github/workflows/ci.yml`
-   (`multi-eps`, `persistence`, `corpus`), mirrored in
-   `scripts/ci-local.sh`; the `interval` lane carries one extra-ε row
-   (1e-6) on top of its default-ε run. Historical logs, plans and PR
-   specs quote the older three-row set as the battery of their day —
-   that is the record, not a live convention.
    **Angular thresholds are always derived, never a second global**: an
    angle only means anything through the displacement it induces at a
    lever arm (d = r·θ), so a fixed εₐ would silently privilege the
@@ -1574,7 +1563,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M4). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
-| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run in the hosted `interval-backend` CI row on the crate's default feature set. **Dependency note** (the one place this is stated; issue #4 CLOSED by removal at M5 PR 1): `inari` was the M0-M4 backend, quarantined behind the `interval` cargo feature for its gmp/MPFR LGPL-3.0+ transitive deps; the swap retired it from the kernel tree entirely (Cargo.lock zero hits, dev-deps included). It survives only as this crate's optional `oracle-inari` differential oracle, inside the crate's own excluded workspace — a dev-dependency of a path dependency, which never enters a kernel build graph. Every kernel build configuration is therefore MIT/Apache with no C toolchain (see README, License). The historical AVX+FMA target-cpu floor was DROPPED post-swap (2026-07-29, Evan's #127 retroactive review — no correctness need remains; mul_add witnesses are correctly-rounded regardless) |
+| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **History**: `inari` was the M0-M4 backend (issue #4) with its gmp/MPFR LGPL-3.0+ transitive deps quarantined behind the `interval` cargo feature; the M5 PR 1 swap RETIRED inari from the tree entirely (Cargo.lock zero hits, dev-deps included), so **the kernel is copyleft-free in every build configuration and issue #4's exit condition is met by removal** — inari survives only as the optional differential oracle inside the excluded crate's own workspace. The historical AVX+FMA target-cpu floor was DROPPED post-swap (2026-07-29, Evan's #127 retroactive review — no correctness need remains; mul_add witnesses are correctly-rounded regardless) |
 | Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
