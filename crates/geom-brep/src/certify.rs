@@ -129,9 +129,12 @@ pub enum CertifyError {
         /// The unresolved key.
         key: SurfaceKey,
     },
-    /// The carrier (or a described surface) is the `Nurbs`
-    /// representable-unimplemented placeholder: nothing can be
-    /// certified against it at M2.
+    /// A described surface is the `Nurbs` kind (no implicit form —
+    /// its residual story is the SSI foot-point machinery, not this
+    /// module's), or a `Nurbs` carrier arrived under a conventional
+    /// (`MappedCurve`/`Seam`) description. Rung-3 carriers certify
+    /// only as the `Intersection` of two analytic surfaces (M5 PR 9,
+    /// C12.3 — the class the curved-boolean zip mints).
     Unimplemented,
     /// An `Intersection` description names one surface twice — a
     /// same-surface locus is a `Seam`, never an intersection.
@@ -203,8 +206,10 @@ impl core::fmt::Display for CertifyError {
             }
             Self::Unimplemented => write!(
                 f,
-                "certification: Nurbs (representable-unimplemented) kinds cannot be \
-                 certified at M2"
+                "certification: a Nurbs described surface, or a Nurbs carrier under a \
+                 conventional description, cannot be certified in this build — rung-3 \
+                 carriers certify only as the Intersection of two analytic surfaces \
+                 (M5 PR 9, C12.3)"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -394,9 +399,12 @@ impl<T: Decide> EdgeCurve<T> {
     /// The check sequence (fixed order, D9; every check's margin is
     /// meters against `band`):
     ///
-    /// 1. Implementedness: the carrier is not `Nurbs`; described
-    ///    surfaces resolve and are not `Nurbs`; `Intersection`'s two
-    ///    surfaces are distinct; `Seam`'s surface is periodic.
+    /// 1. Implementedness: described surfaces resolve and are not
+    ///    `Nurbs`; a `Nurbs` carrier certifies only under an
+    ///    `Intersection` description (the rung-3 class, M5 PR 9 —
+    ///    its span is metered through `speed_lower_bound`, gated
+    ///    definitely-positive by `nurbs_span_meter`); `Intersection`'s
+    ///    two surfaces are distinct; `Seam`'s surface is periodic.
     /// 2. Interval span (M2 PR 3 fix pass): the stored interval is
     ///    **forward** — its arc length `(t₁ − t₀)` (`·r` for circle
     ///    carriers, metering radians into meters) is definitely
@@ -611,8 +619,12 @@ fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 ///   the honest extent of a full-period rim. The winding bound
 ///   (|Δt| ≤ τ, [`CertifyError::WindingExceeded`]) keeps the cosine in
 ///   its honest range.
-/// - **Nurbs** — the chord (nothing better exists; certification
-///   refuses Nurbs carriers loudly anyway).
+/// - **Nurbs** — the chord: a certified lower bound on the point-set
+///   diameter for the open fitted branches the zip mints (M5 PR 9);
+///   closed rung-3 loops are split at crossing vertices before they
+///   become edges, so the collapsing-chord case does not arise at
+///   rest — and a smaller arm only escalates more (the safe
+///   direction), never definitely misclassifies.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation);
 /// used by certification's transversality check and re-used verbatim by
@@ -669,7 +681,15 @@ fn run_checks<T: Decide>(
     band: Band,
 ) -> Result<Certificate<T>, CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
-    if matches!(spec.carrier, Curve3::Nurbs(_)) {
+    // Rung-3 (`Nurbs`) carriers certify under an `Intersection`
+    // description of two ANALYTIC surfaces — the class the curved
+    // boolean zip mints (M5 PR 9, C12.3; the fitted SSI branch). A
+    // `Nurbs` carrier under a conventional description stays refused:
+    // nothing mints one, and its residual story (a fitted carrier
+    // "matching" a mapped source) has no certified meter.
+    if matches!(spec.carrier, Curve3::Nurbs(_))
+        && !matches!(spec.description, EdgeGeometry::Intersection { .. })
+    {
         return Err(CertifyError::Unimplemented);
     }
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
@@ -766,8 +786,31 @@ fn run_checks<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
         }
-        // Unreachable: check 1 rejected Nurbs carriers already.
-        Curve3::Nurbs(_) => {}
+        // Rung-3 carriers (M5 PR 9): the span is metered through the
+        // certified speed lower bound (`m/parameter`, the split-meter
+        // substrate — C12.3). The meter is gated definitely-positive
+        // FIRST (the collapsed-arm idiom): a zero/negative meter (a
+        // control net that doubles back) or poison (a rational
+        // carrier) cannot convert the span to metres, and no forward
+        // verdict may be fabricated from it — escalate, never guess.
+        Curve3::Nurbs(n) => {
+            let meter = n.speed_lower_bound();
+            match decide("nurbs_span_meter", meter, band).map_err(span_escalated)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => {
+                    return Err(span_escalated(Indeterminate {
+                        margin: geom_core::MarginDiag::Invalid,
+                        band,
+                        predicate: Some("nurbs_span_meter"),
+                    }));
+                }
+            }
+            let arc = span * meter;
+            match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
+            }
+        }
     }
 
     // ---- Check 3: endpoint pinning. ----
