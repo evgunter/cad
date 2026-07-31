@@ -1320,3 +1320,11 @@ reviewer's disagreement probe committed verbatim; the
 merge-base silent-acceptance measurement recorded as the history
 note explaining WHY loop-closure isn't a wrong-arc detector.
 Watcher armed. PR 7 implementing in the other lane.
+
+**#145 MERGED (2026-07-31): 18/18 — the silent wrong body is
+FIXED on main.** S9 done; sixteen PRs this milestone. PR 7
+implementer notified to fold main (chord_spec signature change +
+SectionArcWindow). Sole lane in flight: PR 7 (SSI, opus). Queue:
+S4 on a lull; PR 9 spec after PR 7's shape firms; A/B table rows
+21-25 owed (PR 6, S7, S8, S9, PR 7 draws recorded in log
+entries).
