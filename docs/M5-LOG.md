@@ -1355,3 +1355,24 @@ demonstrated by SSI's own (stronger) limbs. S9 fold was clean
 (charter: hand re-derivation of the graph criterion — can a
 disjoint branch thread the tube?; exclusion-cannot-lie probes;
 independent SVD differential; per-deviation verdicts).
+
+**PR 7 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 2
+MAJ / 6 MIN, rubric 4/4/4.** The core HELD: 8000-matrix
+independent SVD differential clean; min-norm-is-Frenet
+re-derived exact; w-form cancellation verified 30× with
+exclusion-cannot-lie probes (~1400 boxes incl. locus-planted);
+the reviewer's own adversarial loop pair SMALLER than the seed
+floor was FOUND; receipt asserted; h_fit-cap reasoning
+confirmed; tube ladder deterministic. M1 = std powf(0.25) in the
+step rule (one line, → sqrt().sqrt()) + latent jet sin_cos fork.
+**M2 RULED (orchestrator): ACCEPT-AND-BANK as PR 7b** — the
+reviewer confirmed the centered second-order tightening is
+constructible but likely not ε-practical; tensor-product
+Bernstein composition is the clean fix and is its own reviewed
+unit. PR 7b = tensor compose + plane×NURBS retirement + shape
+(iii) substrate row; MUST land before M5 exit (shape (iii) is
+exit-gating); sequence alongside/after PR 9. Best MIN: m3 —
+limb 3's doc claims bare IFT but the code supports the stronger
+mean-value/convexity argument; disjoint-component exclusion is
+the ACCOUNTING's job (stated honestly now). m4 = refined-seed
+dedup (duplicate SsiBranch possible). **Fix pass DISPATCHED.**
