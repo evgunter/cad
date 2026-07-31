@@ -1174,3 +1174,21 @@ snap-to-family admits an ε-shell where the stored envelope is
 false by 7 orders (attach path only; minted caches exact);
 fix = snap slack added to the envelope. **Fix pass DISPATCHED**
 (opus implementer resumed). S8 review in flight in parallel.
+
+**S8 review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 3 MIN (doc-level) / 3 NOTE, rubric 5/4/4. The math got
+STRONGER in review:** the reviewer's hand proof confirmed
+dominance and went further — mixed enclosing/non-enclosing
+two-candidate corners PROVABLY impossible (|ρ1|=r−R1 forces a
+triangle-inequality contradiction in both στ sub-cases;
+line×enclosing-arc likewise); both-enclosing never passed reach
+gates in 3M targeted + guided hill-climb (violation→0 only in
+the degenerate corner-on-L limit), and even if reachable the
+mirror argument still gives dominance. ~160k independent
+two-survivor fuzz cases, zero violations; 3 constructor
+cross-checks picked the predicted winner. Honest MIN-1: the
+cross-lane "same candidate" sentence is an overclaim (hairline
+lens can legally split lanes — ruling-compatible, both valid);
+fix = say what's true (deterministic per lane; agreement above
+enclosure width). **Fix pass DISPATCHED (doc-level).** Both fix
+passes now in flight; PRs follow.
