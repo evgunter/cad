@@ -1405,3 +1405,18 @@ redirected: scale probes/corruptions from the resolved band (the
 multi-ε-green suites' idiom), explicit skip-with-reason only
 where scaling is dishonest, verify locally at 1e-6/1e-12/
 interval before re-push.
+
+**#146 ε-fix pushed (2026-07-31).** All test placements scaled
+from the resolved band (definitely_positive = escalate·100,
+in-band = midpoint; corruption = definitely-outside at every ε;
+tangent-arc sample count derived from the ε^(1/4) law). One
+resource-bound case became a KERNEL budget, not a test skip:
+SSI_MAX_FIT_SAMPLES=1200 with typed FitSampleBudget (the
+ε=1e-12 row wants ~4015 samples and a cubic-cost fit; the row
+stands down on the typed refusal, pinned by its own row —
+scaling the fixture instead would hold r/ε constant, an 80 m
+"small loop"). Bonus find: the differential's distance probe
+was converging to a clamped domain end (5.6e-4 m reported where
+a dense scan puts ~0) — replaced with scan+seeded-projection
+min. Local: 21/21 at 1e-6/1e-9/1e-12/interval. Watcher
+re-armed.
