@@ -37,6 +37,17 @@ blocker sizings below are the PR 9 reviewer's executed findings.
    and the shape-(iii) CUT row (loft body × plane, PR 10's
    coordination clause) lands green wherever it is still pinned
    refused.
+6. **The loft/sweep body assembly** (PR 10 review's executed
+   coordination answer, 2026-08-01 — scratch-merging PR 9 into
+   PR 10 flips NOTHING): PR 10 built walls and stopped at a typed
+   CurvedSolidFrontier; the §3 caps/walls/seams topology builder
+   DOES NOT EXIST, and the tier-3 Nurbs-face kind-refusal
+   (duplicated in tier3_local_checks AND tier3_local_checks_marked
+   — flip BOTH) plus certify's Surface::Nurbs resolve() acceptance
+   for cap-wall/wall-wall edge classes are all this unit's to
+   land. Pcurve::Harmonic already expresses UV lines — mint
+   through it, no new variant. Shape (iii)'s loft-body and
+   cut-loft acceptance rows land HERE, not by any flag flip.
 
 ## Acceptance (to firm up at dispatch)
 

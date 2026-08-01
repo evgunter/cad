@@ -1830,3 +1830,31 @@ ratified by Evan (honest version: equal on sign-definite, tighter
 on straddle; the exemption argument IS the failure mode —
 general-tightness overclaim checked and rejected against
 algebraic.rs).
+
+**PR 10 review returned (2026-08-01): APPROVE-WITH-FIX-PASS —
+1 MAJ / 4 MIN / 4 NOTE, rubric 5/4/4.** The math HELD end to
+end: closed-form loft verification BETWEEN sections (65x65
+grid); Eq 10.8 matched an independent hand derivation exactly
+(skewed spacing, ends bit-exact, not renormalized); arc
+sections exact over 8 adversarial bulges x4096 samples; schema
+break survived all 8 header attacks with the version-door-first
+ordering proven BOTH directions; Interval containment dense-
+verified; corpus exemption fired on simulated coverage.
+**Dev-2 coordination answer NEGATIVE (executed scratch-merge):**
+PR 9 flips NOTHING for the loft rows — certify accepts Nurbs
+carriers only between ANALYTIC surfaces, tier-3 Nurbs-face
+refusal untouched (and duplicated in the marked variant), and
+the SS3 caps/walls/seams assembly WAS NEVER WRITTEN (wire_loft
+unconditionally refuses after building walls). PR 9c spec
+amended: new scope item 6 (assembly + both tier-3 flips +
+certify resolve; Harmonic pcurves suffice). MAJOR-1: the Sweep
+node recipe lane is 100% DEAD (profiles require >=2 vertices,
+section_of closes the chain; reviewer witness: rectangle AND
+minimal circle paths both refuse) — dev-4 described an
+inexpressible capability; RULED collapse-honestly, no invention
+in a fix pass. MINs: two never-constructed error arms
+advertised as live; PathTangentReversal reversal-half float-
+unreachable (sin(pi)~1.2e-16 builds); missing SS2 size-limit
+note; ParamCountMismatch field-stuffing. **Fix pass DISPATCHED
+(inherits opus arm), reviewer probes adopted (4 files).**
+Lanes: PR 10 fix pass + tripwire unit; #152 still gating.
