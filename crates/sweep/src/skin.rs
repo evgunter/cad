@@ -310,7 +310,7 @@ pub fn segment_curve(
             let ux = (b.x - a.x) / len;
             let uy = (b.y - a.y) / len;
             let (nx, ny) = (-uy, ux);
-            let b2 = bulge * bulge;
+            let b2 = bulge.powi(2);
             let four_bulge = 4.0 * bulge;
             let apothem = len * (1.0 - b2) / four_bulge;
             let radius = (len * (1.0 + b2) / four_bulge).abs();
