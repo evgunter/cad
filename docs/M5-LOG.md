@@ -1760,3 +1760,9 @@ geom-brep green (topo+sweep pending), PR 10 entering its full
 battery. Both clones intact, work committed through 357c509 /
 02c64a5. Both RESUMED via SendMessage post-reset (transcript
 rung); instructed to commit any green-uncommitted bits first.
+
+**PQ4 DECIDED (Evan, in-session, 2026-08-01): keep the v1
+mid-carrier-seam rule, as recommended** — seam at junction/fillet
+only; the M2 conventional-split relaxation declined (same-carrier
+discipline). PATHS-DESIGN §6 updated. Open-with-Evan list now:
+Q9, #131, #89 display half, PATHS cusp-variant split.
