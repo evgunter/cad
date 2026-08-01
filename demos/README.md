@@ -36,6 +36,8 @@ Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
+| `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; standalone render |
+| `tiltedcut` | **STAGED (M5 PR 11)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)), both halves are closed solids, and the two lanes that would measure and draw a curved cut face refuse **typed** today (`NotIsoRectangle` through tier 3's volume row, `UnsupportedCurve` from tessellation — both name PR 11 in the error). `curvedcut::pin_frontier` pins exactly that and panics with flip instructions the day either lands; no STL, no scene entry, no silent skip |
 | `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
 | `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
@@ -76,6 +78,17 @@ Every scene body pre-flights tiers 1–2, prints exact B-rep volume/area
 from `topo::mass_properties`, and cross-checks the tessellation's
 signed volume. Boolean scenes assert exact (dyadic / closed-form)
 volume oracles after EVERY op.
+
+**Staged bodies** (`SceneBody::staged`, today only `tiltedcut`) stop
+after tiers 1–2 and hand the rest of the ladder to
+`curvedcut::pin_frontier`, which asserts that the props and
+tessellation lanes refuse in exactly their named classes with the
+frontier PR named in the error text — and panics with retire
+instructions when either starts working. A staged body exports
+nothing and contributes no scene to `scenes.json`, so the renderers
+never see a scene they cannot draw. The gate is a pin, not a skip:
+`m5_pr7_split_meter`'s pattern (pin the honest refusal, name the PR
+that flips it) carried into the demo.
 
 The tour's coda feeds a self-intersecting (bowtie) profile to
 `Profile::validate` and prints the typed rejection — the fail-loud

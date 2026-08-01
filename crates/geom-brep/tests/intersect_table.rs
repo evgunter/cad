@@ -41,7 +41,9 @@ fn route_inventory() {
         (Plane, Cone, Rung::Conic, true),
         (Plane, Sphere, Rung::Closed, false),
         (Plane, Torus, Rung::General, false),
-        (Plane, Nurbs, Rung::General, false),
+        // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
+        // PR 7 plus the tensor-composite sup bound for limb 2.
+        (Plane, Nurbs, Rung::General, true),
         (Cylinder, Cylinder, Rung::Conic, true),
         (Cylinder, Cone, Rung::General, false),
         // M5 PR 7 retired this arm: the ℝ³ implicit-pair march, all

@@ -1493,3 +1493,40 @@ parking (the verbatim clause prevents it), sed on MODEL-AB-LOG
 echoes of your own comments (not Evan), the demo ruling (M5
 showcase rides PR 11; an S2 arc-fillet demo stop is ripe
 anytime).
+
+**NEW ORCHESTRATOR PICKUP (2026-07-31).** Monitors armed
+(away-channel/disk/hourly, re-installed from checkout); 14
+merged-lane clones deleted (~89G freed, disk 124G free) via NEW
+scripts/clean-lanes.sh (Evan's suggestion: per-directory
+check-then-delete adjacency — no stale global audit; 19-case
+fixture matrix + shellcheck clean; committed with a
+worktree-disk-hygiene memory pointer). A/B rows 21-25 backfilled
+to MODEL-AB-LOG from the log entries. Handoff discrepancy resolved
+against the draw record: "fresh block-12 draws for both"
+contradicted PR 7's dispatch entry — the block-11 FABLE remainder
+was never consumed (only fix passes followed, and they inherit
+arms); the protocol wins, the remainder goes to the next unit.
+Ops note: clean-lanes.sh and session ops scripting sit OUTSIDE the
+A/B experiment (no blinded lane — the scripts/monitors/ precedent).
+
+**SPECS DRAFTED + BOTH LANES DISPATCHING (2026-07-31).**
+docs/M5-PR9-SPEC.md: zip with per-arm CurvedBooleanUnsupported
+retirement; rung-3 edges at rest (EdgeCurve::certify Nurbs flip +
+the m8 end-to-end split row); the pcurve storage variant (PR 7
+deviation 3, Copy drops per the Surface precedent); C7
+TangentIntersection by classification with the jet schedule;
+second-order sector trilean family (K funnel's second
+ill-conditioned crop, telemetry from birth); OQ7 mark +
+jet-determinate must-carry pinned both directions; C12.5 cosurface
+merge; C12.4/OQ5 census text + 3′ frontier; the (Plane,Nurbs)
+boolean arm wired one-7b-flag-flip-from-live. docs/M5-PR7B-SPEC.md:
+tensor-product Bernstein composition with the difference formed at
+the coefficient level (the cancellation IS the content — review M2
+made a doc obligation); ssi_hull_sup_chart keeps its K name across
+the swap; plane×NURBS arm retires with its proof (C12.1); shape
+(iii) substrate row lands GREEN — EXIT-GATING. **Difficulties
+logged pre-assignment: PR 9 = L, PR 7b = M.** Arms: PR 9 = FABLE
+(block-11 remainder; dispatched first per handoff order); block-12
+draw (byte 172, coin 1) = (fable, opus) → PR 7b = FABLE (slot 1),
+OPUS remainder owed to the next unit (PR 10 or S4). Two cargo
+lanes = at cap; reviews stagger behind implementations.

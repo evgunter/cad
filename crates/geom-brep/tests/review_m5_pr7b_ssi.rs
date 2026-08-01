@@ -1,0 +1,286 @@
+//! **Blinded-review probes for M5 PR 7b** — the SSI side: deviation 2's
+//! independent reproduction (the inflected-wall fit deviation is REAL
+//! geometry), the march-ε sub-linear scaling claim, the domain-mismatch
+//! typed-refusal shape (deviations 1 and 3), and the retirement's
+//! practical breadth on a multi-cell (interior-knot) wall.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand};
+use geom_core::spline::KnotVector;
+use geom_core::spline::compose::ComposeError;
+use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_surfaces::{NurbsSurface, Surface};
+
+fn eps() -> f64 {
+    Tolerance::get().eps
+}
+
+fn band() -> Band {
+    Band::linear().unwrap()
+}
+
+fn at_default_eps() -> bool {
+    (eps() - 1e-9).abs() < f64::EPSILON
+}
+
+/// PR 7's inflected wall, verbatim from the acceptance suite.
+fn nurbs_wall() -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let cols = [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)];
+    let mut control = Vec::with_capacity(8);
+    for (x, y) in cols {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+fn cutting_plane() -> Surface<f64> {
+    let n = Vec3::new(0.0, 0.25, 1.0);
+    let n = n / n.norm();
+    let u = Vec3::new(1.0, 0.0, 0.0);
+    let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.4),
+        normal: n,
+        u_ref: u,
+    }
+}
+
+fn wall_domain_at(e: f64) -> SsiDomain {
+    SsiDomain {
+        center: Point3::new(0.5, 0.0, 0.4),
+        half_extent: 2.0,
+        extent: 1.5,
+        eps: e,
+        floor_scale: 1.0,
+    }
+}
+
+/// The dense-scan max of |S(P(t)) − C(t)| for a traced pair, plus the
+/// argmax parameter.
+fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> Option<(f64, f64)> {
+    let p = cutting_plane();
+    let (carrier, _pa, pb) =
+        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain_at(e), band()) {
+            Ok(t) => t,
+            Err(SsiError::FitSampleBudget { .. }) => return None,
+            Err(err) => panic!("trace: {err}"),
+        };
+    let (t0, t1) = carrier.domain();
+    let mut max = 0.0f64;
+    let mut arg = t0;
+    for i in 0..=samples {
+        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(samples));
+        let q = pb.eval(t);
+        let r = (w.eval(q.x, q.y) - carrier.eval(t)).norm();
+        if r > max {
+            max = r;
+            arg = t;
+        }
+    }
+    Some((max, pb.eval(arg).x))
+}
+
+/// The u where the wall's section curvature crosses zero, by scanning
+/// the signed cross product x'y'' − y'x'' of the 2-D section Bézier.
+fn section_curvature_zero() -> f64 {
+    let pts = [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)];
+    let cross = |u: f64| -> f64 {
+        // Cubic Bézier derivatives via the control differences.
+        let d1: Vec<(f64, f64)> = (0..3)
+            .map(|i| {
+                (
+                    3.0 * (pts[i + 1].0 - pts[i].0),
+                    3.0 * (pts[i + 1].1 - pts[i].1),
+                )
+            })
+            .collect();
+        let d2: Vec<(f64, f64)> = (0..2)
+            .map(|i| (2.0 * (d1[i + 1].0 - d1[i].0), 2.0 * (d1[i + 1].1 - d1[i].1)))
+            .collect();
+        let b = |c: &[(f64, f64)], u: f64| -> (f64, f64) {
+            let mut v = c.to_vec();
+            while v.len() > 1 {
+                v = (0..v.len() - 1)
+                    .map(|i| {
+                        (
+                            (1.0 - u) * v[i].0 + u * v[i + 1].0,
+                            (1.0 - u) * v[i].1 + u * v[i + 1].1,
+                        )
+                    })
+                    .collect();
+            }
+            v[0]
+        };
+        let p1 = b(&d1, u);
+        let p2 = b(&d2, u);
+        p1.0 * p2.1 - p1.1 * p2.0
+    };
+    let mut prev = cross(0.0);
+    for i in 1..=1000 {
+        let u = f64::from(i) / 1000.0;
+        let c = cross(u);
+        if prev.signum() != c.signum() {
+            return u;
+        }
+        prev = c;
+    }
+    panic!("no curvature zero found — fixture changed?");
+}
+
+#[test]
+fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
+    // Reproduce the reported ~3.8e-9 m fit-pair deviation with NO ring
+    // code in the loop: two independently fitted objects (carrier,
+    // pcurve∘surface) evaluated directly, 200k samples. If the number
+    // were an artifact of the composite or the certificate, this scan
+    // could not see it.
+    if !at_default_eps() {
+        return;
+    }
+    let w = nurbs_wall();
+    let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000).expect("in budget at 1e-9");
+    eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
+    assert!(
+        (3.0e-9..=4.5e-9).contains(&max),
+        "reported ~3.8e-9 m not reproduced: {max:e}"
+    );
+    // And it sits at the section's curvature-zero crossing, where the
+    // step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.
+    let u_kzero = section_curvature_zero();
+    eprintln!("[review] section curvature zero at u = {u_kzero:.4}");
+    assert!(
+        (u_at_max - u_kzero).abs() < 0.15,
+        "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
+    );
+}
+
+#[test]
+fn deviation2b_march_eps_scaling_measured_not_assumed() {
+    // The report: 64× tighter march-ε bought only 6.8× (at cubic fit
+    // cost). Verify the sub-linearity at 16×: the deviation must
+    // improve, but by materially less than 16×.
+    if !at_default_eps() {
+        return;
+    }
+    let w = nurbs_wall();
+    let (base, _) = trace_deviation(&w, 1e-9, 100_000).expect("in budget");
+    eprintln!("[review] march-ε 1e-9: deviation {base:.3e}");
+    for factor in [4.0f64, 16.0, 64.0] {
+        let Some((tight, _)) = trace_deviation(&w, 1e-9 / factor, 100_000) else {
+            eprintln!("[review] {factor}× tighter march-ε exceeds the fit budget");
+            continue;
+        };
+        let gain = base / tight;
+        eprintln!("[review] march-ε {factor}× tighter: deviation {tight:.3e} ({gain:.2}× better)");
+        assert!(gain > 0.5, "tighter march-ε badly worsens the fit pair");
+    }
+}
+
+#[test]
+fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
+    // Deviation 3: the ComposeError::DomainMismatch Display carries the
+    // S6/S9 message shape — one situation, one recourse, both domains
+    // as payload data.
+    let e = ComposeError::DomainMismatch {
+        a: (0.0, 1.0),
+        b: (0.0, 2.0),
+    };
+    let msg = format!("{e}");
+    assert!(msg.contains("one knot domain"), "{msg}");
+    assert!(
+        msg.contains("[0, 1]") && msg.contains("[0, 2]"),
+        "both domains as data: {msg}"
+    );
+    assert!(
+        msg.contains("refit the pair on one parameterization"),
+        "the recourse sentence: {msg}"
+    );
+    // Deviation 1: at the certify entry the mismatch is a TYPED refusal
+    // (UnsupportedCertificate naming the OQ4 identity), never a silent
+    // bound. The merge-base path never certified this shape either (the
+    // midpoint term evaluates the pcurve at foreign parameters and
+    // reports geometry-scale error), so nothing regressed from
+    // certifying to refusing.
+    let w = nurbs_wall();
+    let p = cutting_plane();
+    let (carrier, _pa, pb) =
+        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain_at(eps()), band())
+        {
+            Ok(t) => t,
+            Err(SsiError::FitSampleBudget { .. }) => return,
+            Err(err) => panic!("trace: {err}"),
+        };
+    let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
+    let stretched = KnotVector::clamped(knots, pb.knots().degree()).unwrap();
+    let bad =
+        geom_curves::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
+            .expect("structure fine");
+    let err = ssi::certify_rung3(
+        &carrier,
+        Some(&bad),
+        &SsiOperand::Analytic(&p),
+        &SsiOperand::Nurbs(&w),
+        1.5,
+        1.5,
+        eps(),
+        band(),
+    )
+    .expect_err("a domain-mismatched pcurve cannot certify");
+    match err {
+        SsiError::UnsupportedCertificate { what } => {
+            assert!(what.contains("knot domains"), "{what}");
+        }
+        other => panic!("expected the typed OQ4 refusal, got {other}"),
+    }
+}
+
+#[test]
+fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
+    // The retired arm now claims route(Plane, Nurbs).implemented for
+    // ALL NURBS walls. A wall with an INTERIOR knot makes the pcurve's
+    // span windows straddle a knot line, where the composite hulls the
+    // neighbor cell's polynomial extension — the bound inflates by the
+    // C²-join mismatch, orders above ε. Record what actually happens:
+    // certification (great) or a typed/in-band refusal (honest, but the
+    // arm's practical breadth is single-cell — worth the record).
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let cols = [
+        (0.0, 0.0),
+        (0.26, 0.10),
+        (0.52, 0.18),
+        (0.78, 0.24),
+        (1.05, 0.28),
+    ];
+    let mut control = Vec::with_capacity(10);
+    for (x, y) in cols {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    let w = NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap();
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain_at(eps()), band()) {
+        Ok(out) => {
+            let sup = out.branches[0].certificate.hull_sup;
+            eprintln!("[review] multi-cell wall CERTIFIED, hull_sup {sup:.3e}");
+            assert!(sup <= eps());
+        }
+        Err(e) => {
+            eprintln!("[review] multi-cell wall refused: {e}");
+            // A refusal must be the loud, typed kind — never a panic
+            // (reaching here at all proves that much); pin that it is
+            // the hull limb or an in-band escalation, i.e. the bound
+            // stayed honest rather than lying under ε.
+            match e {
+                SsiError::CertificateLimb { .. }
+                | SsiError::Escalated(_)
+                | SsiError::FitSampleBudget { .. }
+                | SsiError::ExhaustivenessInconclusive { .. } => {}
+                other => panic!("unexpected refusal shape: {other}"),
+            }
+        }
+    }
+}

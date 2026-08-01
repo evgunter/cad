@@ -16,11 +16,13 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod crosslap;
+mod curvedcut;
 mod cutaway;
 mod heatsink;
 mod letterforms;
 mod probe;
 mod projectbox;
+mod rocker;
 mod scalar;
 
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
@@ -44,6 +46,13 @@ struct SceneBody {
     /// planar today (`gate_planar`); curved sweeps are the honest
     /// refusals until the M5 arms.
     step_expected: bool,
+    /// `true` STAGES the body: tiers 1-2 run as always, and then the
+    /// measurement + render lanes are asserted to refuse TYPED at the
+    /// named frontier instead of running (`curvedcut::pin_frontier` —
+    /// the M5 PR 11 gate, documented there, retire-on-closure like the
+    /// #111 mesh pin was). A staged body exports nothing and
+    /// contributes no scene to the render manifest.
+    staged: bool,
 }
 
 impl SceneBody {
@@ -56,6 +65,16 @@ impl SceneBody {
             contacts: None,
             color,
             step_expected: false,
+            staged: false,
+        }
+    }
+
+    /// A body staged behind the M5 PR 11 frontier: see `staged` and
+    /// [`curvedcut::pin_frontier`].
+    fn staged(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
+        Self {
+            staged: true,
+            ..Self::plain(name, color, body)
         }
     }
 
@@ -80,6 +99,7 @@ impl SceneBody {
             contacts: Some(contacts),
             color,
             step_expected: true,
+            staged: false,
         }
     }
 }
@@ -131,7 +151,7 @@ struct ManifestBody {
     color: [f64; 3],
 }
 
-fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
+fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
@@ -139,6 +159,17 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
         .unwrap_or_else(|e| panic!("{label}: tier-1 structural validation failed: {e:?}"));
     topo::validate_closed(&sb.body)
         .unwrap_or_else(|e| panic!("{label}: tier-2 closed-solid validation failed: {e:?}"));
+
+    // A STAGED body stops here: the rest of the ladder (tier 3's
+    // volume row, exact mass properties, tessellation, exports) is
+    // what M5 PR 11 lands for curved cut faces, and until then the
+    // honest thing to run is the pin that asserts the typed refusals
+    // — including the retire-on-closure panic that tells PR 11's
+    // implementer exactly which assertions to flip.
+    if sb.staged {
+        curvedcut::pin_frontier(label, &sb.body, delta);
+        return None;
+    }
 
     // Tier 3 / 3′: boolean results validate AS THEY ARE, with the
     // op's declared contacts (3′); everything else through the plain
@@ -240,14 +271,18 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
         "{label}: STEP expected but not produced"
     );
 
-    ManifestBody {
+    Some(ManifestBody {
         stl,
         step,
         color: sb.color,
-    }
+    })
 }
 
-fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) {
+/// Runs one stop; returns whether it contributed a scene to the render
+/// manifest. A fully STAGED stop (every body behind a frontier) has
+/// nothing to draw yet, so it narrates and emits no scene entry —
+/// `scenes.json` never carries a scene the renderers cannot render.
+fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) -> bool {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -257,9 +292,13 @@ fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) {
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir))
+        .filter_map(|sb| run_body(sb, stop.delta, outdir))
         .collect();
+    if bodies.is_empty() {
+        return false;
+    }
     manifest.push_str(&scene_json(stop, &bodies));
+    true
 }
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
@@ -315,13 +354,24 @@ fn main() {
     let mut scenes: Vec<String> = Vec::new();
     let mut run = |stop: &Stop| {
         manifest.clear();
-        run_stop(stop, &outdir, &mut manifest);
-        scenes.push(manifest.clone());
+        if run_stop(stop, &outdir, &mut manifest) {
+            scenes.push(manifest.clone());
+        }
     };
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
     println!("==========================================================================");
     for stop in bodies::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    for stop in rocker::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; the render is PR 11's) --");
+    for stop in curvedcut::stops() {
         run(&stop);
     }
 
