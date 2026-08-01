@@ -576,54 +576,24 @@ fn cast_ray<T: Decide>(
     }
 }
 
-/// The at-infinity material side, from the body's signed volume
-/// (divergence over fan-triangulated planar loops; rings subtract via
-/// their opposite winding). Margin is scaled to a mean thickness
-/// (V / total triangle area, meters).
+/// The at-infinity material side, from the body's EXACT signed
+/// volume (the divergence-theorem props — carrier-aware since the
+/// M5 PR 9 fix pass: the old vertex-fan triangulation read a two-arc
+/// disc cylinder as (near-)zero volume, a structural degeneracy of
+/// the chord approximation, and refused `ZeroVolumeBody` on a
+/// perfectly solid operand). Margin is scaled to a mean thickness
+/// (V / surface area, meters), as before.
 fn at_infinity_side<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
 ) -> Result<SolidContainment, PointInSolidError> {
-    let mut six_v = T::zero();
-    let mut double_area = T::zero();
-    for &face in faces {
-        let f = body
-            .get_face(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let Some(loop_data) = body.get_loop(l) else {
-                return Err(PointInSolidError::CorruptFace { face });
-            };
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let mut pts: Vec<Point3<T>> = Vec::new();
-            for he in body
-                .loop_cycle(first)
-                .ok_or(PointInSolidError::CorruptFace { face })?
-            {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .start;
-                let p = body
-                    .get_vertex(v)
-                    .and_then(|v| body.get_point(v.point))
-                    .ok_or(PointInSolidError::CorruptFace { face })?;
-                pts.push(*p);
-            }
-            for i in 1..pts.len().saturating_sub(1) {
-                let (a, b, c) = (pts[0], pts[i], pts[i + 1]);
-                let cross = (b - a).cross(c - a);
-                six_v = six_v
-                    + cross.dot(Vec3::new(a.x + b.x + c.x, a.y + b.y + c.y, a.z + b.z + c.z))
-                        / T::from_f64(3.0);
-                double_area = double_area + cross.norm();
-            }
+    let props = crate::props::mass_properties_with(body, band).map_err(|_| {
+        PointInSolidError::CorruptFace {
+            face: faces.first().copied().unwrap_or_else(|| FaceKey::default()),
         }
-    }
-    let margin = six_v / (double_area * T::from_f64(3.0));
+    })?;
+    let margin = props.volume / props.surface_area;
     match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {
             face: faces[0],

@@ -580,22 +580,6 @@ impl<T: Real> JoinLane<'_, T> {
             },
         }
     }
-
-    /// The split-lane context view (for the in-plane between test).
-    fn split_ctx(&self) -> Option<&SectionCtx<T>> {
-        match self {
-            JoinLane::Split(ctx) => Some(ctx),
-            JoinLane::Planar | JoinLane::BoolPlanar { .. } => None,
-        }
-    }
-
-    /// Whether a conic between-edge counts as in-section without a
-    /// split-plane test: on the boolean's PLANAR side every edge of
-    /// the divided face lies in the face's own plane — the germ plane
-    /// — by face containment, so the test is structural there.
-    fn conic_between_is_structural(&self) -> bool {
-        matches!(self, JoinLane::BoolPlanar { .. })
-    }
 }
 
 /// The chord spec for dividing `face` between vertices `u1 → u2`
@@ -1369,8 +1353,7 @@ impl<T: Decide> Sweep<T> {
 /// off-plane boundary edge.
 fn between_edge_in_plane<T: Decide>(
     body: &Body<T>,
-    section: Option<&SectionCtx<T>>,
-    structural_conic: bool,
+    lane: &JoinLane<'_, T>,
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitJoinError> {
@@ -1384,21 +1367,58 @@ fn between_edge_in_plane<T: Decide>(
     match curve.carrier() {
         geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(Some(true)),
         geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
-            // The boolean's PLANAR side (M5 PR 9): every edge of the
-            // divided planar face lies in the face's own plane — the
-            // germ plane — by face containment; the test is
-            // structural there.
-            if structural_conic {
-                return Ok(Some(true));
-            }
-            let ctx = section.ok_or_else(corrupt)?;
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
-            let margin = (mid - ctx.plane.origin).dot(ctx.plane.normal);
-            match decide("split_conic_inplane_mid", margin, band) {
-                Ok(Sign::Zero) => Ok(Some(true)),
-                Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
-                Err(_) => Ok(None),
+            match lane {
+                JoinLane::Planar => Err(corrupt()),
+                JoinLane::Split(ctx) => {
+                    let margin = (mid - ctx.plane.origin).dot(ctx.plane.normal);
+                    match decide("split_conic_inplane_mid", margin, band) {
+                        Ok(Sign::Zero) => Ok(Some(true)),
+                        Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
+                        Err(_) => Ok(None),
+                    }
+                }
+                // The boolean's PLANAR side (M5 PR 9 fix pass, dev 4):
+                // every edge of the divided planar face lies in the
+                // germ PLANE by face containment — but on a CONIC germ
+                // locus "in plane" is not "is the section segment":
+                // both complementary arcs share the plane AND the
+                // locus (the two-semicircle 2-gon is the witness — the
+                // old structural `true` skipped the second side's mint
+                // and desynced the zip). The honest test is WINDOW
+                // membership: the between arc is this match's own side
+                // exactly when its midpoint lies in the lane's wall
+                // window (the same cone comparison the containment
+                // layer decides trim with; Zero = graze = escalate).
+                JoinLane::BoolPlanar { wall, window, .. } => {
+                    let geom_surfaces::Surface::Cylinder {
+                        origin: o_c,
+                        axis: a_c,
+                        radius: r_c,
+                        u_ref: u_ref_c,
+                    } = wall
+                    else {
+                        return Err(corrupt());
+                    };
+                    let (w_min, w_max) = *window;
+                    let half = T::from_f64(0.5);
+                    let m_ang = (w_min + w_max) * half;
+                    let (s_m, c_m) = m_ang.sin_cos();
+                    let v_ref = a_c.cross(*u_ref_c);
+                    let m_hat = *u_ref_c * c_m + v_ref * s_m;
+                    let w = mid - *o_c;
+                    let radial = w - *a_c * w.dot(*a_c);
+                    let r_hat = radial / radial.norm();
+                    let c_h = ((w_max - w_min) * half).cos();
+                    let margin = (r_hat.dot(m_hat) - c_h) * *r_c;
+                    match decide("bool_between_arc_window", margin, band) {
+                        Ok(Sign::Positive) => Ok(Some(true)),
+                        Ok(Sign::Negative) => Ok(Some(false)),
+                        Ok(Sign::Zero) => Ok(None),
+                        Err(_) => Ok(None),
+                    }
+                }
             }
         }
     }
@@ -1563,13 +1583,7 @@ impl ChordJoiner {
             // boundary; an escalated in-plane verdict refuses typed.
             let adjacent = prev_adjacent;
             let skip_first = if adjacent {
-                match between_edge_in_plane(
-                    body,
-                    lane.split_ctx(),
-                    lane.conic_between_is_structural(),
-                    prev(body, h1)?,
-                    self.band,
-                )? {
+                match between_edge_in_plane(body, &lane, prev(body, h1)?, self.band)? {
                     Some(in_plane) => in_plane,
                     None => {
                         return Err(SplitJoinError::SectionInvariant {
@@ -1655,13 +1669,7 @@ impl ChordJoiner {
         // fix — same rule as the first guard).
         let adjacent2 = next(body, next(body, h1)?)? == h2;
         let skip_second = if adjacent2 {
-            match between_edge_in_plane(
-                body,
-                lane.split_ctx(),
-                lane.conic_between_is_structural(),
-                next(body, h1)?,
-                self.band,
-            )? {
+            match between_edge_in_plane(body, &lane, next(body, h1)?, self.band)? {
                 Some(in_plane) => in_plane,
                 None => {
                     return Err(SplitJoinError::SectionInvariant {

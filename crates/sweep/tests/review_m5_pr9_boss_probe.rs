@@ -119,41 +119,52 @@ fn my_boss_union_all_the_way_down() {
 
 #[test]
 fn my_boss_subtract_makes_a_blind_hole_honestly() {
-    // plate - boss: the bread-and-butter drilled blind hole. FINDING
-    // (executed): subtract of curved operands refuses at the REVERT
-    // step (RevertError::UnsupportedSurface, "M3 revert is
-    // planar-only, F5") — "curved booleans end-to-end" is UNION-ONLY
-    // at this PR, and the refusal text cites a stale milestone.
-    match topo::subtract(&plate(), &boss(3, 0.3, 1.0)) {
-        Ok(out) => {
-            let body = &out.body().expect("a body").body;
-            let expect = 3.0 * 3.0 * 0.8 - std::f64::consts::PI * 0.35 * 0.35 * 0.5;
-            audit(body, expect, 3, 0.8);
-            eprintln!("SUBTRACT: live and correct");
-        }
-        Err(e) => {
-            eprintln!("SUBTRACT REFUSES TYPED: {e}");
-            assert!(
-                matches!(e, topo::BooleanError::Revert(_)),
-                "expected the revert-step refusal, got {e:?}"
-            );
-        }
-    }
+    // plate - boss: the bread-and-butter drilled blind hole. The
+    // MAJ-3 finding (curved booleans were silently UNION-ONLY, dying
+    // deep in the pipeline at a stale planar-era revert message) got
+    // its ruling at the fix pass: subtract/intersect refuse UP FRONT
+    // at a typed door that names the missing lane and the banked
+    // unit — curved revert is PR 9c, which gates PR 12's die pips.
+    let e = topo::subtract(&plate(), &boss(3, 0.3, 1.0))
+        .expect_err("curved subtract refuses at the front door until PR 9c");
+    assert!(
+        matches!(e, topo::BooleanError::CurvedOpUnsupported { .. }),
+        "expected the front-door refusal, got {e:?}"
+    );
+    let msg = format!("{e}");
+    assert!(
+        msg.contains("PR 9c"),
+        "the door names the banked unit: {msg}"
+    );
+    assert!(
+        msg.contains("revert"),
+        "the door names the missing lane: {msg}"
+    );
+    assert!(msg.contains("UNION is the live"), "{msg}");
+    // Intersect takes the same door.
+    let e2 = topo::intersect(&plate(), &boss(3, 0.3, 1.0))
+        .expect_err("curved intersect refuses at the front door until PR 9c");
+    assert!(matches!(e2, topo::BooleanError::CurvedOpUnsupported { .. }));
 }
 
 #[test]
 fn the_two_arc_boss_refuses_typed_not_silently() {
-    // Deviation 8: the SAME disc authored as two semicircles — germ
-    // facing is chord-perpendicular, the join must refuse TYPED
-    // (never a wrong body). Pin the arm and the message quality.
-    let err = topo::union(&plate(), &boss(2, 0.3, 1.0))
-        .expect_err("the 2-arc authoring refuses at M5 PR 9 (deviation 8)");
-    let msg = format!("{err}");
-    eprintln!("TWO-ARC REFUSAL: {msg}");
-    assert!(
-        matches!(err, topo::BooleanError::Join(_)),
-        "expected the join-stage typed refusal, got {err:?}"
-    );
+    // Deviation 8, CLOSED at the fix pass: the SAME disc authored as
+    // two semicircles — the canonical PR 5 authoring — now unions
+    // LIVE. Three chord-degeneracy repairs made it so: germ facing
+    // became locus-aware (rotational senses about the section frame —
+    // a semicircle's endpoint tangents are exactly chord-
+    // perpendicular), the ring-run winding gained the arc bulge term
+    // (a two-semicircle 2-gon's chord Newell sum is exactly zero),
+    // and the second-chord skip guard asks WINDOW membership instead
+    // of on-locus membership (both complementary arcs share one
+    // locus). Same audit as the 3-arc row: exact volume, tier 3,
+    // seam arcs, pcurves.
+    let out = topo::union(&plate(), &boss(2, 0.3, 1.0))
+        .expect("the 2-arc authoring unions live since the fix pass");
+    let body = &out.body().expect("a body").body;
+    let expect = 3.0 * 3.0 * 0.8 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
+    audit(body, expect, 2, 0.8);
 }
 
 #[test]

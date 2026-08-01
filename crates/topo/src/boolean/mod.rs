@@ -501,6 +501,21 @@ pub enum BooleanError {
         /// The underlying Euler refusal.
         source: EulerOpError,
     },
+    /// Subtract/intersect met a CURVED operand (M5 PR 9): these ops
+    /// route regions through `revert` (A∖B ≡ A∩revert(B), §15.9), and
+    /// the revert lane — curved-surface orientation flips plus the
+    /// pcurve re-mint behind them — is planar-only in this build. The
+    /// curved revert lane is BANKED as PR 9c (it gates M5 PR 12's die
+    /// pips, which subtract); UNION is the live curved boolean. A
+    /// front-door refusal: no reduction work happens first.
+    CurvedOpUnsupported {
+        /// The refused op (never `Union`).
+        op: BooleanOp,
+        /// The operand carrying the curved face.
+        operand: Operand,
+        /// The first curved face met (face-arena order).
+        face: FaceKey,
+    },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
     /// The result body's pcurve mint pass refused (M5 PR 9: curved
@@ -651,6 +666,15 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
                  {edge:?} (not maximal-faced, F7); run merge_coplanar_faces explicitly first"
+            ),
+            Self::CurvedOpUnsupported { op, operand, face } => write!(
+                f,
+                "boolean: {op:?} on a curved operand (operand {operand:?}, first curved \
+                 face {face:?}) is not wired in this build — subtract/intersect route \
+                 regions through revert (A∖B ≡ A∩revert(B)), and the curved revert \
+                 lane (curved-surface orientation flips + the pcurve re-mint) is \
+                 BANKED as M5 PR 9c (it gates PR 12's die pips). UNION is the live \
+                 curved boolean; split the work as unions, or wait for PR 9c"
             ),
             Self::Pcurves { source } => write!(
                 f,

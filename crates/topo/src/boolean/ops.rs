@@ -356,6 +356,27 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     strategy: SweepStrategy,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear()?;
+    // The curved subtract/intersect FRONT DOOR (M5 PR 9 fix pass,
+    // MAJ-3): both ops route regions through `revert`
+    // (A∖B ≡ A∩revert(B), the §15.9 posture), and the revert lane is
+    // planar-only in this build — curved revert (curved-surface
+    // orientation flips plus the pcurve re-mint behind them) is
+    // BANKED as PR 9c, which gates PR 12's die pips (subtraction).
+    // Refused HERE, up front and typed, rather than deep inside the
+    // pipeline behind a stale planar-era message. Union is the live
+    // curved op.
+    if !matches!(op, BooleanOp::Union) {
+        for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+            for (face, fd) in body.faces() {
+                if !matches!(
+                    body.get_surface(fd.surface),
+                    Some(geom_surfaces::Surface::Plane { .. })
+                ) {
+                    return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
+                }
+            }
+        }
+    }
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
 
     if red.null_pairs.is_empty() {
