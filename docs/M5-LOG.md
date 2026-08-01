@@ -1784,3 +1784,25 @@ claim TESTED by scratch-merging PR 9 — the answer feeds PR 9c
 scope; corpus exemption self-retirement). Lanes: PR 9 fix pass
 + PR 10 review. NOTE: #151 gates open pre-review (dispatch
 instruction slip — harmless, no watcher armed until fix pass).
+
+**PR 9 fix pass COMPLETE, PR OPENED as #152 (2026-08-01,
+f0cc88f) — MERGE PRIORITY (main-is-wrong du_of_rims fix
+inside).** All items: MAJ-1 root-caused (from_f64(±inf) seeds =
+Ill under Interval poisoning min/max; atan2 trim REPLACED with
+branch-cut-free cosine cone test — fragility removed, not
+dodged; reviewer witness now 3/3); boss_union joined the Band-4
+corpus (+BVH differential runs the curved boolean bit-equal);
+MAJ-2 both suites re-pinned as evidence; MAJ-3 CurvedOpUnsupported
+front door (UNION is the live curved boolean; PR 9c + die-pips
+cited); F4 arc-aware facing WENT LIVE — the 2-arc disc unions
+with full audit (3 chord-degeneracy repairs: rotational-sense
+facing, arc bulge in ring_run_ccw, window-membership skip guard)
++ at_infinity_side moved to carrier-aware volume; F5 one-home
+tangent lane (demanded set == certifiable set by construction);
+F6 honest crossing-layer pipeline pin; F7 smalls; dev-5 relayed
+and recorded. EXTRA defect found in battery: idealized-sweep
+clearance 0/0 at distant axis-parallel pairs → division-free
+convex dip bound. Batteries: all five crates default + Interval
+0 failures; re-pins at 1e-6/1e-12. Watcher armed on #152.
+At merge: A/B row 28, lane cleanup, PR 9c spec firms up with
+the crossing-layer scope confirmed.
