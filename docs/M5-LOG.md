@@ -1672,3 +1672,19 @@ suites default + 1e-6 + 1e-12 + Interval all exit 0; fmt/clippy
 clean. Watcher armed on #149 (merge on green). At merge: A/B row
 26 fills; freed lane → demo unit (S2 arc-fillet + staged curved,
 OPUS remainder). PR 9 review resumed in the other lane.
+
+**#149 MERGED (2026-07-31): 18/18 — PR 7b on main, the shape
+(iii) EXIT GATE is BANKED.** Eighteen PRs this milestone. A/B
+row 26 filled (fable, M: 0/4/2, 5/4/4, 1 review-caught silent
+deviation, moderate fix pass). Lane hygiene: clean-lanes.sh
+REFUSED the review clone on first pass — two unpushed probe
+commits, exactly the check it was built for; archived as
+archive/m5-pr7b-review-probes then deleted clean (90G free).
+PR 9 fix pass note queued: fold main (PR 7b touched ssi.rs/
+certify.rs/intersect.rs/m5_pr7_ssi.rs — overlap with PR 9's
+geom-brep edits expected). **DEMO UNIT DISPATCHED (2026-07-31,
+OPUS — block-12 remainder, A/B row 27, difficulty S logged here
+pre-dispatch)**: S2 arc-leg fillet demo stop (ripe per standing
+ruling) + the staged curved-surface demo (scene + narration now;
+render step activates at PR 11 tessellation — Evan's ask on
+#148). Lanes: demo unit (opus) + PR 9 review (resumed).
