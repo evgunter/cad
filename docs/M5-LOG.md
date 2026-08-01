@@ -1869,3 +1869,20 @@ notified to fold main. Board: PR 10 fix pass (opus) + tripwire
 unit (fable); PR 9c queued block-14 slot 1 (now carries the
 assembly scope from the PR 10 review); then PR 11 (the demo
 moment), PR 12 (needs 9c), PR 13, PR 14 + S4.
+
+**#151 MERGED (2026-08-01): 18/18 — PR 10 ON MAIN. Twenty-one
+PRs this milestone.** Fix pass landed all items (honest Sweep
+collapse with recipe doors still checked first; OpenClosedMixed
+wired + Escalated deleted; vanishing-tangent truth with the D4
+no-invented-lever-arm rationale for not banding; size note as
+deviation 5; RaggedRows shaped arm; 22 reviewer rows adopted)
+plus an unprompted post-merge truth pass on both frontier
+messages after #152 changed what main is. A/B row 29 filled
+(opus, L; tripwire slides to row 30). RULING on the flagged
+question: the joined-path composition lane stays OUT of PR 9c
+(lean, gates PR 12); numberless message accurate; sweep-node
+bodies are not exit-listed (shape (iii) is the loft) — the
+lane rides PR 14 exit-walk judgment. Tripwire lane notified to
+fold main + re-census (PR 10 added geometry code). Board: PR 10
+lane cleanup pending report-then-clean; tripwire finishing;
+PR 9c (block-14 slot 1) DISPATCHES to the freed lane.
