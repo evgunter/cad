@@ -438,11 +438,30 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
 ///
 /// # Errors
 ///
+/// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
+/// for sections that did not come out of [`make_compatible`], and
 /// [`SkinError::DegenerateSection`] when two consecutive sections
 /// coincide at every control point (no chord step exists there).
 pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinError> {
     let k = sections.len();
+    if k < 2 {
+        return Err(SkinError::TooFewSections { have: k, need: 2 });
+    }
     let n = sections[0].control().len();
+    // Every section must present the same control row count — the
+    // caller's `make_compatible` obligation, checked rather than
+    // assumed (an out-of-range index would be a panic, and this
+    // entry is public).
+    for (i, c) in sections.iter().enumerate().skip(1) {
+        if c.control().len() != n {
+            return Err(SkinError::SectionShapeMismatch {
+                section: i,
+                expected: n,
+                found: c.control().len(),
+                what: "compatible control points",
+            });
+        }
+    }
     let mut totals = vec![0.0f64; k];
     let mut rows = 0usize;
     for i in 0..n {
