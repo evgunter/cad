@@ -24,7 +24,11 @@
 //! `pin_frontier`'s retire-on-closure panics fire with instructions:
 //! drop `SceneBody::staged` from [`stops`], and this stop joins the
 //! standard ladder (props ribbon, mesh, STL, scene manifest, montage
-//! panel) like every other. Nothing else in the tour changes. This is
+//! panel) like every other; also add it to `probe.rs`'s K-probe
+//! sweep at that point (which requires genericizing this module
+//! over `Scalar` — today it is f64-only because the sweep's ladder
+//! ends in exactly the refusals staged here). Nothing else in the
+//! tour changes. This is
 //! the `crates/topo/tests/m5_pr7_split_meter.rs` pattern — pin the
 //! honest refusal, name the PR that flips it — carried into the demo.
 //!
