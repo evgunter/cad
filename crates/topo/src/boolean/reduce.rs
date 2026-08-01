@@ -669,41 +669,41 @@ fn curved_face_arm<T: Decide>(
         // Both inside: the residual along a line is convex, so its
         // maximum is at an endpoint — definitely no wall crossing.
         (Sign::Negative, Sign::Negative) => Ok(()),
-        // Both outside: clear through the span minimum of the convex
-        // residual (vertex of the parabola, clamped to the span).
+        // Both outside: clear through a DIVISION-FREE lower bound on
+        // the span minimum of the convex residual (fix pass: the old
+        // parabola-vertex formula divided by the transverse direction
+        // norm, which is 0/0 on axis-parallel edges — the IDEALIZED
+        // sweep examines exactly those at distance and poisoned the
+        // whole op). A convex quadratic dips below its endpoint chord
+        // by at most f″·Δt²/8, and f″ is closed-form per kind, so
+        //   min_span f ≥ min(f(t₀), f(t₁)) − f″·Δt²/8
+        // — total arithmetic, conservative direction (a too-small
+        // bound only sends more pairs to the typed frontier door,
+        // never accepts).
         (Sign::Positive, Sign::Positive) => {
-            let geom_curves::Curve3::Line { origin, dir } = *curve.carrier() else {
+            let geom_curves::Curve3::Line { origin: _, dir } = *curve.carrier() else {
                 return Err(frontier()); // unreachable: matched above
             };
             let (t0, t1) = curve.params();
-            let t_star = match surface {
-                geom_surfaces::Surface::Cylinder {
-                    origin: c0, axis, ..
-                } => {
-                    let w0 = origin - c0;
-                    let w0p = w0 - axis * w0.dot(axis);
-                    let dp = dir - axis * dir.dot(axis);
-                    let dd = dp.norm_squared();
-                    T::zero() - w0p.dot(dp) / dd // poison if dd = 0 (axis-parallel: residual constant)
+            // f″ per kind (the residual's second derivative along the
+            // ray, constant for these kinds).
+            let f2 = match surface {
+                geom_surfaces::Surface::Cylinder { axis, radius, .. } => {
+                    let d_ax = dir.dot(axis);
+                    (dir.norm_squared() - d_ax.powi(2)) / radius
                 }
-                geom_surfaces::Surface::Sphere { center, .. } => {
-                    let q0 = origin - center;
-                    let dd = dir.norm_squared();
-                    T::zero() - q0.dot(dir) / dd
-                }
-                // Nurbs (and post-gate-unreachable kinds): no residual
-                // machinery — the frontier door, which for a NURBS
-                // wall names the 7b-gated section routing.
+                geom_surfaces::Surface::Sphere { radius, .. } => dir.norm_squared() / radius,
+                // Post-gate/pre-check unreachable kinds keep the
+                // frontier door.
                 _ => return Err(frontier()),
             };
-            let clamped = t_star.max(t0).min(t1);
-            let min_resid = geom_brep::implicit_residual(&surface, curve.carrier().eval(clamped));
-            match decide("bool_line_cylinder_clearance", min_resid, band) {
+            let span = t1 - t0;
+            let dip = f2 * span.powi(2) * T::from_f64(0.125);
+            let r_u = geom_brep::implicit_residual(&surface, pu);
+            let r_v = geom_brep::implicit_residual(&surface, pv);
+            let min_bound = r_u.min(r_v) - dip;
+            match decide("bool_line_cylinder_clearance", min_bound, band) {
                 Ok(Sign::Positive) => Ok(()),
-                // NaN t_star (axis-parallel line: constant residual,
-                // endpoints already Positive) poisons the eval and
-                // escalates below rather than deciding — conservative
-                // but never wrong; the common case decides cleanly.
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
                 Err(diag) => Err(BooleanError::Escalated { diag }),
             }
