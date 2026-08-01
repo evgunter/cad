@@ -93,17 +93,21 @@ fn ssi_branch_or_budget() -> Option<ssi::SsiBranch> {
     }
 }
 
+/// The scaffold: a body, its rung-3 edge, the fitted carrier, and the
+/// carrier's parameter window.
+type Rung3Scaffold = (
+    topo::Body<f64>,
+    topo::EdgeKey,
+    std::sync::Arc<NurbsCurve3<f64>>,
+    (f64, f64),
+);
+
 /// A scaffold body holding one certified rung-3 edge (the open half of
 /// the fixture's small loop, `Intersection { cylinder, sphere }`), or
 /// `None` on the budget refusal. The second `mvfs` seed exists only to
 /// anchor the cylinder surface so both description keys resolve
 /// through the public attach door.
-fn body_with_rung3_edge() -> Option<(
-    topo::Body<f64>,
-    topo::EdgeKey,
-    std::sync::Arc<NurbsCurve3<f64>>,
-    (f64, f64),
-)> {
+fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
     let branch = ssi_branch_or_budget()?;
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
