@@ -494,10 +494,12 @@ fn generic_edge_edge_mixed_order_pair() {
     }
 }
 
-/// The F5 curved gate itself (the shipped `curved_operand_refuses`
-/// exercises only the SCAFFOLDING arm): a face swapped to a cylinder
-/// must refuse as CurvedBooleanUnsupported with the offending operand
-/// and face named.
+/// The per-arm curved gate (M5 PR 9 narrowed this witness: `Cylinder`
+/// faces now PASS the operand gate — the conic arms are wired — so
+/// the gate-refusal witness moved to a kind with no wired boolean arm
+/// at all): a face swapped to a torus must refuse as
+/// CurvedBooleanUnsupported with the offending operand and face
+/// named, AT THE GATE.
 #[test]
 fn curved_face_gate_witness() {
     use geom_core::{Point3, Vec3};
@@ -506,10 +508,11 @@ fn curved_face_gate_witness() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom_surfaces::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
+        topo::FaceSurface::New(geom_surfaces::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 1.0),
             axis: Vec3::new(1.0, 0.0, 0.0),
-            radius: 1.0,
+            major_radius: 1.0,
+            minor_radius: 0.25,
             u_ref: Vec3::new(0.0, 0.0, 1.0),
         }),
     )
@@ -518,10 +521,57 @@ fn curved_face_gate_witness() {
         Err(BooleanError::CurvedBooleanUnsupported {
             operand: topo::Operand::B,
             face: f,
-            kind: geom_brep::SurfaceKind::Cylinder,
+            kind: geom_brep::SurfaceKind::Torus,
         }) => assert_eq!(f, face),
         other => panic!("expected CurvedBooleanUnsupported(B), got {other:?}"),
     }
+}
+
+/// Shape (iii) READINESS, pinned end to end at the boolean layer
+/// (M5 PR 9 fix pass, F6/dev 4 aftermath): a NURBS-walled operand
+/// passes the per-arm gate (the SECTION arm is certified since
+/// PR 7b), and the pipeline surfaces its CURRENT typed refusal at
+/// the crossing layer — the sweep's edge×NURBS-face arm — naming the
+/// missing boolean piece and the banked unit (PR 9c). The spec's
+/// original "one 7b-flag-flip from live" claim was wrong (the
+/// crossing layer is not behind 7b's flag); this row pins what IS
+/// true.
+#[test]
+fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
+    let (face, _) = b.faces().next().unwrap();
+    b.set_face_surface(
+        face,
+        topo::FaceSurface::New(geom_surfaces::Surface::Nurbs(std::sync::Arc::new(
+            geom_surfaces::NurbsSurface::placeholder(),
+        ))),
+    )
+    .unwrap();
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b) {
+        Err(e) => e,
+        Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
+    };
+    let BooleanError::CurvedBooleanUnsupported {
+        kind: geom_brep::SurfaceKind::Nurbs,
+        ..
+    } = err
+    else {
+        panic!("expected the typed crossing-layer refusal, got {err:?}");
+    };
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("PR 9c"),
+        "the refusal names the banked unit: {msg}"
+    );
+    assert!(
+        msg.contains("crossing layer"),
+        "the refusal names the missing boolean piece: {msg}"
+    );
+    assert!(
+        msg.contains("PR 7b"),
+        "the refusal is honest that the SECTION arm is already certified: {msg}"
+    );
 }
 
 /// The two DERIVATION-CORRECTED ∖-column cells, executed geometrically

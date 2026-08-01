@@ -265,6 +265,36 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// **The tier-3 contact MARK** (OQ7's two-level shape, level (i);
+/// M5 PR 9): the per-edge dihedral/jet verdict the tier-3 pass
+/// derives, KEPT as a named recorded classification instead of
+/// discarded — this is what stops the prefer-intrinsic preference
+/// from drifting, at zero enforcement risk. Obtainable at rest
+/// through [`contact_marks`]; the must-carry
+/// ([`ValidationError::TangentNotIntrinsic`]) is level (ii) and
+/// fires only on [`ContactMark::Tangent`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContactMark {
+    /// Every interior sample definitely transverse (the
+    /// `Intersection` regime).
+    Transverse,
+    /// Definitely tangent AND jet-determinate: every interior sample
+    /// definitely smooth at first order, second-order separation
+    /// (`tangent_second_order`) definitely positive — the surfaces
+    /// determine the locus (`TangentIntersection`'s regime).
+    Tangent,
+    /// Definitely smooth at first order with a zero-side second-order
+    /// margin at some sample: the surfaces UNDER-determine the locus
+    /// (a G2 conventional join, a same-surface split) — exempt from
+    /// the must-carry by this very verdict.
+    SmoothUnderdetermined,
+    /// A `Seam`-described edge — exempt by kind, as always.
+    Seam,
+    /// No definite whole-edge verdict: mixed samples, or an
+    /// escalation already reported as its own error.
+    Unmarked,
+}
+
 /// A structural or geometric defect found by the validators. Closed
 /// enum, D3 style: each tier's PRs add variants as compiler-guided
 /// extensions — every match site is forced to say what it does with the
@@ -391,6 +421,37 @@ pub enum ValidationError {
         /// conventional.
         edge: EdgeKey,
     },
+    /// Tier 3, the symmetric must-carry (OQ7's two-level shape, level
+    /// (ii); M5 PR 9): a **jet-determinate tangency** — every interior
+    /// sample definitely Smooth at first order AND the second-order
+    /// separation (`tangent_second_order`, the relative transverse
+    /// normal curvature at the folded lever arm) definitely positive
+    /// at every sample — carries a conventional (`MappedCurve`)
+    /// description at rest. The surfaces DETERMINE the locus, so the
+    /// intrinsic `TangentIntersection` description must be stored
+    /// (prefer-intrinsic, one differential order up).
+    ///
+    /// Exemptions are **by the predicate, never a list**: a G2
+    /// conventional join's second-order margin is zero-side (the
+    /// surfaces under-determine the locus — κ_rel exactly zero, e.g.
+    /// any same-surface or same-value smooth split), so it never
+    /// classifies jet-determinate; `Seam` edges are exempt by kind
+    /// exactly as today; in-band second order escalates as
+    /// [`ValidationError::SliverDihedral`] with the
+    /// `tangent_second_order` cause (F6 — an osculating pair is a
+    /// sliver at this ε), which exempts the edge here — so
+    /// ε-tightening can escalate but never flips a valid body to
+    /// invalid THROUGH THIS CHECK. Enforcement is scoped by
+    /// [`geom_brep::tangent_certificate_lane`] — the ONE home of the
+    /// jet certificate's per-class boundary (C12.1: `Line` carriers
+    /// on `Plane`/`Cylinder`/`Sphere` pairs), so the demanded set and
+    /// the certifiable set are the same set by construction; a
+    /// tangency outside the lane is neither certifiable nor demanded.
+    TangentNotIntrinsic {
+        /// The jet-determinate tangent edge whose description is
+        /// conventional.
+        edge: EdgeKey,
+    },
     /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
     /// windings — the outer loop winds **definitely negatively** (or a
     /// cycle ring definitely positively) around the face's outward
@@ -465,10 +526,16 @@ pub enum ValidationError {
     },
     /// Tier 3′: the census met an entity outside its exact planar
     /// inventory (non-`Line` carrier / non-`Plane` surface). The
-    /// coincidence census is exact on the F5 planar corpus — the same
-    /// boundary the M3 booleans that produce 3′ bodies enforce; curved
-    /// census geometry is deferred with the curved boolean work (M5),
-    /// and meeting it here refuses loudly rather than sampling.
+    /// census stays **exact-on-planar through M5** (C12.4, OQ5 as
+    /// decided): the curved coincidence census — coincident-cylinder
+    /// classes, tangency contacts as declared records (C7's regime) —
+    /// is a coincidence-ladder design of its own, deferred to its own
+    /// design doc. Consequence, stated honestly: M5's curved booleans
+    /// produce tier-3 transverse, NON-touching results; a curved
+    /// boolean result that TOUCHES refuses typed at this 3′ gate —
+    /// the M5 envelope's frontier, exactly as boundary-on-boundary
+    /// seams were M3's. Meeting curved geometry here refuses loudly
+    /// rather than sampling.
     CensusUnsupported {
         /// The unsupported entity.
         entity: EntityId,
@@ -922,6 +989,16 @@ impl fmt::Display for ValidationError {
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
             ),
+            Self::TangentNotIntrinsic { edge } => write!(
+                f,
+                "edge {edge:?} is a jet-determinate tangency (definitely smooth at \
+                 every interior sample, second-order separation definitely positive — \
+                 the surfaces DETERMINE the locus) but carries a conventional \
+                 MappedCurve description — such edges must be described intrinsically \
+                 as the TangentIntersection of their faces' surfaces (prefer-intrinsic \
+                 one order up, OQ7/C7; a G2 join is exempt by its zero-side \
+                 second-order margin, never by a list)"
+            ),
             Self::LoopRoleInverted { face, r#loop } => write!(
                 f,
                 "face {face:?}: loop {loop:?}'s winding disagrees with its outer/ring role \
@@ -960,7 +1037,13 @@ impl fmt::Display for ValidationError {
             Self::CensusUnsupported { entity } => write!(
                 f,
                 "tier-3′ census: {entity} is outside the exact planar census \
-                 inventory (F5 planar corpus; curved census is M5)"
+                 inventory — the census stays exact-on-planar through M5 (C12.4; \
+                 OQ5: the curved coincidence census is its own deferred design). \
+                 M5 curved booleans produce tier-3 transverse, non-touching \
+                 results; a touching curved result refuses HERE by design (the \
+                 C7 tangency/coincidence classes have no census records yet) — \
+                 separate the operands or declare the contact once the curved \
+                 census lands"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -1427,6 +1510,44 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
 /// `validate_geometric` is identical to the pre-extraction code).
 /// Assumes the tier-1/2 coarse gate already passed.
 pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<ValidationError> {
+    let mut marks = slotmap::SecondaryMap::new();
+    tier3_local_checks_marked(body, band, &mut marks)
+}
+
+/// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
+/// runs the structural coarse gate, then the tier-3 battery, and
+/// returns the recorded per-edge [`ContactMark`]s. `Err` carries every
+/// validation failure exactly as [`validate_geometric`] would (marks
+/// are only meaningful on a valid body).
+///
+/// # Errors
+///
+/// As [`validate_geometric`].
+pub fn contact_marks<T: Decide>(
+    body: &Body<T>,
+) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
+    validate_closed(body)?;
+    let band = match Band::linear() {
+        Ok(band) => band,
+        Err(error) => return Err(vec![ValidationError::Band { error }]),
+    };
+    let mut marks = slotmap::SecondaryMap::new();
+    let errors = tier3_local_checks_marked(body, band, &mut marks);
+    if errors.is_empty() {
+        Ok(marks)
+    } else {
+        Err(errors)
+    }
+}
+
+/// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
+/// same pass — never classifying twice; the mark is the verdict the
+/// dihedral/jet loop derives anyway).
+pub(crate) fn tier3_local_checks_marked<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
+) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // ------------------------------------------------------------------
@@ -1466,7 +1587,8 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
             continue;
         };
         let adjacent = match *curve.description() {
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
+            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
+            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
                 (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
             }
             geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
@@ -1583,9 +1705,10 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
         // neither.
         let mut escalated = false;
         let mut all_transverse = true;
+        let mut all_smooth = true;
         for &p in &samples {
             match classify_dihedral(s_plus, s_minus, p, extent, band) {
-                Ok(DihedralClass::Transverse) => {}
+                Ok(DihedralClass::Transverse) => all_smooth = false,
                 Ok(DihedralClass::Smooth) => all_transverse = false,
                 Err(cause) => {
                     errors.push(ValidationError::SliverDihedral {
@@ -1603,6 +1726,72 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
         {
             errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
         }
+        // The contact MARK (OQ7 level (i), M5 PR 9) and the symmetric
+        // must-carry (level (ii)). A definitely-smooth edge descends
+        // one order — the jet's second-order margin at the SAME
+        // schedule samples: definite at every sample ⇒ a
+        // jet-determinate tangency (the surfaces determine the locus);
+        // a zero-side sample ⇒ under-determined (G2 conventional —
+        // exempt BY THE PREDICATE); in-band ⇒ SliverDihedral with the
+        // `tangent_second_order` cause (F6), which exempts the edge
+        // here so ε-tightening never flips valid→invalid through the
+        // must-carry. `Seam` edges are exempt by kind, as always.
+        let mark = if escalated {
+            ContactMark::Unmarked
+        } else if matches!(curve.description(), geom_brep::EdgeGeometry::Seam { .. }) {
+            ContactMark::Seam
+        } else if all_transverse {
+            ContactMark::Transverse
+        } else if all_smooth {
+            let mut jet_determinate = true;
+            let mut jet_escalated = false;
+            for i in 1..(geom_brep::CERT_SAMPLES - 1) {
+                let t = curve.sample_param(i);
+                let p = curve.carrier().eval(t);
+                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, curve.carrier().deriv(t));
+                let arm = geom_brep::curvature_lever_arm(s_plus, p)
+                    .min(geom_brep::curvature_lever_arm(s_minus, p))
+                    .min(extent);
+                let margin = jet.kappa_rel.abs() * arm * arm * T::from_f64(0.5);
+                match decide("tangent_second_order", margin, band) {
+                    Ok(Sign::Positive) => {}
+                    Ok(Sign::Zero | Sign::Negative) => {
+                        jet_determinate = false;
+                        break;
+                    }
+                    Err(cause) => {
+                        errors.push(ValidationError::SliverDihedral {
+                            edge: edge_key,
+                            cause,
+                        });
+                        jet_escalated = true;
+                        break;
+                    }
+                }
+            }
+            if jet_escalated {
+                ContactMark::Unmarked
+            } else if jet_determinate {
+                ContactMark::Tangent
+            } else {
+                ContactMark::SmoothUnderdetermined
+            }
+        } else {
+            ContactMark::Unmarked
+        };
+        if mark == ContactMark::Tangent
+            && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+            && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)
+        {
+            // The lane condition IS the jet certificate's per-class
+            // boundary, consulted from its one home
+            // (`geom_brep::tangent_certificate_lane`, C12.1): the
+            // demanded set equals the certifiable set by construction
+            // — a Line-on-Cone tangency, say, is neither certifiable
+            // nor demanded (fix pass, dev 7).
+            errors.push(ValidationError::TangentNotIntrinsic { edge: edge_key });
+        }
+        marks.insert(edge_key, mark);
         // Check 5: planar-boundary containment against each distinct
         // adjacent planar face.
         let mut adjacent = vec![(f_plus, fs_plus)];

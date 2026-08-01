@@ -215,6 +215,118 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     }
 }
 
+/// The quadratic form `dᵀ (∇²F) d` of [`implicit_residual`]'s Hessian
+/// at `p`, along direction `d` (NOT normalized — the form is
+/// homogeneous of degree 2 in `d`). With `d` a unit surface tangent,
+/// `dᵀ∇²F d / |∇F|` is the surface's **normal curvature** along `d`
+/// (signed against the outward implicit gradient) — the second-order
+/// jet datum C7's tangency schedule and the second-order sector
+/// trilean consume (M5 PR 9).
+///
+/// Derived per kind from the module-doc forms (fixed order, D9);
+/// squares of possibly-zero components go through `powi(2)` (the
+/// interval-square rule). Honest poison at surface singularities
+/// (cone axis, torus axis) and for [`Surface::Nurbs`].
+pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) -> T {
+    match *s {
+        // F = (p − o)·n̂: linear, Hessian 0.
+        Surface::Plane { .. } => T::zero(),
+        // F = (|q|² − r²)/2r: ∇²F = I/r.
+        Surface::Sphere { radius, .. } => d.norm_squared() / radius,
+        // F = (|w|² − r²)/2r, w = q − a(q·a): ∇²F = (I − aaᵀ)/r.
+        Surface::Cylinder { axis, radius, .. } => {
+            let d_ax = d.dot(axis);
+            (d.norm_squared() - d_ax.powi(2)) / radius
+        }
+        // F = |w|·cos α − |h|·sin α: away from h = 0 the |h| term is
+        // linear; ∇²(|w|) = (I − aaᵀ − ŵŵᵀ)/ρ. Poison on the axis
+        // (ρ = 0), as the gradient already is.
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let (_, c_a) = half_angle.sin_cos();
+            let (_, w) = axial_radial(p, apex, axis);
+            let rho = w.norm();
+            let w_hat = w / rho;
+            let d_ax = d.dot(axis);
+            let d_w = d.dot(w_hat);
+            (d.norm_squared() - d_ax.powi(2) - d_w.powi(2)) * c_a / rho
+        }
+        // F = ((ρ − R)² + h² − r²)/2r: ∇²F = ((I − aaᵀ − ŵŵᵀ)·(ρ − R)/ρ
+        // + ŵŵᵀ + aaᵀ)/r. Poison on the axis (ρ = 0).
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (_, w) = axial_radial(p, center, axis);
+            let rho = w.norm();
+            let w_hat = w / rho;
+            let d_ax = d.dot(axis);
+            let d_w = d.dot(w_hat);
+            let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);
+            (d_perp2 * (rho - major_radius) / rho + d_w.powi(2) + d_ax.powi(2)) / minor_radius
+        }
+        Surface::Nurbs(_) => poison(),
+    }
+}
+
+/// The **largest normal-curvature magnitude** of `s` at `p` over its
+/// tangent plane (1/meters) — the direction-free second-order datum
+/// the C12.2 tangent-contact descent classifies against (M5 PR 9):
+/// zero iff the surface osculates its tangent plane (locally
+/// plane-like — the under-determined case), definitely positive iff
+/// it bends off it in SOME direction.
+///
+/// Branch-free (no basis choice — D9/equivariance): the Hessian is
+/// assembled from six [`implicit_hessian_form`] evaluations by
+/// polarization; the tangent-plane restriction's eigen extremum comes
+/// from the two invariants `tr_r = tr H − n̂ᵀHn̂` and
+/// `det_r = n̂ᵀ adj(H) n̂` (the adjugate identity), giving
+/// `|λ|max = |tr_r/2| + √((tr_r/2)² − det_r)`, divided by `|∇F|`.
+/// Poison in, poison out (singular points, `Nurbs`).
+pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
+    let g = implicit_gradient(s, p);
+    let n_hat = g / g.norm();
+    let ex = Vec3::new(T::one(), T::zero(), T::zero());
+    let ey = Vec3::new(T::zero(), T::one(), T::zero());
+    let ez = Vec3::new(T::zero(), T::zero(), T::one());
+    let hxx = implicit_hessian_form(s, p, ex);
+    let hyy = implicit_hessian_form(s, p, ey);
+    let hzz = implicit_hessian_form(s, p, ez);
+    let two = T::from_f64(2.0);
+    let hxy = (implicit_hessian_form(s, p, ex + ey) - hxx - hyy) / two;
+    let hyz = (implicit_hessian_form(s, p, ey + ez) - hyy - hzz) / two;
+    let hxz = (implicit_hessian_form(s, p, ex + ez) - hxx - hzz) / two;
+    // Restricted trace: tr H − n̂ᵀHn̂.
+    let n_form = implicit_hessian_form(s, p, n_hat);
+    let tr_r = hxx + hyy + hzz - n_form;
+    // Restricted determinant: n̂ᵀ adj(H) n̂ (cofactors, fixed order).
+    let adj_xx = hyy * hzz - hyz * hyz;
+    let adj_yy = hxx * hzz - hxz * hxz;
+    let adj_zz = hxx * hyy - hxy * hxy;
+    let adj_xy = hxz * hyz - hxy * hzz;
+    let adj_yz = hxy * hxz - hyz * hxx;
+    let adj_xz = hxy * hyz - hyy * hxz;
+    let det_r = adj_xx * n_hat.x.powi(2)
+        + adj_yy * n_hat.y.powi(2)
+        + adj_zz * n_hat.z.powi(2)
+        + two
+            * (adj_xy * n_hat.x * n_hat.y
+                + adj_yz * n_hat.y * n_hat.z
+                + adj_xz * n_hat.x * n_hat.z);
+    let half_tr = tr_r / two;
+    // (tr/2)² − det ≥ 0 in ℝ (a real symmetric restriction); the
+    // clamp guards rounding, powi keeps the interval square tight.
+    let disc = (half_tr.powi(2) - det_r).max(T::zero());
+    (half_tr.abs() + disc.sqrt()) / g.norm()
+}
+
 /// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
 /// `w` the radial component of `p` relative to the surface's own
 /// anchor/axis and `v_ref = axis × u_ref` — the pieces the

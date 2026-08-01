@@ -12,7 +12,9 @@
 //!
 //! Pipeline of [`boolean_reduce`]:
 //!
-//! 1. **Gates**: planar-only (F5, [`BooleanError::CurvedBooleanUnsupported`]);
+//! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
+//!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
+//!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
 //!    no scaffolding operands; **maximal faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
@@ -375,18 +377,41 @@ impl<T: Real> BooleanReduction<T> {
 pub enum BooleanError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
-    /// A face of `operand` is not a `Plane` — M3 booleans are
-    /// planar-only (F5).
+    /// A face's kind has no wired boolean arm at the classification
+    /// site that met it (M5 PR 9: the F5 planar-only gate retired PER
+    /// C5 TABLE ARM — `Plane`/`Cylinder`/`Sphere`/`Nurbs` faces pass
+    /// the operand gate and pair-level refusals fire where an arm is
+    /// actually exercised, citing the table's routing; `Cone`/`Torus`
+    /// keep the gate refusal — no wired arm involves them).
     CurvedBooleanUnsupported {
         /// The offending operand and face.
         operand: Operand,
         /// The face.
         face: FaceKey,
-        /// Its surface kind — the C5 table row the refusal cites
-        /// (M5 PR 5: the boolean PIPELINE still executes only the
-        /// plane×plane arm; curved execution wires at M5 PR 9, and
-        /// the refusal retires per arm then, never wholesale).
+        /// Its surface kind — the C5 table row the refusal cites.
         kind: geom_brep::SurfaceKind,
+    },
+    /// A sweep event definitely lands on a CURVED face away from its
+    /// boundary, a vertex sits ON a curved surface, or a curved-carrier
+    /// edge cannot be cleared against a curved face: the curved PIERCE
+    /// door — point-in-face trim containment on a curved chart at
+    /// boolean classification, and the v-on-curved-face ring insertion
+    /// behind it — does not exist yet (the M5 envelope's frontier; the
+    /// C5 table routes the SECTIONS, this is the crossing layer). The
+    /// **definite** half of a two-tolerance pair: the very same
+    /// clearance margin one band-width away escalates as
+    /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
+    /// instead, and both halves quote the band and end on the shared
+    /// recourse.
+    CurvedPierceUnsupported {
+        /// The operand whose edge met the curved face.
+        operand: Operand,
+        /// The curved face (in the other operand).
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The band the clearance margins were classified against.
+        band: Band,
     },
     /// An edge carrier is not a `Line` (F5).
     CurvedEdgeUnsupported {
@@ -476,8 +501,31 @@ pub enum BooleanError {
         /// The underlying Euler refusal.
         source: EulerOpError,
     },
+    /// Subtract/intersect met a CURVED operand (M5 PR 9): these ops
+    /// route regions through `revert` (A∖B ≡ A∩revert(B), §15.9), and
+    /// the revert lane — curved-surface orientation flips plus the
+    /// pcurve re-mint behind them — is planar-only in this build. The
+    /// curved revert lane is BANKED as PR 9c (it gates M5 PR 12's die
+    /// pips, which subtract); UNION is the live curved boolean. A
+    /// front-door refusal: no reduction work happens first.
+    CurvedOpUnsupported {
+        /// The refused op (never `Union`).
+        op: BooleanOp,
+        /// The operand carrying the curved face.
+        operand: Operand,
+        /// The first curved face met (face-arena order).
+        face: FaceKey,
+    },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
+    /// The result body's pcurve mint pass refused (M5 PR 9: curved
+    /// results carry certified per-half-edge pcurves at rest — the
+    /// PR 6 contract; loud rather than shipping uncertified caches,
+    /// D4 ¶2).
+    Pcurves {
+        /// The typed pcurve-pass refusal, nested whole.
+        source: crate::pcurves::PcurveMintError,
+    },
     /// The joining stage's chord machinery refused (PR 5; nested
     /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
     Join(SplitJoinError),
@@ -579,16 +627,39 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
-                 boolean pipeline executes only the plane×plane arm of the C5 table \
-                 (curved execution wires at M5 PR 9; pairs involving this kind route \
-                 per geom_brep::intersect::route, rung-3 arms unimplemented until SSI)",
+                 classification this site required has no wired boolean arm for the \
+                 kind in this build (the refusal retires per C5 table arm, never \
+                 wholesale — C12.1). Pairs involving this kind route per \
+                 geom_brep::intersect::route; where a route is already implemented \
+                 at the INTERSECTION layer (plane×NURBS since PR 7b), what is \
+                 missing here is the boolean's own crossing layer for the kind — \
+                 edge×face sweep events, curved trim containment, and the fitted \
+                 chord join lane — banked as M5 PR 9c",
                 kind.name()
+            ),
+            Self::CurvedPierceUnsupported {
+                operand,
+                face,
+                edge,
+                band,
+            } => write!(
+                f,
+                "boolean_reduce: edge {edge:?} of operand {operand:?} definitely meets \
+                 curved face {face:?} away from a shared boundary (clearance classified \
+                 against band [zero {:e}, escalate {:e}]) — the curved pierce door \
+                 (point-in-face trim containment on a curved chart, and the ring \
+                 insertion behind it) does not exist yet: the M5 envelope's typed \
+                 frontier. The same margin one band-width away escalates as a sliver \
+                 instead (F6); {}",
+                band.zero(),
+                band.escalate(),
+                COINCIDENCE_RECOURSE
             ),
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line \
-                 carrier — the boolean pipeline's sweep is line-exact until curved \
-                 execution wires (M5 PR 9)"
+                "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
+                 (Nurbs) carrier — rung-3 INPUT operands are outside the M5 envelope \
+                 (rung-3 edges are what the curved zip MINTS, not what it consumes)"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
@@ -599,6 +670,20 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
                  {edge:?} (not maximal-faced, F7); run merge_coplanar_faces explicitly first"
+            ),
+            Self::CurvedOpUnsupported { op, operand, face } => write!(
+                f,
+                "boolean: {op:?} on a curved operand (operand {operand:?}, first curved \
+                 face {face:?}) is not wired in this build — subtract/intersect route \
+                 regions through revert (A∖B ≡ A∩revert(B)), and the curved revert \
+                 lane (curved-surface orientation flips + the pcurve re-mint) is \
+                 BANKED as M5 PR 9c (it gates PR 12's die pips). UNION is the live \
+                 curved boolean; split the work as unions, or wait for PR 9c"
+            ),
+            Self::Pcurves { source } => write!(
+                f,
+                "boolean: the result's pcurve mint pass refused (curved results carry \
+                 certified per-half-edge pcurves at rest, M5 PR 9): {source}"
             ),
             Self::Escalated { diag } => write!(
                 f,

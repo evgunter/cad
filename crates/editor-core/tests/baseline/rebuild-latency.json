@@ -1,73 +1,80 @@
 {
   "documents": {
+    "boss_union": {
+      "about": "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
+      "cone": 2,
+      "full_ms": 382.1,
+      "incremental_ms": 308.3,
+      "nodes": 5
+    },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
       "cone": 5,
-      "full_ms": 1294.6,
-      "incremental_ms": 1298.39,
+      "full_ms": 5869.7,
+      "incremental_ms": 4485.31,
       "nodes": 18
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
       "cone": 3,
-      "full_ms": 1457.1,
-      "incremental_ms": 1359.54,
+      "full_ms": 6754.8,
+      "incremental_ms": 4702.15,
       "nodes": 9
     },
     "cut_cylinder": {
       "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
       "cone": 2,
-      "full_ms": 33.3,
-      "incremental_ms": 25.83,
+      "full_ms": 98.3,
+      "incremental_ms": 70.24,
       "nodes": 4
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "cone": 1,
-      "full_ms": 137.4,
-      "incremental_ms": 54.58,
+      "full_ms": 260.7,
+      "incremental_ms": 99.22,
       "nodes": 4
     },
     "die": {
       "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
       "cone": 3,
-      "full_ms": 16983.1,
-      "incremental_ms": 1273.59,
+      "full_ms": 62531.1,
+      "incremental_ms": 7199.96,
       "nodes": 77
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
       "cone": 12,
-      "full_ms": 2105.5,
-      "incremental_ms": 1215.96,
+      "full_ms": 5869.8,
+      "incremental_ms": 6988.18,
       "nodes": 15
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
       "cone": 2,
-      "full_ms": 406.9,
-      "incremental_ms": 13.67,
+      "full_ms": 810.4,
+      "incremental_ms": 30.44,
       "nodes": 15
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
       "cone": 2,
-      "full_ms": 1268.7,
-      "incremental_ms": 240.96,
+      "full_ms": 3604.0,
+      "incremental_ms": 2252.32,
       "nodes": 11
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
       "cone": 2,
-      "full_ms": 2183.1,
-      "incremental_ms": 984.18,
+      "full_ms": 8447.4,
+      "incremental_ms": 2731.05,
       "nodes": 11
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
       "cone": 3,
-      "full_ms": 2788.2,
-      "incremental_ms": 2244.23,
+      "full_ms": 8812.3,
+      "incremental_ms": 7701.25,
       "nodes": 14
     }
   },

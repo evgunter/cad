@@ -45,17 +45,92 @@ fn corrupt(what: &'static str) -> BooleanError {
     BooleanError::ClassificationInvariant { what }
 }
 
-/// The face's vertex-extent box, padded: every vertex of the outer
-/// loop and every ring (lone vertices included). Contains the face's
-/// closed point set — straight edges make the polygon lie in its
-/// vertex hull — and, with the pad, every point the exact predicates
-/// could still accept against it.
+/// The face's certified box, padded. Planar faces: the vertex-extent
+/// box (straight edges make the polygon lie in its vertex hull).
+/// Cylinder faces (M5 PR 9): the vertex hull is NOT a superset (the
+/// wall's belly bulges past its chords), so the box is the full
+/// cylinder slab over the face's axial range — axial extents from the
+/// boundary edges' own certified boxes (the axial coordinate is
+/// linear, so its face extremes lie on the boundary), widened by the
+/// full radius in EVERY coordinate (deliberately loose; a bigger box
+/// only admits candidates — the conservative direction). Other curved
+/// kinds fall through to the vertex hull only if they reach here at
+/// all (the operand gate refuses them first).
 pub(super) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
 ) -> Result<Aabb, BooleanError> {
     let f = body.get_face(face).ok_or(corrupt("face box: face lost"))?;
+    if let Some(geom_surfaces::Surface::Cylinder {
+        origin,
+        axis,
+        radius,
+        ..
+    }) = body.get_surface(f.surface)
+    {
+        let (origin, axis) = (*origin, *axis);
+        let radius = radius.hi();
+        let mut h_min = f64::INFINITY;
+        let mut h_max = f64::NEG_INFINITY;
+        let mut walk = |lk: LoopKey| -> Result<(), BooleanError> {
+            let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                return Ok(());
+            };
+            for he in body
+                .loop_cycle(first)
+                .ok_or(corrupt("face box: unwalkable loop"))?
+            {
+                let ek = body
+                    .get_half_edge(he)
+                    .ok_or(corrupt("face box: half-edge lost"))?
+                    .edge;
+                let eb = edge_box(body, ek, 0.0)?;
+                for &(x, y, z) in &[
+                    (eb.min_x, eb.min_y, eb.min_z),
+                    (eb.max_x, eb.max_y, eb.max_z),
+                    (eb.min_x, eb.min_y, eb.max_z),
+                    (eb.min_x, eb.max_y, eb.min_z),
+                    (eb.max_x, eb.min_y, eb.min_z),
+                    (eb.min_x, eb.max_y, eb.max_z),
+                    (eb.max_x, eb.min_y, eb.max_z),
+                    (eb.max_x, eb.max_y, eb.min_z),
+                ] {
+                    let h = (x - origin.x.lo()) * axis.x.lo()
+                        + (y - origin.y.lo()) * axis.y.lo()
+                        + (z - origin.z.lo()) * axis.z.lo();
+                    h_min = h_min.min(h);
+                    h_max = h_max.max(h);
+                }
+            }
+            Ok(())
+        };
+        walk(f.outer)?;
+        for &ring in &f.rings {
+            walk(ring)?;
+        }
+        if !(h_min.is_finite() && h_max.is_finite()) {
+            return Ok(Aabb::poison());
+        }
+        // Pad the axial range too (interval-lane bracket slop is
+        // dominated by the pad; conservative direction).
+        h_min -= pad;
+        h_max += pad;
+        let along = |c: f64, a: f64| (c + a * h_min, c + a * h_max);
+        let (x0, x1) = along(origin.x.lo(), axis.x.lo());
+        let (y0, y1) = along(origin.y.lo(), axis.y.lo());
+        let (z0, z1) = along(origin.z.lo(), axis.z.lo());
+        return Ok(Aabb {
+            min_x: x0.min(x1) - radius,
+            min_y: y0.min(y1) - radius,
+            min_z: z0.min(z1) - radius,
+            max_x: x0.max(x1) + radius,
+            max_y: y0.max(y1) + radius,
+            max_z: z0.max(z1) + radius,
+        }
+        .padded(pad));
+    }
     let mut points: Vec<Point3<T>> = Vec::new();
     let mut push_loop = |lk: LoopKey| -> Result<(), BooleanError> {
         let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
@@ -85,9 +160,14 @@ pub(super) fn face_box<T: Decide + Bounds>(
         .padded(pad))
 }
 
-/// The edge's vertex-extent box, padded: the two endpoint points
-/// (post-gate the carrier is a `Line`, so the edge's locus is the
-/// chord between them up to certification residual — inside the pad).
+/// The edge's certified box, padded. `Line` carriers: the two
+/// endpoints (the locus is the chord up to certification residual —
+/// inside the pad). Conic carriers (M5 PR 9): the FULL conic's
+/// center-±-amplitude box hulled with the endpoints — a superset of
+/// any arc of it (an arc's belly bulges past its chord; the full-turn
+/// box is deliberately loose, the conservative direction). `Nurbs`
+/// carriers land on the poison box (never prunes) until a rung-3
+/// operand gate admits them with a control-hull box.
 pub(super) fn edge_box<T: Decide + Bounds>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -102,9 +182,57 @@ pub(super) fn edge_box<T: Decide + Bounds>(
         vertex_point(body, vk)
     };
     let (a, b) = (start_of(e.he_plus)?, start_of(e.he_minus)?);
-    Ok(Aabb::from_points([a, b])
-        .unwrap_or_else(Aabb::poison)
-        .padded(pad))
+    let vertex_box = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
+    let carrier = body
+        .get_curve_geom(e.curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .map(geom_brep::EdgeCurve::carrier);
+    let conic = match carrier {
+        Some(geom_curves::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        }) => Some((*center, *axis, *radius, *radius, *u_ref)),
+        Some(geom_curves::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        }) => Some((*center, *axis, *major, *minor, *u_ref)),
+        Some(geom_curves::Curve3::Nurbs(_)) => return Ok(Aabb::poison()),
+        Some(geom_curves::Curve3::Line { .. }) | None => None,
+    };
+    let boxed = match conic {
+        None => vertex_box,
+        Some((c, axis, sa, sb, u_ref)) => {
+            // Per-coordinate amplitude |û_i|·a + |v̂_i|·b of the full
+            // conic (v̂ = axis × û), hulled with the endpoint box.
+            let v_ref = axis.cross(u_ref);
+            let reach = |ui: f64, vi: f64| ui.abs() * sa.hi() + vi.abs() * sb.hi();
+            let rx = reach(u_ref.x.hi(), v_ref.x.hi());
+            let ry = reach(u_ref.y.hi(), v_ref.y.hi());
+            let rz = reach(u_ref.z.hi(), v_ref.z.hi());
+            let full = Aabb {
+                min_x: c.x.lo() - rx,
+                min_y: c.y.lo() - ry,
+                min_z: c.z.lo() - rz,
+                max_x: c.x.hi() + rx,
+                max_y: c.y.hi() + ry,
+                max_z: c.z.hi() + rz,
+            };
+            Aabb {
+                min_x: full.min_x.min(vertex_box.min_x),
+                min_y: full.min_y.min(vertex_box.min_y),
+                min_z: full.min_z.min(vertex_box.min_z),
+                max_x: full.max_x.max(vertex_box.max_x),
+                max_y: full.max_y.max(vertex_box.max_y),
+                max_z: full.max_z.max(vertex_box.max_z),
+            }
+        }
+    };
+    Ok(boxed.padded(pad))
 }
 
 fn vertex_point<T: Decide + Bounds>(

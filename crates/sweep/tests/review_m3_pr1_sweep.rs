@@ -132,20 +132,23 @@ fn split_circle_carrier_intersection_edge() {
     let (t0, t1) = parent.params();
     let t = t0 + (t1 - t0) * 0.3;
     let created = body.split_edge(edge, t).unwrap();
-    // REVIEW FINDING (pinned as current behavior): splitting a cylinder
-    // rim knocks the body OUT of tier 3 - the wall face is no longer an
-    // iso-rectangle patch, so mass properties (and hence tier 3's +V
-    // check) refuse with the typed VolumeUncomputable/NotIsoRectangle.
-    // Typed and honest, but split_edge on curved rims degrades a
-    // tier-3 body to tier 2 as a side effect; the fix pass should
-    // either document this on split_edge or gate the circle lane.
-    let errs = validate_geometric(&body).unwrap_err();
-    assert!(
-        errs.iter()
-            .all(|e| matches!(e, ValidationError::VolumeUncomputable { .. })),
-        "expected only the VolumeUncomputable posture, got {errs:?}"
+    // RE-PINNED at the M5 PR 9 fix pass: this row used to pin the
+    // NotIsoRectangle/VolumeUncomputable refusal here, and that pin's
+    // failure under PR 9 is the EVIDENCE the du_of_rims repair works.
+    // The M2-era rule took the FIRST rim arc's span as the face's Δu,
+    // which on the merge base is silently WRONG the moment a rim
+    // arrives as several EQUAL-span arcs (two public split_edge calls
+    // suffice: volume 0.6545 vs the true 0.7854 with
+    // validate_geometric green — the silent-wrong-volume class the
+    // review executed at merge base). PR 9 sums spans per (rim level,
+    // direction) group, so a split rim integrates EXACTLY: tier 3
+    // holds straight through the split.
+    assert_eq!(
+        validate_geometric(&body),
+        Ok(()),
+        "tier 3 must survive a rim split since the du_of_rims repair"
     );
-    assert_eq!(validate_closed(&body), Ok(()), "tier 2 must survive");
+    assert_eq!(validate_closed(&body), Ok(()), "tier 2 survives too");
     for (curve_key, (ta, tb)) in [
         (created.first_curve, (t0, t)),
         (created.second_curve, (t, t1)),

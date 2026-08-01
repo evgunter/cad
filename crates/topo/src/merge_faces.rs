@@ -22,9 +22,13 @@
 //! plane, independent sources — stays unmerged **by design** (the
 //! ladder's ratified rung (b): coincidence is never inferred from
 //! values; the boolean's `NonMaximalFaces` gate agrees — the ladder is
-//! consistent end to end). Curved same-key neighbors (a revolve's
-//! shared-key wall wedges) also stay unmerged: face maximality on
-//! curved surfaces is M5's.
+//! consistent end to end). Since M5 PR 9 (C12.5) the hard rungs are
+//! **kind-agnostic**: same-key and same-source CURVED neighbors merge
+//! through the same never-numeric ladder (the cosurface
+//! generalization — the boolean zip's cylinder-wall re-merge is the
+//! named consumer); only the per-call declared-PAIR rung stays planar
+//! (its verification predicate is `oriented_plane_eq`; the curved
+//! counterpart belongs to the curved census design, OQ5).
 //!
 //! Serves the ch. 15 boolean pipeline's operand precondition and
 //! output stage (M3 PRs 4–5).
@@ -116,6 +120,21 @@ pub enum MergeCoplanarError {
         /// The edge the op cannot safely kill.
         edge: EdgeKey,
     },
+    /// A CURVED cosurface run would close its chart's full period
+    /// (M5 PR 9, C12.5): killing the last shared edge leaves either a
+    /// ring on a curved face or a full-wrap seam-form loop — shapes
+    /// the exact-B-rep props cannot integrate yet, so the run refuses
+    /// here and the driver records a loud skip (the operands'
+    /// cut-carrying canonical form stays; sub-period re-merges — the
+    /// through-cut case — commit normally). FLIP NOTE: the du_of_rims
+    /// per-level-sum repair may already make the kept-cut seam form
+    /// integrable; re-evaluating this skip belongs to M5 PR 11 (the
+    /// tessellation/props unit), which owns the curved-face
+    /// quadrature story.
+    PeriodClosure {
+        /// The shared edge whose kill would close the period.
+        edge: EdgeKey,
+    },
     /// An internal Euler step refused — surfaced typed (unreachable on
     /// tier-2 input in the supported inventory; never a panic, D9).
     Op {
@@ -190,6 +209,14 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: shared edge {edge:?} spans two loops of \
                  one face — unsupported configuration, refused"
+            ),
+            Self::PeriodClosure { edge } => write!(
+                f,
+                "merge_coplanar_faces: killing shared edge {edge:?} would close the \
+                 curved cosurface run's full chart period — outside the merge's \
+                 inventory at M5 (C12.5: sub-period re-merges commit; full closures \
+                 stay in their cut-carrying canonical form and are recorded as a loud \
+                 skip)"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::InvalidDeclaration { surface, what } => write!(
@@ -425,7 +452,19 @@ impl<T: Decide> Body<T> {
         let mut outcome = MergeCoplanarOutcome::default();
         for members in groups {
             let licensed = members.iter().any(|f| declared_faces.contains(f));
-            if !licensed {
+            // Curved structural runs (C12.5, M5 PR 9) go through the
+            // trial/skip stage too: a run that closes the full period
+            // refuses `PeriodClosure` inside its trial and is recorded
+            // as a LOUD skip (the operands' canonical cut-carrying
+            // form stays), while sub-period re-merges commit. Planar
+            // structural groups keep the ratified whole-refusal
+            // semantics bit-identically.
+            let curved = members.first().is_some_and(|&f| {
+                work.get_face(f)
+                    .and_then(|fd| work.get_surface(fd.surface))
+                    .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
+            });
+            if !licensed && !curved {
                 outcome.groups.push(work.merge_group(&members)?);
                 continue;
             }
@@ -513,41 +552,66 @@ impl<T: Decide> Body<T> {
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
             return Ok(None);
         };
+        // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
+        // cosurface generalization): the same-key and same-source
+        // tests never touch a numeric coordinate, so nothing about
+        // them was planar — the M3-era "curved same-key neighbors
+        // stay unmerged" note flips here, with the same ladder, the
+        // same never-numeric rule, and N3 naming semantics unchanged.
+        // The named consumer: the boolean zip's re-merge of a
+        // cylinder wall split by a through cut.
+        if k1 == k2 {
+            return Ok(Some(MergeRung::Hard)); // structural
+        }
+        // Declared rung, N6 form: same recipe source INCLUDING orient
+        // — a provenance lookup, no numerics (M4's GeomSource
+        // retirement consumed, NOT bit_identity). The debug assertion
+        // is DESIGN.md's "records agree with bits", stated for the
+        // planar kind where the bit predicate exists.
+        if let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
+            && g1 == g2
+        {
+            #[cfg(debug_assertions)]
+            if let (
+                Surface::Plane {
+                    origin: o1,
+                    normal: n1,
+                    u_ref: u1,
+                },
+                Surface::Plane {
+                    origin: o2,
+                    normal: n2,
+                    u_ref: u2,
+                },
+            ) = (s1.clone(), s2.clone())
+            {
+                debug_assert!(
+                    crate::source::plane_bits_agree(o1, n1, o2, n2, false)
+                        && crate::source::vec3_bits_agree(u1, u2),
+                    "N6 theorem violated: same-source surface descriptions disagree \
+                     bitwise (kernel bug: a source survived a geometric rewrite)"
+                );
+            }
+            return Ok(Some(MergeRung::Hard));
+        }
+        // The declared-PAIR rung stays planar (its verification is
+        // `oriented_plane_eq`; the curved-pair verification predicate
+        // is the curved census's design, OQ5 — not minted here).
         let (
             Surface::Plane {
                 origin: o1,
                 normal: n1,
-                u_ref: u1,
+                ..
             },
             Surface::Plane {
                 origin: o2,
                 normal: n2,
-                u_ref: u2,
+                ..
             },
         ) = (s1.clone(), s2.clone())
         else {
             return Ok(None);
         };
-        if k1 == k2 {
-            return Ok(Some(MergeRung::Hard)); // structural (planar-checked)
-        }
-        // Declared rung, N6 form: same recipe source INCLUDING orient
-        // — a provenance lookup, no numerics. The debug assertion is
-        // DESIGN.md's "records agree with bits".
-        if let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
-            && g1 == g2
-        {
-            #[cfg(debug_assertions)]
-            debug_assert!(
-                crate::source::plane_bits_agree(o1, n1, o2, n2, false)
-                    && crate::source::vec3_bits_agree(u1, u2),
-                "N6 theorem violated: same-source surface descriptions disagree bitwise \
-                 (kernel bug: a source survived a geometric rewrite)"
-            );
-            return Ok(Some(MergeRung::Hard));
-        }
-        #[cfg(not(debug_assertions))]
-        let _ = (u1, u2);
         // Declared face pairs (this call's recipe intent), verified.
         if let Some(ctx) = declared
             && ctx.eq.same(k1, k2)
@@ -644,7 +708,27 @@ impl<T: Decide> Body<T> {
             group.killed_edges.push(edge_key);
         }
         // Intra-face duplicates: edges now occurring twice within the
-        // survivor's loops.
+        // survivor's loops. On a PLANAR survivor a same-loop duplicate
+        // bounds a genuine hole and `kemr` mints the ring. On a CURVED
+        // survivor (C12.5, M5 PR 9) a same-face duplicate means the
+        // cosurface run CLOSED THE FULL PERIOD — a shape outside the
+        // merge's inventory at M5 (neither the ring form nor the
+        // kept-cut seam form is integrable by the exact-B-rep props
+        // yet), refused typed here; the driver records it as a LOUD
+        // skip for curved structural runs, so sub-period re-merges
+        // (the C12.5 through-cut case) proceed and full closures stay
+        // unmerged exactly as the operands arrived.
+        let survivor_curved = {
+            let key = self
+                .get_face(rep)
+                .map(|f| f.surface)
+                .ok_or(MergeCoplanarError::Op {
+                    error: EulerOpError::StaleKey {
+                        key: crate::entity::EntityId::Face(rep),
+                    },
+                })?;
+            !matches!(self.get_surface(key), Some(Surface::Plane { .. }))
+        };
         loop {
             let mut found = None;
             for (edge_key, edge) in self.edges() {
@@ -670,6 +754,9 @@ impl<T: Decide> Body<T> {
             let Some((edge_key, he_plus, he_minus, same_loop)) = found else {
                 break;
             };
+            if survivor_curved {
+                return Err(MergeCoplanarError::PeriodClosure { edge: edge_key });
+            }
             if !same_loop {
                 return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
             }

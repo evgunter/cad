@@ -141,6 +141,13 @@ pub(super) fn upgrade_intersection<T: Decide>(
             body.set_edge_curve(edge, spec)?;
             Ok(())
         }
+        // A revolve join's carrier is a latitude CIRCLE (or a meridian
+        // conic) — outside the jet certificate's Line span-bound lane
+        // (C12.1), so the OQ7 must-carry does not demand the intrinsic
+        // tangent description here and the conventional one stays (the
+        // tier-3 enforcement draws the same per-class boundary; the
+        // circle-carrier tangent certificate is the lane's next
+        // retirement, not this PR's).
         Ok(DihedralClass::Smooth) => Ok(()),
         Err(source) => Err(sliver(source)),
     }
