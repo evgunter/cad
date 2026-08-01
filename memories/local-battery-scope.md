@@ -25,3 +25,14 @@ the PR, and the report says so. The dependency-closure filter
 explicit request (e.g. debugging a cross-crate bit-replay
 failure). Related: [[resume-vs-fresh-subagent]],
 [[cad-working-style]].
+
+**Reaffirmed under pressure (Evan, 2026-08-01, PR #152's triple
+red):** after a gate cycle caught two lint rounds + a real
+Interval divergence that the narrowed battery missed, the
+orchestrator proposed standing pre-push CI-row mimicry (full
+workspace clippy both feature sets). Evan declined: "i don't
+want it running ci before push in general — this seemed like it
+worked fine, while doing ci locally was extremely slow." The
+red→fix→re-push loop IS the design; targeted local reproduction
+of a KNOWN gate failure remains right, standing mimicry does
+not.
