@@ -527,6 +527,53 @@ fn curved_face_gate_witness() {
     }
 }
 
+/// Shape (iii) READINESS, pinned end to end at the boolean layer
+/// (M5 PR 9 fix pass, F6/dev 4 aftermath): a NURBS-walled operand
+/// passes the per-arm gate (the SECTION arm is certified since
+/// PR 7b), and the pipeline surfaces its CURRENT typed refusal at
+/// the crossing layer — the sweep's edge×NURBS-face arm — naming the
+/// missing boolean piece and the banked unit (PR 9c). The spec's
+/// original "one 7b-flag-flip from live" claim was wrong (the
+/// crossing layer is not behind 7b's flag); this row pins what IS
+/// true.
+#[test]
+fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
+    let (face, _) = b.faces().next().unwrap();
+    b.set_face_surface(
+        face,
+        topo::FaceSurface::New(geom_surfaces::Surface::Nurbs(std::sync::Arc::new(
+            geom_surfaces::NurbsSurface::placeholder(),
+        ))),
+    )
+    .unwrap();
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b) {
+        Err(e) => e,
+        Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
+    };
+    let BooleanError::CurvedBooleanUnsupported {
+        kind: geom_brep::SurfaceKind::Nurbs,
+        ..
+    } = err
+    else {
+        panic!("expected the typed crossing-layer refusal, got {err:?}");
+    };
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("PR 9c"),
+        "the refusal names the banked unit: {msg}"
+    );
+    assert!(
+        msg.contains("crossing layer"),
+        "the refusal names the missing boolean piece: {msg}"
+    );
+    assert!(
+        msg.contains("PR 7b"),
+        "the refusal is honest that the SECTION arm is already certified: {msg}"
+    );
+}
+
 /// The two DERIVATION-CORRECTED ∖-column cells, executed geometrically
 /// (the A-versus-B rows where the shipped table diverges from TOG's
 /// print). Small operand-A resting on B (AonB⁻, opposite): the printed

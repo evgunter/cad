@@ -441,11 +441,12 @@ pub enum ValidationError {
     /// `tangent_second_order` cause (F6 — an osculating pair is a
     /// sliver at this ε), which exempts the edge here — so
     /// ε-tightening can escalate but never flips a valid body to
-    /// invalid THROUGH THIS CHECK. Enforcement is scoped to the jet
-    /// certificate's span-bound lane (`Line` carriers — C12.1: the
-    /// same per-class boundary the certificate itself draws; a
-    /// tangency outside the lane could not store the intrinsic
-    /// description it would demand).
+    /// invalid THROUGH THIS CHECK. Enforcement is scoped by
+    /// [`geom_brep::tangent_certificate_lane`] — the ONE home of the
+    /// jet certificate's per-class boundary (C12.1: `Line` carriers
+    /// on `Plane`/`Cylinder`/`Sphere` pairs), so the demanded set and
+    /// the certifiable set are the same set by construction; a
+    /// tangency outside the lane is neither certifiable nor demanded.
     TangentNotIntrinsic {
         /// The jet-determinate tangent edge whose description is
         /// conventional.
@@ -1780,12 +1781,14 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
         };
         if mark == ContactMark::Tangent
             && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-            && matches!(curve.carrier(), geom_curves::Curve3::Line { .. })
+            && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)
         {
-            // The lane condition mirrors the jet certificate's own
-            // per-class boundary (C12.1): a tangency the certificate
-            // cannot yet store is not demanded (rustdoc on the
-            // variant).
+            // The lane condition IS the jet certificate's per-class
+            // boundary, consulted from its one home
+            // (`geom_brep::tangent_certificate_lane`, C12.1): the
+            // demanded set equals the certifiable set by construction
+            // — a Line-on-Cone tangency, say, is neither certifiable
+            // nor demanded (fix pass, dev 7).
             errors.push(ValidationError::TangentNotIntrinsic { edge: edge_key });
         }
         marks.insert(edge_key, mark);

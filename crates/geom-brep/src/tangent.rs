@@ -97,6 +97,30 @@ pub struct TangentSpanBounds<T: Real> {
     pub kappa_drift: T,
 }
 
+/// **THE certified-lane predicate** (C12.1, one place): is this
+/// (carrier kind, surface-kind pair) triple inside the jet
+/// certificate's span-bound lane — `Line` carriers on
+/// `Plane`/`Cylinder`/`Sphere` pairs, the class the C5 table's
+/// tangent arms mint at M5? Consulted by [`tangent_span_bounds`]
+/// (which refuses outside it) AND by the tier-3 must-carry
+/// enforcement in `topo::validate` — the demanded set and the
+/// certifiable set are the same set BY CONSTRUCTION (a tangency the
+/// certificate cannot store is never demanded).
+pub fn tangent_certificate_lane<T: Real>(
+    carrier: &Curve3<T>,
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+) -> bool {
+    let line = matches!(carrier, Curve3::Line { .. });
+    let ok = |s: &Surface<T>| {
+        matches!(
+            s,
+            Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
+        )
+    };
+    line && ok(s1) && ok(s2)
+}
+
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
 /// schedule (docs on [`TangentSpanBounds`]).
 pub(crate) fn tangent_span_bounds<T: Real>(
@@ -106,6 +130,9 @@ pub(crate) fn tangent_span_bounds<T: Real>(
     t0: T,
     t1: T,
 ) -> Option<TangentSpanBounds<T>> {
+    if !tangent_certificate_lane(carrier, s1, s2) {
+        return None;
+    }
     let Curve3::Line { origin: _, dir } = *carrier else {
         return None;
     };

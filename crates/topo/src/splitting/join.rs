@@ -227,10 +227,20 @@ pub enum SplitJoinError {
         /// neighbour read as one situation.
         band: Band,
     },
-    /// A curved-section invariant failed (an empty classification under
-    /// a minted chord, a run edge with no closed-form chart image, or a
-    /// section frame with no chart orientation) — kernel bug or a
-    /// configuration this PR's lane deliberately refuses, loudly.
+    /// A curved-section invariant failed. Two DISTINCT populations
+    /// share this arm (M5 PR 9 fix pass — read `what` to tell them
+    /// apart, it says which):
+    ///
+    /// - **kernel bugs, loudly**: states the lane's own construction
+    ///   makes unreachable (an empty classification under a minted
+    ///   chord, a section frame with no chart orientation, a run
+    ///   edge with no chart image on the shipped carriers) — reaching
+    ///   one means a lane invariant is broken, never user geometry;
+    /// - **deliberate typed frontiers**: configurations the M5 lane
+    ///   refuses BY DESIGN with the front door named in `what` (a
+    ///   tangent germ pair inside the boolean zip — a touching
+    ///   configuration, the M5 envelope's frontier; a non-cylinder
+    ///   planar-side germ partner — the PR 9c arms).
     SectionInvariant {
         /// The face being divided.
         face: FaceKey,

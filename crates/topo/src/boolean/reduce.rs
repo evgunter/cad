@@ -624,6 +624,20 @@ fn curved_face_arm<T: Decide>(
         edge: edge_key,
         band,
     };
+    // NURBS walls (shape (iii)'s substrate): the SECTION arm is
+    // certified since PR 7b (geom_brep::intersect::route says so),
+    // but the boolean's CROSSING layer for the kind — edge×NURBS-face
+    // sweep events and curved trim containment — does not exist yet;
+    // it is banked as M5 PR 9c. Refused typed HERE, before the
+    // residual sides (a NURBS surface has no implicit form — the
+    // sides would poison, and poison is not a refusal).
+    if matches!(surface, geom_surfaces::Surface::Nurbs(_)) {
+        return Err(BooleanError::CurvedBooleanUnsupported {
+            operand: x_is,
+            face,
+            kind: geom_brep::SurfaceKind::Nurbs,
+        });
+    }
     let curve = match x.get_curve_geom(edge.curve) {
         Some(CurveGeom::Certified(c)) => c.clone(),
         _ => {

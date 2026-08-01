@@ -81,4 +81,4 @@ pub use ssi::{
     SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,
     idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
-pub use tangent::{TangentJet, tangent_jet};
+pub use tangent::{TangentJet, tangent_certificate_lane, tangent_jet};

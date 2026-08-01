@@ -629,8 +629,12 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
                  classification this site required has no wired boolean arm for the \
                  kind in this build (the refusal retires per C5 table arm, never \
-                 wholesale — C12.1; pairs involving this kind route per \
-                 geom_brep::intersect::route, and their notes say what is missing)",
+                 wholesale — C12.1). Pairs involving this kind route per \
+                 geom_brep::intersect::route; where a route is already implemented \
+                 at the INTERSECTION layer (plane×NURBS since PR 7b), what is \
+                 missing here is the boolean's own crossing layer for the kind — \
+                 edge×face sweep events, curved trim containment, and the fitted \
+                 chord join lane — banked as M5 PR 9c",
                 kind.name()
             ),
             Self::CurvedPierceUnsupported {

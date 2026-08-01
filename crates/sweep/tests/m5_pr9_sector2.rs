@@ -66,7 +66,11 @@ fn the_tangent_graze_resolves_past_first_order() {
     let out = split(&body, &plane);
     let v = take_verdict_log();
     // The second-order lane ran, by name (telemetry from birth).
-    for name in ["tangent_sector_order2", "tangent_sector_osculation"] {
+    for name in [
+        "tangent_sector_order2",
+        "tangent_sector_order2_arm",
+        "tangent_sector_osculation",
+    ] {
         assert!(
             v.iter().any(|x| x.predicate == name),
             "{name} never reached the funnel (recorded: {:?})",
