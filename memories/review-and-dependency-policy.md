@@ -25,6 +25,16 @@ what the exercise revealed about scope/ergonomics, alongside the ranked
 findings. For pure-scaffolding diffs with no runtime surface, running
 the toolchain/CI commands is the e2e equivalent.
 
+**Reviewer local runs = unique signal only (2026-08-01, from
+Evan's iteration-speed principle, [[local-battery-scope]]):**
+review charters enumerate the runs only the reviewer can do —
+their own probes, merge-base differentials, planted corruptions,
+and any non-CI rows (e.g. the demo tour's ε battery) — and say
+explicitly "existing pinned suites ride the PR gate; verdict
+conditional on green." Re-running CI-covered suites in a review
+clone is duplication (3 of the session's 4 waiter-parks happened
+grinding exactly such runs).
+
 **Reviewer suites get promoted into CI.** After each PR's fix pass, the
 reviewer's consumer test suite is promoted into the repo as
 `crates/topo/tests/review_m1_prN*.rs` (Evan, PR #17 thread). The suites
