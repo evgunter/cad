@@ -11,8 +11,8 @@ mod fixture;
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, MetaValue, Node, NodeErrorKind,
-    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum, apply, evaluate,
-    load, save,
+    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, SCHEMA_VERSION,
+    WitnessDatum, apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
 
@@ -55,12 +55,15 @@ fn small() -> (ProfileDoc, String) {
 fn unknown_schema_version_refuses_typed() {
     let (_, text) = small();
     let body = text.split_once('\n').expect("header").1;
-    let v2 = format!("schema: 2\n{body}");
-    match load(&v2) {
-        Err(PersistError::UnknownSchema {
-            found: 2,
-            newest: 1,
-        }) => {}
+    // Forward-only (D6.3): a version NEWER than this build is
+    // `UnknownSchema` — held one past `SCHEMA_VERSION` so the row
+    // survives every schema bump (M5 PR 10 moved it from a literal 2).
+    let newer = format!("schema: {}\n{body}", SCHEMA_VERSION + 1);
+    match load(&newer) {
+        Err(PersistError::UnknownSchema { found, newest }) => {
+            assert_eq!(found, u64::from(SCHEMA_VERSION) + 1);
+            assert_eq!(newest, SCHEMA_VERSION);
+        }
         other => panic!("expected UnknownSchema, got {other:?}"),
     }
     match load("schema: 0\n{}") {

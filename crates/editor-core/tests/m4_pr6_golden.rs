@@ -4,7 +4,7 @@
 //! fixpoint is BLIND to format drift: rename a field and save/load
 //! stay self-consistent while every existing v1 file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v1_golden.cad`): the fixture document must save to
+//! (`tests/golden/v2_golden.cad`): the fixture document must save to
 //! exactly those bytes, and the bytes must load. Any change to either
 //! is a format change and demands a ratified schema bump + migration
 //! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
@@ -29,8 +29,8 @@ use editor_core::{
 };
 use fixture::{desc, len};
 
-const GOLDEN: &str = include_str!("golden/v1_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v1_golden.cad";
+const GOLDEN: &str = include_str!("golden/v2_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v2_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -188,7 +188,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
 }
 
 #[test]
-fn golden_v1_bytes_are_frozen() {
+fn golden_bytes_are_frozen() {
     let (doc, edits) = golden();
     let text = save(&doc, &edits).expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {
@@ -203,13 +203,13 @@ fn golden_v1_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v1 wire bytes drifted from the committed golden — this is a FORMAT \
+        "schema-v2 wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }
 
 #[test]
-fn golden_v1_bytes_load() {
+fn golden_bytes_load() {
     let ambient = geom_core::Tolerance::get().eps;
     match load(GOLDEN) {
         Ok(loaded) => {
@@ -226,7 +226,7 @@ fn golden_v1_bytes_load() {
             assert_eq!(process.to_bits(), ambient.to_bits());
             assert_ne!(ambient.to_bits(), 1e-9f64.to_bits());
         }
-        Err(other) => panic!("golden v1 file failed to load: {other:?}"),
+        Err(other) => panic!("golden v2 file failed to load: {other:?}"),
     }
 }
 
