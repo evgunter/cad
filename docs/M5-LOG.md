@@ -1753,3 +1753,10 @@ PR 12.** PR 10 DISPATCHING to the freed lane: difficulty L
 block-13 draw byte 82 = (opus, fable) → PR 10 = OPUS, fable
 remainder to the next unit (PR 9c). Lanes: PR 9 fix pass + PR 10
 implementation.
+
+**Usage-limit outage #10 (~14:00Z 2026-08-01, reset 8:50am PT):
+both lanes killed mid-battery** — PR 9 fix pass after geom-curves/
+geom-brep green (topo+sweep pending), PR 10 entering its full
+battery. Both clones intact, work committed through 357c509 /
+02c64a5. Both RESUMED via SendMessage post-reset (transcript
+rung); instructed to commit any green-uncommitted bits first.
