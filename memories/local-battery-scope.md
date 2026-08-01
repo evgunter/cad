@@ -36,3 +36,13 @@ worked fine, while doing ci locally was extremely slow." The
 red→fix→re-push loop IS the design; targeted local reproduction
 of a KNOWN gate failure remains right, standing mimicry does
 not.
+
+**Degenerate case (Evan caught it live, 2026-08-01):** for a
+CROSS-CUTTING mechanical change (a sweep touching most crates,
+e.g. the interval-square conversion), "touched crates" ≈ the
+whole workspace and the narrowed rule silently becomes local CI.
+For bit-neutral mechanical sweeps the local scope is: workspace
+cargo check + the unit's own self-test + ONE spot suite per
+class of converted site, default ε only — CI proves the matrix.
+Put this scope in the brief whenever dispatching a sweep-shaped
+unit.
