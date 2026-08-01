@@ -278,12 +278,17 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
         .filter(|(_, s)| matches!(s, Surface::Cylinder { .. }))
         .count();
     assert_eq!(cylinders, 4);
-    // All eight joins are smooth: no strut upgrades anywhere — the
-    // eight struts keep their conventional ExtrudedPoint descriptions.
+    // All eight joins are smooth at first order — and since M5 PR 9
+    // the upgrade pass descends one order (OQ7's must-carry at
+    // construction): a line–arc tangency is JET-DETERMINATE (the
+    // plane and cylinder DETERMINE the ruling; κ_rel = 1/r definite),
+    // so the eight struts now carry the intrinsic TangentIntersection
+    // description — the fillet-grade class, upgraded exactly as
+    // transverse joins upgrade to Intersection.
     for &edge in &t.strut_edges[0] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::MappedCurve(_)
+            EdgeGeometry::TangentIntersection { .. }
         ));
     }
     // The sixteen cap-wall rims are all transverse and upgrade to

@@ -99,6 +99,64 @@ pub fn enters_material<T: Decide>(
     })
 }
 
+/// **`enters_material_order2`** — the second-order descent of the
+/// sector trilean (C7/C12.2, M5 PR 9): where first-order data ties
+/// (a departure direction exactly IN the reference plane — the
+/// [`EntersMaterial::Tangent`] graze), classification descends one
+/// order and asks which side the departure **curves** to.
+///
+/// Inputs are the departing curve's jet at the tie point: `deriv2`
+/// the second derivative (raw carrier parameter), `speed_sq` =
+/// `‖deriv‖²` (normalizing the parameterization out — the margin is
+/// per arc length squared), `outward_normal` the reference side's
+/// unit normal, `arm` the caller-named lever arm in meters. The
+/// margin is the **displacement the curvature difference induces at
+/// the lever arm** (D4 ¶1, lever arm 1/κ discipline):
+/// `½ · (deriv2·n̂ / speed_sq) · arm²` — the curvature COMPARISON of
+/// the tied sectors (against a plane the partner curvature is zero,
+/// so the difference is the departure's own normal curvature).
+///
+/// Same side convention as [`enters_material`]: curving along `+n̂`
+/// ⇒ `Exits`, along `−n̂` ⇒ `Enters`, and an exactly-zero
+/// second-order margin stays [`EntersMaterial::Tangent`] — the
+/// caller keeps its typed refusal (never guess); an in-band margin
+/// escalates (F6 — an osculating pair is a sliver at this ε).
+///
+/// The `tangent_*` predicate family: the K funnel's second genuinely
+/// ill-conditioned crop, telemetry from birth (the PR 14 K-snapshot
+/// reads these names).
+///
+/// # Errors
+///
+/// [`Indeterminate`]: predicate `"tangent_sector_order2_arm"` (the
+/// collapsed-arm gate, the dihedral.rs idiom) or
+/// `"tangent_sector_order2"` (in-band or poisoned margin).
+pub fn enters_material_order2<T: Decide>(
+    deriv2: Vec3<T>,
+    speed_sq: T,
+    outward_normal: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<EntersMaterial, Indeterminate> {
+    match decide("tangent_sector_order2_arm", arm, band)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("tangent_sector_order2_arm"),
+            });
+        }
+    }
+    let half = T::from_f64(0.5);
+    let margin = deriv2.dot(outward_normal) / speed_sq * arm * arm * half;
+    Ok(match decide("tangent_sector_order2", margin, band)? {
+        Sign::Negative => EntersMaterial::Enters,
+        Sign::Positive => EntersMaterial::Exits,
+        Sign::Zero => EntersMaterial::Tangent,
+    })
+}
+
 /// The crate-local funnel wrapper (the `geom-brep` pattern: one
 /// greppable `sign_within` door per crate, unified recorder — M2 PR 7).
 fn decide<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {

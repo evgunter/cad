@@ -112,10 +112,21 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             Ok(_) => continue,
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
-        let sector_plane =
-            face_plane(piercing_body, s.face).ok_or(BooleanError::ClassificationInvariant {
-                what: "sector face lost its plane",
-            })?;
+        // A CURVED sector whose local normal is plane-parallel at the
+        // pierce point is a tangent (touching) contact — the M5
+        // envelope's typed frontier (C7/OQ5: no curved coplanar-lump
+        // arm exists; touching curved configurations refuse).
+        let Some(sector_plane) = face_plane(piercing_body, s.face) else {
+            let kind = piercing_body
+                .get_face(s.face)
+                .and_then(|f| piercing_body.get_surface(f.surface))
+                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: piercing,
+                face: s.face,
+                kind,
+            });
+        };
         let pierced_op = piercing.other();
         let id = super::PlaneIdentity {
             s1: super::reduce::face_source(piercing_body, s.face),

@@ -149,7 +149,35 @@ pub(super) fn apply_rule_a<T: Decide>(
         match decide("split_sector_coplanar", parallel_margin, band) {
             Ok(Sign::Zero) => {
                 if !is_plane {
-                    return Err(SplitReduceError::TangencyUnsupported { face, vertex });
+                    // A plane-parallel LOCAL normal on a curved face
+                    // is a tangent CONTACT, not a coplanar sector.
+                    // The C12.2 descent (M5 PR 9): if the surface
+                    // definitely bends off the shared tangent plane
+                    // (largest tangent-plane normal curvature, metered
+                    // as its displacement at the face extent — D4 ¶1),
+                    // the sector is NOT plane-like — rule (a) stays
+                    // silent and the departure trileans own the edge
+                    // classes (they carry the same second-order
+                    // descent). A second-order tie keeps the typed
+                    // refusal (the surfaces under-determine the
+                    // contact — never guess); in-band escalates (F6:
+                    // an osculating pair is a sliver at this ε).
+                    let corrupt = || SplitReduceError::CorruptOperand { vertex };
+                    let surface_key = body.get_face(face).ok_or_else(corrupt)?.surface;
+                    let surface = body.get_surface(surface_key).ok_or_else(corrupt)?;
+                    let p_base = *body
+                        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
+                        .ok_or_else(corrupt)?;
+                    let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
+                    let half = T::from_f64(0.5);
+                    let so_margin = kappa * extent * extent * half;
+                    match decide("tangent_sector_osculation", so_margin, band) {
+                        Ok(Sign::Positive) => continue,
+                        Ok(Sign::Zero | Sign::Negative) => {
+                            return Err(SplitReduceError::TangencyUnsupported { face, vertex });
+                        }
+                        Err(diag) => return Err(sliver(diag)),
+                    }
                 }
             }
             Ok(_) => continue, // definitely not coplanar: rule (a) silent

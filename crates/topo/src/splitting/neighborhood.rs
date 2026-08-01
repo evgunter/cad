@@ -117,11 +117,12 @@ pub(super) fn sector_face<T: Decide>(
 ///   forward contract), scaled by [`geom_brep::edge_extent`] (the
 ///   certified point-set-diameter lower bound; the chord collapses on
 ///   near-closed arcs).
+#[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic jet) — one internal tuple
 fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>, bool), SplitReduceError> {
+) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T)>), SplitReduceError> {
     let corrupt = || SplitReduceError::CorruptOperand { vertex };
     let final_vertex = body.half_edge_end(he).ok_or_else(corrupt)?;
     let p_base = *body
@@ -138,18 +139,30 @@ fn chord<T: Decide>(
         .ok_or_else(corrupt)?;
     match curve.carrier() {
         geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
-            Ok((final_vertex, p_final - p_base, false))
+            Ok((final_vertex, p_final - p_base, None))
         }
         geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
-            let tangent = if he == edge.he_plus {
-                curve.carrier().deriv(t0)
+            // The base-endpoint jet: outgoing tangent, plus the raw
+            // second derivative and squared speed for the C12.2
+            // second-order descent (M5 PR 9). Walking the minus half
+            // reverses the FIRST derivative only — position along the
+            // walk is c(t₁ − τ), so d²/dτ² = +c″(t₁): no sign flip on
+            // the curvature datum.
+            let (tangent, deriv2, speed_sq) = if he == edge.he_plus {
+                let d = curve.carrier().deriv(t0);
+                (d, curve.carrier().deriv2(t0), d.norm_squared())
             } else {
-                -curve.carrier().deriv(t1)
+                let d = curve.carrier().deriv(t1);
+                (-d, curve.carrier().deriv2(t1), d.norm_squared())
             };
             let chord_len = p_final.distance(p_base);
             let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
-            Ok((final_vertex, tangent.normalize() * extent, true))
+            Ok((
+                final_vertex,
+                tangent.normalize() * extent,
+                Some((deriv2, speed_sq)),
+            ))
         }
     }
 }
@@ -181,7 +194,7 @@ pub fn classify_neighborhood<T: Decide>(
 
     let mut entries = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
-        let (final_vertex, dir_a, conic) = chord(body, vertex, he)?;
+        let (final_vertex, dir_a, conic_jet) = chord(body, vertex, he)?;
         // Entry class — "which side does this edge lead to":
         // - LINE edges: the far vertex's cached verdict, bit-identical
         //   to M3 (a straight edge's interior is the chord).
@@ -196,12 +209,35 @@ pub fn classify_neighborhood<T: Decide>(
         //   margin (in-plane departure — an in-plane arc or a graze
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
-        let class = if conic {
+        let class = if let Some((deriv2, speed_sq)) = conic_jet {
             let margin = dir_a.dot(plane.normal);
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
-                Ok(Sign::Zero) => PlaneSide::On,
+                // An in-plane departure ties at first order. The C12.2
+                // descent (M5 PR 9): classify by which side the arc
+                // CURVES to — the named second-order trilean, margin
+                // the displacement the curvature induces at the edge's
+                // honest extent (D4 ¶1). A second-order tie stays On
+                // for rule (b)'s adjudication (never guess); in-band
+                // escalates (F6 — an osculating pair is a sliver).
+                Ok(Sign::Zero) => {
+                    match geom_brep::enters_material_order2(
+                        deriv2,
+                        speed_sq,
+                        plane.normal,
+                        dir_a.norm(),
+                        band,
+                    ) {
+                        Ok(geom_brep::EntersMaterial::Enters) => PlaneSide::Below,
+                        Ok(geom_brep::EntersMaterial::Exits) => PlaneSide::Above,
+                        Ok(geom_brep::EntersMaterial::Tangent) => PlaneSide::On,
+                        Err(diag) => {
+                            let (face, _, _) = sector_face(body, vertex, he)?;
+                            return Err(SplitReduceError::SliverSector { vertex, face, diag });
+                        }
+                    }
+                }
                 Err(diag) => {
                     let (face, _, _) = sector_face(body, vertex, he)?;
                     return Err(SplitReduceError::SliverSector { vertex, face, diag });

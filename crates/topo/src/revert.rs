@@ -67,8 +67,12 @@ use crate::geometry::SurfaceKey;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
     /// A surface is not a `Plane`: its orientation-reversed side is
-    /// unrepresentable in the analytic enum (module docs — F5
-    /// planar-only booleans; curved revert is M5's).
+    /// unrepresentable in the analytic enum (module docs). The curved
+    /// revert lane — per-kind orientation flips plus the pcurve
+    /// re-mint behind them — is BANKED as M5 PR 9c; until it lands,
+    /// curved subtract/intersect refuse up front at the boolean's own
+    /// door (`BooleanError::CurvedOpUnsupported`), so this refusal is
+    /// the OPERATOR-level statement, not the boolean's front door.
     UnsupportedSurface {
         /// The non-plane surface.
         surface: SurfaceKey,
@@ -87,7 +91,9 @@ impl fmt::Display for RevertError {
             Self::UnsupportedSurface { surface } => write!(
                 f,
                 "revert: surface {surface:?} is not a plane — its reversed \
-                 orientation is unrepresentable (M3 revert is planar-only, F5)"
+                 orientation is unrepresentable in this build (the curved revert \
+                 lane is banked as M5 PR 9c; curved subtract/intersect refuse \
+                 typed at the boolean front door until it lands)"
             ),
             Self::Corrupt { he } => write!(
                 f,

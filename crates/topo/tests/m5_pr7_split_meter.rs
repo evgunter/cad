@@ -1,29 +1,28 @@
-//! M5 PR 7: the rung-3 arm of `split_edge`'s parameter-interiority
-//! meter (C12.3), and the boundary that keeps it unreachable at rest.
+//! M5 PR 7 → PR 9: the rung-3 arm of `split_edge`'s
+//! parameter-interiority meter (C12.3), and the end-to-end `Nurbs`
+//! split row PR 7 named this PR as the trigger for.
 //!
 //! `split_edge` states its interiority margin in metres by multiplying
 //! a parameter distance by a per-carrier meter. PR 7 gave the `Nurbs`
 //! arm a real one — `NurbsCurve3::speed_lower_bound`, a certified lower
-//! bound on `‖C′(t)‖` from the derivative net's convex hull — replacing
-//! a poison that could only escalate.
-//!
-//! **Why there is no end-to-end split row here.** Driving `split_edge`
-//! needs an edge in a body, an edge in a body needs an `EdgeCurve`, and
-//! an `EdgeCurve` exists only through `EdgeCurve::certify`, whose first
-//! check refuses `Nurbs` carriers outright. So the arm is genuinely
-//! unreachable from any at-rest body today — not untested, *not
-//! constructible* — and the honest row is the one that pins exactly
-//! that: the refusal that gates it, and the meter that is correct and
-//! waiting behind it. M5 PR 9's curved-boolean zip is what mints the
-//! first rung-3 edge at rest; when it flips that check, the end-to-end
-//! split row belongs next to this one.
+//! bound on `‖C′(t)‖` from the derivative net's convex hull — and PR 9
+//! flipped `EdgeCurve::certify`'s carrier gate for the rung-3 class
+//! (a `Nurbs` carrier under an `Intersection` description of two
+//! analytic surfaces), so the arm is now reachable from an at-rest
+//! body and the honest row is the end-to-end one: an SSI-fitted
+//! carrier certified into a body, split, both children re-certified
+//! through the ordinary gate. The old refusal narrows rather than
+//! disappears — a `Nurbs` carrier under a CONVENTIONAL description
+//! still refuses, and that boundary is pinned below too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3};
+use geom_core::{Band, Point3, Tolerance, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
+use geom_surfaces::Surface;
 
 /// A gentle cubic advancing steadily in `+x` — the shape a fitted SSI
 /// carrier has.
@@ -38,11 +37,15 @@ fn nurbs_carrier() -> NurbsCurve3<f64> {
 }
 
 #[test]
-fn certification_still_refuses_a_nurbs_carrier_so_the_split_arm_is_unreachable() {
+fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
+    // PR 9 narrowed the carrier gate rather than removing it: the
+    // rung-3 class is `Intersection` of two analytic surfaces (the
+    // shape the zip mints). A fitted carrier smuggled under a
+    // conventional description has no certified residual story and
+    // keeps the typed refusal — the boundary, pinned from the
+    // refusing side.
     let n = nurbs_carrier();
     let (p0, p1) = (n.eval(0.0), n.eval(1.0));
-    // The description is irrelevant: check 1 rejects the carrier kind
-    // before anything else runs.
     let chord = EdgeCurveSpec::line_between(p0, p1);
     let spec = EdgeCurveSpec {
         description: chord.description,
@@ -51,11 +54,179 @@ fn certification_still_refuses_a_nurbs_carrier_so_the_split_arm_is_unreachable()
         param_end: 1.0,
     };
     let err = EdgeCurve::certify(spec, p0, p1, |_| None, Band::linear().unwrap())
-        .expect_err("Nurbs carriers do not certify in this build");
+        .expect_err("conventional-description Nurbs carriers do not certify");
     let msg = format!("{err}");
     assert!(
-        msg.contains("Nurbs"),
-        "the refusal must name the carrier kind: {msg}"
+        msg.contains("Nurbs") && msg.contains("Intersection"),
+        "the refusal must name the carrier kind and the certifiable class: {msg}"
+    );
+}
+
+/// One certified rung-3 branch of the PR 7 planted fixture (the offset
+/// cylinder threading the unit sphere), or `None` when this ε's sample
+/// demand exceeds the named fit budget — the same typed-refusal gate
+/// the SSI suite stands down on (never an ε literal).
+fn ssi_branch_or_budget() -> Option<ssi::SsiBranch> {
+    let sph = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cyl = Surface::Cylinder {
+        origin: Point3::new(0.03, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.08,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let slab = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.5,
+        extent: 2.0,
+        eps: Tolerance::get().eps,
+        floor_scale: 1.0,
+    };
+    match ssi::cylinder_sphere_ssi(&cyl, &sph, slab, Band::linear().unwrap()) {
+        Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
+        Err(SsiError::FitSampleBudget { .. }) => None,
+        Err(e) => panic!("the planted fixture: {e}"),
+    }
+}
+
+/// The scaffold: a body, its rung-3 edge, the fitted carrier, and the
+/// carrier's parameter window.
+type Rung3Scaffold = (
+    topo::Body<f64>,
+    topo::EdgeKey,
+    std::sync::Arc<NurbsCurve3<f64>>,
+    (f64, f64),
+);
+
+/// A scaffold body holding one certified rung-3 edge (the open half of
+/// the fixture's small loop, `Intersection { cylinder, sphere }`), or
+/// `None` on the budget refusal. The second `mvfs` seed exists only to
+/// anchor the cylinder surface so both description keys resolve
+/// through the public attach door.
+fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
+    let branch = ssi_branch_or_budget()?;
+    let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
+        panic!("a rung-3 carrier is a NURBS curve")
+    };
+    // The branch is a closed loop; an edge wants distinct endpoints.
+    // Split the carrier by knot insertion (the zip's own idiom,
+    // C12.3) and take the first QUARTER: an open sub-arc whose
+    // turning stays well under a half turn, so the chord-direction
+    // speed meter is definitely positive (a half loop's meter
+    // honestly collapses — its endpoint tangents run perpendicular
+    // to the chord — and the span gate would rightly escalate).
+    let (d0, d1) = loop_carrier.domain();
+    let (quarter, _) = loop_carrier.split_at(d0 + (d1 - d0) * 0.25).unwrap();
+    let carrier = std::sync::Arc::new(quarter);
+    let (h0, h1) = carrier.domain();
+    let (p0, p1) = (carrier.eval(h0), carrier.eval(h1));
+
+    let mut body = topo::Body::<f64>::new();
+    let seed = body.mvfs(p0).unwrap();
+    let sph = body
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New(Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+    let anchor = body.mvfs(p1).unwrap();
+    let cyl = body
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New(Surface::Cylinder {
+                origin: Point3::new(0.03, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 0.08,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+    let mid = h0 + (h1 - h0) * 0.5;
+    let made = body
+        .mev(
+            topo::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: geom_brep::EdgeGeometry::Intersection {
+                    s1: cyl,
+                    s2: sph,
+                    // The witness contract: carrier(mid), bitwise the
+                    // certification schedule's middle sample.
+                    witness: carrier.eval(mid),
+                },
+                carrier: Curve3::Nurbs(carrier.clone()),
+                param_start: h0,
+                param_end: h1,
+            },
+        )
+        .expect("the kernel's first rung-3 edge at rest certifies");
+    Some((body, made.edge, carrier, (h0, h1)))
+}
+
+#[test]
+fn the_end_to_end_nurbs_split_row() {
+    // The row PR 7 banked (fix-pass item m8): an SSI-fitted carrier
+    // certified into a body through the ordinary gate, split by
+    // `split_edge`, both children re-certified — the kernel's first
+    // rung-3 edge at rest, split at rest.
+    let Some((mut body, edge, carrier, (h0, h1))) = body_with_rung3_edge() else {
+        return; // typed FitSampleBudget refusal at this ε — its own row pins it
+    };
+
+    // Split at an interior parameter: both children re-certify
+    // (their witnesses re-minted at their own mid-parameters), the
+    // meter having stated the interiority margin in metres.
+    let t_split = h0 + (h1 - h0) * 0.375;
+    let created = body.split_edge(edge, t_split).expect("the split row");
+    let c1 = body
+        .get_curve_geom(created.first_curve)
+        .and_then(|g| g.certified())
+        .unwrap();
+    let c2 = body
+        .get_curve_geom(created.second_curve)
+        .and_then(|g| g.certified())
+        .unwrap();
+    assert_eq!(c1.params(), (h0, t_split));
+    assert_eq!(c2.params(), (t_split, h1));
+    assert!(matches!(c1.carrier(), Curve3::Nurbs(_)));
+    let p_split = *body
+        .get_point(body.get_vertex(created.vertex).unwrap().point)
+        .unwrap();
+    assert!(
+        p_split.distance(carrier.eval(t_split)) == 0.0,
+        "the split vertex is the carrier point exactly (D9)"
+    );
+}
+
+#[test]
+fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
+    // The meter's other face: a parameter distance whose metred span
+    // is NOT definitely positive must refuse/escalate, scaled from
+    // the resolved band (multi-ε honesty) — never accepted.
+    let Some((mut body, edge, carrier, (h0, _h1))) = body_with_rung3_edge() else {
+        return;
+    };
+    // A split parameter whose distance-to-endpoint, METERED through
+    // the certified speed bound, sits inside the band: place it from
+    // the band the run resolved, through the carrier's own meter.
+    let meter = carrier.speed_lower_bound();
+    assert!(meter > 0.0);
+    let band = Band::linear().unwrap();
+    let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / meter;
+    assert!(
+        body.split_edge(edge, t_bad).is_err(),
+        "an in-band interiority margin must never split"
     );
 }
 

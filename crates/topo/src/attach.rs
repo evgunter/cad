@@ -145,7 +145,11 @@ impl<T: Decide> Body<T> {
         let fs_plus = face_surface(self, he_plus)?;
         let fs_minus = face_surface(self, he_minus)?;
         match curve.description {
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
+            // Both intrinsic variants carry the same adjacency
+            // obligation: the described pair IS the faces' pair
+            // (M5 PR 9 — TangentIntersection mirrors Intersection).
+            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
+            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
                 let matches_pair =
                     (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus);
                 if !matches_pair {
