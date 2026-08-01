@@ -1858,3 +1858,14 @@ unreachable (sin(pi)~1.2e-16 builds); missing SS2 size-limit
 note; ParamCountMismatch field-stuffing. **Fix pass DISPATCHED
 (inherits opus arm), reviewer probes adopted (4 files).**
 Lanes: PR 10 fix pass + tripwire unit; #152 still gating.
+
+**#152 MERGED (2026-08-01): 18/18 — PR 9 ON MAIN with the
+du_of_rims repair; the silent wrong volume is DEAD. Twenty PRs
+this milestone.** A/B row 28 filled (fable, L: 3/6/5, 5/3/4, 2
+silent devs; heavy fix pass incl. arc-facing live + 3 gate-red
+rounds). Lanes cleaned via clean-lanes.sh (56G freed; reviewer
+probes verified adopted on main first). Both active lanes
+notified to fold main. Board: PR 10 fix pass (opus) + tripwire
+unit (fable); PR 9c queued block-14 slot 1 (now carries the
+assembly scope from the PR 10 review); then PR 11 (the demo
+moment), PR 12 (needs 9c), PR 13, PR 14 + S4.
