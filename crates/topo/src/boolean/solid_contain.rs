@@ -590,7 +590,7 @@ fn at_infinity_side<T: Decide>(
 ) -> Result<SolidContainment, PointInSolidError> {
     let props = crate::props::mass_properties_with(body, band).map_err(|_| {
         PointInSolidError::CorruptFace {
-            face: faces.first().copied().unwrap_or_else(|| FaceKey::default()),
+            face: faces.first().copied().unwrap_or_default(),
         }
     })?;
     let margin = props.volume / props.surface_area;

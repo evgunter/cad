@@ -623,6 +623,7 @@ fn find_match<T: Decide>(
 /// (ParallelLines/TangentLine). Section escalations propagate;
 /// non-escalation classification failures at match time are a desync
 /// (the germ was minted FROM this pair's crossing).
+#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn germ_section_frame<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
