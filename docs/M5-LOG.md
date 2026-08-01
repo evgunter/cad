@@ -1894,3 +1894,19 @@ amended spec (incl. item 6, the loft/sweep assembly from the
 PR 10 review). Gates PR 12; carries shape (iii) loft-body +
 cut-loft rows. Review-first (no gate-first PR — too load-
 bearing). Lanes: PR 9c (opus) + tripwire finishing (fable).
+
+**Tripwire unit COMPLETE (2026-08-01, 0c79891, pushed).** 55+6
+sites converted (incl. skin.rs bulge square from the mid-flight
+#151 fold — the re-census instruction paid off), 2 false
+positives restructured, 10 files/54 sites allowlisted with the
+D9 rotation_about order-pin correctly left alone. Tripwire
+self-tested both directions (planted q*q fails with the
+ratified note). HONEST FLAG: ten non-bit-identical conversions,
+six in decide-margin formulas (k*arm*arm*half regrouped) —
+**light review DISPATCHED with that as primary charter**
+(measured ulp divergence, classification-flip probe near
+thresholds, pin coverage, D9 order-rule check; any order-pinned
+site reverts to parenthesized + allowlist). Battery scope was
+corrected mid-run per Evan (sweep-shaped degenerate case;
+memory rewritten around the iteration-speed principle). A/B
+row 30 = this unit (fable, S). Lanes: tripwire review + PR 9c.
