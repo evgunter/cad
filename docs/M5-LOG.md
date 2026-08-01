@@ -1688,3 +1688,22 @@ pre-dispatch)**: S2 arc-leg fillet demo stop (ripe per standing
 ruling) + the staged curved-surface demo (scene + narration now;
 render step activates at PR 11 tessellation — Evan's ask on
 #148). Lanes: demo unit (opus) + PR 9 review (resumed).
+
+**Demo unit COMPLETE (2026-08-01, 84f77b9, pushed; one report
+nudge needed).** Stop `rocker`: SIX fillet_corner corners
+covering the taxonomy incl. the S8 vesica-at-half-size arc×arc
+two-survivor pick, near-root ASSERTED (panics if the far pocket
+is ever taken); genus 1, 4783 K-probe samples ×3ε identical (no
+escalations), all seven S2 gates fire. Stop `tiltedcut` (STAGED):
+PR 5 ellipse halves build + certify (residual 2.69e-16 m); three
+frontier refusals pinned with retire-on-closure panics naming
+PR 11 (split-meter pattern); staged bodies emit NO scenes.json
+entry (renderers never see undrawables). Narrations at demo
+altitude ("A pick, never a guess"). Six deviations/decisions
+incl. a CONTAINED render incident (fallback re-rendered all
+panels, briefly committed, restored — branch diff vs main =
+exactly one new PNG, review verifies) and freecadcmd stalling
+(matplotlib fallback lane used, documented). **Light review
+DISPATCHED** (tour battery ×3ε, S8 pick discrimination, staged-
+gate honesty, narration numeric claims, incident diff check,
+rocker.png legibility). Lanes: demo review + PR 9 review.
