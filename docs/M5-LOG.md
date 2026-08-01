@@ -1766,3 +1766,21 @@ mid-carrier-seam rule, as recommended** — seam at junction/fillet
 only; the M2 conventional-split relaxation declined (same-carrier
 discipline). PATHS-DESIGN §6 updated. Open-with-Evan list now:
 Q9, #131, #89 display half, PATHS cusp-variant split.
+
+**PR 10 implementation COMPLETE, PR OPENED as #151 (2026-08-01,
+b6885e6).** Vocabulary/geometry/schema COMPLETE: Loft+Sweep as
+ordinary nodes; exact rational-quadratic arc sections (carrier,
+not fit); one-factorization collocation skinning; schema v2
+CLEAN BREAK per Evan (empty step table as the single fact,
+SchemaTooOld with REGENERATE_RECOURSE composed exactly once, v1
+bytes kept as the refusal fixture). Loft BODY rows FRONTIER-
+REFUSED honestly (topo tier-3 refuses Surface::Nurbs by kind,
+validate.rs:1436; certify.rs:672 NURBS carriers) — pinned by
+demonstration; implementer claims PR 9 merge turns them green
+with no loft-code change. FOUR deviations. **Review DISPATCHED**
+(charter: independent skinning math vs closed forms; schema
+break adversarial rows both directions; the dev-2 coordination
+claim TESTED by scratch-merging PR 9 — the answer feeds PR 9c
+scope; corpus exemption self-retirement). Lanes: PR 9 fix pass
++ PR 10 review. NOTE: #151 gates open pre-review (dispatch
+instruction slip — harmless, no watcher armed until fix pass).
