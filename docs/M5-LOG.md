@@ -1707,3 +1707,49 @@ exactly one new PNG, review verifies) and freecadcmd stalling
 DISPATCHED** (tour battery ×3ε, S8 pick discrimination, staged-
 gate honesty, narration numeric claims, incident diff check,
 rocker.png legibility). Lanes: demo review + PR 9 review.
+
+**Demo review APPROVE (0/1/2, rubric 5/4/5, no fix pass) — the
+MINOR applied on-branch by the orchestrator (S7 precedent),
+tour re-green 3/3, PR OPENED as #150, MERGED 2026-08-01 18/18.**
+Perturbation probe proved the S8 pick is a rule, not the
+fixture; render-incident cleanup verified exact (one new PNG).
+Nineteen PRs this milestone. A/B row 27 filled (opus, S). Demo
+lanes cleaned via clean-lanes.sh. One reviewer waiter-park
+("waiting on the release build") revived by the verbatim clause
+— THIRD waiter-park this session despite the clause in every
+prompt; the sweep+nudge net is holding.
+
+**PR 9 review returned (2026-08-01): APPROVE-WITH-FIX-PASS — 3
+MAJ / 4 MIN / 5 NOTE, rubric 5/3/4, 2 silent deviations. THE
+HEADLINE: MAIN IS WRONG TODAY** — the du_of_rims first-arc
+undercount executed at merge base: two public split_edge calls
+on one wall face's rims → volume 0.6545 vs true 0.7854,
+validate_geometric Ok, SILENT. The branch fixes it bit-exact
+(funnel-named). S9 precedent: PR 9 carries MERGE PRIORITY. The
+core HELD everywhere: tube-threading attacks defeated (locus
+pinned to <ε by the 1/κ_rel lever arm), drift-0 verified
+symbolically + by discriminating witness, second-order scaling
+confirmed, all zip attacks survived incl. the F7 curved
+same-key exemption probe (cannot hide a non-maximal planar
+face). MAJ-1 Interval boolean lane BROKEN (bool_wall_trim
+poisons → Escalated{Invalid}; dev 9 understated a failing
+acceptance); MAJ-2 red sweep battery shipped (two stale suites
+the PR's own spec-correct changes broke — verify-before-push
+breached); MAJ-3 SILENT union-only scope (curved subtract/
+intersect die at stale planar-only revert text). Dev 4 CONFIRMED:
+the spec's one-7b-flag-flip was WRONG (edge×NURBS-face sweep
+layer outside 7b's flag) — orchestrator owns the spec error.
+**RULINGS: fix pass dispatched (F1 battery green + re-pins; F2
+Interval-total or typed + the missing corpus boss row; F3 honest
+union-only front door, curved revert BANKED; F4 arc-aware
+facing for the 2-arc hole; F5 must-carry class coherence; F6
+honest shape-(iii) pipeline pin; F7 smalls; dev 5 relayed —
+charter slip owned, banked). PR 9c UNIT CREATED (banked, gates
+PR 12): cylinder×sphere boolean arm + Pcurve::Fitted (Copy
+drop) + curved revert (subtract/intersect — die pips need it) +
+cyl×cyl windows + edge×NURBS-face sweep layer. Schedule before
+PR 12.** PR 10 DISPATCHING to the freed lane: difficulty L
+(judged pre-draw, logged post-draw — ordering slip recorded);
+block-13 draw byte 82 = (opus, fable) → PR 10 = OPUS, fable
+remainder to the next unit (PR 9c). Lanes: PR 9 fix pass + PR 10
+implementation.
