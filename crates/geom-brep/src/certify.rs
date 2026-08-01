@@ -1011,7 +1011,7 @@ fn run_checks<T: Decide>(
                         .min(crate::implicit::curvature_lever_arm(surf2, p))
                         .min(extent);
                     let half = T::from_f64(0.5);
-                    let so_margin = jet.kappa_rel.abs() * arm * arm * half;
+                    let so_margin = jet.kappa_rel.abs() * arm.powi(2) * half;
                     match decide("tangent_second_order", so_margin, band) {
                         Ok(Sign::Positive) => {}
                         // A magnitude margin: Zero is the G2/osculating
@@ -1109,7 +1109,7 @@ fn run_checks<T: Decide>(
         )?;
         let half = T::from_f64(0.5);
         let tube =
-            (tangent_kappa_min - bounds.kappa_drift) * tangent_arm_min * tangent_arm_min * half;
+            (tangent_kappa_min - bounds.kappa_drift) * tangent_arm_min.powi(2) * half;
         match decide("tangent_tube_margin", tube, band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {

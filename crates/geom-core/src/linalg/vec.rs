@@ -541,7 +541,7 @@ mod tests {
         #[test]
         fn cross_is_orthogonal_to_operands(a in vec3(), b in vec3()) {
             let m = max_abs3(a).max(max_abs3(b));
-            let bound = 64.0 * f64::EPSILON * m * m * m;
+            let bound = 64.0 * f64::EPSILON * m.powi(3);
             prop_assert!(a.cross(b).dot(a).abs() <= bound);
             prop_assert!(a.cross(b).dot(b).abs() <= bound);
         }
@@ -591,7 +591,7 @@ mod tests {
             let p = v.project_onto(n);
             let r = v.reject_from(n);
             let m = max_abs3(v).max(max_abs3(n));
-            let tol = 1e3 * f64::EPSILON * m * m;
+            let tol = 1e3 * f64::EPSILON * m.powi(2);
             // Orthogonality of the rejection (the load-bearing claim).
             prop_assert!(r.dot(n).abs() <= tol * (1.0 + max_abs3(v) / max_abs3(n)));
             // Parallelism of the projection: p × n ≈ 0.

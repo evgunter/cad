@@ -1006,7 +1006,7 @@ fn sweep_loop<T: Decide>(
                 let arm = geom_brep::curvature_lever_arm(&s_prev, mid)
                     .min(geom_brep::curvature_lever_arm(&s_next, mid))
                     .min(w_norm);
-                let margin = jet.kappa_rel.abs() * arm * arm * T::from_f64(0.5);
+                let margin = jet.kappa_rel.abs() * arm.powi(2) * T::from_f64(0.5);
                 match geom_core::k_stats::decide("tangent_second_order", margin, band) {
                     Ok(geom_core::Sign::Positive) => {
                         let spec = EdgeCurveSpec {

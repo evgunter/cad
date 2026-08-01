@@ -122,6 +122,37 @@ jobs:
             echo "::error::compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
             exit 1
           fi
+      # Interval-square discipline tripwire (memories/
+      # interval-square-poison.md — FOUR live bugs from this one class):
+      # squaring via plain `x * x` treats the factors as independent, so
+      # a zero-straddling enclosure gets a spurious negative lower bound
+      # that poisons downstream sqrt/decoration. Comment lines are
+      # stripped (same as the Bounds step). Allowlist rationale, per file:
+      #  - geom-core real.rs / interval.rs / dual.rs / ring_interval.rs —
+      #    the scalar implementations themselves: `x * x` is definitional
+      #    (powi is BUILT from it) and their tests deliberately contrast
+      #    the plain product with the tight square;
+      #  - geom-core linalg/mat.rs — `rotation_about`'s evaluation order
+      #    is D9-ratified and doc'd in-file ("exactly as parenthesized");
+      #    tightening `t·x·x` to `t·x²` is a design change, not a cleanup
+      #    (the test hits are `r * r.transpose()` matrix products);
+      #  - geom-core linalg/svd.rs / lsq.rs — documented f64-only
+      #    selection lanes (lsq's hits are usize buffer sizing);
+      #  - geom-brep ssi/jet.rs / march.rs / system.rs — f64-only jet and
+      #    marcher numerics (finite differences, step control).
+      - name: interval-square powi(2) allowlist (ratified 2026-08-01)
+        run: |
+          hits=$(grep -rPn '\b([a-z_][a-z0-9_]*)\s*\*\s*\1\b' crates/*/src --include='*.rs' \
+            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+            | cut -d: -f1 | sort -u \
+            | grep -vE '^crates/geom-core/src/(real|interval|dual|ring_interval)\.rs$' \
+            | grep -vE '^crates/geom-core/src/linalg/(mat|svd|lsq)\.rs$' \
+            | grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs$' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::use powi(2): it is never wider than x*x and strictly tighter when the enclosure straddles zero; whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
+            exit 1
+          fi
       # Evaluation-code discipline tripwire (see the `real.rs` module docs):
       # a type parameter written `T: Real + PartialOrd` (or any other extra
       # bound) is the escape hatch that lets generic evaluation code smuggle

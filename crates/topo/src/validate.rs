@@ -1752,7 +1752,7 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
                 let arm = geom_brep::curvature_lever_arm(s_plus, p)
                     .min(geom_brep::curvature_lever_arm(s_minus, p))
                     .min(extent);
-                let margin = jet.kappa_rel.abs() * arm * arm * T::from_f64(0.5);
+                let margin = jet.kappa_rel.abs() * arm.powi(2) * T::from_f64(0.5);
                 match decide("tangent_second_order", margin, band) {
                     Ok(Sign::Positive) => {}
                     Ok(Sign::Zero | Sign::Negative) => {

@@ -416,7 +416,7 @@ pub fn point_in_solid<T: Decide>(
                 let radial = w - axis * w.dot(axis);
                 // The linearized residual (metres) — the same form the
                 // certification layer classifies.
-                let elev = (radial.norm_squared() - radius * radius) / (T::from_f64(2.0) * radius);
+                let elev = (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
                 if decide("bool_point_in_solid_plane", elev, band).map_err(escalate)? == Sign::Zero
                 {
                     match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, q, band)?
@@ -530,13 +530,13 @@ fn cast_ray<T: Decide>(
                     _ => continue,
                 }
                 let b2 = w0p.dot(dp);
-                let c2 = w0p.norm_squared() - radius * radius;
+                let c2 = w0p.norm_squared() - radius.powi(2);
                 let disc = b2.powi(2) - a2 * c2;
                 // Metre-scaled discriminant: Positive ⇒ two definite
                 // roots; Zero ⇒ a tangent ray (graze, retry the next
                 // schedule member); Negative ⇒ definite miss; in-band
                 // escalates through the funnel.
-                match decide("bool_ray_cylinder_disc", disc / (two_r * two_r), band)
+                match decide("bool_ray_cylinder_disc", disc / two_r.powi(2), band)
                     .map_err(escalate)?
                 {
                     Sign::Positive => {}

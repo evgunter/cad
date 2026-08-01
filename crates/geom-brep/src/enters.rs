@@ -149,7 +149,7 @@ pub fn enters_material_order2<T: Decide>(
         }
     }
     let half = T::from_f64(0.5);
-    let margin = deriv2.dot(outward_normal) / speed_sq * arm * arm * half;
+    let margin = deriv2.dot(outward_normal) / speed_sq * arm.powi(2) * half;
     Ok(match decide("tangent_sector_order2", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
         Sign::Positive => EntersMaterial::Exits,
