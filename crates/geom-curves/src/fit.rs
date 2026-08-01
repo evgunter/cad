@@ -240,6 +240,116 @@ fn averaged_knots(params: &[f64], degree: usize) -> Result<KnotVector, FitError>
     KnotVector::clamped(knots, degree).map_err(FitError::Structure)
 }
 
+/// The averaged knot vector this stack builds for `params` at
+/// `degree` (Book Eq. 9.8) — **exposed for consumers that must
+/// interpolate on a parameterization the curve stack does not own**.
+///
+/// That is M5 PR 10's §10.3 skinning need: a lofted surface's
+/// v-direction structure is one knot vector shared by EVERY u-column,
+/// so the surface builder chooses the parameters once, asks for the
+/// knots once, and hands both to [`interpolate_columns`].
+///
+/// # Errors
+///
+/// [`FitError::TooFewPoints`] when `params.len() < degree + 1`;
+/// [`FitError::Structure`] if the resulting vector is not a valid
+/// clamped knot vector.
+pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector, FitError> {
+    if degree == 0 {
+        return Err(FitError::Structure(SplineError::KnotVectorInvalid {
+            reason: KnotVectorIssue::DegreeZero,
+        }));
+    }
+    if params.len() < degree + 1 {
+        return Err(FitError::TooFewPoints {
+            have: params.len(),
+            need: degree + 1,
+        });
+    }
+    averaged_knots(params, degree)
+}
+
+/// Global B-spline interpolation of many scalar COLUMNS through one
+/// shared parameterization (the §10.3 skinning solve).
+///
+/// `rows[k]` is the data at `params[k]` — a row of `width` scalars,
+/// every column interpolated independently but through the SAME
+/// collocation matrix `N_{k,j} = N_j(params[k])`, which is what makes
+/// the result a tensor-product surface rather than a bundle of
+/// unrelated curves. Returns the averaged knot vector and the control
+/// rows (`rows.len()` of them, same width).
+///
+/// The solve is the exact square collocation solve
+/// (`geom_core::linalg::lsq::solve_square`, fixed-order LU, D9) with
+/// **all columns as simultaneous right-hand sides** — one
+/// factorization, so the columns cannot drift relative to each other
+/// even in float. Structure selection is deterministic bit-for-bit.
+///
+/// The caller owns the meaning of a column: PR 10 passes homogeneous
+/// `(w·x, w·y, w·z, w)` quadruples, so the interpolation happens in
+/// ℝ⁴ — the Book's rational treatment — and the projective divide
+/// happens once, afterwards.
+///
+/// # Errors
+///
+/// [`FitError::TooFewPoints`], [`FitError::ParamCountMismatch`] (row
+/// count vs parameter count, or ragged rows),
+/// [`FitError::NonFinitePoint`] naming the offending row,
+/// [`FitError::Lsq`] for a degenerate collocation system, and
+/// [`FitError::Structure`].
+pub fn interpolate_columns(
+    params: &[f64],
+    degree: usize,
+    rows: &[Vec<f64>],
+) -> Result<(KnotVector, Vec<Vec<f64>>), FitError> {
+    let n = params.len();
+    if rows.len() != n {
+        return Err(FitError::ParamCountMismatch {
+            params: n,
+            points: rows.len(),
+        });
+    }
+    let width = rows.first().map_or(0, Vec::len);
+    for (index, row) in rows.iter().enumerate() {
+        if row.len() != width {
+            return Err(FitError::ParamCountMismatch {
+                params: width,
+                points: row.len(),
+            });
+        }
+        if row.iter().any(|v| !v.is_finite()) {
+            return Err(FitError::NonFinitePoint { index });
+        }
+    }
+    // The same clamped `0 → 1` parameterization rule the curve entries
+    // enforce (`check_params`): one parameter per row, strictly
+    // ascending, finite, pinned at the ends by the averaged-knot
+    // construction. `!(a < b)` is NaN-catching.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    let ordered = params.first() == Some(&0.0)
+        && params.last() == Some(&1.0)
+        && params.windows(2).all(|w| w[0] < w[1]);
+    if !ordered {
+        return Err(FitError::ParamCountMismatch {
+            params: n,
+            points: rows.len(),
+        });
+    }
+    let kv = averaged_knot_vector(params, degree)?;
+    // A clamped averaged knot vector over `n` parameters has exactly
+    // `n` control points, so the collocation matrix is square.
+    let unit = vec![1.0f64; n];
+    let mut matrix = vec![vec![0.0f64; n]; n];
+    for (k, u) in params.iter().enumerate() {
+        let (first, vals) = rational_row(&kv, &unit, *u);
+        for (j, v) in vals.iter().enumerate() {
+            matrix[k][first + j] = *v;
+        }
+    }
+    let control = lsq::solve_square(&matrix, rows).map_err(FitError::Lsq)?;
+    Ok((kv, control))
+}
+
 /// The distinct interior knot values of `kv`, ascending (structure
 /// scan, exact `f64` identity) — the removal sweep's candidate list.
 fn distinct_interior(kv: &KnotVector) -> Vec<f64> {

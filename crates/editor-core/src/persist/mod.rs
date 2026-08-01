@@ -221,8 +221,7 @@ pub enum PersistError {
 /// — composed EXACTLY once per message (the shared-recourse-carrier
 /// discipline, D4 ¶1 addendum). Public so callers can assert on it
 /// without restating prose.
-pub const REGENERATE_RECOURSE: &str =
-    "regenerate the file from its source recipe with a current build \
+pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recipe with a current build \
      (every saved document replays from source; this kernel is \
      unreleased and writes no old-format files)";
 
@@ -242,7 +241,10 @@ impl core::fmt::Display for PersistError {
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
-                write!(f, "persist: no `schema: <integer>` header (first line: {found:?})")
+                write!(
+                    f,
+                    "persist: no `schema: <integer>` header (first line: {found:?})"
+                )
             }
             Self::UnknownSchema { found, newest } => write!(
                 f,

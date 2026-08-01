@@ -810,6 +810,11 @@ where
             PatternKind::Circular { .. } => 13,
         },
         Node::Declare { .. } => 14,
+        // M5 PR 10: new tags append — the key's tag space is
+        // process-internal (never persisted), so growth is free, but
+        // an EXISTING tag must never be reused for a new meaning.
+        Node::Loft { .. } => 15,
+        Node::Sweep { .. } => 16,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare

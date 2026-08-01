@@ -122,6 +122,11 @@
 
 pub mod extrude;
 pub mod revolve;
+pub mod skin;
 
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
 pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
+pub use skin::{
+    LoftGeometry, SectionSegments, SkinError, lift_surface, loft_geometry, make_compatible,
+    segment_curve, skin, skin_on, skin_parameters, sweep_geometry,
+};
