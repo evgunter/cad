@@ -1108,8 +1108,7 @@ fn run_checks<T: Decide>(
             &mut max_residual,
         )?;
         let half = T::from_f64(0.5);
-        let tube =
-            (tangent_kappa_min - bounds.kappa_drift) * tangent_arm_min.powi(2) * half;
+        let tube = (tangent_kappa_min - bounds.kappa_drift) * tangent_arm_min.powi(2) * half;
         match decide("tangent_tube_margin", tube, band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {
