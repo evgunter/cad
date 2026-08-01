@@ -154,15 +154,45 @@ fn vocabulary_coverage_is_total() {
         }
     }
     println!("{report}");
+    // M5 PR 10: `Loft`/`Sweep` joined the vocabulary but CANNOT join
+    // the corpus yet — a corpus document must evaluate to a body, and
+    // a NURBS-walled solid is frontier-blocked
+    // (`NodeErrorKind::CurvedSolidFrontier`; the blocker is
+    // demonstrated in `sweep/tests/m5_pr10_frontier.rs`). They are
+    // listed in `NODE_KINDS` on purpose, so the coverage report shows
+    // them at ZERO instead of their absence reading as coverage.
+    //
+    // The exemption is EXACT and retires itself: the moment a corpus
+    // document exercises one, `missing` shrinks and this assertion
+    // fires, telling you to delete the entry.
+    const FRONTIER_UNCOVERED: [&str; 2] = ["node Loft", "node Sweep"];
+    let still_missing: Vec<&String> = missing
+        .iter()
+        .filter(|m| !FRONTIER_UNCOVERED.contains(&m.as_str()))
+        .collect();
     assert!(
-        missing.is_empty(),
+        still_missing.is_empty(),
         "the Band 4 corpus does not cover: {}{report}",
-        missing.join(", ")
+        still_missing
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
     );
+    for exempt in FRONTIER_UNCOVERED {
+        assert!(
+            missing.iter().any(|m| m == exempt),
+            "{exempt} is now covered — remove it from FRONTIER_UNCOVERED{report}"
+        );
+    }
     // Guard the other direction: a NEW node/edit kind must be added
     // to the tally lists (and then to the corpus) — an unlisted kind
     // would otherwise pass unnoticed.
-    assert_eq!(nodes.len(), NODE_KINDS.len(), "unlisted node kind covered");
+    assert_eq!(
+        nodes.len() + FRONTIER_UNCOVERED.len(),
+        NODE_KINDS.len(),
+        "unlisted node kind covered"
+    );
     assert_eq!(
         subs.len(),
         SUB_KINDS.len(),

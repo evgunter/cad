@@ -1,4 +1,26 @@
-//! Persistence, schema v1 (M4 PR 6; F3 + F8 ratified).
+//! Persistence, schema v2 (M4 PR 6's format; M5 PR 10's clean break).
+//!
+//! # Schema history
+//!
+//! - **v1** (M4 PR 6) — the ratified text format below.
+//! - **v2** (M5 PR 10) — the same text format carrying the grown node
+//!   vocabulary (`Loft`, `Sweep`). Ratified as a **clean break**: no
+//!   `migrate` step is written, v1 refuses typed
+//!   ([`PersistError::SchemaTooOld`], naming [`REGENERATE_RECOURSE`]),
+//!   and the repo's own v1 goldens were regenerated once, in that PR.
+//!   The kernel is unreleased; the only v1 files that ever existed are
+//!   the repo's, and every one of them replays from source.
+//!
+//!   **What the break does NOT do** (M5 PR 10 review NOTE): v2 changed
+//!   the recipe VOCABULARY, not the wire format, so a v1 body is still
+//!   valid v2 JSON — hand-edit a v1 file's header to `schema: 2` and
+//!   it loads. That is inherent to a version break with no format
+//!   change and no door can close it: the header is the only place the
+//!   version is recorded, so an edited header IS a v2 file by
+//!   definition. It costs nothing (a v1 body carries no construct v2
+//!   rejects) and it is not a gap in the version door, which refuses
+//!   every file that still SAYS v1. Pinned, executed, in
+//!   `tests/review_m5_pr10_schema.rs`.
 //!
 //! # Format (spec D1)
 //!
@@ -60,10 +82,21 @@ use crate::profile_desc::{ProfileDesc, ProfileDoc};
 
 pub use check::{JointSite, NonFiniteSite, SnapshotError};
 
-/// The current schema version. Version 1 froze at M4 PR 6 (F8: the
-/// persisted file IS in M4). Bump ONLY with a ratified format change
-/// plus its [`migrate`] step.
-pub const SCHEMA_VERSION: u32 = 1;
+/// The current schema version.
+///
+/// Version 1 froze at M4 PR 6 (F8: the persisted file IS in M4).
+/// Version 2 is M5 PR 10's **clean break** (spec §4, ratified by Evan
+/// on #148): the recipe vocabulary grew [`crate::node::Node::Loft`]
+/// and [`crate::node::Node::Sweep`], and rather than carry live
+/// compatibility code for a format nobody outside this repo has ever
+/// written, v1 refuses TYPED ([`PersistError::SchemaTooOld`]) with the
+/// regenerate recourse. No `migrate` step exists for 1 → 2, on
+/// purpose; the chain machinery ([`migration_step`]) stays, carrying
+/// no steps.
+///
+/// Bump ONLY with a ratified format change — plus its
+/// [`migration_step`] entry, or a ratified break like this one.
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -136,6 +169,25 @@ pub enum PersistError {
         /// The newest version this build reads.
         newest: u32,
     },
+    /// The header names an OLDER schema this build cannot reach: the
+    /// migration chain has no step for `missing` (M5 PR 10 §4 — the
+    /// 1 → 2 clean break deliberately writes none). Typed refusal, not
+    /// a best-effort load; the recourse is to REGENERATE the file from
+    /// its source recipe with a current build (every file this kernel
+    /// has ever written replays from source).
+    ///
+    /// Version comparison is exact integer arithmetic, so this arm has
+    /// no in-band twin — the two-tolerance discipline does not apply
+    /// (spec §4, stated so the omission reads as a decision).
+    SchemaTooOld {
+        /// The version in the file.
+        found: u32,
+        /// The version this build reads and writes.
+        supported: u32,
+        /// The version whose forward migration step is missing
+        /// (`found` for a single-step gap).
+        missing: u32,
+    },
     /// A migration step failed or is missing.
     Migration(MigrationError),
     /// The body is not valid JSON, or not the typed shape — with the
@@ -176,6 +228,77 @@ pub enum PersistError {
     },
 }
 
+/// The one recourse sentence a [`PersistError::SchemaTooOld`] ends on
+/// — composed EXACTLY once per message (the shared-recourse-carrier
+/// discipline, D4 ¶1 addendum). Public so callers can assert on it
+/// without restating prose.
+pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recipe with a current build \
+     (every saved document replays from source; this kernel is \
+     unreleased and writes no old-format files)";
+
+impl core::fmt::Display for PersistError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site:?}"),
+            Self::TangentJointOutOfRange {
+                site,
+                loop_index,
+                joint,
+                vertex_count,
+            } => write!(
+                f,
+                "persist: declared-tangent joint {joint} out of range at {site:?} loop \
+                 {loop_index} (valid joints are 0..{vertex_count})"
+            ),
+            Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
+            Self::Header { found } => {
+                write!(
+                    f,
+                    "persist: no `schema: <integer>` header (first line: {found:?})"
+                )
+            }
+            Self::UnknownSchema { found, newest } => write!(
+                f,
+                "persist: schema v{found} is newer than this build reads (newest v{newest}) — \
+                 migrations only run forward; use a newer build"
+            ),
+            Self::SchemaTooOld {
+                found,
+                supported,
+                missing,
+            } => write!(
+                f,
+                "persist: schema v{found} is older than this build reads (supported v{supported}) \
+                 and no migration step exists from v{missing} — {REGENERATE_RECOURSE}"
+            ),
+            Self::Migration(e) => write!(
+                f,
+                "persist: migration from schema v{} failed: {}",
+                e.from, e.reason
+            ),
+            Self::Parse {
+                line,
+                column,
+                message,
+            } => write!(f, "persist: body line {line} column {column}: {message}"),
+            Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e:?}"),
+            Self::EditReplay { index, error } => {
+                write!(f, "persist: edit {index} refused on replay: {error:?}")
+            }
+            Self::ToleranceConflict { process, document } => write!(
+                f,
+                "persist: document ε {document:e} conflicts with the process ε {process:e} \
+                 (one process, one ε)"
+            ),
+            Self::ToleranceInvalid { value } => {
+                write!(f, "persist: recorded ε {value:e} is not a valid tolerance")
+            }
+        }
+    }
+}
+
+impl core::error::Error for PersistError {}
+
 /// A failed or unavailable migration step (spec D1: migrations are
 /// explicit version-to-version functions from v1 onward).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,20 +309,31 @@ pub struct MigrationError {
     pub reason: String,
 }
 
-/// One migration step: `from_version` → `from_version + 1`, on the
-/// raw JSON body (spec D1's ratified mechanism — the loader walks
-/// this chain from the file's version up to [`SCHEMA_VERSION`], then
-/// deserializes typed). v1 is current, so no step exists yet; the
-/// first format change adds `1 => Ok(...)` here and bumps
-/// [`SCHEMA_VERSION`].
-fn migrate(
-    from_version: u32,
-    _value: serde_json::Value,
-) -> Result<serde_json::Value, MigrationError> {
-    Err(MigrationError {
-        from: from_version,
-        reason: format!("no migration step from schema v{from_version}"),
-    })
+/// A migration step: `from_version` → `from_version + 1`, on the raw
+/// JSON body (spec D1's ratified mechanism).
+pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, MigrationError>;
+
+/// The forward migration chain's step table (spec D1: migrations are
+/// explicit version-to-version functions, and they only run FORWARD —
+/// D6.3). The loader walks this from the file's version up to
+/// [`SCHEMA_VERSION`], then deserializes typed.
+///
+/// `None` means NO step exists for that version — the loader turns
+/// that into [`PersistError::SchemaTooOld`] BEFORE it touches the
+/// body, so a too-old file's diagnostics name the version problem
+/// rather than whatever the stale body happens to parse as.
+///
+/// **The table is empty, on purpose** (M5 PR 10 §4): 1 → 2 was a
+/// ratified clean break. The mechanism stays because it costs nothing
+/// and D6.3's forward-only rule is unchanged; a future format change
+/// that is NOT a break adds its `n => Some(step_n)` arm here.
+fn migration_step(from_version: u32) -> Option<MigrationStep> {
+    /// `(from_version, step)` pairs — the whole chain, one line each.
+    const TABLE: &[(u32, MigrationStep)] = &[];
+    TABLE
+        .iter()
+        .find(|(from, _)| *from == from_version)
+        .map(|(_, step)| *step)
 }
 
 /// Serializes `snapshot` + `edits` into the schema-v1 text format.
@@ -260,11 +394,22 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     let body: FileBody = if version == SCHEMA_VERSION {
         parse_body(body_text)?
     } else {
+        // Walk the chain for AVAILABILITY first, before a byte of the
+        // body is parsed: a file this build cannot reach must say so
+        // in version terms (§4's clean break), not report whatever the
+        // old body's JSON looks like under today's types.
+        let steps: Vec<MigrationStep> = (version..SCHEMA_VERSION)
+            .map(|at| {
+                migration_step(at).ok_or(PersistError::SchemaTooOld {
+                    found: version,
+                    supported: SCHEMA_VERSION,
+                    missing: at,
+                })
+            })
+            .collect::<Result<_, _>>()?;
         let mut value: serde_json::Value = serde_json::from_str(body_text).map_err(parse_err)?;
-        let mut at = version;
-        while at < SCHEMA_VERSION {
-            value = migrate(at, value).map_err(PersistError::Migration)?;
-            at += 1;
+        for step in steps {
+            value = step(value).map_err(PersistError::Migration)?;
         }
         serde_json::from_value(value).map_err(parse_err)?
     };
