@@ -1655,3 +1655,20 @@ modified files; survives on disk). PR 9 reviewer died
 mid-tube-derivation, clone clean, transcript carries state. Both
 RESUMED via SendMessage post-reset (the M1 transient-kill rung:
 transcript + clone survive; cwd guards re-stated).
+
+**PR 7b fix pass COMPLETE, PR OPENED as #149 (2026-07-31,
+d432a89).** All five items: F1 center-shift IMPLEMENTED (common
+center at the lift, chart channels unshifted; reviewer witness
+1.866e-6 → 1.225e-9 m at 1e6 m = representation floor, flipped
+to regression pin + realistic far-wall row; the full arm at
+1e6 m refuses on PRE-EXISTING non-composite machinery — foot-
+point convergence, cell budgets — typed, recorded in the breadth
+sentence); F2 non-monotone wording with the three measured
+points in test + banked marcher note ("price the crossing span,
+no global scaling law"); F3 recourse/OQ4 exactly-once pin; F4
+breadth sentence both records; F5 two dated banked observations.
+All ten reviewer probe rows adopted verbatim. Batteries: 36
+suites default + 1e-6 + 1e-12 + Interval all exit 0; fmt/clippy
+clean. Watcher armed on #149 (merge on green). At merge: A/B row
+26 fills; freed lane → demo unit (S2 arc-fillet + staged curved,
+OPUS remainder). PR 9 review resumed in the other lane.
