@@ -1930,3 +1930,14 @@ text; 2 MIN; judgment calls ENDORSED incl. not shipping a
 tier-3-invalid assembly). Fix pass DISPATCHED (opus inherits);
 PR opens at its completion with the gate watcher. Next
 implementation dispatch: PR 11 (block-14 fable remainder).
+
+**Tripwire review APPROVE (0/0/3), PR OPENED as #153 with
+watcher (2026-08-02).** The measured answer on the ten non-bit-
+identical conversions: 2 ulp max, 0 flips in 5M realistic
+samples, flips only ~1 ulp from the band edge under adversarial
+tuning (in-band<->definite only — sign inversion impossible at
+2 ulp across a 2-eps band); no ratified association text at any
+site; margins feed decide()->Sign only, nothing golden-pinned —
+Evan's re-bless-don't-revert ruling needed no re-blessing in
+the event. RingInterval .sqr() tighten-only proven. A/B row 30
+filled. Lanes: PR 9c fix pass; #153 gating.
