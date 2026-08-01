@@ -219,9 +219,12 @@ fn face_geo<T: Decide>(
                 .flatten()
                 .ok_or(PointInSolidError::CorruptFace { face })?;
             // Height range from the outer cycle's vertices (exact for
-            // the iso-bounded wall class).
-            let mut h_min = T::from_f64(f64::INFINITY);
-            let mut h_max = T::from_f64(f64::NEG_INFINITY);
+            // the iso-bounded wall class). Folded WITHOUT infinity
+            // seeds: an Interval scalar's ±∞ singleton is Ill and
+            // poisons every min/max through it (the MAJOR-1 root
+            // cause — the whole Interval boolean lane died on a NaN
+            // height range).
+            let mut h_range: Option<(T, T)> = None;
             let LoopBoundary::Cycle { first } = body
                 .get_loop(f.outer)
                 .ok_or(PointInSolidError::CorruptFace { face })?
@@ -242,16 +245,19 @@ fn face_geo<T: Decide>(
                     .and_then(|v| body.get_point(v.point))
                     .ok_or(PointInSolidError::CorruptFace { face })?;
                 let h = (p - origin).dot(axis);
-                h_min = h_min.min(h);
-                h_max = h_max.max(h);
+                h_range = Some(match h_range {
+                    None => (h, h),
+                    Some((lo, hi)) => (lo.min(h), hi.max(h)),
+                });
             }
+            let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
             Ok(FaceGeo::Cylinder {
                 origin,
                 axis,
                 radius,
                 u_ref,
                 az,
-                h: (h_min, h_max),
+                h,
             })
         }
         _ => Err(PointInSolidError::CorruptFace { face }),
@@ -259,9 +265,21 @@ fn face_geo<T: Decide>(
 }
 
 /// Is the ON-WALL point `p` within the wall face's chart trim?
-/// `Some(true/false)` definite, `None` a boundary graze. Margins are
-/// metres (azimuth × radius; height directly), the S9 centred
-/// periodic reduction keeps the azimuth branch away from the seam.
+/// `Some(true/false)` definite, `None` a boundary graze.
+///
+/// The angular test is **branch-cut-free** (M5 PR 9 fix pass,
+/// MAJOR-1): the azimuth-window membership `|θ − mid| ≤ w/2` is
+/// decided as the exact cosine comparison `r̂·m̂ ≥ cos(w/2)` (cosine is
+/// monotone on [0, π], so the equivalence is exact for every window
+/// narrower than a period — guarded). No `atan2`, no periodic
+/// reduction: under the Interval scalar an `atan2` enclosure near the
+/// chart seam is honest poison, and the pre-fix trim escalated
+/// `Invalid` on probe points every f64 run decides cleanly — the
+/// whole Interval boolean lane died on it. The cone margin is metered
+/// `· radius` (its displacement scale at the window edge is
+/// `sin(w/2)·δθ·r ≤ δθ·r` — conservative relative to the arc-length
+/// convention, escalating MORE near degenerate windows, never less).
+/// Height margins are metres directly, unchanged.
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
@@ -275,18 +293,34 @@ fn point_on_wall_in_face<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let (w_min, w_max) = az;
+    let width = w_max - w_min;
+    // The cosine equivalence needs width < τ, decided loudly (a
+    // full-period window cannot trim by angle at all).
+    match decide("bool_wall_trim_period", (T::tau() - width) * radius, band).map_err(escalate)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(escalate(geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("bool_wall_trim_period"),
+            }));
+        }
+    }
     let w = p - origin;
     let height = w.dot(axis);
     let radial = w - axis * height;
-    let azimuth = radial.dot(axis.cross(u_ref)).atan2(radial.dot(u_ref));
-    let tau = T::tau();
-    let (w_min, w_max) = az;
-    let width = w_max - w_min;
+    let r_hat = radial / radial.norm();
     let half = T::from_f64(0.5);
-    let x = (azimuth - (w_min + width * half) + tau * half).reduce_periodic(tau) - tau * half
-        + width * half;
+    let mid = (w_min + w_max) * half;
+    let (s_m, c_m) = mid.sin_cos();
+    let v_ref = axis.cross(u_ref);
+    let m_hat = u_ref * c_m + v_ref * s_m;
+    let (s_h, c_h) = (width * half).sin_cos();
+    let _ = s_h; // the cosine comparison carries the whole test
+    let cone = (r_hat.dot(m_hat) - c_h) * radius;
     let mut verdict = Some(true);
-    for margin in [x * radius, (width - x) * radius, height - h.0, h.1 - height] {
+    for margin in [cone, height - h.0, h.1 - height] {
         match decide("bool_wall_trim", margin, band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(false)),
