@@ -1833,3 +1833,21 @@ result lines, 0 failures. Interval lane (`topo/interval`,
 --check` clean; `clippy --all-targets` clean on both crates in both
 feature sets. Interval-square tripwire self-check on the diff: no
 `x * x` on a generic scalar (both new squares are `powi(2)`).
+
+**Message hygiene (the PR 10 fix-pass rule applied to ourselves).**
+Three in-code frontiers said "banked as M5 PR 9c". PR 9c has now run,
+so leaving them would be a promise describing a main that no longer
+exists. All three were rewritten to the executed finding and PINNED by
+acceptance rows: `RevertError::UnsupportedSurface` now carries the
+"not merely unimplemented" PROOF (the chart normal of every
+axisymmetric variant is always outward, and neither an axis flip nor a
+negative radius moves it); `BooleanError::CurvedOpUnsupported` quotes
+that finding so a caller who never touches `revert` still learns why
+curved subtract is gated; `CurvedBooleanUnsupported` names what PR 9c
+did land (the sphere half of the containment/pierce door) and what it
+did not (the fitted-chord join lane, behind `Pcurve::Fitted`);
+`LOFT_FRONTIER` names the +V/quadrature door behind the description
+doors it used to stop at. The die-pips shape (a sphere bitten out of a
+slab) is exercised as a SMOKE row in `m5_pr9c_sphere_doors.rs` and
+pinned at its typed front-door refusal — the honest form of "ahead of
+PR 12" when the op itself is gated.
