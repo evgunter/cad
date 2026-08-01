@@ -227,9 +227,11 @@ pub fn stops() -> Vec<Stop> {
               -> extrude(Distance), genus 1",
         delta: 5e-3,
         note: Some(note),
+        // A plan-leaning camera on purpose: the fillets ARE the stop,
+        // and a near-overhead view is where a blend radius reads.
         view: View {
-            elev: 34.0,
-            azim: -58.0,
+            elev: 68.0,
+            azim: -70.0,
             up: 'z',
         },
         bodies: vec![SceneBody::plain("rocker", [0.85, 0.72, 0.32], rocker())],
