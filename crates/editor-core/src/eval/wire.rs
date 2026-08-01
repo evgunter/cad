@@ -47,6 +47,8 @@ where
         Node::Profile(desc) => Ok((wire_profile(desc)?, names::empty())),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
+        Node::Loft { profiles, .. } => wire_loft(profiles, doc, vals),
+        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
             wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
@@ -663,4 +665,133 @@ fn wire_pattern<T: Decide>(
     let master = Arc::clone(&value_of(results, input)?.name_table);
     let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
     Ok((ValuePayload::Instances(instances), table))
+}
+
+// ---------------------------------------------------------------------
+// M5 PR 10: the definitional §10.3/§10.4 nodes
+// ---------------------------------------------------------------------
+
+/// The `&'static str`s [`NodeErrorKind::CurvedSolidFrontier`] names —
+/// the exact doors a NURBS-walled solid is waiting on. Kept as
+/// constants so the acceptance rows assert the SAME text the node
+/// produces.
+pub(crate) const LOFT_FRONTIER: &str =
+    "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by kind \
+     (UncertifiableSurface) and EdgeCurve::certify refuses NURBS \
+     carriers and NURBS-naming descriptions (Unimplemented) — the \
+     certification forms land with the curved-boolean and curved-\
+     tessellation lanes";
+
+/// One section of a loft, taken from the RECIPE's own `f64`
+/// description rather than from the evaluated `T` payload.
+///
+/// Structure selection is `f64` (C6/D9): the skinned surface's knots,
+/// degrees, and control bits must be identical in every scalar lane,
+/// and every lane's profile is the same stored `f64` description
+/// embedded through `from_f64`. Taking the description directly is
+/// therefore not a shortcut — it is the only way the Interval lane
+/// encloses the SAME surface the `f64` lane defines.
+fn section_of(
+    doc: &crate::doc::Doc<ProfileDesc>,
+    id: RecipeNodeId,
+) -> Result<(sweep::SectionSegments, Affine3<f64>), NodeErrorKind> {
+    let Some(Node::Profile(desc)) = doc.nodes.get(&id) else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: id,
+            expected: "profile node",
+            found: "not a profile node",
+        });
+    };
+    // The profile's own validation door still runs: a section that
+    // would not extrude does not skin either.
+    let validated = desc
+        .embed::<f64>()
+        .validate(Tolerance::get())
+        .map_err(NodeErrorKind::Profile)?;
+    let place = validated.plane().placement;
+    let chains = desc
+        .0
+        .loops
+        .iter()
+        .map(|lp| {
+            let n = lp.vertices.len();
+            (0..n)
+                .map(|j| {
+                    let a = lp.vertices[j];
+                    let b = lp.vertices[(j + 1) % n];
+                    if a.bulge == 0.0 {
+                        sweep::SketchSegment::Line { a: a.pos, b: b.pos }
+                    } else {
+                        sweep::SketchSegment::Arc {
+                            a: a.pos,
+                            b: b.pos,
+                            bulge: a.bulge,
+                        }
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    Ok((chains, place))
+}
+
+/// A structural (Count) slot, refused typed when absent or unusable.
+fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, NodeErrorKind> {
+    let n = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
+    usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
+}
+
+fn wire_loft<T: Decide>(
+    profiles: &[RecipeNodeId],
+    doc: &crate::doc::Doc<ProfileDesc>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let v_degree = need_count(vals, SlotId::VDegree)?;
+    let mut sections = Vec::with_capacity(profiles.len());
+    let mut places = Vec::with_capacity(profiles.len());
+    for id in profiles {
+        let (chain, place) = section_of(doc, *id)?;
+        sections.push(chain);
+        places.push(place);
+    }
+    // The §10.3 construction RUNS: its compatibility door is the one
+    // that refuses a bad loft, and the walls it produces are the
+    // definition (Q8). Only the B-rep assembly is frontier-blocked.
+    let _geometry =
+        sweep::loft_geometry(&sections, &places, v_degree).map_err(NodeErrorKind::Skin)?;
+    Err(NodeErrorKind::CurvedSolidFrontier {
+        what: LOFT_FRONTIER,
+    })
+}
+
+fn wire_sweep<T: Decide>(
+    profile: RecipeNodeId,
+    path: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileDesc>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let stations = need_count(vals, SlotId::Stations)?;
+    let v_degree = need_count(vals, SlotId::VDegree)?;
+    let (chain, place) = section_of(doc, profile)?;
+    let (path_chain, path_place) = section_of(doc, path)?;
+    // The path is the first loop of the path profile, as ONE curve:
+    // its segments, made compatible and joined end to end by knot
+    // refinement is PR 7b's tensor-compose business — here the honest
+    // scope box is a single-segment path (a line or an arc), which is
+    // what §10.4's rigid-profile sweep needs and all this PR claims.
+    let Some([segment]) = path_chain.first().map(Vec::as_slice).and_then(|s| {
+        <&[sweep::SketchSegment<f64>; 1]>::try_from(s).ok().map(|a| *a)
+    }) else {
+        return Err(NodeErrorKind::CurvedSolidFrontier {
+            what: "a multi-segment sweep path: §10.4's rigid-profile sweep takes one \
+                   line or arc segment at this PR; joined multi-segment paths need the \
+                   curve-composition lane",
+        });
+    };
+    let path_curve = sweep::segment_curve(0, segment, path_place).map_err(NodeErrorKind::Skin)?;
+    let _geometry = sweep::sweep_geometry(&chain, place, &path_curve, stations, v_degree)
+        .map_err(NodeErrorKind::Skin)?;
+    Err(NodeErrorKind::CurvedSolidFrontier {
+        what: LOFT_FRONTIER,
+    })
 }

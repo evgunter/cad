@@ -1530,3 +1530,68 @@ logged pre-assignment: PR 9 = L, PR 7b = M.** Arms: PR 9 = FABLE
 draw (byte 172, coin 1) = (fable, opus) → PR 7b = FABLE (slot 1),
 OPUS remainder owed to the next unit (PR 10 or S4). Two cargo
 lanes = at cap; reviews stagger behind implementations.
+
+## PR 10 (2026-08-01): sweeps/lofts as definitional feature nodes; schema v2
+
+Branch `ev/m5-pr10-sweeps-lofts`. Spec `docs/M5-PR10-SPEC.md`
+(binding). Shipped §1 (the `Loft`/`Sweep` node vocabulary), §2
+(the §10.3/§10.4 definitional geometry) and §4 (the schema-v2
+clean break) in full; §3/§5's SOLID is frontier-blocked and the
+refusal is pinned, not skipped.
+
+**Schema v2, as landed.** `SCHEMA_VERSION = 2`. The migration
+chain became a real (empty) step TABLE, `migration_step(from) ->
+Option<MigrationStep>`, so "no step exists" is one fact in one
+place; the loader walks it for AVAILABILITY before it parses a
+byte of body, and a gap raises the new typed
+`PersistError::SchemaTooOld { found, supported, missing }`. Its
+message names all three and ends on the one shared
+`REGENERATE_RECOURSE` carrier, composed exactly once (version
+comparison is exact integer arithmetic, so the arm has no in-band
+twin and the two-tolerance discipline explicitly does not apply —
+stated in the docs so the omission reads as a decision).
+`PersistError` gained a full `Display`/`Error` impl on the way.
+The single in-tree v1 file (`tests/golden/v1_golden.cad`) was
+REGENERATED as `v2_golden.cad` and the v1 bytes were KEPT — as
+the refusal fixture, because a break nobody can demonstrate is a
+break nobody can trust.
+
+**The geometry.** `sweep::skin` (numbered deviation 1: it lives
+in `sweep`, not `geom-surfaces`, because `geom-surfaces`
+deliberately does not depend on `geom-curves`). Exact analytic →
+NURBS section conversion (lines degree 1; arcs the standard
+rational quadratic split into quarter-turn sub-arcs — the carrier
+circle, not a fit of it); §5.5 degree elevation + §5.3 knot
+merging for compatibility; §10.3 skinning as ONE homogeneous ℝ⁴
+collocation solve through the new
+`geom_curves::fit::interpolate_columns` (all columns as
+simultaneous right-hand sides, so they cannot drift relative to
+each other); §10.4 by instantiate-and-skin with a path-FOLLOWING
+frame that refuses typed on a reversing tangent. Structure
+selection is `f64` and the produced surface lifts to any scalar
+(`lift_surface`) — Q8 says the control bits ARE the definition,
+so every lane encloses the same surface.
+
+**The frontier (numbered deviation 2).** §3 asks the lofted body
+to validate at tier 3. It cannot at this PR's merge time and the
+blocker is not this PR's geometry: `topo`'s tier-3 check 1
+refuses `Surface::Nurbs` BY KIND (`UncertifiableSurface`) and
+`geom_brep::EdgeCurve::certify` refuses NURBS carriers and
+NURBS-naming descriptions as `Unimplemented`. That flip is PR 9's
+charter, verbatim (`docs/M5-PR9-SPEC.md:36`: "`EdgeCurve::
+certify`'s Nurbs-carrier refusal FLIPS — this PR mints the
+kernel's first rung-3 edges at rest"), and PR 10's own spec says
+it does not depend on PR 9. So the node BUILDS its definitional
+walls and then refuses
+`NodeErrorKind::CurvedSolidFrontier { what }` — a named
+sub-frontier on the `RestZipUnsupported` precedent — and
+`sweep/tests/m5_pr10_frontier.rs` DEMONSTRATES the blocker on a
+real tier-3-valid extrusion with one wall's surface swapped for a
+real skinned NURBS. Consequences: shape (iii)'s loft-body row,
+the plane-CUT-of-loft row, the Band 4 corpus row and the render
+all move to the PR that closes the frontier; the corpus tally's
+`NODE_KINDS` gained `Loft`/`Sweep` so they report at ZERO rather
+than reading as covered. The demo stop
+(`demos/tour/src/skinned.rs`) narrates and MEASURES the walls,
+then pins the frontier with a retire-on-closure panic carrying
+the flip instructions — the `curvedcut` pattern.

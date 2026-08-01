@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use geom_core::{Decide, Indeterminate, Point3, Vec3};
 use profile::{ProfileError, ValidatedProfile};
-use sweep::{ExtrudeError, RevolveError};
+use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
 use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
@@ -285,6 +285,29 @@ pub enum NodeErrorKind {
     Boolean(BooleanError),
     /// The rigid-transform op refused.
     Transform(TransformError),
+    /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
+    /// compatibility door): section shapes that do not correspond,
+    /// open/closed mixing, degenerate sections, an unusable v-degree,
+    /// a path whose frame does not exist.
+    Skin(SkinError),
+    /// The loft's/sweep's definitional walls were BUILT, and then the
+    /// B-rep layer refused to assemble them into a solid: at this PR's
+    /// merge time nothing certifies a non-analytic surface — tier 3
+    /// rejects `Surface::Nurbs` by KIND
+    /// (`topo::ValidationError::UncertifiableSurface`) and
+    /// `geom_brep::EdgeCurve::certify` refuses NURBS carriers and
+    /// NURBS-naming descriptions as `Unimplemented`.
+    ///
+    /// A named sub-frontier, never a laundered catch-all (the
+    /// `RestZipUnsupported` precedent): `what` names the missing front
+    /// door, and the row that pins it lives in
+    /// `sweep/tests/m5_pr10_frontier.rs`. The M5 plan's line 9
+    /// (curved booleans) and line 11 (curved tessellation + props) own
+    /// the NURBS certification forms this waits on.
+    CurvedSolidFrontier {
+        /// The precise missing door.
+        what: &'static str,
+    },
     /// An input id names no live node (a dangling reference —
     /// unreachable through `apply`, refused typed anyway).
     MissingInput {

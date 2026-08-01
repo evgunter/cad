@@ -175,7 +175,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 9] = [
+pub const NODE_KINDS: [&str; 11] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -184,6 +184,13 @@ pub const NODE_KINDS: [&str; 9] = [
     "Boolean",
     "Transform",
     "Pattern",
+    // M5 PR 10's definitional feature nodes. They join the tally's
+    // DOMAIN here; the Band 4 corpus row that exercises them waits on
+    // the NURBS-walled-solid frontier (see
+    // `NodeErrorKind::CurvedSolidFrontier`), so the coverage report
+    // shows them at zero rather than pretending they are covered.
+    "Loft",
+    "Sweep",
     "Declare",
 ];
 
@@ -251,6 +258,8 @@ pub fn sub_kinds(node: &Node<ProfileDesc>) -> Vec<&'static str> {
         | Node::Revolve { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
         | Node::Declare { .. } => Vec::new(),
     }
 }
@@ -266,6 +275,8 @@ pub fn node_kind(node: &Node<ProfileDesc>) -> &'static str {
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
+        Node::Loft { .. } => "Loft",
+        Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
     }
 }
