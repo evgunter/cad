@@ -260,6 +260,43 @@ fn refinement_breaks_tighten_without_ever_undercutting() {
     );
 }
 
+#[test]
+fn a_far_from_origin_wall_bounds_at_the_representation_floor() {
+    // The center-shift row (fix pass, review MINOR 2): the same
+    // realistic wall/pcurve/carrier triple translated 1e6 m from the
+    // origin. The +1e6 rounds each control coordinate (half-ulp(1e6)
+    // ≈ 5.8e-11), so the translated TRUTH is the near-origin truth
+    // plus ~1e-10 of representation noise — and the composite bound
+    // must stay at that floor, not at the unshifted pipeline's
+    // magnitude-scaled ~1e-6 failure mode. Still a bound (dense-scan
+    // dominated) and still tight (tracks the translated truth).
+    //
+    // The full plane×NURBS operation does NOT run at 1e6 m today —
+    // foot-point projection and the exhaustiveness sweep hit their own
+    // representation floors first (typed refusals, pre-existing
+    // machinery) — so the certification-grade far-origin pin lives
+    // here, on the limb-2 composite itself.
+    let (mut w, p, mut c) = (wall(), pcurve_data(), carrier_data());
+    let near = sup_of(&w, &p, &c, &[]);
+    for ch in 0..3 {
+        for v in w.3[ch].iter_mut() {
+            *v += 1.0e6;
+        }
+        for v in c.2[ch].iter_mut() {
+            *v += 1.0e6;
+        }
+    }
+    let (far, max) = falsify(&w, &p, &c, &[], 100_000);
+    assert!(far.is_finite() && far >= max, "far {far:e}, max {max:e}");
+    // Band-relative sameness: the residual here is O(1e-2), so the
+    // translation's ~1e-10 noise must be invisible at the bound's own
+    // scale — far and near agree to well under a percent.
+    assert!(
+        (far - near).abs() <= 1e-2 * near,
+        "far-origin bound left the near-origin bound: {far:e} vs {near:e}"
+    );
+}
+
 // ---------------------------------------------------------------------
 // Row 2: the cancellation survives composition-then-hull
 // ---------------------------------------------------------------------
@@ -431,6 +468,33 @@ fn the_pipeline_is_deterministic_to_the_bit() {
 // ---------------------------------------------------------------------
 // Row 6: typed refusals at the entry points
 // ---------------------------------------------------------------------
+
+#[test]
+fn the_domain_mismatch_message_carries_the_recourse_exactly_once() {
+    // S6/S9 acceptance style for the arm PR 7b added: one situation,
+    // one recourse sentence appearing EXACTLY once, both domains
+    // riding the payload as data.
+    let e = ComposeError::DomainMismatch {
+        a: (0.0, 1.0),
+        b: (0.0, 2.5),
+    };
+    let msg = format!("{e}");
+    assert_eq!(
+        msg.matches("refit the pair on one parameterization")
+            .count(),
+        1,
+        "the recourse fragment must appear exactly once: {msg}"
+    );
+    assert_eq!(
+        msg.matches("OQ4").count(),
+        1,
+        "the identity is named exactly once: {msg}"
+    );
+    assert!(
+        msg.contains("[0, 1]") && msg.contains("[0, 2.5]"),
+        "both domains as payload data: {msg}"
+    );
+}
 
 #[test]
 fn the_entry_points_refuse_typed() {

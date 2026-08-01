@@ -9,12 +9,19 @@
 //!
 //! # The pipeline (the curve module's, one dimension up)
 //!
-//! 1. **Homogeneous lift.** Every operand is carried in its homogeneous
-//!    channels: the surface as `(w·x, w·y, w·z, w)` on the control net,
-//!    the parameter curve as `(U, V, W_P) = (w·u, w·v, w)`, the carrier
-//!    as `(A_x, A_y, A_z, W_C)`. No division happens until the very
-//!    last per-span quotient, so every intermediate is polynomial and
-//!    the ring's products stay exact-up-to-rounding.
+//! 1. **Center-shift, then homogeneous lift.** Every spatial channel is
+//!    shifted by one common center **before any product** (the curve
+//!    module's step 1, one dimension up): the surface as
+//!    `(w·(x−c_x), w·(y−c_y), w·(z−c_z), w)` on the control net, the
+//!    carrier as the same-shifted `(A_x, A_y, A_z, W_C)`; the parameter
+//!    curve `(U, V, W_P) = (w·u, w·v, w)` is chart-valued and carries
+//!    no center. The residual is shift-invariant in exact arithmetic,
+//!    but the ring's outward rounding scales with coefficient
+//!    magnitude — unshifted, a wall 1e6 m from the origin costs six
+//!    orders of bound (the PR 7b review's executed witness). No
+//!    division happens until the very last per-span quotient, so every
+//!    intermediate is polynomial and the ring's products stay
+//!    exact-up-to-rounding.
 //! 2. **Bézier decomposition, tensor-product.** The surface is
 //!    decomposed by knot insertion **in u and in v** — the tensor
 //!    product of the two univariate decompositions: structure
@@ -448,6 +455,15 @@ fn cell_residual(
     }
     // The difference at the coefficient level (module docs step 4),
     // then hull quotients: num_d/den = S(P(t))_d − C_d(t) exactly.
+    //
+    // Banked observation (PR 7b review NOTE 2, 2026-07-31): the
+    // hull-then-quotient step's looseness grows with the CURVE
+    // weights' dynamic range — the numerator and denominator hulls
+    // decorrelate when `W_P`/`W_C` swing hard across a span (the
+    // review forced a 108× worst case with adversarial weights). SSI
+    // fit weights are ≈1 today, so nothing rides on it; revisit
+    // (per-span de-rationalization or a joint quotient) when
+    // genuinely rational pcurves arrive.
     let den = row_hull(&bern_mul_row(&n[3], rows.wc));
     core::array::from_fn(|d| {
         let num = row_sub(
@@ -466,6 +482,13 @@ fn cell_residual(
 /// meets the window `[lo, hi]`, clamped so an out-of-domain window is
 /// served by the boundary cell's polynomial extension (module docs,
 /// domain posture). Returns the inclusive index range.
+///
+/// Banked observation (PR 7b review NOTE 1, 2026-07-31): the overlap
+/// test is **closed**, so a window whose endpoint lands exactly on a
+/// knot pulls in the neighbor cell whose contribution is a
+/// single-point agreement (the two patch polynomials agree at the
+/// knot). A strict-interior test would be tighter and still sound —
+/// a future tightening, banked rather than slipped into a fix pass.
 fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
     let last = breaks.len() - 2;
     let mut first_cell = last;
@@ -535,14 +558,28 @@ pub fn surface_curve_residual(
     merged.sort_by(f64::total_cmp);
     merged.dedup();
 
-    // Homogeneous channels on the shared breaks (pipeline step 1: the
-    // weight channel carried, shift-free — the composite is a
-    // coordinatewise difference, so there is no center to lose).
-    let homog = |data: &CurveRingData<'_>, d: usize| -> BernsteinSpans {
+    // Pipeline step 1: **center-shift before any product** — the curve
+    // module's precedent, one dimension up. The residual is
+    // shift-invariant in exact arithmetic (a common center cancels in
+    // `S(P(t)) − C(t)`), but the RING is not: outward rounding scales
+    // with coefficient MAGNITUDE, so an unshifted wall 1e6 m from the
+    // origin costs six orders of bound (review finding 2026-07-31,
+    // executed witness pinned in `review_m5_pr7b_tensor.rs`:
+    // 1.128e-12 near the origin vs 1.866e-6 unshifted at 1e6 m). The
+    // center is structure (C6): the carrier's first control
+    // coordinate, one exact `f64` per coordinate, applied identically
+    // to the surface's and the carrier's spatial channels. The chart
+    // channels are parameter-valued and carry no center.
+    let center: [f64; 3] = core::array::from_fn(|d| carrier.coords[d][0].lo());
+
+    // Homogeneous channels on the shared breaks, the weight channel
+    // carried; spatial channels center-shifted at the lift.
+    let homog = |data: &CurveRingData<'_>, d: usize, shift: f64| -> BernsteinSpans {
+        let s = RingInterval::point(shift);
         let coeffs: Vec<RingInterval> = data.coords[d]
             .iter()
             .zip(data.weights.iter())
-            .map(|(x, w)| RingInterval::point(*w) * *x)
+            .map(|(x, w)| RingInterval::point(*w) * (*x - s))
             .collect();
         to_bezier_spans_extra(data.kv, &coeffs, &merged)
     };
@@ -554,21 +591,24 @@ pub fn surface_curve_residual(
             .collect();
         to_bezier_spans_extra(data.kv, &coeffs, &merged)
     };
-    let (pu, pv, pw) = (homog(pcurve, 0), homog(pcurve, 1), weight(pcurve));
+    let (pu, pv, pw) = (homog(pcurve, 0, 0.0), homog(pcurve, 1, 0.0), weight(pcurve));
     let (ax, ay, az, cw) = (
-        homog(carrier, 0),
-        homog(carrier, 1),
-        homog(carrier, 2),
+        homog(carrier, 0, center[0]),
+        homog(carrier, 1, center[1]),
+        homog(carrier, 2, center[2]),
         weight(carrier),
     );
 
-    // The surface's four homogeneous channels, tensor-decomposed.
+    // The surface's four homogeneous channels, tensor-decomposed —
+    // spatial channels shifted by the SAME center.
     let lift = |f: &dyn Fn(usize) -> RingInterval| -> Vec<RingInterval> {
         (0..surface.weights.len()).map(f).collect()
     };
     let schan: Vec<TensorSpans> = (0..3)
         .map(|d| {
-            let grid = lift(&|i| RingInterval::point(surface.weights[i]) * surface.coords[d][i]);
+            let c = RingInterval::point(center[d]);
+            let grid =
+                lift(&|i| RingInterval::point(surface.weights[i]) * (surface.coords[d][i] - c));
             tensor_channel(surface.ku, surface.kv, &grid)
         })
         .collect();

@@ -70,13 +70,29 @@
 //! bound used to drown. Where the wall's section curvature crosses
 //! zero, the step rule's fit rung (`h_fit ∝ (ε/κ³)^¼`) unbinds and the
 //! realized deviation of the two independent fits can genuinely exceed
-//! ε (measured ~3.8ε on a gently inflected wall) — the certificate
-//! then refuses **in-band at `ssi_hull_sup_chart`**, which is the
-//! honest verdict about that carrier, not a bound artifact (the bound
-//! sits within ~1% of the dense-scan truth there). A wall with
+//! ε (measured 3.8e-9 m at march-ε = 1e-9 on a gently inflected wall)
+//! — the certificate then refuses **in-band at `ssi_hull_sup_chart`**,
+//! which is the honest verdict about that carrier, not a bound
+//! artifact (the bound sits within ~1% of the dense-scan truth there).
+//! That deviation is **phase-dependent and non-monotone in march-ε**,
+//! not a fixed cap (PR 7b review measurement: 4× tighter march-ε →
+//! 4.36× better, 16× → 16.92× better reaching 2.25e-10 m, 64× → only
+//! 6.83× better — where the samples land relative to the crossing
+//! decides), so a marcher-side fix must price the crossing span
+//! itself rather than assume a global scaling law. That is marcher
+//! work, out of PR 7b's scope by its spec §6. A wall with
 //! slowly-varying section curvature certifies with two orders of
-//! headroom. Pricing inflection spans into the step rule is marcher
-//! work, out of PR 7b's scope by its spec §6.
+//! headroom.
+//!
+//! Practical breadth today, stated plainly: the certification the
+//! retired arm delivers end-to-end is **gentle single-cell walls near
+//! the origin** — an interior-knot (multi-cell) wall currently
+//! refuses at limb 1 (march/fit quality at the knot line), a span
+//! window straddling a knot line or leaving the domain hulls the
+//! neighbor cell's polynomial extension into the bound or poisons,
+//! and far-from-origin operands hit the projection and exhaustiveness
+//! machinery's own representation floors — every one of these is a
+//! loud, typed refusal, never a silent miscertification.
 //!
 //! **Why cylinder×sphere and not cylinder×torus** (the spec's own "or
 //! equivalent"): both operands' polynomial composites convert to meters

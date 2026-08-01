@@ -356,7 +356,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    pcurve (geom_core::spline::compose::tensor) — the residual \
                    S(P(t)) − C(t) enclosed as a single composite, so the \
                    cancellation the first-order enclosure threw away survives into \
-                   the bound (~1e-2 m reported where ~1e-10 m is true, closed)",
+                   the bound (~1e-2 m reported where ~1e-10 m is true, closed). \
+                   Practical breadth today: gentle single-cell walls — an \
+                   interior-knot wall currently refuses at limb 1 (march/fit \
+                   quality), and multi-cell/rational span windows hull \
+                   neighbor-cell extensions into the bound or poison — loud and \
+                   typed, never silent",
         },
         // ---- Nurbs × the rest: the universal general-rung route. ----
         (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)

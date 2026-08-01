@@ -730,28 +730,33 @@ fn shape_iii_bit_replay() {
 fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
     // PR 7's original wall inflects (κ crosses zero along the section),
     // where the step rule's fit rung unbinds: the relative rungs price
-    // the step there, so the realized fit pair carries a
-    // GEOMETRY-CAPPED deviation, measured at ~3.8e-9 m — march-ε does
-    // not scale it away (only its fourth-root window). The verdict
-    // therefore honestly FORKS on the resolved band: a band whose zero
-    // sits well above the cap certifies (ε = 1e-6), the default band
+    // the step there, so the realized fit pair carries a deviation at
+    // the crossing, measured at ~3.8e-9 m at march-ε = 1e-9. That
+    // deviation is PHASE-DEPENDENT AND NON-MONOTONE in march-ε, not a
+    // constant cap (review measurement: 4× tighter march-ε → 4.36×
+    // better, 16× → 16.92× better reaching 2.25e-10 m, 64× → only
+    // 6.83× — where samples land relative to the crossing decides;
+    // regression witness: review_m5_pr7b_ssi.rs `deviation2b`). The
+    // shipped configuration's number stands, so the verdict honestly
+    // FORKS on the resolved band: a band whose zero sits well above
+    // the measured deviation certifies (ε = 1e-6), the default band
     // catches it in-band at the very predicate whose old bound (~1e-2
     // m, span-width-scaled at every ε) could never say anything this
     // precise, and the finest ε is preempted by the fit budget.
-    const MEASURED_CAP: f64 = 3.9e-9;
+    const MEASURED_DEVIATION: f64 = 3.9e-9;
     let (p, w) = (cutting_plane(), nurbs_wall());
     match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
         Ok(out) => {
             assert!(
-                band().zero() > 10.0 * MEASURED_CAP,
-                "certified at a band that should have seen the ~{MEASURED_CAP:e} m cap"
+                band().zero() > 10.0 * MEASURED_DEVIATION,
+                "certified at a band that should have seen the ~{MEASURED_DEVIATION:e} m deviation"
             );
             assert!(out.branches[0].certificate.hull_sup <= eps());
         }
         Err(SsiError::Escalated(ref d)) if d.predicate == Some("ssi_hull_sup_chart") => {
             assert!(
-                band().zero() <= 10.0 * MEASURED_CAP,
-                "in-band refusal where the band is far above the measured cap"
+                band().zero() <= 10.0 * MEASURED_DEVIATION,
+                "in-band refusal where the band is far above the measured deviation"
             );
         }
         Err(SsiError::CertificateLimb {
