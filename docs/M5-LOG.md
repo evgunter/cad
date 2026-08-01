@@ -1910,3 +1910,23 @@ site reverts to parenthesized + allowlist). Battery scope was
 corrected mid-run per Evan (sweep-shaped degenerate case;
 memory rewritten around the iteration-speed principle). A/B
 row 30 = this unit (fable, S). Lanes: tripwire review + PR 9c.
+
+**PR 9c REPORT + REVIEW (2026-08-01/02).** Landed: sphere
+containment/pierce doors with the face-GROUP arm (clopen
+coverage — sound for any face count; per-face variant proven to
+graze permanently by executed de-guard probe; disc/2r metering
+D4-endorsed). FIVE executed blockers CONFIRMED by review,
+driving the RE-PLAN: (i) loft/sweep assembly BEHIND PR 11
+(tier-3 volume needs quadrature — a loft cannot validate in any
+current build); (ii) Pcurve::Fitted behind an SSI-enclosure
+generic-T lift unit; (iii) curved revert = CONTRACT GAP (Face
+has no sense; consultation to Evan on #148 with options a-c,
+recommendation (a) sense-on-Face; review REFUTED the negative-
+radius proof leg for Sphere — r-squared EVEN — amendment posted
+naming option (d) rejected); (iv) PR 12 stays gated; (v) tier-3
+Nurbs refusal NOT duplicated (PR 10 review claim corrected).
+Review verdict APPROVE-WITH-FIX-PASS (1 MAJ = scope the proof
+text; 2 MIN; judgment calls ENDORSED incl. not shipping a
+tier-3-invalid assembly). Fix pass DISPATCHED (opus inherits);
+PR opens at its completion with the gate watcher. Next
+implementation dispatch: PR 11 (block-14 fable remainder).
