@@ -1886,3 +1886,11 @@ lane rides PR 14 exit-walk judgment. Tripwire lane notified to
 fold main + re-census (PR 10 added geometry code). Board: PR 10
 lane cleanup pending report-then-clean; tripwire finishing;
 PR 9c (block-14 slot 1) DISPATCHES to the freed lane.
+
+**PR 9c DISPATCHED (2026-08-01, OPUS — block-14 draw byte 124 =
+(opus, fable); difficulty L logged pre-draw; A/B row 31; fable
+remainder owed to the next unit).** Six-item scope per the
+amended spec (incl. item 6, the loft/sweep assembly from the
+PR 10 review). Gates PR 12; carries shape (iii) loft-body +
+cut-loft rows. Review-first (no gate-first PR — too load-
+bearing). Lanes: PR 9c (opus) + tripwire finishing (fable).
