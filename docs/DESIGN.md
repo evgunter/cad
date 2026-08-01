@@ -1031,9 +1031,23 @@ decision, where it landed, notable deviations. Full trail:
   Metadata (Evan's #92 ask) landed as the **`MetaValue` tree after
   two D7 rounds with Evan** (final: MetaValue tree, serde-native
   boundary, v-field convention) rather than opaque bytes.
+  **Schema v2 (M5 PR 10)**: the recipe vocabulary grew `Loft`/`Sweep`
+  and the version bumped as a ratified CLEAN BREAK (Evan, #148) — no
+  migration step was written, a v1 file refuses typed
+  (`PersistError::SchemaTooOld`, naming the regenerate recourse), and
+  the repo's own v1 golden was regenerated once. The kernel is
+  unreleased and every file it has written replays from source, so
+  live compatibility code would have been carried for nobody. The
+  migration MECHANISM stays (an explicit, currently empty step
+  table): D6.3's forward-only rule is unchanged, and the next
+  non-breaking format change adds its step there.
 - **F4 (v1 node vocabulary)** — landed as ratified (#81; Declare
   live end-to-end at #102); `tangent_joints` joined schema v1 before
   the freeze (#109 → #112). Revolved-hole sugar stayed deferred.
+  **`Loft`/`Sweep` joined the vocabulary at M5 PR 10** as ORDINARY
+  ops under the same rules (named slots, the structural/continuous
+  divide, refs to existing nodes only) — the Q8 definitional posture
+  is stated in rustdoc at both the node and the surface.
   Noted gap (demo REPORT, #98): Boolean-of-Pattern is not wireable
   in F4 — a possible future vocabulary item.
 - **F5 (Declare threading)** — landed at #102: declarations are

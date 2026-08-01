@@ -24,6 +24,7 @@ mod probe;
 mod projectbox;
 mod rocker;
 mod scalar;
+mod skinned;
 
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use topo::{Body, ContactRecords};
@@ -374,6 +375,8 @@ fn main() {
     for stop in curvedcut::stops() {
         run(&stop);
     }
+
+    skinned::narration();
 
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
     for stop in bool_bodies::stops() {

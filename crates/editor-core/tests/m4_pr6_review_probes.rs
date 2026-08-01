@@ -12,8 +12,8 @@ mod fixture;
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
     EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDesc,
-    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply, evaluate,
-    load, save,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SCHEMA_VERSION, SlotId, StableName, WitnessDatum,
+    apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
 
@@ -555,15 +555,23 @@ fn attack_epsilon_doors_in_file() {
 fn attack_header_spellings() {
     let (_, text) = small();
     let body = text.split_once('\n').unwrap().1;
-    for h in ["schema: +1", "schema:1", "schema:  1", "schema: 01"] {
+    let v = SCHEMA_VERSION;
+    for h in [
+        format!("schema: +{v}"),
+        format!("schema:{v}"),
+        format!("schema:  {v}"),
+        format!("schema: 0{v}"),
+    ] {
         let t = format!("{h}\n{body}");
         match load(&t) {
             Err(PersistError::Header { .. }) => {}
             other => panic!("non-canonical header {h:?} must refuse typed, got {other:?}"),
         }
     }
-    // The canonical spelling still loads.
-    assert!(load(&format!("schema: 1\n{body}")).is_ok());
+    // The canonical spelling still loads. (M5 PR 10: the version is
+    // read from `SCHEMA_VERSION`, not a literal — a schema bump must
+    // not silently turn this row into a too-old refusal probe.)
+    assert!(load(&format!("schema: {v}\n{body}")).is_ok());
 }
 
 /// ATTACK 10: appearance key referencing a DELETED node (< next_id,
