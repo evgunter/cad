@@ -237,6 +237,10 @@ impl From<FitError> for SkinError {
 /// non-finite bulge, or an arc whose derived radius is not finite and
 /// positive; [`SkinError::Structure`] if validated construction
 /// refuses.
+// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
+// geom-core::spline::algebra note): a poisoned coordinate must take
+// the refusal arm, not slip through a negated comparison.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn segment_curve(
     section: usize,
     seg: SketchSegment<f64>,
@@ -442,6 +446,10 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
 /// for sections that did not come out of [`make_compatible`], and
 /// [`SkinError::DegenerateSection`] when two consecutive sections
 /// coincide at every control point (no chord step exists there).
+// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
+// geom-core::spline::algebra note): a poisoned coordinate must take
+// the refusal arm, not slip through a negated comparison.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -804,6 +812,10 @@ pub fn loft_geometry(
 /// [`SkinError::TooFewSections`] for `stations < 2`,
 /// [`SkinError::PathTangentReversal`] naming the station, plus every
 /// refusal [`loft_geometry`] carries.
+// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
+// geom-core::spline::algebra note): a poisoned coordinate must take
+// the refusal arm, not slip through a negated comparison.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn sweep_geometry(
     profile: &SectionSegments,
     place: Affine3<f64>,

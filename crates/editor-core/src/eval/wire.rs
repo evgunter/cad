@@ -675,8 +675,7 @@ fn wire_pattern<T: Decide>(
 /// the exact doors a NURBS-walled solid is waiting on. Kept as
 /// constants so the acceptance rows assert the SAME text the node
 /// produces.
-pub(crate) const LOFT_FRONTIER: &str =
-    "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by kind \
+pub(crate) const LOFT_FRONTIER: &str = "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by kind \
      (UncertifiableSurface) and EdgeCurve::certify refuses NURBS \
      carriers and NURBS-naming descriptions (Unimplemented) — the \
      certification forms land with the curved-boolean and curved-\
@@ -779,9 +778,11 @@ fn wire_sweep<T: Decide>(
     // refinement is PR 7b's tensor-compose business — here the honest
     // scope box is a single-segment path (a line or an arc), which is
     // what §10.4's rigid-profile sweep needs and all this PR claims.
-    let Some([segment]) = path_chain.first().map(Vec::as_slice).and_then(|s| {
-        <&[sweep::SketchSegment<f64>; 1]>::try_from(s).ok().map(|a| *a)
-    }) else {
+    let Some(&[segment]) = path_chain
+        .first()
+        .map(Vec::as_slice)
+        .and_then(|s| <&[sweep::SketchSegment<f64>; 1]>::try_from(s).ok())
+    else {
         return Err(NodeErrorKind::CurvedSolidFrontier {
             what: "a multi-segment sweep path: §10.4's rigid-profile sweep takes one \
                    line or arc segment at this PR; joined multi-segment paths need the \

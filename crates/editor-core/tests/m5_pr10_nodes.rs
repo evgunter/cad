@@ -16,20 +16,15 @@
 mod fixture;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    RecipeNodeId, SlotId, evaluate, load, save,
+    CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
 use fixture::{desc, insert};
 
+/// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
+/// `Dimension::Count` on purpose (Count literals are integers).
 fn count(v: i64) -> Expr {
-    Expr::literal(
-        #[allow(clippy::cast_precision_loss)]
-        {
-            v as f64
-        },
-        Dimension::Count,
-    )
-    .unwrap()
+    Expr::count(v)
 }
 
 /// A square section at height `z`, scaled by `s`.
@@ -82,7 +77,7 @@ fn the_new_slots_are_structural_counts() {
 #[test]
 fn loft_inputs_are_its_profiles_in_order() {
     let (doc, loft, profiles) = loft_doc();
-    let node = doc.nodes.get(&loft).expect("the loft node");
+    let node = doc.node(loft).expect("the loft node");
     assert_eq!(node.inputs(), profiles);
     assert_eq!(node.slots(), vec![SlotId::VDegree]);
     assert!(node.expr(SlotId::VDegree).is_some());
@@ -106,7 +101,7 @@ fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
             v_degree: count(3),
         },
     );
-    let node = doc.nodes.get(&sweep).expect("the sweep node");
+    let node = doc.node(sweep).expect("the sweep node");
     assert_eq!(node.inputs(), vec![profile, path]);
     assert_eq!(node.slots(), vec![SlotId::Stations, SlotId::VDegree]);
     for slot in [SlotId::Stations, SlotId::VDegree] {
@@ -204,10 +199,17 @@ fn a_sweep_document_round_trips_bit_identically_at_schema_v2() {
 // Evaluation: the construction runs, the frontier is named
 // ---------------------------------------------------------------------
 
-fn eval_kind(doc: &ProfileDoc, id: RecipeNodeId) -> NodeErrorKind {
-    let out = evaluate(doc, &EvalOptions::default(), &CancelToken::new()).expect("evaluates");
-    match out.results.get(&id).expect("the node has a result") {
-        NodeResult::Failed { error, .. } => error.kind.clone(),
+/// Evaluates and hands the node's TYPED failure to `inspect`.
+/// (`NodeErrorKind` carries kernel errors unaltered and is not
+/// `Clone`, so the inspection happens in place.)
+fn with_failure<R>(
+    doc: &ProfileDoc,
+    id: RecipeNodeId,
+    inspect: impl FnOnce(&NodeErrorKind) -> R,
+) -> R {
+    let out = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    match out.nodes.get(&id).expect("the node has a result") {
+        NodeResult::Failed(error) => inspect(&error.kind),
         other => panic!("expected a typed failure, got {other:?}"),
     }
 }
@@ -218,13 +220,13 @@ fn eval_kind(doc: &ProfileDoc, id: RecipeNodeId) -> NodeErrorKind {
 #[test]
 fn a_well_formed_loft_reaches_the_named_frontier() {
     let (doc, loft, _) = loft_doc();
-    match eval_kind(&doc, loft) {
+    with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::CurvedSolidFrontier { what } => {
             assert!(what.contains("Surface::Nurbs"), "{what}");
             assert!(what.contains("Unimplemented"), "{what}");
         }
         other => panic!("expected the named frontier, got {other:?}"),
-    }
+    });
 }
 
 /// A loft whose sections do not correspond refuses with the GEOMETRIC
@@ -252,13 +254,13 @@ fn mismatched_sections_refuse_before_the_frontier() {
             v_degree: count(1),
         },
     );
-    match eval_kind(&doc, loft) {
+    with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::Skin(e) => {
             let msg = e.to_string();
             assert!(msg.contains("segments"), "{msg}");
         }
         other => panic!("expected a Skin refusal, got {other:?}"),
-    }
+    });
 }
 
 /// A v-degree the section count cannot carry refuses typed, before any
@@ -273,12 +275,12 @@ fn an_unusable_v_degree_refuses_typed() {
             v_degree: count(3), // == the section count
         },
     );
-    match eval_kind(&doc, loft) {
+    with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::Skin(sweep::SkinError::BadDegree { degree, sections }) => {
-            assert_eq!((degree, sections), (3, 3));
+            assert_eq!((*degree, *sections), (3, 3));
         }
         other => panic!("expected BadDegree, got {other:?}"),
-    }
+    });
 }
 
 /// An input that is not a profile node refuses typed at the operand
@@ -299,8 +301,8 @@ fn a_non_profile_input_refuses_typed() {
             v_degree: count(1),
         },
     );
-    match eval_kind(&doc, loft) {
-        NodeErrorKind::WrongOperand { input, .. } => assert_eq!(input, datum),
+    with_failure(&doc, loft, |kind| match kind {
+        NodeErrorKind::WrongOperand { input, .. } => assert_eq!(*input, datum),
         other => panic!("expected WrongOperand, got {other:?}"),
-    }
+    });
 }
