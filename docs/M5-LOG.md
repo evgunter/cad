@@ -1806,3 +1806,14 @@ convex dip bound. Batteries: all five crates default + Interval
 0 failures; re-pins at 1e-6/1e-12. Watcher armed on #152.
 At merge: A/B row 28, lane cleanup, PR 9c spec firms up with
 the crossing-layer scope confirmed.
+
+**#152 triple-red RESOLVED (2026-08-01, 3df0a55).** Red 1+2:
+clippy on adopted probe files (orchestrator swept both feature
+sets). Red 3: the BVH differential at Interval caught the FOURTH
+interval-square-poison occurrence — (a*a+b*b).sqrt() in the
+conic crossing-root lane (latent since PR 5); only the idealized
+lane examines distant pairs, exactly the exposure the
+differential polices. powi(2) fix; both lanes bit-equal; nothing
+weakened. Memory updated. EVAN RULING pinned en route: no
+standing pre-push CI mimicry (local-battery-scope reaffirmed
+under pressure). Watcher re-armed, merge-priority on green.
