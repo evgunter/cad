@@ -67,12 +67,27 @@ use crate::geometry::SurfaceKey;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
     /// A surface is not a `Plane`: its orientation-reversed side is
-    /// unrepresentable in the analytic enum (module docs). The curved
-    /// revert lane — per-kind orientation flips plus the pcurve
-    /// re-mint behind them — is BANKED as M5 PR 9c; until it lands,
-    /// curved subtract/intersect refuse up front at the boolean's own
-    /// door (`BooleanError::CurvedOpUnsupported`), so this refusal is
-    /// the OPERATOR-level statement, not the boolean's front door.
+    /// unrepresentable in the analytic enum (module docs).
+    ///
+    /// **Status after M5 PR 9c (executed, 2026-08-01).** This is not a
+    /// scheduling gap — it is a contract gap, and PR 9c's finding is
+    /// that no amount of work inside `revert` closes it. A face's
+    /// outward normal IS its surface's chart normal (`Face` carries no
+    /// sense flag), and for every axisymmetric variant the chart normal
+    /// is provably always OUTWARD: with `v_ref = axis × u_ref` the
+    /// frame is right-handed, so `∂u × ∂v = r·radial(u)`. Negating
+    /// `axis` flips `v_ref` too and merely reparameterizes `u ↦ −u`;
+    /// a negative `radius` moves the point to `radial(u + π)` and the
+    /// normal with it. So there is nothing for this function to WRITE
+    /// on a reverted cylinder, cone, sphere, or torus. Closing it means
+    /// a ratified representation change — a `sense` on `Face`, a
+    /// `Surface::Reversed` wrapper, or NURBS conversion — see the
+    /// M5-LOG PR 9c entry, deviation 3, for the three costings.
+    ///
+    /// Until one is ratified, curved subtract/intersect refuse up front
+    /// at the boolean's own door
+    /// (`BooleanError::CurvedOpUnsupported`), so this refusal is the
+    /// OPERATOR-level statement, not the boolean's front door.
     UnsupportedSurface {
         /// The non-plane surface.
         surface: SurfaceKey,
@@ -91,9 +106,15 @@ impl fmt::Display for RevertError {
             Self::UnsupportedSurface { surface } => write!(
                 f,
                 "revert: surface {surface:?} is not a plane — its reversed \
-                 orientation is unrepresentable in this build (the curved revert \
-                 lane is banked as M5 PR 9c; curved subtract/intersect refuse \
-                 typed at the boolean front door until it lands)"
+                 orientation is unrepresentable, and not merely unimplemented: a \
+                 face's outward normal IS its surface's chart normal, and every \
+                 axisymmetric variant's chart normal is always outward (the frame \
+                 is right-handed, so the chart normal is r·radial(u); flipping the \
+                 axis or the radius reparameterizes the surface without moving the \
+                 normal). M5 PR 9c executed this and returned it as a ratified-\
+                 representation question (a face sense flag, a reversed-surface \
+                 wrapper, or NURBS conversion). Curved subtract/intersect refuse \
+                 typed at the boolean front door meanwhile"
             ),
             Self::Corrupt { he } => write!(
                 f,

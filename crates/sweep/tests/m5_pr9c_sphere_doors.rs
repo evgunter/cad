@@ -169,3 +169,46 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
     assert!(msg.contains("no in-band twin"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
 }
+
+/// The construction rows for the two frontiers this unit EXECUTED and
+/// did not retire (M5-LOG PR 9c deviations 3 and 6). Both messages were
+/// rewritten from "banked as PR 9c" — a promise that has now been kept
+/// or refuted — to the blocker actually found, and both are pinned here
+/// so a later unit cannot quietly restore a stale claim.
+#[test]
+fn curved_revert_refusal_states_the_representation_blocker() {
+    let body = ball();
+    let err = body.revert().unwrap_err();
+    let msg = err.to_string();
+    // Not "unimplemented": a proof that there is nothing to write.
+    assert!(msg.contains("not merely unimplemented"), "{msg}");
+    assert!(msg.contains("chart normal"), "{msg}");
+    assert!(msg.contains("always outward"), "{msg}");
+    assert!(msg.contains("M5 PR 9c"), "{msg}");
+}
+
+/// The boolean's own front door quotes the same finding, so a caller
+/// who never touches `revert` still learns why curved subtract is
+/// gated. This is the DIE-PIPS shape (M5 PR 12's anchor): a sphere
+/// bitten out of a slab, refused up front and typed.
+#[test]
+fn curved_subtract_front_door_quotes_the_same_finding() {
+    let slab = validated(vec![profile::ProfileLoop::polygon([
+        p2(-2.0, -2.0),
+        p2(2.0, -2.0),
+        p2(2.0, 2.0),
+        p2(-2.0, 2.0),
+    ])]);
+    let a = sweep::extrude(&slab, sweep::Extrusion::Distance(1.0))
+        .unwrap()
+        .body;
+    let b = ball();
+    let err = topo::boolean::subtract(&a, &b).unwrap_err();
+    let topo::BooleanError::CurvedOpUnsupported { .. } = err else {
+        panic!("expected the curved-op front door, got {err:?}");
+    };
+    let msg = err.to_string();
+    assert!(msg.contains("no representation"), "{msg}");
+    assert!(msg.contains("ratified representation change"), "{msg}");
+    assert!(msg.contains("UNION is the live curved boolean"), "{msg}");
+}
