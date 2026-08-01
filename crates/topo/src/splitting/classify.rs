@@ -172,7 +172,16 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     let d0 = (center - plane_origin).dot(plane_normal);
     let a = u_ref.dot(plane_normal) * s_u;
     let b = v_ref.dot(plane_normal) * s_v;
-    let r = (a * a + b * b).sqrt();
+    // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
+    // frames (a rim circle against a perpendicular side plane), and a
+    // plain interval product's spurious negative low end poisons the
+    // sqrt — the M2 interval-square bug class, found live here when
+    // the boolean's IDEALIZED sweep (M5 PR 9) first drove this lane
+    // over distant conic×plane pairs under the Interval scalar (the
+    // realized lane's boxes never examine them, so only the brute
+    // path escalated: a strategy divergence, the exact thing the
+    // differential suite exists to catch).
+    let r = (a.powi(2) + b.powi(2)).sqrt();
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", r - d0.abs(), band) {
         Ok(Sign::Negative) => return Ok(None),
