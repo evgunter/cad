@@ -1817,3 +1817,16 @@ differential polices. powi(2) fix; both lanes bit-equal; nothing
 weakened. Memory updated. EVAN RULING pinned en route: no
 standing pre-push CI mimicry (local-battery-scope reaffirmed
 under pressure). Watcher re-armed, merge-priority on green.
+
+**Discipline unit DISPATCHED (2026-08-01, fable — block-13
+remainder, A/B row 29; difficulty S logged here pre-dispatch;
+PR 9c slides to block-14 slot 1):** the interval-square tripwire
+(Evan proposal, refined in-session). Measured: 101 self-mult
+sites, 45 in generic-T files; all four live bugs in the literal
+class. Shape: ban-with-allowlist in the discipline CI job (not a
+bump counter); one-time triage + mechanical powi(2) conversion;
+allowlist real.rs/interval.rs/dual.rs (definitional); note text
+ratified by Evan (honest version: equal on sign-definite, tighter
+on straddle; the exemption argument IS the failure mode —
+general-tightness overclaim checked and rejected against
+algebraic.rs).
