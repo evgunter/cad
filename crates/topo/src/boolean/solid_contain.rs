@@ -49,6 +49,11 @@
 //!   selection; Zero ⇒ tie ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
 //!   decision on the same margin.
+//! - **`bool_ray_sphere_disc`**: the ray/sphere discriminant, metered
+//!   as a length (`disc / 2r`; `√disc` is the half-chord in metres).
+//!   Zero ⇒ a tangent ray — graze, retry; Negative ⇒ definite miss.
+//!   The outward sign at each root is read off the SAME decided
+//!   discriminant (`d·(p − c)/r = ±√disc/r`), never re-decided.
 //! - **`bool_point_in_solid_infinity`**: the signed volume (scaled to
 //!   a mean-thickness margin in meters) — consulted only when a ray
 //!   crosses NO boundary at all: `q` then sits on the at-infinity
@@ -121,6 +126,20 @@ pub enum PointInSolidError {
         /// The face.
         face: FaceKey,
     },
+    /// A `Sphere` face belongs to a face group that is NOT closed on
+    /// its own surface (M5 PR 9c): the sphere containment/pierce door
+    /// covers the whole-sphere class — the class every M5 operand mints
+    /// (a full revolve of a pole-to-pole arc: two half-bands on one
+    /// sphere key, closed against each other) — and a partially trimmed
+    /// sphere face needs a chart trim the closed-form pcurve lane does
+    /// not mint for sphere charts (`topo::pcurves::chart_mints` is
+    /// `false` there, so the cylinder arm's exact azimuth window has no
+    /// sphere analogue yet).
+    PartialSphereFace {
+        /// The sphere face whose group has a boundary against another
+        /// surface.
+        face: FaceKey,
+    },
 }
 
 impl From<PointInLoopError> for PointInSolidError {
@@ -150,6 +169,21 @@ impl core::fmt::Display for PointInSolidError {
                 write!(
                     f,
                     "point_in_solid: face {face:?} is not a walkable planar face"
+                )
+            }
+            Self::PartialSphereFace { face } => {
+                write!(
+                    f,
+                    "point_in_solid: sphere face {face:?} is trimmed — the faces sharing its \
+                     sphere surface do not close on each other, so the group covers less \
+                     than the whole chart and this door cannot say where its boundary \
+                     runs. This arm is \
+                     STRUCTURAL (an exact-f64 scan of the loop's edge descriptions, C6): it \
+                     has no in-band twin and does not move with ε — tightening or loosening \
+                     the tolerance changes nothing here. Recourse: the trimmed-sphere chart \
+                     window (the cylinder arm's exact azimuth/latitude analogue) lands with \
+                     the sphere pcurve lane; until then trim a sphere operand with the \
+                     cylinder/plane arms or keep it whole"
                 )
             }
         }
@@ -189,11 +223,72 @@ enum FaceGeo<T: geom_core::Real> {
         az: (T, T),
         h: (T, T),
     },
+    /// A CLOSED sphere wall (M5 PR 9c): the faces sharing this sphere
+    /// surface together cover the whole chart, so there is no chart
+    /// trim to carry — membership on the surface IS membership in the
+    /// face group. Closure is decided structurally at resolution time
+    /// ([`closed_sphere_group`]), and every arm acts only for the
+    /// group's REPRESENTATIVE face so one sphere contributes exactly
+    /// one crossing pair per ray (a per-face arm would fold the same
+    /// root twice and tie itself into a permanent graze).
+    Sphere {
+        /// The sphere's centre.
+        center: Point3<T>,
+        /// Its radius (positive by convention).
+        radius: T,
+        /// The group's representative — the lowest face key in
+        /// face-arena order carrying this surface. Arms no-op on every
+        /// other member.
+        representative: FaceKey,
+    },
 }
 
-/// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder} refuse as
-/// [`PointInSolidError::CorruptFace`] (per-arm, C12.1 — the sphere
-/// wall arm arrives with the rung-3 zip).
+/// The representative of `face`'s sphere-surface face group when that
+/// group is CLOSED — every edge on its boundary is shared by two faces
+/// of the SAME sphere surface, so the group's union has no boundary
+/// against any other surface and therefore covers the whole sphere.
+///
+/// This is the shape the M5 inventory actually mints: a full revolve of
+/// a pole-to-pole arc yields TWO half-sphere bands on ONE sphere key,
+/// joined along the seam meridian and its angle-π copy (the `ball`
+/// acceptance's V2 E2 F2 structure) — not one full-chart face. Asking
+/// the question of the GROUP rather than the face is what lets the
+/// whole-sphere class through without inventing a per-face chart trim.
+///
+/// The scan is exact-`f64` structure selection (C6): it reads arena
+/// keys and mate adjacency only, never a margin, so it has no in-band
+/// twin and does not move with ε. Rings on a sphere face make the
+/// answer `None` (a ringed sphere face is a trimmed one).
+fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<FaceKey> {
+    let surface = body.get_face(face)?.surface;
+    let group: Vec<FaceKey> = body
+        .faces()
+        .filter(|(_, f)| f.surface == surface)
+        .map(|(k, _)| k)
+        .collect();
+    for &member in &group {
+        let f = body.get_face(member)?;
+        if !f.rings.is_empty() {
+            return None;
+        }
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer)?.boundary else {
+            return None;
+        };
+        for he in body.loop_cycle(first)? {
+            let mate = body.mate(he)?;
+            let neighbour = body.get_loop(body.get_half_edge(mate)?.parent_loop)?.face;
+            if !group.contains(&neighbour) {
+                return None;
+            }
+        }
+    }
+    group.first().copied()
+}
+
+/// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Sphere}
+/// refuse as [`PointInSolidError::CorruptFace`] (per-arm, C12.1 — cone
+/// and torus walls have no wired arm), and a TRIMMED sphere face
+/// refuses as [`PointInSolidError::PartialSphereFace`].
 fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -260,6 +355,14 @@ fn face_geo<T: Decide>(
                 h,
             })
         }
+        Some(&Surface::Sphere { center, radius, .. }) => match closed_sphere_group(body, face) {
+            Some(representative) => Ok(FaceGeo::Sphere {
+                center,
+                radius,
+                representative,
+            }),
+            None => Err(PointInSolidError::PartialSphereFace { face }),
+        },
         _ => Err(PointInSolidError::CorruptFace { face }),
     }
 }
@@ -426,6 +529,26 @@ pub fn point_in_solid<T: Decide>(
                     }
                 }
             }
+            // The full-sphere arm (M5 PR 9c): the linearized radial
+            // residual, the same metre-valued form the cylinder arm
+            // and the certification layer classify. A full chart
+            // carries no trim, so a Zero residual IS boundary — there
+            // is no second containment question to ask.
+            FaceGeo::Sphere {
+                center,
+                radius,
+                representative,
+            } => {
+                if face != representative {
+                    continue;
+                }
+                let elev =
+                    ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
+                if decide("bool_point_in_solid_plane", elev, band).map_err(escalate)? == Sign::Zero
+                {
+                    return Ok(SolidContainment::OnBoundary);
+                }
+            }
         }
     }
 
@@ -560,6 +683,49 @@ fn cast_ray<T: Decide>(
                     if outward == Sign::Zero {
                         return Ok(None); // grazing incidence at the hit
                     }
+                    if fold(&mut best, face, t, outward)?.is_none() {
+                        return Ok(None);
+                    }
+                }
+            }
+            // The full-sphere pierce arm (M5 PR 9c). With `d` a unit
+            // direction the ray/sphere system is monic in `t`:
+            // `t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`. The
+            // discriminant is metered as a LENGTH (`√disc` is the
+            // half-chord in metres, so `disc` is metred by `2r` exactly
+            // as the cylinder arm meters its own — dimensional honesty,
+            // D4 ¶1). Zero ⇒ the ray is tangent: a graze, retried on
+            // the next schedule member, never a parity guess.
+            //
+            // The outward sign at a root needs NO second predicate:
+            // `d·(p − c)/r = (w·d + t)/r = ±√disc/r`, so the near root
+            // enters material and the far root exits — read off the
+            // discriminant that was already decided definite. A
+            // grazing-incidence hit is exactly the Zero-discriminant
+            // case, already handled above.
+            FaceGeo::Sphere {
+                center,
+                radius,
+                representative,
+            } => {
+                if face != representative {
+                    continue;
+                }
+                let w0 = q - center;
+                let b2 = w0.dot(d);
+                let c2 = w0.norm_squared() - radius.powi(2);
+                let disc = b2.powi(2) - c2;
+                let two_r = T::from_f64(2.0) * radius;
+                match decide("bool_ray_sphere_disc", disc / two_r, band).map_err(escalate)? {
+                    Sign::Positive => {}
+                    Sign::Zero => return Ok(None), // tangent ray: graze
+                    Sign::Negative => continue,    // definite miss
+                }
+                let root = disc.max(T::zero()).sqrt();
+                for (t, outward) in [
+                    (T::zero() - b2 - root, Sign::Negative),
+                    (T::zero() - b2 + root, Sign::Positive),
+                ] {
                     if fold(&mut best, face, t, outward)?.is_none() {
                         return Ok(None);
                     }
