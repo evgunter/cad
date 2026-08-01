@@ -39,35 +39,26 @@
 //!   converted: their meters forms carry a root the ring lacks, so an
 //!   arm wanting them must land that conversion first
 //!   ([`super::enclose`] carries the same boundary, same reason).
-//! - **NURBS**: `sup_t |C(t) − S(P(t))|` over each span of the
-//!   (refined) carrier, bounded by
-//!   `rad_C + |C(m) − S(P(m))| + rad_S` — the curve's own derivative
-//!   hull over the span, the exact residual at the span midpoint, and
-//!   the surface's certified derivative box over the parameter window
-//!   the pcurve can reach in that span. Every term is a hull; nothing
-//!   is sampled.
+//! - **NURBS**: `sup_t |S(P(t)) − C(t)|` bounded by the
+//!   **tensor-product Bernstein composition**
+//!   (`geom_core::spline::compose::tensor`, M5 PR 7b): the difference
+//!   is enclosed as ONE composite whose ring coefficients are hulled
+//!   per span, so the cancellation that is the whole content of
+//!   `S(P(t)) = C(t)` survives into the bound. Every coefficient is a
+//!   ring enclosure; nothing is sampled.
 //!
-//!   **This bound is sound but not tight, and the gap is structural.**
-//!   `rad_C` and `rad_S` are first-order: each is `‖derivative hull‖ ×
-//!   half-span`, so the bound scales like the *span width*, not like
-//!   the residual. On the M5 wall fixture the midpoint residual is
-//!   ~1e-10 m and the bound is ~1e-2 m — the two variation terms are
-//!   each bounding a real motion of the curve across its own span, and
-//!   they very nearly cancel (the curve and the surface point move
-//!   together, which is the whole content of `S(P(t)) = C(t)`), but
-//!   enclosing them separately throws that cancellation away. Reaching
-//!   ε would need spans around 1e-5 wide, i.e. tens of thousands of
-//!   them.
-//!
-//!   Capturing the cancellation needs the difference to be a **single
-//!   composite** whose control coefficients are hulled — which is
-//!   exactly what `compose` does for an analytic surface and exactly
-//!   what does not exist for a surface: `geom_core::spline::compose`
-//!   is curve-only by design, and `φ∘P` for a tensor-product surface is
-//!   a Bernstein *composition*, not a product. That machinery is the
-//!   entry requirement for retiring the plane×NURBS arm and is **banked
-//!   as M5 PR 7b**. See the C5 table's `(Plane, Nurbs)` note, which
-//!   says the same thing where a caller will read it.
+//!   This replaced PR 7's per-span first-order enclosure
+//!   (`rad_C + |C(m) − S(P(m))| + rad_S`), which was sound but scaled
+//!   like the *span width*: the two variation radii each bounded a
+//!   real motion of the curve across its span and their near-perfect
+//!   cancellation was thrown away by enclosing them separately — on
+//!   the M5 wall fixture it reported ~1e-2 m where the true residual
+//!   is ~1e-10 m, and reaching ε would have needed tens of thousands
+//!   of spans. The composite tracks the residual's own scale (the
+//!   tensor module's rustdoc carries the derivation note for why
+//!   composition-then-hull keeps what hull-then-difference loses),
+//!   which is what retired the plane×NURBS arm — see the C5 table's
+//!   `(Plane, Nurbs)` note for the retirement record.
 //!
 //! # Limb 3 — the uniqueness tube (component selection, made real)
 //!
@@ -115,7 +106,7 @@
 //! constructing op from the cache this schedule sees. S2 stays
 //! discharged; nothing about the witness contract moves at rung 3.
 
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::spline::hull;
 use geom_core::{Band, Point3, RingInterval, Sign, Vec3};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
@@ -345,30 +336,6 @@ fn analytic_limbs(
     }
 }
 
-/// A whole-domain bound on `‖C′‖` for a **non-rational** fitted curve,
-/// from the derivative control-coefficient hulls (one per channel,
-/// folded Euclidean — conservative, which is the safe direction).
-fn speed_bound3(curve: &NurbsCurve3<f64>) -> f64 {
-    let coords = curve.ring_coords();
-    let mut acc = 0.0f64;
-    for ch in coords.iter() {
-        let h = hull::derivative_domain_hull(curve.knots(), ch);
-        let m = h.mag();
-        acc += m * m;
-    }
-    acc.sqrt()
-}
-
-/// The same for a 2-D pcurve, per channel (`[u, v]`).
-fn speed_bound2(curve: &NurbsCurve2<f64>) -> [f64; 2] {
-    let coords = curve.ring_coords();
-    let mut out = [f64::NAN; 2];
-    for (i, ch) in coords.iter().enumerate().take(2) {
-        out[i] = hull::derivative_domain_hull(curve.knots(), ch).mag();
-    }
-    out
-}
-
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
 /// pcurve as the parameter map (module docs).
 fn nurbs_limbs(
@@ -430,64 +397,56 @@ fn nurbs_limbs(
         }
     }
 
-    // ---- limb 2: per-span hull enclosure of |C(t) − S(P(t))| ----
-    let fine = refined(carrier);
-    let coords = fine.ring_coords();
-    let kv = fine.knots();
-    let dc_domain = speed_bound3(&fine);
-    let dp_domain = speed_bound2(pcurve);
+    // ---- limb 2: |S(P(t)) − C(t)| as ONE composite (M5 PR 7b) ----
+    // The tensor-product Bernstein composition encloses the difference
+    // at the coefficient level, so the cancellation that IS the content
+    // of S(P(t)) = C(t) survives into the bound (PR 7's first-order
+    // enclosure added the two variation radii instead and scaled with
+    // the span width — ~1e-2 m where the truth is ~1e-10 m). Data in,
+    // bounds out: nothing here samples anything (C2.2).
+    //
+    // The OQ4-aligned fit (carrier and pcurve on one knot vector) stays
+    // the cache contract, and the composite serves the unaligned case
+    // over the same bound: both curves are decomposed onto the MERGED
+    // break list by exact knot insertion, so alignment is recovered
+    // structurally rather than approximated by a whole-domain radius.
+    // The `SSI_CERT_SPANS` uniform breaks are injected for hull
+    // tightness — the same structure choice `refined` makes for the box
+    // chain (C6's f64 lane), expressed as breaks instead of a refit.
+    let coords = carrier.ring_coords();
+    let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
+        SsiError::UnsupportedCertificate {
+            what: "the fitted carrier's ring data is malformed",
+        }
+    })?;
     let pcoords = pcurve.ring_coords();
-    let pkv = pcurve.knots();
-    // The carrier and its pcurves are fitted on ONE parameterization
-    // (the OQ4 contract), so when neither has been refined further they
-    // carry the same knot vector and a span index means the same thing
-    // on both. When it does not, the whole-domain bound stands in —
-    // looser, never unsound.
-    let aligned = pkv.control_count() == kv.control_count() && pkv.degree() == kv.degree();
-    let boxes = NurbsBoxes::new(surface);
-    let mut sup = 0.0f64;
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
+    let pdata = CurveRingData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
+        SsiError::UnsupportedCertificate {
+            what: "the traced pcurve's ring data is malformed",
         }
-        let (a, b) = (kv.knots()[span], kv.knots()[span + 1]);
-        let half = 0.5 * (b - a);
-        let m = 0.5 * (a + b);
-        // Curve variation over the span, from its own derivative hull.
-        let mut dc2 = 0.0f64;
-        for ch in coords.iter() {
-            let h = hull::derivative_span_hull(kv, ch, span).mag();
-            dc2 += h * h;
-        }
-        let rad_c = dc2.sqrt().min(dc_domain) * half;
-        // The parameter window the pcurve can reach inside the span.
-        let pm = pcurve.eval(m);
-        let dp = if aligned {
-            [
-                hull::derivative_span_hull(pkv, &pcoords[0], span).mag(),
-                hull::derivative_span_hull(pkv, &pcoords[1], span).mag(),
-            ]
-        } else {
-            dp_domain
-        };
-        let (ru, rv) = (dp[0] * half, dp[1] * half);
-        let (u0, u1) = (pm.x - ru, pm.x + ru);
-        let (v0, v1) = (pm.y - rv, pm.y + rv);
-        // Surface variation over that window, from its derivative boxes.
-        let du = boxes.deriv_box(u0, u1, v0, v1, true);
-        let dv = boxes.deriv_box(u0, u1, v0, v1, false);
-        let mag = |b: Box3| {
-            (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt()
-        };
-        let rad_s = mag(du) * ru + mag(dv) * rv;
-        let mid = (fine.eval(m) - surface.eval(pm.x, pm.y)).norm();
-        let bound = rad_c + mid + rad_s;
-        // NaN-catching: a poisoned term must become the reported sup,
-        // not be skipped by a comparison it silently fails.
-        if bound.is_nan() || bound > sup {
-            sup = bound;
-        }
-    }
+    })?;
+    let scoords = surface.ring_coords();
+    let sdata = tensor::SurfaceRingData::new(
+        surface.knots_u(),
+        surface.knots_v(),
+        surface.weights(),
+        &scoords,
+    )
+    .map_err(|_| SsiError::UnsupportedCertificate {
+        what: "the NURBS operand's ring data is malformed",
+    })?;
+    let (t0c, t1c) = carrier.domain();
+    #[allow(clippy::cast_precision_loss)]
+    let extra: Vec<f64> = (1..SSI_CERT_SPANS)
+        .map(|i| t0c + (t1c - t0c) * (i as f64 / SSI_CERT_SPANS as f64))
+        .collect();
+    let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra)
+        .map_err(|_| SsiError::UnsupportedCertificate {
+            what: "the tensor composite refused the carrier/pcurve pair (mismatched \
+                   channel counts or knot domains — the OQ4 identity is the entry \
+                   requirement)",
+        })?
+        .sup_bound();
     match decide("ssi_hull_sup_chart", sup, band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
