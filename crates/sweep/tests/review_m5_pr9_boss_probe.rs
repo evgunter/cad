@@ -75,18 +75,19 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom_curves::Curve3::Circle { center, radius, .. } = *c.carrier() {
-            if (center.z - seam_z).abs() < 1e-9 && (radius - 0.35).abs() < 1e-9 {
-                arcs += 1;
-                assert!(
-                    matches!(
-                        c.description(),
-                        geom_brep::EdgeGeometry::Intersection { .. }
-                    ),
-                    "curved boolean seam must be intrinsic: {:?}",
-                    c.description()
-                );
-            }
+        if let geom_curves::Curve3::Circle { center, radius, .. } = *c.carrier()
+            && (center.z - seam_z).abs() < 1e-9
+            && (radius - 0.35).abs() < 1e-9
+        {
+            arcs += 1;
+            assert!(
+                matches!(
+                    c.description(),
+                    geom_brep::EdgeGeometry::Intersection { .. }
+                ),
+                "curved boolean seam must be intrinsic: {:?}",
+                c.description()
+            );
         }
     }
     assert_eq!(arcs, expect_seam_arcs, "rim seam arc count at z={seam_z}");

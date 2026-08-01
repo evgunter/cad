@@ -106,14 +106,12 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::new(0.0, 1.0, 0.0),
     };
-    match split(&body, &plane) {
-        Err(topo::splitting::SplitError::Reduce(
-            e @ (SplitReduceError::TangencyUnsupported { .. }
-            | SplitReduceError::ConsecutiveOnSectors { .. }),
-        )) => {
-            panic!("second order owns the graze: {e}")
-        }
-        Ok(_) | Err(_) => {}
+    if let Err(topo::splitting::SplitError::Reduce(
+        e @ (SplitReduceError::TangencyUnsupported { .. }
+        | SplitReduceError::ConsecutiveOnSectors { .. }),
+    )) = split(&body, &plane)
+    {
+        panic!("second order owns the graze: {e}")
     }
 }
 

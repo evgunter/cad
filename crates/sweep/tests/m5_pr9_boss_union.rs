@@ -97,17 +97,18 @@ fn the_boss_union_lands_end_to_end() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom_curves::Curve3::Circle { center, radius, .. } = *c.carrier() {
-            if (center.z - 1.0).abs() < 1e-9 && (radius - 0.5).abs() < 1e-9 {
-                seam_arcs += 1;
-                assert!(
-                    matches!(
-                        c.description(),
-                        geom_brep::EdgeGeometry::Intersection { .. }
-                    ),
-                    "a transverse curved seam edge is intrinsic (D6)"
-                );
-            }
+        if let geom_curves::Curve3::Circle { center, radius, .. } = *c.carrier()
+            && (center.z - 1.0).abs() < 1e-9
+            && (radius - 0.5).abs() < 1e-9
+        {
+            seam_arcs += 1;
+            assert!(
+                matches!(
+                    c.description(),
+                    geom_brep::EdgeGeometry::Intersection { .. }
+                ),
+                "a transverse curved seam edge is intrinsic (D6)"
+            );
         }
     }
     assert_eq!(seam_arcs, 3, "the rim seam is three arcs (three walls)");
