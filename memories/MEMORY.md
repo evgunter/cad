@@ -18,5 +18,5 @@
 - [Disk watchdog](disk-watchdog.md) — standing: arm disk-space Monitor at session start (warn <15G, critical <8G); lanes grow 5-8G targets; two disk-full WSL crashes 2026-07-24; RAM 10G confirmed 2026-07-25 (two parallel cargo lanes max)
 - [Model A/B experiment](model-ab-experiment.md) — standing (2026-07-25): coin-flip Opus 5 vs Fable 5 for implementation; blinded reviewers + fixed quality rubric; data in docs/MODEL-AB-LOG.md
 - [Resume vs fresh subagent](resume-vs-fresh-subagent.md) — stalled >1h + remaining work fully specifiable → fresh agent, not transcript resume
-- [Local battery scope](local-battery-scope.md) — touched-crate checks only; the full matrix is hosted CI's job
+- [Local battery scope](local-battery-scope.md) — local testing = iteration-speed tool only, scoped per change shape by time-to-signal; hosted CI is the only gate
 - [Equivariance principle](equivariance-principle.md) — maintain isometry-equivariance where free; premise unaudited; S8 rung 3 is the first designed residual

@@ -1,48 +1,41 @@
 ---
 name: local-battery-scope
-description: Implementers run only touched-crate local checks; the full matrix is hosted CI's job on the PR
+description: Local testing is an iteration-speed tool, not a gate — scope it by expected time-to-signal; hosted CI is the only gate
 metadata:
   type: feedback
 ---
 
-Do NOT run the full CI-equivalent battery locally (Evan,
-2026-07-30: "we should not be running the same tests as CI
-locally"). The full-local-battery discipline dated from the
-Actions-budget outage era; hosted CI is restored, tier-aware, and
-is THE gate.
+**The principle (Evan, 2026-08-01, stated after two boundary
+cases in one day): "there's never any need for a hard and fast
+rule on local CI. local testing is only useful insofar as it
+speeds up iteration compared to waiting on CI."**
 
-**Why:** duplicating the matrix locally costs hours of wall-clock
-(two feature lanes × whole workspace on a 9G machine) for zero
-added confidence — the PR gate re-proves it all anyway.
+Hosted CI is THE gate. A local run is justified exactly when it
+is likely to surface a failure faster than pushing and letting
+the gate find it — that is the whole calculus. Corollaries:
 
-**How to apply:** implementer/finisher prompts specify local
-checks as: `cargo test -p <touched crates>` in the lanes the
-change is relevant to, `cargo fmt --all --check`, clippy on
-touched crates (default lane). Everything else is left to CI on
-the PR, and the report says so. The dependency-closure filter
-(scripts/ci-filter.py, ci-local.sh) is the reference for what
-"touched" means when in doubt. Full-workspace local runs only on
-explicit request (e.g. debugging a cross-crate bit-replay
-failure). Related: [[resume-vs-fresh-subagent]],
-[[cad-working-style]].
+- Feature work: the touched-crate suites at default ε (+ the
+  Interval lane when the change is scalar-generic) usually pay
+  for themselves — failures there are likely and the runs are
+  minutes. That is the standard implementer brief.
+- Cross-cutting mechanical sweeps: "touched crates" ≈ the whole
+  workspace, the failure probability per suite is tiny, and the
+  runs are hours — workspace `cargo check` + the unit's own
+  self-test + a spot suite per converted-site class is the
+  right buy. (Evan caught a lane over-running this live,
+  2026-08-01.)
+- A KNOWN gate failure: always reproduce locally first — the
+  red→fix→re-push loop is fast precisely because the local
+  reproduction is targeted.
+- Standing pre-push CI mimicry (full-matrix or full-lint local
+  rows "to be safe"): never — it was proposed after PR #152's
+  triple red and declined ("doing ci locally was extremely
+  slow"). Red gates are cheap; the gate exists to catch what
+  narrowed runs miss.
 
-**Reaffirmed under pressure (Evan, 2026-08-01, PR #152's triple
-red):** after a gate cycle caught two lint rounds + a real
-Interval divergence that the narrowed battery missed, the
-orchestrator proposed standing pre-push CI-row mimicry (full
-workspace clippy both feature sets). Evan declined: "i don't
-want it running ci before push in general — this seemed like it
-worked fine, while doing ci locally was extremely slow." The
-red→fix→re-push loop IS the design; targeted local reproduction
-of a KNOWN gate failure remains right, standing mimicry does
-not.
-
-**Degenerate case (Evan caught it live, 2026-08-01):** for a
-CROSS-CUTTING mechanical change (a sweep touching most crates,
-e.g. the interval-square conversion), "touched crates" ≈ the
-whole workspace and the narrowed rule silently becomes local CI.
-For bit-neutral mechanical sweeps the local scope is: workspace
-cargo check + the unit's own self-test + ONE spot suite per
-class of converted site, default ε only — CI proves the matrix.
-Put this scope in the brief whenever dispatching a sweep-shaped
-unit.
+**How to apply:** when writing an implementer brief, pick the
+local scope by asking what failures are LIKELY for this change
+shape and what runs surface them in minutes — write that, and
+say "hosted CI proves the rest." Do not enumerate rules; apply
+the principle. Related: [[resume-vs-fresh-subagent]],
+[[cad-working-style]], [[interval-square-poison]].
