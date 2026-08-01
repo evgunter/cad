@@ -118,6 +118,22 @@ pub enum FitError {
         /// Points supplied.
         points: usize,
     },
+    /// [`interpolate_columns`]'s rows are RAGGED: row `row` is
+    /// `found` scalars wide where row 0 set the width at `width`.
+    ///
+    /// A shaped arm rather than a reused count pair (M5 PR 10 fix
+    /// pass, review MIN-4): widths are not parameter or point counts,
+    /// and stuffing them into [`FitError::ParamCountMismatch`]'s
+    /// fields would print a sentence about parameterization for a
+    /// problem that has nothing to do with one.
+    RaggedRows {
+        /// The offending row.
+        row: usize,
+        /// The width row 0 established.
+        width: usize,
+        /// The offending row's width.
+        found: usize,
+    },
     /// The Type-2 loop spent [`FIT_REMOVAL_BUDGET`] removal attempts
     /// without finishing; carries the bound achieved so far (OUR
     /// semantics — module docs).
@@ -153,6 +169,11 @@ impl core::fmt::Display for FitError {
             FitError::Lsq(e) => write!(f, "fit: {e}"),
             FitError::Structure(e) => write!(f, "fit: {e}"),
             FitError::KnotAlgebra(e) => write!(f, "fit: {e}"),
+            FitError::RaggedRows { row, width, found } => write!(
+                f,
+                "fit: column row {row} is {found} wide, row 0 is {width} — every row of \
+                 an interpolated column block must describe the same tensor structure"
+            ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
                 "fit: removal budget {budget} exhausted (achieved bound {achieved:e})"
@@ -292,8 +313,10 @@ pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector,
 ///
 /// # Errors
 ///
-/// [`FitError::TooFewPoints`], [`FitError::ParamCountMismatch`] (row
-/// count vs parameter count, or ragged rows),
+/// [`FitError::TooFewPoints`], [`FitError::ParamCountMismatch`] for a
+/// row count that does not match the parameter count or a
+/// parameterization that is not clamped `0 → 1` and ascending,
+/// [`FitError::RaggedRows`] for rows of differing width,
 /// [`FitError::NonFinitePoint`] naming the offending row,
 /// [`FitError::Lsq`] for a degenerate collocation system, and
 /// [`FitError::Structure`].
@@ -312,9 +335,10 @@ pub fn interpolate_columns(
     let width = rows.first().map_or(0, Vec::len);
     for (index, row) in rows.iter().enumerate() {
         if row.len() != width {
-            return Err(FitError::ParamCountMismatch {
-                params: width,
-                points: row.len(),
+            return Err(FitError::RaggedRows {
+                row: index,
+                width,
+                found: row.len(),
             });
         }
         if row.iter().any(|v| !v.is_finite()) {

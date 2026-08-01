@@ -1595,3 +1595,87 @@ than reading as covered. The demo stop
 (`demos/tour/src/skinned.rs`) narrates and MEASURES the walls,
 then pins the frontier with a retire-on-closure panic carrying
 the flip instructions — the `curvedcut` pattern.
+
+### PR 10 fix pass (2026-08-01)
+
+Review APPROVE-WITH-FIX-PASS, 1 MAJ / 4 MIN / 4 NOTE, rubric 5/4/4.
+The math held under independent attack: the skinning matched a
+closed-form rational loft BETWEEN sections, Eq. 10.8 matched an
+independent derivation exactly (including the cross-row average and
+the pinned-row abstention), the schema break survived all eight header
+attacks, and Interval containment held on a dense grid over both loft
+and swept walls. All four reviewer probe files were ADOPTED into the
+PR (`review_m5_pr10*.rs`, 21 rows) and extended.
+
+**MAJOR-1, the Sweep node's dead lane.** `wire_sweep` carried a
+single-segment path lane that CANNOT run: a `Node::Sweep`'s path
+operand is a profile, a validated profile's loop is closed, and a
+closed chain has ≥ 2 segments — even the minimal two-vertex loop is
+two half-turn arcs. The reviewer's executed witness refused on both a
+rectangle path and that minimal circle. Ruled: collapse rather than
+invent expressibility. The node now runs every RECIPE door (both
+structural slots, both operands) and then refuses ONE arm naming a
+joined-path composition lane — no PR number, because none is
+scheduled to build one. `sweep::sweep_geometry` stays live and
+exercised through the library API, the demo stop and the acceptance
+suites; it is the NODE lane that is gated.
+
+**MIN-1, dead error arms.** `SkinError::Escalated` was never
+constructible — this module makes no banded decisions, every
+comparison in it is exact-`f64` structure selection (C6) — so it was
+DELETED rather than advertised. `DegenerateSection`'s docs now say
+where the banded half of its user situation actually lives
+(`profile::validate`'s `vertex_separation` /
+`segment_straightness` / `arc_diameter_clearance`, one layer up) and
+why it still names that door's recourse. `OpenClosedMixed` was wired
+GENUINELY: `loft_geometry` now compares chain closure per loop across
+sections and refuses when they disagree, with the loop index and the
+expected closure in the payload. Reachable at the library door (a raw
+`SectionSegments` chain can be open) though not at the recipe layer;
+rows for both orientations.
+
+**MIN-2, the tangent claim.** "A reversing tangent refuses typed" was
+false in float: at an exact half-turn `|t₀ × t₁|` evaluates to
+≈ 1.2e-16, so the anti-parallel arm does not fire and the frame is
+built from an ill-conditioned axis. Doc and log now claim only what is
+true — a VANISHING tangent refuses — and the knife edge carries a C6
+comment. No band was asserted: `sin` is a dimensionless sine, not a
+length, and converting it needs a lever arm this construction does not
+have (D4 ¶1 forbids inventing one). Two rows pin the executed
+behaviour, and the half-turn row FAILS LOUDLY the day a real angular
+predicate lands.
+
+**MIN-3/MIN-4.** Spec §2's numbered note on dense-collocation size
+limits landed as deviation 5 (below). `interpolate_columns`'s ragged
+rows got a shaped `FitError::RaggedRows { row, width, found }` instead
+of widths stuffed into `ParamCountMismatch`'s parameter/point fields.
+
+**NOTE.** The break's honest edge is now stated in `persist`'s module
+docs and pinned: v2 changed the VOCABULARY, not the wire format, so a
+hand-edited `schema: 2` header over a v1 body loads. Inherent to a
+break with no format change; not a gap the door can close.
+
+**Deviations, complete (3–5 backfilled).** 1: `skin` lives in `sweep`,
+not `geom-surfaces` (which deliberately does not depend on
+`geom-curves`). 2: no tier-3 loft body; the frontier is pinned and
+demonstrated. 3: the construction is `f64`-structure + `T`-lift, not
+`T`-generic — fitting is `f64`-only across this codebase by design and
+Q8 makes the control bits data, so "evaluation generic over `Real`"
+means evaluation, not construction. 4: the Sweep NODE is fully
+frontier-gated (was: "single-segment paths only" — retracted at the
+fix pass as unreachable). 5: the §10.3 solve is DENSE — `k × k` in the
+section count, `O(k³)` plus `O(k²·n)` substitutions, no banded solver
+because PR 4's stack provides none; realistic lofts sit at `k` in the
+single digits to low tens where this is unmeasurable, and banding
+starts to matter around `k` in the high hundreds (M7 scattered-data
+territory). The matrix IS banded at half-bandwidth `q`, so the upgrade
+is a solver swap behind the same entry.
+
+**Post-merge correction.** PR 9 (#152) merged during this fix pass and
+partially opened the NURBS-carrier door — `EdgeCurve::certify` now
+accepts a NURBS carrier under an `Intersection`/`TangentIntersection`
+description of two ANALYTIC surfaces. Tier 3's `Surface::Nurbs` KIND
+gate is untouched, and NURBS-naming descriptions plus NURBS carriers
+under CONVENTIONAL descriptions — exactly a loft's iso-parameter seams
+— still refuse. Both frontier messages were rewritten to that truth
+rather than left to describe a main that no longer exists.

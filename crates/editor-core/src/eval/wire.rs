@@ -675,11 +675,39 @@ fn wire_pattern<T: Decide>(
 /// the exact doors a NURBS-walled solid is waiting on. Kept as
 /// constants so the acceptance rows assert the SAME text the node
 /// produces.
-pub(crate) const LOFT_FRONTIER: &str = "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by kind \
-     (UncertifiableSurface) and EdgeCurve::certify refuses NURBS \
-     carriers and NURBS-naming descriptions (Unimplemented) — the \
-     certification forms land with the curved-boolean and curved-\
-     tessellation lanes";
+pub(crate) const LOFT_FRONTIER: &str = "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by KIND \
+     (UncertifiableSurface), and EdgeCurve::certify refuses every \
+     description that NAMES a NURBS surface plus every NURBS carrier \
+     under a CONVENTIONAL description (Unimplemented) — which is \
+     exactly a loft's iso-parameter seams. The curved-boolean lane \
+     opened the NURBS carrier for Intersection descriptions of two \
+     ANALYTIC surfaces only; the remaining forms land with the \
+     curved-tessellation lane";
+
+/// The Sweep node's frontier, which is STRICTLY WIDER than the loft's
+/// (M5 PR 10 fix pass, review MAJOR-1).
+///
+/// §10.4's rigid-profile sweep needs the path as ONE curve. The recipe
+/// layer cannot supply one: a `Node::Sweep`'s `path` operand is a
+/// profile, a validated profile's loop is a CLOSED chain, and a closed
+/// chain has two or more segments — even the minimal two-vertex loop is
+/// two half-turn arcs. So there is no recipe-expressible path this PR
+/// can sweep, and the honest node-layer answer is a single refusal
+/// naming what is missing: a joined-path composition lane (no PR is
+/// scheduled to build one). Behind that stands the same NURBS-walled
+/// solid frontier the loft hits.
+///
+/// `sweep::sweep_geometry` itself is live and exercised — through the
+/// library API, the demo stop, and the acceptance suites. It is the
+/// NODE lane that is gated, and it is gated at one door rather than two
+/// so the message cannot imply an expressible case that does not exist.
+pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
+     a closed chain of two or more segments, even at the minimal \
+     two-vertex circle — while §10.4's rigid-profile sweep needs the \
+     path as ONE curve, so every recipe-expressible sweep waits on a \
+     joined-path composition lane; behind it stands the same \
+     NURBS-walled solid frontier the loft hits (tier 3 refuses \
+     Surface::Nurbs by kind, UncertifiableSurface)";
 
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.
@@ -763,36 +791,25 @@ fn wire_loft<T: Decide>(
     })
 }
 
+/// The Sweep node (M5 PR 10 fix pass, review MAJOR-1: ONE honest
+/// arm).
+///
+/// Every RECIPE door still runs first — the structural slots, and both
+/// operands through [`section_of`] — because a Sweep on a datum, or
+/// with a bad Count, is a recipe error and must read as one. What the
+/// node cannot do is reach the geometry: see [`SWEEP_FRONTIER`] for
+/// why no recipe-expressible path exists to sweep.
 fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileDesc>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
-    let stations = need_count(vals, SlotId::Stations)?;
-    let v_degree = need_count(vals, SlotId::VDegree)?;
-    let (chain, place) = section_of(doc, profile)?;
-    let (path_chain, path_place) = section_of(doc, path)?;
-    // The path is the first loop of the path profile, as ONE curve:
-    // its segments, made compatible and joined end to end by knot
-    // refinement is PR 7b's tensor-compose business — here the honest
-    // scope box is a single-segment path (a line or an arc), which is
-    // what §10.4's rigid-profile sweep needs and all this PR claims.
-    let Some(&[segment]) = path_chain
-        .first()
-        .map(Vec::as_slice)
-        .and_then(|s| <&[sweep::SketchSegment<f64>; 1]>::try_from(s).ok())
-    else {
-        return Err(NodeErrorKind::CurvedSolidFrontier {
-            what: "a multi-segment sweep path: §10.4's rigid-profile sweep takes one \
-                   line or arc segment at this PR; joined multi-segment paths need the \
-                   curve-composition lane",
-        });
-    };
-    let path_curve = sweep::segment_curve(0, segment, path_place).map_err(NodeErrorKind::Skin)?;
-    let _geometry = sweep::sweep_geometry(&chain, place, &path_curve, stations, v_degree)
-        .map_err(NodeErrorKind::Skin)?;
+    let _stations = need_count(vals, SlotId::Stations)?;
+    let _v_degree = need_count(vals, SlotId::VDegree)?;
+    let _ = section_of(doc, profile)?;
+    let _ = section_of(doc, path)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
-        what: LOFT_FRONTIER,
+        what: SWEEP_FRONTIER,
     })
 }

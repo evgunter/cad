@@ -59,11 +59,10 @@ const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2;
 ///
 /// Every arm is a STRUCTURAL statement about the inputs — section
 /// counts, loop counts, degrees, weights, solvability. Structure
-/// selection is exact-`f64` (C6), so none of these arms has an in-band
-/// twin and the two-tolerance discipline does not apply to them; the
-/// one arm that DOES describe a geometric near-degeneracy
-/// ([`SkinError::DegenerateSection`]) carries the shared recourse, and
-/// so does its in-band neighbour [`SkinError::Escalated`].
+/// selection is exact-`f64` (C6), so NO arm here has an in-band twin
+/// and the two-tolerance discipline does not apply within this module;
+/// [`SkinError::DegenerateSection`] documents where the banded half of
+/// its user situation actually lives and carries that door's recourse.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SkinError {
     /// Fewer sections than a skin needs (≥ 2 always; ≥ `degree + 1`
@@ -88,12 +87,23 @@ pub enum SkinError {
         /// Which count disagreed (`"loops"` or `"segments"`).
         what: &'static str,
     },
-    /// Open and closed sections were mixed. A closed loop's skin is a
+    /// Open and closed sections were mixed. A closed chain's skin is a
     /// tube, an open one's is a strip; the two have different topology
     /// and no correspondence between them.
+    ///
+    /// Reachable at the LIBRARY door (M5 PR 10 fix pass, review
+    /// MIN-1): [`SectionSegments`] is a raw chain, so an open path
+    /// chain mixed with closed profile chains is expressible and is
+    /// refused here. (The RECIPE layer cannot express it — a validated
+    /// profile's loop is always closed — which is why the arm needs a
+    /// library-level row rather than a node-level one.)
     OpenClosedMixed {
         /// The first section whose closedness differs from section 0.
         section: usize,
+        /// Which loop disagreed.
+        loop_index: usize,
+        /// Whether section 0's chain is closed.
+        expected_closed: bool,
     },
     /// A section curve does not live on the unit parameter domain the
     /// compatibility pass requires (`[0, 1]`, clamped).
@@ -107,19 +117,25 @@ pub enum SkinError {
     /// zero-radius arc, or two consecutive sections that coincide
     /// (chord-length parameterization has no step there).
     ///
-    /// The DEFINITE half of a two-tolerance pair whose in-band twin is
-    /// [`SkinError::Escalated`] — one user situation, one recourse.
+    /// **Where the in-band twin lives** (M5 PR 10 fix pass, review
+    /// MIN-1): not here. This module makes no banded decisions — every
+    /// comparison in it is exact-`f64` structure selection (C6), so
+    /// there is no `Escalated` arm to pair with, and inventing one
+    /// would advertise a refusal nothing can produce. The banded half
+    /// of the user's situation sits one layer UP, in
+    /// `profile::validate`'s `vertex_separation` /
+    /// `segment_straightness` / `arc_diameter_clearance` predicates,
+    /// which every section passes before it reaches this module. This
+    /// arm catches the exactly-zero residue those doors let through by
+    /// construction, and it names the SAME recourse they do, so both
+    /// halves of one user situation still read alike across the layer
+    /// boundary (D4 ¶1's intent, honoured where the decision actually
+    /// is).
     DegenerateSection {
         /// Where it sits.
         section: usize,
         /// What was degenerate.
         what: &'static str,
-    },
-    /// A degeneracy decision landed in the ambiguity band (the in-band
-    /// half of [`SkinError::DegenerateSection`]'s pair).
-    Escalated {
-        /// The escalated decision.
-        diag: geom_core::Indeterminate,
     },
     /// The requested v-degree is 0, or ≥ the section count.
     BadDegree {
@@ -128,8 +144,23 @@ pub enum SkinError {
         /// The sections available.
         sections: usize,
     },
-    /// The path's tangent reverses (or vanishes) between consecutive
-    /// stations, so no rigid frame carries the profile through it.
+    /// The path has no usable tangent at a station, so no rigid frame
+    /// carries the profile through it.
+    ///
+    /// **What this actually catches** (M5 PR 10 fix pass, review
+    /// MIN-2): a VANISHING tangent — `|C'(t)|` not finite and positive
+    /// — plus the exactly-anti-parallel case, where the minimal
+    /// rotation is not unique because every axis perpendicular to the
+    /// tangent turns one into the other. The second case is a `f64`
+    /// knife edge and essentially unreachable: an exact half-turn path
+    /// evaluates `|t₀ × t₁| ≈ 1.2e-16 > 0`, so the frame is BUILT from
+    /// a numerically ill-conditioned axis rather than refused (pinned,
+    /// executed, in `tests/review_m5_pr10.rs`). Under Q8 that surface
+    /// is still the definition — it is whatever that frame produced,
+    /// not an approximation of something else — but it is not the
+    /// surface a reader of "reversing paths refuse" would expect, so
+    /// the claim is stated as it is rather than as it reads best. See
+    /// [`sweep_geometry`]'s C6 note for why no band is asserted.
     PathTangentReversal {
         /// The station where the frame failed.
         station: usize,
@@ -160,10 +191,16 @@ impl core::fmt::Display for SkinError {
                 "skin: section {section} has {found} {what}, section 0 has {expected} — a \
                  skin matches like to like by index; supply sections with the same shape"
             ),
-            Self::OpenClosedMixed { section } => write!(
+            Self::OpenClosedMixed {
+                section,
+                loop_index,
+                expected_closed,
+            } => write!(
                 f,
-                "skin: section {section} is open where section 0 is closed (or the reverse) \
-                 — a tube and a strip have no correspondence"
+                "skin: section {section} loop {loop_index} is {} where section 0 is {} — \
+                 a tube and a strip have no correspondence",
+                if *expected_closed { "open" } else { "closed" },
+                if *expected_closed { "closed" } else { "open" }
             ),
             Self::DomainNotUnit { section, domain } => write!(
                 f,
@@ -175,7 +212,6 @@ impl core::fmt::Display for SkinError {
                 f,
                 "skin: section {section} is degenerate ({what}) — {COINCIDENCE_RECOURSE}"
             ),
-            Self::Escalated { diag } => write!(f, "skin: {diag}"),
             Self::BadDegree { degree, sections } => write!(
                 f,
                 "skin: v-degree {degree} is not usable for {sections} sections (need \
@@ -525,6 +561,29 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// one shared collocation solve carries every column, and the
 /// projective divide happens once at the end.
 ///
+/// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
+///
+/// The collocation system is `k × k` in the SECTION count `k` — not in
+/// the control count — solved by fixed-order LU with `4·n` simultaneous
+/// right-hand sides (`n` = control points per section). Cost is
+/// `O(k³)` for the factorization plus `O(k²·n)` for the substitutions;
+/// memory is `O(k² + k·n)`.
+///
+/// Spec §2 permits a banded solver only if PR 4's stack already
+/// provides one. It does not — `geom_core::linalg::lsq` offers
+/// `solve_square` and `solve_normal`, both dense — so this is the
+/// dense small-system lane, and the size limit is worth stating rather
+/// than discovering. Realistic lofts put `k` in the single digits to
+/// low tens (the Book's §10.3 examples; a twenty-section loft is
+/// already an unusual part), where `k³ ≤ 8·10³` is unmeasurable next
+/// to the knot-algebra work that precedes it. A banded solver starts
+/// to matter around `k` in the high hundreds, where `k³` reaches
+/// `10⁸` — scattered-data fitting territory (M7), not feature
+/// modelling. The matrix IS banded (half-bandwidth `q` for v-degree
+/// `q`, since only `q + 1` basis functions are nonzero per row), so
+/// the upgrade is a solver swap behind this same entry when a use case
+/// asks for it; nothing about the structure selection would change.
+///
 /// The u-direction structure is the sections' shared one, untouched.
 /// The result therefore passes through every section exactly (in ℝ) at
 /// its own v-parameter — the property the acceptance suite verifies by
@@ -689,6 +748,24 @@ pub struct LoftGeometry {
 /// each loop, already in world space through the section's placement.
 pub type SectionSegments = Vec<Vec<SketchSegment<f64>>>;
 
+/// Whether a segment chain closes on itself — the last segment's end
+/// is the first segment's start, by EXACT coordinate identity (C6
+/// structure selection, not a tolerance question: the caller either
+/// built a loop or built a path, and a near-miss is a different chain,
+/// refused downstream as a discontinuity rather than guessed at here).
+fn chain_is_closed(chain: &[SketchSegment<f64>]) -> bool {
+    let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
+        return false;
+    };
+    let start = match *first {
+        SketchSegment::Line { a, .. } | SketchSegment::Arc { a, .. } => a,
+    };
+    let end = match *last {
+        SketchSegment::Line { b, .. } | SketchSegment::Arc { b, .. } => b,
+    };
+    start.x == end.x && start.y == end.y
+}
+
 /// Builds the definitional walls of a loft (§10.3) from section
 /// segment chains and their placements.
 ///
@@ -701,9 +778,10 @@ pub type SectionSegments = Vec<Vec<SketchSegment<f64>>>;
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
-/// naming the disagreeing section and count, [`SkinError::BadDegree`],
-/// and every refusal [`segment_curve`], [`make_compatible`] and
-/// [`skin`] carry.
+/// naming the disagreeing section and count,
+/// [`SkinError::OpenClosedMixed`] for a chain that closes where its
+/// counterpart does not, [`SkinError::BadDegree`], and every refusal
+/// [`segment_curve`], [`make_compatible`] and [`skin`] carry.
 pub fn loft_geometry(
     sections: &[SectionSegments],
     places: &[Affine3<f64>],
@@ -744,6 +822,17 @@ pub fn loft_geometry(
                     expected: sections[0][l].len(),
                     found: chain.len(),
                     what: "segments",
+                });
+            }
+            // A closed chain skins to a tube, an open one to a strip:
+            // matching them by index would silently produce a surface
+            // that is neither.
+            let expected_closed = chain_is_closed(&sections[0][l]);
+            if chain_is_closed(chain) != expected_closed {
+                return Err(SkinError::OpenClosedMixed {
+                    section: i,
+                    loop_index: l,
+                    expected_closed,
                 });
             }
         }
@@ -800,9 +889,29 @@ pub fn loft_geometry(
 ///
 /// The frame is path-FOLLOWING: at each station the profile is turned
 /// by the minimal rotation carrying the path's tangent at station 0 to
-/// its tangent there, then translated onto the path. A tangent that
-/// vanishes or reverses has no such rotation and refuses typed rather
-/// than picking one.
+/// its tangent there, then translated onto the path. A VANISHING
+/// tangent has no such rotation and refuses typed
+/// ([`SkinError::PathTangentReversal`]) rather than picking one.
+///
+/// # C6: the anti-parallel knife edge, stated honestly
+///
+/// The turn is selected from `sin = |t₀ × tᵢ|` and `cos = t₀ · tᵢ` by
+/// EXACT `f64` comparison — structure selection, not a predicate: no
+/// topology depends on it, so it never routes through `k_stats`. The
+/// consequence is that `sin > 0.0` separates only the exactly-zero
+/// case. At a genuine half-turn `sin` evaluates to ≈ `1.2e-16`, not
+/// `0`, so the anti-parallel arm does not fire and the frame is built
+/// from an axis whose DIRECTION is decided by cancellation.
+///
+/// No band is asserted here, deliberately (D4 ¶1: a band needs a
+/// margin with a stated meaning and a stated lever arm). `sin` is a
+/// dimensionless sine, not a length, so the linear band does not apply
+/// to it; converting it to a length would need a lever arm this
+/// construction does not have — the profile's extent is not the
+/// conditioning scale of the cross product, and asserting one would be
+/// a derived threshold nobody derived. Banding this correctly means
+/// giving the frame choice a named angular predicate with a real
+/// margin, which is a design change, not a fix-pass edit.
 ///
 /// Under Q8 the produced skin is not an approximation of a swept
 /// locus — it IS the sweep (crate-module docs).
@@ -868,6 +977,13 @@ pub fn sweep_geometry(
             // axis perpendicular to the tangent turns one into the
             // other). Refuse rather than pick one — a sweep whose path
             // doubles back needs a stated frame, not a guess.
+            //
+            // C6 knife edge (see the fn docs): `sin > 0.0` is an exact
+            // structure comparison, so this arm fires only on an
+            // EXACT zero. A float half-turn gives sin ≈ 1.2e-16 and
+            // takes the branch above instead, building from an
+            // ill-conditioned axis. Pinned as executed behaviour, not
+            // asserted as intent.
             return Err(SkinError::PathTangentReversal { station: i });
         };
         places.push(Affine3::translation(path.eval(t) - base_point) * turn * place);

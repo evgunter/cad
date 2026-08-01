@@ -306,3 +306,60 @@ fn a_non_profile_input_refuses_typed() {
         other => panic!("expected WrongOperand, got {other:?}"),
     });
 }
+
+/// **F1**: the Sweep node's frontier is its OWN arm, wider than the
+/// loft's — no recipe-expressible path exists to sweep, and the
+/// message says why rather than implying a single-segment case the
+/// recipe layer cannot build.
+#[test]
+fn a_sweep_node_reaches_its_own_wider_frontier() {
+    let mut doc = ProfileDoc::empty();
+    let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    doc = d;
+    let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
+    doc = d;
+    let (doc, sweep) = insert(
+        doc,
+        Node::Sweep {
+            profile,
+            path,
+            stations: count(4),
+            v_degree: count(2),
+        },
+    );
+    with_failure(&doc, sweep, |kind| match kind {
+        NodeErrorKind::CurvedSolidFrontier { what } => {
+            assert!(what.contains("joined-path composition lane"), "{what}");
+            assert!(
+                what.contains("closed chain of two or more segments"),
+                "{what}"
+            );
+            assert!(!what.contains("multi-segment"), "{what}");
+        }
+        other => panic!("expected the sweep frontier, got {other:?}"),
+    });
+}
+
+/// The structural slots are still doors: a Sweep missing its Count
+/// reads as a slot error, not as a frontier story.
+#[test]
+fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
+    let mut doc = ProfileDoc::empty();
+    let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    doc = d;
+    let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
+    doc = d;
+    let (doc, sweep) = insert(
+        doc,
+        Node::Sweep {
+            profile,
+            path,
+            stations: count(-3),
+            v_degree: count(2),
+        },
+    );
+    with_failure(&doc, sweep, |kind| match kind {
+        NodeErrorKind::NonPositiveCount { count } => assert_eq!(*count, -3),
+        other => panic!("expected NonPositiveCount, got {other:?}"),
+    });
+}

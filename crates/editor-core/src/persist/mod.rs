@@ -11,6 +11,17 @@
 //!   The kernel is unreleased; the only v1 files that ever existed are
 //!   the repo's, and every one of them replays from source.
 //!
+//!   **What the break does NOT do** (M5 PR 10 review NOTE): v2 changed
+//!   the recipe VOCABULARY, not the wire format, so a v1 body is still
+//!   valid v2 JSON — hand-edit a v1 file's header to `schema: 2` and
+//!   it loads. That is inherent to a version break with no format
+//!   change and no door can close it: the header is the only place the
+//!   version is recorded, so an edited header IS a v2 file by
+//!   definition. It costs nothing (a v1 body carries no construct v2
+//!   rejects) and it is not a gap in the version door, which refuses
+//!   every file that still SAYS v1. Pinned, executed, in
+//!   `tests/review_m5_pr10_schema.rs`.
+//!
 //! # Format (spec D1)
 //!
 //! A save is TEXT: a `schema: <integer>` header line, then a JSON body
