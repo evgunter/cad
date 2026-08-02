@@ -2217,3 +2217,12 @@ for lane pacing: while the box is pinned, batteries run
 20-30× slow — expect longer wall-clocks, don't misread them
 as stalls (the hourly sweep's cargo-liveness check already
 handles this correctly).
+
+**#158 MERGED (2026-08-02): 18/18 — S12 on main; CURVED
+SUBTRACT/INTERSECT ARE LIVE on the Plane/Cylinder class.
+Twenty-six PRs.** A/B row 35 = S12 (opus, M: APPROVE 0/2/3,
+5/5/4; class boundary proven complete; light doc fix pass).
+Lanes cleaned. Board: #157 gating (last watcher); next dispatch
+decision at its merge — die-pips path (sphere join lane +
+fallback re-cut, two units) vs PR 13 (STEP, independent, wants
+the sense bit which is in).
