@@ -2051,3 +2051,22 @@ fix). Lanes cleaned. **S11 DISPATCHING (fable — block-15
 remainder, A/B row 34, difficulty M logged at spec time, MERGE
 PRIORITY — main ships the silent pellet-swallow until it
 lands).**
+
+**S11 implementation COMPLETE (2026-08-02, ae6ed6c) — the
+defect class was WIDER: revolve line walls (bores, inward
+cones, under-annuli) had the same wrong sense; washers
+misreport containment on main today.** All fixed from stored
+structure (extrude: canonical turn sign; revolve: (r,z)-frame
+per-kind classification via the existing axis_line funnel);
+zero numeric derivations. Pellet witness FLIPPED (3.008, 2
+shells — the silent wrong union dies at merge). NEW BANKED
+FINDING: mef hardcodes sense:true — must fix before curved
+booleans split reversed walls (recorded for the revert/9c-
+successor units). Five deviations incl. STEP e2e halved
+(exporter planar-only; verbatim-bit .F. emission pinned
+instead). None of S10's sense-invariant dispositions lied
+under the first mixed-sense body. **Review DISPATCHED**
+(merge-base washer reproduction; criterion re-derivation with
+filleted/asymmetric attacks; revolve algebra incl. reverse-
+traversal invariance; mef finding verification). PR 11 in the
+other lane folding + final battery.
