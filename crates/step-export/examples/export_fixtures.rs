@@ -1,5 +1,7 @@
-//! Regenerates the committed STEP fixtures (cube, M3 pocketed die,
-//! corner-kiss assembly) — the files `scripts/check_step.sh` feeds to
+//! Regenerates the committed STEP fixtures — the planar M4 set (cube,
+//! M3 pocketed die, corner-kiss assembly) and the M5 PR 13 curved
+//! corpus (cut_cylinder, boss_union, notched, washer, ball, cone,
+//! donut) — the files `scripts/check_step.sh` feeds to
 //! FreeCAD/OCC for the external-import acceptance, kept byte-golden by
 //! `tests/export.rs::committed_fixtures_are_byte_golden`.
 //!
@@ -23,11 +25,7 @@ fn main() {
         .nth(1)
         .expect("usage: export_fixtures <outdir>");
     std::fs::create_dir_all(&outdir).expect("create outdir");
-    for (name, body) in [
-        ("cube", common::cube()),
-        ("die", common::die(0.0, 0.0, 0.0)),
-        ("kiss_assembly", common::kiss_assembly()),
-    ] {
+    for (name, body) in common::fixture_corpus() {
         let options = StepOptions {
             product_name: name.to_owned(),
             uncertainty_m: Some(1e-9),

@@ -216,14 +216,27 @@ fn product_name_escaping() {
 
 // ------------------------------------------------------ typed refusals
 
+/// The M4 refusal this row used to be — `common::ball()` refusing as
+/// `UnsupportedSurface { kind: "sphere" }` — is retired: M5 PR 13
+/// gives every elementary surface a printer, so the ball EXPORTS.
+/// What is left of the refusal is the NURBS face, which no body at
+/// rest carries; it is pinned in `m5_pr13_curved.rs` alongside the
+/// arms that replaced this test.
 #[test]
-fn curved_surface_refuses_typed() {
-    let body = common::ball();
-    match step_string(&body, &StepOptions::default()) {
-        Err(StepExportError::UnsupportedSurface { kind, .. }) => {
-            assert_eq!(kind, "sphere");
-        }
-        other => panic!("expected UnsupportedSurface, got {other:?}"),
+fn curved_bodies_export_rather_than_refuse() {
+    for (name, body) in [
+        ("ball", common::ball()),
+        ("cone", common::cone()),
+        ("donut", common::donut()),
+        ("washer", common::washer()),
+        ("notched", common::notched()),
+        ("cut_cylinder", common::cut_cylinder()),
+        ("boss_union", common::boss_union()),
+    ] {
+        assert!(
+            step_string(&body, &StepOptions::default()).is_ok(),
+            "{name} must export"
+        );
     }
 }
 
@@ -276,11 +289,7 @@ fn mid_surgery_body_refuses_typed() {
 /// `cargo run -p step-export --example export_fixtures -- crates/step-export/tests/fixtures`.
 #[test]
 fn committed_fixtures_are_byte_golden() {
-    for (name, body) in [
-        ("cube", common::cube()),
-        ("die", common::die(0.0, 0.0, 0.0)),
-        ("kiss_assembly", common::kiss_assembly()),
-    ] {
+    for (name, body) in common::fixture_corpus() {
         let text = export(&body, name);
         let path = format!("{}/tests/fixtures/{name}.step", env!("CARGO_MANIFEST_DIR"));
         let committed = std::fs::read_to_string(&path)
