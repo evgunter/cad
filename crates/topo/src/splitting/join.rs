@@ -1632,6 +1632,13 @@ impl ChordJoiner {
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
+                // SENSE HAZARD (M5 S11, banked): this mef re-mint
+                // stamps `sense: true` on the new fragment. Splitting
+                // a reversed (`sense: false`) face here would silently
+                // reset the bit — the fragment must INHERIT `oldf`'s
+                // sense before curved booleans make such splits
+                // reachable (`Body::set_face_sense` docs; guard:
+                // review_s11_adv's touching-union probe).
                 let created = match spec {
                     None => body.mef_chord(site)?,
                     Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,

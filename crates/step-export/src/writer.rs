@@ -296,9 +296,11 @@ impl<'a> Writer<'a> {
     /// its surface's own normal?"), which is why S10 ratified the bit
     /// in that shape. It emits `.T.`/`.F.` directly; before S10 the
     /// answer was hardcoded `.T.` because the stored normal simply WAS
-    /// the outward normal (M1 ratification), and every face this build
-    /// mints still has `sense: true`, so the output is byte-identical
-    /// today.
+    /// the outward normal (M1 ratification). Since M5 S11 constructors
+    /// mint `sense: false` on material-against-chart walls — all
+    /// curved in this build, hence outside the planar subset — so
+    /// planar output stays byte-identical and the `.F.` arm is pinned
+    /// through the hand-flip door (`m5_s11_same_sense`).
     ///
     /// Consequently the surface's own `AXIS2_PLACEMENT_3D` keeps
     /// emitting the **chart** normal unchanged (see the `direction`

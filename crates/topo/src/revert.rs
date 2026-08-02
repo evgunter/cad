@@ -37,9 +37,9 @@
 //! parity, so there was nothing for this function to write. S10 closed
 //! that by moving the reversal onto the FACE —
 //! [`crate::entity::Face::sense`] — where flipping it is exact
-//! structure. What S10 deliberately did not do is make this function
-//! write the bit: every constructor still mints `sense: true`, and the
-//! flip-every-face pass (with its involution, determinism and
+//! structure, and M5 S11's constructors already write honest `false`
+//! bits on concave walls. What neither unit did is make THIS function
+//! write the bit: the flip-every-face pass (with its involution, determinism and
 //! curved-boolean rows) is the follow-on unit. So the refusal below
 //! stands for exactly one more unit, and it now refuses on
 //! not-yet-wired grounds rather than on unrepresentability. Curved

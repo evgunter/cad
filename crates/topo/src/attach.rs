@@ -93,6 +93,58 @@ impl<T: Decide> Body<T> {
         Ok(new)
     }
 
+    /// Sets `face`'s orientation sense ([`crate::Face::sense`]) — the
+    /// constructor-facing writer of the S10 orientation bit, opened in
+    /// M5 S11.
+    ///
+    /// The Euler operators mint every face `sense: true` because the
+    /// material side is not op-level knowledge: `mef` sees two chords,
+    /// not the profile. Whether a swept wall's material lies with or
+    /// against its surface's chart normal is the **constructor's**
+    /// knowledge, decided from exact stored structure (a concave arc
+    /// segment's turn sign against its loop's canonical winding — the
+    /// profile's material-left rule), so the constructor attaches the
+    /// honest bit here right after the mint, exactly as
+    /// [`Body::set_face_surface`] attaches a surface the mint could not
+    /// know. Callers must keep the two encodings of orientation
+    /// coherent (the bit and the loop winding — tier 3's check 6
+    /// falsifies planar disagreement at rest); the test-only hand-flip
+    /// door [`Body::flipped_face_sense_for_tests`] is the deliberate
+    /// exception.
+    ///
+    /// Not an Euler operator (no topology changes) and not a numeric
+    /// decision (a `bool` is written, nothing compared); tier 1 is
+    /// trivially preserved.
+    ///
+    /// **KNOWN HAZARD — splitting does not inherit the bit yet (M5
+    /// S11 audit finding, banked for the curved-boolean/revert
+    /// units).** Every `mef` mints its new face `sense: true`,
+    /// including the boolean splitting/reassembly re-mints
+    /// (`splitting/join.rs`, `splitting/reassembly.rs`), so splitting
+    /// a `sense: false` face today would silently stamp `true` on the
+    /// pieces — a piece of a reversed wall is the same surface region
+    /// with the same material side and MUST inherit the parent face's
+    /// bit. Unreachable in the current battery: curved
+    /// subtract/intersect refuse at the front door, and touching
+    /// curved unions refuse typed before any reversed face splits
+    /// (pinned by the sweep-side guard
+    /// `review_s11_adv::adv_touching_union_with_reversed_faces_refuses_typed`,
+    /// which fails loudly the day such a union starts answering). The
+    /// inheritance fix must land WITH the unit that makes those splits
+    /// reachable, not after it.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] if `face` does not resolve. The body
+    /// is untouched on `Err`.
+    pub fn set_face_sense(&mut self, face: FaceKey, sense: bool) -> Result<(), EulerOpError> {
+        let f = self.get_face_mut(face).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Face(face),
+        })?;
+        f.sense = sense;
+        Ok(())
+    }
+
     /// Replaces `edge`'s curve geometry with a freshly certified
     /// attachment of `curve`, returning the new curve key. The
     /// certification endpoints are the edge's own vertices' points in

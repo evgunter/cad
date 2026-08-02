@@ -608,11 +608,14 @@ impl<T: Real> Body<T> {
     /// acceptance rows use to prove the outward-normal consumers
     /// actually honor the bit.
     ///
-    /// Deliberately NOT a construction operator. Every legitimate
-    /// constructor mints `sense: true`; the only planned writer of
-    /// `false` is curved `revert` (the follow-on unit), which flips
-    /// *every* face of a body at once and so keeps it coherent.
-    /// Flipping a single face makes the body **inside-out at that
+    /// Deliberately NOT a construction operator. Legitimate writers
+    /// keep the two orientation encodings coherent: constructors mint
+    /// the honest bit for the wall they are building (M5 S11,
+    /// [`Body::set_face_sense`] — the loop winding is already the
+    /// material-true one, so a concave wall's `false` agrees with it),
+    /// and curved `revert` (the follow-on unit) will flip *every* face
+    /// of a body at once. Flipping a single face makes the body
+    /// **inside-out at that
     /// face** — geometrically incoherent by construction, which is
     /// exactly the point: it is the discriminating input for "does this
     /// consumer read the sense, or did it silently keep reading the

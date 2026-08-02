@@ -2,11 +2,13 @@
 //!
 //! S10 landed the ratified fix for PR 9c's contract gap — a face's
 //! outward normal is its surface's chart normal times `sense_sign`,
-//! rather than the chart normal outright. Every constructor in this
-//! build still mints `sense: true`, so the whole battery is
-//! bit-identical; what these rows prove is that the outward-normal
-//! consumers **actually read the bit**, i.e. that the follow-on
-//! revert-wiring unit will be a flip and not a rewrite.
+//! rather than the chart normal outright. At S10 every constructor
+//! still minted `sense: true`; what the acceptance rows prove is that
+//! the outward-normal consumers **actually read the bit**. Since M5
+//! S11 the sweep constructors mint the honest bit (`false` on walls
+//! whose material lies against the chart normal — concave arc walls
+//! and revolve's inward walls), and the S10 `finding_*` rows below
+//! flipped to construction rows pinning the fixed behaviour.
 //!
 //! The instrument is `Body::flipped_face_sense_for_tests`, which
 //! inverts ONE face's bit and nothing else. That is deliberately an
@@ -234,7 +236,12 @@ fn tier_three_refusal_is_surgical() {
 }
 
 // =====================================================================
-// Finding: concave sweep walls already violate the pre-S10 contract.
+// Construction rows (M5 S11): concave sweep walls mint sense: false.
+// These began life as S10 `finding_*` rows pinning the pre-S11 defect
+// (concave walls stamped `true`, the cylinder door misreporting the
+// notch, `union` silently swallowing a disjoint pellet); S11 taught
+// extrude the exact turn-sign criterion and the rows flipped to pin
+// the CORRECT behaviour, per the S9 finding→construction pattern.
 // =====================================================================
 
 /// The mixed convex/concave extrusion of `review_m2_pr4`'s assignment
@@ -253,44 +260,37 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     extrude(&vp, Extrusion::Distance(1.0)).unwrap()
 }
 
-/// **FINDING (S10 deviation 1), pinned as the current behaviour.**
+/// **Construction row (M5 S11, flipped from S10's finding).**
 ///
-/// The premise S10 was specified against — "at M5 every constructor
-/// mints material-agrees-with-chart faces, so `sense: true` everywhere
-/// is correct" — is FALSE in this build, and was false before S10.
 /// `extrude` mints a cylinder wall for every arc segment, and the
 /// cylinder's chart normal is unconditionally the **radially outward**
 /// radial. For a CONCAVE arc the material lies OUTSIDE that cylinder,
-/// so the face's outward normal is radially INWARD: the face's true
-/// sense is `false`, and this build stamps `true`.
+/// so the face's outward normal is radially INWARD: the honest sense
+/// is `false`, decided from the profile's stored turn sign against
+/// the loop's canonical winding (S11 — never a numeric derivation).
 ///
-/// This row pins the two halves of the finding:
+/// This row pins the two halves of the fix:
 ///
-/// 1. **Geometry**: the concave wall's cylinder has the material on
-///    its outside (`|centroid − axis| > radius`), i.e. the stored
-///    chart normal points INTO the solid.
+/// 1. **Structure**: the concave wall (material outside its carrier,
+///    `|interior probe − axis| > radius`) carries `sense: false`;
+///    every other wall of the fixture keeps `true`.
 /// 2. **Consequence**: `point_in_solid` — whose cylinder door reads
-///    the chart-outward radial as the outward normal — therefore
-///    reports `In` for points that are outside the solid, in the
-///    notch the concave arc cuts. At `x = 1` the true boundary is
-///    `y = 2.5 − √2 ≈ 1.0858`; the door does not turn over until
-///    `y ≈ 1.5`.
-///
-/// The assertions below deliberately pin the WRONG answer (the
-/// `finding_*` convention of the review suites): S10 does not fix
-/// this. Fixing it means teaching the sweep constructors to mint
-/// `sense: false` on concave arc walls, which is a behaviour change
-/// across the boolean layer and its own unit — and it is a REQUIRED
-/// predecessor of the revert-wiring unit, since reverting a body whose
-/// senses are already wrong flips a lie into another lie.
+///    `sense_sign · chart normal` as outward — now reports `Out`
+///    throughout the notch the concave arc cuts. At `x = 1` the true
+///    boundary is `y = 2.5 − √2 ≈ 1.0858`; before S11 the door did
+///    not turn over until `y ≈ 1.5`.
 #[test]
-fn finding_concave_arc_wall_sense_is_wrong_today() {
+fn fixed_concave_arc_wall_sense_is_false() {
     let t = mixed_turn_arcs();
-    // (1) The concave wall's material is OUTSIDE its cylinder.
+    // (1) The concave wall's material is OUTSIDE its cylinder, and
+    // exactly that wall carries the reversed bit.
     let mut saw_concave = false;
     for &fk in &t.side_faces[0] {
         let sk = t.body.get_face(fk).unwrap().surface;
         let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(sk).unwrap() else {
+            // Planar walls stay `true` (Newell-outward by
+            // construction).
+            assert!(t.body.get_face(fk).unwrap().sense);
             continue;
         };
         // The region's interior probe, in the sketch plane.
@@ -298,14 +298,20 @@ fn finding_concave_arc_wall_sense_is_wrong_today() {
         if d.norm() > radius {
             saw_concave = true;
             assert!(
+                !t.body.get_face(fk).unwrap().sense,
+                "the concave wall's material lies against the chart \
+                 normal: S11 mints sense: false here"
+            );
+        } else {
+            assert!(
                 t.body.get_face(fk).unwrap().sense,
-                "this build stamps sense: true even here — that IS the finding"
+                "the convex wall keeps sense: true"
             );
         }
     }
     assert!(saw_concave, "the fixture must contain a concave arc wall");
 
-    // (2) The consequence: point_in_solid is wrong in the notch.
+    // (2) The consequence: point_in_solid is honest in the notch.
     let band = Band::linear().unwrap();
     let truth_hi = 2.5 - 2.0_f64.sqrt(); // ≈ 1.0858
     let inside = point_in_solid(&t.body, Point3::new(1.0, 0.5, 0.5), band).unwrap();
@@ -314,11 +320,17 @@ fn finding_concave_arc_wall_sense_is_wrong_today() {
         assert!(y > truth_hi, "these probes are OUTSIDE the solid");
         assert_eq!(
             point_in_solid(&t.body, Point3::new(1.0, y, 0.5), band).unwrap(),
-            topo::boolean::SolidContainment::In,
-            "PINNED DEFECT: the cylinder door reads the chart-outward \
-             radial as outward, so the concave notch reads as material"
+            topo::boolean::SolidContainment::Out,
+            "the cylinder door reads the sense-signed radial as \
+             outward, so the concave notch reads as void (S11)"
         );
     }
+    // And still In just below the true arc boundary.
+    assert_eq!(
+        point_in_solid(&t.body, Point3::new(1.0, truth_hi - 0.05, 0.5), band).unwrap(),
+        topo::boolean::SolidContainment::In,
+        "the fix must not overshoot: just inside the arc is material"
+    );
 }
 
 /// A small cuboid strictly inside the concave notch — `x ∈ [0.9, 1.1]`,
@@ -342,37 +354,20 @@ fn pellet() -> Body<f64> {
     extrude(&vp, Extrusion::Distance(0.4)).unwrap().body
 }
 
-/// **FINDING (S10 deviation 1, e2e half) — a WRONG BODY ships from a
-/// public call today.** Pinned as current behaviour, per the
-/// `finding_*` convention.
-///
-/// The row above shows the concave wall's sense is wrong and that
-/// `point_in_solid` misreports inside the notch. That is a door-level
-/// statement, and on its own it understates the urgency. This row
-/// carries it end-to-end through the PUBLIC `union`:
+/// **Construction row (M5 S11, e2e half — flipped from S10's
+/// finding, per its own flip instruction).**
 ///
 /// `union(notched, pellet)` on two DISJOINT solids has no surface
-/// intersections, so the operation falls back to mutual containment to
-/// decide the arrangement — and it asks `point_in_solid`. The door
-/// answers `In` for the pellet's points because the concave wall's
-/// chart normal points into material, so the pellet is judged
-/// swallowed by the notched body and its shell is dropped. The result
-/// is a well-formed, tier-3-valid body that is simply **missing a
-/// solid**: volume `3.000` instead of `3.008`, one shell instead of
-/// two. No error, no escalation — a silent wrong answer.
-///
-/// This is the strongest available statement of why the concave-fix
-/// unit must follow immediately, and why S10's bit is the enabling
-/// infrastructure rather than a nicety: the fix IS "mint `sense: false`
-/// on concave arc walls", which was unrepresentable before this PR.
-///
-/// **When the concave-fix unit lands, this row FLIPS**: rename it
-/// `fixed_union_keeps_a_pellet_in_a_concave_notch` and invert the
-/// assertions to `vol == vol_a + vol_b` and `shells == 2`. The
-/// assertions below are deliberately written so that inversion is a
-/// one-line edit.
+/// intersections, so the operation falls back to mutual containment
+/// to decide the arrangement — and it asks `point_in_solid`. Before
+/// S11 the concave wall's `sense: true` made the door answer `In` for
+/// the pellet's points, so the PUBLIC `union` shipped a well-formed,
+/// tier-3-valid body that was silently **missing a solid** (volume
+/// `3.000` instead of `3.008`, one shell instead of two). With the
+/// honest bit the pellet survives as its own shell and the volumes
+/// add exactly.
 #[test]
-fn finding_union_silently_swallows_a_pellet_in_a_concave_notch() {
+fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
     let a = mixed_turn_arcs().body;
     let b = pellet();
     let vol_a = topo::props::mass_properties(&a).unwrap().volume;
@@ -387,19 +382,15 @@ fn finding_union_silently_swallows_a_pellet_in_a_concave_notch() {
     let vol = topo::props::mass_properties(&out.body).unwrap().volume;
     let shells = out.body.shells().count();
 
-    // TRUTH would be `vol == vol_a + vol_b` in 2 shells. PINNED DEFECT:
-    // the pellet is gone.
     assert!(
-        (vol - vol_a).abs() < 1e-9,
-        "PINNED DEFECT: the pellet is swallowed, so the union must meter \
-         the notched body alone ({vol_a}); got {vol} — if this now equals \
-         {} the concave-fix unit has landed and this row should be \
-         flipped to `fixed_*`",
+        (vol - (vol_a + vol_b)).abs() < 1e-9,
+        "the disjoint union must keep both solids: expected \
+         {} (= {vol_a} + {vol_b}), got {vol}",
         vol_a + vol_b
     );
     assert_eq!(
-        shells, 1,
-        "PINNED DEFECT: the dropped pellet leaves one shell where two \
-         disjoint solids should give two"
+        shells, 2,
+        "two disjoint solids union into two shells; the pre-S11 door \
+         swallowed the pellet into one"
     );
 }

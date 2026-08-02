@@ -347,6 +347,12 @@ fn build_wire<T: Decide>(
             chain_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
             surface,
         )?;
+        // The honest orientation bit (M5 S11) — see
+        // `partial::sweep_loop`; the band-2 twins below inherit the
+        // same classification.
+        if cls.walls[wseg(i)].sense() == Some(false) {
+            body.set_face_sense(mef.face, false)?;
+        }
         faces.push(mef.face);
         tops.push(mef.edge);
     }
@@ -415,11 +421,21 @@ fn build_wire<T: Decide>(
             spec,
             FaceSurface::Shared(face_surface_key(&body, faces[i])?),
         )?;
+        // The band-2 wall is the same classified wall as its band-1
+        // twin (M5 S11): same surface, same material side, same sense.
+        if cls.walls[wseg(i)].sense() == Some(false) {
+            body.set_face_sense(mef.face, false)?;
+        }
         band2_faces.push(mef.face);
         rims2.push(Some(mef.edge));
     }
     let wall0_key = face_surface_key(&body, faces[0])?;
     body.set_face_surface(seed.face, FaceSurface::Shared(wall0_key))?;
+    // The surviving wire face becomes segment 0's band-2 wall — it
+    // takes wall 0's sense along with its surface (M5 S11).
+    if cls.walls[wseg(0)].sense() == Some(false) {
+        body.set_face_sense(seed.face, false)?;
+    }
 
     // Band-2 latitude joins (same surface-key pairs as band 1).
     for i in 1..k {

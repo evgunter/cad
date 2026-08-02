@@ -71,8 +71,11 @@
 //!   stored `u_ref`, ⊥ normal by the same convention) — correct
 //!   precisely *because* `same_sense` carries the flip: the reversal
 //!   is stated once, in the field the schema provides for it, and the
-//!   exported surface stays the true surface. Every face this build
-//!   mints has `sense: true`, so the emitted text is unchanged.
+//!   exported surface stays the true surface. Since M5 S11 the sweep
+//!   constructors mint `sense: false` on walls whose material lies
+//!   against the chart normal; every such wall in this build is
+//!   curved, so within the current planar subset the emitted text is
+//!   unchanged and `.F.` first appears when the curved arms land.
 //! - An edge's certified carrier parameter runs `start(he_plus) →
 //!   end(he_plus)` (the M2 forward contract on `Edge::he_plus`), so
 //!   every `EDGE_CURVE` has `same_sense = .T.` with its vertices taken
