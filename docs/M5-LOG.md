@@ -2040,3 +2040,14 @@ rows, first genuinely mixed-sense body exercises every S10
 audit disposition); dispatches on S10 merge with MERGE PRIORITY
 (S9 precedent), block-15 fable remainder, difficulty M to log
 pre-dispatch.** Chain: S10 → S11 → revert wiring → PR 12.
+
+**#155 MERGED (2026-08-02): 18/18 — S10 on main; Face::sense is
+real. Twenty-four PRs.** Gate-red bonus: the PR 9c message pin
+caught the S10 rewrite eroding F1's "EVEN in the radius"
+scoping — restored, pin re-aimed to guard both directions. A/B
+row 33 = S10 (opus, M: review 0 code-MAJ/3 MIN, idiom 5/tests
+4/docs 5, spec-premise refutation credited; fix pass light+pin
+fix). Lanes cleaned. **S11 DISPATCHING (fable — block-15
+remainder, A/B row 34, difficulty M logged at spec time, MERGE
+PRIORITY — main ships the silent pellet-swallow until it
+lands).**
