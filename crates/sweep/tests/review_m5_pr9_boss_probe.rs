@@ -120,32 +120,32 @@ fn my_boss_union_all_the_way_down() {
 
 #[test]
 fn my_boss_subtract_makes_a_blind_hole_honestly() {
-    // plate - boss: the bread-and-butter drilled blind hole. The
-    // MAJ-3 finding (curved booleans were silently UNION-ONLY, dying
-    // deep in the pipeline at a stale planar-era revert message) got
-    // its ruling at the fix pass: subtract/intersect refuse UP FRONT
-    // at a typed door that names the missing lane and the banked
-    // unit — curved revert is PR 9c, which gates PR 12's die pips.
-    let e = topo::subtract(&plate(), &boss(3, 0.3, 1.0))
-        .expect_err("curved subtract refuses at the front door until PR 9c");
+    // plate - boss: the bread-and-butter drilled blind hole. The MAJ-3
+    // finding (curved booleans were silently UNION-ONLY, dying deep in
+    // the pipeline at a stale planar-era revert message) got its ruling
+    // at the PR 9 fix pass: a typed front door. M5 S12 RETIRED that door
+    // for this class — S10's `Face::sense`, S11's honest constructor
+    // bits and S12's revert wiring made curved ∖ real — so this row
+    // flips from a refusal pin to the construction row it always wanted
+    // to be, audited exactly like the union twin above: exact
+    // closed-form volume, tier 3, intrinsic seam arcs, pcurve coverage.
+    let out = topo::subtract(&plate(), &boss(3, 0.3, 1.0)).expect("curved subtract is live");
+    let body = &out.body().expect("a body").body;
+    // The pocket runs from z = 0.3 to the top face at z = 0.8.
+    let expect = 3.0 * 3.0 * 0.8 - std::f64::consts::PI * 0.35 * 0.35 * 0.5;
+    audit(body, expect, 3, 0.8);
+    // Intersect takes the same live lane, and the pair is additive.
+    let met = topo::intersect(&plate(), &boss(3, 0.3, 1.0)).expect("curved intersect is live");
+    let met_body = &met.body().expect("a body").body;
+    let met_vol = topo::mass_properties(met_body).unwrap().volume;
     assert!(
-        matches!(e, topo::BooleanError::CurvedOpUnsupported { .. }),
-        "expected the front-door refusal, got {e:?}"
-    );
-    let msg = format!("{e}");
-    assert!(
-        msg.contains("PR 9c"),
-        "the door names the banked unit: {msg}"
+        (met_vol - std::f64::consts::PI * 0.35 * 0.35 * 0.5).abs() < 1e-9,
+        "intersect meters the plug: {met_vol}"
     );
     assert!(
-        msg.contains("revert"),
-        "the door names the missing lane: {msg}"
+        (topo::mass_properties(body).unwrap().volume + met_vol - 3.0 * 3.0 * 0.8).abs() < 1e-9,
+        "A∖B + A∩B must meter A"
     );
-    assert!(msg.contains("UNION is the live"), "{msg}");
-    // Intersect takes the same door.
-    let e2 = topo::intersect(&plate(), &boss(3, 0.3, 1.0))
-        .expect_err("curved intersect refuses at the front door until PR 9c");
-    assert!(matches!(e2, topo::BooleanError::CurvedOpUnsupported { .. }));
 }
 
 #[test]

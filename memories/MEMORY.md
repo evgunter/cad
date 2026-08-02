@@ -20,3 +20,4 @@
 - [Resume vs fresh subagent](resume-vs-fresh-subagent.md) — stalled >1h + remaining work fully specifiable → fresh agent, not transcript resume
 - [Local battery scope](local-battery-scope.md) — touched-crate checks only; the full matrix is hosted CI's job
 - [Equivariance principle](equivariance-principle.md) — maintain isometry-equivariance where free; premise unaudited; S8 rung 3 is the first designed residual
+- [Curved containment fallback](curved-containment-fallback.md) — the boolean's no-crossings fallback probes VERTICES, which a curved boundary defeats; union meters a half-buried ball as contained (16.0 for 17.309), reproduced on 3ef715e; SPHERE-ONLY today (cone/torus refuse at gate_planar, NURBS unconstructible) and the extent-test fix cannot cover NURBS; PR 12's die pips wait on this AND the join lane

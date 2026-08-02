@@ -356,23 +356,41 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     strategy: SweepStrategy,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear()?;
-    // The curved subtract/intersect FRONT DOOR (M5 PR 9 fix pass,
-    // MAJ-3): both ops route regions through `revert`
-    // (A∖B ≡ A∩revert(B), the §15.9 posture), and the revert lane is
-    // planar-only in this build — curved revert (curved-surface
-    // orientation flips plus the pcurve re-mint behind them) has no
-    // representation to write at all — M5 PR 9c executed it and
-    // returned a ratified-representation question (M5-LOG deviation
-    // 3), so PR 12's die pips (subtraction) stay gated on it.
-    // Refused HERE, up front and typed, rather than deep inside the
-    // pipeline behind a stale planar-era message. Union is the live
-    // curved op.
+    // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
+    // (M5 S12; C12.1 — retire per class, never wholesale).
+    //
+    // It used to refuse on ANY non-plane face, because both ops route
+    // regions through `revert` (A∖B ≡ A∩revert(B), the §15.9 posture)
+    // and `revert` was planar-only. That premise is gone: S10 ratified
+    // `Face::sense`, S11 made the incoming bits honest, S12 wired the
+    // flip — so `Cylinder` operands, whose germ pairs have a live join
+    // lane, now go all the way through and are pinned end-to-end.
+    //
+    // What is NOT retired is the classes with no seam lane behind them.
+    // `Sphere`/`Cone`/`Torus` germ pairs have no join arm at all
+    // (PR 9c deviation 1) and NURBS faces have no crossing layer
+    // (deviation 5) — and their failure mode is not a typed refusal
+    // downstream but a SILENT one: with no crossings found the pipeline
+    // falls through to vertex-probed containment, and a curved face
+    // leaves the other solid between its vertices without any vertex
+    // noticing. The executed witness and its merge-base reproduction are
+    // pinned as `finding_sphere_class_containment_fallback_is_wrong_today`
+    // — the same wrong answer stands on ∪ on main, which is why this
+    // door does not touch ∪: ∪'s behaviour is left exactly as it was and
+    // the defect is pinned rather than improvised over inside a revert
+    // unit.
+    //
+    // Structural, exact and up front: an arena scan of surface kinds, no
+    // reduction work before it, operands untouched.
     if !matches!(op, BooleanOp::Union) {
         for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
             for (face, fd) in body.faces() {
                 if !matches!(
                     body.get_surface(fd.surface),
-                    Some(geom_surfaces::Surface::Plane { .. })
+                    Some(
+                        geom_surfaces::Surface::Plane { .. }
+                            | geom_surfaces::Surface::Cylinder { .. }
+                    )
                 ) {
                     return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
                 }

@@ -501,30 +501,48 @@ pub enum BooleanError {
         /// The underlying Euler refusal.
         source: EulerOpError,
     },
-    /// Subtract/intersect met a CURVED operand (M5 PR 9): these ops
-    /// route regions through `revert` (A∖B ≡ A∩revert(B), §15.9), and
-    /// the revert lane — curved-surface orientation flips plus the
-    /// pcurve re-mint behind them — is planar-only in this build.
-    /// M5 PR 9c EXECUTED that lane and returned it as a ratified-
-    /// representation question rather than an implementation task: an
-    /// orientation-reversed cylinder, cone or torus has no
-    /// representation to write down at all (the chart normal is odd in
-    /// the radius, so it is outward for either sign), and a reversed
-    /// SPHERE is representable only as the negative-radius sphere the
-    /// `radius > 0` convention rejects and the `2r`-metered consumers
-    /// invert — `RevertError::UnsupportedSurface` carries the scoped
-    /// proof and the review's executed probe.
+    /// Subtract/intersect met a surface class with **no boolean seam
+    /// lane** (M5 PR 9 → narrowed per class in M5 S12).
     ///
-    /// **That question is now RATIFIED and landed** (M5 S10,
-    /// 2026-08-02): option (a), [`crate::entity::Face::sense`], with
-    /// the outward-normal consumer audit threaded behind it. S10 stopped
-    /// at the contract plus the audit, so this refusal outlives it by
-    /// exactly one unit: wiring `revert` to flip the bit is the
-    /// immediately following unit, and THAT is what retires this
-    /// variant's reachability for the analytic surfaces. UNION stays
-    /// the live curved boolean meanwhile, and M5 PR 12's die pips stay
-    /// gated on the wiring unit rather than on a design question. A
-    /// front-door refusal: no reduction work happens first.
+    /// **What it used to be.** A wholesale gate: any non-plane face on
+    /// either operand refused ∖ and ∩ before a single reduction step,
+    /// because both ops route regions through `revert`
+    /// (A∖B ≡ A∩revert(B), §15.9) and the revert lane was planar-only.
+    /// M5 PR 9c executed that lane and returned it as a ratified-
+    /// representation question rather than an implementation task.
+    ///
+    /// **That question is ratified and shipped.** S10 landed
+    /// [`crate::entity::Face::sense`] with the outward-normal consumer
+    /// audit; S11 made the constructors' bits honest (a concave or
+    /// inward wall reads `false`); S12 wired `revert` to flip them and
+    /// made splitting's `mef` re-mints inherit the parent bit. So
+    /// plane×**cylinder** ∖ and ∩ are LIVE — blind holes, through
+    /// holes, two-shell results, mixed-sense splits — with exact
+    /// closed-form volumes at tier 3 in both sweep strategies.
+    ///
+    /// **What still refuses, per class, and why it refuses HERE.** The
+    /// blocker left is a JOIN lane, not `revert`:
+    ///
+    /// - **Sphere / cone / torus**: the germ-pair join dispatch wires
+    ///   exactly one arm, `(Plane, Cylinder)` (PR 9c deviation 1), and
+    ///   a fitted-chord window needs `Pcurve::Fitted`, itself blocked
+    ///   on the SSI enclosure stack being `f64`-only (deviation 2).
+    /// - **NURBS**: no edge×NURBS-face crossing layer at all
+    ///   (deviation 5).
+    ///
+    /// These are refused UP FRONT because their downstream failure is
+    /// **silent, not typed**: with no crossings found the pipeline
+    /// falls through to vertex-probed containment, and a curved face
+    /// can leave the other solid between its vertices without any
+    /// vertex noticing. The executed witness — a ball half-buried in a
+    /// slab, metered as if wholly contained — is pinned as
+    /// `finding_sphere_class_containment_fallback_is_wrong_today` in
+    /// `crates/sweep/tests/m5_s12_curved_ops.rs`, with its merge-base
+    /// reproduction recorded. That defect predates S12 and stands on
+    /// **union** too; S12 deliberately does not change ∪'s behaviour
+    /// (a revert-wiring unit is the wrong place to re-cut the
+    /// containment fallback), so ∪ is not gated here and the row is
+    /// what keeps it visible.
     CurvedOpUnsupported {
         /// The refused op (never `Union`).
         op: BooleanOp,
@@ -694,18 +712,31 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::CurvedOpUnsupported { op, operand, face } => write!(
                 f,
-                "boolean: {op:?} on a curved operand (operand {operand:?}, first curved \
-                 face {face:?}) is not wired in this build — subtract/intersect route \
-                 regions through revert (A∖B ≡ A∩revert(B)), and the curved revert \
-                 lane (curved-surface orientation flips + the pcurve re-mint) is \
-                 planar-only, and M5 PR 9c executed it and found no representation \
-                 for a reversed curved surface that this build may write: outward \
-                 for either sign of the radius on the cylinder/cone/torus, and on \
-                 the sphere only the convention-violating negative radius (see \
-                 RevertError's scoped proof) — closing it is a ratified \
-                 representation change, not an implementation task, so PR 12's die \
-                 pips stay gated on it. UNION is the live curved boolean; split the \
-                 work as unions meanwhile"
+                "boolean: {op:?} met a surface class with no seam lane (operand \
+                 {operand:?}, first such face {face:?}). This door was WHOLESALE \
+                 until M5 S12 — it refused every non-plane face, because \
+                 subtract/intersect route regions through revert \
+                 (A∖B ≡ A∩revert(B)) and curved revert had nothing it could \
+                 write on a curved face. That gap is CLOSED: S10 ratified Face::sense, S11 made the \
+                 constructors' bits honest, S12 wired revert to flip them, and \
+                 plane×CYLINDER subtract and intersect are now live and pinned \
+                 end-to-end (blind and through holes, exact closed-form volumes, \
+                 tier 3, both sweep strategies). What is still refused is per \
+                 class, and the blocker is a JOIN lane, not revert: a \
+                 sphere/cone/torus germ pair has no join arm at all (M5 PR 9c \
+                 deviation 1 — the germ-pair dispatch wires exactly one arm, \
+                 (Plane, Cylinder), and a fitted-chord window needs Pcurve::Fitted, \
+                 itself blocked on the f64-only SSI enclosure stack, deviation 2), \
+                 and a NURBS face has no crossing layer (deviation 5). The refusal \
+                 is UP FRONT and structural because the downstream failure is \
+                 SILENT, not typed: with no crossings found the pipeline falls \
+                 through to vertex-probed containment, and a curved face leaves the \
+                 other solid between its vertices with no vertex noticing — the \
+                 executed witness is the sphere-class row \
+                 finding_sphere_class_containment_fallback_is_wrong_today, which \
+                 reproduces on the merge base and is why UNION (unchanged by S12) \
+                 is not gated here but pinned there. Recourse: express the cut with \
+                 cylindrical tooling, or wait on the join lane"
             ),
             Self::Pcurves { source } => write!(
                 f,
