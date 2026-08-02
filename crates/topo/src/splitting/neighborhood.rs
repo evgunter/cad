@@ -58,10 +58,21 @@ use crate::validate::decide;
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
 /// base vertex** and whether the surface is a plane. For a `Plane` the
-/// normal is the stored one (the M3 path, bit-identical); for a
-/// `Cylinder` (M5 PR 5) it is the chart-outward radial at the vertex
-/// point — the local normal every sector predicate meters through.
-/// Kinds the gate refuses are typed here too (unreachable post-gate).
+/// normal is the stored one (the M3 path); for a `Cylinder` (M5 PR 5)
+/// it is the chart-outward radial at the vertex point — the local
+/// normal every sector predicate meters through. Kinds the gate
+/// refuses are typed here too (unreachable post-gate).
+///
+/// **Both arms are multiplied by the face's `sense_sign`** (S10):
+/// each reads a chart normal and returns it as the face's OUTWARD
+/// normal, and the chart is the only orientation encoding they have.
+/// This is the splitting lane's chokepoint, the twin of the boolean's
+/// `boolean::sectors::sector_face`: `rules::apply_rule_a`'s
+/// `enters_material` call, the reflex/bisector algebra below, and the
+/// departure trileans all consume this value and are sense-invariant
+/// GIVEN it — they pair it with the STORED orbit order, which `revert`
+/// reverses together with the sense bit, so a second `sense_sign`
+/// factor at any of those sites would cancel this one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -79,8 +90,9 @@ pub(super) fn sector_face<T: Decide>(
     let face = body
         .get_face(face_key)
         .ok_or(SplitReduceError::CorruptOperand { vertex })?;
+    let sense = face.sense_sign::<T>();
     match body.get_surface(face.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok((face_key, *normal, true)),
+        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok((face_key, *normal * sense, true)),
         Some(geom_surfaces::Surface::Cylinder { origin, axis, .. }) => {
             let p = *body
                 .get_point(
@@ -91,7 +103,7 @@ pub(super) fn sector_face<T: Decide>(
                 .ok_or(SplitReduceError::CorruptOperand { vertex })?;
             let w = p - *origin;
             let radial = w - *axis * w.dot(*axis);
-            Ok((face_key, radial.normalize(), false))
+            Ok((face_key, radial.normalize() * sense, false))
         }
         Some(s) => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: face_key,

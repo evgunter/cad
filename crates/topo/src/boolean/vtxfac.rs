@@ -94,7 +94,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Entries = the bounds in orbit order (entry k = sector k's END
     // bound: real chord or subdivision bisector), classed against the
-    // pierced face's plane via the F3 primitive.
+    // pierced face's plane via the F3 primitive. `plane.normal` is the
+    // pierced face's OUTWARD normal (S10, threaded by `face_plane`) —
+    // In/Out here is a material verdict and reads backwards off a
+    // chart normal on a reversed face.
     let mut entries = Vec::with_capacity(n);
     for s in &sectors {
         entries.push(Entry {
@@ -128,9 +131,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             });
         };
         let pierced_op = piercing.other();
+        // Oriented sources (S10): `sector_plane` and `plane` are both
+        // OUTWARD normals, so rung 1's syntactic Same± verdict has to
+        // see the face senses as well as the surfaces' `orient` tags.
+        let (g1, g2) = (
+            super::reduce::face_plane_source(piercing_body, s.face),
+            super::reduce::face_plane_source(pierced_body, contact.face),
+        );
         let id = super::PlaneIdentity {
-            s1: super::reduce::face_source(piercing_body, s.face),
-            s2: super::reduce::face_source(pierced_body, contact.face),
+            s1: g1.as_ref(),
+            s2: g2.as_ref(),
             declared: declared.contains(piercing, s.face, pierced_op, contact.face),
         };
         let rel = match super::oriented_plane_eq(&sector_plane, &plane, id, s.arm, band) {
@@ -428,6 +438,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 /// intersection direction of the transition sector's face plane with
 /// the pierced plane, signed to lie within the sector (grazes count —
 /// an on-edge germ IS a bound). Ambiguity refuses loudly.
+///
+/// Sense-invariant given its sources (S10): the cross product names a
+/// LINE and `within` picks the ray, so neither normal's sign survives
+/// into the answer. Both arrive oriented already — `s.normal` from
+/// `sectors::sector_face`, `plane_normal` from `reduce::face_plane` —
+/// and neither is multiplied again here.
 fn pierce_germ_dir<T: Decide>(
     s: &super::sectors::BoolSector<T>,
     plane_normal: geom_core::Vec3<T>,

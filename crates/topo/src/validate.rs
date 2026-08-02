@@ -459,7 +459,17 @@ pub enum ValidationError {
     /// a documented deferral (M5 S1 fix pass). A role inversion is
     /// invisible to every volume gate (they are role-invariant) but
     /// silently corrupts tessellation/export — exactly the defect
-    /// class this check closes structurally. `Zero` and escalated
+    /// class this check closes structurally.
+    ///
+    /// **Since M5 S10 this is also the sense gate.** The outward normal
+    /// is `Face::sense_sign() · chart_normal`, so the comparison is
+    /// between the face's two independent encodings of one fact: the
+    /// stored `sense` bit and the loops' stored winding (interior-left
+    /// ⇒ the outer loop winds CCW about the outward normal). A body
+    /// whose face sense disagrees with its winding is INSIDE-OUT, and
+    /// this is the check that refuses it — nothing else can, since the
+    /// signed volume is itself winding-derived and therefore blind to
+    /// a lone `sense` flip. `Zero` and escalated
     /// windings are exempt (the check-7 posture: an orientation probe,
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
@@ -1468,16 +1478,25 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   at M2.
 /// - **The material wedge side** (lamina/zero-volume detection, wedge
 ///   0 vs 2π vs the legal π): distinguishing them needs the faces'
-///   material sense at the edge, which curved-face orientation
-///   machinery (M3 pcurves) unlocks; at M2 the dihedral pass classifies
-///   the *tangent-plane* wedge only.
+///   material sense **at the edge** — which side of each surface the
+///   solid occupies *there*. Since M5 S10 the per-face half of that is
+///   no longer missing: [`crate::Face::sense`] states it globally per
+///   face (outward normal = `sense_sign · chart normal`), and check 6
+///   below certifies the statement against the loop windings on planar
+///   faces. What is still absent is the *edge-local* pairing —
+///   orienting each face's tangent plane at a sample of the shared
+///   carrier and measuring the wedge the two material sides subtend,
+///   which wants the curved-face pcurve machinery. At present the
+///   dihedral pass (check 4) classifies the *tangent-plane* wedge
+///   only: unsigned, so it sees a sliver but not a lamina.
 /// - **Face-boundary containment on curved surfaces** (a face's loops
 ///   actually bounding a region of its surface) — M3, with pcurves.
 ///   The **planar** case is now covered between vertices by check 5
-///   (sample containment against adjacent planar faces); what remains
-///   deferred is containment against curved surfaces and the
-///   region-bounding statement itself (winding/orientation of loops on
-///   the surface).
+///   (sample containment against adjacent planar faces), and its
+///   orientation half by check 6 (loop-role winding against the
+///   outward normal, line-bounded loops); what remains deferred is
+///   containment against curved surfaces and the region-bounding
+///   statement for arc-bounded planar faces and curved faces.
 /// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
 ///   `u_ref ⊥ axis`): partially implied by the residual checks (a
 ///   non-unit frame breaks the carrier-vs-description comparisons),
@@ -1602,6 +1621,12 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
     // ------------------------------------------------------------------
     // Tier 3, check 3: planar-face vertex residuals (face-arena order;
     // outer loop then rings; vertices in cycle order).
+    //
+    // S10 CATEGORY C (orientation-free): the margin `(p − origin)·n` is
+    // tested against `Zero`, and `Zero` is invariant under negating
+    // `n` — the plane as a POINT SET does not depend on which side the
+    // material is. Threading `sense_sign` here would flip
+    // Positive↔Negative in a decision that never distinguishes them.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(&Surface::Plane { origin, normal, .. }) = body.surfaces.get(face.surface) else {
@@ -1665,6 +1690,15 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
     //    the minus face when distinct; first failing sample, one error
     //    per edge-face pair). Curved-face containment stays deferred
     //    (M3, pcurves — the not-yet-checked list).
+    //
+    // S10 CATEGORY C, both: neither reads a face orientation at all.
+    // Check 4 takes the two SURFACES (never the faces) and classifies
+    // the UNSIGNED tangent-plane wedge from implicit-form gradients —
+    // it distinguishes transverse from smooth, never which side the
+    // material is on (that is the deferred material-wedge check, named
+    // in the header). Check 5 tests `(p − origin)·n` against `Zero`,
+    // sign-invariant for the same reason as check 3. `sense_sign` is
+    // deliberately absent from both.
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
         // Null scaffolding cannot reach the tier-3 passes: the coarse
@@ -1922,7 +1956,7 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
             } else {
                 Sign::Positive
             };
-            if decide("bool_ring_run_winding", normal.dot(newell), band) == Ok(wrong) {
+            if decide("bool_ring_run_winding", outward.dot(newell), band) == Ok(wrong) {
                 errors.push(ValidationError::LoopRoleInverted {
                     face: face_key,
                     r#loop: l,
@@ -1947,6 +1981,17 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
     // Gated on a clean report: on a geometrically corrupt body the
     // volume is meaningless cascade noise (same discipline as the
     // tier-2 gate above).
+    //
+    // S10: the sense handling is INHERITED, not repeated here.
+    // `crate::props` owns it and applies `Face::sense_sign` at exactly
+    // one site (the rimless sphere band, the sole flux sign no
+    // boundary traversal encodes); every other term of the flux is
+    // derived from the stored loop windings and is therefore
+    // sense-invariant by derivation. Multiplying anything at this call
+    // site would double-count. Note the consequence, which is why
+    // check 6 exists: a lone `sense` flip changes no winding, so the
+    // volume this check reads is BLIND to it — check 7 cannot detect
+    // an inside-out planar face and does not claim to.
     // ------------------------------------------------------------------
     if errors.is_empty() {
         match crate::props::mass_properties_with(body, band) {
@@ -4058,6 +4103,41 @@ mod tests {
         assert_eq!(validate_closed(&ops_cube().body), Ok(()));
         assert_eq!(validate_closed(&ops_holed_box().body), Ok(()));
         assert_eq!(validate_closed(&ops_genus2()), Ok(()));
+    }
+
+    /// The S10 gate (check 6): a hand-flipped `Face::sense` makes the
+    /// body inside-out at that face, and tier 3 must REFUSE it — the
+    /// sense bit and the loop windings are two encodings of one fact,
+    /// and check 6 is the only at-rest check that compares them. Also
+    /// pins the negative half of the acceptance criterion: the
+    /// unflipped fixture still validates bit-identically (every
+    /// constructor mints `sense: true`, and `· +1` changes nothing).
+    #[test]
+    fn tier_three_refuses_a_hand_flipped_face_sense() {
+        let cube = ops_cube().body;
+        assert_eq!(validate_geometric(&cube), Ok(()), "the fixture is clean");
+        let (face, f) = cube.faces.iter().next().expect("cube has faces");
+        let outer = f.outer;
+        let flipped = cube
+            .flipped_face_sense_for_tests(face)
+            .expect("live face key");
+        let errors = validate_geometric(&flipped).expect_err("inside-out at one face");
+        assert!(
+            errors.contains(&ValidationError::LoopRoleInverted {
+                face,
+                r#loop: outer,
+            }),
+            "check 6 must name the inverted face's outer loop; got {errors:?}"
+        );
+        // And why check 6 has to carry this alone: the +V invariant is
+        // computed from the loop windings, which a lone sense flip does
+        // not touch — the two bodies have the SAME volume, so check 7
+        // could not refuse the flipped one even if it ran.
+        assert_eq!(
+            crate::props::mass_properties(&cube).map(|m| m.volume),
+            crate::props::mass_properties(&flipped).map(|m| m.volume),
+            "check 7 is winding-derived and cannot see a lone sense flip"
+        );
     }
 
     #[test]

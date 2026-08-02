@@ -25,6 +25,17 @@ pub(crate) fn band() -> Result<Band, NamingError> {
 /// Per vertex: `name_frag_side_of` (margin in meters); `Zero`
 /// verdicts (on-carrier seam vertices) are neutral; in-band
 /// escalates typed.
+///
+/// **`normal` must be the partner face's OUTWARD normal** (S10
+/// category A). The verdict IS the sign of `(p − origin) · normal`, so
+/// the reference's orientation is not a convenience here — it is the
+/// entire discriminator, and it goes straight into a stable name as
+/// `Qualifier::SideOf`. Negating it swaps every Positive for a
+/// Negative and renames fragments that never moved. Callers obtain the
+/// oriented plane from `emit_topo::face_plane`, which applies
+/// `topo::Face::sense_sign` once, at the read; this function
+/// deliberately does not re-apply it (it is handed a plane, not a
+/// face) and must not, or the two would cancel.
 pub(crate) fn side_of_face<T: Decide>(
     body: &Body<T>,
     f: FaceKey,

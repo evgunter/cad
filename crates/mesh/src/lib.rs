@@ -78,7 +78,24 @@
 //! Outward triangle winding falls out of the loop conventions (D1
 //! interior-left): the boundary walk's UV polygon is CCW exactly when
 //! the face's outward normal agrees with the chart normal; a negative
-//! UV signed area flips the emitted triangles. Periodic charts are
+//! UV signed area flips the emitted triangles.
+//!
+//! **The orientation-sense contract (M5 S10).** A face's outward
+//! normal is `topo::Face::sense_sign() · chart_normal`, so "agrees
+//! with the chart normal" is now a real question with a stored answer
+//! — and the paragraph above is why this crate almost never has to ask
+//! it. Winding is read off the loop's *stored traversal*, and `revert`
+//! reverses the loops and flips `sense` together, so a reversed face
+//! arrives with a negative UV/projected area and flips itself.
+//! Multiplying those shoelaces by `sense_sign` would double-count the
+//! reversal — the hazard is named in place at both sites (`planar`,
+//! `curved`). The single exception is the pole-to-pole band's
+//! azimuth disambiguation below, which reads a *direction in the chart
+//! frame* rather than a winding; it is the one `sense_sign` read in
+//! this crate. Every face this build mints has `sense: true`, so that
+//! read is `· 1.0` and the mesh is bitwise unchanged.
+//!
+//! Periodic charts are
 //! unwrapped by continuity along the walk (chord steps are capped at
 //! π/4, so branch choice is unambiguous); a full-2π patch traverses its
 //! seam meridian twice, at u = 0 and u = 2π, with both traversals
@@ -89,8 +106,11 @@
 //! mesh vertex; `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
 //! bands (no rim in the loop) disambiguate their azimuth half via the
-//! loop's 3-D area vector — see [`walk`] (documented assumption:
-//! outward-oriented shells, true of every M2 body).
+//! loop's 3-D area vector, taken into the chart frame through the
+//! face's `sense_sign` — see [`walk`]. (That threading replaced the
+//! former "assumes outward-oriented shells" assumption; the band is
+//! the same face kind whose flux sign `geom_brep::props::curved`
+//! cannot read off any rim, and it takes the same fix.)
 //!
 //! # Determinism (D9)
 //!

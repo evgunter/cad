@@ -246,6 +246,12 @@ fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, Boo
 /// the two sector faces' planes, signed to lie within both sectors
 /// (grazes count — an on-bound germ's direction IS the bound). An
 /// ambiguous or coplanar configuration refuses loudly.
+///
+/// Sense-invariant given its sources (S10): `±(n_a × n_b)` is a LINE,
+/// and the sign is chosen by sector membership, not by either normal —
+/// flipping a normal flips the raw cross product and the `within`
+/// verdicts pick the same ray back out. The normals arrive already
+/// oriented from `sectors::sector_face`; nothing is multiplied here.
 fn germ_dir<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,

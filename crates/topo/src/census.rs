@@ -10,6 +10,16 @@
 //! that produce 3′ bodies enforce); any other entity refuses loudly
 //! ([`ValidationError::CensusUnsupported`]), never samples.
 //!
+//! **Sense-invariant** (M5 S10 audit). Every use of a face's plane
+//! `normal` here is either an on-plane residual compared against
+//! `Sign::Zero` (does this point/segment LIE on the face's carrier?)
+//! or the in-plane frame of a ray-crossing PARITY count
+//! (`contfp`-style containment). Neither reads a side: negating the
+//! normal leaves a zero residual zero and leaves a crossing count
+//! unchanged. So the census needs no `sense_sign`, and multiplying
+//! one in would be noise, not caution — coincidence is a question
+//! about position, never about which way the material lies.
+//!
 //! **Certification (F1/F2(iii))**: the census never blesses — every
 //! finding must be *backed* by a declaration and every declaration
 //! must be *confirmed* by geometry; both directions are typed errors.
