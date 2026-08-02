@@ -144,7 +144,7 @@ pub fn stops() -> Vec<Stop> {
     let narration_below = section_narration("tiltedcut_below", &below);
     vec![Stop {
         name: "tiltedcut",
-        caption: "tilted cut — a cylinder sectioned on an exact ellipse".to_string(),
+        caption: "tilted cut (exact ellipse section)".to_string(),
         montage: true,
         story: "the tilted cut RENDERS (M5 PR 11): the section edges carry an EXACT \
                 ellipse, the cut walls tessellate through the pcurve-driven trimmed \

@@ -147,7 +147,10 @@ pub fn stops() -> Vec<Stop> {
     let seam_arcs = assert_seam_chords_shared(&bb.body, 1e-2);
     vec![Stop {
         name: "bossplate",
-        caption: "boss ∪ plate — the first curved boolean, watertight across its seam".to_string(),
+        // Short — montage captions share the panel's width (review
+        // NOTE: the long form truncated and collided with its
+        // neighbour); the story/note carry the long narration.
+        caption: "boss ∪ plate (first curved boolean)".to_string(),
         montage: true,
         story: "a cylindrical boss unioned into a plate — the milestone's first \
                 transverse curved boolean, rendered",

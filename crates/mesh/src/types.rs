@@ -157,4 +157,16 @@ pub enum TessellateError {
         /// The face being triangulated.
         face: FaceKey,
     },
+    /// A trimmed face's boundary polyline passes EXACTLY through
+    /// another boundary chord point of the same loop (a self-touching
+    /// trim loop): the CDT would realise one face's constraint through
+    /// a vertex its neighbour does not share — a 3-D T-junction no
+    /// grid-retry can repair. No at-rest construction mints one (split
+    /// sections and boolean seams are simple loops); the arm is the
+    /// watertightness backstop's tripwire (M5 PR 11 review MIN-1),
+    /// kept typed rather than silent.
+    SelfTouchingTrimLoop {
+        /// The face whose trim loop touches itself.
+        face: FaceKey,
+    },
 }

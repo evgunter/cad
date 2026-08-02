@@ -568,7 +568,7 @@ impl DerivLadder {
 
     /// Hull of the `order`-th derivative over `[lo, hi]`, assuming the
     /// piece is knot-free (module docs). `order` ∈ 1..=3.
-    fn hull(&self, parent_kv: &KnotVector, order: usize, lo: f64, hi: f64) -> RingInterval {
+    fn hull(&self, order: usize, lo: f64, hi: f64) -> RingInterval {
         match &self.levels[order - 1] {
             // In-span polynomial zero (degree exhausted).
             None => RingInterval::zero(),
@@ -577,7 +577,6 @@ impl DerivLadder {
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
             Some((None, q)) => {
-                let _ = parent_kv;
                 let mut acc = RingInterval::poison();
                 for (n, c) in q.iter().enumerate() {
                     acc = if n == 0 {
@@ -657,7 +656,7 @@ pub fn bspline_green_integral(
         let uh = bspline_range_hull(kv, u_coeffs, p_lo, p_hi);
         let v1h = match v1_kv {
             Some(k) => bspline_range_hull(k, v1, p_lo, p_hi),
-            None => v_ladder.hull(kv, 1, p_lo, p_hi),
+            None => v_ladder.hull(1, p_lo, p_hi),
         };
         if straddles {
             // Smoothness-free rule across the knot.
@@ -671,9 +670,9 @@ pub fn bspline_green_integral(
                 None => v1h,
             };
         // f\'\' = u\'\'·v\' + 2·u\'·v\'\' + u·v\'\'\' over the knot-free piece.
-        let f2 = u_ladder.hull(kv, 2, p_lo, p_hi) * v1h
-            + pt(2.0) * u_ladder.hull(kv, 1, p_lo, p_hi) * v_ladder.hull(kv, 2, p_lo, p_hi)
-            + uh * v_ladder.hull(kv, 3, p_lo, p_hi);
+        let f2 = u_ladder.hull(2, p_lo, p_hi) * v1h
+            + pt(2.0) * u_ladder.hull(1, p_lo, p_hi) * v_ladder.hull(2, p_lo, p_hi)
+            + uh * v_ladder.hull(3, p_lo, p_hi);
         total = total + pt(h) * fm + f2 * h3_24;
     }
     Ok(total)
@@ -858,6 +857,185 @@ mod tests {
             "{out:?} must bracket {exact}"
         );
         assert!(out.width() < 1e-6, "width {}", out.width());
+    }
+
+    /// Review MIN-2 pin (adopted): the endpoint-bracket pad's factor-2
+    /// absorbs the trig0 PHASE-SHIFT term, not just the limit
+    /// mismatch. The scan places the TRUE endpoints at the corners and
+    /// edges of width-4e-3 brackets (trig0 anchored at the true t₀,
+    /// integration limits at the bracket midpoints) and asserts the
+    /// engine's enclosure contains a dense Kahan-summed oracle of the
+    /// true integral at every placement.
+    #[test]
+    fn endpoint_bracket_phase_shift_corner_scan() {
+        let w = 4e-3;
+        // (fraction of w for true t0 off mid, same for t1): 4 corners,
+        // 2 single-edge, center — 7 placements.
+        let placements = [
+            (-0.5, -0.5),
+            (-0.5, 0.5),
+            (0.5, -0.5),
+            (0.5, 0.5),
+            (-0.5, 0.0),
+            (0.0, 0.5),
+            (0.0, 0.0),
+        ];
+        // A strong linear channel against trig channels (the
+        // phase-shift term is c_l-shaped).
+        let u = chan(0.3, 0.0, 0.0, 1.0);
+        let v = chan(2.0, 0.7, 0.4, 0.3);
+        let (mid0, mid1) = (0.2, 5.9);
+        for (d0, d1) in placements {
+            let t0_true = mid0 + d0 * w;
+            let t1_true = mid1 + d1 * w;
+            let e = TrimEdgeQ {
+                u,
+                v,
+                t0: RingInterval::from_bounds(mid0 - w * 0.5, mid0 + w * 0.5),
+                t1: RingInterval::from_bounds(mid1 - w * 0.5, mid1 + w * 0.5),
+                forward: true,
+                trig0: (pt(t0_true.cos()), pt(t0_true.sin())),
+                env: pt(0.0),
+            };
+            let enclosure = harmonic_edge_integral(&e, 65_536, pt(1.0));
+            // Dense Kahan-summed midpoint oracle of the TRUE integral.
+            let truth = kahan_dense_oracle(&u, &v, t0_true, t1_true, 400_000);
+            assert!(
+                enclosure.lo() <= truth && truth <= enclosure.hi(),
+                "placement ({d0}, {d1}): truth {truth} escapes {enclosure:?} — the \
+                 endpoint pad's two-term accounting failed"
+            );
+        }
+    }
+
+    /// Dense midpoint oracle with Kahan (compensated) summation — the
+    /// reviewer's independent-integration shape.
+    fn kahan_dense_oracle(u: &HarmChan, v: &HarmChan, a: f64, b: f64, n: u32) -> f64 {
+        let (mut sum, mut c) = (0.0f64, 0.0f64);
+        let h = (b - a) / f64::from(n);
+        for i in 0..n {
+            let t = a + h * (f64::from(i) + 0.5);
+            let uu = u.c0.lo() + u.ca.lo() * t.cos() + u.cb.lo() * t.sin() + u.cl.lo() * t;
+            let vp = v.cl.lo() + v.cb.lo() * t.cos() - v.ca.lo() * t.sin();
+            let term = uu * vp * h - c;
+            let s2 = sum + term;
+            c = (s2 - sum) - term;
+            sum = s2;
+        }
+        sum
+    }
+
+    /// Review probe family (adopted): three adversarial faces against
+    /// dense Kahan-summed oracles — a near-pinching sinusoid band, a
+    /// thin sliver band, and a mixed forward/reversed loop with large
+    /// linear channels. Bound below truth anywhere = automatic MAJOR.
+    #[test]
+    fn adversarial_faces_contain_their_dense_oracles() {
+        let tau = core::f64::consts::TAU;
+        let band = geom_core::Band::linear().unwrap();
+        let eps = Tolerance::get().eps;
+        let seam = |u_at: f64, v_hi: f64, forward: bool| TrimEdgeQ {
+            u: chan(u_at, 0.0, 0.0, 0.0),
+            v: chan(0.0, 0.0, 0.0, 1.0),
+            t0: pt(0.0),
+            t1: pt(v_hi),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let rim = |forward: bool| TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v: chan(0.0, 0.0, 0.0, 0.0),
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        // (a) near-pinching band: v(u) = 1 + 0.999·sin u (dips to 1e-3).
+        let pinch_top = TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v: chan(1.0, 0.0, 0.999, 0.0),
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward: false,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let face_a = vec![rim(true), seam(tau, 1.0, true), pinch_top, seam(0.0, 1.0, false)];
+        // (b) thin sliver: bottom v = 1 + 0.5·cos u, top 1e-3 above it.
+        let sliver_bot = TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v: chan(1.0, 0.5, 0.0, 0.0),
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward: true,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let sliver_top = TrimEdgeQ {
+            v: chan(1.0 + 1e-3, 0.5, 0.0, 0.0),
+            forward: false,
+            ..sliver_bot
+        };
+        // Both seams run v = 1.5 + 1e-3·t over t ∈ [0, 1] (the sliver
+        // gap at u = 0 ≡ 2π); traversal direction alone distinguishes.
+        let sliver_seam = |u_at: f64, forward: bool| TrimEdgeQ {
+            u: chan(u_at, 0.0, 0.0, 0.0),
+            v: chan(1.5, 0.0, 0.0, 1e-3),
+            t0: pt(0.0),
+            t1: pt(1.0),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let face_b = vec![
+            sliver_bot,
+            sliver_seam(tau, true),
+            sliver_top,
+            sliver_seam(0.0, false),
+        ];
+        // (c) mixed traversal with large linear channels: a skewed
+        // band whose top runs v = 3 + 0.8·t (t = u) reversed.
+        let skew_top = TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v: chan(3.0, 0.4, 0.0, 0.8),
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward: false,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let seam_c = |u_at: f64, v_hi: f64, forward: bool| TrimEdgeQ {
+            u: chan(u_at, 0.0, 0.0, 0.0),
+            v: chan(0.0, 0.0, 0.0, 1.0),
+            t0: pt(0.0),
+            t1: pt(v_hi),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        let face_c = vec![
+            rim(true),
+            seam_c(tau, 3.0 + 0.8 * tau, true),
+            skew_top,
+            seam_c(0.0, 3.0, false),
+        ];
+        for (label, edges) in [("pinch", face_a), ("sliver", face_b), ("skew", face_c)] {
+            let out = cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band)
+                .unwrap_or_else(|e| panic!("{label}: converges: {e:?}"));
+            // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed.
+            let mut truth = 0.0;
+            for e in &edges {
+                let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);
+                truth += if e.forward { s } else { -s };
+            }
+            assert!(
+                out.flux.lo() <= truth && truth <= out.flux.hi(),
+                "{label}: dense oracle {truth} escapes the certified flux {:?}",
+                out.flux
+            );
+        }
     }
 
     /// Rational channels refuse typed, naming the blocker.

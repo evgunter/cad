@@ -396,6 +396,64 @@ mod tests {
         }
     }
 
+    /// Review probe (adopted): the SPIKE carrier — an interpolated
+    /// cubic with one control point far off the line concentrates
+    /// |C″| in one span, driving the measured secant deviation to
+    /// 0.990–0.999 of the certified budget (the review's
+    /// falsification sweep). The pin is two-sided: never OVER budget
+    /// (soundness), and at least half of it (the fixture stays
+    /// adversarial — a slack rewrite of the bound fails here too).
+    #[test]
+    fn adversarial_spike_stays_inside_but_near_the_budget() {
+        let pts: Vec<Point3<f64>> = [
+            (0.0, 0.0),
+            (0.2, 0.01),
+            (0.4, 0.02),
+            (0.5, 0.9),
+            (0.6, 0.02),
+            (0.8, 0.01),
+            (1.0, 0.0),
+        ]
+        .iter()
+        .map(|&(x, y)| Point3::new(x, y, 0.0))
+        .collect();
+        let n = NurbsCurve3::interpolate(&pts, 3).unwrap();
+        let (d0, d1) = (n.knots().domain());
+        for delta_s in [1e-2, 1e-3, 1e-4] {
+            let count =
+                nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
+            #[allow(clippy::cast_precision_loss)]
+            let h = (d1 - d0) / count as f64;
+            let mut worst = 0.0f64;
+            for seg in 0..count {
+                #[allow(clippy::cast_precision_loss)]
+                let a = d0 + h * seg as f64;
+                let b = a + h;
+                let (pa, pb) = (n.eval(a), n.eval(b));
+                for k in 1..64 {
+                    let t = a + h * f64::from(k) / 64.0;
+                    let p = n.eval(t);
+                    let lam = f64::from(k) / 64.0;
+                    let chord = Point3::new(
+                        pa.x + (pb.x - pa.x) * lam,
+                        pa.y + (pb.y - pa.y) * lam,
+                        pa.z + (pb.z - pa.z) * lam,
+                    );
+                    worst = worst.max((p - chord).norm());
+                }
+            }
+            assert!(
+                worst <= delta_s * 1.0000001,
+                "spike deviation {worst} exceeds the certified budget {delta_s}"
+            );
+            assert!(
+                worst >= delta_s * 0.5,
+                "spike deviation {worst} fell below half the budget {delta_s} — the \
+                 adversarial fixture went slack (review measured 0.990-0.999)"
+            );
+        }
+    }
+
     /// Rational carriers refuse typed, naming the honest blocker.
     #[test]
     fn rational_nurbs_carrier_refuses_typed() {

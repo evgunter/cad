@@ -27,7 +27,10 @@
 //! such.
 //!
 //! Refresh the baseline with `CAD_LATENCY_BASELINE_REFRESH=1` and
-//! commit the result, saying so in the PR body.
+//! commit the result, saying so in the PR body. **Refresh only on a
+//! quiet machine; the `refreshed_under` provenance field is how the
+//! next reader audits that** (M5 PR 11 F5: a baseline refreshed under
+//! two-lane cargo contention once read as a phantom 30× speedup).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -146,6 +149,13 @@ fn refresh(rows: &[Row]) {
     let old = baseline();
     let out = serde_json::json!({
         "provenance": old.get("provenance").cloned().unwrap_or(serde_json::Value::Null),
+        // Refresh-time provenance (F5): the figures are only
+        // comparable across refreshes taken on a comparably quiet
+        // machine — record what this one looked like.
+        "refreshed_under": serde_json::json!({
+            "cargo_rustc_procs": build_proc_count(),
+            "mem_total_kb": mem_total_kb(),
+        }),
         "documents": docs,
     });
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(BASELINE);
@@ -158,6 +168,42 @@ fn refresh(rows: &[Row]) {
         "REFRESHED {} — review the provenance block before committing.",
         path.display()
     );
+}
+
+/// Concurrent `cargo`/`rustc` processes at refresh time (the refresh
+/// run's own `cargo test` is included — a count of 1-2 IS the quiet
+/// state; more means another lane was building).
+fn build_proc_count() -> usize {
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .chars()
+                .all(|c| c.is_ascii_digit())
+        })
+        .filter_map(|e| std::fs::read_to_string(e.path().join("comm")).ok())
+        .filter(|comm| {
+            let c = comm.trim();
+            c == "cargo" || c == "rustc"
+        })
+        .count()
+}
+
+/// Total system memory (kB), from `/proc/meminfo`.
+fn mem_total_kb() -> u64 {
+    std::fs::read_to_string("/proc/meminfo")
+        .ok()
+        .and_then(|text| {
+            text.lines().find_map(|l| {
+                l.strip_prefix("MemTotal:")
+                    .and_then(|rest| rest.trim().trim_end_matches(" kB").trim().parse().ok())
+            })
+        })
+        .unwrap_or(0)
 }
 
 #[test]

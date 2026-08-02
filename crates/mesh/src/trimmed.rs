@@ -28,12 +28,20 @@
 //! An interior grid point landing EXACTLY on a boundary constraint
 //! would split it inside spade, leaving this face triangulated against
 //! a sub-segment its neighbour does not share — a T-junction. The
-//! constraint pass therefore detects any constraint realised through
-//! an intermediate vertex, DROPS the offending grid points, and
+//! constraint pass therefore classifies every intermediate vertex of
+//! a realised constraint: GRID points are dropped and the pass
 //! rebuilds (deterministic, ≤ [`MAX_GRID_RETRIES`] rounds, then a
-//! typed [`TessellateError::Triangulation`]); dropping a grid point
+//! typed [`TessellateError::Triangulation`]) — dropping a grid point
 //! only coarsens triangles, and the per-triangle certificates remain
-//! the guarantee.
+//! the guarantee; a BOUNDARY point as intermediate is a self-touching
+//! trim loop, refused typed
+//! ([`TessellateError::SelfTouchingTrimLoop`]). That refusal has no
+//! at-rest fixture on purpose: split sections and boolean seams mint
+//! simple loops, and hand-building a self-touching one at the mesh
+//! layer would need a full body whose certified pcurve caches
+//! describe a loop the mint pass itself refuses (`LoopNotClosed`/
+//! continuity) — the arm stands as the backstop's tripwire (review
+//! MIN-1), not a reachable lane.
 
 use std::collections::{HashMap, HashSet};
 
@@ -147,7 +155,6 @@ pub(crate) fn tessellate_trimmed(
             }
             handles.push(h);
         }
-        let boundary_handle_count = meta.len();
         for j in 1..nv {
             for i in 1..nu {
                 if dropped.contains(&(i, j)) {
@@ -181,16 +188,34 @@ pub(crate) fn tessellate_trimmed(
                 return Err(TessellateError::Triangulation { face: fk });
             }
             if realised.len() > 1 {
-                // Identify and drop every intermediate grid vertex.
+                // Classify every intermediate vertex (a vertex of a
+                // realised sub-edge that is neither endpoint of THIS
+                // segment): a grid point drops and the pass rebuilds;
+                // a BOUNDARY point means the trim loop touches itself
+                // exactly on this segment — no rebuild can repair
+                // that, and silently keeping it would emit a 3-D
+                // T-junction (this face triangulated against a
+                // sub-segment its neighbour does not share). Refused
+                // TYPED (review MIN-1: the advertised watertightness
+                // backstop must not have a silent arm).
                 for e in &realised {
                     let e = cdt.directed_edge(*e);
                     for vh in [e.from(), e.to()] {
-                        let idx = vh.fix().index();
-                        if idx >= boundary_handle_count
-                            && let Slot::Grid { i, j } = meta[idx].2
-                        {
-                            dropped.insert((i, j));
-                            split_offender = true;
+                        let h = vh.fix();
+                        if h == a || h == b {
+                            continue;
+                        }
+                        let idx = h.index();
+                        match meta[idx].2 {
+                            Slot::Grid { i, j } => {
+                                dropped.insert((i, j));
+                                split_offender = true;
+                            }
+                            Slot::Boundary(_) => {
+                                return Err(TessellateError::SelfTouchingTrimLoop {
+                                    face: fk,
+                                });
+                            }
                         }
                     }
                 }
