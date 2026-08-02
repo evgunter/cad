@@ -4105,23 +4105,78 @@ mod tests {
         assert_eq!(validate_closed(&ops_genus2()), Ok(()));
     }
 
-    /// The S10 gate (check 6): a hand-flipped `Face::sense` makes the
-    /// body inside-out at that face, and tier 3 must REFUSE it — the
-    /// sense bit and the loop windings are two encodings of one fact,
-    /// and check 6 is the only at-rest check that compares them. Also
-    /// pins the negative half of the acceptance criterion: the
-    /// unflipped fixture still validates bit-identically (every
-    /// constructor mints `sense: true`, and `· +1` changes nothing).
+    /// Gives every face of `body` the Newell plane of its outer loop —
+    /// the minimum needed to reach check 6 from [`ops_cube`], whose
+    /// faces are raw `Nurbs` placeholders (check 6 only inspects
+    /// `Surface::Plane` faces, so on the raw fixture it is vacuous).
+    /// The loop order is the stored one, so the minted normal is the
+    /// face's OUTWARD normal — which is what `sense: true` claims.
+    fn plane_every_face(body: &mut Body<f64>) {
+        let band = Band::linear().unwrap();
+        let keys: Vec<FaceKey> = body.faces.keys().collect();
+        for face_key in keys {
+            let outer = body.get_face(face_key).unwrap().outer;
+            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+                continue; // empty loop: no polygon to fit
+            };
+            let points: Vec<Point3<f64>> = body
+                .loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .map(|he| {
+                    let v = body.get_half_edge(he).unwrap().start;
+                    *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+                })
+                .collect();
+            let plane = geom_brep::newell_plane(&points, band).unwrap();
+            body.set_face_surface(face_key, crate::FaceSurface::New(plane))
+                .unwrap();
+        }
+    }
+
+    /// **M5 S10 acceptance row 1: tier 3 is the sense gate (check 6).**
+    ///
+    /// A face's outward normal is `Face::sense_sign()` times its
+    /// surface's chart normal, and by the interior-left rule its outer
+    /// loop winds CCW about that outward normal. `sense` and the
+    /// stored winding are therefore two encodings of ONE fact, and
+    /// check 6 — the loop's Newell functional against the OUTWARD
+    /// normal — is exactly the gate that they agree.
+    /// [`Body::flipped_face_sense_for_tests`] inverts one bit and
+    /// nothing else, producing a body that is inside-out at that face;
+    /// tier 3 must refuse it, by name.
+    ///
+    /// The row also pins why check 6 carries this alone: the +V
+    /// invariant (check 7) is computed from the same loop windings,
+    /// which a lone sense flip does not touch, so both bodies meter
+    /// the identical volume — bit for bit. Nothing else in the at-rest
+    /// battery can see the defect.
+    ///
+    /// Bit-identity: the honest body's report is unchanged by the S10
+    /// threading (every constructor mints `sense: true`, so the
+    /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
+    /// before the flip". The fixture is [`ops_cube`] with real planes
+    /// grafted on; its twelve chords stay conventional, so the honest
+    /// report is the twelve `TransverseNotIntrinsic` complaints and
+    /// nothing else. (The all-green variant of this row, on the fully
+    /// certified cube, lives in `tests/geometric_cube.rs`.)
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
-        let cube = ops_cube().body;
-        assert_eq!(validate_geometric(&cube), Ok(()), "the fixture is clean");
-        let (face, f) = cube.faces.iter().next().expect("cube has faces");
+        let mut cube = ops_cube().body;
+        plane_every_face(&mut cube);
+        let honest = validate_geometric(&cube).unwrap_err();
+        assert!(
+            honest
+                .iter()
+                .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
+            "the grafted cube's only complaint is the conventional \
+             chords; got {honest:?}"
+        );
+
+        let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
-        let flipped = cube
-            .flipped_face_sense_for_tests(face)
-            .expect("live face key");
-        let errors = validate_geometric(&flipped).expect_err("inside-out at one face");
+        let flipped = cube.flipped_face_sense_for_tests(face).unwrap();
+        let errors = validate_geometric(&flipped).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {
                 face,
@@ -4129,13 +4184,15 @@ mod tests {
             }),
             "check 6 must name the inverted face's outer loop; got {errors:?}"
         );
+
         // And why check 6 has to carry this alone: the +V invariant is
         // computed from the loop windings, which a lone sense flip does
-        // not touch — the two bodies have the SAME volume, so check 7
+        // not touch — the two bodies meter the SAME volume, so check 7
         // could not refuse the flipped one even if it ran.
+        let volume = |b: &Body<f64>| crate::props::mass_properties(b).unwrap().volume;
         assert_eq!(
-            crate::props::mass_properties(&cube).map(|m| m.volume),
-            crate::props::mass_properties(&flipped).map(|m| m.volume),
+            volume(&cube).to_bits(),
+            volume(&flipped).to_bits(),
             "check 7 is winding-derived and cannot see a lone sense flip"
         );
     }
