@@ -1930,8 +1930,17 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
     if errors.is_empty() {
         match crate::props::mass_properties_with(body, band) {
             Ok(props) => {
+                // The margin consumes the CERTIFIED bound (M5 PR 11):
+                // for quadrature faces `volume` is an enclosure
+                // midpoint with half-width `volume_pad`, so the honest
+                // "definitely negative" statement is about the UPPER
+                // end `volume + pad` — a thin positive volume inside a
+                // wide bracket must never refuse. Closed-form bodies
+                // have pad = 0.0 and the margin is bit-identical to
+                // the pre-PR-11 one.
+                let v_hi = props.volume + T::from_f64(props.volume_pad);
                 if let Ok(Sign::Negative) =
-                    decide("positive_volume", props.volume / props.surface_area, band)
+                    decide("positive_volume", v_hi / props.surface_area, band)
                 {
                     errors.push(ValidationError::NegativeVolume);
                 }

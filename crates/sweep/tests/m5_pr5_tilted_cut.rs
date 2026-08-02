@@ -81,18 +81,15 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
     for part in [above, below] {
         assert_eq!(validate(part), Ok(()));
         assert_eq!(validate_closed(part), Ok(()));
-        // Tier 3: every certification/dihedral row passes; the ONE
-        // residue is the volume row's NotIsoRectangle on the cut wall
-        // pieces (the split.rs review-F2 posture, documented: props'
-        // curved quadrature lane is M5 PR 11's) — pinned exactly so
-        // nothing else hides behind it.
-        let errs = validate_geometric(part).unwrap_err();
-        assert_eq!(errs.len(), 1, "{errs:?}");
-        let msg = format!("{:?}", errs[0]);
-        assert!(
-            msg.contains("VolumeUncomputable") && msg.contains("NotIsoRectangle"),
-            "{msg}"
-        );
+        // Tier 3 in FULL (M5 PR 11): the volume row's staged
+        // NotIsoRectangle residue retired when the certified
+        // quadrature lane landed — check 7 now consumes the
+        // quadrature enclosure's bounds (construction row, the S9
+        // flip pattern; the enclosure itself is pinned in
+        // `m5_pr11_quad_props.rs`).
+        if let Err(errs) = validate_geometric(part) {
+            panic!("tier 3 passes end to end since PR 11: {errs:?}");
+        }
         // The section boundary: exactly two ellipse arcs (one per wall
         // piece), each the wall×plane Intersection.
         let ellipses = ellipse_edges(part);
@@ -329,9 +326,9 @@ mod interval {
 // M1 fix rows (adversarial review): even-crossing completeness
 // ---------------------------------------------------------------------
 
-/// Shared pins for a both-sides split: closed + tier-3 clean except
-/// the (exactly pinned) curved-wall volume residue when the cut
-/// touches the walls off-rim.
+/// Shared pins for a both-sides split: closed + tier-3 clean IN FULL
+/// (M5 PR 11 retired the curved-wall volume residue this helper used
+/// to exempt — the quadrature lane computes those faces now).
 fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides must carry material");
@@ -340,13 +337,7 @@ fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, B
         assert_eq!(validate(part), Ok(()));
         assert_eq!(validate_closed(part), Ok(()));
         if let Err(errs) = validate_geometric(part) {
-            for e in &errs {
-                let msg = format!("{e:?}");
-                assert!(
-                    msg.contains("VolumeUncomputable") && msg.contains("NotIsoRectangle"),
-                    "only the pinned props residue may remain: {msg}"
-                );
-            }
+            panic!("tier 3 passes end to end since PR 11: {errs:?}");
         }
     }
     (above.clone(), below.clone())
@@ -468,9 +459,9 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 ///     i.e. they left the finite wall on both ends;
 ///   * `validate_geometric` on those bodies returned exactly one error,
 ///     `VolumeUncomputable{NotIsoRectangle}` — the same one the CORRECT
-///     simple tilted cut returns (see
-///     `tilted_cut_mints_exact_ellipse_carriers`), so tier 3 was blind
-///     to the defect rather than merely quiet about it.
+///     simple tilted cut returned AT THAT TIME (pre-PR-11, when the
+///     volume row was staged), so tier 3 was blind to the defect
+///     rather than merely quiet about it.
 ///
 /// Between PR 6 and S9 the configuration REFUSED typed instead
 /// (`LoopNotClosed`: PR 6's per-face one-branch chart walk measured the
