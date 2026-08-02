@@ -958,7 +958,7 @@ fn chord_spec<T: Decide>(
     let chart_az = |p: Point3<T>| -> T {
         let w = p - o_c;
         let radial = w - a_c * w.dot(a_c);
-        radial.dot(a_c.cross(u_ref_c)).atan2(radial.dot(u_ref_c))
+        stable_azimuth(radial.dot(a_c.cross(u_ref_c)), radial.dot(u_ref_c), band)
     };
     let tau = T::tau();
     let a1 = chart_az(p1);
@@ -1351,7 +1351,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let chart_az = |p: Point3<T>| -> T {
         let w = p - o_c;
         let radial = w - a_c * w.dot(a_c);
-        radial.dot(a_c.cross(u_ref_c)).atan2(radial.dot(u_ref_c))
+        stable_azimuth(radial.dot(a_c.cross(u_ref_c)), radial.dot(u_ref_c), band)
     };
     let tau = T::tau();
     let a1 = chart_az(p1);
@@ -1596,6 +1596,23 @@ fn between_edge_in_plane<T: Decide>(
                 }
             }
         }
+    }
+}
+
+
+/// Branch-stabilized chart azimuth `atan2(y, x)` (M5 S13): `atan2`'s
+/// cut sits on the negative-`x` axis, and an interval `y` touching
+/// zero there (a crossing vertex exactly on the chart seam's angle-π
+/// copy) explodes the enclosure to a full period even though every
+/// consumer reads the value mod τ. On a definitely-negative-`x` frame
+/// the same azimuth is `atan2(−y, −x) + π` — the identical angle mod
+/// τ with the cut on the benign axis. The frame trilean is a
+/// computation choice between two identical formulas; its degenerate
+/// and in-band arms keep the direct one (deterministic tie-break, D9).
+fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
+    match decide("split_chart_azimuth_frame", x, band) {
+        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
+        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
     }
 }
 

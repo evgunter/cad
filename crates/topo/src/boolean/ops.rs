@@ -1464,8 +1464,32 @@ fn apply_recuts<T: Decide + Bounds>(
                     });
                 }
             }
-            let angle = sin.atan2(r.axis.dot(r.align));
-            let map = geom_core::Affine3::rotation_about_axis(r.center, cross, angle);
+            // The alignment rotation, built ALGEBRAICALLY (Rodrigues
+            // with the angle eliminated: R = I + K + K²/(1+c) for
+            // K = [â×n̂]ₓ, c = â·n̂ — division guarded by the
+            // alignment trilean above, which already refused the
+            // antiparallel c ≈ −1 arm together with the parallel one).
+            // No atan2/sin/cos anywhere: under the Interval scalar a
+            // trig-built rotation carries straddling-zero matrix
+            // entries whose downstream crossing-root phases explode at
+            // the atan2 branch cut; the algebraic form keeps exact
+            // zeros exact, and the f64 lane is bit-for-bit the same
+            // standard construction.
+            let k = cross;
+            let c = r.axis.dot(r.align);
+            let kx = |v: Vec3<T>| k.cross(v);
+            let one = T::one();
+            let col = |e: Vec3<T>| {
+                let kv = kx(e);
+                e + kv + kx(kv) / (one + c)
+            };
+            let linear = geom_core::Mat3::from_cols(
+                col(Vec3::new(one, T::zero(), T::zero())),
+                col(Vec3::new(T::zero(), one, T::zero())),
+                col(Vec3::new(T::zero(), T::zero(), one)),
+            );
+            let q = r.center - Point3::origin();
+            let map = geom_core::Affine3::from_parts(linear, q - linear * q);
             let turned = crate::transform::transform_rigid(&ball, &map)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push(turned);

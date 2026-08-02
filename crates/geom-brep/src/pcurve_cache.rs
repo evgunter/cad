@@ -1079,6 +1079,20 @@ pub fn chart_pcurve<T: Decide>(
                 sample: 0,
                 cause,
             };
+            // Branch-stabilized azimuth (M5 S13): atan2's cut sits on
+            // the negative-x axis, and an interval y touching zero
+            // there (a seam meridian's angle-π copy) explodes the
+            // enclosure to a full period even though every consumer
+            // reads azimuth mod τ. On a definitely-negative-x frame
+            // the same angle is atan2(−y, −x) + π. The frame trilean
+            // chooses between two identical formulas; degenerate and
+            // in-band arms keep the direct one (tie-break, D9).
+            let stable_az = |y: T, x: T| -> T {
+                match decide("pcurve_sphere_chart_frame", x, band) {
+                    Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
+                    Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
+                }
+            };
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
             match decide("pcurve_sphere_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)?
@@ -1093,7 +1107,7 @@ pub fn chart_pcurve<T: Decide>(
                             return Err(PcurveCertifyError::UnsupportedCarrier);
                         }
                     }
-                    let alpha = a_r.dot(cv).atan2(a_r.dot(u_ref));
+                    let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide("pcurve_chart_orientation", orient / radius, band)
                         .map_err(esc)?
@@ -1161,7 +1175,7 @@ pub fn chart_pcurve<T: Decide>(
                             Sign::Negative => T::zero() - T::one(),
                             Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
                         };
-                    let alpha = d_hat.dot(cv).atan2(d_hat.dot(u_ref));
+                    let alpha = stable_az(d_hat.dot(cv), d_hat.dot(u_ref));
                     Ok(Pcurve::Harmonic {
                         p0: Point2::new(alpha, delta),
                         pa: Vec2::new(T::zero(), T::zero()),
