@@ -2055,14 +2055,20 @@ keeps BOTH and makes them **exclusive by surface kind** — planes take
 the first, every other class takes the second — so each face is flipped
 exactly once. The alternative (flip every face's bit, touch no surface)
 is the more uniform statement and is what D1's amendment reads most
-naturally as, but it would have re-cut the heavily-pinned planar
-boolean/void lane: a reverted planar operand would arrive at
-`merge_coplanar_faces`, `plane_eq` and the sector tables with unchanged
-normals and `sense: false` for the first time, and any consumer S10's
-audit missed would silently read the wrong side. The chosen split leaves
-M3's planar behaviour bit-for-bit identical (310 topo rows green
-unchanged) and confines the new encoding to the faces that never had
-one. `RevertError::UnsupportedSurface` is RETIRED — the flip is uniform
+naturally as; it was rejected on the RISK that a reverted planar operand
+would reach `merge_coplanar_faces`, `plane_eq` and the sector tables with
+unchanged normals and `sense: false` for the first time, where any
+consumer S10's audit missed would silently read the wrong side.
+**Corrected at the fix pass (review MIN-1): that risk did not
+materialize.** The reviewer IMPLEMENTED the uniform flip and ran the
+pinned planar lanes — 310/310 topo lib rows plus every M3
+boolean/surgery suite, the A∖B ≡ A∩revert(B) oracle included — ALL
+GREEN. So the split is **chosen for bit-for-bit planar conservatism**
+(no pin was willing to move without a design conversation first), not
+forced by moving pins; the evidence says both encodings work, and the
+one that leaves M3's planar behaviour byte-identical is the one a revert
+unit is entitled to ship. The chosen split confines the new encoding to
+the faces that never had one. `RevertError::UnsupportedSurface` is RETIRED — the flip is uniform
 across cylinder/cone/sphere/torus/NURBS, so no per-class residue is left
 inside `revert` — and its parity record (PR 9c's ODD/EVEN-in-the-radius
 finding, F1-scoped) is kept as prose on the enum rather than as an

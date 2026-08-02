@@ -999,6 +999,11 @@ impl<T: Decide> Body<T> {
         // surface is a region of that same face, so it carries the same
         // material side; a `New`/foreign `Shared` surface is a different
         // region and keeps the mint's `true`.
+        //
+        // `surface != inherit_surface || inherit_sense` is the terser
+        // spelling of `mef`'s `if surface == inherit_surface {
+        // inherit_sense } else { true }` (euler.rs) — same truth table,
+        // written inline because there is a single `Face` literal here.
         let face = self.add_face(
             Face {
                 sense: surface != inherit_surface || inherit_sense,

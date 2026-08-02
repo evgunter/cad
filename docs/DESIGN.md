@@ -135,7 +135,12 @@ is the ratified fix. Consequences, all normative:
   `Plane`-carried faces. The two encodings are **exclusive by surface
   kind** — a plane can represent its own reversal exactly, the analytic
   and NURBS charts cannot — so every face's outward normal is negated
-  exactly once, and the planar arm stays bit-for-bit what M3 pinned.
+  exactly once, and the planar arm stays bit-for-bit what M3 pinned. The
+  uniform alternative (flip every face's bit, touch no surface) was
+  executed at S12's review and the pinned planar lanes stayed green, so
+  the split is a **conservatism choice, not a forced one**: either
+  encoding is correct, and moving M3's planar pins is a design
+  conversation rather than a revert unit's prerogative.
   `RevertError::UnsupportedSurface` is retired; the reversal itself has
   no per-class residue left.
 - A face **fragment** inherits its parent's `sense` (M5 S12). `mef` and
