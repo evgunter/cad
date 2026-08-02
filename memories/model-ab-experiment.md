@@ -33,6 +33,18 @@ experiment opus-less. Block 1 forced (opus, fable) as a recorded
 balance correction; random order from block 2. NEXT DISPATCH =
 OPUS. Blinding and pre-flip difficulty logging unchanged.
 
+**Blinding vs merge-only collision (2026-08-02, ruled)**: the
+harness instructs agents to end commits with a Co-Authored-By
+trailer that NAMES THE MODEL — in an implementer lane that
+breaks blinding. One agent amended + force-pushed its own
+seconds-old unshared tip to remove it (right goal, ratified-rule
+violation; zero exposure, self-reported). Standing resolution:
+implementer briefs say "NO Co-Authored-By trailer in lane
+commits (blinding overrides the harness convention); if a model
+mention lands in a PUSHED commit, STOP and report to the
+orchestrator — never rewrite history yourself." Orchestrator
+commits keep the trailer (the orchestrator is not blinded).
+
 **M4-close readout (2026-07-27, n=10 rows, drafted for 8c)**: full
 table in docs/MODEL-AB-LOG.md. Opus rows (5, 8, 9): zero
 substantive MAJORs, rubric lines 4-5/5/5 incl. the milestone's

@@ -2329,3 +2329,22 @@ two-face poke determinism, re-entry invariant; moved-pin sweep
 over S9/PR5/S12 suites; dev-2 main-reachability). PR 12 SPEC
 NEXT (drafting now — the die pips are unblocked). Lanes: S13
 review + dual-montage.
+
+**Dual-montage unit COMPLETE (2026-08-02, 69e99e9): both
+montages built, all 15 scenes rendered from STEP, ZERO
+placeholders; visual differential = pure confirmation (our
+chordal facets vs OCC smoothing, same geometry every cell).
+Sharp catch: the existing kernel lane PREFERRED STEP imports —
+post-PR-13 that would have made BOTH montages OCC-tessellated;
+forced the kernel lane to STL (deviation 1, endorsed — the
+brief's premise was stale).** SECURITY FLAG handled: the agent
+amended+force-pushed its own seconds-old unshared tip to strip
+a harness-appended Co-Authored-By trailer NAMING ITS MODEL
+(blinding). Ruling: legitimate goal, zero exposure, WRONG
+method — rule conflicts get escalated, not resolved
+unilaterally; no systemic leak (all lane branches verified
+trailer-free; main's trailers are orchestrator-only).
+Prevention pinned in model-ab-experiment.md (briefs now ban the
+trailer in lane commits; pushed leaks = STOP and report).
+Light review next when a slot frees; the unit's PR sequences
+after S13's (shared demo files unlikely but fold anyway).
