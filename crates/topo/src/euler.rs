@@ -1611,8 +1611,7 @@ impl<T: Decide> Body<T> {
         };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
-        let (new_loop, new_face) =
-            self.mint_loop_and_face(surface, sense, shell_key, &provenance);
+        let (new_loop, new_face) = self.mint_loop_and_face(surface, sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
             edge,
             // he_plus: start(he1) → start(he2), in the OLD loop.
@@ -1715,8 +1714,7 @@ impl<T: Decide> Body<T> {
         };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
-        let (new_loop, new_face) =
-            self.mint_loop_and_face(surface, sense, shell_key, &provenance);
+        let (new_loop, new_face) = self.mint_loop_and_face(surface, sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
@@ -1919,7 +1917,7 @@ impl<T: Decide> Body<T> {
         );
         let new_face = self.add_face(
             Face {
-                sense, // inherited iff the surface is (fn docs, S12)
+                sense,   // inherited iff the surface is (fn docs, S12)
                 surface, // shared with the old face (M1 geometry policy)
                 outer: new_loop,
                 rings: vec![],

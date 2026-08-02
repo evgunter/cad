@@ -356,26 +356,47 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     strategy: SweepStrategy,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear()?;
-    // The curved subtract/intersect front door is RETIRED (M5 S12).
+    // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
+    // (M5 S12; C12.1 — retire per class, never wholesale).
     //
-    // It was a WHOLESALE gate: any non-plane face on either operand
-    // refused ∖ and ∩ before a single reduction step, because both ops
-    // route regions through `revert` (A∖B ≡ A∩revert(B), the §15.9
-    // posture) and `revert` was planar-only. S10 ratified
-    // `Face::sense`, S11 made the incoming bits honest, and S12 wired
-    // `revert` to flip them — so the premise the door stood on is
-    // gone, and keeping it would refuse classes that now work
-    // end-to-end (C12.1: retire per class, never keep a gate whose
-    // stated reason has expired).
+    // It used to refuse on ANY non-plane face, because both ops route
+    // regions through `revert` (A∖B ≡ A∩revert(B), the §15.9 posture)
+    // and `revert` was planar-only. That premise is gone: S10 ratified
+    // `Face::sense`, S11 made the incoming bits honest, S12 wired the
+    // flip — so `Cylinder` operands, whose germ pairs have a live join
+    // lane, now go all the way through and are pinned end-to-end.
     //
-    // Nothing is thereby waved through. ∖ and ∩ share the whole
-    // pipeline with ∪, so a curved operand meets exactly the doors ∪
-    // meets — the join dispatch's typed fallthrough for germ pairs
-    // with no lane (fitted-chord cyl×sphere, cyl×cyl windows), the
-    // curved pierce frontier, the pcurve mint pass, the tier-3 gate —
-    // each of which names its own blocker. The per-class map, with the
-    // classes that stay refused and why, is on
-    // [`BooleanError::CurvedOpUnsupported`].
+    // What is NOT retired is the classes with no seam lane behind them.
+    // `Sphere`/`Cone`/`Torus` germ pairs have no join arm at all
+    // (PR 9c deviation 1) and NURBS faces have no crossing layer
+    // (deviation 5) — and their failure mode is not a typed refusal
+    // downstream but a SILENT one: with no crossings found the pipeline
+    // falls through to vertex-probed containment, and a curved face
+    // leaves the other solid between its vertices without any vertex
+    // noticing. The executed witness and its merge-base reproduction are
+    // pinned as `finding_sphere_class_containment_fallback_is_wrong_today`
+    // — the same wrong answer stands on ∪ on main, which is why this
+    // door does not touch ∪: ∪'s behaviour is left exactly as it was and
+    // the defect is pinned rather than improvised over inside a revert
+    // unit.
+    //
+    // Structural, exact and up front: an arena scan of surface kinds, no
+    // reduction work before it, operands untouched.
+    if !matches!(op, BooleanOp::Union) {
+        for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+            for (face, fd) in body.faces() {
+                if !matches!(
+                    body.get_surface(fd.surface),
+                    Some(
+                        geom_surfaces::Surface::Plane { .. }
+                            | geom_surfaces::Surface::Cylinder { .. }
+                    )
+                ) {
+                    return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
+                }
+            }
+        }
+    }
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
 
     if red.null_pairs.is_empty() {

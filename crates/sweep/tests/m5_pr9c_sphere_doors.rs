@@ -201,41 +201,55 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
 /// (or any later one) from quietly eroding F1's correction back to the
 /// overclaim.
 #[test]
-fn curved_revert_refusal_states_the_wiring_blocker() {
+fn curved_revert_reverts_the_ball_instead_of_refusing() {
     let body = ball();
-    let err = body.revert().unwrap_err();
-    let msg = err.to_string();
+    let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
+    let v = topo::mass_properties(&body).unwrap().volume;
 
-    // The S10 statement: the representation exists; the writer does not.
-    assert!(msg.contains("WIRING, no longer representation"), "{msg}");
-    assert!(msg.contains("representation gap is CLOSED"), "{msg}");
-    assert!(msg.contains("M5 S10 landed Face::sense"), "{msg}");
-    assert!(msg.contains("follow-on unit"), "{msg}");
-    // And it stays honest about why the refusal is still reachable.
-    assert!(msg.contains("still mints sense: true"), "{msg}");
-
-    // The retired claim must be GONE: this is no longer a proof that
-    // there is nothing to write, so it must not say so.
-    assert!(!msg.contains("not merely unimplemented"), "{msg}");
-    assert!(!msg.contains("unrepresentable"), "{msg}");
-
-    // The parity record survives the rewrite, per-kind and scoped.
-    assert!(msg.contains("chart normal"), "{msg}");
-    assert!(msg.contains("ODD in the radius"), "{msg}");
-    assert!(msg.contains("EVEN in the radius"), "{msg}");
-    assert!(msg.contains("radius > 0 convention"), "{msg}");
-    assert!(msg.contains("REJECTED as a representation"), "{msg}");
-    assert!(msg.contains("M5 PR 9c"), "{msg}");
-    // And F1's correction must not erode back to the overclaim.
-    assert!(!msg.contains("always outward"), "{msg}");
+    let rev = body.revert().expect("M5 S12 wired the curved arm");
+    let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
+    assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
+    // The sphere CHART is untouched — no negative radius anywhere near
+    // this, which is exactly what the parity finding demanded.
+    for (k, s) in body.surfaces() {
+        assert_eq!(
+            format!("{s:?}"),
+            format!("{:?}", rev.get_surface(k).unwrap()),
+            "revert must not perturb a sphere chart"
+        );
+        let Some(geom_surfaces::Surface::Sphere { radius, .. }) = rev.get_surface(k) else {
+            panic!("still a sphere");
+        };
+        assert!(*radius > 0.0, "the radius > 0 convention survives revert");
+    }
+    // Complement currency: tier-2 valid, tier 3 exactly NegativeVolume,
+    // volume bit-negated, and a bitwise involution.
+    assert_eq!(topo::validate_closed(&rev), Ok(()));
+    assert_eq!(
+        topo::validate_geometric(&rev),
+        Err(vec![topo::ValidationError::NegativeVolume])
+    );
+    assert_eq!(
+        topo::mass_properties(&rev).unwrap().volume.to_bits(),
+        (-v).to_bits()
+    );
+    assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
 }
 
-/// The boolean's own front door quotes the same finding, so a caller
-/// who never touches `revert` still learns why curved subtract is
-/// gated. This is the DIE-PIPS shape (M5 PR 12's anchor): a sphere
-/// bitten out of a slab, refused up front and typed.
+/// **Re-pinned again at M5 S12 (was
+/// `curved_subtract_front_door_quotes_the_same_finding`).** The DIE-PIPS
+/// shape — a sphere bitten out of a slab — still refuses, but the door
+/// is no longer wholesale and no longer blames `revert`. S12 retired the
+/// any-curved-face gate and opened plane×cylinder ∖/∩; the sphere class
+/// stays refused because the germ-pair JOIN dispatch wires exactly one
+/// arm, `(Plane, Cylinder)` (PR 9c deviation 1), behind which sits
+/// `Pcurve::Fitted` (deviation 2). The full S12 statement of what went
+/// live, what stays refused, and the containment-fallback finding that
+/// makes this door structural rather than downstream lives in
+/// `m5_s12_curved_ops.rs`; this row keeps PR 9c's own smoke shape
+/// pinned at whatever the current door says.
 #[test]
-fn curved_subtract_front_door_quotes_the_same_finding() {
+fn the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
         p2(-2.0, -2.0),
         p2(2.0, -2.0),
@@ -248,12 +262,17 @@ fn curved_subtract_front_door_quotes_the_same_finding() {
     let b = ball();
     let err = topo::boolean::subtract(&a, &b).unwrap_err();
     let topo::BooleanError::CurvedOpUnsupported { .. } = err else {
-        panic!("expected the curved-op front door, got {err:?}");
+        panic!("expected the per-class door, got {err:?}");
     };
     let msg = err.to_string();
-    assert!(msg.contains("no representation"), "{msg}");
-    assert!(msg.contains("ratified representation change"), "{msg}");
-    assert!(msg.contains("UNION is the live curved boolean"), "{msg}");
+    // The current blocker, named.
+    assert!(msg.contains("no seam lane"), "{msg}");
+    assert!(msg.contains("deviation 1"), "{msg}");
+    // The retired claims must be GONE: revert is wired, and the gate is
+    // not wholesale any more.
+    assert!(!msg.contains("no representation"), "{msg}");
+    assert!(!msg.contains("ratified representation change"), "{msg}");
+    assert!(!msg.contains("UNION is the live curved boolean"), "{msg}");
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction

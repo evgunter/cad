@@ -311,7 +311,20 @@ fn adv_bore_groove_torus_band() {
 
 /// D1: a TOUCHING union against a body that carries reversed faces -
 /// must not silently split a reversed face through sense-true mef
-/// re-mints. Expect a typed refusal (curved lanes) today.
+/// re-mints.
+///
+/// **Re-aimed at M5 S12.** When S11 adopted this probe the `mef`
+/// re-mints DID stamp `sense: true`, so an answer here would have been
+/// a silently mis-oriented body and panicking was the right response.
+/// S12 landed the inheritance fix (`mint_loop_and_face` takes the
+/// parent's bit whenever the fragment lands on the parent's surface;
+/// `mfkrh` likewise), so an answer is no longer prima facie wrong — the
+/// row therefore AUDITS an answer instead of rejecting it, and keeps
+/// accepting the typed refusal this washer/box pair still takes (its
+/// door is the annulus-touching lane, not sense inheritance). The
+/// mixed-sense split that S12 genuinely made reachable is pinned with
+/// exact volumes in `m5_s12_curved_ops.rs`
+/// (`a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`).
 #[test]
 fn adv_touching_union_with_reversed_faces_refuses_typed() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
@@ -338,7 +351,20 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
                 vol(&out.body),
                 out.body.shells().count()
             );
-            panic!("touching curved union answered - inspect sense inheritance");
+            // Answering is legal as of S12; being WRONG is not. The
+            // washer is the full revolve of a 1x1 square at r in [1, 2]
+            // about the y axis, and the box (0.6 x 1.0 x 0.4 at
+            // x in [1.2, 1.8]) lies wholly under its bottom annulus,
+            // so a touching union is exactly additive.
+            let washer_vol = std::f64::consts::PI * (2.0f64.powi(2) - 1.0) * 1.0;
+            let expect = washer_vol + 0.6 * 1.0 * 0.4;
+            assert!(
+                (vol(&out.body) - expect).abs() < 1e-9,
+                "touching curved union answered with {} for {expect} - inspect \
+                 sense inheritance",
+                vol(&out.body)
+            );
+            assert_eq!(topo::validate_geometric(&out.body), Ok(()));
         }
     }
 }

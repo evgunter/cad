@@ -103,7 +103,8 @@ use crate::geometry::SurfaceKey;
 /// produce one of its variants is a lie about the frontier. The record
 /// is kept here, and the refusal pin it carried is re-pinned as a
 /// CONSTRUCTION row (the S9 pattern) in
-/// `crates/topo/tests/m5_s12_curved_revert.rs`.
+/// `crates/sweep/tests/m5_s12_curved_ops.rs` (the curved arm needs the
+/// sweep constructors to build a curved body at all).
 ///
 /// - **What it said**: a surface is not a `Plane`, so this operator has
 ///   no representation to write for the reversed side of a curved face.
@@ -263,7 +264,7 @@ mod tests {
     /// nothing else about a non-plane surface moves. (The full
     /// involution/determinism/tier pins run on the geometric cube in
     /// `tests/m3_pr1_surgery.rs` and on real analytic surfaces in
-    /// `tests/m5_s12_curved_revert.rs`.)
+    /// `crates/sweep/tests/m5_s12_curved_ops.rs`.)
     #[test]
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
         let cube = ops_cube();
