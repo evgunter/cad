@@ -157,7 +157,16 @@ pub(crate) fn mass_properties_with<T: Decide>(
                     return Err(MassPropsError::RingOnCurvedFace { face: face_key });
                 }
                 let outer = loop_edges(body, face.outer)?;
-                curved_face(surface, &outer, band).map_err(wrap)?
+                // The face's S10 sense. `curved_face` applies it at
+                // exactly one site — the rimless sphere band, the sole
+                // flux sign its boundary does not encode. Every other
+                // term (the vector area, the rim-derived `s_f`) comes
+                // from the stored loop traversal, which the
+                // interior-left rule already ties to the outward
+                // normal: `revert` reverses loops AND flips `sense`,
+                // so multiplying here too would negate the volume
+                // twice. See `curved_face`'s docs.
+                curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?
             }
         };
         flux = flux + contribution.flux;

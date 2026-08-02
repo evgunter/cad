@@ -60,11 +60,19 @@
 //!
 //! # Orientation mapping (cites the ratified conventions, adds none)
 //!
-//! - A face's stored plane normal IS its outward normal (M1
-//!   interior-left ratification, restated in `geom_brep::enters`), so
-//!   every `ADVANCED_FACE` has `same_sense = .T.` and the surface's
-//!   `AXIS2_PLACEMENT_3D` axis is the stored normal with `ref_direction`
-//!   the stored `u_ref` (⊥ normal by the same convention).
+//! - A face's outward normal is `topo::Face::sense_sign()` times its
+//!   stored surface normal (M5 S10; before S10 the stored normal
+//!   simply WAS the outward normal — the M1 interior-left
+//!   ratification, restated in `geom_brep::enters`). STEP has a field
+//!   that means exactly this, so the mapping is an identity and not a
+//!   conversion: `ADVANCED_FACE`'s `same_sense` is `Face::sense`,
+//!   emitted `.T.`/`.F.`. The surface's `AXIS2_PLACEMENT_3D` axis
+//!   stays the stored **chart** normal (with `ref_direction` the
+//!   stored `u_ref`, ⊥ normal by the same convention) — correct
+//!   precisely *because* `same_sense` carries the flip: the reversal
+//!   is stated once, in the field the schema provides for it, and the
+//!   exported surface stays the true surface. Every face this build
+//!   mints has `sense: true`, so the emitted text is unchanged.
 //! - An edge's certified carrier parameter runs `start(he_plus) →
 //!   end(he_plus)` (the M2 forward contract on `Edge::he_plus`), so
 //!   every `EDGE_CURVE` has `same_sense = .T.` with its vertices taken
@@ -74,6 +82,12 @@
 //!   normal and rings clockwise (interior-left), which is precisely
 //!   STEP's convention for `FACE_OUTER_BOUND`/`FACE_BOUND` with
 //!   orientation `.T.` — the stored direction is emitted unchanged.
+//!   This holds for either face sense and the flag is never flipped:
+//!   the schema *composes* a bound's orientation with the owning
+//!   face's `same_sense`, so with the sense already emitted above, a
+//!   second flip here would double-count it. Shell volumes are read
+//!   from these same windings and are sense-invariant by derivation
+//!   for the same reason (`volume.rs` module docs).
 //!
 //! # Solids, shells, and voids
 //!

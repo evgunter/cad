@@ -192,7 +192,14 @@ impl core::fmt::Display for PointInSolidError {
 
 impl std::error::Error for PointInSolidError {}
 
-/// The face's plane, F5-gated.
+/// The face's plane, F5-gated: origin and **outward** normal (chart
+/// normal times the face's `sense_sign`, S10 — the callers of this
+/// door are handed a material direction, not a chart datum).
+///
+/// Its one external consumer feeds the normal to [`point_in_face`],
+/// whose answer is ray-crossing parity and therefore blind to the
+/// normal's sign either way; threading here is what keeps the door's
+/// CONTRACT honest for the next consumer.
 pub(super) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -201,7 +208,7 @@ pub(super) fn face_plane<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal)),
+        Some(Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal * f.sense_sign::<T>())),
         _ => Err(PointInSolidError::CorruptFace { face }),
     }
 }
@@ -213,7 +220,17 @@ pub(super) fn face_plane<T: Decide>(
 /// class every M5 operand mints: rims are height iso-lines, meridians
 /// azimuth iso-lines, and the boolean's own seam arcs are height
 /// iso-lines too).
+///
+/// **Orientation (S10)**: every arm's outward direction is the chart's
+/// times the face's `sense_sign`. The plane arm carries it in the
+/// normal itself (there is a vector to multiply); the curved arms have
+/// no stored normal — their outward direction is recomputed at each
+/// ray hit — so they carry the face's `sense` bit and the doors apply
+/// it to the sign they derive. Only the material-side signs need it:
+/// the boundary pre-pass compares residuals against Zero and the
+/// chart trims are parameter-domain work, both orientation-free.
 enum FaceGeo<T: geom_core::Real> {
+    /// A planar face: a point on it and its OUTWARD normal.
     Plane(Point3<T>, Vec3<T>),
     Cylinder {
         origin: Point3<T>,
@@ -222,6 +239,10 @@ enum FaceGeo<T: geom_core::Real> {
         u_ref: Vec3<T>,
         az: (T, T),
         h: (T, T),
+        /// The face's orientation sense: `false` means the material is
+        /// INSIDE the wall, so the radial gradient at a hit points
+        /// into material and the crossing sign flips.
+        sense: bool,
     },
     /// A CLOSED sphere wall (M5 PR 9c): the faces sharing this sphere
     /// surface together cover the whole chart, so there is no chart
@@ -240,6 +261,13 @@ enum FaceGeo<T: geom_core::Real> {
         /// face-arena order carrying this surface. Arms no-op on every
         /// other member.
         representative: FaceKey,
+        /// The REPRESENTATIVE's orientation sense (S10). The group is
+        /// closed and bounds one material region, so its members share
+        /// a sense; asking the representative is asking the group, and
+        /// it is the representative that the arms act for. (Agreement
+        /// across the group is a tier-3 obligation, not re-checked
+        /// here.) `false` swaps the near/far crossing pair below.
+        sense: bool,
     },
 }
 
@@ -298,7 +326,9 @@ fn face_geo<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => Ok(FaceGeo::Plane(*origin, *normal)),
+        Some(Surface::Plane { origin, normal, .. }) => {
+            Ok(FaceGeo::Plane(*origin, *normal * f.sense_sign::<T>()))
+        }
         Some(&Surface::Cylinder {
             origin,
             axis,
@@ -353,6 +383,7 @@ fn face_geo<T: Decide>(
                 u_ref,
                 az,
                 h,
+                sense: f.sense,
             })
         }
         Some(&Surface::Sphere { center, radius, .. }) => match closed_sphere_group(body, face) {
@@ -360,6 +391,10 @@ fn face_geo<T: Decide>(
                 center,
                 radius,
                 representative,
+                sense: body
+                    .get_face(representative)
+                    .ok_or(PointInSolidError::CorruptFace { face })?
+                    .sense,
             }),
             None => Err(PointInSolidError::PartialSphereFace { face }),
         },
@@ -496,6 +531,9 @@ pub fn point_in_solid<T: Decide>(
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
         match face_geo(body, face, band)? {
             FaceGeo::Plane(origin, normal) => {
+                // Orientation-free: a residual compared against Zero
+                // answers the same whichever way the normal points,
+                // and `point_in_face` below is ray parity (ditto).
                 let elev = (q - origin).dot(normal);
                 if decide("bool_point_in_solid_plane", elev, band).map_err(escalate)? == Sign::Zero
                 {
@@ -514,6 +552,7 @@ pub fn point_in_solid<T: Decide>(
                 u_ref,
                 az,
                 h,
+                sense: _, // residual-vs-Zero and chart trim: orientation-free
             } => {
                 let w = q - origin;
                 let radial = w - axis * w.dot(axis);
@@ -538,6 +577,7 @@ pub fn point_in_solid<T: Decide>(
                 center,
                 radius,
                 representative,
+                sense: _, // a residual against Zero: orientation-free
             } => {
                 if face != representative {
                     continue;
@@ -561,6 +601,29 @@ pub fn point_in_solid<T: Decide>(
         // graze: next schedule member
     }
     Err(PointInSolidError::RayExhausted)
+}
+
+/// The crossing sign implied by a CHART-outward direction on a face
+/// whose orientation sense may reverse it (S10): `d·n̂_outward` has the
+/// opposite sign to `d·n̂_chart` exactly when the face's `sense` is
+/// `false`. Used by the curved doors, which recompute their outward
+/// direction from the surface at each hit and so have no stored normal
+/// to fold the sign into (the plane door gets it from [`face_geo`]).
+///
+/// Exact structure, not a numeric decision: a `bool` selects between
+/// two enum values — no comparison, no tolerance, nothing for the
+/// k-lint. `Zero` is fixed: a grazing incidence grazes from either
+/// side, so the retry it triggers is sense-independent.
+const fn oriented(sign: Sign, sense: bool) -> Sign {
+    if sense {
+        sign
+    } else {
+        match sign {
+            Sign::Positive => Sign::Negative,
+            Sign::Negative => Sign::Positive,
+            Sign::Zero => Sign::Zero,
+        }
+    }
 }
 
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
@@ -602,6 +665,11 @@ fn cast_ray<T: Decide>(
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
         match face_geo(body, face, band)? {
             FaceGeo::Plane(origin, normal) => {
+                // `normal` is the face's OUTWARD normal (S10, folded in
+                // by `face_geo`), so this sign IS the material-side
+                // verdict the closest-hit rule consumes; the advance
+                // `t` below is a ratio of two such dots and cannot see
+                // the orientation at all.
                 let denom = d.dot(normal);
                 let denom_sign =
                     decide("bool_point_in_solid_denom", denom, band).map_err(escalate)?;
@@ -640,6 +708,7 @@ fn cast_ray<T: Decide>(
                 u_ref,
                 az,
                 h,
+                sense,
             } => {
                 let w0 = q - origin;
                 let w0p = w0 - axis * w0.dot(axis);
@@ -675,11 +744,16 @@ fn cast_ray<T: Decide>(
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
                     }
-                    // Outward sign: d · (radial gradient) at the hit.
+                    // Outward sign: d · (radial gradient) at the hit —
+                    // a CHART direction, so the face's sense decides
+                    // whether it is the material-outward one (S10).
                     let wp = p - origin;
                     let rad = wp - axis * wp.dot(axis);
-                    let outward = decide("bool_point_in_solid_denom", d.dot(rad) / radius, band)
-                        .map_err(escalate)?;
+                    let outward = oriented(
+                        decide("bool_point_in_solid_denom", d.dot(rad) / radius, band)
+                            .map_err(escalate)?,
+                        sense,
+                    );
                     if outward == Sign::Zero {
                         return Ok(None); // grazing incidence at the hit
                     }
@@ -717,6 +791,7 @@ fn cast_ray<T: Decide>(
                 center,
                 radius,
                 representative,
+                sense,
             } => {
                 if face != representative {
                     continue;
@@ -732,9 +807,16 @@ fn cast_ray<T: Decide>(
                     Sign::Negative => continue,    // definite miss
                 }
                 let root = disc.max(T::zero()).sqrt();
+                // The near/far outward pair is read off the geometry
+                // (`d·(p − c)/r = ±√disc/r`) and is therefore a CHART
+                // statement: it says the near root enters the BALL and
+                // the far root leaves it. Whether entering the ball
+                // means entering material is the face's sense (S10) —
+                // a reversed sphere face bounds the material OUTSIDE
+                // it — so the pair is swapped rather than recomputed.
                 for (t, outward) in [
-                    (T::zero() - b2 - root, Sign::Negative),
-                    (T::zero() - b2 + root, Sign::Positive),
+                    (T::zero() - b2 - root, oriented(Sign::Negative, sense)),
+                    (T::zero() - b2 + root, oriented(Sign::Positive, sense)),
                 ] {
                     if fold(&mut best, face, t, outward)?.is_none() {
                         return Ok(None);

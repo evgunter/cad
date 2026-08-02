@@ -214,6 +214,21 @@ impl<'a> Writer<'a> {
     /// orientation `.T.`: the stored traversal direction is already
     /// STEP's (interior-left ⇒ outer CCW / rings CW about the outward
     /// normal — crate docs).
+    ///
+    /// **The bound orientation stays `.T.` under M5 S10, for either
+    /// face sense.** ISO 10303-42 *composes* the bound's orientation
+    /// flag with the owning `face_surface.same_sense`: the bound is
+    /// stated CCW about the face's outward normal, and `same_sense`
+    /// says how that outward normal relates to the surface's own. Our
+    /// loops carry exactly that statement already (interior-left), and
+    /// [`Self::advanced_face`] emits the sense bit as `same_sense`, so
+    /// the composition comes out right with the flag left alone.
+    /// Flipping the flag here as well would compose the reversal twice
+    /// and hand the reader an inside-out face — the same double-count
+    /// hazard the tessellator's winding sites carry. `ORIENTED_EDGE`'s
+    /// flag is likewise untouched: it says which half of the edge the
+    /// loop traverses, a fact about the half-edge, not about the
+    /// face's material side.
     fn face_bound(&mut self, loop_key: LoopKey, outer: bool) -> Result<u64, StepExportError> {
         let loop_ = self
             .body
@@ -272,8 +287,27 @@ impl<'a> Writer<'a> {
     /// `ADVANCED_FACE` for a kernel face: the surface printer first
     /// (so an out-of-subset face refuses by its surface, the primary
     /// fact, not incidentally by a boundary carrier), then bounds
-    /// (outer first, rings in stored order), `same_sense = .T.` (the
-    /// stored normal IS the outward normal — M1 ratification).
+    /// (outer first, rings in stored order), then `same_sense`.
+    ///
+    /// **`same_sense` IS [`topo::Face::sense`]** (M5 S10). This is not
+    /// a mapping the exporter computes — ISO 10303-42's
+    /// `face_surface.same_sense` and the kernel's orientation bit are
+    /// the same predicate ("does the face's material side agree with
+    /// its surface's own normal?"), which is why S10 ratified the bit
+    /// in that shape. It emits `.T.`/`.F.` directly; before S10 the
+    /// answer was hardcoded `.T.` because the stored normal simply WAS
+    /// the outward normal (M1 ratification), and every face this build
+    /// mints still has `sense: true`, so the output is byte-identical
+    /// today.
+    ///
+    /// Consequently the surface's own `AXIS2_PLACEMENT_3D` keeps
+    /// emitting the **chart** normal unchanged (see the `direction`
+    /// call below) — that is correct *precisely because* `same_sense`
+    /// now carries the flip. A reversed face must export its true
+    /// surface, with the reversal stated once, in the one field STEP
+    /// provides for it; negating the axis instead would export a
+    /// different plane and (with `.F.`) double-count. Likewise the
+    /// bounds stay `.T.` — see [`Self::face_bound`].
     fn advanced_face(&mut self, face_key: FaceKey) -> Result<u64, StepExportError> {
         let face = self
             .body
@@ -283,6 +317,9 @@ impl<'a> Writer<'a> {
             })?;
         let outer = face.outer;
         let rings = face.rings.clone();
+        // The S10 orientation bit, emitted verbatim as `same_sense`
+        // (fn docs: the two are the same predicate, not a conversion).
+        let same_sense = if face.sense { ".T." } else { ".F." };
         let surface = self
             .body
             .get_surface(face.surface)
@@ -321,7 +358,7 @@ impl<'a> Writer<'a> {
             bounds.push(self.face_bound(ring, false)?);
         }
         Ok(self.emit(&format!(
-            "ADVANCED_FACE('', ({}), #{surface_id}, .T.)",
+            "ADVANCED_FACE('', ({}), #{surface_id}, {same_sense})",
             refs(&bounds)
         )))
     }

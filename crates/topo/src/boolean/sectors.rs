@@ -61,7 +61,10 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     pub end_edge: bool,
     /// The sector's face and outward normal.
     pub face: FaceKey,
-    /// The face's outward unit normal.
+    /// The face's outward unit normal at the base vertex — the CHART
+    /// normal times the face's `sense_sign` (S10), applied once in
+    /// [`sector_face`]. Consumers pair it with the stored orbit order
+    /// and must NOT re-apply the sense.
     pub normal: Vec3<T>,
     /// The metering arm (shorter bounding chord, in meters).
     pub arm: T,
@@ -149,7 +152,12 @@ pub(super) fn build_sectors<T: Decide>(
         let (u_end, u_start) = (dir_end.normalize(), dir_start.normalize());
         // Wideness (PR 2's derivation): sin θ = (start × end)·n metered
         // at the arm; positive ⇒ convex; negative ⇒ reflex; zero-band ⇒
-        // disambiguate by cosine.
+        // disambiguate by cosine. Sense-invariant as written: the
+        // bounds come from the STORED orbit order, which `revert`
+        // reverses in the same breath as it flips the sense bit, so
+        // both factors change sign and the product does not — applying
+        // `sense_sign` here on top of `sector_face`'s would
+        // double-count and read every convex corner as reflex.
         let reflex_margin = u_start.cross(u_end).dot(normal) * arm;
         let bisec = match decide("bool_sector_reflex", reflex_margin, band) {
             Ok(Sign::Positive) => None,
@@ -206,12 +214,26 @@ pub(super) fn build_sectors<T: Decide>(
     Ok(sectors)
 }
 
-/// The sector's face + outward normal at the base vertex. Planes keep
-/// the stored normal (the M3 path, bit-identical); `Cylinder`/`Sphere`
-/// faces (M5 PR 9) use the LOCAL chart-outward normal at the vertex —
-/// the same convention the splitting lane's PR 5 sector machinery
-/// established. Kinds without a wired sector arm refuse typed
-/// (C12.1, per arm).
+/// The sector's face + outward normal at the base vertex. Planes take
+/// the stored normal (the M3 path); `Cylinder`/`Sphere` faces (M5
+/// PR 9) take the LOCAL chart normal at the vertex — the same
+/// convention the splitting lane's PR 5 sector machinery established.
+/// Kinds without a wired sector arm refuse typed (C12.1, per arm).
+///
+/// **Every arm is multiplied by the face's `sense_sign`** (S10): all
+/// three read a chart normal and hand it back as the face's OUTWARD
+/// normal, and the chart is the only encoding of orientation they
+/// have, so the sense bit is authoritative here. The plane arm gets
+/// it through [`face_plane`]; the curved arms multiply in place.
+///
+/// This function is the chokepoint for the whole vertex-vertex lane.
+/// Everything downstream of [`BoolSector::normal`] — `within`,
+/// `side_code`, `sector_overlap`, the wideness/bisector algebra above,
+/// `insert::germ_dir`, `vtxfac::pierce_germ_dir` — is then
+/// sense-invariant GIVEN this source, and must not multiply again:
+/// those sites pair the normal with the STORED orbit/loop traversal,
+/// which `revert` flips in the same breath as the sense bit, so a
+/// second factor would cancel the first and re-break what this fixes.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -228,7 +250,7 @@ pub(super) fn sector_face<T: Decide>(
         .ok_or_else(|| corrupt(operand, vertex))?
         .face;
     if let Some(plane) = face_plane(body, face) {
-        return Ok((face, plane.normal));
+        return Ok((face, plane.normal)); // outward: `face_plane` folded the sense in
     }
     let p = *body
         .get_point(
@@ -237,17 +259,22 @@ pub(super) fn sector_face<T: Decide>(
                 .point,
         )
         .ok_or_else(|| corrupt(operand, vertex))?;
-    let surface = body
+    let face_data = body
         .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+        .ok_or_else(|| corrupt(operand, vertex))?;
+    let sense = face_data.sense_sign::<T>();
+    let surface = body
+        .get_surface(face_data.surface)
         .ok_or_else(|| corrupt(operand, vertex))?;
     match surface {
         geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
             let w = p - *origin;
             let radial = w - *axis * w.dot(*axis);
-            Ok((face, radial.normalize()))
+            Ok((face, radial.normalize() * sense))
         }
-        geom_surfaces::Surface::Sphere { center, .. } => Ok((face, (p - *center).normalize())),
+        geom_surfaces::Surface::Sphere { center, .. } => {
+            Ok((face, (p - *center).normalize() * sense))
+        }
         s => Err(BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -300,6 +327,11 @@ pub(super) struct PairRecord {
 
 /// Whether `dir` lies within the convex sector (Zero grazes count —
 /// module docs). `strict` demands definite interior.
+///
+/// Sense-invariant given the sector: `start`/`end` are traversal-
+/// derived and `normal` already carries the sense, and `revert` flips
+/// both together — a second `sense_sign` factor here would cancel
+/// [`sector_face`]'s and turn every membership test inside out.
 pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,

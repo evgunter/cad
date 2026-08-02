@@ -603,6 +603,32 @@ impl<T: Real> Body<T> {
         self.faces.get(key)
     }
 
+    /// **Test-only door**: a clone of this body with `face`'s
+    /// [`Face::sense`] bit inverted — the hand-flipped face that S10's
+    /// acceptance rows use to prove the outward-normal consumers
+    /// actually honor the bit.
+    ///
+    /// Deliberately NOT a construction operator. Every legitimate
+    /// constructor mints `sense: true`; the only planned writer of
+    /// `false` is curved `revert` (the follow-on unit), which flips
+    /// *every* face of a body at once and so keeps it coherent.
+    /// Flipping a single face makes the body **inside-out at that
+    /// face** — geometrically incoherent by construction, which is
+    /// exactly the point: it is the discriminating input for "does this
+    /// consumer read the sense, or did it silently keep reading the
+    /// chart normal?". Tier-3 validation is *expected to refuse* such a
+    /// body; that refusal is one of the acceptance rows.
+    ///
+    /// Returns `None` iff `face` is stale.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn flipped_face_sense_for_tests(&self, face: FaceKey) -> Option<Self> {
+        let mut out = self.clone();
+        let f = out.faces.get_mut(face)?;
+        f.sense = !f.sense;
+        Some(out)
+    }
+
     /// The loop at `key`, or `None` if the key is stale (a foreign key is
     /// not caught — see the [module docs](self)).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly

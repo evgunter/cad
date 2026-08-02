@@ -25,6 +25,19 @@ use crate::dihedral::decide;
 /// faces before calling). Dispatches on the surface kind; `band` is
 /// the run's linear band, built once at operation entry.
 ///
+/// `sense_sign` is the face's `±1` orientation sense (M5 S10,
+/// `topo::Face::sense_sign`). It is **deliberately not applied to
+/// every term**: `A⃗` and the rim-derived `s_f` are recovered from the
+/// face's STORED LOOP TRAVERSAL, which the interior-left rule already
+/// ties to the outward normal — `revert` reverses loops and flips
+/// `sense` together, so multiplying those terms by the sense would
+/// double-count and negate the volume twice. `sense_sign` is consumed
+/// at exactly one place: the **rimless** sphere band, whose boundary
+/// carries no rim to derive `s_f` from and which previously hardcoded
+/// `s_f = +1` on the assumption that sweeps emit outward shells only.
+/// That is the one orientation fact in this module the boundary does
+/// not encode, so it is the one the bit must supply.
+///
 /// # Errors
 ///
 /// [`PropsError`] — unimplemented kinds, out-of-inventory boundary
@@ -32,6 +45,7 @@ use crate::dihedral::decide;
 pub fn curved_face<T: Decide>(
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
+    sense_sign: T,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     match *surface {
@@ -55,7 +69,7 @@ pub fn curved_face<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere(center, radius, axis, outer, band),
+        } => sphere(center, radius, axis, outer, sense_sign, band),
         Surface::Torus {
             center,
             axis,
@@ -419,14 +433,23 @@ fn cone<T: Decide>(
 ///
 /// A face with **no rims** is the two-band construction (M2 PR 5's
 /// axis-touching full revolve): its meridians are verified coplanar
-/// and `Δu = π` **by construction**; `s_f = +1` because M2 sweeps emit
-/// single outward shells only (voids arrive with booleans, M3) — a
-/// rimless band with inward orientation is unrepresentable at rest.
+/// and `Δu = π` **by construction**. Its `s_f` is the **only** flux
+/// sign in this module that the boundary does not encode — with no rim
+/// there is no traversal to read it off, and a rimless band's two
+/// meridians are traversed the same way whichever side is material.
+/// Before M5 S10 it was hardcoded `+1`, justified by "M2 sweeps emit
+/// single outward shells only, so a rimless band with inward
+/// orientation is unrepresentable at rest". S10 makes that
+/// representable — `Face::sense` is exactly the missing bit — so the
+/// hardcode becomes `s_f = sense_sign`. Identical for every face this
+/// build mints (all `sense: true`); the difference is that an inward
+/// rimless band is no longer silently metered as outward.
 fn sphere<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     edges: &[LoopEdge<T>],
+    sense_sign: T,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
@@ -498,7 +521,9 @@ fn sphere<T: Decide>(
             require_zero("props_band_coplanar", n.cross(first).norm() * radius, band)?;
         }
         du = T::pi();
-        s_f = T::one();
+        // The one orientation fact no rim encodes (see the fn docs):
+        // the face's sense IS `s_f` here, not a cross-check of it.
+        s_f = sense_sign;
     } else {
         du = du_of_rims(&rims, radius, band)?;
         s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;

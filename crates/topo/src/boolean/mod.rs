@@ -513,11 +513,18 @@ pub enum BooleanError {
     /// SPHERE is representable only as the negative-radius sphere the
     /// `radius > 0` convention rejects and the `2r`-metered consumers
     /// invert — `RevertError::UnsupportedSurface` carries the scoped
-    /// proof and the review's executed probe. So closing this needs a
-    /// `Face` sense flag, a reversed-surface wrapper, or NURBS
-    /// conversion — M5-LOG PR 9c deviation 3. UNION stays the live curved boolean, and M5 PR 12's
-    /// die pips stay gated on the ratification. A front-door refusal:
-    /// no reduction work happens first.
+    /// proof and the review's executed probe.
+    ///
+    /// **That question is now RATIFIED and landed** (M5 S10,
+    /// 2026-08-02): option (a), [`crate::entity::Face::sense`], with
+    /// the outward-normal consumer audit threaded behind it. S10 stopped
+    /// at the contract plus the audit, so this refusal outlives it by
+    /// exactly one unit: wiring `revert` to flip the bit is the
+    /// immediately following unit, and THAT is what retires this
+    /// variant's reachability for the analytic surfaces. UNION stays
+    /// the live curved boolean meanwhile, and M5 PR 12's die pips stay
+    /// gated on the wiring unit rather than on a design question. A
+    /// front-door refusal: no reduction work happens first.
     CurvedOpUnsupported {
         /// The refused op (never `Union`).
         op: BooleanOp,

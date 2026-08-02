@@ -212,16 +212,71 @@ pub(super) fn face_source<T: Decide>(
     body.surface_source(body.get_face(face)?.surface)
 }
 
-/// The face's plane description (post-gate: always a `Plane`).
+/// The face's plane description (post-gate: always a `Plane`), with
+/// the **face's outward normal** — not the chart's.
+///
+/// [`PlaneDesc::normal`] is contractually the unit OUTWARD normal, and
+/// since S10 that is the surface's chart normal times
+/// [`crate::entity::Face::sense_sign`]: the chart is the only place
+/// orientation was ever encoded, so on a `sense: false` face the
+/// stored normal points INTO the material, and every consumer reading
+/// a material direction off it would answer backwards. The
+/// multiplication happens here, once, because this is the single door
+/// every planar boolean consumer walks through (`sector_face`,
+/// `plane_of`, this sweep, the pierce lane, the REST lane) —
+/// threading at the door is what lets those consumers stay
+/// orientation-blind.
+///
+/// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
+/// Zero, or that hand the normal to a ray-parity test, are unaffected
+/// either way (a residual's sign flip decides Zero the same, and
+/// crossing parity is blind to frame handedness). The consumers that
+/// read a MATERIAL side off the sign — `side_code`, the containment
+/// ray's `d·n̂` — are exactly the ones this fixes.
 pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
         Some(geom_surfaces::Surface::Plane { origin, normal, .. }) => Some(PlaneDesc {
             origin: *origin,
-            normal: *normal,
+            normal: *normal * f.sense_sign::<T>(),
         }),
         _ => None,
     }
+}
+
+/// The recipe source of the face's **oriented plane description** —
+/// the datum [`super::oriented_plane_eq`]'s rung 1 needs, which is NOT
+/// the same thing as the surface's source ([`face_source`]).
+///
+/// Rung 1 answers Same±-orientation syntactically, from the two
+/// sources' `orient` tags, and asserts (debug) that same-source
+/// descriptions agree bitwise. Since S10 the descriptions rung 1 is
+/// handed are [`face_plane`]'s — the faces' OUTWARD normals — so two
+/// faces sharing one surface key and one recipe source but differing
+/// in `sense` carry descriptions that are exact negations of each
+/// other. Left uncomposed, the rung would call that pair
+/// `SameOriented` on the strength of the surface sources alone, and
+/// the bit assertion would fire on the very configuration S10 exists
+/// to express.
+///
+/// N6's `orient` tag already MEANS "this description is the source
+/// expression's orientation-reversal", which is exactly what a
+/// `sense: false` face's outward normal is, so the sense bit composes
+/// into it through [`crate::GeomSource::reverted`] and rung 1 keeps
+/// deciding exactly, with zero numerics. Returned owned: the flip
+/// mints a value rather than borrowing the stored one (the stored
+/// source describes the SURFACE and must not be rewritten by a
+/// face-level question).
+pub(super) fn face_plane_source<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<crate::source::GeomSource> {
+    let source = face_source(body, face)?;
+    Some(if body.get_face(face)?.sense {
+        source.clone()
+    } else {
+        source.reverted()
+    })
 }
 
 /// F7: the maximal-faces precondition through the coincidence ladder —
@@ -277,9 +332,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         // source IS declared coplanarity — the pair should have been
         // merged by the producing op); cross-operand declared pairs
         // never do.
+        let (o1, o2) = (face_plane_source(body, f1), face_plane_source(body, f2));
         let id = super::PlaneIdentity {
-            s1: face_source(body, f1),
-            s2: face_source(body, f2),
+            s1: o1.as_ref(),
+            s2: o2.as_ref(),
             declared: false,
         };
         match super::oriented_plane_eq(&p1, &p2, id, arm, band) {

@@ -163,6 +163,7 @@ fn build_lone_edge() -> LoneEdge {
     body.get_solid_mut(solid).unwrap().shells.push(shell);
     let face = body.add_face(
         Face {
+            sense: true,
             surface,
             outer: LoopKey::default(),
             rings: vec![],

@@ -317,6 +317,15 @@ pub(super) fn bool_connect<T: Decide>(
                     .cloned()
                     .ok_or(desync("germ face surface no longer resolves"))
             };
+        // The germ faces' SURFACES, deliberately unoriented (S10): what
+        // the curved lanes below take from a plane germ is a
+        // [`SplitPlane`] — a section datum, an operation input whose
+        // normal names a chart, not a material side. The plane as a
+        // point set (and hence the section conic, its azimuth window,
+        // and the auxiliary surface minted for it) is identical under
+        // a sense flip, so applying `sense_sign` here would rewrite an
+        // input that never meant "outward"; the created faces' own
+        // orientation comes from the joiner's stored winding.
         let ga = surf_of(&red.a, germ.a_face)?;
         let gb = surf_of(&red.b, germ.b_face)?;
         use crate::splitting::SplitPlane;
@@ -895,6 +904,17 @@ fn choose_roles<T: Decide>(
 /// island cycles — slit-growing joins are mekr-lane merges). The
 /// ring lane is planar-scoped like [`point_in_solid`]'s F5 gate: a
 /// non-planar carrier refuses loudly.
+///
+/// **Orientation (S10)**: the margin multiplies two differently-sourced
+/// signs and needs exactly ONE of them threaded. The Newell sum is
+/// winding — read off the run's STORED traversal order, which `revert`
+/// reverses — so it already flips with the sense bit and must not be
+/// touched. The normal is a CHART read standing in for the face's
+/// outward normal, so it is multiplied by `sense_sign`. Threading both
+/// would cancel (the classic double-count); threading neither leaves
+/// "CCW around the outward normal" meaning "CCW around the chart
+/// normal", the opposite statement on a reversed face — and this
+/// verdict is what picks an island's new outer boundary.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -905,9 +925,9 @@ fn ring_run_ccw<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     let normal = match body
         .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+        .and_then(|f| body.get_surface(f.surface).map(|s| (f, s)))
     {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => *normal,
+        Some((f, geom_surfaces::Surface::Plane { normal, .. })) => *normal * f.sense_sign::<T>(),
         _ => return Err(desync("ring-lane face has no planar carrier")),
     };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
@@ -984,6 +1004,8 @@ fn ring_run_ccw<T: Decide>(
         .ok_or(desync("run end has no point"))?;
     newell = newell + (prev - p0).cross(end - p0);
     let escalate = |diag| BooleanError::Escalated { diag };
+    // `normal` carries the sense, `newell` carries the traversal: one
+    // factor each, never both (fn docs — the double-count hazard).
     match decide("bool_ring_run_winding", normal.dot(newell), band).map_err(escalate)? {
         geom_core::Sign::Positive => Ok(true),
         geom_core::Sign::Negative => Ok(false),
@@ -1298,6 +1320,10 @@ fn resolve_roles_geometric<T: Decide>(
                     };
                     for p in cands {
                         if anchor.needs_interior_certificate() {
+                            // The normal is only a projection frame for
+                            // `point_in_face`'s ray parity, which is
+                            // blind to its sign; `face_plane` hands out
+                            // the oriented one regardless (S10).
                             let (_, normal) = super::solid_contain::face_plane(body, region_face)
                                 .map_err(BooleanError::Containment)?;
                             if super::solid_contain::point_in_face(

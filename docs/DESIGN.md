@@ -104,6 +104,46 @@ in the `crates/topo/src/entity.rs` module docs. (This discharges the
 deferred-list item "orientation/sense conventions — document as
 conventions once".)
 
+**Face orientation sense** *(ratified 2026-08-02, M5 S10; the closure of
+PR 9c deviation 3)*. A face carries an explicit orientation bit,
+`Face::sense: bool`: **`true` iff the face's material side agrees with
+its surface's chart normal**, so the face's outward normal at a point is
+`sense_sign · n(u, v)` with `sense_sign = ±1`. Before this the outward
+normal simply *was* the chart normal, and that identity was not merely
+convention but a **representation gap**: `revert` — which must produce
+the body bounding the complementary volume — had nothing to write on a
+curved face. The analytic chart normals do not admit a reversal by
+reparameterization: the cylinder's, cone's and torus's are *odd* in the
+radius (outward for either sign, so neither an axis flip nor a negative
+radius moves them), and the sphere's is *even* in the radius, hence
+outward exactly under the ratified `radius > 0` convention (a
+negative-radius sphere is a de facto reversed sphere and is **rejected**
+as a representation — it breaks that convention and inverts every
+consumer that meters a sphere residual by `2r`). The three alternatives
+— a `Surface::Reversed` wrapper, NURBS conversion on revert, and
+negative-radius spheres — were costed and rejected; the bit on the face
+is the ratified fix. Consequences, all normative:
+- The interior-left rule above is stated against the face's **outward
+  normal**, which is now the sense-signed chart normal. Nothing about
+  the rule changes; its input does.
+- Orientation reversal is **exact structure**, never a numeric decide:
+  reverting a curved body flips `sense` rather than perturbing geometry,
+  so `revert` stays a bitwise involution and a `revert ∘ revert` round
+  trip is bit-identical at every scalar backend. *This states the
+  contract the bit establishes, not shipped behaviour: S10 lands the
+  representation and the consumer threading only — the curved `revert`
+  writer lands in the follow-on unit, and until it does `revert` still
+  refuses non-planes with its typed error.*
+- Every "which way is out" consumer (tier gates, mass-properties flux,
+  boolean sector classification and point-in-solid, splitting
+  classification, tessellation winding, export winding) reads the signed
+  normal, or documents in place why it is sense-invariant.
+- The bit is exactly STEP's `advanced_face.same_sense`
+  (ISO 10303-42 `face_surface`), so the exporter consumes it rather than
+  deriving it.
+- Persistence is unaffected: bodies are not serialized — they re-derive
+  from recipes (D9) — so there is no schema change.
+
 **The operator set (M1; ratified PR #15 and the per-PR sign-offs
 #16/#17/#20; kill duals #23).** Ten operators in five make/kill pairs —
 `mvfs`/`kvfs`, `mev`/`kev`, `mef`/`kef`, `kemr`/`mekr`,

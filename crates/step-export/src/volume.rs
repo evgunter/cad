@@ -16,12 +16,29 @@
 //! plane, refusing anything else with the same typed errors the
 //! emitter would raise (never a silently-approximated classification).
 //!
+//! # Orientation comes from the winding, not from the normal (S10)
+//!
+//! Note what the formula above does **not** read: the face's stored
+//! surface normal. `A⃗_f` is accumulated from the loops' stored
+//! traversal, and interior-left ties that traversal to the face's
+//! OUTWARD normal — so `A⃗_f` is the outward-oriented area vector by
+//! derivation. This matters since M5 S10, when the stored chart normal
+//! stopped being the outward normal in general (the outward normal is
+//! `topo::Face::sense_sign() · chart_normal`): the claim these docs
+//! used to open with — "every face's stored normal is its outward
+//! normal" — is no longer true, but the walk never depended on it and
+//! needs no repair. `sense_sign` must NOT be applied here: `revert`
+//! reverses the loops and flips `sense` together, so multiplying would
+//! negate the volume twice and misclassify exactly the reversed shells
+//! it would have been added for (S10 category B — the same
+//! disposition as `topo::props` and the tessellator's winding sites).
+//!
 //! # Why the sign read is safe (headroom, not exactness)
 //!
-//! Every face's stored normal is its outward normal and loops obey
-//! interior-left (M1 ratification), so a shell bounding material from
-//! outside integrates to `+enclosed volume` and a void cavity wall
-//! (normals pointing into the cavity, away from material) integrates
+//! With the loops obeying interior-left (M1 ratification), a shell
+//! bounding material from outside integrates to `+enclosed volume`
+//! and a void cavity wall (whose loops wind about normals pointing
+//! into the cavity, away from material) integrates
 //! to `−cavity volume`. The classification read is a plain f64 sign
 //! comparison, **not a Q1 trilean** — an export-layer decision, made
 //! safe by headroom rather than certification: f64 accumulation error
@@ -69,6 +86,9 @@ pub(crate) fn shell_signed_volume(body: &Body<f64>, shell: &Shell) -> Result<f64
             });
         };
         // 2·A⃗_f, accumulated in loop-storage order (D9: fixed order).
+        // The face's S10 `sense` is deliberately absent: this vector is
+        // winding-derived and therefore already outward-oriented for
+        // either sense (module docs, the double-count hazard).
         let mut area2 = Vec3::zero();
         for &loop_key in std::iter::once(&face.outer).chain(face.rings.iter()) {
             let loop_ = body.get_loop(loop_key).ok_or(StepExportError::Corrupt {

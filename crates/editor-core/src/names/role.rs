@@ -177,12 +177,24 @@ pub enum Qualifier {
     /// entry per partner, sorted by partner name (`name_frag_side_of`
     /// through `k_stats`). Partners are the cutting entities' names —
     /// recipe-covariant by construction.
+    ///
+    /// "Oriented" means **outward**-oriented: a partner face's
+    /// reference plane takes its normal from the face's material side
+    /// — `topo::Face::sense_sign()` times the stored chart normal (M5
+    /// S10). The verdicts are signs against that plane, so the
+    /// orientation sense is part of the geometry these names are
+    /// covariant with; see `emit_topo::face_plane`.
     SideOf(Vec<(StableName, SideVerdict)>),
     /// Ordinal position under order-along(oriented parent carrier)
     /// (`name_frag_order_along` through `k_stats`): rank `rank` of
     /// `of` fragments, ordered along the parent's own oriented
     /// carrier (edge direction; for face fragments of a split, the
     /// section line oriented by n_face × n_tool).
+    ///
+    /// The carrier's orientation is load-bearing — reversing it
+    /// reverses every rank — so where it is built from face normals
+    /// those are **outward** normals (M5 S10, `emit_topo::face_plane`),
+    /// never raw chart normals.
     OrderAlong {
         /// This fragment's rank (0-based) along the carrier.
         rank: u32,
