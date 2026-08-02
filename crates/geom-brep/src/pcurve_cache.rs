@@ -1578,6 +1578,9 @@ mod tests {
     /// arriving PR — never a silent fallback (C5).
     #[test]
     fn frontier_charts_refuse_typed() {
+        // CONSTRUCTION arm, flipped from the sphere-chart refusal pin
+        // (M5 S13; the S9 pattern): the equator on its own sphere
+        // chart is the closed-form azimuth-linear image u = t, v = 0.
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: 1.0,
@@ -1590,10 +1593,33 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let err = chart_pcurve(&carrier, &sphere, band()).unwrap_err();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &sphere, band()).unwrap();
+        assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);
+        assert!((pl.x - 1.0).abs() < 1e-15 && pl.y.abs() < 1e-15);
+        assert!(pa.x.abs() < 1e-15 && pa.y.abs() < 1e-15);
+        assert!(pb.x.abs() < 1e-15 && pb.y.abs() < 1e-15);
+        // What stays refused on the sphere chart, TYPED: a tilted
+        // small circle's azimuth is non-harmonic — never fitted (C5).
+        let tilt = 0.6_f64;
+        let tilted = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+            radius: 1.0,
+            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        };
+        let err = chart_pcurve(&tilted, &sphere, band()).unwrap_err();
+        assert!(matches!(err, PcurveCertifyError::UnsupportedCarrier));
+        // And the cone chart keeps the frontier refusal verbatim.
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let err = chart_pcurve(&carrier, &cone, band()).unwrap_err();
         assert!(matches!(
             err,
-            PcurveCertifyError::UnsupportedChart { chart: "sphere" }
+            PcurveCertifyError::UnsupportedChart { chart: "cone" }
         ));
         assert!(err.to_string().contains("PR 7"));
     }
