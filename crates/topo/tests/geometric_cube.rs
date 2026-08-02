@@ -67,9 +67,10 @@ fn geometric_cube_passes_all_three_tiers() {
 /// sense flip does not touch, so both bodies meter the identical
 /// volume. Nothing else in the at-rest battery can see the defect.
 ///
-/// Bit-identity: the unflipped cube still validates clean — every
-/// constructor mints `sense: true`, so the threading multiplies by
-/// exactly `+1`.
+/// Bit-identity: the unflipped cube still validates clean — planar
+/// sweeps mint `sense: true` throughout (M5 S11 reverses only walls
+/// whose material lies against the chart normal, all curved here), so
+/// the threading multiplies by exactly `+1`.
 #[test]
 fn tier_three_refuses_a_hand_flipped_face_sense() {
     let t = geometric_cube::<f64>();

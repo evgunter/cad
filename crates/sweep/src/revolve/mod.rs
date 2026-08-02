@@ -674,7 +674,7 @@ pub fn revolve<T: Decide>(
         .collect();
     let mut classes = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
-        classes.push(axis::classify_loop(segs, &frame, li, band)?);
+        classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
 
     if full {

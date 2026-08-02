@@ -251,15 +251,19 @@ pub struct Face {
     /// surface's chart normal (i.e. the face's outward normal is `+n`);
     /// `false` iff it is reversed (outward normal `-n`).
     ///
-    /// **Every constructor in this build mints `sense: true`.** The
-    /// reversed value is not yet reachable: the sole writer-to-be is
-    /// curved [`crate::Body::revert`], which is the follow-on unit. The
-    /// bit therefore exists ahead of its first writer, deliberately —
-    /// S10 lands the contract and the consumer threading so the wiring
-    /// unit is a one-line flip. Consumers must nonetheless honor it
-    /// (they are audited and threaded as of S10); the test-only door
-    /// [`crate::Body::flipped_face_sense_for_tests`] is what exercises
-    /// `false`.
+    /// **Writers (M5 S11).** The Euler operators mint `sense: true`
+    /// (the material side is not op-level knowledge — `mef` sees two
+    /// chords, not the profile); constructors attach the honest bit
+    /// through [`crate::Body::set_face_sense`] wherever the chart
+    /// normal points into material, decided from the profile's stored
+    /// winding/turn structure, never numerically: extrude's concave
+    /// arc walls, and a revolve's inward walls (bore cylinder, inward
+    /// cone, under-side plane annulus, concave sphere/torus band). The
+    /// remaining writer-to-be is curved [`crate::Body::revert`] (the
+    /// follow-on unit), which flips every face of a body at once.
+    /// Consumers are audited and threaded as of S10; the test-only
+    /// door [`crate::Body::flipped_face_sense_for_tests`] exercises
+    /// the *incoherent* single-face flip.
     ///
     /// STEP alignment: this is exactly `advanced_face.same_sense`
     /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes

@@ -4153,7 +4153,8 @@ mod tests {
     /// battery can see the defect.
     ///
     /// Bit-identity: the honest body's report is unchanged by the S10
-    /// threading (every constructor mints `sense: true`, so the
+    /// threading (planar sweeps mint `sense: true` throughout — S11
+    /// reverses only material-against-chart walls, none here — so the
     /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
     /// before the flip". The fixture is [`ops_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
