@@ -1679,3 +1679,238 @@ gate is untouched, and NURBS-naming descriptions plus NURBS carriers
 under CONVENTIONAL descriptions — exactly a loft's iso-parameter seams
 — still refuse. Both frontier messages were rewritten to that truth
 rather than left to describe a main that no longer exists.
+
+## PR 9c (2026-08-01): the banked curved-boolean completions — item 1's
+## containment/pierce half lands; items 2–6 return executed blockers
+
+Binding spec: `docs/M5-PR9C-SPEC.md` (six banked lanes). Branch
+`ev/m5-pr9c-completions` from #151/#152's merged main (2c17686).
+
+**Landed.** The SPHERE containment/pierce doors of
+`topo::boolean::point_in_solid` (spec item 1's second half). `face_geo`
+resolved `{Plane, Cylinder}` only; a sphere operand could not be
+classified at all, which is the door the cylinder×sphere arm stands on.
+The arm covers the CLOSED sphere class and says so structurally: the
+faces sharing one sphere surface must close on each other (every
+boundary edge's mate lands on a face of the same surface), which makes
+their union the whole chart and removes the need for a per-face chart
+trim. That is exactly what the M5 inventory mints — the `ball`
+acceptance's V2 E2 F2, two half-bands on ONE sphere key joined along
+the seam meridian and its angle-π copy — and it is why a per-FACE
+fullness test (the first design, "every boundary edge is this face's
+own `Seam`") was wrong: no M5 body has such a face. Arms act only for
+the group's representative face, so one sphere folds exactly one
+crossing pair per ray; a per-face arm would fold the same root twice
+and tie itself into a permanent graze.
+
+Predicates added (K funnel, metres): `bool_ray_sphere_disc` — the
+ray/sphere discriminant metered as a length (`disc / 2r`; `√disc` is
+the half-chord). Zero ⇒ tangent ray ⇒ graze/retry; Negative ⇒ definite
+miss. The outward sign at each root needs NO second predicate:
+`d·(p − c)/r = (w·d + t)/r = ±√disc/r`, so the near root enters and the
+far root exits, read off the discriminant already decided definite. The
+boundary pre-pass reuses `bool_point_in_solid_plane` on the linearized
+radial residual `(|q − c|² − r²)/2r`, the same metre-valued form the
+cylinder arm and the certification layer classify. Both squares go
+through `powi(2)` (interval-square-poison rule — these straddle zero on
+a probe near the wall).
+
+`PointInSolidError::PartialSphereFace` is the new typed refusal, and it
+is RE-PINNED as its own construction row (the S9 flip pattern): a
+partial revolve caps the sphere band with planar fan walls, the group
+stops closing, and the door refuses rather than guessing where the trim
+runs. Its message carries the two-tolerance shape for a DEFINITE arm —
+it states that the arm is structural (an exact-`f64` scan of arena keys
+and mate adjacency, C6), has no in-band twin, does not move with ε, and
+names the recourse.
+
+**Deviations (numbered, with the executed blocker).**
+
+1. **Item 1's fitted-chord join lane is NOT landed.** Only the
+   containment/pierce doors are. The germ-pair join dispatch
+   (`boolean/join.rs:402`) wires exactly one arm, `(Plane, Cylinder)`,
+   through `JoinLane::BoolPlanar` with an azimuth window from
+   `face_azimuth_window`. A cyl×sphere arm needs its own window analog,
+   and the blocker under it is deviation 2: fitted carriers have no
+   closed-form chart image, so `chart_pcurve` — which
+   `run_azimuth_window` calls per run edge — refuses them, and there is
+   no stored pcurve to read instead until `Pcurve::Fitted` exists.
+
+2. **Item 2 (`Pcurve::Fitted`) is blocked on the SSI enclosure
+   machinery being `f64`-only.** The storage half is small (the
+   `Copy`-drop ripple is ~35 sites: `pcurve_cache.rs` 24, `topo/body.rs`
+   7, `topo/pcurves.rs` 2) and the sampled-residual limb
+   (`|S(P(tᵢ)) − C(tᵢ)|`) is already generic over `T`. What is not: the
+   BETWEEN-SAMPLES envelope. `PcurveCache::recertify` must RE-DERIVE the
+   whole certificate at rest — never trust the stored one — and for a
+   fitted pcurve the only honest envelope is the C2.2 hull bound the
+   spec names, which is computed by `ssi::enclose`/`ssi::certify`. Those
+   are `f64`-only by type (`Box3` is built on `Point3<f64>`;
+   `NurbsSurface::project` is `impl NurbsSurface<f64>`). Admitting
+   `Pcurve::Fitted` therefore requires first lifting the SSI enclosure
+   stack to `T: Real`, or accepting an f64-only certification lane that
+   silently dies in the Interval lane. Neither is a PR 9c edit; sized as
+   its own unit.
+
+3. **Item 3 (curved revert) is blocked on there being NO representation
+   for an orientation-reversed curved surface.** This is the deepest of
+   the five and it is not a sizing miss — it is a contract gap. A face's
+   outward normal IS its surface's chart normal (`topo::Face` carries no
+   sense flag), and the per-kind statement is (SCOPED at the fix pass by
+   the review's F1 — the first draft's blanket "always outward" was
+   FALSE for the sphere):
+
+   - **Cylinder, cone, torus**: the chart normal is ODD in the radius
+     (`∂u × ∂v = r·radial(u)` for the cylinder, analogously for the
+     other two), so it is OUTWARD for either sign — a negative radius
+     moves the point to `radial(u+π)` and the normal with it. Negating
+     `axis` flips `v_ref = axis × u_ref` too and merely reparameterizes
+     `u ↦ −u`. Nothing to write.
+   - **Sphere**: `∂u × ∂v = r²·cos v·n̂` is EVEN in the radius. The
+     reviewer's executed probe: `Sphere { radius: -1.0, .. }` evaluates
+     with an INWARD chart normal, while a cylinder at `r = −1` stays
+     outward. So a negative-radius sphere IS a de facto reversed sphere.
+     It is REJECTED as a representation rather than adopted: it violates
+     the variant's ratified `radius > 0` convention, and every consumer
+     that meters a sphere residual by `2r` reads the sign backwards —
+     including this very unit's `point_in_solid` sphere arm, whose
+     boundary residual `(|q−c|² − r²)/2r` and `bool_ray_sphere_disc`
+     metering both divide by `2r` (a definite miss would read as a hit).
+
+   The conclusion is unchanged: under the current contracts `revert` has
+   nothing it may write on a cylinder, cone, sphere or torus. Three
+   candidate designs, all
+   ratification-scope: (a) a `sense` field on `topo::Face` — 82 `Face {`
+   literals plus every consumer that asks "which way is out" (mesh,
+   step-export where STEP's `advanced_face.same_sense` is the natural
+   home, certify, boolean classification, props, validate); (b) a
+   `Surface::Reversed(Arc<Surface>)` wrapper — 66 files match on
+   `Surface::` and every exhaustive match breaks, and it is a D3 closed-
+   enum change; (c) convert reverted curved surfaces to NURBS with
+   reversed parameterization — loses analytic identity, forces a pcurve
+   re-mint onto a different chart, and would hand PR 12's die pips a
+   NURBS dimple face. A fourth option surfaced and was REJECTED by the
+   review: (d) adopt the negative-radius sphere as the reversed form —
+   it is the only reversal the enum can already express, and it is still
+   wrong, for the convention and `2r`-metering reasons above. The
+   `CurvedOpUnsupported` front door therefore STAYS, and PR 12's curved
+   subtract stays gated. Recommendation: (a), discussed with Evan before
+   any code.
+
+4. **Item 4 (cyl×cyl equal-radius germs) not landed** — same blocker
+   as deviation 1: the join dispatch's `(a_s, b_s)` fallthrough refuses
+   typed and the equal-radius ellipse pair needs its own two-cylinder
+   window story in `JoinLane`. `geom_brep::intersect`'s classification
+   arm (`intersect.rs:241`, `:658`) is live; the TOPOLOGY side is the
+   missing half.
+
+5. **Item 5 (edge×NURBS-face sweep layer) not landed**, and item 6
+   depends on it, so the shape-(iii) cut-loft row stays pinned refused.
+
+6. **Item 6 (the loft/sweep body assembly) is blocked at tier-3 check
+   7, the +V invariant.** The assembly design was executed to the point
+   of the blocker and is recorded here so the next unit does not
+   re-derive it. (i) The topology is extrude's, with different geometry:
+   `LoftGeometry.walls[loop][segment]` are the wall surfaces, cap rims
+   are section 0 / section k−1's segment curves, struts are the walls'
+   `u = const` iso-curves. (ii) Cap-wall edges need NOTHING new: the
+   wall's `v = 0` iso IS the placed sketch segment (degree elevation and
+   knot refinement are exact), so the carrier stays `Curve3::Line`/
+   `Circle` under `MappedCurve::PlacedSegment` and certifies today.
+   (iii) Wall-wall seams are the genuinely new class; they cannot go
+   through `Intersection` with a widened `resolve()` as the spec
+   sketched, because `implicit_residual(Nurbs)` and
+   `curvature_lever_arm(Nurbs)` are poison and a foot-point gradient is
+   `f64`-only — so `classify_dihedral` cannot run. The workable shape is
+   a new `EdgeGeometry::IsoCurve { surface, u, v0, v1 }` (Copy-
+   preserving, resolves through the surface arena) whose residual is the
+   genuinely metric `|carrier(t) − S(u, v0 + (v1−v0)t)|` at the CERT
+   schedule, with adjacency read as `surface ∈ {fs_plus, fs_minus}`, and
+   tier-3 check 4 exempt BY KIND for Nurbs-adjacent edges (the `Seam`
+   exemption idiom; a definitional wall junction's contact class is the
+   profile's declared corner structure, Q8/C11, not a derived one). (iv)
+   What none of that fixes: `validate_geometric` check 7 calls
+   `mass_properties`, which routes a Nurbs face to
+   `geom_brep::props::curved_face` → `PropsError::Unimplemented` →
+   `ValidationError::VolumeUncomputable`. NURBS-patch flux needs
+   surface quadrature (PR 11), and the AREA half has no closed form at
+   all for a rational patch. So a loft body cannot be tier-3 valid in
+   this build no matter how well the assembly is written, and shipping
+   the assembly without it would replace one honest frontier with a body
+   that fails validation — strictly worse than PR 10's pinned refusal.
+   `wire_loft`'s `CurvedSolidFrontier` therefore STAYS, and shape (iii)'s
+   loft-body row stays pinned.
+
+**Spec-vs-code correction.** The spec says the tier-3 Nurbs kind
+refusal is "duplicated in `tier3_local_checks` AND
+`tier3_local_checks_marked` — flip BOTH". There is only ONE copy:
+`tier3_local_checks` (validate.rs:1512) delegates to
+`tier3_local_checks_marked` (:1546), which holds the single check-1
+loop. Nothing to flip twice.
+
+**Battery.** Touched crates `topo` + `sweep`, default ε: 42 + 39 green
+result lines, 0 failures. Interval lane (`topo/interval`,
+`sweep/interval`): 81 green result lines, 0 failures. `cargo fmt --all
+--check` clean; `clippy --all-targets` clean on both crates in both
+feature sets. Interval-square tripwire self-check on the diff: no
+`x * x` on a generic scalar (both new squares are `powi(2)`).
+
+**Message hygiene (the PR 10 fix-pass rule applied to ourselves).**
+Three in-code frontiers said "banked as M5 PR 9c". PR 9c has now run,
+so leaving them would be a promise describing a main that no longer
+exists. All three were rewritten to the executed finding and PINNED by
+acceptance rows: `RevertError::UnsupportedSurface` now carries the
+"not merely unimplemented" PROOF (the chart normal of every
+axisymmetric variant is always outward, and neither an axis flip nor a
+negative radius moves it); `BooleanError::CurvedOpUnsupported` quotes
+that finding so a caller who never touches `revert` still learns why
+curved subtract is gated; `CurvedBooleanUnsupported` names what PR 9c
+did land (the sphere half of the containment/pierce door) and what it
+did not (the fitted-chord join lane, behind `Pcurve::Fitted`);
+`LOFT_FRONTIER` names the +V/quadrature door behind the description
+doors it used to stop at. The die-pips shape (a sphere bitten out of a
+slab) is exercised as a SMOKE row in `m5_pr9c_sphere_doors.rs` and
+pinned at its typed front-door refusal — the honest form of "ahead of
+PR 12" when the op itself is gated.
+
+
+### PR 9c fix pass (2026-08-01)
+
+Review verdict: APPROVE-WITH-FIX-PASS. The sphere group-arm design was
+verified sound (the clopen-coverage argument holds for any face count),
+the double-fold claim was EXECUTED-CONFIRMED (a scratch de-guarded
+variant dies `RayExhausted`), the `disc / 2r` metering was D4-endorsed,
+and the boundary pre-pass was checked correct at both the seam and the
+poles. All five blocker proofs confirmed. Zero landed-code MAJORs
+outside the proof TEXT.
+
+**F1 (MAJOR, proof text).** The outward-normal proof's negative-radius
+leg is false for the sphere — `∂u × ∂v = r²·cos v·n̂` is EVEN in `r`.
+Every pinned copy (revert.rs docs + `Display`, `boolean/mod.rs`
+`CurvedOpUnsupported` docs + `Display`, deviation 3 above) is now scoped
+per kind, and option (d) — adopting the negative-radius sphere as the
+reversed form — is recorded as REJECTED with its two reasons. The
+acceptance row was flipped from asserting `"always outward"` to
+asserting the corrected per-kind text AND the ABSENCE of the overclaim,
+so the first draft's statement cannot come back.
+
+**F2 (MINOR).** `boolean/reduce.rs`'s NURBS-wall pre-refusal still said
+the crossing layer was "banked as M5 PR 9c". Rewritten to the executed
+finding: PR 9c was that unit and did NOT land it, because the residual
+sides a crossing layer needs (`implicit_residual`, `classify_dihedral`)
+are poison on a NURBS surface and the only non-poison substitute is a
+foot-point projection that exists at `f64` only.
+
+**F3 (MINOR).** The sphere arm's comment claimed it metered `disc` by
+`2r` "exactly as the cylinder arm meters its own"; the cylinder arm
+divides by `(2r)²`, which is dimensionless. The comment now states that
+the sphere's length-dimensioned form is the D4-honest one and FLAGS the
+cylinder arm for normalization by a unit that can re-pin its margins —
+deliberately not changed here, since the PR 9 acceptance rows pin them.
+
+**F4 (NOTEs, both taken).** A tangent-schedule-ray row (zero
+discriminant ⇒ graze ⇒ the retry schedule answers, never a parity
+guess) and a two-ball MULTI-SHELL row. The latter builds its body with
+the live curved UNION of two disjoint balls, so it pins the group
+rule across SURFACES *and* pins the new arm driving the boolean's own
+no-intersection containment fallback — not just a direct query.

@@ -681,8 +681,13 @@ pub(crate) const LOFT_FRONTIER: &str = "a NURBS-walled solid: tier 3 refuses Sur
      under a CONVENTIONAL description (Unimplemented) — which is \
      exactly a loft's iso-parameter seams. The curved-boolean lane \
      opened the NURBS carrier for Intersection descriptions of two \
-     ANALYTIC surfaces only; the remaining forms land with the \
-     curved-tessellation lane";
+     ANALYTIC surfaces only. M5 PR 9c executed the assembly design \
+     against this door and found a HARDER one behind it: tier 3's +V \
+     check (7) computes mass_properties, which routes a NURBS face to \
+     props::curved_face and gets Unimplemented, so the body would fail \
+     validation even with every description accepted — NURBS-patch flux \
+     needs the curved-face quadrature of the tessellation lane, and the \
+     surface-area half has no closed form for a rational patch at all";
 
 /// The Sweep node's frontier, which is STRICTLY WIDER than the loft's
 /// (M5 PR 10 fix pass, review MAJOR-1).
