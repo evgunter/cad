@@ -17,7 +17,7 @@
 //! where PR 9c doors exist (plane/cylinder/sphere). The e2e halves
 //! that need other crates live next to their consumers:
 //! tessellation in `crates/mesh/tests/m5_s11_concave_sense.rs`, STEP
-//! `same_sense = .F.` in `crates/step-export/tests/export.rs`.
+//! `same_sense = .F.` in `crates/step-export/tests/m5_s11_same_sense.rs`.
 //!
 //! **Tolerance shape**: structural (the S10 posture) — the bit is a
 //! `bool` selected from stored `Sign`s; numeric assertions are against

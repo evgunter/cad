@@ -1972,3 +1972,70 @@ wrong flips a lie into another lie.
 literals; the actual population is 24 (the looser grep that produced 82
 also matches `MassPropsError::Face`, `EulerOpError::NotSameFace`, and
 the other error variants named `*Face`).
+
+## S11 (2026-08-02): concave/inward walls mint `sense: false` — the
+## S10 deviation-1 fix; the pellet-swallow union dies here
+
+Merge-priority unit (S9/du_of_rims precedent): until this PR, main
+misreported containment on concave notches AND revolve bores, and the
+public `union` silently swallowed a disjoint pellet placed in a notch
+(volume 3.000 for 3.008, one shell for two, no refusal). Required
+predecessor of the revert wiring.
+
+**The criterion, exact structure only.** The profile's canonical
+winding is material-left (outers CCW, holes CW), so a wall's material
+side is the left of its canonical traversal. Extrude: an arc's carrier
+center lies left iff its stored turn is `Positive`, and the cylinder
+chart normal is unconditionally the outward radial ⇒ **wall sense =
+(canonical turn == Positive)**; concavity is a property of the 2-D
+region against the carrier circle, so the swept reversal never enters.
+Revolve, derived in the (r, z) frame (orientation-preserving, r ≥ 0):
+sphere/torus walls take the same turn-sign rule; cylinder AND cone
+walls take **sense = (canonical Δz > 0)** (the cone's nappe dependence
+algebraically collapses to the axial sign); plane annuli (chart normal
+fixed at `+a₃`) take **sense = (canonical Δr < 0)**. All signs come
+from the named `axis_line_radial`/`axis_line_axial` decide funnel —
+the cylinder arm now decides `axis_line_axial` too. Attachment is the
+new constructor-facing door `Body::set_face_sense` (the mint cannot
+know the material side; the mirror of `set_face_surface`).
+
+**Widened scope (deviation).** The audit found revolve's line walls
+carried the same defect class: bore cylinders, inward cones, and the
+UNDER-side plane annulus. The annulus claim is **at-rest class
+membership** — its chart normal (`+a₃`) points into material — not an
+executed door witness: the containment ray schedule never decides
+through that face (review probes on main read `Out` from below), and
+the executed misreports on main were the notch, the hole plate, and
+the bore. Note the annulus is also invisible to tier-3 check 6, whose
+loop-role gate is line-bounded-planar only: an arc-bounded reversed
+planar face passes at rest, so the constructor criterion is the ONLY
+guard there.
+
+**Rows.** The two S10 `finding_*` rows flipped to construction rows
+(door reads `Out` through the notch; `union` keeps the pellet: 3.008,
+two shells). New per-wall-kind acceptance in
+`crates/sweep/tests/m5_s11_concave_sense.rs` (+ interval twin), the
+watertight/convergence rows in `crates/mesh/tests/`, and the first
+real `.F.` emission + typed-refusal rows in `crates/step-export/tests/
+m5_s11_same_sense.rs` (the planar-only writer cannot yet carry a
+curved reversed wall — the spec'd same_sense e2e lands with the
+exporter's curved arms). Pre-existing, sense-independent door
+limitations pinned typed: full-period wall trims
+(`bool_wall_trim_period`) and rimmed sphere bands
+(`PartialSphereFace`).
+
+**Banked hazard (review MIN-1).** Boolean splitting's `mef` re-mints
+stamp `sense: true`, so splitting a reversed face would silently reset
+the bit; unreachable today (curved lanes refuse typed first) and
+pinned by the adopted guard
+`review_s11_adv::adv_touching_union_with_reversed_faces_refuses_typed`.
+The parent-sense inheritance fix MUST land with the unit that makes
+those splits reachable. Recorded at `Body::set_face_sense` and the
+`splitting/join.rs` mint site.
+
+**Review.** Blinded adversarial review: APPROVE, 0 MAJOR / 2 MINOR /
+3 NOTE (rubric 5/5/4); the criterion survived all six adversarial
+constructions unmodified (mixed hole arcs, fillet-cornered eye slot as
+outer and hole, per-carrier downward invariance, reversed authoring,
+bore-groove torus, touching-union guard — adopted verbatim); merge-base
+reproductions confirmed for bore, hole plate, and pellet.

@@ -116,6 +116,23 @@ impl<T: Decide> Body<T> {
     /// decision (a `bool` is written, nothing compared); tier 1 is
     /// trivially preserved.
     ///
+    /// **KNOWN HAZARD — splitting does not inherit the bit yet (M5
+    /// S11 audit finding, banked for the curved-boolean/revert
+    /// units).** Every `mef` mints its new face `sense: true`,
+    /// including the boolean splitting/reassembly re-mints
+    /// (`splitting/join.rs`, `splitting/reassembly.rs`), so splitting
+    /// a `sense: false` face today would silently stamp `true` on the
+    /// pieces — a piece of a reversed wall is the same surface region
+    /// with the same material side and MUST inherit the parent face's
+    /// bit. Unreachable in the current battery: curved
+    /// subtract/intersect refuse at the front door, and touching
+    /// curved unions refuse typed before any reversed face splits
+    /// (pinned by the sweep-side guard
+    /// `review_s11_adv::adv_touching_union_with_reversed_faces_refuses_typed`,
+    /// which fails loudly the day such a union starts answering). The
+    /// inheritance fix must land WITH the unit that makes those splits
+    /// reachable, not after it.
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if `face` does not resolve. The body
