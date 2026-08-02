@@ -47,3 +47,5 @@ proptest = { workspace = true }
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
+# M5 PR 11: the corpus curved documents gain tessellation columns.
+mesh = { path = "../mesh" }
