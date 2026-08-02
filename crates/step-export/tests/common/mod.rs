@@ -293,6 +293,109 @@ pub fn notched() -> Body<f64> {
         .body
 }
 
+/// S12's two-stub complement: a radius-0.35 cylindrical boss spanning
+/// z ∈ [−0.2, 1.0] MINUS a 3×3×0.8 plate — the boss's two ends stick
+/// out above and below, so the result is one solid with TWO disjoint
+/// shells, both carrying cylinder walls. The only curved MULTI-shell
+/// body constructible at rest, and therefore the only body that
+/// reaches (and refuses at) the export's outward/void classifier.
+/// Deliberately NOT a committed fixture: it does not export.
+pub fn two_stub_complement() -> Body<f64> {
+    use core::f64::consts::PI;
+
+    use geom_core::Affine3;
+    use profile::ProfileVertex;
+    let plate = extrude(
+        &validated(
+            SketchPlane::xy(),
+            ProfileLoop::polygon([
+                Point2::new(0.0, 0.0),
+                Point2::new(3.0, 0.0),
+                Point2::new(3.0, 3.0),
+                Point2::new(0.0, 3.0),
+            ]),
+        ),
+        Extrusion::Distance(0.8),
+    )
+    .unwrap()
+    .body;
+    let r = 0.35;
+    let bulge = (PI / 6.0).tan();
+    let at = |i: usize| {
+        let th = 2.0 * PI / 3.0 * i as f64;
+        Point2::new(1.2 + r * th.cos(), 1.7 + r * th.sin())
+    };
+    let boss_loop = ProfileLoop::new(
+        (0..3)
+            .map(|i| ProfileVertex { pos: at(i), bulge })
+            .collect(),
+    );
+    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
+    let boss = extrude(
+        &Profile::new(sketch, vec![boss_loop])
+            .validate(Tolerance::get())
+            .unwrap(),
+        Extrusion::Distance(1.2),
+    )
+    .unwrap()
+    .body;
+    let BooleanResult::Body(stubs) = subtract(&boss, &plate).unwrap() else {
+        panic!("boss minus plate is a body");
+    };
+    stubs.body
+}
+
+/// **The writer's emission order, mirrored** (faces, then edges by
+/// first encounter): solids in arena order → shells in `Solid::shells`
+/// order → faces in `Shell::faces` order → the outer loop then rings in
+/// stored order → half-edges in loop-cycle order.
+///
+/// The suites that compare emitted records against the body's own
+/// geometry need to know WHICH kernel entity a record belongs to, and
+/// entity ids are allocated along exactly this walk (`writer.rs`'s
+/// module docs, D9). Note this is deliberately NOT `body.faces()` /
+/// `body.edges()`: those are arena order, which coincides with the walk
+/// on simple extrusions and diverges on boolean results — a helper that
+/// used them would silently compare the wrong pairs on precisely the
+/// most interesting bodies.
+pub fn walk_order(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<topo::EdgeKey>) {
+    let mut faces = Vec::new();
+    let mut edges = Vec::new();
+    for (_, solid) in body.solids() {
+        for &shell_key in &solid.shells {
+            let shell = body.get_shell(shell_key).expect("shell resolves");
+            for &face_key in &shell.faces {
+                faces.push(face_key);
+                let face = body.get_face(face_key).expect("face resolves");
+                for &loop_key in std::iter::once(&face.outer).chain(face.rings.iter()) {
+                    let loop_ = body.get_loop(loop_key).expect("loop resolves");
+                    let topo::LoopBoundary::Cycle { first } = loop_.boundary else {
+                        panic!("a finished body has no empty loop");
+                    };
+                    for he_key in body.loop_cycle(first).expect("cycle closes") {
+                        let he = body.get_half_edge(he_key).expect("half-edge resolves");
+                        if !edges.contains(&he.edge) {
+                            edges.push(he.edge);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (faces, edges)
+}
+
+/// The certified carrier of an edge, for the suites that compare
+/// emitted geometry with the body's own (`topo`'s public accessors,
+/// spelled once).
+pub fn certified_carrier(body: &Body<f64>, edge: topo::EdgeKey) -> &geom_curves::Curve3<f64> {
+    let edge = body.get_edge(edge).expect("edge key resolves");
+    match body.get_curve_geom(edge.curve).expect("curve key resolves") {
+        topo::CurveGeom::Certified(curve) => curve.carrier(),
+        topo::CurveGeom::NullScaffold(_) => panic!("a finished body has no null scaffolding"),
+    }
+}
+
 /// **The committed-fixture corpus, in file order** — the single list
 /// behind `examples/export_fixtures.rs` (which writes the `.step`
 /// files), `tests/export.rs::committed_fixtures_are_byte_golden`

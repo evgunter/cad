@@ -850,3 +850,125 @@ pub(crate) fn write_document(
         w.data
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    //! Record-level pins for the `B_SPLINE_CURVE_WITH_KNOTS` arm.
+    //!
+    //! These are unit tests rather than acceptance rows because **no
+    //! body at rest carries a `Curve3::Nurbs` carrier**: the kernel's
+    //! only mint site for one is an SSI rung-3 branch, and no public
+    //! constructor reaches it in this build (the repo's single
+    //! certified rung-3 edge is a hand-built scaffold in `topo`'s own
+    //! suite, guarded by a fit-sample budget). The arm exists because
+    //! the entity is part of the curved subset the plan names and
+    //! because the alternative — refusing a carrier the schema can
+    //! carry exactly — would be a worse frontier than an untravelled
+    //! code path. Pinning the exact record text is what keeps that path
+    //! honest until a body arrives to walk it.
+
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+    use geom_curves::NurbsCurve3;
+
+    use super::*;
+
+    /// Emits one NURBS carrier into a fresh writer and returns the
+    /// final record (the entity under test; the control points are the
+    /// records before it).
+    fn emitted(curve: &NurbsCurve3<f64>) -> String {
+        let body = Body::<f64>::new();
+        let mut w = Writer::new(&body);
+        w.b_spline_curve(curve.knots(), curve.control(), curve.weights())
+            .expect("a validated curve prints");
+        w.data
+            .lines()
+            .next_back()
+            .expect("at least one record")
+            .to_owned()
+    }
+
+    /// A **non-rational** curve takes the simple entity: unit weights
+    /// are recognized exactly (weights are f64 structure, C6 — the
+    /// decision is `== 1.0`, not a tolerance), so no
+    /// `RATIONAL_B_SPLINE_CURVE` composition appears.
+    #[test]
+    fn unit_weights_emit_the_simple_entity() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.0),
+            Point3::new(3.0, 2.0, 0.0),
+            Point3::new(4.0, 0.0, 0.0),
+        ];
+        let curve = NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap();
+        assert_eq!(
+            emitted(&curve),
+            "#5 = B_SPLINE_CURVE_WITH_KNOTS('', 3, (#1, #2, #3, #4), .UNSPECIFIED., \
+             .U., .U., (4, 4), (0.0, 1.0), .UNSPECIFIED.);"
+        );
+    }
+
+    /// A **rational** curve takes the complex instance, components in
+    /// alphabetical order (`BOUNDED_CURVE` before `B_SPLINE_CURVE`:
+    /// Part 21 orders by the entity NAME, and `O` < `_` in ASCII).
+    /// The payload here is the exact quarter circle of NURBS Book
+    /// Eq. 7.33 — `w₁ = cos θ` — which is also the concrete answer to
+    /// "why do conics not go this way": the same arc is one `CIRCLE`
+    /// record with five reals.
+    #[test]
+    fn mixed_weights_emit_the_rational_complex_instance() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let w1 = core::f64::consts::FRAC_1_SQRT_2;
+        let curve = NurbsCurve3::new(knots, control, vec![1.0, w1, 1.0]).unwrap();
+        assert_eq!(
+            emitted(&curve),
+            "#4 = ( BOUNDED_CURVE() B_SPLINE_CURVE(2, (#1, #2, #3), .UNSPECIFIED., .U., .U.) \
+             B_SPLINE_CURVE_WITH_KNOTS((3, 3), (0.0, 1.0), .UNSPECIFIED.) CURVE() \
+             GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE((1.0, \
+             0.7071067811865476, 1.0)) REPRESENTATION_ITEM('') );"
+        );
+    }
+
+    /// Interior knots run-length-encode by exact equality, ends come
+    /// out clamped at multiplicity `degree + 1`, and the pair
+    /// reconstructs the flat vector the kernel stores.
+    #[test]
+    fn interior_knot_multiplicities_encode_exactly() {
+        let flat = vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.5, 1.0, 1.0, 1.0];
+        let knots = KnotVector::clamped(flat.clone(), 2).unwrap();
+        let (mults, values) = run_length_knots(knots.knots(), "test").unwrap();
+        assert_eq!(mults, "3, 1, 2, 3");
+        assert_eq!(values, "0.0, 0.25, 0.5, 1.0");
+        // Round trip: multiplicities × values rebuild the flat vector.
+        let rebuilt: Vec<f64> = mults
+            .split(", ")
+            .zip(values.split(", "))
+            .flat_map(|(m, v)| {
+                let v: f64 = v.parse().unwrap();
+                std::iter::repeat_n(v, m.parse().unwrap())
+            })
+            .collect();
+        assert_eq!(rebuilt, flat);
+    }
+
+    /// The "no description yet" NURBS carrier refuses typed rather
+    /// than printing poison — the curve-side twin of the mvfs surface
+    /// placeholder, and the one live `UnsupportedCurve` case.
+    #[test]
+    fn the_carrier_placeholder_refuses_typed() {
+        let placeholder = Curve3::<f64>::nurbs_placeholder();
+        let Curve3::Nurbs(ref payload) = placeholder else {
+            panic!("the placeholder is a NURBS curve");
+        };
+        assert!(payload.control().iter().all(|p| !p.x.is_finite()));
+        assert_eq!(carrier_kind(&placeholder), "nurbs curve");
+    }
+}
