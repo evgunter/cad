@@ -2075,3 +2075,18 @@ other lane folding + final battery.
 immediately): PR 11 + S11-review killed mid-work; both RESUMED
 from transcripts (clones intact; PR 11's lane-split restructure
 was already pushed pre-kill).** 
+
+**S11 review returned (2026-08-02): APPROVE — 0 MAJ / 2 MIN /
+3 NOTE, rubric 5/5/4.** Criterion HELD under six adversarial
+constructions (mixed convex/concave hole; asymmetric downward
+invariance; the extruded vesica eye-slot as outer AND hole;
+reversed-authoring revolve; concave-toward-axis torus groove
+with exact Pappus volume; touching-union refusal pin).
+Merge-base: bore + hole-plate misreports REPRODUCE on main,
+fixed on branch; volumes honest both sides (winding-derived).
+Honest sharpening: the under-annulus was wrong AT REST but
+never door-observable (ray schedule) — restated as class
+membership. mef hazard VERIFIED but unrecorded (MIN-1 — the
+fix pass banks it durably). Revolve nappe-independence algebra
+independently confirmed ("rare and valuable" doc match). Fix
+pass DISPATCHED; PR opens with merge priority.
