@@ -703,6 +703,15 @@ fn chord_spec<T: Decide>(
             radius,
             u_ref,
         }) => (origin, axis, radius, u_ref),
+        // The sphere wall (M5 S13): the chart frame is (center, polar
+        // axis, radius, seam u_ref) — azimuth about the polar axis,
+        // exactly the shape the S9 tail below meters.
+        Some(&geom_surfaces::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        }) => (center, axis, radius, u_ref),
         // Post-gate unreachable kinds — typed, never assumed.
         Some(_) | None => {
             return Err(SplitJoinError::SectionInvariant {
@@ -717,6 +726,7 @@ fn chord_spec<T: Decide>(
             what: "curved section chord outside the split/wall lane (no section context)",
         });
     };
+    // The wall surface (cylinder OR sphere since M5 S13).
     let cyl_s = body.get_surface(wall_key).cloned().ok_or_else(corrupt)?;
     // A transient classification value: only origin/normal are read by
     // the table (u_ref is a placement convention the classification
@@ -727,16 +737,90 @@ fn chord_spec<T: Decide>(
         u_ref: ctx.plane.normal,
     };
     let extent = super::rules::face_extent(body, u1, face).map_err(|_| corrupt())?;
-    let sec =
-        geom_brep::plane_cylinder_section(&plane_s, &cyl_s, extent, band).map_err(|e| match e {
+    // The conic frame (center, plane normal, major dir, semi-axes) —
+    // per wall kind: the sphere lane (M5 S13) classifies through THE
+    // table's plane_sphere_section (an exact Circle, never a fitted
+    // chord); the cylinder lane below is PR 5/PR 9, untouched.
+    let (c_e, n_e, u_e, sa, sb, carrier) = if let geom_surfaces::Surface::Sphere {
+        axis: sph_axis,
+        radius: sph_r,
+        ..
+    } = &cyl_s
+    {
+        let sec = geom_brep::plane_sphere_section(&plane_s, &cyl_s, band).map_err(|e| match e {
             geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
             other => SplitJoinError::Section {
                 face,
                 source: other,
             },
         })?;
-    // The conic frame (center, plane normal, major dir, semi-axes).
-    let (c_e, n_e, u_e, sa, sb, carrier) = match sec {
+        let circle = match sec {
+            geom_brep::PlaneSphereSection::Circle(c) => c,
+            // C7: the tangent locus is a POINT — a touching
+            // configuration, refused typed, never minted.
+            geom_brep::PlaneSphereSection::TangentPoint(_) => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "tangent plane×sphere germ pair under a minted section chord — a \
+                           touching configuration (the M5 envelope's typed frontier)",
+                });
+            }
+            geom_brep::PlaneSphereSection::Empty => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "empty plane×sphere classification under a minted section chord",
+                });
+            }
+        };
+        let &geom_curves::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = &circle
+        else {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "plane×sphere classification carried a non-circle",
+            });
+        };
+        // The azimuth-anchored arc-side rule below premises azimuth
+        // MONOTONE along the carrier. On a sphere chart that holds
+        // exactly for POLAR sections (section normal ∥ the polar
+        // axis); a tilted section's chart azimuth is non-harmonic
+        // (it bulges past its endpoints) — refused typed, never
+        // guessed. The boolean's S13 re-cut re-charts sphere operands
+        // onto the escape-aligned axis, so the ship path is polar.
+        match decide(
+            "split_sphere_section_polar",
+            axis.cross(*sph_axis).norm() * *sph_r,
+            band,
+        )
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+        {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "plane×sphere section tilted against the sphere chart's polar \
+                           axis — the azimuth-anchored arc-side rule needs a polar \
+                           section (the S13 re-cut re-charts the operand; a tilted \
+                           residual configuration is a typed frontier)",
+                });
+            }
+        }
+        (center, axis, u_ref, radius, radius, circle)
+    } else {
+        let sec = geom_brep::plane_cylinder_section(&plane_s, &cyl_s, extent, band).map_err(
+            |e| match e {
+                geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
+                other => SplitJoinError::Section {
+                    face,
+                    source: other,
+                },
+            },
+        )?;
+        match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
             let geom_curves::Curve3::Ellipse {
                 center,
@@ -840,6 +924,7 @@ fn chord_spec<T: Decide>(
                 face,
                 what: "empty plane×cylinder classification under a minted section chord",
             });
+        }
         }
     };
     let v_e = n_e.cross(u_e);
@@ -1098,17 +1183,28 @@ fn bool_planar_chord_spec<T: Decide>(
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     let corrupt = || SplitJoinError::Corrupt;
-    let &geom_surfaces::Surface::Cylinder {
-        origin: o_c,
-        axis: a_c,
-        radius: r_c,
-        u_ref: u_ref_c,
-    } = wall
-    else {
-        return Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "boolean planar-side germ partner is not a cylinder (arm not wired, C12.1)",
-        });
+    // The wall's chart frame — cylinder (PR 9, untouched) or sphere
+    // (M5 S13: center, polar axis, radius, seam u_ref).
+    let (o_c, a_c, r_c, u_ref_c) = match wall {
+        &geom_surfaces::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => (origin, axis, radius, u_ref),
+        &geom_surfaces::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => (center, axis, radius, u_ref),
+        _ => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "boolean planar-side germ partner is neither a cylinder nor a sphere \
+                       (arm not wired, C12.1)",
+            });
+        }
     };
     let (p_o, p_n) = match body.get_surface(plane_key) {
         Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => (origin, normal),
@@ -1120,15 +1216,74 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let sec =
-        geom_brep::plane_cylinder_section(&plane_s, wall, extent, band).map_err(|e| match e {
+    let (c_e, n_e, u_e, sa, sb, carrier) = if let geom_surfaces::Surface::Sphere { .. } = wall {
+        // The sphere wall (M5 S13): the exact C5 Circle, with the
+        // same polar-monotonicity premise as `chord_spec`'s sphere
+        // lane (fn docs there).
+        let sec = geom_brep::plane_sphere_section(&plane_s, wall, band).map_err(|e| match e {
             geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
             other => SplitJoinError::Section {
                 face,
                 source: other,
             },
         })?;
-    let (c_e, n_e, u_e, sa, sb, carrier) = match sec {
+        let circle = match sec {
+            geom_brep::PlaneSphereSection::Circle(c) => c,
+            geom_brep::PlaneSphereSection::TangentPoint(_) => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "tangent plane×sphere germ pair in the boolean zip — a touching \
+                           configuration (the M5 envelope's typed frontier)",
+                });
+            }
+            geom_brep::PlaneSphereSection::Empty => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "empty plane×sphere classification under a minted boolean chord",
+                });
+            }
+        };
+        let &geom_curves::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = &circle
+        else {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "plane×sphere classification carried a non-circle",
+            });
+        };
+        match decide(
+            "split_sphere_section_polar",
+            axis.cross(a_c).norm() * r_c,
+            band,
+        )
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+        {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "plane×sphere section tilted against the sphere chart's polar \
+                           axis — the azimuth-anchored arc-side rule needs a polar \
+                           section (the S13 re-cut re-charts the operand; a tilted \
+                           residual configuration is a typed frontier)",
+                });
+            }
+        }
+        (center, axis, u_ref, radius, radius, circle)
+    } else {
+        let sec =
+            geom_brep::plane_cylinder_section(&plane_s, wall, extent, band).map_err(|e| match e {
+                geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
+                other => SplitJoinError::Section {
+                    face,
+                    source: other,
+                },
+            })?;
+        match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
             let geom_curves::Curve3::Ellipse {
                 center,
@@ -1177,6 +1332,7 @@ fn bool_planar_chord_spec<T: Decide>(
                 face,
                 what: "empty plane×cylinder classification under a minted boolean chord",
             });
+        }
         }
     };
     let v_e = n_e.cross(u_e);
@@ -1402,14 +1558,23 @@ fn between_edge_in_plane<T: Decide>(
                 // window (the same cone comparison the containment
                 // layer decides trim with; Zero = graze = escalate).
                 JoinLane::BoolPlanar { wall, window, .. } => {
-                    let geom_surfaces::Surface::Cylinder {
-                        origin: o_c,
-                        axis: a_c,
-                        radius: r_c,
-                        u_ref: u_ref_c,
-                    } = wall
-                    else {
-                        return Err(corrupt());
+                    // The wall's chart frame — cylinder (PR 9) or
+                    // sphere (M5 S13); the branch-cut-free cosine
+                    // window test below is chart-frame generic.
+                    let (o_c, a_c, r_c, u_ref_c) = match wall {
+                        geom_surfaces::Surface::Cylinder {
+                            origin,
+                            axis,
+                            radius,
+                            u_ref,
+                        } => (origin, axis, radius, u_ref),
+                        geom_surfaces::Surface::Sphere {
+                            center,
+                            radius,
+                            axis,
+                            u_ref,
+                        } => (center, axis, radius, u_ref),
+                        _ => return Err(corrupt()),
                     };
                     let (w_min, w_max) = *window;
                     let half = T::from_f64(0.5);

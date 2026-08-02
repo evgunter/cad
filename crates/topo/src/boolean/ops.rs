@@ -94,12 +94,16 @@
 //!   the unforced window. Face-interior and convex-corner crossings
 //!   of the same shape succeed exactly.
 
-use geom_core::{Band, Bounds, Decide, MarginDiag, Real, Sign};
+use geom_core::{Band, Bounds, Decide, MarginDiag, Point3, Real, Sign, Vec3};
 
+use super::boxes;
 use super::combine::{GraftMap, graft_solid};
+use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::{contact_skip_set, kept_side, setopfinish};
 use super::join::bool_connect;
-use super::solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
+use super::solid_contain::{
+    PointInSolidError, SolidContainment, closed_sphere_group, point_in_solid,
+};
 use super::zip::zip_seam;
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
@@ -109,7 +113,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{validate, validate_closed};
+use crate::validate::{decide, validate, validate_closed};
 
 /// How a boolean result body came to be (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -354,30 +358,28 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    let band = Band::linear()?;
     // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
-    // (M5 S12; C12.1 — retire per class, never wholesale).
+    // (M5 S12; C12.1 — retire per class, never wholesale; M5 S13
+    // retires the SPHERE row).
     //
     // It used to refuse on ANY non-plane face, because both ops route
     // regions through `revert` (A∖B ≡ A∩revert(B), the §15.9 posture)
     // and `revert` was planar-only. That premise is gone: S10 ratified
     // `Face::sense`, S11 made the incoming bits honest, S12 wired the
-    // flip — so `Cylinder` operands, whose germ pairs have a live join
-    // lane, now go all the way through and are pinned end-to-end.
+    // flip — so `Cylinder` operands go all the way through, and since
+    // M5 S13 `Sphere` operands do too: the (Plane, Sphere) germ arm is
+    // wired (the exact C5 Circle) and the no-crossings fallback is
+    // extent-certified with a re-cut, so the sphere class's failure
+    // mode is typed, not silent.
     //
     // What is NOT retired is the classes with no seam lane behind them.
-    // `Sphere`/`Cone`/`Torus` germ pairs have no join arm at all
-    // (PR 9c deviation 1) and NURBS faces have no crossing layer
-    // (deviation 5) — and their failure mode is not a typed refusal
-    // downstream but a SILENT one: with no crossings found the pipeline
-    // falls through to vertex-probed containment, and a curved face
-    // leaves the other solid between its vertices without any vertex
-    // noticing. The executed witness and its merge-base reproduction are
-    // pinned as `finding_sphere_class_containment_fallback_is_wrong_today`
-    // — the same wrong answer stands on ∪ on main, which is why this
-    // door does not touch ∪: ∪'s behaviour is left exactly as it was and
-    // the defect is pinned rather than improvised over inside a revert
-    // unit.
+    // `Cone`/`Torus` germ pairs have no join arm at all (PR 9c
+    // deviation 1 lineage) and NURBS faces have no crossing layer
+    // (deviation 5) — and their downstream failure mode is not a typed
+    // refusal but a SILENT one: with no crossings found the pipeline
+    // falls through to the containment fallback, whose certified
+    // extent scan covers the sphere class only (everything else it
+    // meets refuses typed there — the second door).
     //
     // Structural, exact and up front: an arena scan of surface kinds, no
     // reduction work before it, operands untouched.
@@ -389,6 +391,7 @@ pub fn boolean_op_with<T: Decide + Bounds>(
                     Some(
                         geom_surfaces::Surface::Plane { .. }
                             | geom_surfaces::Surface::Cylinder { .. }
+                            | geom_surfaces::Surface::Sphere { .. }
                     )
                 ) {
                     return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
@@ -396,6 +399,22 @@ pub fn boolean_op_with<T: Decide + Bounds>(
             }
         }
     }
+    boolean_op_recut(op, a, b, decls, strategy, true)
+}
+
+/// The pipeline behind the front door, parameterized on whether the
+/// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
+/// pass sets `recut = false`, so a re-cut that surfaces no crossings
+/// is a loud invariant failure rather than a loop.
+fn boolean_op_recut<T: Decide + Bounds>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+    strategy: SweepStrategy,
+    recut: bool,
+) -> Result<BooleanResult<T>, BooleanError> {
+    let band = Band::linear()?;
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
 
     if red.null_pairs.is_empty() {
@@ -403,6 +422,39 @@ pub fn boolean_op_with<T: Decide + Bounds>(
             return Err(BooleanError::ClassificationInvariant {
                 what: "null edges without pairs reached the op",
             });
+        }
+        // M5 S13, the containment-fallback re-cut. Before any vertex
+        // is probed, the curved-EXTENT scan certifies the sphere class
+        // structurally: every closed sphere group's true extent
+        // (center ± r) is consulted against every face of the other
+        // operand — exact structure and certified enclosures, never a
+        // sampled normal. Three outcomes:
+        //
+        // - **no escape**: the boundaries are certified disjoint
+        //   (sphere-involved pairs), so the vertex-probe fallback's
+        //   whole-shell answer is sound — proceed.
+        // - **escape** (a sphere definitely leaves the other solid
+        //   through a plane face — the S12 finding's
+        //   poking-but-not-crossing shape): the operand is RE-CUT —
+        //   the closed group is rigidly re-charted about the escape
+        //   normal (a rotation about its own center: the same point
+        //   set, seams now transverse to the escape planes) and the
+        //   pipeline re-enters once; the ordinary crossing layer then
+        //   finds the section circles and the (Plane, Sphere) germ arm
+        //   joins them exactly.
+        // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
+        //   cylinder-near-sphere, sphere×sphere overlap, tangency,
+        //   boundary-grazing circles): typed refusal — the S12 silence
+        //   never re-opens.
+        let recuts = sphere_extent_scan(a, b, band)?;
+        if !recuts.is_empty() {
+            if !recut {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "re-cut sphere operands still produced no crossings",
+                });
+            }
+            let (a2, b2) = apply_recuts(a, b, &recuts)?;
+            return boolean_op_recut(op, &a2, &b2, decls, strategy, false);
         }
         return fallback(op, &red, a, b, decls, band);
     }
@@ -1042,9 +1094,424 @@ pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
     Ok(())
 }
 
+/// One sphere group the extent scan wants re-cut: rigidly re-charted
+/// about `align` (the first escape plane's normal) so its seam
+/// meridians run pole-to-pole TRANSVERSE to the escape planes and the
+/// ordinary crossing layer sees the section circles.
+struct SphereRecut<T: Real> {
+    /// The operand whose group escapes.
+    operand: Operand,
+    /// The group's representative face (its shell is what rotates).
+    representative: FaceKey,
+    /// The sphere's center — the rotation's fixed point.
+    center: Point3<T>,
+    /// Its radius (the alignment trilean's lever arm).
+    radius: T,
+    /// The stored polar axis (rotation source direction).
+    axis: Vec3<T>,
+    /// The escape plane's normal (rotation target direction).
+    align: Vec3<T>,
+}
+
+/// The M5 S13 curved-EXTENT scan (fn-level story on the call site in
+/// [`boolean_op_recut`]). Sound because every sphere-involved
+/// boundary pair is either **certified disjoint** (so a connected
+/// shell shares its witness vertex's side — the vertex probe's missing
+/// certificate), **an escape** (re-cut and re-entered), or **refused
+/// typed**. Cylinder/plane-only configurations run zero new
+/// predicates: the scan's outer loop keys on sphere surfaces.
+///
+/// Determinism (D9): face-arena order throughout; the first escape's
+/// normal is the alignment target.
+fn sphere_extent_scan<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+) -> Result<Vec<SphereRecut<T>>, BooleanError> {
+    let esc = |diag| BooleanError::Escalated { diag };
+    // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
+    // NURBS face refuses before a vertex is probed — the extent test
+    // is unwritable for the kind (variant docs).
+    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+        for (face, fd) in body.faces() {
+            if matches!(
+                body.get_surface(fd.surface),
+                Some(geom_surfaces::Surface::Nurbs(_))
+            ) {
+                return Err(BooleanError::NurbsExtentUnsupported { operand, face });
+            }
+        }
+    }
+    let pad = boxes::sweep_pad(band);
+    let mut out: Vec<SphereRecut<T>> = Vec::new();
+    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
+        let mut seen: Vec<SurfaceKey> = Vec::new();
+        for (face, fd) in x.faces() {
+            let Some(&geom_surfaces::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                ..
+            }) = x.get_surface(fd.surface)
+            else {
+                continue;
+            };
+            if seen.contains(&fd.surface) {
+                continue;
+            }
+            seen.push(fd.surface);
+            // The group-arm discipline (PR 9c): the extent `center ± r`
+            // is the whole group's, so it is only honest for a CLOSED
+            // group — a trimmed sphere face refuses typed.
+            let Some(representative) = closed_sphere_group(x, face) else {
+                return Err(BooleanError::FallbackExtentUnsupported {
+                    operand: x_is,
+                    face,
+                    what: "a trimmed sphere face group — the extent certificate needs the \
+                           closed-group discipline (PR 9c), and no per-face chart-trim \
+                           extent exists",
+                });
+            };
+            let ball_box = bvh::Aabb {
+                min_x: center.x.lo() - radius.hi(),
+                min_y: center.y.lo() - radius.hi(),
+                min_z: center.z.lo() - radius.hi(),
+                max_x: center.x.hi() + radius.hi(),
+                max_y: center.y.hi() + radius.hi(),
+                max_z: center.z.hi() + radius.hi(),
+            }
+            .padded(pad);
+            let mut align: Option<Vec3<T>> = None;
+            for (yf, yfd) in y.faces() {
+                match y.get_surface(yfd.surface) {
+                    Some(&geom_surfaces::Surface::Plane {
+                        origin,
+                        normal,
+                        u_ref,
+                    }) => {
+                        let s = (center - origin).dot(normal);
+                        match decide("bool_sphere_extent_gap", radius - s.abs(), band)
+                            .map_err(esc)?
+                        {
+                            // Clear of the whole carrier plane.
+                            Sign::Negative => {}
+                            // Tangency: a touching configuration the
+                            // crossing layer cannot represent — typed
+                            // (its in-band twin escalates above).
+                            Sign::Zero => {
+                                return Err(BooleanError::FallbackExtentUnsupported {
+                                    operand: x_is,
+                                    face,
+                                    what: "the sphere is exactly tangent to a plane face's \
+                                           carrier — a touching configuration (the M5 \
+                                           envelope's typed frontier)",
+                                });
+                            }
+                            Sign::Positive => {
+                                // The sphere definitely crosses the
+                                // CARRIER in a circle; classify the
+                                // circle against the FACE. Certified
+                                // enclosure first: a circle box clear
+                                // of every boundary-edge box cannot
+                                // cross the boundary, so one exact
+                                // witness extends to the whole circle.
+                                let foot = center - normal * s;
+                                let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
+                                let circle_box = bvh::Aabb {
+                                    min_x: foot.x.lo() - rho.hi(),
+                                    min_y: foot.y.lo() - rho.hi(),
+                                    min_z: foot.z.lo() - rho.hi(),
+                                    max_x: foot.x.hi() + rho.hi(),
+                                    max_y: foot.y.hi() + rho.hi(),
+                                    max_z: foot.z.hi() + rho.hi(),
+                                }
+                                .padded(pad);
+                                let mut near_boundary = false;
+                                let mut walk = |lk| -> Result<(), BooleanError> {
+                                    let l = y.get_loop(lk).ok_or(
+                                        BooleanError::ClassificationInvariant {
+                                            what: "extent scan: face loop lost",
+                                        },
+                                    )?;
+                                    let LoopBoundary::Cycle { first } = l.boundary else {
+                                        return Ok(());
+                                    };
+                                    for he in y.loop_cycle(first).ok_or(
+                                        BooleanError::ClassificationInvariant {
+                                            what: "extent scan: unwalkable loop",
+                                        },
+                                    )? {
+                                        let ek = y
+                                            .get_half_edge(he)
+                                            .ok_or(BooleanError::ClassificationInvariant {
+                                                what: "extent scan: half-edge lost",
+                                            })?
+                                            .edge;
+                                        if boxes::edge_box(y, ek, pad)?.overlaps(&circle_box) {
+                                            near_boundary = true;
+                                        }
+                                    }
+                                    Ok(())
+                                };
+                                walk(yfd.outer)?;
+                                for &ring in &yfd.rings {
+                                    walk(ring)?;
+                                }
+                                if near_boundary {
+                                    return Err(BooleanError::FallbackExtentUnsupported {
+                                        operand: x_is,
+                                        face,
+                                        what: "the sphere's section circle runs near the \
+                                               plane face's boundary — whole-circle \
+                                               membership cannot be certified from the \
+                                               enclosures, and no crossing layer saw an \
+                                               event",
+                                    });
+                                }
+                                let witness = foot + u_ref * rho;
+                                match contfp(y, yf, normal, witness, band).map_err(|e| match e {
+                                    ContainError::Escalated(diag) => {
+                                        BooleanError::Escalated { diag }
+                                    }
+                                    ContainError::RayExhausted => {
+                                        BooleanError::ClassificationInvariant {
+                                            what: "extent scan: contfp ray schedule exhausted",
+                                        }
+                                    }
+                                    ContainError::Corrupt => {
+                                        BooleanError::ClassificationInvariant {
+                                            what: "extent scan: contfp met corrupt topology",
+                                        }
+                                    }
+                                })? {
+                                    // The circle misses this face
+                                    // (it crosses the carrier plane
+                                    // elsewhere).
+                                    FaceContainment::Out => {}
+                                    FaceContainment::In => {
+                                        if align.is_none() {
+                                            align = Some(normal);
+                                        }
+                                    }
+                                    // Boxes cleared yet the witness is
+                                    // ON the boundary: contradictory
+                                    // enclosures, loudly.
+                                    FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_) => {
+                                        return Err(BooleanError::ClassificationInvariant {
+                                            what: "extent scan: witness on a boundary the \
+                                                   certified boxes cleared",
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Some(geom_surfaces::Surface::Cylinder { .. }) => {
+                        // No exact sphere-vs-cylinder-face certificate
+                        // is wired (the cyl×sphere lane is PR 9c
+                        // deviation 1, behind the SSI generic lift);
+                        // certified boxes prove separation, anything
+                        // closer refuses typed.
+                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                            return Err(BooleanError::FallbackExtentUnsupported {
+                                operand: x_is,
+                                face,
+                                what: "the sphere's certified extent meets a cylinder \
+                                       face's box — the cyl×sphere seam lane (fitted \
+                                       chords behind Pcurve::Fitted / the SSI generic \
+                                       lift, PR 9c deviation 1) is not wired, so \
+                                       nearness cannot be classified",
+                            });
+                        }
+                    }
+                    Some(&geom_surfaces::Surface::Sphere {
+                        center: c2,
+                        radius: r2,
+                        ..
+                    }) => {
+                        let d = (c2 - center).norm();
+                        match decide("bool_sphere_sphere_gap", d - (radius + r2), band)
+                            .map_err(esc)?
+                        {
+                            // Definitely separated.
+                            Sign::Positive => {}
+                            Sign::Zero | Sign::Negative => {
+                                // Nested (one strictly inside the
+                                // other) is boundary-disjoint too;
+                                // anything else is the sphere×sphere
+                                // seam frontier.
+                                let big = radius.max(r2);
+                                let small = radius.min(r2);
+                                match decide(
+                                    "bool_sphere_sphere_nested",
+                                    big - (d + small),
+                                    band,
+                                )
+                                .map_err(esc)?
+                                {
+                                    Sign::Positive => {}
+                                    Sign::Zero | Sign::Negative => {
+                                        return Err(BooleanError::FallbackExtentUnsupported {
+                                            operand: x_is,
+                                            face,
+                                            what: "two sphere boundaries meet (neither \
+                                                   separated nor strictly nested) — the \
+                                                   sphere×sphere germ arm (a closed-form \
+                                                   Circle, C5) has no join lane in this \
+                                                   build",
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Some(geom_surfaces::Surface::Nurbs(_)) => {
+                        // Unreachable: the re-gate above runs first.
+                        return Err(BooleanError::NurbsExtentUnsupported {
+                            operand: x_is.other(),
+                            face: yf,
+                        });
+                    }
+                    Some(
+                        geom_surfaces::Surface::Cone { .. } | geom_surfaces::Surface::Torus { .. },
+                    ) => {
+                        return Err(BooleanError::CurvedBooleanUnsupported {
+                            operand: x_is.other(),
+                            face: yf,
+                            kind: geom_brep::SurfaceKind::of(
+                                y.get_surface(yfd.surface).ok_or(
+                                    BooleanError::ClassificationInvariant {
+                                        what: "extent scan: face surface lost",
+                                    },
+                                )?,
+                            ),
+                        });
+                    }
+                    None => {
+                        return Err(BooleanError::ClassificationInvariant {
+                            what: "extent scan: face surface lost",
+                        });
+                    }
+                }
+            }
+            if let Some(align) = align {
+                out.push(SphereRecut {
+                    operand: x_is,
+                    representative,
+                    center,
+                    radius,
+                    axis,
+                    align,
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Applies the scan's re-cuts: each escaping group's shell is carved
+/// out, rigidly rotated about the sphere's own center so the stored
+/// polar axis lands on the escape normal (the same point set — a
+/// sphere is rotation-invariant about its center — with the seam
+/// meridians now transverse to the escape planes), and grafted back.
+fn apply_recuts<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    recuts: &[SphereRecut<T>],
+) -> Result<(Body<T>, Body<T>), BooleanError> {
+    let band = Band::linear()?;
+    let mut out_a = a.clone();
+    let mut out_b = b.clone();
+    for (operand, out) in [(Operand::A, &mut out_a), (Operand::B, &mut out_b)] {
+        let mine: Vec<&SphereRecut<T>> =
+            recuts.iter().filter(|r| r.operand == operand).collect();
+        if mine.is_empty() {
+            continue;
+        }
+        let src: &Body<T> = if operand == Operand::A { a } else { b };
+        let corrupt = |what| BooleanError::ClassificationInvariant { what };
+        let solid = single_solid(src).map_err(|_| corrupt("re-cut operand is not one solid"))?;
+        // Shell of each group's representative face, arena order.
+        let shell_of = |face: FaceKey| -> Result<ShellKey, BooleanError> {
+            src.shells()
+                .find(|(_, sd)| sd.faces.contains(&face))
+                .map(|(k, _)| k)
+                .ok_or(corrupt("re-cut representative face has no shell"))
+        };
+        let mut rotated: Vec<Body<T>> = Vec::new();
+        let mut cut_shells: Vec<ShellKey> = Vec::new();
+        for r in &mine {
+            let shell = shell_of(r.representative)?;
+            cut_shells.push(shell);
+            let ball = carve(src, solid, &[shell])
+                .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
+            // Rotation source → target: definite by construction — an
+            // ALIGNED yet crossing-free escape is a graze the crossing
+            // layer must have seen, so it refuses loudly instead.
+            let cross = r.axis.cross(r.align);
+            let sin = cross.norm();
+            match decide("bool_sphere_recut_align", sin * r.radius, band)
+                .map_err(|diag| BooleanError::Escalated { diag })?
+            {
+                Sign::Positive | Sign::Negative => {}
+                Sign::Zero => {
+                    return Err(BooleanError::FallbackExtentUnsupported {
+                        operand,
+                        face: r.representative,
+                        what: "the sphere chart's polar axis is already aligned with the \
+                               escape normal yet the crossing layer saw no event — a \
+                               grazing/contact configuration",
+                    });
+                }
+            }
+            let angle = sin.atan2(r.axis.dot(r.align));
+            let map = geom_core::Affine3::rotation_about_axis(r.center, cross, angle);
+            let turned = crate::transform::transform_rigid(&ball, &map)
+                .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
+            rotated.push(turned);
+        }
+        let keep: Vec<ShellKey> = src
+            .get_solid(solid)
+            .ok_or(corrupt("re-cut solid lost"))?
+            .shells
+            .iter()
+            .copied()
+            .filter(|s| !cut_shells.contains(s))
+            .collect();
+        let mut rebuilt: Option<Body<T>> = if keep.is_empty() {
+            None
+        } else {
+            Some(
+                carve(src, solid, &keep)
+                    .map_err(|_| corrupt("re-cut carve of the kept shells failed"))?,
+            )
+        };
+        for turned in rotated {
+            match rebuilt.as_mut() {
+                None => rebuilt = Some(turned),
+                Some(base) => {
+                    let base_solid = single_solid(base)
+                        .map_err(|_| corrupt("re-cut base is not one solid"))?;
+                    graft_solid(base, base_solid, &turned)?;
+                }
+            }
+        }
+        *out = rebuilt.ok_or(corrupt("re-cut produced no body"))?;
+    }
+    Ok((out_a, out_b))
+}
+
 /// Per-shell classification of one operand's clone against the other
 /// pristine operand (containment fallback; contact vertices skipped,
 /// `OnBoundary` probes advanced past).
+///
+/// **The vertex probe below is the WITNESS, not the certificate**
+/// (M5 S13). A curved boundary can leave the other solid strictly
+/// between its vertices (the S12 finding), so for the sphere class
+/// the answer is only sound because [`sphere_extent_scan`] ran first
+/// and certified every sphere-involved boundary pair disjoint (or
+/// re-cut / refused): a connected shell whose surface avoids the
+/// other boundary lies in one component, and the witness names it.
 fn classify_shells<T: Decide>(
     body: &Body<T>,
     other: &Body<T>,

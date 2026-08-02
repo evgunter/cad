@@ -307,8 +307,10 @@ pub(super) fn bool_connect<T: Decide>(
         // the C5 section conic on both sides (the wall side through
         // the S9 window machinery with the germ plane as context, the
         // planar side against the wall face's own window, so both
-        // solids select the SAME geometric arc); any other pair
-        // refuses typed citing its C5 routing (per-arm, C12.1).
+        // solids select the SAME geometric arc); plane×sphere (M5
+        // S13) rides the same two lanes with the exact C5 Circle and
+        // the sphere chart's azimuth window; any other pair refuses
+        // typed citing its C5 routing (per-arm, C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
         let surf_of =
             |body: &Body<T>, f: FaceKey| -> Result<geom_surfaces::Surface<T>, BooleanError> {
@@ -340,7 +342,8 @@ pub(super) fn bool_connect<T: Decide>(
                     .join(&mut red.b, b1, b2, JoinLane::Planar)
                     .map_err(BooleanError::Join)?;
             }
-            (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
+            (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
+            | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
                 let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
@@ -374,7 +377,8 @@ pub(super) fn bool_connect<T: Decide>(
                     sb.aux_partner.insert(germ.a_face, k);
                 }
             }
-            (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
+            (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
+            | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
                 let mut ctx = SectionCtx {
                     plane: SplitPlane {
                         origin: *origin,
@@ -651,6 +655,36 @@ fn germ_section_frame<T: Decide>(
     let (plane_s, cyl_s, radius) = match (&sa, &sb) {
         (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (&sa, &sb, *radius),
         (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (&sb, &sa, *radius),
+        // The sphere germ pair (M5 S13): the C5 Circle's frame,
+        // through THE table — same escalation plumbing.
+        (Sf::Plane { .. }, Sf::Sphere { .. }) | (Sf::Sphere { .. }, Sf::Plane { .. }) => {
+            let (plane_s, sph_s) = if matches!(&sa, Sf::Plane { .. }) {
+                (&sa, &sb)
+            } else {
+                (&sb, &sa)
+            };
+            return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
+                Ok(geom_brep::PlaneSphereSection::Circle(geom_curves::Curve3::Circle {
+                    center,
+                    axis,
+                    ..
+                })) => Ok(Some((center, axis))),
+                Ok(geom_brep::PlaneSphereSection::Circle(_)) => {
+                    Err(desync("plane×sphere classification carried a non-circle"))
+                }
+                // A tangent POINT / empty gap under a minted germ is a
+                // touching configuration the reduction should not have
+                // paired — loud, typed.
+                Ok(
+                    geom_brep::PlaneSphereSection::TangentPoint(_)
+                    | geom_brep::PlaneSphereSection::Empty,
+                ) => Err(desync("germ pair's plane×sphere section is not a locus")),
+                Err(geom_brep::SectionError::Escalated(diag)) => {
+                    Err(BooleanError::Escalated { diag })
+                }
+                Err(_) => Err(desync("germ pair's section refused at match time")),
+            };
+        }
         _ => return Ok(None),
     };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, radius, band) {

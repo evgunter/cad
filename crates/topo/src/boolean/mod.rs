@@ -523,12 +523,17 @@ pub enum BooleanError {
     /// **What still refuses, per class, and why it refuses HERE.** The
     /// blocker left is a JOIN lane, not `revert`:
     ///
-    /// - **Sphere / cone / torus**: the germ-pair join dispatch wires
-    ///   exactly one arm, `(Plane, Cylinder)` (PR 9c deviation 1), and
-    ///   a fitted-chord window needs `Pcurve::Fitted`, itself blocked
-    ///   on the SSI enclosure stack being `f64`-only (deviation 2).
+    /// - **Sphere**: LIVE since M5 S13 — the `(Plane, Sphere)` germ
+    ///   arm (exact C5 Circle) plus the extent-certified fallback
+    ///   re-cut; no longer gated here.
+    /// - **Cone / torus**: the germ-pair join dispatch wires
+    ///   `(Plane, Cylinder)` and `(Plane, Sphere)` only (PR 9c
+    ///   deviation 1 lineage), and a cyl×sphere fitted-chord window
+    ///   needs `Pcurve::Fitted`, itself blocked on the SSI enclosure
+    ///   stack being `f64`-only (deviation 2).
     /// - **NURBS**: no edge×NURBS-face crossing layer at all
-    ///   (deviation 5).
+    ///   (deviation 5), and the fallback's extent test is unwritable
+    ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
     ///
     /// These are refused UP FRONT because their downstream failure is
     /// **silent, not typed**: with no crossings found the pipeline
@@ -550,6 +555,36 @@ pub enum BooleanError {
         operand: Operand,
         /// The first curved face met (face-arena order).
         face: FaceKey,
+    },
+    /// The containment fallback's curved-EXTENT scan (M5 S13) met a
+    /// NURBS face. The extent test is UNWRITABLE for the kind with
+    /// what exists — `implicit_residual` is poison on a NURBS surface
+    /// and the only foot-point projection
+    /// (`NurbsSurface::project`) is an `impl NurbsSurface<f64>` block,
+    /// so wiring it would kill the Interval lane (the same wall as
+    /// M5-LOG PR 9c deviations 2 and 6). The class is therefore
+    /// RE-GATED at the fallback, explicitly and pinned: a future NURBS
+    /// body constructor inherits this typed refusal, never the
+    /// vertex-probe silence the S12 finding executed.
+    NurbsExtentUnsupported {
+        /// The operand carrying the NURBS face.
+        operand: Operand,
+        /// The face.
+        face: FaceKey,
+    },
+    /// The containment fallback's curved-extent scan (M5 S13) met a
+    /// configuration it cannot certify: the no-crossings question
+    /// ("which operand contains the other?") would otherwise be
+    /// answered by vertex probes a curved boundary defeats (the S12
+    /// finding), so anything the certified extents cannot clear is
+    /// refused typed here — never guessed.
+    FallbackExtentUnsupported {
+        /// The operand whose sphere group (or face) the scan stopped at.
+        operand: Operand,
+        /// The face the refusal cites.
+        face: FaceKey,
+        /// The precise uncertifiable sub-configuration.
+        what: &'static str,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -721,22 +756,48 @@ impl core::fmt::Display for BooleanError {
                  constructors' bits honest, S12 wired revert to flip them, and \
                  plane×CYLINDER subtract and intersect are now live and pinned \
                  end-to-end (blind and through holes, exact closed-form volumes, \
-                 tier 3, both sweep strategies). What is still refused is per \
-                 class, and the blocker is a JOIN lane, not revert: a \
-                 sphere/cone/torus germ pair has no join arm at all (M5 PR 9c \
-                 deviation 1 — the germ-pair dispatch wires exactly one arm, \
-                 (Plane, Cylinder), and a fitted-chord window needs Pcurve::Fitted, \
-                 itself blocked on the f64-only SSI enclosure stack, deviation 2), \
-                 and a NURBS face has no crossing layer (deviation 5). The refusal \
-                 is UP FRONT and structural because the downstream failure is \
-                 SILENT, not typed: with no crossings found the pipeline falls \
-                 through to vertex-probed containment, and a curved face leaves the \
-                 other solid between its vertices with no vertex noticing — the \
-                 executed witness is the sphere-class row \
-                 finding_sphere_class_containment_fallback_is_wrong_today, which \
-                 reproduces on the merge base and is why UNION (unchanged by S12) \
-                 is not gated here but pinned there. Recourse: express the cut with \
-                 cylindrical tooling, or wait on the join lane"
+                 tier 3, both sweep strategies). The SPHERE class went live in M5 \
+                 S13 (the plane×sphere germ arm plus the extent-certified fallback \
+                 re-cut), so this door no longer stops it. What is still refused is \
+                 per class, and the blocker is a JOIN lane, not revert: a cone or \
+                 torus germ pair has no seam lane at all (M5 PR 9c deviation 1 \
+                 lineage — the germ-pair dispatch wires (Plane, Cylinder) and \
+                 (Plane, Sphere) only, and a cyl×sphere fitted-chord window needs \
+                 Pcurve::Fitted, itself blocked on the f64-only SSI enclosure \
+                 stack, deviation 2), and a NURBS face has no crossing layer \
+                 (deviation 5). The refusal is UP FRONT and structural because the \
+                 downstream failure is SILENT, not typed: with no crossings found \
+                 the pipeline falls through to vertex-probed containment, and a \
+                 curved face leaves the other solid between its vertices with no \
+                 vertex noticing — the executed witness was the sphere-class row \
+                 finding_sphere_class_containment_fallback_is_wrong_today (flipped \
+                 to its construction row by S13's extent scan; the scan refuses \
+                 typed for the classes it cannot certify rather than re-opening \
+                 that silence). Recourse: express the cut with cylindrical or \
+                 spherical tooling, or wait on the join lane"
+            ),
+            Self::NurbsExtentUnsupported { operand, face } => write!(
+                f,
+                "boolean fallback: face {face:?} of operand {operand:?} is NURBS-surfaced \
+                 and the no-crossings containment fallback's curved-extent test cannot be \
+                 written for the kind: implicit_residual(Nurbs) is poison and the only \
+                 foot-point projection, NurbsSurface::project, exists at f64 ONLY (an \
+                 impl NurbsSurface<f64> block — the M5-LOG PR 9c deviation 2/6 wall), so \
+                 wiring it would kill the Interval lane. The class is re-gated HERE, \
+                 typed and pinned (M5 S13), so a future NURBS body constructor cannot \
+                 re-open the vertex-probe silence the S12 finding executed. Recourse: \
+                 lift the projection to T: Real, then retire this gate per class"
+            ),
+            Self::FallbackExtentUnsupported {
+                operand,
+                face,
+                what,
+            } => write!(
+                f,
+                "boolean fallback: the curved-extent scan (M5 S13) cannot certify the \
+                 no-crossings configuration at face {face:?} of operand {operand:?}: \
+                 {what}. The vertex-probed answer a curved boundary defeats is never \
+                 given (the S12 finding's silence stays closed); refused typed instead"
             ),
             Self::Pcurves { source } => write!(
                 f,

@@ -39,7 +39,9 @@ fn route_inventory() {
         (Plane, Plane, Rung::Closed, true),
         (Plane, Cylinder, Rung::Conic, true),
         (Plane, Cone, Rung::Conic, true),
-        (Plane, Sphere, Rung::Closed, false),
+        // M5 S13 retired this arm: the closed-form Circle
+        // (plane_sphere_section — the die-pips join lane's row).
+        (Plane, Sphere, Rung::Closed, true),
         (Plane, Torus, Rung::General, false),
         // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
         // PR 7 plus the tensor-composite sup bound for limb 2.

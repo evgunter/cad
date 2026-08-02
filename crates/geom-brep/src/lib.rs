@@ -62,9 +62,9 @@ pub use implicit::{
     implicit_residual,
 };
 pub use intersect::{
-    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
-    SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
-    plane_cylinder_section, route,
+    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
+    RadiusEvidence, Rung, SectionError, SurfaceKind, cylinder_cylinder_section,
+    plane_cone_section, plane_cylinder_section, plane_sphere_section, route,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
