@@ -17,7 +17,9 @@ use geom_core::{Bounds, Decide, Probe};
 /// A scalar the tour can build scenes at: kernel-decidable, document-
 /// evaluable (the heat-sink recipe), and exactly f64-extractable for
 /// narration.
-pub trait Scalar: Decide + Bounds + ContentBits + Send + Sync + Copy + 'static {
+pub trait Scalar:
+    Decide + Bounds + ContentBits + topo::PropsQuadLane + Send + Sync + Copy + 'static
+{
     /// The exact f64 value (narration/oracles only — never decisions).
     fn f(self) -> f64;
 }

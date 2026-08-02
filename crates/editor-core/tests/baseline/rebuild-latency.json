@@ -3,78 +3,78 @@
     "boss_union": {
       "about": "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
       "cone": 2,
-      "full_ms": 382.1,
-      "incremental_ms": 308.3,
+      "full_ms": 310.7,
+      "incremental_ms": 277.81,
       "nodes": 5
     },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
       "cone": 5,
-      "full_ms": 5869.7,
-      "incremental_ms": 4485.31,
+      "full_ms": 4134.6,
+      "incremental_ms": 2622.3,
       "nodes": 18
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
       "cone": 3,
-      "full_ms": 6754.8,
-      "incremental_ms": 4702.15,
+      "full_ms": 3041.0,
+      "incremental_ms": 3977.77,
       "nodes": 9
     },
     "cut_cylinder": {
       "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
       "cone": 2,
-      "full_ms": 98.3,
-      "incremental_ms": 70.24,
+      "full_ms": 112.6,
+      "incremental_ms": 78.82,
       "nodes": 4
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "cone": 1,
-      "full_ms": 260.7,
-      "incremental_ms": 99.22,
+      "full_ms": 310.1,
+      "incremental_ms": 204.25,
       "nodes": 4
     },
     "die": {
       "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
       "cone": 3,
-      "full_ms": 62531.1,
-      "incremental_ms": 7199.96,
+      "full_ms": 51661.1,
+      "incremental_ms": 3253.98,
       "nodes": 77
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
       "cone": 12,
-      "full_ms": 5869.8,
-      "incremental_ms": 6988.18,
+      "full_ms": 2681.3,
+      "incremental_ms": 3869.38,
       "nodes": 15
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
       "cone": 2,
-      "full_ms": 810.4,
-      "incremental_ms": 30.44,
+      "full_ms": 1041.3,
+      "incremental_ms": 58.57,
       "nodes": 15
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
       "cone": 2,
-      "full_ms": 3604.0,
-      "incremental_ms": 2252.32,
+      "full_ms": 2893.7,
+      "incremental_ms": 866.68,
       "nodes": 11
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
       "cone": 2,
-      "full_ms": 8447.4,
-      "incremental_ms": 2731.05,
+      "full_ms": 4035.4,
+      "incremental_ms": 1618.96,
       "nodes": 11
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
       "cone": 3,
-      "full_ms": 8812.3,
-      "incremental_ms": 7701.25,
+      "full_ms": 6948.9,
+      "incremental_ms": 6506.49,
       "nodes": 14
     }
   },
@@ -90,5 +90,9 @@
     "refreshed_by": "M4 PR 8a fix pass (ev/m4-8a-corpus), 2026-07-26",
     "status": "REPORTING ONLY - measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on these numbers.",
     "what": "Per-document full-rebuild and incremental-recompute wall-clock medians for the M4 PR 8a Band 4 corpus."
+  },
+  "refreshed_under": {
+    "cargo_rustc_procs": 1,
+    "mem_total_kb": 10184312
   }
 }

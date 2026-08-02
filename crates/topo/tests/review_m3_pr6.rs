@@ -108,7 +108,7 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// documented "double refusal = genuine both-sided zero-area residue"
 /// reading. Controls: each single-sided half succeeds under the SAME
 /// plane with exact volume conservation.
-fn both_sided_pinch_scenario<T: Decide + Bounds>() {
+fn both_sided_pinch_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
         let fx = prism::<T>(profile, 1.0);
         let v0 = mass_properties(&fx.body).unwrap().volume;
@@ -149,7 +149,7 @@ fn r1_both_sided_pinch_f64() {
 /// Compares volumes, shell/face/edge/vertex counts per assigned side,
 /// and the section-face normal convention (above section m = −n,
 /// below m = +n) that the doc claims survives the swap.
-fn mirror_identity_scenario<T: Decide + Bounds>() {
+fn mirror_identity_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0);
         let rp = split(&fx.body, &plane_y::<T>(1.0, 1.0)).unwrap();
@@ -484,7 +484,7 @@ fn r4_extended_sweep_volume_identities() {
 /// `pm_census_ve_span` (and the vv lane at delta = 0 corners). For
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
-fn straddle_scenario<T: Decide>(delta: f64) {
+fn straddle_scenario<T: Decide + topo::PropsQuadLane>(delta: f64) {
     let fx = prism_z::<T>(
         &[
             (0.0, 0.0),

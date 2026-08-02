@@ -203,7 +203,7 @@ fn triangulate_chart(
 }
 
 /// A CDT edge's identity as an unordered pair of vertex indices.
-fn edge_key(
+pub(crate) fn edge_key(
     e: DirectedEdgeHandle<'_, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
 ) -> (usize, usize) {
     let (p, q) = (e.from().fix().index(), e.to().fix().index());
@@ -218,7 +218,7 @@ fn edge_key(
 /// traversed an odd number of times. Purely combinatorial: the result
 /// depends on the triangulation's connectivity and on integer crossing
 /// counts, never on a coordinate comparison.
-fn classify_faces(
+pub(crate) fn classify_faces(
     cdt: &ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
     crossings: &HashMap<(usize, usize), u32>,
 ) -> Vec<bool> {
@@ -290,7 +290,7 @@ fn loop_ids(
 }
 
 /// Twice the signed area of a 2-D polygon.
-fn shoelace2(poly: &[[f64; 2]]) -> f64 {
+pub(crate) fn shoelace2(poly: &[[f64; 2]]) -> f64 {
     let mut s = 0.0;
     for (i, p) in poly.iter().enumerate() {
         let q = poly[(i + 1) % poly.len()];

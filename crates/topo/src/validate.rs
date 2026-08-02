@@ -1506,7 +1506,9 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// A non-empty vector of every failure found: tiers 1–2 verbatim if
 /// any, else the tier-3 failures in the documented order.
-pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+pub fn validate_geometric<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+) -> Result<(), Vec<ValidationError>> {
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
 
@@ -1528,7 +1530,10 @@ pub fn validate_geometric<T: Decide>(body: &Body<T>) -> Result<(), Vec<Validatio
 /// the SAME local passes — extraction, not copy-paste; behavior under
 /// `validate_geometric` is identical to the pre-extraction code).
 /// Assumes the tier-1/2 coarse gate already passed.
-pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<ValidationError> {
+pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<ValidationError> {
     let mut marks = slotmap::SecondaryMap::new();
     tier3_local_checks_marked(body, band, &mut marks)
 }
@@ -1542,7 +1547,7 @@ pub(crate) fn tier3_local_checks<T: Decide>(body: &Body<T>, band: Band) -> Vec<V
 /// # Errors
 ///
 /// As [`validate_geometric`].
-pub fn contact_marks<T: Decide>(
+pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
@@ -1562,7 +1567,7 @@ pub fn contact_marks<T: Decide>(
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
 /// dihedral/jet loop derives anyway).
-pub(crate) fn tier3_local_checks_marked<T: Decide>(
+pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
@@ -1996,8 +2001,17 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
     if errors.is_empty() {
         match crate::props::mass_properties_with(body, band) {
             Ok(props) => {
+                // The margin consumes the CERTIFIED bound (M5 PR 11):
+                // for quadrature faces `volume` is an enclosure
+                // midpoint with half-width `volume_pad`, so the honest
+                // "definitely negative" statement is about the UPPER
+                // end `volume + pad` — a thin positive volume inside a
+                // wide bracket must never refuse. Closed-form bodies
+                // have pad = 0.0 and the margin is bit-identical to
+                // the pre-PR-11 one.
+                let v_hi = props.volume + T::from_f64(props.volume_pad);
                 if let Ok(Sign::Negative) =
-                    decide("positive_volume", props.volume / props.surface_area, band)
+                    decide("positive_volume", v_hi / props.surface_area, band)
                 {
                     errors.push(ValidationError::NegativeVolume);
                 }
@@ -2057,7 +2071,7 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
 /// A non-empty vector of every failure found: tiers 1–2 verbatim if
 /// any, else tier-3 local failures, else census/certification
 /// failures in deterministic sweep order.
-pub fn validate_pseudomanifold<T: Decide>(
+pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
 ) -> Result<(), Vec<ValidationError>> {

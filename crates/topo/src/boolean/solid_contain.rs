@@ -846,7 +846,8 @@ fn at_infinity_side<T: Decide>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<SolidContainment, PointInSolidError> {
-    let props = crate::props::mass_properties_with(body, band).map_err(|_| {
+    // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
+    let props = crate::props::mass_properties_closed_form(body, band).map_err(|_| {
         PointInSolidError::CorruptFace {
             face: faces.first().copied().unwrap_or_default(),
         }

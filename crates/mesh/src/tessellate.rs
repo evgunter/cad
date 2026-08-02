@@ -55,8 +55,10 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
         positions.push(*p);
     }
 
-    // Chord pass: per-edge polylines, computed once (crate docs).
-    let chords = compute_chords(body, delta_s, &vids, &mut positions)?;
+    // Chord pass: per-edge polylines, computed once (crate docs);
+    // `chord_ts` is the matching parameter schedule (the trimmed lane
+    // evaluates pcurves on it — one derivation, both consumers).
+    let (chords, chord_ts) = compute_chords(body, delta_s, &vids, &mut positions)?;
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
@@ -82,6 +84,11 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             .ok_or(TessellateError::MissingEntity {
                 what: "face surface",
             })?;
+        let tol = crate::curved::Tol {
+            delta: chordal,
+            delta_s,
+            eps,
+        };
         let triangles = match *surface {
             Surface::Nurbs(_) => return Err(TessellateError::UnsupportedSurface { face: fk }),
             Surface::Plane {
@@ -89,18 +96,20 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
                 normal,
                 u_ref,
             } => tessellate_planar(body, fk, origin, normal, u_ref, &chords, &positions)?,
-            _ => tessellate_curved(
+            // Structural routing (M5 PR 11): a conic/B-spline trim
+            // carrier means the face is not an iso-rectangle — the
+            // pcurve-driven trimmed lane takes it; iso boundaries keep
+            // the swept-rectangle walk.
+            _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,
                 surface,
                 &chords,
+                &chord_ts,
                 &mut positions,
-                &crate::curved::Tol {
-                    delta: chordal,
-                    delta_s,
-                    eps,
-                },
+                &tol,
             )?,
+            _ => tessellate_curved(body, fk, surface, &chords, &mut positions, &tol)?,
         };
         patches.push(FacePatch {
             face: fk,

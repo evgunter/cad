@@ -15,6 +15,7 @@ mod az;
 mod bodies;
 mod bool_bodies;
 mod booleans;
+mod bossplate;
 mod crosslap;
 mod curvedcut;
 mod cutaway;
@@ -47,13 +48,6 @@ struct SceneBody {
     /// planar today (`gate_planar`); curved sweeps are the honest
     /// refusals until the M5 arms.
     step_expected: bool,
-    /// `true` STAGES the body: tiers 1-2 run as always, and then the
-    /// measurement + render lanes are asserted to refuse TYPED at the
-    /// named frontier instead of running (`curvedcut::pin_frontier` —
-    /// the M5 PR 11 gate, documented there, retire-on-closure like the
-    /// #111 mesh pin was). A staged body exports nothing and
-    /// contributes no scene to the render manifest.
-    staged: bool,
 }
 
 impl SceneBody {
@@ -66,16 +60,6 @@ impl SceneBody {
             contacts: None,
             color,
             step_expected: false,
-            staged: false,
-        }
-    }
-
-    /// A body staged behind the M5 PR 11 frontier: see `staged` and
-    /// [`curvedcut::pin_frontier`].
-    fn staged(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
-        Self {
-            staged: true,
-            ..Self::plain(name, color, body)
         }
     }
 
@@ -100,7 +84,21 @@ impl SceneBody {
             contacts: Some(contacts),
             color,
             step_expected: true,
-            staged: false,
+        }
+    }
+
+    /// A CURVED boolean result (M5 PR 11's boss∪plate): 3′ validation
+    /// with the op's declared contacts, but STEP stays a narrated
+    /// analytic-subset refusal until the M5 curved writer arms (PR 13).
+    fn seamed_curved(
+        name: impl Into<String>,
+        color: [f64; 3],
+        body: Body<f64>,
+        contacts: ContactRecords,
+    ) -> Self {
+        Self {
+            step_expected: false,
+            ..Self::seamed(name, color, body, contacts)
         }
     }
 }
@@ -161,17 +159,6 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     topo::validate_closed(&sb.body)
         .unwrap_or_else(|e| panic!("{label}: tier-2 closed-solid validation failed: {e:?}"));
 
-    // A STAGED body stops here: the rest of the ladder (tier 3's
-    // volume row, exact mass properties, tessellation, exports) is
-    // what M5 PR 11 lands for curved cut faces, and until then the
-    // honest thing to run is the pin that asserts the typed refusals
-    // — including the retire-on-closure panic that tells PR 11's
-    // implementer exactly which assertions to flip.
-    if sb.staged {
-        curvedcut::pin_frontier(label, &sb.body, delta);
-        return None;
-    }
-
     // Tier 3 / 3′: boolean results validate AS THEY ARE, with the
     // op's declared contacts (3′); everything else through the plain
     // geometric gate (on contact-free bodies the two gates agree).
@@ -199,7 +186,10 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     );
 
     // Exact B-rep mass properties (divergence theorem over the exact
-    // faces — not the mesh).
+    // faces — not the mesh). Since M5 PR 11 curved-CUT faces
+    // contribute certified quadrature enclosures: `volume` is then a
+    // bracket midpoint with half-width `volume_pad` (0.0 on
+    // closed-form bodies).
     let props = topo::mass_properties(&sb.body).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
@@ -209,8 +199,13 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
     let rel = ((v_mesh - props.volume) / props.volume).abs();
+    let certified = if props.volume_pad > 0.0 {
+        format!(" (certified enclosure ± {:.1e})", props.volume_pad)
+    } else {
+        String::new()
+    };
     println!(
-        "   [{label}] exact: V = {:.6} m^3, A = {:.6} m^2; mesh (delta = {:.0e}): \
+        "   [{label}] exact: V = {:.6} m^3{certified}, A = {:.6} m^2; mesh (delta = {:.0e}): \
          {} triangles, V_mesh = {v_mesh:.6} ({:.3}% off exact — chordal, inscribed)",
         props.volume,
         props.surface_area,
@@ -371,8 +366,13 @@ fn main() {
         run(&stop);
     }
 
-    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; the render is PR 11's) --");
+    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
     for stop in curvedcut::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
+    for stop in bossplate::stops() {
         run(&stop);
     }
 

@@ -291,12 +291,16 @@ fn cylinder<T: Decide>(
                 });
                 levels.push(v);
             }
-            // An ellipse arc on a wall boundary (a curved-boolean cut,
-            // M5 PR 5) breaks the iso-rectangle patch shape this pass
-            // requires — typed refusal until the PR 11 quadrature lane.
+            // An ellipse arc on a wall boundary (a curved cut, M5
+            // PR 5) breaks the iso-rectangle patch shape THIS pass
+            // requires. The PR 11 quadrature lane handles it — but it
+            // needs the body's stored pcurves, so it lives one layer
+            // up (`topo::mass_properties` routes conic-trimmed
+            // cylinder faces there BEFORE this closed form runs); a
+            // direct key-free call keeps the typed refusal.
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cylinder boundary carries an ellipse arc (curved cut; the quadrature lane lands at M5 PR 11)",
+                    what: "cylinder boundary carries an ellipse arc (curved cut) — route                            through topo::mass_properties, whose PR 11 quadrature lane                            consumes the stored pcurves this key-free pass cannot see",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
@@ -393,7 +397,7 @@ fn cone<T: Decide>(
             }
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (curved cut; the quadrature lane lands at M5 PR 11)",
+                    what: "cone boundary carries an ellipse arc (curved cut) — cone-chart                            pcurves do not mint yet, so the PR 11 quadrature lane has                            nothing to consume here; they arrive with their consumers",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),

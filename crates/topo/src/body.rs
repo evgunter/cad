@@ -933,6 +933,15 @@ impl<T: Real> Body<T> {
         self.pcurves.insert(half_edge, cache)
     }
 
+    /// Removes and returns `half_edge`'s stored pcurve cache —
+    /// [`Body::attach_pcurve`]'s inverse (same trust posture: the
+    /// tier-3 pcurve pass owns coherence, and a face left HALF-minted
+    /// fails it loudly as `MissingCache`). Consumers of caches refuse
+    /// typed on absence; nothing re-derives a branch silently.
+    pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
+        self.pcurves.remove(half_edge)
+    }
+
     /// All null-face annotations (F9 — see [`crate::null`]), in
     /// face-slot order (deterministic per D9).
     pub fn null_faces(&self) -> impl Iterator<Item = (FaceKey, &NullFacePair)> {
