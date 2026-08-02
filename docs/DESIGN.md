@@ -129,11 +129,28 @@ is the ratified fix. Consequences, all normative:
 - Orientation reversal is **exact structure**, never a numeric decide:
   reverting a curved body flips `sense` rather than perturbing geometry,
   so `revert` stays a bitwise involution and a `revert ∘ revert` round
-  trip is bit-identical at every scalar backend. *This states the
-  contract the bit establishes, not shipped behaviour: S10 lands the
-  representation and the consumer threading only — the curved `revert`
-  writer lands in the follow-on unit, and until it does `revert` still
-  refuses non-planes with its typed error.*
+  trip is bit-identical at every scalar backend. *Shipped as of M5 S12*,
+  which wired the writer: `revert` flips the bit on every face carried
+  by a non-plane surface and keeps M3's stored-normal negation for
+  `Plane`-carried faces. The two encodings are **exclusive by surface
+  kind** — a plane can represent its own reversal exactly, the analytic
+  and NURBS charts cannot — so every face's outward normal is negated
+  exactly once, and the planar arm stays bit-for-bit what M3 pinned.
+  `RevertError::UnsupportedSurface` is retired; the reversal itself has
+  no per-class residue left.
+- A face **fragment** inherits its parent's `sense` (M5 S12). `mef` and
+  `mfkrh` still mint `true` when the caller hands them a new or foreign
+  surface — the material side is not op-level knowledge there — but when
+  the new face lands on the OLD FACE'S surface key it is a region of
+  that same face, so it takes that face's bit. Key equality, never a
+  numeric compare. Without this, a boolean split of a reversed wall
+  silently resets the bit on the pieces.
+- What curved `revert` does **not** by itself unblock is a curved
+  boolean's *seam*. Subtract and intersect are open on the classes whose
+  germ pairs have a join lane (plane × cylinder as of S12) and refuse
+  typed, per class, on the ones that do not — never wholesale, and never
+  by silently falling through to a containment verdict a curved boundary
+  can defeat.
 - Every "which way is out" consumer (tier gates, mass-properties flux,
   boolean sector classification and point-in-solid, splitting
   classification, tessellation winding, export winding) reads the signed

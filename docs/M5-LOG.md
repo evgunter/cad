@@ -2039,3 +2039,123 @@ constructions unmodified (mixed hole arcs, fillet-cornered eye slot as
 outer and hole, per-carrier downward invariance, reversed authoring,
 bore-groove torus, touching-union guard — adopted verbatim); merge-base
 reproductions confirmed for bore, hole plate, and pellet.
+
+## S12 (2026-08-02): curved `revert` is wired — the sense flip, the
+## split-fragment inheritance, and curved ∖/∩ live on the cylinder class
+
+The unit S10 and S11 were predecessors of. S10 ratified `Face::sense`
+and threaded the consumers; S11 made the constructors write honest bits;
+S12 makes `revert` FLIP them, makes splitting's re-mints INHERIT them,
+and narrows the wholesale curved subtract/intersect front door.
+
+**(a) The revert arm, and the design call inside it.** Two encodings
+exist for "this face's outward normal is negated": negate the `Plane`'s
+stored normal (M3's arm), or flip the face's `sense` bit (S10's). S12
+keeps BOTH and makes them **exclusive by surface kind** — planes take
+the first, every other class takes the second — so each face is flipped
+exactly once. The alternative (flip every face's bit, touch no surface)
+is the more uniform statement and is what D1's amendment reads most
+naturally as, but it would have re-cut the heavily-pinned planar
+boolean/void lane: a reverted planar operand would arrive at
+`merge_coplanar_faces`, `plane_eq` and the sector tables with unchanged
+normals and `sense: false` for the first time, and any consumer S10's
+audit missed would silently read the wrong side. The chosen split leaves
+M3's planar behaviour bit-for-bit identical (310 topo rows green
+unchanged) and confines the new encoding to the faces that never had
+one. `RevertError::UnsupportedSurface` is RETIRED — the flip is uniform
+across cylinder/cone/sphere/torus/NURBS, so no per-class residue is left
+inside `revert` — and its parity record (PR 9c's ODD/EVEN-in-the-radius
+finding, F1-scoped) is kept as prose on the enum rather than as an
+unreachable variant.
+
+**(b) Split-fragment sense inheritance** (the S11 banked hazard, fixed
+in the same PR that makes the splits reachable, as S11 required).
+`mef`'s `mint_loop_and_face` and `mfkrh` now take the new face's bit
+from the OLD FACE when the new face lands on the old face's surface KEY,
+and keep minting `true` otherwise (a `New`/foreign `Shared` surface is a
+different region — the caller attaches the honest bit, as the sweep
+constructors do). Exact structure: key equality, no numeric compare, and
+`mef` gains no material-side knowledge it does not have. Executed as
+load-bearing: with the inheritance disabled, the mixed-sense split row's
+∩ arm comes back with every wall fragment `sense: true`.
+
+**(c) The front door, narrowed per class (C12.1), not retired
+wholesale.** ∖ and ∩ are open on operands whose faces are `Plane` or
+`Cylinder`; `Sphere`/`Cone`/`Torus`/NURBS still refuse
+`CurvedOpUnsupported`, with the message rewritten from "revert has no
+representation" to the blocker that actually remains — the germ-pair
+join dispatch wires exactly one arm, `(Plane, Cylinder)` (PR 9c
+deviation 1), behind which sit `Pcurve::Fitted` (deviation 2) and the
+edge×NURBS crossing layer (deviation 5).
+
+**What went live, with volumes** (all tier-3, both sweep strategies
+bit-identical): blind hole `plate(3×3×0.8) ∖ boss(r 0.35, z 0.3→1.3)` =
+7.00757744996763 = 7.2 − πr²/2, on the 3-arc AND 2-arc authorings;
+through hole = 6.89212391994820; the complement `boss ∖ plate` = two
+shells, 0.15393804002590; `plate ∩ boss` = 0.19242255003237 with
+`V(A∖B) + V(A∩B) = V(A)`; and the mixed-sense trio on the S11 notched
+plate (∪ 9.56438055098077, ∖ 7.96438055098077, ∩ 0.64292036732051),
+each exact against the closed form, each keeping a `sense: false`
+fragment of the split concave wall.
+
+**Deviation 1 (numbered, executed, NOT fixed here) — the containment
+fallback is vertex-probed, so it is unsound for curved boundaries, and
+∪ is wrong today because of it.** A unit ball half-buried in a 4×4×1
+slab pokes out of both faces, but its only two vertices are the revolve
+poles, which sit inside; no crossings are found for the sphere class,
+the pipeline falls through to per-shell vertex-in-solid containment, and
+the ball is classified as wholly contained. `union` therefore meters
+16.0 where the truth is 17.30899693899575. **Reproduced on the merge
+base** (3ef715e) by the same call, so it predates S12 and no part of
+this unit touches that path (∪ was never behind the curved door; the
+ball's bits are `sense: true` in both builds). S12's response is the one
+this unit is entitled to: refuse the class up front for the two ops it
+is OPENING, rather than let them inherit a silent wrong answer, and pin
+the ∪ defect as `finding_sphere_class_containment_fallback_is_wrong_today`
+(asserting the WRONG value on purpose, so the fix fails it loudly).
+Re-cutting the containment fallback — the honest fix is a curved-extent
+test, not a vertex probe — is its own unit and is what the die-pips
+class waits on together with the join lane.
+
+**Deviation 2 (scope, minor).** The unit's acceptance was specified for
+`crates/topo/tests/m5_s12_curved_revert.rs`; it lives in
+`crates/sweep/tests/m5_s12_curved_ops.rs` instead, because `topo` has no
+dev-dependency on `sweep` and therefore cannot build a body with an
+analytic surface at all. The topo-side row is the in-module construction
+row on the `Nurbs`-surfaced `ops_cube` (the exact fixture that used to
+refuse).
+
+**Rows flipped from refusal pins to construction rows** (the S9
+pattern): `revert::revert_refuses_non_plane_surfaces` →
+`revert_flips_sense_on_non_plane_faces_instead_of_refusing`;
+`review_m3_pr1_sweep::revert_curved_body_refuses_typed` →
+`revert_curved_body_reverts_via_the_sense_bit` (which keeps the whole M3
+contract — operand untouched, tier-2 valid, tier-3 exactly
+`NegativeVolume`, bit-negated volume, bitwise involution and
+determinism — on a curved body);
+`m5_pr9c_sphere_doors::curved_revert_refusal_states_the_wiring_blocker`
+→ `curved_revert_reverts_the_ball_instead_of_refusing` (the sphere chart
+is untouched and its `radius > 0` survives, which is what the parity
+finding demanded);
+`review_m5_pr9_boss_probe::my_boss_subtract_makes_a_blind_hole_honestly`
+→ the same name, now an audited construction row (volume, tier 3,
+intrinsic seam arcs, pcurve coverage) plus the ∩ twin and additivity.
+`m5_pr9c_sphere_doors::curved_subtract_front_door_quotes_the_same_finding`
+→ `the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door`: the
+die-pips row STAYS a refusal pin, honestly, at a door that now names the
+join lane instead of `revert`.
+
+**The S11 guard row's fate.** `review_s11_adv::adv_touching_union_with_
+reversed_faces_refuses_typed` still REFUSES (its washer/box pair takes
+the annulus-touching door, which S12 does not open), so it stays green
+as a refusal — but its panic-on-answer is stale now that inheritance is
+implemented, so the row was re-aimed: an answer is AUDITED against the
+additive closed form instead of rejected. The mixed-sense split S12
+genuinely made reachable is pinned with exact volumes in the S12 suite.
+
+**Battery.** Touched crates `topo` + `sweep`, default ε; new rows also
+at the Interval band. `cargo fmt --all --check` clean; `clippy
+--all-targets` clean on both crates. Interval-square tripwire on the
+diff: no squares added at all (`powi(2)` rule vacuous here — the unit
+adds a `bool` negation, a key equality and an arena scan, and decides
+nothing numerically).
