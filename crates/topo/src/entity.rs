@@ -276,6 +276,23 @@ pub struct Face {
     pub shell: ShellKey,
 }
 
+impl Face {
+    /// The face's **outward-normal sign**: `+1` when [`Face::sense`] is
+    /// `true` (material side agrees with the surface's chart normal),
+    /// `-1` when it is `false`. The face's outward normal at a point is
+    /// `sense_sign() * chart_normal(u, v)`.
+    ///
+    /// Exact structure, not a numeric decision: the sign is *selected*
+    /// by a `bool`, so no comparison, no tolerance, and nothing for the
+    /// k-lint to flag. `Interval` instantiations get an exact `±1`
+    /// (`Real::one()` is exact in every backend), so a sense flip is a
+    /// bitwise sign change, never a widening.
+    #[must_use]
+    pub fn sense_sign<T: geom_core::Real>(&self) -> T {
+        if self.sense { T::one() } else { -T::one() }
+    }
+}
+
 /// The boundary state of a loop: a genuine cycle of half-edges, or the
 /// *empty loop* degenerate state — a lone vertex, no edges at all.
 ///

@@ -1846,11 +1846,32 @@ pub(crate) fn tier3_local_checks_marked<T: Decide>(
     // legitimately disagree with the region's (a 270° sector's chord
     // quad self-crosses), so curved-bounded faces stay in the
     // documented deferral (M5 pcurves) along with curved faces.
+    //
+    // **The S10 sense gate.** Since M5 S10 a face's outward normal is
+    // `sense_sign · chart_normal`, so the winding is compared against
+    // the OUTWARD normal — CATEGORY A: the chart normal alone is not
+    // the face's orientation any more, and reading it raw would make
+    // this check blind to exactly the corruption it exists to catch.
+    // With the sign threaded, check 6 *is* the "the two encodings
+    // agree" gate: `Face::sense` and the loops' stored winding are two
+    // encodings of one fact (interior-left ⇒ the outer loop winds CCW
+    // about the outward normal ⇒ CCW about the chart normal iff
+    // `sense`), and a body where they disagree is INSIDE-OUT. Tier 3
+    // refuses it here, per face, and no volume gate can: check 7 is
+    // computed from the same loop windings, so an inside-out face is
+    // invisible to it (flipping `sense` alone changes no winding and
+    // therefore no volume). This is the only at-rest check that reads
+    // the sense bit as a claim to be falsified rather than as a sign
+    // to be honored.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
+        // The face's outward normal (S10). Exact structure: a `bool`
+        // selects `±1`, no predicate, no band, and `· 1` is bitwise
+        // identity — every sense-true body decides exactly as before.
+        let outward = normal * face.sense_sign::<T>();
         for (l, is_outer) in
             core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
         {
