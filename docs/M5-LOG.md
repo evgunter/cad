@@ -2190,3 +2190,15 @@ paths vs PR 9c arena scans; release-relevance to be answered).
 Not #157-blocking (main-side, present without it; the new
 baseline honestly bakes it in with provenance). Lanes: S12 fix
 pass + bisect probe; #157 gating.
+
+**S12 fix pass COMPLETE, PR OPENED as #158 (2026-08-02,
+e5b03d7, watcher armed).** All items: encoding claim corrected
+(chosen conservatism, not forced — the reviewer's executed
+disproof recorded in both docs; moving M3 pins = a design
+conversation, not a revert unit's prerogative); fallback memory
+scoped sphere-only-today + the NURBS-projection hazard banked
+(fix unit must lift the f64-only projection or re-gate); mfkrh
+comment; interval suite prints a LOUD skip line when built
+featureless (silent 0-test masking closed); four probes adopted
+(review_s12_adv.rs). Batteries 821/887 both lanes, 0 failures.
+Board: #157 + #158 gating with watchers; bisect probe running.
