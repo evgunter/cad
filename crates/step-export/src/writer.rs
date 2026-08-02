@@ -959,6 +959,46 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
+    /// **The two `Surface::Nurbs` states are told apart.** The mvfs
+    /// placeholder is a mid-surgery fact and says so; a DESCRIBED
+    /// NURBS surface is the loft-assembly frontier and says THAT. No
+    /// body at rest carries the second one — the loft-assembly unit
+    /// mints the kernel's first NURBS face — so without this row the
+    /// message would be dead by construction and could rot into a lie
+    /// unnoticed. It is constructible here because `NurbsSurface::new`
+    /// is public and validating: a bilinear patch with finite control
+    /// points is a perfectly real described surface, it simply cannot
+    /// yet be attached to a face by any public constructor.
+    #[test]
+    fn the_two_nurbs_surface_states_refuse_with_different_messages() {
+        let placeholder = Surface::<f64>::nurbs_placeholder();
+        assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
+
+        let described = Surface::Nurbs(std::sync::Arc::new(
+            geom_surfaces::NurbsSurface::new(
+                KnotVector::unit_segment(1),
+                KnotVector::unit_segment(1),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(0.0, 1.0, 0.0),
+                    Point3::new(1.0, 1.0, 0.25),
+                ],
+                vec![1.0; 4],
+            )
+            .expect("a validated bilinear patch"),
+        ));
+        assert_eq!(
+            surface_kind(&described),
+            "nurbs surface (B_SPLINE_SURFACE_WITH_KNOTS export arrives \
+             with the loft-assembly unit, which mints the first NURBS \
+             face at rest)"
+        );
+        // The two really are different messages, and the described one
+        // is NOT reached by the poison test the placeholder trips.
+        assert_ne!(surface_kind(&placeholder), surface_kind(&described));
+    }
+
     /// The "no description yet" NURBS carrier refuses typed rather
     /// than printing poison — the curve-side twin of the mvfs surface
     /// placeholder, and the one live `UnsupportedCurve` case.

@@ -2320,3 +2320,85 @@ at rest mints a reversed face, so the S10/S11 wiring costs the M4
 fixtures nothing). `scripts/check_step.sh` green on all ten fixtures
 locally with `REQUIRE_FREECAD=1`. Demo tour built and run end to end.
 `cargo fmt --all` clean; `clippy --all-targets` clean.
+
+### PR 13 fix pass (2026-08-02)
+
+Review: APPROVE, 0 major / 2 minor / 3 notes; every attack absorbed.
+Two of the reviewer's own findings are worth banking beyond the items.
+First, FreeCAD was proven blind even to **double composition** (not
+just to a uniform inversion), independently reproduced — so the
+edge-use-coherence oracle is the only working guard on that axis, which
+raises the stakes on keeping its negative controls. Second, the
+rational complex-instance record was validated end-to-end by splicing
+it into a wireframe and importing it, which is a check this PR did not
+have and now does.
+
+**F1 (MIN-1).** `m5_pr13_curved.rs`'s NURBS-frontier row contained a
+loop that iterated the edges and did nothing. It now asserts the
+kernel-level fact the text-level `B_SPLINE` grep only implies: every
+carrier of every corpus body is line/circle/ellipse and every surface
+is non-`Nurbs`, so the claim is "the bodies do not have them", not
+"the text does not mention them".
+
+**F2 (MIN-2).** The DESCRIBED-NURBS-surface refusal message was dead by
+construction (no body at rest carries a NURBS face) and therefore
+untested. `NurbsSurface::new` is public and validating, so a described
+bilinear patch is constructible in a unit test even though it cannot be
+attached to a face by any public constructor: the two `Surface::Nurbs`
+states are now pinned to their two different messages, and to being
+different from each other.
+
+**F3 (NOTE-1).** The orientation-oracle header said the cone's reversed
+faces were "the cone's two faces", implying the conical bands. Wrong:
+both `CONICAL_SURFACE` faces write `.T.`, and the two `.F.` faces are
+the PLANAR base-disc halves. Corrected, with the general shape of S11's
+rule stated — the reversed face is whichever one has material against
+its chart normal, and on a revolved solid the under-side cap is such a
+face even though it is flat. (`lib.rs` already had it right.)
+
+**F4, three reviewer probes adopted.**
+
+- **The wireframe splice** (`tests/fixtures/nurbs_wireframe.step` +
+  `.probe.py`). A `GEOMETRIC_CURVE_SET` document carrying the writer's
+  `RATIONAL_B_SPLINE_CURVE` complex instance verbatim — the Eq. 7.33
+  exact quarter circle, weights (1, 1/√2, 1). It is the arm's ONLY
+  reader-level validation before the loft-assembly unit, since no body
+  at rest produces the record. OCC returns a RATIONAL degree-2 B-spline
+  with **bit-identical weights**, and every one of 1001 sampled points
+  sits on the unit circle to **3.4e-16 relative** (arc length π/2 to
+  1 ulp) — better than the reviewer's 2.3e-13 measurement, and four
+  orders tighter than any non-rational approximation of a conic could
+  reach, which is what makes the check discriminating. A reader that
+  parsed the record but dropped the weights would trace the control
+  polygon's parabola and miss by ~8%.
+  `check_step.sh` grew a **generic** hook for this: any
+  `<fixture>.probe.py` beside a `.step` runs under the same
+  interpreter with `$STEP_FILE` set, for geometric facts the generic
+  count/volume checks cannot state. A Rust row asserts the spliced
+  record is byte-identical to `writer.rs`'s pin, so emitter and fixture
+  cannot drift apart.
+- **A3, the same_sense-only corruption**, adopted as a documented
+  KNOWN BLIND SPOT rather than a fix. Flipping only the
+  `ADVANCED_FACE` flags leaves every winding untouched, so edge-use
+  coherence reads green — correctly, since it is a statement about
+  traversal directions. FreeCAD is blind to it too, measured: the
+  corrupted `notched.step` imports `valid: True` with 6/12/8 and
+  volume 3000000000.0 mm³, every figure identical to the honest file.
+  So this lie has no external witness at all, and the only guard is
+  the kernel-side identity `same_sense == Face::sense` asserted PER
+  FACE in `m5_pr13_curved.rs` — which is why that row compares faces
+  rather than counting `.F.`s. Recorded so the gap is stated instead
+  of discovered.
+- **The arena-vs-walk divergence probe**, adopted as a `walk_order`
+  regression guard. It pins both halves of the trap: the two orders
+  DIVERGE on `boss_union` (a boolean result) and AGREE on `washer` (a
+  swept primitive), same multiset either way. The agreement half is the
+  point — a suite built only on primitives passes with the bug in
+  place.
+
+**Battery after the fix pass.** `step-export` default ε: lib 9,
+`export` 14, `m5_pr13_curved` 13, `m5_s11_same_sense` 2,
+`orientation_oracle` 7 = **45 rows**, all green. `check_step.sh` 11/11
+(the ten corpus fixtures plus the wireframe, whose geometric probe runs
+inside the same job). `fmt --all --check` and `clippy --all-targets`
+clean.

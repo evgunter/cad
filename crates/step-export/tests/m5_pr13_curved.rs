@@ -574,11 +574,37 @@ fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
 /// deliberate rather than an oversight: the loft-assembly unit brings
 /// both the first NURBS carriers at rest and the first NURBS FACES,
 /// and `B_SPLINE_SURFACE_WITH_KNOTS` lands with it.
+///
+/// The absence is checked on BOTH sides. At kernel level every carrier
+/// and every surface of every corpus body is named, so the claim is
+/// "the bodies do not have them" and not merely "the text does not
+/// mention them"; at text level the `B_SPLINE` grep would still catch a
+/// writer that manufactured a spline out of an analytic carrier.
 #[test]
 fn no_body_at_rest_carries_a_nurbs_carrier_or_face() {
     for (name, body) in common::fixture_corpus() {
-        for (_, edge) in body.edges() {
-            let _ = edge;
+        for (edge_key, _) in body.edges() {
+            let kind = match common::certified_carrier(&body, edge_key) {
+                Curve3::Line { .. } => "line",
+                Curve3::Circle { .. } => "circle",
+                Curve3::Ellipse { .. } => "ellipse",
+                Curve3::Nurbs(_) => "nurbs",
+            };
+            assert_ne!(
+                kind, "nurbs",
+                "{name}: a NURBS carrier reached a body at rest"
+            );
+            assert!(
+                matches!(kind, "line" | "circle" | "ellipse"),
+                "{name}: unexpected carrier {kind}"
+            );
+        }
+        for (_, face) in body.faces() {
+            let surface = body.get_surface(face.surface).expect("surface resolves");
+            assert!(
+                !matches!(surface, Surface::Nurbs(_)),
+                "{name}: a NURBS face reached a body at rest"
+            );
         }
         let text = export(&body, name);
         assert!(!text.contains("B_SPLINE"), "{name}");
@@ -714,4 +740,91 @@ fn single_shell_curved_solids_never_reach_the_classifier() {
             "{name}"
         );
     }
+}
+
+/// **Regression guard for `common::walk_order` (review probe).** The
+/// helper exists because the writer's traversal and the arena's
+/// insertion order are different orders, and every row above that
+/// matches an emitted record to a kernel entity is silently wrong if
+/// they are confused. The trap is that they AGREE on simple swept
+/// bodies — so a suite built only on primitives passes with the bug in
+/// place, and only a boolean result exposes it.
+///
+/// This row pins both halves of that fact: divergence on the boolean
+/// result (`boss_union`), agreement on a swept primitive (`washer`).
+/// If a future change made arena order the writer's order, the first
+/// assertion fires and someone gets to delete the helper deliberately
+/// instead of by accident.
+#[test]
+fn walk_order_diverges_from_arena_order_on_boolean_results() {
+    let boolean = common::boss_union();
+    let (walk, _) = common::walk_order(&boolean);
+    let arena: Vec<_> = boolean.faces().map(|(k, _)| k).collect();
+    assert_eq!(walk.len(), arena.len(), "same faces, different order");
+    assert_ne!(
+        walk, arena,
+        "boss_union is the body that exposes the arena-vs-walk trap"
+    );
+    // Same multiset, so the divergence is ordering and nothing else.
+    let mut a = walk.clone();
+    let mut b = arena.clone();
+    a.sort_unstable();
+    b.sort_unstable();
+    assert_eq!(a, b);
+
+    // And the agreement half — why the trap is easy to miss.
+    let swept = common::washer();
+    let (walk, _) = common::walk_order(&swept);
+    let arena: Vec<_> = swept.faces().map(|(k, _)| k).collect();
+    assert_eq!(
+        walk, arena,
+        "a swept primitive's two orders coincide, which is the trap"
+    );
+}
+
+/// **The wireframe splice fixture stays in lockstep with the writer
+/// (review probe).** `tests/fixtures/nurbs_wireframe.step` carries the
+/// writer's `RATIONAL_B_SPLINE_CURVE` complex instance verbatim inside
+/// a `GEOMETRIC_CURVE_SET`, so that an independent READER meets that
+/// record even though no body at rest produces one. The record text
+/// below is the same literal `writer.rs`'s
+/// `mixed_weights_emit_the_rational_complex_instance` pins, so a
+/// change to the emitter fails there and a drifting fixture fails
+/// here.
+///
+/// FreeCAD's side of this is `nurbs_wireframe.probe.py`, run by
+/// `scripts/check_step.sh`: OCC comes back with a RATIONAL degree-2
+/// B-spline carrying the identical weights, and every sampled point
+/// sits on the exact unit circle to ~3.4e-16 relative — the arm's only
+/// reader-level validation before the loft-assembly unit.
+#[test]
+fn the_wireframe_splice_carries_the_writers_own_rational_record() {
+    let path = format!(
+        "{}/tests/fixtures/nurbs_wireframe.step",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).expect("the wireframe fixture");
+    let record = "( BOUNDED_CURVE() B_SPLINE_CURVE(2, (#1, #2, #3), .UNSPECIFIED., .U., .U.) \
+                  B_SPLINE_CURVE_WITH_KNOTS((3, 3), (0.0, 1.0), .UNSPECIFIED.) CURVE() \
+                  GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE((1.0, \
+                  0.7071067811865476, 1.0)) REPRESENTATION_ITEM('') )";
+    assert!(
+        text.contains(record),
+        "the spliced record drifted from the writer's pinned output"
+    );
+    // The control net is the Eq. 7.33 quarter circle the probe checks.
+    for point in [
+        "#1 = CARTESIAN_POINT('', (1.0, 0.0, 0.0));",
+        "#2 = CARTESIAN_POINT('', (1.0, 1.0, 0.0));",
+        "#3 = CARTESIAN_POINT('', (0.0, 1.0, 0.0));",
+    ] {
+        assert!(text.contains(point), "control net: {point}");
+    }
+    // Not a corpus fixture: it holds no body, so the byte-golden row
+    // must not try to regenerate it.
+    assert!(
+        !common::fixture_corpus()
+            .iter()
+            .any(|(n, _)| *n == "nurbs_wireframe")
+    );
 }

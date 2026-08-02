@@ -38,9 +38,14 @@
 //! where it is actually discriminating, by the S10/S11 acceptance rows
 //! and by `m5_pr13_curved.rs`.
 //!
-//! Since M5 PR 13, reversed faces DO reach real output (the notched
-//! prism's concave wall, the washer's bore and under-side annulus, the
-//! cone's two faces). The PLANAR fixtures pinned below are unchanged —
+//! Since M5 PR 13, reversed faces DO reach real output: the notched
+//! prism's concave wall, the washer's bore and under-side annulus, and
+//! the cone's two BASE-DISC halves — which are `PLANE` faces, not the
+//! conical bands (both `CONICAL_SURFACE` faces of the cone write
+//! `.T.`). That is the general shape of S11's rule: the reversed face
+//! is the one whose material lies against the chart normal, and on a
+//! revolved solid the under-side cap is exactly such a face even
+//! though it is flat. The PLANAR fixtures pinned below are unchanged —
 //! no planar-only body at rest mints a reversed face — and the curved
 //! fixtures get the curved-agnostic oracle appended at the bottom of
 //! this file.
@@ -494,4 +499,57 @@ fn a_uniformly_reversed_shell_stays_coherent_by_design() {
         })
         .collect();
     assert!(edge_use_coherence(&flipped).is_ok());
+}
+
+/// **Known blind spot, stated rather than discovered later (review
+/// probe A3).** Corrupt `notched.step` by flipping ONLY the
+/// `ADVANCED_FACE` `same_sense` flags — leaving every winding, every
+/// `ORIENTED_EDGE` and every bound orientation untouched — and this
+/// oracle reports the file GREEN. That is correct and not a defect:
+/// edge-use coherence is a statement about traversal directions, and
+/// the corruption changes none of them. It is recorded here because
+/// the same corruption is ALSO invisible to FreeCAD — measured, not
+/// assumed: the flipped file imports as `valid: True`, 6 faces / 12
+/// edges / 8 vertices, volume 3000000000.0 mm³, every figure identical
+/// to the honest fixture's. So between the two oracles this particular
+/// lie has no external witness at all.
+///
+/// What does catch it is the kernel-side identity in
+/// `m5_pr13_curved.rs`: `same_sense` IS `topo::Face::sense`, asserted
+/// per face against the body the file came from. That is the ONLY
+/// guard on this axis, which is exactly why it is asserted per face
+/// rather than by counting `.F.`s.
+#[test]
+fn known_blind_spot_same_sense_only_corruption_reads_green() {
+    let text = fixture("notched");
+    let flipped: String = text
+        .lines()
+        .map(|line| {
+            if line.contains("= ADVANCED_FACE(") {
+                // Only the trailing same_sense flag: the bound list
+                // references are untouched, so no winding moves.
+                if line.ends_with(".F.);") {
+                    line.trim_end_matches(".F.);").to_owned() + ".T.);\n"
+                } else {
+                    line.trim_end_matches(".T.);").to_owned() + ".F.);\n"
+                }
+            } else {
+                line.to_owned() + "\n"
+            }
+        })
+        .collect();
+    assert_ne!(flipped, text, "the corruption actually changed flags");
+    // Every flag really did move (6 faces, 1 was .F. and is now .T.).
+    assert_eq!(
+        flipped
+            .lines()
+            .filter(|l| l.contains("= ADVANCED_FACE(") && l.ends_with(".F.);"))
+            .count(),
+        5,
+        "five faces flipped to .F., the sixth to .T."
+    );
+    assert!(
+        edge_use_coherence(&flipped).is_ok(),
+        "the winding half is genuinely untouched — this row documents the gap"
+    );
 }
