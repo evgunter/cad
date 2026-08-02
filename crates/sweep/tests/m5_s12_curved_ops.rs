@@ -23,9 +23,10 @@
 //! - **the mixed-sense split**: the S11 banked hazard's live shape — a
 //!   boolean that SPLITS a `sense: false` wall — with the fragments'
 //!   inherited bits read back off the result.
-//! - **what stays refused**: the sphere class (die pips) at its
-//!   narrowed typed door, plus the executed FINDING that made the door
-//!   structural rather than downstream.
+//! - **the S13 flips**: the die-pips shape and the poking-ball ∪
+//!   finding, both flipped from refusal/defect pins to construction
+//!   rows when M5 S13 wired the (Plane, Sphere) germ arm and the
+//!   extent-certified fallback re-cut.
 //!
 //! **Tolerance shape.** Everything this unit adds is exact structure:
 //! the sense flip is a `bool` negation, the inheritance rule is a
@@ -45,7 +46,7 @@ use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, BooleanError};
+use topo::{Body, BooleanDeclarations};
 
 // ---------------------------------------------------------------------
 // Fixtures and helpers.
@@ -458,54 +459,59 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
 // What stays refused, and the finding that made the door structural.
 // =====================================================================
 
-/// **The die-pips row stays a refusal pin — HONESTLY, and at a door
-/// that now names a different blocker.** A sphere bitten out of a slab
-/// was pinned at the wholesale curved front door (PR 9c's
-/// `curved_subtract_front_door_quotes_the_same_finding`). S12 retires
-/// the wholesale gate but not this class: the blocker is no longer
-/// `revert` — it is the JOIN lane, which wires exactly one germ-pair
-/// arm, `(Plane, Cylinder)`.
+/// **CONSTRUCTION row, flipped from the S12 refusal pin** (S9 pattern;
+/// the retired pin was
+/// `the_die_pip_sphere_shape_still_refuses_typed_at_the_narrowed_door`,
+/// itself flipped from PR 9c's
+/// `curved_subtract_front_door_quotes_the_same_finding`). The blocker
+/// chain it recorded is retired in order: `revert` (S10–S12), then the
+/// JOIN lane — M5 S13 wires the `(Plane, Sphere)` germ arm (the exact
+/// C5 Circle, no fitted chord) and the extent-certified fallback
+/// re-cut, so the die-pip shape now CUTS. The ball half-buried in the
+/// slab pokes out of BOTH faces with no edge crossings (the S12
+/// finding's shape), so both ops exercise the re-cut end to end:
+///
+/// - `∖` = slab minus the barrel zone `= 16 − 11π/12`, one shell, the
+///   zone wall's sphere fragments REVERSED (`sense: false` — the S12
+///   guard row's audited-answer arm, live for the sphere class);
+/// - `∩` = the zone itself `= 11π/12`, one shell;
+/// - additivity `V(∖) + V(∩) = V(slab)` exactly.
 #[test]
-fn the_die_pip_sphere_shape_still_refuses_typed_at_the_narrowed_door() {
+fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tolerance::get())
         .unwrap();
     let a = extrude(&slab, Extrusion::Distance(1.0)).unwrap().body;
     let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
 
-    for op in [BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = boolean_op_with(
-            op,
-            &a,
-            &b,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-        )
-        .expect_err("the sphere class has no join lane");
-        let BooleanError::CurvedOpUnsupported { op: got, .. } = err else {
-            panic!("expected the per-class door, got {err:?}");
-        };
-        assert_eq!(got, op);
-        let msg = err.to_string();
-        // The door must state the CURRENT blocker...
-        assert!(msg.contains("no seam lane"), "{msg}");
-        assert!(msg.contains("deviation 1"), "{msg}");
-        assert!(msg.contains("Pcurve::Fitted"), "{msg}");
-        // ...and must NOT have eroded back to the retired one.
-        assert!(!msg.contains("planar-only"), "{msg}");
-        assert!(!msg.contains("no representation to"), "{msg}");
-        // Two-tolerance shape for a DEFINITE arm: the door is an exact
-        // arena scan of surface kinds, so it names no band at all.
-        assert!(
-            !msg.contains("escalate"),
-            "a structural door quotes no band: {msg}"
-        );
-    }
-    // And the CYLINDER class through the same entry point is live —
-    // the door is per class, not a blanket restored.
+    let zone = 11.0 * PI / 12.0;
+    let cut = both_lanes(BooleanOp::Subtract, &a, &b);
+    assert!((vol(&cut) - (16.0 - zone)).abs() < slack(), "{}", vol(&cut));
+    assert_eq!(cut.shells().count(), 1, "the barrel tunnel is one shell");
+    let reversed_sphere = cut
+        .faces()
+        .filter(|(_, f)| {
+            matches!(cut.get_surface(f.surface), Some(Surface::Sphere { .. })) && !f.sense
+        })
+        .count();
+    assert!(
+        reversed_sphere > 0,
+        "the cavity wall's sphere fragments must keep the reverted bit"
+    );
+
+    let met = both_lanes(BooleanOp::Intersect, &a, &b);
+    assert!((vol(&met) - zone).abs() < slack(), "{}", vol(&met));
+    assert_eq!(met.shells().count(), 1);
+    assert!(
+        (vol(&cut) + vol(&met) - 16.0).abs() < slack(),
+        "∖/∩ additivity"
+    );
+
+    // And the CYLINDER class through the same entry point is still
+    // live — S13 opens a class, it does not trade one for another.
     assert!(
         topo::subtract(&plate(), &boss(3, 0.3, 1.0)).is_ok(),
-        "the narrowed door must not re-gate the live class"
+        "the opened door must not re-gate the cylinder class"
     );
 }
 
@@ -529,14 +535,24 @@ fn the_die_pip_sphere_shape_still_refuses_typed_at_the_narrowed_door() {
 /// the sphere's faces are `sense: true` in both builds, so neither the
 /// revert wiring nor the sense inheritance touches this path.
 ///
-/// S12's response is to REFUSE the class up front for ∖ and ∩ rather
-/// than let a newly-opened op inherit a silent wrong answer, and to pin
-/// the ∪ defect here instead of re-cutting the containment fallback
-/// inside a revert unit. **This row asserts the WRONG value on
-/// purpose**: the day the fallback learns to see a curved face's
-/// extremum, it fails loudly and is flipped to a construction row.
+/// S12's response was to REFUSE the class up front for ∖ and ∩ and to
+/// pin the ∪ defect at the wrong value so the eventual fix fails
+/// loudly. **M5 S13 is that fix, and this is the construction row the
+/// pin flipped to** (the pin's own doc comment promised exactly this):
+/// the fallback's vertex probe is now backed by the curved-EXTENT scan
+/// — the sphere group's true extent (center ± r) is consulted against
+/// every face of the other operand — which detects the escape, re-cuts
+/// the operand (rigid re-chart about the escape normal), and re-enters
+/// the pipeline, where the crossing layer finds the two section
+/// circles and the `(Plane, Sphere)` germ arm joins them exactly.
+///
+/// - union = `16 + 2·(π h²(3r − h)/3)` with `h = 0.5` —
+///   **17.30899693899575**, where the finding metered 16.0;
+/// - the poking ball ∪ slab is **ONE shell** (both caps join the slab
+///   boundary through their seam circles — derived, then pinned);
+/// - tier-3 valid, both sweep strategies bit-identical.
 #[test]
-fn finding_sphere_class_containment_fallback_is_wrong_today() {
+fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tolerance::get())
         .unwrap();
@@ -551,19 +567,17 @@ fn finding_sphere_class_containment_fallback_is_wrong_today() {
         "the ball really does poke out above the slab"
     );
 
-    let got = vol(&topo::union(&a, &b)
-        .expect("union answers (wrongly) today")
-        .body()
-        .unwrap()
-        .body);
+    let joined = both_lanes(BooleanOp::Union, &a, &b);
+    let got = vol(&joined);
     let h = 0.5_f64;
     let truth = 16.0 + 2.0 * (PI * h * h * (3.0 - h) / 3.0);
     assert!(
-        (got - 16.0).abs() < slack(),
-        "the finding is that ∪ meters the slab alone; got {got}"
+        (got - truth).abs() < slack(),
+        "∪ must meter the poking caps: got {got}, want {truth}"
     );
-    assert!(
-        (truth - got) > 1.0,
-        "and the true answer {truth} is more than a whole unit away"
+    assert_eq!(
+        joined.shells().count(),
+        1,
+        "slab ∪ poking ball is one shell"
     );
 }

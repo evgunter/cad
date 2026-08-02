@@ -1791,6 +1791,84 @@ mod tests {
         implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band).unwrap_err());
     }
 
+    /// **The NURBS re-gate, pinned (M5 S13 §1).** The fallback's
+    /// curved-extent test is UNWRITABLE for NURBS today
+    /// (`implicit_residual` poison; `NurbsSurface::project` is
+    /// f64-only), so the class is re-gated AT THE FALLBACK with a
+    /// typed refusal naming the lift blocker — a future NURBS body
+    /// constructor inherits this door, never the vertex-probe silence
+    /// the S12 finding executed. The fixture is the `ops_cube` shape
+    /// (every face on the `mvfs` `Nurbs` placeholder surface): two of
+    /// them, far apart, produce no crossings and land exactly on the
+    /// fallback; before S13 that pair would have been silently
+    /// vertex-probed into an assembly.
+    #[test]
+    fn nurbs_fallback_is_regated_typed() {
+        use crate::boolean::{BooleanDeclarations, SweepStrategy, boolean_op_with};
+        use crate::euler::{MefSite, MevSite};
+        use crate::fixtures::ops_cube;
+        use geom_core::Point3;
+
+        // The ops_cube recipe, x-shifted (the fixture is anchored at
+        // the origin; the far copy needs disjoint certified boxes so
+        // the realized sweep examines no pair at all).
+        let far_cube = |dx: f64| {
+            let pt = |x: f64, y: f64, z: f64| Point3::new(x + dx, y, z);
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+            let e_ab = body
+                .mev_line(
+                    MevSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    pt(1.0, 0.0, 0.0),
+                )
+                .unwrap();
+            let strut = |body: &mut crate::Body<f64>, at, x, y, z| {
+                body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+                    .unwrap()
+            };
+            let mef = |body: &mut crate::Body<f64>, he1, he2| {
+                body.mef_chord(MefSite::Chords { he1, he2 }).unwrap()
+            };
+            let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
+            let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
+            let he_dc = body
+                .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
+                .unwrap();
+            let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
+            let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 1.0);
+            let e_bb = strut(&mut body, e_bc.he_plus, 1.0, 0.0, 1.0);
+            let e_cc = strut(&mut body, e_cd.he_plus, 1.0, 1.0, 1.0);
+            let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 1.0, 1.0);
+            let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
+            let _ = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
+            let _ = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
+            let _ = mef(&mut body, e_dd.he_minus, f_front.he_plus);
+            body
+        };
+
+        let a = ops_cube().body;
+        let b = far_cube(10.0);
+        let err = boolean_op_with(
+            BooleanOp::Union,
+            &a,
+            &b,
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+        )
+        .expect_err("the NURBS fallback must be re-gated, never vertex-probed");
+        let BooleanError::NurbsExtentUnsupported { .. } = err else {
+            panic!("expected the NURBS re-gate, got {err:?}");
+        };
+        // The refusal names the lift blocker, so the recourse is
+        // discoverable from the error alone.
+        let msg = err.to_string();
+        assert!(msg.contains("NurbsSurface::project"), "{msg}");
+        assert!(msg.contains("implicit_residual"), "{msg}");
+        assert!(msg.contains("re-gated"), "{msg}");
+    }
+
     /// The D5 descendant chase, pinned at the mechanism level (M3
     /// PR 6a): a v-on-f record whose FACE key is dead (an absorbed
     /// merge fragment — realized here with a foreign-arena key, the
