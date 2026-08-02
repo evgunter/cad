@@ -2301,3 +2301,11 @@ placeholder cells (no silent gaps, no bulk-import stalls);
 cell-for-cell comparable via scenes.json cameras; visual
 differential = signal. Branches from #159's substrate if
 unmerged. Lanes: S13 + dual-montage; #159 gating.
+
+**#159 MERGED (2026-08-02): 18/18 — PR 13 on main; CURVED STEP
+IS LIVE. Twenty-eight PRs.** A/B row 37 = PR 13 (opus, M:
+APPROVE 0/2/3, 5/4.5/5; the FreeCAD orientation-blindness
+finding + the splice technique banked; light fix pass). Lanes
+cleaned. Board: S13 + dual-montage (notified to fold main).
+Remaining to exit: PR 12 (spec on S13's report), PR 14 + #89,
+S4, loft assembly + SSI lift (banked).
