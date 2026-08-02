@@ -352,7 +352,7 @@ mod tests {
         let pts: Vec<Point3<f64>> = (0..7)
             .map(|i| {
                 let t = f64::from(i) / 6.0;
-                Point3::new(t, (3.0 * t * (1.0 - t)).powi(2), 0.3 * t * t)
+                Point3::new(t, (3.0 * t * (1.0 - t)).powi(2), 0.3 * t.powi(2))
             })
             .collect();
         NurbsCurve3::interpolate(&pts, 3).unwrap()
