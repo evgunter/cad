@@ -13,10 +13,9 @@
 //!    verbatim (the writer's S10 contract), exercised through the
 //!    test-only hand-flip door on a planar body. Before S11 no test
 //!    had ever produced an `.F.` in real output.
-//! 2. The mixed-sense NOTCHED body refuses TYPED (`UnsupportedSurface
-//!    { kind: "cylinder" }`) — the honest current disposition: no
-//!    crash, no silent planar-only emission of a body whose reversed
-//!    wall the text could not represent.
+//! 2. The mixed-sense NOTCHED body refuses TYPED — the honest current
+//!    disposition: no crash, no silent planar-only emission of a body
+//!    whose reversed wall the text could not represent.
 //!
 //! When the exporter grows its `CYLINDRICAL_SURFACE` arm, row 2 flips
 //! into the spec'd end-to-end row: the notched body exports with
@@ -70,9 +69,13 @@ fn flipped_face_emits_exactly_one_f_flag() {
     assert_eq!(advanced_faces(&lied, ".T."), 5);
 }
 
-/// **Row 2: the mixed-sense notched body refuses typed.** The concave
-/// wall is a cylinder; the planar-only writer must refuse with the
-/// named kind rather than emit a text that cannot carry the wall.
+/// **Row 2: the mixed-sense notched body refuses typed.** The writer
+/// must refuse rather than emit a text that cannot carry the reversed
+/// wall. The first out-of-subset entity it meets is the BOTTOM CAP's
+/// arc rim (caps precede walls in shell order, and a face emits its
+/// bounds' edge carriers), so the refusal is `UnsupportedCurve
+/// { kind: "circle" }` — the cylinder wall itself would refuse one
+/// face later. Either way: typed, no silent planar-only output.
 #[test]
 fn notched_body_export_refuses_on_the_cylinder_wall() {
     let b = FRAC_PI_8.tan();
@@ -86,9 +89,9 @@ fn notched_body_export_refuses_on_the_cylinder_wall() {
         .unwrap();
     let body = extrude(&vp, Extrusion::Distance(1.0)).unwrap().body;
     match step_string(&body, &StepOptions::default()) {
-        Err(StepExportError::UnsupportedSurface { kind, .. }) => {
-            assert_eq!(kind, "cylinder");
+        Err(StepExportError::UnsupportedCurve { kind, .. }) => {
+            assert_eq!(kind, "circle");
         }
-        other => panic!("expected UnsupportedSurface, got {other:?}"),
+        other => panic!("expected UnsupportedCurve, got {other:?}"),
     }
 }

@@ -52,10 +52,7 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 /// The wall senses of one swept loop, in the constructor's own segment
 /// order (`None` for on-axis segments).
 fn wall_senses(body: &Body<f64>, walls: &[Option<FaceKey>]) -> Vec<Option<bool>> {
-    walls
-        .iter()
-        .map(|w| w.map(|f| sense_of(body, f)))
-        .collect()
+    walls.iter().map(|w| w.map(|f| sense_of(body, f))).collect()
 }
 
 // =====================================================================
@@ -237,21 +234,15 @@ fn washer_bore_and_under_annulus_mint_sense_false() {
         vec![Some(false), Some(true), Some(true), Some(false)],
         "bottom annulus and bore reversed; outer wall and top true"
     );
-    // Doors (plane + cylinder): the bore is void, the meat material,
-    // above and below void.
+    // Door probes live on the WEDGE fixture below: a FULL revolve's
+    // wall trim spans the whole period, which `point_in_solid`'s
+    // cosine-window lane refuses typed (`bool_wall_trim_period` — a
+    // pre-existing, sense-independent limitation, still refused
+    // loudly on the mixed-sense body rather than answered wrong).
     let b = band();
-    for (p, want) in [
-        (Point3::new(0.5, 0.5, 0.0), SolidContainment::Out),
-        (Point3::new(1.5, 0.5, 0.0), SolidContainment::In),
-        (Point3::new(1.5, -0.5, 0.0), SolidContainment::Out),
-        (Point3::new(1.5, 1.5, 0.0), SolidContainment::Out),
-        (Point3::new(2.5, 0.5, 0.0), SolidContainment::Out),
-    ] {
-        assert_eq!(
-            point_in_solid(&t.body, p, b).unwrap(),
-            want,
-            "probe {p:?}"
-        );
+    match point_in_solid(&t.body, Point3::new(0.5, 0.5, 0.0), b) {
+        Err(topo::boolean::PointInSolidError::Escalated { .. }) => {}
+        other => panic!("full-period wall trim must refuse typed, got {other:?}"),
     }
 }
 
@@ -284,6 +275,21 @@ fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
         if !wall_set.contains(&fk) {
             assert!(f.sense, "wedge caps are Newell-outward: sense true");
         }
+    }
+    // Doors (plane + cylinder, quarter-period trims): probes at the
+    // wedge's mid azimuth (θ > 0 sweeps toward −n, i.e. −z). The bore
+    // and the shell's far side are void, the meat material — the bore
+    // cylinder's reversed sense is what turns its radial around.
+    let b = band();
+    let c = core::f64::consts::FRAC_PI_4.cos(); // = sin(π/4)
+    for (p, want) in [
+        (Point3::new(0.5 * c, 0.5, -0.5 * c), SolidContainment::Out),
+        (Point3::new(1.5 * c, 0.5, -1.5 * c), SolidContainment::In),
+        (Point3::new(1.5 * c, -0.5, -1.5 * c), SolidContainment::Out),
+        (Point3::new(1.5 * c, 1.5, -1.5 * c), SolidContainment::Out),
+        (Point3::new(2.5 * c, 0.5, -2.5 * c), SolidContainment::Out),
+    ] {
+        assert_eq!(point_in_solid(&t.body, p, b).unwrap(), want, "probe {p:?}");
     }
 }
 
@@ -341,18 +347,17 @@ fn dimple_sphere_wall_mints_sense_false() {
         wall_senses(&t.body, &t.walls[0]),
         vec![Some(false), Some(true), Some(true), Some(false), None],
     );
-    // The sphere door reads the dimple as void.
+    // No door probes here: the dimple bowl is a PARTIAL sphere band
+    // (rimmed against the top annulus), which `point_in_solid`
+    // refuses typed (`PartialSphereFace`, PR 9c — the trimmed-sphere
+    // chart is future recourse; pre-existing and sense-independent).
+    // Pin that it still refuses loudly rather than answering wrong on
+    // the mixed-sense body.
     let b3 = band();
-    assert_eq!(
-        point_in_solid(&t.body, Point3::new(0.0, 1.8, 0.0), b3).unwrap(),
-        SolidContainment::Out,
-        "inside the dimple bowl: void"
-    );
-    assert_eq!(
-        point_in_solid(&t.body, Point3::new(0.0, 1.0, 0.0), b3).unwrap(),
-        SolidContainment::In,
-        "below the dimple: material"
-    );
+    match point_in_solid(&t.body, Point3::new(0.0, 1.8, 0.0), b3) {
+        Err(topo::boolean::PointInSolidError::PartialSphereFace { .. }) => {}
+        other => panic!("partial sphere band must refuse typed, got {other:?}"),
+    }
 }
 
 /// The notched ring: the notched profile shifted off-axis
