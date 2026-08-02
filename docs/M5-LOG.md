@@ -1975,3 +1975,13 @@ formed because Evan happened to be active there earlier.
 is RETIRED and the tripwire is ARMED. Twenty-two PRs this
 milestone.** Lanes cleaned. In flight: PR 11 (fable, demo
 moment); #154 gating.
+
+**#154 MERGED (2026-08-02): 18/18 — PR 9c on main. Twenty-three
+PRs this milestone.** Lanes cleaned (28.5G). A/B row 31 = PR 9c
+(opus, L — fill at next table touch: review 1 MAJ proof-scope /
+2 MIN / 2 NOTE + judgment calls endorsed; landed = sphere doors
++ blocker proofs; fix pass moderate). **S10 DISPATCHED (opus —
+block-15 draw byte 119 = (opus, fable); difficulty M logged
+pre-draw; A/B row 33; fable remainder owed).** Board: PR 11
+(fable, demo) + S10 (opus, face sense); then revert wiring →
+PR 12; PR 13/14 + S4 beyond.
