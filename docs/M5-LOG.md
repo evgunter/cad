@@ -2226,3 +2226,19 @@ Lanes cleaned. Board: #157 gating (last watcher); next dispatch
 decision at its merge — die-pips path (sphere join lane +
 fallback re-cut, two units) vs PR 13 (STEP, independent, wants
 the sense bit which is in).
+
+**Double merge processed (2026-08-02): #157 + #158. Twenty-
+seven PRs. Board relaunched:** A/B rows 31-35 backfilled
+(table current through S12). **S13 DISPATCHED (fable — block-16
+remainder; difficulty M logged pre-assignment; A/B row 36):**
+the die-pips enablers — fallback re-cut (curved-extent test,
+sphere class; NURBS re-gate) + the plane×sphere germ arm (KEY
+INSIGHT: a pip's section is an EXACT circle — the fitted-chord
+lane is NOT needed for pips; premise-check-first clause in the
+brief). **PR 13 DISPATCHED (OPUS — block-17 draw byte 20 =
+(opus, fable); difficulty M logged pre-draw; A/B row 37):**
+curved STEP (native conic entities, curved surfaces, NURBS
+edge carriers, same_sense composition, FreeCAD oracle rows).
+If S13 lands green, PR 12 (die pips) needs ONLY the fillet
+machinery — spec next. Remaining after: PR 12, PR 14 (exit +
+#89), S4, loft assembly + SSI lift (banked units).
