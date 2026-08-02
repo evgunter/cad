@@ -2165,3 +2165,128 @@ at the Interval band. `cargo fmt --all --check` clean; `clippy
 diff: no squares added at all (`powi(2)` rule vacuous here — the unit
 adds a `bool` negation, a key equality and an arena scan, and decides
 nothing numerically).
+
+## S13 (2026-08-02): the die-pips enablers — the containment-fallback
+## re-cut and the plane×sphere germ arm; slab ∖ ball is GREEN
+
+Branch `ev/m5-s13-pips-enablers` per `docs/M5-S13-SPEC.md` (binding).
+**Premise verified first**: `geom_brep::intersect::route(Plane, Sphere)`
+was `Rung::Closed, implemented: false` — the pair's locus is the exact
+closed-form Circle, never a fitted chord, so the cyl×sphere fitted-chord
+lane (PR 9c dev 1) is NOT on the pips' path. The arm is now implemented
+(`plane_sphere_section`, one `ps_center_gap` trilean; tangency is a
+POINT, classification data, C7) and the route row flipped.
+
+**§1, the containment-fallback re-cut.** `boolean_op_recut` runs the
+curved-EXTENT scan (`sphere_extent_scan`) before any vertex is probed at
+the no-crossings fallback: every closed sphere group's true extent
+(center ± r, the PR 9c group discipline; certified boxes from PR 9's
+`boxes.rs` for everything box-shaped) is consulted against every face of
+the other operand. Certified-disjoint pairs proceed to the (now
+witness-only) vertex probe; a definite ESCAPE through a plane face — the
+S12 finding's poking-but-not-crossing shape — re-cuts the operand and
+re-enters the pipeline exactly once; everything uncertifiable refuses
+typed (`FallbackExtentUnsupported`: tangency, trimmed sphere groups,
+cylinder-near-sphere, sphere×sphere overlap, boundary-grazing circles).
+**The re-cut is a rigid re-chart**: the escaping group's shell is
+carved, rotated about the sphere's own center so the polar axis lands on
+the escape normal (the same point set — a sphere is rotation-invariant
+about its center; the rotation is built ALGEBRAICALLY, Rodrigues with
+the angle eliminated, so Interval enclosures stay exact), and grafted
+back; the ordinary crossing layer then finds the section circles through
+the seam meridians and the §2 germ arm joins them. NURBS is RE-GATED at
+the fallback (`NurbsExtentUnsupported`, naming the lift blocker:
+`implicit_residual` poison, f64-only `NurbsSurface::project`) and pinned
+in-module on the Nurbs-surfaced `ops_cube` pair, so a future NURBS
+constructor inherits a typed door, not the vertex-probe silence.
+
+**§2, the plane×sphere germ arm.** The join dispatch's
+`(Plane, Sphere)` arms ride the PR 9 lanes verbatim: the sphere side
+takes `JoinLane::Split` (chord_spec's new sphere lane — polar sections
+only, guarded by `split_sphere_section_polar`; tilted residual
+configurations refuse typed), the plane side takes
+`JoinLane::BoolPlanar` with the sphere wall and the wall face's azimuth
+window; `germ_section_frame` classifies the pair to the circle frame for
+the arc-aware facing test. The sphere chart gained exactly the
+closed-form pcurve classes the lane consumes (`chart_pcurve`: polar
+circles and meridian-class great circles; everything else refuses typed
+— sphere charts still mint no caches). `run_azimuth_window` gained the
+ORIENTED POLE-JUNCTION branch pin: at a pole the chart carries no
+azimuth continuity and the two-band ball's meridians sit exactly half a
+period apart — a knife-edge the old nearest-branch floor tie-broke into
+handing BOTH bands the same window; the loop's own orientation (azimuth
+advances through the south pole, returns through the north, sense
+flips it) carries the missing bit exactly.
+
+**The rows.** The S12 finding row FLIPPED to construction
+(`finding_row_flipped_containment_fallback_now_sees_the_curved_extent`):
+∪(slab, half-buried ball) = 16 + 2·cap = **17.30899693899575**, ONE
+shell (derived: both caps join the slab boundary through their seam
+circles), tier-3, both sweep strategies bit-identical, and BRACKETED at
+Interval. The die-pip door pin flipped
+(`the_die_pip_sphere_shape_now_cuts_at_the_opened_door`): ∖ = 16 −
+11π/12 with the cavity wall `sense: false` (the S12 audited-answer arm
+live), ∩ = 11π/12, additive. The smoke suite `m5_s13_pips.rs`:
+`die_pip_subtract_is_green` (16 − cap volume, one shell, reversed pip
+wall, exact seam Circle arcs with a CERTIFIED plane-chart pcurve),
+the ∩-cap twin + additivity, the TWO-pip row (a two-shell ball operand
+assembled by the scan, each group re-cut about its own escape normal,
+two sphere surfaces in the result), the band-scaled in-band extent
+escalation row (placement derived from the resolved band), the
+certified-disjoint/contained whole-shell rows, and the sphere×sphere
+overlap refusal. Interval twins in `m5_s13_pips_interval.rs` +
+the S12 interval door row flipped to a definite sphere ∖ with a tight
+enclosure. PR 9c's smoke shape re-pinned at its real doors
+(`the_die_pips_shape_now_stops_typed_at_its_own_tangency`: its seam
+great circle is COPLANAR with the bottom face — `split_conic_crossing_
+root` escalates F6 before the fallback). The sphere-chart pcurve
+refusal pin flipped to the equator's closed form (tilted circles and
+cone charts keep typed refusals). The per-class ∖/∩ door admits Sphere;
+cone/torus/NURBS keep it, message updated.
+
+**Deviations (numbered).**
+1. The spec's §1 "extent test answers or refuses" cannot CONSTRUCT the
+   flipped rows by whole-shell classification (no valid B-rep of a
+   poking union exists without cutting faces), and the natural-chart
+   fixtures have NO edge crossings at all; the re-cut is realized as
+   the rigid re-chart + one re-entry described above. Consequence: a
+   re-cut result's naming/provenance rows reference the re-cut clone's
+   lineage, not the caller's original keys (same posture as the
+   fallback's carve today); documented at `boolean_op_recut`.
+2. `boxes.rs::face_box` gained the sphere arm (center ± r): the vertex
+   hull was NOT a superset for sphere faces, so realized-lane pruning
+   could lose sphere events (found while wiring the re-run; the
+   conservative direction).
+3. Three Interval-representation repairs in shared lanes, each a
+   choice between mathematically identical formulas behind a named
+   frame trilean (degenerate/in-band arms are deterministic
+   tie-breaks, D9 — nothing downstream moves): branch-stabilized
+   `atan2` at the chart seam's angle-π copy (`stable_azimuth` in the
+   S9 chord lanes, `stable_az` in the sphere chart arm,
+   `split_conic_phase_frame` in the conic-root phase), the CENTRED +
+   two-anchor conic-root interiority (each reduction anchor has one
+   degenerate point; they coincide only on a full-period span, which
+   keeps its honest escalation), and the algebraic re-cut rotation.
+4. The two-pip fixture assembles its two-ball operand in the REALIZED
+   lane only and places pips ≥ ~2.07 from every slab corner: the
+   idealized sweep EXAMINES all pairs, and conic-edge×curved-face plus
+   the span-length clearance dip are the pre-existing PR 9 pierce
+   frontier — typed, not this unit's.
+5. `pcurve_of` on sphere-face half-edges now derives the closed form
+   for the two supported classes instead of refusing (consequence of
+   the `chart_pcurve` arm; mint-nothing posture unchanged).
+
+**What still refuses, named**: cyl×sphere germ chords (PR 9c dev 1,
+behind `Pcurve::Fitted`/the SSI lift), sphere×sphere seams, cone/torus
+operands, NURBS (re-gated), tangent/coplanar contact configurations,
+non-polar residual sections, and a re-cut that surfaces no crossings
+(loud invariant).
+
+**Battery.** Touched crates `geom-brep` + `topo` + `sweep`, full
+default-ε suites green (topo lib 311; sweep 50 test binaries; geom-brep
+16) and the sweep Interval feature battery green (S13 twins + all
+existing interval suites). `cargo fmt --all --check` clean; `clippy
+--all-targets` clean on all three crates. Interval-square tripwire on
+the diff: no `x*x` squares added; the one new sqrt operand is the
+product of two factors certified positive by the preceding trilean
+(`(r − |s|)(r + |s|)`, documented at the site).

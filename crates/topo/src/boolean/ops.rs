@@ -1342,12 +1342,8 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 // seam frontier.
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
-                                match decide(
-                                    "bool_sphere_sphere_nested",
-                                    big - (d + small),
-                                    band,
-                                )
-                                .map_err(esc)?
+                                match decide("bool_sphere_sphere_nested", big - (d + small), band)
+                                    .map_err(esc)?
                                 {
                                     Sign::Positive => {}
                                     Sign::Zero | Sign::Negative => {
@@ -1378,13 +1374,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
-                            kind: geom_brep::SurfaceKind::of(
-                                y.get_surface(yfd.surface).ok_or(
-                                    BooleanError::ClassificationInvariant {
-                                        what: "extent scan: face surface lost",
-                                    },
-                                )?,
-                            ),
+                            kind: geom_brep::SurfaceKind::of(y.get_surface(yfd.surface).ok_or(
+                                BooleanError::ClassificationInvariant {
+                                    what: "extent scan: face surface lost",
+                                },
+                            )?),
                         });
                     }
                     None => {
@@ -1423,8 +1417,7 @@ fn apply_recuts<T: Decide + Bounds>(
     let mut out_a = a.clone();
     let mut out_b = b.clone();
     for (operand, out) in [(Operand::A, &mut out_a), (Operand::B, &mut out_b)] {
-        let mine: Vec<&SphereRecut<T>> =
-            recuts.iter().filter(|r| r.operand == operand).collect();
+        let mine: Vec<&SphereRecut<T>> = recuts.iter().filter(|r| r.operand == operand).collect();
         if mine.is_empty() {
             continue;
         }
@@ -1514,8 +1507,8 @@ fn apply_recuts<T: Decide + Bounds>(
             match rebuilt.as_mut() {
                 None => rebuilt = Some(turned),
                 Some(base) => {
-                    let base_solid = single_solid(base)
-                        .map_err(|_| corrupt("re-cut base is not one solid"))?;
+                    let base_solid =
+                        single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
                     graft_solid(base, base_solid, &turned)?;
                 }
             }

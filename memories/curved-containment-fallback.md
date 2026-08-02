@@ -1,6 +1,6 @@
 ---
 name: Curved containment fallback is vertex-probed
-description: The boolean's no-crossings fallback classifies shells by probing VERTICES, which a curved boundary defeats — union meters a half-buried ball as wholly contained (16.0 for 17.309). SPHERE-ONLY today (cone/torus refuse at gate_planar, NURBS bodies unconstructible); a NURBS constructor re-opens it. Executed at M5 S12, reproduced on merge base 3ef715e, NOT fixed there.
+description: FIXED at M5 S13 for the sphere class — the fallback now runs a certified curved-EXTENT scan first (escape ⇒ rigid re-chart re-cut + one pipeline re-entry; uncertifiable ⇒ typed refusal; NURBS re-gated typed). The historical finding: vertex probes let a half-buried ball meter as contained (16.0 for 17.309); flipped to construction 17.30899693899575 in the S12 suite.
 type: finding
 ---
 
@@ -52,3 +52,15 @@ eventual fix fails loudly.
 units, not one: the fitted-chord join lane (PR 9c deviations 1–2) and
 this fallback. A join lane alone would still leave the no-crossings path
 answering wrongly.
+
+
+**RESOLUTION (M5 S13).** `sphere_extent_scan` + the rotation re-cut +
+the `(Plane, Sphere)` germ arm landed together (branch
+`ev/m5-s13-pips-enablers`): the finding row is now the construction row
+`finding_row_flipped_containment_fallback_now_sees_the_curved_extent`
+(union bracketed, one shell), the die-pips smoke rows are green, and
+NURBS is re-gated at the fallback (`NurbsExtentUnsupported`, pinned).
+The vertex probe survives as the WITNESS only; the scan is its
+certificate. Still open behind typed doors: cyl×sphere chords
+(Pcurve::Fitted), sphere×sphere seams, cone/torus, tangent/coplanar
+contacts, non-polar residual sections.

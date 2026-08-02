@@ -1095,8 +1095,7 @@ pub fn chart_pcurve<T: Decide>(
             };
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
-            match decide("pcurve_sphere_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)?
-            {
+            match decide("pcurve_sphere_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)? {
                 Sign::Zero => {
                     // POLAR-circle class: a,b ⊥ axis. On the sphere the
                     // center then sits on the axis (its radial part is
@@ -1145,13 +1144,12 @@ pub fn chart_pcurve<T: Decide>(
                     // direction d̂ read off whichever radial part is
                     // structurally nonzero.
                     let delta = aa.atan2(a_r.norm());
-                    let use_a =
-                        match decide("pcurve_sphere_chart_pole_frame", a_r.norm(), band)
-                            .map_err(esc)?
-                        {
-                            Sign::Positive | Sign::Negative => true,
-                            Sign::Zero => false,
-                        };
+                    let use_a = match decide("pcurve_sphere_chart_pole_frame", a_r.norm(), band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive | Sign::Negative => true,
+                        Sign::Zero => false,
+                    };
                     let d_hat = if use_a {
                         a_r / a_r.norm()
                     } else {
@@ -1167,14 +1165,13 @@ pub fn chart_pcurve<T: Decide>(
                     } else {
                         T::zero() - b_r.dot(d_hat) * aa / radius
                     };
-                    let sigma =
-                        match decide("pcurve_sphere_chart_polar_rate", sigma_margin, band)
-                            .map_err(esc)?
-                        {
-                            Sign::Positive => T::one(),
-                            Sign::Negative => T::zero() - T::one(),
-                            Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
-                        };
+                    let sigma = match decide("pcurve_sphere_chart_polar_rate", sigma_margin, band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                    };
                     let alpha = stable_az(d_hat.dot(cv), d_hat.dot(u_ref));
                     Ok(Pcurve::Harmonic {
                         p0: Point2::new(alpha, delta),

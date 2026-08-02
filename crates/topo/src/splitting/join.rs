@@ -813,7 +813,9 @@ fn chord_spec<T: Decide>(
     } else {
         let sec = geom_brep::plane_cylinder_section(&plane_s, &cyl_s, extent, band).map_err(
             |e| match e {
-                geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
+                geom_brep::SectionError::Escalated(diag) => {
+                    SplitJoinError::Escalated { face, diag }
+                }
                 other => SplitJoinError::Section {
                     face,
                     source: other,
@@ -821,110 +823,110 @@ fn chord_spec<T: Decide>(
             },
         )?;
         match sec {
-        geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
-            let geom_curves::Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } = e
-            else {
-                return Err(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "tilted classification carried a non-ellipse",
-                });
-            };
-            (center, axis, u_ref, major, minor, e.clone())
-        }
-        geom_brep::PlaneCylinderSection::Rim(c) => {
-            let geom_curves::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } = c
-            else {
-                return Err(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "rim classification carried a non-circle",
-                });
-            };
-            (center, axis, u_ref, radius, radius, c.clone())
-        }
-        // Ruling sections: the straight chord is the honest carrier.
-        geom_brep::PlaneCylinderSection::ParallelLines { .. } => return Ok(None),
-        // C7 (M5 PR 9): the tangent locus is CONSTRUCTED by
-        // classification, never marched — the table's exact ruling
-        // line, described `TangentIntersection { wall, aux plane }`
-        // and pushed through the ordinary certification gate (the jet
-        // schedule) by the mef/mekr caller. No arc-side rule applies:
-        // a line has no complementary candidate.
-        geom_brep::PlaneCylinderSection::TangentLine(line) => {
-            let geom_curves::Curve3::Line { origin, dir } = line else {
-                return Err(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "tangent classification carried a non-line",
-                });
-            };
-            let p1 = vertex_point(body, u1)?;
-            let p2 = vertex_point(body, u2)?;
-            let len = dir.norm();
-            let t1 = (p1 - origin).dot(dir) / len.powi(2);
-            let t2 = (p2 - origin).dot(dir) / len.powi(2);
-            // The spec must run u1 → u2 (the mef `he_plus` direction):
-            // whether that is the classified direction or its reverse
-            // is a named trilean (metered in metres), never a raw
-            // comparison; a zero span is a degenerate chord site.
-            let (carrier, s1, s2) =
-                match decide("split_tangent_chord_forward", (t2 - t1) * len, band)
-                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-                {
-                    Sign::Positive => (geom_curves::Curve3::Line { origin, dir }, t1, t2),
-                    Sign::Negative => (
-                        geom_curves::Curve3::Line { origin, dir: -dir },
-                        T::zero() - t1,
-                        T::zero() - t2,
-                    ),
-                    Sign::Zero => {
-                        return Err(SplitJoinError::SectionInvariant {
-                            face,
-                            what: "tangent section chord endpoints coincide along the ruling",
+            geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
+                let geom_curves::Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } = e
+                else {
+                    return Err(SplitJoinError::SectionInvariant {
+                        face,
+                        what: "tilted classification carried a non-ellipse",
+                    });
+                };
+                (center, axis, u_ref, major, minor, e.clone())
+            }
+            geom_brep::PlaneCylinderSection::Rim(c) => {
+                let geom_curves::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                } = c
+                else {
+                    return Err(SplitJoinError::SectionInvariant {
+                        face,
+                        what: "rim classification carried a non-circle",
+                    });
+                };
+                (center, axis, u_ref, radius, radius, c.clone())
+            }
+            // Ruling sections: the straight chord is the honest carrier.
+            geom_brep::PlaneCylinderSection::ParallelLines { .. } => return Ok(None),
+            // C7 (M5 PR 9): the tangent locus is CONSTRUCTED by
+            // classification, never marched — the table's exact ruling
+            // line, described `TangentIntersection { wall, aux plane }`
+            // and pushed through the ordinary certification gate (the jet
+            // schedule) by the mef/mekr caller. No arc-side rule applies:
+            // a line has no complementary candidate.
+            geom_brep::PlaneCylinderSection::TangentLine(line) => {
+                let geom_curves::Curve3::Line { origin, dir } = line else {
+                    return Err(SplitJoinError::SectionInvariant {
+                        face,
+                        what: "tangent classification carried a non-line",
+                    });
+                };
+                let p1 = vertex_point(body, u1)?;
+                let p2 = vertex_point(body, u2)?;
+                let len = dir.norm();
+                let t1 = (p1 - origin).dot(dir) / len.powi(2);
+                let t2 = (p2 - origin).dot(dir) / len.powi(2);
+                // The spec must run u1 → u2 (the mef `he_plus` direction):
+                // whether that is the classified direction or its reverse
+                // is a named trilean (metered in metres), never a raw
+                // comparison; a zero span is a degenerate chord site.
+                let (carrier, s1, s2) =
+                    match decide("split_tangent_chord_forward", (t2 - t1) * len, band)
+                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    {
+                        Sign::Positive => (geom_curves::Curve3::Line { origin, dir }, t1, t2),
+                        Sign::Negative => (
+                            geom_curves::Curve3::Line { origin, dir: -dir },
+                            T::zero() - t1,
+                            T::zero() - t2,
+                        ),
+                        Sign::Zero => {
+                            return Err(SplitJoinError::SectionInvariant {
+                                face,
+                                what: "tangent section chord endpoints coincide along the ruling",
+                            });
+                        }
+                    };
+                let plane_key = match ctx.plane_key {
+                    Some(k) => k,
+                    None => {
+                        let k = body.add_surface(geom_surfaces::Surface::Plane {
+                            origin: ctx.plane.origin,
+                            normal: ctx.plane.normal,
+                            // Honest u_ref: the ruling direction lies in
+                            // the plane by the tangency classification.
+                            u_ref: dir / len,
                         });
+                        ctx.plane_key = Some(k);
+                        k
                     }
                 };
-            let plane_key = match ctx.plane_key {
-                Some(k) => k,
-                None => {
-                    let k = body.add_surface(geom_surfaces::Surface::Plane {
-                        origin: ctx.plane.origin,
-                        normal: ctx.plane.normal,
-                        // Honest u_ref: the ruling direction lies in
-                        // the plane by the tangency classification.
-                        u_ref: dir / len,
-                    });
-                    ctx.plane_key = Some(k);
-                    k
-                }
-            };
-            let witness = carrier.eval(s1 + (s2 - s1) * T::from_f64(0.5));
-            return Ok(Some(EdgeCurveSpec {
-                description: geom_brep::EdgeGeometry::TangentIntersection {
-                    s1: wall_key,
-                    s2: plane_key,
-                    witness,
-                },
-                carrier,
-                param_start: s1,
-                param_end: s2,
-            }));
-        }
-        geom_brep::PlaneCylinderSection::Empty => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "empty plane×cylinder classification under a minted section chord",
-            });
-        }
+                let witness = carrier.eval(s1 + (s2 - s1) * T::from_f64(0.5));
+                return Ok(Some(EdgeCurveSpec {
+                    description: geom_brep::EdgeGeometry::TangentIntersection {
+                        s1: wall_key,
+                        s2: plane_key,
+                        witness,
+                    },
+                    carrier,
+                    param_start: s1,
+                    param_end: s2,
+                }));
+            }
+            geom_brep::PlaneCylinderSection::Empty => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "empty plane×cylinder classification under a minted section chord",
+                });
+            }
         }
     };
     let v_e = n_e.cross(u_e);
@@ -1185,14 +1187,14 @@ fn bool_planar_chord_spec<T: Decide>(
     let corrupt = || SplitJoinError::Corrupt;
     // The wall's chart frame — cylinder (PR 9, untouched) or sphere
     // (M5 S13: center, polar axis, radius, seam u_ref).
-    let (o_c, a_c, r_c, u_ref_c) = match wall {
-        &geom_surfaces::Surface::Cylinder {
+    let (o_c, a_c, r_c, u_ref_c) = match *wall {
+        geom_surfaces::Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
         } => (origin, axis, radius, u_ref),
-        &geom_surfaces::Surface::Sphere {
+        geom_surfaces::Surface::Sphere {
             center,
             radius,
             axis,
@@ -1276,63 +1278,67 @@ fn bool_planar_chord_spec<T: Decide>(
         (center, axis, u_ref, radius, radius, circle)
     } else {
         let sec =
-            geom_brep::plane_cylinder_section(&plane_s, wall, extent, band).map_err(|e| match e {
-                geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
-                other => SplitJoinError::Section {
-                    face,
-                    source: other,
+            geom_brep::plane_cylinder_section(&plane_s, wall, extent, band).map_err(
+                |e| match e {
+                    geom_brep::SectionError::Escalated(diag) => {
+                        SplitJoinError::Escalated { face, diag }
+                    }
+                    other => SplitJoinError::Section {
+                        face,
+                        source: other,
+                    },
                 },
-            })?;
+            )?;
         match sec {
-        geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
-            let geom_curves::Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } = e
-            else {
+            geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
+                let geom_curves::Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } = e
+                else {
+                    return Err(SplitJoinError::SectionInvariant {
+                        face,
+                        what: "tilted classification carried a non-ellipse",
+                    });
+                };
+                (center, axis, u_ref, major, minor, e.clone())
+            }
+            geom_brep::PlaneCylinderSection::Rim(c) => {
+                let geom_curves::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                } = c
+                else {
+                    return Err(SplitJoinError::SectionInvariant {
+                        face,
+                        what: "rim classification carried a non-circle",
+                    });
+                };
+                (center, axis, u_ref, radius, radius, c.clone())
+            }
+            // Ruling seams are straight chords on the plane too.
+            geom_brep::PlaneCylinderSection::ParallelLines { .. } => return Ok(None),
+            // A tangent germ pair inside the boolean zip means TOUCHING
+            // operands — the M5 envelope refuses those upstream; reaching
+            // here is a frontier configuration, refused typed.
+            geom_brep::PlaneCylinderSection::TangentLine(_) => {
                 return Err(SplitJoinError::SectionInvariant {
                     face,
-                    what: "tilted classification carried a non-ellipse",
-                });
-            };
-            (center, axis, u_ref, major, minor, e.clone())
-        }
-        geom_brep::PlaneCylinderSection::Rim(c) => {
-            let geom_curves::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } = c
-            else {
-                return Err(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "rim classification carried a non-circle",
-                });
-            };
-            (center, axis, u_ref, radius, radius, c.clone())
-        }
-        // Ruling seams are straight chords on the plane too.
-        geom_brep::PlaneCylinderSection::ParallelLines { .. } => return Ok(None),
-        // A tangent germ pair inside the boolean zip means TOUCHING
-        // operands — the M5 envelope refuses those upstream; reaching
-        // here is a frontier configuration, refused typed.
-        geom_brep::PlaneCylinderSection::TangentLine(_) => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
+                    what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
                        configuration (the M5 envelope's typed frontier)",
-            });
-        }
-        geom_brep::PlaneCylinderSection::Empty => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "empty plane×cylinder classification under a minted boolean chord",
-            });
-        }
+                });
+            }
+            geom_brep::PlaneCylinderSection::Empty => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "empty plane×cylinder classification under a minted boolean chord",
+                });
+            }
         }
     };
     let v_e = n_e.cross(u_e);
@@ -1598,7 +1604,6 @@ fn between_edge_in_plane<T: Decide>(
         }
     }
 }
-
 
 /// Branch-stabilized chart azimuth `atan2(y, x)` (M5 S13): `atan2`'s
 /// cut sits on the negative-`x` axis, and an interval `y` touching
