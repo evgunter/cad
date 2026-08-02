@@ -30,13 +30,20 @@
 //!   designation and survives; null-entity sides refer to the
 //!   splitting surface, not the body's orientation).
 //!
-//! **Planar-only, by F5**: non-`Plane` surfaces (including the `Nurbs`
-//! placeholder) cannot represent their orientation-reversed side in
-//! D3's closed enum — the analytic variants' implicit gradients have a
-//! fixed sign — so `revert` refuses them with a typed error rather
-//! than silently producing a body whose curved faces lie about their
-//! material side. M3 booleans are planar-boundary (F5); curved revert
-//! arrives with M5's surface work.
+//! **Planar-only, and after M5 S10 that is a WIRING bound, not a
+//! representational one.** Originally (F5) non-`Plane` surfaces could
+//! not represent their orientation-reversed side at all: D3's enum is
+//! closed and the analytic variants' chart normals have a fixed
+//! parity, so there was nothing for this function to write. S10 closed
+//! that by moving the reversal onto the FACE —
+//! [`crate::entity::Face::sense`] — where flipping it is exact
+//! structure. What S10 deliberately did not do is make this function
+//! write the bit: every constructor still mints `sense: true`, and the
+//! flip-every-face pass (with its involution, determinism and
+//! curved-boolean rows) is the follow-on unit. So the refusal below
+//! stands for exactly one more unit, and it now refuses on
+//! not-yet-wired grounds rather than on unrepresentability. Curved
+//! subtract/intersect keep their typed front-door refusal meanwhile.
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
 //! takes `&self` and returns a **new body value** — the operand is
@@ -66,8 +73,8 @@ use crate::geometry::SurfaceKey;
 /// source body is never touched (revert is `&self`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
-    /// A surface is not a `Plane`: its orientation-reversed side is
-    /// unrepresentable in the analytic enum (module docs).
+    /// A surface is not a `Plane`: this operator does not yet write the
+    /// face-sense flip a reversed curved face needs (module docs).
     ///
     /// **Status after M5 S10 (2026-08-02): the contract gap is CLOSED;
     /// the wiring is not.** The gap PR 9c returned was that a face's
@@ -143,16 +150,20 @@ impl fmt::Display for RevertError {
                  wires this arm (flip every face's sense, keep the involution \
                  and determinism rows) and unblocks curved subtract/intersect, \
                  which meanwhile keep their typed front-door refusal \
-                 (BooleanError::CurvedOpUnsupported). Recorded for the record: \
-                 the reason no surface-side fix existed is parity — the \
-                 cylinder/cone/torus chart normal is ODD in the radius (outward \
-                 for either sign; neither an axis flip nor a negative radius \
-                 moves it) and the sphere's is EVEN (r²·cos v·n̂), hence outward \
-                 exactly under the ratified radius > 0 convention, so a \
-                 negative-radius sphere is a de facto reversed sphere and was \
-                 REJECTED as a representation (it breaks that convention and \
-                 inverts every consumer metering a sphere residual by 2r, this \
-                 build's own point_in_solid sphere arm included)"
+                 (BooleanError::CurvedOpUnsupported). The parity finding that \
+                 FORCED the representation change is retained verbatim, because \
+                 it is the reason no surface-side fix ever existed (M5 PR 9c, \
+                 executed; scoped per kind by that review's F1): the \
+                 cylinder/cone/torus chart normal is ODD in the radius \
+                 (r·radial(u) and its analogues), so it is outward for either \
+                 sign and neither an axis flip nor a negative radius moves it; \
+                 the sphere's is EVEN in the radius (r²·cos v·n̂), so it is \
+                 outward exactly under the ratified radius > 0 convention — \
+                 which makes a negative-radius sphere a de facto reversed \
+                 sphere, REJECTED as a representation because it breaks that \
+                 convention and inverts every consumer metering a sphere \
+                 residual by 2r, this build's own point_in_solid sphere arm \
+                 included"
             ),
             Self::Corrupt { he } => write!(
                 f,
@@ -253,9 +264,11 @@ mod tests {
     use crate::fixtures::ops_cube;
 
     /// Non-plane surfaces refuse: ops_cube's faces share the mvfs
-    /// `Nurbs` placeholder, whose reversed orientation is
-    /// unrepresentable. (The full involution/determinism/tier pins run
-    /// on the geometric cube in `tests/m3_pr1_surgery.rs`.)
+    /// `Nurbs` placeholder, and this operator does not yet write the
+    /// face-sense flip (the follow-on unit does — M5 S10 landed the
+    /// representation, not the writer). (The full
+    /// involution/determinism/tier pins run on the geometric cube in
+    /// `tests/m3_pr1_surgery.rs`.)
     #[test]
     fn revert_refuses_non_plane_surfaces() {
         let cube = ops_cube();

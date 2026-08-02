@@ -176,31 +176,58 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
 /// or refuted — to the blocker actually found, and both are pinned here
 /// so a later unit cannot quietly restore a stale claim.
 ///
-/// The pinned statement is the SCOPED one (PR 9c review, F1). The first
-/// draft claimed every axisymmetric chart normal is "always outward";
-/// that is true of the cylinder, cone and torus, whose normals are ODD
-/// in the radius, and FALSE of the sphere, whose `r²·cos v·n̂` is EVEN —
-/// a negative-radius sphere evaluates with an INWARD normal. The
+/// **Re-aimed at M5 S10.** Deviation 3 has since been RULED and landed:
+/// `Face::sense` (option (a)) closed the representation gap, so this
+/// refusal no longer says "there is nothing to write". What it says now
+/// is that the remaining gap is **wiring** — S10 deliberately stopped at
+/// the contract plus the consumer audit, every constructor still mints
+/// `sense: true`, and making `revert` flip the bit is the follow-on
+/// unit. The row is renamed to match what it actually pins, and it now
+/// guards in BOTH directions: the new wiring statement must be present,
+/// and the retired unrepresentability claim must be gone (a later unit
+/// re-refusing on the old grounds is the regression this catches).
+///
+/// The parity finding is still pinned, unchanged, because it is the
+/// reason the fix had to be a representation change at all — and it is
+/// pinned in its SCOPED form (PR 9c review, F1). The first draft
+/// claimed every axisymmetric chart normal is "always outward"; that is
+/// true of the cylinder, cone and torus, whose normals are ODD in the
+/// radius, and FALSE of the sphere, whose `r²·cos v·n̂` is EVEN — a
+/// negative-radius sphere evaluates with an INWARD normal. The
 /// conclusion survives because that sphere is rejected as a
 /// representation rather than adopted: it violates the `radius > 0`
 /// convention and inverts every `2r`-metered consumer, this file's own
-/// arm included. This row pins the corrected text, not the first one.
+/// arm included. Keeping these assertions is what stops the S10 rewrite
+/// (or any later one) from quietly eroding F1's correction back to the
+/// overclaim.
 #[test]
-fn curved_revert_refusal_states_the_representation_blocker() {
+fn curved_revert_refusal_states_the_wiring_blocker() {
     let body = ball();
     let err = body.revert().unwrap_err();
     let msg = err.to_string();
-    // Not "unimplemented": a proof that there is nothing to write.
-    assert!(msg.contains("not merely unimplemented"), "{msg}");
+
+    // The S10 statement: the representation exists; the writer does not.
+    assert!(msg.contains("WIRING, no longer representation"), "{msg}");
+    assert!(msg.contains("representation gap is CLOSED"), "{msg}");
+    assert!(msg.contains("M5 S10 landed Face::sense"), "{msg}");
+    assert!(msg.contains("follow-on unit"), "{msg}");
+    // And it stays honest about why the refusal is still reachable.
+    assert!(msg.contains("still mints sense: true"), "{msg}");
+
+    // The retired claim must be GONE: this is no longer a proof that
+    // there is nothing to write, so it must not say so.
+    assert!(!msg.contains("not merely unimplemented"), "{msg}");
+    assert!(!msg.contains("unrepresentable"), "{msg}");
+
+    // The parity record survives the rewrite, per-kind and scoped.
     assert!(msg.contains("chart normal"), "{msg}");
-    // The per-kind scoping, both halves.
     assert!(msg.contains("ODD in the radius"), "{msg}");
     assert!(msg.contains("EVEN in the radius"), "{msg}");
     assert!(msg.contains("radius > 0 convention"), "{msg}");
     assert!(msg.contains("REJECTED as a representation"), "{msg}");
-    // And the overclaim must be gone.
-    assert!(!msg.contains("always outward"), "{msg}");
     assert!(msg.contains("M5 PR 9c"), "{msg}");
+    // And F1's correction must not erode back to the overclaim.
+    assert!(!msg.contains("always outward"), "{msg}");
 }
 
 /// The boolean's own front door quotes the same finding, so a caller
