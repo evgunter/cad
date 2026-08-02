@@ -962,7 +962,12 @@ mod tests {
             trig0: (pt(1.0), pt(0.0)),
             env: pt(0.0),
         };
-        let face_a = vec![rim(true), seam(tau, 1.0, true), pinch_top, seam(0.0, 1.0, false)];
+        let face_a = vec![
+            rim(true),
+            seam(tau, 1.0, true),
+            pinch_top,
+            seam(0.0, 1.0, false),
+        ];
         // (b) thin sliver: bottom v = 1 + 0.5·cos u, top 1e-3 above it.
         let sliver_bot = TrimEdgeQ {
             u: chan(0.0, 0.0, 0.0, 1.0),

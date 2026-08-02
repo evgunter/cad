@@ -418,7 +418,7 @@ mod tests {
         .map(|&(x, y)| Point3::new(x, y, 0.0))
         .collect();
         let n = NurbsCurve3::interpolate(&pts, 3).unwrap();
-        let (d0, d1) = (n.knots().domain());
+        let (d0, d1) = n.knots().domain();
         for delta_s in [1e-2, 1e-3, 1e-4] {
             let count =
                 nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");

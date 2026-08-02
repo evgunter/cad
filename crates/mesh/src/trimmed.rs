@@ -212,9 +212,7 @@ pub(crate) fn tessellate_trimmed(
                                 split_offender = true;
                             }
                             Slot::Boundary(_) => {
-                                return Err(TessellateError::SelfTouchingTrimLoop {
-                                    face: fk,
-                                });
+                                return Err(TessellateError::SelfTouchingTrimLoop { face: fk });
                             }
                         }
                     }
