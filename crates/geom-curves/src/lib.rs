@@ -780,7 +780,7 @@ mod tests {
             prop_assert!((p.z + d2.z - center.z).abs() <= 1e-12);
             prop_assert!(d1.dot(axis).abs() <= 1e-12);
             let (s, c) = theta.sin_cos();
-            let speed2 = major * major * s * s + minor * minor * c * c;
+            let speed2 = major.powi(2) * s.powi(2) + minor.powi(2) * c.powi(2);
             prop_assert!((d1.norm_squared() - speed2).abs() <= 1e-11);
         }
 
@@ -1043,7 +1043,7 @@ mod tests {
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
                 let p = ci.eval(Interval::from_f64(theta));
                 let radial = p - center;
-                let dist_res = radial.norm_squared() - r * r;
+                let dist_res = radial.norm_squared() - r.powi(2);
                 assert!(
                     contains(dist_res, 0.0),
                     "θ = {theta}: |P − c|² − r² = [{}, {}]",

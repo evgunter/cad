@@ -197,7 +197,8 @@ pub fn point_in_loop<T: Decide>(
     // Ray parity with the fixed schedule.
     'ray: for r in &SCHEDULE {
         let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
-        let d_raw = r - normal * normal.dot(r);
+        let n_dot_r = normal.dot(r);
+        let d_raw = r - normal * n_dot_r;
         let arm = d_raw.norm();
         match decide("point_in_loop_arm", arm, band).map_err(escalate)? {
             Sign::Positive => {}

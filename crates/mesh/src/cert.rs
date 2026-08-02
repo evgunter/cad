@@ -142,7 +142,7 @@ pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
     let edge2 = |i: usize, j: usize| -> f64 {
         let du = uv[i][0] - uv[j][0];
         let dv = uv[i][1] - uv[j][1];
-        du * du + dv * dv
+        du.powi(2) + dv.powi(2)
     };
     let l2 = edge2(0, 1).max(edge2(1, 2)).max(edge2(2, 0));
     0.75 * (major + 2.0 * minor) * l2

@@ -201,7 +201,7 @@ pub(crate) fn implicit_enclosure(surface: &Surface<f64>, b: Box3) -> RingInterva
     match *surface {
         Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
         Surface::Sphere { center, radius, .. } => {
-            (norm_sq(subp(b, center)) - ring(radius * radius)) / ring(2.0 * radius)
+            (norm_sq(subp(b, center)) - ring(radius.powi(2))) / ring(2.0 * radius)
         }
         Surface::Cylinder {
             origin,
@@ -226,7 +226,7 @@ pub(crate) fn implicit_enclosure(surface: &Surface<f64>, b: Box3) -> RingInterva
             // cancellation inside one expression, and for an
             // axis-aligned cylinder it is exact.
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
-            (norm_sq(w) - ring(radius * radius)) / ring(2.0 * radius)
+            (norm_sq(w) - ring(radius.powi(2))) / ring(2.0 * radius)
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => RingInterval::poison(),
     }

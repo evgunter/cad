@@ -170,7 +170,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                         .ok_or_else(corrupt)?;
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     let half = T::from_f64(0.5);
-                    let so_margin = kappa * extent * extent * half;
+                    let so_margin = kappa * extent.powi(2) * half;
                     match decide("tangent_sector_osculation", so_margin, band) {
                         Ok(Sign::Positive) => continue,
                         Ok(Sign::Zero | Sign::Negative) => {
