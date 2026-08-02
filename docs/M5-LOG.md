@@ -2022,3 +2022,21 @@ Decide::certification_bracket retires unless a structural
 blocker surfaces (then STOP → fresh issue to Evan). This also
 dissolves the Bounds-scope-rule tension: no Decide-wide bracket
 access exists.
+
+**S10 review returned (2026-08-02): APPROVE-WITH-FIX-PASS,
+minors only — LEAD FINDING: deviation 1 UPGRADED to a live
+wrong-boolean on main.** E2e at merge base: union(notched body,
+pellet-in-notch) → containment fallback misreports In → pellet
+SILENTLY SWALLOWED (3.000 vs 3.008, 1 shell vs 2). The A/B
+discipline HELD adversarially (off-center-ball double-count
+discriminator 0 within 1e-9; SplitPlane class-C confirmed;
+iso/STEP/design-amendment clear; tier-3 refusal surgical).
+0 code MAJ / 3 MIN, idiom 5 / tests 4 / docs 5, deviations
+exemplary. Fix pass DISPATCHED (3 minors + probe adoptions +
+the merge-base witness as a finding_* row); S10 PR opens with
+merge-priority framing. **S11 SPEC DRAFTED (concave walls mint
+sense:false — the exact turn-sign criterion, flips the finding
+rows, first genuinely mixed-sense body exercises every S10
+audit disposition); dispatches on S10 merge with MERGE PRIORITY
+(S9 precedent), block-15 fable remainder, difficulty M to log
+pre-dispatch.** Chain: S10 → S11 → revert wiring → PR 12.
