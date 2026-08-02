@@ -2104,3 +2104,22 @@ PER-CLASS (C12.1 — reachable classes live, blocked classes keep
 typed refusals naming PR 9c's confirmed blockers). Unblocks
 PR 12 for whatever classes go live. Lanes: S12 (opus) + PR 11
 (fable, finishing).
+
+**PR 11 implementation COMPLETE, PR OPENED as #157 (2026-08-02,
+44763de) — THE DEMO MOMENT: tiltedcut RENDERS (tier-3 valid,
+certified volume enclosure), boss∪plate showcase stop NEW,
+montage refreshed via the FreeCAD lane, staged machinery
+DELETED.** Kernel's first certified quadrature (transcendental-
+free Green integrals, interval remainder); walk.rs
+UnsupportedCurve RETIRED; T6 answer: CDT does NOT dominate
+(1-15ms vs 300-7000ms rebuild) — bulk loading stays banked.
+Evan's static lane split implemented (PropsQuadLane over the
+ratified Decide+Bounds seam; Dual instantiates zero quadrature;
+certification_bracket retired). Five deviations. One process
+note: a shared-scratchpad PR-body collision between concurrent
+lanes (fixed via gh pr edit; lane hygiene: unique body
+filenames). **Review DISPATCHED** (falsification sweep with
+bound-below-truth = auto MAJOR; lane-split verification incl.
+zero-quadrature-in-Dual; watertightness attack; sagitta
+re-derivation; render eyeball; T6 re-run). Lanes: PR 11 review
++ S12 (opus, revert wiring).
