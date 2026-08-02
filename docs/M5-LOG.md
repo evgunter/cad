@@ -2309,3 +2309,23 @@ finding + the splice technique banked; light fix pass). Lanes
 cleaned. Board: S13 + dual-montage (notified to fold main).
 Remaining to exit: PR 12 (spec on S13's report), PR 14 + #89,
 S4, loft assembly + SSI lift (banked).
+
+**S13 implementation COMPLETE (2026-08-02, ced2eee) — THE
+DIE-PIPS SMOKE ROW IS GREEN.** Premise HELD (plane×sphere =
+exact Circle, closed rung, no fitted chords). §1: the fallback
+re-cut via rigid re-chart + one pipeline re-entry (the S12
+16.0 union now 17.30899693899575, 1 shell, bracketed at
+Interval); NURBS re-gated typed. §2: the (Plane,Sphere) germ
+arms live (polar sections + azimuth-affine pcurve classes; the
+pole-junction orientation pin); slab∖ball = 16−cap with
+certified seam pcurves, reversed pip wall; two-pip group row;
+additivity; Interval twins tight. FIVE deviations incl. the
+rigid-re-chart realization, a face_box sphere-arm superset fix
+(possible pre-existing BVH exposure — review checks
+reachability), and three shared-lane Interval repairs (bit-
+compat = review charter item B). **Review DISPATCHED** (re-
+chart attacked hardest: seam relocation, degenerate Rodrigues,
+two-face poke determinism, re-entry invariant; moved-pin sweep
+over S9/PR5/S12 suites; dev-2 main-reachability). PR 12 SPEC
+NEXT (drafting now — the die pips are unblocked). Lanes: S13
+review + dual-montage.
