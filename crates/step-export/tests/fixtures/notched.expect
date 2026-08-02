@@ -1,0 +1,12 @@
+# FreeCAD/OCC import expectations for notched.step (M5 PR 13 curved
+# corpus). Counts are what OCC reports after import; the volume is the
+# EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
+# 2x1.5 rectangle, equal convex/concave 45 deg bulges cancelling, extruded 1: exactly 3 m^3
+#
+# OCC keeps the kernel topology exactly (6/12/8).
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=6
+EXPECT_EDGES=12
+EXPECT_VERTICES=8
+EXPECT_VOLUME_MM3=3000000000.0

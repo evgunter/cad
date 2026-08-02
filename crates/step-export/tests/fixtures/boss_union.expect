@@ -1,0 +1,12 @@
+# FreeCAD/OCC import expectations for boss_union.step (M5 PR 13 curved
+# corpus). Counts are what OCC reports after import; the volume is the
+# EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
+# 4x4x1 plate + the r=0.5 boss stub above it: 16 + pi*0.25*0.6 m^3
+#
+# OCC keeps the kernel topology exactly (10/21/14).
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=10
+EXPECT_EDGES=21
+EXPECT_VERTICES=14
+EXPECT_VOLUME_MM3=16471238898.038467

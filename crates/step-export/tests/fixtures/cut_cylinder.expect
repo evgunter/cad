@@ -1,0 +1,12 @@
+# FreeCAD/OCC import expectations for cut_cylinder.step (M5 PR 13 curved
+# corpus). Counts are what OCC reports after import; the volume is the
+# EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
+# unit cylinder h=2.5 halved by a 0.3 rad tilted plane through the axis midpoint: pi*1.25 m^3
+#
+# OCC keeps the kernel topology exactly (4/6/4).
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=4
+EXPECT_EDGES=6
+EXPECT_VERTICES=4
+EXPECT_VOLUME_MM3=3926990816.9872413

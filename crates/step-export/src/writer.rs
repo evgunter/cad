@@ -13,6 +13,7 @@
 
 use std::fmt::Write as _;
 
+use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tolerance, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
@@ -22,7 +23,8 @@ use crate::real::fmt_real;
 use crate::volume::shell_signed_volume;
 use crate::{SharedIds, StepExportError, StepOptions, quoted};
 
-/// The surface variant's name, for typed refusals.
+/// The surface variant's name, for typed refusals and for the
+/// curved-shell classification message.
 pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
     match surface {
         Surface::Plane { .. } => "plane",
@@ -30,7 +32,20 @@ pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
         Surface::Cone { .. } => "cone",
         Surface::Sphere { .. } => "sphere",
         Surface::Torus { .. } => "torus",
-        Surface::Nurbs(_) => "nurbs placeholder",
+        // The two Nurbs states are told apart: the mvfs "no
+        // description yet" placeholder (all-poison control points) is a
+        // mid-surgery fact, while a described NURBS surface is the loft
+        // -assembly frontier. Both refuse; they refuse for different
+        // reasons and the message says which.
+        Surface::Nurbs(payload) => {
+            if payload.control().iter().all(|p| !p.x.is_finite()) {
+                "nurbs placeholder"
+            } else {
+                "nurbs surface (B_SPLINE_SURFACE_WITH_KNOTS export arrives \
+                 with the loft-assembly unit, which mints the first NURBS \
+                 face at rest)"
+            }
+        }
     }
 }
 
@@ -39,11 +54,8 @@ pub(crate) fn carrier_kind(carrier: &Curve3<f64>) -> &'static str {
     match carrier {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",
-        // AP214 has an exact ELLIPSE entity; the curved STEP subset is
-        // M5 PR 13's — until then ellipse edges refuse typed through
-        // the same unsupported-carrier door as every unmapped kind.
-        Curve3::Ellipse { .. } => "ellipse (STEP mapping lands at M5 PR 13)",
-        Curve3::Nurbs(_) => "nurbs placeholder",
+        Curve3::Ellipse { .. } => "ellipse",
+        Curve3::Nurbs(_) => "nurbs curve",
     }
 }
 
@@ -83,6 +95,41 @@ fn refs(ids: &[u64]) -> String {
         let _ = write!(out, "#{id}");
     }
     out
+}
+
+/// Run-length-encodes a flat clamped knot vector into STEP's
+/// `(multiplicities)` / `(distinct knots)` pair, returning both as
+/// ready-to-splice argument text.
+///
+/// Runs are cut on **exact f64 equality** — the kernel's own
+/// multiplicity predicate (`KnotVector`'s type docs: knots are
+/// structure, and structure identity is bitwise-value identity, never
+/// a tolerance question). So the pair round-trips to the identical
+/// flat vector, and no ε enters this path.
+fn run_length_knots(
+    knots: &[f64],
+    context: &'static str,
+) -> Result<(String, String), StepExportError> {
+    let mut mults = String::new();
+    let mut values = String::new();
+    let mut index = 0;
+    let mut first = true;
+    while index < knots.len() {
+        let value = knots[index];
+        let mut run = 1;
+        while index + run < knots.len() && knots[index + run] == value {
+            run += 1;
+        }
+        if !first {
+            mults.push_str(", ");
+            values.push_str(", ");
+        }
+        first = false;
+        let _ = write!(mults, "{run}");
+        values.push_str(&fmt_real(value, context)?);
+        index += run;
+    }
+    Ok((mults, values))
 }
 
 impl<'a> Writer<'a> {
@@ -128,6 +175,35 @@ impl<'a> Writer<'a> {
             fmt_real(v.z, context)?,
         );
         Ok(self.emit(&format!("DIRECTION('', ({x}, {y}, {z}))")))
+    }
+
+    /// `AXIS2_PLACEMENT_3D` from a kernel frame `(origin, axis,
+    /// ref_dir)` — the shared right-handed placement every elementary
+    /// surface and conic carries. Emission order is location, axis,
+    /// ref_direction, placement (the order M4's inline plane arm used,
+    /// preserved so the planar goldens stay byte-identical).
+    ///
+    /// The three kernel fields go in **verbatim**: every kernel frame
+    /// stores `axis` unit, `ref_dir` unit and ⊥ `axis`, and the derived
+    /// second in-plane direction is `axis × ref_dir` — which is exactly
+    /// ISO 10303-42's `axis2_placement_3d` convention (`z = axis`,
+    /// `x = ref_direction` after the standard's orthogonalization,
+    /// `y = z × x`). No renormalization, no orthogonalization, no
+    /// negation: the placement IS the kernel frame (D9 — any repair
+    /// here would move bits and export a different surface).
+    fn axis2_placement(
+        &mut self,
+        origin: Point3<f64>,
+        axis: Vec3<f64>,
+        ref_dir: Vec3<f64>,
+        origin_context: &'static str,
+        axis_context: &'static str,
+        ref_context: &'static str,
+    ) -> Result<u64, StepExportError> {
+        let cp = self.cartesian_point(origin, origin_context)?;
+        let a = self.direction(axis, axis_context)?;
+        let r = self.direction(ref_dir, ref_context)?;
+        Ok(self.emit(&format!("AXIS2_PLACEMENT_3D('', #{cp}, #{a}, #{r})")))
     }
 
     /// `VERTEX_POINT` for a kernel vertex (first encounter mints, later
@@ -184,9 +260,9 @@ impl<'a> Writer<'a> {
             })?;
         let end = self.vertex_point(end_vertex)?;
         let carrier = certified_carrier(self.body, edge_key, edge)?;
-        // The analytic-subset curve printers. M5 adds arms here
-        // (circle → CIRCLE, NURBS → B_SPLINE_CURVE_WITH_KNOTS);
-        // everything around this match is carrier-agnostic.
+        // The curve printers — one closed match over `Curve3`, every
+        // arm an EXACT native AP214 entity (crate docs, "the analytic
+        // subset"). Everything around this match is carrier-agnostic.
         let curve = match *carrier {
             Curve3::Line { origin, dir } => {
                 let cp = self.cartesian_point(origin, "line origin")?;
@@ -197,16 +273,143 @@ impl<'a> Writer<'a> {
                 let vector = self.emit(&format!("VECTOR('', #{d}, 1.0)"));
                 self.emit(&format!("LINE('', #{cp}, #{vector})"))
             }
-            ref other => {
-                return Err(StepExportError::UnsupportedCurve {
-                    edge: edge_key,
-                    kind: carrier_kind(other),
-                });
+            // `circle`: P(θ) = location + radius·(cos θ·x + sin θ·y)
+            // with `y = z × x` — the kernel's `Circle` formula field
+            // for field, including the seam at `u_ref` (θ = 0) and the
+            // right-hand winding about `axis`. Exact, native, no
+            // parameter remapping.
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                let placement = self.axis2_placement(
+                    center,
+                    axis,
+                    u_ref,
+                    "circle centre",
+                    "circle axis",
+                    "circle u_ref",
+                )?;
+                let r = fmt_real(radius, "circle radius")?;
+                self.emit(&format!("CIRCLE('', #{placement}, {r})"))
+            }
+            // `ellipse`: P(θ) = location + semi_axis_1·cos θ·x +
+            // semi_axis_2·sin θ·y — again the kernel's formula verbatim
+            // (`semi_axis_1 = major` along `u_ref`, `semi_axis_2 =
+            // minor` along `axis × u_ref`), so the eccentric-anomaly
+            // parameterization survives unchanged. AP214 HAS this
+            // entity: the rational-quadratic Bézier form (NURBS Book
+            // §7.3, shape factor k = w₀w₂/w₁²) is NOT used — it would
+            // be an equally exact but strictly worse encoding, hiding
+            // the axes every reader wants and reparameterizing the
+            // curve for nothing.
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let placement = self.axis2_placement(
+                    center,
+                    axis,
+                    u_ref,
+                    "ellipse centre",
+                    "ellipse axis",
+                    "ellipse u_ref (semi-major direction)",
+                )?;
+                let a = fmt_real(major, "ellipse semi-major axis")?;
+                let b = fmt_real(minor, "ellipse semi-minor axis")?;
+                self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
+            }
+            Curve3::Nurbs(ref payload) => {
+                if payload.control().iter().all(|p| !p.x.is_finite()) {
+                    // The "no description yet" carrier placeholder —
+                    // the curve-side twin of the mvfs surface
+                    // placeholder. Mid-surgery, never exportable.
+                    return Err(StepExportError::UnsupportedCurve {
+                        edge: edge_key,
+                        kind: "nurbs placeholder",
+                    });
+                }
+                self.b_spline_curve(payload.knots(), payload.control(), payload.weights())?
             }
         };
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);
         Ok(id)
+    }
+
+    /// `B_SPLINE_CURVE_WITH_KNOTS` for a validated kernel NURBS
+    /// carrier — the **non-rational** simple entity when every weight
+    /// is exactly 1.0, otherwise the `RATIONAL_B_SPLINE_CURVE` complex
+    /// instance (ISO 10303-42's rational subtype is an AND-composition,
+    /// so Part 21 spells it as a complex-entity instance with the
+    /// component names in alphabetical order — the same rule the unit
+    /// context records already follow).
+    ///
+    /// Field mapping, all exact:
+    ///
+    /// - `degree` ← the knot vector's degree; `control_points_list` ←
+    ///   the control points in stored order (one `CARTESIAN_POINT`
+    ///   each, no sharing — control points are curve-private data, not
+    ///   topology).
+    /// - `knot_multiplicities` / `knots` ← the flat clamped knot vector
+    ///   run-length-encoded by **exact f64 equality**, which is the
+    ///   kernel's own multiplicity predicate (`KnotVector`'s type docs:
+    ///   knots are structure, structure identity is bitwise). The
+    ///   clamped-v1 invariant means the ends come out at multiplicity
+    ///   `degree + 1`, exactly what `.UNSPECIFIED.` knot_spec allows.
+    /// - `curve_form` is `.UNSPECIFIED.`: the kernel does not certify
+    ///   polyline/circular/elliptic FORM of a NURBS carrier, and
+    ///   claiming a form it has not proven would be a lie in a field
+    ///   readers act on.
+    /// - `closed_curve` and `self_intersect` are `.U.` (LOGICAL
+    ///   unknown), for the same reason: the kernel carries no
+    ///   closure/self-intersection certificate for a fitted carrier.
+    ///   `.F.`/`.F.` — what most writers emit — would be an unbacked
+    ///   claim; `.U.` is the honest value the type provides.
+    /// - `weights_data` (rational arm) ← the stored weights, strictly
+    ///   positive by construction, printed round-trip exact.
+    ///
+    /// Note that the weights are **f64 structure** (C6) even when the
+    /// control points are not, so the rational/non-rational decision is
+    /// an exact comparison, not a tolerance question.
+    fn b_spline_curve(
+        &mut self,
+        knots: &KnotVector,
+        control: &[Point3<f64>],
+        weights: &[f64],
+    ) -> Result<u64, StepExportError> {
+        let mut points = Vec::with_capacity(control.len());
+        for p in control {
+            points.push(self.cartesian_point(*p, "b-spline curve control point")?);
+        }
+        let points = refs(&points);
+        let degree = knots.degree();
+        let (mults, values) = run_length_knots(knots.knots(), "b-spline curve knot")?;
+        if weights.iter().all(|w| *w == 1.0) {
+            Ok(self.emit(&format!(
+                "B_SPLINE_CURVE_WITH_KNOTS('', {degree}, ({points}), .UNSPECIFIED., .U., .U., \
+                 ({mults}), ({values}), .UNSPECIFIED.)"
+            )))
+        } else {
+            let mut w = String::new();
+            for (i, weight) in weights.iter().enumerate() {
+                if i > 0 {
+                    w.push_str(", ");
+                }
+                w.push_str(&fmt_real(*weight, "b-spline curve weight")?);
+            }
+            Ok(self.emit(&format!(
+                "( BOUNDED_CURVE() B_SPLINE_CURVE({degree}, ({points}), .UNSPECIFIED., .U., .U.) \
+                 B_SPLINE_CURVE_WITH_KNOTS(({mults}), ({values}), .UNSPECIFIED.) CURVE() \
+                 GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE(({w})) \
+                 REPRESENTATION_ITEM('') )"
+            )))
+        }
     }
 
     /// `EDGE_LOOP` of `ORIENTED_EDGE`s for one loop, wrapped as
@@ -328,24 +531,135 @@ impl<'a> Writer<'a> {
             .ok_or(StepExportError::Corrupt {
                 what: "face surface key does not resolve",
             })?;
-        // The analytic-subset surface printers. M5 adds arms here
-        // (CYLINDRICAL_SURFACE, CONICAL_SURFACE, SPHERICAL_SURFACE,
-        // TOROIDAL_SURFACE, B_SPLINE_SURFACE_WITH_KNOTS) — exporting
-        // analytic carriers AS analytic entities is this writer's
-        // reason to exist (crate docs).
+        // The analytic surface printers: every ELEMENTARY_SURFACE of
+        // the kernel's closed enum maps to its exact AP214 twin, the
+        // kernel frame going in verbatim as the placement (see
+        // [`Self::axis2_placement`]). Exporting analytic carriers AS
+        // analytic entities — never a B-spline approximation — is this
+        // writer's reason to exist (crate docs). `Surface::Nurbs` is
+        // the one remaining refusal: no body at rest carries a NURBS
+        // FACE (the loft-assembly unit mints the first), so the arm is
+        // frontier text, not silent degradation.
         let surface_id = match *surface {
             Surface::Plane {
                 origin,
                 normal,
                 u_ref,
             } => {
-                let cp = self.cartesian_point(origin, "plane origin")?;
-                let axis = self.direction(normal, "plane normal")?;
-                let ref_dir = self.direction(u_ref, "plane u_ref")?;
-                let placement = self.emit(&format!(
-                    "AXIS2_PLACEMENT_3D('', #{cp}, #{axis}, #{ref_dir})"
-                ));
+                let placement = self.axis2_placement(
+                    origin,
+                    normal,
+                    u_ref,
+                    "plane origin",
+                    "plane normal",
+                    "plane u_ref",
+                )?;
                 self.emit(&format!("PLANE('', #{placement})"))
+            }
+            // `cylindrical_surface`: S(u, v) = location + radius·(cos
+            // u·x + sin u·y) + v·z — the kernel's `Cylinder` formula
+            // field for field (`origin` the v = 0 axis point, `u_ref`
+            // the seam at u = 0). Both parameters keep their kernel
+            // meaning (u radians, v metres).
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                let placement = self.axis2_placement(
+                    origin,
+                    axis,
+                    u_ref,
+                    "cylinder origin",
+                    "cylinder axis",
+                    "cylinder u_ref",
+                )?;
+                let r = fmt_real(radius, "cylinder radius")?;
+                self.emit(&format!("CYLINDRICAL_SURFACE('', #{placement}, {r})"))
+            }
+            // `conical_surface`: S(u, v) = location + (radius + v·tan
+            // α)·(cos u·x + sin u·y) + v·z, with the placement's
+            // location free to sit anywhere on the axis. The kernel
+            // stores the APEX, so the exact encoding is location =
+            // apex with `radius = 0.0` (ISO 10303-42's WHERE rule on
+            // conical_surface is `radius >= 0.0` — the apex placement
+            // is inside the schema, and it is the encoding that needs
+            // no invented offset constant, D9).
+            //
+            // The one field that is NOT an identity: STEP's v runs
+            // along the AXIS while the kernel's runs along the SLANT
+            // (|∂S/∂v| = 1, `Surface::Cone`'s docs). The two
+            // parameterizations of the same locus differ by the fixed
+            // factor cos α. That is invisible here — this writer emits
+            // no pcurves and no trim parameters, so only the surface
+            // LOCUS crosses the wire, and the locus is identical.
+            // (When pcurves land, the cos α factor is the thing to
+            // carry.) `semi_angle` is the kernel `half_angle`
+            // verbatim, both in (0, π/2) radians.
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => {
+                let placement = self.axis2_placement(
+                    apex,
+                    axis,
+                    u_ref,
+                    "cone apex",
+                    "cone axis",
+                    "cone u_ref",
+                )?;
+                let angle = fmt_real(half_angle, "cone half-angle")?;
+                self.emit(&format!("CONICAL_SURFACE('', #{placement}, 0.0, {angle})"))
+            }
+            // `spherical_surface`: S(u, v) = centre + radius·(cos v·
+            // (cos u·x + sin u·y) + sin v·z) — the kernel's `Sphere`
+            // formula field for field (longitude u about the pole
+            // `axis`, latitude v, seam meridian at `u_ref`).
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => {
+                let placement = self.axis2_placement(
+                    center,
+                    axis,
+                    u_ref,
+                    "sphere centre",
+                    "sphere axis",
+                    "sphere u_ref",
+                )?;
+                let r = fmt_real(radius, "sphere radius")?;
+                self.emit(&format!("SPHERICAL_SURFACE('', #{placement}, {r})"))
+            }
+            // `toroidal_surface`: S(u, v) = centre + (R + r·cos v)·(cos
+            // u·x + sin u·y) + r·sin v·z — the kernel's `Torus`
+            // formula field for field (major azimuth u about `axis`,
+            // minor angle v with v = 0 on the outer equator, seam at
+            // `u_ref`).
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => {
+                let placement = self.axis2_placement(
+                    center,
+                    axis,
+                    u_ref,
+                    "torus centre",
+                    "torus axis",
+                    "torus u_ref",
+                )?;
+                let major = fmt_real(major_radius, "torus major radius")?;
+                let minor = fmt_real(minor_radius, "torus minor radius")?;
+                self.emit(&format!(
+                    "TOROIDAL_SURFACE('', #{placement}, {major}, {minor})"
+                ))
             }
             ref other => {
                 return Err(StepExportError::UnsupportedSurface {
@@ -410,7 +724,7 @@ impl<'a> Writer<'a> {
                         .ok_or(StepExportError::Corrupt {
                             what: "solid shell key does not resolve",
                         })?;
-                    let volume = shell_signed_volume(self.body, shell)?;
+                    let volume = shell_signed_volume(self.body, shell_key, shell)?;
                     if !volume.is_finite() || volume == 0.0 {
                         return Err(StepExportError::ShellVolumeIndeterminate {
                             shell: shell_key,
