@@ -2159,3 +2159,18 @@ would be genuinely unsound. Fix pass DISPATCHED (document the
 two-term accounting + adopt the corner-scan pin; the T-junction
 boundary-intermediate typed arm; caption/T6-numbers/shrug
 NOTEs; probe adoptions). S12 review in the other lane.
+
+**S12 review returned (2026-08-02): APPROVE — 0 new MAJ / 2
+MIN / 3 NOTE, rubric 5/5/4. THE CLASS BOUNDARY IS COMPLETE**
+(constructed probes: torus gate, poking cylinder walls, the
+half-buried log — all refuse TYPED; the sphere is the unique
+opened-adjacent class whose closed sections hide from every
+edge — structural argument verified). Standout: the reviewer
+IMPLEMENTED the rejected uniform-flip alternative — every
+pinned planar lane stayed GREEN, falsifying the rejection
+rationale as stated (design stands as a conservatism CHOICE;
+doc corrections in the fix pass). Inheritance witness
+reproduced; volumes match to the last digit; guard re-aim
+ruled sound. Fix pass DISPATCHED (2 doc MINs + NURBS hazard
+scoping in the fallback memory + 4 probe adoptions); PR opens
+at completion. Lanes: PR 11 fix pass + S12 fix pass.
