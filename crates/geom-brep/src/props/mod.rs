@@ -28,6 +28,20 @@
 //!   normal or its negation, recovered from stored boundary data
 //!   (below).
 //!
+//! **Where the orientation lives after M5 S10.** `topo::Face` now
+//! carries an explicit `sense` bit, but this module remains almost
+//! entirely **winding-derived**, and that is deliberate. Both `A⃗` and
+//! the rim-recovered `s_f` read the face's stored loop traversal,
+//! which the interior-left rule already ties to the *outward* normal;
+//! `revert` reverses loops and flips `sense` in the same step, so
+//! feeding the bit into a winding-derived term would negate the volume
+//! twice. The bit enters at exactly one site — the **rimless** sphere
+//! band, whose boundary has no rim to read `s_f` off and which
+//! previously hardcoded `+1`. Everything else here is sense-invariant
+//! by derivation, and the *agreement* of the two encodings is a tier-3
+//! obligation (the validator's loop-role winding check), not this
+//! module's.
+//!
 //! Areas of curved faces come from the chart Jacobians over the face's
 //! iso-parameter rectangle `[u0,u1]×[v0,v1]`; planar face area is
 //! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
@@ -246,6 +260,16 @@ impl std::error::Error for PropsError {}
 /// opposite winding; the loop orientation convention points `A⃗` along
 /// the face's outward normal). `origin` doubles as the translation
 /// reference (Mäntylä's far-from-origin conditioning remedy).
+///
+/// **Sense-invariant by derivation** (M5 S10). This function takes no
+/// `sense_sign` and deliberately must not: `A⃗` is a boundary integral
+/// in the face's STORED traversal order, and the interior-left rule
+/// already points it along the *outward* normal, whichever side that
+/// is. A planar face's entire flux is `origin·A⃗` (the anchored term
+/// vanishes on the plane), so orientation reaches this computation
+/// exclusively through the winding, never through the surface's chart
+/// normal. `revert` reverses loops and flips `Face::sense` together;
+/// applying the sense here as well would negate the volume twice.
 ///
 /// # Errors
 ///

@@ -213,7 +213,11 @@ fn mass_properties_impl<T: Decide>(
                 // Structural dispatch (C5: on the carrier KIND, never a
                 // runtime fallback): a conic/NURBS trim carrier routes
                 // the face to the PR 11 certified-quadrature lane; an
-                // iso boundary keeps its closed form.
+                // iso boundary keeps its closed form. The S10 sense bit
+                // does NOT enter the quadrature lane: its Green form is
+                // winding-derived end to end (the signed UV area IS
+                // s_f·|Ω| through the stored loop traversal), exactly
+                // the class the S10 module docs keep bit-free.
                 let is_trimmed = outer.iter().any(|e| {
                     matches!(
                         e.carrier,
@@ -236,11 +240,15 @@ fn mass_properties_impl<T: Decide>(
                             area: T::from_f64(ac),
                         }
                     }
-                    // Either an iso boundary (the closed forms) or a
+                    // Either an iso boundary (the closed forms — the
+                    // face's S10 sense entering at `curved_face`'s one
+                    // sanctioned site, the rimless sphere band) or a
                     // scalar with NO certified lane (the dual arm of
                     // [`PropsQuadLane`]) — whose honest outcome on a
-                    // trimmed face is the closed form\'s typed refusal.
-                    None => curved_face(surface, &outer, band).map_err(wrap)?,
+                    // trimmed face is the closed form's typed refusal.
+                    None => {
+                        curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?
+                    }
                 }
             }
         };

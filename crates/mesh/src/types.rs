@@ -39,6 +39,20 @@ pub struct FacePatch {
     pub face: FaceKey,
     /// Triangles with **outward** winding (counterclockwise viewed
     /// from outside the material, per the D1 loop conventions).
+    ///
+    /// "Outward" means the *material* side, not the chart-normal side.
+    /// Since M5 S10 a face's outward normal is
+    /// `topo::Face::sense_sign() · chart_normal`, and this contract is
+    /// stated in the outward frame: on a face with `sense: false` the
+    /// emitted triangles wind CCW about `−chart_normal`. The
+    /// tessellator reaches that without consulting the bit on this
+    /// path — the winding comes from the loop's stored traversal,
+    /// which interior-left already ties to the outward normal (see
+    /// `planar`/`curved`) — so the guarantee holds for either sense
+    /// with no per-consumer correction. Downstream consumers (STL
+    /// facet normals, signed volumes) may therefore keep deriving
+    /// orientation from this winding alone, and must NOT re-apply the
+    /// sense on top of it.
     pub triangles: Vec<[u32; 3]>,
 }
 

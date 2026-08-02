@@ -25,9 +25,19 @@
 //!
 //! `ADVANCED_FACE`'s own same_sense flag deliberately does not enter
 //! the computation: the signed volume derives entirely from boundary
-//! winding, which is the load-bearing orientation datum here (the
-//! surface-normal side of the mapping is documented in lib.rs and
-//! covered by the writer's fixed `.T.` emission).
+//! winding, which is the load-bearing orientation datum here.
+//!
+//! That is a scoping decision, and since M5 S10 it is also the only
+//! honest phrasing. The writer no longer emits a FIXED `.T.`:
+//! same_sense is `topo::Face::sense` verbatim, while the surface's
+//! `AXIS2_PLACEMENT_3D` carries the unmodified CHART normal. The two
+//! together are STEP's encoding of "which way is out" — a
+//! sense-reversed face keeps its chart axis and flips the flag rather
+//! than negating the direction. So this oracle covers the winding half
+//! of the mapping and says so; the flag half is pinned where it is
+//! actually discriminating, by the S10 acceptance rows. Every face
+//! this build mints has `sense: true` and therefore still writes
+//! `.T.`, which is why the byte-golden fixtures are unchanged.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -79,9 +79,16 @@ pub enum PlaneEqError {
 /// rungs only.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlaneIdentity<'a> {
-    /// The first description's recipe source, if stamped.
+    /// The first description's recipe source, if stamped. This is the
+    /// source of the DESCRIPTION being compared, not of the surface
+    /// underneath it: a face's outward normal is the surface
+    /// expression's reversal when the face's `sense` is `false`, and
+    /// `orient` is the tag that says so, so callers holding faces
+    /// pass `boolean::reduce::face_plane_source`, never the raw
+    /// surface source (S10).
     pub s1: Option<&'a GeomSource>,
-    /// The second description's recipe source, if stamped.
+    /// The second description's recipe source, same contract as
+    /// [`PlaneIdentity::s1`].
     pub s2: Option<&'a GeomSource>,
     /// The face pair is declared coincident by recipe data.
     pub declared: bool,
@@ -96,13 +103,19 @@ impl PlaneIdentity<'_> {
     };
 }
 
-/// One plane's conventional description (a `Surface::Plane`'s origin
-/// and unit outward normal).
+/// One plane's conventional description: a point on it and its unit
+/// **outward** normal — outward for the FACE the description came
+/// from, which since S10 is the surface's chart normal times that
+/// face's `sense_sign`, not the chart normal itself
+/// (`boolean::reduce::face_plane` is the door that folds the bit in).
+/// The Same±-orientation verdict is a statement about material sides,
+/// so a description built from a raw chart normal would make it a
+/// statement about nothing.
 #[derive(Clone, Copy, Debug)]
 pub struct PlaneDesc<T: geom_core::Real> {
     /// A point on the plane.
     pub origin: Point3<T>,
-    /// The unit outward normal.
+    /// The unit outward normal (of the face, not of the chart).
     pub normal: Vec3<T>,
 }
 
@@ -128,6 +141,11 @@ pub fn oriented_plane_eq<T: Decide>(
     let d2 = p2.normal.dot(p2.origin - Point3::origin());
 
     // Rung 1: same source (N6) — syntactic identity, zero numerics.
+    // `orient` carries the DESCRIPTION's reversal, face sense
+    // included (see `PlaneIdentity::s1`): without that composition two
+    // faces of one surface with opposite senses would share a source
+    // bit-for-bit, read `SameOriented`, and blow the assertion below
+    // — their outward normals are exact negations.
     if let (Some(s1), Some(s2)) = (id.s1, id.s2)
         && s1.same_base(s2)
     {

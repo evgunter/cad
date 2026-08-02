@@ -30,13 +30,20 @@
 //!   designation and survives; null-entity sides refer to the
 //!   splitting surface, not the body's orientation).
 //!
-//! **Planar-only, by F5**: non-`Plane` surfaces (including the `Nurbs`
-//! placeholder) cannot represent their orientation-reversed side in
-//! D3's closed enum — the analytic variants' implicit gradients have a
-//! fixed sign — so `revert` refuses them with a typed error rather
-//! than silently producing a body whose curved faces lie about their
-//! material side. M3 booleans are planar-boundary (F5); curved revert
-//! arrives with M5's surface work.
+//! **Planar-only, and after M5 S10 that is a WIRING bound, not a
+//! representational one.** Originally (F5) non-`Plane` surfaces could
+//! not represent their orientation-reversed side at all: D3's enum is
+//! closed and the analytic variants' chart normals have a fixed
+//! parity, so there was nothing for this function to write. S10 closed
+//! that by moving the reversal onto the FACE —
+//! [`crate::entity::Face::sense`] — where flipping it is exact
+//! structure. What S10 deliberately did not do is make this function
+//! write the bit: every constructor still mints `sense: true`, and the
+//! flip-every-face pass (with its involution, determinism and
+//! curved-boolean rows) is the follow-on unit. So the refusal below
+//! stands for exactly one more unit, and it now refuses on
+//! not-yet-wired grounds rather than on unrepresentability. Curved
+//! subtract/intersect keep their typed front-door refusal meanwhile.
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
 //! takes `&self` and returns a **new body value** — the operand is
@@ -66,15 +73,30 @@ use crate::geometry::SurfaceKey;
 /// source body is never touched (revert is `&self`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
-    /// A surface is not a `Plane`: its orientation-reversed side is
-    /// unrepresentable in the analytic enum (module docs).
+    /// A surface is not a `Plane`: this operator does not yet write the
+    /// face-sense flip a reversed curved face needs (module docs).
     ///
-    /// **Status after M5 PR 9c (executed, 2026-08-01; scoped by the
-    /// PR 9c review's F1).** This is not a scheduling gap — it is a
-    /// contract gap, and PR 9c's finding is that no amount of work
-    /// inside `revert` closes it under the current contracts. A face's
-    /// outward normal IS its surface's chart normal (`Face` carries no
-    /// sense flag), and:
+    /// **Status after M5 S10 (2026-08-02): the contract gap is CLOSED;
+    /// the wiring is not.** The gap PR 9c returned was that a face's
+    /// outward normal *was* its surface's chart normal, so `revert` had
+    /// no representation to write on a curved face (the parity argument
+    /// below, still the reason no amount of work inside `revert` could
+    /// have closed it). S10 landed the ratified fix — option (a),
+    /// [`crate::entity::Face::sense`], the orientation bit, with the
+    /// full outward-normal consumer audit threaded behind it. Reverting
+    /// a curved face is now a `sense` flip and nothing more. **This
+    /// refusal survives only because S10 deliberately stopped at the
+    /// contract plus the audit**: every constructor still mints
+    /// `sense: true`, and WIRING `revert` to flip the bit (with its
+    /// involution, determinism, and curved subtract/intersect rows) is
+    /// the immediately following unit. Until that lands, curved
+    /// subtract/intersect keep their typed front-door refusal
+    /// (`BooleanError::CurvedOpUnsupported`) and this stays the
+    /// operator-level statement.
+    ///
+    /// **The parity finding (M5 PR 9c, executed 2026-08-01; scoped by
+    /// the PR 9c review's F1)**, retained as the record of *why* the
+    /// representation had to change rather than the code:
     ///
     /// - **Cylinder, cone, torus**: the chart normal is ODD in the
     ///   radius (`∂u × ∂v = r·radial(u)` for the cylinder, and the
@@ -96,16 +118,10 @@ pub enum RevertError {
     ///   `point_in_solid` sphere arm, whose boundary residual and
     ///   `bool_ray_sphere_disc` metering both divide by `2r`).
     ///
-    /// So there is still nothing for this function to WRITE on a
-    /// reverted cylinder, cone, sphere, or torus. Closing it means a
-    /// ratified representation change — a `sense` on `Face`, a
-    /// `Surface::Reversed` wrapper, or NURBS conversion — see the
-    /// M5-LOG PR 9c entry, deviation 3, for the three costings.
-    ///
-    /// Until one is ratified, curved subtract/intersect refuse up front
-    /// at the boolean's own door
-    /// (`BooleanError::CurvedOpUnsupported`), so this refusal is the
-    /// OPERATOR-level statement, not the boolean's front door.
+    /// So there was nothing for this function to WRITE *in the surface*
+    /// on a reverted cylinder, cone, sphere, or torus — which is why
+    /// the fix had to be a ratified representation change, and why it
+    /// landed on the FACE (S10 above) rather than in `Surface`.
     UnsupportedSurface {
         /// The non-plane surface.
         surface: SurfaceKey,
@@ -123,22 +139,31 @@ impl fmt::Display for RevertError {
         match self {
             Self::UnsupportedSurface { surface } => write!(
                 f,
-                "revert: surface {surface:?} is not a plane — its reversed \
-                 orientation is unrepresentable, and not merely unimplemented: a \
-                 face's outward normal IS its surface's chart normal. For the \
-                 cylinder, cone and torus that normal is ODD in the radius \
+                "revert: surface {surface:?} is not a plane — this operator \
+                 still reverses planar bodies only, and the remaining gap is \
+                 WIRING, no longer representation. The representation gap is \
+                 CLOSED: M5 S10 landed Face::sense (the ratified option (a)), \
+                 so a reverted curved face is a sense flip and the outward-\
+                 normal consumers are audited and threaded behind the bit. What \
+                 S10 deliberately did NOT do is make revert write it — every \
+                 constructor still mints sense: true, and the follow-on unit \
+                 wires this arm (flip every face's sense, keep the involution \
+                 and determinism rows) and unblocks curved subtract/intersect, \
+                 which meanwhile keep their typed front-door refusal \
+                 (BooleanError::CurvedOpUnsupported). The parity finding that \
+                 FORCED the representation change is retained verbatim, because \
+                 it is the reason no surface-side fix ever existed (M5 PR 9c, \
+                 executed; scoped per kind by that review's F1): the \
+                 cylinder/cone/torus chart normal is ODD in the radius \
                  (r·radial(u) and its analogues), so it is outward for either \
-                 sign and neither an axis flip nor a negative radius moves it. \
-                 For the sphere the normal is EVEN in the radius (r²·cos v·n̂), \
-                 so it is outward exactly under the ratified radius > 0 \
-                 convention — a negative-radius sphere is a de facto reversed \
-                 sphere and is REJECTED as a representation: it breaks that \
-                 convention and inverts every consumer that meters a sphere \
+                 sign and neither an axis flip nor a negative radius moves it; \
+                 the sphere's is EVEN in the radius (r²·cos v·n̂), so it is \
+                 outward exactly under the ratified radius > 0 convention — \
+                 which makes a negative-radius sphere a de facto reversed \
+                 sphere, REJECTED as a representation because it breaks that \
+                 convention and inverts every consumer metering a sphere \
                  residual by 2r, this build's own point_in_solid sphere arm \
-                 included. M5 PR 9c executed this and returned it as a ratified-\
-                 representation question (a face sense flag, a reversed-surface \
-                 wrapper, or NURBS conversion). Curved subtract/intersect refuse \
-                 typed at the boolean front door meanwhile"
+                 included"
             ),
             Self::Corrupt { he } => write!(
                 f,
@@ -239,9 +264,11 @@ mod tests {
     use crate::fixtures::ops_cube;
 
     /// Non-plane surfaces refuse: ops_cube's faces share the mvfs
-    /// `Nurbs` placeholder, whose reversed orientation is
-    /// unrepresentable. (The full involution/determinism/tier pins run
-    /// on the geometric cube in `tests/m3_pr1_surgery.rs`.)
+    /// `Nurbs` placeholder, and this operator does not yet write the
+    /// face-sense flip (the follow-on unit does — M5 S10 landed the
+    /// representation, not the writer). (The full
+    /// involution/determinism/tier pins run on the geometric cube in
+    /// `tests/m3_pr1_surgery.rs`.)
     #[test]
     fn revert_refuses_non_plane_surfaces() {
         let cube = ops_cube();

@@ -38,6 +38,17 @@
 //! meshes, and the export tests pin the behavior — pick a finer δ
 //! (the acceptance set uses δ = 1e-2 for the cone).
 //!
+//! The normal's *direction* is therefore whatever the winding says,
+//! and STL's own rule (facet normal ≈ outward, agreeing with the
+//! right-hand vertex order) holds here **transitively**: it is
+//! inherited from `mesh::FacePatch::triangles`, whose contract is
+//! outward winding for either value of the M5 S10 face orientation
+//! sense. This writer never reads `topo::Face::sense` — it has no
+//! access to the body at all — and it must not: the sense is already
+//! baked into the triangle order upstream, so applying it again would
+//! invert every facet on a reversed face. S10 category B, by
+//! derivation.
+//!
 //! # Choosing δ for export
 //!
 //! Tessellation wall-clock is ~quadratic in per-face point count (see
@@ -135,7 +146,11 @@ pub(crate) fn facets(mesh: &mesh::Mesh) -> Result<Vec<Facet>, StlError> {
                 }
             }
             // The normal is computed from the f64 vertices — the
-            // honest normal of the certified tessellation. (Computing
+            // honest normal of the certified tessellation. Its
+            // ORIENTATION comes from the triangle order and nothing
+            // else (S10 category B: outwardness is the mesh's
+            // guarantee, already sense-correct — module docs).
+            // (Computing
             // it from the f32-narrowed vertices instead was tried and
             // rejected: apex-fan slivers become EXACTLY collinear
             // under f32 rounding at every practical δ, so an

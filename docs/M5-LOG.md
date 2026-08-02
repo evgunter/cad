@@ -1914,3 +1914,61 @@ guess) and a two-ball MULTI-SHELL row. The latter builds its body with
 the live curved UNION of two disjoint balls, so it pins the group
 rule across SURFACES *and* pins the new arm driving the boolean's own
 no-intersection containment fallback — not just a direct query.
+
+## S10 (2026-08-02): face orientation sense — the ratified fix for PR 9c
+## deviation 3 (`Face::sense`), the consumer audit, and one live defect
+
+Evan ruled option **(a)** — a `sense: bool` on `topo::Face` — over
+(b) `Surface::Reversed`, (c) NURBS conversion, and (d) negative-radius
+spheres. The ruling was the sign-off for the DESIGN.md D1 amendment,
+which is in this PR: a face's outward normal is `sense_sign · n_chart`,
+orientation reversal is exact structure (never a decide), the bit IS
+STEP's `advanced_face.same_sense`, and persistence is untouched
+(bodies re-derive; `serde` appears in exactly one crate manifest,
+`editor-core`, and the save is the recipe).
+
+**Scope discipline.** S10 is the contract plus the consumer audit.
+Wiring `revert` to flip the bit is the follow-on unit, so `revert` and
+the boolean front door keep their typed refusals — with messages
+rewritten from "unrepresentable" to "the representation gap is closed,
+the WIRING is not".
+
+**The audit's governing distinction** (this is the reviewable claim):
+orientation is now stored in TWO places, and they must not both be
+applied. *Chart reads* — a site that takes a surface's chart normal and
+calls it the face's outward normal — get `× sense_sign`; the chart is
+the only encoding there. *Winding-derived* sites — loop vector areas,
+Newell/shoelace sums over stored traversal, emitted triangle order —
+already carry the orientation, because `revert` reverses loops AND
+flips `sense` in the same step; multiplying those by the bit would
+negate the volume twice. The bit enters a winding-derived layer at
+exactly one kind of site: where there is no winding to derive from (the
+rimless sphere band's hardcoded `s_f = +1`, the tessellator's
+"assumes outward-oriented shells"). The AGREEMENT of the two encodings
+is a tier-3 obligation — the validator's loop-role winding check is now
+the S10 gate, and a body whose bit disagrees with its winding is
+inside-out and refused.
+
+**Deviation 1 (MAJOR, returned, not fixed).** The spec's premise —
+"at M5 every constructor mints material-agrees-with-chart faces" — is
+FALSE, and was false before S10. `extrude` mints a cylinder wall per
+arc segment, and a cylinder's chart normal is unconditionally the
+radially-outward radial; for a **concave** arc the material lies
+OUTSIDE that cylinder, so the face's true sense is `false` while this
+build stamps `true`. Executed consequence: `point_in_solid`'s cylinder
+door reads the chart-outward radial as outward, so on the
+`review_m2_pr4` mixed-turn-arc fixture it reports `In` throughout the
+notch the concave arc cuts (true boundary at `x = 1` is
+`y = 2.5 − √2 ≈ 1.086`; the door does not turn over until `y ≈ 1.5`).
+Both halves are pinned as `finding_concave_arc_wall_sense_is_wrong_today`
+in `crates/sweep/tests/m5_s10_face_sense.rs`. This is NOT improvised
+away here: fixing it means the sweep constructors must mint
+`sense: false` on concave arc walls, which changes behaviour across the
+boolean layer and is its own unit. It is a **required predecessor of
+the revert-wiring unit** — reverting a body whose senses are already
+wrong flips a lie into another lie.
+
+**Deviation 2 (minor, count).** The spec estimated ~82 `Face { … }`
+literals; the actual population is 24 (the looser grep that produced 82
+also matches `MassPropsError::Face`, `EulerOpError::NotSameFace`, and
+the other error variants named `*Face`).

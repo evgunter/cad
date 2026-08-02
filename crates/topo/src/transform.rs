@@ -160,6 +160,17 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
     Ok(())
 }
 
+/// **Sense-invariant** (M5 S10 audit). Every face's `sense` is copied
+/// unchanged, and correctly so: this map's ratified contract is a
+/// RIGID motion with `det = +1` (module docs), which carries the chart
+/// normal to the transformed chart normal and the material side along
+/// with it — the bit's *meaning* ("does the material side agree with
+/// the chart normal?") survives because both sides move together.
+/// The tripwire for any future extension: an orientation-REVERSING
+/// map (a mirror, `det = −1`) would carry the chart normal to the
+/// NEGATION of the transformed chart normal, and would therefore have
+/// to flip `sense` on every face. `det = +1` is enforced upstream, so
+/// there is no such branch to write here today.
 fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
         Surface::Plane {

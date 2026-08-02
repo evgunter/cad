@@ -32,6 +32,10 @@ use super::{BooleanError, BooleanOp, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
 
+/// The sector face's ORIENTED plane: [`face_plane`] hands out the
+/// face's outward normal (S10's sense bit already folded in), which is
+/// what the Same±-orientation verdict below has to mean — the whole
+/// point of the verdict is which way the two materials face.
 fn plane_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> Result<PlaneDesc<T>, BooleanError> {
     face_plane(body, s.face).ok_or(BooleanError::ClassificationInvariant {
         what: "sector face lost its plane",
@@ -40,7 +44,11 @@ fn plane_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> Result<PlaneDesc<T>
 
 /// The geometrically-ON sector pair's plane identity check, with the
 /// M4 PR 5 evidence: the two faces' recipe sources (N6) plus the
-/// consuming op's declared face pairs (F5).
+/// consuming op's declared face pairs (F5). The sources are the
+/// ORIENTED ones ([`super::reduce::face_plane_source`]): rung 1
+/// decides Same± from `orient`, and the descriptions it decides about
+/// are outward normals, so the face senses must be composed in or a
+/// same-surface opposite-sense pair reads SameOriented.
 #[allow(clippy::too_many_arguments)]
 fn require_same<T: Decide>(
     body1: &Body<T>,
@@ -53,9 +61,13 @@ fn require_same<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
+    let (g1, g2) = (
+        super::reduce::face_plane_source(body1, s1.face),
+        super::reduce::face_plane_source(body2, s2.face),
+    );
     let id = super::PlaneIdentity {
-        s1: super::reduce::face_source(body1, s1.face),
-        s2: super::reduce::face_source(body2, s2.face),
+        s1: g1.as_ref(),
+        s2: g2.as_ref(),
         declared: declared.contains(o1, s1.face, o2, s2.face),
     };
     match super::oriented_plane_eq(&plane_of(body1, s1)?, &plane_of(body2, s2)?, id, arm, band) {

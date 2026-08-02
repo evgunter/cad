@@ -285,6 +285,7 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
     );
     let face_a = body.add_face(
         Face {
+            sense: true,
             surface: surface_a,
             outer: loop_a,
             rings: vec![],
@@ -294,6 +295,7 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
     );
     let face_b = body.add_face(
         Face {
+            sense: true,
             surface: surface_b,
             outer: loop_b,
             rings: vec![],
@@ -515,6 +517,7 @@ pub(crate) fn prism(n: usize) -> Prism {
     let mut face = |surface: SurfaceKey, outer: LoopKey| {
         body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings: vec![],
@@ -649,6 +652,7 @@ pub(crate) fn mvfs_state() -> MvfsState {
     );
     let face = body.add_face(
         Face {
+            sense: true,
             surface,
             outer: lone_loop,
             rings: vec![],
