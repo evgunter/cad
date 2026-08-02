@@ -2254,3 +2254,23 @@ answered on #157: it is Windows-host power management (slider/
 battery saver/processor boost mode), not .wslconfig; canary
 verification loop provided; reboot suggested for a wedged
 governor.
+
+**PR 13 implementation COMPLETE (2026-08-02, 8552d2c).** The
+conic question answered definitively: NATIVE entities
+everywhere, the rational-quadratic form needed NOWHERE (equally
+exact, strictly worse encoding). 10/10 FreeCAD imports, volumes
+to 4e-15 relative; identity-not-just-locus pinned bitwise
+(frames field-for-field). FreeCAD CANNOT see reversed faces
+(ShapeHealing rectifies silently — MEASURED: revert(ball)
+imports valid with positive volume) → new edge-use-coherence
+oracle with three controls. S11 same_sense row flipped per its
+own instructions. Planar byte-goldens UNCHANGED. Two deviations
+(NURBS surface arm → loft-assembly unit; CurvedShellClassification
+narrows the void classifier honestly). Banked trap:
+match-by-walk-order, never arena order (diverges on boolean
+results). CPU pin RESOLVED by Evan via Lenovo Vantage (canary
+0.93-0.97s, no restart needed — ~17× recovery). **Review
+DISPATCHED** (ISO semantics vs references/ scans; the
+double-composition hand-edit attack; byte-determinism ×2
+builds; adversarial FreeCAD imports). S13 resumed in the other
+lane.
