@@ -1941,3 +1941,22 @@ site; margins feed decide()->Sign only, nothing golden-pinned —
 Evan's re-bless-don't-revert ruling needed no re-blessing in
 the event. RingInterval .sqr() tighten-only proven. A/B row 30
 filled. Lanes: PR 9c fix pass; #153 gating.
+
+**PR 9c fix pass COMPLETE, PR OPENED as #154 (2026-08-02,
+263ad5d, watcher armed).** F1 proof scoped per-kind (odd-in-r
+for cyl/cone/torus; sphere outward under r>0 only; option (d)
+negative-radius-sphere REJECTED in three pinned places — the
+implementer notes the asymmetry is now pre-answered if the
+sense ratification stalls); F2 reduce.rs stale promise rewritten
+to the executed finding; F3 metering comment corrected (cylinder
+arm flagged for future normalization, not touched — its margins
+are pinned); F4 both NOTE rows taken (tangent-ray graze; two-
+ball multi-shell via LIVE curved union, pinning the group rule
+across surfaces + the no-intersection containment fallback).
+sphere_doors now 7 rows. **PR 11 SPEC DRAFTED (the demo moment)
++ DISPATCHING (fable — block-14 remainder, A/B row 32,
+difficulty L logged here pre-dispatch):** curved tessellation
+(pcurve-driven trim loops, hull-bounded sagitta, compute-once
+watertightness) + the kernel's first certified quadrature;
+tiltedcut renders + boss-plate showcase stop; NURBS-at-rest
+stays honestly frontier (assembly unit flips it later).
