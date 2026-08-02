@@ -235,9 +235,24 @@ fn die_pip_intersect_is_the_cap_and_additive() {
 /// subtract re-cuts EACH group about its own escape normal.
 #[test]
 fn two_pips_cut_under_the_group_arm() {
-    let b1 = pip_ball(1.0, 1.0);
-    let b2 = pip_ball(3.0, 3.0);
-    let pair = both_lanes(BooleanOp::Union, &b1, &b2);
+    // Placements: disjoint balls, both far enough from every slab
+    // CORNER that the idealized lane's conservative line-vs-sphere
+    // clearance bound (endpoint residual minus the span-length dip,
+    // `bool_line_cylinder_clearance`) stays definite on the 4-long
+    // edges -- the pre-existing PR 9 frontier's honest envelope, not
+    // this unit's.
+    let b1 = pip_ball(2.0, 1.2);
+    let b2 = pip_ball(2.0, 2.8);
+    // The two-ball operand assembles in the REALIZED lane (the
+    // idealized sweep EXAMINES every pair, and a conic edge against a
+    // curved face is the pre-existing pierce frontier -- typed, not
+    // this unit's; the realized tree prunes those distant pairs).
+    let pair = topo::union(&b1, &b2)
+        .expect("disjoint balls assemble through the certified scan")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
     assert_eq!(pair.shells().count(), 2, "two disjoint balls, two shells");
 
     let cut = both_lanes(BooleanOp::Subtract, &slab(), &pair);

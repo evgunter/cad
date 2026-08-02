@@ -1676,7 +1676,61 @@ fn run_azimuth_window<T: Decide>(
             None => base,
             Some(prev) => {
                 let raw = base.eval(entry_t).x;
-                let k = ((prev - raw) / tau + half).floor();
+                let q = (prev - raw) / tau;
+                // The branch pin. Default: nearest-branch continuity —
+                // the PR 6 loop-walk rule, exact wherever the previous
+                // edge's exit and this edge's entry share a chart
+                // point.
+                //
+                // **Sphere-chart POLE junctions (M5 S13)** carry no
+                // azimuth continuity at all — the chart is singular at
+                // a pole, and a face bounded by two meridians exactly
+                // half a period apart (the two-band ball's shape) makes
+                // the nearest-branch pin a knife-edge tie that hands
+                // BOTH bands the same window. The loop's own
+                // orientation carries the missing bit exactly: walking
+                // an outward (`sense: true`) face's cycle with the face
+                // on the left, azimuth ADVANCES through the south pole
+                // (the next boundary azimuth is the unique branch in
+                // `(prev, prev + τ)`) and RETURNS through the north
+                // pole (`(prev − τ, prev)`); a reversed face swaps the
+                // poles' roles. Exact structure — nothing sampled; the
+                // pole test and its side are named trileans and an
+                // in-band junction escalates (F6).
+                let mut k = (q + half).floor();
+                if let geom_surfaces::Surface::Sphere {
+                    center,
+                    radius,
+                    axis,
+                    ..
+                } = surface
+                {
+                    let entry_v = he_data.start;
+                    let p = vertex_point(body, entry_v).map_err(|_| corrupt())?;
+                    let d = (p - *center).dot(*axis);
+                    match decide("split_sphere_window_pole", *radius - d.abs(), band)
+                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    {
+                        Sign::Positive => {}
+                        Sign::Negative => return Err(corrupt()),
+                        Sign::Zero => {
+                            let south = match decide("split_sphere_window_pole_side", d, band)
+                                .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                            {
+                                Sign::Negative => true,
+                                Sign::Positive => false,
+                                Sign::Zero => return Err(corrupt()),
+                            };
+                            let sense = body.get_face(face).ok_or_else(corrupt)?.sense;
+                            let advancing = south == sense;
+                            k = if advancing {
+                                q.floor() + T::one()
+                            } else {
+                                T::zero() - (T::zero() - q).floor() - T::one()
+                            };
+                        }
+                    }
+                }
                 base.shift_branch(k, tau)
             }
         };

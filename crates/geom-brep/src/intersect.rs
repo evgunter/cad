@@ -653,7 +653,7 @@ pub fn plane_sphere_section<T: Decide>(
     let &Surface::Plane {
         origin: q,
         normal: n,
-        u_ref: plane_u,
+        ..
     } = plane
     else {
         return Err(SectionError::WrongLane {
@@ -663,7 +663,8 @@ pub fn plane_sphere_section<T: Decide>(
     let &Surface::Sphere {
         center: c,
         radius: r,
-        ..
+        axis: sph_axis,
+        u_ref: sph_u,
     } = sphere
     else {
         return Err(SectionError::WrongLane {
@@ -672,6 +673,33 @@ pub fn plane_sphere_section<T: Decide>(
     };
     let s = (c - q).dot(n);
     let foot = c - n * s;
+    // The circle's `u_ref` is a PLACEMENT convention (D2): every
+    // downstream margin is a frame DIFFERENCE, so any in-plane unit
+    // vector serves — but it must be genuinely in-plane. The plane
+    // operand's own `u_ref` is deliberately NOT consulted: the
+    // splitting/boolean lanes hand transient classification planes
+    // whose `u_ref` is a placeholder (sometimes the normal itself,
+    // which would degenerate the frame and collapse every section
+    // angle to zero). Derived instead from the sphere's chart frame:
+    // `n̂ × û` unless that sine is small, then `n̂ × â` — with
+    // `û ⊥ â` the two sines satisfy sin²(û,n̂) + sin²(â,n̂) ≥ 1, so
+    // the second candidate is definitely nonzero whenever the first
+    // is not chosen. The selection trilean's degenerate and in-band
+    // arms both take the second candidate: near the threshold BOTH
+    // are valid placements, so the arm is a deterministic tie-break
+    // (D9), not a verdict — nothing downstream moves with it.
+    let seam_cand = n.cross(sph_u);
+    let u_ref = match decide(
+        "ps_frame_seam",
+        (seam_cand.norm() - T::from_f64(0.5)) * r,
+        band,
+    ) {
+        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => {
+            let polar_cand = n.cross(sph_axis);
+            polar_cand / polar_cand.norm()
+        }
+    };
     match decide("ps_center_gap", r - s.abs(), band).map_err(SectionError::Escalated)? {
         Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::Circle {
             center: foot,
@@ -680,7 +708,7 @@ pub fn plane_sphere_section<T: Decide>(
             // are definitely positive after the trilean (never a
             // spuriously negative bracket under a sqrt).
             radius: ((r - s.abs()) * (r + s.abs())).sqrt(),
-            u_ref: plane_u,
+            u_ref,
         })),
         Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
         Sign::Negative => Ok(PlaneSphereSection::Empty),
