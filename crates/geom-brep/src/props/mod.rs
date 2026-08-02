@@ -68,6 +68,7 @@
 
 mod curved;
 mod loop_area;
+pub mod quad;
 
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
@@ -166,6 +167,36 @@ pub enum PropsError {
         /// The escalation, with its predicate name attached.
         cause: Indeterminate,
     },
+    /// The certified quadrature's enclosure would not tighten to its
+    /// target within the refinement budget (M5 PR 11; the
+    /// [`quad`] module docs give the rule and the target's metering).
+    /// Certified bounds or typed refusal — never a silently wide
+    /// answer. Both payloads are LENGTHS (mean boundary displacement),
+    /// the same metering as tier 3's volume check.
+    ///
+    /// Two-tolerance shape, stated: the in-band twin of this refusal is
+    /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
+    /// close to the target escalates through the funnel before the
+    /// budget can run out); this arm is the *definite* "the enclosure
+    /// floor sits above the target" outcome. The recourse is the ε
+    /// knob: the target scales with the run's ε.
+    QuadratureBudget {
+        /// The achieved enclosure width, as a length (m).
+        width_len: f64,
+        /// The convergence target, as a length (m).
+        target_len: f64,
+    },
+    /// A quadrature input is outside the lane's certified inventory
+    /// (M5 PR 11): a rational pcurve channel, a chart kind whose
+    /// pcurves do not mint yet, a scalar with no certification
+    /// bracket, or a missing stored cache. The payload names the
+    /// structural fact AND the real blocker (exact structural doors —
+    /// no in-band twin exists, stated so the omission of the
+    /// two-tolerance shape reads as a decision).
+    QuadratureUnsupported {
+        /// Which structural expectation failed, with its blocker.
+        what: &'static str,
+    },
 }
 
 impl core::fmt::Display for PropsError {
@@ -187,6 +218,21 @@ impl core::fmt::Display for PropsError {
             Self::Escalated { cause } => {
                 write!(f, "integral properties: classification escalated: {cause}")
             }
+            Self::QuadratureBudget {
+                width_len,
+                target_len,
+            } => write!(
+                f,
+                "integral properties: the certified quadrature enclosure stalled at a mean \
+                 boundary displacement of {width_len:.3e} m against the {target_len:.3e} m \
+                 target (which scales with the run's tolerance) — certified bounds or typed \
+                 refusal, never a silently wide answer; loosen the tolerance or simplify \
+                 the trim"
+            ),
+            Self::QuadratureUnsupported { what } => write!(
+                f,
+                "integral properties: quadrature input outside the certified inventory: {what}"
+            ),
         }
     }
 }
