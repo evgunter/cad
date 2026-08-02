@@ -2174,3 +2174,19 @@ reproduced; volumes match to the last digit; guard re-aim
 ruled sound. Fix pass DISPATCHED (2 doc MINs + NURBS hazard
 scoping in the fallback memory + 4 probe adoptions); PR opens
 at completion. Lanes: PR 11 fix pass + S12 fix pass.
+
+**PR 11 fix pass COMPLETE (2026-08-02, fae072a; #157 watcher
+armed).** All five items: the factor-2 two-term accounting
+documented + corner-scan pin adopted (the accidental soundness
+is now deliberate); T-junction boundary-intermediate arm
+(SelfTouchingTrimLoop, typed tripwire); captions/T6 numbers/
+shrug fixed; spike + adversarial-face oracles adopted;
+refreshed_under provenance field landed — **and immediately
+caught a REAL main-side drift: die full-rebuild 2367 →
+51661 ms on a QUIET machine post-fold (#153-#156). ~22×,
+dev-profile. BISECT PROBE DISPATCHED** (per-merge timing table;
+prime suspects: powi(2) call overhead at opt-0 in hot predicate
+paths vs PR 9c arena scans; release-relevance to be answered).
+Not #157-blocking (main-side, present without it; the new
+baseline honestly bakes it in with provenance). Lanes: S12 fix
+pass + bisect probe; #157 gating.
