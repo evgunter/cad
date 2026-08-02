@@ -2290,3 +2290,14 @@ both deviations SOUND; walk_order trap verified executed. Fix
 pass DISPATCHED (2 MINs + header phrasing + 3 probe adoptions);
 PR opens at completion. S13 still implementing in the other
 lane.
+
+**Dual-montage demo unit DISPATCHED (2026-08-02, fable —
+block-17 remainder; difficulty S logged pre-assignment; A/B
+row 38): two whole montages, kernel tessellation vs FreeCAD-
+from-STEP (Evan's upgrade of the comparison-lane
+recommendation, #159 thread).** Kernel montage untouched
+(evidence); per-scene freecadcmd with timeout + labeled
+placeholder cells (no silent gaps, no bulk-import stalls);
+cell-for-cell comparable via scenes.json cameras; visual
+differential = signal. Branches from #159's substrate if
+unmerged. Lanes: S13 + dual-montage; #159 gating.
