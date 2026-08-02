@@ -2202,3 +2202,18 @@ comment; interval suite prints a LOUD skip line when built
 featureless (silent 0-test masking closed); four probes adopted
 (review_s12_adv.rs). Batteries 821/887 both lanes, 0 failures.
 Board: #157 + #158 gating with watchers; bisect probe running.
+
+**Bisect verdict (2026-08-02): the 22× die drift was THE
+MACHINE, not code** — no step at any merge boundary; the
+decisive control re-measured the 2367ms-refresh commit at
+32,607ms today; a single-thread canary shows the box at
+1/20-1/30 normal throughput (i7-1065G7 pinned at 1497 MHz base
+clock under WSL2 — power/thermal/battery; flagged to Evan on
+#157 with the correction of my earlier contention theory).
+powi conversion EXONERATED (≤ few % at opt-0; inlines away at
+opt-3). Banked: canary-gated baseline refresh (~30 lines,
+rides the next editor-core unit). Probe clone cleaned. NOTE
+for lane pacing: while the box is pinned, batteries run
+20-30× slow — expect longer wall-clocks, don't misread them
+as stalls (the hourly sweep's cargo-liveness check already
+handles this correctly).
