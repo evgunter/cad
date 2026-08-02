@@ -129,7 +129,11 @@ is the ratified fix. Consequences, all normative:
 - Orientation reversal is **exact structure**, never a numeric decide:
   reverting a curved body flips `sense` rather than perturbing geometry,
   so `revert` stays a bitwise involution and a `revert ∘ revert` round
-  trip is bit-identical at every scalar backend.
+  trip is bit-identical at every scalar backend. *This states the
+  contract the bit establishes, not shipped behaviour: S10 lands the
+  representation and the consumer threading only — the curved `revert`
+  writer lands in the follow-on unit, and until it does `revert` still
+  refuses non-planes with its typed error.*
 - Every "which way is out" consumer (tier gates, mass-properties flux,
   boolean sector classification and point-in-solid, splitting
   classification, tessellation winding, export winding) reads the signed

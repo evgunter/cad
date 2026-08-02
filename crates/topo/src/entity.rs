@@ -257,8 +257,9 @@ pub struct Face {
     /// bit therefore exists ahead of its first writer, deliberately —
     /// S10 lands the contract and the consumer threading so the wiring
     /// unit is a one-line flip. Consumers must nonetheless honor it
-    /// (they are audited and threaded as of S10); test-only
-    /// [`Face::with_sense`] is the door that exercises `false`.
+    /// (they are audited and threaded as of S10); the test-only door
+    /// [`crate::Body::flipped_face_sense_for_tests`] is what exercises
+    /// `false`.
     ///
     /// STEP alignment: this is exactly `advanced_face.same_sense`
     /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes
