@@ -78,11 +78,12 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
     },
-    /// An edge's cached carrier is [`geom_curves::Curve3::Nurbs`] (no
-    /// evaluable locus for chord points), or a conic cut boundary
-    /// (`Curve3::Ellipse`, M5 PR 5) on a curved chart whose
-    /// iso-rectangle UV walk cannot traverse it (the trimmed-face lane
-    /// is M5 PR 11's).
+    /// An edge/carrier configuration outside the certified inventory:
+    /// a rational or C⁰-kinked B-spline carrier (no hull sagitta), a
+    /// trimmed face on a chart whose pcurves do not mint yet
+    /// (cone/sphere/torus), or a trimmed face missing its stored
+    /// pcurve caches. Since M5 PR 11 the conic-on-cylinder case is a
+    /// CONSTRUCTION lane (`trimmed`), not a refusal.
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,

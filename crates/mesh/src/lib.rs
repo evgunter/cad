@@ -4,8 +4,12 @@
 //! [`Mesh`] whose triangles are certified to lie within a caller-chosen
 //! **chordal tolerance δ** of the exact analytic surfaces. Planar faces
 //! (rings included) go through constrained Delaunay triangulation (CDT,
-//! the `spade` crate) in the face plane; curved analytic faces through
-//! UV-grid sampling plus CDT in parameter space.
+//! the `spade` crate) in the face plane; iso-rectangle curved analytic
+//! faces through UV-grid sampling plus CDT in parameter space; curved
+//! faces with conic TRIM boundaries (M5 PR 11) through the
+//! pcurve-driven trimmed lane (`trimmed` module: stored PR 6 caches
+//! provide the UV trim polyline, the planar lane's even-odd flood fill
+//! classifies the interior).
 //!
 //! # Chordal tolerance δ is NOT the kernel tolerance ε
 //!
@@ -136,6 +140,7 @@ pub mod chords;
 mod curved;
 mod planar;
 mod tessellate;
+mod trimmed;
 pub mod types;
 pub mod validate;
 pub mod walk;

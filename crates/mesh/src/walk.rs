@@ -322,7 +322,7 @@ pub(crate) fn traversals(
 fn classify(
     chart: &Chart,
     curve: &geom_brep::EdgeCurve<f64>,
-    ek: EdgeKey,
+    _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
     if matches!(curve.description(), EdgeGeometry::Seam { .. }) {
         return Ok(TravKind::Meridian {
@@ -349,16 +349,13 @@ fn classify(
                 })
             }
         }
-        // A conic cut boundary (M5 PR 5) is neither a rim nor a
-        // meridian of the chart: the iso-rectangle UV walk cannot
-        // traverse it — typed refusal until PR 11's trimmed-face lane.
-        Curve3::Ellipse { .. } => Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "conic cut boundary on a curved chart — the trimmed-face lane \
-                   lands at M5 PR 11",
-        }),
-        Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
-            what: "nurbs carrier past the chord pass",
+        // RETIRED refusal (M5 PR 11): a conic/B-spline trim carrier
+        // routes the whole face to the pcurve-driven trimmed lane
+        // BEFORE this walk runs (`crate::trimmed::has_trim_carrier`),
+        // so these arms are the router's backstop, not a frontier —
+        // reaching one is a dispatch defect, surfaced typed.
+        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
+            what: "non-iso trim carrier reached the iso-rectangle walk (router defect)",
         }),
     }
 }
