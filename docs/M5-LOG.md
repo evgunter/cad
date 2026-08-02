@@ -1970,3 +1970,8 @@ threads do NOT reliably reach Evan (he saw it only via the
 in-session mention); future forks go out as a NEW issue or
 design-conversation PR per the standing memory — the #148 habit
 formed because Evan happened to be active there earlier.
+
+**#153 MERGED (2026-08-02): 18/18 — the interval-square class
+is RETIRED and the tripwire is ARMED. Twenty-two PRs this
+milestone.** Lanes cleaned. In flight: PR 11 (fable, demo
+moment); #154 gating.
