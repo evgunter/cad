@@ -171,13 +171,15 @@ pub fn stops() -> Vec<Stop> {
         // curved result refuses there — pinned in
         // `sweep/tests/m5_pr9_boss_union.rs`); a contact-free body
         // takes plain tier 3, which this one passes in full.
-        bodies: vec![if (bb.contacts.vv.is_empty()
-            && bb.contacts.a_on_b.is_empty()
-            && bb.contacts.b_on_a.is_empty())
-        {
-            SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
-        } else {
-            SceneBody::seamed_curved("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
+        bodies: vec![{
+            let contact_free = bb.contacts.vv.is_empty()
+                && bb.contacts.a_on_b.is_empty()
+                && bb.contacts.b_on_a.is_empty();
+            if contact_free {
+                SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
+            } else {
+                SceneBody::seamed_curved("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
+            }
         }],
     }]
 }
