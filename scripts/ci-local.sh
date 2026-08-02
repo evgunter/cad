@@ -113,12 +113,14 @@ discipline() {
     rc=1
   fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
-  # Bounds scope rule) — mirror of the hosted step.
+  # Bounds scope rule) — mirror of the hosted step. topo/props.rs is
+  # the M5 PR 11 certified-quadrature seam (Evan's lane-split ruling).
   local bhits
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | cut -d: -f1 | sort -u \
     | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
+    | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' || true)
   if [ -n "$bhits" ]; then

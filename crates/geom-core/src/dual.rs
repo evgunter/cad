@@ -698,12 +698,6 @@ where
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         self.value.sign_within(band)
     }
-
-    // `certification_bracket` deliberately takes the trait default
-    // (`None`): a dual has no honest bracket — extracting the value
-    // channel's would silently drop the derivative, the exact lie the
-    // "no `Bounds` for duals" section above refuses. Consumers (the
-    // M5 PR 11 quadrature lane) owe a typed refusal at `None`.
 }
 
 /// Forward-mode dual over the default scalar: fast, uncertified

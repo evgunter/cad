@@ -24,12 +24,13 @@
 
 use core::fmt;
 
+use geom_brep::props::quad::FaceCutBounds;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
 use geom_core::{Band, BandError, Decide, Real};
 use geom_surfaces::Surface;
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 /// Exact-B-rep integral properties of a body.
 ///
@@ -137,16 +138,50 @@ impl std::error::Error for MassPropsError {}
 /// face, rings on a curved face, or unresolvable structure. Bodies
 /// that pass the structural tiers and were built by M2's public
 /// operations always compute.
-pub fn mass_properties<T: Decide>(body: &Body<T>) -> Result<MassProperties<T>, MassPropsError> {
+pub fn mass_properties<T: PropsQuadLane>(
+    body: &Body<T>,
+) -> Result<MassProperties<T>, MassPropsError> {
     let band = Band::linear().map_err(|error| MassPropsError::Band { error })?;
     mass_properties_with(body, band)
 }
 
 /// [`mass_properties`] against a caller-built band (the tier-3
 /// validator's entry — it builds its band once at operation entry).
-pub(crate) fn mass_properties_with<T: Decide>(
+pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     body: &Body<T>,
     band: Band,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, band, T::quad_cut_face)
+}
+
+/// The closed-form-only variant for the boolean engine's INTERNAL
+/// backstops (`volume_backstop`, `at_infinity_side`): plain
+/// `T: Decide`, no quadrature dispatch — on a conic-trimmed face the
+/// closed form refuses typed exactly as it did pre-PR-11, which is
+/// those callers' historical (fail-loud) posture. The at-rest
+/// measurement door is [`mass_properties`], which carries the
+/// certified lane.
+pub(crate) fn mass_properties_closed_form<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, band, |_, _, _, _, _| Ok(None))
+}
+
+/// The shared face walk; `quad` is the per-scalar certified-quadrature
+/// hook (`Ok(None)` = no lane / not attempted — the closed form then
+/// answers, refusing typed on trimmed faces).
+#[allow(clippy::type_complexity)]
+fn mass_properties_impl<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    quad: impl Fn(
+        &Body<T>,
+        &Surface<T>,
+        &[LoopEdge<T>],
+        &[HalfEdgeKey],
+        Band,
+    ) -> Result<Option<FaceCutBounds>, PropsError>,
 ) -> Result<MassProperties<T>, MassPropsError> {
     let mut flux = T::zero();
     let mut area = T::zero();
@@ -179,24 +214,33 @@ pub(crate) fn mass_properties_with<T: Decide>(
                 // runtime fallback): a conic/NURBS trim carrier routes
                 // the face to the PR 11 certified-quadrature lane; an
                 // iso boundary keeps its closed form.
-                if outer.iter().any(|e| {
+                let is_trimmed = outer.iter().any(|e| {
                     matches!(
                         e.carrier,
                         geom_curves::Curve3::Ellipse { .. } | geom_curves::Curve3::Nurbs(_)
                     )
-                }) {
-                    let bounds =
-                        quad_lane::cut_face(body, surface, &outer, &hes, band).map_err(wrap)?;
-                    let (fc, fp) = quad_lane::mid_pad(bounds.flux);
-                    let (ac, ap) = quad_lane::mid_pad(bounds.area);
-                    flux_pad += fp;
-                    area_pad += ap;
-                    FaceContribution {
-                        flux: T::from_f64(fc),
-                        area: T::from_f64(ac),
-                    }
+                });
+                let quad_out = if is_trimmed {
+                    quad(body, surface, &outer, &hes, band).map_err(wrap)?
                 } else {
-                    curved_face(surface, &outer, band).map_err(wrap)?
+                    None
+                };
+                match quad_out {
+                    Some(bounds) => {
+                        let (fc, fp) = quad_lane::mid_pad(bounds.flux);
+                        let (ac, ap) = quad_lane::mid_pad(bounds.area);
+                        flux_pad += fp;
+                        area_pad += ap;
+                        FaceContribution {
+                            flux: T::from_f64(fc),
+                            area: T::from_f64(ac),
+                        }
+                    }
+                    // Either an iso boundary (the closed forms) or a
+                    // scalar with NO certified lane (the dual arm of
+                    // [`PropsQuadLane`]) — whose honest outcome on a
+                    // trimmed face is the closed form\'s typed refusal.
+                    None => curved_face(surface, &outer, band).map_err(wrap)?,
                 }
             }
         };
@@ -271,6 +315,90 @@ fn loop_edges<T: Decide>(
     Ok((edges, hes))
 }
 
+/// The certified-quadrature **lane split** (M5 PR 11; Evan's ruling at
+/// this PR, superseding a runtime-`Option` bracket seam): certification
+/// is the f64 / Probe / Interval lanes' business; derivative transport
+/// is the dual lane's — and that split lives in the TYPES. Each
+/// certified impl routes through the `T: Decide + Bounds` plumbing in
+/// [`quad_lane`] (a ratified compound-`Bounds` seam — see the
+/// discipline allowlist), so the quadrature machinery only ever
+/// instantiates for bracket-carrying scalars; the `Dual` impl contains
+/// **no quadrature code at all** — it answers "no lane", the
+/// closed-form pass's typed refusal stands, and tier 3's check 7
+/// reports `VolumeUncomputable` there. The dual lane validates what is
+/// its business; volume certification is proven by the certified
+/// lanes.
+pub trait PropsQuadLane: Decide {
+    /// The certified flux/area enclosures of a conic-trimmed cylinder
+    /// face, or `None` when this scalar has no certified lane.
+    ///
+    /// # Errors
+    ///
+    /// [`PropsError`] from the quadrature lane (budget, unsupported
+    /// inventory, escalations) — never from the "no lane" arm.
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+    ) -> Result<Option<FaceCutBounds>, PropsError>;
+}
+
+impl PropsQuadLane for f64 {
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+    }
+}
+
+impl PropsQuadLane for geom_core::Probe {
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl PropsQuadLane for geom_core::interval::Interval {
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+    }
+}
+
+/// The dual lane: STATICALLY no quadrature — this impl instantiates
+/// none of the certified machinery (trait docs).
+impl<T> PropsQuadLane for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: Decide,
+{
+    fn quad_cut_face(
+        _body: &Body<Self>,
+        _surface: &Surface<Self>,
+        _outer: &[LoopEdge<Self>],
+        _hes: &[HalfEdgeKey],
+        _band: Band,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        Ok(None)
+    }
+}
+
 /// The PR 11 certified-quadrature lane's body-side plumbing: stored
 /// pcurve caches → ring-bracketed [`quad::TrimEdgeQ`]s (C4's first hot
 /// consumer). Key-free math stays in `geom_brep::props::quad`; this
@@ -280,7 +408,12 @@ mod quad_lane {
     use geom_brep::props::quad::{self, FaceCutBounds, HarmChan, TrimEdgeQ};
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::ring_interval::RingInterval;
-    use geom_core::{Band, Decide, Point3, Tolerance};
+    // The compound `Decide + Bounds` bound below is a RATIFIED seam
+    // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
+    // this module is the certified lanes' plumbing and never
+    // instantiates for duals — the split is enforced by
+    // [`super::PropsQuadLane`]'s explicit impls.
+    use geom_core::{Band, Bounds, Decide, Point3, Tolerance};
     use geom_curves::Curve3;
     use geom_surfaces::Surface;
 
@@ -293,24 +426,18 @@ mod quad_lane {
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
     }
 
-    /// Bracket a scalar through [`Decide::certification_bracket`];
-    /// scalars without one (duals) refuse typed (D4 ¶3, never a
-    /// value-channel fallback).
-    fn br<T: Decide>(x: T) -> Result<RingInterval, PropsError> {
-        match x.certification_bracket() {
-            Some((lo, hi)) => Ok(RingInterval::from_bounds(lo, hi)),
-            None => Err(PropsError::QuadratureUnsupported {
-                what: "scalar carries no certification bracket (a dual) — the quadrature \
-                       lane consumes brackets; replay at f64 or the interval scalar",
-            }),
-        }
+    /// Bracket a scalar through its [`Bounds`] accessors (infallible:
+    /// only bracket-carrying scalars reach this module — the static
+    /// lane split above).
+    fn br<T: Bounds>(x: T) -> RingInterval {
+        RingInterval::from_bounds(x.lo(), x.hi())
     }
 
     /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
     /// recovered algebraically from the carrier frame and the interval
     /// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
     /// — the ε rides into the bracket as an explicit pad).
-    fn trig_at_start<T: Decide>(
+    fn trig_at_start<T: Decide + Bounds>(
         carrier: &Curve3<T>,
         p: Point3<T>,
         eps: f64,
@@ -331,9 +458,9 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref))? / br(*radius)?;
-                let s = br(w.dot(v_ref))? / br(*radius)?;
-                let pad = (RingInterval::point(eps) / br(*radius)?).mag();
+                let c = br(w.dot(*u_ref)) / br(*radius);
+                let s = br(w.dot(v_ref)) / br(*radius);
+                let pad = (RingInterval::point(eps) / br(*radius)).mag();
                 Ok((clamp(c, pad), clamp(s, pad)))
             }
             Curve3::Ellipse {
@@ -345,10 +472,10 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref))? / br(*major)?;
-                let s = br(w.dot(v_ref))? / br(*minor)?;
-                let pad_c = (RingInterval::point(eps) / br(*major)?).mag();
-                let pad_s = (RingInterval::point(eps) / br(*minor)?).mag();
+                let c = br(w.dot(*u_ref)) / br(*major);
+                let s = br(w.dot(v_ref)) / br(*minor);
+                let pad_c = (RingInterval::point(eps) / br(*major)).mag();
+                let pad_s = (RingInterval::point(eps) / br(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
@@ -359,12 +486,12 @@ mod quad_lane {
     }
 
     /// One channel of a stored harmonic pcurve, bracketed.
-    fn chan<T: Decide>(c0: T, ca: T, cb: T, cl: T) -> Result<HarmChan, PropsError> {
+    fn chan<T: Decide + Bounds>(c0: T, ca: T, cb: T, cl: T) -> Result<HarmChan, PropsError> {
         Ok(HarmChan {
-            c0: br(c0)?,
-            ca: br(ca)?,
-            cb: br(cb)?,
-            cl: br(cl)?,
+            c0: br(c0),
+            ca: br(ca),
+            cb: br(cb),
+            cl: br(cl),
         })
     }
 
@@ -372,7 +499,7 @@ mod quad_lane {
     /// (module docs of `geom_brep::props::quad`): cylinder charts only
     /// — the one chart whose pcurves mint today; other charts refuse
     /// typed naming that frontier.
-    pub(super) fn cut_face<T: Decide>(
+    pub(super) fn cut_face<T: Decide + Bounds>(
         body: &Body<T>,
         surface: &Surface<T>,
         outer: &[LoopEdge<T>],
@@ -388,7 +515,7 @@ mod quad_lane {
         };
         let eps = Tolerance::get().eps;
         let va = loop_vector_area(outer, *origin)?;
-        let o_dot_va = br((*origin - Point3::origin()).dot(va))?;
+        let o_dot_va = br((*origin - Point3::origin()).dot(va));
         let mut edges = Vec::with_capacity(outer.len());
         for (le, he) in outer.iter().zip(hes) {
             let Some(cache) = body.pcurve(*he) else {
@@ -407,19 +534,19 @@ mod quad_lane {
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: br(t0)?,
-                t1: br(t1)?,
+                t0: br(t0),
+                t1: br(t1),
                 forward: le.forward,
                 trig0,
-                env: br(cache.certificate().envelope)?,
+                env: br(cache.certificate().envelope),
             });
         }
-        quad::cylinder_cut_face::<T>(br(*radius)?, o_dot_va, &edges, eps, band)
+        quad::cylinder_cut_face::<T>(br(*radius), o_dot_va, &edges, eps, band)
     }
 
     /// The vertex POINT at a half-edge's carrier-interval start (its
     /// edge's `he_plus` start vertex).
-    fn start_point<T: Decide>(
+    fn start_point<T: Decide + Bounds>(
         body: &Body<T>,
         he: HalfEdgeKey,
         forward: bool,

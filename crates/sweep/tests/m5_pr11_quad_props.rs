@@ -141,3 +141,43 @@ fn halves_sum_to_the_cylinder() {
         "sum {sum} vs cylinder {full} (allowed {pad})"
     );
 }
+
+/// The LANE SPLIT (Evan's PR 11 ruling): the dual lane instantiates
+/// none of the certified quadrature — a trimmed face at `Dual64`
+/// keeps the closed form's typed refusal (volume certification is the
+/// bracket-carrying lanes' business; derivative transport is the
+/// dual's).
+#[test]
+fn dual_lane_keeps_the_closed_form_refusal() {
+    use geom_core::Dual64;
+    let d = |x: f64| Dual64::constant(x);
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: Point2::new(d(-R), d(0.0)),
+            bulge: d(1.0),
+        },
+        ProfileVertex {
+            pos: Point2::new(d(R), d(0.0)),
+            bulge: d(1.0),
+        },
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    let cylinder = extrude(&profile, Extrusion::Distance(d(H))).unwrap().body;
+    let plane = SplitPlane {
+        origin: Point3::new(d(0.0), d(0.0), d(H / 2.0)),
+        normal: Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
+    };
+    let result = split(&cylinder, &plane).unwrap();
+    let SplitPart::Body(above) = &result.above else {
+        panic!("above carries material");
+    };
+    match topo::mass_properties(above) {
+        Err(topo::MassPropsError::Face { source, .. }) => {
+            let msg = format!("{source}");
+            assert!(msg.contains("ellipse arc"), "{msg}");
+        }
+        other => panic!("the dual lane keeps the typed closed-form refusal, got {other:?}"),
+    }
+}

@@ -108,7 +108,6 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::props::mass_properties_with;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{validate, validate_closed};
 
@@ -543,8 +542,13 @@ pub(super) fn volume_backstop<T: Decide>(
     let corrupt = || BooleanError::ClassificationInvariant {
         what: "volume backstop: mass properties refused on a tier-valid planar body",
     };
+    // Closed-form lane on purpose (M5 PR 11 lane split): this is the
+    // boolean engine's INTERNAL invariant backstop on its own planar/
+    // iso results — the certified quadrature lane is the at-rest
+    // measurement door, and a trimmed face here keeps the historical
+    // fail-loud refusal.
     let vol = |body: &Body<T>| -> Result<T, BooleanError> {
-        Ok(mass_properties_with(body, band)
+        Ok(crate::props::mass_properties_closed_form(body, band)
             .map_err(|_| corrupt())?
             .volume)
     };

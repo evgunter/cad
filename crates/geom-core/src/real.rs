@@ -361,6 +361,15 @@ pub trait Real:
 /// remains a [`Decide`](crate::predicate::Decide) call site; boxes
 /// only ever prune.
 ///
+/// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
+/// `topo::props`'s certified-quadrature plumbing joins the compound
+/// allowlist. The quadrature lane simultaneously decides (its
+/// `props_quad_*` funnel margins) and reads brackets into the C9 ring
+/// (certification substrate), so `T: Decide + Bounds` is its honest
+/// signature; the split from bracket-free scalars (duals) is STATIC —
+/// `topo::props::PropsQuadLane`'s explicit per-scalar impls are the
+/// only entry, and the dual impl instantiates none of it.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

@@ -104,8 +104,12 @@ jobs:
       # Compound Bounds bounds (`T: Decide + Bounds`) are legal ONLY in
       # the seams the 2026-07-29 amendment ratified (geom-core
       # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
-      # lane in topo, the evaluation-service seam in editor-core, and
-      # profile's pre-amendment fillet gate. Sole-bound `T: Bounds`
+      # lane in topo, the evaluation-service seam in editor-core,
+      # profile's pre-amendment fillet gate, and topo/props.rs — the
+      # M5 PR 11 certified-quadrature plumbing (Evan's lane-split
+      # ruling at that PR: certification is the bracket-carrying
+      # lanes' business, statically split from the dual lane through
+      # `PropsQuadLane`). Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
       # ratified into the real.rs rule AND this allowlist.
@@ -115,6 +119,7 @@ jobs:
             | grep -vE ':[0-9]+:\s*(//|///|//!)' \
             | cut -d: -f1 | sort -u \
             | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
+            | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/sugar\.rs$' || true)
           if [ -n "$hits" ]; then

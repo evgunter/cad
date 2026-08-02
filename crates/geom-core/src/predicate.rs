@@ -654,23 +654,6 @@ pub trait Decide: SpanLocate {
     /// band; callers attach their predicate name via
     /// [`Indeterminate::with_predicate`].
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate>;
-
-    /// The certification bracket of this value, **if this scalar carries
-    /// one** (M5 PR 11): `Some((lo, hi))` with `lo ≤ every real the value
-    /// stands for ≤ hi`, poison surfacing as NaN endpoints — exactly the
-    /// [`Bounds`](crate::real::Bounds) convention, exposed here so code
-    /// bounded only by `Decide` (the topology layer's bound) can hand
-    /// values to the certification substrate
-    /// ([`RingInterval`](crate::ring_interval::RingInterval)) without a
-    /// `Bounds` bound that some decision-capable scalars deliberately
-    /// refuse (`Dual`: a dual's bracket would silently drop its
-    /// derivative channel, so it answers `None` by taking this default).
-    ///
-    /// `None` means "this scalar has no honest bracket" and the caller
-    /// owes a **typed refusal**, never a value-channel fallback.
-    fn certification_bracket(self) -> Option<(f64, f64)> {
-        None
-    }
 }
 
 /// `f64` classification: |m| ≤ `zero` ⇒ `Zero`; |m| ≥ `escalate` ⇒ the
@@ -711,12 +694,6 @@ impl Decide for f64 {
                 predicate: None,
             })
         }
-    }
-
-    fn certification_bracket(self) -> Option<(f64, f64)> {
-        // `f64` brackets itself exactly; NaN stays NaN (poison surfaces,
-        // never narrows — the `Bounds` convention).
-        Some((self, self))
     }
 }
 
@@ -1189,18 +1166,5 @@ mod tests {
                 }
             }
         }
-    }
-
-    /// M5 PR 11: the `Decide` bracket seam — `f64` brackets itself
-    /// exactly (NaN staying NaN, poison never narrows), and `Dual`
-    /// takes the trait default `None` (no honest bracket; the
-    /// quadrature lane owes a typed refusal there).
-    #[test]
-    fn certification_bracket_f64_exact_dual_none() {
-        assert_eq!(2.5f64.certification_bracket(), Some((2.5, 2.5)));
-        let (lo, hi) = f64::NAN.certification_bracket().unwrap();
-        assert!(lo.is_nan() && hi.is_nan());
-        let d = crate::dual::Dual64::variable(1.0);
-        assert!(d.certification_bracket().is_none());
     }
 }

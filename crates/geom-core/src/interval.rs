@@ -540,13 +540,6 @@ impl Decide for Interval {
             })
         }
     }
-
-    fn certification_bracket(self) -> Option<(f64, f64)> {
-        // The interval scalar's own enclosure through the `Bounds`
-        // accessors (NaI/empty surface as NaN — poison fails every
-        // downstream certification loudly, never narrows).
-        Some((crate::real::Bounds::lo(self), crate::real::Bounds::hi(self)))
-    }
 }
 
 /// Replaces `x`'s decoration with `min(x.decoration(), floor)` — the

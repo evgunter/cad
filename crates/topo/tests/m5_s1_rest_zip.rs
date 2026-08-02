@@ -34,11 +34,11 @@ use topo::{
     subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
 };
 
-fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
+fn brick<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-fn glue<T: Decide + geom_core::Bounds>(a: &Body<T>, b: &Body<T>) -> BooleanBody<T> {
+fn glue<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(a: &Body<T>, b: &Body<T>) -> BooleanBody<T> {
     match union_with(a, b, &flush_declarations(a, b)).expect("declared REST union builds") {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
@@ -49,7 +49,7 @@ fn glue<T: Decide + geom_core::Bounds>(a: &Body<T>, b: &Body<T>) -> BooleanBody<
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
-fn assert_glued<T: Decide + geom_core::Bounds>(g: &BooleanBody<T>) {
+fn assert_glued<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(g: &BooleanBody<T>) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(validate_geometric(&g.body), Ok(()));
     assert_eq!(validate_pseudomanifold(&g.body, &g.contacts), Ok(()));
@@ -64,7 +64,7 @@ fn assert_glued<T: Decide + geom_core::Bounds>(g: &BooleanBody<T>) {
 /// body with the contact faces gone; the declared same-oriented side
 /// planes merge in the output stage, leaving the plain brick's six
 /// faces. Undeclared, the coincidence door refuses unchanged.
-fn stacked_plates_scenario<T: Decide + geom_core::Bounds>() -> BooleanBody<T> {
+fn stacked_plates_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> BooleanBody<T> {
     let bot = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let top = brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
     let err = union(&bot, &top).unwrap_err();
@@ -115,7 +115,7 @@ fn three_plate_chain() {
 /// one interior corner (a pierce-ring vertex the seam chords consume).
 /// Declared, the union BUILDS; undeclared, the coincidence door
 /// refuses; ∖ stays operand A (no join door was ever reached).
-fn corner_flush_scenario<T: Decide + geom_core::Bounds>() -> (BooleanBody<T>, BooleanBody<T>) {
+fn corner_flush_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
     let err = union(&slab, &corner).unwrap_err();

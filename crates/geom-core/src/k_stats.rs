@@ -332,12 +332,6 @@ impl Decide for Probe {
         record(self.0, band, sample);
         outcome
     }
-
-    fn certification_bracket(self) -> Option<(f64, f64)> {
-        // Exact like `f64` (a transparent wrapper); bracket extraction
-        // is not a decision, so nothing records.
-        Some((self.0, self.0))
-    }
 }
 
 #[cfg(test)]
