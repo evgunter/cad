@@ -1985,3 +1985,24 @@ block-15 draw byte 119 = (opus, fable); difficulty M logged
 pre-draw; A/B row 33; fable remainder owed).** Board: PR 11
 (fable, demo) + S10 (opus, face sense); then revert wiring →
 PR 12; PR 13/14 + S4 beyond.
+
+**S10 implementation COMPLETE (2026-08-02, aac0385) — and the
+SPEC PREMISE WAS FALSE: deviation 1 (MAJOR, returned not fixed)
+finds concave arc extrude walls should be sense:false, and
+TODAY (main + branch) point_in_solid's cylinder door reads In
+throughout a concave notch (executed: door turns at y~1.5, true
+boundary y~1.086; finding_* rows pinned). Fix = sweep
+constructors mint sense:false on concave walls — its OWN unit,
+REQUIRED PREDECESSOR of revert wiring (reverting wrong senses
+flips a lie into a lie). Review DISPATCHED with merge-base e2e
+reachability as the LEAD charter item (S9 precedent if a real
+boolean ships wrong).** Also: 24 literals not ~82 (spec grep
+was loose); persistence assertion clean (nothing serializes a
+face); the A/B two-encodings discipline (chart reads thread the
+bit; winding-derived sites must NOT — double-count hazard
+named); iso face_sig now sees senses; STEP same_sense verbatim
+with byte-golden held; three flip rows (tier-3 LoopRoleInverted;
+ball props total-cancellation; tessellation branch flip). One
+process note: a worker git-stash mishap, recovered whole from
+the dangling stash. Critical path grows one unit: S10 → concave
+sense fix → revert wiring → PR 12.
