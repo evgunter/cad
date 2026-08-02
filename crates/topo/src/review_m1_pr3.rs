@@ -949,6 +949,7 @@ fn raw_self_loop() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
     );
     let face = body.add_face(
         Face {
+            sense: true,
             surface,
             outer: lp,
             rings: vec![],
@@ -1382,6 +1383,7 @@ fn raw_shared_curve_chain() -> (
     );
     let face = body.add_face(
         Face {
+            sense: true,
             surface,
             outer: lp,
             rings: vec![],

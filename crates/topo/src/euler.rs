@@ -903,6 +903,7 @@ impl<T: Decide> Body<T> {
         );
         let face = self.add_face(
             Face {
+                sense: true,
                 surface,
                 outer: r#loop,
                 rings: vec![],
@@ -1872,6 +1873,7 @@ impl<T: Decide> Body<T> {
         );
         let new_face = self.add_face(
             Face {
+                sense: true,
                 surface, // shared with the old face (M1 geometry policy)
                 outer: new_loop,
                 rings: vec![],
@@ -2490,6 +2492,7 @@ mod tests {
         let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
         let face_c = body.add_face(
             Face {
+                sense: true,
                 surface: surface_c,
                 outer: loop_c,
                 rings: vec![],

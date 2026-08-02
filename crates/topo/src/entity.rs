@@ -231,11 +231,39 @@ pub struct Shell {
 /// (GWB keeps `flout` as a member of `floops`), so "every loop owned
 /// exactly once across all faces, counting outer and rings" is a plain
 /// partition check with no self-overlap special case.
+///
+/// **Orientation sense** (M5 S10, ratified as option (a) over
+/// `Surface::Reversed` / NURBS conversion / negative-radius spheres):
+/// the face's *outward normal* is its surface's chart normal times the
+/// sign of [`Face::sense`]. Before S10 the outward normal simply WAS
+/// the chart normal, which left `revert` with nothing to write on a
+/// curved face — the analytic chart normals are outward for either sign
+/// of the radius (cyl/cone/torus: odd in r) or outward exactly under
+/// the ratified `radius > 0` convention (sphere: even in r). The bit
+/// moves the reversal into topology, where it is exact structure and
+/// never a numeric decide.
 #[derive(Clone, Debug)]
 pub struct Face {
     /// The surface this face is a region of (D2: faces reference
     /// surfaces).
     pub surface: SurfaceKey,
+    /// Orientation sense: `true` iff the material side agrees with the
+    /// surface's chart normal (i.e. the face's outward normal is `+n`);
+    /// `false` iff it is reversed (outward normal `-n`).
+    ///
+    /// **Every constructor in this build mints `sense: true`.** The
+    /// reversed value is not yet reachable: the sole writer-to-be is
+    /// curved [`crate::Body::revert`], which is the follow-on unit. The
+    /// bit therefore exists ahead of its first writer, deliberately —
+    /// S10 lands the contract and the consumer threading so the wiring
+    /// unit is a one-line flip. Consumers must nonetheless honor it
+    /// (they are audited and threaded as of S10); test-only
+    /// [`Face::with_sense`] is the door that exercises `false`.
+    ///
+    /// STEP alignment: this is exactly `advanced_face.same_sense`
+    /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes
+    /// directly rather than deriving.
+    pub sense: bool,
     /// The outer boundary loop (see the type docs: a maintained
     /// designation). Not a member of `rings`.
     pub outer: LoopKey,

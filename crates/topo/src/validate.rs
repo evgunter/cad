@@ -2926,6 +2926,7 @@ mod tests {
         );
         let f = body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer: lp,
                 rings: vec![],
@@ -3477,6 +3478,7 @@ mod tests {
             );
             let f = body.add_face(
                 Face {
+                    sense: true,
                     surface,
                     outer: lp,
                     rings: vec![],

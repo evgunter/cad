@@ -995,6 +995,7 @@ impl<T: Decide> Body<T> {
         let surface = self.mint_face_surface(surface, old_face_data.surface);
         let face = self.add_face(
             Face {
+                sense: true,
                 surface,
                 outer: ring,
                 rings: vec![],
@@ -1802,6 +1803,7 @@ mod tests {
         edge_data.he_minus = he2;
         let face = body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings: vec![ring],

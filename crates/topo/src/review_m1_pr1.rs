@@ -174,6 +174,7 @@ fn build_cube() -> Cube {
         let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings: vec![],
@@ -406,6 +407,7 @@ fn ring_face_body_validates() {
         let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings,
@@ -531,6 +533,7 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64) -> SolidKey {
     let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
     let f = body.add_face(
         Face {
+            sense: true,
             surface,
             outer: lp,
             rings: vec![],
@@ -581,6 +584,7 @@ fn mvfs_skeletal_state_validates_externally() {
     );
     let f = body.add_face(
         Face {
+            sense: true,
             surface,
             outer: lp,
             rings: vec![],
@@ -695,6 +699,7 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
         let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings: vec![],
@@ -769,6 +774,7 @@ fn empty_loop_vertex_with_incidence_is_caught() {
     );
     let f = c.body.add_face(
         Face {
+            sense: true,
             surface,
             outer: lp,
             rings: vec![],
@@ -919,6 +925,7 @@ fn long_corrupted_chain_terminates() {
         let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
         body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings: vec![],
