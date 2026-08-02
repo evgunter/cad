@@ -2242,3 +2242,15 @@ edge carriers, same_sense composition, FreeCAD oracle rows).
 If S13 lands green, PR 12 (die pips) needs ONLY the fillet
 machinery — spec next. Remaining after: PR 12, PR 14 (exit +
 #89), S4, loft assembly + SSI lift (banked units).
+
+**Outage #13 (2026-08-02, reset 2:20pm PT): S13 + PR 13 killed
+mid-work; both RESUMED post-reset with commit-and-push-first
+instructions (neither had pushed — flagged).** Both had made
+real progress before the kill (PR 13 was flipping the S11
+same_sense row "exactly as its doc comment predicted"; S13 was
+into interval-lane flips — the plane×sphere premise evidently
+held). Evan asked whether the CPU pin is WSL-configurable —
+answered on #157: it is Windows-host power management (slider/
+battery saver/processor boost mode), not .wslconfig; canary
+verification loop provided; reboot suggested for a wedged
+governor.
