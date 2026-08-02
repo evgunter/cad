@@ -2165,3 +2165,158 @@ at the Interval band. `cargo fmt --all --check` clean; `clippy
 diff: no squares added at all (`powi(2)` rule vacuous here — the unit
 adds a `bool` negation, a key equality and an arena scan, and decides
 nothing numerically).
+
+## PR 13 (2026-08-02): the curved STEP subset — conics and elementary
+## surfaces as EXACT native AP214 entities, and the corpus that proves
+## an outside reader reconstructs them
+
+Plan line 13. The writer's two closed matches grew from
+`Plane`/`Line` to the whole kernel geometry vocabulary. **Every arm is
+a native entity, and every arm is exact**, which is the entire reason
+this writer is in-house:
+
+| kernel | AP214 | exactness |
+|---|---|---|
+| `Plane` | `PLANE` | identity (M4) |
+| `Cylinder` | `CYLINDRICAL_SURFACE` | identity |
+| `Cone` | `CONICAL_SURFACE`, apex placement + `radius = 0` | identity as a LOCUS; `v` differs by cos α |
+| `Sphere` | `SPHERICAL_SURFACE` | identity |
+| `Torus` | `TOROIDAL_SURFACE` | identity |
+| `Line` | `LINE` | identity (M4) |
+| `Circle` | `CIRCLE` | identity |
+| `Ellipse` | `ELLIPSE` | identity |
+| `Nurbs` (curve) | `B_SPLINE_CURVE_WITH_KNOTS`, rational complex instance when weighted | structure for structure |
+
+"Identity" is literal and tested: each kernel frame `(origin, axis,
+u_ref)` is ISO 10303-42's `axis2_placement_3d` field for field, so the
+two PARAMETERIZATIONS agree, not merely the point sets. The acceptance
+suite compares emitted reals with the body's stored reals using `==`
+(the float printer round-trips to identical bits), so a renormalized
+axis, a rotated seam, or a cone placement offset down the axis — all
+of which import perfectly — fail.
+
+**The conic question the spec asked, answered: native, never the
+rational-quadratic form.** CURVED-DESIGN keeps the NURBS Book §7.3–7.4
+form (shape factor `k = w₀w₂/w₁²`) as the declared export/tessellation
+form for conics, and it IS exact. But AP214 has `CIRCLE` and `ELLIPSE`,
+so taking that road would be an equally exact and strictly worse
+encoding: it discards the axes and centre every reader consumes,
+reparameterizes for nothing, and trades five reals for a
+control/weight/knot triple. The infinite-control-point machinery for
+arcs ≥ 180° (§7.4) never comes up. Both kernel conic rungs are native.
+There is no curve kind in the kernel that NEEDS the rational form.
+
+**Two deviations from the spec, numbered.**
+
+1. **`B_SPLINE_SURFACE_WITH_KNOTS` is not implemented; `Surface::Nurbs`
+   still refuses typed.** The spec lists it under writer growth but
+   also puts "NURBS FACES at rest" out of scope and hands them to the
+   loft-assembly unit. No body at rest carries a NURBS face, so the arm
+   would have been an untested code path guarded by nothing. The
+   refusal message now distinguishes the mvfs "no description yet"
+   placeholder from a described NURBS surface and names the unit that
+   brings the entity. The CURVE arm *is* implemented (the entity is
+   part of the named subset and its record text is pinned in
+   `writer.rs`'s unit tests, rational and non-rational, including the
+   exact-equality knot run-length encoding) even though no at-rest body
+   carries a NURBS carrier either — the difference is that a rung-3
+   SSI carrier is a thing the kernel already MINTS, just not through a
+   public constructor.
+2. **The outward/void classifier did not grow curved closed forms.** It
+   is now NARROWER than the emitter: a MULTI-shell solid carrying
+   curved geometry refuses, even though every one of its faces has a
+   printer. Its divergence-theorem reduction (`p·n̂` constant over a
+   face) is a planarity identity with no closed-form curved
+   counterpart, and its output is a material-vs-void SIGN — the one
+   place an approximation is a silent lie rather than a roundoff. The
+   refusal got its own variant, `CurvedShellClassification`, whose
+   message says the emitter is fine and the classifier is not; the old
+   behaviour would have reported `UnsupportedSurface`, which is now
+   false. Only S12's two-stub `boss ∖ plate` complement is affected —
+   every other curved body at rest is single-shell.
+
+**The corpus, and what FreeCAD said.** Seven fixtures joined the three
+planar ones, chosen so every new arm has a body behind it:
+`cut_cylinder` (the only `Ellipse`), `boss_union` (curved boolean),
+`notched` (the S11 concave wall), `washer` (genus 1, two `.F.` faces,
+full-2π seam encoding), `ball`, `cone`, `donut`. All ten import into
+FreeCAD 1.1.2 as valid solids. **The volumes are not approximately
+right, they are exactly right**: every one agrees with the closed-form
+analytic value to ≤ 4e-15 relative — because the surfaces crossed the
+wire as surfaces, not as facets. OCC keeps the kernel's topology
+exactly on five of the seven; on `ball` and `cone` it ADDS degenerate
+pole/apex edges (2→6 and 6→8) that its own face model requires, with
+faces, vertices and volume unchanged. The `.expect` sidecars carry the
+analytic volume and say which counts are OCC normalisation. CI's
+`step-import` job globs the fixture directory, so all seven are hosted
+with no workflow edit.
+
+**The S11 row flipped, as its doc comment instructed.**
+`m5_s11_same_sense`'s row 2 was written as a typed-refusal pin with an
+explicit instruction for what to become once the curved arms landed.
+The notched body now exports with exactly one `.F.` `ADVANCED_FACE` —
+and the row resolves that face's surface reference and demands a
+`CYLINDRICAL_SURFACE`, of which the body has TWO (one convex, one
+concave), so flipping the wrong wall or both fails.
+
+**Orientation: the composition rule, and FreeCAD's measured
+blindness.** With `.F.` faces finally reaching the emitter, the S10
+review's rule became testable on real output. Two pins aim straight at
+the double-composition bug: every bound orientation is `.T.` on every
+fixture including the reversed ones, and every `.F.` face's surface
+axis equals the body's stored CHART normal bitwise (a writer that
+negated the axis instead — the other half of the same bug — fails).
+
+The external oracle cannot arbitrate this. `revert(ball)` and
+`revert(washer)` — genuinely inside-out solids, every face `.F.` —
+import as `valid: True` with the SAME positive volumes as the
+un-reverted bodies. OCC's ShapeHealing rectifies silently, exactly as
+M4's review found on `cube.step`. The plan anticipated the fallback
+("else pin the emitted text"), so the text is pinned, and the
+orientation oracle gained a **curved-agnostic** companion to the
+planar signed-volume walk: **edge-use coherence** — in a coherently
+oriented closed shell every edge is traversed once in each direction,
+counting the whole shell's loops. That is the same boundary-winding
+datum the volume oracle reads, stated locally, and it needs no
+planarity. It is pinned on all ten fixtures with per-shell edge counts,
+and it has three controls: a double-composed face (INCOHERENT — this is
+the row FreeCAD would otherwise have owned), one inverted curved face
+(INCOHERENT), and a uniformly reversed shell (COHERENT — said out loud
+so the oracle's scope is not overclaimed; that case belongs to the
+volume oracles).
+
+**ε.** Exports are exact structure. The only ε-dependent byte in the
+whole document is the `UNCERTAINTY_MEASURE_WITH_UNIT` value, pinned by
+a row that exports the washer at two tolerances a thousand-fold apart
+and asserts the texts differ in exactly one line. Every other row
+compares emitted floats to the body's own stored floats and never reads
+a distance. The one new refusal arm is reached by a type-level match
+before any arithmetic, and is run at two tolerances to check that
+rather than assert it; the ambient axis is CI's `CAD_EPS` matrix.
+
+**The demo tour.** All 26 bodies now export STEP (nine of them curved,
+six carrying `.F.` faces); the narrated curved refusals are gone and
+`step_expected` is true everywhere, so a refusal anywhere in the tour
+is now a hard failure. All nine curved exports import into FreeCAD as
+valid single solids, and their OCC volumes agree with the kernel's own
+STL tessellation to within faceting error (3e-4 to 1.4e-2 relative,
+signed the way inscribed/circumscribed faceting predicts) — an
+independent end-to-end check that OCC reconstructed OUR solid rather
+than a healed neighbour.
+
+**One walk-order trap, banked.** The suites that match emitted records
+against kernel entities must walk the WRITER's traversal, not
+`Body::faces()`/`Body::edges()`. Arena order coincides with the walk on
+simple extrusions and diverges on boolean results, so a helper using
+arena order silently compares the wrong pairs on precisely the most
+interesting bodies — it was caught only because `boss_union` failed
+while every swept primitive passed. `common::walk_order` mirrors the
+documented traversal and says this in its doc comment.
+
+**Battery.** `step-export` at default ε: lib 8, `export` 14,
+`m5_pr13_curved` 11, `m5_s11_same_sense` 2, `orientation_oracle` 6 —
+41 rows, all green. Planar goldens byte-UNCHANGED (no planar-only body
+at rest mints a reversed face, so the S10/S11 wiring costs the M4
+fixtures nothing). `scripts/check_step.sh` green on all ten fixtures
+locally with `REQUIRE_FREECAD=1`. Demo tour built and run end to end.
+`cargo fmt --all` clean; `clippy --all-targets` clean.

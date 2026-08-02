@@ -1039,8 +1039,17 @@ precursor of the error-propagation feature.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets. Design record ratified: `docs/CURVED-DESIGN.md` (#85,
   2026-07-24). Banked M5 openers from the M4 exit (8c, 2026-07-27):
-  **curved STEP subset** (the export lane is planar-only until M5 —
-  curved stops refuse typed, narrated in the demo tour); **arc-leg
+  **curved STEP subset** (banked planar-only; DISCHARGED at M5 PR 13 —
+  the writer now emits `CYLINDRICAL_`/`CONICAL_`/`SPHERICAL_`/
+  `TOROIDAL_SURFACE` and `CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS`
+  as EXACT native AP214 entities, conics deliberately NOT via the
+  rational-quadratic form the schema makes unnecessary; every demo-tour
+  body exports and imports into FreeCAD, so the narrated curved
+  refusals are gone. Two frontiers remain named: a NURBS FACE, which
+  the loft-assembly unit mints, and the outward/void classification of
+  a MULTI-shell curved solid, whose divergence-theorem reduction is a
+  planarity identity with no closed-form curved counterpart);
+  **arc-leg
   fillet sugar** (#101 R4 scoped `LoopBuilder::fillet` to line/line
   corners; arc-leg is the noted follow-up, see #104); **REST-contact
   join lane** (the crosslap mate is a pure rest contact — M3 envelope
@@ -1128,7 +1137,13 @@ decision, where it landed, notable deviations. Full trail:
   parse-based **signed-volume text oracle** closing the OCC-healing
   blind spot (OCC silently rectifies inverted shells); the STEP lane
   then became the demo RENDER path (#98) and the watertightness
-  gate's second leg alongside admesh (#116).
+  gate's second leg alongside admesh (#116). At M5 PR 13 the OCC
+  blind spot was re-measured on CURVED geometry and is unchanged —
+  `revert(ball)` and `revert(washer)`, every face `same_sense = .F.`,
+  import as valid with the same positive volumes as the un-reverted
+  bodies — so the curved orientation acceptance is text-level by
+  necessity: an edge-use-coherence oracle over the emitted Part 21,
+  whose negative control is the double-composition bug itself.
 - **F7 (expression AST + ExprPath)** — landed at #81: no
   conditionals in v1 (held throughout); ExprPath stable under edits
   to other expressions. Known caveat carried forward as designed:
