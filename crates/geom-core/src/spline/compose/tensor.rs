@@ -259,7 +259,7 @@ impl SurfaceResidual {
         let mut acc = 0.0f64;
         for e in b {
             let m = e.mag();
-            acc += m * m;
+            acc += m.powi(2);
         }
         acc.sqrt()
     }

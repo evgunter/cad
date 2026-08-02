@@ -124,7 +124,7 @@ mod tests {
             end: 0,
         };
         let va = loop_vector_area(core::slice::from_ref(&e), Point3::origin()).unwrap();
-        assert!((va.z - core::f64::consts::PI * r * r).abs() < 1e-12);
+        assert!((va.z - core::f64::consts::PI * r.powi(2)).abs() < 1e-12);
         assert!(va.x.abs() < 1e-12 && va.y.abs() < 1e-12);
     }
 

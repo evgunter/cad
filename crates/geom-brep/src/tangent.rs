@@ -153,7 +153,7 @@ pub(crate) fn tangent_span_bounds<T: Real>(
             Surface::Plane { .. } => Some((T::zero(), T::zero())),
             Surface::Sphere { radius, .. } => {
                 let f2 = dir.norm_squared() / radius;
-                let drift = eight * dir.norm() / (radius * radius);
+                let drift = eight * dir.norm() / radius.powi(2);
                 Some((f2, drift))
             }
             Surface::Cylinder { axis, radius, .. } => {
@@ -163,7 +163,7 @@ pub(crate) fn tangent_span_bounds<T: Real>(
                 // Only the axis-TRANSVERSE component turns the Gauss
                 // map or moves ρ: a ruling (the C5 tangent-arm mint)
                 // has exactly zero drift, and the bound says so.
-                let drift = eight * d_perp2.max(T::zero()).sqrt() / (radius * radius);
+                let drift = eight * d_perp2.max(T::zero()).sqrt() / radius.powi(2);
                 Some((f2, drift))
             }
             Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,

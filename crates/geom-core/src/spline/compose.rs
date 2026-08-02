@@ -673,7 +673,7 @@ fn axis_norm2(axis: &[f64; 3]) -> RingInterval {
     let mut acc = RingInterval::zero();
     for a in axis {
         let p = RingInterval::point(*a);
-        acc = acc + p * p;
+        acc = acc + p.sqr();
     }
     acc
 }
@@ -751,7 +751,7 @@ pub fn implicit_composite(
             let g = shifted(center);
             let w2 = ch_mul(&w, &w);
             let r = RingInterval::point(*radius);
-            let r2 = r * r;
+            let r2 = r.sqr();
             let s = sum_of_squares(&g);
             CompositeForm {
                 num: ch_sub(&s, &ch_scale_left(r2, &w2)),
@@ -767,7 +767,7 @@ pub fn implicit_composite(
             let w2 = ch_mul(&w, &w);
             let a2 = axis_norm2(axis);
             let r = RingInterval::point(*radius);
-            let r2 = r * r;
+            let r2 = r.sqr();
             let s = sum_of_squares(&g);
             let t = dot_channel(&g, axis);
             // (A2·S − T·T) − (r²·A2)·W², over A2·W².
@@ -789,7 +789,7 @@ pub fn implicit_composite(
             let w2 = ch_mul(&w, &w);
             let a2 = axis_norm2(axis);
             let tg = RingInterval::point(*tan_half_angle);
-            let k = RingInterval::one() + tg * tg;
+            let k = RingInterval::one() + tg.sqr();
             let s = sum_of_squares(&g);
             let t = dot_channel(&g, axis);
             // A2·S − k·(T·T), over A2·W².
@@ -810,8 +810,8 @@ pub fn implicit_composite(
             let a2 = axis_norm2(axis);
             let rr = RingInterval::point(*major_radius);
             let rm = RingInterval::point(*minor_radius);
-            let c1 = rr * rr - rm * rm; // R² − r²
-            let c4 = RingInterval::point(4.0) * (rr * rr); // 4R²
+            let c1 = rr.sqr() - rm.sqr(); // R² − r²
+            let c4 = RingInterval::point(4.0) * rr.sqr(); // 4R²
             let s = sum_of_squares(&g);
             let t = dot_channel(&g, axis);
             // A2·(S + (R²−r²)·W²)² − 4R²·(A2·S − T·T)·W², over A2·W⁴.
@@ -960,7 +960,7 @@ mod tests {
         let form = implicit_composite(&data, &cone).unwrap();
         let worst = assert_sound(&form, &kv, &w, &coords, |p| {
             let q2 = p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
-            q2 - (1.0 + tg * tg) * p[2] * p[2]
+            q2 - (1.0 + tg.powi(2)) * p[2] * p[2]
         });
         assert!(form.sup_bound() < 1e-12, "bound {:e}", form.sup_bound());
         assert!(worst <= form.sup_bound());
@@ -983,7 +983,7 @@ mod tests {
         };
         let form = implicit_composite(&data, &cyl).unwrap();
         assert_sound(&form, &kv, &w, &coords, |p| {
-            p[0] * p[0] + p[1] * p[1] - r * r
+            p[0] * p[0] + p[1] * p[1] - r.powi(2)
         });
         assert!(form.sup_bound() < 1e-13, "bound {:e}", form.sup_bound());
     }
@@ -1021,8 +1021,8 @@ mod tests {
         let form = implicit_composite(&data, &torus).unwrap();
         assert_sound(&form, &kv, &w, &coords, |p| {
             let q2 = p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
-            let c = q2 + big_r * big_r - small_r * small_r;
-            c * c - 4.0 * big_r * big_r * (q2 - p[2] * p[2])
+            let c = q2 + big_r.powi(2) - small_r.powi(2);
+            c.powi(2) - 4.0 * big_r.powi(2) * (q2 - p[2] * p[2])
         });
         // Exact locus: the bound is pure fp scale (meters⁴ at
         // magnitudes ~ (R+r)⁴ ≈ 39).

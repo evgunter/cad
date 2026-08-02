@@ -135,7 +135,7 @@ pub(crate) fn build_seg<T: Decide>(
         turn => {
             let mid = a.lerp(b, half);
             let n = perp(unit);
-            let b2 = bulge * bulge;
+            let b2 = bulge.powi(2);
             let four_bulge = T::from_f64(4.0) * bulge;
             let apothem = len * (T::one() - b2) / four_bulge;
             let signed_radius = len * (T::one() + b2) / four_bulge;
@@ -500,7 +500,7 @@ fn line_arc<T: Decide>(
         }
         Sign::Positive => {
             let tc = to_center.dot(line.unit);
-            let half = (g.radius * g.radius - h * h).sqrt();
+            let half = (g.radius.powi(2) - h.powi(2)).sqrt();
             for t in [tc - half, tc + half] {
                 let q = line.a + line.unit * t;
                 if let Some(j) = joint(line_span(line, q, band)?, arc_span(g, q, band)?) {
@@ -590,7 +590,7 @@ fn arc_arc<T: Decide>(
                             // identity margin d + |Δr| = 2d is definite,
                             // so d is bounded away from zero.
                             let two_d = d + d;
-                            let a = (d * d + g1.radius * g1.radius - g2.radius * g2.radius) / two_d;
+                            let a = (d.powi(2) + g1.radius.powi(2) - g2.radius.powi(2)) / two_d;
                             let q = g1.center + (delta / d) * a;
                             push_arc_arc_contact(&mut contacts, g1, g2, q, true, band)?;
                         }
@@ -600,8 +600,8 @@ fn arc_arc<T: Decide>(
                             let u = delta / d;
                             let n = perp(u);
                             let two_d = d + d;
-                            let a = (d * d + g1.radius * g1.radius - g2.radius * g2.radius) / two_d;
-                            let h = (g1.radius * g1.radius - a * a).sqrt();
+                            let a = (d.powi(2) + g1.radius.powi(2) - g2.radius.powi(2)) / two_d;
+                            let h = (g1.radius.powi(2) - a.powi(2)).sqrt();
                             let foot = g1.center + u * a;
                             for q in [foot + n * h, foot - n * h] {
                                 push_arc_arc_contact(&mut contacts, g1, g2, q, false, band)?;
@@ -696,7 +696,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Sign::Zero => Err(Graze),
                 Sign::Positive => {
                     let tc = to_center.dot(dir);
-                    let half = (g.radius * g.radius - h * h).sqrt();
+                    let half = (g.radius.powi(2) - h.powi(2)).sqrt();
                     let mut count = 0;
                     for t in [tc - half, tc + half] {
                         match decide("ray_advance", t, band) {

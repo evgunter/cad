@@ -627,10 +627,15 @@ fn curved_face_arm<T: Decide>(
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
     // but the boolean's CROSSING layer for the kind — edge×NURBS-face
-    // sweep events and curved trim containment — does not exist yet;
-    // it is banked as M5 PR 9c. Refused typed HERE, before the
-    // residual sides (a NURBS surface has no implicit form — the
-    // sides would poison, and poison is not a refusal).
+    // sweep events and curved trim containment — does not exist. M5
+    // PR 9c was the banked unit for it and did NOT land it (M5-LOG
+    // PR 9c, deviation 5): the residual sides a crossing layer needs
+    // are `implicit_residual` and `classify_dihedral`, both poison on
+    // a NURBS surface, and the only non-poison substitute is a
+    // foot-point projection that exists at `f64` ONLY
+    // (`NurbsSurface::project` is an `impl NurbsSurface<f64>` block),
+    // so wiring it would kill the Interval lane. Refused typed HERE,
+    // before the residual sides — poison is not a refusal.
     if matches!(surface, geom_surfaces::Surface::Nurbs(_)) {
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand: x_is,

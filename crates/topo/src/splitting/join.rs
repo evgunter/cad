@@ -786,8 +786,8 @@ fn chord_spec<T: Decide>(
             let p1 = vertex_point(body, u1)?;
             let p2 = vertex_point(body, u2)?;
             let len = dir.norm();
-            let t1 = (p1 - origin).dot(dir) / (len * len);
-            let t2 = (p2 - origin).dot(dir) / (len * len);
+            let t1 = (p1 - origin).dot(dir) / len.powi(2);
+            let t2 = (p2 - origin).dot(dir) / len.powi(2);
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw

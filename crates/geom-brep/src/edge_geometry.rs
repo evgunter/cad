@@ -143,7 +143,7 @@ impl<T: Real> SketchSegment<T> {
                 let unit = chord / len;
                 let n = Vec2::new(-unit.y, unit.x); // left normal
                 let mid = a.lerp(b, half);
-                let apothem = len * (T::one() - bulge * bulge) / (four * bulge);
+                let apothem = len * (T::one() - bulge.powi(2)) / (four * bulge);
                 let center = mid + n * apothem;
                 let theta = four * bulge.atan();
                 let (sin, cos) = (s * theta).sin_cos();

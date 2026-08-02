@@ -504,10 +504,20 @@ pub enum BooleanError {
     /// Subtract/intersect met a CURVED operand (M5 PR 9): these ops
     /// route regions through `revert` (A∖B ≡ A∩revert(B), §15.9), and
     /// the revert lane — curved-surface orientation flips plus the
-    /// pcurve re-mint behind them — is planar-only in this build. The
-    /// curved revert lane is BANKED as PR 9c (it gates M5 PR 12's die
-    /// pips, which subtract); UNION is the live curved boolean. A
-    /// front-door refusal: no reduction work happens first.
+    /// pcurve re-mint behind them — is planar-only in this build.
+    /// M5 PR 9c EXECUTED that lane and returned it as a ratified-
+    /// representation question rather than an implementation task: an
+    /// orientation-reversed cylinder, cone or torus has no
+    /// representation to write down at all (the chart normal is odd in
+    /// the radius, so it is outward for either sign), and a reversed
+    /// SPHERE is representable only as the negative-radius sphere the
+    /// `radius > 0` convention rejects and the `2r`-metered consumers
+    /// invert — `RevertError::UnsupportedSurface` carries the scoped
+    /// proof and the review's executed probe. So closing this needs a
+    /// `Face` sense flag, a reversed-surface wrapper, or NURBS
+    /// conversion — M5-LOG PR 9c deviation 3. UNION stays the live curved boolean, and M5 PR 12's
+    /// die pips stay gated on the ratification. A front-door refusal:
+    /// no reduction work happens first.
     CurvedOpUnsupported {
         /// The refused op (never `Union`).
         op: BooleanOp,
@@ -634,7 +644,11 @@ impl core::fmt::Display for BooleanError {
                  at the INTERSECTION layer (plane×NURBS since PR 7b), what is \
                  missing here is the boolean's own crossing layer for the kind — \
                  edge×face sweep events, curved trim containment, and the fitted \
-                 chord join lane — banked as M5 PR 9c",
+                 chord join lane. M5 PR 9c landed the SPHERE half of the curved \
+                 containment/pierce door and reported the fitted-chord join lane \
+                 still open behind Pcurve::Fitted, whose certification envelope \
+                 needs the SSI enclosure stack lifted off f64 (M5-LOG PR 9c, \
+                 deviations 1-2)",
                 kind.name()
             ),
             Self::CurvedPierceUnsupported {
@@ -677,8 +691,14 @@ impl core::fmt::Display for BooleanError {
                  face {face:?}) is not wired in this build — subtract/intersect route \
                  regions through revert (A∖B ≡ A∩revert(B)), and the curved revert \
                  lane (curved-surface orientation flips + the pcurve re-mint) is \
-                 BANKED as M5 PR 9c (it gates PR 12's die pips). UNION is the live \
-                 curved boolean; split the work as unions, or wait for PR 9c"
+                 planar-only, and M5 PR 9c executed it and found no representation \
+                 for a reversed curved surface that this build may write: outward \
+                 for either sign of the radius on the cylinder/cone/torus, and on \
+                 the sphere only the convention-violating negative radius (see \
+                 RevertError's scoped proof) — closing it is a ratified \
+                 representation change, not an implementation task, so PR 12's die \
+                 pips stay gated on it. UNION is the live curved boolean; split the \
+                 work as unions meanwhile"
             ),
             Self::Pcurves { source } => write!(
                 f,

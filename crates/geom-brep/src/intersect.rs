@@ -562,7 +562,7 @@ pub fn plane_cylinder_section<T: Decide>(
                     // Cross-section chord: the plane cuts the circle at
                     // foot ± w·half, foot the axis' plane projection.
                     let foot = o - n * gap_signed;
-                    let half = (r * r - gap_signed * gap_signed).sqrt();
+                    let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
                     let w = a.cross(n).normalize();
                     Ok(PlaneCylinderSection::ParallelLines {
                         l1: Curve3::Line {
@@ -746,7 +746,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             match decide("cc_parallel_gap", two * r1 - d, band).map_err(SectionError::Escalated)? {
                 Sign::Positive => {
                     let mid = o1 + d_vec * T::from_f64(0.5);
-                    let half = (r1 * r1 - (d / two) * (d / two)).sqrt();
+                    let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
                     let h = a1.cross(d_vec / d);
                     Ok(EqualCylinderSection::ParallelLines {
                         l1: Curve3::Line {
@@ -782,7 +782,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             }
             // The axes' intersection point (closest point on axis 1;
             // the coplanarity verdict bounds the residual by ε).
-            let t1 = w0.cross(a2).dot(cross) / (cross_norm * cross_norm);
+            let t1 = w0.cross(a2).dot(cross) / cross_norm.powi(2);
             let p = o1 + a1 * t1;
             // The two bisector planes through p. Each ellipse is the
             // tilted plane×cylinder cut of cylinder 1 (by symmetry it

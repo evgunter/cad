@@ -686,7 +686,7 @@ fn torus<T: Decide>(
     let area = minor * du * (major * dv + minor * (s1 - s0));
     let k = minor
         * du
-        * ((major * major + minor * minor) * (s1 - s0)
+        * ((major.powi(2) + minor.powi(2)) * (s1 - s0)
             + major * minor * dv
             + (major * minor * half) * (dv + s1 * c1 - s0 * c0));
     let va = loop_vector_area(edges, center)?;

@@ -359,8 +359,10 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     // MAJ-3): both ops route regions through `revert`
     // (A∖B ≡ A∩revert(B), the §15.9 posture), and the revert lane is
     // planar-only in this build — curved revert (curved-surface
-    // orientation flips plus the pcurve re-mint behind them) is
-    // BANKED as PR 9c, which gates PR 12's die pips (subtraction).
+    // orientation flips plus the pcurve re-mint behind them) has no
+    // representation to write at all — M5 PR 9c executed it and
+    // returned a ratified-representation question (M5-LOG deviation
+    // 3), so PR 12's die pips (subtraction) stay gated on it.
     // Refused HERE, up front and typed, rather than deep inside the
     // pipeline behind a stale planar-era message. Union is the live
     // curved op.

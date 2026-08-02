@@ -91,7 +91,7 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         Surface::Plane { origin, normal, .. } => (p - origin).dot(normal),
         Surface::Sphere { center, radius, .. } => {
             let d2 = (p - center).norm_squared();
-            (d2 - radius * radius) / (two * radius)
+            (d2 - radius.powi(2)) / (two * radius)
         }
         Surface::Cylinder {
             origin,
@@ -100,7 +100,7 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             ..
         } => {
             let (_, w) = axial_radial(p, origin, axis);
-            (w.norm_squared() - radius * radius) / (two * radius)
+            (w.norm_squared() - radius.powi(2)) / (two * radius)
         }
         Surface::Cone {
             apex,
@@ -127,9 +127,10 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             // squares via powi(2), not d·d/h·h — bit-identical at f64
             // and the dual value channel, honest [0, hi] enclosures at
             // the interval scalar (the norm_squared rationale, M2 PR 3
-            // fix pass). minor_radius is positive conventional data, so
-            // its plain square is already tight.
-            (d.powi(2) + h.powi(2) - minor_radius * minor_radius) / (two * minor_radius)
+            // fix pass). minor_radius is positive conventional data —
+            // its square is tight either way; powi(2) keeps the
+            // square-discipline tripwire's scope clean.
+            (d.powi(2) + h.powi(2) - minor_radius.powi(2)) / (two * minor_radius)
         }
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
@@ -307,9 +308,9 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
     let n_form = implicit_hessian_form(s, p, n_hat);
     let tr_r = hxx + hyy + hzz - n_form;
     // Restricted determinant: n̂ᵀ adj(H) n̂ (cofactors, fixed order).
-    let adj_xx = hyy * hzz - hyz * hyz;
-    let adj_yy = hxx * hzz - hxz * hxz;
-    let adj_zz = hxx * hyy - hxy * hxy;
+    let adj_xx = hyy * hzz - hyz.powi(2);
+    let adj_yy = hxx * hzz - hxz.powi(2);
+    let adj_zz = hxx * hyy - hxy.powi(2);
     let adj_xy = hxz * hyz - hxy * hzz;
     let adj_yz = hxy * hxz - hyz * hxx;
     let adj_xz = hxy * hyz - hyy * hxz;
