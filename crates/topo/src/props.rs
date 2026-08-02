@@ -246,9 +246,7 @@ fn mass_properties_impl<T: Decide>(
                     // scalar with NO certified lane (the dual arm of
                     // [`PropsQuadLane`]) — whose honest outcome on a
                     // trimmed face is the closed form's typed refusal.
-                    None => {
-                        curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?
-                    }
+                    None => curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?,
                 }
             }
         };
