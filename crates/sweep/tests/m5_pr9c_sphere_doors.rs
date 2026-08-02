@@ -175,6 +175,16 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
 /// rewritten from "banked as PR 9c" — a promise that has now been kept
 /// or refuted — to the blocker actually found, and both are pinned here
 /// so a later unit cannot quietly restore a stale claim.
+///
+/// The pinned statement is the SCOPED one (PR 9c review, F1). The first
+/// draft claimed every axisymmetric chart normal is "always outward";
+/// that is true of the cylinder, cone and torus, whose normals are ODD
+/// in the radius, and FALSE of the sphere, whose `r²·cos v·n̂` is EVEN —
+/// a negative-radius sphere evaluates with an INWARD normal. The
+/// conclusion survives because that sphere is rejected as a
+/// representation rather than adopted: it violates the `radius > 0`
+/// convention and inverts every `2r`-metered consumer, this file's own
+/// arm included. This row pins the corrected text, not the first one.
 #[test]
 fn curved_revert_refusal_states_the_representation_blocker() {
     let body = ball();
@@ -183,7 +193,13 @@ fn curved_revert_refusal_states_the_representation_blocker() {
     // Not "unimplemented": a proof that there is nothing to write.
     assert!(msg.contains("not merely unimplemented"), "{msg}");
     assert!(msg.contains("chart normal"), "{msg}");
-    assert!(msg.contains("always outward"), "{msg}");
+    // The per-kind scoping, both halves.
+    assert!(msg.contains("ODD in the radius"), "{msg}");
+    assert!(msg.contains("EVEN in the radius"), "{msg}");
+    assert!(msg.contains("radius > 0 convention"), "{msg}");
+    assert!(msg.contains("REJECTED as a representation"), "{msg}");
+    // And the overclaim must be gone.
+    assert!(!msg.contains("always outward"), "{msg}");
     assert!(msg.contains("M5 PR 9c"), "{msg}");
 }
 
@@ -211,4 +227,61 @@ fn curved_subtract_front_door_quotes_the_same_finding() {
     assert!(msg.contains("no representation"), "{msg}");
     assert!(msg.contains("ratified representation change"), "{msg}");
     assert!(msg.contains("UNION is the live curved boolean"), "{msg}");
+}
+
+/// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction
+/// that grazes the sphere has a zero discriminant, and the arm must
+/// abandon that ray rather than fabricate a parity verdict — the
+/// retry schedule then answers from a different direction. The probe
+/// is a query point placed so that the FIRST schedule member (+x) is
+/// exactly tangent: sitting on the plane `y = r` with `z = 0` makes
+/// the +x ray touch the unit sphere at the north-pole circle.
+#[test]
+fn tangent_schedule_ray_grazes_and_the_retry_answers() {
+    let body = ball();
+    let b = band();
+    // On the tangent plane y = 1, definitely outside the sphere.
+    let q = Point3::new(-3.0, 1.0, 0.0);
+    // The verdict still resolves — a later schedule member is not
+    // tangent — and it is the right one.
+    assert_eq!(point_in_solid(&body, q, b).unwrap(), SolidContainment::Out);
+}
+
+/// NOTE row (PR 9c review, F4): a MULTI-SHELL sphere body. Two
+/// DISJOINT balls in one body exercise the group-representative rule
+/// across SURFACES as well as faces — each sphere key gets its own
+/// group and its own representative, so a ray through both folds two
+/// crossing pairs and the closest-hit rule still reads the material
+/// side. The body is built by the live curved UNION of two disjoint
+/// balls, whose no-intersection lane is decided by `point_in_solid`
+/// itself: the row therefore also pins the new arm driving the
+/// boolean's own containment fallback, not just a direct query.
+#[test]
+fn two_ball_body_classifies_each_shell_independently() {
+    let a = ball();
+    let b = topo::transform_rigid(
+        &a,
+        &geom_core::Affine3::translation(geom_core::Vec3::new(4.0, 0.0, 0.0)),
+    )
+    .unwrap();
+    let result = topo::boolean::union(&a, &b).unwrap();
+    let topo::BooleanResult::Body(bb) = result else {
+        panic!("two disjoint balls union to a real body");
+    };
+    let body = bb.body;
+    assert_eq!(body.surfaces().count(), 2, "one sphere key per ball");
+    let bd = band();
+    // Inside ball A, inside ball B, and in the gap between them.
+    assert_eq!(
+        point_in_solid(&body, Point3::origin(), bd).unwrap(),
+        SolidContainment::In
+    );
+    assert_eq!(
+        point_in_solid(&body, Point3::new(4.0, 0.0, 0.0), bd).unwrap(),
+        SolidContainment::In
+    );
+    assert_eq!(
+        point_in_solid(&body, Point3::new(2.0, 0.0, 0.0), bd).unwrap(),
+        SolidContainment::Out
+    );
 }

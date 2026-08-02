@@ -691,10 +691,20 @@ fn cast_ray<T: Decide>(
             // The full-sphere pierce arm (M5 PR 9c). With `d` a unit
             // direction the ray/sphere system is monic in `t`:
             // `t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`. The
-            // discriminant is metered as a LENGTH (`√disc` is the
-            // half-chord in metres, so `disc` is metred by `2r` exactly
-            // as the cylinder arm meters its own — dimensional honesty,
-            // D4 ¶1). Zero ⇒ the ray is tangent: a graze, retried on
+            // discriminant is metered as a LENGTH: `√disc` is the
+            // half-chord in metres, so `disc` is m² and `disc / 2r` is
+            // the D4 ¶1-honest margin.
+            //
+            // This is NOT what the cylinder arm above does: it divides
+            // its own discriminant by `(2r)²`, which is dimensionless.
+            // The length-dimensioned form here is the correct one.
+            // Normalizing the cylinder arm to match is deliberately NOT
+            // done in passing — its margins are pinned by the PR 9
+            // acceptance rows and a metering change moves every one of
+            // them, so it is flagged for a unit that can re-pin them
+            // (PR 9c review, F3).
+            //
+            // Zero ⇒ the ray is tangent: a graze, retried on
             // the next schedule member, never a parity guess.
             //
             // The outward sign at a root needs NO second predicate:

@@ -69,18 +69,36 @@ pub enum RevertError {
     /// A surface is not a `Plane`: its orientation-reversed side is
     /// unrepresentable in the analytic enum (module docs).
     ///
-    /// **Status after M5 PR 9c (executed, 2026-08-01).** This is not a
-    /// scheduling gap — it is a contract gap, and PR 9c's finding is
-    /// that no amount of work inside `revert` closes it. A face's
+    /// **Status after M5 PR 9c (executed, 2026-08-01; scoped by the
+    /// PR 9c review's F1).** This is not a scheduling gap — it is a
+    /// contract gap, and PR 9c's finding is that no amount of work
+    /// inside `revert` closes it under the current contracts. A face's
     /// outward normal IS its surface's chart normal (`Face` carries no
-    /// sense flag), and for every axisymmetric variant the chart normal
-    /// is provably always OUTWARD: with `v_ref = axis × u_ref` the
-    /// frame is right-handed, so `∂u × ∂v = r·radial(u)`. Negating
-    /// `axis` flips `v_ref` too and merely reparameterizes `u ↦ −u`;
-    /// a negative `radius` moves the point to `radial(u + π)` and the
-    /// normal with it. So there is nothing for this function to WRITE
-    /// on a reverted cylinder, cone, sphere, or torus. Closing it means
-    /// a ratified representation change — a `sense` on `Face`, a
+    /// sense flag), and:
+    ///
+    /// - **Cylinder, cone, torus**: the chart normal is ODD in the
+    ///   radius (`∂u × ∂v = r·radial(u)` for the cylinder, and the
+    ///   analogous odd form for the other two), so it is OUTWARD for
+    ///   either sign — a negative radius moves the point to
+    ///   `radial(u + π)` and the normal with it. Negating `axis` flips
+    ///   `v_ref = axis × u_ref` too and merely reparameterizes
+    ///   `u ↦ −u`. Nothing to write.
+    /// - **Sphere**: outward under the ratified `radius > 0`
+    ///   convention. The chart normal `∂u × ∂v = r²·cos v·n̂` is EVEN
+    ///   in the radius (the PR 9c review's executed probe:
+    ///   `Sphere { radius: -1.0, .. }` evaluates with an INWARD chart
+    ///   normal, while a cylinder at `r = -1` stays outward). So a
+    ///   negative-radius sphere IS a de facto reversed sphere — and it
+    ///   is REJECTED as a representation, not adopted: it violates the
+    ///   variant's stated `radius > 0` convention, and every consumer
+    ///   that meters a sphere residual by `2r` reads the resulting
+    ///   sign backwards (including this build's own
+    ///   `point_in_solid` sphere arm, whose boundary residual and
+    ///   `bool_ray_sphere_disc` metering both divide by `2r`).
+    ///
+    /// So there is still nothing for this function to WRITE on a
+    /// reverted cylinder, cone, sphere, or torus. Closing it means a
+    /// ratified representation change — a `sense` on `Face`, a
     /// `Surface::Reversed` wrapper, or NURBS conversion — see the
     /// M5-LOG PR 9c entry, deviation 3, for the three costings.
     ///
@@ -107,11 +125,17 @@ impl fmt::Display for RevertError {
                 f,
                 "revert: surface {surface:?} is not a plane — its reversed \
                  orientation is unrepresentable, and not merely unimplemented: a \
-                 face's outward normal IS its surface's chart normal, and every \
-                 axisymmetric variant's chart normal is always outward (the frame \
-                 is right-handed, so the chart normal is r·radial(u); flipping the \
-                 axis or the radius reparameterizes the surface without moving the \
-                 normal). M5 PR 9c executed this and returned it as a ratified-\
+                 face's outward normal IS its surface's chart normal. For the \
+                 cylinder, cone and torus that normal is ODD in the radius \
+                 (r·radial(u) and its analogues), so it is outward for either \
+                 sign and neither an axis flip nor a negative radius moves it. \
+                 For the sphere the normal is EVEN in the radius (r²·cos v·n̂), \
+                 so it is outward exactly under the ratified radius > 0 \
+                 convention — a negative-radius sphere is a de facto reversed \
+                 sphere and is REJECTED as a representation: it breaks that \
+                 convention and inverts every consumer that meters a sphere \
+                 residual by 2r, this build's own point_in_solid sphere arm \
+                 included. M5 PR 9c executed this and returned it as a ratified-\
                  representation question (a face sense flag, a reversed-surface \
                  wrapper, or NURBS conversion). Curved subtract/intersect refuse \
                  typed at the boolean front door meanwhile"

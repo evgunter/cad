@@ -1756,13 +1756,30 @@ names the recourse.
    for an orientation-reversed curved surface.** This is the deepest of
    the five and it is not a sizing miss — it is a contract gap. A face's
    outward normal IS its surface's chart normal (`topo::Face` carries no
-   sense flag), and for every axisymmetric variant the chart normal is
-   provably always OUTWARD: with `v_ref = axis × u_ref` the frame is
-   right-handed, so `∂u × ∂v = r·radial(u)`. Negating `axis` flips
-   `v_ref` too and merely reparameterizes `u ↦ −u` (normal unchanged);
-   a negative `radius` moves the point to `radial(u+π)` and the normal
-   with it (normal unchanged). So `revert` on a cylinder/sphere/cone/
-   torus has nothing to write. Three candidate designs, all
+   sense flag), and the per-kind statement is (SCOPED at the fix pass by
+   the review's F1 — the first draft's blanket "always outward" was
+   FALSE for the sphere):
+
+   - **Cylinder, cone, torus**: the chart normal is ODD in the radius
+     (`∂u × ∂v = r·radial(u)` for the cylinder, analogously for the
+     other two), so it is OUTWARD for either sign — a negative radius
+     moves the point to `radial(u+π)` and the normal with it. Negating
+     `axis` flips `v_ref = axis × u_ref` too and merely reparameterizes
+     `u ↦ −u`. Nothing to write.
+   - **Sphere**: `∂u × ∂v = r²·cos v·n̂` is EVEN in the radius. The
+     reviewer's executed probe: `Sphere { radius: -1.0, .. }` evaluates
+     with an INWARD chart normal, while a cylinder at `r = −1` stays
+     outward. So a negative-radius sphere IS a de facto reversed sphere.
+     It is REJECTED as a representation rather than adopted: it violates
+     the variant's ratified `radius > 0` convention, and every consumer
+     that meters a sphere residual by `2r` reads the sign backwards —
+     including this very unit's `point_in_solid` sphere arm, whose
+     boundary residual `(|q−c|² − r²)/2r` and `bool_ray_sphere_disc`
+     metering both divide by `2r` (a definite miss would read as a hit).
+
+   The conclusion is unchanged: under the current contracts `revert` has
+   nothing it may write on a cylinder, cone, sphere or torus. Three
+   candidate designs, all
    ratification-scope: (a) a `sense` field on `topo::Face` — 82 `Face {`
    literals plus every consumer that asks "which way is out" (mesh,
    step-export where STEP's `advanced_face.same_sense` is the natural
@@ -1772,9 +1789,13 @@ names the recourse.
    enum change; (c) convert reverted curved surfaces to NURBS with
    reversed parameterization — loses analytic identity, forces a pcurve
    re-mint onto a different chart, and would hand PR 12's die pips a
-   NURBS dimple face. The `CurvedOpUnsupported` front door therefore
-   STAYS, and PR 12's curved subtract stays gated. Recommendation: (a),
-   discussed with Evan before any code.
+   NURBS dimple face. A fourth option surfaced and was REJECTED by the
+   review: (d) adopt the negative-radius sphere as the reversed form —
+   it is the only reversal the enum can already express, and it is still
+   wrong, for the convention and `2r`-metering reasons above. The
+   `CurvedOpUnsupported` front door therefore STAYS, and PR 12's curved
+   subtract stays gated. Recommendation: (a), discussed with Evan before
+   any code.
 
 4. **Item 4 (cyl×cyl equal-radius germs) not landed** — same blocker
    as deviation 1: the join dispatch's `(a_s, b_s)` fallthrough refuses
@@ -1851,3 +1872,45 @@ doors it used to stop at. The die-pips shape (a sphere bitten out of a
 slab) is exercised as a SMOKE row in `m5_pr9c_sphere_doors.rs` and
 pinned at its typed front-door refusal — the honest form of "ahead of
 PR 12" when the op itself is gated.
+
+
+### PR 9c fix pass (2026-08-01)
+
+Review verdict: APPROVE-WITH-FIX-PASS. The sphere group-arm design was
+verified sound (the clopen-coverage argument holds for any face count),
+the double-fold claim was EXECUTED-CONFIRMED (a scratch de-guarded
+variant dies `RayExhausted`), the `disc / 2r` metering was D4-endorsed,
+and the boundary pre-pass was checked correct at both the seam and the
+poles. All five blocker proofs confirmed. Zero landed-code MAJORs
+outside the proof TEXT.
+
+**F1 (MAJOR, proof text).** The outward-normal proof's negative-radius
+leg is false for the sphere — `∂u × ∂v = r²·cos v·n̂` is EVEN in `r`.
+Every pinned copy (revert.rs docs + `Display`, `boolean/mod.rs`
+`CurvedOpUnsupported` docs + `Display`, deviation 3 above) is now scoped
+per kind, and option (d) — adopting the negative-radius sphere as the
+reversed form — is recorded as REJECTED with its two reasons. The
+acceptance row was flipped from asserting `"always outward"` to
+asserting the corrected per-kind text AND the ABSENCE of the overclaim,
+so the first draft's statement cannot come back.
+
+**F2 (MINOR).** `boolean/reduce.rs`'s NURBS-wall pre-refusal still said
+the crossing layer was "banked as M5 PR 9c". Rewritten to the executed
+finding: PR 9c was that unit and did NOT land it, because the residual
+sides a crossing layer needs (`implicit_residual`, `classify_dihedral`)
+are poison on a NURBS surface and the only non-poison substitute is a
+foot-point projection that exists at `f64` only.
+
+**F3 (MINOR).** The sphere arm's comment claimed it metered `disc` by
+`2r` "exactly as the cylinder arm meters its own"; the cylinder arm
+divides by `(2r)²`, which is dimensionless. The comment now states that
+the sphere's length-dimensioned form is the D4-honest one and FLAGS the
+cylinder arm for normalization by a unit that can re-pin its margins —
+deliberately not changed here, since the PR 9 acceptance rows pin them.
+
+**F4 (NOTEs, both taken).** A tangent-schedule-ray row (zero
+discriminant ⇒ graze ⇒ the retry schedule answers, never a parity
+guess) and a two-ball MULTI-SHELL row. The latter builds its body with
+the live curved UNION of two disjoint balls, so it pins the group
+rule across SURFACES *and* pins the new arm driving the boolean's own
+no-intersection containment fallback — not just a direct query.
