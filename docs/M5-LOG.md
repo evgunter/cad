@@ -2090,3 +2090,17 @@ membership. mef hazard VERIFIED but unrecorded (MIN-1 — the
 fix pass banks it durably). Revolve nappe-independence algebra
 independently confirmed ("rare and valuable" doc match). Fix
 pass DISPATCHED; PR opens with merge priority.
+
+**#156 MERGED (2026-08-02): 18/18 — S11 on main; BOTH live
+containment defects DEAD (pellet-swallow + washer bores).
+Twenty-five PRs.** A/B row 34 = S11 (fable, M: APPROVE 0/2/3,
+5/5/4, six adversarial constructions survived unmodified, light
+fix pass). Lanes cleaned. **S12 (revert wiring) DISPATCHED
+(OPUS — block-16 draw byte 66 = (opus, fable); difficulty M
+logged pre-draw; A/B row 35; fable remainder owed).** Scope:
+revert curved arm (sense flip + involution), the S11 mef
+inheritance hazard FIXED here, CurvedOpUnsupported retires
+PER-CLASS (C12.1 — reachable classes live, blocked classes keep
+typed refusals naming PR 9c's confirmed blockers). Unblocks
+PR 12 for whatever classes go live. Lanes: S12 (opus) + PR 11
+(fable, finishing).
