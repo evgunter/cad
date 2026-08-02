@@ -2274,3 +2274,19 @@ DISPATCHED** (ISO semantics vs references/ scans; the
 double-composition hand-edit attack; byte-determinism ×2
 builds; adversarial FreeCAD imports). S13 resumed in the other
 lane.
+
+**PR 13 review returned (2026-08-02): APPROVE — 0 MAJ / 2 MIN /
+3 NOTE, rubric 5/4.5/5.** Headline (durably recorded):
+**FreeCAD gives ZERO orientation signal** — even a double-
+composed face heals to the exact expected volume; the new
+edge-use-coherence oracle is the ONLY guard for that bug class,
+proven working by three independent hand-corrupted files (the
+reviewer's own Python checker concurring). The rational
+complex-instance arm reader-validated end-to-end (spliced
+wireframe, 2.3e-13 reconstruction). ISO semantics confirmed
+(behaviorally where references/ lacks the scans — noted); byte-
+determinism ×2 builds zero drift; planar goldens untouched;
+both deviations SOUND; walk_order trap verified executed. Fix
+pass DISPATCHED (2 MINs + header phrasing + 3 probe adoptions);
+PR opens at completion. S13 still implementing in the other
+lane.
