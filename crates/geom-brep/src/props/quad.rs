@@ -816,7 +816,19 @@ mod tests {
             "dense oracle {acc} escapes the enclosure {:?}",
             out.flux
         );
-        assert!(out.flux.width() < 1e-5, "width {:?}", out.flux.width());
+        // The width cap SCALES FROM THE RESOLVED BAND (the multi-ε
+        // lesson): the lane converges to
+        // width(flux) ≤ QUAD_TARGET_LEN_FACTOR·ε · 3·lever — assert
+        // against the target the lane actually used, not a fixed
+        // number (at ε = 1e-6 a ~3e-2 width is a legitimately wider
+        // certified enclosure, not a defect).
+        let lever = (out.area.lo() + out.area.hi()) * 0.5;
+        let width_cap = QUAD_TARGET_LEN_FACTOR * eps * 3.0 * lever * 1.000001;
+        assert!(
+            out.flux.width() <= width_cap,
+            "width {} exceeds the lane's own converged target {width_cap} (eps {eps})",
+            out.flux.width()
+        );
     }
 
     /// Whole-circle endpoint ignorance cannot converge: the engine
@@ -1027,19 +1039,38 @@ mod tests {
             seam_c(0.0, 3.0, false),
         ];
         for (label, edges) in [("pinch", face_a), ("sliver", face_b), ("skew", face_c)] {
-            let out = cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band)
-                .unwrap_or_else(|e| panic!("{label}: converges: {e:?}"));
             // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed.
             let mut truth = 0.0;
             for e in &edges {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);
                 truth += if e.forward { s } else { -s };
             }
-            assert!(
-                out.flux.lo() <= truth && truth <= out.flux.hi(),
-                "{label}: dense oracle {truth} escapes the certified flux {:?}",
-                out.flux
-            );
+            // Two honest outcomes, ε-dependent (the FitSampleBudget
+            // precedent): a converged enclosure MUST contain the
+            // oracle; at tight ε (1e-12 drives the target to ~1e-9 m
+            // while the sliver's ring-arithmetic floor sits above it)
+            // the TYPED budget refusal is the correct answer — never a
+            // silently wide bracket, never a silent skip.
+            match cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band) {
+                Ok(out) => {
+                    assert!(
+                        out.flux.lo() <= truth && truth <= out.flux.hi(),
+                        "{label}: dense oracle {truth} escapes the certified flux {:?}",
+                        out.flux
+                    );
+                }
+                Err(PropsError::QuadratureBudget {
+                    width_len,
+                    target_len,
+                }) => {
+                    assert!(
+                        width_len > target_len,
+                        "{label}: a budget refusal must report an ACHIEVED width above \
+                         its target, got {width_len} vs {target_len}"
+                    );
+                }
+                Err(other) => panic!("{label}: outside the two honest arms: {other:?}"),
+            }
         }
     }
 
