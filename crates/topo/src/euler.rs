@@ -1577,7 +1577,8 @@ impl<T: Decide> Body<T> {
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
-        let (inherit_surface, shell_key) = (face_data.surface, face_data.shell);
+        let (inherit_surface, inherit_sense, shell_key) =
+            (face_data.surface, face_data.sense, face_data.shell);
         if !self.shells.contains_key(shell_key) {
             return Err(EulerOpError::StaleKey {
                 key: EntityId::Shell(shell_key),
@@ -1596,9 +1597,22 @@ impl<T: Decide> Body<T> {
         // curve, edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
         let surface = self.mint_face_surface(surface, inherit_surface);
+        // Parent-sense inheritance (M5 S12 — the S11 banked hazard):
+        // a fragment carved off the old face on the SAME surface is the
+        // same surface region with the same material side, so it takes
+        // the parent's bit; a genuinely NEW (or foreign `Shared`)
+        // surface is not this face's region at all and the mint's
+        // `true` stands, exactly as before. Key equality, never a
+        // numeric compare.
+        let sense = if surface == inherit_surface {
+            inherit_sense
+        } else {
+            true
+        };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
-        let (new_loop, new_face) = self.mint_loop_and_face(surface, shell_key, &provenance);
+        let (new_loop, new_face) =
+            self.mint_loop_and_face(surface, sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
             edge,
             // he_plus: start(he1) → start(he2), in the OLD loop.
@@ -1670,7 +1684,8 @@ impl<T: Decide> Body<T> {
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
-        let (inherit_surface, shell_key) = (face_data.surface, face_data.shell);
+        let (inherit_surface, inherit_sense, shell_key) =
+            (face_data.surface, face_data.sense, face_data.shell);
         if !self.shells.contains_key(shell_key) {
             return Err(EulerOpError::StaleKey {
                 key: EntityId::Shell(shell_key),
@@ -1686,9 +1701,22 @@ impl<T: Decide> Body<T> {
         // edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
         let surface = self.mint_face_surface(surface, inherit_surface);
+        // Parent-sense inheritance (M5 S12 — the S11 banked hazard):
+        // a fragment carved off the old face on the SAME surface is the
+        // same surface region with the same material side, so it takes
+        // the parent's bit; a genuinely NEW (or foreign `Shared`)
+        // surface is not this face's region at all and the mint's
+        // `true` stands, exactly as before. Key equality, never a
+        // numeric compare.
+        let sense = if surface == inherit_surface {
+            inherit_sense
+        } else {
+            true
+        };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
-        let (new_loop, new_face) = self.mint_loop_and_face(surface, shell_key, &provenance);
+        let (new_loop, new_face) =
+            self.mint_loop_and_face(surface, sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
@@ -1853,9 +1881,27 @@ impl<T: Decide> Body<T> {
     /// documented minting order) and joins the new face to the old
     /// face's shell. The loop's boundary anchor is provisional; the
     /// caller re-anchors it after the splice.
+    ///
+    /// **`sense` is the caller's inheritance decision** (M5 S12, closing
+    /// the S11 banked hazard). `mef` still has no *material-side*
+    /// knowledge of its own — it sees two chords, not a profile — but it
+    /// knows one thing exactly and structurally: whether the new face
+    /// lands on the OLD FACE'S surface. When it does, the new face is a
+    /// fragment of the old face's region — the same surface with the
+    /// same material side — and takes the parent's
+    /// [`crate::entity::Face::sense`]; when the caller supplies a `New`
+    /// or foreign `Shared` surface the new face is a different region
+    /// and the mint's `true` stands (the caller then attaches the honest
+    /// bit through [`crate::Body::set_face_sense`], as the sweep
+    /// constructors do). Before S12 every re-mint stamped `true`
+    /// unconditionally, so a boolean split of a `sense: false` wall
+    /// silently reset the bit on its fragments — unreachable while
+    /// curved subtract/intersect refused at the front door, and fixed
+    /// HERE, in the same unit that opens them.
     fn mint_loop_and_face(
         &mut self,
         surface: SurfaceKey,
+        sense: bool,
         shell: ShellKey,
         provenance: &Provenance,
     ) -> (LoopKey, FaceKey) {
@@ -1873,7 +1919,7 @@ impl<T: Decide> Body<T> {
         );
         let new_face = self.add_face(
             Face {
-                sense: true,
+                sense, // inherited iff the surface is (fn docs, S12)
                 surface, // shared with the old face (M1 geometry policy)
                 outer: new_loop,
                 rings: vec![],

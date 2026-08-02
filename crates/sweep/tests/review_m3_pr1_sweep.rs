@@ -232,27 +232,62 @@ fn revert_extruded_prism_posture() {
     );
 }
 
-/// TARGET 4: curved input refuses with the typed UnsupportedSurface -
-/// the D-body's arc wall is a cylinder, unrepresentable reversed in
-/// the closed analytic enum until M5. The refusal must be on the FIRST
-/// non-plane surface in arena order and leave the operand untouched
-/// (trivially: revert takes &self).
+/// TARGET 4, FLIPPED TO A CONSTRUCTION ROW (M5 S12; was
+/// `revert_curved_body_refuses_typed`). The D-body's arc wall is a
+/// cylinder, which had no reversed form in the closed analytic enum —
+/// S10 ratified `Face::sense`, S11 made the incoming bits honest and
+/// S12 wired the flip, so this body now REVERTS. What TARGET 4 really
+/// pinned was the operand-untouched and typed-frontier discipline;
+/// what survives it is the full M3 contract on a CURVED body: the
+/// operand is untouched, the result is tier-2 currency but exactly
+/// `NegativeVolume` at tier 3, the volume is the bitwise negation, and
+/// `revert` is a bitwise involution and a deterministic function.
 #[test]
-fn revert_curved_body_refuses_typed() {
+fn revert_curved_body_reverts_via_the_sense_bit() {
     let out = extrude(&d_profile(), Extrusion::Distance(1.0)).unwrap();
     let body: Body<f64> = out.body;
     assert_eq!(validate_geometric(&body), Ok(()));
     let before = format!("{body:?}");
-    let err = body.revert().unwrap_err();
-    let topo::RevertError::UnsupportedSurface { surface } = err else {
-        panic!("expected UnsupportedSurface, got {err:?}");
-    };
-    // The named surface really is non-planar.
-    assert!(!matches!(
-        body.get_surface(surface).unwrap(),
-        topo::Surface::Plane { .. }
-    ));
-    assert_eq!(format!("{body:?}"), before);
+    let vol = topo::mass_properties(&body).unwrap().volume;
+    assert!(vol > 0.0);
+    // There really is a non-plane surface here (the arc wall).
+    let curved: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| {
+            !matches!(
+                body.get_surface(f.surface).unwrap(),
+                topo::Surface::Plane { .. }
+            )
+        })
+        .map(|(k, f)| (k, f.sense))
+        .collect();
+    assert!(!curved.is_empty(), "the D-body has a cylinder wall");
+
+    let reverted = body.revert().expect("S12: curved revert is wired");
+    assert_eq!(format!("{body:?}"), before, "revert mutated its operand");
+    // Exactly the curved faces flipped, and they flipped from their
+    // OWN bit (not stamped to a constant).
+    for (k, was) in &curved {
+        assert_eq!(
+            reverted.get_face(*k).unwrap().sense,
+            !*was,
+            "curved face {k:?} did not flip"
+        );
+    }
+    // The M3 contract, unchanged, on a curved body.
+    assert_eq!(validate_closed(&reverted), Ok(()));
+    assert_eq!(
+        validate_geometric(&reverted),
+        Err(vec![ValidationError::NegativeVolume]),
+        "tier 3 on a reverted curved body must be exactly NegativeVolume"
+    );
+    let rvol = topo::mass_properties(&reverted).unwrap().volume;
+    assert_eq!(rvol.to_bits(), (-vol).to_bits());
+    assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
+    assert_eq!(
+        format!("{:?}", body.revert().unwrap()),
+        format!("{reverted:?}")
+    );
 }
 
 /// TARGETS 2+3 on swept bodies: a split then a null strut on the

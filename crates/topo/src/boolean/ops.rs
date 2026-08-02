@@ -356,29 +356,26 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     strategy: SweepStrategy,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear()?;
-    // The curved subtract/intersect FRONT DOOR (M5 PR 9 fix pass,
-    // MAJ-3): both ops route regions through `revert`
-    // (A∖B ≡ A∩revert(B), the §15.9 posture), and the revert lane is
-    // planar-only in this build — curved revert (curved-surface
-    // orientation flips plus the pcurve re-mint behind them) has no
-    // representation to write at all — M5 PR 9c executed it and
-    // returned a ratified-representation question (M5-LOG deviation
-    // 3), so PR 12's die pips (subtraction) stay gated on it.
-    // Refused HERE, up front and typed, rather than deep inside the
-    // pipeline behind a stale planar-era message. Union is the live
-    // curved op.
-    if !matches!(op, BooleanOp::Union) {
-        for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-            for (face, fd) in body.faces() {
-                if !matches!(
-                    body.get_surface(fd.surface),
-                    Some(geom_surfaces::Surface::Plane { .. })
-                ) {
-                    return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
-                }
-            }
-        }
-    }
+    // The curved subtract/intersect front door is RETIRED (M5 S12).
+    //
+    // It was a WHOLESALE gate: any non-plane face on either operand
+    // refused ∖ and ∩ before a single reduction step, because both ops
+    // route regions through `revert` (A∖B ≡ A∩revert(B), the §15.9
+    // posture) and `revert` was planar-only. S10 ratified
+    // `Face::sense`, S11 made the incoming bits honest, and S12 wired
+    // `revert` to flip them — so the premise the door stood on is
+    // gone, and keeping it would refuse classes that now work
+    // end-to-end (C12.1: retire per class, never keep a gate whose
+    // stated reason has expired).
+    //
+    // Nothing is thereby waved through. ∖ and ∩ share the whole
+    // pipeline with ∪, so a curved operand meets exactly the doors ∪
+    // meets — the join dispatch's typed fallthrough for germ pairs
+    // with no lane (fitted-chord cyl×sphere, cyl×cyl windows), the
+    // curved pierce frontier, the pcurve mint pass, the tier-3 gate —
+    // each of which names its own blocker. The per-class map, with the
+    // classes that stay refused and why, is on
+    // [`BooleanError::CurvedOpUnsupported`].
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
 
     if red.null_pairs.is_empty() {
