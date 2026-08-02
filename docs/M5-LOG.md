@@ -1960,3 +1960,13 @@ difficulty L logged here pre-dispatch):** curved tessellation
 watertightness) + the kernel's first certified quadrature;
 tiltedcut renders + boss-plate showcase stop; NURBS-at-rest
 stays honestly frontier (assembly unit flips it later).
+
+**FACE-SENSE RULED (Evan, in-session, 2026-08-02): option (a) —
+`sense: bool` on topo::Face.** Approved in chat ("(a) makes
+sense"). Unblocks: sense unit (mechanical sweep + which-way-is-
+out consumer audit) -> curved revert -> PR 12. CHANNEL
+CORRECTION recorded: consultations posted to merged-PR #148
+threads do NOT reliably reach Evan (he saw it only via the
+in-session mention); future forks go out as a NEW issue or
+design-conversation PR per the standing memory — the #148 habit
+formed because Evan happened to be active there earlier.
