@@ -2143,3 +2143,19 @@ DISPATCHED** (fallback class-boundary coverage = the lead
 charter item; two-encodings exclusivity attack; inheritance
 gate probe; volume verification). Lanes: PR 11 review (resumed)
 + S12 review.
+
+**PR 11 review returned (2026-08-02): APPROVE — 0 MAJ / 2 MIN /
+5 NOTE, rubric 4/4/5.** Falsification sweep: ZERO bound-below-
+truth (max looseness 7.3e3 on the seam-hugger, absolute widths
+sub-display); remainder form re-derived sound; lane split
+verified at COMPILE-TIME strength (Bounds unimplemented for
+Dual ⇒ quadrature cannot instantiate); sagitta bound 0.990-
+0.999 of budget on the adversarial spike ("impressive");
+renders eyeballed and match narration; T6 non-dominance
+re-confirmed. Star finding (MIN-2): the endpoint pad is sound
+BY UNDOCUMENTED ACCIDENT — the factor-2 absorbs a trig0 phase-
+shift term the docs never mention; a future width/2 cleanup
+would be genuinely unsound. Fix pass DISPATCHED (document the
+two-term accounting + adopt the corner-scan pin; the T-junction
+boundary-intermediate typed arm; caption/T6-numbers/shrug
+NOTEs; probe adoptions). S12 review in the other lane.
