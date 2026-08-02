@@ -2006,3 +2006,19 @@ ball props total-cancellation; tessellation branch flip). One
 process note: a worker git-stash mishap, recovered whole from
 the dangling stash. Critical path grows one unit: S10 → concave
 sense fix → revert wiring → PR 12.
+
+**certification_bracket RESTRUCTURED (Evan pushback,
+2026-08-02): the static split replaces the runtime Option.**
+Evan: it is not semantically valid type-wise for duals to enter
+a pipeline that can only refuse them — adopted. Ruling to the
+PR 11 implementer: analytic/flux lanes stay T: Decide; the
+quadrature-certified lane bounds T: Bounds (NEW ratified
+compound-bound seam, added to the discipline allowlist citing
+this ruling); validate check 7 lane-gated STATICALLY (the
+Dual64 instantiation contains no quadrature arm — the dual
+lane's job is derivative transport, certification is the
+f64/Interval lanes' job, and the split is documented design);
+Decide::certification_bracket retires unless a structural
+blocker surfaces (then STOP → fresh issue to Evan). This also
+dissolves the Bounds-scope-rule tension: no Decide-wide bracket
+access exists.
