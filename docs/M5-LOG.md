@@ -2123,3 +2123,23 @@ bound-below-truth = auto MAJOR; lane-split verification incl.
 zero-quadrature-in-Dual; watertightness attack; sagitta
 re-derivation; render eyeball; T6 re-run). Lanes: PR 11 review
 + S12 (opus, revert wiring).
+
+**S12 implementation COMPLETE (2026-08-02, 80c5843) — curved
+subtract/intersect are LIVE on the Plane/Cylinder class** (six
+audited volumes incl. additivity; involution bitwise both
+lanes; mef parent-sense inheritance proven load-bearing).
+Sphere/cone/torus/NURBS keep typed doors naming PR 9c's real
+blockers — die pips still gated. **Deviation 1 (MAJOR,
+executed): the vertex-probed containment fallback is UNSOUND
+for curved boundaries — union(slab, poking ball) = 16.0 vs
+17.309 ON MERGE BASE, silent** — third main-is-wrong find this
+session (du_of_rims, pellet/bores, now this); S12 refuses the
+class for the ops it OPENS, leaves ∪ pinned at the wrong value
+as a finding row, banks memories/curved-containment-fallback.md.
+PR 12 now waits on the join lane AND the fallback fix. Outage
+#12 (Fable limit) killed the PR 11 reviewer mid-setup; resumed
+post-reset (S12's opus lane was unaffected). **S12 review
+DISPATCHED** (fallback class-boundary coverage = the lead
+charter item; two-encodings exclusivity attack; inheritance
+gate probe; volume verification). Lanes: PR 11 review (resumed)
++ S12 review.
