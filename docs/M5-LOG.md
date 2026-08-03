@@ -2457,3 +2457,11 @@ review dispatched in the second lane (deferred earlier; fold-
 clean check included). A/B rows 36-39 to the table at next
 touch (S13 fable M; PR 13 opus M in row 37 = done; montage
 fable S; S4 fable S).
+
+**#165 MERGED (2026-08-03): 18/18 — both montages on main.
+Thirty-two PRs.** A/B row 38 = dual-montage (fable, S: APPROVE
+0/1-nit, folds clean; the STL-forcing catch preserved the
+differential's meaning). Lanes cleaned. Board: PR 12 (die,
+opus) sole lane; then PR 14. Evan's montage pair is live:
+demos/renders/montage.png vs demos/renders-freecad/
+montage-freecad.png.
