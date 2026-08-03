@@ -2365,3 +2365,30 @@ caveat to dev 3, doc item); germ exactness held at 10k samples;
 pole algebra re-derived. Fix pass DISPATCHED (F1 refusal + probe-
 9 pin; three uncovered scan arms; doc scoping; probe adoptions).
 PR opens at completion — then PR 12 dispatches.
+
+**S13 fix pass COMPLETE, PR OPENED as #160 (2026-08-02,
+f18f04a, watcher armed).** F1 as ruled (all escape normals
+collected; bool_sphere_escape_parallel trilean, antiparallel =
+same direction so the flipped rows stay green; probe-9 refusal
+pinned both strategies); F2 two direct scan-arm rows + the
+shadowing documented; F3 scoped exactly; F4 taken and BETTER
+(split_conic_plane_parallel structural gate — the coplanar
+class routes to the M3 endpoint rule instead of the 0/0 graze
+phase; the smoke shape now refuses typed at its REAL geometry);
+F5 all nine probes adopted 9/9. No trailers (verified). On
+merge: PR 12 dispatches (block-18) + dual-montage PR sequences.
+
+**TESSELLATION RULING (Evan + orchestrator concur, in-session
+2026-08-02/03, for the PR 14 envelope sweep): NO angular-
+deflection criterion in the certified tessellator.** Grounds:
+every contracted consumer is manufacturing-shaped (STL chordal
+semantics, admesh, props now quadrature-based); a certified
+angular bound would cost new normal-variation enclosure
+machinery purchased only for visual smoothness δ already buys;
+the OCC-norm expectation belongs to display+manufacture
+combined engines. The angular/screen-space criterion is the
+future DISPLAY-MESH lane's (GUI milestone), honestly
+uncertified there. δ-vs-angle arithmetic recorded: θ≈√(8δ/R) —
+distance-only under-refines small radii in angle; sizing δ to
+r_min over-refines by ~R/r_min in facet count; acceptable for
+current consumers.
