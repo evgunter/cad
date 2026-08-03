@@ -2442,3 +2442,18 @@ tangency works today at strict radius inequality (fixture row
 rides M5-adjacent); conformal limit = the declared class.
 Thirty PRs. Post-#164: PR 12 (die) → PR 14 (exit + #89) →
 lift → assembly → M7 planning.
+
+**#164 MERGED (2026-08-03): 18/18 — S13 on main, DIE PIPS
+UNBLOCKED. Thirty-one PRs.** The CI silence root cause was
+EVAN'S CATCH: the branch was CONFLICTING (append conflicts in
+M5-LOG/MEMORY tails from #159+#162 merging mid-review) — a
+conflicted PR gets no test-merge ref so pull_request workflows
+never fire, with NO visible red. Process fixes: watchers now
+carry a CONFLICTING guard; mergeable gets re-polled, never left
+UNKNOWN. Lane cleaned; superseded branch deleted. **PR 12
+DISPATCHED (OPUS — block-18 remainder; difficulty L logged
+pre-assignment; A/B row 40): the die.** Dual-montage light
+review dispatched in the second lane (deferred earlier; fold-
+clean check included). A/B rows 36-39 to the table at next
+touch (S13 fable M; PR 13 opus M in row 37 = done; montage
+fable S; S4 fable S).
