@@ -3015,9 +3015,20 @@ by removal, not redrawn). That block also supersedes the badly stale
 "M5 has not started — nothing here is implemented yet" paragraph.
 
 **The exit walk** — docs/M5-EXIT-WALK.md, twenty criteria quoted
-verbatim from M5-PLAN :372-405 and dispositioned. Tally and carried
-list live there; two rows carry to Evan (shape (v), and the
-conventions row, which cannot read "ratified" until he signs).
+verbatim from M5-PLAN :372-405 and dispositioned: **12 MET, 7
+MET-WITH-RECORDED-HONESTY, 1 CARRIED**. Seven honesty rows is a high
+proportion and is the reason the category exists — each is a
+criterion whose SUBSTANCE M5 delivered and whose WORDING claims more
+than the shipped kernel supports. Four of the seven (rows 2, 4, 12,
+15) were found only by re-deriving the evidence at exit instead of
+trusting the merge records, and would have read MET on a lighter
+walk. The sharpest is row 4: "every curved edge at rest carries
+per-half-edge pcurves" is false as written — only Plane and Cylinder
+charts certify, so the filleted die's own eight sphere octants carry
+no stored pcurves at rest, and no unit currently owns closing that.
+Three rows depend on Evan: 8 and 19 are the sign-off items, and 20
+("new conventions **ratified** into DESIGN.md at exit") cannot
+honestly read MET until he signs, because ratification is his.
 
 **A finding this unit is obliged to state: the state docs diverged.**
 `docs/M5-LOG.md` and `docs/MODEL-AB-LOG.md` differ between main and
