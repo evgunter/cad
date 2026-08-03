@@ -4245,3 +4245,15 @@ The gate fix at 5c8540f moved it into the registry and the comment
 did not follow, so the file now asserts the opposite of the shipped
 truth. It is a comment in a test file — trivially safe — but it is a
 code change, so it is reported here rather than made.
+
+**#169 MERGED (2026-08-03): M5 IS COMPLETE. Thirty-five PRs
+(#167 CI shards merged by Evan en route). Exit walk final:
+13 MET / 7 MET-WITH-RECORDED-HONESTY / 0 CARRIED-unowned; all
+four exit rulings recorded with citations (#89 CLOSED at K=10
+permanent; shape (v) piecewise ACCEPTED, surgery first in M6;
+conventions RATIFIED; the M6/M7/M8 RENUMBERING landed across
+~44 live-doc sites). #89 closed with the ratified wording.
+Milestone tally: 35 PRs, 4 main-is-wrong defects found+fixed,
+2 CI tripwires added, the K corpus 145→208 predicate names.
+NEXT: M6 opens — plan seed + the composition-surgery spec,
+then dispatch (block-20).**
