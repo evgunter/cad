@@ -282,11 +282,7 @@ fn circle_span_bounds<T: Real>(
         let up = perp(u, a);
         let vp = perp(v, a);
         let a1 = two * rc * amp(e.dot(up), e.dot(vp));
-        let a2 = rc.powi(2)
-            * amp(
-                (up.norm_squared() - vp.norm_squared()) / two,
-                up.dot(vp),
-            );
+        let a2 = rc.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
         (a1, a2)
     };
     // The Killing-field deviation for rotation about `a` through `o`,

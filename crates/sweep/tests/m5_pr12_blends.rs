@@ -19,8 +19,8 @@ use geom_brep::{implicit_residual, tangent_jet};
 use geom_core::{Point3, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
-use sweep::fillet::blend::{corner_ball, plane_plane_blend, plane_sphere_blend};
 use sweep::fillet::Convexity;
+use sweep::fillet::blend::{corner_ball, plane_plane_blend, plane_sphere_blend};
 
 fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -63,7 +63,10 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
     let Curve3::Line { origin: oa, .. } = b.trim_a.0 else {
         panic!("a straight trimline");
     };
-    assert!((oa.x).abs() < 1e-15 && (oa.y - r).abs() < 1e-15, "on x = 0 at y = r");
+    assert!(
+        (oa.x).abs() < 1e-15 && (oa.y - r).abs() < 1e-15,
+        "on x = 0 at y = r"
+    );
 }
 
 /// The setback closed form `r·tan(φ/2)` (φ = the outward-normal
@@ -211,7 +214,10 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         panic!("a circular trimline on the plane");
     };
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
-    assert!((b.trim_a.1 - (s - a)).abs() < 1e-12, "the plane-side setback is s − a");
+    assert!(
+        (b.trim_a.1 - (s - a)).abs() < 1e-12,
+        "the plane-side setback is s − a"
+    );
     let Curve3::Circle {
         center: cb,
         radius: rb,

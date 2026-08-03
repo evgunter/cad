@@ -242,9 +242,7 @@ pub fn radius_headroom<T: Decide + Bounds>(
     // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;
-    match decide("fillet3_radius_headroom", margin, band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
-    {
+    match decide("fillet3_radius_headroom", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::RadiusHeadroom {
             face,
@@ -285,9 +283,7 @@ pub fn spine_regularity<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let margin = radius - radius.powi(2) * spine_curvature;
-    match decide("fillet3_spine_regularity", margin, band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
-    {
+    match decide("fillet3_spine_regularity", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::SpineIrregular {
             margin: margin.lo(),
@@ -498,9 +494,7 @@ pub fn face_consumption<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let margin = gap - setback_here - setback_there;
-    match decide("fillet3_face_consumption", margin, band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
-    {
+    match decide("fillet3_face_consumption", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::FaceConsumed {
             face,
@@ -631,11 +625,12 @@ fn classify_arm<T: Bounds>(
 /// with no geometric decision taken anywhere in the walk.
 fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     let mut inc: Vec<(VertexKey, Vec<usize>)> = Vec::new();
-    let bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| {
-        match inc.iter_mut().find(|(k, _)| *k == v) {
-            Some((_, xs)) => xs.push(i),
-            None => inc.push((v, vec![i])),
-        }
+    let bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| match inc
+        .iter_mut()
+        .find(|(k, _)| *k == v)
+    {
+        Some((_, xs)) => xs.push(i),
+        None => inc.push((v, vec![i])),
     };
     for (i, l) in links.iter().enumerate() {
         bump(l.start, i, &mut inc);
@@ -666,7 +661,9 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         for forward in [true, false] {
             loop {
                 let at = if forward { tail } else { head };
-                let Some(pair) = junction(at, &inc) else { break };
+                let Some(pair) = junction(at, &inc) else {
+                    break;
+                };
                 let Some(&next) = pair.iter().find(|&&j| !used[j]) else {
                     // Both links at this junction are already in the
                     // run: the chain has closed on itself.
@@ -920,7 +917,10 @@ fn corner_at<T: Decide + Bounds>(
             }
         }
     }
-    let Some(p) = body.get_vertex(vertex).and_then(|v| body.get_point(v.point)) else {
+    let Some(p) = body
+        .get_vertex(vertex)
+        .and_then(|v| body.get_point(v.point))
+    else {
         return Err(FilletError::FilletCornerUnsupported {
             vertex,
             corner: CornerConfig::Indeterminate,

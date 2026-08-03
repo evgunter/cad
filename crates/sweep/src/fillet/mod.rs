@@ -55,7 +55,7 @@
 
 pub mod battery;
 pub mod blend;
-// pub mod build;
+pub mod build;
 
 use core::fmt;
 
@@ -64,7 +64,7 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 
 pub use battery::{BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery};
 pub use blend::{BlendArm, CornerBall, EdgeBlend, RimBlend};
-// build re-exports land with the assembly unit.
+pub use build::{Filleted, fillet_edges};
 
 /// The one classification funnel of this module (the crate pattern):
 /// delegates to [`geom_core::k_stats::decide`], which names the
@@ -192,12 +192,15 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and fillet each run separately";
 /// The recourse for a corner the octant patch does not cover — it
 /// names the run-out front door that does not exist yet.
-pub const FILLET3_CORNER_RECOURSE: &str =
-    "fillet a chain that terminates in a three-convex-edge vertex; general run-outs \
+pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a three-convex-edge vertex; general run-outs \
      are not implemented";
+/// The recourse for an assembly request outside the one whole-body
+/// front door — it names the banked surgery unit.
+pub const FILLET3_ASSEMBLY_RECOURSE: &str =
+    "fillet EVERY edge of a convex, planar-faced, trivalent-vertex polyhedron; in-place \
+     edge-blend surgery on a subset of a body's edges is not implemented";
 /// The recourse for a general spine — it names the banked unit.
-pub const FILLET3_SPINE_KIND_RECOURSE: &str =
-    "use a chain whose rolling-ball spine is a line or a circle; general spines need \
+pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose rolling-ball spine is a line or a circle; general spines need \
      the canal-surface approximating blend, which is not implemented";
 
 /// A fillet refusal. Closed enum, D3 style. Every variant is either a
@@ -293,6 +296,18 @@ pub enum FilletError {
         site: FilletSite,
         /// The margin diagnosis and the predicate that produced it.
         source: Indeterminate,
+    },
+    /// The battery passed, but the request is not the ONE assembly
+    /// front door [`build::fillet_edges`] implements: filleting every
+    /// edge of a convex, planar-faced, trivalent-vertex polyhedron.
+    /// The general in-place edge-blend surgery — split the supports,
+    /// retract their boundaries, stitch the blend in — is its own
+    /// reviewed unit, banked, and this variant names it (the
+    /// `FullRevolveHoles` precedent: refusal payload only, zero
+    /// constructor surface).
+    AssemblyUnsupported {
+        /// What about the request put it outside the front door.
+        detail: &'static str,
     },
     /// The blend geometry could not be certified as stored — a
     /// carrier/surface pair outside the jet certificate's lane, or a

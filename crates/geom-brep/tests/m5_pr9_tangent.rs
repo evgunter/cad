@@ -298,12 +298,16 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
 }
 
 #[test]
-fn outside_the_span_bound_lane_refuses_typed() {
-    // A torus partner is outside the certified span-bound lane
-    // (C12.1: per-class retirement with its proof) — typed, named,
-    // no fallback.
-    // Torus tangent to the plane z = -0.5 along its bottom circle;
-    // the LANE check names the class before any geometry decides.
+fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
+    // HISTORY: at PR 9 this exact configuration — a torus tangent to
+    // a plane along its bottom equator, carried on a CIRCLE — was the
+    // out-of-lane row, because the line arm's span bounds had no
+    // torus entry and no non-line carrier. M5 PR 12 retired the class
+    // WITH ITS PROOF (C12.1's per-class retirement): `κ_rel` and the
+    // implicit residual are isometry invariants, the coaxial circle's
+    // motion is a symmetry flow of both surfaces, so both span bounds
+    // are EXACTLY zero. The row is kept, flipped, as the record that
+    // the boundary moved for a reason.
     let (k1, k2, map) = arena2(
         Surface::Torus {
             center: Point3::new(0.0, 0.0, 0.0),
@@ -318,12 +322,54 @@ fn outside_the_span_bound_lane_refuses_typed() {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     );
-    // The tangency locus IS a circle (the bottom equator) — a
-    // non-Line carrier, outside the Line span-bound lane.
     let carrier = Curve3::Circle {
         center: Point3::new(0.0, 0.0, -0.5),
         axis: Vec3::new(0.0, 0.0, 1.0),
         radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeGeometry::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.75),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.5,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.5));
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+        .expect("the coaxial circle arm certifies this class since M5 PR 12");
+    assert!(curve.certificate().max_residual < 1e-12);
+}
+
+#[test]
+fn outside_the_span_bound_lane_refuses_typed() {
+    // The lane boundary AFTER PR 12: a cone partner has no closed-form
+    // span bound in either arm, so a tangency carried on it is a
+    // routing refusal — typed, named, no fallback.
+    let (k1, k2, map) = arena2(
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: core::f64::consts::FRAC_1_SQRT_2,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+    );
+    // The inscribed sphere touches the cone along a circle; the class
+    // is geometrically real and still uncertified, which is exactly
+    // the honest state the refusal reports.
+    let carrier = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.5),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let spec = EdgeCurveSpec {

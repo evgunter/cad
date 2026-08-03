@@ -15,7 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{
-    EdgeCurveSpec, EdgeCurve, EdgeGeometry, SurfaceKey, tangent_certificate_lane, tangent_jet,
+    EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::{Band, Point3, Tolerance, Vec3};
 use geom_curves::Curve3;

@@ -360,7 +360,11 @@ fn trio_spine_regularity() {
     assert!(matches!(exact, FilletError::SpineIrregular { .. }));
     // In band: margin = 5ε.
     let escalated = spine_regularity((1.0 - in_band()) / 1.0, 1.0, b).unwrap_err();
-    assert_same_recourse(&definite, &escalated, "below the spine's own curvature radius");
+    assert_same_recourse(
+        &definite,
+        &escalated,
+        "below the spine's own curvature radius",
+    );
 }
 
 #[test]
@@ -417,7 +421,10 @@ fn trio_convexity_sign() {
     )
     .expect("a definite box edge");
     assert_eq!(convex, sweep::fillet::Convexity::Convex);
-    assert!((m - 1.0).abs() < 1e-12, "the 90° box edge margin is the arm");
+    assert!(
+        (m - 1.0).abs() < 1e-12,
+        "the 90° box edge margin is the arm"
+    );
     let (concave, _) = convexity_at(
         Vec3::new(0.0, -1.0, 0.0),
         Vec3::new(-1.0, 0.0, 0.0),
@@ -462,12 +469,25 @@ fn trio_corner_independence() {
     let b = band();
     let n = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);
     // Definitely independent: the orthonormal trihedron.
-    corner_config(v, 3, 3, [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(0.0, 0.0, 1.0)], 1.0, b)
-        .expect("|det| · r = 1 m");
+    corner_config(
+        v,
+        3,
+        3,
+        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(0.0, 0.0, 1.0)],
+        1.0,
+        b,
+    )
+    .expect("|det| · r = 1 m");
     // Exactly dependent.
-    let exact =
-        corner_config(v, 3, 3, [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(1.0, 1.0, 0.0)], 1.0, b)
-            .unwrap_err();
+    let exact = corner_config(
+        v,
+        3,
+        3,
+        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(1.0, 1.0, 0.0)],
+        1.0,
+        b,
+    )
+    .unwrap_err();
     assert!(matches!(
         exact,
         FilletError::FilletCornerUnsupported {
@@ -481,7 +501,11 @@ fn trio_corner_independence() {
         v,
         3,
         3,
-        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(0.0, 0.0, t).normalize() * t],
+        [
+            n(1.0, 0.0, 0.0),
+            n(0.0, 1.0, 0.0),
+            n(0.0, 0.0, t).normalize() * t,
+        ],
         1.0,
         b,
     );

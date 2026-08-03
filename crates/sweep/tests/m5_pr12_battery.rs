@@ -160,11 +160,17 @@ fn the_battery_passes_on_a_box_at_a_fitting_radius() {
     for chain in &verdict.chains {
         assert_eq!(chain.links.len(), 1);
         assert!(matches!(chain.closure, ChainClosure::Open { .. }));
-        assert!(chain.junctions.is_empty(), "a box vertex is never a junction");
+        assert!(
+            chain.junctions.is_empty(),
+            "a box vertex is never a junction"
+        );
         let link = &chain.links[0];
         assert_eq!(link.arm, BlendArm::PlanePlaneCylinder);
         assert_eq!(link.convexity, Convexity::Convex);
-        assert!(link.convexity.blend_sense(), "a convex blend mints sense = true");
+        assert!(
+            link.convexity.blend_sense(),
+            "a convex blend mints sense = true"
+        );
         assert_eq!(link.blend.spine_curvature, 0.0, "a straight spine");
         // The 90° box edge's setback is exactly the radius.
         assert!((link.blend.trim_a.1 - 0.2).abs() < 1e-12);
