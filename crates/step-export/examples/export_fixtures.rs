@@ -1,7 +1,8 @@
 //! Regenerates the committed STEP fixtures — the planar M4 set (cube,
-//! M3 pocketed die, corner-kiss assembly) and the M5 PR 13 curved
-//! corpus (cut_cylinder, boss_union, notched, washer, ball, cone,
-//! donut) — the files `scripts/check_step.sh` feeds to
+//! M3 pocketed die, corner-kiss assembly), the M5 PR 13 curved corpus
+//! (cut_cylinder, boss_union, notched, washer, ball, cone, donut) and
+//! the M5 PR 12 die, both halves (filleted_die, die_pips) — the files
+//! `scripts/check_step.sh` feeds to
 //! FreeCAD/OCC for the external-import acceptance, kept byte-golden by
 //! `tests/export.rs::committed_fixtures_are_byte_golden`.
 //!

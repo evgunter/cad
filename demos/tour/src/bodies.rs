@@ -244,12 +244,27 @@ fn stop(
     }
 }
 
+/// A stop kept OUT of the montage sheet (standalone render, full
+/// narration, corpus/latency roles untouched) — the curation lever, so
+/// a retirement is one wrapped call site and not a reshaped `stop`
+/// table.
+fn off_sheet(mut s: Stop) -> Stop {
+    s.montage = false;
+    s
+}
+
 /// The sweep stops, in tour order.
 pub fn stops() -> Vec<Stop> {
     let (sheave_body, sheave_note) = sheave::<f64>();
     let (chute_body, chute_note) = chute::<f64>();
     vec![
-        stop(
+        // Montage cell RETIRED by the M6 curation unit: `rocker` now
+        // covers PROFILE fillets on the sheet, and far more
+        // comprehensively (six corners, the whole line/arc taxonomy)
+        // than the bracket's single inner blend, while `diefillet`
+        // covers the rolling-ball kind. The bracket keeps its
+        // standalone render and every non-sheet role.
+        off_sheet(stop(
             "bracket",
             "L-bracket with a filleted inner corner (polyline + tangent arc profile)",
             "LoopBuilder (line_to/arc_to_via) -> Profile::validate -> extrude(Distance)",
@@ -262,7 +277,7 @@ pub fn stops() -> Vec<Stop> {
             [0.36, 0.56, 0.86],
             bracket(),
             None,
-        ),
+        )),
         stop(
             "plate",
             "plate with two circular holes — genus 2 (each hole: 2 rings, wall band)",

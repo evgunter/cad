@@ -127,16 +127,16 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
-        die_fillet::document(),
+        // `die_fillet` IS registered (above), as of the PR 12 gate fix
+        // `5c8540f`. It was held out while the fillet battery's
+        // clearance screen seeded a gap with
+        // `T::from_f64(f64::INFINITY)` — NaI at the Interval scalar,
+        // so the document was green at `f64` and refused under
+        // `--features interval`, which registry membership requires.
+        // That sentinel is gone; the document runs the Interval lane
+        // like every other row. It stays additionally pinned at both
+        // scalars by `m5_pr12_fillet_node.rs`.
         die_pips::document(),
-        // `die_fillet::document()` is NOT here, and its module docs say
-        // why: the fillet battery's clearance screen seeds a gap with
-        // `T::from_f64(f64::INFINITY)`, which is NaI at the Interval
-        // scalar, so the document is green at `f64` and refuses under
-        // `--features interval` — and registry membership means the
-        // Interval lane. It is pinned, at both scalars, by
-        // `m5_pr12_fillet_node.rs`; registering it is a one-line change
-        // the moment the sentinel goes.
     ]
 }
 
@@ -194,11 +194,11 @@ pub const NODE_KINDS: [&str; 12] = [
     "Profile",
     "Extrude",
     "Revolve",
-    // M5 PR 12's constant-radius rolling-ball fillet. In the DOMAIN,
-    // at zero coverage, for the same reason `Loft`/`Sweep` are: the
-    // document exists (`die_fillet`) and is green at `f64`, but the op
-    // refuses at the Interval scalar, which registry membership
-    // requires. See `documents()` and `m5_pr12_fillet_node.rs`.
+    // M5 PR 12's constant-radius rolling-ball fillet — COVERED, by
+    // the registered `die_fillet` document (the Interval-scalar
+    // blocker that once held it out of the registry is gone; see
+    // `documents()`). Not an exemption: `Loft`/`Sweep` below still
+    // are.
     "Fillet",
     "Split",
     "Boolean",

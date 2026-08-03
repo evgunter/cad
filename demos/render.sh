@@ -103,4 +103,7 @@ else
     "$VENV/bin/python" render.py out renders
 fi
 
-exec "$VENV/bin/python" compose_montage.py out renders
+# The kernel sheet carries its own provenance banner too, so the two
+# sheets superimpose exactly — cell for cell AND banner for banner.
+exec "$VENV/bin/python" compose_montage.py out renders \
+    '--banner=kernel render — the kernel'\''s own certified tessellation (compare renders-freecad/montage-freecad.png: OCC'\''s re-tessellation of the same bodies)'

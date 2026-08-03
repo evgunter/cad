@@ -211,14 +211,18 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     )
 }
 
-/// The stop, in tour order (standalone render — the montage sheet is
-/// refreshed at the PR 11 demo moment, `curvedcut`).
+/// The stop, in tour order — a MONTAGE panel since the M6 curation
+/// unit. The `montage: false` it shipped with was a staging leftover
+/// from the demo unit ("the sheet refresh rides PR 11"); PR 11
+/// refreshed the sheet without flipping the flag back. The rocker is
+/// now the sheet's profile-fillet cell, which is what let the bracket
+/// cell retire.
 pub fn stops() -> Vec<Stop> {
     let note = eye_pick_narration(&profile::<f64>());
     vec![Stop {
         name: "rocker",
         caption: "rocker plate — every corner filleted (arc legs included)".to_string(),
-        montage: false,
+        montage: true,
         story: "rocker plate — SIX filleted corners covering the whole taxonomy: \
                 arc x line (hub blend), line x line (keel knee), line x arc (boss \
                 blend), arc x line (boss exit), line x arc (hub return), and arc x \
