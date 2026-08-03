@@ -233,9 +233,11 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     let (blend_faces, corner_faces, mut described) =
         blank_phase(&mut body, &opens, &corners, radius)?;
     let mut band_faces = Vec::with_capacity(rims.len());
+    let mut band_surfaces = Vec::with_capacity(rims.len());
     for rim in &rims {
-        let (band_face, mut arcs) = rim_phase(&mut body, rim)?;
+        let (band_face, band_surface, mut arcs) = rim_phase(&mut body, rim)?;
         band_faces.push(band_face);
+        band_surfaces.push(band_surface);
         described.append(&mut arcs);
     }
 
@@ -261,11 +263,8 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
-        body.set_face_surface(
-            fk,
-            FaceSurface::New(rim.chain.links[0].blend.surface.clone()),
-        )
-        .map_err(op)?;
+        body.set_face_surface(fk, FaceSurface::New(band_surfaces[i].clone()))
+            .map_err(op)?;
         body.set_face_sense(fk, rim.chain.links[0].convexity.blend_sense())
             .map_err(op)?;
     }
@@ -942,7 +941,7 @@ fn blank_phase<T: Decide + Bounds>(
 fn rim_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
-) -> Result<(FaceKey, Described<T>), FilletError> {
+) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
     let op = |what: &'static str| {
         move |e: topo::EulerOpError| FilletError::Op {
@@ -1236,6 +1235,7 @@ fn rim_phase<T: Decide + Bounds>(
     let torus = &rim.chain.links[0].blend.surface;
     let Surface::Torus {
         center: tc,
+        axis: taxis,
         major_radius: tmaj,
         minor_radius: tmin,
         ..
@@ -1243,6 +1243,11 @@ fn rim_phase<T: Decide + Bounds>(
     else {
         return Err(unsupported("a rim blend's surface is not a torus"));
     };
+    // The band's chart is SEAMED at the slit (certification demands a
+    // Seam edge lie in the surface's own u_ref half-plane); the u_ref
+    // is conventional data (D2), fixed when the closure vertex is
+    // reached below.
+    let mut band_surface: Option<Surface<T>> = None;
     for (idx, (v, sp)) in struts_p.iter().enumerate() {
         let (hp, hm) = halves_of(body, *sp).ok_or_else(|| unsupported("a strut resolves"))?;
         let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
@@ -1270,6 +1275,13 @@ fn rim_phase<T: Decide + Bounds>(
                     radius: tmin,
                 },
             ));
+            band_surface = Some(Surface::Torus {
+                center: tc,
+                axis: taxis,
+                major_radius: tmaj,
+                minor_radius: tmin,
+                u_ref: radial,
+            });
         } else {
             body.kef(hp).map_err(op("rim strut kef"))?;
             // The upper meridian remnant at this vertex is now a spur
@@ -1300,7 +1312,9 @@ fn rim_phase<T: Decide + Bounds>(
         }
         _ => return Err(unsupported("a trim lost a side (kernel bug)")),
     };
-    Ok((band_face, described))
+    let band_surface =
+        band_surface.ok_or_else(|| unsupported("a rim closed without a slit (kernel bug)"))?;
+    Ok((band_face, band_surface, described))
 }
 
 /// Whether `edge` has `v` as one of its endpoints.
