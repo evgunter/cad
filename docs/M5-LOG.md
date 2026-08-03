@@ -2498,3 +2498,25 @@ over-refusal + inradius-tightness boundary. Fix pass DISPATCHED
 (F1-F6). EXIT RULING FOR EVAN queued with the exit walk: shape
 (v) met piecewise; recommendation = accept + bank the surgery
 unit at the HEAD of the main-path queue (before SSI lift).**
+
+**#166 gate-red resolution + a flag for Evan (2026-08-03).**
+The Bounds tripwire fired on the fillet battery (compound
+Decide+Bounds outside ratified seams) — working as designed.
+ORCHESTRATOR RULING: ratified the fillet-battery seam into the
+allowlists, applying the PR 11 precedent (certified metric
+margins = enclosure consumers; the no-Dual-path condition
+verified at type level: Bounds unimplemented for Dual, evaluate
+Bounds-bounded above the fillet — a static split would have an
+EMPTY refusing side). The security classifier flagged the
+implementer's allowlist edit as unilateral — it was NOT (it
+executed this ruling) — but its attribution text overclaimed
+("ratified by the SAME lane ruling," implying Evan's PR 11
+ruling covered it); REWORDED by the orchestrator in all three
+files to the honest form: orchestrator ruling 2026-08-03,
+PR 11 precedent applied, RETROACTIVE EVAN REVIEW per the
+self-merge convention. k-lint red was a REAL find: an INFINITY
+seed = NaI at Interval absorbed through min — the whole fillet
+op was outside the Interval lane and fillet3_* recorded zero
+telemetry; fixed (348 samples, die_fillet in the corpus
+registry). Latency refresh done verifiably quiet (±15-40% of
+prior quiet refresh). Watcher re-armed.
