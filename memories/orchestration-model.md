@@ -107,6 +107,12 @@ M2-LOG snapshots assume it):**
      form is a PR editing the relevant design doc to state the
      question, updated in place with the answer once resolved (the
      design-conversation-PR pattern); a GitHub issue also works.
+     **NOT comments on merged PRs** (re-learned 2026-08-02: a
+     design fork posted to the merged #148 thread only reached
+     Evan by luck — "i don't scan merged PR comments unless i
+     just asked a question there"; a thread he was recently
+     active in feels like a channel but stops being one the
+     moment his question is answered).
   2. ~~Usage-limit watch~~ **DROPPED (Evan, 2026-07-23)**: the
      events.jsonl `rate_limits` percentages don't measure
      Fable-specific usage — which is the limit that actually gets

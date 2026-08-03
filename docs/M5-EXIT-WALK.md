@@ -129,11 +129,15 @@ failure mode the walk exists to prevent.
    `props_quad_converged` is a convergence-loop stopping test.
    (Finding M5-1.)
 4. **`docs/M5-LOG.md` diverged between main and the orchestrator
-   branch**, and neither copy is a superset. `MODEL-AB-LOG.md` was
-   reconciled by this PR (the M5-close readout needed it); M5-LOG
-   was not, because merging two divergent narrative logs belongs to
-   the state-sync lane and would be buried inside an exit sweep.
-   Owed before the next milestone's log starts.
+   branch**, and neither copy was a superset. **RESOLVED**:
+   `MODEL-AB-LOG.md` was reconciled by this PR (the M5-close readout
+   needed it), and the M5-LOG reconciliation landed as #168 and was
+   folded into this branch, tail resolved keep-both in chronological
+   order. The fold surfaced one numbering conflict — the merged log
+   calls the CI-shard unit "A/B row 41" while the table had no such
+   row — now closed by numbering rows 41 and 42 and marking them
+   explicitly non-comparable (42 dispatches, n = 40 for the
+   comparison).
 5. **A stale comment asserts the opposite of the shipped truth**:
    `crates/editor-core/tests/corpus/mod.rs:130` registers
    `die_fillet::document()`, while the comments at :132-139 AND

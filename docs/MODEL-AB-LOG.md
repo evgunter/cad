@@ -103,14 +103,21 @@ section).
 | 39 | 2026-08-03 | M5 S4 save/load shared-validator consolidation | S (logged pre-draw) | fable (block-18 draw byte 131 → fable,opus) | 0/0 APPROVE | 0 | 5 | 4 | 5 | none (one note orchestrator-applied) | — | — | — |
 | 40 | 2026-08-03 | M5 PR 12 constant-radius fillets + the die | L (logged pre-assignment) | OPUS (block-18 remainder) | 1/3/5 APPROVE w/ fix pass (MAJ = octant e0 pick: tier-3 lost on non-square prisms, die unaffected) | 1 (scope gap: Band-4 rows) | — | — | — | F1–F6 + two gate-red rounds | — | — | — |
 
-Two later M5 dispatches are deliberately **NOT** numbered rows: the
-CI build-once/shard unit (fable, block-19 draw byte 227, difficulty M
-logged pre-draw) and PR 14 itself, this exit sweep (OPUS, block-19
-remainder, difficulty M logged pre-assignment). Both are
-no-blinded-lane classes — CI infrastructure and docs/telemetry
-respectively — so neither produced a blinded review with the rubric
-the experiment compares. Counting them would inflate n with rows
-that cannot carry the measurement. **n = 40, not 42.**
+| 41 | 2026-08-03 | CI build-once/shard (compile per MODE, nextest archives) | M (logged pre-draw) | fable (block-19 draw byte 227) | n/a — CI infra, no blinded lane | 0 | — | — | — | none | #167 27/27 green; wall 16m57s → 15m47s, billed ~64.5 → ~56.6 min, 4 → 2 workspace builds | — | — |
+| 42 | 2026-08-03 | M5 PR 14 exit sweep (K snapshot, DESIGN/envelope, exit walk, A/B readout) | M (logged pre-assignment) | OPUS (block-19 remainder) | n/a — docs/telemetry, no blinded lane (orchestrator reviews the walk personally) | 0 | — | — | — | — | docs-only; fmt-all --check clean | — | — |
+
+**Rows 41 and 42 are NUMBERED but EXCLUDED from every comparison in
+the readout below.** Both are no-blinded-lane classes — CI
+infrastructure and docs/telemetry respectively — so neither produced
+a blinded review carrying the rubric the experiment compares, and
+neither has a MAJ/MIN/NOTE count that means the same thing as the
+other rows'. They are numbered because `docs/M5-LOG.md` already
+refers to the CI-shard unit as "A/B row 41", and a table that
+silently disagrees with the log about what a row number denotes is
+worse than a table with two clearly-marked non-comparable rows.
+
+**So: 42 dispatches, n = 40 for the comparison.** Every statistic
+below is computed over rows 11-40.
 
 ## M5-close readout (2026-08-03, PR 14)
 

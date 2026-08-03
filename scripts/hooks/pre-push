@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Repo pre-push hook (activated by scripts/new-lane.sh via core.hooksPath):
+# every workspace must be rustfmt-clean before a push leaves the machine.
+# ~9s; two 15-minute gate round-trips motivated it (2026-08-03, PR #166).
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+exec bash "$root/scripts/fmt-all.sh" --check

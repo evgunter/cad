@@ -90,6 +90,35 @@ recipe edit**. Two facts recorded from the ratifying conversation:
   solved assignment — is **not** a GUI question; it is GQ1, and it
   constrains M4's recipe format.
 
+## G3 (Evan, 2026-08-03): The v1 GUI minimum EXCLUDES live editing
+
+Sourced from a conversation with a practicing mechanical engineer:
+the minimum useful GUI needs exactly —
+- click-to-select parts/features for editing (selection feeds the
+  existing edit doors; no in-viewport manipulation),
+- pan / rotate / zoom,
+- moving completely-UNCONSTRAINED parts of an assembly relative to
+  each other (visual fit-probing BEFORE defining a mate — no solver
+  involvement, purely a display transform on unmated parts),
+- hiding parts in an assembly (see behind them).
+
+**Live dragging/editing of partly-constrained geometry is NOT on
+the scheduled path.** Everything drag-shaped in this document (the
+UI-ideas sketchpad below: wall-mode drag, solved-assignment drag
+previews, in-flight drag bands in GQ1/G2) stays recorded as ideas —
+none of it is v1 work, and a future GUI milestone that wants it
+proposes it explicitly. This supersedes any earlier reading under
+which drag interactions looked main-path; GQ1's witness/ReWitness
+semantics remain ratified for whenever dragging DOES arrive (the
+solver contract is not drag-specific — selection-driven edits use
+the same doors).
+
+Kernel-relevant consequences, so pre-GUI milestones leave room:
+hiding and free-move are DISPLAY-layer state (never persisted into
+the recipe; layer-3 per G1), and fit-probing transforms must be
+visually distinguishable from mated placement (an honesty
+requirement, not a solver one).
+
 ## Ratified micro-decisions (2026-07-19)
 
 - **Dragging an expression-driven dimension → refuse, with an

@@ -1873,7 +1873,6 @@ slab) is exercised as a SMOKE row in `m5_pr9c_sphere_doors.rs` and
 pinned at its typed front-door refusal — the honest form of "ahead of
 PR 12" when the op itself is gated.
 
-
 ### PR 9c fix pass (2026-08-01)
 
 Review verdict: APPROVE-WITH-FIX-PASS. The sphere group-arm design was
@@ -2927,6 +2926,1164 @@ closed-form oracles evaluated at `f64`, where the poison hazard the
 tripwire guards against does not arise — and the earlier blanket "no
 `x*x` on the diff" line overstated it.
 
+## CI build-once (2026-08-03): compile per MODE, not per eps row —
+## nextest archives fan the test matrix out from two builds (#167)
+
+Evan's ask ("compile the code for each mode, then shard the tests —
+the actual testing part is getting kind of long"), landed as #167.
+The eps rows ran BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is
+runtime env — so `test` + `multi-eps` (1e-6/1e-12) + the interval
+job's second run were redundant compiles: on main run 30790436745,
+~8.5–9.5 min of each ~12 min row was compile; execution ~3 min.
+
+**Shape**: `build` / `build-interval` (the only two build graphs)
+each run `cargo nextest archive` under the existing ci-filter scope
+and upload the archive; `test` (eps = default/1e-6/1e-12) and
+`test-interval` (default/1e-6) download and only execute. The named
+interval obligations (D6.1 persistence, D1 corpus) stay visible as
+`-E binary_id(...)` steps. Intra-row `--partition count:*/2`
+sharding was adopted on MEASURED numbers, not by default: the
+first #167 run (30838077811) put the default-eps legs at ~5.9-6.1
+min of execution — over the ~5 min bar — with a flat slow-test
+tail (worst single test 14 s of 1989), which a count partition
+splits evenly; the eps'd legs (3.4-4.3 min) ride along for
+uniformity. ci-local runs rows unsharded (same union).
+
+**nextest**: pinned 0.9.140 (2026-07-05 — ~4 weeks old at adoption,
+past the 2-week age rule; dev/CI-only, official get.nexte.st
+prebuilt, no third-party action). Semantics audit: process-per-test
+(safer for the tolerance OnceLock), per-test capture (layout only),
+and NO DOC-TESTS — the workspace has real doctests incl.
+compile_fail blocks, so both build jobs keep `cargo test --doc` and
+ci-local gained matching rows. The 2026-07-29 row-16 verdict
+("nextest = runner swap + doc-test loss") is not overturned: the
+filter stays the hand-rolled walk; nextest is adopted for the
+archive/fan-out property, with the doc-test loss paid explicitly.
+
+**ci-local.sh** mirrors runner + row semantics per KEEP IN SYNC
+(nextest rows, doc-test rows, same eps env); build-once is automatic
+locally via the shared target/ — the header says the mirror is about
+filter/row semantics, not artifacts. Untouched per scope: corpus /
+persistence / latency / step-import / watertight / k-lint /
+discipline / clippy / fmt jobs.
+
+**Private-repo quota guards**: test binaries link with
+CARGO_PROFILE_TEST_STRIP=debuginfo in the build jobs only; archives
+are retention-days 1 and a green run deletes its own (failed runs
+keep them so re-runs need no rebuild).
+
+**PR 7b implementation COMPLETE (2026-07-31, 7be02c7, pushed) —
+the EXIT GATE is MET: shape (iii) substrate row GREEN** at
+1e-6/1e-9/1e-12 + Interval, all three limbs, bit-replay.
+Composite bound within 1.009 of dense-scan truth on the measured
+fixture — 6.5 orders tighter than the first-order enclosure it
+replaces. ssi_hull_sup_chart kept its K name; zero new funnel
+entries; plane×NURBS arm RETIRED with its proof (C12.1). One stall
+en route: lane idle 67 min post-headline; the foreground nudge
+revived it (waiter-parking pattern held off by the verbatim
+clause + hourly sweep working as designed). THREE numbered
+deviations, notably (2): the substrate row certifies on a
+curvature-monotone wall; PR 7's inflected wall gets an HONEST
+band-forked verdict instead (the tight bound exposed a real
+march/fit deviation ~3.8e-9 m at the curvature-zero crossing —
+h_fit ∝ (ε/κ³)^¼ unbinds there; marcher pricing fix banked in
+ssi.rs module docs, out of scope per spec §6). Also (1) aligned
+fallback ABSORBED (merged break list serves the unaligned case
+exactly). FitSampleBudget mechanism unchanged (march-side).
+**Review DISPATCHED** (charter: independent tensor-decomposition
+algebra re-derivation executed as differentials; cancellation
+probes with forced-failure geometries; bound-below-truth = auto
+MAJOR; per-deviation verdicts with (2) as the centerpiece —
+reproduce the inflection deviation, rule fixture-swap honest or
+gamed; merge-base retirement differential; rubric report). PR 9
+implementing in the other lane (U8 done at last sweep).
+
+**PR 7b review returned (2026-07-31): APPROVE-WITH-FIX-PASS — 0
+MAJ / 4 MIN / 2 NOTE, rubric 5/4/4, 1 SILENT deviation found.**
+The core HELD: hand re-derivation of the tensor algebra clean
+(α-quotients both directions, Boehm windows, denominator-cleared
+rows vs NURBS Book A5.1); ~1.6M adversarial falsification samples,
+ZERO bound-below-truth; retirement executed at merge base
+(2.929e-2 m limb-2 refusal → certified ≤10ε); decide inventories
+base-vs-branch IDENTICAL (37 names). Review earned its keep
+twice: REFUTED deviation 2's "geometry-capped/sub-linear" claim
+(march-ε scaling measured 4×→4.36×, 16×→16.92×, 64×→6.83× —
+phase-noisy, non-monotone; shipped refusal still honest) and
+caught the SILENT center-shift omission (M2, weighted worst):
+"no center to lose" is exact-arithmetic-true but ring-false —
+1.128e-12 near origin → 1.866e-6 at 1e6 m, sound but
+certification-killing far from origin. Fixture swap RULED honest
+by the reviewer (deviation 2a reproduced by pure-eval scan;
+composite within 1% of truth — the certificate reports the fits,
+not itself). Max forced looseness 108× at extreme weight ranges
+(NOTE; SSI weights ≈1). **Fix pass DISPATCHED (inherits arm),
+orchestrator rulings: F1 IMPLEMENT the center-shift (spec's own
+step; far-origin row added); F2 reword capped→non-monotone with
+the three measured points (the banked marcher note must not
+misdirect); F3 pin DomainMismatch Display; F4 breadth-honesty
+sentence (single-cell walls today) in retirement records; F5 bank
+both NOTEs as dated observations, no core churn in a fix pass.
+Reviewer probes (10 rows, 2 files) adopted verbatim.** PR opens
+at fix-pass completion. Evan status posted to #148 on request.
+
+**PR 9 implementation COMPLETE (2026-07-31, 4000ca0, pushed).**
+Shape (ii) GREEN end-to-end (3-arc boss ∪ plate, exact volume
+16+π·0.25·0.6, tier-3 valid incl. pcurves, 1e-6/1e-9/1e-12); the
+full C7 regime landed (TangentIntersection + jet schedule with
+second-order-margin-first; SectionTangency door FLIPS to
+construction; second-order sector lane; ContactMark + jet-
+determinate TangentNotIntrinsic, G2 exempt by zero-side
+predicate); cosurface merge (sub-period through-cut re-merge,
+volume bit-untouched); census/3′ text; EdgeCurve::certify Nurbs
+flip + split_at knot insertion + end-to-end split rows (m8
+DONE); 16 new K predicate names, verdict-log pinned. Bonus find:
+du_of_rims first-arc rule silently undercounted multi-arc rims —
+fixed; merge-base reachability = REVIEW CHARTER ITEM (S9
+precedent if reachable). ELEVEN numbered deviations, the big
+three: (2)+(3) cylinder×sphere boolean arm + Pcurve::Fitted
+variant deferred (blockers: fitted-chord join lane, sphere
+doors); (4) the spec's "one-7b-flag-flip" claim ruled
+unsatisfiable at the boolean layer by the implementer (the
+edge×NURBS-face sweep layer is not behind 7b's flag — if
+confirmed, the SPEC erred); (8) 2-arc semicircle seam pairs
+refuse (germ facing is chord-perpendicular) — possible common-
+authoring hole. **Review DISPATCHED** (charter: independent
+boss∪plate consumer + the unauthored Interval bit-replay row;
+jet-certificate re-derivation incl. drift-0 symbolic check +
+tube-threading attack; merge-base props answer PROMINENT;
+per-deviation verdicts all 11 with dispositions; maximal-faces
+curved exemption gate-weakening probe; two-tolerance audit;
+K inventory diff). Lanes: PR 7b fix pass + PR 9 review.
+
+**PR 10 design PULLED FORWARD (2026-07-31, Evan's ask on #148) +
+demos queued.** Evan: can PR 10 design run now? Answer: yes —
+depends on PR 3/4 only. R3 migrate-vs-break ASSESSED against the
+real v1 wire (FileBody = ProfileDoc snapshot + DocEdit log;
+recipe posture, bodies re-derive on replay): the v2 delta is
+purely additive (Node::Loft/Sweep + slots), so **recommendation =
+identity-shaped migration (parse-v1-as-v2 + header bump), write
+it**; flip condition (forced ProfileDoc restructure) stated;
+posted to #148 (comment 5147668504) with the 👍 affordance,
+watchlisted. docs/M5-PR10-SPEC.md DRAFTED recording the call:
+Loft/Sweep as ordinary Q8-definitional nodes; iso-parameter
+edges get EXACT UV-line pcurves (the definitional payoff — in
+scope, distinct from PR 9's deferred Fitted variant); schema v2
+minted with a v1 golden migration row; the cut-loft e2e row
+coordinates honestly with the boolean-layer state at merge time.
+Consultation commitment honored: implementation will not
+dispatch before Evan's 👍 on the R3 call (or a flip ruling).
+Demo unit (Evan yes on #148): S2 arc-fillet demo stop + staged
+curved-surface demo (render activates at PR 11) — dispatches to
+the first freed lane; takes the owed OPUS remainder (block 12)
+as the next unit; PR 9 reviewer additionally probing
+TangentIntersection-at-rest save/load (R3 wire question).
+
+**R3 RULING FLIPPED by Evan (#148, 2026-07-31): CLEAN BREAK,
+zero live compat code** — "avoid any backwards compatibility
+stuff while the kernel is as yet unreleased." The rider's break
+option: SCHEMA_VERSION=2, NO migrate step, v1 refuses typed with
+the regenerate recourse, in-tree v1 goldens/corpus regenerated
+once in the PR (recipes replay). Spec §4/§5 updated; my migrate
+recommendation superseded (I optimized "cheap", Evan's variable
+was "any compat surface at all" — his framing right).
+Consultation CLOSED (comment 5148434798).
+
+**Usage-limit outage #9 (~22:5xZ 2026-07-31, reset 4:30pm PT):
+both lanes killed mid-work.** PR 7b fix pass died AFTER "Both
+green. Full battery" — work complete-looking but UNCOMMITTED in
+clone m5-pr7b (center-shift in tensor.rs + adopted probes + 5
+modified files; survives on disk). PR 9 reviewer died
+mid-tube-derivation, clone clean, transcript carries state. Both
+RESUMED via SendMessage post-reset (the M1 transient-kill rung:
+transcript + clone survive; cwd guards re-stated).
+
+**PR 7b fix pass COMPLETE, PR OPENED as #149 (2026-07-31,
+d432a89).** All five items: F1 center-shift IMPLEMENTED (common
+center at the lift, chart channels unshifted; reviewer witness
+1.866e-6 → 1.225e-9 m at 1e6 m = representation floor, flipped
+to regression pin + realistic far-wall row; the full arm at
+1e6 m refuses on PRE-EXISTING non-composite machinery — foot-
+point convergence, cell budgets — typed, recorded in the breadth
+sentence); F2 non-monotone wording with the three measured
+points in test + banked marcher note ("price the crossing span,
+no global scaling law"); F3 recourse/OQ4 exactly-once pin; F4
+breadth sentence both records; F5 two dated banked observations.
+All ten reviewer probe rows adopted verbatim. Batteries: 36
+suites default + 1e-6 + 1e-12 + Interval all exit 0; fmt/clippy
+clean. Watcher armed on #149 (merge on green). At merge: A/B row
+26 fills; freed lane → demo unit (S2 arc-fillet + staged curved,
+OPUS remainder). PR 9 review resumed in the other lane.
+
+**#149 MERGED (2026-07-31): 18/18 — PR 7b on main, the shape
+(iii) EXIT GATE is BANKED.** Eighteen PRs this milestone. A/B
+row 26 filled (fable, M: 0/4/2, 5/4/4, 1 review-caught silent
+deviation, moderate fix pass). Lane hygiene: clean-lanes.sh
+REFUSED the review clone on first pass — two unpushed probe
+commits, exactly the check it was built for; archived as
+archive/m5-pr7b-review-probes then deleted clean (90G free).
+PR 9 fix pass note queued: fold main (PR 7b touched ssi.rs/
+certify.rs/intersect.rs/m5_pr7_ssi.rs — overlap with PR 9's
+geom-brep edits expected). **DEMO UNIT DISPATCHED (2026-07-31,
+OPUS — block-12 remainder, A/B row 27, difficulty S logged here
+pre-dispatch)**: S2 arc-leg fillet demo stop (ripe per standing
+ruling) + the staged curved-surface demo (scene + narration now;
+render step activates at PR 11 tessellation — Evan's ask on
+#148). Lanes: demo unit (opus) + PR 9 review (resumed).
+
+**Demo unit COMPLETE (2026-08-01, 84f77b9, pushed; one report
+nudge needed).** Stop `rocker`: SIX fillet_corner corners
+covering the taxonomy incl. the S8 vesica-at-half-size arc×arc
+two-survivor pick, near-root ASSERTED (panics if the far pocket
+is ever taken); genus 1, 4783 K-probe samples ×3ε identical (no
+escalations), all seven S2 gates fire. Stop `tiltedcut` (STAGED):
+PR 5 ellipse halves build + certify (residual 2.69e-16 m); three
+frontier refusals pinned with retire-on-closure panics naming
+PR 11 (split-meter pattern); staged bodies emit NO scenes.json
+entry (renderers never see undrawables). Narrations at demo
+altitude ("A pick, never a guess"). Six deviations/decisions
+incl. a CONTAINED render incident (fallback re-rendered all
+panels, briefly committed, restored — branch diff vs main =
+exactly one new PNG, review verifies) and freecadcmd stalling
+(matplotlib fallback lane used, documented). **Light review
+DISPATCHED** (tour battery ×3ε, S8 pick discrimination, staged-
+gate honesty, narration numeric claims, incident diff check,
+rocker.png legibility). Lanes: demo review + PR 9 review.
+
+**Demo review APPROVE (0/1/2, rubric 5/4/5, no fix pass) — the
+MINOR applied on-branch by the orchestrator (S7 precedent),
+tour re-green 3/3, PR OPENED as #150, MERGED 2026-08-01 18/18.**
+Perturbation probe proved the S8 pick is a rule, not the
+fixture; render-incident cleanup verified exact (one new PNG).
+Nineteen PRs this milestone. A/B row 27 filled (opus, S). Demo
+lanes cleaned via clean-lanes.sh. One reviewer waiter-park
+("waiting on the release build") revived by the verbatim clause
+— THIRD waiter-park this session despite the clause in every
+prompt; the sweep+nudge net is holding.
+
+**PR 9 review returned (2026-08-01): APPROVE-WITH-FIX-PASS — 3
+MAJ / 4 MIN / 5 NOTE, rubric 5/3/4, 2 silent deviations. THE
+HEADLINE: MAIN IS WRONG TODAY** — the du_of_rims first-arc
+undercount executed at merge base: two public split_edge calls
+on one wall face's rims → volume 0.6545 vs true 0.7854,
+validate_geometric Ok, SILENT. The branch fixes it bit-exact
+(funnel-named). S9 precedent: PR 9 carries MERGE PRIORITY. The
+core HELD everywhere: tube-threading attacks defeated (locus
+pinned to <ε by the 1/κ_rel lever arm), drift-0 verified
+symbolically + by discriminating witness, second-order scaling
+confirmed, all zip attacks survived incl. the F7 curved
+same-key exemption probe (cannot hide a non-maximal planar
+face). MAJ-1 Interval boolean lane BROKEN (bool_wall_trim
+poisons → Escalated{Invalid}; dev 9 understated a failing
+acceptance); MAJ-2 red sweep battery shipped (two stale suites
+the PR's own spec-correct changes broke — verify-before-push
+breached); MAJ-3 SILENT union-only scope (curved subtract/
+intersect die at stale planar-only revert text). Dev 4 CONFIRMED:
+the spec's one-7b-flag-flip was WRONG (edge×NURBS-face sweep
+layer outside 7b's flag) — orchestrator owns the spec error.
+**RULINGS: fix pass dispatched (F1 battery green + re-pins; F2
+Interval-total or typed + the missing corpus boss row; F3 honest
+union-only front door, curved revert BANKED; F4 arc-aware
+facing for the 2-arc hole; F5 must-carry class coherence; F6
+honest shape-(iii) pipeline pin; F7 smalls; dev 5 relayed —
+charter slip owned, banked). PR 9c UNIT CREATED (banked, gates
+PR 12): cylinder×sphere boolean arm + Pcurve::Fitted (Copy
+drop) + curved revert (subtract/intersect — die pips need it) +
+cyl×cyl windows + edge×NURBS-face sweep layer. Schedule before
+PR 12.** PR 10 DISPATCHING to the freed lane: difficulty L
+(judged pre-draw, logged post-draw — ordering slip recorded);
+block-13 draw byte 82 = (opus, fable) → PR 10 = OPUS, fable
+remainder to the next unit (PR 9c). Lanes: PR 9 fix pass + PR 10
+implementation.
+
+**Usage-limit outage #10 (~14:00Z 2026-08-01, reset 8:50am PT):
+both lanes killed mid-battery** — PR 9 fix pass after geom-curves/
+geom-brep green (topo+sweep pending), PR 10 entering its full
+battery. Both clones intact, work committed through 357c509 /
+02c64a5. Both RESUMED via SendMessage post-reset (transcript
+rung); instructed to commit any green-uncommitted bits first.
+
+**PQ4 DECIDED (Evan, in-session, 2026-08-01): keep the v1
+mid-carrier-seam rule, as recommended** — seam at junction/fillet
+only; the M2 conventional-split relaxation declined (same-carrier
+discipline). PATHS-DESIGN §6 updated. Open-with-Evan list now:
+Q9, #131, #89 display half, PATHS cusp-variant split.
+
+**PR 10 implementation COMPLETE, PR OPENED as #151 (2026-08-01,
+b6885e6).** Vocabulary/geometry/schema COMPLETE: Loft+Sweep as
+ordinary nodes; exact rational-quadratic arc sections (carrier,
+not fit); one-factorization collocation skinning; schema v2
+CLEAN BREAK per Evan (empty step table as the single fact,
+SchemaTooOld with REGENERATE_RECOURSE composed exactly once, v1
+bytes kept as the refusal fixture). Loft BODY rows FRONTIER-
+REFUSED honestly (topo tier-3 refuses Surface::Nurbs by kind,
+validate.rs:1436; certify.rs:672 NURBS carriers) — pinned by
+demonstration; implementer claims PR 9 merge turns them green
+with no loft-code change. FOUR deviations. **Review DISPATCHED**
+(charter: independent skinning math vs closed forms; schema
+break adversarial rows both directions; the dev-2 coordination
+claim TESTED by scratch-merging PR 9 — the answer feeds PR 9c
+scope; corpus exemption self-retirement). Lanes: PR 9 fix pass
++ PR 10 review. NOTE: #151 gates open pre-review (dispatch
+instruction slip — harmless, no watcher armed until fix pass).
+
+**PR 9 fix pass COMPLETE, PR OPENED as #152 (2026-08-01,
+f0cc88f) — MERGE PRIORITY (main-is-wrong du_of_rims fix
+inside).** All items: MAJ-1 root-caused (from_f64(±inf) seeds =
+Ill under Interval poisoning min/max; atan2 trim REPLACED with
+branch-cut-free cosine cone test — fragility removed, not
+dodged; reviewer witness now 3/3); boss_union joined the Band-4
+corpus (+BVH differential runs the curved boolean bit-equal);
+MAJ-2 both suites re-pinned as evidence; MAJ-3 CurvedOpUnsupported
+front door (UNION is the live curved boolean; PR 9c + die-pips
+cited); F4 arc-aware facing WENT LIVE — the 2-arc disc unions
+with full audit (3 chord-degeneracy repairs: rotational-sense
+facing, arc bulge in ring_run_ccw, window-membership skip guard)
++ at_infinity_side moved to carrier-aware volume; F5 one-home
+tangent lane (demanded set == certifiable set by construction);
+F6 honest crossing-layer pipeline pin; F7 smalls; dev-5 relayed
+and recorded. EXTRA defect found in battery: idealized-sweep
+clearance 0/0 at distant axis-parallel pairs → division-free
+convex dip bound. Batteries: all five crates default + Interval
+0 failures; re-pins at 1e-6/1e-12. Watcher armed on #152.
+At merge: A/B row 28, lane cleanup, PR 9c spec firms up with
+the crossing-layer scope confirmed.
+
+**#152 triple-red RESOLVED (2026-08-01, 3df0a55).** Red 1+2:
+clippy on adopted probe files (orchestrator swept both feature
+sets). Red 3: the BVH differential at Interval caught the FOURTH
+interval-square-poison occurrence — (a*a+b*b).sqrt() in the
+conic crossing-root lane (latent since PR 5); only the idealized
+lane examines distant pairs, exactly the exposure the
+differential polices. powi(2) fix; both lanes bit-equal; nothing
+weakened. Memory updated. EVAN RULING pinned en route: no
+standing pre-push CI mimicry (local-battery-scope reaffirmed
+under pressure). Watcher re-armed, merge-priority on green.
+
+**Discipline unit DISPATCHED (2026-08-01, fable — block-13
+remainder, A/B row 29; difficulty S logged here pre-dispatch;
+PR 9c slides to block-14 slot 1):** the interval-square tripwire
+(Evan proposal, refined in-session). Measured: 101 self-mult
+sites, 45 in generic-T files; all four live bugs in the literal
+class. Shape: ban-with-allowlist in the discipline CI job (not a
+bump counter); one-time triage + mechanical powi(2) conversion;
+allowlist real.rs/interval.rs/dual.rs (definitional); note text
+ratified by Evan (honest version: equal on sign-definite, tighter
+on straddle; the exemption argument IS the failure mode —
+general-tightness overclaim checked and rejected against
+algebraic.rs).
+
+**PR 10 review returned (2026-08-01): APPROVE-WITH-FIX-PASS —
+1 MAJ / 4 MIN / 4 NOTE, rubric 5/4/4.** The math HELD end to
+end: closed-form loft verification BETWEEN sections (65x65
+grid); Eq 10.8 matched an independent hand derivation exactly
+(skewed spacing, ends bit-exact, not renormalized); arc
+sections exact over 8 adversarial bulges x4096 samples; schema
+break survived all 8 header attacks with the version-door-first
+ordering proven BOTH directions; Interval containment dense-
+verified; corpus exemption fired on simulated coverage.
+**Dev-2 coordination answer NEGATIVE (executed scratch-merge):**
+PR 9 flips NOTHING for the loft rows — certify accepts Nurbs
+carriers only between ANALYTIC surfaces, tier-3 Nurbs-face
+refusal untouched (and duplicated in the marked variant), and
+the SS3 caps/walls/seams assembly WAS NEVER WRITTEN (wire_loft
+unconditionally refuses after building walls). PR 9c spec
+amended: new scope item 6 (assembly + both tier-3 flips +
+certify resolve; Harmonic pcurves suffice). MAJOR-1: the Sweep
+node recipe lane is 100% DEAD (profiles require >=2 vertices,
+section_of closes the chain; reviewer witness: rectangle AND
+minimal circle paths both refuse) — dev-4 described an
+inexpressible capability; RULED collapse-honestly, no invention
+in a fix pass. MINs: two never-constructed error arms
+advertised as live; PathTangentReversal reversal-half float-
+unreachable (sin(pi)~1.2e-16 builds); missing SS2 size-limit
+note; ParamCountMismatch field-stuffing. **Fix pass DISPATCHED
+(inherits opus arm), reviewer probes adopted (4 files).**
+Lanes: PR 10 fix pass + tripwire unit; #152 still gating.
+
+**#152 MERGED (2026-08-01): 18/18 — PR 9 ON MAIN with the
+du_of_rims repair; the silent wrong volume is DEAD. Twenty PRs
+this milestone.** A/B row 28 filled (fable, L: 3/6/5, 5/3/4, 2
+silent devs; heavy fix pass incl. arc-facing live + 3 gate-red
+rounds). Lanes cleaned via clean-lanes.sh (56G freed; reviewer
+probes verified adopted on main first). Both active lanes
+notified to fold main. Board: PR 10 fix pass (opus) + tripwire
+unit (fable); PR 9c queued block-14 slot 1 (now carries the
+assembly scope from the PR 10 review); then PR 11 (the demo
+moment), PR 12 (needs 9c), PR 13, PR 14 + S4.
+
+**#151 MERGED (2026-08-01): 18/18 — PR 10 ON MAIN. Twenty-one
+PRs this milestone.** Fix pass landed all items (honest Sweep
+collapse with recipe doors still checked first; OpenClosedMixed
+wired + Escalated deleted; vanishing-tangent truth with the D4
+no-invented-lever-arm rationale for not banding; size note as
+deviation 5; RaggedRows shaped arm; 22 reviewer rows adopted)
+plus an unprompted post-merge truth pass on both frontier
+messages after #152 changed what main is. A/B row 29 filled
+(opus, L; tripwire slides to row 30). RULING on the flagged
+question: the joined-path composition lane stays OUT of PR 9c
+(lean, gates PR 12); numberless message accurate; sweep-node
+bodies are not exit-listed (shape (iii) is the loft) — the
+lane rides PR 14 exit-walk judgment. Tripwire lane notified to
+fold main + re-census (PR 10 added geometry code). Board: PR 10
+lane cleanup pending report-then-clean; tripwire finishing;
+PR 9c (block-14 slot 1) DISPATCHES to the freed lane.
+
+**PR 9c DISPATCHED (2026-08-01, OPUS — block-14 draw byte 124 =
+(opus, fable); difficulty L logged pre-draw; A/B row 31; fable
+remainder owed to the next unit).** Six-item scope per the
+amended spec (incl. item 6, the loft/sweep assembly from the
+PR 10 review). Gates PR 12; carries shape (iii) loft-body +
+cut-loft rows. Review-first (no gate-first PR — too load-
+bearing). Lanes: PR 9c (opus) + tripwire finishing (fable).
+
+**Tripwire unit COMPLETE (2026-08-01, 0c79891, pushed).** 55+6
+sites converted (incl. skin.rs bulge square from the mid-flight
+#151 fold — the re-census instruction paid off), 2 false
+positives restructured, 10 files/54 sites allowlisted with the
+D9 rotation_about order-pin correctly left alone. Tripwire
+self-tested both directions (planted q*q fails with the
+ratified note). HONEST FLAG: ten non-bit-identical conversions,
+six in decide-margin formulas (k*arm*arm*half regrouped) —
+**light review DISPATCHED with that as primary charter**
+(measured ulp divergence, classification-flip probe near
+thresholds, pin coverage, D9 order-rule check; any order-pinned
+site reverts to parenthesized + allowlist). Battery scope was
+corrected mid-run per Evan (sweep-shaped degenerate case;
+memory rewritten around the iteration-speed principle). A/B
+row 30 = this unit (fable, S). Lanes: tripwire review + PR 9c.
+
+**PR 9c REPORT + REVIEW (2026-08-01/02).** Landed: sphere
+containment/pierce doors with the face-GROUP arm (clopen
+coverage — sound for any face count; per-face variant proven to
+graze permanently by executed de-guard probe; disc/2r metering
+D4-endorsed). FIVE executed blockers CONFIRMED by review,
+driving the RE-PLAN: (i) loft/sweep assembly BEHIND PR 11
+(tier-3 volume needs quadrature — a loft cannot validate in any
+current build); (ii) Pcurve::Fitted behind an SSI-enclosure
+generic-T lift unit; (iii) curved revert = CONTRACT GAP (Face
+has no sense; consultation to Evan on #148 with options a-c,
+recommendation (a) sense-on-Face; review REFUTED the negative-
+radius proof leg for Sphere — r-squared EVEN — amendment posted
+naming option (d) rejected); (iv) PR 12 stays gated; (v) tier-3
+Nurbs refusal NOT duplicated (PR 10 review claim corrected).
+Review verdict APPROVE-WITH-FIX-PASS (1 MAJ = scope the proof
+text; 2 MIN; judgment calls ENDORSED incl. not shipping a
+tier-3-invalid assembly). Fix pass DISPATCHED (opus inherits);
+PR opens at its completion with the gate watcher. Next
+implementation dispatch: PR 11 (block-14 fable remainder).
+
+**Tripwire review APPROVE (0/0/3), PR OPENED as #153 with
+watcher (2026-08-02).** The measured answer on the ten non-bit-
+identical conversions: 2 ulp max, 0 flips in 5M realistic
+samples, flips only ~1 ulp from the band edge under adversarial
+tuning (in-band<->definite only — sign inversion impossible at
+2 ulp across a 2-eps band); no ratified association text at any
+site; margins feed decide()->Sign only, nothing golden-pinned —
+Evan's re-bless-don't-revert ruling needed no re-blessing in
+the event. RingInterval .sqr() tighten-only proven. A/B row 30
+filled. Lanes: PR 9c fix pass; #153 gating.
+
+**PR 9c fix pass COMPLETE, PR OPENED as #154 (2026-08-02,
+263ad5d, watcher armed).** F1 proof scoped per-kind (odd-in-r
+for cyl/cone/torus; sphere outward under r>0 only; option (d)
+negative-radius-sphere REJECTED in three pinned places — the
+implementer notes the asymmetry is now pre-answered if the
+sense ratification stalls); F2 reduce.rs stale promise rewritten
+to the executed finding; F3 metering comment corrected (cylinder
+arm flagged for future normalization, not touched — its margins
+are pinned); F4 both NOTE rows taken (tangent-ray graze; two-
+ball multi-shell via LIVE curved union, pinning the group rule
+across surfaces + the no-intersection containment fallback).
+sphere_doors now 7 rows. **PR 11 SPEC DRAFTED (the demo moment)
++ DISPATCHING (fable — block-14 remainder, A/B row 32,
+difficulty L logged here pre-dispatch):** curved tessellation
+(pcurve-driven trim loops, hull-bounded sagitta, compute-once
+watertightness) + the kernel's first certified quadrature;
+tiltedcut renders + boss-plate showcase stop; NURBS-at-rest
+stays honestly frontier (assembly unit flips it later).
+
+**FACE-SENSE RULED (Evan, in-session, 2026-08-02): option (a) —
+`sense: bool` on topo::Face.** Approved in chat ("(a) makes
+sense"). Unblocks: sense unit (mechanical sweep + which-way-is-
+out consumer audit) -> curved revert -> PR 12. CHANNEL
+CORRECTION recorded: consultations posted to merged-PR #148
+threads do NOT reliably reach Evan (he saw it only via the
+in-session mention); future forks go out as a NEW issue or
+design-conversation PR per the standing memory — the #148 habit
+formed because Evan happened to be active there earlier.
+
+**#153 MERGED (2026-08-02): 18/18 — the interval-square class
+is RETIRED and the tripwire is ARMED. Twenty-two PRs this
+milestone.** Lanes cleaned. In flight: PR 11 (fable, demo
+moment); #154 gating.
+
+**#154 MERGED (2026-08-02): 18/18 — PR 9c on main. Twenty-three
+PRs this milestone.** Lanes cleaned (28.5G). A/B row 31 = PR 9c
+(opus, L — fill at next table touch: review 1 MAJ proof-scope /
+2 MIN / 2 NOTE + judgment calls endorsed; landed = sphere doors
++ blocker proofs; fix pass moderate). **S10 DISPATCHED (opus —
+block-15 draw byte 119 = (opus, fable); difficulty M logged
+pre-draw; A/B row 33; fable remainder owed).** Board: PR 11
+(fable, demo) + S10 (opus, face sense); then revert wiring →
+PR 12; PR 13/14 + S4 beyond.
+
+**S10 implementation COMPLETE (2026-08-02, aac0385) — and the
+SPEC PREMISE WAS FALSE: deviation 1 (MAJOR, returned not fixed)
+finds concave arc extrude walls should be sense:false, and
+TODAY (main + branch) point_in_solid's cylinder door reads In
+throughout a concave notch (executed: door turns at y~1.5, true
+boundary y~1.086; finding_* rows pinned). Fix = sweep
+constructors mint sense:false on concave walls — its OWN unit,
+REQUIRED PREDECESSOR of revert wiring (reverting wrong senses
+flips a lie into a lie). Review DISPATCHED with merge-base e2e
+reachability as the LEAD charter item (S9 precedent if a real
+boolean ships wrong).** Also: 24 literals not ~82 (spec grep
+was loose); persistence assertion clean (nothing serializes a
+face); the A/B two-encodings discipline (chart reads thread the
+bit; winding-derived sites must NOT — double-count hazard
+named); iso face_sig now sees senses; STEP same_sense verbatim
+with byte-golden held; three flip rows (tier-3 LoopRoleInverted;
+ball props total-cancellation; tessellation branch flip). One
+process note: a worker git-stash mishap, recovered whole from
+the dangling stash. Critical path grows one unit: S10 → concave
+sense fix → revert wiring → PR 12.
+
+**certification_bracket RESTRUCTURED (Evan pushback,
+2026-08-02): the static split replaces the runtime Option.**
+Evan: it is not semantically valid type-wise for duals to enter
+a pipeline that can only refuse them — adopted. Ruling to the
+PR 11 implementer: analytic/flux lanes stay T: Decide; the
+quadrature-certified lane bounds T: Bounds (NEW ratified
+compound-bound seam, added to the discipline allowlist citing
+this ruling); validate check 7 lane-gated STATICALLY (the
+Dual64 instantiation contains no quadrature arm — the dual
+lane's job is derivative transport, certification is the
+f64/Interval lanes' job, and the split is documented design);
+Decide::certification_bracket retires unless a structural
+blocker surfaces (then STOP → fresh issue to Evan). This also
+dissolves the Bounds-scope-rule tension: no Decide-wide bracket
+access exists.
+
+**S10 review returned (2026-08-02): APPROVE-WITH-FIX-PASS,
+minors only — LEAD FINDING: deviation 1 UPGRADED to a live
+wrong-boolean on main.** E2e at merge base: union(notched body,
+pellet-in-notch) → containment fallback misreports In → pellet
+SILENTLY SWALLOWED (3.000 vs 3.008, 1 shell vs 2). The A/B
+discipline HELD adversarially (off-center-ball double-count
+discriminator 0 within 1e-9; SplitPlane class-C confirmed;
+iso/STEP/design-amendment clear; tier-3 refusal surgical).
+0 code MAJ / 3 MIN, idiom 5 / tests 4 / docs 5, deviations
+exemplary. Fix pass DISPATCHED (3 minors + probe adoptions +
+the merge-base witness as a finding_* row); S10 PR opens with
+merge-priority framing. **S11 SPEC DRAFTED (concave walls mint
+sense:false — the exact turn-sign criterion, flips the finding
+rows, first genuinely mixed-sense body exercises every S10
+audit disposition); dispatches on S10 merge with MERGE PRIORITY
+(S9 precedent), block-15 fable remainder, difficulty M to log
+pre-dispatch.** Chain: S10 → S11 → revert wiring → PR 12.
+
+**#155 MERGED (2026-08-02): 18/18 — S10 on main; Face::sense is
+real. Twenty-four PRs.** Gate-red bonus: the PR 9c message pin
+caught the S10 rewrite eroding F1's "EVEN in the radius"
+scoping — restored, pin re-aimed to guard both directions. A/B
+row 33 = S10 (opus, M: review 0 code-MAJ/3 MIN, idiom 5/tests
+4/docs 5, spec-premise refutation credited; fix pass light+pin
+fix). Lanes cleaned. **S11 DISPATCHING (fable — block-15
+remainder, A/B row 34, difficulty M logged at spec time, MERGE
+PRIORITY — main ships the silent pellet-swallow until it
+lands).**
+
+**S11 implementation COMPLETE (2026-08-02, ae6ed6c) — the
+defect class was WIDER: revolve line walls (bores, inward
+cones, under-annuli) had the same wrong sense; washers
+misreport containment on main today.** All fixed from stored
+structure (extrude: canonical turn sign; revolve: (r,z)-frame
+per-kind classification via the existing axis_line funnel);
+zero numeric derivations. Pellet witness FLIPPED (3.008, 2
+shells — the silent wrong union dies at merge). NEW BANKED
+FINDING: mef hardcodes sense:true — must fix before curved
+booleans split reversed walls (recorded for the revert/9c-
+successor units). Five deviations incl. STEP e2e halved
+(exporter planar-only; verbatim-bit .F. emission pinned
+instead). None of S10's sense-invariant dispositions lied
+under the first mixed-sense body. **Review DISPATCHED**
+(merge-base washer reproduction; criterion re-derivation with
+filleted/asymmetric attacks; revolve algebra incl. reverse-
+traversal invariance; mef finding verification). PR 11 in the
+other lane folding + final battery.
+
+**Outage #11 (2026-08-02, reset 2:40am PT; Evan re-logged-in
+immediately): PR 11 + S11-review killed mid-work; both RESUMED
+from transcripts (clones intact; PR 11's lane-split restructure
+was already pushed pre-kill).** 
+
+**S11 review returned (2026-08-02): APPROVE — 0 MAJ / 2 MIN /
+3 NOTE, rubric 5/5/4.** Criterion HELD under six adversarial
+constructions (mixed convex/concave hole; asymmetric downward
+invariance; the extruded vesica eye-slot as outer AND hole;
+reversed-authoring revolve; concave-toward-axis torus groove
+with exact Pappus volume; touching-union refusal pin).
+Merge-base: bore + hole-plate misreports REPRODUCE on main,
+fixed on branch; volumes honest both sides (winding-derived).
+Honest sharpening: the under-annulus was wrong AT REST but
+never door-observable (ray schedule) — restated as class
+membership. mef hazard VERIFIED but unrecorded (MIN-1 — the
+fix pass banks it durably). Revolve nappe-independence algebra
+independently confirmed ("rare and valuable" doc match). Fix
+pass DISPATCHED; PR opens with merge priority.
+
+**#156 MERGED (2026-08-02): 18/18 — S11 on main; BOTH live
+containment defects DEAD (pellet-swallow + washer bores).
+Twenty-five PRs.** A/B row 34 = S11 (fable, M: APPROVE 0/2/3,
+5/5/4, six adversarial constructions survived unmodified, light
+fix pass). Lanes cleaned. **S12 (revert wiring) DISPATCHED
+(OPUS — block-16 draw byte 66 = (opus, fable); difficulty M
+logged pre-draw; A/B row 35; fable remainder owed).** Scope:
+revert curved arm (sense flip + involution), the S11 mef
+inheritance hazard FIXED here, CurvedOpUnsupported retires
+PER-CLASS (C12.1 — reachable classes live, blocked classes keep
+typed refusals naming PR 9c's confirmed blockers). Unblocks
+PR 12 for whatever classes go live. Lanes: S12 (opus) + PR 11
+(fable, finishing).
+
+**PR 11 implementation COMPLETE, PR OPENED as #157 (2026-08-02,
+44763de) — THE DEMO MOMENT: tiltedcut RENDERS (tier-3 valid,
+certified volume enclosure), boss∪plate showcase stop NEW,
+montage refreshed via the FreeCAD lane, staged machinery
+DELETED.** Kernel's first certified quadrature (transcendental-
+free Green integrals, interval remainder); walk.rs
+UnsupportedCurve RETIRED; T6 answer: CDT does NOT dominate
+(1-15ms vs 300-7000ms rebuild) — bulk loading stays banked.
+Evan's static lane split implemented (PropsQuadLane over the
+ratified Decide+Bounds seam; Dual instantiates zero quadrature;
+certification_bracket retired). Five deviations. One process
+note: a shared-scratchpad PR-body collision between concurrent
+lanes (fixed via gh pr edit; lane hygiene: unique body
+filenames). **Review DISPATCHED** (falsification sweep with
+bound-below-truth = auto MAJOR; lane-split verification incl.
+zero-quadrature-in-Dual; watertightness attack; sagitta
+re-derivation; render eyeball; T6 re-run). Lanes: PR 11 review
++ S12 (opus, revert wiring).
+
+**S12 implementation COMPLETE (2026-08-02, 80c5843) — curved
+subtract/intersect are LIVE on the Plane/Cylinder class** (six
+audited volumes incl. additivity; involution bitwise both
+lanes; mef parent-sense inheritance proven load-bearing).
+Sphere/cone/torus/NURBS keep typed doors naming PR 9c's real
+blockers — die pips still gated. **Deviation 1 (MAJOR,
+executed): the vertex-probed containment fallback is UNSOUND
+for curved boundaries — union(slab, poking ball) = 16.0 vs
+17.309 ON MERGE BASE, silent** — third main-is-wrong find this
+session (du_of_rims, pellet/bores, now this); S12 refuses the
+class for the ops it OPENS, leaves ∪ pinned at the wrong value
+as a finding row, banks memories/curved-containment-fallback.md.
+PR 12 now waits on the join lane AND the fallback fix. Outage
+#12 (Fable limit) killed the PR 11 reviewer mid-setup; resumed
+post-reset (S12's opus lane was unaffected). **S12 review
+DISPATCHED** (fallback class-boundary coverage = the lead
+charter item; two-encodings exclusivity attack; inheritance
+gate probe; volume verification). Lanes: PR 11 review (resumed)
++ S12 review.
+
+**PR 11 review returned (2026-08-02): APPROVE — 0 MAJ / 2 MIN /
+5 NOTE, rubric 4/4/5.** Falsification sweep: ZERO bound-below-
+truth (max looseness 7.3e3 on the seam-hugger, absolute widths
+sub-display); remainder form re-derived sound; lane split
+verified at COMPILE-TIME strength (Bounds unimplemented for
+Dual ⇒ quadrature cannot instantiate); sagitta bound 0.990-
+0.999 of budget on the adversarial spike ("impressive");
+renders eyeballed and match narration; T6 non-dominance
+re-confirmed. Star finding (MIN-2): the endpoint pad is sound
+BY UNDOCUMENTED ACCIDENT — the factor-2 absorbs a trig0 phase-
+shift term the docs never mention; a future width/2 cleanup
+would be genuinely unsound. Fix pass DISPATCHED (document the
+two-term accounting + adopt the corner-scan pin; the T-junction
+boundary-intermediate typed arm; caption/T6-numbers/shrug
+NOTEs; probe adoptions). S12 review in the other lane.
+
+**S12 review returned (2026-08-02): APPROVE — 0 new MAJ / 2
+MIN / 3 NOTE, rubric 5/5/4. THE CLASS BOUNDARY IS COMPLETE**
+(constructed probes: torus gate, poking cylinder walls, the
+half-buried log — all refuse TYPED; the sphere is the unique
+opened-adjacent class whose closed sections hide from every
+edge — structural argument verified). Standout: the reviewer
+IMPLEMENTED the rejected uniform-flip alternative — every
+pinned planar lane stayed GREEN, falsifying the rejection
+rationale as stated (design stands as a conservatism CHOICE;
+doc corrections in the fix pass). Inheritance witness
+reproduced; volumes match to the last digit; guard re-aim
+ruled sound. Fix pass DISPATCHED (2 doc MINs + NURBS hazard
+scoping in the fallback memory + 4 probe adoptions); PR opens
+at completion. Lanes: PR 11 fix pass + S12 fix pass.
+
+**PR 11 fix pass COMPLETE (2026-08-02, fae072a; #157 watcher
+armed).** All five items: the factor-2 two-term accounting
+documented + corner-scan pin adopted (the accidental soundness
+is now deliberate); T-junction boundary-intermediate arm
+(SelfTouchingTrimLoop, typed tripwire); captions/T6 numbers/
+shrug fixed; spike + adversarial-face oracles adopted;
+refreshed_under provenance field landed — **and immediately
+caught a REAL main-side drift: die full-rebuild 2367 →
+51661 ms on a QUIET machine post-fold (#153-#156). ~22×,
+dev-profile. BISECT PROBE DISPATCHED** (per-merge timing table;
+prime suspects: powi(2) call overhead at opt-0 in hot predicate
+paths vs PR 9c arena scans; release-relevance to be answered).
+Not #157-blocking (main-side, present without it; the new
+baseline honestly bakes it in with provenance). Lanes: S12 fix
+pass + bisect probe; #157 gating.
+
+**S12 fix pass COMPLETE, PR OPENED as #158 (2026-08-02,
+e5b03d7, watcher armed).** All items: encoding claim corrected
+(chosen conservatism, not forced — the reviewer's executed
+disproof recorded in both docs; moving M3 pins = a design
+conversation, not a revert unit's prerogative); fallback memory
+scoped sphere-only-today + the NURBS-projection hazard banked
+(fix unit must lift the f64-only projection or re-gate); mfkrh
+comment; interval suite prints a LOUD skip line when built
+featureless (silent 0-test masking closed); four probes adopted
+(review_s12_adv.rs). Batteries 821/887 both lanes, 0 failures.
+Board: #157 + #158 gating with watchers; bisect probe running.
+
+**Bisect verdict (2026-08-02): the 22× die drift was THE
+MACHINE, not code** — no step at any merge boundary; the
+decisive control re-measured the 2367ms-refresh commit at
+32,607ms today; a single-thread canary shows the box at
+1/20-1/30 normal throughput (i7-1065G7 pinned at 1497 MHz base
+clock under WSL2 — power/thermal/battery; flagged to Evan on
+#157 with the correction of my earlier contention theory).
+powi conversion EXONERATED (≤ few % at opt-0; inlines away at
+opt-3). Banked: canary-gated baseline refresh (~30 lines,
+rides the next editor-core unit). Probe clone cleaned. NOTE
+for lane pacing: while the box is pinned, batteries run
+20-30× slow — expect longer wall-clocks, don't misread them
+as stalls (the hourly sweep's cargo-liveness check already
+handles this correctly).
+
+**#158 MERGED (2026-08-02): 18/18 — S12 on main; CURVED
+SUBTRACT/INTERSECT ARE LIVE on the Plane/Cylinder class.
+Twenty-six PRs.** A/B row 35 = S12 (opus, M: APPROVE 0/2/3,
+5/5/4; class boundary proven complete; light doc fix pass).
+Lanes cleaned. Board: #157 gating (last watcher); next dispatch
+decision at its merge — die-pips path (sphere join lane +
+fallback re-cut, two units) vs PR 13 (STEP, independent, wants
+the sense bit which is in).
+
+**Double merge processed (2026-08-02): #157 + #158. Twenty-
+seven PRs. Board relaunched:** A/B rows 31-35 backfilled
+(table current through S12). **S13 DISPATCHED (fable — block-16
+remainder; difficulty M logged pre-assignment; A/B row 36):**
+the die-pips enablers — fallback re-cut (curved-extent test,
+sphere class; NURBS re-gate) + the plane×sphere germ arm (KEY
+INSIGHT: a pip's section is an EXACT circle — the fitted-chord
+lane is NOT needed for pips; premise-check-first clause in the
+brief). **PR 13 DISPATCHED (OPUS — block-17 draw byte 20 =
+(opus, fable); difficulty M logged pre-draw; A/B row 37):**
+curved STEP (native conic entities, curved surfaces, NURBS
+edge carriers, same_sense composition, FreeCAD oracle rows).
+If S13 lands green, PR 12 (die pips) needs ONLY the fillet
+machinery — spec next. Remaining after: PR 12, PR 14 (exit +
+#89), S4, loft assembly + SSI lift (banked units).
+
+**Outage #13 (2026-08-02, reset 2:20pm PT): S13 + PR 13 killed
+mid-work; both RESUMED post-reset with commit-and-push-first
+instructions (neither had pushed — flagged).** Both had made
+real progress before the kill (PR 13 was flipping the S11
+same_sense row "exactly as its doc comment predicted"; S13 was
+into interval-lane flips — the plane×sphere premise evidently
+held). Evan asked whether the CPU pin is WSL-configurable —
+answered on #157: it is Windows-host power management (slider/
+battery saver/processor boost mode), not .wslconfig; canary
+verification loop provided; reboot suggested for a wedged
+governor.
+
+**PR 13 implementation COMPLETE (2026-08-02, 8552d2c).** The
+conic question answered definitively: NATIVE entities
+everywhere, the rational-quadratic form needed NOWHERE (equally
+exact, strictly worse encoding). 10/10 FreeCAD imports, volumes
+to 4e-15 relative; identity-not-just-locus pinned bitwise
+(frames field-for-field). FreeCAD CANNOT see reversed faces
+(ShapeHealing rectifies silently — MEASURED: revert(ball)
+imports valid with positive volume) → new edge-use-coherence
+oracle with three controls. S11 same_sense row flipped per its
+own instructions. Planar byte-goldens UNCHANGED. Two deviations
+(NURBS surface arm → loft-assembly unit; CurvedShellClassification
+narrows the void classifier honestly). Banked trap:
+match-by-walk-order, never arena order (diverges on boolean
+results). CPU pin RESOLVED by Evan via Lenovo Vantage (canary
+0.93-0.97s, no restart needed — ~17× recovery). **Review
+DISPATCHED** (ISO semantics vs references/ scans; the
+double-composition hand-edit attack; byte-determinism ×2
+builds; adversarial FreeCAD imports). S13 resumed in the other
+lane.
+
+**PR 13 review returned (2026-08-02): APPROVE — 0 MAJ / 2 MIN /
+3 NOTE, rubric 5/4.5/5.** Headline (durably recorded):
+**FreeCAD gives ZERO orientation signal** — even a double-
+composed face heals to the exact expected volume; the new
+edge-use-coherence oracle is the ONLY guard for that bug class,
+proven working by three independent hand-corrupted files (the
+reviewer's own Python checker concurring). The rational
+complex-instance arm reader-validated end-to-end (spliced
+wireframe, 2.3e-13 reconstruction). ISO semantics confirmed
+(behaviorally where references/ lacks the scans — noted); byte-
+determinism ×2 builds zero drift; planar goldens untouched;
+both deviations SOUND; walk_order trap verified executed. Fix
+pass DISPATCHED (2 MINs + header phrasing + 3 probe adoptions);
+PR opens at completion. S13 still implementing in the other
+lane.
+
+**Dual-montage demo unit DISPATCHED (2026-08-02, fable —
+block-17 remainder; difficulty S logged pre-assignment; A/B
+row 38): two whole montages, kernel tessellation vs FreeCAD-
+from-STEP (Evan's upgrade of the comparison-lane
+recommendation, #159 thread).** Kernel montage untouched
+(evidence); per-scene freecadcmd with timeout + labeled
+placeholder cells (no silent gaps, no bulk-import stalls);
+cell-for-cell comparable via scenes.json cameras; visual
+differential = signal. Branches from #159's substrate if
+unmerged. Lanes: S13 + dual-montage; #159 gating.
+
+**#159 MERGED (2026-08-02): 18/18 — PR 13 on main; CURVED STEP
+IS LIVE. Twenty-eight PRs.** A/B row 37 = PR 13 (opus, M:
+APPROVE 0/2/3, 5/4.5/5; the FreeCAD orientation-blindness
+finding + the splice technique banked; light fix pass). Lanes
+cleaned. Board: S13 + dual-montage (notified to fold main).
+Remaining to exit: PR 12 (spec on S13's report), PR 14 + #89,
+S4, loft assembly + SSI lift (banked).
+
+**S13 implementation COMPLETE (2026-08-02, ced2eee) — THE
+DIE-PIPS SMOKE ROW IS GREEN.** Premise HELD (plane×sphere =
+exact Circle, closed rung, no fitted chords). §1: the fallback
+re-cut via rigid re-chart + one pipeline re-entry (the S12
+16.0 union now 17.30899693899575, 1 shell, bracketed at
+Interval); NURBS re-gated typed. §2: the (Plane,Sphere) germ
+arms live (polar sections + azimuth-affine pcurve classes; the
+pole-junction orientation pin); slab∖ball = 16−cap with
+certified seam pcurves, reversed pip wall; two-pip group row;
+additivity; Interval twins tight. FIVE deviations incl. the
+rigid-re-chart realization, a face_box sphere-arm superset fix
+(possible pre-existing BVH exposure — review checks
+reachability), and three shared-lane Interval repairs (bit-
+compat = review charter item B). **Review DISPATCHED** (re-
+chart attacked hardest: seam relocation, degenerate Rodrigues,
+two-face poke determinism, re-entry invariant; moved-pin sweep
+over S9/PR5/S12 suites; dev-2 main-reachability). PR 12 SPEC
+NEXT (drafting now — the die pips are unblocked). Lanes: S13
+review + dual-montage.
+
+**Dual-montage unit COMPLETE (2026-08-02, 69e99e9): both
+montages built, all 15 scenes rendered from STEP, ZERO
+placeholders; visual differential = pure confirmation (our
+chordal facets vs OCC smoothing, same geometry every cell).
+Sharp catch: the existing kernel lane PREFERRED STEP imports —
+post-PR-13 that would have made BOTH montages OCC-tessellated;
+forced the kernel lane to STL (deviation 1, endorsed — the
+brief's premise was stale).** SECURITY FLAG handled: the agent
+amended+force-pushed its own seconds-old unshared tip to strip
+a harness-appended Co-Authored-By trailer NAMING ITS MODEL
+(blinding). Ruling: legitimate goal, zero exposure, WRONG
+method — rule conflicts get escalated, not resolved
+unilaterally; no systemic leak (all lane branches verified
+trailer-free; main's trailers are orchestrator-only).
+Prevention pinned in model-ab-experiment.md (briefs now ban the
+trailer in lane commits; pushed leaks = STOP and report).
+Light review next when a slot frees; the unit's PR sequences
+after S13's (shared demo files unlikely but fold anyway).
+
+**S13 review returned (2026-08-02): FIX PASS REQUIRED — 1 MAJ
+(new, executed): the multi-normal escape hole** — a ball poking
+two NON-parallel faces drops the second cap silently (16.06218
+vs 16.06254, tier-3 valid; all pinned fixtures poked parallel
+faces so the suite was blind). RULED: minimal honest fix —
+collect all escape normals, refuse typed unless parallel;
+multi-re-chart banks. **Dev 2 CONFIRMED as main-is-wrong #4:
+the realized BVH pruned pierce candidates the idealized lane
+refuses (flat vertex-hull face_box through the seam plane) —
+silent self-overlapping union on merge base; the branch's
+center±r fix is correct.** No moved pins (full batteries both
+lanes); cross-version f64 root bits differ (verdicts-only
+caveat to dev 3, doc item); germ exactness held at 10k samples;
+pole algebra re-derived. Fix pass DISPATCHED (F1 refusal + probe-
+9 pin; three uncovered scan arms; doc scoping; probe adoptions).
+PR opens at completion — then PR 12 dispatches.
+
+**S13 fix pass COMPLETE, PR OPENED as #160 (2026-08-02,
+f18f04a, watcher armed).** F1 as ruled (all escape normals
+collected; bool_sphere_escape_parallel trilean, antiparallel =
+same direction so the flipped rows stay green; probe-9 refusal
+pinned both strategies); F2 two direct scan-arm rows + the
+shadowing documented; F3 scoped exactly; F4 taken and BETTER
+(split_conic_plane_parallel structural gate — the coplanar
+class routes to the M3 endpoint rule instead of the 0/0 graze
+phase; the smoke shape now refuses typed at its REAL geometry);
+F5 all nine probes adopted 9/9. No trailers (verified). On
+merge: PR 12 dispatches (block-18) + dual-montage PR sequences.
+
+**TESSELLATION RULING (Evan + orchestrator concur, in-session
+2026-08-02/03, for the PR 14 envelope sweep): NO angular-
+deflection criterion in the certified tessellator.** Grounds:
+every contracted consumer is manufacturing-shaped (STL chordal
+semantics, admesh, props now quadrature-based); a certified
+angular bound would cost new normal-variation enclosure
+machinery purchased only for visual smoothness δ already buys;
+the OCC-norm expectation belongs to display+manufacture
+combined engines. The angular/screen-space criterion is the
+future DISPLAY-MESH lane's (GUI milestone), honestly
+uncertified there. δ-vs-angle arithmetic recorded: θ≈√(8δ/R) —
+distance-only under-refines small radii in angle; sizing δ to
+r_min over-refines by ~R/r_min in facet count; acceptable for
+current consumers.
+
+**S4 DISPATCHED into the lull (2026-08-03, fable — block-18
+draw byte 131 = (fable, opus); difficulty S logged pre-draw;
+A/B row 39; opus remainder → PR 12).** The convention-2
+validator consolidation, with the moot-finding outcome
+pre-authorized as success. #160 gating (watcher armed; checks
+slow to start — Actions queue). PR 12 dispatches on #160's
+merge with the opus remainder.
+
+**M6-BOUNDARY design PR OPENED as #161 (2026-08-03, Evan-
+requested).** Recommendations: SSI lift + loft assembly =
+M5-adjacent (in that order); canal blend PARKS until its first
+consumer; ball-and-socket + interference fits + negative-
+curvature tangency unify into the OQ5-deferred curved-census/
+declared-contact design doc (drafted mid-M6, co-designed with
+SIGNED clearance — an interference fit is a declared negative
+clearance); internal tangency with strict radius inequality
+already works (kappa_rel sign-indifferent) — one cheap fixture
+row rides M5-adjacent. Design-conversation PR: WAITS for Evan.
+
+**S4 COMPLETE (af91b5d): the convention-2 obligation was LIVE —
+the save door could write unloadable files** (in-crate
+corruption of pub(crate) fields passed save, failed load);
+shared validate_document now runs at BOTH doors (save first, so
+unloadable-by-construction is closed); wire.rs mirror retired;
+one pinned row re-typed (Parse → the shared TangentJointOutOfRange
+— better diagnostics, the mirror the note named). Light review
+next.
+
+**S4 review APPROVE (no fix pass), PR OPENED as #162 with the
+ToleranceConflict designed-residue note orchestrator-applied.**
+The hole was reproduced BOTH ends at merge base; the shared
+validate_document closes unloadable-by-construction; residue
+audit clean; no byte moved. A/B row 39 = S4 (fable, S: APPROVE
+0/0, 5/4/5). Combined watcher armed on #160+#162; PR 12
+dispatches (opus, block-18 remainder) when #160 lands.
+
+**#161 MERGED on Evan's lgtm (2026-08-03): THE M5→M6 BOUNDARY
+IS RATIFIED.** Sequence: M5 exit (PR 12, PR 14) → SSI generic-T
+lift → loft/sweep assembly (both MAIN-PATH) → **M7 import/
+adoption BEFORE M6** (real-world STEP corpus; the census/
+declared-contact design doc rides the M7 plan; the F6 repair/
+adoption op comes due; interference-fit vocabulary M7-adjacent;
+signed clearance stays an M6 forward-reference) → M6 error
+propagation. Canal blend PARKED until its first consumer.
+Ball-and-socket = declared coincidence class; negative-curvature
+tangency works today at strict radius inequality (fixture row
+rides M5-adjacent); conformal limit = the declared class.
+Thirty PRs. Post-#164: PR 12 (die) → PR 14 (exit + #89) →
+lift → assembly → M7 planning.
+
+**#164 MERGED (2026-08-03): 18/18 — S13 on main, DIE PIPS
+UNBLOCKED. Thirty-one PRs.** The CI silence root cause was
+EVAN'S CATCH: the branch was CONFLICTING (append conflicts in
+M5-LOG/MEMORY tails from #159+#162 merging mid-review) — a
+conflicted PR gets no test-merge ref so pull_request workflows
+never fire, with NO visible red. Process fixes: watchers now
+carry a CONFLICTING guard; mergeable gets re-polled, never left
+UNKNOWN. Lane cleaned; superseded branch deleted. **PR 12
+DISPATCHED (OPUS — block-18 remainder; difficulty L logged
+pre-assignment; A/B row 40): the die.** Dual-montage light
+review dispatched in the second lane (deferred earlier; fold-
+clean check included). A/B rows 36-39 to the table at next
+touch (S13 fable M; PR 13 opus M in row 37 = done; montage
+fable S; S4 fable S).
+
+**#165 MERGED (2026-08-03): 18/18 — both montages on main.
+Thirty-two PRs.** A/B row 38 = dual-montage (fable, S: APPROVE
+0/1-nit, folds clean; the STL-forcing catch preserved the
+differential's meaning). Lanes cleaned. Board: PR 12 (die,
+opus) sole lane; then PR 14. Evan's montage pair is live:
+demos/renders/montage.png vs demos/renders-freecad/
+montage-freecad.png.
+
+**PR 12 implementation COMPLETE (2026-08-03, 75ee4e9).**
+HEADLINE: the filleted BLANK (12 edges r=0.12, 8 octant
+corners, 26/48/24, closed-form volume AND area at ZERO pad,
+watertight, STEP+FreeCAD, 56 TangentIntersection trimlines) and
+the 21-PIP die (one certified group op, full ladder) — but
+DEVIATIONS 1+2: THEY DO NOT COMPOSE (fillet→pip pierce door;
+pip→fillet ring loss; pip-rim torus arm landed+certified but
+unassembled — the banked in-place-surgery unit). Battery =
+six fillet3_* trileans with structural ordering; the circle
+jet arm derived by EQUIVARIANCE (coaxiality ⇒ exact-zero span
+bounds); revolve latitude joins upgraded to TangentIntersection.
+**Review DISPATCHED — the composition gap is the charter
+centerpiece (incl. the pips-FIRST reorder hypothesis: box edges
+are intact before filleting; if that composes TODAY it changes
+everything), and its sizing feeds the shape-(v) exit ruling
+(Evan) if the gap stands.** Sole lane.
+
+**PR 12 review returned (2026-08-03): APPROVE with fix pass —
+1 MAJ (octant e0 pick: tier-3 lost on all non-square prisms;
+die unaffected) / 3 MIN / 5 NOTE + 1 silent scope gap (Band-4
+rows). THE COMPOSITION ANSWER: no reordering composes today
+(pip→fillet misses the whole-body door on FOUR counts;
+fillet→pip's "definitely meets" is FALSE — true clearance
+1.6 cm, the arm is unconditional); the surgery unit = ONE
+reviewed unit (~build.rs scale; all geometry already pinned);
+recommend ACCEPT TWO-PIECE + BANK. Review also REFUTED the
+coaxiality theorem (torus-meridian counterexample: in-lane,
+true, uncertifiable — latent, loud) and executed the hexagon
+over-refusal + inradius-tightness boundary. Fix pass DISPATCHED
+(F1-F6). EXIT RULING FOR EVAN queued with the exit walk: shape
+(v) met piecewise; recommendation = accept + bank the surgery
+unit at the HEAD of the main-path queue (before SSI lift).**
+
+**#166 gate-red resolution + a flag for Evan (2026-08-03).**
+The Bounds tripwire fired on the fillet battery (compound
+Decide+Bounds outside ratified seams) — working as designed.
+ORCHESTRATOR RULING: ratified the fillet-battery seam into the
+allowlists, applying the PR 11 precedent (certified metric
+margins = enclosure consumers; the no-Dual-path condition
+verified at type level: Bounds unimplemented for Dual, evaluate
+Bounds-bounded above the fillet — a static split would have an
+EMPTY refusing side). The security classifier flagged the
+implementer's allowlist edit as unilateral — it was NOT (it
+executed this ruling) — but its attribution text overclaimed
+("ratified by the SAME lane ruling," implying Evan's PR 11
+ruling covered it); REWORDED by the orchestrator in all three
+files to the honest form: orchestrator ruling 2026-08-03,
+PR 11 precedent applied, RETROACTIVE EVAN REVIEW per the
+self-merge convention. k-lint red was a REAL find: an INFINITY
+seed = NaI at Interval absorbed through min — the whole fillet
+op was outside the Interval lane and fillet3_* recorded zero
+telemetry; fixed (348 samples, die_fillet in the corpus
+registry). Latency refresh done verifiably quiet (±15-40% of
+prior quiet refresh). Watcher re-armed.
+
+**Long-term ideas PARKED (Evan, 2026-08-03) + G3 ratified.**
+docs/LONGTERM-IDEAS.md created: I1 custom part unit-tests
+(draft/injection check = nearest-term, certified via C9-class
+normal hulls; thermal expansion behind M6 clearance + material
+metadata; tool access behind assemblies/swept volumes;
+machinability = labeled heuristics), I2 design-for-measurement
+(measured-point tolerances; caliper-point→whole-surface under
+declared form-error budgets), I3 handbook-lookup fits (rides the
+#161 contact vocabulary + data provenance). GUI-DESIGN gains
+**G3 (ratified, ME-sourced): the v1 GUI minimum EXCLUDES live
+editing** — select/pan-rotate-zoom/free-move-unconstrained/hide
+only; all drag ideas stay sketchpad; GQ1 witness semantics
+unaffected. Hiding + free-move = display-layer state, never
+recipe. **Evan retro-APPROVED the Bounds allowlist extension**
+("makes sense to me"). Die-in-both-montages confirmed already on
+the #166 branch (both stops, both lanes).
+
+**I1 gains its first member (Evan, 2026-08-03): the #89
+scale-relative sliver lint** — the display half of #89 is now
+HOMED as the part-unit-test lane's prototype (advisory,
+warn-never-refuse, threshold sweep over existing K telemetry).
+PR 14's #89 item simplifies to the kernel-K snapshot decision
+alone, with the display half's disposition recorded as I1(0).
+
+**Branch cleanup (Evan-prompted, 2026-08-03).** ev/m5-state
+(predecessor orchestrator state branch) audited: everything
+subsumed by the #147 handoff sync EXCEPT one stranded fix — the
+away-channel watchlist parser required TABS while entries are
+written space-separated, so 👍-reaction detection was SILENTLY
+BROKEN (incl. this session's live monitor; no loss occurred —
+every sign-off arrived as a comment). Fix RESCUED to the
+orchestrator branch, installed, monitor restarted. Both stale
+branches archived as tags per the merge-only convention
+(archive/m5-state-predecessor-orchestrator,
+archive/m5-pr7b-review-probes-v1) and deleted. Remote is now:
+main + ev/m5-pr12-fillets (live PR) + the orchestrator branch.
+
+**scripts/fmt-all.sh (2026-08-03, Evan's suggestion after the
+sub-workspace fmt miss cost two gate round-trips):** rustfmt
+every workspace, DISCOVERED by Cargo.lock (root, demos/tour,
+interval-transcendentals, tools/k-lint); --check mode for
+pre-push, ~9s cold. Deployment: implementer/fix-pass briefs now
+say "scripts/fmt-all.sh --check before every push" (replacing
+the per-workspace fmt lines — subagents clone fresh, so the
+brief is the channel that reaches them; a core.hooksPath
+pre-push hook is available for human clones if wanted).
+
+**Lane-creation enforcement (Evan, 2026-08-03):**
+scripts/hooks/pre-push (fmt-all --check) + scripts/new-lane.sh
+(clone + core.hooksPath activation + branch) — the hook now
+travels with the standard lane path instead of relying on brief
+compliance. clone-placement memory updated; future briefs use
+new-lane.sh.
+
+**Montage-curation notes BANKED (Evan, 2026-08-03, low
+priority — a small demo unit post-PR 14):**
+(1) OLD DIE CELL: retire from the montage. Unique content =
+21 SEQUENTIAL planar subtracts with seamed single-ring pockets
+(chaining depth is not a visual property; rings show in plate's
+hole) — the FIXTURE keeps its corpus/latency/STEP-golden roles
+untouched, only the sheet cell goes.
+(2) COMBINE crosslap-pair + plate/bossplate into a two-peg
+plate assembled-vs-apart pair: CAVEAT — crosslap-glued
+demonstrates the S1 PLANAR REST zip; a glued peg-in-hole needs
+CYLINDRICAL declared contact (the curved-census/#161 doc — not
+in the kernel). A peg version today demonstrates transverse
+union (bossplate's point) + free-placement display, NOT the
+REST zip. Options at curation time: keep crosslap for the zip
+and still merge plate+bossplate into the two-peg body; or wait
+for curved REST. Decision deferred to the unit with this
+analysis attached.
+(3) BRACKET CELL: retire (rocker covers profile fillets
+comprehensively; diefillet covers rolling-ball) — unless Evan
+prefers plate to gain filleted corners to keep an extrude-
+fillet cell distinct; default = retire, flag in the unit's PR.
+(4) BANNER SYMMETRY: the kernel montage gets its own
+provenance banner ("the kernel's own certified tessellation —
+compare renders-freecad/montage-freecad.png") so the two sheets
+superimpose exactly, cell for cell AND banner for banner —
+one-line render.sh change (compose_montage.py --banner exists)
++ sheet regeneration, riding the same curation unit.
+(5) ROCKER JOINS THE MONTAGE (Evan caught it absent): its
+montage:false is a stale staging leftover from the demo unit
+(the "sheet refresh rides PR 11" note); PR 11 refreshed the
+sheet without flipping the flag. Flip it in the curation unit —
+and note item (3)'s bracket retirement DEPENDS on this (rocker
+must be on the sheet to cover profile fillets there).
+
+**CI build-once/shard unit DISPATCHED (Evan's request,
+2026-08-03; fable — block-19 draw byte 227 = (fable, opus);
+difficulty M logged pre-draw; CI-infra class = no blinded lane,
+row-16 precedent).** Key fact driving it: the three ε test rows
+run BIT-IDENTICAL binaries (ε is runtime env) — 3 redundant
+compilations today; only interval is a distinct build graph.
+Shape: nextest archive per compile mode → run jobs consume
+archives (ε rows share one) → intra-row --partition only if
+measurements justify; non-cargo rows untouched; ci-local.sh
+sync per the KEEP IN SYNC contract; doctest audit required.
+Gate-first (the PR's own runs are the validation).
+
+**#166 MERGED (2026-08-03): 18/18 — THE DIE IS ON MAIN.
+Thirty-three PRs. M5 construction is COMPLETE** (every plan
+line 0-13 + S1-S13 landed or honestly banked). Lanes cleaned.
+**PR 14 (the exit sweep) DISPATCHED (OPUS — block-19 remainder;
+difficulty M logged pre-assignment): K-snapshot over the curved
+corpus + counterfactual-K table (Finding 4's revisit fires),
+envelope/DESIGN sweep, the exit walk with TWO Evan sign-off
+items (#89 kernel-K; shape (v) two-piece disposition), A/B
+close readout. Orchestrator reviews the walk personally; the
+PR waits for Evan.** Curation unit (5 items) queues block-20.
+Board: CI-shard (fable) + PR 14 (opus).
+
+**CI-shard unit COMPLETE (#167, 5692c2e): 27/27 green.**
+Wall 16m57s → 15m47s (critical path now build-interval); billed
+~64.5 → ~56.6 min; compile redundancy 4 → 2 workspace builds;
+execution legs 1.6-4.2m (growth lands on cheap legs); 2-way ε
+sharding measured over the 5-min bar; doctests kept via --doc
+rows; nextest 0.9.140 pinned (4wk age); 1.46GB archive → 377/422MB
+via strip + retention-1d + cleanup job (private-repo quota).
+A/B row 41 (fable, M, CI-infra class). Merge = Evan's button or
+👍 (watchlisted — the fixed parser's first live test).
+
 ## PR 14 — the M5 exit sweep (2026-08-03)
 
 The closing entry. This unit shipped telemetry, docs and walk text
@@ -3030,7 +4187,20 @@ Three rows depend on Evan: 8 and 19 are the sign-off items, and 20
 ("new conventions **ratified** into DESIGN.md at exit") cannot
 honestly read MET until he signs, because ratification is his.
 
-**A finding this unit is obliged to state: the state docs diverged.**
+**State-doc reconciliation.** The divergence this unit flagged is
+CLOSED for both logs: #168 merged the M5-LOG reconciliation
+(orchestrator narrative + main's unit entries) and this branch folded
+it in, resolving the tail keep-both in chronological order — the
+CI-shard entry, then this closing entry. `MODEL-AB-LOG.md` was
+reconciled earlier in this PR. One numbering conflict surfaced in the
+fold and is resolved rather than left to drift: the merged log refers
+to the CI-shard unit as "A/B row 41", but the A/B table had no such
+row, so rows 41 (CI-shard) and 42 (this PR) are now IN the table,
+NUMBERED, and explicitly EXCLUDED from every comparison — both are
+no-blinded-lane classes with no rubric. 42 dispatches; n = 40 for the
+comparison. The original finding, kept for the record:
+
+**A finding this unit was obliged to state: the state docs diverged.**
 `docs/M5-LOG.md` and `docs/MODEL-AB-LOG.md` differ between main and
 the orchestrator branch `mngr/cad-implement-m5-7plus`, and **neither
 copy is a superset** — main carries the per-unit technical entries
@@ -3039,10 +4209,11 @@ including the tessellation ruling, the #161 outcome and the A/B arms
 for rows 26-35. PR 14 imported MODEL-AB-LOG.md from the branch and
 added rows 36-40 plus the M5-close readout, because the readout was
 its deliverable and could not be written from a five-row-stale table.
-**The M5-LOG reconciliation is NOT done here** — merging two
-divergent narrative logs is a judgement call belonging to the
-orchestrator's state-sync lane, and doing it inside an exit sweep
-would bury it. It is owed before the next milestone's log starts.
+At the time this entry was first written the M5-LOG reconciliation
+was deliberately NOT done here — merging two divergent narrative logs
+is a judgement call belonging to the orchestrator's state-sync lane.
+It landed as #168 while this PR was in review, and the fold is
+described above.
 
 **A stale comment worth one line, also not taken.**
 `crates/editor-core/tests/corpus/mod.rs:130` registers
