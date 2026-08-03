@@ -85,11 +85,30 @@ pub fn voided() -> Body<f64> {
     result.body
 }
 
-/// A revolved ball — sphere surface, deliberately OUTSIDE the M4
-/// analytic subset (drives the typed `UnsupportedSurface` refusal).
+// ---- the curved corpus (M5 PR 13) ------------------------------------
+//
+// The R5 shapes constructible at rest, chosen so that every new writer
+// arm has a body behind it: CIRCLE and CYLINDRICAL_SURFACE (several),
+// ELLIPSE (`cut_cylinder`), SPHERICAL_SURFACE (`ball`),
+// CONICAL_SURFACE (`cone`), TOROIDAL_SURFACE (`donut`), and the
+// `same_sense = .F.` arm (`notched`, `washer`). Recipes are the same
+// ones the mesh/stl/sweep suites use — deliberately not new geometry.
+
+/// The revolve axis of the corpus: the profile plane's +y through the
+/// origin (so revolved bodies stand on the world Y axis).
+fn revolve_y() -> sweep::RevolveAxis<f64> {
+    sweep::RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    }
+}
+
+/// A revolved unit ball — ONE `Surface::Sphere` carrying two half-bands
+/// (V2 E2 F2), the seam meridian and its π copy as `Circle` carriers,
+/// the poles as ordinary vertices. Exact volume 4π/3.
 pub fn ball() -> Body<f64> {
     use profile::ProfileVertex;
-    use sweep::{Revolution, RevolveAxis, revolve};
+    use sweep::{Revolution, revolve};
     let lp = ProfileLoop::new(vec![
         ProfileVertex {
             pos: Point2::new(0.0, -1.0),
@@ -103,11 +122,306 @@ pub fn ball() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: geom_core::Vec2::new(0.0, 1.0),
+    revolve(&profile, revolve_y(), Revolution::Full)
+        .unwrap()
+        .body
+}
+
+/// A revolved cone: the right triangle (base radius 1, height 1)
+/// swept fully — `Surface::Cone` (apex fan) plus the base `Plane`
+/// disc. Exact volume π/3. The one corpus body that exercises the
+/// apex-placement `CONICAL_SURFACE` encoding.
+pub fn cone() -> Body<f64> {
+    use sweep::{Revolution, revolve};
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    revolve(&profile, revolve_y(), Revolution::Full)
+        .unwrap()
+        .body
+}
+
+/// A revolved donut: the radius-½ circle centred at (2, 0) swept
+/// fully — a single `Surface::Torus`, both meridians `Seam`. Exact
+/// volume 2π²Rr² = π².
+pub fn donut() -> Body<f64> {
+    use profile::ProfileVertex;
+    use sweep::{Revolution, revolve};
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: Point2::new(2.0, -0.5),
+            bulge: 1.0,
+        },
+        ProfileVertex {
+            pos: Point2::new(2.0, 0.5),
+            bulge: 1.0,
+        },
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    revolve(&profile, revolve_y(), Revolution::Full)
+        .unwrap()
+        .body
+}
+
+/// A revolved washer: the rectangle [1,2]×[0,1] swept fully — genus 1,
+/// two annuli and two full-2π cylinder walls. Its BORE wall and its
+/// under-side annulus both carry `sense: false` (S11), so this is the
+/// corpus's two-`.F.` body. Exact volume 3π.
+pub fn washer() -> Body<f64> {
+    use sweep::{Revolution, revolve};
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    revolve(&profile, revolve_y(), Revolution::Full)
+        .unwrap()
+        .body
+}
+
+/// M5 shape (i), the above half: a unit cylinder of height 2.5 split
+/// by a plane tilted 0.3 rad through the mid-height axis point. The
+/// section rim is an exact `Ellipse` (semi-axes 1 and 1/cos 0.3) —
+/// the corpus's only ELLIPSE carrier. Exact volume π·1.25 (the tilted
+/// plane passes through the axis midpoint, so it halves the cylinder).
+pub fn cut_cylinder() -> Body<f64> {
+    use profile::ProfileVertex;
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: Point2::new(-1.0, 0.0),
+            bulge: 1.0,
+        },
+        ProfileVertex {
+            pos: Point2::new(1.0, 0.0),
+            bulge: 1.0,
+        },
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    let cylinder = extrude(&profile, Extrusion::Distance(2.5)).unwrap().body;
+    let phi: f64 = 0.3;
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.0, 1.25),
+        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    revolve(&profile, axis, Revolution::Full).unwrap().body
+    let result = split(&cylinder, &plane).unwrap();
+    let SplitPart::Body(above) = &result.above else {
+        panic!("the above half carries material");
+    };
+    above.clone()
+}
+
+/// M5 shape (ii): a 4×4×1 plate ∪ a radius-½ cylindrical boss (three
+/// 120° arc segments) rising from z = 0.4 to z = 1.6 — the first
+/// transverse curved boolean. The seam is three exact circle arcs
+/// shared between the protruding walls and the plate's ringed top
+/// face. Exact volume 16 + π·0.25·0.6.
+pub fn boss_union() -> Body<f64> {
+    use geom_core::Affine3;
+    use profile::ProfileVertex;
+    let plate_loop = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(4.0, 0.0),
+        Point2::new(4.0, 4.0),
+        Point2::new(0.0, 4.0),
+    ]);
+    let plate = extrude(
+        &validated(SketchPlane::xy(), plate_loop),
+        Extrusion::Distance(1.0),
+    )
+    .unwrap()
+    .body;
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th: f64 = deg.to_radians();
+        Point2::new(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
+    };
+    let boss_loop = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: at(0.0),
+            bulge: b120,
+        },
+        ProfileVertex {
+            pos: at(120.0),
+            bulge: b120,
+        },
+        ProfileVertex {
+            pos: at(240.0),
+            bulge: b120,
+        },
+    ]);
+    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let boss_profile = Profile::new(sketch, vec![boss_loop])
+        .validate(Tolerance::get())
+        .unwrap();
+    let boss = extrude(&boss_profile, Extrusion::Distance(1.2))
+        .unwrap()
+        .body;
+    let BooleanResult::Body(bb) = union(&plate, &boss).unwrap() else {
+        panic!("the boss union yields a body");
+    };
+    bb.body
+}
+
+/// The S11 notched prism: a 2×1.5 rectangle with a CONVEX 45° bulge on
+/// the bottom edge and an equal CONCAVE bite on the top, extruded 1.
+/// The two bulges cancel, so the exact volume is 3. The concave wall
+/// is the kernel's canonical `sense: false` face — this body is why the
+/// `same_sense = .F.` arm exists.
+pub fn notched() -> Body<f64> {
+    let b = core::f64::consts::FRAC_PI_8.tan();
+    let lp = ProfileLoop::builder(Point2::new(0.0, 0.0))
+        .arc_to(Point2::new(2.0, 0.0), b)
+        .line_to(Point2::new(2.0, 1.5))
+        .arc_to(Point2::new(0.0, 1.5), -b)
+        .close();
+    extrude(&validated(SketchPlane::xy(), lp), Extrusion::Distance(1.0))
+        .unwrap()
+        .body
+}
+
+/// S12's two-stub complement: a radius-0.35 cylindrical boss spanning
+/// z ∈ [−0.2, 1.0] MINUS a 3×3×0.8 plate — the boss's two ends stick
+/// out above and below, so the result is one solid with TWO disjoint
+/// shells, both carrying cylinder walls. The only curved MULTI-shell
+/// body constructible at rest, and therefore the only body that
+/// reaches (and refuses at) the export's outward/void classifier.
+/// Deliberately NOT a committed fixture: it does not export.
+pub fn two_stub_complement() -> Body<f64> {
+    use core::f64::consts::PI;
+
+    use geom_core::Affine3;
+    use profile::ProfileVertex;
+    let plate = extrude(
+        &validated(
+            SketchPlane::xy(),
+            ProfileLoop::polygon([
+                Point2::new(0.0, 0.0),
+                Point2::new(3.0, 0.0),
+                Point2::new(3.0, 3.0),
+                Point2::new(0.0, 3.0),
+            ]),
+        ),
+        Extrusion::Distance(0.8),
+    )
+    .unwrap()
+    .body;
+    let r = 0.35;
+    let bulge = (PI / 6.0).tan();
+    let at = |i: usize| {
+        let th = 2.0 * PI / 3.0 * i as f64;
+        Point2::new(1.2 + r * th.cos(), 1.7 + r * th.sin())
+    };
+    let boss_loop = ProfileLoop::new(
+        (0..3)
+            .map(|i| ProfileVertex { pos: at(i), bulge })
+            .collect(),
+    );
+    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
+    let boss = extrude(
+        &Profile::new(sketch, vec![boss_loop])
+            .validate(Tolerance::get())
+            .unwrap(),
+        Extrusion::Distance(1.2),
+    )
+    .unwrap()
+    .body;
+    let BooleanResult::Body(stubs) = subtract(&boss, &plate).unwrap() else {
+        panic!("boss minus plate is a body");
+    };
+    stubs.body
+}
+
+/// **The writer's emission order, mirrored** (faces, then edges by
+/// first encounter): solids in arena order → shells in `Solid::shells`
+/// order → faces in `Shell::faces` order → the outer loop then rings in
+/// stored order → half-edges in loop-cycle order.
+///
+/// The suites that compare emitted records against the body's own
+/// geometry need to know WHICH kernel entity a record belongs to, and
+/// entity ids are allocated along exactly this walk (`writer.rs`'s
+/// module docs, D9). Note this is deliberately NOT `body.faces()` /
+/// `body.edges()`: those are arena order, which coincides with the walk
+/// on simple extrusions and diverges on boolean results — a helper that
+/// used them would silently compare the wrong pairs on precisely the
+/// most interesting bodies.
+pub fn walk_order(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<topo::EdgeKey>) {
+    let mut faces = Vec::new();
+    let mut edges = Vec::new();
+    for (_, solid) in body.solids() {
+        for &shell_key in &solid.shells {
+            let shell = body.get_shell(shell_key).expect("shell resolves");
+            for &face_key in &shell.faces {
+                faces.push(face_key);
+                let face = body.get_face(face_key).expect("face resolves");
+                for &loop_key in std::iter::once(&face.outer).chain(face.rings.iter()) {
+                    let loop_ = body.get_loop(loop_key).expect("loop resolves");
+                    let topo::LoopBoundary::Cycle { first } = loop_.boundary else {
+                        panic!("a finished body has no empty loop");
+                    };
+                    for he_key in body.loop_cycle(first).expect("cycle closes") {
+                        let he = body.get_half_edge(he_key).expect("half-edge resolves");
+                        if !edges.contains(&he.edge) {
+                            edges.push(he.edge);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (faces, edges)
+}
+
+/// The certified carrier of an edge, for the suites that compare
+/// emitted geometry with the body's own (`topo`'s public accessors,
+/// spelled once).
+pub fn certified_carrier(body: &Body<f64>, edge: topo::EdgeKey) -> &geom_curves::Curve3<f64> {
+    let edge = body.get_edge(edge).expect("edge key resolves");
+    match body.get_curve_geom(edge.curve).expect("curve key resolves") {
+        topo::CurveGeom::Certified(curve) => curve.carrier(),
+        topo::CurveGeom::NullScaffold(_) => panic!("a finished body has no null scaffolding"),
+    }
+}
+
+/// **The committed-fixture corpus, in file order** — the single list
+/// behind `examples/export_fixtures.rs` (which writes the `.step`
+/// files), `tests/export.rs::committed_fixtures_are_byte_golden`
+/// (which pins them), and `scripts/check_step.sh` (which imports every
+/// `.step` in the directory into FreeCAD/OCC against its hand-authored
+/// `.expect` sidecar — a `.step` WITHOUT a sidecar is a hard failure,
+/// so a row added here needs one written by hand).
+///
+/// Order is planar-first then curved, and it is the order the files
+/// were minted in; it has no semantic weight beyond keeping diffs
+/// readable.
+pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
+    vec![
+        // The M4 planar set.
+        ("cube", cube()),
+        ("die", die(0.0, 0.0, 0.0)),
+        ("kiss_assembly", kiss_assembly()),
+        // The M5 PR 13 curved set.
+        ("cut_cylinder", cut_cylinder()),
+        ("boss_union", boss_union()),
+        ("notched", notched()),
+        ("washer", washer()),
+        ("ball", ball()),
+        ("cone", cone()),
+        ("donut", donut()),
+    ]
 }
 
 /// Census tuple (faces, edges, vertices) of a body — the kernel-side

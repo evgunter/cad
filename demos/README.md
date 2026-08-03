@@ -95,20 +95,34 @@ contract, demonstrated rather than claimed.
 
 ## The STEP lane (#88)
 
-Every scene body attempts an AP214 STEP export beside its STL. The
-in-house writer's analytic subset is planes/lines today, so curved
-bodies (bracket, plate, vase, sheave, chute) refuse **typed**
-(`UnsupportedSurface`/`UnsupportedCurve` — the M5 arms), and the tour
-narrates the refusal. All-planar bodies (die, table, silhouettes,
-cross-lap, project box, cutaway halves, heat sinks) export STEP.
+Every scene body exports an AP214 STEP file beside its STL — **all 26
+of them since M5 PR 13**, where the in-house writer's analytic subset
+grew from planes/lines to the whole elementary-surface vocabulary
+(`PLANE`, `CYLINDRICAL_`, `CONICAL_`, `SPHERICAL_`, `TOROIDAL_SURFACE`)
+with `LINE`/`CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS` carriers.
+Every arm is an **exact native entity**: a cylinder leaves as a
+cylinder, never as a spline approximation of one.
+
+Nine tour bodies are curved (bracket, plate, vase, sheave, chute,
+rocker, bossplate, and the two tiltedcut halves); six of them carry
+`same_sense = .F.` faces, the concave-wall bit S11 introduced. All nine
+import into FreeCAD 1.1.2 as valid single-solid shapes whose volumes
+agree with the kernel's own tessellation to within faceting error.
+
+Two typed refusals remain as named frontiers, and no tour body is in
+either: a NURBS **face** (which the loft-assembly unit mints) and a
+multi-shell **curved** solid (whose outward/void classification has no
+closed form yet). The tour still fails loud if a body it expects to
+export does not.
 
 ## Renderers
 
 `render.sh` prefers **headless FreeCAD** (`freecadcmd`,
 `QT_QPA_PLATFORM=offscreen`, no display/Xvfb): one session imports the
-tour's OWN STEP exports — every montage panel of a planar body
-dogfoods the F6 lane end-to-end (export → OCC import → render) — and
-falls back to STL mesh import for the curved bodies. Set `FREECADCMD`
+tour's OWN STEP exports — every montage panel now dogfoods the F6 lane
+end-to-end (export → OCC import → render), curved bodies included since
+M5 PR 13; the STL mesh-import fallback stays for anything that ever
+fails to export. Set `FREECADCMD`
 to override the binary location. All scenes render in one warm
 document with per-scene visibility toggling (per-scene document
 cycling races the offscreen view-provider setup — observed as blank

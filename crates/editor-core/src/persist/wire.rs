@@ -164,8 +164,13 @@ struct WireVertex {
 /// pass — no migration, v1 never shipped without it). Joints persist
 /// as the canonical SET (strictly increasing — the field is
 /// set-semantic, #101 review NOTE-1); the save side canonicalizes,
-/// and the load door refuses non-canonical or out-of-range lists
-/// typed (no silent reinterpretation of a corrupt declaration).
+/// and the load door refuses non-canonical lists typed (no silent
+/// reinterpretation of a corrupt declaration). Canonicity is the
+/// WIRE's own rule — an in-memory list is set-semantic and may be
+/// unsorted — so the check lives here, load-only by nature; joint
+/// RANGE is a document property and lives in the shared validator
+/// ([`crate::persist::check`], convention 2), which runs on the
+/// parsed document after this door.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireLoop {
@@ -239,19 +244,14 @@ impl<'de> Deserialize<'de> for ProfileDesc {
         );
         let mut loops = Vec::with_capacity(wire.loops.len());
         for (loop_index, lp) in wire.loops.into_iter().enumerate() {
-            let vertex_count = lp.vertices.len();
             let mut joints = Vec::with_capacity(lp.tangent_joints.len());
             for (i, &j) in lp.tangent_joints.iter().enumerate() {
-                // Bounds + canonical-set door (typed; surfaces as a
-                // Parse refusal with position): a joint names segment
-                // j of THIS loop, and the list is a strictly
+                // Canonical-set door (typed; surfaces as a Parse
+                // refusal with position): the list is a strictly
                 // increasing set — anything else is a corrupt or
                 // hand-mangled declaration, never reinterpreted.
-                if j >= vertex_count as u64 {
-                    return Err(D::Error::custom(format!(
-                        "tangent joint {j} out of range for loop {loop_index} with {vertex_count} vertices"
-                    )));
-                }
+                // Joint RANGE is checked by the shared validator on
+                // the parsed document (struct docs), not here.
                 if i > 0 && lp.tangent_joints[i - 1] >= j {
                     return Err(D::Error::custom(format!(
                         "tangent joints of loop {loop_index} are not a strictly increasing set at index {i} (value {j})"

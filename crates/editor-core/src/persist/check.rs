@@ -1,16 +1,39 @@
-//! The persistence doors' walks (spec D2/D6.3):
+//! The persistence doors' ONE shared validator (spec D2/D6.3; DESIGN
+//! engineering convention 2, discharged M5 S4):
 //!
-//! - [`first_non_finite`] — the SAVE door: every float the format
-//!   would write, checked finite, with a typed site name. Expression
-//!   literals are finite BY CONSTRUCTION (`Expr::literal` refuses
-//!   non-finite — ruled door 1), so the walk covers the float carriers
-//!   outside that door: profile payloads, continuous doc params, the
-//!   recorded ε, and D7 metadata trees (in the snapshot AND in the
-//!   edit log). A NEW float-carrying field must join this walk — the
-//!   D2 round-trip property tests are the tripwire.
-//! - [`validate_snapshot`] — the LOAD door: a parsed snapshot is not
-//!   trusted; the document invariants `apply` maintains are re-checked
-//!   structurally before replay.
+//! [`validate_document`] holds every direction-independent document
+//! check and is invoked by BOTH doors — at save on the in-memory
+//! document before a byte is written, at load on the parsed document
+//! before replay. A document that would refuse to load is therefore
+//! impossible to save by construction: not two mirrored door sets
+//! kept in sync by a sweep, but code that is literally the same and
+//! cannot drift. Its walks:
+//!
+//! - [`first_non_finite`] — every float the format would write,
+//!   checked finite, with a typed site name. Expression literals are
+//!   finite BY CONSTRUCTION (`Expr::literal` refuses non-finite —
+//!   ruled door 1; the load side re-runs the same constructors), so
+//!   the walk covers the float carriers outside that door: profile
+//!   payloads, continuous doc params, the recorded ε, and D7 metadata
+//!   trees (in the snapshot AND in the edit log). A NEW float-carrying
+//!   field must join this walk — the D2 round-trip property tests are
+//!   the tripwire. (Post-parse this walk cannot fire — JSON has no
+//!   non-finite tokens — which is the asymmetry being BYTE-level, not
+//!   a reason to fork the validator.)
+//! - [`first_bad_joint`] — declared-tangent joints in range, snapshot
+//!   and edit log (the `Index` channel's twin of the float walk).
+//! - [`validate_snapshot`] — the document invariants `apply`
+//!   maintains, re-checked structurally (a parsed snapshot is not
+//!   trusted; an in-memory one can be corrupted through the `pub`
+//!   payload or an in-crate bug).
+//!
+//! The genuinely asymmetric residue stays at its door and is the
+//! symmetry sweep's whole remit now: header/parse/position errors and
+//! the wire-only canonical-set rule ([`super::wire`]) are load-only by
+//! nature; serializer failure is save-only; ε reconciliation is
+//! process state, not a document property. Log replayability is
+//! shared STRUCTURALLY instead — both doors replay through
+//! [`crate::edit::apply`].
 
 use crate::appearance::AppearanceRecord;
 use crate::doc::{DocParam, ParamName};
@@ -68,8 +91,30 @@ pub enum NonFiniteSite {
     },
 }
 
+/// The shared validator (module docs): every direction-independent
+/// document check, in one place, invoked by both doors. Check order
+/// is float walk → joint walk → structural invariants (the save
+/// door's historical precedence, pinned by the refusal suite).
+pub(crate) fn validate_document(
+    snapshot: &ProfileDoc,
+    edits: &[DocEdit<ProfileDesc>],
+) -> Result<(), super::PersistError> {
+    if let Some(site) = first_non_finite(snapshot, edits) {
+        return Err(super::PersistError::NonFinite { site });
+    }
+    if let Some((site, loop_index, joint, vertex_count)) = first_bad_joint(snapshot, edits) {
+        return Err(super::PersistError::TangentJointOutOfRange {
+            site,
+            loop_index,
+            joint,
+            vertex_count,
+        });
+    }
+    validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
+}
+
 /// The first non-finite float the format would write, or `None`.
-pub(crate) fn first_non_finite(
+fn first_non_finite(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileDesc>],
 ) -> Option<NonFiniteSite> {
@@ -221,8 +266,9 @@ pub enum SnapshotError {
     },
 }
 
-/// Re-checks the document invariants on a parsed snapshot.
-pub(crate) fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
+/// Re-checks the document invariants `apply` maintains — on a parsed
+/// snapshot (load) and on the in-memory snapshot (save) alike.
+fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // order ↔ nodes agreement (and no duplicates: equal lengths plus
     // every order id resolving implies a bijection on a BTreeMap).
     let mut position = std::collections::BTreeMap::new();
@@ -304,11 +350,11 @@ pub(crate) fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     Ok(())
 }
 
-/// Where an out-of-range declared-tangent joint sits (save door,
-/// review MAJOR-DELTA-1 — the `Index` channel's twin of
-/// [`NonFiniteSite`]): the profile payload is `pub`, so a stale joint
-/// (e.g. after a vertex deletion in the payload) is API-reachable
-/// without passing any edit door.
+/// Where an out-of-range declared-tangent joint sits (review
+/// MAJOR-DELTA-1 — the `Index` channel's twin of [`NonFiniteSite`]):
+/// the profile payload is `pub`, so a stale joint (e.g. after a
+/// vertex deletion in the payload) is API-reachable without passing
+/// any edit door; a parsed file can carry the same corruption.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JointSite {
     /// A profile node in the snapshot.
@@ -324,14 +370,17 @@ pub enum JointSite {
     },
 }
 
-/// The first out-of-range declared-tangent joint the format would
-/// write, as `(site, loop_index, joint, vertex_count)` — the save
-/// door's twin of the LOAD door's bounds check in `wire.rs`: a file
-/// carrying such a joint refuses on load, so save refuses FIRST with
-/// the same diagnostics (no unloadable file is ever produced).
-/// Non-canonical (unsorted/duplicated) lists are NOT refused here:
-/// they are set-semantic in memory and the wire canonicalizes them.
-pub(crate) fn first_bad_joint(
+/// The first out-of-range declared-tangent joint, as
+/// `(site, loop_index, joint, vertex_count)` — the ONE bounds check
+/// for both doors (the mirrored `wire.rs` twin was retired at the
+/// convention-2 consolidation): save refuses before a byte is
+/// written, load refuses the parsed document with the SAME
+/// diagnostics (no unloadable file is ever produced, and no file
+/// with a stale joint ever replays). Non-canonical
+/// (unsorted/duplicated) lists are NOT refused here: they are
+/// set-semantic in memory and the wire canonicalizes them; the
+/// canonical-set rule on the wire is `wire.rs`'s load-only residue.
+fn first_bad_joint(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileDesc>],
 ) -> Option<(JointSite, usize, u64, usize)> {
@@ -374,4 +423,39 @@ fn desc_bad_joint(desc: &ProfileDesc) -> Option<(usize, u64, usize)> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic)]
+
+    use crate::node::RecipeNodeId;
+    use crate::persist::{PersistError, SnapshotError, save};
+    use crate::profile_desc::ProfileDoc;
+
+    /// Convention 2's point, pinned at the unit level: a document
+    /// that would refuse to load cannot be saved. Both corruptions
+    /// need `pub(crate)` access — no API door reaches them, only an
+    /// in-crate bug would — and before the consolidation both SAVED
+    /// fine, producing a file the load door refuses.
+    #[test]
+    fn structurally_invalid_documents_refuse_at_save() {
+        // ε = 0.0 is finite (past the float walk) but invalid — the
+        // load door's EpsilonInvalid, now at save too.
+        let mut doc = ProfileDoc::empty();
+        doc.epsilon = 0.0;
+        match save(&doc, &[]) {
+            Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+                assert_eq!(value, 0.0);
+            }
+            other => panic!("non-positive ε must refuse at save, got {other:?}"),
+        }
+        // order naming a node the map does not hold.
+        let mut doc = ProfileDoc::empty();
+        doc.order.push(RecipeNodeId(7));
+        match save(&doc, &[]) {
+            Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
+            other => panic!("order mismatch must refuse at save, got {other:?}"),
+        }
+    }
 }

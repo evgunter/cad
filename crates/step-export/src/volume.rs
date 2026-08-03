@@ -2,7 +2,7 @@
 //! outward-vs-void classifier for multi-shell solids (crate docs,
 //! "Solids, shells, and voids").
 //!
-//! # Formula (divergence theorem, closed forms on the subset)
+//! # Formula (divergence theorem, closed forms on the PLANAR subset)
 //!
 //! `V = (1/3) ∮ p·n dA`. On a planar face every point satisfies
 //! `p·n̂ = o·n̂` with `o` the stored plane origin, so the face
@@ -13,8 +13,22 @@
 //! carriers, but the accumulation is **rounded f64 arithmetic** (bit
 //! exact only when the inputs are dyadic, as in the test corpus); the
 //! walk **verifies** every carrier is a line and every surface a
-//! plane, refusing anything else with the same typed errors the
-//! emitter would raise (never a silently-approximated classification).
+//! plane, refusing anything else as
+//! [`StepExportError::CurvedShellClassification`] (never a
+//! silently-approximated classification).
+//!
+//! Since M5 PR 13 the emitter prints the whole elementary-surface
+//! subset, so this walk is now the NARROWER of the two: a curved face
+//! reaching here is a *classifier* limit, not an export limit. The
+//! reduction it performs — `p·n̂` constant over a face, so the surface
+//! integral collapses to a boundary sum — is a planarity identity with
+//! no curved-face counterpart in closed form, and the sign it produces
+//! decides material vs void, so a numerically approximated stand-in
+//! would be exactly the silent lie the refusal exists to prevent.
+//! Only MULTI-shell solids reach this code (`writer.rs`), and the one
+//! curved multi-shell body constructible at rest today is S12's
+//! two-stub `boss ∖ plate` complement; every other curved body at rest
+//! is single-shell and exports untouched by this module.
 //!
 //! # Orientation comes from the winding, not from the normal (S10)
 //!
@@ -57,7 +71,7 @@
 use geom_core::{Point3, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
-use topo::{Body, LoopBoundary, Shell};
+use topo::{Body, LoopBoundary, Shell, ShellKey};
 
 use crate::StepExportError;
 use crate::writer::{carrier_kind, certified_carrier, surface_kind};
@@ -66,9 +80,16 @@ use crate::writer::{carrier_kind, certified_carrier, surface_kind};
 ///
 /// # Errors
 ///
-/// [`StepExportError`] — out-of-subset geometry, empty loops, null
-/// scaffolding, or unresolvable keys.
-pub(crate) fn shell_signed_volume(body: &Body<f64>, shell: &Shell) -> Result<f64, StepExportError> {
+/// [`StepExportError`] — out-of-subset geometry
+/// ([`StepExportError::CurvedShellClassification`]: since M5 PR 13 the
+/// EMITTER prints the curved subset, so a curved face reaching this
+/// walk is a classifier limit, not an export limit, and the message
+/// says so), empty loops, null scaffolding, or unresolvable keys.
+pub(crate) fn shell_signed_volume(
+    body: &Body<f64>,
+    shell_key: ShellKey,
+    shell: &Shell,
+) -> Result<f64, StepExportError> {
     let mut six_v = 0.0_f64;
     for &face_key in &shell.faces {
         let face = body.get_face(face_key).ok_or(StepExportError::Corrupt {
@@ -80,7 +101,8 @@ pub(crate) fn shell_signed_volume(body: &Body<f64>, shell: &Shell) -> Result<f64
                 what: "face surface key does not resolve",
             })?;
         let Surface::Plane { origin, .. } = *surface else {
-            return Err(StepExportError::UnsupportedSurface {
+            return Err(StepExportError::CurvedShellClassification {
+                shell: shell_key,
                 face: face_key,
                 kind: surface_kind(surface),
             });
@@ -114,8 +136,9 @@ pub(crate) fn shell_signed_volume(body: &Body<f64>, shell: &Shell) -> Result<f64
                 })?;
                 let carrier = certified_carrier(body, he.edge, edge)?;
                 if !matches!(carrier, Curve3::Line { .. }) {
-                    return Err(StepExportError::UnsupportedCurve {
-                        edge: he.edge,
+                    return Err(StepExportError::CurvedShellClassification {
+                        shell: shell_key,
+                        face: face_key,
                         kind: carrier_kind(carrier),
                     });
                 }
