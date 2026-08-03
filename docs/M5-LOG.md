@@ -2428,3 +2428,17 @@ validate_document closes unloadable-by-construction; residue
 audit clean; no byte moved. A/B row 39 = S4 (fable, S: APPROVE
 0/0, 5/4/5). Combined watcher armed on #160+#162; PR 12
 dispatches (opus, block-18 remainder) when #160 lands.
+
+**#161 MERGED on Evan's lgtm (2026-08-03): THE M5→M6 BOUNDARY
+IS RATIFIED.** Sequence: M5 exit (PR 12, PR 14) → SSI generic-T
+lift → loft/sweep assembly (both MAIN-PATH) → **M7 import/
+adoption BEFORE M6** (real-world STEP corpus; the census/
+declared-contact design doc rides the M7 plan; the F6 repair/
+adoption op comes due; interference-fit vocabulary M7-adjacent;
+signed clearance stays an M6 forward-reference) → M6 error
+propagation. Canal blend PARKED until its first consumer.
+Ball-and-socket = declared coincidence class; negative-curvature
+tangency works today at strict radius inequality (fixture row
+rides M5-adjacent); conformal limit = the declared class.
+Thirty PRs. Post-#164: PR 12 (die) → PR 14 (exit + #89) →
+lift → assembly → M7 planning.
