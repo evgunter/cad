@@ -421,7 +421,35 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         ("ball", ball()),
         ("cone", cone()),
         ("donut", donut()),
+        // The M5 PR 12 fillet set: the die blank carries all five
+        // elementary surface kinds' hardest pairing for a writer —
+        // plane, cylinder AND sphere faces meeting along TANGENT
+        // trimlines, straight ones and circular ones.
+        ("filleted_die", filleted_die()),
     ]
+}
+
+/// The M5 PR 12 die blank: a unit cube with every edge blended at
+/// r = 0.12 — 6 shrunk planes, 12 quarter-cylinders, 8 sphere octants.
+pub fn filleted_die() -> Body<f64> {
+    let tol = geom_core::Tolerance::get();
+    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
+    let prof = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .expect("the die's square");
+    let body = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0))
+        .expect("the cube")
+        .body;
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    sweep::fillet::build::fillet_edges(&body, &edges, 0.12, band)
+        .expect("the die blank")
+        .body
 }
 
 /// Census tuple (faces, edges, vertices) of a body — the kernel-side

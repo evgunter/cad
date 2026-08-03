@@ -1506,11 +1506,20 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
             EdgeGeometry::Intersection { .. }
         ));
     }
-    // Tangent cylinder-sphere join: conventional in both bands.
+    // Tangent cylinder-sphere join: INTRINSIC in both bands since M5
+    // PR 12. HISTORY: this pin read `MappedCurve` from M2 to S13,
+    // because the jet certificate's span bounds covered only LINE
+    // carriers and a latitude join's carrier is a circle — so tier 3's
+    // must-carry could not demand the intrinsic description and the
+    // constructor did not store it. PR 12's circle arm retired that
+    // class (with its equivariance proof), and prefer-intrinsic
+    // (D2/OQ7) then demands what it always meant to: the cylinder and
+    // the sphere DETERMINE this locus, `κ_rel = 1/R` is bounded away
+    // from zero, and the description says so.
     for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
         assert!(matches!(
             description(&t.body, e),
-            EdgeGeometry::MappedCurve(_)
+            EdgeGeometry::TangentIntersection { .. }
         ));
     }
     // The sphere meridian arc is the seam; its pi copy conventional.

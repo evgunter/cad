@@ -185,6 +185,19 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
         ("ball", &["SPHERICAL_SURFACE", "CIRCLE"]),
         ("cone", &["CONICAL_SURFACE", "CIRCLE"]),
         ("donut", &["TOROIDAL_SURFACE", "CIRCLE"]),
+        // The M5 PR 12 die blank: three elementary kinds in ONE solid,
+        // its blends and corners meeting along tangent trimlines that
+        // are lines and circles — all four exact, none approximated.
+        (
+            "filleted_die",
+            &[
+                "PLANE",
+                "CYLINDRICAL_SURFACE",
+                "SPHERICAL_SURFACE",
+                "CIRCLE",
+                "LINE",
+            ],
+        ),
     ];
     for (name, body) in curved_corpus() {
         let text = export(&body, name);

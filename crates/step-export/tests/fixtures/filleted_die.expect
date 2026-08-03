@@ -1,0 +1,15 @@
+# The M5 PR 12 die blank: a unit cube with every edge blended at
+# r = 0.12. Six shrunk planar faces, twelve quarter-cylinder blends,
+# eight sphere-octant corner patches — the writer's hardest mixed
+# case, since plane/cylinder/sphere faces here meet along TANGENT
+# trimlines (straight ones and circular ones), not transverse ones.
+#
+# OCC splits the periodic corner-arc carriers at their seams, so its
+# edge and vertex counts exceed the kernel's 48/24 — the same
+# accounting the ball and donut fixtures already record.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=26
+EXPECT_EDGES=56
+EXPECT_VERTICES=24
+EXPECT_VOLUME_MM3=965231000
