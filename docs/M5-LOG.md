@@ -2621,6 +2621,312 @@ product of two factors certified positive by the preceding trilean
   BVH pruned dir-1 pierce candidates and a fin×ball union answered as
   if disjoint, a silent self-overlapping body).
 
+## PR 12 — fillets: the validity battery, the analytic blends, the die
+
+**Scope call, recorded (spec §Scope, ratified at #161)**: no
+canal-surface lane. `FilletError::SpineUnsupported` names it as the
+front door that does not exist yet, and a fixture reaches that text.
+
+**Naming: `fillet3_*`, a NEW K family.** Not an extension of S2's
+`fillet_*`, on two grounds. (i) `ProfileError`'s escalated arm
+dispatches its recourse sentence by matching
+`Indeterminate::predicate` against the S2 names, so a shared prefix
+routes a 3-D escalation into a 2-D recourse sentence at the first
+collision. (ii) The K-report's per-family buckets would fuse two
+unrelated corpora — 2-D leg setbacks over a `LoopBuilder` and 3-D
+curvature headroom over a `Body` — which is exactly the separation the
+K funnel exists to keep.
+
+**The six predicates** (C8's binding order), each a named Q1 trilean
+whose margin is a LENGTH at a named lever arm:
+
+1. `fillet3_radius_headroom` — `(1 − r·κ_max)·r`, arm `r`, per support
+   per sample. A plane's unbounded curvature arm saturates at `r`.
+2. `fillet3_face_clearance` — `gap − setback_here − setback_there`,
+   swept over every PAIR of boundary edges of every support face. A
+   single-edge extent test would pass `r < L` on a face that two
+   opposite blends at `r > L/2` erase between them. **It is a screen,
+   and its name says so** (fix pass F1): subtracting two setbacks from
+   one straight-line gap is EXACT when the two edges face each other
+   (opposed inward normals — every box, every prism's opposite cap
+   edges) and CONSERVATIVE when they meet at an angle. The reviewer's
+   witness is a unit hexagonal prism, refused from `r = 0.5` although
+   its cap survives to the apothem `0.866`. The arm was reclassified
+   rather than left asserting a false definite: it now reports "cannot
+   certify that this face survives", never "consumes the face
+   entirely", and it stays conservative in the one direction the
+   ordering claim depends on — it cannot pass a request whose support
+   face really is consumed.
+3. `fillet3_spine_regularity` — `(1 − r·κ_spine)·r`, arm `r`. A
+   different curvature from (1): the SPINE's, not the supports'. For a
+   circular rim spine it IS the ring-torus condition `s > r`, so the
+   torus constructor's degenerate case is refused before the surface
+   exists.
+4. `fillet3_chain_g1`, gated by `fillet3_chain_arm` — `sin θ · arm`,
+   with the dihedral classifier's own collapsed-arm gate.
+5. `fillet3_convexity_sign` — `((n_a × n_b)·τ̂)·arm`, positive =
+   convex. Well-defined: swapping the two faces also reverses the
+   traversal, and the triple product is invariant under doing both.
+6. `fillet3_corner_independence` — `|det(n₁,n₂,n₃)|·r`.
+
+**The ordering claim, made structural rather than promised.** The
+review charter's attack is "a fixture that passes the battery but
+fails in construction". Three things close that door: the battery
+resolves each link's analytic ARM first and refuses typed on any
+support pair the arms do not cover (so the constructor cannot meet an
+unconsidered case); the setbacks predicate 2 refuses on are returned
+BY the same functions the constructor calls (no second copy of the
+geometry to drift); and the junction/termination rule is purely
+structural — a vertex where exactly TWO requested links meet is a
+junction (predicate 4), anything else is a termination (predicate 6).
+So filleting all twelve box edges yields twelve one-link open chains
+at eight trihedral corners, and a pip rim yields one closed chain,
+with no geometric decision anywhere in the walk.
+
+**The jet certificate grew a circle arm (geom-brep).** The die's corner
+trimlines are CIRCLES, and PR 9's span bounds covered only `Line`
+carriers — `upgrade.rs` even said so, calling the circle-carrier
+tangent certificate "the lane's next retirement, not this PR's". PR 12
+takes it, with a proof rather than a constant: `κ_rel` and the implicit
+residual are isometry invariants, so a carrier motion that is a
+symmetry flow of both surfaces cannot move them. In the coaxial configuration
+both span bounds are EXACTLY zero (the Killing-field deviation
+vanishes in both group directions), and a configuration that misses
+coaxiality pays continuously rather than through a gate. The LINE arm
+is byte-for-byte unchanged.
+
+**The theorem, corrected (fix pass F3).** The unit first claimed that
+circle tangency between two distinct elementary surfaces of revolution
+FORCES the coaxial configuration. That is false, and the reviewer
+built the counterexample: a sphere centred on a torus's SPINE is
+tangent to the torus along a whole MERIDIAN (minor) circle, whose axis
+is perpendicular to the torus's. The class is real, jet-determinate,
+and inside the lane — and executing it shows the honest outcome rather
+than a hole: the deviation is large, so the bounds are large, and
+certification refuses LOUDLY (`ResidualExceeded { TangentHull }`)
+instead of certifying a bound it never established. What survives is a
+narrower claim, and it is the one the code now makes: the
+configurations this kernel MINTS on a circle carrier are coaxial, and
+those certify at zero cost. The residual risk is named — tier 3's
+must-carry could demand an intrinsic description on a meridian-tangent
+edge that this arm cannot certify (in-lane but uncertifiable) — and it
+is latent, because no constructor mints that configuration. The
+no-gate/no-hole claim carries that caveat; the counterexample is
+adopted as `review_pr12_meridian_probe.rs` and pins the scope.
+
+Two consequences landed with it, both flips of pins that were correct
+when written:
+- `m5_pr9_tangent.rs`'s out-of-lane row was exactly the plane–torus
+  coaxial circle. It is kept and flipped, with its history; the
+  out-of-lane row moves to a cone partner (still uncertified).
+- `revolve` now stores `TangentIntersection` on a jet-DETERMINATE
+  latitude join, deciding it with the SAME `tangent_second_order`
+  predicate tier 3's must-carry reads — so the demanded set and the
+  stored set stay one set. Under-determined joins (κ_rel at zero) and
+  in-band ones keep the conventional description exactly as tier 3
+  exempts them: the upgrade is an enrichment, never a new refusal.
+
+**Blend arms landed**: plane–plane → cylinder (straight spine, setback
+`r·tan(φ/2)`); plane–sphere rim → torus (circular spine,
+`s² = a² + 2r(R − c)`, so the blend widens the FLAT face — which is
+what makes it a fillet and not a gouge); trihedral vertex → sphere
+octant. The octant rests on one structural fact, pinned: the corner
+ball's centre lies ON every incident blend cylinder's axis and both
+have radius `r`, so sphere and cylinder are tangent along a full
+circle with `κ_rel = 1/r`. Cone arms: not reached by the die or any
+fixture, refused typed. Sense comes from the stored convexity verdict
+(`Convexity::blend_sense`), never from a sampled normal.
+
+**THE DIE.** Two bodies, honestly, because at M5 they do not compose.
+- *The blank* — a unit cube, all twelve edges blended at r = 0.12: 26
+  faces / 48 edges / 24 vertices, tiers 1–3 green, volume AND surface
+  area on their closed forms to 1e-9 relative with a zero enclosure
+  pad, watertight under `check_mesh`, all 12·4 + 8·3 blend/corner
+  boundary edges carrying `TangentIntersection`, STEP exported and
+  FreeCAD-imported (valid, 26 faces, volume within 2.6e-7 relative),
+  in the tour and in the PR 13 fixture corpus as `filleted_die` — the
+  first fixture with plane AND cylinder AND sphere faces in one solid,
+  all exact, no B-splines.
+- *The pips* — 21 spherical dimples on all six faces of a sharp cube,
+  cut in ONE certified group operation, tier-3 valid, volume on its
+  closed form, watertight, exported and imported. Two facts had to be
+  got right and each was a typed refusal until it was: cutting the
+  pips one at a time presents a TRIMMED sphere face as the next
+  operand (S13's closed-group discipline refuses it), and charting a
+  pip ball with a tilted pole makes the plane×sphere section non-polar
+  (the split-join's azimuth-anchored arc-side rule refuses it).
+
+**Deviations, numbered.**
+1. *The blank and the pips do not compose.* Both orderings fail, at two
+   DIFFERENT pre-existing frontiers, and both are pinned as rows
+   (`deviation_1_the_blank_and_the_pips_do_not_compose_yet`): fillet →
+   pip refuses because there is **no definite-miss certificate for a
+   conic carrier against a curved face**, so it stops at the curved
+   pierce door (point-in-face trim containment on a curved chart, plus
+   the ring insertion behind it — the M5 envelope's named frontier).
+   That arm is unconditional, NOT a clearance verdict: the reviewer
+   measured the true clearance of the named pair at 1.6 cm (fix pass
+   F4). Pip → fillet hits the assembly front door, because the twelve
+   box edges are no longer EVERY edge of the body and the rebuild does
+   not carry a face's RINGS through. The reviewer independently tried
+   every reordering and reproduced BOTH doors; the review sizes the
+   in-place edge-blend surgery that would close them at ONE reviewed
+   unit (about the scale of `build.rs`) and recommends
+   accept-two-piece + bank, which goes to Evan.
+2. *The pip-rim torus fillets are not assembled.* The ARM is landed and
+   pinned against its closed forms, including both trimlines' tangency
+   and their second-order separations (`1/r` against the flat face,
+   `1/R + 1/r` against the pip sphere), and the battery accepts a real
+   pip rim as a CLOSED chain on that arm. What is missing is the
+   in-place surgery that replaces a rim edge with a torus band inside
+   an existing body — the same banked unit deviation 1's second door
+   names.
+3. *The corner octant's chart admits only trihedra that HAVE an
+   admitting edge — now genuinely, after fix pass F2.* `props`'s
+   closed-form inventory needs a face's rims axis-parallel; a spherical
+   triangle admits such a chart exactly when the THIRD support's normal
+   is parallel to the chosen incident edge. The code stated that
+   criterion and then picked whichever incident edge came first in link
+   order, so the true boundary was "cube-like, or lucky edge order" —
+   the reviewer's hexagonal prism satisfies the criterion at every
+   vertex and lost tier 3 on a corner face anyway. The pick is now
+   order-free (minimise `|n_c × axis|` over the three candidates), so
+   it finds the admitting edge whenever one exists, and the boundary is
+   what it always claimed to be: genuinely OBLIQUE trihedra only. Those
+   build through tiers 1–2 and then report `VolumeUncomputable` — a gap
+   in the props inventory (a spherical-triangle form, or quadrature
+   extended to sphere faces), not in the body. Pinned by
+   `f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable`,
+   with the hexagonal and irregular-pentagonal prisms pinned tier-3
+   valid beside it.
+5. *The clearance screen is conservative by direction* (fix pass F1 —
+   the arm is honest about it, but it is still a gap). Tightening it to
+   the true "does this face survive" question needs the inward-offset
+   polygon's feasibility: a linear program over the face's own
+   boundary, not the same setback algebra. Pinned on both sides by
+   `f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`.
+6. *A meridian-tangent circle is in-lane but uncertifiable* (fix pass
+   F3, above). Closing it needs a meridian-aware bound or a lane
+   predicate that can see the configuration. Latent: no constructor
+   mints it, and the refusal is loud.
+4. *The dual montage landed mid-flight and was folded in.* Both die
+   stops carry `montage: true`, and both montage lanes
+   (`compose_montage.py` for the kernel renderer, `--freecad` for the
+   OCC/STEP one) select their cells from `scenes.json` by exactly that
+   flag on the SAME grid — so the die renders in BOTH sheets with no
+   further wiring, which is the acceptance the spec asked for.
+
+**Band-4 corpus (fix pass F5).** The unit first shipped with no corpus
+rows at all — a silent scope gap the review caught. It now has a
+`Node::Fillet { target, radius }` recipe node (edge selection
+deliberately absent: the assembly's front door is "every edge", so a
+whole-body request needs no stable edge names and cannot go stale
+under a parameter edit) and two documents, `die_fillet` and
+`die_pips`. **One of them is registered.** `die_pips` joins
+`documents()` and gets the standard rows for free — evaluation at
+every CI ε row and under `interval`, the D6.1 persistence round-trip,
+the latency table, and the PR 8 realized-vs-idealized differential.
+`die_fillet` does NOT, and the reason is a defect this pass found
+rather than a judgement call: the fillet battery's clearance screen
+seeds its pair gap with `T::from_f64(f64::INFINITY)` and folds the
+sampled distances in with `min`. At `f64` that sentinel is ordinary;
+at the certified `Interval` scalar `from_f64` poisons non-reals, so
+`±∞` embeds as NaI, NaI absorbs through `min`, and the margin reaching
+`decide` is NaN — `Escalated { site: Chain, predicate:
+"fillet3_face_clearance", margin: Invalid }`. It fires for every
+request with at least one non-adjacent boundary-edge pair, i.e. every
+prism, i.e. every fillet the recipe layer can express, so the op has
+never run at `Interval` and no fillet document can sit in a registry
+whose membership means the Interval lane. Rather than red that lane,
+or teach it to skip a document, `die_fillet` sits beside the registry
+with `Fillet` listed in `NODE_KINDS` at zero coverage (the
+`Loft`/`Sweep` mechanism) and every standard row reproduced by hand in
+`m5_pr12_fillet_node.rs` — green build, tier 1 + closed, 26 faces,
+both closed forms metered, the bump cone, the persistence round-trip,
+a typed refusal on an inadmissible radius, and the Interval refusal
+pinned EXACTLY so it fails the moment the sentinel goes. The fix is
+one line in `sweep/src/fillet/battery.rs` (seed the gap from the first
+sampled pair), owned by the sweep lane; registering the document after
+it is one line in `documents()` plus deleting one `FRONTIER_UNCOVERED`
+entry. Two further things are recorded rather than smoothed over:
+both documents carry `pin: None`, because the rounded-box and
+spherical-cap oracles are π-valued and `MassPin` is asserted with `==`
+against an exact value (the `cut_cylinder`/`boss_union` precedent — a
+pin there would pin `f64` rounding of a transcendental, not the
+geometry), and the sweep unit is what meters those closed forms at a
+stated relative tolerance. And `die_pips` carries ONE pip, not
+twenty-one: the 21-shell tool is not corpus-expressible at M5, because
+the recipe layer's only multi-shell assembly is `Boolean(Union)`,
+which on two disjoint balls evaluates green under the production
+realized strategy and refuses typed under the idealized one — so the
+document works inside that frontier instead of around it, and says so.
+Its ball's meridian is likewise split at an equator vertex, because
+the revolve name emitter refuses an all-on-axis loop; both costs are
+written down at the site with the condition for deleting them.
+
+**Gate fixes (two jobs red on #166).**
+
+*The `Bounds` compound-bound tripwire* fired on the two fillet files.
+Ruled under the PR 11 lane-split precedent, and the check it turns on
+came back negative: **no dual-scalar path can reach the fillet
+constructor.** `Bounds` is implemented for `f64`, the interval scalar
+and the telemetry probe — never for `Dual`, which has no bracket to
+offer — and the one production caller (`editor_core::eval`'s fillet
+wiring) sits beneath `evaluate<T>`, whose own signature already
+carries `Bounds` and which instantiates at `f64`/`Interval` only. A
+`PropsQuadLane`-style static split would therefore have had an EMPTY
+refusing side: a dual impl refusing a call no dual scalar can make. So
+the seam is RATIFIED rather than split — both allowlists (the hosted
+step and `scripts/ci-local.sh`) and the `real.rs` scope-rule paragraph
+now carry it, with the grounds: the battery's margins are certified
+metric quantities (sup-κ curvature hulls, blend setback bounds)
+reported as `f64` payloads, i.e. enclosure consumers of exactly the
+quadrature's class. The day a dual lane wants fillets is the day the
+static split earns its keep.
+
+*The k-lint job's process exited 1* — a crash, not an advisory
+finding — and chasing it found a real defect rather than a harness
+problem. The clearance screen seeded its gap with
+`T::from_f64(f64::INFINITY)`. At `f64` that is a harmless sentinel; at
+the certified interval scalar it is the ill-formed interval, NaI
+absorbs through `min`, and every clearance margin downstream of it
+escalated `Invalid`. The whole fillet op was therefore outside the
+Interval lane, `die_fillet` had to sit BESIDE the corpus registry
+instead of in it, and — the consequence the gate actually surfaced —
+the `fillet3_*` family recorded **zero** samples in the K corpus: a
+new predicate family with no telemetry at all. Seeding the gap from
+the first sampled pair fixes all three at once. `die_fillet` is now a
+registered corpus document, `node Fillet` is off `FRONTIER_UNCOVERED`,
+the latency baseline gained its row (refreshed on a verified-quiet
+machine — load 0.86, no cargo or rustc running — and reproducing every
+pre-existing row within ±40%), and the family records 348 samples
+across five of its six predicates at ε = 1e-9. The sixth,
+`fillet3_chain_g1`, records zero BY CONSTRUCTION and correctly: a box's
+twelve chains are one-link open chains, so they have no junctions for
+it to judge.
+
+**Battery.** Touched crates at default ε: `sweep` (all binaries),
+`geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all),
+`editor-core` (all 54 binaries at `f64` — 258 rows — and the whole
+`--features interval` lane, with `die_pips` registered and
+`die_fillet` carried by `m5_pr12_fillet_node.rs`). The latency
+baseline was re-measured whole on a verified-quiet machine; a second
+attempt under a parallel lane read 20-30× higher and was discarded,
+which is recorded in the baseline's own provenance along with the
+still-unresolved 2026-07-25/26-vs-MIN-3 gap this run lands on the
+other side of. The demo tour's ε-regression battery (the ×3ε rows) is
+green.
+New rows: 9 battery + 13 refusal/trio + 7 blend + 3 die-body + 3 die =
+35, plus 3 in `geom-brep`. `cargo fmt --all` clean; clippy clean on the
+touched crates. The demo tour runs green end to end and exports both
+die bodies; `scripts/check_step.sh` passes the whole fixture corpus
+under FreeCAD 1.1.2 including the new row. Interval-square tripwire on
+the diff, stated correctly (fix pass F6): every square added under
+`crates/*/src/` is `powi(2)`. The TEST files do contain `x*x` forms —
+closed-form oracles evaluated at `f64`, where the poison hazard the
+tripwire guards against does not arise — and the earlier blanket "no
+`x*x` on the diff" line overstated it.
+
 ## CI build-once (2026-08-03): compile per MODE, not per eps row —
 ## nextest archives fan the test matrix out from two builds (#167)
 

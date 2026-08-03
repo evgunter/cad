@@ -134,3 +134,5 @@ pub use skin::{
     LoftGeometry, SectionSegments, SkinError, lift_surface, loft_geometry, make_compatible,
     segment_curve, skin, skin_on, skin_parameters, sweep_geometry,
 };
+
+pub mod fillet;

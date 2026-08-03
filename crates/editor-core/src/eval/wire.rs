@@ -49,6 +49,7 @@ where
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Loft { profiles, .. } => wire_loft(profiles, doc, vals),
         Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals),
+        Node::Fillet { target, .. } => wire_fillet(id, *target, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
             wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
@@ -332,6 +333,50 @@ fn wire_revolve<T: Decide>(
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
+}
+
+/// The constant-radius fillet node (M5 PR 12).
+///
+/// The recipe carries NO edge selection (see [`Node::Fillet`]): the op's
+/// front door is "every edge of a convex, planar-faced,
+/// trivalent-vertex polyhedron", so the request is the target body's
+/// whole edge arena, enumerated in arena order — the deterministic
+/// order every derived list in this kernel inherits (D9).
+///
+/// Failure is a TYPED refusal ([`NodeErrorKind::Fillet`]) carrying the
+/// kernel's own error unaltered, exactly as the split/boolean arms
+/// carry theirs. The input body is never passed through: a fillet that
+/// did not happen must read as a failed node, not as a silently sharp
+/// solid.
+///
+/// # Naming
+///
+/// The node emits the EMPTY table. The blend introduces faces, edges
+/// and vertices that no [`RoleSeg`](crate::names::RoleSeg) vocabulary
+/// describes yet, and `Filleted` carries no birth map to name them
+/// from — so there is nothing to emit honestly, and inventing names by
+/// matching is exactly what N4 forbids. The consequence is loud rather
+/// than silent: every downstream reference into a filleted body fails
+/// to resolve, and an appearance record targeting one is a typed loss.
+/// A fillet naming emitter is banked with the in-place edge-blend
+/// surgery it would name.
+fn wire_fillet<T: Decide + geom_core::Bounds>(
+    id: RecipeNodeId,
+    target: RecipeNodeId,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let body = body_operand(results, target)?;
+    let radius = need_scalar(vals, SlotId::Radius)?;
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
+        .map_err(NodeErrorKind::Fillet)?;
+    let mut out = filleted.body;
+    // The blend's own surfaces/curves/points are minted HERE (D1/N6);
+    // the supports' pass-through descriptions keep the source they
+    // arrived with.
+    stamp_minted(&mut out, id);
+    Ok((ValuePayload::Body(Arc::new(out)), names::empty()))
 }
 
 fn wire_split<T: Decide>(

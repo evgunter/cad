@@ -78,10 +78,11 @@ pub fn tangent_jet<T: Real>(
 /// Span-wide certified bounds for the jet schedule between samples —
 /// the C2.2 half of the certificate (metres), plus the tube's
 /// curvature-drift bound. `None` when the (carrier kind, surface
-/// kinds) triple is outside the certified lane: **`Line` carriers on
-/// `Plane`/`Cylinder`/`Sphere` pairs** — exactly the class the C5
-/// table's tangent arms mint at M5. A `None` is a typed refusal at
-/// the caller, never a fallback.
+/// kinds) triple is outside the certified lane (the two arms are
+/// enumerated on [`tangent_certificate_lane`]: `Line` carriers on
+/// plane/cylinder/sphere pairs, `Circle` carriers on those plus
+/// torus). A `None` is a typed refusal at the caller, never a
+/// fallback.
 #[derive(Clone, Copy, Debug)]
 pub struct TangentSpanBounds<T: Real> {
     /// Certified bound on the residual sag between adjacent schedule
@@ -99,26 +100,77 @@ pub struct TangentSpanBounds<T: Real> {
 
 /// **THE certified-lane predicate** (C12.1, one place): is this
 /// (carrier kind, surface-kind pair) triple inside the jet
-/// certificate's span-bound lane — `Line` carriers on
-/// `Plane`/`Cylinder`/`Sphere` pairs, the class the C5 table's
-/// tangent arms mint at M5? Consulted by [`tangent_span_bounds`]
+/// certificate's span-bound lane? Consulted by [`tangent_span_bounds`]
 /// (which refuses outside it) AND by the tier-3 must-carry
 /// enforcement in `topo::validate` — the demanded set and the
 /// certifiable set are the same set BY CONSTRUCTION (a tangency the
 /// certificate cannot store is never demanded).
+///
+/// Two arms, both closed-form:
+/// - **`Line` carriers on `Plane`/`Cylinder`/`Sphere` pairs** — the
+///   class the C5 table's tangent arms mint (M5 PR 9), unchanged.
+/// - **`Circle` carriers on `Plane`/`Cylinder`/`Sphere`/`Torus`
+///   pairs** — the class M5 PR 12's fillet trimlines mint: the
+///   corner ball's contact circles with its edge cylinders, and the
+///   pip-rim torus blend's contact circles with the flat face and
+///   the pip sphere. `Torus` enters the lane HERE and only here: a
+///   torus tangency along a *line* is not a configuration this
+///   kernel constructs, and the line arm's bounds are left byte-for
+///   -byte unchanged so PR 9's certificates do not move.
+///
+/// **Why a circle admits `Torus` when a line does not**: the
+/// configurations this kernel MINTS on a circle carrier — a fillet
+/// corner ball against its edge cylinders, a rim blend's torus
+/// against its flat face and its pip sphere, a revolve's latitude
+/// join — are all **coaxial**: the circle's axis is a common axis of
+/// revolution of both surfaces and its centre lies on that axis. The
+/// bounds below are written so that the coaxial configuration makes
+/// every one of them exactly zero **by equivariance** (`κ_rel` and
+/// the implicit residual are isometry invariants, and a coaxial
+/// circle's motion is a symmetry flow of both surfaces), and so that
+/// a configuration that misses coaxiality pays for the miss
+/// continuously rather than through a gate.
+///
+/// **The scope of that claim, stated exactly (fix pass F3).** An
+/// earlier draft of this comment asserted that circle tangency
+/// between two distinct elementary surfaces of revolution FORCES the
+/// coaxial configuration. That is false, and the reviewer's
+/// counterexample is in `tests/review_pr12_meridian_probe.rs`: a
+/// sphere centred on a torus's spine circle is tangent to the torus
+/// along a whole MERIDIAN (minor) circle, whose axis is
+/// perpendicular to the torus's, not parallel to it. The class is
+/// real, it is jet-determinate, and it is INSIDE this lane.
+///
+/// What actually happens there is the honest outcome and not a hole:
+/// the deviation measured below is large, so the span bounds are
+/// large, and certification refuses LOUDLY
+/// (`ResidualExceeded { TangentHull }`) instead of certifying
+/// something it has not bounded. The residual risk is therefore
+/// narrow and named: tier 3's must-carry could demand an intrinsic
+/// description on such an edge while this arm cannot certify it —
+/// **in-lane but uncertifiable**. No constructor in the kernel mints
+/// that configuration today (the fillet arms produce coaxial contact
+/// circles; revolve's joins are coaxial latitude circles), so the
+/// class is latent; closing it needs either a meridian-aware bound or
+/// a lane predicate that can see the configuration, and that is
+/// recorded as a numbered deviation rather than papered over here.
 pub fn tangent_certificate_lane<T: Real>(
     carrier: &Curve3<T>,
     s1: &Surface<T>,
     s2: &Surface<T>,
 ) -> bool {
-    let line = matches!(carrier, Curve3::Line { .. });
-    let ok = |s: &Surface<T>| {
+    let straight = |s: &Surface<T>| {
         matches!(
             s,
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
         )
     };
-    line && ok(s1) && ok(s2)
+    let round = |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. });
+    match carrier {
+        Curve3::Line { .. } => straight(s1) && straight(s2),
+        Curve3::Circle { .. } => round(s1) && round(s2),
+        _ => false,
+    }
 }
 
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
@@ -133,10 +185,19 @@ pub(crate) fn tangent_span_bounds<T: Real>(
     if !tangent_certificate_lane(carrier, s1, s2) {
         return None;
     }
+    let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
+    if let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = *carrier
+    {
+        return circle_span_bounds(s1, s2, center, axis, radius, u_ref, step);
+    }
     let Curve3::Line { origin: _, dir } = *carrier else {
         return None;
     };
-    let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
     // Per surface: (sup |f″| along the segment, sup |dκ/dt|).
     //
     // The drift factor 8·|dir|/r² per curved surface: κ = d̂ᵀHd̂/|∇F|
@@ -174,6 +235,179 @@ pub(crate) fn tangent_span_bounds<T: Real>(
     let eighth = T::from_f64(0.125);
     Some(TangentSpanBounds {
         residual_sag: step.powi(2) * eighth * f2a.max(f2b),
+        kappa_drift: step * (da + db),
+    })
+}
+
+/// The component of `x` orthogonal to the unit direction `a`.
+fn perp<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
+    x - a * x.dot(a)
+}
+
+/// `√(p² + q²)` — the amplitude of the harmonic `p·cos t + q·sin t`.
+fn amp<T: Real>(p: T, q: T) -> T {
+    (p.powi(2) + q.powi(2)).sqrt()
+}
+
+/// The **circle arm** of [`tangent_span_bounds`] (docs on
+/// [`tangent_certificate_lane`]), for the carrier
+/// `C(t) = c₀ + (û·cos t + v̂·sin t)·R_c`, `v̂ = axis × û`.
+///
+/// Both bounds are derived so that the **coaxial** configuration —
+/// the only one in which two distinct elementary surfaces of
+/// revolution are tangent along a whole circle — makes them exactly
+/// zero, and a miss pays continuously. No gate, hence no
+/// demanded-but-not-certifiable hole.
+///
+/// **`residual_sag`**: for `Plane`/`Sphere`/`Cylinder` the composite
+/// `f∘C` is a trigonometric polynomial of degree ≤ 2 (the implicit
+/// residuals are quadratic in the point and `C` is a first harmonic),
+/// so `sup|(f∘C)″| ≤ A₁ + 4·A₂` with `A_k` the exact harmonic
+/// amplitudes computed below; the standard `(Δt²/8)·sup|f″|`
+/// quadratic-interpolation sag then applies exactly as on the line
+/// arm. For `Torus` the residual splits as
+/// `(|p−c|² + R² − r²)/(2r) − (R/r)·|w|`: the first summand is
+/// quadratic (same treatment), the second is `√g` with `g = |w|²`
+/// again degree ≤ 2, bounded by
+/// `|g″|/(2√g_min) + |g′|²/(4·g_min^{3/2})` with
+/// `√g_min = (R − r)/2` — the ring-torus tube floor `|w| ≥ R − r`
+/// halved by the module's standing `ε ≪ r` allowance (the same
+/// allowance the line arm's `arm ≥ r/2` step already takes).
+///
+/// **`kappa_drift`**: `κ_rel` is an isometry invariant, so it is
+/// CONSTANT along any carrier motion that is a symmetry flow of both
+/// surfaces (the equivariance principle, applied rather than
+/// assumed). Per surface we measure `dev`, the sup over the span of
+/// how far the carrier's velocity departs from that surface's
+/// Killing field — rotation about its axis (through its axis point)
+/// for sphere/cylinder/torus, plus free translation along the axis
+/// for a cylinder, everything for a plane — and reuse the line arm's
+/// `8·(motion)/r²` accounting with `dev` in place of the motion.
+/// Coaxial ⇒ `dev = 0` ⇒ zero drift, EXACTLY.
+#[allow(clippy::too_many_arguments)]
+fn circle_span_bounds<T: Real>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    step: T,
+) -> Option<TangentSpanBounds<T>> {
+    let u = u_ref;
+    let v = axis.cross(u_ref);
+    let rc = radius;
+    let two = T::from_f64(2.0);
+    let four = T::from_f64(4.0);
+    let eight = T::from_f64(8.0);
+    // The degree-≤2 harmonic amplitudes of `|w(t)|²` for the radial
+    // part `w` about the axis `a` through `o` (shared by the cylinder
+    // and torus arms): `(A₁, A₂)`.
+    let radial_harmonics = |a: Vec3<T>, o: Point3<T>| -> (T, T) {
+        let e = perp(center - o, a);
+        let up = perp(u, a);
+        let vp = perp(v, a);
+        let a1 = two * rc * amp(e.dot(up), e.dot(vp));
+        let a2 = rc.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
+        (a1, a2)
+    };
+    // The Killing-field deviation for rotation about `a` through `o`,
+    // optionally quotienting the free translation along `a`.
+    //
+    // **Both angular directions** (M5 PR 12 fix pass): rotation about
+    // an axis is a one-parameter group, so `−a·(p − o)` is as much a
+    // Killing field of the surface as `+a·(p − o)` is — a carrier
+    // circle traversed CLOCKWISE about a cylinder's stored axis is the
+    // same coaxial configuration as one traversed counterclockwise,
+    // and only the sign of the stored `axis` field differs. Measuring
+    // against `+a` alone made that half of the configurations pay
+    // `dev = r_c` (the clamp) for nothing — which is exactly the die's
+    // corner arcs, half of whose `he_plus` directions point the other
+    // way around their blend cylinder. The bound is the MINIMUM over
+    // the two group directions: both are valid bounds, so taking the
+    // smaller only tightens the certificate, and the coaxial
+    // configuration now yields EXACTLY zero either way round.
+    let dev_rot = |a: Vec3<T>, o: Point3<T>, slide: bool| -> T {
+        let fix = |x: Vec3<T>| if slide { perp(x, a) } else { x };
+        let dev = |s: T| -> T {
+            let d0 = fix(a.cross(center - o) * s);
+            let d1 = fix(v - a.cross(u) * s);
+            let d2 = fix(u + a.cross(v) * s);
+            d0.norm() + rc * (d1.norm() + d2.norm())
+        };
+        dev(T::one()).min(dev(-T::one())).min(rc)
+    };
+    let bounds_of = |s: &Surface<T>| -> Option<(T, T)> {
+        match *s {
+            // A plane's Hessian is zero: it contributes no curvature
+            // drift at all, and its residual is the exact first
+            // harmonic `R_c·|P_uv(n)|·(…)`.
+            Surface::Plane { normal, .. } => {
+                Some((rc * amp(u.dot(normal), v.dot(normal)), T::zero()))
+            }
+            Surface::Sphere {
+                center: sc,
+                radius: r,
+                ..
+            } => {
+                let e = center - sc;
+                let f2 = rc * amp(u.dot(e), v.dot(e)) / r;
+                // A sphere is invariant under EVERY rotation about its
+                // centre, so the honest Killing field is the one about
+                // the CIRCLE's axis through the sphere centre: the
+                // frame terms cancel identically (`v̂ = a × û`), and
+                // `dev` collapses to the distance from the sphere
+                // centre to the circle's axis line — exactly the
+                // coaxiality defect.
+                let drift = eight * dev_rot(axis, sc, false) / r.powi(2);
+                Some((f2, drift))
+            }
+            Surface::Cylinder {
+                origin,
+                axis: a,
+                radius: r,
+                ..
+            } => {
+                let (a1, a2) = radial_harmonics(a, origin);
+                let f2 = (a1 + four * a2) / (two * r);
+                let drift = eight * dev_rot(a, origin, true) / r.powi(2);
+                Some((f2, drift))
+            }
+            Surface::Torus {
+                center: tc,
+                axis: a,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let (g1, g2) = radial_harmonics(a, tc);
+                // The tube floor `|w| ≥ R − r`, halved by the standing
+                // `ε ≪ r` allowance. Clamped at zero so a NON-ring
+                // payload (`R ≤ r`, degenerate data the variant's
+                // convention excludes) yields an infinite bound that
+                // fails the caller's residual check loudly, never a
+                // negative one that would silently under-bound.
+                let g_lo = ((major_radius - minor_radius) / two).max(T::zero());
+                let dg = g1 + two * g2;
+                let ddg = g1 + four * g2;
+                let sqrt_part = ddg / (two * g_lo) + dg.powi(2) / (four * g_lo.powi(3));
+                let e = center - tc;
+                let f2 = rc * amp(u.dot(e), v.dot(e)) / minor_radius
+                    + major_radius * sqrt_part / minor_radius;
+                // The torus Hessian is not bounded by 1/r_minor alone:
+                // the major-direction term adds `|d|/|w| ≤ r/(R − r)`,
+                // so the effective radius is `r·(R − r)/R`.
+                let r_eff = minor_radius * (major_radius - minor_radius) / major_radius;
+                let drift = eight * dev_rot(a, tc, false) / r_eff.powi(2);
+                Some((f2, drift))
+            }
+            Surface::Nurbs(_) | Surface::Cone { .. } => None,
+        }
+    };
+    let (f2a, da) = bounds_of(s1)?;
+    let (f2b, db) = bounds_of(s2)?;
+    Some(TangentSpanBounds {
+        residual_sag: step.powi(2) * T::from_f64(0.125) * f2a.max(f2b),
         kappa_drift: step * (da + db),
     })
 }

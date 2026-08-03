@@ -134,7 +134,21 @@ jobs:
       # M5 PR 11 certified-quadrature plumbing (Evan's lane-split
       # ruling at that PR: certification is the bracket-carrying
       # lanes' business, statically split from the dual lane through
-      # `PropsQuadLane`). Sole-bound `T: Bounds`
+      # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
+      # seam in sweep. That last one is an ORCHESTRATOR ruling
+      # (2026-08-03) applying the PR 11 precedent, flagged for
+      # retroactive Evan review per the self-merge convention: the battery's margins are certified metric quantities
+      # (sup-κ curvature hulls, blend setback bounds) reported as
+      # `f64` payloads, i.e. enclosure consumers of exactly the
+      # quadrature's class; and no dual-scalar path can reach it —
+      # `Bounds` is implemented only for `f64`, `Interval` and
+      # `Probe`, never for `Dual`, and the one wiring that calls
+      # fillets (editor-core's `wire_fillet`) sits under `evaluate<T>`,
+      # which is itself already `Bounds`-bounded and instantiated at
+      # `f64`/`Interval` only. With no dual lane to split, the
+      # `PropsQuadLane` static split would have had nothing on its
+      # refusing side, so the seam is ratified instead.
+      # Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
       # ratified into the real.rs rule AND this allowlist.
@@ -146,7 +160,8 @@ jobs:
             | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
             | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-            | grep -vE '^crates/profile/src/sugar\.rs$' || true)
+            | grep -vE '^crates/profile/src/sugar\.rs$' \
+            | grep -vE '^crates/sweep/src/fillet/(battery|build)\.rs$' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
             echo "::error::compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"

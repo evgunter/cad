@@ -129,7 +129,14 @@ discipline() {
   fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
   # Bounds scope rule) — mirror of the hosted step. topo/props.rs is
-  # the M5 PR 11 certified-quadrature seam (Evan's lane-split ruling).
+  # the M5 PR 11 certified-quadrature seam (Evan's lane-split ruling);
+  # sweep/src/fillet/{battery,build}.rs is the M5 PR 12 fillet-battery
+  # seam, ratified under that same ruling because its margins are
+  # certified metric quantities (sup-κ hulls, setback bounds) and NO
+  # dual-scalar path can reach it — `Dual` has no `Bounds` impl, and
+  # the only caller sits under editor-core's already-Bounds-bounded
+  # `evaluate<T>`. A `PropsQuadLane`-style static split would have had
+  # an empty refusing side.
   local bhits
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -137,7 +144,8 @@ discipline() {
     | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-    | grep -vE '^crates/profile/src/sugar\.rs$' || true)
+    | grep -vE '^crates/profile/src/sugar\.rs$' \
+    | grep -vE '^crates/sweep/src/fillet/(battery|build)\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"

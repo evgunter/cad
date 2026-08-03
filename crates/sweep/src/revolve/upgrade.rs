@@ -7,7 +7,10 @@
 //! antipode); all re-descriptions go through `topo`'s certified
 //! `set_edge_curve` door with the carrier and interval kept verbatim.
 
-use geom_brep::{DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, edge_extent};
+use geom_brep::{
+    DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, curvature_lever_arm,
+    edge_extent, tangent_certificate_lane, tangent_jet,
+};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
 use geom_curves::Curve3;
@@ -141,16 +144,75 @@ pub(super) fn upgrade_intersection<T: Decide>(
             body.set_edge_curve(edge, spec)?;
             Ok(())
         }
-        // A revolve join's carrier is a latitude CIRCLE (or a meridian
-        // conic) — outside the jet certificate's Line span-bound lane
-        // (C12.1), so the OQ7 must-carry does not demand the intrinsic
-        // tangent description here and the conventional one stays (the
-        // tier-3 enforcement draws the same per-class boundary; the
-        // circle-carrier tangent certificate is the lane's next
-        // retirement, not this PR's).
-        Ok(DihedralClass::Smooth) => Ok(()),
+        // **The lane's next retirement, taken (M5 PR 12).** A revolve
+        // join's carrier is a latitude CIRCLE, which the jet
+        // certificate's circle arm now covers on every surface of
+        // revolution — so a jet-DETERMINATE smooth join is a genuine
+        // `TangentIntersection` and prefer-intrinsic (D2/OQ7) demands
+        // it. A jet-UNDER-determined one (a G2 conventional join, a
+        // same-surface split: `κ_rel` at zero) keeps the conventional
+        // description, exactly as tier 3's must-carry exempts it —
+        // both sides read the same `tangent_second_order` predicate,
+        // so the demanded set and the stored set stay one set.
+        Ok(DihedralClass::Smooth) => {
+            if jet_determinate(&surf1, &surf2, &data, band) {
+                let spec = EdgeCurveSpec {
+                    description: EdgeGeometry::TangentIntersection {
+                        s1,
+                        s2,
+                        witness: data.witness,
+                    },
+                    carrier: data.carrier,
+                    param_start: data.t0,
+                    param_end: data.t1,
+                };
+                body.set_edge_curve(edge, spec)?;
+            }
+            Ok(())
+        }
         Err(source) => Err(sliver(source)),
     }
+}
+
+/// Is this smooth join **jet-determinate** — inside the certificate's
+/// span-bound lane, and with the second-order separation definitely
+/// positive at every sample of the certification schedule?
+///
+/// The margin is tier 3's own: `|κ_rel|·arm²/2` in meters, with `arm`
+/// the folded lever arm `min(curvature arms, extent)` — the SAME
+/// quantity, the same predicate name, so the constructor stores
+/// exactly what the validator will demand and nothing more. An
+/// under-determined join (`Zero`) or an in-band one (an escalation,
+/// which tier 3 reports as an F6 sliver and exempts here) keeps its
+/// conventional description: the intrinsic upgrade is an enrichment,
+/// never a new refusal.
+fn jet_determinate<T: Decide>(
+    s1: &geom_surfaces::Surface<T>,
+    s2: &geom_surfaces::Surface<T>,
+    data: &EdgeData<T>,
+    band: Band,
+) -> bool {
+    if !tangent_certificate_lane(&data.carrier, s1, s2) {
+        return false;
+    }
+    let samples = 9u32;
+    for i in 1..samples - 1 {
+        let f = T::from_f64(f64::from(i) / f64::from(samples - 1));
+        let t = data.t0 + (data.t1 - data.t0) * f;
+        let p = data.carrier.eval(t);
+        let jet = tangent_jet(s1, s2, p, data.carrier.deriv(t));
+        let arm = curvature_lever_arm(s1, p)
+            .min(curvature_lever_arm(s2, p))
+            .min(data.extent);
+        let margin = jet.kappa_rel.abs() * arm.powi(2) * T::from_f64(0.5);
+        if !matches!(
+            super::decide("tangent_second_order", margin, band),
+            Ok(geom_core::Sign::Positive)
+        ) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Re-describes a full-revolve meridian as `Seam { surface }` when the
