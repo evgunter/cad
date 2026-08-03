@@ -2465,3 +2465,20 @@ differential's meaning). Lanes cleaned. Board: PR 12 (die,
 opus) sole lane; then PR 14. Evan's montage pair is live:
 demos/renders/montage.png vs demos/renders-freecad/
 montage-freecad.png.
+
+**PR 12 implementation COMPLETE (2026-08-03, 75ee4e9).**
+HEADLINE: the filleted BLANK (12 edges r=0.12, 8 octant
+corners, 26/48/24, closed-form volume AND area at ZERO pad,
+watertight, STEP+FreeCAD, 56 TangentIntersection trimlines) and
+the 21-PIP die (one certified group op, full ladder) — but
+DEVIATIONS 1+2: THEY DO NOT COMPOSE (fillet→pip pierce door;
+pip→fillet ring loss; pip-rim torus arm landed+certified but
+unassembled — the banked in-place-surgery unit). Battery =
+six fillet3_* trileans with structural ordering; the circle
+jet arm derived by EQUIVARIANCE (coaxiality ⇒ exact-zero span
+bounds); revolve latitude joins upgraded to TangentIntersection.
+**Review DISPATCHED — the composition gap is the charter
+centerpiece (incl. the pips-FIRST reorder hypothesis: box edges
+are intact before filleting; if that composes TODAY it changes
+everything), and its sizing feeds the shape-(v) exit ruling
+(Evan) if the gap stands.** Sole lane.
