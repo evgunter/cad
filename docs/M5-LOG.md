@@ -2544,3 +2544,16 @@ HOMED as the part-unit-test lane's prototype (advisory,
 warn-never-refuse, threshold sweep over existing K telemetry).
 PR 14's #89 item simplifies to the kernel-K snapshot decision
 alone, with the display half's disposition recorded as I1(0).
+
+**Branch cleanup (Evan-prompted, 2026-08-03).** ev/m5-state
+(predecessor orchestrator state branch) audited: everything
+subsumed by the #147 handoff sync EXCEPT one stranded fix — the
+away-channel watchlist parser required TABS while entries are
+written space-separated, so 👍-reaction detection was SILENTLY
+BROKEN (incl. this session's live monitor; no loss occurred —
+every sign-off arrived as a comment). Fix RESCUED to the
+orchestrator branch, installed, monitor restarted. Both stale
+branches archived as tags per the merge-only convention
+(archive/m5-state-predecessor-orchestrator,
+archive/m5-pr7b-review-probes-v1) and deleted. Remote is now:
+main + ev/m5-pr12-fillets (live PR) + the orchestrator branch.
