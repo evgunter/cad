@@ -1,0 +1,1444 @@
+//! **The in-place edge-blend composition surgery** (M6 unit 1): fillet
+//! a SUBSET of a body's edges by operating on the body itself — split
+//! the support faces along the stored trimlines, excise the edge
+//! strips, and graft the blend walls in — instead of rebuilding a
+//! whole polyhedron from scratch.
+//!
+//! This is the unit M5 banked at PR 12 (deviation 1's second door and
+//! deviation 2), sized by that review at one reviewed unit, and
+//! sequenced at the head of M6 by Evan's #169 ruling. It is what makes
+//! the COMPOSED DIE possible: the filleted blank, the 21 pips and the
+//! filleted pip rims in ONE body.
+//!
+//! # What the surgery does, per chain kind
+//!
+//! **Open chains** (plane–plane links, the box edges): every open
+//! chain must be a single link terminating at trivalent corners whose
+//! THREE incident edges are all requested — the sphere-octant
+//! configuration, exactly as the whole-body door, but reached in
+//! place. Per support face: one strut `mev` per boundary vertex (to
+//! the corner ball's foot on that face) and one trimline `mef` per
+//! blended edge carve the face into the SHRUNK face plus one strip per
+//! edge — the shrunk face keeps its `FaceKey`, its surface, its sense
+//! bit (S12 parent-sense inheritance) **and its rings**, which is the
+//! ring carry-through the whole-body rebuild could not do. Then per
+//! edge one `kef` merges the two strips across the dying sharp edge;
+//! per corner three arc `mef`s split the corner triangles off, two
+//! `kef`s and one `kev` fuse them into the octant and retire the
+//! struts and the sharp vertex.
+//!
+//! **Closed chains** (plane–sphere links, the pip rims): the chain
+//! must be a ring of its plane support and the entire boundary of its
+//! sphere support (a cap). The rim edges are replaced by a torus BAND:
+//! struts and trim `mef`s on both supports carve the two annular
+//! strips (the plane's hole widens from the rim circle to the trim
+//! circle — the fillet eats into the FLAT face, which is what makes it
+//! a fillet and not a gouge), rim-edge `kef`s merge them, strut `kef`s
+//! fuse the pieces around the ring, and the last strut — whose two
+//! halves by then share one loop — dies by `kemr`, which is exactly
+//! what mints the band's second boundary circle as a RING of the band
+//! face. The trim circles' carriers are the rim carrier's own frame
+//! SCALED (same axis, same `u_ref`, same parameter window), so the
+//! band's arcs inherit the rim's seam structure exactly — no `atan2`
+//! reconstruction, no π-arc ambiguity.
+//!
+//! # What decides, and what does not
+//!
+//! The battery already judged every margin (the C8 ordering contract —
+//! [`super::build::fillet_edges`] runs it first and hands the verdict
+//! in). The surgery adds exactly ONE new numeric decision, the ring
+//! carry-through honesty check: **`fillet3_ring_clearance`**, a Q1
+//! trilean whose margin (meters) is the closed-form clearance between
+//! a support face's ring and a blend's trimline — circle-vs-line and
+//! circle-vs-circle, exact, never sampled. Positive carries the ring
+//! through; zero/negative refuses typed
+//! ([`FilletError::RingClearance`]); in-band escalates with the same
+//! recourse (two-tolerance, D4 ¶1 addendum). Everything else in this
+//! module is structural: cycle walks, key equality, stored senses.
+//!
+//! # Out of scope, refused typed
+//!
+//! Multi-link open chains (junction carry-through), concave chains
+//! (material-adding blends), partially-requested corners (run-outs),
+//! rims that are not circle-carried rings of a plane against a
+//! sphere cap — each refuses [`FilletError::AssemblyUnsupported`]
+//! naming itself. The refusals are the honest boundary of the unit,
+//! not gates hiding reachable geometry.
+
+use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_core::{Band, Bounds, Decide, Point3, Real, Sign, Vec3};
+use geom_curves::Curve3;
+use geom_surfaces::Surface;
+use topo::{
+    Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite, VertexKey,
+};
+
+use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
+use super::blend::{BlendArm, corner_ball};
+use super::build::{Filleted, face_cycle, outward_of, vertex_faces};
+use super::{FilletError, FilletSite, decide};
+
+/// The one new margin this unit decides (module docs): the exact
+/// clearance between a support face's ring and a blend trimline.
+const RING_CLEARANCE: &str = "fillet3_ring_clearance";
+
+// ------------------------------------------------------------------
+// The plan: everything classified and derived before any mutation.
+// ------------------------------------------------------------------
+
+/// One open (plane–plane) link with its two corner terminations.
+struct OpenLink<'a, T: Real> {
+    link: &'a Link<T>,
+}
+
+/// One corner: a trivalent vertex all of whose edges are requested.
+struct Corner<T: Real> {
+    vertex: VertexKey,
+    /// The three incident support faces, in orbit order.
+    faces: Vec<FaceKey>,
+    /// The corner ball's centre.
+    center: Point3<T>,
+    /// The octant's chart (the F2 order-free pick, shared with the
+    /// whole-body builder).
+    surface: Surface<T>,
+}
+
+/// One closed (plane–sphere) chain resolved onto its supports.
+///
+/// The plane side is ONE face (the rim is one of its rings). The
+/// sphere side is per-arc: a revolve-minted cap arrives as half-cap
+/// faces split by meridian seam edges through the pole, so each rim
+/// arc bounds its own sphere face and consecutive arcs meet at a rim
+/// vertex where exactly one MERIDIAN edge descends into the cap.
+struct RimPlan<'a, T: Real> {
+    chain: &'a Chain<T>,
+    /// The planar support (the rim is one of its rings).
+    plane: FaceKey,
+    /// The sphere face of each link, per chain-link order.
+    spheres: Vec<FaceKey>,
+    /// The rim ring loop on the plane side.
+    ring: LoopKey,
+}
+
+/// A rim edge's stored circle carrier, read once.
+struct RimCarrier<T: Real> {
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+    /// Whether the plane-side half is the edge's `he_plus`.
+    plus_on_plane: bool,
+}
+
+/// **The surgery front door + construction** — called by
+/// [`super::build::fillet_edges`] AFTER the battery, for every request
+/// that is not the whole-body case. The verdict's chains are the
+/// input; nothing re-derives what the battery already resolved.
+pub(super) fn fillet_surgery<T: Decide + Bounds>(
+    source: &Body<T>,
+    verdict: &BatteryVerdict<T>,
+    band: Band,
+) -> Result<Filleted<T>, FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    if source.solids().count() != 1 || source.shells().count() != 1 {
+        return Err(unsupported(
+            "the body is not a single solid with a single shell",
+        ));
+    }
+    let radius = verdict.radius;
+
+    // ---- Classify the verdict's chains (structural only). ----
+    let mut opens: Vec<OpenLink<'_, T>> = Vec::new();
+    let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
+    for chain in &verdict.chains {
+        match chain.closure {
+            ChainClosure::Open { .. } => {
+                if chain.links.len() != 1 {
+                    return Err(unsupported(
+                        "an open chain with more than one link needs junction \
+                         carry-through, which is not implemented",
+                    ));
+                }
+                let link = &chain.links[0];
+                if !matches!(link.arm, BlendArm::PlanePlaneCylinder) {
+                    return Err(unsupported(
+                        "an open chain's supports are not plane–plane (the octant \
+                         corner is the only termination built)",
+                    ));
+                }
+                if !matches!(link.convexity, Convexity::Convex) {
+                    return Err(unsupported(
+                        "a concave chain adds material, which the surgery does not \
+                         build — not implemented",
+                    ));
+                }
+                opens.push(OpenLink { link });
+            }
+            ChainClosure::Closed => {
+                rims.push(resolve_rim(source, chain)?);
+            }
+        }
+    }
+    opens.sort_by_key(|o| o.link.edge);
+    rims.sort_by_key(|r| r.chain.links[0].edge);
+
+    // ---- Corners: every open-link end must be a fully-requested
+    // trivalent vertex. ----
+    let mut ends: Vec<(VertexKey, Vec<EdgeKey>)> = Vec::new();
+    for o in &opens {
+        for v in [o.link.start, o.link.end] {
+            match ends.iter_mut().find(|(k, _)| *k == v) {
+                Some((_, es)) => es.push(o.link.edge),
+                None => ends.push((v, vec![o.link.edge])),
+            }
+        }
+    }
+    ends.sort_by_key(|(v, _)| *v);
+    let mut corners: Vec<Corner<T>> = Vec::new();
+    for (v, requested_here) in &ends {
+        let Some(mut incident) = vertex_edges_of(source, *v) else {
+            return Err(unsupported("a corner vertex orbit does not resolve"));
+        };
+        incident.sort_unstable();
+        let mut here = requested_here.clone();
+        here.sort_unstable();
+        here.dedup();
+        if incident.len() != 3 || here != incident {
+            return Err(unsupported(
+                "a chain terminates at a vertex whose edges are not all requested \
+                 trivalent convex links; run-outs at such corners are not implemented",
+            ));
+        }
+        corners.push(corner_plan(source, *v, &opens, radius)?);
+    }
+
+    // ---- The ring carry-through honesty check (the one decision this
+    // module adds — module docs). ----
+    ring_clearance_pass(source, &opens, &rims, band)?;
+
+    // ---- Mutation, on a clone. From here on every step is an Euler
+    // operator or a certified setter; refusals map to Op/Certify. ----
+    let mut body = source.clone();
+    let solid = source
+        .solids()
+        .next()
+        .map(|(k, _)| k)
+        .ok_or_else(|| unsupported("the body has no solid"))?;
+    let shell = source
+        .shells()
+        .next()
+        .map(|(k, _)| k)
+        .ok_or_else(|| unsupported("the body has no shell"))?;
+
+    let (blend_faces, corner_faces, mut described) =
+        blank_phase(&mut body, &opens, &corners, radius)?;
+    let mut band_faces = Vec::with_capacity(rims.len());
+    for rim in &rims {
+        let (band_face, mut arcs) = rim_phase(&mut body, rim)?;
+        band_faces.push(band_face);
+        described.append(&mut arcs);
+    }
+
+    // ---- Surfaces and senses first (attach.rs: attach surfaces
+    // before upgrading edge descriptions), then every new edge's
+    // intrinsic description, then the pcurve re-mint (the input's
+    // caches are stale the moment the first strut lands). ----
+    let op = |e: topo::EulerOpError| FilletError::Op {
+        detail: e.to_string(),
+    };
+    for (i, o) in opens.iter().enumerate() {
+        let fk = blend_faces[i];
+        body.set_face_surface(fk, FaceSurface::New(o.link.blend.surface.clone()))
+            .map_err(op)?;
+        body.set_face_sense(fk, o.link.convexity.blend_sense())
+            .map_err(op)?;
+    }
+    for (i, c) in corners.iter().enumerate() {
+        let fk = corner_faces[i];
+        body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
+            .map_err(op)?;
+        body.set_face_sense(fk, true).map_err(op)?;
+    }
+    for (i, rim) in rims.iter().enumerate() {
+        let fk = band_faces[i];
+        body.set_face_surface(fk, FaceSurface::New(rim.chain.links[0].blend.surface.clone()))
+            .map_err(op)?;
+        body.set_face_sense(fk, rim.chain.links[0].convexity.blend_sense())
+            .map_err(op)?;
+    }
+    for (edge, carrier) in described {
+        attach_contact(&mut body, edge, carrier)?;
+    }
+    topo::mint_pcurves(&mut body).map_err(|e| FilletError::Certify {
+        detail: format!("pcurve re-mint after surgery: {e:?}"),
+    })?;
+
+    #[cfg(debug_assertions)]
+    debug_assert_eq!(
+        topo::validate_closed(&body),
+        Ok(()),
+        "surgery postcondition: the result is not tier-2 valid (kernel bug)",
+    );
+
+    Ok(Filleted {
+        body,
+        solid,
+        shell,
+        blend_faces,
+        corner_faces,
+        band_faces,
+    })
+}
+
+// ------------------------------------------------------------------
+// Plan helpers (read-only).
+// ------------------------------------------------------------------
+
+/// A vertex's incident edges, sorted (the corner front-door check).
+fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
+    let he = body.get_vertex(vertex)?.emanating?;
+    let mut edges: Vec<EdgeKey> = body
+        .vertex_orbit(he)?
+        .iter()
+        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
+        .collect();
+    edges.sort_unstable();
+    edges.dedup();
+    Some(edges)
+}
+
+/// The corner ball and octant chart at one fully-requested trivalent
+/// vertex — the same closed forms and the same F2 order-free chart
+/// pick as the whole-body builder ([`super::build`]).
+fn corner_plan<T: Decide + Bounds>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    opens: &[OpenLink<'_, T>],
+    radius: T,
+) -> Result<Corner<T>, FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let faces = vertex_faces(body, vertex)
+        .ok_or_else(|| unsupported("a corner vertex orbit does not resolve"))?;
+    if faces.len() != 3 {
+        return Err(unsupported("a corner is not trivalent"));
+    }
+    let p = *body
+        .get_vertex(vertex)
+        .and_then(|x| body.get_point(x.point))
+        .ok_or_else(|| unsupported("a corner point does not resolve"))?;
+    let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
+    for (slot, &f) in normals.iter_mut().zip(faces.iter()) {
+        *slot =
+            outward_of(body, f).ok_or_else(|| unsupported("a support face is not planar"))?;
+    }
+    let ball = corner_ball([p; 3], normals, radius, true);
+    let links: Vec<&Link<T>> = opens
+        .iter()
+        .map(|o| o.link)
+        .filter(|l| l.start == vertex || l.end == vertex)
+        .collect();
+    let (u_ref, axis) = super::build::octant_chart(body, vertex, &faces, &links)?;
+    Ok(Corner {
+        vertex,
+        faces,
+        center: ball.center,
+        surface: Surface::Sphere {
+            center: ball.center,
+            radius,
+            axis,
+            u_ref,
+        },
+    })
+}
+
+/// Resolve one closed chain onto its plane and sphere supports, with
+/// every structural precondition of the band replacement checked.
+fn resolve_rim<'a, T: Decide + Bounds>(
+    body: &Body<T>,
+    chain: &'a Chain<T>,
+) -> Result<RimPlan<'a, T>, FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    if chain.links.len() < 2 {
+        return Err(unsupported(
+            "a closed chain of fewer than two links (a one-edge rim) is not implemented",
+        ));
+    }
+    let is_plane = |f: FaceKey| -> Option<bool> {
+        let fd = body.get_face(f)?;
+        Some(matches!(
+            body.get_surface(fd.surface)?,
+            Surface::Plane { .. }
+        ))
+    };
+    let mut plane = None;
+    let mut spheres = Vec::with_capacity(chain.links.len());
+    for link in &chain.links {
+        if !matches!(link.arm, BlendArm::PlaneSphereTorus) {
+            return Err(unsupported(
+                "a closed chain's supports are not plane–sphere (the torus band is \
+                 the only closed blend built)",
+            ));
+        }
+        if !matches!(link.convexity, Convexity::Convex) {
+            return Err(unsupported(
+                "a concave chain adds material, which the surgery does not build — \
+                 not implemented",
+            ));
+        }
+        let (p, s) = match is_plane(link.face_a) {
+            Some(true) => (link.face_a, link.face_b),
+            Some(false) => (link.face_b, link.face_a),
+            None => return Err(unsupported("a rim support does not resolve")),
+        };
+        if *plane.get_or_insert(p) != p {
+            return Err(unsupported(
+                "a closed chain's links do not share one plane support",
+            ));
+        }
+        spheres.push(s);
+    }
+    let Some(plane) = plane else {
+        return Err(unsupported("a closed chain resolved no supports"));
+    };
+
+    // The rim must be a RING of the plane; each arc's sphere face is a
+    // ring-free cap piece carrying exactly that one chain arc on its
+    // boundary (revolve-minted half-caps).
+    let link0 = &chain.links[0];
+    let plane_half = plane_side_half(body, link0, plane)
+        .ok_or_else(|| unsupported("a rim half-edge does not resolve"))?;
+    let ring = body
+        .get_half_edge(plane_half)
+        .map(|h| h.parent_loop)
+        .ok_or_else(|| unsupported("a rim half-edge does not resolve"))?;
+    let pd = body
+        .get_face(plane)
+        .ok_or_else(|| unsupported("a rim support does not resolve"))?;
+    if !pd.rings.contains(&ring) {
+        return Err(unsupported(
+            "a closed chain is not a ring of its plane support",
+        ));
+    }
+    let chain_edges: Vec<EdgeKey> = chain.links.iter().map(|l| l.edge).collect();
+    for (link, &s) in chain.links.iter().zip(spheres.iter()) {
+        let sd = body
+            .get_face(s)
+            .ok_or_else(|| unsupported("a rim support does not resolve"))?;
+        if !sd.rings.is_empty() {
+            return Err(unsupported("a rim's sphere support carries rings of its own"));
+        }
+        let on_boundary: Vec<EdgeKey> = face_cycle(body, s)
+            .ok_or_else(|| unsupported("a rim's sphere support has no boundary cycle"))?
+            .iter()
+            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .filter(|e| chain_edges.contains(e))
+            .collect();
+        if on_boundary != [link.edge] {
+            return Err(unsupported(
+                "a sphere support does not carry exactly its own rim arc (the \
+                 half-cap discipline the band replacement needs)",
+            ));
+        }
+    }
+    // The ring cycle must be exactly the chain, and every rim vertex
+    // must drop exactly ONE meridian into the cap (checked while
+    // carving — structurally here: valence 3).
+    let ring_len = loop_walk(body, ring)
+        .ok_or_else(|| unsupported("a rim ring does not walk"))?
+        .len();
+    if ring_len != chain.links.len() {
+        return Err(unsupported(
+            "a rim ring carries edges outside the requested chain",
+        ));
+    }
+    Ok(RimPlan {
+        chain,
+        plane,
+        spheres,
+        ring,
+    })
+}
+
+/// The half-edge of `link.edge` lying on face `plane`'s side.
+fn plane_side_half<T: Decide>(
+    body: &Body<T>,
+    link: &Link<T>,
+    plane: FaceKey,
+) -> Option<HalfEdgeKey> {
+    if link.face_a == plane {
+        Some(link.he_plus)
+    } else {
+        let e = body.get_edge(link.edge)?;
+        Some(if e.he_plus == link.he_plus {
+            e.he_minus
+        } else {
+            e.he_plus
+        })
+    }
+}
+
+/// A loop's cycle as `(half-edge, start vertex, edge)` rows, in cycle
+/// order (D9: the stored anchor's order, never re-sorted).
+fn loop_walk<T: Decide>(body: &Body<T>, lp: LoopKey) -> Option<Vec<(HalfEdgeKey, VertexKey, EdgeKey)>> {
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(lp)?.boundary else {
+        return None;
+    };
+    let cycle = body.loop_cycle(first)?;
+    let mut out = Vec::with_capacity(cycle.len());
+    for he in cycle {
+        let h = body.get_half_edge(he)?;
+        out.push((he, h.start, h.edge));
+    }
+    Some(out)
+}
+
+// ------------------------------------------------------------------
+// The ring carry-through check.
+// ------------------------------------------------------------------
+
+/// A ring read as one circle: every edge of the ring must carry a
+/// `Circle` carrier on one shared centre/radius (the pip rims and the
+/// widened trim circles — the only rings this kernel mints on planar
+/// faces at rest). Anything else refuses typed rather than sampling.
+fn ring_circle<T: Decide>(
+    body: &Body<T>,
+    ring: LoopKey,
+) -> Result<(Point3<T>, T), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let walk = loop_walk(body, ring).ok_or_else(|| unsupported("a ring does not walk"))?;
+    let mut found: Option<(Point3<T>, T)> = None;
+    for (_, _, edge) in walk {
+        let e = body
+            .get_edge(edge)
+            .ok_or_else(|| unsupported("a ring edge does not resolve"))?;
+        let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+            return Err(unsupported("a ring edge carries no certified carrier"));
+        };
+        let Curve3::Circle { center, radius, .. } = *c.carrier() else {
+            return Err(unsupported(
+                "a ring edge's carrier is not a circle — the exact ring-clearance \
+                 check covers circle rings only",
+            ));
+        };
+        // Key equality is not available across arcs of one rim (each
+        // arc is its own curve row), so the shared-circle fact is
+        // structural per mint and simply adopted from the first arc:
+        // the clearance margin below uses one centre for the whole
+        // ring, which is exact for every ring this kernel mints.
+        found.get_or_insert((center, radius));
+    }
+    found.ok_or_else(|| unsupported("a ring has no edges"))
+}
+
+/// Decide one `fillet3_ring_clearance` margin.
+fn ring_margin<T: Decide + Bounds>(
+    face: FaceKey,
+    margin: T,
+    band: Band,
+) -> Result<(), FilletError> {
+    match decide(RING_CLEARANCE, margin, band)
+        .map_err(|e| FilletError::Escalated {
+            site: FilletSite::Chain,
+            source: e,
+        })? {
+        Sign::Positive => Ok(()),
+        _ => Err(FilletError::RingClearance {
+            face,
+            margin: margin.lo(),
+        }),
+    }
+}
+
+/// The pre-mutation honesty pass (module docs): every ring of every
+/// touched support face must clear every blend trimline by a definite
+/// margin, in closed form.
+fn ring_clearance_pass<T: Decide + Bounds>(
+    body: &Body<T>,
+    opens: &[OpenLink<'_, T>],
+    rims: &[RimPlan<'_, T>],
+    band: Band,
+) -> Result<(), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    // A ring's EFFECTIVE radius: its own circle, widened to the trim
+    // circle when the ring is itself a requested rim (a single call
+    // may blend the box edges and the rims together).
+    let effective = |ring: LoopKey| -> Result<Option<(Point3<T>, T)>, FilletError> {
+        for rim in rims {
+            if rim.ring == ring {
+                let Curve3::Circle { center, radius, .. } = rim.chain.links[0].blend.trim_a.0
+                else {
+                    return Err(unsupported("a rim blend's trimline is not a circle"));
+                };
+                return Ok(Some((center, radius)));
+            }
+        }
+        Ok(None)
+    };
+    // (a) Open links: every ring of each support face against the
+    // link's straight trimline on that face.
+    for o in opens {
+        let l = o.link;
+        let mid = edge_midpoint(body, l.edge)
+            .ok_or_else(|| unsupported("a link midpoint does not resolve"))?;
+        for (face, trim) in [(l.face_a, &l.blend.trim_a.0), (l.face_b, &l.blend.trim_b.0)] {
+            let Curve3::Line { origin, dir } = *trim else {
+                return Err(unsupported("an open link's trimline is not a line"));
+            };
+            // The inward unit: from the sharp edge toward the trim,
+            // in the support plane (perpendicular to the trim by
+            // construction of the setback).
+            let m = (origin - mid).normalize();
+            let fd = body
+                .get_face(face)
+                .ok_or_else(|| unsupported("a support face does not resolve"))?;
+            for ring in fd.rings.clone() {
+                let (c, a) = match effective(ring)? {
+                    Some(widened) => widened,
+                    None => ring_circle(body, ring)?,
+                };
+                // The trimline is unbounded within the face, so only
+                // the transverse clearance matters, and `m ⊥ dir` by
+                // the setback construction.
+                let _ = dir;
+                let margin = (c - origin).dot(m) - a;
+                ring_margin(face, margin, band)?;
+            }
+        }
+    }
+    // (b) Rims: each widened trim circle against the plane face's
+    // OTHER rings and its straight outer boundary edges.
+    for rim in rims {
+        let Curve3::Circle {
+            center: ci,
+            radius: si,
+            ..
+        } = rim.chain.links[0].blend.trim_a.0
+        else {
+            return Err(unsupported("a rim blend's trimline is not a circle"));
+        };
+        let fd = body
+            .get_face(rim.plane)
+            .ok_or_else(|| unsupported("a rim's plane support does not resolve"))?;
+        for ring in fd.rings.clone() {
+            if ring == rim.ring {
+                continue;
+            }
+            let (cj, aj) = match effective(ring)? {
+                Some(widened) => widened,
+                None => ring_circle(body, ring)?,
+            };
+            let margin = (cj - ci).norm() - si - aj;
+            ring_margin(rim.plane, margin, band)?;
+        }
+        // Outer boundary: exact for line edges (the blank trimlines /
+        // the sharp box edges); circle outer edges get the same
+        // centre-distance form; anything else is already screened by
+        // predicate 2's sampled sweep and adds nothing exact here.
+        let outer = face_cycle(body, rim.plane)
+            .ok_or_else(|| unsupported("a rim's plane support has no outer cycle"))?;
+        for he in outer {
+            let Some(h) = body.get_half_edge(he) else {
+                continue;
+            };
+            let Some(e) = body.get_edge(h.edge) else {
+                continue;
+            };
+            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            match *c.carrier() {
+                Curve3::Line { origin, dir } => {
+                    let d = ci - origin;
+                    let margin = (d - dir * d.dot(dir)).norm() - si;
+                    ring_margin(rim.plane, margin, band)?;
+                }
+                Curve3::Circle { center, radius, .. } => {
+                    let margin = (center - ci).norm() - si - radius;
+                    ring_margin(rim.plane, margin, band)?;
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A link edge's midpoint (the trimline inward direction's anchor).
+fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> {
+    let e = body.get_edge(edge)?;
+    let c = body.get_curve_geom(e.curve)?.certified()?;
+    let (t0, t1) = c.params();
+    Some(c.carrier().eval((t0 + t1) * T::from_f64(0.5)))
+}
+
+// ------------------------------------------------------------------
+// The blank phase: open links and corners, in place.
+// ------------------------------------------------------------------
+
+/// A recorded new edge awaiting its intrinsic description.
+enum ContactCarrier<T: Real> {
+    /// A straight trimline (carrier rebuilt from the edge's vertices).
+    TrimLine,
+    /// A corner arc about the corner ball's centre (sweep < π).
+    CornerArc { center: Point3<T>, radius: T },
+    /// An exact stored arc (the rim trim circles — π-safe).
+    Exact(Curve3<T>, T, T),
+    /// A torus band's SLIT: a double-traversed minor-circle arc
+    /// described as a [`EdgeGeometry::Seam`] of the band's own
+    /// surface (sweep < π; the donut's representation).
+    SeamArc { center: Point3<T>, radius: T },
+}
+
+type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
+
+#[allow(clippy::type_complexity)]
+fn blank_phase<T: Decide + Bounds>(
+    body: &mut Body<T>,
+    opens: &[OpenLink<'_, T>],
+    corners: &[Corner<T>],
+    radius: T,
+) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let op = |what: &'static str| {
+        move |e: topo::EulerOpError| FilletError::Op {
+            detail: format!("{what}: {e}"),
+        }
+    };
+    let mut described: Described<T> = Vec::new();
+    if opens.is_empty() {
+        return Ok((Vec::new(), Vec::new(), described));
+    }
+
+    // Feet: one per (corner vertex, incident face), precomputed from
+    // the SOURCE geometry before any mutation (nothing below moves a
+    // support plane, but the mutation loop should not read one).
+    let mut feet: Vec<(VertexKey, FaceKey, Point3<T>)> = Vec::new();
+    for c in corners {
+        for &f in &c.faces {
+            let n = outward_of(body, f)
+                .ok_or_else(|| unsupported("a support face is not planar"))?;
+            feet.push((c.vertex, f, c.center + n * radius));
+        }
+    }
+    let foot = move |v: VertexKey, f: FaceKey| -> Option<Point3<T>> {
+        feet.iter()
+            .find(|(vv, ff, _)| *vv == v && *ff == f)
+            .map(|(_, _, p)| *p)
+    };
+
+    // ---- Per support face: struts at every boundary vertex, then a
+    // trimline chord per boundary edge. ----
+    let mut faces: Vec<FaceKey> = Vec::new();
+    for o in opens {
+        for f in [o.link.face_a, o.link.face_b] {
+            if !faces.contains(&f) {
+                faces.push(f);
+            }
+        }
+    }
+    faces.sort_unstable();
+    // Per (edge, face): the half-edge of the edge now inside that
+    // face's strip (for the kef), keyed structurally.
+    let mut strip_half: Vec<(EdgeKey, FaceKey, HalfEdgeKey)> = Vec::new();
+    // Per (vertex, face): the strut edge (for the corner merges).
+    let mut strut_of: Vec<(VertexKey, FaceKey, EdgeKey)> = Vec::new();
+    for &f in &faces {
+        let walk = {
+            let cycle =
+                face_cycle(body, f).ok_or_else(|| unsupported("a support face has no cycle"))?;
+            let mut rows = Vec::with_capacity(cycle.len());
+            for he in cycle {
+                let h = body
+                    .get_half_edge(he)
+                    .ok_or_else(|| unsupported("a support half-edge does not resolve"))?;
+                rows.push((he, h.start, h.edge));
+            }
+            rows
+        };
+        // The front-door invariant: a face touched by an open link has
+        // its ENTIRE outer cycle requested (each boundary vertex is a
+        // fully-requested corner, so both its edges on this face are).
+        for (_, _, e) in &walk {
+            if !opens.iter().any(|o| o.link.edge == *e) {
+                return Err(unsupported(
+                    "a support face's boundary mixes requested and unrequested edges \
+                     (run-outs are not implemented)",
+                ));
+            }
+        }
+        let n = walk.len();
+        let mut struts = Vec::with_capacity(n);
+        for &(he, v, _) in &walk {
+            let p = *body
+                .get_vertex(v)
+                .and_then(|x| body.get_point(x.point))
+                .ok_or_else(|| unsupported("a boundary vertex does not resolve"))?;
+            let fp = foot(v, f).ok_or_else(|| unsupported("a corner foot does not resolve"))?;
+            let created = body
+                .mev(
+                    MevSite::Fan { he1: he, he2: he },
+                    fp,
+                    EdgeCurveSpec::line_between(p, fp),
+                )
+                .map_err(op("strut mev"))?;
+            strut_of.push((v, f, created.edge));
+            struts.push((created.he_minus, fp));
+        }
+        let mut first_trim: Option<HalfEdgeKey> = None;
+        for i in 0..n {
+            let (he1, fp_i) = struts[i];
+            let he2 = if i + 1 < n {
+                struts[i + 1].0
+            } else {
+                first_trim.ok_or_else(|| unsupported("a face with one boundary edge"))?
+            };
+            let fp_j = struts[(i + 1) % n].1;
+            let created = body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    EdgeCurveSpec::line_between(fp_i, fp_j),
+                    FaceSurface::Inherit,
+                )
+                .map_err(op("trimline mef"))?;
+            first_trim.get_or_insert(created.he_plus);
+            described.push((created.edge, ContactCarrier::TrimLine));
+            strip_half.push((walk[i].2, f, walk[i].0));
+        }
+    }
+
+    // ---- Per link: merge the two strips across the dying edge. ----
+    let mut hexagon: Vec<(EdgeKey, LoopKey)> = Vec::new();
+    for o in opens {
+        let e = o.link.edge;
+        let half_a = strip_half
+            .iter()
+            .find(|(ee, ff, _)| *ee == e && *ff == o.link.face_a)
+            .map(|(_, _, h)| *h)
+            .ok_or_else(|| unsupported("a strip half does not resolve"))?;
+        let half_b = strip_half
+            .iter()
+            .find(|(ee, ff, _)| *ee == e && *ff == o.link.face_b)
+            .map(|(_, _, h)| *h)
+            .ok_or_else(|| unsupported("a strip half does not resolve"))?;
+        let survivor_loop = body
+            .get_half_edge(half_b)
+            .map(|h| h.parent_loop)
+            .ok_or_else(|| unsupported("a strip loop does not resolve"))?;
+        body.kef(half_a).map_err(op("edge-strip kef"))?;
+        hexagon.push((e, survivor_loop));
+    }
+    let hex_face = |body: &Body<T>, e: EdgeKey| -> Option<FaceKey> {
+        let lp = hexagon.iter().find(|(ee, _)| *ee == e)?.1;
+        Some(body.get_loop(lp)?.face)
+    };
+
+    // ---- Per corner: three arcs, then the octant fusion. ----
+    let mut corner_faces = Vec::with_capacity(corners.len());
+    for c in corners {
+        let mut links_here: Vec<&Link<T>> = opens
+            .iter()
+            .map(|o| o.link)
+            .filter(|l| l.start == c.vertex || l.end == c.vertex)
+            .collect();
+        links_here.sort_by_key(|l| l.edge);
+        let mut first_arc: Option<EdgeKey> = None;
+        for l in &links_here {
+            let f = hex_face(body, l.edge)
+                .ok_or_else(|| unsupported("a blend face does not resolve"))?;
+            let walk = loop_walk_face(body, f)
+                .ok_or_else(|| unsupported("a blend loop does not walk"))?;
+            let k = walk.len();
+            let pos = (0..k)
+                .find(|&i| walk[(i + 1) % k].1 == c.vertex)
+                .ok_or_else(|| unsupported("a corner is missing from its blend boundary"))?;
+            let he1 = walk[pos].0;
+            let he2 = walk[(pos + 2) % k].0;
+            let (p1, p2) = (
+                point_of(body, walk[pos].1).ok_or_else(|| unsupported("an arc foot"))?,
+                point_of(body, walk[(pos + 2) % k].1)
+                    .ok_or_else(|| unsupported("an arc foot"))?,
+            );
+            let created = body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    EdgeCurveSpec::line_between(p1, p2),
+                    FaceSurface::Inherit,
+                )
+                .map_err(op("corner-arc mef"))?;
+            described.push((
+                created.edge,
+                ContactCarrier::CornerArc {
+                    center: c.center,
+                    radius,
+                },
+            ));
+            first_arc.get_or_insert(created.edge);
+        }
+        // Fuse the three triangles: kef the struts that still separate
+        // two faces (sorted), kev the last one together with the sharp
+        // vertex.
+        let mut struts_here: Vec<EdgeKey> = strut_of
+            .iter()
+            .filter(|(v, _, _)| *v == c.vertex)
+            .map(|(_, _, e)| *e)
+            .collect();
+        struts_here.sort_unstable();
+        let mut spur: Option<EdgeKey> = None;
+        for s in struts_here {
+            let (hp, hm) = halves_of(body, s).ok_or_else(|| unsupported("a strut resolves"))?;
+            let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
+            if fa.is_some() && fa == fb {
+                if spur.replace(s).is_some() {
+                    return Err(unsupported("a corner left two spur struts (kernel bug)"));
+                }
+                continue;
+            }
+            body.kef(hp).map_err(op("corner-strut kef"))?;
+        }
+        let s = spur.ok_or_else(|| unsupported("a corner left no spur strut (kernel bug)"))?;
+        let (hp, hm) = halves_of(body, s).ok_or_else(|| unsupported("a strut resolves"))?;
+        // The spur's far vertex must be the sharp corner: kev from the
+        // foot-side half.
+        let dying = if body.half_edge_end(hm) == Some(c.vertex) {
+            hm
+        } else {
+            hp
+        };
+        body.kev(dying).map_err(op("corner kev"))?;
+        // The octant is whatever face the first arc's non-blend half
+        // now bounds.
+        let arc = first_arc.ok_or_else(|| unsupported("a corner minted no arcs"))?;
+        let (ahp, ahm) = halves_of(body, arc).ok_or_else(|| unsupported("an arc resolves"))?;
+        let quad = hex_face(body, links_here[0].edge);
+        let octant = match (face_of_half(body, ahp), face_of_half(body, ahm)) {
+            (Some(f1), Some(f2)) => {
+                if Some(f1) == quad {
+                    f2
+                } else {
+                    f1
+                }
+            }
+            _ => return Err(unsupported("an arc lost a side (kernel bug)")),
+        };
+        corner_faces.push(octant);
+    }
+
+    let mut blend_faces = Vec::with_capacity(opens.len());
+    for o in opens {
+        blend_faces.push(
+            hex_face(body, o.link.edge)
+                .ok_or_else(|| unsupported("a blend face does not resolve"))?,
+        );
+    }
+    Ok((blend_faces, corner_faces, described))
+}
+
+// ------------------------------------------------------------------
+// The rim phase: one torus band per closed chain, in place.
+// ------------------------------------------------------------------
+
+fn rim_phase<T: Decide + Bounds>(
+    body: &mut Body<T>,
+    rim: &RimPlan<'_, T>,
+) -> Result<(FaceKey, Described<T>), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let op = |what: &'static str| {
+        move |e: topo::EulerOpError| FilletError::Op {
+            detail: format!("{what}: {e}"),
+        }
+    };
+    let mut described: Described<T> = Vec::new();
+    let link_of = |e: EdgeKey| -> Option<&Link<T>> {
+        rim.chain.links.iter().find(|l| l.edge == e)
+    };
+    let Curve3::Circle {
+        center: ca,
+        radius: sa,
+        ..
+    } = rim.chain.links[0].blend.trim_a.0
+    else {
+        return Err(unsupported("a rim blend's plane trimline is not a circle"));
+    };
+    let Curve3::Circle {
+        center: cb,
+        radius: sb,
+        ..
+    } = rim.chain.links[0].blend.trim_b.0
+    else {
+        return Err(unsupported("a rim blend's sphere trimline is not a circle"));
+    };
+
+    // The rim edges' stored carriers, once.
+    let carrier_of = |body: &Body<T>, e: EdgeKey| -> Result<RimCarrier<T>, FilletError> {
+        let ed = body
+            .get_edge(e)
+            .ok_or_else(|| unsupported("a rim edge does not resolve"))?;
+        let plane_half = {
+            let l = link_of(e).ok_or_else(|| unsupported("a rim link does not resolve"))?;
+            plane_side_half(body, l, rim.plane)
+                .ok_or_else(|| unsupported("a rim half does not resolve"))?
+        };
+        let Some(c) = body.get_curve_geom(ed.curve).and_then(|g| g.certified()) else {
+            return Err(unsupported("a rim edge carries no certified carrier"));
+        };
+        let Curve3::Circle { axis, u_ref, .. } = *c.carrier() else {
+            return Err(unsupported("a rim edge's carrier is not a circle"));
+        };
+        let (t0, t1) = c.params();
+        Ok(RimCarrier {
+            axis,
+            u_ref,
+            t0,
+            t1,
+            plus_on_plane: ed.he_plus == plane_half,
+        })
+    };
+
+    // The scaled trim carrier for the arc REPLACING rim edge `e` on
+    // one side: same frame, same parameter window, oriented so
+    // he_plus runs with that side's loop — reversed by negating the
+    // axis and the window, never by an endpoint atan2 (π-arc safe).
+    let scaled = |rc: &RimCarrier<T>, center: Point3<T>, radius: T, forward: bool| {
+        if forward {
+            (
+                Curve3::Circle {
+                    center,
+                    axis: rc.axis,
+                    radius,
+                    u_ref: rc.u_ref,
+                },
+                rc.t0,
+                rc.t1,
+            )
+        } else {
+            (
+                Curve3::Circle {
+                    center,
+                    axis: -rc.axis,
+                    radius,
+                    u_ref: rc.u_ref,
+                },
+                -rc.t1,
+                -rc.t0,
+            )
+        }
+    };
+
+    // ---- (1) The plane walk: the rim ring's cycle, once. Everything
+    // downstream keys off its order (D9: the stored anchor's order).
+    let plane_walk =
+        loop_walk(body, rim.ring).ok_or_else(|| unsupported("a rim ring does not walk"))?;
+    let n = plane_walk.len();
+
+    // ---- (2) Meridian splits: at each rim vertex exactly one edge
+    // descends into the cap (the revolve seam); split it where the
+    // sphere trim circle crosses, minting the band's inner vertices
+    // on EXISTING geometry rather than strutting into the cap. ----
+    let chain_edges: Vec<EdgeKey> = rim.chain.links.iter().map(|l| l.edge).collect();
+    // Per plane-walk position: (rim vertex, upper remnant edge).
+    let mut remnants: Vec<(VertexKey, EdgeKey)> = Vec::with_capacity(n);
+    for &(_, v, e) in &plane_walk {
+        let incident = vertex_edges_of(body, v)
+            .ok_or_else(|| unsupported("a rim vertex orbit does not resolve"))?;
+        let meridians: Vec<EdgeKey> = incident
+            .into_iter()
+            .filter(|k| !chain_edges.contains(k))
+            .collect();
+        let [m] = meridians[..] else {
+            return Err(unsupported(
+                "a rim vertex does not drop exactly one meridian into the cap",
+            ));
+        };
+        // The split target: the sphere trim circle at this vertex's
+        // azimuth — evaluated on the SCALED rim frame at the vertex's
+        // own rim parameter, so the azimuth is inherited, not
+        // reconstructed.
+        let rc = carrier_of(body, e)?;
+        let (tb_curve, tb_t0, _) = scaled(&rc, cb, sb, rc.plus_on_plane);
+        let target = tb_curve.eval(tb_t0);
+        // The meridian's parameter at the target: an angle read in the
+        // meridian circle's own frame. A representation pick, not a
+        // classification (the battery's junction-end pick precedent) —
+        // brought into the stored window by whole turns, refused typed
+        // if it lands outside.
+        let md = body
+            .get_edge(m)
+            .ok_or_else(|| unsupported("a meridian does not resolve"))?;
+        let Some(mc) = body.get_curve_geom(md.curve).and_then(|g| g.certified()) else {
+            return Err(unsupported("a meridian carries no certified carrier"));
+        };
+        let Curve3::Circle {
+            center: mcc,
+            axis: ma,
+            u_ref: mu,
+            ..
+        } = *mc.carrier()
+        else {
+            return Err(unsupported("a meridian's carrier is not a circle"));
+        };
+        let (mt0, mt1) = mc.params();
+        let d = target - mcc;
+        let traw = d.dot(ma.cross(mu)).atan2(d.dot(mu));
+        let tau = T::from_f64(core::f64::consts::TAU);
+        let mut t_split = None;
+        for k in [-2.0f64, -1.0, 0.0, 1.0, 2.0] {
+            let cand = traw + tau * T::from_f64(k);
+            if (cand - mt0).lo() > 0.0 && (mt1 - cand).lo() > 0.0 {
+                t_split = Some(cand);
+                break;
+            }
+        }
+        let Some(t_split) = t_split else {
+            return Err(unsupported(
+                "the sphere trimline does not cross a rim meridian inside its span",
+            ));
+        };
+        let created = body.split_edge(m, t_split).map_err(op("meridian split"))?;
+        // The upper remnant is whichever piece still ends at the rim
+        // vertex.
+        let touches_v = |body: &Body<T>, e: EdgeKey| -> bool {
+            halves_of(body, e).is_some_and(|(hp, hm)| {
+                body.get_half_edge(hp).map(|h| h.start) == Some(v)
+                    || body.get_half_edge(hm).map(|h| h.start) == Some(v)
+            })
+        };
+        let upper = if touches_v(body, m) {
+            m
+        } else {
+            created.new_edge
+        };
+        remnants.push((v, upper));
+    }
+
+    // ---- (3) The plane side: struts to the widened trim circle and
+    // the trim arcs, carving the annular strips off the ring. ----
+    let mut struts_p: Vec<(VertexKey, EdgeKey)> = Vec::with_capacity(n);
+    let mut strut_hes: Vec<(HalfEdgeKey, Point3<T>)> = Vec::with_capacity(n);
+    let mut ta_carriers = Vec::with_capacity(n);
+    for &(he, v, e) in &plane_walk {
+        let rc = carrier_of(body, e)?;
+        let (curve, t0, t1) = scaled(&rc, ca, sa, rc.plus_on_plane);
+        let p = point_of(body, v).ok_or_else(|| unsupported("a rim vertex resolves"))?;
+        // The foot inherits the rim vertex's own parameter on the
+        // scaled carrier — azimuth preserved exactly, no atan2.
+        let fp = curve.eval(t0);
+        let created = body
+            .mev(
+                MevSite::Fan { he1: he, he2: he },
+                fp,
+                EdgeCurveSpec::line_between(p, fp),
+            )
+            .map_err(op("rim strut mev"))?;
+        struts_p.push((v, created.edge));
+        strut_hes.push((created.he_minus, fp));
+        ta_carriers.push((curve, t0, t1));
+    }
+    let mut first_trim: Option<HalfEdgeKey> = None;
+    for i in 0..n {
+        let (he1, fp_i) = strut_hes[i];
+        let fp_j = strut_hes[(i + 1) % n].1;
+        let he2 = if i + 1 < n {
+            strut_hes[i + 1].0
+        } else {
+            first_trim.ok_or_else(|| unsupported("a rim with one edge"))?
+        };
+        // Scaffold chord now (the corner-arc precedent); the exact
+        // scaled arc is attached in the description pass, once the
+        // band's surface exists.
+        let created = body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                EdgeCurveSpec::line_between(fp_i, fp_j),
+                FaceSurface::Inherit,
+            )
+            .map_err(op("rim trim mef"))?;
+        first_trim.get_or_insert(created.he_plus);
+        let (curve, t0, t1) = ta_carriers[i].clone();
+        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+    }
+
+    // ---- (4) The sphere side: one trim chord per half-cap, hung
+    // between the two meridian split vertices around that cap piece's
+    // own rim arc. ----
+    let mut tb_edges: Vec<EdgeKey> = Vec::with_capacity(n);
+    for &(he_p, _, e) in &plane_walk {
+        let rc = carrier_of(body, e)?;
+        let s_half = {
+            let ed = body
+                .get_edge(e)
+                .ok_or_else(|| unsupported("a rim edge resolves"))?;
+            if ed.he_plus == he_p { ed.he_minus } else { ed.he_plus }
+        };
+        let lp = loop_of_half(body, s_half)
+            .ok_or_else(|| unsupported("a rim sphere half resolves"))?;
+        let walk = loop_walk(body, lp)
+            .ok_or_else(|| unsupported("a half-cap loop does not walk"))?;
+        let k = walk.len();
+        let pos = walk
+            .iter()
+            .position(|(h, _, _)| *h == s_half)
+            .ok_or_else(|| unsupported("a rim arc is missing from its half-cap"))?;
+        let he1 = walk[(pos + k - 1) % k].0;
+        let he2 = walk[(pos + 2) % k].0;
+        let (v1, v2) = (walk[(pos + k - 1) % k].1, walk[(pos + 2) % k].1);
+        // Both run ends must be meridian split vertices (the half-cap
+        // discipline): refuse rather than cut blind.
+        if !remnants.iter().any(|(_, m)| edge_touches(body, *m, v1))
+            || !remnants.iter().any(|(_, m)| edge_touches(body, *m, v2))
+        {
+            return Err(unsupported(
+                "a half-cap's rim arc is not flanked by meridian split points",
+            ));
+        }
+        let (p1, p2) = (
+            point_of(body, v1).ok_or_else(|| unsupported("a split vertex resolves"))?,
+            point_of(body, v2).ok_or_else(|| unsupported("a split vertex resolves"))?,
+        );
+        let created = body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                EdgeCurveSpec::line_between(p1, p2),
+                FaceSurface::Inherit,
+            )
+            .map_err(op("rim sphere trim mef"))?;
+        let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_plane);
+        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+        tb_edges.push(created.edge);
+    }
+
+    // ---- (5) Excise: kill each rim edge across its two strips. ----
+    for l in &rim.chain.links {
+        let half = plane_side_half(body, l, rim.plane)
+            .ok_or_else(|| unsupported("a rim half resolves"))?;
+        body.kef(half).map_err(op("rim kef"))?;
+    }
+
+    // ---- (6) Fuse the pieces around the ring: kef every plane strut
+    // that still separates two faces, retiring each vertex's upper
+    // meridian remnant (now a spur) with the vertex by kev. At the
+    // CLOSURE vertex — where the strut's two halves share one loop —
+    // the band is an annulus, and a curved face must be RING-FREE
+    // (`props`' inventory; the donut's own representation): so the
+    // strut dies by a fan-merging kev that re-anchors the remnant to
+    // the trim foot, leaving the remnant as the band's SLIT — a
+    // double-traversed torus meridian, exactly the donut's shape. Its
+    // carrier is re-described as that meridian arc in the final pass
+    // (the kev leaves it spanning foot → split point with a stale
+    // sphere-meridian carrier; nothing validates between here and
+    // there). ----
+    let remnant_at = |v: VertexKey| -> Option<EdgeKey> {
+        remnants.iter().find(|(vv, _)| *vv == v).map(|(_, e)| *e)
+    };
+    let torus = &rim.chain.links[0].blend.surface;
+    let Surface::Torus {
+        center: tc,
+        major_radius: tmaj,
+        minor_radius: tmin,
+        ..
+    } = *torus
+    else {
+        return Err(unsupported("a rim blend's surface is not a torus"));
+    };
+    for (idx, (v, sp)) in struts_p.iter().enumerate() {
+        let (hp, hm) = halves_of(body, *sp).ok_or_else(|| unsupported("a strut resolves"))?;
+        let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
+        let mr = remnant_at(*v).ok_or_else(|| unsupported("a remnant resolves"))?;
+        if fa.is_some() && fa == fb {
+            // The closure vertex. Kill the strut from its FOOT side:
+            // the rim vertex dies, and its remaining edge — the upper
+            // meridian remnant — fan-merges onto the foot, becoming
+            // the slit.
+            let dying = if body.half_edge_end(hm) == Some(*v) {
+                hm
+            } else {
+                hp
+            };
+            body.kev(dying).map_err(op("rim closure kev"))?;
+            // The slit's true carrier: the torus minor circle at this
+            // vertex's azimuth (radial read off the foot, which lies
+            // on the trim circle).
+            let fp = strut_hes[idx].1;
+            let radial = (fp - ca) / sa;
+            described.push((
+                mr,
+                ContactCarrier::SeamArc {
+                    center: tc + radial * tmaj,
+                    radius: tmin,
+                },
+            ));
+        } else {
+            body.kef(hp).map_err(op("rim strut kef"))?;
+            // The upper meridian remnant at this vertex is now a spur
+            // ending at the old rim vertex.
+            let (shp, shm) =
+                halves_of(body, mr).ok_or_else(|| unsupported("a remnant resolves"))?;
+            let dying = if body.half_edge_end(shm) == Some(*v) {
+                shm
+            } else {
+                shp
+            };
+            body.kev(dying).map_err(op("rim kev"))?;
+        }
+    }
+
+    // The band: the face on the non-cap side of the first sphere trim.
+    let tb = tb_edges
+        .first()
+        .ok_or_else(|| unsupported("a rim minted no sphere trims"))?;
+    let (hp, hm) = halves_of(body, *tb).ok_or_else(|| unsupported("a trim resolves"))?;
+    let band_face = match (face_of_half(body, hp), face_of_half(body, hm)) {
+        (Some(f1), Some(f2)) => {
+            if rim.spheres.contains(&f1) {
+                f2
+            } else {
+                f1
+            }
+        }
+        _ => return Err(unsupported("a trim lost a side (kernel bug)")),
+    };
+    Ok((band_face, described))
+}
+
+/// Whether `edge` has `v` as one of its endpoints.
+fn edge_touches<T: Decide>(body: &Body<T>, edge: EdgeKey, v: VertexKey) -> bool {
+    halves_of(body, edge).is_some_and(|(hp, hm)| {
+        body.get_half_edge(hp).map(|h| h.start) == Some(v)
+            || body.get_half_edge(hm).map(|h| h.start) == Some(v)
+    })
+}
+
+// ------------------------------------------------------------------
+// Shared small lookups and the description pass.
+// ------------------------------------------------------------------
+
+fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
+    body.get_point(body.get_vertex(v)?.point).copied()
+}
+
+fn halves_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
+    let ed = body.get_edge(e)?;
+    Some((ed.he_plus, ed.he_minus))
+}
+
+fn loop_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<LoopKey> {
+    Some(body.get_half_edge(he)?.parent_loop)
+}
+
+fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
+    Some(body.get_loop(loop_of_half(body, he)?)?.face)
+}
+
+/// A face's outer cycle as `(half-edge, start vertex, edge)` rows.
+fn loop_walk_face<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Option<Vec<(HalfEdgeKey, VertexKey, EdgeKey)>> {
+    loop_walk(body, body.get_face(f)?.outer)
+}
+
+/// The prefer-intrinsic upgrade for one new edge: rebuild the exact
+/// carrier and describe it as the tangential contact locus of its two
+/// adjacent faces' surfaces (the whole-body builder's final pass,
+/// generalized to the rim arcs' stored carriers).
+fn attach_contact<T: Decide + Bounds>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    carrier: ContactCarrier<T>,
+) -> Result<(), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let ed = body
+        .get_edge(edge)
+        .ok_or_else(|| unsupported("a described edge went stale"))?;
+    let (he_plus, he_minus) = (ed.he_plus, ed.he_minus);
+    let (Some(s1), Some(s2)) = (
+        face_of_half(body, he_plus).and_then(|f| body.get_face(f).map(|fd| fd.surface)),
+        face_of_half(body, he_minus).and_then(|f| body.get_face(f).map(|fd| fd.surface)),
+    ) else {
+        return Err(unsupported("a described edge's surfaces do not resolve"));
+    };
+    let (p0, p1) = {
+        let start = body
+            .get_half_edge(he_plus)
+            .map(|h| h.start)
+            .and_then(|v| point_of(body, v));
+        let end = body
+            .half_edge_end(he_plus)
+            .and_then(|v| point_of(body, v));
+        match (start, end) {
+            (Some(a), Some(b)) => (a, b),
+            _ => return Err(unsupported("a described edge's endpoints do not resolve")),
+        }
+    };
+    let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
+    let (curve, t0, t1) = match carrier {
+        ContactCarrier::TrimLine => {
+            let len = p0.distance(p1);
+            (
+                Curve3::Line {
+                    origin: p0,
+                    dir: (p1 - p0) / len,
+                },
+                T::zero(),
+                len,
+            )
+        }
+        ContactCarrier::CornerArc { center, radius } => {
+            let u = (p0 - center).normalize();
+            let w = (p1 - center).normalize();
+            let turn = u.cross(w);
+            (
+                Curve3::Circle {
+                    center,
+                    axis: turn.normalize(),
+                    radius,
+                    u_ref: u,
+                },
+                T::zero(),
+                turn.norm().atan2(u.dot(w)),
+            )
+        }
+        ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
+        ContactCarrier::SeamArc { center, radius } => {
+            let u = (p0 - center).normalize();
+            let w = (p1 - center).normalize();
+            let turn = u.cross(w);
+            (
+                Curve3::Circle {
+                    center,
+                    axis: turn.normalize(),
+                    radius,
+                    u_ref: u,
+                },
+                T::zero(),
+                turn.norm().atan2(u.dot(w)),
+            )
+        }
+    };
+    let description = if is_seam {
+        if s1 != s2 {
+            return Err(unsupported("a slit edge's two sides are not one face's surface"));
+        }
+        EdgeGeometry::Seam { surface: s1 }
+    } else {
+        let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
+        EdgeGeometry::TangentIntersection { s1, s2, witness }
+    };
+    body.set_edge_curve(
+        edge,
+        EdgeCurveSpec {
+            description,
+            carrier: curve,
+            param_start: t0,
+            param_end: t1,
+        },
+    )
+    .map_err(|e| match e {
+        topo::EulerOpError::Certification { error } => FilletError::Certify {
+            detail: format!("surgery contact edge: {error}"),
+        },
+        other => FilletError::Op {
+            detail: format!("surgery contact edge: {other}"),
+        },
+    })?;
+    Ok(())
+}

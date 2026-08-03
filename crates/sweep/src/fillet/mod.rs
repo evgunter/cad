@@ -56,6 +56,7 @@
 pub mod battery;
 pub mod blend;
 pub mod build;
+pub mod surgery;
 
 use core::fmt;
 
@@ -199,10 +200,21 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// names the run-out front door that does not exist yet.
 pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a three-convex-edge vertex; general run-outs \
      are not implemented";
-/// The recourse for an assembly request outside the one whole-body
-/// front door — it names the banked surgery unit.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet EVERY edge of a convex, planar-faced, trivalent-vertex polyhedron; in-place \
-     edge-blend surgery on a subset of a body's edges is not implemented";
+/// The recourse for an assembly request outside BOTH front doors —
+/// the whole-body rebuild and the in-place composition surgery (M6
+/// unit 1). What remains outside is named per refusal; the shared
+/// remainder is junction carry-through, run-outs at
+/// partially-requested corners, and concave (material-adding)
+/// blends, which are not implemented.
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet EVERY edge of a convex, planar-faced, trivalent-vertex polyhedron, or a \
+     subset whose open chains are single convex plane\u{2013}plane links ending at \
+     fully-requested trivalent corners and whose closed chains are circular \
+     plane\u{2013}sphere rims; junction carry-through, run-outs and concave blends are \
+     not implemented";
+/// The recourse for a ring the blend's trimline would consume (the
+/// surgery's ring carry-through check).
+pub const FILLET3_RING_RECOURSE: &str =
+    "reduce the fillet radius, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a general spine — it names the banked unit.
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose rolling-ball spine is a line or a circle; general spines need \
      the canal-surface approximating blend, which is not implemented";
@@ -327,17 +339,30 @@ pub enum FilletError {
         /// The margin diagnosis and the predicate that produced it.
         source: Indeterminate,
     },
-    /// The battery passed, but the request is not the ONE assembly
-    /// front door [`build::fillet_edges`] implements: filleting every
-    /// edge of a convex, planar-faced, trivalent-vertex polyhedron.
-    /// The general in-place edge-blend surgery — split the supports,
-    /// retract their boundaries, stitch the blend in — is its own
-    /// reviewed unit, banked, and this variant names it (the
-    /// `FullRevolveHoles` precedent: refusal payload only, zero
-    /// constructor surface).
+    /// The battery passed, but the request is outside BOTH assembly
+    /// front doors: the whole-body rebuild (every edge of a convex,
+    /// planar-faced, trivalent-vertex polyhedron) and the in-place
+    /// composition surgery ([`surgery`], M6 unit 1 — subsets whose
+    /// open chains end at fully-requested trivalent corners, plus
+    /// circular plane–sphere rim chains). The `detail` names exactly
+    /// which remaining gap was hit (junction carry-through, run-outs,
+    /// concave blends, non-circle rims — each a front door that does
+    /// not exist yet, the `FullRevolveHoles` precedent).
     AssemblyUnsupported {
-        /// What about the request put it outside the front door.
+        /// What about the request put it outside the front doors.
         detail: &'static str,
+    },
+    /// **The surgery's ring carry-through check**
+    /// (`fillet3_ring_clearance`): a ring of a support face sits
+    /// within (or in band of) a blend trimline, so splitting the face
+    /// along that trimline would consume the ring's feature instead
+    /// of carrying it through. Exact closed form (circle-vs-line /
+    /// circle-vs-circle), never sampled.
+    RingClearance {
+        /// The support face whose ring is too close.
+        face: FaceKey,
+        /// The clearance margin, meters (negative or zero here).
+        margin: f64,
     },
     /// The blend geometry could not be certified as stored — a
     /// carrier/surface pair outside the jet certificate's lane, or a
@@ -435,6 +460,7 @@ impl fmt::Display for FilletError {
                     Some("fillet3_spine_regularity") => FILLET3_SPINE_RECOURSE,
                     Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
                     Some("fillet3_convexity_sign") => FILLET3_CONVEXITY_RECOURSE,
+                    Some("fillet3_ring_clearance") => FILLET3_RING_RECOURSE,
                     Some("fillet3_corner_independence") => FILLET3_CORNER_RECOURSE,
                     // Fix pass F6: an escalation from a predicate this
                     // match does not know is a MISSING recourse, and
@@ -455,6 +481,11 @@ impl fmt::Display for FilletError {
             Self::AssemblyUnsupported { detail } => {
                 write!(f, "fillet assembly: {detail} — {FILLET3_ASSEMBLY_RECOURSE}")
             }
+            Self::RingClearance { face, margin } => write!(
+                f,
+                "fillet surgery: a ring of support face {face:?} sits within a blend's \
+                 trimline — margin {margin} m; {FILLET3_RING_RECOURSE}"
+            ),
             Self::Certify { detail } => write!(f, "fillet: blend geometry uncertified — {detail}"),
             Self::Op { detail } => write!(f, "fillet: assembly refused — {detail}"),
         }
