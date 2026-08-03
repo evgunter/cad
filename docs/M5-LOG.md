@@ -2642,11 +2642,21 @@ whose margin is a LENGTH at a named lever arm:
 
 1. `fillet3_radius_headroom` — `(1 − r·κ_max)·r`, arm `r`, per support
    per sample. A plane's unbounded curvature arm saturates at `r`.
-2. `fillet3_face_consumption` — `gap − setback_here − setback_there`,
+2. `fillet3_face_clearance` — `gap − setback_here − setback_there`,
    swept over every PAIR of boundary edges of every support face. A
    single-edge extent test would pass `r < L` on a face that two
-   opposite blends at `r > L/2` erase between them; the pair sweep is
-   what makes "must not consume a face" a real statement.
+   opposite blends at `r > L/2` erase between them. **It is a screen,
+   and its name says so** (fix pass F1): subtracting two setbacks from
+   one straight-line gap is EXACT when the two edges face each other
+   (opposed inward normals — every box, every prism's opposite cap
+   edges) and CONSERVATIVE when they meet at an angle. The reviewer's
+   witness is a unit hexagonal prism, refused from `r = 0.5` although
+   its cap survives to the apothem `0.866`. The arm was reclassified
+   rather than left asserting a false definite: it now reports "cannot
+   certify that this face survives", never "consumes the face
+   entirely", and it stays conservative in the one direction the
+   ordering claim depends on — it cannot pass a request whose support
+   face really is consumed.
 3. `fillet3_spine_regularity` — `(1 − r·κ_spine)·r`, arm `r`. A
    different curvature from (1): the SPINE's, not the supports'. For a
    circular rim spine it IS the ring-torus condition `s > r`, so the
@@ -2679,13 +2689,30 @@ carriers — `upgrade.rs` even said so, calling the circle-carrier
 tangent certificate "the lane's next retirement, not this PR's". PR 12
 takes it, with a proof rather than a constant: `κ_rel` and the implicit
 residual are isometry invariants, so a carrier motion that is a
-symmetry flow of both surfaces cannot move them. Two distinct
-elementary surfaces of revolution tangent along a whole CIRCLE are
-necessarily coaxial with it, and in that configuration both span
-bounds are EXACTLY zero (the Killing-field deviation vanishes in both
-group directions). A configuration that misses coaxiality pays
-continuously — there is no gate, hence no demanded-but-not-certifiable
-hole. The LINE arm is byte-for-byte unchanged.
+symmetry flow of both surfaces cannot move them. In the coaxial configuration
+both span bounds are EXACTLY zero (the Killing-field deviation
+vanishes in both group directions), and a configuration that misses
+coaxiality pays continuously rather than through a gate. The LINE arm
+is byte-for-byte unchanged.
+
+**The theorem, corrected (fix pass F3).** The unit first claimed that
+circle tangency between two distinct elementary surfaces of revolution
+FORCES the coaxial configuration. That is false, and the reviewer
+built the counterexample: a sphere centred on a torus's SPINE is
+tangent to the torus along a whole MERIDIAN (minor) circle, whose axis
+is perpendicular to the torus's. The class is real, jet-determinate,
+and inside the lane — and executing it shows the honest outcome rather
+than a hole: the deviation is large, so the bounds are large, and
+certification refuses LOUDLY (`ResidualExceeded { TangentHull }`)
+instead of certifying a bound it never established. What survives is a
+narrower claim, and it is the one the code now makes: the
+configurations this kernel MINTS on a circle carrier are coaxial, and
+those certify at zero cost. The residual risk is named — tier 3's
+must-carry could demand an intrinsic description on a meridian-tangent
+edge that this arm cannot certify (in-lane but uncertifiable) — and it
+is latent, because no constructor mints that configuration. The
+no-gate/no-hole claim carries that caveat; the counterexample is
+adopted as `review_pr12_meridian_probe.rs` and pins the scope.
 
 Two consequences landed with it, both flips of pins that were correct
 when written:
@@ -2733,11 +2760,19 @@ fixture, refused typed. Sense comes from the stored convexity verdict
 1. *The blank and the pips do not compose.* Both orderings fail, at two
    DIFFERENT pre-existing frontiers, and both are pinned as rows
    (`deviation_1_the_blank_and_the_pips_do_not_compose_yet`): fillet →
-   pip hits the curved pierce door (point-in-face trim containment on a
-   curved chart, plus the ring insertion behind it — the M5 envelope's
-   named frontier); pip → fillet hits the assembly front door, because
-   the twelve box edges are no longer EVERY edge of the body and the
-   rebuild does not carry a face's RINGS through.
+   pip refuses because there is **no definite-miss certificate for a
+   conic carrier against a curved face**, so it stops at the curved
+   pierce door (point-in-face trim containment on a curved chart, plus
+   the ring insertion behind it — the M5 envelope's named frontier).
+   That arm is unconditional, NOT a clearance verdict: the reviewer
+   measured the true clearance of the named pair at 1.6 cm (fix pass
+   F4). Pip → fillet hits the assembly front door, because the twelve
+   box edges are no longer EVERY edge of the body and the rebuild does
+   not carry a face's RINGS through. The reviewer independently tried
+   every reordering and reproduced BOTH doors; the review sizes the
+   in-place edge-blend surgery that would close them at ONE reviewed
+   unit (about the scale of `build.rs`) and recommends
+   accept-two-piece + bank, which goes to Evan.
 2. *The pip-rim torus fillets are not assembled.* The ARM is landed and
    pinned against its closed forms, including both trimlines' tangency
    and their second-order separations (`1/r` against the flat face,
@@ -2746,14 +2781,34 @@ fixture, refused typed. Sense comes from the stored convexity verdict
    in-place surgery that replaces a rim edge with a torus band inside
    an existing body — the same banked unit deviation 1's second door
    names.
-3. *The corner octant's chart is an iso-rectangle only at a RIGHT
-   trihedron.* `props`'s closed-form inventory needs a face's rims to
-   be axis-parallel; a spherical triangle admits such a chart only when
-   the third support normal is parallel to the chosen edge. Every box
-   vertex is right, so the die is unaffected; an oblique trihedron
-   builds through tiers 1–2 and then reports `VolumeUncomputable`. The
-   gap is in the props inventory (a spherical-triangle form, or
-   quadrature extended to sphere faces), not in the body.
+3. *The corner octant's chart admits only trihedra that HAVE an
+   admitting edge — now genuinely, after fix pass F2.* `props`'s
+   closed-form inventory needs a face's rims axis-parallel; a spherical
+   triangle admits such a chart exactly when the THIRD support's normal
+   is parallel to the chosen incident edge. The code stated that
+   criterion and then picked whichever incident edge came first in link
+   order, so the true boundary was "cube-like, or lucky edge order" —
+   the reviewer's hexagonal prism satisfies the criterion at every
+   vertex and lost tier 3 on a corner face anyway. The pick is now
+   order-free (minimise `|n_c × axis|` over the three candidates), so
+   it finds the admitting edge whenever one exists, and the boundary is
+   what it always claimed to be: genuinely OBLIQUE trihedra only. Those
+   build through tiers 1–2 and then report `VolumeUncomputable` — a gap
+   in the props inventory (a spherical-triangle form, or quadrature
+   extended to sphere faces), not in the body. Pinned by
+   `f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable`,
+   with the hexagonal and irregular-pentagonal prisms pinned tier-3
+   valid beside it.
+5. *The clearance screen is conservative by direction* (fix pass F1 —
+   the arm is honest about it, but it is still a gap). Tightening it to
+   the true "does this face survive" question needs the inward-offset
+   polygon's feasibility: a linear program over the face's own
+   boundary, not the same setback algebra. Pinned on both sides by
+   `f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`.
+6. *A meridian-tangent circle is in-lane but uncertifiable* (fix pass
+   F3, above). Closing it needs a meridian-aware bound or a lane
+   predicate that can see the configuration. Latent: no constructor
+   mints it, and the refusal is loud.
 4. *The dual montage landed mid-flight and was folded in.* Both die
    stops carry `montage: true`, and both montage lanes
    (`compose_montage.py` for the kernel renderer, `--freecad` for the
@@ -2768,4 +2823,8 @@ New rows: 9 battery + 13 refusal/trio + 7 blend + 3 die-body + 3 die =
 touched crates. The demo tour runs green end to end and exports both
 die bodies; `scripts/check_step.sh` passes the whole fixture corpus
 under FreeCAD 1.1.2 including the new row. Interval-square tripwire on
-the diff: no `x*x` squares added; every new square is `powi(2)`.
+the diff, stated correctly (fix pass F6): every square added under
+`crates/*/src/` is `powi(2)`. The TEST files do contain `x*x` forms —
+closed-form oracles evaluated at `f64`, where the poison hazard the
+tripwire guards against does not arise — and the earlier blanket "no
+`x*x` on the diff" line overstated it.

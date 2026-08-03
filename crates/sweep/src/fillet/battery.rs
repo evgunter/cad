@@ -930,6 +930,21 @@ fn corner_at<T: Decide + Bounds>(
             // An edge at the corner whose own supports are out of the
             // arms' scope makes the CORNER unclassifiable — reported
             // as the corner situation, not as that edge's.
+            //
+            // **The fold is deliberate and it is lossy** (fix pass
+            // F6): a neighbour that REFUSED definitely and one that
+            // ESCALATED in band both land on
+            // `CornerConfig::Indeterminate`, so this arm does not
+            // carry the two-tolerance shape the six predicates do.
+            // The grounds: the user situation is the same either way
+            // — "this corner's configuration could not be read" — and
+            // the actionable recourse is the same sentence, so
+            // splitting it would give two errors for one situation
+            // (the inverse of the D4 ¶1 addendum's rule). What is
+            // genuinely lost is the neighbour's own margin, which a
+            // future corner taxonomy should carry as payload; it is
+            // not lost SILENTLY, because the tag says the
+            // configuration did not classify.
             Err(_) => {
                 return Err(FilletError::FilletCornerUnsupported {
                     vertex,
@@ -953,6 +968,10 @@ fn corner_at<T: Decide + Bounds>(
         return corner_config(vertex, faces.len(), convex, normals, radius, band);
     }
     for (i, f) in faces.iter().enumerate() {
+        // A support whose outward normal does not resolve leaves a
+        // ZERO normal, which drives the independence determinant to
+        // zero and lands on `DependentNormals` — a refusal, never a
+        // pass. Documented rather than silent (fix pass F6).
         normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
     }
     corner_config(vertex, valence, convex, normals, radius, band)

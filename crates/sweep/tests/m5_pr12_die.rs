@@ -330,10 +330,15 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 /// DIFFERENT pre-existing frontiers — recorded here as rows so the
 /// next unit inherits the exact blockers rather than a paragraph.
 ///
-/// - *Fillet then pip*: the pip tool's edges definitely meet the
-///   blank's CURVED faces, and the curved pierce door (point-in-face
-///   trim containment on a curved chart, plus the ring insertion
-///   behind it) is the M5 envelope's named frontier.
+/// - *Fillet then pip*: the boolean has **no definite-miss certificate
+///   for a conic carrier against a curved face**, so it refuses at the
+///   curved pierce door (point-in-face trim containment on a curved
+///   chart, plus the ring insertion behind it — the M5 envelope's
+///   named frontier). Note what this is NOT (fix pass F4): it is not a
+///   clearance verdict. The reviewer measured the true clearance
+///   between the named pair — a pip ball's seam circle and a corner
+///   blend cylinder — at 1.6 cm; the arm is unconditional for conic
+///   carriers and fires regardless of how far apart they are.
 /// - *Pip then fillet*: the pipped cube is tier-3 valid and all twelve
 ///   box edges survive it, but they are no longer EVERY edge of the
 ///   body — the assembly front door rebuilds a whole polyhedron and
@@ -349,7 +354,7 @@ fn deviation_1_the_blank_and_the_pips_do_not_compose_yet() {
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
     )
-    .expect_err("the curved pierce door does not exist at M5");
+    .expect_err("no definite-miss certificate exists for conic carriers at M5");
     let text = format!("{err}");
     assert!(
         text.contains("curved") && text.contains("does not exist yet"),
