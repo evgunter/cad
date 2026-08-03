@@ -278,7 +278,10 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 ) -> Result<(Vec3<T>, Vec3<T>), FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
     let mut best: Option<(f64, Vec3<T>, Vec3<T>)> = None;
-    for l in links.iter().filter(|l| l.start == vertex || l.end == vertex) {
+    for l in links
+        .iter()
+        .filter(|l| l.start == vertex || l.end == vertex)
+    {
         let (Some(n_a), Some(n_b)) = (outward_of(body, l.face_a), outward_of(body, l.face_b))
         else {
             return Err(unsupported("a corner edge has a non-planar support"));

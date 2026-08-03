@@ -261,8 +261,11 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(rim.chain.links[0].blend.surface.clone()))
-            .map_err(op)?;
+        body.set_face_surface(
+            fk,
+            FaceSurface::New(rim.chain.links[0].blend.surface.clone()),
+        )
+        .map_err(op)?;
         body.set_face_sense(fk, rim.chain.links[0].convexity.blend_sense())
             .map_err(op)?;
     }
@@ -328,8 +331,7 @@ fn corner_plan<T: Decide + Bounds>(
         .ok_or_else(|| unsupported("a corner point does not resolve"))?;
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     for (slot, &f) in normals.iter_mut().zip(faces.iter()) {
-        *slot =
-            outward_of(body, f).ok_or_else(|| unsupported("a support face is not planar"))?;
+        *slot = outward_of(body, f).ok_or_else(|| unsupported("a support face is not planar"))?;
     }
     let ball = corner_ball([p; 3], normals, radius, true);
     let links: Vec<&Link<T>> = opens
@@ -425,7 +427,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
             .get_face(s)
             .ok_or_else(|| unsupported("a rim support does not resolve"))?;
         if !sd.rings.is_empty() {
-            return Err(unsupported("a rim's sphere support carries rings of its own"));
+            return Err(unsupported(
+                "a rim's sphere support carries rings of its own",
+            ));
         }
         let on_boundary: Vec<EdgeKey> = face_cycle(body, s)
             .ok_or_else(|| unsupported("a rim's sphere support has no boundary cycle"))?
@@ -479,7 +483,10 @@ fn plane_side_half<T: Decide>(
 
 /// A loop's cycle as `(half-edge, start vertex, edge)` rows, in cycle
 /// order (D9: the stored anchor's order, never re-sorted).
-fn loop_walk<T: Decide>(body: &Body<T>, lp: LoopKey) -> Option<Vec<(HalfEdgeKey, VertexKey, EdgeKey)>> {
+fn loop_walk<T: Decide>(
+    body: &Body<T>,
+    lp: LoopKey,
+) -> Option<Vec<(HalfEdgeKey, VertexKey, EdgeKey)>> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(lp)?.boundary else {
         return None;
     };
@@ -500,10 +507,7 @@ fn loop_walk<T: Decide>(body: &Body<T>, lp: LoopKey) -> Option<Vec<(HalfEdgeKey,
 /// `Circle` carrier on one shared centre/radius (the pip rims and the
 /// widened trim circles — the only rings this kernel mints on planar
 /// faces at rest). Anything else refuses typed rather than sampling.
-fn ring_circle<T: Decide>(
-    body: &Body<T>,
-    ring: LoopKey,
-) -> Result<(Point3<T>, T), FilletError> {
+fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T), FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
     let walk = loop_walk(body, ring).ok_or_else(|| unsupported("a ring does not walk"))?;
     let mut found: Option<(Point3<T>, T)> = None;
@@ -536,11 +540,10 @@ fn ring_margin<T: Decide + Bounds>(
     margin: T,
     band: Band,
 ) -> Result<(), FilletError> {
-    match decide(RING_CLEARANCE, margin, band)
-        .map_err(|e| FilletError::Escalated {
-            site: FilletSite::Chain,
-            source: e,
-        })? {
+    match decide(RING_CLEARANCE, margin, band).map_err(|e| FilletError::Escalated {
+        site: FilletSite::Chain,
+        source: e,
+    })? {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::RingClearance {
             face,
@@ -715,8 +718,8 @@ fn blank_phase<T: Decide + Bounds>(
     let mut feet: Vec<(VertexKey, FaceKey, Point3<T>)> = Vec::new();
     for c in corners {
         for &f in &c.faces {
-            let n = outward_of(body, f)
-                .ok_or_else(|| unsupported("a support face is not planar"))?;
+            let n =
+                outward_of(body, f).ok_or_else(|| unsupported("a support face is not planar"))?;
             feet.push((c.vertex, f, c.center + n * radius));
         }
     }
@@ -845,8 +848,8 @@ fn blank_phase<T: Decide + Bounds>(
         for l in &links_here {
             let f = hex_face(body, l.edge)
                 .ok_or_else(|| unsupported("a blend face does not resolve"))?;
-            let walk = loop_walk_face(body, f)
-                .ok_or_else(|| unsupported("a blend loop does not walk"))?;
+            let walk =
+                loop_walk_face(body, f).ok_or_else(|| unsupported("a blend loop does not walk"))?;
             let k = walk.len();
             let pos = (0..k)
                 .find(|&i| walk[(i + 1) % k].1 == c.vertex)
@@ -855,8 +858,7 @@ fn blank_phase<T: Decide + Bounds>(
             let he2 = walk[(pos + 2) % k].0;
             let (p1, p2) = (
                 point_of(body, walk[pos].1).ok_or_else(|| unsupported("an arc foot"))?,
-                point_of(body, walk[(pos + 2) % k].1)
-                    .ok_or_else(|| unsupported("an arc foot"))?,
+                point_of(body, walk[(pos + 2) % k].1).ok_or_else(|| unsupported("an arc foot"))?,
             );
             let created = body
                 .mef(
@@ -948,9 +950,7 @@ fn rim_phase<T: Decide + Bounds>(
         }
     };
     let mut described: Described<T> = Vec::new();
-    let link_of = |e: EdgeKey| -> Option<&Link<T>> {
-        rim.chain.links.iter().find(|l| l.edge == e)
-    };
+    let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links.iter().find(|l| l.edge == e) };
     let Curve3::Circle {
         center: ca,
         radius: sa,
@@ -1167,12 +1167,16 @@ fn rim_phase<T: Decide + Bounds>(
             let ed = body
                 .get_edge(e)
                 .ok_or_else(|| unsupported("a rim edge resolves"))?;
-            if ed.he_plus == he_p { ed.he_minus } else { ed.he_plus }
+            if ed.he_plus == he_p {
+                ed.he_minus
+            } else {
+                ed.he_plus
+            }
         };
-        let lp = loop_of_half(body, s_half)
-            .ok_or_else(|| unsupported("a rim sphere half resolves"))?;
-        let walk = loop_walk(body, lp)
-            .ok_or_else(|| unsupported("a half-cap loop does not walk"))?;
+        let lp =
+            loop_of_half(body, s_half).ok_or_else(|| unsupported("a rim sphere half resolves"))?;
+        let walk =
+            loop_walk(body, lp).ok_or_else(|| unsupported("a half-cap loop does not walk"))?;
         let k = walk.len();
         let pos = walk
             .iter()
@@ -1361,9 +1365,7 @@ fn attach_contact<T: Decide + Bounds>(
             .get_half_edge(he_plus)
             .map(|h| h.start)
             .and_then(|v| point_of(body, v));
-        let end = body
-            .half_edge_end(he_plus)
-            .and_then(|v| point_of(body, v));
+        let end = body.half_edge_end(he_plus).and_then(|v| point_of(body, v));
         match (start, end) {
             (Some(a), Some(b)) => (a, b),
             _ => return Err(unsupported("a described edge's endpoints do not resolve")),
@@ -1416,7 +1418,9 @@ fn attach_contact<T: Decide + Bounds>(
     };
     let description = if is_seam {
         if s1 != s2 {
-            return Err(unsupported("a slit edge's two sides are not one face's surface"));
+            return Err(unsupported(
+                "a slit edge's two sides are not one face's surface",
+            ));
         }
         EdgeGeometry::Seam { surface: s1 }
     } else {

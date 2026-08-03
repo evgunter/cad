@@ -232,10 +232,7 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         }
     };
     let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(
-            body.get_loop(body.get_half_edge(he)?.parent_loop)?
-                .face,
-        )
+        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
     };
     let mut out = Vec::new();
     for (k, e) in body.edges() {
@@ -324,7 +321,8 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
     let p_rim = (rho_rim, 0.0);
     let t_p = (s, 0.0);
     let t_s = (tsx, tsz);
-    let m = tri_m(p_rim, t_p, t_s) - seg_m((s, -r), r, t_p, t_s) - seg_m((0.0, d), big_r, p_rim, t_s);
+    let m =
+        tri_m(p_rim, t_p, t_s) - seg_m((s, -r), r, t_p, t_s) - seg_m((0.0, d), big_r, p_rim, t_s);
     2.0 * PI * m
 }
 
@@ -380,8 +378,7 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     assert_eq!(die.vertices().count(), 24 + 21 * 5);
     assert_eq!(die.edges().count(), 48 + 21 * 7);
     assert_eq!(die.faces().count(), 26 + 21 * 3);
-    let want =
-        blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
+    let want = blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
     let props = topo::mass_properties(&die).unwrap();
     assert!(
         (props.volume - want).abs() <= 1e-9 * want,
