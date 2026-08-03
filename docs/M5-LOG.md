@@ -2446,3 +2446,10 @@ paths only, no byte of any save moved). fmt + clippy clean. DESIGN
 convention 2's migration note updated to DISCHARGED in place (the
 convention itself stays PROPOSED-8c — awaiting sign-off; only its
 migration note is spent).
+
+(S4 review note, orchestrator-applied: one direction-dependent
+refusal remains BY DESIGN — a valid-but-different doc.epsilon
+saves fine and refuses at same-process load with
+ToleranceConflict; ε reconciliation is process state, not a
+document property, and a fresh process loads it clean. Recorded
+so a future symmetry sweep does not re-litigate it.)
