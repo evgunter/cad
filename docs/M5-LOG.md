@@ -2567,3 +2567,10 @@ say "scripts/fmt-all.sh --check before every push" (replacing
 the per-workspace fmt lines — subagents clone fresh, so the
 brief is the channel that reaches them; a core.hooksPath
 pre-push hook is available for human clones if wanted).
+
+**Lane-creation enforcement (Evan, 2026-08-03):**
+scripts/hooks/pre-push (fmt-all --check) + scripts/new-lane.sh
+(clone + core.hooksPath activation + branch) — the hook now
+travels with the standard lane path instead of relying on brief
+compliance. clone-placement memory updated; future briefs use
+new-lane.sh.
