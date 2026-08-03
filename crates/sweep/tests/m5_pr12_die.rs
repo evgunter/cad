@@ -20,13 +20,16 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
-/// The die: a unit cube, fillet radius 0.12, pip balls of radius 0.09
-/// dipped 0.05 deep, pip centres 0.22 from each face centre.
-pub const DIE_L: f64 = 1.0;
-pub const DIE_R: f64 = 0.12;
-pub const PIP_R: f64 = 0.09;
-pub const PIP_H: f64 = 0.05;
-pub const PIP_D: f64 = 0.22;
+/// The die's side, meters.
+const DIE_L: f64 = 1.0;
+/// The blend radius, meters.
+const DIE_R: f64 = 0.12;
+/// The pip balls' radius, meters.
+const PIP_R: f64 = 0.09;
+/// How deep each pip ball dips into its face, meters.
+const PIP_H: f64 = 0.05;
+/// Pip spacing from the face centre, meters.
+const PIP_D: f64 = 0.22;
 
 fn band() -> Band {
     let tol = Tolerance::get();
@@ -116,7 +119,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 }
 
 /// The blank: the cube with every edge filleted.
-pub fn blank() -> Body<f64> {
+fn blank() -> Body<f64> {
     let body = cube(DIE_L);
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     fillet_edges(&body, &edges, DIE_R, band())
@@ -143,15 +146,17 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
 
 /// Every pip ball of the die, as centres in world space. Face `n`
 /// carries `n` pips; opposite faces sum to seven.
-pub fn pip_centres() -> Vec<Vec3<f64>> {
+fn pip_centres() -> Vec<Vec3<f64>> {
     pip_placements().into_iter().map(|(c, _)| c).collect()
 }
 
 /// Every pip ball's centre AND the face normal it is charted against.
-pub fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
+fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
     let h = DIE_L / 2.0;
     // (value, outward axis, the two in-face axes)
-    let faces: [(u32, Vec3<f64>, Vec3<f64>, Vec3<f64>); 6] = [
+    // (face value, outward normal, the two in-face axes).
+    type Face = (u32, Vec3<f64>, Vec3<f64>, Vec3<f64>);
+    let faces: [Face; 6] = [
         (
             1,
             Vec3::new(0.0, 0.0, 1.0),
@@ -210,7 +215,7 @@ pub fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
 /// extent certificate needs the closed-group discipline and a trimmed
 /// patch has no per-face chart-trim extent. So the die's pips are one
 /// operation, by construction and not by luck.
-pub fn pip_tool() -> Body<f64> {
+fn pip_tool() -> Body<f64> {
     let places = pip_placements();
     let mut tool = ball_poled(PIP_R, places[0].0, places[0].1);
     for (c, n) in &places[1..] {
@@ -244,7 +249,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// The blank's closed-form volume and area (core + 6 slabs + 12
 /// quarter-cylinders + 8 octants, the octants summing to one ball).
-pub fn blank_volume() -> f64 {
+fn blank_volume() -> f64 {
     let core = DIE_L - 2.0 * DIE_R;
     core.powi(3)
         + 6.0 * DIE_R * core.powi(2)
@@ -253,7 +258,7 @@ pub fn blank_volume() -> f64 {
 }
 
 /// A spherical cap of height `h` off a radius-`r` ball.
-pub fn cap(r: f64, h: f64) -> f64 {
+fn cap(r: f64, h: f64) -> f64 {
     PI * h * h * (3.0 * r - h) / 3.0
 }
 
@@ -361,8 +366,7 @@ fn deviation_1_the_blank_and_the_pips_do_not_compose_yet() {
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
     let err = fillet_edges(&pipped, &surviving, DIE_R, band())
-        .err()
-        .expect("the assembly front door is EVERY edge of the body");
+        .expect_err("the assembly front door is EVERY edge of the body");
     let text = format!("{err}");
     assert!(
         text.contains("not implemented"),
