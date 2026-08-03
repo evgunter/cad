@@ -2400,3 +2400,23 @@ validator consolidation, with the moot-finding outcome
 pre-authorized as success. #160 gating (watcher armed; checks
 slow to start — Actions queue). PR 12 dispatches on #160's
 merge with the opus remainder.
+
+**M6-BOUNDARY design PR OPENED as #161 (2026-08-03, Evan-
+requested).** Recommendations: SSI lift + loft assembly =
+M5-adjacent (in that order); canal blend PARKS until its first
+consumer; ball-and-socket + interference fits + negative-
+curvature tangency unify into the OQ5-deferred curved-census/
+declared-contact design doc (drafted mid-M6, co-designed with
+SIGNED clearance — an interference fit is a declared negative
+clearance); internal tangency with strict radius inequality
+already works (kappa_rel sign-indifferent) — one cheap fixture
+row rides M5-adjacent. Design-conversation PR: WAITS for Evan.
+
+**S4 COMPLETE (af91b5d): the convention-2 obligation was LIVE —
+the save door could write unloadable files** (in-crate
+corruption of pub(crate) fields passed save, failed load);
+shared validate_document now runs at BOTH doors (save first, so
+unloadable-by-construction is closed); wire.rs mirror retired;
+one pinned row re-typed (Parse → the shared TangentJointOutOfRange
+— better diagnostics, the mirror the note named). Light review
+next.
