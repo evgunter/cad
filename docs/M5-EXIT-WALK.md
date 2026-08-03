@@ -18,7 +18,10 @@ rather than as a softer "met":
   not support, and the gap is named here rather than smoothed over.
 - **CARRIED** — not met; carried to a named unit.
 
-Two rows carry to Evan on this PR and are marked **SIGN-OFF**.
+Three rows depended on Evan's ruling and **all three are now
+decided** (PR #169, 2026-08-03, comments 5171303851 and 5171351203):
+row 19 (#89 closed), row 8 (shape (v) accepted piecewise), row 20
+(the three conventions ratified). Each carries its citation.
 
 ## The walk
 
@@ -31,7 +34,7 @@ Two rows carry to Evan on this PR and are marked **SIGN-OFF**.
 | 5 | "a NURBS-wall boolean (cut loft) marches, fits, certifies, and passes in-op exhaustiveness" | MET-WITH-RECORDED-HONESTY | The *substrate* row is GREEN and was exit-gating: PR 7b (#149) ships a directly-authored NURBS wall cut by a plane — rung-3 marched, fitted, certified carrier, **all three limbs**, both lanes, bit-replayed (`crates/geom-brep/tests/m5_pr7_ssi.rs`, `shape_iii_the_wall_cut_certifies_all_three_limbs`, `shape_iii_bit_replay`). **The honesty**: the criterion says "cut **loft**", and no loft BODY exists. `Loft`/`Sweep` build their walls and then refuse `CurvedSolidFrontier`, because tier 3's +V check routes a NURBS face to `Unimplemented` — NURBS-patch flux needs surface quadrature and the surface-AREA half has no closed form for a rational patch at all. Shipping the assembly without that would swap an honest frontier for a body that fails validation. **Carried to: the loft/sweep body assembly unit** (MAIN-PATH, after the SSI generic-`T` lift, per #161). |
 | 6 | "second-order sector classification resolves a first-order tie with the normal-curvature trilean and escalates in-band osculation typed" | MET-WITH-RECORDED-HONESTY | The tangency regime, PR 9 (#152). **First half MET**: `the_tangent_graze_resolves_past_first_order` (`crates/sweep/tests/m5_pr9_sector2.rs:51`) asserts via the verdict log that all three predicates — `tangent_sector_order2`, `tangent_sector_order2_arm`, `tangent_sector_osculation` — reached the K funnel by name, and that the refusal is the DOWNSTREAM degenerate-section net, never the first-order door; `an_off_ruling_tangent_plane_still_grazes_honestly` (:98) pins that neither `TangencyUnsupported` nor `ConsecutiveOnSectors` fires. Escalation source: `crates/topo/src/splitting/rules.rs:174`, `decide("tangent_sector_osculation", …)` → `SliverSector`. **The honesty, second half**: the IN-BAND osculation escalation *at rest* is pinned only by a deliberately tolerant reviewer probe (`an_in_band_second_order_margin_at_rest_escalates_somewhere_loud`, `crates/sweep/tests/review_m5_pr9_inband_at_rest.rs:16`), which accepts three outcomes — profile-stage refusal, extrude refusal, or acceptance at rest provided no definite tangency verdict was minted. So the accurate claim is "escalates, or refuses to mint a definite verdict, pinned by probe", not "escalates typed" as a hard assertion. *Telemetry note*: these three predicates do not sample in the K-probe corpus — no registered document or tour scene reaches a first-order tie. |
 | 7 | "definitely-tangent edges carry the tangency mark and jet-determinate tangencies enforce `TangentIntersection` (G2 conventional joins exempt by predicate, pinned both directions)" | MET | The declared-tangency discipline (#109/#101) extended through the curved lane in PR 9. The parenthetical is the part that is easy to half-ship and was not: the G2 conventional-join exemption is decided **by predicate**, and pinned in **both** directions — a conventional join stays exempt, and a jet-determinate tangency is forced to `TangentIntersection`. Trimlines store `TangentIntersection` from birth in the fillet lane (PR 12). |
-| 8 | "the die-with-pips fillet demo builds, certifies, tessellates watertight, and exports" | MET-WITH-RECORDED-HONESTY — **SIGN-OFF item 2** | Acceptance shape (v), PR 12 (#166). **Each of the four verbs is satisfied — twice, on two bodies that do not compose.** *The blank*: a unit cube with all twelve edges blended at r = 0.12 — 26 faces / 48 edges / 24 vertices, tiers 1-3 green, volume AND surface area on their closed forms to 1e-9 relative with a zero enclosure pad, watertight under `check_mesh`, all 12·4 + 8·3 blend/corner boundary edges carrying `TangentIntersection`, STEP-exported and FreeCAD-imported (valid, 26 faces, volume within 2.6e-7 relative). The first fixture with plane AND cylinder AND sphere faces in one solid, all exact, no B-splines. *The pips*: 21 spherical dimples on all six faces of a sharp cube, cut in ONE certified group operation, tier-3 valid, volume on its closed form, watertight, exported and imported. Corpus documents `die_fillet` and `die_pips` (`the_die_blank_certifies_and_tessellates_watertight`, `crates/sweep/tests/m5_pr12_die.rs:269`, with `volume_pad == 0.0`; `the_pips_cut_in_one_group_operation_on_all_six_faces`, :307). **A second honesty, on "exports"**: only the blank is in the CI-gated STEP fixture corpus (`filleted_die.step`, sidecar pinning 26 faces / 56 edges — OCC splits the periodic corner arcs at their seams — / 24 vertices / 965231000 mm³). **`die_pips` is NOT in that corpus**, so its FreeCAD import is by-hand only, through the tour, whose committed evidence is the `demos/renders-freecad/diepips.png` render; the tour is not run in CI. **The honesty**: the criterion says "the die-with-pips fillet demo", singular. It is two demos. Both compose orderings refuse typed at two DIFFERENT pre-existing frontiers — fillet→pip at the curved-pierce door (no definite-miss certificate for a conic carrier against a curved face; the arm is **unconditional**, not a clearance verdict — the reviewer measured the true clearance of the named pair at 1.6 cm), and pip→fillet at the whole-body assembly front door (the twelve box edges are no longer every edge of the body, and the rebuild does not carry a face's RINGS through). Both doors are pinned as one test, `deviation_1_the_blank_and_the_pips_do_not_compose_yet` (`crates/sweep/tests/m5_pr12_die.rs:348`), and the reviewer independently reproduced them under every reordering. **Carried to: the in-place edge-blend composition-surgery unit** — sized by review at ONE reviewed unit, recommended at the HEAD of the main-path queue, ahead of the SSI lift. **Evan's call: accept shape (v) as met piecewise, with the surgery banked as recommended?** |
+| 8 | "the die-with-pips fillet demo builds, certifies, tessellates watertight, and exports" | MET-WITH-RECORDED-HONESTY — **ACCEPTED** | Acceptance shape (v), PR 12 (#166). **Each of the four verbs is satisfied — twice, on two bodies that do not compose.** *The blank*: a unit cube with all twelve edges blended at r = 0.12 — 26 faces / 48 edges / 24 vertices, tiers 1-3 green, volume AND surface area on their closed forms to 1e-9 relative with a zero enclosure pad, watertight under `check_mesh`, all 12·4 + 8·3 blend/corner boundary edges carrying `TangentIntersection`, STEP-exported and FreeCAD-imported (valid, 26 faces, volume within 2.6e-7 relative). The first fixture with plane AND cylinder AND sphere faces in one solid, all exact, no B-splines. *The pips*: 21 spherical dimples on all six faces of a sharp cube, cut in ONE certified group operation, tier-3 valid, volume on its closed form, watertight, exported and imported. Corpus documents `die_fillet` and `die_pips` (`the_die_blank_certifies_and_tessellates_watertight`, `crates/sweep/tests/m5_pr12_die.rs:269`, with `volume_pad == 0.0`; `the_pips_cut_in_one_group_operation_on_all_six_faces`, :307). **A second honesty, on "exports"**: only the blank is in the CI-gated STEP fixture corpus (`filleted_die.step`, sidecar pinning 26 faces / 56 edges — OCC splits the periodic corner arcs at their seams — / 24 vertices / 965231000 mm³). **`die_pips` is NOT in that corpus**, so its FreeCAD import is by-hand only, through the tour, whose committed evidence is the `demos/renders-freecad/diepips.png` render; the tour is not run in CI. **The honesty**: the criterion says "the die-with-pips fillet demo", singular. It is two demos. Both compose orderings refuse typed at two DIFFERENT pre-existing frontiers — fillet→pip at the curved-pierce door (no definite-miss certificate for a conic carrier against a curved face; the arm is **unconditional**, not a clearance verdict — the reviewer measured the true clearance of the named pair at 1.6 cm), and pip→fillet at the whole-body assembly front door (the twelve box edges are no longer every edge of the body, and the rebuild does not carry a face's RINGS through). Both doors are pinned as one test, `deviation_1_the_blank_and_the_pips_do_not_compose_yet` (`crates/sweep/tests/m5_pr12_die.rs:348`), and the reviewer independently reproduced them under every reordering. **Carried to: the in-place edge-blend composition-surgery unit** — sized by review at ONE reviewed unit, recommended at the HEAD of the main-path queue, ahead of the SSI lift. **ACCEPTED (Evan, 2026-08-03, PR #169 comment 5171351203): "i approve sequencing it soon in the new M6"** — M5 exits with shape (v) met PIECEWISE, and the composition-surgery unit is sequenced early in M6 (the new main-path-completions milestone). |
 | 9 | "every C8 validity predicate has a fixture firing it as a typed pre-construction error" | MET | PR 12 (#166). The battery (`crates/sweep/src/fillet/battery.rs`) reifies six numbered validity predicates and `crates/sweep/tests/m5_pr12_battery.rs` fires each as a typed error BEFORE any construction runs — one fixture per predicate, named for it: P1 `p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend`, P2 `p2_face_clearance_refuses_when_two_blends_meet_across_a_face` (with `p2_face_clearance_passes_just_under_the_half_side` pinning the other side of the boundary), P3 `p3_spine_regularity_refuses_before_the_torus_is_minted`, P4 `p4_chain_g1_refuses_at_a_cornered_junction`, P5 `p5_convexity_sign_flip_refuses_across_the_notch`, P6 `p6_mixed_convexity_corner_refuses_naming_the_feather_policy` (which also pins the OQ6 vocabulary). `m5_pr12_refusals.rs` adds the two-tolerance trio for every `fillet3_*` — the S9 lesson applied, which is exactly the convention criterion 20 proposes. (`fillet3_chain_arm` is the arm of P4's chain test, not a seventh predicate.) |
 | 10 | "`FilletCornerUnsupported` payloads pinned" | MET | PR 12 (#166), with the OQ6 refusal-payload vocabulary. `FilletError::SpineUnsupported` is pinned alongside it and is the front door for the canal-surface case (see criterion 5's sibling frontier). |
 | 11 | "sweeps/lofts persist under schema v2 (v1 handling per the R3 rider — migration or typed refusal, whichever the PR 10 spec recorded)" | MET | PR 10 (#151): `Loft`/`Sweep` definitional node vocabulary, §10.3/§10.4 geometry, schema v2. The rider is satisfied by the spec having RECORDED a choice, and it did, explicitly — `docs/M5-PR10-SPEC.md:64-79`: **"The call: CLEAN BREAK, zero live compat code"** (Evan, #148 comment 5148423716, 2026-07-31, superseding the same-day migrate option; chosen because the kernel is unreleased and the only v1 files are in-tree). So the branch taken is **typed refusal**: no `migrate` step is written, a v1 file refuses TYPED with a recourse, every in-tree v1 golden/corpus file was regenerated, and the empty migration-chain mechanism is kept for the future. Pinned by the v1 typed-refusal row and the regenerated-corpus row; hosted `persistence (eps = 1e-6 / 1e-12)` plus the default and Interval lanes. |
@@ -42,16 +45,20 @@ Two rows carry to Evan on this PR and are marked **SIGN-OFF**.
 | 16 | "the interval backend swap is complete with the M0 poison contract intact and no LGPL dependency in any build configuration (quarantine text retired)" | MET | PR 1 (#127, 2026-07-28). The backend is the in-house `interval-transcendentals` crate — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified, libm-only, D9-clean. **inari and its gmp/MPFR stack are gone from the tree, not re-quarantined**: Cargo.lock zero hits, dev-dependencies included, so the kernel is copyleft-free in EVERY build configuration and issue #4's exit condition is met by removal. inari survives only as an optional differential oracle inside the excluded crate's own workspace. The M0 poison contract is intact (and the interval-square poison rule survived its own retirement unit, #153). Quarantine text: DESIGN.md carries only the Tabled tombstone and the crate-table history — verified this sweep. CURVED-DESIGN.md's design-time quarantine language is historical record and gained a superseding status block rather than a rewrite. |
 | 17 | "REST-contact crosslap certifies through its join lane" | MET | Side unit S1 (#140). The crosslap mate's pure PLANAR rest contact zips through a declared-contact join lane at exact volume (1.875), both doors pinned in `crosslap_rest.rs`, and the M3-era tripwire is retired. The fix pass went deeper than the wire's own story: a silent corrupt-STL hole-creating merge role inversion was found, root-caused at the merge base, and corrected via Newell winding, adding a NEW tier-3 loop-role gate that filled a documented deferral. |
 | 18 | "arc-leg fillet sugar ships" | MET | Side unit S2 (#137). `LoopBuilder::fillet` grows arc-leg corners under the same declared-tangency discipline, with fit gating extended; 20k-corner review fuzz produced zero wrong circles. S8 (#143) then landed the nearest-corner selection ladder over it, whose rung 3 is the project's first knowingly-designed equivariance residual — documented, per the convention this sweep proposes. |
-| 19 | "the M5 exit K-telemetry snapshot over the curved corpus is taken and the #89 decision is recorded (or explicitly continued with grounds)" | MET (via the disjunction's second limb) — **SIGN-OFF item 1** | This PR. Snapshot: `docs/K-REPORT.md` "M5 addendum", raw rows `docs/k-report-data/m5-eps-*.csv.gz`, ~1.76M samples per ε row over 13 corpus documents + 17 tour scenes, reproducing the hosted `k-lint (advisory)` row to the sample. The #89 decision is **explicitly continued, with grounds** — the limb the criterion permits — recommending **hold K = 10 pending the M7 import corpus**: zero in-band landings anywhere; the first evidence with discriminating power argues specifically against RAISING K (K=100 retains only 1.65× clearance to the ε-coupled quadrature family, K=30 only 5.5×, against K=10's 16.5×); and the computed-SSI evidence Finding 4 named still has not arrived, while #161 puts the import corpus in the NEXT milestone. **Evan's call: accept the continuation, or close #89 now?** The addendum states plainly that the decision is his. |
-| 20 | "new conventions ratified into DESIGN.md at exit" | CARRIED (to Evan's sign-off on this PR) | Three conventions are **PROPOSED** in DESIGN.md by this PR, following the M4 8c precedent of proposing rather than self-ratifying: (i) the two-tolerance principle's consequence (iv) — the rule binds a predicate's DEFINITE arms too, earned by S9's review MIN-1; (ii) semantic equivariance where it is free, carried in **with its premise-unaudited caveat intact**, because the caveat is the load-bearing half of the memory it comes from; (iii) the tessellation ruling, quoted verbatim into D4's chordal-tolerance paragraph. The word the criterion uses is "ratified", and ratification is Evan's — so this row cannot honestly read MET until he signs. It flips on the same sign-off that closes rows 8 and 19. |
+| 19 | "the M5 exit K-telemetry snapshot over the curved corpus is taken and the #89 decision is recorded (or explicitly continued with grounds)" | MET (decision recorded: **closed**) | This PR. Snapshot: `docs/K-REPORT.md` "M5 addendum", raw rows `docs/k-report-data/m5-eps-*.csv.gz`, ~1.76M samples per ε row over 13 corpus documents + 17 tour scenes, reproducing the hosted `k-lint (advisory)` row to the sample. The #89 decision is **RECORDED, not continued** — the criterion's FIRST limb, the stronger one. **#89 is CLOSED and K = 10 is the permanent ratified default** (Evan, 2026-08-03, PR #169 comment 5171303851: "closing 89 makes sense"), with a testable re-open trigger: any corpus showing IN-BAND LANDINGS, whose expected first source is the M7 import corpus, and whose standing detector is the `k-lint` advisory row's rule 1. Grounds: zero in-band landings anywhere; the first evidence with discriminating power argues specifically against RAISING K (K=100 retains only 1.65× clearance to the ε-coupled quadrature family, K=30 only 5.5×, against K=10's 16.5×); and the computed-SSI evidence Finding 4 named still has not arrived, while #161 puts the import corpus in the NEXT milestone. The addendum records the close and the trigger; the orchestrator closes the issue citing it once this PR merges. |
+| 20 | "new conventions ratified into DESIGN.md at exit" | MET | **RATIFIED** (Evan, 2026-08-03, PR #169 comment 5171303851: "the three amendments (two-tolerance principle, equivariance, distance-only tesselation) sound good to me also"). Proposed by this PR following the M4 8c precedent of proposing rather than self-ratifying, and ratified on the same comment that closed #89: (i) the two-tolerance principle's consequence (iv) — the rule binds a predicate's DEFINITE arms too, earned by S9's review MIN-1; (ii) semantic equivariance where it is free, carried in **with its premise-unaudited caveat intact**, because the caveat is the load-bearing half of the memory it comes from; (iii) the tessellation ruling, quoted verbatim into D4's chordal-tolerance paragraph. The word the criterion uses is "ratified", and ratification is Evan's; he gave it, so the row reads MET. |
 
 ## Tally
 
 | disposition | count | rows |
 |---|--:|---|
-| MET | 12 | 1, 3, 7, 9, 10, 11, 13, 14, 16, 17, 18, 19 |
+| MET | 13 | 1, 3, 7, 9, 10, 11, 13, 14, 16, 17, 18, 19, 20 |
 | MET-WITH-RECORDED-HONESTY | 7 | 2, 4, 5, 6, 8, 12, 15 |
-| CARRIED | 1 | 20 |
+| CARRIED | 0 | — |
+
+**No criterion is carried unowned.** Row 20 flipped to MET on Evan's
+ratification; every remaining engineering item that a criterion's
+honesty note defers now has a **named M6 owner** (below).
 
 Seven honesty rows out of twenty is a high proportion, and that is
 the point of having the category: each one is a criterion whose
@@ -65,22 +72,25 @@ paragraph, twenty rows above.
 
 ## The carried list, in full
 
-1. **Row 20 — conventions ratification** → Evan's sign-off on this
-   PR. The only row whose disposition is CARRIED outright, and the
-   only one that flips without further engineering.
-2. **Row 5 — shape (iii)'s full loft BODY** → the loft/sweep body
-   assembly unit. MAIN-PATH, sequenced after the SSI generic-`T`
-   lift (#161). The substrate row is met and was the exit gate; the
-   body is the honest complete form.
-3. **Row 8 — shape (v)'s composed die** → the in-place edge-blend
-   composition-surgery unit, recommended at the HEAD of the
-   main-path queue. Evan sign-off item 2.
-4. **Row 12 — NURBS SURFACE STEP export** (`B_SPLINE_SURFACE_WITH_KNOTS`)
+Every item below has a named owner in **M6**, the main-path
+completions milestone created by the 2026-08-03 renumbering (Evan,
+PR #169 comment 5171303851). Nothing on this list is unowned.
+
+1. **Row 8 — shape (v)'s composed die** → the **in-place edge-blend
+   composition-surgery unit, sequenced EARLY in M6** (Evan, PR #169
+   comment 5171351203: "i approve sequencing it soon in the new M6").
+   M5 exits with shape (v) met piecewise; review sized the surgery at
+   one reviewed unit.
+2. **Row 5 — shape (iii)'s full loft BODY** → the **loft/sweep body
+   assembly unit, in M6**, sequenced after the SSI generic-`T` lift
+   (#161, renumbered 2026-08-03). The substrate row is met and was
+   the exit gate; the body is the honest complete form.
+3. **Row 12 — NURBS SURFACE STEP export** (`B_SPLINE_SURFACE_WITH_KNOTS`)
    → arrives with the loft-assembly unit, which mints the first
    NURBS face at rest. Its sibling, the multi-shell curved
    outward/void classification, is a named DESIGN.md frontier with
    no scheduled unit.
-5. **Row 4 — pcurve certification on non-cylinder charts** → the
+4. **Row 4 — pcurve certification on non-cylinder charts** → the
    **loft/sweep body assembly unit** (owner assigned at this PR's
    review). Cone, sphere, torus and NURBS charts mint nothing and
    refuse `UnsupportedChart`; the routing is a compile-time
@@ -90,7 +100,7 @@ paragraph, twenty rows above.
    the ANALYTIC charts alongside it is the sibling half of the same
    work, not a separate lane. Added to that unit's banked scope in
    DESIGN.md's frontier entry (b)/(c).
-6. **Row 12 — STEP fixture coverage of R5 (iii), (iv) and the
+5. **Row 12 — STEP fixture coverage of R5 (iii), (iv) and the
    pips** → the **montage-curation unit** (queued, block 20) for the
    pips half. (iii) and (iv) follow their own frontiers and stay
    with the assembly unit. `die_pips` is a shipped corpus document
@@ -98,7 +108,7 @@ paragraph, twenty rows above.
    adding the fixture + expect file to the CI-gated corpus is a
    trivial, demo-adjacent addition and belongs with the curation
    work rather than with kernel geometry.
-7. **Row 2 — a non-vacuous fitted-cache-at-rest row** → the **SSI
+6. **Row 2 — a non-vacuous fitted-cache-at-rest row** → the **SSI
    generic-`T` lift unit's acceptance** (owner assigned at this PR's
    review). PR 9's spec asked for a cylinder×sphere rung-3-at-rest
    row and it does not exist, so the C2-certificate clause has never
@@ -118,12 +128,16 @@ failure mode the walk exists to prevent.
    distribution; the M5 distribution sits under it and the hosted
    advisory row prints 102 flags every run. The lint's own charter
    says "gate once the baseline is trusted" — it cannot be gated in
-   this state. Named M6/M7 code pickup; deliberately not taken in a
+   this state — and #89's re-open trigger now leans on its rule-1
+   flag, which raises the stakes on keeping the advisory output
+   readable. Named **M6** code pickup; deliberately not taken in a
    docs-only unit. (K-REPORT M5 addendum, Finding M5-2.)
 2. **No SSI margin has ever been measured.** Fourteen `ssi_*`
-   predicates exist; none sample. Named M7 code pickup: a Band-4
-   document whose boolean genuinely requires marching, or a `Probe`
-   instantiation of the SSI suites. (Finding M5-3.)
+   predicates exist; none sample. Named **M6** code pickup — that is
+   where the SSI lift and loft assembly put marched geometry into a
+   body at rest: a Band-4 document whose boolean genuinely requires
+   marching, or a `Probe` instantiation of the SSI suites.
+   (Finding M5-3.)
 3. **The K-REPORT's ε-stability claim is retired** and should not be
    restated: decision COUNTS now differ across ε rows because
    `props_quad_converged` is a convergence-loop stopping test.
@@ -154,6 +168,17 @@ failure mode the walk exists to prevent.
    trihedral corners build through tiers 1-2 and then report
    `VolumeUncomputable` — a gap in the props inventory, not in the
    body.
+
+7. **The milestone numbers changed at this exit** (Evan, PR #169
+   comment 5171303851, 2026-08-03): the old M6 (error propagation)
+   is now **M8**; **M6** is a new milestone holding the main-path
+   curved completions this walk carries items to; **M7 is STEP
+   adoption only** — core kernel work that import merely wants
+   (curved REST contact / ball-and-socket) stays at M6, design-only.
+   Live docs were renumbered in this PR; `docs/ERROR-DESIGN.md` and
+   `docs/M6-BOUNDARY.md` keep their bodies and gained status blocks
+   instead, and the M1-M5 logs, plans and specs are historical
+   record and were left untouched.
 
 ## Q9 note
 

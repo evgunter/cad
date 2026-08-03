@@ -4126,14 +4126,19 @@ can say:
    K-REPORT Finding 4 asked for has still not arrived — and under
    #161 it arrives at M7, next milestone.
 
-Recommendation to Evan (sign-off item 1): **hold K = 10 pending the
-M7 import corpus**, with the grounds in the addendum. The decision is
-his; the addendum presents the table and says so.
+Recommendation to Evan was "hold K = 10 pending the M7 import
+corpus". **He closed it instead** (PR #169 comment 5171303851,
+2026-08-03: "closing 89 makes sense"), which the same grounds
+support: K = 10 is now the permanent ratified default, with a
+testable re-open trigger — any corpus showing IN-BAND LANDINGS,
+expected first from the M7 import corpus, detected by the k-lint
+advisory row's rule 1. The addendum records the close.
 
 **Two code pickups discovered and deliberately NOT taken** (this
 unit's rules make a code change a numbered deviation that stops):
 
-- The large-K lint's `BASELINE_FLOOR_MARGIN = 1.5e-3` is stale. It
+- **M6 pickup.** The large-K lint's `BASELINE_FLOOR_MARGIN = 1.5e-3`
+  is stale. It
   was the P0 of the M4 distribution; the M5 distribution sits under
   it, and the hosted advisory row prints **102 flags per run** (10 /
   34 / 58 by ε row — all `props_quad_converged`, `props_rim_side`,
@@ -4142,9 +4147,10 @@ unit's rules make a code change a numbered deviation that stops):
   happen in this state. Re-deriving the floor — and deciding whether
   the ε-coupled family belongs under a ratio rule rather than a metre
   rule — is a named M6/M7 pickup.
-- An SSI `Probe` lane: either a Band-4 document whose boolean
-  genuinely requires marching, or a `Probe` instantiation of the SSI
-  suites. Named M7 pickup.
+- **M6 pickup.** An SSI `Probe` lane: either a Band-4 document whose
+  boolean genuinely requires marching, or a `Probe` instantiation of
+  the SSI suites — M6 is where the SSI lift and loft assembly put
+  marched geometry into a body at rest.
 
 **The envelope / DESIGN.md sweep.** The M5 roadmap line moved to a
 done-state with shape (v)'s two-piece disposition stated in it, not
@@ -4153,8 +4159,9 @@ REST-contact gap, and CURVED rest contact is explicitly what it did
 not retire — and entry (vi), which enumerates the six banked curved
 frontiers by name with their blockers, plus the two latent-and-loud
 limitations (the meridian-tangent circle; oblique trihedra reaching
-`VolumeUncomputable`). Three conventions were PROPOSED, not ratified,
-pending Evan: the two-tolerance principle's consequence (iv) — the
+`VolumeUncomputable`). Three conventions were proposed and then **RATIFIED by
+Evan on the PR** (comment 5171303851: "the three amendments … sound
+good to me also"): the two-tolerance principle's consequence (iv) — the
 rule binds a predicate's DEFINITE arms too, the S9 lesson; the
 equivariance principle, carried in with its premise-unaudited caveat
 intact, because the caveat is the load-bearing half; and the
@@ -4183,9 +4190,24 @@ walk. The sharpest is row 4: "every curved edge at rest carries
 per-half-edge pcurves" is false as written — only Plane and Cylinder
 charts certify, so the filleted die's own eight sphere octants carry
 no stored pcurves at rest, and no unit currently owns closing that.
-Three rows depend on Evan: 8 and 19 are the sign-off items, and 20
-("new conventions **ratified** into DESIGN.md at exit") cannot
-honestly read MET until he signs, because ratification is his.
+All three rows that depended on Evan were decided on the PR
+(2026-08-03): row 19 (#89 CLOSED), row 8 (shape (v) accepted
+PIECEWISE, surgery sequenced early in the new M6), row 20 (the three
+conventions RATIFIED). Final tally **13 MET / 7
+MET-WITH-RECORDED-HONESTY / 0 CARRIED**, with every carried
+engineering item owned by a named M6 unit.
+
+**The milestone renumbering, ruled on the same comment.** Old M6
+(error propagation) → **M8**; **M6** is new and holds the main-path
+curved completions; **M7 is STEP adoption ONLY** ("we shouldn't fold
+any core work like ball and socket into M7"), so the
+census/declared-contact design doc moved from the M7 plan to M6,
+design-only. LIVE docs were renumbered here — DESIGN.md roadmap,
+SOLVER-DESIGN, PERF-PLAN, GUI-DESIGN, CURVED-DESIGN, LONGTERM-IDEAS,
+memories — while `ERROR-DESIGN.md` and `docs/M6-BOUNDARY.md` kept
+their bodies and gained status blocks instead (their "M6" is
+historical). M1-M5 logs, plans and specs are RECORD and were left
+untouched.
 
 **State-doc reconciliation.** The divergence this unit flagged is
 CLOSED for both logs: #168 merged the M5-LOG reconciliation

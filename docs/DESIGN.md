@@ -241,7 +241,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
    structure, so a zero-volume lamina is a geometric defect, not a
    topological one. Global self-intersection / minimum clearance stays
    deferred (M3 partial via booleans — tier 3′ below discharges the
-   coincidence census on the planar inventory; M6 interval clearance).
+   coincidence census on the planar inventory; M8 interval clearance).
 4. **Tier 3′ "pseudomanifold" (`validate_pseudomanifold`; ratified at
    the M3 exit sweep per M3-PLAN F1/F2, resolved with Evan #42;
    implemented M3 PR 6a, #75)** — the honest at-rest tier for boolean
@@ -471,8 +471,13 @@ component-aware E–P form found and corrected in M1 PR 4).**
   What it did NOT retire is CURVED rest contact (a declared
   cylindrical or spherical conformal class — ball-and-socket,
   peg-in-hole): that is a declared coincidence class verified
-  structurally, and #161 moved its design doc into the M7 plan,
-  where imported assemblies arrive carrying such contacts.
+  structurally. #161 first put its design doc in the M7 plan, on the
+  grounds that imported assemblies arrive carrying such contacts;
+  the 2026-08-03 ruling moved it to **M6** instead (Evan, PR #169
+  comment 5171303851: "we shouldn't fold any core work like ball and
+  socket into M7") — curved REST contact is core kernel work, so its
+  DESIGN lands with the main-path completions, design-only, and M7
+  stays pure adoption.
   (vi) **the M5 curved frontier, as built** — every one of these
   refuses TYPED with a message naming its own blocker, and each is a
   banked unit rather than an open question:
@@ -761,9 +766,10 @@ applied to error handling. Five commitments:
    adoption re-runs classification at a different ε_input, exactly
    as CURVED-DESIGN's D7 leave-room obligation already requires.
    (iv) **The rule binds a predicate's DEFINITE arms too, not only
-   its indeterminate one** (added at the M5 exit sweep, 2026-08-03;
-   the S9 lesson — the chord_spec azimuth-window repair introduced
-   new definite arms that silently missed the two-tolerance shape,
+   its indeterminate one** (RATIFIED at the M5 exit sweep, Evan on
+   PR #169 comment 5171303851, 2026-08-03; the S9 lesson — the
+   chord_spec azimuth-window repair introduced new definite arms
+   that silently missed the two-tolerance shape,
    caught as review MIN-1 at #145). When a predicate grows an arm,
    the arm inherits the obligation: a NEW definite outcome that a
    user could reach by moving geometry must tell the same one story
@@ -789,8 +795,9 @@ applied to error handling. Five commitments:
    for sizing; display-layer comparisons are deliberately not Q1
    predicates (none decide kernel topology).
    **The tessellation criterion is DISTANCE-ONLY (ruled in session
-   2026-08-02/03, Evan + orchestrator concur; recorded at the M5 PR
-   14 exit sweep).** The ruling, scoped verbatim: *"NO
+   2026-08-02/03, Evan + orchestrator concur; RATIFIED at the M5 PR
+   14 exit sweep — Evan, PR #169 comment 5171303851,
+   2026-08-03).** The ruling, scoped verbatim: *"NO
    angular-deflection criterion in the certified tessellator.
    Grounds: every contracted consumer is manufacturing-shaped (STL
    chordal semantics, admesh, props now quadrature-based); a
@@ -880,7 +887,7 @@ radius-r rolling-ball fillet" (design-intent / feature recognition — a
 hard, heuristic research problem) is not required for first-class
 validity; it would add only *editability*, and is out of scope for M7.
 Consistently: imported bodies carry no parameters, so error propagation
-(M6) has nothing to vary over them.
+(M8) has nothing to vary over them.
 
 Adoption reuses the kernel's own certification machinery — "is this curve
 within ε of the described locus" is exactly the check the `topo` validator
@@ -960,7 +967,7 @@ re-deriving:*
    size a named constant, combine order documented). Same bits every
    run, any thread count.
 
-Targets in value order (advisory detail in PERF-PLAN): the M6
+Targets in value order (advisory detail in PERF-PLAN): the M8
 subdivision driver, per-face tessellation, certification sampling,
 mass properties (the canonical idiom-2 example), independent M4 DAG
 nodes. Euler-op sequences stay serial — shared arena mutation,
@@ -1046,8 +1053,10 @@ ratified; each earned by a concrete M4 incident):**
    persistence rows showed green on the old matrix); floors then
    tracked the matrix 13 → 14 → 16 through #116/#118.
 
-**Conventions PROPOSED at the M5 exit sweep (PROPOSED-PR14 —
-awaiting Evan's sign-off; not yet ratified):**
+**Convention RATIFIED at the M5 exit sweep (Evan, PR #169 comment
+5171303851, 2026-08-03: "the three amendments (two-tolerance
+principle, equivariance, distance-only tesselation) sound good to me
+also"):**
 
 5. **Semantic equivariance where it is free — with the premise
    explicitly UNAUDITED.** Kernel constructions and selection rules
@@ -1210,10 +1219,12 @@ precursor of the error-propagation feature.
   edge-blend surgery that closes them is sized at one reviewed unit
   and banked at the head of the main-path queue. Shape (v) is
   therefore recorded **met piecewise**, not met whole.
-  **Sequencing**: #161 ratified the M5→M6 boundary — M5 exit → SSI
-  generic-`T` lift → loft/sweep assembly → **M7 (STEP import as
-  adoption) BEFORE M6** → M6 error propagation.)* Banked M5 openers
-  from the M4 exit (8c, 2026-07-27):
+  **Sequencing**: #161 ratified the boundary and the 2026-08-03
+  renumbering gave it names — M5 exit → **M6** (SSI generic-`T` lift
+  → loft/sweep assembly → composition surgery → analytic-chart
+  pcurves, plus the census/declared-contact design doc) → **M7**
+  (STEP adoption only) → **M8** (error propagation, formerly M6).)*
+  Banked M5 openers from the M4 exit (8c, 2026-07-27):
   **curved STEP subset** (banked planar-only; DISCHARGED at M5 PR 13 —
   the writer now emits `CYLINDRICAL_`/`CONICAL_`/`SPHERICAL_`/
   `TOROIDAL_SURFACE` and `CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS`
@@ -1237,12 +1248,16 @@ precursor of the error-propagation feature.
   quadrature family `props_quad_converged` puts real definite
   margins at ~1.6e2–8.4e2 × ε, leaving K = 100 only 1.65× of
   clearance and K = 30 only 5.5×, against K = 10's 16.5×. The
-  addendum's recommendation is **hold K = 10 pending the M7 import
-  corpus** — the computed-SSI evidence Finding 4 named still has not
-  arrived (no `ssi_*` predicate samples; M5's curved booleans resolve
-  through exact analytic carriers), and #161 puts that corpus in the
-  NEXT milestone. **Awaiting Evan's sign-off on the PR 14
-  conversation**; K = 10 stands as the ratified default meanwhile.
+  outcome is **#89 CLOSED, K = 10 the permanent ratified default**
+  (Evan, PR #169 comment 5171303851, 2026-08-03), with a testable
+  re-open trigger: any corpus showing IN-BAND LANDINGS, whose
+  expected first source is the M7 import corpus. The computed-SSI
+  evidence Finding 4 named still has not arrived (no `ssi_*`
+  predicate samples; M5's curved booleans resolve through exact
+  analytic carriers), and the renumbering puts that corpus at M7 —
+  but three corpora now agree, and the close carries a testable
+  trigger rather than waiting on evidence that keeps not arriving.
+  The `k-lint` advisory row's rule 1 is the standing detector.
   Two code follow-ups are named and deliberately not taken in the
   docs-only exit unit: re-deriving the large-K lint's stale
   `BASELINE_FLOOR_MARGIN` (the M5 distribution sits under it — 102
@@ -1251,15 +1266,42 @@ precursor of the error-propagation feature.
   in-house `interval-transcendentals` crate (adoption GREEN-LIT, see crate table) exists as
   workspace-excluded tooling (#115); adopting it in the kernel's
   interval lane is an M5-PLAN ratified decision, not a default.
-- **M6** — Error-propagation MVP: distributions over parameters;
-  dual-number sensitivities of measurements (tolerance stackups);
-  interval-based self-intersection / minimum-clearance checks over the
-  parameter box. Sketch solver when sketches should become
-  constraint-driven rather than programmatic.
-- **M7** — STEP import as adoption (D7): analytic surface recognition,
-  edge adoption, healing. Deliberately last — it is the inverse problem of
-  everything above it.
-- **Post-M7** — the usability program: see
+- **M6** — **the main-path completions** *(new milestone, ratified
+  by the 2026-08-03 renumbering — Evan on PR #169, comment
+  5171303851: "perhaps the old M6 could be renamed to M8 since we're
+  moving it after M7, leaving M6 open for the main path work planned
+  here?")*. M5 shipped its curved kernel with seven frontiers banked
+  by name; M6 is where the main-path ones close, in the order #161
+  ratified: the **SSI generic-`T` lift** (it gates the rest), the
+  **loft/sweep body assembly** — which also owns **completing pcurve
+  certification on the analytic charts**, since only Plane and
+  Cylinder charts certify today — the **in-place edge-blend
+  composition surgery** (recommended at the head of the queue; it is
+  what makes acceptance shape (v) one body instead of two), and the
+  **cyl×sphere germ chords** / **NURBS extent lift** that the lift
+  unblocks. Design-only, alongside them: the **census /
+  declared-contact design doc**, moved here from the M7 plan by the
+  same ruling (Evan: "we shouldn't fold any core work like ball and
+  socket into M7") — curved REST contact is core kernel work, so its
+  design lands with the main path even though its implementation
+  does not.
+- **M7** — STEP import as adoption (D7), **and nothing else**:
+  analytic surface recognition, edge adoption, healing. Scope
+  narrowed by the 2026-08-03 ruling (Evan: "M7 should stay as just
+  adopting STEP files") — core kernel work that import happens to
+  *want* belongs to M6, not here. It remains the inverse problem of
+  everything above it, and it is where the foreign-geometry corpus
+  finally arrives (see #89's re-open trigger in `docs/K-REPORT.md`).
+- **M8** — Error-propagation MVP *(this was **M6** until the
+  2026-08-03 renumbering; the number moved, the content did not)*:
+  distributions over parameters; dual-number sensitivities of
+  measurements (tolerance stackups); interval-based
+  self-intersection / minimum-clearance checks over the parameter
+  box. Sketch solver when sketches should become constraint-driven
+  rather than programmatic. Design record: `docs/ERROR-DESIGN.md`
+  (whose body says "M6" throughout — historical, per its status
+  line).
+- **Post-M8** — the usability program: see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Licensing-hygiene work with no usability payoff is deliberately
   *not* sequenced here — it lives in [Tabled](#tabled-far-future).
@@ -1348,7 +1390,7 @@ decision, where it landed, notable deviations. Full trail:
 
 *(Added 2026-07-19, from the usability-scoping conversation with Evan.
 This is a **scoping section, not a milestone plan** — it names the
-work between "the M0–M7 kernel exists" and "a person can actually use
+work between "the M0–M8 kernel exists" and "a person can actually use
 this," so that none of it gets invented ad hoc or discovered late.
 Items marked **(design-now)** are cheap at design time and expensive
 to retrofit; each gets folded into the existing plans rather than
@@ -1462,7 +1504,7 @@ usable-as-library; architecture to be ratified separately.
 - **Assemblies.** Multi-part documents, mates (a rigid-body-DOF
   constraint problem, distinct from the 2-D sketch solver),
   cross-document references, interference checks (the latter falls
-  out of M3 booleans / M6 clearance). Even hobbyist use wants this.
+  out of M3 booleans / M8 clearance). Even hobbyist use wants this.
   *Reference architecture ratified 2026-07-19 (GUI-DESIGN.md GQ4):
   an assembly document is a recipe DAG of the same formalism —
   instantiate-part (via the doc-identity × local-ref wrapper),
@@ -1476,7 +1518,7 @@ usable-as-library; architecture to be ratified separately.
   SSI-grade (silhouette curves) and belongs on the difficulty
   ranking near fillets. Explicit near-term dodge: export STEP, make
   drawings elsewhere.
-- **Feature breadth.** Post-M7 the kernel has extrude/revolve/sweep/
+- **Feature breadth.** Post-M8 the kernel has extrude/revolve/sweep/
   loft, booleans, shell, constant-radius fillets. Daily use assumes:
   chamfers, variable-radius fillets, draft, hole features
   (counterbore/countersink/tapped), linear/circular patterns and
@@ -1537,7 +1579,7 @@ named.
   margined predicate verdicts, so predicate flips remain the *only*
   topology-change sites.
 - **The editor-core evaluation service is generic over `Real`** from
-  day one — M6's error-propagation UI rides the same memoization /
+  day one — M8's error-propagation UI rides the same memoization /
   cancelation / per-node-result machinery as f64 rebuilds; no
   parallel path, no retrofit.
 - **ε and persistence** *(rules for the first persisted document)*:
@@ -1561,7 +1603,7 @@ named.
   adjacent-face extent (face consumption), spine regularity, blend-
   corner configuration — stated in the feature definition. Payoffs:
   typed, diagnosable pre-construction errors; the predicates are Q1
-  predicates, so M6 can certify **fillet validity over a parameter
+  predicates, so M8 can certify **fillet validity over a parameter
   box** ("cannot break for r ∈ [2,5]") — a direct error-propagation
   payoff no commercial kernel offers; corner reconfigurations become
   enumerated predicate flips, extending the naming pillar to
@@ -1597,7 +1639,7 @@ named.
   dual replay trivial and schema versioning tractable; nearly
   impossible to claw back once one persisted model uses a loop.
 - **Sketch DOF diagnosis is two named layers, never conflated**
-  *(M6; bounds the ezpz boundary — numbers only)*. The **structural
+  *(M8; bounds the ezpz boundary — numbers only)*. The **structural
   layer** (DOF counting, graph decomposition — exact, combinatorial,
   float-free, deterministic) diagnoses over/under-constraint; the
   known residue — generically-well-constrained but configuration-
@@ -1773,7 +1815,7 @@ Ecosystem survey (2026-07) narrowed this considerably:
   Rust at all; everything is iterative/numeric. Over/under-constrained
   diagnosis would be ours to build regardless of solver choice.
 
-Leading answer: adopt **ezpz** at M6, with "roll our own LM solver on
+Leading answer: adopt **ezpz** at M8, with "roll our own LM solver on
 `levenberg-marquardt`/`faer` using ISOtope's math as tutorial" as the
 fallback if ezpz's product-driven roadmap diverges from our needs.
 
@@ -1877,7 +1919,7 @@ primary source; supersedes the old ch. 4–6 partial scan),
 `grinspun-schroder-desbrun-GSD06-discrete-differential-geometry.pdf`
 (DDG course notes — Evan-suggested during PR #9's subgradient
 conversation; the discrete-exactness philosophy is the frame for how
-M6's stackup design should treat kinks/subdifferentials),
+M8's stackup design should treat kinks/subdifferentials),
 `vida-martin-varady-1994-survey-of-blending-methods-parametric-surfaces.pdf`
 (Computer-Aided Design 26(5) — the canonical blending survey, supplied
 by Evan 2026-07-16; primary source for M5's fillet scope-boxing:

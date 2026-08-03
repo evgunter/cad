@@ -346,8 +346,9 @@ false positive to tune away.
 demo scenes as they stand at main's tip (post-#166). This is the
 #89 revisit that M2's Finding 4 named — and the FIRST snapshot in
 which the counterfactual-K decision surface is not completely flat.
-It does NOT itself reopen K = 10 (FINAL above): it presents the
-table and a recommendation with grounds; the decision is Evan's.**
+Its outcome: **#89 is CLOSED and K = 10 is the permanent ratified
+default** (Evan, PR #169 comment 5171303851, 2026-08-03), with a
+testable re-open trigger. See "Decision" below.**
 
 - **Harnesses**: unchanged — `scripts/k_probe_sweep.sh`
   (`crates/editor-core/tests/m4_pr8_k_probe.rs` over every registered
@@ -443,7 +444,8 @@ now expired: the threshold no longer distinguishes signal from
 baseline. **Re-deriving the floor against this distribution (and
 deciding whether the ε-coupled family belongs under a ratio rule
 rather than a metre rule) is a code change and is therefore NOT made
-here — it is carried as a named M6 pickup.**
+here — it is carried as a named M6 pickup** (M6 = the main-path
+completions under the 2026-08-03 renumbering).
 
 ### Finding M5-3: what this corpus STILL cannot show — no SSI margins
 
@@ -545,48 +547,67 @@ the candidate range." M5 cannot. K = 100 now has under a factor of
 two of headroom against a real, shipped, every-run margin family;
 K = 30 has 5.5×; K = 10 retains better than a decade.
 
-### Recommendation (grounds stated; **the decision is Evan's**)
+### Decision: #89 CLOSED — K = 10 is the permanent ratified default
 
-**Hold K = 10, pending the import corpus.** Three grounds:
+**Ruled by Evan on PR #169 (comment 5171303851, 2026-08-03):
+"closing 89 makes sense."** This supersedes the continuation this
+addendum originally recommended; the grounds below are the ones the
+recommendation was built on and they support the close directly.
 
-1. **Nothing in this corpus pressures K downward or upward.** Zero
-   in-band landings, zero indeterminate, zero invalid, at all three
-   ε rows across 5.3M decisions. The M2 reasoning — a free parameter
-   should keep its ratified default rather than churn — is intact.
-2. **The new data argues specifically against RAISING it.** This is
-   the first evidence with any discriminating power at all, and it
-   points one way: the ε-coupled quadrature family puts a real
-   population at ~1.6e2–8.4e2 × ε, which leaves K = 100 only 1.65×
-   of clearance and K = 30 only 5.5×. Raising K toward those values
-   would trade a currently-empty band for one that a routine
-   convergence loop can enter under ordinary refinement — converting
-   an honest definite into a refusal for no modelling reason. K = 10
-   sits comfortably below the family's floor at every ε row.
-3. **The evidence Finding 4 actually asked for has not arrived.**
-   Computed-intersection margins are still absent (Finding M5-3):
-   the curved booleans M5 shipped resolve through exact analytic
-   carriers, so the marcher never samples. And under the #161
-   resequencing, **M7 (STEP import as adoption, D7) now runs before
-   M6** — so the foreign-geometry corpus with real residuals and
-   near-coincidences not of our making, the case M2 named as the
-   strongest K evidence, arrives NEXT MILESTONE. Deciding K's final
-   value one milestone before that evidence lands would spend the
-   decision at its least informed moment.
+**K = 10 is the permanent ratified default.** Not "held pending
+evidence" — decided. Three grounds:
 
-If Evan prefers to close #89 rather than carry it a fourth time, the
-defensible close is "K = 10 ratified as the permanent default, with
-the M7 import corpus a re-open trigger only if it shows in-band
-landings" — that is a real decision, and this snapshot supports it.
-What the data does NOT support is any move to a larger K.
+1. **Nothing in three snapshots has ever pressured K in either
+   direction.** Zero in-band landings, zero indeterminate, zero
+   invalid, at every ε row of M2's, M4's and now M5's corpora — 5.3M
+   decisions in this one alone. A free parameter should keep its
+   ratified, documented default rather than churn.
+2. **The first evidence with any discriminating power argues
+   specifically against RAISING it.** The ε-coupled quadrature family
+   puts a real, shipped, every-run population at ~1.6e2-8.4e2 × ε,
+   which leaves K = 100 only 1.65× of clearance and K = 30 only 5.5×,
+   against K = 10's 16.5×. Raising K toward those values would trade
+   a currently-empty band for one an ordinary convergence loop enters
+   under ordinary refinement — converting an honest definite into a
+   refusal for no modelling reason.
+3. **Waiting longer would not have improved the decision.** The
+   evidence M2's Finding 4 named — computed intersections, then
+   foreign geometry — has been "one milestone away" for three
+   milestones. It is still absent here (Finding M5-3). Deciding on
+   three corpora that agree, with a stated re-open trigger, is
+   better than carrying an open question indefinitely against
+   evidence that keeps not arriving.
+
+**The re-open trigger, stated so it is testable rather than
+aspirational: any corpus that shows IN-BAND LANDINGS** — a margin
+classified indeterminate in `(ε, Kε)`, or an escalation the band
+converts — reopens K. Not "definite margins that look close": the
+counterfactual table already prices closeness, and closeness alone
+has never changed a decision. The expected first source of such
+landings is the **import corpus** (foreign geometry with real
+residuals and near-coincidences not of our making), which under the
+2026-08-03 renumbering arrives at **M7 (STEP adoption)**. The
+`k-lint` advisory row is the standing detector: its rule 1 flags any
+indeterminate or invalid outcome, so a landing surfaces at the next
+hosted run without anyone re-reading this report.
+
+Note that the machinery for a future change is already in place and
+costs nothing to leave there: K is per-run configuration
+(`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10), so a
+future corpus can probe alternatives without code changes. Closing
+#89 ratifies the default; it does not weld the dial.
 
 **Named follow-ups (code, not this unit):**
-- **M6/M7 pickup — re-derive the k-lint baseline floor** against the
+- **M6 pickup — re-derive the k-lint baseline floor** against the
   M5 distribution, and decide whether `props_quad_converged`'s
   ε-coupled family belongs under a ratio rule rather than the metre
   floor. 102 advisory flags per run is a broken signal-to-noise
   ratio, and the lint's own charter said "gate once the baseline is
   trusted" — it cannot be gated in this state.
-- **M7 pickup — an SSI Probe lane**: either a Band-4 corpus document
+- **M6 pickup — an SSI Probe lane**: either a Band-4 corpus document
   whose boolean genuinely requires marching, or a `Probe`
   instantiation of the SSI acceptance suites, so the next K snapshot
-  finally carries computed-intersection margins.
+  finally carries computed-intersection margins. Sequenced at M6
+  under the 2026-08-03 renumbering, because that is where the SSI
+  generic-`T` lift and the loft assembly land — the units that put
+  marched geometry into a body at rest in the first place.

@@ -402,13 +402,13 @@ never topology. Pinning the discipline's boundary explicitly:
   structure.) This keeps the naming pillar airtight: the name table
   is a function of recipe structure + verdicts (N4), and cache shape
   is in neither.
-- Under M6 interval replay the fitted structure transfers with the
+- Under M8 interval replay the fitted structure transfers with the
   body (lineage-scoped keys; content-keyed transfer applies — the
   cache is keyed by the bit-content of its inputs), and the interval
   lane certifies residuals over the parameter box; an indeterminate
   certificate joins the subdivision-driver posture like every other
   interval refusal. Refitting per sub-box is an *optimization*
-  decision for M6, never a semantic one.
+  decision for M8, never a semantic one.
 
 **Alternative considered:** make the fitting loop's convergence tests
 trilean and replay the whole fit at every T — rejected: it manufactures
@@ -503,7 +503,7 @@ practice, p. 343).
   convex↔concave mid-edge has no constant-radius rolling-ball blend
   — trilean per sample, escalate on flip), corner configuration
   (enumerated; see scope). Every one is a Q1 trilean through k_stats
-  from birth, which is what lets M6 certify fillet validity over a
+  from birth, which is what lets M8 certify fillet validity over a
   parameter box (the banked payoff, restated not re-argued).
 - **Blend surface representation, analytic-first (D3 payoff)**: the
   constant-radius rolling ball over analytic supports lands on
@@ -965,7 +965,7 @@ could have reintroduced it mid-milestone is closed.)*
 
 **T2 — Interval quarantine vs certification on the default path.**
 The `interval` feature's LGPL quarantine (issue #4, crate table) was
-scoped when interval arithmetic was an M6 replay lane. C2/C3 make
+scoped when interval arithmetic was an M8 replay lane. C2/C3 make
 enclosures load-bearing for default-build validation of curved
 bodies. C9 resolves it structurally (ring-only in-house type); the
 flag stands in case Evan prefers a different resolution, because

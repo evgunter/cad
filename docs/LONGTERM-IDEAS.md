@@ -35,7 +35,7 @@ mixed). Named instances Evan wants eventually:
 - **(b) Thermal expansion**: materials in metadata; at target
   temperatures, scale each part by its CTE and re-run the
   constraint/clearance checks — do all mates/fits still hold?
-  Prerequisite: M6 signed clearance + material metadata vocabulary
+  Prerequisite: M8 signed clearance + material metadata vocabulary
   (and the interference-fit declarations, which are temperature-
   dependent by nature — see #161's declared-contact doc).
 - **(c) Tool access**: can a hand holding a screwdriver reach each
@@ -50,7 +50,7 @@ mixed). Named instances Evan wants eventually:
 ## I2 — Design-for-measurement
 
 Make it natural for designs to favor easy measurement:
-- **(a)** once interval tolerancing exists (M6), make "the required
+- **(a)** once interval tolerancing exists (M8), make "the required
   tolerance at the places that will actually be MEASURED" a
   first-class query — the designer sees measurable-point tolerances,
   not just whole-feature ones.
@@ -70,7 +70,7 @@ fits) by lookup against machinist's-handbook norms keyed on
 materials/sizes in question, rather than hand-entered numbers —
 i.e. `fit: H7/p6-per-handbook(steel, 12mm)` as a declared,
 versioned data source. Prerequisite: the declared-contact/
-interference vocabulary (#161, rides the M7-era census/contact
+interference vocabulary (#161, rides the M6-era census/contact
 design doc) + a data-provenance story (the handbook table is an
 input with a version, like a tolerance). Pairs naturally with
 I1(b) and I2.

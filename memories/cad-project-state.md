@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M4 COMPLETE, M5 AT EXIT (PR 14 open, awaiting Evan sign-off on #89/K and shape (v); live status = docs/M5-LOG.md tail + docs/M5-EXIT-WALK.md); next = SSI generic-T lift → loft assembly → M7 import BEFORE M6 (#161); merge gate = hosted Actions, gate.sh fallback (see git-workflow); references live in the MAIN checkout; name pending (Q9)
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M4 COMPLETE, M5 COMPLETE at the PR 14 exit sweep 2026-08-03 (Evan ruled: #89 CLOSED / K=10 permanent, shape (v) accepted piecewise, 3 conventions ratified; walk 13 MET / 7 honest / 0 carried-unowned; live status = docs/M5-LOG.md tail + docs/M5-EXIT-WALK.md); RENUMBERED 2026-08-03: M6 = main-path completions (SSI lift, loft assembly, composition surgery, analytic-chart pcurves, census design doc), M7 = STEP adoption ONLY, M8 = error propagation (was M6); merge gate = hosted Actions, gate.sh fallback (see git-workflow); references live in the MAIN checkout; name pending (Q9)
 metadata:
   node_type: memory
   type: project
@@ -50,15 +50,19 @@ git history preserves the rest).
   tessellation, the Band 4 corpus + rebuild-latency lane, and the
   K-telemetry + large-K lint. Record: docs/M4-LOG.md,
   docs/M4-EXIT-WALK.md.
-- **M5 AT EXIT (2026-08-03)** — curved geometry: exact `Ellipse`
+- **M5 COMPLETE (2026-08-03, exit walk 13 MET / 7 MET-WITH-RECORDED-HONESTY / 0 carried-unowned)** — curved geometry: exact `Ellipse`
   carriers, SSI marching with the three-limb certificate, certified
   pcurve storage, per-class curved booleans (plane×cylinder,
   plane×sphere), `Loft`/`Sweep` nodes + schema v2, certified
   tessellation and quadrature mass properties, curved STEP export,
   constant-radius fillets and the die; the interval backend swapped
   to the in-house crate (inari GONE from the tree). PR 14 (the exit
-  sweep) is OPEN and WAITING on Evan for two sign-off items: the
-  #89/K decision and acceptance shape (v)'s two-piece disposition.
+  sweep) carries Evan's rulings (2026-08-03): **#89 CLOSED**, K = 10
+  the permanent ratified default with an in-band-landings re-open
+  trigger; **acceptance shape (v) accepted PIECEWISE** with the
+  composition surgery sequenced early in M6; the three DESIGN.md
+  conventions RATIFIED. Exit walk: 13 MET / 7
+  MET-WITH-RECORDED-HONESTY / 0 carried-unowned.
   **Seven units are banked by name with typed doors** — composition
   surgery, the SSI generic-`T` lift, loft/sweep body assembly, the
   canal blend (PARKED), cyl×sphere germ chords, the NURBS extent
@@ -70,10 +74,18 @@ git history preserves the rest).
   technical entries, the branch carries the dispatch/ruling
   narrative, and neither is a superset. PR 14 imported the A/B log
   from the branch; the M5-LOG merge is still owed.**
-- **Sequencing after M5 (ratified #161, 2026-08-03)**: SSI
-  generic-`T` lift → loft/sweep assembly → **M7 (STEP import as
-  adoption) BEFORE M6** → M6 error propagation. The composition-
-  surgery unit is recommended at the head of that queue.
+- **Sequencing + RENUMBERING (ratified #161, then Evan on PR #169
+  comment 5171303851, 2026-08-03)**: **M6 = the main-path
+  completions** — SSI generic-`T` lift (first; it gates the rest) →
+  loft/sweep body assembly (which also owns completing pcurve
+  certification on the ANALYTIC charts — only Plane and Cylinder
+  certify today) → in-place edge-blend composition surgery
+  (sequenced EARLY, comment 5171351203) → cyl×sphere germ chords /
+  NURBS extent lift; plus the census/declared-contact design doc,
+  design-only. **M7 = STEP adoption ONLY** (Evan: "we shouldn't fold
+  any core work like ball and socket into M7"). **M8 = error
+  propagation** — this was M6 until 2026-08-03; `ERROR-DESIGN.md`'s
+  body still says "M6" and has a status line saying so.
   Q9 name shortlist parked in [[name-candidates]].
 
 **Key operational facts:**

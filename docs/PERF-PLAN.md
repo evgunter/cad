@@ -77,7 +77,7 @@ background-eligible but cheap enough not to bother.
 
 **Background.** STL/STEP export (`crates/stl/` is a trivial linear
 writer; f32 narrowing documented), K-telemetry (`geom_core::k_stats`),
-the M6 interval subdivision driver (Q1 calls it embarrassingly
+the M8 interval subdivision driver (Q1 calls it embarrassingly
 parallel — correctly, see §2.2), fine-δ export tessellation.
 
 **The interval lane's cost, honestly.** Interval replay costs roughly
@@ -85,7 +85,7 @@ parallel — correctly, see §2.2), fine-δ export tessellation.
 the inari `DecInterval` backend; the `interval-transcendentals` backend
 that replaced it in M5 PR 1 has not been re-measured on this axis),
 and the subdivision driver multiplies whole-model replays by sub-box
-count. But it is *never* on the preview path — it is the M6
+count. But it is *never* on the preview path — it is the M8
 certification lane and a CI lane — so it is a throughput problem
 (parallelize, §2.2), not a latency problem. Stated plainly: **nothing
 about interactive latency justifies weakening the trilean
@@ -98,7 +98,7 @@ architecture; the f64 lane with K·ε escalation IS the fast path.**
 | 1 | CDT tessellation (quadratic insertion; full-body re-tess) | preview | algorithmic (§2.1) |
 | 2 | Boolean edge×face sweep (quadratic) | preview (M3+) | algorithmic (§2.1) |
 | 3 | Full-DAG rebuild on any edit | preview | architectural (M4 memoization) |
-| 4 | Interval subdivision driver | background (M6) | parallelism (§2.2) |
+| 4 | Interval subdivision driver | background (M8) | parallelism (§2.2) |
 | 5 | Tier-3 certification/validation | commit | leave alone until profiled |
 | 6 | Mass props, exports | background | leave alone |
 
@@ -129,7 +129,7 @@ code and its trigger; the trigger is the license to start.
   editor-core. Lands with M4's evaluation service.
 - **One BVH/spatial-index crate, three consumers.** The quadratic
   boolean sweep (M3-PLAN PR 4), viewport ray-picking (Band 1), and M5
-  SSI seeding / M6 clearance all want the same structure: a
+  SSI seeding / M8 clearance all want the same structure: a
   deterministic AABB-BVH built in arena order with fixed splits and
   total tie-breaks — no hash order, no parallel-build nondeterminism
   in v1. (The Banked cache principle already names "BVH node" as a
@@ -162,7 +162,7 @@ vocabulary so every future use cites them instead of re-deriving:
    size a named constant, combine order documented). Same bits every
    run, any thread count.
 
-Targets, in value order: the **M6 subdivision driver** (Q1's
+Targets, in value order: the **M8 subdivision driver** (Q1's
 "embarrassingly parallel" is literally idiom 1); **per-face
 tessellation** (faces independent; mesh vertex minting switches from
 a running counter to per-face offset ranges via a sequential prefix
@@ -217,14 +217,14 @@ parallelizing surgery.
   *topology* (the actual bottleneck, §1.2) does not GPU-parallelize —
   GPU buys vertex evaluation/refinement of existing patch topology.
   Verdict: a GUI-milestone experiment, not a kernel commitment.
-- **Batch f64 value evaluation (M6 Monte Carlo) — marginal.** Each
+- **Batch f64 value evaluation (M8 Monte Carlo) — marginal.** Each
   sample is a full model *rebuild* (topology surgery, CPU-shaped),
   not a bare function evaluation; rayon over samples is the right
   tool. GPU would accelerate the cheap part.
 
 ### 3.2 Batch certified predicates on GPU: assessed and tabled
 
-The tempting idea — evaluate thousands of interval predicates (M6
+The tempting idea — evaluate thousands of interval predicates (M8
 clearance, SSI exhaustiveness) on GPU — fails today on three
 independent grounds, each disqualifying:
 
@@ -246,7 +246,7 @@ independent grounds, each disqualifying:
    auditable, at which point the CPU BVH already does the job.
 
 Conclusion: **certified/trilean predicates on GPU are research-grade;
-tabled** (revisit post-M7 at the earliest, alongside the Tabled
+tabled** (revisit post-M8 at the earliest, alongside the Tabled
 in-house interval transcendentals — same "rigorous numerics we fully
 control" prerequisite). Not a loss: the interval lane's workloads are
 throughput-shaped and rayon-parallel (§2.2).
@@ -420,7 +420,7 @@ picking) as the **idealized/realized pilot** with its CI differential
 suite; CDT bulk-loading if the corpus shows CDT dominance (likely);
 SSI marching written with its idealized stepper from day one.
 
-**M6** — parallel subdivision driver (idiom 1 over sub-boxes);
+**M8** — parallel subdivision driver (idiom 1 over sub-boxes);
 interval-lane throughput work if certification wall-times demand it.
 
 **GUI milestone owns** everything in §3.1: wgpu rendering, ID-buffer
