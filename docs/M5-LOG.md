@@ -2537,3 +2537,10 @@ unaffected. Hiding + free-move = display-layer state, never
 recipe. **Evan retro-APPROVED the Bounds allowlist extension**
 ("makes sense to me"). Die-in-both-montages confirmed already on
 the #166 branch (both stops, both lanes).
+
+**I1 gains its first member (Evan, 2026-08-03): the #89
+scale-relative sliver lint** — the display half of #89 is now
+HOMED as the part-unit-test lane's prototype (advisory,
+warn-never-refuse, threshold sweep over existing K telemetry).
+PR 14's #89 item simplifies to the kernel-K snapshot decision
+alone, with the display half's disposition recorded as I1(0).

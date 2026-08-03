@@ -13,6 +13,18 @@ validity gates — certified where the geometry supports it, honest
 heuristics where it doesn't (labeled as such, never silently
 mixed). Named instances Evan wants eventually:
 
+- **(0) The scale-relative sliver lint — the FIRST and easiest
+  member (Evan, 2026-08-03, resolving #89's display half).** A
+  margin that is numerically definite (≫ Kε) yet below
+  display-distinguishability at model scale is *probably* a
+  mistake — warn, never refuse; the modeler confirms intent ("the
+  2 µm step is deliberate"). Easiest because no new geometry is
+  needed: the margins are already recorded (the K-funnel
+  Probe/verdict telemetry), so this is a threshold sweep over
+  existing data plus a warn channel — and it is the PROTOTYPE of
+  this whole lane's shape (per-part, advisory, honest about being
+  a heuristic threshold). #89's kernel half (the K value itself)
+  stays with the exit-walk K-snapshot decision, separately.
 - **(a) Injection-molding / draft**: the shape is 1-1 along the
   pull direction (a function), with derivative everywhere below a
   max — equivalently minimum draft angle everywhere. This is a
