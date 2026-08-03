@@ -2864,6 +2864,47 @@ Its ball's meridian is likewise split at an equator vertex, because
 the revolve name emitter refuses an all-on-axis loop; both costs are
 written down at the site with the condition for deleting them.
 
+**Gate fixes (two jobs red on #166).**
+
+*The `Bounds` compound-bound tripwire* fired on the two fillet files.
+Ruled under the PR 11 lane-split precedent, and the check it turns on
+came back negative: **no dual-scalar path can reach the fillet
+constructor.** `Bounds` is implemented for `f64`, the interval scalar
+and the telemetry probe — never for `Dual`, which has no bracket to
+offer — and the one production caller (`editor_core::eval`'s fillet
+wiring) sits beneath `evaluate<T>`, whose own signature already
+carries `Bounds` and which instantiates at `f64`/`Interval` only. A
+`PropsQuadLane`-style static split would therefore have had an EMPTY
+refusing side: a dual impl refusing a call no dual scalar can make. So
+the seam is RATIFIED rather than split — both allowlists (the hosted
+step and `scripts/ci-local.sh`) and the `real.rs` scope-rule paragraph
+now carry it, with the grounds: the battery's margins are certified
+metric quantities (sup-κ curvature hulls, blend setback bounds)
+reported as `f64` payloads, i.e. enclosure consumers of exactly the
+quadrature's class. The day a dual lane wants fillets is the day the
+static split earns its keep.
+
+*The k-lint job's process exited 1* — a crash, not an advisory
+finding — and chasing it found a real defect rather than a harness
+problem. The clearance screen seeded its gap with
+`T::from_f64(f64::INFINITY)`. At `f64` that is a harmless sentinel; at
+the certified interval scalar it is the ill-formed interval, NaI
+absorbs through `min`, and every clearance margin downstream of it
+escalated `Invalid`. The whole fillet op was therefore outside the
+Interval lane, `die_fillet` had to sit BESIDE the corpus registry
+instead of in it, and — the consequence the gate actually surfaced —
+the `fillet3_*` family recorded **zero** samples in the K corpus: a
+new predicate family with no telemetry at all. Seeding the gap from
+the first sampled pair fixes all three at once. `die_fillet` is now a
+registered corpus document, `node Fillet` is off `FRONTIER_UNCOVERED`,
+the latency baseline gained its row (refreshed on a verified-quiet
+machine — load 0.86, no cargo or rustc running — and reproducing every
+pre-existing row within ±40%), and the family records 348 samples
+across five of its six predicates at ε = 1e-9. The sixth,
+`fillet3_chain_g1`, records zero BY CONSTRUCTION and correctly: a box's
+twelve chains are one-link open chains, so they have no junctions for
+it to judge.
+
 **Battery.** Touched crates at default ε: `sweep` (all binaries),
 `geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all),
 `editor-core` (all 54 binaries at `f64` — 258 rows — and the whole
