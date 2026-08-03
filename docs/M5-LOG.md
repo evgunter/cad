@@ -2620,3 +2620,15 @@ archives (ε rows share one) → intra-row --partition only if
 measurements justify; non-cargo rows untouched; ci-local.sh
 sync per the KEEP IN SYNC contract; doctest audit required.
 Gate-first (the PR's own runs are the validation).
+
+**#166 MERGED (2026-08-03): 18/18 — THE DIE IS ON MAIN.
+Thirty-three PRs. M5 construction is COMPLETE** (every plan
+line 0-13 + S1-S13 landed or honestly banked). Lanes cleaned.
+**PR 14 (the exit sweep) DISPATCHED (OPUS — block-19 remainder;
+difficulty M logged pre-assignment): K-snapshot over the curved
+corpus + counterfactual-K table (Finding 4's revisit fires),
+envelope/DESIGN sweep, the exit walk with TWO Evan sign-off
+items (#89 kernel-K; shape (v) two-piece disposition), A/B
+close readout. Orchestrator reviews the walk personally; the
+PR waits for Evan.** Curation unit (5 items) queues block-20.
+Board: CI-shard (fable) + PR 14 (opus).
