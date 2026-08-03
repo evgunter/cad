@@ -287,12 +287,29 @@ fn circle_span_bounds<T: Real>(
     };
     // The Killing-field deviation for rotation about `a` through `o`,
     // optionally quotienting the free translation along `a`.
+    //
+    // **Both angular directions** (M5 PR 12 fix pass): rotation about
+    // an axis is a one-parameter group, so `−a·(p − o)` is as much a
+    // Killing field of the surface as `+a·(p − o)` is — a carrier
+    // circle traversed CLOCKWISE about a cylinder's stored axis is the
+    // same coaxial configuration as one traversed counterclockwise,
+    // and only the sign of the stored `axis` field differs. Measuring
+    // against `+a` alone made that half of the configurations pay
+    // `dev = r_c` (the clamp) for nothing — which is exactly the die's
+    // corner arcs, half of whose `he_plus` directions point the other
+    // way around their blend cylinder. The bound is the MINIMUM over
+    // the two group directions: both are valid bounds, so taking the
+    // smaller only tightens the certificate, and the coaxial
+    // configuration now yields EXACTLY zero either way round.
     let dev_rot = |a: Vec3<T>, o: Point3<T>, slide: bool| -> T {
         let fix = |x: Vec3<T>| if slide { perp(x, a) } else { x };
-        let d0 = fix(a.cross(center - o));
-        let d1 = fix(v - a.cross(u));
-        let d2 = fix(u + a.cross(v));
-        (d0.norm() + rc * (d1.norm() + d2.norm())).min(rc)
+        let dev = |s: T| -> T {
+            let d0 = fix(a.cross(center - o) * s);
+            let d1 = fix(v - a.cross(u) * s);
+            let d2 = fix(u + a.cross(v) * s);
+            d0.norm() + rc * (d1.norm() + d2.norm())
+        };
+        dev(T::one()).min(dev(-T::one())).min(rc)
     };
     let bounds_of = |s: &Surface<T>| -> Option<(T, T)> {
         match *s {

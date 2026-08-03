@@ -196,8 +196,7 @@ pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a t
      are not implemented";
 /// The recourse for an assembly request outside the one whole-body
 /// front door — it names the banked surgery unit.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str =
-    "fillet EVERY edge of a convex, planar-faced, trivalent-vertex polyhedron; in-place \
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet EVERY edge of a convex, planar-faced, trivalent-vertex polyhedron; in-place \
      edge-blend surgery on a subset of a body's edges is not implemented";
 /// The recourse for a general spine — it names the banked unit.
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose rolling-ball spine is a line or a circle; general spines need \
@@ -406,6 +405,9 @@ impl fmt::Display for FilletError {
                     _ => FILLET3_RADIUS_RECOURSE,
                 };
                 write!(f, "fillet at {site:?}: {source} — {recourse}")
+            }
+            Self::AssemblyUnsupported { detail } => {
+                write!(f, "fillet assembly: {detail} — {FILLET3_ASSEMBLY_RECOURSE}")
             }
             Self::Certify { detail } => write!(f, "fillet: blend geometry uncertified — {detail}"),
             Self::Op { detail } => write!(f, "fillet: assembly refused — {detail}"),

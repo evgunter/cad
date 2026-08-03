@@ -58,6 +58,24 @@
 //! [`Convexity`] ([`Convexity::blend_sense`]) — never from a sampled
 //! normal (S10/S11). Shrunk planar faces inherit the ORIGINAL face's
 //! bit: same plane, same chart, same material side.
+//!
+//! # KNOWN LIMITATION — the octant's chart, and oblique trihedra
+//!
+//! The result is a tier-1/2 valid closed shell for every input the
+//! front door admits. Tier **3** additionally needs the sphere
+//! octant's three contact circles to be an iso-parameter rectangle in
+//! its chart, because check 7's `+V` invariant runs the closed-form
+//! mass properties, whose curved-face inventory is rims and meridians
+//! (`geom_brep::props::curved_face`). The chart chosen below —
+//! aimed along one incident edge — achieves that exactly when the
+//! THIRD support's normal is parallel to that edge, i.e. at a RIGHT
+//! trihedron (every vertex of a box). At an oblique trihedron no
+//! chart makes a spherical triangle an iso-rectangle, so
+//! `topo::mass_properties` refuses `NotIsoRectangle` and tier 3
+//! reports `VolumeUncomputable` — a gap in the props inventory (a
+//! spherical-triangle closed form, or the certified-quadrature lane
+//! extended to sphere faces), not in the body. The assembly does not
+//! pretend otherwise: it neither gates on it nor asserts tier 3.
 
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
 use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
@@ -317,7 +335,39 @@ impl<T: Decide + Bounds> Plan<T> {
                 vindex.push((v, f, points.len()));
                 points.push(ball.center + *n * radius);
             }
-            corners.push((v, ball.center, ball.surface.clone()));
+            // The octant's CHART, chosen so the patch is an
+            // iso-parameter rectangle: `corner_ball`'s own chart aims
+            // at the trihedral diagonal, under which all three
+            // contact circles are oblique — neither rims nor
+            // meridians — and the closed-form mass properties refuse
+            // (`props_rim_axis_parallel`). Aiming the chart along ONE
+            // incident edge instead makes that edge's contact circle
+            // the equator RIM and — when the third support's normal is
+            // parallel to that edge, as at every right trihedron —
+            // the other two polar MERIDIANS, with the third foot at
+            // the pole. The turn from the first support's foot to the
+            // second gives the axis its sign (so `u` sweeps forward
+            // from the seam) and the first foot IS the seam.
+            let e0 = links
+                .iter()
+                .find(|l| l.start == v || l.end == v)
+                .ok_or_else(|| unsupported("a vertex has no requested edge"))?;
+            let (Some(n_a), Some(n_b)) = (outward_of(body, e0.face_a), outward_of(body, e0.face_b))
+            else {
+                return Err(unsupported(
+                    "a corner's first edge has a non-planar support",
+                ));
+            };
+            corners.push((
+                v,
+                ball.center,
+                Surface::Sphere {
+                    center: ball.center,
+                    radius,
+                    axis: n_a.cross(n_b).normalize(),
+                    u_ref: n_a,
+                },
+            ));
         }
         let foot = |v: VertexKey, f: FaceKey| -> Option<usize> {
             vindex
@@ -631,16 +681,30 @@ impl<T: Decide + Bounds> Plan<T> {
             let Some(ek) = state.ekey[i] else {
                 return Err(unsupported("a planned edge was never minted"));
             };
+            let kind = match planned.carrier {
+                EdgeCarrier::Trim => "trimline",
+                EdgeCarrier::Arc { .. } => "corner arc",
+            };
             let spec = self.contact_spec(&state.body, ek, planned.carrier)?;
             state.body.set_edge_curve(ek, spec).map_err(|e| match e {
                 topo::EulerOpError::Certification { error } => FilletError::Certify {
-                    detail: error.to_string(),
+                    detail: format!("{kind} {i}: {error}"),
                 },
                 other => FilletError::Op {
-                    detail: other.to_string(),
+                    detail: format!("{kind} {i}: {other}"),
                 },
             })?;
         }
+
+        // The structural postcondition, exactly as extrude's (tier 3
+        // is NOT asserted here — see the module docs' known
+        // limitation on oblique trihedra).
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(
+            topo::validate_closed(&state.body),
+            Ok(()),
+            "fillet postcondition: the result is not tier-2 valid (kernel bug)",
+        );
 
         let bucket = |kind: FaceKind| -> Vec<FaceKey> {
             self.faces
