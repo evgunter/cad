@@ -2482,3 +2482,19 @@ centerpiece (incl. the pips-FIRST reorder hypothesis: box edges
 are intact before filleting; if that composes TODAY it changes
 everything), and its sizing feeds the shape-(v) exit ruling
 (Evan) if the gap stands.** Sole lane.
+
+**PR 12 review returned (2026-08-03): APPROVE with fix pass —
+1 MAJ (octant e0 pick: tier-3 lost on all non-square prisms;
+die unaffected) / 3 MIN / 5 NOTE + 1 silent scope gap (Band-4
+rows). THE COMPOSITION ANSWER: no reordering composes today
+(pip→fillet misses the whole-body door on FOUR counts;
+fillet→pip's "definitely meets" is FALSE — true clearance
+1.6 cm, the arm is unconditional); the surgery unit = ONE
+reviewed unit (~build.rs scale; all geometry already pinned);
+recommend ACCEPT TWO-PIECE + BANK. Review also REFUTED the
+coaxiality theorem (torus-meridian counterexample: in-lane,
+true, uncertifiable — latent, loud) and executed the hexagon
+over-refusal + inradius-tightness boundary. Fix pass DISPATCHED
+(F1-F6). EXIT RULING FOR EVAN queued with the exit walk: shape
+(v) met piecewise; recommendation = accept + bank the surgery
+unit at the HEAD of the main-path queue (before SSI lift).**
