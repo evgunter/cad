@@ -2620,3 +2620,149 @@ product of two factors certified positive by the preceding trilean
   the dev-2 face-box hazard was CONFIRMED LIVE ON MAIN: the realized
   BVH pruned dir-1 pierce candidates and a fin×ball union answered as
   if disjoint, a silent self-overlapping body).
+
+## PR 12 — fillets: the validity battery, the analytic blends, the die
+
+**Scope call, recorded (spec §Scope, ratified at #161)**: no
+canal-surface lane. `FilletError::SpineUnsupported` names it as the
+front door that does not exist yet, and a fixture reaches that text.
+
+**Naming: `fillet3_*`, a NEW K family.** Not an extension of S2's
+`fillet_*`, on two grounds. (i) `ProfileError`'s escalated arm
+dispatches its recourse sentence by matching
+`Indeterminate::predicate` against the S2 names, so a shared prefix
+routes a 3-D escalation into a 2-D recourse sentence at the first
+collision. (ii) The K-report's per-family buckets would fuse two
+unrelated corpora — 2-D leg setbacks over a `LoopBuilder` and 3-D
+curvature headroom over a `Body` — which is exactly the separation the
+K funnel exists to keep.
+
+**The six predicates** (C8's binding order), each a named Q1 trilean
+whose margin is a LENGTH at a named lever arm:
+
+1. `fillet3_radius_headroom` — `(1 − r·κ_max)·r`, arm `r`, per support
+   per sample. A plane's unbounded curvature arm saturates at `r`.
+2. `fillet3_face_consumption` — `gap − setback_here − setback_there`,
+   swept over every PAIR of boundary edges of every support face. A
+   single-edge extent test would pass `r < L` on a face that two
+   opposite blends at `r > L/2` erase between them; the pair sweep is
+   what makes "must not consume a face" a real statement.
+3. `fillet3_spine_regularity` — `(1 − r·κ_spine)·r`, arm `r`. A
+   different curvature from (1): the SPINE's, not the supports'. For a
+   circular rim spine it IS the ring-torus condition `s > r`, so the
+   torus constructor's degenerate case is refused before the surface
+   exists.
+4. `fillet3_chain_g1`, gated by `fillet3_chain_arm` — `sin θ · arm`,
+   with the dihedral classifier's own collapsed-arm gate.
+5. `fillet3_convexity_sign` — `((n_a × n_b)·τ̂)·arm`, positive =
+   convex. Well-defined: swapping the two faces also reverses the
+   traversal, and the triple product is invariant under doing both.
+6. `fillet3_corner_independence` — `|det(n₁,n₂,n₃)|·r`.
+
+**The ordering claim, made structural rather than promised.** The
+review charter's attack is "a fixture that passes the battery but
+fails in construction". Three things close that door: the battery
+resolves each link's analytic ARM first and refuses typed on any
+support pair the arms do not cover (so the constructor cannot meet an
+unconsidered case); the setbacks predicate 2 refuses on are returned
+BY the same functions the constructor calls (no second copy of the
+geometry to drift); and the junction/termination rule is purely
+structural — a vertex where exactly TWO requested links meet is a
+junction (predicate 4), anything else is a termination (predicate 6).
+So filleting all twelve box edges yields twelve one-link open chains
+at eight trihedral corners, and a pip rim yields one closed chain,
+with no geometric decision anywhere in the walk.
+
+**The jet certificate grew a circle arm (geom-brep).** The die's corner
+trimlines are CIRCLES, and PR 9's span bounds covered only `Line`
+carriers — `upgrade.rs` even said so, calling the circle-carrier
+tangent certificate "the lane's next retirement, not this PR's". PR 12
+takes it, with a proof rather than a constant: `κ_rel` and the implicit
+residual are isometry invariants, so a carrier motion that is a
+symmetry flow of both surfaces cannot move them. Two distinct
+elementary surfaces of revolution tangent along a whole CIRCLE are
+necessarily coaxial with it, and in that configuration both span
+bounds are EXACTLY zero (the Killing-field deviation vanishes in both
+group directions). A configuration that misses coaxiality pays
+continuously — there is no gate, hence no demanded-but-not-certifiable
+hole. The LINE arm is byte-for-byte unchanged.
+
+Two consequences landed with it, both flips of pins that were correct
+when written:
+- `m5_pr9_tangent.rs`'s out-of-lane row was exactly the plane–torus
+  coaxial circle. It is kept and flipped, with its history; the
+  out-of-lane row moves to a cone partner (still uncertified).
+- `revolve` now stores `TangentIntersection` on a jet-DETERMINATE
+  latitude join, deciding it with the SAME `tangent_second_order`
+  predicate tier 3's must-carry reads — so the demanded set and the
+  stored set stay one set. Under-determined joins (κ_rel at zero) and
+  in-band ones keep the conventional description exactly as tier 3
+  exempts them: the upgrade is an enrichment, never a new refusal.
+
+**Blend arms landed**: plane–plane → cylinder (straight spine, setback
+`r·tan(φ/2)`); plane–sphere rim → torus (circular spine,
+`s² = a² + 2r(R − c)`, so the blend widens the FLAT face — which is
+what makes it a fillet and not a gouge); trihedral vertex → sphere
+octant. The octant rests on one structural fact, pinned: the corner
+ball's centre lies ON every incident blend cylinder's axis and both
+have radius `r`, so sphere and cylinder are tangent along a full
+circle with `κ_rel = 1/r`. Cone arms: not reached by the die or any
+fixture, refused typed. Sense comes from the stored convexity verdict
+(`Convexity::blend_sense`), never from a sampled normal.
+
+**THE DIE.** Two bodies, honestly, because at M5 they do not compose.
+- *The blank* — a unit cube, all twelve edges blended at r = 0.12: 26
+  faces / 48 edges / 24 vertices, tiers 1–3 green, volume AND surface
+  area on their closed forms to 1e-9 relative with a zero enclosure
+  pad, watertight under `check_mesh`, all 12·4 + 8·3 blend/corner
+  boundary edges carrying `TangentIntersection`, STEP exported and
+  FreeCAD-imported (valid, 26 faces, volume within 2.6e-7 relative),
+  in the tour and in the PR 13 fixture corpus as `filleted_die` — the
+  first fixture with plane AND cylinder AND sphere faces in one solid,
+  all exact, no B-splines.
+- *The pips* — 21 spherical dimples on all six faces of a sharp cube,
+  cut in ONE certified group operation, tier-3 valid, volume on its
+  closed form, watertight, exported and imported. Two facts had to be
+  got right and each was a typed refusal until it was: cutting the
+  pips one at a time presents a TRIMMED sphere face as the next
+  operand (S13's closed-group discipline refuses it), and charting a
+  pip ball with a tilted pole makes the plane×sphere section non-polar
+  (the split-join's azimuth-anchored arc-side rule refuses it).
+
+**Deviations, numbered.**
+1. *The blank and the pips do not compose.* Both orderings fail, at two
+   DIFFERENT pre-existing frontiers, and both are pinned as rows
+   (`deviation_1_the_blank_and_the_pips_do_not_compose_yet`): fillet →
+   pip hits the curved pierce door (point-in-face trim containment on a
+   curved chart, plus the ring insertion behind it — the M5 envelope's
+   named frontier); pip → fillet hits the assembly front door, because
+   the twelve box edges are no longer EVERY edge of the body and the
+   rebuild does not carry a face's RINGS through.
+2. *The pip-rim torus fillets are not assembled.* The ARM is landed and
+   pinned against its closed forms, including both trimlines' tangency
+   and their second-order separations (`1/r` against the flat face,
+   `1/R + 1/r` against the pip sphere), and the battery accepts a real
+   pip rim as a CLOSED chain on that arm. What is missing is the
+   in-place surgery that replaces a rim edge with a torus band inside
+   an existing body — the same banked unit deviation 1's second door
+   names.
+3. *The corner octant's chart is an iso-rectangle only at a RIGHT
+   trihedron.* `props`'s closed-form inventory needs a face's rims to
+   be axis-parallel; a spherical triangle admits such a chart only when
+   the third support normal is parallel to the chosen edge. Every box
+   vertex is right, so the die is unaffected; an oblique trihedron
+   builds through tiers 1–2 and then reports `VolumeUncomputable`. The
+   gap is in the props inventory (a spherical-triangle form, or
+   quadrature extended to sphere faces), not in the body.
+4. *No dual montage.* The machinery had not merged; both stops are
+   ordinary montage panels and will pick up the second montage for
+   free when it lands.
+
+**Battery.** Touched crates at default ε: `sweep` (all binaries),
+`geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all).
+New rows: 9 battery + 13 refusal/trio + 7 blend + 3 die-body + 3 die =
+35, plus 3 in `geom-brep`. `cargo fmt --all` clean; clippy clean on the
+touched crates. The demo tour runs green end to end and exports both
+die bodies; `scripts/check_step.sh` passes the whole fixture corpus
+under FreeCAD 1.1.2 including the new row. Interval-square tripwire on
+the diff: no `x*x` squares added; every new square is `powi(2)`.
