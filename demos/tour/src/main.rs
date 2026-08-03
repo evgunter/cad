@@ -19,6 +19,7 @@ mod bossplate;
 mod crosslap;
 mod curvedcut;
 mod cutaway;
+mod diefillet;
 mod heatsink;
 mod letterforms;
 mod probe;
@@ -379,6 +380,11 @@ fn main() {
 
     println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
     for stop in rocker::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
+    for stop in diefillet::stops() {
         run(&stop);
     }
 
