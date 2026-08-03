@@ -2596,3 +2596,9 @@ analysis attached.
 comprehensively; diefillet covers rolling-ball) — unless Evan
 prefers plate to gain filleted corners to keep an extrude-
 fillet cell distinct; default = retire, flag in the unit's PR.
+(4) BANNER SYMMETRY: the kernel montage gets its own
+provenance banner ("the kernel's own certified tessellation —
+compare renders-freecad/montage-freecad.png") so the two sheets
+superimpose exactly, cell for cell AND banner for banner —
+one-line render.sh change (compose_montage.py --banner exists)
++ sheet regeneration, riding the same curation unit.
