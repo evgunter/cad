@@ -131,9 +131,7 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
 }
 
 fn placements<S: Scalar>() -> Vec<(Vec3<S>, Vec3<S>)> {
-    let v = |x: f64, y: f64, z: f64| {
-        Vec3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z))
-    };
+    let v = |x: f64, y: f64, z: f64| Vec3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z));
     let h = L / 2.0;
     let faces = [
         (1u32, v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
