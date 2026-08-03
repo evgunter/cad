@@ -34,11 +34,13 @@ head revisions (it diffs package graphs), i.e. a second checkout; and its
 headline feature — rules for mapping non-Cargo files onto packages — is
 exactly the part this repo has to spell out by hand anyway (tier `all`
 below). `cargo-nextest`'s `rdeps(pkg)` filterset expresses the closure
-natively, but adopting nextest changes the test RUNNER for every job:
-different output, per-test process isolation, and no doc-tests (they would
-need a separate `cargo test --doc` row). Neither pays for itself against
-~40 lines of graph walk over `cargo metadata --no-deps`, which needs no
-install, no pinned version, and no dependency-age review at all.
+natively — and nextest WAS later adopted as the test runner (2026-08-03,
+the build-once/archive restructure; its doc-test gap is covered by
+explicit `cargo test --doc` rows). The filter still does not use
+`rdeps()`: this script must also classify NON-test rows (clippy scope,
+per-job roots, the docs/all tiers), so the ~40-line graph walk over
+`cargo metadata --no-deps` remains the single implementation rather than
+splitting the closure logic between two tools.
 
 Usage:
   ci-filter.py --base <ref>        classify `git diff --name-only <ref>...HEAD`
