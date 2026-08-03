@@ -21,11 +21,44 @@ become a kernel dependency.
 cd demos/tour
 cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.json
 cd ..
-./render.sh                     # FreeCAD headless (or matplotlib fallback), then montage
+./render.sh                     # kernel-tessellation montage (renders/montage.png)
+./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ```
 
 Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
-`demos/renders/*.png` (tracked — one per scene plus `montage.png`).
+`demos/renders/*.png` (tracked — one per scene plus `montage.png`),
+`demos/renders-freecad/*.png` (tracked — the montage cells plus
+`montage-freecad.png`).
+
+## The two montages (#159)
+
+The tour ships **two montage sheets** with identical grids, captions,
+scene order, and cameras (both read `scenes.json`) — cell-for-cell
+comparable, differing ONLY in whose tessellation is on screen:
+
+- `renders/montage.png` — **the kernel's own facets**. Every cell
+  renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
+  tessellation lane exactly as the kernel emitted it (flat-shaded
+  chords on curved walls and all).
+- `renders-freecad/montage-freecad.png` — **the FreeCAD/OCC reference**
+  (banner on the sheet says so). Every cell is FreeCAD importing the
+  body's OWN AP214 STEP export and letting OCC re-tessellate the
+  B-rep — export → OCC import → render, the F6 lane dogfooded
+  end-to-end.
+
+Reading a disagreement: the STEP lane is the reference rendering of
+the *analytic surfaces the kernel claims to have exported*, and the
+kernel lane is what our own tessellator makes of the same bodies — so
+a cell-level mismatch is a visual differential with exactly two
+suspect pools. Coarse-but-faithful shape (visible facets, correct
+silhouette) is the expected gap: chordal, inscribed tessellation vs
+OCC's finer default deflection. Wrong GEOMETRY in a cell pair —
+missing walls, displaced features, a silhouette that differs beyond
+faceting — means either our tessellator or our STEP writer is lying
+about the same body, and which cell is wrong tells you which. A
+STEP-lane cell can also be a labeled placeholder naming an import/
+render failure (per-scene `freecadcmd` with a timeout; one bad scene
+costs one cell, never the sheet).
 
 ## The stops
 
@@ -117,24 +150,37 @@ export does not.
 
 ## Renderers
 
-`render.sh` prefers **headless FreeCAD** (`freecadcmd`,
-`QT_QPA_PLATFORM=offscreen`, no display/Xvfb): one session imports the
-tour's OWN STEP exports — every montage panel now dogfoods the F6 lane
-end-to-end (export → OCC import → render), curved bodies included since
-M5 PR 13; the STL mesh-import fallback stays for anything that ever
-fails to export. Set `FREECADCMD`
-to override the binary location. All scenes render in one warm
-document with per-scene visibility toggling (per-scene document
-cycling races the offscreen view-provider setup — observed as blank
-frames/hangs). freecadcmd's Qt teardown can crash AFTER a successful
-pass, so `render.sh` keys on the `renders/.freecad_ok` sentinel, not
-the exit status.
+`render.sh` (kernel lane) prefers **headless FreeCAD** (`freecadcmd`,
+`QT_QPA_PLATFORM=offscreen`, no display/Xvfb) importing the tour's STL
+meshes — the facets on screen are the kernel's own tessellation
+regardless of renderer. (Before the #159 split this lane preferred
+STEP imports; once M5 PR 13 made every body export STEP that would
+have turned the "kernel" montage 100% OCC, so the STL source is now
+unconditional and the STEP imports live in the `--freecad` lane.)
+Set `FREECADCMD` to override the binary location. All scenes render
+in one warm document with per-scene visibility toggling (per-scene
+document cycling races the offscreen view-provider setup — observed
+as blank frames/hangs). freecadcmd's Qt teardown can crash AFTER a
+successful pass, so `render.sh` keys on the `renders/.freecad_ok`
+sentinel, not the exit status.
 
-`render.py` is the zero-dependency fallback (numpy + matplotlib, pure
-CPU, demo-local venv): binary-STL parsing, flat shading, exact
-backface culling (guaranteed by tier 3's +V invariant) — and the lane
-that draws OUR tessellation (FreeCAD re-tessellates from the B-rep;
-the STL lane in CI keeps mesh coverage either way).
+`render.sh --freecad` (STEP lane) runs **one `freecadcmd` process per
+scene** under `timeout` (`FREECAD_SCENE_TIMEOUT`, default 300 s) —
+bulk imports have stalled before, and per-scene isolation means a
+stall or import failure costs one cell: the failure reason lands in
+`renders-freecad/<scene>.fail.txt` (full log under
+`out/freecad-logs/`) and `compose_montage.py` draws a labeled
+placeholder cell naming it — never a silent gap. This lane has no
+matplotlib fallback: its whole point is the OCC reference render, so
+a missing `freecadcmd` is a loud exit.
 
-`compose_montage.py` builds `montage.png` from the per-scene PNGs in
-`scenes.json` order with captions, for both render paths.
+`render.py` is the zero-dependency fallback for the kernel lane
+(numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,
+flat shading, exact backface culling (guaranteed by tier 3's +V
+invariant) — the same kernel facets, drawn without FreeCAD (the STL
+lane in CI keeps mesh coverage either way).
+
+`compose_montage.py` builds the montage sheet from the per-scene PNGs
+in `scenes.json` order with captions, for every render path;
+`--montage=NAME` / `--banner=TEXT` give the STEP lane its own filename
+and provenance banner on the same grid.
