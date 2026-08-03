@@ -2632,3 +2632,13 @@ items (#89 kernel-K; shape (v) two-piece disposition), A/B
 close readout. Orchestrator reviews the walk personally; the
 PR waits for Evan.** Curation unit (5 items) queues block-20.
 Board: CI-shard (fable) + PR 14 (opus).
+
+**CI-shard unit COMPLETE (#167, 5692c2e): 27/27 green.**
+Wall 16m57s → 15m47s (critical path now build-interval); billed
+~64.5 → ~56.6 min; compile redundancy 4 → 2 workspace builds;
+execution legs 1.6-4.2m (growth lands on cheap legs); 2-way ε
+sharding measured over the 5-min bar; doctests kept via --doc
+rows; nextest 0.9.140 pinned (4wk age); 1.46GB archive → 377/422MB
+via strip + retention-1d + cleanup job (private-repo quota).
+A/B row 41 (fable, M, CI-infra class). Merge = Evan's button or
+👍 (watchlisted — the fixed parser's first live test).
