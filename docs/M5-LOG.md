@@ -2602,3 +2602,9 @@ compare renders-freecad/montage-freecad.png") so the two sheets
 superimpose exactly, cell for cell AND banner for banner —
 one-line render.sh change (compose_montage.py --banner exists)
 + sheet regeneration, riding the same curation unit.
+(5) ROCKER JOINS THE MONTAGE (Evan caught it absent): its
+montage:false is a stale staging leftover from the demo unit
+(the "sheet refresh rides PR 11" note); PR 11 refreshed the
+sheet without flipping the flag. Flip it in the curation unit —
+and note item (3)'s bracket retirement DEPENDS on this (rocker
+must be on the sheet to cover profile fillets there).
