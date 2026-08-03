@@ -2574,3 +2574,25 @@ scripts/hooks/pre-push (fmt-all --check) + scripts/new-lane.sh
 travels with the standard lane path instead of relying on brief
 compliance. clone-placement memory updated; future briefs use
 new-lane.sh.
+
+**Montage-curation notes BANKED (Evan, 2026-08-03, low
+priority — a small demo unit post-PR 14):**
+(1) OLD DIE CELL: retire from the montage. Unique content =
+21 SEQUENTIAL planar subtracts with seamed single-ring pockets
+(chaining depth is not a visual property; rings show in plate's
+hole) — the FIXTURE keeps its corpus/latency/STEP-golden roles
+untouched, only the sheet cell goes.
+(2) COMBINE crosslap-pair + plate/bossplate into a two-peg
+plate assembled-vs-apart pair: CAVEAT — crosslap-glued
+demonstrates the S1 PLANAR REST zip; a glued peg-in-hole needs
+CYLINDRICAL declared contact (the curved-census/#161 doc — not
+in the kernel). A peg version today demonstrates transverse
+union (bossplate's point) + free-placement display, NOT the
+REST zip. Options at curation time: keep crosslap for the zip
+and still merge plate+bossplate into the two-peg body; or wait
+for curved REST. Decision deferred to the unit with this
+analysis attached.
+(3) BRACKET CELL: retire (rocker covers profile fillets
+comprehensively; diefillet covers rolling-ball) — unless Evan
+prefers plate to gain filleted corners to keep an extrude-
+fillet cell distinct; default = retire, flag in the unit's PR.
