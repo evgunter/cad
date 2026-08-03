@@ -1,0 +1,1049 @@
+//! **The validity-predicate battery** — C8's binding order, run over
+//! the INPUTS before a single surface is minted.
+//!
+//! Each predicate below is a named Q1 trilean through the crate's
+//! [`super::decide`] funnel, with a margin in METERS at a named lever
+//! arm (never a raw dimensionless quantity — a sin or a determinant
+//! only becomes classifiable once it is folded against a length the
+//! user can reason about). `Positive` proceeds, `Zero` and `Negative`
+//! refuse typed with the margin as payload, and an in-band or
+//! poisoned margin escalates through [`super::FilletError::Escalated`]
+//! carrying the SAME recourse sentence as the definite arm — the
+//! two-tolerance shape (D4 ¶1 addendum), on every arm, including the
+//! definite ones.
+//!
+//! # The ordering claim, stated so it can be attacked
+//!
+//! The claim this module makes is: **if [`run_battery`] returns
+//! `Ok`, construction cannot fail for a geometric reason.** It is
+//! kept honest structurally rather than by hope:
+//!
+//! - The battery resolves each link's analytic ARM first
+//!   ([`super::blend`]) and refuses typed on any support pair the
+//!   arms do not cover. So "the constructor met a case the battery
+//!   did not consider" cannot happen: the battery enumerates the
+//!   cases.
+//! - The setbacks predicate 2 refuses on are returned BY THE ARM —
+//!   the same function the constructor calls, not a first-order
+//!   estimate of it. There is no second copy of the geometry to
+//!   drift.
+//! - The ring-torus condition (`s > r`) that would otherwise be an
+//!   assertion inside the torus constructor is predicate 3's margin,
+//!   and the constructor's `None` return for it is unreachable once
+//!   predicate 3 has passed — a fact the fixture
+//!   `spine_regularity_refuses_before_the_torus_is_minted` pins by
+//!   showing the refusal arrives with no surface allocated.
+
+use geom_brep::EdgeGeometry;
+use geom_core::{Band, Bounds, Decide, Indeterminate, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_curves::Curve3;
+use geom_surfaces::Surface;
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+
+use super::blend::{BlendArm, EdgeBlend, plane_plane_blend, plane_sphere_blend};
+use super::{CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+
+/// The number of interior samples the chain predicates take along
+/// each link. Nine, matching the certification schedule's
+/// `CERT_SAMPLES` — the battery and the certificate look at the same
+/// places, on purpose.
+pub const CHAIN_SAMPLES: u32 = 9;
+
+/// Which way the material wedge turns along a chain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Convexity {
+    /// Material wedge < π: the rolling ball is INSIDE the material,
+    /// the blend removes material, and the blend face's chart normal
+    /// is already the outward one (sense `true`).
+    Convex,
+    /// Material wedge > π: the ball rolls in the void, the blend adds
+    /// material, and the blend face's sense bit is `false`.
+    Concave,
+}
+
+impl core::fmt::Display for Convexity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Convex => write!(f, "convex"),
+            Self::Concave => write!(f, "concave"),
+        }
+    }
+}
+
+impl Convexity {
+    /// The sense bit a blend face on this chain mints with — read off
+    /// the STORED convexity verdict, never off a sampled normal
+    /// (S10/S11).
+    #[must_use]
+    pub fn blend_sense(self) -> bool {
+        matches!(self, Self::Convex)
+    }
+}
+
+/// The request the battery judges: a body, the edges to blend, and
+/// the constant rolling-ball radius.
+#[derive(Clone, Debug)]
+pub struct FilletRequest<'a, T: Real> {
+    /// The body whose edges are to be blended.
+    pub body: &'a Body<T>,
+    /// The edges, in any order — the battery walks them into chains.
+    pub edges: Vec<EdgeKey>,
+    /// The constant rolling-ball radius, meters.
+    pub radius: T,
+}
+
+/// One resolved link of a chain: its edge, its two supports (with
+/// their outward normals already folded through the stored sense
+/// bits), the analytic arm it takes, and the blend that arm derives.
+#[derive(Clone, Debug)]
+pub struct Link<T: Real> {
+    /// The edge being blended.
+    pub edge: EdgeKey,
+    /// The face on the `he_plus` side.
+    pub face_a: FaceKey,
+    /// The face on the `he_minus` side.
+    pub face_b: FaceKey,
+    /// The `he_plus` half-edge — the traversal whose direction the
+    /// convexity margin is signed against.
+    pub he_plus: HalfEdgeKey,
+    /// The edge's start vertex (`he_plus`'s start).
+    pub start: VertexKey,
+    /// The edge's end vertex.
+    pub end: VertexKey,
+    /// Which analytic arm the support pair takes.
+    pub arm: BlendArm,
+    /// The blend the arm derives — surface, spine curvature, and the
+    /// two trimlines with their EXACT setbacks.
+    pub blend: EdgeBlend<T>,
+    /// The link's convexity verdict.
+    pub convexity: Convexity,
+    /// The folded lever arm used by this link's angular predicates.
+    pub arm_len: T,
+}
+
+/// How a chain terminates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChainClosure {
+    /// The chain closes on itself: predicate 4 is the G1 closure test
+    /// at every junction, wrap-around included.
+    Closed,
+    /// The chain has two ends: predicate 4 is the termination
+    /// classification, and predicate 6 judges each end's corner.
+    Open {
+        /// The first end.
+        head: VertexKey,
+        /// The last end.
+        tail: VertexKey,
+    },
+}
+
+/// One resolved chain.
+#[derive(Clone, Debug)]
+pub struct Chain<T: Real> {
+    /// The chain's links, in walk order.
+    pub links: Vec<Link<T>>,
+    /// The vertices at which consecutive links meet — the junctions
+    /// predicate 4 judges. One per adjacent pair, plus the
+    /// wrap-around vertex on a closed chain.
+    pub junctions: Vec<VertexKey>,
+    /// How it terminates.
+    pub closure: ChainClosure,
+}
+
+/// The battery's verdict: every chain resolved, every predicate
+/// definitely satisfied. Holding one of these is the licence to
+/// construct.
+#[derive(Clone, Debug)]
+pub struct BatteryVerdict<T: Real> {
+    /// The resolved chains.
+    pub chains: Vec<Chain<T>>,
+    /// The radius that was judged.
+    pub radius: T,
+}
+
+/// Escalate at a site (the shared shape, so the two-tolerance text
+/// can never drift between predicates).
+fn esc(site: FilletSite, source: Indeterminate) -> FilletError {
+    FilletError::Escalated { site, source }
+}
+
+/// A face's outward normal at `p`: the chart normal folded through
+/// the STORED sense bit (`Face::sense_sign`) — never a sampled or
+/// re-derived orientation (S10 category A).
+fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
+    let f = body.get_face(face)?;
+    let s = body.get_surface(f.surface)?;
+    let g = geom_brep::implicit_gradient(s, p);
+    Some(g.normalize() * f.sense_sign::<T>())
+}
+
+/// The face on a half-edge's side.
+fn face_of<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
+    let h = body.get_half_edge(he)?;
+    Some(body.get_loop(h.parent_loop)?.face)
+}
+
+/// The sample parameters of a link, and its carrier.
+fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
+    let e = body.get_edge(edge)?;
+    let c = body.get_curve_geom(e.curve)?.certified()?;
+    let (t0, t1) = c.params();
+    Some((c.carrier().clone(), t0, t1))
+}
+
+/// The straight-line extent of a link's edge — the curvature-free
+/// lever arm every angular predicate folds against, exactly as the
+/// dihedral classifier does.
+fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
+    (carrier.eval(t1) - carrier.eval(t0)).norm()
+}
+
+// ---------------------------------------------------------------
+// Predicate 1 — radius vs curvature headroom.
+// ---------------------------------------------------------------
+
+/// **`fillet3_radius_headroom`** — is the rolling ball definitely
+/// small enough for both supports' normal curvature along the link?
+///
+/// Margin: `(1 − r·κ_max)·r` in METERS, at lever arm `r`. `κ_max` is
+/// the reciprocal of `geom_brep::curvature_lever_arm`, the same
+/// curvature radius the dihedral classifier folds — a plane's is
+/// unbounded, so a plane contributes the saturated margin `r` and
+/// never limits. The quantity is C8's "r vs 1/κ_max of each support
+/// along the edge": the ball must not curve harder than the surface
+/// it rolls on, or the blend interferes with its own support (the
+/// survey's local-interference case; the too-large-ball GLOBAL
+/// interference is the same fact taken over the whole chain, which
+/// is why the predicate is evaluated at every sample and not only at
+/// the midpoint).
+///
+/// # Errors
+///
+/// [`FilletError::RadiusHeadroom`] on a definite `Zero`/`Negative`;
+/// [`FilletError::Escalated`] in band or on poison.
+pub fn radius_headroom<T: Decide + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), FilletError> {
+    let Some(f) = body.get_face(face) else {
+        return Err(FilletError::Op {
+            detail: format!("missing face {face:?}"),
+        });
+    };
+    let Some(s) = body.get_surface(f.surface) else {
+        return Err(FilletError::Op {
+            detail: format!("missing surface for face {face:?}"),
+        });
+    };
+    let arm = geom_brep::curvature_lever_arm(s, p);
+    // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
+    // at `r` rather than dividing by an infinity.
+    let margin = radius - radius.powi(2) / arm;
+    match decide("fillet3_radius_headroom", margin, band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
+        Sign::Positive => Ok(()),
+        _ => Err(FilletError::RadiusHeadroom {
+            face,
+            margin: margin.lo(),
+            radius: radius.lo(),
+        }),
+    }
+}
+
+// ---------------------------------------------------------------
+// Predicate 3 — spine regularity.
+// ---------------------------------------------------------------
+
+/// **`fillet3_spine_regularity`** — does the rolling ball's own
+/// centre locus stay regular at this radius?
+///
+/// Margin: `(1 − r·κ_spine)·r` in METERS at lever arm `r`. The spine
+/// is an OFFSET locus, and an offset of radius `r` folds exactly
+/// where the locus it offsets curves at `1/r`; past that the blend
+/// envelope self-intersects and the "surface" is not one. For a
+/// straight spine `κ_spine = 0` and the margin saturates at `r`; for
+/// the pip rims' circular spine of radius `s` it is `(1 − r/s)·r`,
+/// which is the ring-torus condition `s > r` in meters — so the
+/// torus constructor's degenerate case is REFUSED HERE, before the
+/// surface exists.
+///
+/// Note this is a different curvature from predicate 1's: predicate 1
+/// asks about the SUPPORTS' curvature (can the ball sit on them),
+/// predicate 3 about the SPINE's (does sweeping the ball along its
+/// own centre locus fold). C8 lists both because they are both real.
+///
+/// # Errors
+///
+/// [`FilletError::SpineIrregular`] / [`FilletError::Escalated`].
+pub fn spine_regularity<T: Decide + Bounds>(
+    spine_curvature: T,
+    radius: T,
+    band: Band,
+) -> Result<(), FilletError> {
+    let margin = radius - radius.powi(2) * spine_curvature;
+    match decide("fillet3_spine_regularity", margin, band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
+        Sign::Positive => Ok(()),
+        _ => Err(FilletError::SpineIrregular {
+            margin: margin.lo(),
+            radius: radius.lo(),
+        }),
+    }
+}
+
+// ---------------------------------------------------------------
+// Predicate 5 — convexity-sign consistency.
+// ---------------------------------------------------------------
+
+/// **`fillet3_convexity_sign`** — the dihedral's convexity sign at
+/// one sample of one link.
+///
+/// Margin: `((n_a × n_b)·τ̂)·arm` in METERS, `n_a`/`n_b` the two
+/// supports' OUTWARD normals (stored sense folded in), `τ̂` the
+/// `he_plus` traversal direction, `arm` the folded lever arm. The
+/// quantity is orientation-well-defined: swapping the two faces also
+/// reverses the traversal, and the triple product is invariant under
+/// doing both.
+///
+/// `Positive` is convex, `Negative` concave, `Zero` is a tangential
+/// edge with no side for the ball to roll on. C8 requires the sign to
+/// be CONSTANT along the chain — a dihedral flipping mid-chain has no
+/// constant-radius rolling-ball blend at all — so the caller escalates
+/// on a flip rather than blending each run silently.
+///
+/// # Errors
+///
+/// [`FilletError::Escalated`] in band or on poison. A definite sign is
+/// returned; the caller judges consistency.
+pub fn convexity_at<T: Decide + Bounds>(
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    tau: Vec3<T>,
+    arm: T,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<(Convexity, T), FilletError> {
+    let margin = n_a.cross(n_b).dot(tau.normalize()) * arm;
+    let sign = decide("fillet3_convexity_sign", margin, band)
+        .map_err(|e| esc(FilletSite::Link { edge }, e))?;
+    match sign {
+        Sign::Positive => Ok((Convexity::Convex, margin)),
+        Sign::Negative => Ok((Convexity::Concave, margin)),
+        // A tangential edge: the supports share a tangent plane, so
+        // there is no wedge to roll a ball into. Reported as the
+        // convexity situation it is, with the margin as data.
+        Sign::Zero => Err(FilletError::ConvexitySignFlip {
+            edge,
+            margin: margin.lo(),
+            chain: Convexity::Convex,
+        }),
+    }
+}
+
+// ---------------------------------------------------------------
+// Predicate 4 — chain G1 closure / termination.
+// ---------------------------------------------------------------
+
+/// **`fillet3_chain_g1`** — do two consecutive links meet
+/// tangentially at their shared vertex?
+///
+/// Margin: `sin θ · arm` in METERS — the same shape the dihedral
+/// classifier uses one dimension up, with `θ` the angle between the
+/// two carriers' unit tangents at the junction and `arm` the smaller
+/// of the two links' extents. It is gated by `fillet3_chain_arm`
+/// exactly as the dihedral is: an angle at a collapsed arm is not a
+/// question, so a non-positive arm escalates `Invalid` rather than
+/// classifying.
+///
+/// A closed chain must be G1 at EVERY junction (including the
+/// wrap-around) for a constant-radius spine to exist through it;
+/// C8's edge-chain-smoothness predicate is exactly this.
+///
+/// # Errors
+///
+/// [`FilletError::ChainNotG1`] / [`FilletError::Escalated`].
+pub fn chain_g1<T: Decide + Bounds>(
+    tau_in: Vec3<T>,
+    tau_out: Vec3<T>,
+    arm: T,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<(), FilletError> {
+    let site = FilletSite::Joint { vertex };
+    match decide("fillet3_chain_arm", arm, band).map_err(|e| esc(site, e))? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(esc(
+                site,
+                Indeterminate {
+                    margin: MarginDiag::Invalid,
+                    band,
+                    predicate: Some("fillet3_chain_arm"),
+                },
+            ));
+        }
+    }
+    let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
+    let margin = sin_theta * arm;
+    match decide("fillet3_chain_g1", margin, band).map_err(|e| esc(site, e))? {
+        // A POSITIVE margin is the failure here (a corner), and a
+        // ZERO one the success (tangent continuity) — the inverted
+        // polarity of a coincidence predicate, stated so no reader
+        // has to infer it.
+        Sign::Zero => Ok(()),
+        _ => Err(FilletError::ChainNotG1 {
+            vertex,
+            margin: margin.lo(),
+            arm: arm.lo(),
+        }),
+    }
+}
+
+// ---------------------------------------------------------------
+// Predicate 6 — corner configuration.
+// ---------------------------------------------------------------
+
+/// **`fillet3_corner_independence`** — is a chain termination the ONE
+/// corner configuration M5 ships (OQ6): a valence-three vertex whose
+/// three incident edges are all convex and whose three support
+/// normals are definitely independent?
+///
+/// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
+/// determinant is what makes the corner ball's centre a well-posed
+/// solve (`c` is the unique point at distance `r` inside all three
+/// planes); at a dependent trihedron the three distance conditions do
+/// not determine a centre and no sphere octant exists.
+///
+/// Valence and convexity are COMBINATORIAL facts, so they are decided
+/// before any margin and reported with their own
+/// [`CornerConfig`] tag; each tag names the run-out policy that would
+/// handle it ([`RunOutPolicy`]) and nothing more — zero constructor
+/// surface, the `FullRevolveHoles` precedent.
+///
+/// # Errors
+///
+/// [`FilletError::FilletCornerUnsupported`] with the tag and policy;
+/// [`FilletError::Escalated`] on an in-band determinant.
+pub fn corner_config<T: Decide + Bounds>(
+    vertex: VertexKey,
+    valence: usize,
+    convex: usize,
+    normals: [Vec3<T>; 3],
+    radius: T,
+    band: Band,
+) -> Result<(), FilletError> {
+    let refuse = |corner: CornerConfig| FilletError::FilletCornerUnsupported {
+        vertex,
+        corner,
+        // Every out-of-scope corner is one a stop-at-vertex run-out
+        // with a general corner patch would handle; feathering is the
+        // alternative policy and is named on the mixed-convexity tag,
+        // where a corner patch cannot help because the ball changes
+        // sides.
+        policy: match corner {
+            CornerConfig::MixedConvexity { .. } => RunOutPolicy::RunOutFeather,
+            _ => RunOutPolicy::RunOutStopAtVertex,
+        },
+    };
+    if valence != 3 {
+        return Err(refuse(CornerConfig::NEdgeVertex { valence }));
+    }
+    if convex != 3 {
+        return Err(refuse(CornerConfig::MixedConvexity { convex }));
+    }
+    let det = normals[0].dot(normals[1].cross(normals[2]));
+    let margin = det.abs() * radius;
+    match decide("fillet3_corner_independence", margin, band) {
+        Ok(Sign::Positive) => Ok(()),
+        Ok(_) => Err(refuse(CornerConfig::DependentNormals)),
+        Err(source) => Err(esc(FilletSite::Joint { vertex }, source)),
+    }
+}
+
+// ---------------------------------------------------------------
+// Predicate 2 — face consumption.
+// ---------------------------------------------------------------
+
+/// **`fillet3_face_consumption`** — does every support face survive
+/// the blend?
+///
+/// Margin: `gap − setback_here − setback_there` in METERS, where
+/// `gap` is the Euclidean distance between two boundary features of
+/// one support face and each `setback` is that feature's trimline
+/// displacement — zero for a boundary the request does not blend.
+/// The predicate runs over every pair of boundary edges of every
+/// support face, so a face with FOUR blended edges (every planar face
+/// of the die) is judged against all six pairs, not only against the
+/// nearest non-blended neighbour. That is what makes "the blend must
+/// not consume a face entirely" a real statement: a single-edge test
+/// would happily pass `r < L` on a face that two opposite blends at
+/// `r > L/2` erase between them.
+///
+/// The setbacks come from [`super::blend`] — the same functions the
+/// constructor calls.
+///
+/// # Errors
+///
+/// [`FilletError::FaceConsumed`] / [`FilletError::Escalated`].
+pub fn face_consumption<T: Decide + Bounds>(
+    face: FaceKey,
+    gap: T,
+    setback_here: T,
+    setback_there: T,
+    band: Band,
+) -> Result<(), FilletError> {
+    let margin = gap - setback_here - setback_there;
+    match decide("fillet3_face_consumption", margin, band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
+        Sign::Positive => Ok(()),
+        _ => Err(FilletError::FaceConsumed {
+            face,
+            margin: margin.lo(),
+            extent: gap.lo(),
+        }),
+    }
+}
+
+/// Resolve one link: supports, arm, blend, convexity. Refuses typed
+/// on any support pair the analytic arms do not cover — naming the
+/// canal-surface unit as the missing front door.
+fn resolve_link<T: Decide + Bounds>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    radius: T,
+    band: Band,
+) -> Result<Link<T>, FilletError> {
+    let broken = || FilletError::ChainNotConnected { edge };
+    let e = body.get_edge(edge).ok_or_else(broken)?;
+    let (he_plus, he_minus) = (e.he_plus, e.he_minus);
+    let face_a = face_of(body, he_plus).ok_or_else(broken)?;
+    let face_b = face_of(body, he_minus).ok_or_else(broken)?;
+    let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
+    let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
+    let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
+    let extent = extent_of(&carrier, t0, t1);
+    let mid = (t0 + t1) / T::from_f64(2.0);
+    let p = carrier.eval(mid);
+    let tau = carrier.deriv(mid);
+    let n_a = outward(body, face_a, p).ok_or_else(broken)?;
+    let n_b = outward(body, face_b, p).ok_or_else(broken)?;
+    // Predicate 5 first at the link level: the arm's side depends on
+    // the convexity, so the sign is established before any geometry.
+    let (convexity, _) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
+    let sa = body
+        .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
+        .ok_or_else(broken)?
+        .clone();
+    let sb = body
+        .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
+        .ok_or_else(broken)?
+        .clone();
+    let (arm, blend) = classify_arm(&sa, n_a, &sb, n_b, p, tau, radius, convexity, edge)?;
+    Ok(Link {
+        edge,
+        face_a,
+        face_b,
+        he_plus,
+        start,
+        end,
+        arm,
+        blend,
+        convexity,
+        arm_len: extent,
+    })
+}
+
+/// A plane's stored in-plane seam reference — the deterministic,
+/// isometry-equivariant `u_ref` seed the rim blend's torus chart
+/// inherits (never a coordinate-axis tie-break).
+fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
+    match s {
+        Surface::Plane { u_ref, .. } => *u_ref,
+        _ => Vec3::new(T::zero(), T::zero(), T::zero()),
+    }
+}
+
+/// The support-pair → analytic-arm table (C8's list, restricted to
+/// the arms this unit implements). Anything else refuses typed.
+#[allow(clippy::too_many_arguments)]
+fn classify_arm<T: Bounds>(
+    sa: &Surface<T>,
+    n_a: Vec3<T>,
+    sb: &Surface<T>,
+    n_b: Vec3<T>,
+    p: Point3<T>,
+    tau: Vec3<T>,
+    radius: T,
+    convexity: Convexity,
+    edge: EdgeKey,
+) -> Result<(BlendArm, EdgeBlend<T>), FilletError> {
+    let convex = matches!(convexity, Convexity::Convex);
+    match (sa, sb) {
+        (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
+            BlendArm::PlanePlaneCylinder,
+            plane_plane_blend(p, tau.normalize(), n_a, n_b, radius, convex),
+        )),
+        (
+            Surface::Plane { origin, .. },
+            Surface::Sphere {
+                center, radius: r, ..
+            },
+        ) => Ok((
+            BlendArm::PlaneSphereTorus,
+            plane_sphere_blend(*origin, n_a, plane_u(sa), *center, *r, radius),
+        )),
+        (
+            Surface::Sphere {
+                center, radius: r, ..
+            },
+            Surface::Plane { origin, .. },
+        ) => {
+            let mut b = plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius);
+            core::mem::swap(&mut b.trim_a, &mut b.trim_b);
+            Ok((BlendArm::PlaneSphereTorus, b))
+        }
+        _ => Err(FilletError::SpineUnsupported {
+            edge,
+            supports: "non-(plane–plane / plane–sphere)",
+        }),
+    }
+}
+
+/// Walk the requested links into maximal chains.
+///
+/// The rule is structural and it is the one that makes predicates 4
+/// and 6 disjoint: at a vertex where **exactly two** requested links
+/// meet, the chain CONTINUES and the vertex is a junction, judged by
+/// predicate 4 (G1). At a vertex where any other number meet — one
+/// (a free end) or three or more (a corner) — the chain TERMINATES
+/// and the vertex is judged by predicate 6 (corner configuration).
+///
+/// That is why filleting all twelve edges of a box yields twelve
+/// one-link OPEN chains terminating in eight trihedral corners
+/// (three links meet at every box vertex), while filleting a pip rim
+/// yields one CLOSED chain (two links meet at every rim vertex) —
+/// with no geometric decision taken anywhere in the walk.
+fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
+    let mut inc: Vec<(VertexKey, Vec<usize>)> = Vec::new();
+    let mut bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| {
+        match inc.iter_mut().find(|(k, _)| *k == v) {
+            Some((_, xs)) => xs.push(i),
+            None => inc.push((v, vec![i])),
+        }
+    };
+    for (i, l) in links.iter().enumerate() {
+        bump(l.start, i, &mut inc);
+        if l.end != l.start {
+            bump(l.end, i, &mut inc);
+        }
+    }
+    let junction = |v: VertexKey, inc: &[(VertexKey, Vec<usize>)]| -> Option<Vec<usize>> {
+        inc.iter()
+            .find(|(k, _)| *k == v)
+            .filter(|(_, xs)| xs.len() == 2)
+            .map(|(_, xs)| xs.clone())
+    };
+    let ends = |i: usize| (links[i].start, links[i].end);
+    let mut used = vec![false; links.len()];
+    let mut chains: Vec<Chain<T>> = Vec::new();
+    for seed in 0..links.len() {
+        if used[seed] {
+            continue;
+        }
+        used[seed] = true;
+        let (mut head, mut tail) = ends(seed);
+        let mut order = vec![seed];
+        let mut joints_back: Vec<VertexKey> = Vec::new();
+        let mut joints_fwd: Vec<VertexKey> = Vec::new();
+        let mut closed = head == tail;
+        // Forward, then backward, through junction vertices only.
+        for forward in [true, false] {
+            loop {
+                let at = if forward { tail } else { head };
+                let Some(pair) = junction(at, &inc) else { break };
+                let Some(&next) = pair.iter().find(|&&j| !used[j]) else {
+                    // Both links at this junction are already in the
+                    // run: the chain has closed on itself.
+                    if pair.iter().all(|&j| used[j]) && order.len() > 1 {
+                        closed = true;
+                        if forward {
+                            joints_fwd.push(at);
+                        } else {
+                            joints_back.push(at);
+                        }
+                    }
+                    break;
+                };
+                used[next] = true;
+                let (a, b) = ends(next);
+                let other = if a == at { b } else { a };
+                if forward {
+                    joints_fwd.push(at);
+                    order.push(next);
+                    tail = other;
+                } else {
+                    joints_back.push(at);
+                    order.insert(0, next);
+                    head = other;
+                }
+                if head == tail {
+                    closed = true;
+                    break;
+                }
+            }
+        }
+        joints_back.reverse();
+        let mut junctions = joints_back;
+        junctions.extend(joints_fwd);
+        let closure = if closed {
+            ChainClosure::Closed
+        } else {
+            ChainClosure::Open { head, tail }
+        };
+        chains.push(Chain {
+            links: order.into_iter().map(|i| links[i].clone()).collect(),
+            junctions,
+            closure,
+        });
+    }
+    chains
+}
+
+/// The vertex's incident edges (its orbit) — the valence predicate 6
+/// classifies.
+fn vertex_edges<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
+    let v = body.get_vertex(vertex)?;
+    let he = v.emanating?;
+    let orbit = body.vertex_orbit(he)?;
+    let mut edges: Vec<EdgeKey> = orbit
+        .iter()
+        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
+        .collect();
+    edges.sort_unstable();
+    edges.dedup();
+    Some(edges)
+}
+
+/// **Run the battery** — C8's six predicates over the request's
+/// inputs, in C8's order, before any construction.
+///
+/// # Errors
+///
+/// Any of [`FilletError`]'s predicate arms, or
+/// [`FilletError::Escalated`] with the offending margin as payload.
+pub fn run_battery<T: Decide + Bounds>(
+    req: &FilletRequest<'_, T>,
+    band: Band,
+) -> Result<BatteryVerdict<T>, FilletError> {
+    let body = req.body;
+    let r = req.radius;
+    // Resolve first: this is where the support pairs are enumerated,
+    // so an out-of-scope pair refuses before any margin is taken.
+    let mut links = Vec::with_capacity(req.edges.len());
+    for edge in &req.edges {
+        links.push(resolve_link(body, *edge, r, band)?);
+    }
+    let chains = walk_chains(links);
+
+    // --- 1. radius vs curvature headroom, at every sample of every
+    // link, on BOTH supports.
+    for chain in &chains {
+        for link in &chain.links {
+            let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
+                return Err(FilletError::ChainNotConnected { edge: link.edge });
+            };
+            for i in 0..CHAIN_SAMPLES {
+                let f = T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1));
+                let p = carrier.eval(t0 + (t1 - t0) * f);
+                radius_headroom(body, link.face_a, p, r, band)?;
+                radius_headroom(body, link.face_b, p, r, band)?;
+            }
+        }
+    }
+
+    // --- 2. face consumption, over every pair of boundary edges of
+    // every support face the request touches.
+    consumption_sweep(body, &chains, band)?;
+
+    // --- 3. spine regularity, per link.
+    for chain in &chains {
+        for link in &chain.links {
+            spine_regularity(link.blend.spine_curvature, r, band)?;
+        }
+    }
+
+    // --- 4. chain G1 closure (closed) / termination (open). The
+    // junctions the walk recorded are exactly the vertices where two
+    // requested links meet; every other chain end goes to predicate 6.
+    for chain in &chains {
+        for (i, v) in chain.junctions.iter().enumerate() {
+            let a = &chain.links[i % chain.links.len()];
+            let b = &chain.links[(i + 1) % chain.links.len()];
+            let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
+                (carrier_of(body, a.edge), carrier_of(body, b.edge))
+            else {
+                return Err(FilletError::ChainNotConnected { edge: a.edge });
+            };
+            // Tangents taken at the junction END of each carrier, so
+            // "not G1" means a genuine kink and not a parameterization
+            // artefact: on each side pick the parameter whose point is
+            // the junction vertex.
+            let tv = body
+                .get_vertex(*v)
+                .and_then(|x| body.get_point(x.point))
+                .copied();
+            let pick = |c: &Curve3<T>, t0: T, t1: T| -> Vec3<T> {
+                match tv {
+                    Some(pt) => {
+                        let d0 = (c.eval(t0) - pt).norm();
+                        let d1 = (c.eval(t1) - pt).norm();
+                        // `min` is a total lattice op: no comparison
+                        // operator, no branch on a scalar the interval
+                        // lane cannot answer.
+                        if d0.min(d1).lo() == d0.lo() {
+                            -c.deriv(t0)
+                        } else {
+                            c.deriv(t1)
+                        }
+                    }
+                    None => c.deriv(t1),
+                }
+            };
+            chain_g1(
+                pick(&ca, ta0, ta1),
+                pick(&cb, tb0, tb1),
+                a.arm_len.min(b.arm_len),
+                *v,
+                band,
+            )?;
+        }
+    }
+
+    // --- 5. convexity-sign consistency along each chain (the
+    // per-link sign was decided during resolution; here it must AGREE
+    // across the chain, C8's escalate-on-flip).
+    for chain in &chains {
+        let first = chain.links[0].convexity;
+        for link in &chain.links {
+            if link.convexity != first {
+                let p = {
+                    let (c, t0, t1) = carrier_of(body, link.edge)
+                        .ok_or(FilletError::ChainNotConnected { edge: link.edge })?;
+                    c.eval((t0 + t1) / T::from_f64(2.0))
+                };
+                let n_a = outward(body, link.face_a, p);
+                let n_b = outward(body, link.face_b, p);
+                let margin = match (n_a, n_b) {
+                    (Some(a), Some(b)) => a.cross(b).norm().lo(),
+                    _ => f64::NAN,
+                };
+                return Err(FilletError::ConvexitySignFlip {
+                    edge: link.edge,
+                    margin,
+                    chain: first,
+                });
+            }
+        }
+    }
+
+    // --- 6. corner configuration at every OPEN chain's two ends.
+    for chain in &chains {
+        if let ChainClosure::Open { head, tail } = chain.closure {
+            for v in [head, tail] {
+                corner_at(body, v, r, band)?;
+            }
+        }
+    }
+
+    Ok(BatteryVerdict {
+        chains,
+        radius: req.radius,
+    })
+}
+
+/// Predicate 6 at one termination vertex: gather valence, per-edge
+/// convexity, and the three support normals, then classify.
+fn corner_at<T: Decide + Bounds>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    radius: T,
+    band: Band,
+) -> Result<(), FilletError> {
+    let edges = vertex_edges(body, vertex).ok_or(FilletError::FilletCornerUnsupported {
+        vertex,
+        corner: CornerConfig::Indeterminate,
+        policy: RunOutPolicy::RunOutStopAtVertex,
+    })?;
+    let valence = edges.len();
+    if valence != 3 {
+        return corner_config(
+            vertex,
+            valence,
+            0,
+            [Vec3::new(T::zero(), T::zero(), T::zero()); 3],
+            radius,
+            band,
+        );
+    }
+    let mut convex = 0usize;
+    let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
+    let mut faces: Vec<FaceKey> = Vec::new();
+    for (i, e) in edges.iter().enumerate() {
+        let link = resolve_link(body, *e, radius, band);
+        match link {
+            Ok(l) => {
+                if matches!(l.convexity, Convexity::Convex) {
+                    convex += 1;
+                }
+                for f in [l.face_a, l.face_b] {
+                    if !faces.contains(&f) {
+                        faces.push(f);
+                    }
+                }
+                let _ = i;
+            }
+            // An edge at the corner whose own supports are out of the
+            // arms' scope makes the CORNER unclassifiable — reported
+            // as the corner situation, not as that edge's.
+            Err(_) => {
+                return Err(FilletError::FilletCornerUnsupported {
+                    vertex,
+                    corner: CornerConfig::Indeterminate,
+                    policy: RunOutPolicy::RunOutStopAtVertex,
+                });
+            }
+        }
+    }
+    let Some(p) = body.get_vertex(vertex).and_then(|v| body.get_point(v.point)) else {
+        return Err(FilletError::FilletCornerUnsupported {
+            vertex,
+            corner: CornerConfig::Indeterminate,
+            policy: RunOutPolicy::RunOutStopAtVertex,
+        });
+    };
+    if faces.len() != 3 {
+        return corner_config(vertex, faces.len(), convex, normals, radius, band);
+    }
+    for (i, f) in faces.iter().enumerate() {
+        normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
+    }
+    corner_config(vertex, valence, convex, normals, radius, band)
+}
+
+/// Predicate 2's sweep: for each support face, every pair of its
+/// boundary edges, with the blended ones carrying their setbacks.
+fn consumption_sweep<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: &[Chain<T>],
+    band: Band,
+) -> Result<(), FilletError> {
+    // Setback of each blended edge on each of its two support faces.
+    let mut setback: Vec<(EdgeKey, FaceKey, T)> = Vec::new();
+    let mut faces: Vec<FaceKey> = Vec::new();
+    for chain in chains {
+        for l in &chain.links {
+            setback.push((l.edge, l.face_a, l.blend.trim_a.1));
+            setback.push((l.edge, l.face_b, l.blend.trim_b.1));
+            for f in [l.face_a, l.face_b] {
+                if !faces.contains(&f) {
+                    faces.push(f);
+                }
+            }
+        }
+    }
+    let look = |e: EdgeKey, f: FaceKey| -> T {
+        setback
+            .iter()
+            .find(|(ee, ff, _)| *ee == e && *ff == f)
+            .map_or(T::zero(), |(_, _, s)| *s)
+    };
+    for face in faces {
+        let Some(fa) = body.get_face(face) else {
+            continue;
+        };
+        let mut loops = vec![fa.outer];
+        loops.extend(fa.rings.iter().copied());
+        let mut boundary: Vec<(EdgeKey, Vec<Point3<T>>)> = Vec::new();
+        for lp in loops {
+            let Some(topo::LoopBoundary::Cycle { first }) = body.get_loop(lp).map(|l| l.boundary)
+            else {
+                continue;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue;
+            };
+            for he in cycle {
+                let Some(h) = body.get_half_edge(he) else {
+                    continue;
+                };
+                let Some((c, t0, t1)) = carrier_of(body, h.edge) else {
+                    continue;
+                };
+                let pts = (0..CHAIN_SAMPLES)
+                    .map(|i| {
+                        let f = T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1));
+                        c.eval(t0 + (t1 - t0) * f)
+                    })
+                    .collect();
+                boundary.push((h.edge, pts));
+            }
+        }
+        for i in 0..boundary.len() {
+            for j in (i + 1)..boundary.len() {
+                let (ei, pi) = (&boundary[i].0, &boundary[i].1);
+                let (ej, pj) = (&boundary[j].0, &boundary[j].1);
+                // Adjacent boundary edges TOUCH (gap 0 at the shared
+                // vertex) — their setbacks are judged by the corner
+                // and G1 predicates, not by this one, so the pair is
+                // skipped exactly when the edges share a vertex.
+                if shares_vertex(body, *ei, *ej) {
+                    continue;
+                }
+                let mut gap = T::from_f64(f64::INFINITY);
+                for a in pi {
+                    for b in pj {
+                        gap = gap.min((*b - *a).norm());
+                    }
+                }
+                face_consumption(face, gap, look(*ei, face), look(*ej, face), band)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn shares_vertex<T: Decide>(body: &Body<T>, a: EdgeKey, b: EdgeKey) -> bool {
+    let ends = |e: EdgeKey| -> Option<(VertexKey, VertexKey)> {
+        let edge = body.get_edge(e)?;
+        let s = body.get_half_edge(edge.he_plus)?.start;
+        let t = body.half_edge_end(edge.he_plus)?;
+        Some((s, t))
+    };
+    match (ends(a), ends(b)) {
+        (Some((a0, a1)), Some((b0, b1))) => a0 == b0 || a0 == b1 || a1 == b0 || a1 == b1,
+        _ => false,
+    }
+}
+
+/// The description a blend trimline is BORN with: the intrinsic
+/// tangential contact locus of the blend surface and its support
+/// (prefer-intrinsic, D7), never a `MappedCurve` pushforward of the
+/// construction that happened to produce it.
+#[must_use]
+pub fn trimline_description<T: Real>(
+    blend_surface: geom_brep::SurfaceKey,
+    support: geom_brep::SurfaceKey,
+    witness: Point3<T>,
+) -> EdgeGeometry<T> {
+    EdgeGeometry::TangentIntersection {
+        s1: blend_surface,
+        s2: support,
+        witness,
+    }
+}
