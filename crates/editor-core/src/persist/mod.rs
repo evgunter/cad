@@ -45,18 +45,25 @@
 //! replay, and the save/load/replay-identity CI row pins that the
 //! re-derivation is bit-identical.
 //!
-//! # Doors (fail loud, D2/D6.3)
+//! # Doors (fail loud, D2/D6.3; DESIGN engineering convention 2)
 //!
-//! - Save refuses non-finite floats ([`NonFiniteSite`]), out-of-range
-//!   declared-tangent joints ([`JointSite`]), and edit logs that
-//!   cannot replay — everything the LOAD side would refuse, refused
-//!   before a byte is written (never an unloadable file); `-0.0` is
-//!   data and round-trips.
-//! - Load walks the header → migration chain → typed deserialize →
-//!   structural validation ([`SnapshotError`]) → expression REBUILD
-//!   through the dimension-checking constructors ([`wire`]) → edit
-//!   replay through [`crate::edit::apply`]'s doors → ε reconciliation
-//!   (D4). No silent best-effort loads, ever.
+//! Every direction-independent document check lives in ONE shared
+//! validator ([`check`]'s `validate_document`: non-finite floats
+//! ([`NonFiniteSite`]), out-of-range declared-tangent joints
+//! ([`JointSite`]), the structural document invariants
+//! ([`SnapshotError`])), invoked by BOTH doors — a document that
+//! would refuse to load cannot be saved, by construction rather than
+//! by mirrored sweeps.
+//!
+//! - Save runs the shared validator on the in-memory document, then
+//!   verifies the log replays — everything the LOAD side would
+//!   refuse, refused before a byte is written (never an unloadable
+//!   file); `-0.0` is data and round-trips.
+//! - Load walks the header → migration chain → typed deserialize
+//!   (expression REBUILD through the dimension-checking constructors
+//!   and the wire-only canonical-set rule, [`wire`]) → the shared
+//!   validator → edit replay through [`crate::edit::apply`]'s doors →
+//!   ε reconciliation (D4). No silent best-effort loads, ever.
 //!
 //! # ε wiring (spec D4)
 //!
@@ -127,19 +134,21 @@ pub struct Loaded {
 /// best-effort load, never a stringly error at the API).
 #[derive(Debug, Clone, PartialEq)]
 pub enum PersistError {
-    /// A non-finite float at save time, naming the site (D2: the
-    /// kernel never legitimately produces NaN/inf — this is a
-    /// surfaced bug, not data).
+    /// A non-finite float in the document or edit log, naming the
+    /// site (D2: the kernel never legitimately produces NaN/inf —
+    /// this is a surfaced bug, not data). Shared-validator check; in
+    /// practice a save-door refusal, since JSON's lack of non-finite
+    /// tokens makes it unreachable post-parse.
     NonFinite {
         /// Where the non-finite value sits.
         site: NonFiniteSite,
     },
-    /// A declared-tangent joint out of range at SAVE time (review
-    /// MAJOR-DELTA-1 — the `Index` channel's twin of `NonFinite`):
-    /// the profile payload is `pub`, so a stale joint is reachable
-    /// without passing an edit door, and the written file would
-    /// refuse on load. Save refuses FIRST, with the load door's own
-    /// diagnostics; no file is produced.
+    /// A declared-tangent joint out of range (review MAJOR-DELTA-1 —
+    /// the `Index` channel's twin of `NonFinite`): the profile
+    /// payload is `pub`, so a stale joint is reachable without
+    /// passing an edit door, and a parsed file can carry the same
+    /// corruption. Shared-validator check: save refuses before a
+    /// byte is written, load refuses with the SAME diagnostics.
     TangentJointOutOfRange {
         /// Where the offending payload sits.
         site: JointSite,
@@ -201,7 +210,9 @@ pub enum PersistError {
         /// The parser's message.
         message: String,
     },
-    /// The snapshot parsed but violates a document invariant.
+    /// The snapshot violates a document invariant — a parsed one on
+    /// load, or an in-memory one at save (which would have written an
+    /// unloadable file; shared-validator check).
     Snapshot(SnapshotError),
     /// An edit in the log refused through the [`apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
@@ -336,25 +347,21 @@ fn migration_step(from_version: u32) -> Option<MigrationStep> {
         .map(|(_, step)| *step)
 }
 
-/// Serializes `snapshot` + `edits` into the schema-v1 text format.
+/// Serializes `snapshot` + `edits` into the current text format.
 ///
 /// # Errors
 ///
-/// [`PersistError::NonFinite`] naming the site of any NaN/inf in the
-/// document or edit log (D2); [`PersistError::Serialize`] if the JSON
-/// writer itself fails.
+/// Every arm of the shared validator (module docs — the same checks
+/// load runs): [`PersistError::NonFinite`] naming the site of any
+/// NaN/inf in the document or edit log (D2),
+/// [`PersistError::TangentJointOutOfRange`], and
+/// [`PersistError::Snapshot`] for a document whose structural
+/// invariants are broken (an unloadable file, refused before it
+/// exists). Plus [`PersistError::EditReplay`] for a log that cannot
+/// replay, and [`PersistError::Serialize`] if the JSON writer itself
+/// fails.
 pub fn save(snapshot: &ProfileDoc, edits: &[DocEdit<ProfileDesc>]) -> Result<String, PersistError> {
-    if let Some(site) = check::first_non_finite(snapshot, edits) {
-        return Err(PersistError::NonFinite { site });
-    }
-    if let Some((site, loop_index, joint, vertex_count)) = check::first_bad_joint(snapshot, edits) {
-        return Err(PersistError::TangentJointOutOfRange {
-            site,
-            loop_index,
-            joint,
-            vertex_count,
-        });
-    }
+    check::validate_document(snapshot, edits)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —
     // never a file that saves clean and cannot load. (Pure and
@@ -380,13 +387,15 @@ struct SerBody<'a> {
     edits: &'a [DocEdit<ProfileDesc>],
 }
 
-/// Parses, migrates, validates, replays, and ε-reconciles a schema-v1
-/// (or migratable older) save. See the module docs for the door
-/// sequence; every failure is a typed [`PersistError`].
+/// Parses, migrates, validates, replays, and ε-reconciles a saved
+/// document. See the module docs for the door sequence; every failure
+/// is a typed [`PersistError`].
 ///
 /// # Errors
 ///
-/// Every arm of [`PersistError`] except `NonFinite`/`Serialize`.
+/// Every arm of [`PersistError`] except `Serialize` (`NonFinite` is
+/// guarded by the shared validator but unreachable post-parse — JSON
+/// carries no non-finite tokens, so those bytes refuse as `Parse`).
 pub fn load(text: &str) -> Result<Loaded, PersistError> {
     let (version, body_text) = parse_header(text)?;
     // Migration chain (D1): walk explicit steps up to the current
@@ -413,7 +422,10 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
         }
         serde_json::from_value(value).map_err(parse_err)?
     };
-    check::validate_snapshot(&body.snapshot).map_err(PersistError::Snapshot)?;
+    // The ONE shared validator — the same call the save door makes
+    // (convention 2): a parsed document passes exactly the checks an
+    // in-memory document must pass to be saved.
+    check::validate_document(&body.snapshot, &body.edits)?;
     // Replay through apply's doors: the loaded current state is the
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
