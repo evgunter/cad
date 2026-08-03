@@ -370,7 +370,9 @@ pub trait Real:
 /// `topo::props::PropsQuadLane`'s explicit per-scalar impls are the
 /// only entry, and the dual impl instantiates none of it.
 ///
-/// **Ratified extension (M5 PR 12, the same lane ruling):** the
+/// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
+/// the PR 11 precedent; retroactive Evan review per the self-merge
+/// convention):** the
 /// **fillet-validity battery** — `sweep::fillet::battery` and the
 /// assembly it licenses, `sweep::fillet::build` — joins the compound
 /// allowlist. It is the same class as the quadrature seam on both

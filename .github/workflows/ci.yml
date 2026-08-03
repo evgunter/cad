@@ -110,8 +110,9 @@ jobs:
       # ruling at that PR: certification is the bracket-carrying
       # lanes' business, statically split from the dual lane through
       # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
-      # seam in sweep. That last one was ratified by the SAME lane
-      # ruling: the battery's margins are certified metric quantities
+      # seam in sweep. That last one is an ORCHESTRATOR ruling
+      # (2026-08-03) applying the PR 11 precedent, flagged for
+      # retroactive Evan review per the self-merge convention: the battery's margins are certified metric quantities
       # (sup-κ curvature hulls, blend setback bounds) reported as
       # `f64` payloads, i.e. enclosure consumers of exactly the
       # quadrature's class; and no dual-scalar path can reach it —
