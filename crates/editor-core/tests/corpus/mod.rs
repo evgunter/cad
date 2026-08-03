@@ -43,6 +43,8 @@ use topo::Body;
 pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_fillet;
+pub mod die_pips;
 pub mod heatsink;
 pub mod islands;
 pub mod sink;
@@ -125,6 +127,15 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
+        die_pips::document(),
+        // `die_fillet::document()` is NOT here, and its module docs say
+        // why: the fillet battery's clearance screen seeds a gap with
+        // `T::from_f64(f64::INFINITY)`, which is NaI at the Interval
+        // scalar, so the document is green at `f64` and refuses under
+        // `--features interval` — and registry membership means the
+        // Interval lane. It is pinned, at both scalars, by
+        // `m5_pr12_fillet_node.rs`; registering it is a one-line change
+        // the moment the sentinel goes.
     ]
 }
 
@@ -177,11 +188,17 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 11] = [
+pub const NODE_KINDS: [&str; 12] = [
     "Datum",
     "Profile",
     "Extrude",
     "Revolve",
+    // M5 PR 12's constant-radius rolling-ball fillet. In the DOMAIN,
+    // at zero coverage, for the same reason `Loft`/`Sweep` are: the
+    // document exists (`die_fillet`) and is green at `f64`, but the op
+    // refuses at the Interval scalar, which registry membership
+    // requires. See `documents()` and `m5_pr12_fillet_node.rs`.
+    "Fillet",
     "Split",
     "Boolean",
     "Transform",
@@ -258,6 +275,7 @@ pub fn sub_kinds(node: &Node<ProfileDesc>) -> Vec<&'static str> {
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
+        | Node::Fillet { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
         | Node::Loft { .. }
@@ -273,6 +291,7 @@ pub fn node_kind(node: &Node<ProfileDesc>) -> &'static str {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
+        Node::Fillet { .. } => "Fillet",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",

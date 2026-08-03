@@ -61,6 +61,8 @@ pub enum SlotId {
     Direction(Axis3),
     /// An extrude's distance (Length).
     Distance,
+    /// A fillet's constant blend radius (Length).
+    Radius,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
     /// A transform's translation component (Length).
@@ -92,9 +94,11 @@ impl SlotId {
     /// `apply` on insert and on every expression edit, spec D6).
     pub fn dimension(self) -> Dimension {
         match self {
-            Self::Origin(_) | Self::Distance | Self::Translation(_) | Self::Spacing => {
-                Dimension::Length
-            }
+            Self::Origin(_)
+            | Self::Distance
+            | Self::Radius
+            | Self::Translation(_)
+            | Self::Spacing => Dimension::Length,
             Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle | Self::RotationAngle | Self::Step => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
@@ -236,6 +240,23 @@ pub enum Node<P> {
         /// must satisfy `1 ≤ degree ≤ stations − 1`.
         v_degree: Expr,
     },
+    /// Constant-radius rolling-ball fillets on EVERY edge of `target`
+    /// (M5 PR 12). Edge selection is deliberately absent: the
+    /// assembly's front door is "every edge of a convex, planar-faced,
+    /// trivalent-vertex polyhedron", so a whole-body request needs no
+    /// stable edge names and cannot go stale under a parameter edit.
+    ///
+    /// The op is [`sweep::fillet::build::fillet_edges`] over the
+    /// target body's whole edge arena; anything outside that front
+    /// door is a typed refusal
+    /// ([`crate::eval::NodeErrorKind::Fillet`]), never a silent
+    /// pass-through of the input body.
+    Fillet {
+        /// The body every edge of which is blended.
+        target: RecipeNodeId,
+        /// The constant blend radius ([`SlotId::Radius`]).
+        radius: Expr,
+    },
     /// Split a target body by a tool.
     Split {
         /// The body split.
@@ -328,6 +349,7 @@ impl<P> Node<P> {
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
             Node::Loft { profiles, .. } => profiles.clone(),
             Node::Sweep { profile, path, .. } => vec![*profile, *path],
+            Node::Fillet { target, .. } => vec![*target],
             Node::Split { target, tool } => vec![*target, *tool],
             Node::Boolean { a, b, declare, .. } => {
                 let mut v = vec![*a, *b];
@@ -365,6 +387,7 @@ impl<P> Node<P> {
                 Vec::new()
             }
             Node::Extrude { .. } => vec![SlotId::Distance],
+            Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
             Node::Loft { .. } => vec![SlotId::VDegree],
             Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
@@ -403,6 +426,7 @@ impl<P> Node<P> {
                 Some(comp(direction, ax))
             }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
+            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
@@ -455,6 +479,7 @@ impl<P> Node<P> {
                 Some(comp_mut(direction, ax))
             }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
+            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),

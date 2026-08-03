@@ -281,6 +281,13 @@ pub enum NodeErrorKind {
     Revolve(RevolveError),
     /// The split op refused.
     Split(SplitError),
+    /// The constant-radius fillet op refused (M5 PR 12) — the battery
+    /// verdict that rejected the request BEFORE anything was minted,
+    /// the assembly front door ("every edge of a convex, planar-faced,
+    /// trivalent-vertex polyhedron"), or a named frontier. Carried
+    /// UNALTERED like every other kernel refusal; the node never
+    /// passes its input body through.
+    Fillet(sweep::fillet::FilletError),
     /// The boolean op refused.
     Boolean(BooleanError),
     /// The rigid-transform op refused.
@@ -838,6 +845,8 @@ where
         // an EXISTING tag must never be reused for a new meaning.
         Node::Loft { .. } => 15,
         Node::Sweep { .. } => 16,
+        // M5 PR 12.
+        Node::Fillet { .. } => 17,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare
