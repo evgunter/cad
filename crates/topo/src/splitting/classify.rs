@@ -182,6 +182,19 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // path escalated: a strategy divergence, the exact thing the
     // differential suite exists to catch).
     let r = (a.powi(2) + b.powi(2)).sqrt();
+    // 0. The PARALLEL-frame gate (M5 S13 fix pass): a conic whose
+    // plane is parallel to the query plane (both amplitudes zero)
+    // either never meets it or lies wholly IN it, and both take
+    // ENDPOINT treatment only — the M3 coplanar rule (interior events
+    // surface via neighbor faces). Routed structurally here; the
+    // coplanar sub-case previously fell through to the graze arm with
+    // a 0/0 phase and escalated on an Invalid margin — loud, but
+    // shapeless. The in-band twin escalates (F6).
+    match decide("split_conic_plane_parallel", r, band) {
+        Ok(Sign::Zero) => return Ok(None),
+        Ok(Sign::Positive | Sign::Negative) => {}
+        Err(diag) => return Ok(Some(Err(diag))),
+    }
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", r - d0.abs(), band) {
         Ok(Sign::Negative) => return Ok(None),

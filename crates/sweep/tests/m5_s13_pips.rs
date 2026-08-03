@@ -343,3 +343,53 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
     };
     assert!(what.contains("sphere"), "{what}");
 }
+
+/// **F2 (fix pass): the scan's TRIMMED-GROUP arm.** A pip RESULT
+/// carries a trimmed sphere face group (the cap), so using it as an
+/// operand in a second no-crossing boolean must refuse typed at the
+/// scan — the extent certificate `center ± r` is only honest for a
+/// CLOSED group (the PR 9c discipline), and no per-face chart-trim
+/// extent exists. This is also sequential pip authoring's honest
+/// blocker (the two-pip row's two-shell operand is the live route).
+#[test]
+fn trimmed_sphere_group_operand_refuses_typed_at_the_scan() {
+    let pip = both_lanes(BooleanOp::Subtract, &slab(), &pip_ball(2.0, 2.0));
+    let far = ball_at(0.5, Vec3::new(2.0, 2.0, 3.5));
+    let err = topo::union(&pip, &far).expect_err("a trimmed group cannot be extent-certified");
+    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+        panic!("expected the scan's trimmed-group arm, got {err:?}");
+    };
+    assert!(what.contains("trimmed"), "{what}");
+}
+
+/// **F2 (fix pass): the scan's CYLINDER-NEAR-SPHERE arm.** A ball
+/// hovering above a cylinder's wall inside the wall's certified box
+/// (the PR 9 box is the full cylinder slab widened by the radius in
+/// every coordinate) but with every edge pair box-clear: nothing is
+/// examined, the fallback fires, and the scan refuses typed naming the
+/// cyl×sphere seam blocker — certified boxes prove separation, and
+/// anything closer than the boxes cannot be classified without the
+/// fitted-chord lane (PR 9c deviation 1).
+#[test]
+fn cylinder_near_sphere_refuses_typed_at_the_scan() {
+    let disc = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: p2(0.35, 0.0),
+            bulge: 1.0,
+        },
+        ProfileVertex {
+            pos: p2(-0.35, 0.0),
+            bulge: 1.0,
+        },
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![disc])
+        .validate(Tolerance::get())
+        .unwrap();
+    let cyl = extrude(&vp, Extrusion::Distance(1.3)).unwrap().body;
+    let ball = ball_at(0.2, Vec3::new(0.0, 0.0, 1.75));
+    let err = topo::union(&cyl, &ball).expect_err("nearness to a cylinder wall cannot certify");
+    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+        panic!("expected the scan's cylinder arm, got {err:?}");
+    };
+    assert!(what.contains("cyl×sphere"), "{what}");
+}

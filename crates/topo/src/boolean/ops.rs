@@ -444,7 +444,8 @@ fn boolean_op_recut<T: Decide + Bounds>(
         //   joins them exactly.
         // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
         //   cylinder-near-sphere, sphere×sphere overlap, tangency,
-        //   boundary-grazing circles): typed refusal — the S12 silence
+        //   boundary-grazing circles, one group escaping through
+        //   NON-PARALLEL faces): typed refusal — the S12 silence
         //   never re-opens.
         let recuts = sphere_extent_scan(a, b, band)?;
         if !recuts.is_empty() {
@@ -1181,7 +1182,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                 max_z: center.z.hi() + radius.hi(),
             }
             .padded(pad);
-            let mut align: Option<Vec3<T>> = None;
+            let mut escape_normals: Vec<Vec3<T>> = Vec::new();
             for (yf, yfd) in y.faces() {
                 match y.get_surface(yfd.surface) {
                     Some(&geom_surfaces::Surface::Plane {
@@ -1289,9 +1290,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                     // elsewhere).
                                     FaceContainment::Out => {}
                                     FaceContainment::In => {
-                                        if align.is_none() {
-                                            align = Some(normal);
-                                        }
+                                        escape_normals.push(normal);
                                     }
                                     // Boxes cleared yet the witness is
                                     // ON the boundary: contradictory
@@ -1388,7 +1387,38 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                     }
                 }
             }
-            if let Some(align) = align {
+            if let Some((&align, rest)) = escape_normals.split_first() {
+                // ONE alignment per group (M5 S13 fix pass, review
+                // MAJOR): the re-chart makes every section polar only
+                // when ALL of this group's escape planes share a
+                // normal direction. A group poking two NON-PARALLEL
+                // faces would re-chart for the first and leave the
+                // second cap's join to a tilted-section refusal that
+                // the re-entered crossing layer may never reach — the
+                // reviewer's witness answered 16 + cap_top, tier-3
+                // valid, silently short one cap. Refused typed here
+                // instead (metered at the group's own radius);
+                // antiparallel normals are the SAME direction (the
+                // finding row's top+bottom pair) and pass. Multi-chart
+                // re-cutting stays banked as an extension.
+                for &n in rest {
+                    match decide(
+                        "bool_sphere_escape_parallel",
+                        align.cross(n).norm() * radius,
+                        band,
+                    )
+                    .map_err(esc)?
+                    {
+                        Sign::Zero => {}
+                        Sign::Positive | Sign::Negative => {
+                            return Err(BooleanError::FallbackExtentUnsupported {
+                                operand: x_is,
+                                face,
+                                what: "one sphere group escapes through NON-PARALLEL plane                                        faces — a single re-chart cannot make every section                                        polar, and multi-chart re-cutting is not built;                                        refused whole rather than metering one cap and                                        dropping the other",
+                            });
+                        }
+                    }
+                }
                 out.push(SphereRecut {
                     operand: x_is,
                     representative,

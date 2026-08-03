@@ -687,7 +687,9 @@ pub fn plane_sphere_section<T: Decide>(
     // is not chosen. The selection trilean's degenerate and in-band
     // arms both take the second candidate: near the threshold BOTH
     // are valid placements, so the arm is a deterministic tie-break
-    // (D9), not a verdict — nothing downstream moves with it.
+    // (D9), not a verdict — no downstream VERDICT moves with it
+    // (derived f64 parameter bits may differ across code versions;
+    // within-run replay and strategy identity are what D9 pins).
     let seam_cand = n.cross(sph_u);
     let u_ref = match decide(
         "ps_frame_seam",

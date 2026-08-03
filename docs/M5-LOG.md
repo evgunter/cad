@@ -2260,7 +2260,11 @@ cone/torus/NURBS keep it, message updated.
 3. Three Interval-representation repairs in shared lanes, each a
    choice between mathematically identical formulas behind a named
    frame trilean (degenerate/in-band arms are deterministic
-   tie-breaks, D9 — nothing downstream moves): branch-stabilized
+   tie-breaks, D9 — no downstream VERDICT moves; cross-version f64
+   bits of derived root/azimuth parameters MAY differ, while
+   within-run D9 replay and realized/idealized strategy identity are
+   preserved, and no pin captures cross-version bits — reviewer
+   confirmed): branch-stabilized
    `atan2` at the chart seam's angle-π copy (`stable_azimuth` in the
    S9 chord lanes, `stable_az` in the sphere chart arm,
    `split_conic_phase_frame` in the conic-root phase), the CENTRED +
@@ -2290,3 +2294,41 @@ existing interval suites). `cargo fmt --all --check` clean; `clippy
 the diff: no `x*x` squares added; the one new sqrt operand is the
 product of two factors certified positive by the preceding trilean
 (`(r − |s|)(r + |s|)`, documented at the site).
+
+**Fix pass (review verdict: one MAJOR, fixed).**
+- **F1 (MAJOR)**: the extent scan kept only the FIRST escape normal, so
+  ONE group poking two NON-PARALLEL faces re-charted for one and — with
+  crossings then existing, the loud re-entry invariant never refiring —
+  silently dropped the second cap (reviewer's witness: 16 + cap_top
+  exactly, tier-3 valid). Ruled fix: collect EVERY definite escape
+  normal per group; unless all are parallel under the named
+  `bool_sphere_escape_parallel` trilean (metered at the group radius;
+  antiparallel = same direction, so the finding row's top+bottom pair
+  keeps its green), refuse typed `FallbackExtentUnsupported` naming the
+  multi-escape configuration. Multi-chart re-cutting banks as an
+  extension. Pinned both strategies as
+  `probe_two_nonparallel_escapes_refuse_typed`.
+- **F2**: the scan's trimmed-group and cylinder-near-sphere arms gained
+  direct rows (a pip RESULT as a second-op operand; a ball inside a
+  cylinder wall's certified box with all edge pairs box-clear). The
+  near-boundary and sphere-nested arms are documented as
+  defense-in-depth: both are structurally shadowed by the REDUCE-stage
+  pierce frontier (a circle crossing a boundary edge means that edge
+  passes within r of the center — the same inequality; a nested ball's
+  edges always sit inside the outer sphere's face box), pinned at their
+  actual doors in the adopted probes.
+- **F3**: deviation 3's claim scoped to VERDICTS (cross-version f64
+  parameter bits may differ; within-run D9 replay and strategy identity
+  preserved; no pin captures cross-version bits — reviewer confirmed).
+- **F4**: the parallel/coplanar conic class is routed structurally in
+  `conic_plane_crossing_roots` (`split_conic_plane_parallel`: endpoint
+  treatment only — the M3 coplanar rule) instead of falling into the
+  graze arm's 0/0 phase and escalating on an Invalid margin; the PR 9c
+  smoke shape now reaches the scan and refuses TYPED at its real
+  geometry (exact tangency to the top face), re-pinned.
+- **F5**: the reviewer's probes adopted as `m5_s13_review_probes.rs`
+  (probes 3/7 pinned at the doors that actually fire, with the
+  shadowing documented; merge-base evidence recorded as history notes —
+  the dev-2 face-box hazard was CONFIRMED LIVE ON MAIN: the realized
+  BVH pruned dir-1 pierce candidates and a fin×ball union answered as
+  if disjoint, a silent self-overlapping body).
