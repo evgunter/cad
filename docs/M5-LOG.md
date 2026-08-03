@@ -2754,9 +2754,12 @@ fixture, refused typed. Sense comes from the stored convexity verdict
    builds through tiers 1–2 and then reports `VolumeUncomputable`. The
    gap is in the props inventory (a spherical-triangle form, or
    quadrature extended to sphere faces), not in the body.
-4. *No dual montage.* The machinery had not merged; both stops are
-   ordinary montage panels and will pick up the second montage for
-   free when it lands.
+4. *The dual montage landed mid-flight and was folded in.* Both die
+   stops carry `montage: true`, and both montage lanes
+   (`compose_montage.py` for the kernel renderer, `--freecad` for the
+   OCC/STEP one) select their cells from `scenes.json` by exactly that
+   flag on the SAME grid — so the die renders in BOTH sheets with no
+   further wiring, which is the acceptance the spec asked for.
 
 **Battery.** Touched crates at default ε: `sweep` (all binaries),
 `geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all).
