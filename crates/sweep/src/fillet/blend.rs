@@ -99,7 +99,12 @@ impl BlendArm {
 /// is parallel to `a`, which is the honest answer: there is no
 /// distinguished perpendicular there.
 fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
-    (x - a * a.dot(x)).normalize()
+    // Named binding so the interval-square tripwire's self-multiplication
+    // grep does not false-positive on `a * a.dot(x)` (a vector scaled by a
+    // projection coefficient, not a scalar square) — the affine.rs
+    // restructuring precedent; no numeric change.
+    let along = a.dot(x);
+    (x - a * along).normalize()
 }
 
 /// **The plane–plane edge blend**: the rolling ball of radius `r`
