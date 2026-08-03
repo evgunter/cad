@@ -2392,3 +2392,11 @@ uncertified there. δ-vs-angle arithmetic recorded: θ≈√(8δ/R) —
 distance-only under-refines small radii in angle; sizing δ to
 r_min over-refines by ~R/r_min in facet count; acceptable for
 current consumers.
+
+**S4 DISPATCHED into the lull (2026-08-03, fable — block-18
+draw byte 131 = (fable, opus); difficulty S logged pre-draw;
+A/B row 39; opus remainder → PR 12).** The convention-2
+validator consolidation, with the moot-finding outcome
+pre-authorized as success. #160 gating (watcher armed; checks
+slow to start — Actions queue). PR 12 dispatches on #160's
+merge with the opus remainder.
