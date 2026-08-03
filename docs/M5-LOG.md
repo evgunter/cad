@@ -2608,3 +2608,15 @@ montage:false is a stale staging leftover from the demo unit
 sheet without flipping the flag. Flip it in the curation unit —
 and note item (3)'s bracket retirement DEPENDS on this (rocker
 must be on the sheet to cover profile fillets there).
+
+**CI build-once/shard unit DISPATCHED (Evan's request,
+2026-08-03; fable — block-19 draw byte 227 = (fable, opus);
+difficulty M logged pre-draw; CI-infra class = no blinded lane,
+row-16 precedent).** Key fact driving it: the three ε test rows
+run BIT-IDENTICAL binaries (ε is runtime env) — 3 redundant
+compilations today; only interval is a distinct build graph.
+Shape: nextest archive per compile mode → run jobs consume
+archives (ε rows share one) → intra-row --partition only if
+measurements justify; non-cargo rows untouched; ci-local.sh
+sync per the KEEP IN SYNC contract; doctest audit required.
+Gate-first (the PR's own runs are the validation).
