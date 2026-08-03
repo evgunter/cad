@@ -432,7 +432,8 @@ component-aware E–P form found and corrected in M1 PR 4).**
   coincidences and is census-invisible at tier 3′ — a valid void, not
   an undetected contact.
 - **The envelope (typed refusals on record, never silent gaps;
-  M3 entries updated at the M4 8c exit sweep, 2026-07-27):**
+  M3 entries updated at the M4 8c exit sweep, 2026-07-27; M5's
+  curved entries added at the PR 14 exit sweep, 2026-08-03):**
   (i) **RETIRED (M4 PR 5, #102)** — the operand-internal-declaration
   gap: ops now consume declarations as recipe data threaded by name
   through op composition (F5/N-decisions, exactly the recorded M4
@@ -464,6 +465,62 @@ component-aware E–P form found and corrected in M1 PR 4).**
   rather than classify; CDT exterior classification itself is now
   structural (even-odd flood fill, watertight by construction,
   #116), so the mesh lane no longer contributes residue of its own.
+  (v) **RETIRED (M5 S1, #140)** — the REST-contact join gap named in
+  (iii): the crosslap mate's PLANAR rest contact now zips through a
+  declared-contact join lane, at exact volume, both doors pinned.
+  What it did NOT retire is CURVED rest contact (a declared
+  cylindrical or spherical conformal class — ball-and-socket,
+  peg-in-hole): that is a declared coincidence class verified
+  structurally, and #161 moved its design doc into the M7 plan,
+  where imported assemblies arrive carrying such contacts.
+  (vi) **the M5 curved frontier, as built** — every one of these
+  refuses TYPED with a message naming its own blocker, and each is a
+  banked unit rather than an open question:
+  **(a) composition surgery** — an in-place edge-blend that replaces
+  a rim edge with a blend band inside an existing body. Its absence
+  is why acceptance shape (v) is two bodies; both compose orderings
+  refuse (curved-pierce door / whole-body assembly door). One
+  reviewed unit, banked at the head of the main path.
+  **(b) the SSI generic-`T` lift** — `ssi::enclose`/`ssi::certify`
+  and `NurbsSurface::project` are `f64`-only by type, so
+  `Pcurve::Fitted` cannot be admitted without either lifting them to
+  `T: Real` or accepting a certification lane that silently dies in
+  the Interval lane. MAIN-PATH; it gates (d) and (e).
+  **(c) loft/sweep body assembly** — the `Loft`/`Sweep` nodes build
+  their walls and then refuse `CurvedSolidFrontier`, because tier 3's
+  +V check routes a NURBS face to `Unimplemented`: NURBS-patch flux
+  needs surface quadrature and the surface-AREA half has no closed
+  form for a rational patch at all. Shipping the assembly without it
+  would replace an honest frontier with a body that fails validation.
+  MAIN-PATH, after (b). This is why acceptance shape (iii) is met at
+  its SUBSTRATE row (a directly-authored NURBS wall cut by a plane,
+  all three limbs, both lanes, bit-replayed — PR 7b/#149) and its
+  full loft BODY is carried.
+  **(d) cyl×sphere germ chords** — only `(Plane, Cylinder)` and
+  `(Plane, Sphere)` germ arms are wired; a fitted carrier has no
+  closed-form chart image, so the azimuth-window lane has nothing to
+  read until (b) lands `Pcurve::Fitted`. Sphere×sphere seams, cone
+  and torus operands refuse alongside it.
+  **(e) the NURBS extent lift** — the boolean fallback's curved-extent
+  test is re-gated typed (`NurbsExtentUnsupported`) rather than left
+  to vertex-probe silence, naming its blocker: `implicit_residual`
+  is poison at NURBS and the only foot-point projection is f64-only.
+  **(f) the canal-surface general blend** — the kernel's first
+  APPROXIMATING surface, for fillet chains whose rolling-ball spine
+  is neither a line nor a circle (`FilletError::SpineUnsupported`).
+  Deliberately **PARKED**, not scheduled: no acceptance shape
+  consumes it (the die is analytic end to end), and building reviewed
+  machinery with no caller is the dead-code pattern M5's reviews
+  repeatedly punished. It re-opens with the milestone that ships its
+  first consumer (Band-3 fillet breadth).
+  Two further M5 limitations are latent-and-loud rather than banked
+  units, and are recorded so they are not rediscovered as bugs: a
+  meridian-tangent circle is in-lane but uncertifiable (no
+  constructor mints one; the refusal is loud), and genuinely-oblique
+  trihedral corners build through tiers 1–2 and then report
+  `VolumeUncomputable` — a gap in the props inventory (a
+  spherical-triangle form, or quadrature extended to sphere faces),
+  not in the body.
 
 Topology and geometry live in separate arenas: faces reference surfaces,
 edges reference curves, vertices reference points.
@@ -685,6 +742,21 @@ applied to error handling. Five commitments:
    of the interpretation threshold), not a separate concept —
    adoption re-runs classification at a different ε_input, exactly
    as CURVED-DESIGN's D7 leave-room obligation already requires.
+   (iv) **The rule binds a predicate's DEFINITE arms too, not only
+   its indeterminate one** (added at the M5 exit sweep, 2026-08-03;
+   the S9 lesson — the chord_spec azimuth-window repair introduced
+   new definite arms that silently missed the two-tolerance shape,
+   caught as review MIN-1 at #145). When a predicate grows an arm,
+   the arm inherits the obligation: a NEW definite outcome that a
+   user could reach by moving geometry must tell the same one story
+   with the same one recourse as its in-band sibling. The failure
+   mode this closes is subtle and was observed: the indeterminate
+   arm gets the careful unified message because that is where the
+   principle was written, while a freshly-added definite arm ships a
+   `{:?}` payload or a second, differently-worded recourse — and the
+   user's experience of "the same situation" forks after all. Review
+   checklist form: for every arm added to a decision, name which
+   ε_input story it belongs to, or say why it belongs to none.
    **Chordal tolerance δ is not a tolerance in this sense (ratified at
    M2, PR 6).** Tessellation/export take a per-call *display parameter*
    δ (chordal deviation), deliberately distinct from ε: δ is chosen per
@@ -698,6 +770,24 @@ applied to error handling. Five commitments:
    layer reads ε exactly once (pole vertex identification) and never
    for sizing; display-layer comparisons are deliberately not Q1
    predicates (none decide kernel topology).
+   **The tessellation criterion is DISTANCE-ONLY (ruled in session
+   2026-08-02/03, Evan + orchestrator concur; recorded at the M5 PR
+   14 exit sweep).** The ruling, scoped verbatim: *"NO
+   angular-deflection criterion in the certified tessellator.
+   Grounds: every contracted consumer is manufacturing-shaped (STL
+   chordal semantics, admesh, props now quadrature-based); a
+   certified angular bound would cost new normal-variation enclosure
+   machinery purchased only for visual smoothness δ already buys; the
+   OCC-norm expectation belongs to display+manufacture combined
+   engines. The angular/screen-space criterion is the future
+   DISPLAY-MESH lane's (GUI milestone), honestly uncertified there.
+   δ-vs-angle arithmetic recorded: θ≈√(8δ/R) — distance-only
+   under-refines small radii in angle; sizing δ to r_min
+   over-refines by ~R/r_min in facet count; acceptable for current
+   consumers."* The consequence to hold onto: when a display lane is
+   built it gets its own, separately-honest criterion, and it must
+   not be mistaken for — or quietly promoted into — the certified
+   export promise above.
 2. **Every derived cache carries a certified residual bound** against its
    intensional description (D2): fitted intersection curves, projected
    pcurves, refit 3-D curves. Kernel invariant: `residual ≤ ε` for every
@@ -938,6 +1028,33 @@ ratified; each earned by a concrete M4 incident):**
    persistence rows showed green on the old matrix); floors then
    tracked the matrix 13 → 14 → 16 through #116/#118.
 
+**Conventions PROPOSED at the M5 exit sweep (PROPOSED-PR14 —
+awaiting Evan's sign-off; not yet ratified):**
+
+5. **Semantic equivariance where it is free — with the premise
+   explicitly UNAUDITED.** Kernel constructions and selection rules
+   should commute with rigid motions *and reflections* at the
+   semantic level (in ℝ), unless equivariance is provably impossible
+   for the case or costs something real. This concerns DESIGNED
+   rules — no left-hand rules, no absolute-orientation tie-breaks —
+   and explicitly NOT bitwise f64 equivariance, which D9's fixed
+   evaluation orders already forgo. Rationale: user geometry has no
+   preferred handedness, so a mirrored design should behave as the
+   mirror of the original. How to apply: when specifying a
+   selection/tie-break/ordering rule, prefer intrinsic quantities
+   (arc lengths, distances, angles) over enumeration or construction
+   order; where a candidate-swapping symmetry makes equivariance
+   impossible, fall back deterministically and DOCUMENT the residual.
+   Origin: Evan, 2026-07-30, during the S8 fillet-branch ruling —
+   *"everything is equivariant right now, so maintain that if it's
+   free (if that is indeed true)."* **The parenthetical is load-
+   bearing and is carried into this convention: the "the kernel is
+   currently equivariant" premise is UNVERIFIED. An audit is banked,
+   not assumed. Do not cite the kernel as equivariant in docs or
+   review without checking the claim at the site in question.**
+   Precedent for the documented-residual escape: M5 S8's selection
+   ladder, rung 3 — the first knowingly-designed residual.
+
 ### D5 (agreed): Persistent topological identity from birth
 
 Every topological entity carries a provenance record from the moment it is
@@ -1043,7 +1160,42 @@ precursor of the error-propagation feature.
   demos migrated to declared intent.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets. Design record ratified: `docs/CURVED-DESIGN.md` (#85,
-  2026-07-24). Banked M5 openers from the M4 exit (8c, 2026-07-27):
+  2026-07-24). *(Done-state recorded at the PR 14 exit sweep,
+  2026-08-03 — walk: `docs/M5-EXIT-WALK.md`. **Shipped**: the
+  interval-crate swap retiring inari and its LGPL stack from the tree
+  (#127); the C9 interval ring + projection/fitting/LSQ substrate
+  (#130, and PR 4); NURBS substrate parts 1–2; exact `Ellipse`
+  carriers with the C5 dispatch table (#141); SSI marching with the
+  three-limb certificate (#146) and its tensor-compose follow-on
+  (#149); certified pcurve storage in meters, seams with distinct
+  pcurves (#144); the BVH crate + sweep wiring, retiring the M3
+  boolean-sweep quadratic (#135); per-class curved booleans — plane×
+  cylinder, then plane×sphere — with the tangency regime and typed
+  touching refusals (#152, #154, #158, #164); `Loft`/`Sweep`
+  definitional nodes + schema v2 (#151); certified tessellation and
+  quadrature-based mass properties (#157); face-orientation sense
+  fixes (#155, #156); curved AP214 STEP export with FreeCAD
+  acceptance (#159); constant-radius fillets — cylinder bands, torus
+  rims, sphere-octant corners — and the die (#166); side units S1,
+  S2, S4, S6, S7, S8, S9. **The envelope moved, not vanished**: seven
+  units are BANKED by name, with their doors typed and pinned —
+  composition surgery, the SSI generic-`T` lift, loft/sweep body
+  assembly, the canal-surface blend, cyl×sphere germ chords, the
+  NURBS extent lift, and curved REST contact (see the frontier
+  entries below). **Acceptance shape (v), honestly**: the
+  die-with-pips ships as TWO bodies — a fully blended blank and a
+  21-pip die, each tier-3 valid, watertight, and STEP-exported — and
+  they do not compose at M5. Both orderings refuse typed at two
+  different pre-existing frontiers (fillet→pip at the curved-pierce
+  door, which is unconditional and not a clearance verdict; pip→
+  fillet at the whole-body assembly front door). The in-place
+  edge-blend surgery that closes them is sized at one reviewed unit
+  and banked at the head of the main-path queue. Shape (v) is
+  therefore recorded **met piecewise**, not met whole.
+  **Sequencing**: #161 ratified the M5→M6 boundary — M5 exit → SSI
+  generic-`T` lift → loft/sweep assembly → **M7 (STEP import as
+  adoption) BEFORE M6** → M6 error propagation.)* Banked M5 openers
+  from the M4 exit (8c, 2026-07-27):
   **curved STEP subset** (banked planar-only; DISCHARGED at M5 PR 13 —
   the writer now emits `CYLINDRICAL_`/`CONICAL_`/`SPHERICAL_`/
   `TOROIDAL_SURFACE` and `CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS`
@@ -1059,11 +1211,25 @@ precursor of the error-propagation feature.
   corners; arc-leg is the noted follow-up, see #104); **REST-contact
   join lane** (the crosslap mate is a pure rest contact — M3 envelope
   frontier, `crosslap_rest.rs` pins both doors; banked at #102 R7);
-  **#89 K-revisit at the M5 exit**, now with its baseline: 8b's
-  K-probe over corpus + demos (≈2.56M samples/ε-row) is SHARPLY
-  BIMODAL — zero mode ≤ 5.33e-15, definite floor 1.689e-3, a
-  12-decade empty gap, zero in-band anywhere ⇒ K = 10 is unpressured
-  on the analytic kernel; **interval-crate adoption decision** — the
+  **#89 K-revisit at the M5 exit** — **TAKEN (PR 14, 2026-08-03;
+  K-REPORT "M5 addendum")**: ≈1.76M samples/ε-row over the curved
+  corpus + demos, still zero in-band landings and zero
+  indeterminate/invalid at every ε row, so no candidate K converts
+  any decision. But the surface is no longer FLAT: the ε-coupled
+  quadrature family `props_quad_converged` puts real definite
+  margins at ~1.6e2–8.4e2 × ε, leaving K = 100 only 1.65× of
+  clearance and K = 30 only 5.5×, against K = 10's 16.5×. The
+  addendum's recommendation is **hold K = 10 pending the M7 import
+  corpus** — the computed-SSI evidence Finding 4 named still has not
+  arrived (no `ssi_*` predicate samples; M5's curved booleans resolve
+  through exact analytic carriers), and #161 puts that corpus in the
+  NEXT milestone. **Awaiting Evan's sign-off on the PR 14
+  conversation**; K = 10 stands as the ratified default meanwhile.
+  Two code follow-ups are named and deliberately not taken in the
+  docs-only exit unit: re-deriving the large-K lint's stale
+  `BASELINE_FLOOR_MARGIN` (the M5 distribution sits under it — 102
+  advisory flags per hosted run), and a `Probe` lane that actually
+  reaches the SSI marcher; **interval-crate adoption decision** — the
   in-house `interval-transcendentals` crate (adoption GREEN-LIT, see crate table) exists as
   workspace-excluded tooling (#115); adopting it in the kernel's
   interval lane is an M5-PLAN ratified decision, not a default.

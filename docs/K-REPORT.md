@@ -339,3 +339,254 @@ threshold, only 1.9× clear. A future scene with ~1e-14 float noise
 at model scale will advisory-flag at 1e-12; that is the intended
 signal (ε = 1e-12 has thin noise headroom at unit scale), not a
 false positive to tune away.
+
+## M5 addendum — the curved-corpus telemetry snapshot (2026-08-03, M5 PR 14)
+
+**Scope: the M5 exit sweep's T5 K-telemetry run, over the corpus and
+demo scenes as they stand at main's tip (post-#166). This is the
+#89 revisit that M2's Finding 4 named — and the FIRST snapshot in
+which the counterfactual-K decision surface is not completely flat.
+It does NOT itself reopen K = 10 (FINAL above): it presents the
+table and a recommendation with grounds; the decision is Evan's.**
+
+- **Harnesses**: unchanged — `scripts/k_probe_sweep.sh`
+  (`crates/editor-core/tests/m4_pr8_k_probe.rs` over every registered
+  Band 4 corpus document + the tour's `k-probe` scene mode), one
+  process per ε, merged. No new infrastructure; the M5 curved
+  documents joined the corpus registry through their own PRs.
+- **Data**: `docs/k-report-data/m5-eps-{1e-6,1e-9,1e-12}.csv.gz`,
+  M2's columns exactly. *Reported naming deviation*: the sweep script
+  hard-codes the `m4-eps-` output prefix, so the committed M5 baseline
+  was renamed on commit; the rows are byte-identical to what the
+  script wrote. Retiring the hard-coded prefix is a code change and
+  was deliberately not made in this docs-only unit.
+- **Reproducibility**: the hosted `k-lint (advisory)` row on main's
+  tip (run 30835146557) reports the same sample counts to the unit
+  — 1 758 387 / 1 758 411 / 1 758 435 — and the same flags. This
+  snapshot is CI truth, not a local artifact.
+
+| ε row | samples | zero | definite | indet. | invalid | in (ε, Kε) | definite within a decade of Kε |
+|-------|--------:|-----:|---------:|-------:|--------:|-----------:|---:|
+| 1e-6  | 1 758 387 | 420 422 | 1 337 965 | 0 | 0 | 0 | 0 |
+| 1e-9  | 1 758 411 | 420 422 | 1 337 989 | 0 | 0 | 0 | 0 |
+| 1e-12 | 1 758 435 | 420 422 | 1 338 013 | 0 | 0 | 0 | 0 |
+
+Population split: 269 767 `corpus/<doc>` samples over 13 registered
+documents + 1 488 620 `demo/<scene>` samples over 17 scenes.
+**208 distinct predicate names** sample (M4: 145) — 63 new names,
+0 retired. `<unnamed>`: 0 (harness-asserted). Zero-side: 404 975 of
+420 422 zero-classified margins are EXACTLY 0; the worst is
+5.329e-15 m (`pm_census_ee_span`, demo/az) — the identical M4 value,
+so the noise cluster has not moved.
+
+The total is LOWER than M4's 2 562 157 despite a richer corpus; the
+demo tour's scenes were reworked across M5 (dual montage, #165) and
+several M4-era scene rebuilds no longer run twice. Sample counts are
+not a coverage metric and no claim rides on the direction.
+
+### Finding M5-1: the ε-stability observation is RETIRED
+
+M2 and M4 both reported decision counts *identical at every ε row*.
+That is no longer true: 1 758 387 / 1 758 411 / 1 758 435, +24 per
+row. The entire difference is one predicate —
+`props_quad_converged` on `demo/tiltedcut` — which samples 8 / 32 /
+56 times at 1e-6 / 1e-9 / 1e-12.
+
+It is a **convergence-loop stopping test**: adaptive quadrature over
+the tilted-cut face refines until its residual clears an ε-derived
+target, so a tighter ε buys more refinement rounds and each round
+records one more classification. Its margins form a visible ladder
+(ε = 1e-12 row, one seed's rungs, m in meters):
+
+```
+1.833e-4 → 2.271e-5 → 2.823e-6 → 3.511e-7 → 4.293e-8 → 4.468e-9 → 3.360e-10
+```
+
+This is the first predicate in the project whose **margin is
+ε-coupled** rather than model-scale. Every other margin in the
+corpus is a distance or angle fixed by the geometry, so tightening ε
+moves only the band; here it moves the margin too, and the ratio
+|m|/ε does NOT grow as 1/ε. The bimodality claim survives — this
+family is still definite everywhere — but the claim "the pipeline is
+bitwise ε-stable in its decision COUNTS" does not, and should not be
+repeated without this exception.
+
+### Finding M5-2: the model-scale floor dropped ~0.5 decade
+
+Definite floors by ε row (excluding the exact tie-break bands at
+`band_zero` 5e-324 / 1e-100 — `canonical_order_*`,
+`split_join_order_*`, `fillet_leg_fit` — which are order decisions,
+not distances):
+
+| predicate | shape | |m| (m) | note |
+|---|---|--:|---|
+| `bool_ring_run_winding` | demo/projectbox_cutaway | 5.086e-4 | ε-independent; the new model-scale floor |
+| `props_rim_side` | corpus/die_pips | 5.760e-4 | the S13 pip rim — a real 0.58 mm feature |
+| `props_quad_converged` | demo/tiltedcut | 8.395e-4 (1e-6) / 1.647e-7 (1e-9) / 3.360e-10 (1e-12) | ε-coupled, see M5-1 |
+| `pm_census_ee_gap` | demo/az | 1.689e-3 | M4's floor, unchanged |
+
+M4's floor of 1.689e-3 is now the FOURTH-lowest. The two new
+ε-independent entries are honest sub-millimetre features (a ring-run
+winding headroom and a die pip's rim clearance), not noise: the gap
+to the zero cluster (≤ 5.3e-15) is still ~11 decades and still
+completely empty.
+
+**Consequence, stated plainly: the large-K lint's baseline floor is
+stale.** `BASELINE_FLOOR_MARGIN = 1.5e-3` was the P0 of the M4
+distribution. The M5 corpus sits below it, and the hosted advisory
+row on main's tip prints **102 flags** (10 at 1e-6, 34 at 1e-9, 58 at
+1e-12 — every one of them `props_quad_converged`, `props_rim_side`,
+or `bool_ring_run_winding`). The lint is advisory-only by design
+(M4 PR 8b D3: "printed, not failing … gate once the baseline is
+trusted"), so nothing is red — but its first-iteration posture has
+now expired: the threshold no longer distinguishes signal from
+baseline. **Re-deriving the floor against this distribution (and
+deciding whether the ε-coupled family belongs under a ratio rule
+rather than a metre rule) is a code change and is therefore NOT made
+here — it is carried as a named M6 pickup.**
+
+### Finding M5-3: what this corpus STILL cannot show — no SSI margins
+
+M2's Finding 4 named computed intersections as the pressure source.
+M5 shipped the SSI marcher (#146) with 14 named predicates. **None
+of them sample in this snapshot.** Neither do the sphere-class
+boolean predicates, the cyl×cyl chord family, the cone family, the
+NURBS span meter, or the second-order sector classifiers:
+
+```
+ssi_branch_open_end  ssi_closure_return  ssi_closure_tangent
+ssi_cs_tangency  ssi_foot_orthogonality  ssi_hull_sup
+ssi_hull_sup_chart  ssi_on_locus  ssi_on_locus_foot
+ssi_step_progress  ssi_transversality  ssi_transversality_arm
+ssi_tube_transversality
+bool_sphere_extent_gap  bool_sphere_recut_align
+bool_sphere_sphere_gap  bool_sphere_sphere_nested
+bool_line_cylinder_clearance
+cc_axes_coplanar  cc_axes_parallel  cc_coaxial
+cc_declared_radius_equality  cc_parallel_gap  pc_parallel_gap
+pn_apex_on_plane  pn_apex_section  pn_axis_normal
+nurbs_span_meter  fillet3_chain_arm  fillet3_chain_g1
+split_conic_departure  split_conic_inplane_mid
+split_tangent_chord_forward
+tangent_sector_order2  tangent_sector_order2_arm
+tangent_sector_osculation
+extrusion_obliquity   (still dead — M2-era refusal path)
+```
+
+The reason is structural and not a harness gap: the curved documents
+that ARE registered — `cut_cylinder` (tilted plane × cylinder) and
+`boss_union` (cylinder boss ∪ plate) — are exactly the cases M5
+gave **exact analytic carriers**, so they resolve through the conic
+lane and never enter the marcher. The SSI marcher's own acceptance
+geometry lives in its test suites, which instantiate f64 and
+Interval, not `Probe`. Reaching it needs either a Band-4 corpus
+document whose boolean genuinely requires marching, or a Probe
+instantiation of the SSI suites. Both are new work, deliberately out
+of this docs-only unit.
+
+So the honest scope line for this snapshot is: **it is the first
+with computed TANGENCY and QUADRATURE margins** (`tangent_hull_sup`,
+`tangent_normal_parallel`, `tangent_on_surface_1/2`,
+`tangent_second_order`, `tangent_tube_margin`, 2 861 samples;
+`props_quad_converged`, `props_quad_face_extent`), **and the first
+with pcurve-certification margins** (18 `pcurve_*` names, 2 400
+samples) **and fillet margins** (12 `fillet*` names, 410 samples —
+including `carrier_circles_internal`, dead since M2, which finally
+fires). It is **not** the SSI evidence Finding 4 asked for.
+
+Per-family populations (ε = 1e-6 row; the distributions are
+ε-invariant except `props_*`, per M5-1):
+
+| family | names | samples |
+|---|--:|--:|
+| `pm_census_*` | 14 | 555 020 |
+| `point_in_loop_*` | 4 | 389 802 |
+| `bool_*` | 32 | 359 122 |
+| `carrier_*` | 12 | 218 269 |
+| M2-era construction (unprefixed) | 50 | 175 217 |
+| `witness_*` | 3 | 23 543 |
+| `interval_*` | 2 | 14 795 |
+| `enters_material*` | 2 | 10 494 |
+| `tangent_*` | 6 | 2 861 |
+| `split_*` | 22 | 2 778 |
+| `props_*` | 21 | 2 415 |
+| `pcurve_*` | 18 | 2 400 |
+| `canonical_*` | 2 | 1 018 |
+| `fillet3_*` | 5 | 348 |
+| `pc_*` / `fillet_*` / `ps_*` / `wall_*` / `ellipse_*` | 15 | 305 |
+| `ssi_*` | 0 sampled (14 named) | 0 |
+
+### Counterfactual K, re-run on the curved corpus
+
+Derived post hoc from `|m|/band_zero` as before — no per-K reruns.
+"Escalations" = definite samples a candidate K would convert to
+refusals (`1 < |m|/ε < K`); "near" = definites within one decade
+above that candidate's own boundary (`K ≤ |m|/ε < 10K`).
+
+| ε row | K=3 esc / near | K=10 esc / near | K=30 esc / near | K=100 esc / near | min |m|/ε |
+|---|--:|--:|--:|--:|--:|
+| 1e-6  | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 10 | 508.6 |
+| 1e-9  | 0 / 0 | 0 / 0 | 0 / 2 | 0 / 14 | 164.7 |
+| 1e-12 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 8  | 336.0 |
+
+**Every candidate still converts exactly zero decisions.** What has
+changed is the clearance. The corpus minimum ratio is 164.7 (the
+`props_quad_converged` ladder's bottom rung at ε = 1e-9), so:
+
+| candidate K | clearance to the closest definite |
+|---|--:|
+| 3 | 55× |
+| 10 | 16.5× |
+| 30 | 5.5× |
+| 100 | **1.65×** |
+
+M2 and M4 could say "the decision surface is completely flat across
+the candidate range." M5 cannot. K = 100 now has under a factor of
+two of headroom against a real, shipped, every-run margin family;
+K = 30 has 5.5×; K = 10 retains better than a decade.
+
+### Recommendation (grounds stated; **the decision is Evan's**)
+
+**Hold K = 10, pending the import corpus.** Three grounds:
+
+1. **Nothing in this corpus pressures K downward or upward.** Zero
+   in-band landings, zero indeterminate, zero invalid, at all three
+   ε rows across 5.3M decisions. The M2 reasoning — a free parameter
+   should keep its ratified default rather than churn — is intact.
+2. **The new data argues specifically against RAISING it.** This is
+   the first evidence with any discriminating power at all, and it
+   points one way: the ε-coupled quadrature family puts a real
+   population at ~1.6e2–8.4e2 × ε, which leaves K = 100 only 1.65×
+   of clearance and K = 30 only 5.5×. Raising K toward those values
+   would trade a currently-empty band for one that a routine
+   convergence loop can enter under ordinary refinement — converting
+   an honest definite into a refusal for no modelling reason. K = 10
+   sits comfortably below the family's floor at every ε row.
+3. **The evidence Finding 4 actually asked for has not arrived.**
+   Computed-intersection margins are still absent (Finding M5-3):
+   the curved booleans M5 shipped resolve through exact analytic
+   carriers, so the marcher never samples. And under the #161
+   resequencing, **M7 (STEP import as adoption, D7) now runs before
+   M6** — so the foreign-geometry corpus with real residuals and
+   near-coincidences not of our making, the case M2 named as the
+   strongest K evidence, arrives NEXT MILESTONE. Deciding K's final
+   value one milestone before that evidence lands would spend the
+   decision at its least informed moment.
+
+If Evan prefers to close #89 rather than carry it a fourth time, the
+defensible close is "K = 10 ratified as the permanent default, with
+the M7 import corpus a re-open trigger only if it shows in-band
+landings" — that is a real decision, and this snapshot supports it.
+What the data does NOT support is any move to a larger K.
+
+**Named follow-ups (code, not this unit):**
+- **M6/M7 pickup — re-derive the k-lint baseline floor** against the
+  M5 distribution, and decide whether `props_quad_converged`'s
+  ε-coupled family belongs under a ratio rule rather than the metre
+  floor. 102 advisory flags per run is a broken signal-to-noise
+  ratio, and the lint's own charter said "gate once the baseline is
+  trusted" — it cannot be gated in this state.
+- **M7 pickup — an SSI Probe lane**: either a Band-4 corpus document
+  whose boolean genuinely requires marching, or a `Probe`
+  instantiation of the SSI acceptance suites, so the next K snapshot
+  finally carries computed-intersection margins.

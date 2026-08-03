@@ -54,6 +54,16 @@ day). Protocol:
 | 23 | 2026-07-31 | M5 S8 nearest-corner fillet selection ladder | S (logged first) | fable (block-10 draw) | 0/3/3 (MINs doc-level; math STRENGTHENED in review — mixed enclosing/non-enclosing impossibility proved) | 0 (3 reported) | 5 | 4 | 4 | light, doc-level (honest cross-lane wording + ulp-perturbed determinism rows both lanes + line×arc mirror proof + probe adoptions) | MERGED #143 18/18; 27M impl + ~160k reviewer fuzz, zero dominance violations; 3 constructor cross-checks agree | (in log) | (in log) |
 | 24 | 2026-07-31 | M5 S9 chord_spec azimuth-window repair | S (logged pre-assignment) | OPUS (block-10 remainder) | 0/3/3, no re-review (MIN-1 = new definite arms missed the two-tolerance shape) | 0 | 4 | 5 | 4 | moderate (two-tolerance definite arms + true centre-reduction bound + interval belly row + short-circuit metering + reviewer probe verbatim) | MERGED #145 18/18 with MERGE PRIORITY; member-2 silent wrong body independently confirmed at merge-base 5fab705 | (in log) | (in log) |
 | 25 | 2026-07-31 | M5 PR 7 SSI (march + three-limb certificate) | L (logged first) | OPUS (block-11 draw; FABLE remainder owed to the next unit) | 2/6/— (M1 = powf step rule + jet sin_cos fork; M2 ruled ACCEPT-AND-BANK → PR 7b), rubric 4/4/4 | 0 (5 reported) | 4 | 4 | 4 | substantial (9 items) + ε-fix redirect after gate RED (multi-ε battery caught test-side 1e-9 hardcoding; SSI_MAX_FIT_SAMPLES typed kernel budget) | MERGED #146 18/18; local 21/21 × (1e-6/1e-9/1e-12/interval); 8000-matrix independent SVD differential clean; core held under adversarial re-derivation | (in log) | (in log) |
+| 26 | 2026-07-31 | M5 PR 7b tensor Bernstein compose + plane×NURBS retirement (EXIT-GATING) | M (logged pre-assignment) | fable (block-12 slot 1; draw byte 172 → fable,opus) | 0/4/2, rubric 5/4/4 (review REFUTED the "geometry-capped" claim with measurement; ~1.6M falsification samples zero bound-below-truth; max forced looseness 108×) | 1 (center-shift skipped, "no center to lose" ring-false — 6 orders lost at 1e6 m; review-caught, fix-pass implemented to the representation floor 1.225e-9) | 5 | 4 | 4 | moderate (center-shift impl + non-monotone rewording + recourse pin + breadth sentences + 10 probe rows adopted) | MERGED #149 18/18; shape (iii) substrate GREEN all lanes (exit gate); bound 6.5 orders tighter, within 1% of truth; one waiter-park stall (sweep-revived) + outage #9 resume en route | ~281k impl + ~323k fix | ~4.3h impl + ~4h fix wall (incl. outage gap) |
+| 27 | 2026-08-01 | M5 demo unit: rocker arc-fillet stop + staged tiltedcut | S (logged pre-dispatch) | OPUS (block-12 remainder) | 0/1/2 (APPROVE, no fix pass; every narration claim survived executed check; S8 pick proven a rule via perturbation) | 0 (6 reported/assessed; render incident contained + verified exact) | 5 | 4 | 5 | one-liner (orchestrator-applied per S7 precedent: retire note names the K-sweep join) | MERGED #150 18/18; tour 3/3 ×3ε; 4783 K-probe samples ×3ε identical; one waiter-park stall (report nudge) | ~178k impl + ~123k review | ~2.5h impl wall |
+| 28 | 2026-08-01 | M5 PR 9 curved booleans + tangency regime | L (logged first) | fable (block-11 remainder) | 3/6/5 vs impl (3 MAJ incl. 2 silent: union-only scope, red battery; core geometry HELD under tube-threading/zip attacks), rubric 5/3/4 | 2 silent (of 11+2 reported) | 5 | 3 | 4 | heavy: 7 items + arc-facing WENT LIVE (2-arc disc unions) + Interval root cause (infinity seeds + branch-cut-free cone) + idealized-sweep 0/0 clearance fix; then triple gate-red (2 lint rounds on adopted probes, 4th interval-square occurrence caught by the BVH Interval differential) | MERGED #152 18/18 MERGE PRIORITY — main-is-wrong du_of_rims fixed (0.6545→0.7854 silent at base, 2 public calls); review's merge-base witness led the writeup | ~742k impl+fix (in-lane) | ~1.5 days wall incl. outage #10 |
+| 29 | 2026-08-01 | M5 PR 10 sweeps/lofts + schema v2 clean break | L (judged pre-draw; logged post-draw — ordering slip recorded in log) | OPUS (block-13 draw byte 82 → opus,fable) | 1/4/4, rubric 5/4/4 (MAJ = dead Sweep recipe lane misreported as a capability; math held: closed-form loft between sections, Eq 10.8 exact match, 8/8 header attacks) | 2 effectively silent (node-layer sweep total refusal; missing size note) | 5 | 4 | 4 | moderate+ (honest lane collapse + OpenClosedMixed wired/Escalated deleted + tangent-claim truth + size note + RaggedRows + 22 probe rows adopted; post-merge frontier-message truth pass unprompted) | MERGED #151 18/18; schema v2 clean break exactly per ratified mechanics; dev-2 coordination claim FALSIFIED by reviewer scratch-merge (assembly → 9c item 6) | ~325k impl + ~396k fix | ~2 days wall incl. outage #10 |
+| 30 | 2026-08-01 | interval-square retirement + CI tripwire | S (logged pre-dispatch) | fable (block-13 remainder) | 0/0/3 APPROVE, no fix pass (5M-sample regroup probe: 2 ulp max, 0 flips; .sqr() tighten-only proven; allowlist audited line-by-line) | 0 (10 non-bit-identical conversions self-reported as judgment calls, all upheld) | 5 | 4 | 5 | none (PR opened by orchestrator on APPROVE) | MERGED #153 18/18; 55+6 sites converted, 2 false positives restructured, 54 allowlisted; one waiter-park + battery-scope correction (Evan live) en route | ~128k impl + ~143k review | ~6h wall |
+| 31 | 2026-08-01 | M5 PR 9c banked completions (sphere doors + blocker map) | L (logged pre-draw) | OPUS (block-14 draw byte 124 → opus,fable) | 1 MAJ (proof-text scope: sphere r² parity leg refuted) / 2 MIN / 2 NOTE; group-arm design verified sound; both judgment calls ENDORSED | 0 (6 numbered, all with executed blockers) | 4 | 4 | 4 | moderate (proof scoped per-kind + option (d) pinned ×3; stale promise rewrites; both NOTE rows taken) | MERGED #154 18/18; 1 of 6 items landed by design — the five executed blockers re-planned the milestone (assembly→post-PR 11; Fitted→SSI lift; revert→sense ratification) | (in log) | (in log) |
+| 32 | 2026-08-02 | M5 PR 11 tessellation + certified quadrature (demo moment) | L (logged pre-dispatch) | fable (block-14 remainder) | 0/2/5 APPROVE, rubric 4/4/5 (falsification: zero bound-below-truth; star find = the accidentally-load-bearing factor-2) | 0 (5 reported; dev 1 superseded mid-flight by Evan's static-split ruling, implemented cleanly) | 4 | 4 | 5 | moderate (factor-2 accounting + corner-scan pin; SelfTouchingTrimLoop arm; provenance field — which caught the machine-state drift; probe adoptions) + one multi-ε gate red (band-relative caps, FitSampleBudget-precedent arm) | MERGED #157 18/18 — tiltedcut renders, montage refreshed, staged machinery deleted; T6: CDT does not dominate | (in log) | (in log) |
+| 33 | 2026-08-02 | M5 S10 face orientation sense | M (logged pre-draw) | OPUS (block-15 draw byte 119 → opus,fable) | 0 code-MAJ / 3 MIN / 2 NOTE, rubric 5/4/5 (A/B discipline held adversarially; spec-premise REFUTED with live-defect proof — e2e pellet-swallow found by review) | 0 (2 reported incl. the premise refutation as MAJOR-returned) | 5 | 4 | 5 | light (3 doc MINs + probe adoptions) + one gate red (PR 9c message pin caught F1-scoping erosion — fixed message, not pin) | MERGED #155 18/18; the enabling infrastructure for S11's fix | (in log) | (in log) |
+| 34 | 2026-08-02 | M5 S11 concave/inward walls sense:false | M (spec-time) | fable (block-15 remainder) | 0/2/3 APPROVE, rubric 5/5/4 (criterion survived 6 adversarial constructions unmodified; nappe algebra independently confirmed) | 0 (5 reported incl. the widened revolve scope) | 5 | 5 | 4 | light (mef hazard banked + probes adopted) | MERGED #156 18/18 MERGE PRIORITY — pellet-swallow + washer-bore containment defects DEAD | (in log) | (in log) |
+| 35 | 2026-08-02 | M5 S12 curved revert wiring + per-class ∖/∩ opening | M (logged pre-draw) | OPUS (block-16 draw byte 66 → opus,fable) | 0 new MAJ / 2 MIN / 3 NOTE APPROVE, rubric 5/5/4 (class boundary proven COMPLETE; reviewer implemented the rejected alternative — all pins green, rationale corrected) | 0 (2 reported incl. the fallback MAJOR-returned) | 5 | 5 | 4 | light (2 doc MINs + NURBS hazard scoping + 4 probes) | MERGED #158 18/18 — curved ∖/∩ LIVE on Plane/Cylinder; 3rd main-is-wrong found (vertex-probe fallback, ∪ sphere-class, pinned) | (in log) | (in log) |
 
 PROTOCOL CHANGE (2026-07-25, Evan approved: "shuffled pairs makes
 sense") after four consecutive fable draws (197, 220, 221, 218;
@@ -75,3 +85,165 @@ M4 PR 5 impl (L, first rubric-scored reference): 1 MAJ / 3 MIN /
 idiom 4 / tests 4 / docs 4, substantial fix pass (F1 re-describe
 machinery + plumbing + door tests), battery 1256/0 ×2 + interval
 1400/0, ~1.44M impl+fix tokens.)
+
+## Rows 36–40 (added at the M5 exit sweep, PR 14 — reconstructed from the M5-LOG narrative)
+
+These five dispatches concluded and merged but never reached the
+table; the log itself flagged the debt ("A/B rows 36-39 to the table
+at next touch"). They are entered here from the narrative record.
+**Columns the narrative never recorded are marked `—` rather than
+guessed**; that is itself a finding (see the readout's honesty
+section).
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
+| 36 | 2026-08-02 | M5 S13 die-pips enablers (containment-fallback re-cut + plane×sphere germ arm) | M (logged pre-assignment) | fable (block-16 remainder) | 1/—/— (MAJ = new, executed: the multi-normal escape hole; dev 2 confirmed as main-is-wrong #4) | — | — | — | — | F1–F5; all nine reviewer probes adopted 9/9 | — | — | — |
+| 37 | 2026-08-02 | M5 PR 13 curved STEP subset | M (logged pre-draw) | OPUS (block-17 draw byte 20 → opus,fable) | 0/2/3 APPROVE | 0 | 5 | 4.5 | 5 | light | — | — | — |
+| 38 | 2026-08-03 | demo dual-montage (kernel + FreeCAD/OCC lanes) | S (logged pre-assignment) | fable (block-17 remainder) | 0/1-nit APPROVE | — | — | — | — | none (nit) | — | — | — |
+| 39 | 2026-08-03 | M5 S4 save/load shared-validator consolidation | S (logged pre-draw) | fable (block-18 draw byte 131 → fable,opus) | 0/0 APPROVE | 0 | 5 | 4 | 5 | none (one note orchestrator-applied) | — | — | — |
+| 40 | 2026-08-03 | M5 PR 12 constant-radius fillets + the die | L (logged pre-assignment) | OPUS (block-18 remainder) | 1/3/5 APPROVE w/ fix pass (MAJ = octant e0 pick: tier-3 lost on non-square prisms, die unaffected) | 1 (scope gap: Band-4 rows) | — | — | — | F1–F6 + two gate-red rounds | — | — | — |
+
+Two later M5 dispatches are deliberately **NOT** numbered rows: the
+CI build-once/shard unit (fable, block-19 draw byte 227, difficulty M
+logged pre-draw) and PR 14 itself, this exit sweep (OPUS, block-19
+remainder, difficulty M logged pre-assignment). Both are
+no-blinded-lane classes — CI infrastructure and docs/telemetry
+respectively — so neither produced a blinded review with the rubric
+the experiment compares. Counting them would inflate n with rows
+that cannot carry the measurement. **n = 40, not 42.**
+
+## M5-close readout (2026-08-03, PR 14)
+
+Scope: rows 11–40 are the M5 dispatches (rows 1–10 were M4; the
+reference rows in the footer are pre-experiment). Thirty M5 rows,
+plus the two unnumbered no-blinded-lane units above.
+
+**Arm balance.** M5 rows 11-40: **fable 15, opus 15.** The blocked
+randomization held — every block after M4's block 1 drew its order
+from `/dev/urandom`, and the pairing landed the milestone exactly
+even without any further override.
+
+**Stratified by pre-logged difficulty** (difficulty was logged before
+the flip or before assignment in every M5 row; the one ordering slip,
+row 29, is recorded in its own cell):
+
+| difficulty | fable rows | opus rows | fable MAJ | opus MAJ | fable silent | opus silent |
+|---|---|---|--:|--:|--:|--:|
+| **L** (9) | 12, 14, 19, 28, 32 | 25, 29, 31, 40 | 6 | 5 | 2 | 3 |
+| **M** (12) | 15, 20, 26, 34, 36 | 11, 13, 18, 21, 33, 35, 37 | 4 | 1 | 1 (+1 unrecorded, row 36) | 1 |
+| **S** (9) | 17, 23, 30, 38, 39 | 16, 22, 24, 27 | 1 | 0 | 0 (+1 unrecorded, row 38) | 0 |
+| **total** | 15 | 15 | **11** | **6** | **3 recorded, 2 unrecorded** | **4** |
+
+Both arms are within one row of each other at every difficulty level
+except M, where opus drew seven to fable's five.
+
+**MAJOR findings — read the classifications, not the counts.** The
+raw totals (fable 11, opus 6) are not a quality signal, because the
+review record classifies a large share of them as something other
+than implementation defects:
+
+- **Design forks ruled by Evan, not defects**: row 15's two MAJs.
+- **Ruled ACCEPT-AND-BANK** (the finding became a scheduled unit,
+  PR 7b): row 25's M2.
+- **Claim- or proof-text scope, not code**: row 31's MAJ; row 33's
+  was a premise refutation returned as a MAJOR against the *spec*.
+- **Real defects outside the unit's own acceptance target**: row
+  40's octant `e0` pick (tier-3 lost on non-square prisms; the die,
+  which the unit shipped, is unaffected).
+- **Real, consequential, on the unit's own geometry**: row 19's
+  MAJ-1 — an even-crossing silent one-sided split — the project's
+  only REJECT. Its fix pass exposed and fixed two further latent
+  defects and re-reviewed at APPROVE 5/5/5. Row 28's three (two
+  silent) and row 20's one (a silent corrupt STL via a hole-creating
+  merge role inversion) are the other members of this class.
+
+Counting only that last class, the milestone's genuinely
+consequential implementation MAJORs are rows 19, 20, 28 (fable) and
+row 40 (opus) — four across thirty dispatches, and present on both
+arms.
+
+**Silent deviations** — the metric the protocol weights worst, and
+the one where the arms are closest to indistinguishable. M5 total:
+**fable 3** (row 26's center-shift ring-fallacy; row 28's two),
+**opus 4** (row 11's stale-claims sweep leaving live rustdoc inari
+mentions; row 29's two node-layer sweeps; row 40's Band-4 scope
+gap). Two fable rows (36, 38) have no silent-deviation datum
+recorded at all, so fable's true count is 3-5. Every other M5 row
+recorded 0 silent alongside a nonzero count of *reported*
+deviations — the reporting discipline itself held well on both arms,
+which is the outcome the protocol most wanted.
+
+**Fix-pass size distribution.** Rows 36, 38 and 40 were described
+narratively and never classified; they are counted as unclassified
+rather than folded into a bucket.
+
+| size | fable | opus |
+|---|---|---|
+| none | 30, 39 | 22, 27 |
+| light / tiny | 23, 34 | 24, 33, 35, 37 |
+| moderate | 14, 17, 20, 26, 32 | 11, 13, 18, 21, 31 |
+| substantial / heavy | 15, 19, 28 | 25, 29 |
+| unclassified | 36, 38 | 40 |
+
+Several cells carry a qualified size in the row itself
+("moderate+", "light + one gate red", "moderate, in flight");
+collapsing those into buckets loses information the row cells keep,
+and the row cells are authoritative. Read directionally: the
+distributions overlap heavily, with the heavy tail populated by both
+arms and driven by unit scope rather than arm.
+
+**What the milestone shows, honestly.**
+
+1. **No arm-level quality difference is visible at this n.** Both
+   arms produced clean rows and both produced the milestone's
+   heaviest fix passes. Both arms carried silent deviations (fable 3
+   recorded plus 2 rows with no datum, opus 4) — the metric the
+   protocol weights worst, and it does not separate them. Both arms had a row where the review found a real,
+   consequential defect that shipping would have carried (row 19
+   fable, row 40 opus). The M4-close reading — "no evidence Opus
+   implementation is worse at this scale; suggestive that it's
+   comparable" — is unchanged by thirty more rows, and it is now
+   supported by a difficulty-stratified sample rather than a skewed
+   one.
+2. **The confounds have NOT gone away and are not small.** Reviewer
+   variance is still unmeasured — the same orchestrator-model
+   reviewed both arms, and review depth demonstrably varied across
+   the milestone (row 19's review found three MAJORs on geometry that
+   three earlier reviews of comparable units did not probe as hard).
+   Difficulty labels are one orchestrator's pre-flip guess, not a
+   calibrated scale. Unit scope varied by more than an order of
+   magnitude within the same difficulty letter. Fix passes were
+   sometimes run by the implementer's own agent and sometimes
+   orchestrator-applied.
+3. **No significance is claimed, and none is available.** n = 40 with
+   a binary arm, an unblinded orchestrator, a subjective outcome
+   scale, and multiple uncontrolled confounds does not support a
+   significance claim, and no test is reported here. The honest
+   summary is the same shape as M4's: *the experiment has produced no
+   evidence that either model is worse at this work, and the sample is
+   now large enough that a large effect would probably have shown.* A
+   small effect would not have, and this design cannot find one.
+   Arm balance (15/15) and difficulty balance are the two things this
+   milestone did materially improve over M4's 4-0 opening skew.
+
+**Data-quality findings this readout is obliged to state.**
+
+- **The table was five rows stale at milestone close** and rows
+  36–40 had to be reconstructed from prose. The reconstruction is
+  faithful but lossy — see the `—` cells.
+- **The rubric (idiom/tests/docs) is missing for rows 36, 38, and
+  40** and was never recorded. Row 40 is an L-difficulty row, so the
+  most informative single rubric of the milestone's end is absent.
+- **Tokens and wall-clock are absent for every row from 13 onward**
+  ("(in log)" was written in place of a figure and the figure was
+  never carried across). The protocol lists them as per-row objective
+  companions; in practice the experiment collected them for twelve
+  rows and then stopped. Any future cost comparison between arms is
+  therefore not available from this log.
+- **Two rows (36, 38) lack a silent-deviation count**, the
+  protocol's most heavily weighted metric.
+- Recommendation for the next milestone, if the experiment
+  continues: record the row AT MERGE rather than at next-touch, and
+  treat a missing rubric or silent-dev count as a merge blocker for
+  the row — the cheap discipline that would have prevented every gap
+  above.

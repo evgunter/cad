@@ -23,6 +23,27 @@ sharply bimodal margins, K = 10 unpressured on the analytic kernel).
 The post-ratification obligations listed above remain open for M5
 planning.
 
+*IMPLEMENTATION STATUS SUPERSEDED (M5 PR 14 exit sweep, 2026-08-03).*
+The paragraph above is kept as the record of what was true at M4's
+close; it is no longer true. **M5 is complete** — see DESIGN.md's
+roadmap M5 line and `docs/M5-EXIT-WALK.md` for what shipped, what is
+banked by name, and what is carried. Two consequences for reading
+THIS document. (1) **Every "inari" / "LGPL quarantine" reference
+below — including C9's heading, C9's decided note, and T2 — is
+HISTORICAL.** The transition allowance C9 granted was never needed:
+M5 PR 1 (#127, 2026-07-28) swapped the kernel's interval backend to
+the in-house `interval-transcendentals` crate and removed inari and
+its LGPL stack from the tree entirely (Cargo.lock zero hits,
+dev-dependencies included), so there was no quarantine boundary left
+to redraw — it was retired by REMOVAL, and issue #4's exit condition
+is met that way. The "quarantine boundary-text update" obligation is
+DISCHARGED; DESIGN.md carries the tombstone and the crate-table
+history. (2) The C1–C12 decisions remain this doc's ratified design
+record, but several were implemented with recorded deviations and
+several frontiers moved. Implementation truth lives in
+`docs/M5-LOG.md` and the exit walk; where they disagree, the log
+wins.
+
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
 obligation and fillet-validity-is-reified-predicates); M3-PLAN F5 (the

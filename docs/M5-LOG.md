@@ -2926,3 +2926,118 @@ the diff, stated correctly (fix pass F6): every square added under
 closed-form oracles evaluated at `f64`, where the poison hazard the
 tripwire guards against does not arise — and the earlier blanket "no
 `x*x` on the diff" line overstated it.
+
+## PR 14 — the M5 exit sweep (2026-08-03)
+
+The closing entry. This unit shipped telemetry, docs and walk text
+only; no code changed, and every finding that WOULD require a code
+change is recorded below as a named pickup rather than taken.
+
+**The T5 K-telemetry snapshot** (docs/K-REPORT.md "M5 addendum";
+raw rows `docs/k-report-data/m5-eps-{1e-6,1e-9,1e-12}.csv.gz`). The
+sweep ran unchanged machinery — `scripts/k_probe_sweep.sh` over the
+13 registered Band-4 documents plus the 17 tour scenes, one process
+per ε — and reproduces the hosted `k-lint (advisory)` row on main's
+tip to the sample: 1 758 387 / 1 758 411 / 1 758 435. 208 predicate
+names sample (M4: 145); 63 new, 0 retired. Still zero in-band, zero
+indeterminate, zero invalid at every ε row.
+
+Three findings, in descending order of how much they change what we
+can say:
+
+1. **The ε-stability observation is retired.** M2 and M4 both
+   reported decision counts identical at every ε row. They are not:
+   `props_quad_converged` on `demo/tiltedcut` is a convergence-loop
+   stopping test, so a tighter ε buys more refinement rounds — 8 /
+   32 / 56 samples, +24 per row, and the whole count difference.
+   It is also the first predicate whose MARGIN is ε-coupled rather
+   than model-scale (its ladder at ε = 1e-12 runs 1.833e-4 down to
+   3.360e-10). The bimodality claim survives; the ε-stability
+   sentence must not be repeated without this exception.
+2. **The counterfactual-K surface is no longer flat.** Every
+   candidate K still converts exactly zero decisions, but the
+   clearance to the closest definite is now K=3: 55×, K=10: 16.5×,
+   K=30: 5.5×, **K=100: 1.65×**. That is the first evidence with any
+   discriminating power in three snapshots, and it points one way —
+   against raising K.
+3. **Still no SSI margins.** Fourteen `ssi_*` predicates exist and
+   none sample; nor do the sphere-class boolean, cyl×cyl chord, cone,
+   NURBS-span or second-order-sector families. This is structural,
+   not a harness gap: the curved documents that ARE registered
+   (`cut_cylinder`, `boss_union`) are exactly the cases M5 gave exact
+   analytic carriers, so they never enter the marcher. The evidence
+   K-REPORT Finding 4 asked for has still not arrived — and under
+   #161 it arrives at M7, next milestone.
+
+Recommendation to Evan (sign-off item 1): **hold K = 10 pending the
+M7 import corpus**, with the grounds in the addendum. The decision is
+his; the addendum presents the table and says so.
+
+**Two code pickups discovered and deliberately NOT taken** (this
+unit's rules make a code change a numbered deviation that stops):
+
+- The large-K lint's `BASELINE_FLOOR_MARGIN = 1.5e-3` is stale. It
+  was the P0 of the M4 distribution; the M5 distribution sits under
+  it, and the hosted advisory row prints **102 flags per run** (10 /
+  34 / 58 by ε row — all `props_quad_converged`, `props_rim_side`,
+  `bool_ring_run_winding`). Nothing is red because the lint is
+  advisory by charter, but "gate once the baseline is trusted" cannot
+  happen in this state. Re-deriving the floor — and deciding whether
+  the ε-coupled family belongs under a ratio rule rather than a metre
+  rule — is a named M6/M7 pickup.
+- An SSI `Probe` lane: either a Band-4 document whose boolean
+  genuinely requires marching, or a `Probe` instantiation of the SSI
+  suites. Named M7 pickup.
+
+**The envelope / DESIGN.md sweep.** The M5 roadmap line moved to a
+done-state with shape (v)'s two-piece disposition stated in it, not
+around it. The envelope grew entry (v) — S1 retired the PLANAR
+REST-contact gap, and CURVED rest contact is explicitly what it did
+not retire — and entry (vi), which enumerates the six banked curved
+frontiers by name with their blockers, plus the two latent-and-loud
+limitations (the meridian-tangent circle; oblique trihedra reaching
+`VolumeUncomputable`). Three conventions were PROPOSED, not ratified,
+pending Evan: the two-tolerance principle's consequence (iv) — the
+rule binds a predicate's DEFINITE arms too, the S9 lesson; the
+equivariance principle, carried in with its premise-unaudited caveat
+intact, because the caveat is the load-bearing half; and the
+tessellation ruling, quoted verbatim into D4's chordal-tolerance
+paragraph.
+
+**Quarantine verify pass.** DESIGN.md carries zero live quarantine
+text — only the Tabled tombstone and the crate-table history, which
+is correct: S7's sweep held. CURVED-DESIGN.md still contains
+design-time quarantine language (C9's heading, C9's decided note,
+T2), which is the historical design record and was NOT rewritten; it
+gained a superseding status block instead, marking those references
+historical and the quarantine-boundary obligation DISCHARGED (retired
+by removal, not redrawn). That block also supersedes the badly stale
+"M5 has not started — nothing here is implemented yet" paragraph.
+
+**The exit walk** — docs/M5-EXIT-WALK.md, twenty criteria quoted
+verbatim from M5-PLAN :372-405 and dispositioned. Tally and carried
+list live there; two rows carry to Evan (shape (v), and the
+conventions row, which cannot read "ratified" until he signs).
+
+**A finding this unit is obliged to state: the state docs diverged.**
+`docs/M5-LOG.md` and `docs/MODEL-AB-LOG.md` differ between main and
+the orchestrator branch `mngr/cad-implement-m5-7plus`, and **neither
+copy is a superset** — main carries the per-unit technical entries
+(this file), the branch carries the dispatch/draw/ruling narrative
+including the tessellation ruling, the #161 outcome and the A/B arms
+for rows 26-35. PR 14 imported MODEL-AB-LOG.md from the branch and
+added rows 36-40 plus the M5-close readout, because the readout was
+its deliverable and could not be written from a five-row-stale table.
+**The M5-LOG reconciliation is NOT done here** — merging two
+divergent narrative logs is a judgement call belonging to the
+orchestrator's state-sync lane, and doing it inside an exit sweep
+would bury it. It is owed before the next milestone's log starts.
+
+**A stale comment worth one line, also not taken.**
+`crates/editor-core/tests/corpus/mod.rs:130` registers
+`die_fillet::document()`, while the comment at :132-139 still says
+"`die_fillet::document()` is NOT here, and its module docs say why".
+The gate fix at 5c8540f moved it into the registry and the comment
+did not follow, so the file now asserts the opposite of the shipped
+truth. It is a comment in a test file — trivially safe — but it is a
+code change, so it is reported here rather than made.

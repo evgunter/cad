@@ -1,6 +1,6 @@
 # Memory Index
 
-- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0–M3 COMPLETE; M4 IN FLIGHT (plan #80 ratified; live status = docs/M4-LOG.md tail, not the memory); merge gate = hosted Actions, gate.sh fallback; references live in the MAIN checkout; name pending (Q9)
+- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0–M4 COMPLETE, M5 AT EXIT (PR 14 open, waiting on Evan for #89/K + shape (v); live status = docs/M5-LOG.md tail + docs/M5-EXIT-WALK.md); next = SSI lift → loft assembly → M7 import BEFORE M6 (#161); merge gate = hosted Actions, gate.sh fallback; references live in the MAIN checkout; name pending (Q9)
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main
@@ -16,9 +16,10 @@
 - [FreeCAD oracle](freecad-oracle.md) — FreeCAD 1.1.2 headless at ~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd; STEP import acceptance oracle, wired in as scripts/check_step.sh + CI step-import job (#94, version-matched)
 - [Hourly agent check-ins](hourly-agent-checkins.md) — standing Evan instruction: hourly heartbeat Monitor; sweep agent lanes, nudge silent ones (lost wake-ups happen)
 - [Disk watchdog](disk-watchdog.md) — standing: arm disk-space Monitor at session start (warn <15G, critical <8G); lanes grow 5-8G targets; two disk-full WSL crashes 2026-07-24; RAM 10G confirmed 2026-07-25 (two parallel cargo lanes max)
-- [Model A/B experiment](model-ab-experiment.md) — standing (2026-07-25): coin-flip Opus 5 vs Fable 5 for implementation; blinded reviewers + fixed quality rubric; data in docs/MODEL-AB-LOG.md
+- [Model A/B experiment](model-ab-experiment.md) — standing (2026-07-25): coin-flip Opus 5 vs Fable 5 for implementation; blinded reviewers + fixed quality rubric; data in docs/MODEL-AB-LOG.md (M5-close readout at n=40: arms 15/15, no quality difference visible, confounds unreduced; record the row AT MERGE — five rows went stale)
 - [Resume vs fresh subagent](resume-vs-fresh-subagent.md) — stalled >1h + remaining work fully specifiable → fresh agent, not transcript resume
 - [Local battery scope](local-battery-scope.md) — touched-crate checks only; the full matrix is hosted CI's job
 - [Equivariance principle](equivariance-principle.md) — maintain isometry-equivariance where free; premise unaudited; S8 rung 3 is the first designed residual
 - [STEP curved subset](step-curved-subset.md) — M5 PR 13: every elementary surface + conic exports as an EXACT native AP214 entity (conics NOT via the rational-quadratic form — AP214 has CIRCLE/ELLIPSE); cone uses the apex placement; live refusals are NURBS faces + multi-shell curved classification; OCC heals inverted shells on curved geometry too, so orientation acceptance is text-level (edge-use coherence)
 - [Curved containment fallback](curved-containment-fallback.md) — FIXED at M5 S13 (extent scan + rotation re-cut + plane×sphere germ arm; NURBS re-gated typed); the historical vertex-probe finding and the resolution map; die pips are LIVE — PR 12 unblocked
+- [K telemetry state](../docs/K-REPORT.md) — not a memory file, but the pointer that keeps getting lost: K = 10 is FINAL-with-an-open-revisit; the M5 addendum (2026-08-03) is the first snapshot where the counterfactual-K surface is NOT flat, and it recommends holding K = 10 until the M7 import corpus. The large-K lint's 1.5e-3 baseline floor is STALE (102 advisory flags per hosted run) — re-deriving it is a named code pickup, not done
