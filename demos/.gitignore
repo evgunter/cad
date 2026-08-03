@@ -5,3 +5,5 @@ out/
 .venv/
 target-demo/
 renders/.freecad_ok
+renders-freecad/*.fail.txt
+out/freecad-logs/

@@ -2,14 +2,22 @@
 """Compose the montage contact sheet from per-scene renders.
 
 Reads <outdir>/scenes.json for order + captions, loads
-<renderdir>/<name>.png (from either renderer), trims near-white
+<renderdir>/<name>.png (from any renderer), trims near-white
 margins, and lays the scenes out on a grid with captions.
 
-Usage: python compose_montage.py <outdir> <renderdir>
+`--montage=NAME` writes the sheet under a different filename and
+`--banner=TEXT` adds a provenance banner line under the title — the
+FreeCAD/OCC STEP-lane montage uses both, on the SAME grid/captions/
+scene order so the two sheets are cell-for-cell comparable. A scene
+whose render is missing gets a labeled placeholder cell (reason from
+<renderdir>/<name>.fail.txt when present) — never a silent gap.
+
+Usage: python compose_montage.py <outdir> <renderdir> [--montage=NAME] [--banner=TEXT]
 """
 
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -34,8 +42,36 @@ def trim(img, thresh=0.985, pad=6):
     return img[r0 : r1 + 1, c0 : c1 + 1]
 
 
+def placeholder(ax, name, renderdir):
+    """Labeled failure cell: name the failure, never leave a silent gap."""
+    fail = renderdir / f"{name}.fail.txt"
+    reason = fail.read_text().strip() if fail.exists() else "no render produced"
+    ax.add_patch(
+        plt.Rectangle(
+            (0, 0), 1, 1, transform=ax.transAxes, facecolor="0.93",
+            edgecolor="0.6", linewidth=1.2, zorder=0,
+        )
+    )
+    ax.text(
+        0.5, 0.5, f"RENDER FAILED\n{textwrap.fill(reason, 36)}",
+        transform=ax.transAxes, ha="center", va="center",
+        fontsize=8, color="0.25", family="monospace",
+    )
+
+
 def main():
-    outdir, renderdir = Path(sys.argv[1]), Path(sys.argv[2])
+    args = sys.argv[1:]
+    montage_name = "montage.png"
+    banner = None
+    pos = []
+    for a in args:
+        if a.startswith("--montage="):
+            montage_name = a.split("=", 1)[1]
+        elif a.startswith("--banner="):
+            banner = a.split("=", 1)[1]
+        else:
+            pos.append(a)
+    outdir, renderdir = Path(pos[0]), Path(pos[1])
     scenes = [
         s
         for s in json.loads((outdir / "scenes.json").read_text())
@@ -45,17 +81,27 @@ def main():
     fig = plt.figure(figsize=(3.4 * COLS, 3.1 * rows), dpi=120)
     for i, scene in enumerate(scenes, start=1):
         ax = fig.add_subplot(rows, COLS, i)
-        img = trim(plt.imread(renderdir / f"{scene['name']}.png"))
-        ax.imshow(img)
+        png = renderdir / f"{scene['name']}.png"
+        if png.exists():
+            ax.imshow(trim(plt.imread(png)))
+        else:
+            placeholder(ax, scene["name"], renderdir)
         ax.set_title(scene["caption"], fontsize=11, pad=3)
         ax.set_axis_off()
-    fig.suptitle(
-        "B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer",
-        fontsize=15,
-    )
-    fig.tight_layout(pad=0.4, rect=(0, 0, 1, 0.97))
-    fig.savefig(renderdir / "montage.png", facecolor="white")
-    print(f"rendered {renderdir / 'montage.png'}")
+    title = "B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer"
+    if banner:
+        fig.suptitle(title, fontsize=15, y=0.995, va="top")
+        fig.text(
+            0.5, 0.968, banner, ha="center", va="top",
+            fontsize=12, color="#8a3324", weight="bold",
+        )
+        rect_top = 0.955
+    else:
+        fig.suptitle(title, fontsize=15)
+        rect_top = 0.97
+    fig.tight_layout(pad=0.4, rect=(0, 0, 1, rect_top))
+    fig.savefig(renderdir / montage_name, facecolor="white")
+    print(f"rendered {renderdir / montage_name}")
 
 
 if __name__ == "__main__":
