@@ -2520,3 +2520,20 @@ op was outside the Interval lane and fillet3_* recorded zero
 telemetry; fixed (348 samples, die_fillet in the corpus
 registry). Latency refresh done verifiably quiet (±15-40% of
 prior quiet refresh). Watcher re-armed.
+
+**Long-term ideas PARKED (Evan, 2026-08-03) + G3 ratified.**
+docs/LONGTERM-IDEAS.md created: I1 custom part unit-tests
+(draft/injection check = nearest-term, certified via C9-class
+normal hulls; thermal expansion behind M6 clearance + material
+metadata; tool access behind assemblies/swept volumes;
+machinability = labeled heuristics), I2 design-for-measurement
+(measured-point tolerances; caliper-point→whole-surface under
+declared form-error budgets), I3 handbook-lookup fits (rides the
+#161 contact vocabulary + data provenance). GUI-DESIGN gains
+**G3 (ratified, ME-sourced): the v1 GUI minimum EXCLUDES live
+editing** — select/pan-rotate-zoom/free-move-unconstrained/hide
+only; all drag ideas stay sketchpad; GQ1 witness semantics
+unaffected. Hiding + free-move = display-layer state, never
+recipe. **Evan retro-APPROVED the Bounds allowlist extension**
+("makes sense to me"). Die-in-both-montages confirmed already on
+the #166 branch (both stops, both lanes).
