@@ -29,3 +29,12 @@ persistent path. Push-after-every-commit still applies
 window between edits and the next push. Disk hygiene still
 applies — remove merged-branch clones at pipeline seams
 ([[worktree-disk-hygiene]]).
+
+**Lane creation is now scripted (2026-08-03, Evan-directed
+enforcement):** `scripts/new-lane.sh <lane> [branch]` is the
+standard clone path — it sets `core.hooksPath scripts/hooks`,
+activating the committed pre-push hook (`fmt-all.sh --check`,
+every workspace, ~9s). Briefs say "create your clone with
+scripts/new-lane.sh" instead of a raw git clone; a hand-rolled
+clone silently lacks the hooks (git never auto-activates
+committed hooks), which is exactly the gap this closes.

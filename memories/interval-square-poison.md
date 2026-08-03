@@ -5,6 +5,16 @@ metadata:
   type: project
 ---
 
+**Fourth live occurrence (2026-08-01, PR #152 gate)**: the conic
+crossing-root lane's sinusoid amplitude `(a*a + b*b).sqrt()`
+(splitting/classify.rs, latent since PR 5) — amplitudes straddle
+zero on DISTANT conic×plane pairs, so only the BVH differential's
+idealized lane (which prunes nothing) drove it to poison under
+Interval; surfaced as a strategy divergence, not a wrong answer.
+Review-time grep advice stands: `\* self|[a-z] \* \1` over
+predicate-path diffs; cite in curved-boolean review charters
+(PR 9c onward).
+
 **The bug class (three independent occurrences in M2 alone):** squaring an
 interval enclosure via plain multiplication (`x * x`, `v.dot(v)`) treats the
 factors as independent: a straddling-zero enclosure `[-a, b]` squares to a

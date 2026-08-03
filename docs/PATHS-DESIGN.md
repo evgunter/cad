@@ -361,12 +361,14 @@ chain, never both (representation uniqueness); declared cusps are
 TABLED to #131 with cusps refused here; there is no
 path-concatenation operator (builder functions instead).
 
-Open: **PQ4 — mid-carrier seams.** The v1 rule (seam at a junction
-or fillet only) forbids closing a loop mid-side; the M2
-closed-carrier split precedent suggests a conventional-split
-relaxation. Recommendation: keep the v1 rule; revisit only with a
-concrete need, since the relaxation touches the same-carrier
-discipline.
+**PQ4 — mid-carrier seams: DECIDED (Evan, in-session,
+2026-08-01), as recommended.** The v1 rule stands: a closed
+loop's seam sits at a junction or fillet only; closing mid-side
+is refused. The M2 closed-carrier conventional-split precedent
+was considered and declined — the relaxation touches the
+same-carrier discipline (one authored side = one carrier), which
+germ matching and the merge ladders lean on. Revisit only with a
+concrete authoring need, as a revision to this section.
 
 ## 7. Explicitly out of scope
 
