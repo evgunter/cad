@@ -102,3 +102,47 @@ M5 exit (PR 12, PR 14) → SSI lift → loft assembly → M6 kickoff
 the curved-census/declared-contact design doc drafted mid-M6 →
 canal blend and contact IMPLEMENTATION re-open with their
 consumers.
+
+## 4. AMENDED after Evan's reframe (2026-08-03, in-session)
+
+Two directives fold in:
+
+**"Everything in the main path should be done before M6"** —
+adopted; it strengthens §1: the SSI lift and loft assembly are
+MAIN-PATH (not "M5-adjacent courtesy"), and they complete before
+any later milestone starts. The canal blend stays parked — even
+under M7-first, imported blends arrive as NURBS faces adopted
+under D7, not through our blend constructor; its consumer remains
+Band-3 fillet breadth.
+
+**M7 (STEP import) possibly BEFORE M6** — RECOMMENDED, three
+grounds:
+1. **Real-world testing at last**: found STEP files exercise
+   import → validate → props → tessellate → re-export against
+   geometry nobody here authored — the class of evidence no
+   internal corpus can manufacture.
+2. **The #89/K question is explicitly waiting for this corpus**:
+   K-REPORT Finding 4 names imported geometry (with computed SSI
+   margins) as the discriminating evidence for the K-policy
+   decision. M7-first means PR 14's K-snapshot gets its real
+   revisit during M7 rather than waiting through M6.
+3. **M6 propagates error over models** — better that the model
+   vocabulary (and its validators) have survived real-world
+   geometry first; error-propagation over a kernel that's never
+   seen a foreign file bakes its assumptions in.
+
+Cost/dependency honesty for M7-first: import needs D7 adoption
+machinery, the F6 repair/adoption op (banked "M5+" — it comes due
+here), Fitted pcurves (behind the SSI lift — again main-path),
+and the curved-census/declared-contact DESIGN doc earlier than
+"mid-M6" (imported assemblies carry coincidences and contacts on
+arrival; §2's home moves to the M7 plan). Interference-fit
+declaration (§2b) becomes M7-adjacent vocabulary too — imported
+assemblies contain press fits; the signed-clearance co-design
+with M6 survives as a forward reference M6 consumes later.
+
+Proposed sequence, amended: M5 exit → SSI lift → loft assembly →
+**M7 (import/adoption, incl. the census/contact design doc)** →
+M6 (error propagation, signed clearance, over a real-world-tested
+vocabulary). A 👍 ratifies this sequence; the M7 plan itself gets
+its own doc + ratification pass as always.
