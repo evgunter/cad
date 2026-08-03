@@ -2816,8 +2816,34 @@ fixture, refused typed. Sense comes from the stored convexity verdict
    flag on the SAME grid — so the die renders in BOTH sheets with no
    further wiring, which is the acceptance the spec asked for.
 
+**Band-4 corpus (fix pass F5).** The unit first shipped with no corpus
+rows at all — a silent scope gap the review caught. It now has a
+`Node::Fillet { target, radius }` recipe node (edge selection
+deliberately absent: the assembly's front door is "every edge", so a
+whole-body request needs no stable edge names and cannot go stale
+under a parameter edit) and two documents, `die_fillet` and
+`die_pips`, which get the standard rows for free — evaluation at every
+CI ε row and under `interval`, the D6.1 persistence round-trip, and
+the latency table. Two things are recorded rather than smoothed over:
+both documents carry `pin: None`, because the rounded-box and
+spherical-cap oracles are π-valued and `MassPin` is asserted with `==`
+against an exact value (the `cut_cylinder`/`boss_union` precedent — a
+pin there would pin `f64` rounding of a transcendental, not the
+geometry), and the sweep unit is what meters those closed forms at a
+stated relative tolerance. And `die_pips` carries ONE pip, not
+twenty-one: the 21-shell tool is not corpus-expressible at M5, because
+the recipe layer's only multi-shell assembly is `Boolean(Union)`,
+which on two disjoint balls evaluates green under the production
+realized strategy and refuses typed under the idealized one — so the
+document works inside that frontier instead of around it, and says so.
+Its ball's meridian is likewise split at an equator vertex, because
+the revolve name emitter refuses an all-on-axis loop; both costs are
+written down at the site with the condition for deleting them.
+
 **Battery.** Touched crates at default ε: `sweep` (all binaries),
-`geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all).
+`geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all),
+`editor-core` (all 53 binaries, with the two new corpus documents).
+The demo tour's ε-regression battery (the ×3ε rows) is green.
 New rows: 9 battery + 13 refusal/trio + 7 blend + 3 die-body + 3 die =
 35, plus 3 in `geom-brep`. `cargo fmt --all` clean; clippy clean on the
 touched crates. The demo tour runs green end to end and exports both
