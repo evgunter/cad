@@ -80,20 +80,32 @@ paragraph, twenty rows above.
    NURBS face at rest. Its sibling, the multi-shell curved
    outward/void classification, is a named DESIGN.md frontier with
    no scheduled unit.
-5. **Row 4 — pcurve certification on non-cylinder charts.** Cone,
-   sphere, torus and NURBS charts mint nothing; the routing is a
-   compile-time decision. The filleted die's own sphere octants are
-   affected. No unit currently owns this; it needs one, and it is
-   the most load-bearing unclaimed item this walk found.
+5. **Row 4 — pcurve certification on non-cylinder charts** → the
+   **loft/sweep body assembly unit** (owner assigned at this PR's
+   review). Cone, sphere, torus and NURBS charts mint nothing and
+   refuse `UnsupportedChart`; the routing is a compile-time
+   decision, and the filleted die's own eight sphere octants are
+   affected. The assembly unit is the natural owner because it
+   already has to mint pcurves for a NURBS face at rest — completing
+   the ANALYTIC charts alongside it is the sibling half of the same
+   work, not a separate lane. Added to that unit's banked scope in
+   DESIGN.md's frontier entry (b)/(c).
 6. **Row 12 — STEP fixture coverage of R5 (iii), (iv) and the
-   pips.** (iii) and (iv) follow their own frontiers, but
-   `die_pips` is a shipped corpus document whose STEP export is
-   verified only by hand through the tour. Adding it to the
-   CI-gated fixture corpus is small and unowned.
-7. **Row 2 — a non-vacuous fitted-cache-at-rest row.** PR 9's spec
-   asked for a cylinder×sphere rung-3-at-rest row; it does not
-   exist, so the C2-certificate clause has never been exercised
-   positively.
+   pips** → the **montage-curation unit** (queued, block 20) for the
+   pips half. (iii) and (iv) follow their own frontiers and stay
+   with the assembly unit. `die_pips` is a shipped corpus document
+   whose STEP export is verified only by hand through the tour;
+   adding the fixture + expect file to the CI-gated corpus is a
+   trivial, demo-adjacent addition and belongs with the curation
+   work rather than with kernel geometry.
+7. **Row 2 — a non-vacuous fitted-cache-at-rest row** → the **SSI
+   generic-`T` lift unit's acceptance** (owner assigned at this PR's
+   review). PR 9's spec asked for a cylinder×sphere rung-3-at-rest
+   row and it does not exist, so the C2-certificate clause has never
+   been exercised positively. The lift is exactly where
+   `Pcurve::Fitted` first reaches a body at rest, so the row becomes
+   available — and load-bearing — there; it is recorded as an
+   acceptance obligation of that unit, not a follow-up to it.
 
 ## Beyond the criteria: obligations this walk surfaced
 
@@ -124,9 +136,13 @@ failure mode the walk exists to prevent.
    Owed before the next milestone's log starts.
 5. **A stale comment asserts the opposite of the shipped truth**:
    `crates/editor-core/tests/corpus/mod.rs:130` registers
-   `die_fillet::document()` while the comment at :132-139 still says
-   it is NOT registered. A code change, therefore reported and not
-   made.
+   `die_fillet::document()`, while the comments at :132-139 AND
+   :196-199 still say it is NOT registered and explain why. The gate
+   fix at `5c8540f` moved it into the registry and neither comment
+   followed. A code change, therefore reported and not made here —
+   **assigned to the montage-curation unit** (block 20) alongside
+   the `die_pips` STEP fixture, since both are small
+   corpus/demo-adjacent corrections.
 6. **Two M5 limitations are latent-and-loud** and now live in
    DESIGN.md's envelope so they are not rediscovered as bugs: a
    meridian-tangent circle is in-lane but uncertifiable (no

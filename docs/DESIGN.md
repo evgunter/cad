@@ -485,7 +485,15 @@ component-aware E–P form found and corrected in M1 PR 4).**
   and `NurbsSurface::project` are `f64`-only by type, so
   `Pcurve::Fitted` cannot be admitted without either lifting them to
   `T: Real` or accepting a certification lane that silently dies in
-  the Interval lane. MAIN-PATH; it gates (d) and (e).
+  the Interval lane. MAIN-PATH; it gates (d) and (e). **Banked scope
+  addition (M5 PR 14 walk, row 2):** this unit's ACCEPTANCE carries
+  the non-vacuous fitted-cache-at-rest row PR 9's spec asked for and
+  never got — a cylinder×sphere rung-3 body at rest whose cache
+  actually exercises the full C2 certificate. Until then the "every
+  fitted cache carries hull sup-norm + uniqueness tube" invariant is
+  true only VACUOUSLY: no fitted cache reaches any body at rest,
+  positively pinned by
+  `no_body_at_rest_carries_a_nurbs_carrier_or_face`.
   **(c) loft/sweep body assembly** — the `Loft`/`Sweep` nodes build
   their walls and then refuse `CurvedSolidFrontier`, because tier 3's
   +V check routes a NURBS face to `Unimplemented`: NURBS-patch flux
@@ -495,7 +503,17 @@ component-aware E–P form found and corrected in M1 PR 4).**
   MAIN-PATH, after (b). This is why acceptance shape (iii) is met at
   its SUBSTRATE row (a directly-authored NURBS wall cut by a plane,
   all three limbs, both lanes, bit-replayed — PR 7b/#149) and its
-  full loft BODY is carried.
+  full loft BODY is carried. **Banked scope addition (M5 PR 14 walk,
+  row 4):** this unit also owns **completing pcurve certification on
+  the ANALYTIC charts**. Today only Plane and Cylinder charts
+  certify; cone, sphere, torus and NURBS charts mint nothing and
+  refuse `PcurveCertifyError::UnsupportedChart`, so the shipped
+  filleted die's own eight sphere octants carry no stored pcurves at
+  rest — tier 3's "every curved edge at rest carries per-half-edge
+  pcurves" check is really "every cylinder-chart curved edge". The
+  assembly unit must mint pcurves for a NURBS face regardless, so
+  the analytic-chart completion is the sibling half of the same work
+  rather than a separate lane.
   **(d) cyl×sphere germ chords** — only `(Plane, Cylinder)` and
   `(Plane, Sphere)` germ arms are wired; a fitted carrier has no
   closed-form chart image, so the azimuth-window lane has nothing to
