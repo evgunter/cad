@@ -12,8 +12,9 @@
 //! Rows: the involution and determinism rows bitwise on a curved
 //! `Body<Interval>`; the blind hole and its ∩ twin with certified
 //! volume enclosures containing the closed forms; the mixed-sense split
-//! with the inherited bit read back; and the per-class door refusing
-//! structurally (no band quoted — it never compares anything).
+//! with the inherited bit read back; and the S13-flipped sphere row
+//! (the half-buried ball's ∖ deciding definitely through the extent
+//! scan, re-cut and plane×sphere germ arm at the certified scalar).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -28,7 +29,7 @@ fn interval_lane_skipped_no_certified_coverage_here() {
         "SKIPPED (no --features interval): m5_s12_curved_ops_interval.rs \
          contributes NO certified coverage in this run — the S12 rows \
          (bitwise curved revert, definite curved subtract/intersect, the \
-         mixed-sense split's inherited bit, the structural per-class door) \
+         mixed-sense split's inherited bit, the S13 sphere re-cut row) \
          run only in the interval lane."
     );
 }
@@ -41,7 +42,7 @@ mod certified {
     use geom_surfaces::Surface;
     use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-    use topo::{Body, BooleanError, mass_properties};
+    use topo::{Body, mass_properties};
 
     fn iv(x: f64) -> Interval {
         Interval::from_f64(x)
@@ -221,12 +222,16 @@ mod certified {
         );
     }
 
-    /// The per-class door is STRUCTURAL, and this lane proves it: at a
-    /// scalar where every metric comparison could widen into an
-    /// escalation, the sphere class still refuses the same typed variant,
-    /// and the message quotes no band because it compares nothing.
+    /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
+    /// the sphere class now goes ALL the way through at the certified
+    /// scalar. The half-buried ball is the finding's own
+    /// poking-but-not-crossing shape, so this row certifies the whole
+    /// §1 chain under Interval — the extent scan's trileans decide
+    /// definitely from honest enclosures, the re-cut's rigid rotation
+    /// re-certifies, and the re-entered pipeline's plane×sphere germs
+    /// mint arcs whose volume enclosure contains the closed form.
     #[test]
-    fn interval_per_class_door_is_structural() {
+    fn interval_sphere_subtract_decides_definitely_after_the_recut() {
         let lp = ProfileLoop::builder(p2(0.0, -1.0))
             .arc_to(p2(0.0, 1.0), iv(1.0))
             .close();
@@ -243,18 +248,28 @@ mod certified {
         )
         .unwrap();
 
-        let err = topo::subtract(&plate(), &ball).expect_err("the sphere class has no join lane");
-        let BooleanError::CurvedOpUnsupported { .. } = err else {
-            panic!("expected the per-class door, got {err:?}");
-        };
-        let msg = err.to_string();
-        assert!(msg.contains("no seam lane"), "{msg}");
+        let cut = topo::subtract(&plate(), &ball).expect("S13: the sphere class decides");
+        let cut = &cut.body().expect("a body").body;
+        assert_eq!(topo::validate_geometric(cut), Ok(()));
+        // plate − (ball zone between z = 0 and z = 0.8):
+        // zone = 4π/3 − cap(0.7) − cap(0.5), cap(h) = πh²(3−h)/3.
+        let cap = |h: f64| PI * h * h * (3.0 - h) / 3.0;
+        let zone = 4.0 * PI / 3.0 - cap(0.7) - cap(0.5);
+        let vol = mass_properties(cut).unwrap().volume;
         assert!(
-            !msg.contains("escalate"),
-            "a structural door quotes no band: {msg}"
+            vol.lo() <= 7.2 - zone && 7.2 - zone <= vol.hi(),
+            "enclosure [{}, {}] must contain {}",
+            vol.lo(),
+            vol.hi(),
+            7.2 - zone
         );
-        // And the live class still decides at this scalar (the door is per
-        // class, not a blanket restored).
+        assert!(
+            vol.hi() - vol.lo() <= 1e-6,
+            "enclosure stays usably tight, got width {}",
+            vol.hi() - vol.lo()
+        );
+        // And the cylinder class still decides at this scalar (S13
+        // opens a class, it does not trade one away).
         assert!(topo::subtract(&plate(), &boss(0.3, 1.0)).is_ok());
     }
 }

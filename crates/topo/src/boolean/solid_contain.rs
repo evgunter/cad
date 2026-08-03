@@ -287,7 +287,7 @@ enum FaceGeo<T: geom_core::Real> {
 /// keys and mate adjacency only, never a margin, so it has no in-band
 /// twin and does not move with ε. Rings on a sphere face make the
 /// answer `None` (a ringed sphere face is a trimmed one).
-fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<FaceKey> {
+pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<FaceKey> {
     let surface = body.get_face(face)?.surface;
     let group: Vec<FaceKey> = body
         .faces()

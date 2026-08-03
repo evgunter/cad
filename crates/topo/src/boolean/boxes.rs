@@ -131,6 +131,24 @@ pub(super) fn face_box<T: Decide + Bounds>(
         }
         .padded(pad));
     }
+    // Sphere faces (M5 S13): the vertex hull is NOT a superset (a
+    // band's belly bulges past its poles and seam arcs), so the box is
+    // the whole ball `center ± r` — deliberately loose, the
+    // conservative direction (a bigger box only admits candidates).
+    if let Some(&geom_surfaces::Surface::Sphere { center, radius, .. }) =
+        body.get_surface(f.surface)
+    {
+        let r = radius.hi();
+        return Ok(Aabb {
+            min_x: center.x.lo() - r,
+            min_y: center.y.lo() - r,
+            min_z: center.z.lo() - r,
+            max_x: center.x.hi() + r,
+            max_y: center.y.hi() + r,
+            max_z: center.z.hi() + r,
+        }
+        .padded(pad));
+    }
     let mut points: Vec<Point3<T>> = Vec::new();
     let mut push_loop = |lk: LoopKey| -> Result<(), BooleanError> {
         let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;

@@ -220,14 +220,14 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    PERMANENTLY (R1: parabola/hyperbola do not land in M5), \
                    unimplemented until SSI (M5 PR 7)",
         },
-        // ---- Rung 1 routing, unimplemented: the closed form (a
-        // circle) exists but no PR has landed it; refuses typed — the
-        // general rung is not a fallback (C5). ----
+        // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
+        // never a fitted chord (the die-pips premise). ----
         (Plane, Sphere) | (Sphere, Plane) => PairRoute {
             rung: Rung::Closed,
-            implemented: false,
-            note: "a plane×sphere cut is a closed-form Circle; unimplemented in this \
-                   build — refuses typed, no runtime fallback (C5)",
+            implemented: true,
+            note: "a plane×sphere cut is the closed-form Circle \
+                   (plane_sphere_section, M5 S13); the tangent gap is a POINT — \
+                   classification data, refused as a carrier (C7)",
         },
         (Sphere, Sphere) => PairRoute {
             rung: Rung::Closed,
@@ -605,6 +605,115 @@ pub fn plane_cylinder_section<T: Decide>(
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------
+// plane × sphere (M5 S13: the die-pips join lane's C5 row)
+// ---------------------------------------------------------------------
+
+/// The classified plane×sphere section — every configuration's closed
+/// form (rung 1: the trileans run before any rung, C5; **no fitted
+/// chord anywhere in this pair** — the locus is an exact `Circle`).
+#[derive(Clone, Debug)]
+pub enum PlaneSphereSection<T: Real> {
+    /// Definite cut: the exact `Circle` — centered at the sphere
+    /// center's foot on the plane, radius `√((r−|s|)(r+|s|))` for `s`
+    /// the signed center-to-plane gap, carrier axis the plane normal,
+    /// `u_ref` the plane's own `u_ref` (in-plane by construction).
+    /// Zero-residual-by-construction against both surfaces.
+    Circle(Curve3<T>),
+    /// Gap coincident with r: the tangency **point** — classification
+    /// data, not a constructible edge (C7 lineage: tangent loci are
+    /// not minted as section carriers; consumers refuse typed).
+    TangentPoint(Point3<T>),
+    /// Gap definitely > r: no intersection.
+    Empty,
+}
+
+/// Classifies and constructs the plane×sphere section (C5 rung 1,
+/// M5 S13).
+///
+/// One trilean: `ps_center_gap` — margin `r − |s|` (meters), `s` the
+/// signed sphere-center-to-plane gap: Positive ⇒
+/// [`PlaneSphereSection::Circle`], Zero ⇒
+/// [`PlaneSphereSection::TangentPoint`], Negative ⇒
+/// [`PlaneSphereSection::Empty`]. The in-band twin of both definite
+/// verdicts escalates through the same named predicate (F6) — the
+/// two-tolerance shape.
+///
+/// # Errors
+///
+/// [`SectionError`] — wrong-lane kinds or the in-band escalation.
+pub fn plane_sphere_section<T: Decide>(
+    plane: &Surface<T>,
+    sphere: &Surface<T>,
+    band: Band,
+) -> Result<PlaneSphereSection<T>, SectionError> {
+    let &Surface::Plane {
+        origin: q,
+        normal: n,
+        ..
+    } = plane
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "plane×sphere",
+        });
+    };
+    let &Surface::Sphere {
+        center: c,
+        radius: r,
+        axis: sph_axis,
+        u_ref: sph_u,
+    } = sphere
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "plane×sphere",
+        });
+    };
+    let s = (c - q).dot(n);
+    let foot = c - n * s;
+    // The circle's `u_ref` is a PLACEMENT convention (D2): every
+    // downstream margin is a frame DIFFERENCE, so any in-plane unit
+    // vector serves — but it must be genuinely in-plane. The plane
+    // operand's own `u_ref` is deliberately NOT consulted: the
+    // splitting/boolean lanes hand transient classification planes
+    // whose `u_ref` is a placeholder (sometimes the normal itself,
+    // which would degenerate the frame and collapse every section
+    // angle to zero). Derived instead from the sphere's chart frame:
+    // `n̂ × û` unless that sine is small, then `n̂ × â` — with
+    // `û ⊥ â` the two sines satisfy sin²(û,n̂) + sin²(â,n̂) ≥ 1, so
+    // the second candidate is definitely nonzero whenever the first
+    // is not chosen. The selection trilean's degenerate and in-band
+    // arms both take the second candidate: near the threshold BOTH
+    // are valid placements, so the arm is a deterministic tie-break
+    // (D9), not a verdict — no downstream VERDICT moves with it
+    // (derived f64 parameter bits may differ across code versions;
+    // within-run replay and strategy identity are what D9 pins).
+    let seam_cand = n.cross(sph_u);
+    let u_ref = match decide(
+        "ps_frame_seam",
+        (seam_cand.norm() - T::from_f64(0.5)) * r,
+        band,
+    ) {
+        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => {
+            let polar_cand = n.cross(sph_axis);
+            polar_cand / polar_cand.norm()
+        }
+    };
+    match decide("ps_center_gap", r - s.abs(), band).map_err(SectionError::Escalated)? {
+        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::Circle {
+            center: foot,
+            axis: n,
+            // The interval-square tripwire does not bite: both factors
+            // are definitely positive after the trilean (never a
+            // spuriously negative bracket under a sqrt).
+            radius: ((r - s.abs()) * (r + s.abs())).sqrt(),
+            u_ref,
+        })),
+        Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
+        Sign::Negative => Ok(PlaneSphereSection::Empty),
     }
 }
 

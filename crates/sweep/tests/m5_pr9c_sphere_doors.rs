@@ -236,20 +236,30 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
 }
 
-/// **Re-pinned again at M5 S12 (was
-/// `curved_subtract_front_door_quotes_the_same_finding`).** The DIE-PIPS
-/// shape — a sphere bitten out of a slab — still refuses, but the door
-/// is no longer wholesale and no longer blames `revert`. S12 retired the
-/// any-curved-face gate and opened plane×cylinder ∖/∩; the sphere class
-/// stays refused because the germ-pair JOIN dispatch wires exactly one
-/// arm, `(Plane, Cylinder)` (PR 9c deviation 1), behind which sits
-/// `Pcurve::Fitted` (deviation 2). The full S12 statement of what went
-/// live, what stays refused, and the containment-fallback finding that
-/// makes this door structural rather than downstream lives in
-/// `m5_s12_curved_ops.rs`; this row keeps PR 9c's own smoke shape
-/// pinned at whatever the current door says.
+/// **Re-pinned again at M5 S13 (was
+/// `the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door`,
+/// before that `curved_subtract_front_door_quotes_the_same_finding`).**
+/// PR 9c's own smoke shape — the unit ball at the origin bitten out of
+/// a slab standing on z = 0 — now PASSES the per-class door (S13 opened
+/// the sphere class: the (Plane, Sphere) germ arm plus the
+/// extent-certified fallback re-cut, pinned green in
+/// `m5_s13_pips.rs`/`m5_s12_curved_ops.rs`), and what stops THIS
+/// particular placement is its own geometry: the ball is exactly
+/// TANGENT to the slab's top-face carrier (center on z = 0, radius 1,
+/// face at z = 1), a touching configuration the crossing layer cannot
+/// represent. The extent scan refuses it TYPED — never the S12
+/// finding's silent vertex-probe answer — which keeps this row's
+/// charter: PR 9c's smoke shape pinned at whatever the current door
+/// says. What that is: the ball's seam great circle lies EXACTLY IN
+/// the bottom face's carrier plane (center on z = 0) — the coplanar
+/// conic class, routed structurally to endpoint-only treatment (the
+/// M3 rule; S13 fix pass) — so the reduction finds no crossings and
+/// the extent scan takes over, where the ball is exactly TANGENT to
+/// the TOP face's carrier (center z = 0, radius 1, face z = 1): the
+/// scan's tangency arm refuses TYPED. (Nudge the ball off both
+/// coincidences and the S13 lanes cut it — the pips suite.)
 #[test]
-fn the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door() {
+fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
         p2(-2.0, -2.0),
         p2(2.0, -2.0),
@@ -261,18 +271,17 @@ fn the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door() {
         .body;
     let b = ball();
     let err = topo::boolean::subtract(&a, &b).unwrap_err();
-    let topo::BooleanError::CurvedOpUnsupported { .. } = err else {
-        panic!("expected the per-class door, got {err:?}");
+    let topo::BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+        panic!("expected the extent scan's tangency arm, got {err:?}");
     };
+    assert!(what.contains("tangent"), "{what}");
+    // The retired claims must be GONE from the surfaced text: revert is
+    // wired, the gate is not wholesale, and the sphere class is no
+    // longer refused as a class.
     let msg = err.to_string();
-    // The current blocker, named.
-    assert!(msg.contains("no seam lane"), "{msg}");
-    assert!(msg.contains("deviation 1"), "{msg}");
-    // The retired claims must be GONE: revert is wired, and the gate is
-    // not wholesale any more.
     assert!(!msg.contains("no representation"), "{msg}");
-    assert!(!msg.contains("ratified representation change"), "{msg}");
-    assert!(!msg.contains("UNION is the live curved boolean"), "{msg}");
+    assert!(!msg.contains("no seam lane"), "{msg}");
+    assert!(msg.contains("refused typed"), "{msg}");
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction
