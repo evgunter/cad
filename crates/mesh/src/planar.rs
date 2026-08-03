@@ -153,13 +153,31 @@ fn triangulate_chart(
         }
     }
 
-    // Outer-loop orientation in the chart frame decides the flip. This
-    // is an unreified float sign, but not an in-band one: getting it
-    // wrong needs a face whose projected area is ~0, and it flips the
-    // whole patch at once, so `check_mesh` catches it as
-    // `MismatchedWinding` against the neighbouring faces — unlike the
+    // Outer-loop orientation in the chart frame decides the flip.
+    //
+    // S10 CATEGORY B — do NOT multiply by the face's `sense_sign`. The
+    // sign here is derived from the loop's STORED TRAVERSAL (the
+    // projected shoelace), and by interior-left the outer loop winds
+    // CCW about the face's OUTWARD normal — so the shoelace comes out
+    // negative in the chart frame precisely when the face is reversed,
+    // and the flip it then triggers is already the right one. `revert`
+    // reverses the loops AND flips `sense` together; multiplying here
+    // would apply that reversal twice and emit inward-wound triangles
+    // on exactly the reversed faces the multiply was meant to serve.
+    //
+    // On the float sign itself: unreified, but not in-band — getting
+    // it wrong needs a face whose PROJECTED area is ~0, and it flips
+    // the whole patch at once, so `check_mesh` catches it as
+    // `MismatchedWinding` against the neighbouring faces (unlike the
     // #111 per-triangle decision, which could fail on one sliver and
-    // leak past every downstream check but `check_mesh`'s edge census.
+    // leak past every downstream check but `check_mesh`'s edge
+    // census). Read that caveat honestly: "~0 projected area" bounds
+    // when the SIGN READ is unreliable, and was never a claim that the
+    // sign is knowable in advance. A negative outer shoelace is an
+    // ordinary, well-conditioned input — it is what a reversed face
+    // looks like — so the code reads the sign rather than assuming it,
+    // and would have to keep doing so even if the degeneracy argument
+    // were dropped entirely.
     let flip = shoelace2(&polygons[0]) < 0.0;
 
     let inside = classify_faces(&cdt, &crossings);
@@ -185,7 +203,7 @@ fn triangulate_chart(
 }
 
 /// A CDT edge's identity as an unordered pair of vertex indices.
-fn edge_key(
+pub(crate) fn edge_key(
     e: DirectedEdgeHandle<'_, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
 ) -> (usize, usize) {
     let (p, q) = (e.from().fix().index(), e.to().fix().index());
@@ -200,7 +218,7 @@ fn edge_key(
 /// traversed an odd number of times. Purely combinatorial: the result
 /// depends on the triangulation's connectivity and on integer crossing
 /// counts, never on a coordinate comparison.
-fn classify_faces(
+pub(crate) fn classify_faces(
     cdt: &ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
     crossings: &HashMap<(usize, usize), u32>,
 ) -> Vec<bool> {
@@ -272,7 +290,7 @@ fn loop_ids(
 }
 
 /// Twice the signed area of a 2-D polygon.
-fn shoelace2(poly: &[[f64; 2]]) -> f64 {
+pub(crate) fn shoelace2(poly: &[[f64; 2]]) -> f64 {
     let mut s = 0.0;
     for (i, p) in poly.iter().enumerate() {
         let q = poly[(i + 1) % poly.len()];

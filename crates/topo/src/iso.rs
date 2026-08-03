@@ -12,8 +12,10 @@
 //! Two bodies compare equal iff there is a correspondence between their
 //! entities preserving: the whole oriented half-edge structure
 //! (`next`/mate, hence loops, vertex orbits, and orientation), the loop
-//! partition into faces with the outer/ring designation, empty loops and
-//! their lone vertices, the shell/solid spine, and **per-vertex point
+//! partition into faces with the outer/ring designation, **each face's
+//! orientation sense** (S10 — the other half of orientation, and the
+//! half no traversal can reconstruct), empty loops and their lone
+//! vertices, the shell/solid spine, and **per-vertex point
 //! coordinates** (compared bitwise through their `Debug` form).
 //!
 //! # How the form is canonical
@@ -328,7 +330,16 @@ fn component_encoding(
     (text, members, new_vertices)
 }
 
-/// A face's emission: outer-loop token plus sorted ring tokens.
+/// A face's emission: orientation sense, outer-loop token, and sorted
+/// ring tokens.
+///
+/// The sense (S10) is part of the face's identity, not of its surface:
+/// two bodies with identical topology, identical loop roles and
+/// identical coordinates are DIFFERENT solids when a face's material
+/// side is reversed (they occupy complementary regions along that
+/// face), and without this token they would hash identically — the
+/// canonical form would certify a body isomorphic to its own
+/// contradiction.
 fn face_desc(body: &Body<f64>, face: FaceKey, loop_min: &SecondaryMap<LoopKey, usize>) -> String {
     let face_data = body.get_face(face).expect("face resolves");
     let outer = loop_token(body, face_data.outer, loop_min);
@@ -338,7 +349,21 @@ fn face_desc(body: &Body<f64>, face: FaceKey, loop_min: &SecondaryMap<LoopKey, u
         .map(|&ring| loop_token(body, ring, loop_min))
         .collect();
     rings.sort();
-    format!("outer={outer} rings=[{}]", rings.join(","))
+    format!(
+        "sense={} outer={outer} rings=[{}]",
+        sense_token(body, face),
+        rings.join(",")
+    )
+}
+
+/// A face's orientation sense as a single character (`+` agreeing with
+/// the chart normal, `-` reversed).
+fn sense_token(body: &Body<f64>, face: FaceKey) -> char {
+    if body.get_face(face).expect("face resolves").sense {
+        '+'
+    } else {
+        '-'
+    }
 }
 
 /// A loop's token: the minimal dart label of its cycle, or the lone
@@ -397,8 +422,18 @@ fn dart_attachment(
     )
 }
 
-/// A face's label-free fingerprint: the outer loop's signature plus the
-/// sorted ring signatures.
+/// A face's label-free fingerprint: its orientation sense, the outer
+/// loop's signature, and the sorted ring signatures.
+///
+/// The sense belongs here as well as in [`face_desc`], and for a
+/// different reason: this fingerprint is what breaks automorphism ties
+/// when the canonical labeling has a choice. A body whose coordinate
+/// symmetry maps face A onto face B is genuinely isomorphic to the one
+/// with the senses swapped, and the two must therefore CANONICALIZE
+/// the same way — which they only do if the tie-break can see the bit
+/// that distinguishes A from B. Emitting it in the record alone would
+/// leave the labeling free to pick either face and report two
+/// isomorphic bodies as different.
 fn face_sig(body: &Body<f64>, face: FaceKey) -> String {
     let face_data = body.get_face(face).expect("face resolves");
     let mut rings: Vec<String> = face_data
@@ -408,7 +443,8 @@ fn face_sig(body: &Body<f64>, face: FaceKey) -> String {
         .collect();
     rings.sort();
     format!(
-        "{{o={};r=[{}]}}",
+        "{{s={};o={};r=[{}]}}",
+        sense_token(body, face),
         loop_sig(body, face_data.outer),
         rings.join(",")
     )

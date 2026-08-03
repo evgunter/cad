@@ -40,8 +40,11 @@ use editor_core::{
 use geom_core::Decide;
 use topo::Body;
 
+pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_fillet;
+pub mod die_pips;
 pub mod heatsink;
 pub mod islands;
 pub mod sink;
@@ -123,6 +126,17 @@ pub fn documents() -> Vec<CorpusDoc> {
         tangency::document(),
         sink::document(),
         cut_cylinder::document(),
+        boss::document(),
+        die_fillet::document(),
+        die_pips::document(),
+        // `die_fillet::document()` is NOT here, and its module docs say
+        // why: the fillet battery's clearance screen seeds a gap with
+        // `T::from_f64(f64::INFINITY)`, which is NaI at the Interval
+        // scalar, so the document is green at `f64` and refuses under
+        // `--features interval` — and registry membership means the
+        // Interval lane. It is pinned, at both scalars, by
+        // `m5_pr12_fillet_node.rs`; registering it is a one-line change
+        // the moment the sentinel goes.
     ]
 }
 
@@ -175,15 +189,28 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 9] = [
+pub const NODE_KINDS: [&str; 12] = [
     "Datum",
     "Profile",
     "Extrude",
     "Revolve",
+    // M5 PR 12's constant-radius rolling-ball fillet. In the DOMAIN,
+    // at zero coverage, for the same reason `Loft`/`Sweep` are: the
+    // document exists (`die_fillet`) and is green at `f64`, but the op
+    // refuses at the Interval scalar, which registry membership
+    // requires. See `documents()` and `m5_pr12_fillet_node.rs`.
+    "Fillet",
     "Split",
     "Boolean",
     "Transform",
     "Pattern",
+    // M5 PR 10's definitional feature nodes. They join the tally's
+    // DOMAIN here; the Band 4 corpus row that exercises them waits on
+    // the NURBS-walled-solid frontier (see
+    // `NodeErrorKind::CurvedSolidFrontier`), so the coverage report
+    // shows them at zero rather than pretending they are covered.
+    "Loft",
+    "Sweep",
     "Declare",
 ];
 
@@ -249,8 +276,11 @@ pub fn sub_kinds(node: &Node<ProfileDesc>) -> Vec<&'static str> {
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
+        | Node::Fillet { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
         | Node::Declare { .. } => Vec::new(),
     }
 }
@@ -262,10 +292,13 @@ pub fn node_kind(node: &Node<ProfileDesc>) -> &'static str {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
+        Node::Fillet { .. } => "Fillet",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
+        Node::Loft { .. } => "Loft",
+        Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
     }
 }

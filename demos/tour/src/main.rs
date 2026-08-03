@@ -15,13 +15,18 @@ mod az;
 mod bodies;
 mod bool_bodies;
 mod booleans;
+mod bossplate;
 mod crosslap;
+mod curvedcut;
 mod cutaway;
+mod diefillet;
 mod heatsink;
 mod letterforms;
 mod probe;
 mod projectbox;
+mod rocker;
 mod scalar;
+mod skinned;
 
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use topo::{Body, ContactRecords};
@@ -38,34 +43,41 @@ struct SceneBody {
     /// Base RGB for the render manifest.
     color: [f64; 3],
     /// Whether STEP export MUST succeed for this body (#91 review M2:
-    /// every all-planar body is inside the writer's analytic subset,
-    /// so a refusal there is a regression that fails the tour, never
-    /// a silently hollowed F6 dogfood). Boolean results are always
-    /// planar today (`gate_planar`); curved sweeps are the honest
-    /// refusals until the M5 arms.
+    /// a refusal on a body inside the writer's subset is a regression
+    /// that fails the tour, never a silently hollowed F6 dogfood).
+    ///
+    /// **Since M5 PR 13 this is true for every tour body.** The
+    /// writer's subset grew to the whole elementary-surface vocabulary
+    /// plus conic and NURBS carriers, and every shape the tour builds
+    /// is inside it — the curved sweeps and the curved boolean that
+    /// used to be narrated refusals now export like the planar ones.
+    /// The field stays because the two live refusals (a NURBS FACE,
+    /// which the loft-assembly unit brings, and a multi-shell CURVED
+    /// solid, which the outward/void classifier cannot sign) would
+    /// each produce a body the tour must not silently drop.
     step_expected: bool,
 }
 
 impl SceneBody {
-    /// A (possibly curved) non-boolean body: STEP is attempted and a
-    /// typed analytic-subset refusal is narration, not failure.
+    /// A non-boolean body, planar or curved. STEP export is REQUIRED
+    /// to succeed: since M5 PR 13 the writer covers every surface and
+    /// carrier kind these bodies carry.
     fn plain(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
         Self {
             name: name.into(),
             body,
             contacts: None,
             color,
-            step_expected: false,
+            step_expected: true,
         }
     }
 
     /// An all-planar non-boolean body (split halves, transformed
-    /// planar bodies): STEP export is REQUIRED to succeed.
+    /// planar bodies). Kept as a distinct spelling because the CALLER
+    /// is asserting planarity, which is information about the body;
+    /// the STEP posture is now the same as [`Self::plain`]'s.
     fn plain_planar(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
-        Self {
-            step_expected: true,
-            ..Self::plain(name, color, body)
-        }
+        Self::plain(name, color, body)
     }
 
     fn seamed(
@@ -81,6 +93,21 @@ impl SceneBody {
             color,
             step_expected: true,
         }
+    }
+
+    /// A CURVED boolean result (M5 PR 11's boss∪plate): 3′ validation
+    /// with the op's declared contacts. Its STEP export is REQUIRED
+    /// since M5 PR 13 — this body's cylinder walls and circle seam
+    /// arcs are exactly what the curved arms were written for, and it
+    /// is the tour's end-to-end proof that they work on a boolean
+    /// result and not only on a swept primitive.
+    fn seamed_curved(
+        name: impl Into<String>,
+        color: [f64; 3],
+        body: Body<f64>,
+        contacts: ContactRecords,
+    ) -> Self {
+        Self::seamed(name, color, body, contacts)
     }
 }
 
@@ -131,7 +158,7 @@ struct ManifestBody {
     color: [f64; 3],
 }
 
-fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
+fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
@@ -167,7 +194,10 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     );
 
     // Exact B-rep mass properties (divergence theorem over the exact
-    // faces — not the mesh).
+    // faces — not the mesh). Since M5 PR 11 curved-CUT faces
+    // contribute certified quadrature enclosures: `volume` is then a
+    // bracket midpoint with half-width `volume_pad` (0.0 on
+    // closed-form bodies).
     let props = topo::mass_properties(&sb.body).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
@@ -177,8 +207,13 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
     let rel = ((v_mesh - props.volume) / props.volume).abs();
+    let certified = if props.volume_pad > 0.0 {
+        format!(" (certified enclosure ± {:.1e})", props.volume_pad)
+    } else {
+        String::new()
+    };
     println!(
-        "   [{label}] exact: V = {:.6} m^3, A = {:.6} m^2; mesh (delta = {:.0e}): \
+        "   [{label}] exact: V = {:.6} m^3{certified}, A = {:.6} m^2; mesh (delta = {:.0e}): \
          {} triangles, V_mesh = {v_mesh:.6} ({:.3}% off exact — chordal, inscribed)",
         props.volume,
         props.surface_area,
@@ -196,9 +231,13 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
     std::fs::write(&stl_path, &stl_buf).expect("write stl");
     let stl = stl_name.clone();
 
-    // The STEP lane (#88): AP214 export beside every STL. The writer's
-    // analytic subset is planes/lines today (M5 adds the curved arms),
-    // so curved bodies refuse TYPED — narrated, never patched around.
+    // The STEP lane (#88): AP214 export beside every STL. Since M5
+    // PR 13 the writer's analytic subset is the whole elementary-
+    // surface vocabulary (plane/cylinder/cone/sphere/torus) with
+    // line/circle/ellipse/NURBS carriers, all as EXACT native AP214
+    // entities — so every tour body exports, curved ones included, and
+    // a refusal anywhere here is now a regression rather than a
+    // narrated frontier.
     let step_name = format!("{label}.step");
     let step = match step_export::step_string(
         &sb.body,
@@ -212,21 +251,26 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
             println!("   [{label}] exported {stl} + {step_name}");
             Some(step_name)
         }
-        // Only the analytic-subset class is an acceptable refusal, and
-        // only on bodies not known planar (#91 review M2); anything
-        // else - or a refusal on a planar body - fails the tour loud.
+        // The subset-frontier refusals stay an acceptable CLASS (a
+        // NURBS face awaits the loft-assembly unit; a multi-shell
+        // curved solid awaits a curved outward/void classifier), but
+        // no tour body is in them today — `step_expected` is true
+        // everywhere, so reaching this arm fails the tour loud. The
+        // arm is kept, not deleted: it is what keeps a future curved
+        // frontier from being silently dropped from the manifest.
         Err(
             e @ (step_export::StepExportError::UnsupportedSurface { .. }
-            | step_export::StepExportError::UnsupportedCurve { .. }),
+            | step_export::StepExportError::UnsupportedCurve { .. }
+            | step_export::StepExportError::CurvedShellClassification { .. }),
         ) => {
             assert!(
                 !sb.step_expected,
-                "{label}: this body is all-planar and MUST export STEP, \
-                 but the writer refused: {e:?}"
+                "{label}: this body is inside the writer's analytic \
+                 subset and MUST export STEP, but the writer refused: {e:?}"
             );
             println!(
                 "   [{label}] exported {stl}; STEP refused typed ({e:?}) — \
-                 the writer's analytic subset is planar until M5"
+                 a named subset frontier, not a silent drop"
             );
             None
         }
@@ -240,14 +284,18 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> ManifestBody {
         "{label}: STEP expected but not produced"
     );
 
-    ManifestBody {
+    Some(ManifestBody {
         stl,
         step,
         color: sb.color,
-    }
+    })
 }
 
-fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) {
+/// Runs one stop; returns whether it contributed a scene to the render
+/// manifest. A fully STAGED stop (every body behind a frontier) has
+/// nothing to draw yet, so it narrates and emits no scene entry —
+/// `scenes.json` never carries a scene the renderers cannot render.
+fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) -> bool {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -257,9 +305,13 @@ fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) {
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir))
+        .filter_map(|sb| run_body(sb, stop.delta, outdir))
         .collect();
+    if bodies.is_empty() {
+        return false;
+    }
     manifest.push_str(&scene_json(stop, &bodies));
+    true
 }
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
@@ -315,8 +367,9 @@ fn main() {
     let mut scenes: Vec<String> = Vec::new();
     let mut run = |stop: &Stop| {
         manifest.clear();
-        run_stop(stop, &outdir, &mut manifest);
-        scenes.push(manifest.clone());
+        if run_stop(stop, &outdir, &mut manifest) {
+            scenes.push(manifest.clone());
+        }
     };
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
@@ -324,6 +377,28 @@ fn main() {
     for stop in bodies::stops() {
         run(&stop);
     }
+
+    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    for stop in rocker::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
+    for stop in diefillet::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
+    for stop in curvedcut::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
+    for stop in bossplate::stops() {
+        run(&stop);
+    }
+
+    skinned::narration();
 
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
     for stop in bool_bodies::stops() {

@@ -304,6 +304,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
     let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
     let face_c = body.add_face(
         Face {
+            sense: true,
             surface: surface_c,
             outer: loop_c,
             rings: vec![],

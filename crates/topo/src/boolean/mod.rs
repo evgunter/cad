@@ -12,7 +12,9 @@
 //!
 //! Pipeline of [`boolean_reduce`]:
 //!
-//! 1. **Gates**: planar-only (F5, [`BooleanError::CurvedBooleanUnsupported`]);
+//! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
+//!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
+//!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
 //!    no scaffolding operands; **maximal faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
@@ -375,18 +377,41 @@ impl<T: Real> BooleanReduction<T> {
 pub enum BooleanError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
-    /// A face of `operand` is not a `Plane` — M3 booleans are
-    /// planar-only (F5).
+    /// A face's kind has no wired boolean arm at the classification
+    /// site that met it (M5 PR 9: the F5 planar-only gate retired PER
+    /// C5 TABLE ARM — `Plane`/`Cylinder`/`Sphere`/`Nurbs` faces pass
+    /// the operand gate and pair-level refusals fire where an arm is
+    /// actually exercised, citing the table's routing; `Cone`/`Torus`
+    /// keep the gate refusal — no wired arm involves them).
     CurvedBooleanUnsupported {
         /// The offending operand and face.
         operand: Operand,
         /// The face.
         face: FaceKey,
-        /// Its surface kind — the C5 table row the refusal cites
-        /// (M5 PR 5: the boolean PIPELINE still executes only the
-        /// plane×plane arm; curved execution wires at M5 PR 9, and
-        /// the refusal retires per arm then, never wholesale).
+        /// Its surface kind — the C5 table row the refusal cites.
         kind: geom_brep::SurfaceKind,
+    },
+    /// A sweep event definitely lands on a CURVED face away from its
+    /// boundary, a vertex sits ON a curved surface, or a curved-carrier
+    /// edge cannot be cleared against a curved face: the curved PIERCE
+    /// door — point-in-face trim containment on a curved chart at
+    /// boolean classification, and the v-on-curved-face ring insertion
+    /// behind it — does not exist yet (the M5 envelope's frontier; the
+    /// C5 table routes the SECTIONS, this is the crossing layer). The
+    /// **definite** half of a two-tolerance pair: the very same
+    /// clearance margin one band-width away escalates as
+    /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
+    /// instead, and both halves quote the band and end on the shared
+    /// recourse.
+    CurvedPierceUnsupported {
+        /// The operand whose edge met the curved face.
+        operand: Operand,
+        /// The curved face (in the other operand).
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The band the clearance margins were classified against.
+        band: Band,
     },
     /// An edge carrier is not a `Line` (F5).
     CurvedEdgeUnsupported {
@@ -476,8 +501,101 @@ pub enum BooleanError {
         /// The underlying Euler refusal.
         source: EulerOpError,
     },
+    /// Subtract/intersect met a surface class with **no boolean seam
+    /// lane** (M5 PR 9 → narrowed per class in M5 S12).
+    ///
+    /// **What it used to be.** A wholesale gate: any non-plane face on
+    /// either operand refused ∖ and ∩ before a single reduction step,
+    /// because both ops route regions through `revert`
+    /// (A∖B ≡ A∩revert(B), §15.9) and the revert lane was planar-only.
+    /// M5 PR 9c executed that lane and returned it as a ratified-
+    /// representation question rather than an implementation task.
+    ///
+    /// **That question is ratified and shipped.** S10 landed
+    /// [`crate::entity::Face::sense`] with the outward-normal consumer
+    /// audit; S11 made the constructors' bits honest (a concave or
+    /// inward wall reads `false`); S12 wired `revert` to flip them and
+    /// made splitting's `mef` re-mints inherit the parent bit. So
+    /// plane×**cylinder** ∖ and ∩ are LIVE — blind holes, through
+    /// holes, two-shell results, mixed-sense splits — with exact
+    /// closed-form volumes at tier 3 in both sweep strategies.
+    ///
+    /// **What still refuses, per class, and why it refuses HERE.** The
+    /// blocker left is a JOIN lane, not `revert`:
+    ///
+    /// - **Sphere**: LIVE since M5 S13 — the `(Plane, Sphere)` germ
+    ///   arm (exact C5 Circle) plus the extent-certified fallback
+    ///   re-cut; no longer gated here.
+    /// - **Cone / torus**: the germ-pair join dispatch wires
+    ///   `(Plane, Cylinder)` and `(Plane, Sphere)` only (PR 9c
+    ///   deviation 1 lineage), and a cyl×sphere fitted-chord window
+    ///   needs `Pcurve::Fitted`, itself blocked on the SSI enclosure
+    ///   stack being `f64`-only (deviation 2).
+    /// - **NURBS**: no edge×NURBS-face crossing layer at all
+    ///   (deviation 5), and the fallback's extent test is unwritable
+    ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
+    ///
+    /// These are refused UP FRONT because their downstream failure is
+    /// **silent, not typed**: with no crossings found the pipeline
+    /// falls through to vertex-probed containment, and a curved face
+    /// can leave the other solid between its vertices without any
+    /// vertex noticing. The executed witness — a ball half-buried in a
+    /// slab, metered as if wholly contained — is pinned as
+    /// `finding_sphere_class_containment_fallback_is_wrong_today` in
+    /// `crates/sweep/tests/m5_s12_curved_ops.rs`, with its merge-base
+    /// reproduction recorded. That defect predates S12 and stands on
+    /// **union** too; S12 deliberately does not change ∪'s behaviour
+    /// (a revert-wiring unit is the wrong place to re-cut the
+    /// containment fallback), so ∪ is not gated here and the row is
+    /// what keeps it visible.
+    CurvedOpUnsupported {
+        /// The refused op (never `Union`).
+        op: BooleanOp,
+        /// The operand carrying the curved face.
+        operand: Operand,
+        /// The first curved face met (face-arena order).
+        face: FaceKey,
+    },
+    /// The containment fallback's curved-EXTENT scan (M5 S13) met a
+    /// NURBS face. The extent test is UNWRITABLE for the kind with
+    /// what exists — `implicit_residual` is poison on a NURBS surface
+    /// and the only foot-point projection
+    /// (`NurbsSurface::project`) is an `impl NurbsSurface<f64>` block,
+    /// so wiring it would kill the Interval lane (the same wall as
+    /// M5-LOG PR 9c deviations 2 and 6). The class is therefore
+    /// RE-GATED at the fallback, explicitly and pinned: a future NURBS
+    /// body constructor inherits this typed refusal, never the
+    /// vertex-probe silence the S12 finding executed.
+    NurbsExtentUnsupported {
+        /// The operand carrying the NURBS face.
+        operand: Operand,
+        /// The face.
+        face: FaceKey,
+    },
+    /// The containment fallback's curved-extent scan (M5 S13) met a
+    /// configuration it cannot certify: the no-crossings question
+    /// ("which operand contains the other?") would otherwise be
+    /// answered by vertex probes a curved boundary defeats (the S12
+    /// finding), so anything the certified extents cannot clear is
+    /// refused typed here — never guessed.
+    FallbackExtentUnsupported {
+        /// The operand whose sphere group (or face) the scan stopped at.
+        operand: Operand,
+        /// The face the refusal cites.
+        face: FaceKey,
+        /// The precise uncertifiable sub-configuration.
+        what: &'static str,
+    },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
+    /// The result body's pcurve mint pass refused (M5 PR 9: curved
+    /// results carry certified per-half-edge pcurves at rest — the
+    /// PR 6 contract; loud rather than shipping uncertified caches,
+    /// D4 ¶2).
+    Pcurves {
+        /// The typed pcurve-pass refusal, nested whole.
+        source: crate::pcurves::PcurveMintError,
+    },
     /// The joining stage's chord machinery refused (PR 5; nested
     /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
     Join(SplitJoinError),
@@ -579,16 +697,43 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
-                 boolean pipeline executes only the plane×plane arm of the C5 table \
-                 (curved execution wires at M5 PR 9; pairs involving this kind route \
-                 per geom_brep::intersect::route, rung-3 arms unimplemented until SSI)",
+                 classification this site required has no wired boolean arm for the \
+                 kind in this build (the refusal retires per C5 table arm, never \
+                 wholesale — C12.1). Pairs involving this kind route per \
+                 geom_brep::intersect::route; where a route is already implemented \
+                 at the INTERSECTION layer (plane×NURBS since PR 7b), what is \
+                 missing here is the boolean's own crossing layer for the kind — \
+                 edge×face sweep events, curved trim containment, and the fitted \
+                 chord join lane. M5 PR 9c landed the SPHERE half of the curved \
+                 containment/pierce door and reported the fitted-chord join lane \
+                 still open behind Pcurve::Fitted, whose certification envelope \
+                 needs the SSI enclosure stack lifted off f64 (M5-LOG PR 9c, \
+                 deviations 1-2)",
                 kind.name()
+            ),
+            Self::CurvedPierceUnsupported {
+                operand,
+                face,
+                edge,
+                band,
+            } => write!(
+                f,
+                "boolean_reduce: edge {edge:?} of operand {operand:?} definitely meets \
+                 curved face {face:?} away from a shared boundary (clearance classified \
+                 against band [zero {:e}, escalate {:e}]) — the curved pierce door \
+                 (point-in-face trim containment on a curved chart, and the ring \
+                 insertion behind it) does not exist yet: the M5 envelope's typed \
+                 frontier. The same margin one band-width away escalates as a sliver \
+                 instead (F6); {}",
+                band.zero(),
+                band.escalate(),
+                COINCIDENCE_RECOURSE
             ),
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a non-line \
-                 carrier — the boolean pipeline's sweep is line-exact until curved \
-                 execution wires (M5 PR 9)"
+                "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
+                 (Nurbs) carrier — rung-3 INPUT operands are outside the M5 envelope \
+                 (rung-3 edges are what the curved zip MINTS, not what it consumes)"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
@@ -599,6 +744,65 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
                  {edge:?} (not maximal-faced, F7); run merge_coplanar_faces explicitly first"
+            ),
+            Self::CurvedOpUnsupported { op, operand, face } => write!(
+                f,
+                "boolean: {op:?} met a surface class with no seam lane (operand \
+                 {operand:?}, first such face {face:?}). This door was WHOLESALE \
+                 until M5 S12 — it refused every non-plane face, because \
+                 subtract/intersect route regions through revert \
+                 (A∖B ≡ A∩revert(B)) and curved revert had nothing it could \
+                 write on a curved face. That gap is CLOSED: S10 ratified Face::sense, S11 made the \
+                 constructors' bits honest, S12 wired revert to flip them, and \
+                 plane×CYLINDER subtract and intersect are now live and pinned \
+                 end-to-end (blind and through holes, exact closed-form volumes, \
+                 tier 3, both sweep strategies). The SPHERE class went live in M5 \
+                 S13 (the plane×sphere germ arm plus the extent-certified fallback \
+                 re-cut), so this door no longer stops it. What is still refused is \
+                 per class, and the blocker is a JOIN lane, not revert: a cone or \
+                 torus germ pair has no seam lane at all (M5 PR 9c deviation 1 \
+                 lineage — the germ-pair dispatch wires (Plane, Cylinder) and \
+                 (Plane, Sphere) only, and a cyl×sphere fitted-chord window needs \
+                 Pcurve::Fitted, itself blocked on the f64-only SSI enclosure \
+                 stack, deviation 2), and a NURBS face has no crossing layer \
+                 (deviation 5). The refusal is UP FRONT and structural because the \
+                 downstream failure is SILENT, not typed: with no crossings found \
+                 the pipeline falls through to vertex-probed containment, and a \
+                 curved face leaves the other solid between its vertices with no \
+                 vertex noticing — the executed witness was the sphere-class row \
+                 finding_sphere_class_containment_fallback_is_wrong_today (flipped \
+                 to its construction row by S13's extent scan; the scan refuses \
+                 typed for the classes it cannot certify rather than re-opening \
+                 that silence). Recourse: express the cut with cylindrical or \
+                 spherical tooling, or wait on the join lane"
+            ),
+            Self::NurbsExtentUnsupported { operand, face } => write!(
+                f,
+                "boolean fallback: face {face:?} of operand {operand:?} is NURBS-surfaced \
+                 and the no-crossings containment fallback's curved-extent test cannot be \
+                 written for the kind: implicit_residual(Nurbs) is poison and the only \
+                 foot-point projection, NurbsSurface::project, exists at f64 ONLY (an \
+                 impl NurbsSurface<f64> block — the M5-LOG PR 9c deviation 2/6 wall), so \
+                 wiring it would kill the Interval lane. The class is re-gated HERE, \
+                 typed and pinned (M5 S13), so a future NURBS body constructor cannot \
+                 re-open the vertex-probe silence the S12 finding executed. Recourse: \
+                 lift the projection to T: Real, then retire this gate per class"
+            ),
+            Self::FallbackExtentUnsupported {
+                operand,
+                face,
+                what,
+            } => write!(
+                f,
+                "boolean fallback: the curved-extent scan (M5 S13) cannot certify the \
+                 no-crossings configuration at face {face:?} of operand {operand:?}: \
+                 {what}. The vertex-probed answer a curved boundary defeats is never \
+                 given (the S12 finding's silence stays closed); refused typed instead"
+            ),
+            Self::Pcurves { source } => write!(
+                f,
+                "boolean: the result's pcurve mint pass refused (curved results carry \
+                 certified per-half-edge pcurves at rest, M5 PR 9): {source}"
             ),
             Self::Escalated { diag } => write!(
                 f,

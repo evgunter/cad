@@ -220,14 +220,14 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    PERMANENTLY (R1: parabola/hyperbola do not land in M5), \
                    unimplemented until SSI (M5 PR 7)",
         },
-        // ---- Rung 1 routing, unimplemented: the closed form (a
-        // circle) exists but no PR has landed it; refuses typed — the
-        // general rung is not a fallback (C5). ----
+        // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
+        // never a fitted chord (the die-pips premise). ----
         (Plane, Sphere) | (Sphere, Plane) => PairRoute {
             rung: Rung::Closed,
-            implemented: false,
-            note: "a plane×sphere cut is a closed-form Circle; unimplemented in this \
-                   build — refuses typed, no runtime fallback (C5)",
+            implemented: true,
+            note: "a plane×sphere cut is the closed-form Circle \
+                   (plane_sphere_section, M5 S13); the tangent gap is a POINT — \
+                   classification data, refused as a carrier (C7)",
         },
         (Sphere, Sphere) => PairRoute {
             rung: Rung::Closed,
@@ -330,23 +330,38 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         // BOTH pcurves fall out as coordinate projections of the one
         // traced object — the shared parameter PR 6's cache contract
         // wants, which is how OQ4 discharged. ----
+        // ---- Rung 3, RETIRED 2026-07-31 (M5 PR 7b): the ℝ⁴ arm's
+        // last limb landed. PR 7 shipped the trace, the
+        // shared-parameter fit of the carrier and BOTH pcurves, the
+        // certified foot points, the chart uniqueness tube and the
+        // UV-domain exhaustiveness, and refused at C2.2's
+        // between-samples sup bound against the NURBS operand (the
+        // per-span first-order enclosure was sound but scaled like
+        // the span width). PR 7b landed the tensor-product Bernstein
+        // composition (`geom_core::spline::compose::tensor`): the
+        // residual S(P(t)) − C(t) is enclosed as ONE composite so the
+        // cancellation survives, limb 2 flipped to the tight bound,
+        // and the arm retired by deleting nothing (C12.1: per-arm,
+        // WITH its proof). ----
         (Plane, Nurbs) | (Nurbs, Plane) => PairRoute {
             rung: Rung::General,
-            implemented: false,
+            implemented: true,
             note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD, Hoffmann §6.3.2) — \
-                   the trace, the shared-parameter fit of the carrier and BOTH \
-                   pcurves, the certified foot points, the chart uniqueness tube and \
-                   the UV-domain exhaustiveness all land in M5 PR 7 \
-                   (geom_brep::ssi::plane_nurbs_ssi). What is missing is C2.2's \
-                   between-samples SUP bound against the NURBS operand: the \
-                   per-span first-order enclosure PR 7 ships is sound but scales \
-                   like the span width, and a TIGHT bound needs the residual as a \
-                   single composite — tensor-product Bernstein composition of the \
-                   surface with the pcurve, which `geom_core::spline::compose` \
-                   (curve-only by design) does not have. That is BANKED AS M5 PR 7b, \
-                   its own reviewed unit; until it lands the arm refuses typed rather \
-                   than ship a carrier whose sup-norm honesty is unproved (C12.1: \
-                   per-arm, with its proof)",
+                   RETIRED 2026-07-31 by M5 PR 7b (geom_brep::ssi::plane_nurbs_ssi): \
+                   PR 7 landed the trace, the shared-parameter fit of the carrier \
+                   and BOTH pcurves, the certified foot points, the chart uniqueness \
+                   tube and the UV-domain exhaustiveness; PR 7b landed the last limb, \
+                   C2.2's between-samples SUP bound against the NURBS operand, as the \
+                   tensor-product Bernstein composition of the surface with the \
+                   pcurve (geom_core::spline::compose::tensor) — the residual \
+                   S(P(t)) − C(t) enclosed as a single composite, so the \
+                   cancellation the first-order enclosure threw away survives into \
+                   the bound (~1e-2 m reported where ~1e-10 m is true, closed). \
+                   Practical breadth today: gentle single-cell walls — an \
+                   interior-knot wall currently refuses at limb 1 (march/fit \
+                   quality), and multi-cell/rational span windows hull \
+                   neighbor-cell extensions into the bound or poison — loud and \
+                   typed, never silent",
         },
         // ---- Nurbs × the rest: the universal general-rung route. ----
         (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
@@ -355,10 +370,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "a NURBS operand routes to the general rung with the ℝ⁴ \
                    PARAMETRIC-PAIR trace shape (M5 PR 7's marcher traces it \
-                   today); what is missing is the CERTIFICATE: the analytic \
-                   partner needs its chart-form uniqueness tube (written for the \
-                   plane), and NURBS×NURBS needs both — per-arm retirement, with \
-                   their proofs (C12.1)",
+                   today, and PR 7b's tensor-composite sup bound — the machinery \
+                   that retired plane×NURBS — is the limb-2 substrate these arms \
+                   will reuse); what is missing is the rest of the CERTIFICATE: \
+                   the analytic partner needs its chart-form uniqueness tube \
+                   (written for the plane), and NURBS×NURBS needs both charts' \
+                   tube plus its own exhaustiveness/seeding story — per-arm \
+                   retirement, with their proofs (C12.1)",
         },
     }
 }
@@ -544,7 +562,7 @@ pub fn plane_cylinder_section<T: Decide>(
                     // Cross-section chord: the plane cuts the circle at
                     // foot ± w·half, foot the axis' plane projection.
                     let foot = o - n * gap_signed;
-                    let half = (r * r - gap_signed * gap_signed).sqrt();
+                    let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
                     let w = a.cross(n).normalize();
                     Ok(PlaneCylinderSection::ParallelLines {
                         l1: Curve3::Line {
@@ -587,6 +605,115 @@ pub fn plane_cylinder_section<T: Decide>(
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------
+// plane × sphere (M5 S13: the die-pips join lane's C5 row)
+// ---------------------------------------------------------------------
+
+/// The classified plane×sphere section — every configuration's closed
+/// form (rung 1: the trileans run before any rung, C5; **no fitted
+/// chord anywhere in this pair** — the locus is an exact `Circle`).
+#[derive(Clone, Debug)]
+pub enum PlaneSphereSection<T: Real> {
+    /// Definite cut: the exact `Circle` — centered at the sphere
+    /// center's foot on the plane, radius `√((r−|s|)(r+|s|))` for `s`
+    /// the signed center-to-plane gap, carrier axis the plane normal,
+    /// `u_ref` the plane's own `u_ref` (in-plane by construction).
+    /// Zero-residual-by-construction against both surfaces.
+    Circle(Curve3<T>),
+    /// Gap coincident with r: the tangency **point** — classification
+    /// data, not a constructible edge (C7 lineage: tangent loci are
+    /// not minted as section carriers; consumers refuse typed).
+    TangentPoint(Point3<T>),
+    /// Gap definitely > r: no intersection.
+    Empty,
+}
+
+/// Classifies and constructs the plane×sphere section (C5 rung 1,
+/// M5 S13).
+///
+/// One trilean: `ps_center_gap` — margin `r − |s|` (meters), `s` the
+/// signed sphere-center-to-plane gap: Positive ⇒
+/// [`PlaneSphereSection::Circle`], Zero ⇒
+/// [`PlaneSphereSection::TangentPoint`], Negative ⇒
+/// [`PlaneSphereSection::Empty`]. The in-band twin of both definite
+/// verdicts escalates through the same named predicate (F6) — the
+/// two-tolerance shape.
+///
+/// # Errors
+///
+/// [`SectionError`] — wrong-lane kinds or the in-band escalation.
+pub fn plane_sphere_section<T: Decide>(
+    plane: &Surface<T>,
+    sphere: &Surface<T>,
+    band: Band,
+) -> Result<PlaneSphereSection<T>, SectionError> {
+    let &Surface::Plane {
+        origin: q,
+        normal: n,
+        ..
+    } = plane
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "plane×sphere",
+        });
+    };
+    let &Surface::Sphere {
+        center: c,
+        radius: r,
+        axis: sph_axis,
+        u_ref: sph_u,
+    } = sphere
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "plane×sphere",
+        });
+    };
+    let s = (c - q).dot(n);
+    let foot = c - n * s;
+    // The circle's `u_ref` is a PLACEMENT convention (D2): every
+    // downstream margin is a frame DIFFERENCE, so any in-plane unit
+    // vector serves — but it must be genuinely in-plane. The plane
+    // operand's own `u_ref` is deliberately NOT consulted: the
+    // splitting/boolean lanes hand transient classification planes
+    // whose `u_ref` is a placeholder (sometimes the normal itself,
+    // which would degenerate the frame and collapse every section
+    // angle to zero). Derived instead from the sphere's chart frame:
+    // `n̂ × û` unless that sine is small, then `n̂ × â` — with
+    // `û ⊥ â` the two sines satisfy sin²(û,n̂) + sin²(â,n̂) ≥ 1, so
+    // the second candidate is definitely nonzero whenever the first
+    // is not chosen. The selection trilean's degenerate and in-band
+    // arms both take the second candidate: near the threshold BOTH
+    // are valid placements, so the arm is a deterministic tie-break
+    // (D9), not a verdict — no downstream VERDICT moves with it
+    // (derived f64 parameter bits may differ across code versions;
+    // within-run replay and strategy identity are what D9 pins).
+    let seam_cand = n.cross(sph_u);
+    let u_ref = match decide(
+        "ps_frame_seam",
+        (seam_cand.norm() - T::from_f64(0.5)) * r,
+        band,
+    ) {
+        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => {
+            let polar_cand = n.cross(sph_axis);
+            polar_cand / polar_cand.norm()
+        }
+    };
+    match decide("ps_center_gap", r - s.abs(), band).map_err(SectionError::Escalated)? {
+        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::Circle {
+            center: foot,
+            axis: n,
+            // The interval-square tripwire does not bite: both factors
+            // are definitely positive after the trilean (never a
+            // spuriously negative bracket under a sqrt).
+            radius: ((r - s.abs()) * (r + s.abs())).sqrt(),
+            u_ref,
+        })),
+        Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
+        Sign::Negative => Ok(PlaneSphereSection::Empty),
     }
 }
 
@@ -728,7 +855,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             match decide("cc_parallel_gap", two * r1 - d, band).map_err(SectionError::Escalated)? {
                 Sign::Positive => {
                     let mid = o1 + d_vec * T::from_f64(0.5);
-                    let half = (r1 * r1 - (d / two) * (d / two)).sqrt();
+                    let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
                     let h = a1.cross(d_vec / d);
                     Ok(EqualCylinderSection::ParallelLines {
                         l1: Curve3::Line {
@@ -764,7 +891,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             }
             // The axes' intersection point (closest point on axis 1;
             // the coplanarity verdict bounds the residual by ε).
-            let t1 = w0.cross(a2).dot(cross) / (cross_norm * cross_norm);
+            let t1 = w0.cross(a2).dot(cross) / cross_norm.powi(2);
             let p = o1 + a1 * t1;
             // The two bisector planes through p. Each ellipse is the
             // tilted plane×cylinder cut of cylinder 1 (by symmetry it

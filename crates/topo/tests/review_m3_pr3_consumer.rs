@@ -60,7 +60,8 @@ fn audit_geometry(body: &Body<f64>) {
     for (_, e) in body.edges() {
         if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) {
             match *c.description() {
-                geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => {
+                geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
+                | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
                     live_s.push(s1);
                     live_s.push(s2);
                 }

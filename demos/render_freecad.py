@@ -6,14 +6,28 @@ console's "No valid GL context found!" spam is the interactive
 viewport failing, harmlessly). ONE freecadcmd session renders every
 scene (startup is ~a minute; per-scene cost is small).
 
-Reads <outdir>/scenes.json (written by the tour). Each scene body is
-imported from OUR OWN STEP export where the analytic subset allowed
-one (the F6 lane dogfooded end-to-end: export -> OCC import ->
-render), else from the STL mesh (curved bodies until the M5 STEP
-arms). Camera = the manifest's (elev, azim, up) — matplotlib
-`view_init` semantics, so both renderers frame scenes identically.
+Reads <outdir>/scenes.json (written by the tour). TWO source modes,
+one per montage lane (#159: "our tessellation vs FreeCAD"):
 
-Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py <outdir> <renderdir>
+  default      — import each body's STL mesh: the facets on screen are
+                 the KERNEL'S OWN tessellation (the kernel montage lane).
+                 Since M5 PR 13 every body exports STEP, so the old
+                 prefer-STEP rule would have made this lane 100% OCC
+                 tessellation — the STL source is now unconditional.
+  step         — import each body's OWN STEP export and let OCC
+                 re-tessellate it: the FreeCAD/OCC reference lane
+                 (export -> OCC import -> render, dogfooded end-to-end).
+
+`scene=NAME` renders exactly one scene (the STEP lane drives one
+freecadcmd process per scene with a timeout — a stalled import then
+costs one cell, not the montage). Both selectors are BARE keywords,
+not --flags: freecadcmd's own option parser rejects unknown dashed
+tokens and its --pass passthrough drops them too (probed on 1.1.2),
+while bare positionals arrive in sys.argv untouched. Camera = the
+manifest's (elev, azim, up) — matplotlib `view_init` semantics, so
+all renderers frame scenes identically.
+
+Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [step] [scene=NAME] <outdir> <renderdir>
 """
 
 import json
@@ -69,13 +83,15 @@ def camera_rotation(elev, azim, up):
     return App.Rotation(m)
 
 
-def import_bodies(doc, scenes, outdir):
+def import_bodies(doc, scenes, outdir, use_step):
     """Import every scene's bodies into ONE document, hidden.
 
     One document for the whole session: per-scene newDocument/
     closeDocument cycling races the (event-loop-deferred) view
     provider setup offscreen — observed as blank frames and hangs —
     while a single warm document with visibility toggling is stable.
+    (The STEP lane still gets process-level isolation: render.sh runs
+    one freecadcmd per scene, each with this one warm document.)
     Returns {scene name: [objects]}.
     """
     by_scene = {}
@@ -83,7 +99,11 @@ def import_bodies(doc, scenes, outdir):
         objs = []
         for body in scene["bodies"]:
             before = set(o.Name for o in doc.Objects)
-            if body.get("step"):
+            if use_step:
+                if not body.get("step"):
+                    raise SystemExit(
+                        f"scene {scene['name']}: no STEP export for {body['stl']}"
+                    )
                 Part.insert(str(outdir / body["step"]), doc.Name)
             else:
                 Mesh.insert(str(outdir / body["stl"]), doc.Name)
@@ -124,11 +144,19 @@ def render_scene(scene, objs, view, renderdir):
 
 
 def main():
-    outdir, renderdir = Path(sys.argv[-2]), Path(sys.argv[-1])
+    args = sys.argv[1:]
+    use_step = "step" in args
+    only = next((a.split("=", 1)[1] for a in args if a.startswith("scene=")), None)
+    pos = [a for a in args if a != "step" and not a.startswith("scene=")]
+    outdir, renderdir = Path(pos[-2]), Path(pos[-1])
     renderdir.mkdir(parents=True, exist_ok=True)
     scenes = json.loads((outdir / "scenes.json").read_text())
+    if only is not None:
+        scenes = [s for s in scenes if s["name"] == only]
+        if not scenes:
+            raise SystemExit(f"unknown scene: {only}")
     doc = App.newDocument("scenes")
-    by_scene = import_bodies(doc, scenes, outdir)
+    by_scene = import_bodies(doc, scenes, outdir, use_step)
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")
     done = []
@@ -137,9 +165,12 @@ def main():
     missing = [str(p) for p in done if not p.exists()]
     if missing:
         raise SystemExit(f"missing renders: {missing}")
-    # Sentinel for render.sh: freecadcmd's Qt teardown can crash after
-    # a fully successful run, so exit status alone is not the signal.
-    (renderdir / ".freecad_ok").write_text(f"{len(done)}\n")
+    # Sentinel for render.sh (full kernel-lane pass only): freecadcmd's
+    # Qt teardown can crash after a fully successful run, so exit
+    # status alone is not the signal. Single-scene STEP-lane runs are
+    # judged by their PNG existing instead.
+    if only is None and not use_step:
+        (renderdir / ".freecad_ok").write_text(f"{len(done)}\n")
     print(f"freecad render complete: {len(done)} scenes")
     # Skip FreeCAD/Qt teardown (known offscreen destructor crash).
     sys.stdout.flush()

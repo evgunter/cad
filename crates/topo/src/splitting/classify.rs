@@ -137,6 +137,21 @@ fn conic_crossing_roots<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
+    conic_plane_crossing_roots(carrier, t0, t1, plane.origin, plane.normal, band)
+}
+
+/// The plane-form core of [`conic_crossing_roots`], shared with the
+/// boolean reduction sweep (M5 PR 9 — the same C12.1 machinery, the
+/// same named trileans, against ANY plane rather than the split
+/// lane's one). Semantics and return shape documented above.
+pub(crate) fn conic_plane_crossing_roots<T: Decide>(
+    carrier: &geom_curves::Curve3<T>,
+    t0: T,
+    t1: T,
+    plane_origin: geom_core::Point3<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
     let (center, axis, u_ref, s_u, s_v) = match *carrier {
         geom_curves::Curve3::Circle {
             center,
@@ -154,10 +169,32 @@ fn conic_crossing_roots<T: Decide>(
         geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => return Err(()),
     };
     let v_ref = axis.cross(u_ref);
-    let d0 = (center - plane.origin).dot(plane.normal);
-    let a = u_ref.dot(plane.normal) * s_u;
-    let b = v_ref.dot(plane.normal) * s_v;
-    let r = (a * a + b * b).sqrt();
+    let d0 = (center - plane_origin).dot(plane_normal);
+    let a = u_ref.dot(plane_normal) * s_u;
+    let b = v_ref.dot(plane_normal) * s_v;
+    // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
+    // frames (a rim circle against a perpendicular side plane), and a
+    // plain interval product's spurious negative low end poisons the
+    // sqrt — the M2 interval-square bug class, found live here when
+    // the boolean's IDEALIZED sweep (M5 PR 9) first drove this lane
+    // over distant conic×plane pairs under the Interval scalar (the
+    // realized lane's boxes never examine them, so only the brute
+    // path escalated: a strategy divergence, the exact thing the
+    // differential suite exists to catch).
+    let r = (a.powi(2) + b.powi(2)).sqrt();
+    // 0. The PARALLEL-frame gate (M5 S13 fix pass): a conic whose
+    // plane is parallel to the query plane (both amplitudes zero)
+    // either never meets it or lies wholly IN it, and both take
+    // ENDPOINT treatment only — the M3 coplanar rule (interior events
+    // surface via neighbor faces). Routed structurally here; the
+    // coplanar sub-case previously fell through to the graze arm with
+    // a 0/0 phase and escalated on an Invalid margin — loud, but
+    // shapeless. The in-band twin escalates (F6).
+    match decide("split_conic_plane_parallel", r, band) {
+        Ok(Sign::Zero) => return Ok(None),
+        Ok(Sign::Positive | Sign::Negative) => {}
+        Err(diag) => return Ok(Some(Err(diag))),
+    }
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", r - d0.abs(), band) {
         Ok(Sign::Negative) => return Ok(None),
@@ -168,7 +205,21 @@ fn conic_crossing_roots<T: Decide>(
         Ok(Sign::Zero) => false,
         Err(diag) => return Ok(Some(Err(diag))),
     };
-    let phi = b.atan2(a);
+    // The sinusoid's phase, branch-stabilized (M5 S13): `atan2`'s cut
+    // sits on the negative-`a` axis, and an interval `b` that touches
+    // zero there (a revolve-built frame's honest trig slop) explodes
+    // the enclosure to a full period even though the ROOT SET —
+    // everything downstream consumes phi mod τ — is unchanged. On the
+    // definitely-negative-`a` frame the same phase is computed as
+    // `atan2(−b, −a) + π` (identical roots mod τ, cut now on the
+    // benign axis). The frame trilean is a computation choice between
+    // two mathematically identical formulas, so its degenerate and
+    // in-band arms keep the direct formula (a deterministic tie-break,
+    // D9 — near a ≈ 0 the cut is far from both).
+    let phi = match decide("split_conic_phase_frame", a, band) {
+        Ok(Sign::Negative) => (T::zero() - b).atan2(T::zero() - a) + T::pi(),
+        Ok(Sign::Positive | Sign::Zero) | Err(_) => b.atan2(a),
+    };
     // Clamped acos (rounding can push the ratio a hair outside ±1 at
     // the graze boundary; min/max are Real lattice ops).
     let arg = ((T::zero() - d0) / r)
@@ -184,21 +235,47 @@ fn conic_crossing_roots<T: Decide>(
     } else {
         [Some(phi + delta), None]
     };
-    for c in candidates.into_iter().flatten() {
-        let t = t0 + (c - t0).reduce_periodic(tau);
-        let mut interior = true;
+    let half = T::from_f64(0.5);
+    let mid = (t0 + t1) * half;
+    let half_tau = tau * half;
+    // Per-candidate interiority under TWO reduction anchors (M5 S13).
+    // The verdict is about `c mod τ` against `[t₀, t₁]`, but any single
+    // periodic-reduction anchor has one degenerate point where the
+    // Interval floor straddles an integer and the enclosure explodes to
+    // a full period: anchored at the span MIDPOINT the bad point is the
+    // midpoint's antipode (a definitely-EXTERIOR root — the re-run of a
+    // split fragment meets the full circle's opposite intersection
+    // exactly there), anchored at t₀ it is t₀ itself (a
+    // definitely-ON-endpoint root — the fragment's own start vertex,
+    // already swept). The two bad points coincide only on a full-period
+    // span (a closed edge's lone vertex on the plane), so an
+    // indeterminate verdict under one anchor retries the other — the
+    // SAME margin in a non-degenerate representation, never a second
+    // tolerance — and only a double failure escalates (F6).
+    let verdict_at = |t: T| -> Result<(bool, T), geom_core::Indeterminate> {
         for margin in [(t - t0) * meter, (t1 - t) * meter] {
             match decide("split_conic_crossing_root", margin, band) {
                 Ok(Sign::Positive) => {}
                 // At an endpoint vertex (already swept) or outside
                 // the span: nothing to insert for this root.
-                Ok(Sign::Zero | Sign::Negative) => {
-                    interior = false;
-                    break;
-                }
-                Err(diag) => return Ok(Some(Err(diag))),
+                Ok(Sign::Zero | Sign::Negative) => return Ok((false, t)),
+                Err(diag) => return Err(diag),
             }
         }
+        Ok((true, t))
+    };
+    for c in candidates.into_iter().flatten() {
+        let centred = mid + (c - mid + half_tau).reduce_periodic(tau) - half_tau;
+        let (interior, t) = match verdict_at(centred) {
+            Ok(v) => v,
+            Err(first) => {
+                let anchored = t0 + (c - t0).reduce_periodic(tau);
+                match verdict_at(anchored) {
+                    Ok(v) => v,
+                    Err(_) => return Ok(Some(Err(first))),
+                }
+            }
+        };
         if interior {
             roots.push(t);
         }

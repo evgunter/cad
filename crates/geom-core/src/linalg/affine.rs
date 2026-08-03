@@ -298,7 +298,8 @@ mod tests {
         /// unmodeled constants.
         #[test]
         fn rigid_inverse_round_trips_points(a in rigid3(), p in point3()) {
-            let round = (a * a.inverse()).transform_point(p);
+            let inv = a.inverse();
+            let round = (a * inv).transform_point(p);
             prop_assert!((round.x - p.x).abs() <= 1e-8);
             prop_assert!((round.y - p.y).abs() <= 1e-8);
             prop_assert!((round.z - p.z).abs() <= 1e-8);

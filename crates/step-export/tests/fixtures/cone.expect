@@ -1,0 +1,15 @@
+# FreeCAD/OCC import expectations for cone.step (M5 PR 13 curved
+# corpus). Counts are what OCC reports after import; the volume is the
+# EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
+# right cone base radius 1 height 1: pi/3 m^3
+#
+# Kernel census is 4 faces / 6 edges / 4 vertices; OCC reports 8 EDGES,
+# adding a degenerate apex edge per conical face (the same pole-chart
+# normalisation it applies to the ball). Faces, vertices and the volume
+# are unchanged.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=4
+EXPECT_EDGES=8
+EXPECT_VERTICES=4
+EXPECT_VOLUME_MM3=1047197551.1965976

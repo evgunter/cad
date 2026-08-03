@@ -20,3 +20,5 @@
 - [Resume vs fresh subagent](resume-vs-fresh-subagent.md) — stalled >1h + remaining work fully specifiable → fresh agent, not transcript resume
 - [Local battery scope](local-battery-scope.md) — local testing = iteration-speed tool only, scoped per change shape by time-to-signal; hosted CI is the only gate
 - [Equivariance principle](equivariance-principle.md) — maintain isometry-equivariance where free; premise unaudited; S8 rung 3 is the first designed residual
+- [STEP curved subset](step-curved-subset.md) — M5 PR 13: every elementary surface + conic exports as an EXACT native AP214 entity (conics NOT via the rational-quadratic form — AP214 has CIRCLE/ELLIPSE); cone uses the apex placement; live refusals are NURBS faces + multi-shell curved classification; OCC heals inverted shells on curved geometry too, so orientation acceptance is text-level (edge-use coherence)
+- [Curved containment fallback](curved-containment-fallback.md) — FIXED at M5 S13 (extent scan + rotation re-cut + plane×sphere germ arm; NURBS re-gated typed); the historical vertex-probe finding and the resolution map; die pips are LIVE — PR 12 unblocked

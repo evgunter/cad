@@ -33,10 +33,23 @@
 //! - **Pole-to-pole bands** (no rim in the loop — the sphere bands of
 //!   a ball): continuity gives no anchor at all, so the loop's 3-D
 //!   area vector disambiguates: it points into the face's azimuth
-//!   half (interior-left + outward normals; verified derivation in
-//!   the PR log), and each meridian takes the branch nearest
-//!   `atan2(A·v_ref, A·u_ref)`. Assumes outward-oriented shells —
-//!   true of every M2 body (no voids before booleans).
+//!   half (interior-left + the face's OUTWARD normal; verified
+//!   derivation in the PR log), and each meridian takes the branch
+//!   nearest `atan2(A·v_ref, A·u_ref)`.
+//!
+//!   That derivation is stated in the outward frame while `u_ref` /
+//!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
+//!   area vector is multiplied by the face's `sense_sign` before the
+//!   `atan2` — the one orientation-sense read in this crate. The old
+//!   "assumes outward-oriented shells (true of every M2 body)" caveat
+//!   is thereby discharged rather than restated: a reversed face
+//!   stores its loop the other way round, so `A` flips and an
+//!   unmultiplied azimuth would be π off, selecting the complementary
+//!   branch and meshing the wrong half of the sphere. This is the
+//!   direct analogue of `geom_brep::props::curved`'s rimless-sphere
+//!   `s_f` — the same face kind, the same missing bit, the same fix.
+//!   Every face this build mints has `sense: true`, so the multiply is
+//!   `· 1.0` and bitwise inert today.
 
 use std::collections::HashMap;
 
@@ -322,7 +335,7 @@ pub(crate) fn traversals(
 fn classify(
     chart: &Chart,
     curve: &geom_brep::EdgeCurve<f64>,
-    ek: EdgeKey,
+    _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
     if matches!(curve.description(), EdgeGeometry::Seam { .. }) {
         return Ok(TravKind::Meridian {
@@ -349,16 +362,13 @@ fn classify(
                 })
             }
         }
-        // A conic cut boundary (M5 PR 5) is neither a rim nor a
-        // meridian of the chart: the iso-rectangle UV walk cannot
-        // traverse it — typed refusal until PR 11's trimmed-face lane.
-        Curve3::Ellipse { .. } => Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "conic cut boundary on a curved chart — the trimmed-face lane \
-                   lands at M5 PR 11",
-        }),
-        Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
-            what: "nurbs carrier past the chord pass",
+        // RETIRED refusal (M5 PR 11): a conic/B-spline trim carrier
+        // routes the whole face to the pcurve-driven trimmed lane
+        // BEFORE this walk runs (`crate::trimmed::has_trim_carrier`),
+        // so these arms are the router's backstop, not a frontier —
+        // reaching one is a dispatch defect, surfaced typed.
+        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
+            what: "non-iso trim carrier reached the iso-rectangle walk (router defect)",
         }),
     }
 }
@@ -429,6 +439,13 @@ pub(crate) fn loop_polygon(
         travs.rotate_left(start);
     }
     let no_rim = !travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. }));
+    // The face's S10 orientation sense as a `±1` (module docs, the
+    // pole-to-pole band). Read once here; consumed at exactly one site
+    // below.
+    let sense_sign: f64 = body
+        .get_face(face)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .sense_sign();
     let poles = chart.poles();
     let pole_v = |id: u32| -> Option<f64> {
         let p = positions[id as usize];
@@ -450,7 +467,24 @@ pub(crate) fn loop_polygon(
             let q = pts[(i + 1) % pts.len()];
             area = area + (*p - Point3::origin()).cross(q - Point3::origin());
         }
-        let mid_az = area.dot(chart.v_ref).atan2(area.dot(chart.u_ref));
+        // CATEGORY A (S10). `area` is the loop's 3-D vector area, so it
+        // points along the face's OUTWARD normal side — but it is read
+        // here as a direction in the CHART frame (`u_ref`/`v_ref`), to
+        // pick which azimuth half the band occupies. Those two frames
+        // differ by exactly `sense_sign`: a reversed face stores its
+        // loop the other way round, `area` flips, and the raw `atan2`
+        // would land π off — selecting the complementary meridian
+        // branch and meshing the wrong half of the sphere. Multiplying
+        // recovers the chart-frame azimuth for either sense. This is
+        // NOT the double-count hazard that forbids a multiply in
+        // `planar`/`curved`: nothing downstream re-derives this sign
+        // from the winding — `mid_az` only chooses a `2πk` branch, and
+        // the polygon's own winding (which does flip with the sense) is
+        // consumed separately by `curved`'s `flip`.
+        let chart_area = area * sense_sign;
+        let mid_az = chart_area
+            .dot(chart.v_ref)
+            .atan2(chart_area.dot(chart.u_ref));
         Some(
             travs
                 .iter()

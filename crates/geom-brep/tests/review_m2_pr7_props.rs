@@ -370,7 +370,7 @@ fn meridian_edge(
 
 fn check_patch(what: &str, s: &Surface<f64>, rect: [f64; 4], sigma: f64, flip_rims: bool) {
     let lp = patch_loop(s, rect, sigma, flip_rims);
-    let got: FaceContribution<f64> = curved_face(s, &lp.edges, band())
+    let got: FaceContribution<f64> = curved_face(s, &lp.edges, 1.0, band())
         .unwrap_or_else(|e| panic!("{what}: closed form refused a legal iso-rectangle: {e:?}"));
     let (area, flux) = oracle(s, rect, sigma);
     assert_rel(&format!("{what} area"), got.area, area, 1e-9);
@@ -480,7 +480,7 @@ fn cone_nappe_spanning_is_refused_typed() {
     let lp = patch_loop(&s, [0.3, 2.4, -1.0, 1.0], 1.0, false);
     // v-range definitely straddles the apex: refuse, never integrate.
     // (The rims are honest circles of |v|·sinα on both nappes.)
-    match curved_face(&s, &lp.edges, band()) {
+    match curved_face(&s, &lp.edges, 1.0, band()) {
         Err(PropsError::NappeSpanning) => {}
         other => panic!("expected NappeSpanning, got {other:?}"),
     }
@@ -651,7 +651,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     }
     assert!(
         matches!(
-            curved_face(&s, &lp.edges, b),
+            curved_face(&s, &lp.edges, 1.0, b),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "wrong-radius rim must refuse"
@@ -663,7 +663,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     }
     assert!(
         matches!(
-            curved_face(&s, &lp.edges, b),
+            curved_face(&s, &lp.edges, 1.0, b),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "tilted meridian must refuse"
@@ -673,7 +673,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     let e = line_edge(Point3::origin(), Point3::new(1.0, 0.0, 0.0));
     assert!(
         matches!(
-            curved_face(&sp, &[e], b),
+            curved_face(&sp, &[e], 1.0, b),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "line on sphere must refuse"
@@ -687,7 +687,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     ];
     assert!(
         matches!(
-            curved_face(&t, &rims, b),
+            curved_face(&t, &rims, 1.0, b),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "torus without meridian must refuse"
@@ -696,7 +696,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     let lp = patch_loop(&s, [0.0, 1.0, 0.5, 0.5], 1.0, false);
     assert!(
         matches!(
-            curved_face(&s, &lp.edges, b),
+            curved_face(&s, &lp.edges, 1.0, b),
             Err(PropsError::DegenerateFace)
         ),
         "zero-extent face must refuse"
@@ -711,7 +711,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
         end: 1,
     };
     assert!(matches!(
-        curved_face(&s, &[e], b),
+        curved_face(&s, &[e], 1.0, b),
         Err(PropsError::Unimplemented)
     ));
 }
@@ -753,7 +753,7 @@ fn off_surface_boundaries_must_refuse_typed() {
     let edges = vec![rim(0.0, 0.0, true, 0), rim(1.0, 0.4, false, 1)];
     assert!(
         matches!(
-            curved_face(&s, &edges, band()),
+            curved_face(&s, &edges, 1.0, band()),
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_center_on_axis"
             })
@@ -773,7 +773,7 @@ fn torus_tag_contract_is_load_bearing() {
     let s = tor();
     let rect = [0.1, 1.8, -0.7, 0.9];
     let mut lp = patch_loop(&s, rect, 1.0, false);
-    let honest = curved_face(&s, &lp.edges, band()).unwrap();
+    let honest = curved_face(&s, &lp.edges, 1.0, band()).unwrap();
     // Swap the two rims' tag pairs (a lie no topo flattening produces:
     // the loop is otherwise untouched).
     let (r0, r1) = (lp.edges[0].clone(), lp.edges[2].clone());
@@ -781,7 +781,7 @@ fn torus_tag_contract_is_load_bearing() {
     lp.edges[0].end = r1.end;
     lp.edges[2].start = r0.start;
     lp.edges[2].end = r0.end;
-    let lied = curved_face(&s, &lp.edges, band()).unwrap();
+    let lied = curved_face(&s, &lp.edges, 1.0, band()).unwrap();
     let (_, flux) = oracle(&s, rect, 1.0);
     assert_rel("honest torus flux", honest.flux, flux, 1e-9);
     assert!(

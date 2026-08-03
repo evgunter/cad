@@ -28,6 +28,20 @@
 //!   normal or its negation, recovered from stored boundary data
 //!   (below).
 //!
+//! **Where the orientation lives after M5 S10.** `topo::Face` now
+//! carries an explicit `sense` bit, but this module remains almost
+//! entirely **winding-derived**, and that is deliberate. Both `A⃗` and
+//! the rim-recovered `s_f` read the face's stored loop traversal,
+//! which the interior-left rule already ties to the *outward* normal;
+//! `revert` reverses loops and flips `sense` in the same step, so
+//! feeding the bit into a winding-derived term would negate the volume
+//! twice. The bit enters at exactly one site — the **rimless** sphere
+//! band, whose boundary has no rim to read `s_f` off and which
+//! previously hardcoded `+1`. Everything else here is sense-invariant
+//! by derivation, and the *agreement* of the two encodings is a tier-3
+//! obligation (the validator's loop-role winding check), not this
+//! module's.
+//!
 //! Areas of curved faces come from the chart Jacobians over the face's
 //! iso-parameter rectangle `[u0,u1]×[v0,v1]`; planar face area is
 //! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
@@ -68,6 +82,7 @@
 
 mod curved;
 mod loop_area;
+pub mod quad;
 
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
@@ -166,6 +181,36 @@ pub enum PropsError {
         /// The escalation, with its predicate name attached.
         cause: Indeterminate,
     },
+    /// The certified quadrature's enclosure would not tighten to its
+    /// target within the refinement budget (M5 PR 11; the
+    /// [`quad`] module docs give the rule and the target's metering).
+    /// Certified bounds or typed refusal — never a silently wide
+    /// answer. Both payloads are LENGTHS (mean boundary displacement),
+    /// the same metering as tier 3's volume check.
+    ///
+    /// Two-tolerance shape, stated: the in-band twin of this refusal is
+    /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
+    /// close to the target escalates through the funnel before the
+    /// budget can run out); this arm is the *definite* "the enclosure
+    /// floor sits above the target" outcome. The recourse is the ε
+    /// knob: the target scales with the run's ε.
+    QuadratureBudget {
+        /// The achieved enclosure width, as a length (m).
+        width_len: f64,
+        /// The convergence target, as a length (m).
+        target_len: f64,
+    },
+    /// A quadrature input is outside the lane's certified inventory
+    /// (M5 PR 11): a rational pcurve channel, a chart kind whose
+    /// pcurves do not mint yet, a scalar with no certification
+    /// bracket, or a missing stored cache. The payload names the
+    /// structural fact AND the real blocker (exact structural doors —
+    /// no in-band twin exists, stated so the omission of the
+    /// two-tolerance shape reads as a decision).
+    QuadratureUnsupported {
+        /// Which structural expectation failed, with its blocker.
+        what: &'static str,
+    },
 }
 
 impl core::fmt::Display for PropsError {
@@ -187,6 +232,21 @@ impl core::fmt::Display for PropsError {
             Self::Escalated { cause } => {
                 write!(f, "integral properties: classification escalated: {cause}")
             }
+            Self::QuadratureBudget {
+                width_len,
+                target_len,
+            } => write!(
+                f,
+                "integral properties: the certified quadrature enclosure stalled at a mean \
+                 boundary displacement of {width_len:.3e} m against the {target_len:.3e} m \
+                 target (which scales with the run's tolerance) — certified bounds or typed \
+                 refusal, never a silently wide answer; loosen the tolerance or simplify \
+                 the trim"
+            ),
+            Self::QuadratureUnsupported { what } => write!(
+                f,
+                "integral properties: quadrature input outside the certified inventory: {what}"
+            ),
         }
     }
 }
@@ -200,6 +260,16 @@ impl std::error::Error for PropsError {}
 /// opposite winding; the loop orientation convention points `A⃗` along
 /// the face's outward normal). `origin` doubles as the translation
 /// reference (Mäntylä's far-from-origin conditioning remedy).
+///
+/// **Sense-invariant by derivation** (M5 S10). This function takes no
+/// `sense_sign` and deliberately must not: `A⃗` is a boundary integral
+/// in the face's STORED traversal order, and the interior-left rule
+/// already points it along the *outward* normal, whichever side that
+/// is. A planar face's entire flux is `origin·A⃗` (the anchored term
+/// vanishes on the plane), so orientation reaches this computation
+/// exclusively through the winding, never through the surface's chart
+/// normal. `revert` reverses loops and flips `Face::sense` together;
+/// applying the sense here as well would negate the volume twice.
 ///
 /// # Errors
 ///

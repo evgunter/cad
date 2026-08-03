@@ -104,6 +104,68 @@ in the `crates/topo/src/entity.rs` module docs. (This discharges the
 deferred-list item "orientation/sense conventions — document as
 conventions once".)
 
+**Face orientation sense** *(ratified 2026-08-02, M5 S10; the closure of
+PR 9c deviation 3)*. A face carries an explicit orientation bit,
+`Face::sense: bool`: **`true` iff the face's material side agrees with
+its surface's chart normal**, so the face's outward normal at a point is
+`sense_sign · n(u, v)` with `sense_sign = ±1`. Before this the outward
+normal simply *was* the chart normal, and that identity was not merely
+convention but a **representation gap**: `revert` — which must produce
+the body bounding the complementary volume — had nothing to write on a
+curved face. The analytic chart normals do not admit a reversal by
+reparameterization: the cylinder's, cone's and torus's are *odd* in the
+radius (outward for either sign, so neither an axis flip nor a negative
+radius moves them), and the sphere's is *even* in the radius, hence
+outward exactly under the ratified `radius > 0` convention (a
+negative-radius sphere is a de facto reversed sphere and is **rejected**
+as a representation — it breaks that convention and inverts every
+consumer that meters a sphere residual by `2r`). The three alternatives
+— a `Surface::Reversed` wrapper, NURBS conversion on revert, and
+negative-radius spheres — were costed and rejected; the bit on the face
+is the ratified fix. Consequences, all normative:
+- The interior-left rule above is stated against the face's **outward
+  normal**, which is now the sense-signed chart normal. Nothing about
+  the rule changes; its input does.
+- Orientation reversal is **exact structure**, never a numeric decide:
+  reverting a curved body flips `sense` rather than perturbing geometry,
+  so `revert` stays a bitwise involution and a `revert ∘ revert` round
+  trip is bit-identical at every scalar backend. *Shipped as of M5 S12*,
+  which wired the writer: `revert` flips the bit on every face carried
+  by a non-plane surface and keeps M3's stored-normal negation for
+  `Plane`-carried faces. The two encodings are **exclusive by surface
+  kind** — a plane can represent its own reversal exactly, the analytic
+  and NURBS charts cannot — so every face's outward normal is negated
+  exactly once, and the planar arm stays bit-for-bit what M3 pinned. The
+  uniform alternative (flip every face's bit, touch no surface) was
+  executed at S12's review and the pinned planar lanes stayed green, so
+  the split is a **conservatism choice, not a forced one**: either
+  encoding is correct, and moving M3's planar pins is a design
+  conversation rather than a revert unit's prerogative.
+  `RevertError::UnsupportedSurface` is retired; the reversal itself has
+  no per-class residue left.
+- A face **fragment** inherits its parent's `sense` (M5 S12). `mef` and
+  `mfkrh` still mint `true` when the caller hands them a new or foreign
+  surface — the material side is not op-level knowledge there — but when
+  the new face lands on the OLD FACE'S surface key it is a region of
+  that same face, so it takes that face's bit. Key equality, never a
+  numeric compare. Without this, a boolean split of a reversed wall
+  silently resets the bit on the pieces.
+- What curved `revert` does **not** by itself unblock is a curved
+  boolean's *seam*. Subtract and intersect are open on the classes whose
+  germ pairs have a join lane (plane × cylinder as of S12) and refuse
+  typed, per class, on the ones that do not — never wholesale, and never
+  by silently falling through to a containment verdict a curved boundary
+  can defeat.
+- Every "which way is out" consumer (tier gates, mass-properties flux,
+  boolean sector classification and point-in-solid, splitting
+  classification, tessellation winding, export winding) reads the signed
+  normal, or documents in place why it is sense-invariant.
+- The bit is exactly STEP's `advanced_face.same_sense`
+  (ISO 10303-42 `face_surface`), so the exporter consumes it rather than
+  deriving it.
+- Persistence is unaffected: bodies are not serialized — they re-derive
+  from recipes (D9) — so there is no schema change.
+
 **The operator set (M1; ratified PR #15 and the per-PR sign-offs
 #16/#17/#20; kill duals #23).** Ten operators in five make/kill pairs —
 `mvfs`/`kvfs`, `mev`/`kev`, `mef`/`kef`, `kemr`/`mekr`,
@@ -837,9 +899,14 @@ ratified; each earned by a concrete M4 incident):**
    analogue). Earned: PR 6 review MAJ-1 — a NaN with all-ones bits
    walked past the save doors and produced an unloadable file; the
    fix-pass sweep then found two MORE save-side holes beyond the
-   reported one (#112). Migration note: PR 6's shipped doors are
-   sweep-style mirrors; consolidating them into the shared
-   validator is banked M5-adjacent hygiene, not a re-open of #112.
+   reported one (#112). Migration note DISCHARGED (M5 S4): both
+   doors now invoke the ONE shared validator
+   (`persist::check::validate_document` — float walk, joint walk,
+   structural invariants); the wire keeps only the genuinely
+   load-only residue (parse/position errors, the canonical-set
+   rule), and the save-refuses-what-load-refuses closure is pinned
+   at the unit level (a structurally invalid in-memory document
+   refuses at save with the load door's own arm).
 3. **Full-matrix watcher floors.** Any merge-gating checks watcher
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the
@@ -977,8 +1044,17 @@ precursor of the error-propagation feature.
 - **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
   fillets. Design record ratified: `docs/CURVED-DESIGN.md` (#85,
   2026-07-24). Banked M5 openers from the M4 exit (8c, 2026-07-27):
-  **curved STEP subset** (the export lane is planar-only until M5 —
-  curved stops refuse typed, narrated in the demo tour); **arc-leg
+  **curved STEP subset** (banked planar-only; DISCHARGED at M5 PR 13 —
+  the writer now emits `CYLINDRICAL_`/`CONICAL_`/`SPHERICAL_`/
+  `TOROIDAL_SURFACE` and `CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS`
+  as EXACT native AP214 entities, conics deliberately NOT via the
+  rational-quadratic form the schema makes unnecessary; every demo-tour
+  body exports and imports into FreeCAD, so the narrated curved
+  refusals are gone. Two frontiers remain named: a NURBS FACE, which
+  the loft-assembly unit mints, and the outward/void classification of
+  a MULTI-shell curved solid, whose divergence-theorem reduction is a
+  planarity identity with no closed-form curved counterpart);
+  **arc-leg
   fillet sugar** (#101 R4 scoped `LoopBuilder::fillet` to line/line
   corners; arc-leg is the noted follow-up, see #104); **REST-contact
   join lane** (the crosslap mate is a pure rest contact — M3 envelope
@@ -1031,9 +1107,23 @@ decision, where it landed, notable deviations. Full trail:
   Metadata (Evan's #92 ask) landed as the **`MetaValue` tree after
   two D7 rounds with Evan** (final: MetaValue tree, serde-native
   boundary, v-field convention) rather than opaque bytes.
+  **Schema v2 (M5 PR 10)**: the recipe vocabulary grew `Loft`/`Sweep`
+  and the version bumped as a ratified CLEAN BREAK (Evan, #148) — no
+  migration step was written, a v1 file refuses typed
+  (`PersistError::SchemaTooOld`, naming the regenerate recourse), and
+  the repo's own v1 golden was regenerated once. The kernel is
+  unreleased and every file it has written replays from source, so
+  live compatibility code would have been carried for nobody. The
+  migration MECHANISM stays (an explicit, currently empty step
+  table): D6.3's forward-only rule is unchanged, and the next
+  non-breaking format change adds its step there.
 - **F4 (v1 node vocabulary)** — landed as ratified (#81; Declare
   live end-to-end at #102); `tangent_joints` joined schema v1 before
   the freeze (#109 → #112). Revolved-hole sugar stayed deferred.
+  **`Loft`/`Sweep` joined the vocabulary at M5 PR 10** as ORDINARY
+  ops under the same rules (named slots, the structural/continuous
+  divide, refs to existing nodes only) — the Q8 definitional posture
+  is stated in rustdoc at both the node and the surface.
   Noted gap (demo REPORT, #98): Boolean-of-Pattern is not wireable
   in F4 — a possible future vocabulary item.
 - **F5 (Declare threading)** — landed at #102: declarations are
@@ -1052,7 +1142,13 @@ decision, where it landed, notable deviations. Full trail:
   parse-based **signed-volume text oracle** closing the OCC-healing
   blind spot (OCC silently rectifies inverted shells); the STEP lane
   then became the demo RENDER path (#98) and the watertightness
-  gate's second leg alongside admesh (#116).
+  gate's second leg alongside admesh (#116). At M5 PR 13 the OCC
+  blind spot was re-measured on CURVED geometry and is unchanged —
+  `revert(ball)` and `revert(washer)`, every face `same_sense = .F.`,
+  import as valid with the same positive volumes as the un-reverted
+  bodies — so the curved orientation acceptance is text-level by
+  necessity: an edge-use-coherence oracle over the emitted Part 21,
+  whose negative control is the double-composition bug itself.
 - **F7 (expression AST + ExprPath)** — landed at #81: no
   conditionals in v1 (held throughout); ExprPath stable under edits
   to other expressions. Known caveat carried forward as designed:

@@ -51,6 +51,53 @@ fn geometric_cube_passes_all_three_tiers() {
     assert_eq!(validate_geometric(&body), Ok(()));
 }
 
+/// **M5 S10 acceptance row: tier 3 is the sense gate (check 6).**
+///
+/// A face's outward normal is `Face::sense_sign()` times its surface's
+/// chart normal, and by the interior-left rule its outer loop winds
+/// CCW about that outward normal. So `sense` and the stored winding
+/// are two encodings of ONE fact, and check 6 — the loop's Newell
+/// functional against the outward normal — is precisely the gate that
+/// they agree. `flipped_face_sense_for_tests` inverts one bit and
+/// nothing else, producing a body that is inside-out at that face;
+/// tier 3 must refuse it, by name.
+///
+/// The row also pins why check 6 carries this alone: the +V invariant
+/// (check 7) is computed from the same loop windings, which a lone
+/// sense flip does not touch, so both bodies meter the identical
+/// volume. Nothing else in the at-rest battery can see the defect.
+///
+/// Bit-identity: the unflipped cube still validates clean — planar
+/// sweeps mint `sense: true` throughout (M5 S11 reverses only walls
+/// whose material lies against the chart normal, all curved here), so
+/// the threading multiplies by exactly `+1`.
+#[test]
+fn tier_three_refuses_a_hand_flipped_face_sense() {
+    let t = geometric_cube::<f64>();
+    let mut body = t.body;
+    describe_as_intersections(&mut body);
+    assert_eq!(validate_geometric(&body), Ok(()), "the fixture is clean");
+
+    let (face, outer) = body.faces().map(|(k, f)| (k, f.outer)).next().unwrap();
+    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let errs = validate_geometric(&flipped).unwrap_err();
+    assert!(
+        errs.contains(&topo::ValidationError::LoopRoleInverted {
+            face,
+            r#loop: outer,
+        }),
+        "check 6 must name the inverted face's outer loop; got {errs:?}"
+    );
+
+    // Winding-derived, hence blind to a lone sense flip: same volume.
+    let volume = |b: &Body<f64>| topo::props::mass_properties(b).unwrap().volume;
+    assert_eq!(
+        volume(&body).to_bits(),
+        volume(&flipped).to_bits(),
+        "the +V invariant cannot see a sense flip — check 6 stands alone"
+    );
+}
+
 #[test]
 fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     // The seed face carrying the honest "no description yet" Nurbs

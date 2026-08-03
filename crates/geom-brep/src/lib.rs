@@ -49,18 +49,22 @@ pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
 pub mod ssi;
+pub mod tangent;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
 };
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
-pub use enters::{EntersMaterial, enters_material};
-pub use implicit::{curvature_lever_arm, implicit_gradient, implicit_residual};
+pub use enters::{EntersMaterial, enters_material, enters_material_order2};
+pub use implicit::{
+    curvature_lever_arm, implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_residual,
+};
 pub use intersect::{
-    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
-    SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
-    plane_cylinder_section, route,
+    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
+    RadiusEvidence, Rung, SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
+    plane_cylinder_section, plane_sphere_section, route,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
@@ -77,3 +81,4 @@ pub use ssi::{
     SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,
     idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
+pub use tangent::{TangentJet, tangent_certificate_lane, tangent_jet};

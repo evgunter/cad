@@ -39,6 +39,20 @@ pub struct FacePatch {
     pub face: FaceKey,
     /// Triangles with **outward** winding (counterclockwise viewed
     /// from outside the material, per the D1 loop conventions).
+    ///
+    /// "Outward" means the *material* side, not the chart-normal side.
+    /// Since M5 S10 a face's outward normal is
+    /// `topo::Face::sense_sign() · chart_normal`, and this contract is
+    /// stated in the outward frame: on a face with `sense: false` the
+    /// emitted triangles wind CCW about `−chart_normal`. The
+    /// tessellator reaches that without consulting the bit on this
+    /// path — the winding comes from the loop's stored traversal,
+    /// which interior-left already ties to the outward normal (see
+    /// `planar`/`curved`) — so the guarantee holds for either sense
+    /// with no per-consumer correction. Downstream consumers (STL
+    /// facet normals, signed volumes) may therefore keep deriving
+    /// orientation from this winding alone, and must NOT re-apply the
+    /// sense on top of it.
     pub triangles: Vec<[u32; 3]>,
 }
 
@@ -78,11 +92,12 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
     },
-    /// An edge's cached carrier is [`geom_curves::Curve3::Nurbs`] (no
-    /// evaluable locus for chord points), or a conic cut boundary
-    /// (`Curve3::Ellipse`, M5 PR 5) on a curved chart whose
-    /// iso-rectangle UV walk cannot traverse it (the trimmed-face lane
-    /// is M5 PR 11's).
+    /// An edge/carrier configuration outside the certified inventory:
+    /// a rational or C⁰-kinked B-spline carrier (no hull sagitta), a
+    /// trimmed face on a chart whose pcurves do not mint yet
+    /// (cone/sphere/torus), or a trimmed face missing its stored
+    /// pcurve caches. Since M5 PR 11 the conic-on-cylinder case is a
+    /// CONSTRUCTION lane (`trimmed`), not a refusal.
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
@@ -140,6 +155,18 @@ pub enum TessellateError {
     /// UV coordinate — corrupt geometry surfaced as a typed error).
     Triangulation {
         /// The face being triangulated.
+        face: FaceKey,
+    },
+    /// A trimmed face's boundary polyline passes EXACTLY through
+    /// another boundary chord point of the same loop (a self-touching
+    /// trim loop): the CDT would realise one face's constraint through
+    /// a vertex its neighbour does not share — a 3-D T-junction no
+    /// grid-retry can repair. No at-rest construction mints one (split
+    /// sections and boolean seams are simple loops); the arm is the
+    /// watertightness backstop's tripwire (M5 PR 11 review MIN-1),
+    /// kept typed rather than silent.
+    SelfTouchingTrimLoop {
+        /// The face whose trim loop touches itself.
         face: FaceKey,
     },
 }

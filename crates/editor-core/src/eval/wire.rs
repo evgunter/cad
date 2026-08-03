@@ -47,6 +47,9 @@ where
         Node::Profile(desc) => Ok((wire_profile(desc)?, names::empty())),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
+        Node::Loft { profiles, .. } => wire_loft(profiles, doc, vals),
+        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals),
+        Node::Fillet { target, .. } => wire_fillet(id, *target, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
             wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
@@ -330,6 +333,50 @@ fn wire_revolve<T: Decide>(
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
+}
+
+/// The constant-radius fillet node (M5 PR 12).
+///
+/// The recipe carries NO edge selection (see [`Node::Fillet`]): the op's
+/// front door is "every edge of a convex, planar-faced,
+/// trivalent-vertex polyhedron", so the request is the target body's
+/// whole edge arena, enumerated in arena order — the deterministic
+/// order every derived list in this kernel inherits (D9).
+///
+/// Failure is a TYPED refusal ([`NodeErrorKind::Fillet`]) carrying the
+/// kernel's own error unaltered, exactly as the split/boolean arms
+/// carry theirs. The input body is never passed through: a fillet that
+/// did not happen must read as a failed node, not as a silently sharp
+/// solid.
+///
+/// # Naming
+///
+/// The node emits the EMPTY table. The blend introduces faces, edges
+/// and vertices that no [`RoleSeg`](crate::names::RoleSeg) vocabulary
+/// describes yet, and `Filleted` carries no birth map to name them
+/// from — so there is nothing to emit honestly, and inventing names by
+/// matching is exactly what N4 forbids. The consequence is loud rather
+/// than silent: every downstream reference into a filleted body fails
+/// to resolve, and an appearance record targeting one is a typed loss.
+/// A fillet naming emitter is banked with the in-place edge-blend
+/// surgery it would name.
+fn wire_fillet<T: Decide + geom_core::Bounds>(
+    id: RecipeNodeId,
+    target: RecipeNodeId,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let body = body_operand(results, target)?;
+    let radius = need_scalar(vals, SlotId::Radius)?;
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
+        .map_err(NodeErrorKind::Fillet)?;
+    let mut out = filleted.body;
+    // The blend's own surfaces/curves/points are minted HERE (D1/N6);
+    // the supports' pass-through descriptions keep the source they
+    // arrived with.
+    stamp_minted(&mut out, id);
+    Ok((ValuePayload::Body(Arc::new(out)), names::empty()))
 }
 
 fn wire_split<T: Decide>(
@@ -663,4 +710,156 @@ fn wire_pattern<T: Decide>(
     let master = Arc::clone(&value_of(results, input)?.name_table);
     let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
     Ok((ValuePayload::Instances(instances), table))
+}
+
+// ---------------------------------------------------------------------
+// M5 PR 10: the definitional §10.3/§10.4 nodes
+// ---------------------------------------------------------------------
+
+/// The `&'static str`s [`NodeErrorKind::CurvedSolidFrontier`] names —
+/// the exact doors a NURBS-walled solid is waiting on. Kept as
+/// constants so the acceptance rows assert the SAME text the node
+/// produces.
+pub(crate) const LOFT_FRONTIER: &str = "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by KIND \
+     (UncertifiableSurface), and EdgeCurve::certify refuses every \
+     description that NAMES a NURBS surface plus every NURBS carrier \
+     under a CONVENTIONAL description (Unimplemented) — which is \
+     exactly a loft's iso-parameter seams. The curved-boolean lane \
+     opened the NURBS carrier for Intersection descriptions of two \
+     ANALYTIC surfaces only. M5 PR 9c executed the assembly design \
+     against this door and found a HARDER one behind it: tier 3's +V \
+     check (7) computes mass_properties, which routes a NURBS face to \
+     props::curved_face and gets Unimplemented, so the body would fail \
+     validation even with every description accepted — NURBS-patch flux \
+     needs the curved-face quadrature of the tessellation lane, and the \
+     surface-area half has no closed form for a rational patch at all";
+
+/// The Sweep node's frontier, which is STRICTLY WIDER than the loft's
+/// (M5 PR 10 fix pass, review MAJOR-1).
+///
+/// §10.4's rigid-profile sweep needs the path as ONE curve. The recipe
+/// layer cannot supply one: a `Node::Sweep`'s `path` operand is a
+/// profile, a validated profile's loop is a CLOSED chain, and a closed
+/// chain has two or more segments — even the minimal two-vertex loop is
+/// two half-turn arcs. So there is no recipe-expressible path this PR
+/// can sweep, and the honest node-layer answer is a single refusal
+/// naming what is missing: a joined-path composition lane (no PR is
+/// scheduled to build one). Behind that stands the same NURBS-walled
+/// solid frontier the loft hits.
+///
+/// `sweep::sweep_geometry` itself is live and exercised — through the
+/// library API, the demo stop, and the acceptance suites. It is the
+/// NODE lane that is gated, and it is gated at one door rather than two
+/// so the message cannot imply an expressible case that does not exist.
+pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
+     a closed chain of two or more segments, even at the minimal \
+     two-vertex circle — while §10.4's rigid-profile sweep needs the \
+     path as ONE curve, so every recipe-expressible sweep waits on a \
+     joined-path composition lane; behind it stands the same \
+     NURBS-walled solid frontier the loft hits (tier 3 refuses \
+     Surface::Nurbs by kind, UncertifiableSurface)";
+
+/// One section of a loft, taken from the RECIPE's own `f64`
+/// description rather than from the evaluated `T` payload.
+///
+/// Structure selection is `f64` (C6/D9): the skinned surface's knots,
+/// degrees, and control bits must be identical in every scalar lane,
+/// and every lane's profile is the same stored `f64` description
+/// embedded through `from_f64`. Taking the description directly is
+/// therefore not a shortcut — it is the only way the Interval lane
+/// encloses the SAME surface the `f64` lane defines.
+fn section_of(
+    doc: &crate::doc::Doc<ProfileDesc>,
+    id: RecipeNodeId,
+) -> Result<(sweep::SectionSegments, Affine3<f64>), NodeErrorKind> {
+    let Some(Node::Profile(desc)) = doc.nodes.get(&id) else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: id,
+            expected: "profile node",
+            found: "not a profile node",
+        });
+    };
+    // The profile's own validation door still runs: a section that
+    // would not extrude does not skin either.
+    let validated = desc
+        .embed::<f64>()
+        .validate(Tolerance::get())
+        .map_err(NodeErrorKind::Profile)?;
+    let place = validated.plane().placement;
+    let chains = desc
+        .0
+        .loops
+        .iter()
+        .map(|lp| {
+            let n = lp.vertices.len();
+            (0..n)
+                .map(|j| {
+                    let a = lp.vertices[j];
+                    let b = lp.vertices[(j + 1) % n];
+                    if a.bulge == 0.0 {
+                        sweep::SketchSegment::Line { a: a.pos, b: b.pos }
+                    } else {
+                        sweep::SketchSegment::Arc {
+                            a: a.pos,
+                            b: b.pos,
+                            bulge: a.bulge,
+                        }
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    Ok((chains, place))
+}
+
+/// A structural (Count) slot, refused typed when absent or unusable.
+fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, NodeErrorKind> {
+    let n = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
+    usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
+}
+
+fn wire_loft<T: Decide>(
+    profiles: &[RecipeNodeId],
+    doc: &crate::doc::Doc<ProfileDesc>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let v_degree = need_count(vals, SlotId::VDegree)?;
+    let mut sections = Vec::with_capacity(profiles.len());
+    let mut places = Vec::with_capacity(profiles.len());
+    for id in profiles {
+        let (chain, place) = section_of(doc, *id)?;
+        sections.push(chain);
+        places.push(place);
+    }
+    // The §10.3 construction RUNS: its compatibility door is the one
+    // that refuses a bad loft, and the walls it produces are the
+    // definition (Q8). Only the B-rep assembly is frontier-blocked.
+    let _geometry =
+        sweep::loft_geometry(&sections, &places, v_degree).map_err(NodeErrorKind::Skin)?;
+    Err(NodeErrorKind::CurvedSolidFrontier {
+        what: LOFT_FRONTIER,
+    })
+}
+
+/// The Sweep node (M5 PR 10 fix pass, review MAJOR-1: ONE honest
+/// arm).
+///
+/// Every RECIPE door still runs first — the structural slots, and both
+/// operands through [`section_of`] — because a Sweep on a datum, or
+/// with a bad Count, is a recipe error and must read as one. What the
+/// node cannot do is reach the geometry: see [`SWEEP_FRONTIER`] for
+/// why no recipe-expressible path exists to sweep.
+fn wire_sweep<T: Decide>(
+    profile: RecipeNodeId,
+    path: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileDesc>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let _stations = need_count(vals, SlotId::Stations)?;
+    let _v_degree = need_count(vals, SlotId::VDegree)?;
+    let _ = section_of(doc, profile)?;
+    let _ = section_of(doc, path)?;
+    Err(NodeErrorKind::CurvedSolidFrontier {
+        what: SWEEP_FRONTIER,
+    })
 }

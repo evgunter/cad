@@ -61,6 +61,8 @@ pub enum SlotId {
     Direction(Axis3),
     /// An extrude's distance (Length).
     Distance,
+    /// A fillet's constant blend radius (Length).
+    Radius,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
     /// A transform's translation component (Length).
@@ -76,6 +78,15 @@ pub enum SlotId {
     /// A pattern's instance count — the STRUCTURAL slot (spec D3/A8:
     /// Count-typed, edited only via `SetStructuralParam`).
     Count,
+    /// A loft's / sweep's v-direction interpolation degree (Book
+    /// §10.3) — STRUCTURAL: changing it changes the produced
+    /// surface's knot vector, so it is Count-typed like every other
+    /// structure-selecting slot (spec D3/A8).
+    VDegree,
+    /// A sweep's station count: how many rigid copies of the profile
+    /// the path is instantiated at before skinning (Book §10.4) —
+    /// STRUCTURAL, same rule.
+    Stations,
 }
 
 impl SlotId {
@@ -83,12 +94,14 @@ impl SlotId {
     /// `apply` on insert and on every expression edit, spec D6).
     pub fn dimension(self) -> Dimension {
         match self {
-            Self::Origin(_) | Self::Distance | Self::Translation(_) | Self::Spacing => {
-                Dimension::Length
-            }
+            Self::Origin(_)
+            | Self::Distance
+            | Self::Radius
+            | Self::Translation(_)
+            | Self::Spacing => Dimension::Length,
             Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle | Self::RotationAngle | Self::Step => Dimension::Angle,
-            Self::Count => Dimension::Count,
+            Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
         }
     }
 
@@ -177,6 +190,72 @@ pub enum Node<P> {
         axis: RecipeNodeId,
         /// Sweep angle ([`SlotId::RevolveAngle`]).
         angle: Expr,
+    },
+    /// **Loft** — a skinned solid through two or more section
+    /// profiles (The NURBS Book §10.3; C11, M5 PR 10). An ORDINARY op
+    /// in this vocabulary: named slots per D5, the
+    /// structural/continuous divide preserved, input refs resolving to
+    /// existing nodes only.
+    ///
+    /// # Q8: the produced NURBS **is** the definition
+    ///
+    /// The walls this node evaluates to are not approximations of some
+    /// truer surface implied by the sections — the skin the recipe
+    /// selects IS the shape. The recipe (these profiles, this degree)
+    /// is PROVENANCE: it records how the surface was chosen and lets an
+    /// edit re-choose it. There is NO residual obligation to a
+    /// reference locus and NO approximating-surface machinery anywhere
+    /// downstream. Only DERIVED items — intersections with these walls,
+    /// pcurves of non-iso edges — carry certificates, because only they
+    /// claim something about a locus other than themselves.
+    Loft {
+        /// The section profile nodes, in skin order (≥ 2). Order is
+        /// data: reversing it reverses the produced surface's
+        /// v-direction.
+        profiles: Vec<RecipeNodeId>,
+        /// The v-direction interpolation degree ([`SlotId::VDegree`]);
+        /// must satisfy `1 ≤ degree ≤ profiles.len() − 1`, checked at
+        /// evaluation against the resolved value.
+        v_degree: Expr,
+    },
+    /// **Sweep** — a rigid profile carried along a path (The NURBS
+    /// Book §10.4; C11, M5 PR 10), scope-boxed exactly as C11 boxes
+    /// it: rigid profile, translational or path-following, **no**
+    /// variable sections and **no** scaling laws.
+    ///
+    /// Evaluated by §10.4's *instantiate and skin*: rigid copies of the
+    /// profile are placed at `stations` points along the path and
+    /// skinned. Under Q8 (see [`Node::Loft`]) that is not an
+    /// approximation of a swept locus — it is the definition of one.
+    Sweep {
+        /// The profile node swept.
+        profile: RecipeNodeId,
+        /// The path node: a profile whose FIRST loop's chain is the
+        /// trajectory (an open or closed polyline/arc chain).
+        path: RecipeNodeId,
+        /// How many stations the path is instantiated at
+        /// ([`SlotId::Stations`]); must be ≥ 2.
+        stations: Expr,
+        /// The v-direction interpolation degree ([`SlotId::VDegree`]);
+        /// must satisfy `1 ≤ degree ≤ stations − 1`.
+        v_degree: Expr,
+    },
+    /// Constant-radius rolling-ball fillets on EVERY edge of `target`
+    /// (M5 PR 12). Edge selection is deliberately absent: the
+    /// assembly's front door is "every edge of a convex, planar-faced,
+    /// trivalent-vertex polyhedron", so a whole-body request needs no
+    /// stable edge names and cannot go stale under a parameter edit.
+    ///
+    /// The op is [`sweep::fillet::build::fillet_edges`] over the
+    /// target body's whole edge arena; anything outside that front
+    /// door is a typed refusal
+    /// ([`crate::eval::NodeErrorKind::Fillet`]), never a silent
+    /// pass-through of the input body.
+    Fillet {
+        /// The body every edge of which is blended.
+        target: RecipeNodeId,
+        /// The constant blend radius ([`SlotId::Radius`]).
+        radius: Expr,
     },
     /// Split a target body by a tool.
     Split {
@@ -268,6 +347,9 @@ impl<P> Node<P> {
             Node::Datum(_) | Node::Profile(_) | Node::Declare { .. } => Vec::new(),
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
+            Node::Loft { profiles, .. } => profiles.clone(),
+            Node::Sweep { profile, path, .. } => vec![*profile, *path],
+            Node::Fillet { target, .. } => vec![*target],
             Node::Split { target, tool } => vec![*target, *tool],
             Node::Boolean { a, b, declare, .. } => {
                 let mut v = vec![*a, *b];
@@ -305,7 +387,10 @@ impl<P> Node<P> {
                 Vec::new()
             }
             Node::Extrude { .. } => vec![SlotId::Distance],
+            Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
+            Node::Loft { .. } => vec![SlotId::VDegree],
+            Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
             Node::Transform { .. } => {
                 let mut s = vec3(SlotId::Translation).to_vec();
                 s.extend(vec3(SlotId::RotationAxis));
@@ -341,7 +426,11 @@ impl<P> Node<P> {
                 Some(comp(direction, ax))
             }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
+            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
+            (Node::Loft { v_degree, .. }, S::VDegree)
+            | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
+            (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
             (Node::Transform { translation, .. }, S::Translation(ax)) => {
                 Some(comp(translation, ax))
             }
@@ -390,7 +479,11 @@ impl<P> Node<P> {
                 Some(comp_mut(direction, ax))
             }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
+            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
+            (Node::Loft { v_degree, .. }, S::VDegree)
+            | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
+            (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
             (Node::Transform { translation, .. }, S::Translation(ax)) => {
                 Some(comp_mut(translation, ax))
             }

@@ -273,6 +273,13 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
                     witness,
                 }
             }
+            geom_brep::EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+                geom_brep::EdgeGeometry::TangentIntersection {
+                    s1: *surfaces.get(s1).ok_or_else(corrupt)?,
+                    s2: *surfaces.get(s2).ok_or_else(corrupt)?,
+                    witness,
+                }
+            }
             geom_brep::EdgeGeometry::Seam { surface } => geom_brep::EdgeGeometry::Seam {
                 surface: *surfaces.get(surface).ok_or_else(corrupt)?,
             },

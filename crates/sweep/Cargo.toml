@@ -27,4 +27,9 @@ profile = { path = "../profile" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# Watertightness backstop for the fillet acceptance row (M5 PR 12): the
+# rounded die is tessellated and `mesh::validate::check_mesh`ed. `mesh`
+# dev-depends on `sweep` in turn; cargo permits cycles that run through
+# dev-dependencies (neither ever enters the other's build graph).
+mesh = { path = "../mesh" }
 proptest = { workspace = true }

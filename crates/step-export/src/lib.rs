@@ -5,8 +5,9 @@
 //!
 //! # What this is, and what it is not
 //!
-//! An EXPORT writer only: a finished [`topo::Body`] (certified planar
-//! geometry, tier-2-valid at rest) is serialized to a Part 21 exchange
+//! An EXPORT writer only: a finished [`topo::Body`] (certified
+//! analytic geometry — planar since M4, curved since M5 PR 13 —
+//! tier-2-valid at rest) is serialized to a Part 21 exchange
 //! file whose data section is the AP214 advanced-B-rep product
 //! structure. Import is M7 and deliberately absent. The F6 spike
 //! established that no adoptable crate writes conformant STEP
@@ -42,29 +43,89 @@
 //!   product name ([`StepOptions::product_name`]), not a hardcoded
 //!   empty string.
 //!
-//! # The analytic subset, and how it grows (M5)
+//! # The analytic subset (M5 PR 13: the curved subset)
 //!
-//! The M4 surface vocabulary of finished bodies is planes with line
-//! boundary carriers; the writer's printers are the closed matches in
-//! `writer.rs` (`Surface::Plane` → `PLANE`, `Curve3::Line` → `LINE`).
-//! Every other variant returns a **typed refusal**
-//! ([`StepExportError::UnsupportedSurface`] /
-//! [`StepExportError::UnsupportedCurve`]) naming the variant — never a
-//! silent degradation. M5 adds arms (cylinder/cone/sphere/torus,
-//! circle/NURBS) to exactly those two matches; the surrounding
-//! topology walk, preamble, and float printing are already
-//! carrier-agnostic. Exporting analytic surfaces *as* analytic STEP
-//! entities (a cylinder as `CYLINDRICAL_SURFACE`, never a B-spline
-//! approximation) is the point of writing this in-house — the M5
-//! carrier story truck-stepio could not serve.
+//! The writer's printers are the two closed matches in `writer.rs`,
+//! one per kernel geometry enum. **Every arm is an exact native AP214
+//! entity** — the whole point of writing this in-house was to export
+//! analytic geometry *as* analytic geometry, never as a B-spline
+//! approximation, which is the carrier story truck-stepio could not
+//! serve:
+//!
+//! | kernel `Surface` | AP214 entity | exact? |
+//! |---|---|---|
+//! | `Plane` | `PLANE` | yes, identity |
+//! | `Cylinder` | `CYLINDRICAL_SURFACE` | yes, identity |
+//! | `Cone` | `CONICAL_SURFACE` (apex placement, `radius = 0`) | yes as a LOCUS; `v` differs by the fixed factor cos α (STEP's `v` is axial, the kernel's is slant arc length) — invisible without pcurves |
+//! | `Sphere` | `SPHERICAL_SURFACE` | yes, identity |
+//! | `Torus` | `TOROIDAL_SURFACE` | yes, identity |
+//! | `Nurbs` | — | refuses (see below) |
+//!
+//! | kernel `Curve3` | AP214 entity | exact? |
+//! |---|---|---|
+//! | `Line` | `LINE` (unit `VECTOR`) | yes, identity |
+//! | `Circle` | `CIRCLE` | yes, identity |
+//! | `Ellipse` | `ELLIPSE` | yes, identity |
+//! | `Nurbs` | `B_SPLINE_CURVE_WITH_KNOTS`, or the `RATIONAL_B_SPLINE_CURVE` complex instance when any weight ≠ 1 | yes, structure for structure |
+//!
+//! "Identity" is meant literally: each kernel frame `(origin, axis,
+//! u_ref)` is ISO 10303-42's `axis2_placement_3d` field for field, and
+//! each variant's evaluation formula is the schema's formula for the
+//! matching entity, so the two parameterizations agree — not merely the
+//! point sets. Nothing is renormalized, reordered, or offset.
+//!
+//! **Conics do not take the rational-quadratic road.** The NURBS Book
+//! §7.3–7.4 form (shape factor `k = w₀w₂/w₁²`, arcs ≥ 180° needing
+//! infinite control points) is representationally exact and is the
+//! kernel's declared export/tessellation form for conics — but AP214
+//! *has* `CIRCLE` and `ELLIPSE`, so using it here would be an equally
+//! exact, strictly worse encoding: it discards the axes and centre
+//! every reader consumes, reparameterizes the curve for nothing, and
+//! trades a five-float record for a control/weight/knot triple. The
+//! native entity wins wherever it exists, which for the kernel's conic
+//! rungs is everywhere.
+//!
+//! **What still refuses**, typed and named, never silently degraded:
+//! `Surface::Nurbs` ([`StepExportError::UnsupportedSurface`]) — the
+//! mvfs "no description yet" placeholder, and a *described* NURBS
+//! surface, which no body at rest carries: the loft-assembly unit
+//! mints the kernel's first NURBS face and brings
+//! `B_SPLINE_SURFACE_WITH_KNOTS` with it. A NURBS *carrier*
+//! placeholder refuses the same way
+//! ([`StepExportError::UnsupportedCurve`]).
+//!
+//! # Export only — the round trip is not closed
+//!
+//! Said plainly, because the curved subset makes the asymmetry
+//! bigger: this crate WRITES STEP and cannot READ it. There is no
+//! importer in the kernel at all; STEP import is M7. A file written
+//! here is consumed by other CAD systems (the FreeCAD/OCC acceptance
+//! below), never by this kernel — so "round trip" in these docs always
+//! means *someone else's* reader reconstructing our geometry, and a
+//! shape that leaves through this writer does not come back.
 //!
 //! # Orientation mapping (cites the ratified conventions, adds none)
 //!
-//! - A face's stored plane normal IS its outward normal (M1
-//!   interior-left ratification, restated in `geom_brep::enters`), so
-//!   every `ADVANCED_FACE` has `same_sense = .T.` and the surface's
-//!   `AXIS2_PLACEMENT_3D` axis is the stored normal with `ref_direction`
-//!   the stored `u_ref` (⊥ normal by the same convention).
+//! - A face's outward normal is `topo::Face::sense_sign()` times its
+//!   stored surface normal (M5 S10; before S10 the stored normal
+//!   simply WAS the outward normal — the M1 interior-left
+//!   ratification, restated in `geom_brep::enters`). STEP has a field
+//!   that means exactly this, so the mapping is an identity and not a
+//!   conversion: `ADVANCED_FACE`'s `same_sense` is `Face::sense`,
+//!   emitted `.T.`/`.F.`. The surface's `AXIS2_PLACEMENT_3D` axis
+//!   stays the stored **chart** normal (with `ref_direction` the
+//!   stored `u_ref`, ⊥ normal by the same convention) — correct
+//!   precisely *because* `same_sense` carries the flip: the reversal
+//!   is stated once, in the field the schema provides for it, and the
+//!   exported surface stays the true surface. Since M5 S11 the sweep
+//!   constructors mint `sense: false` on walls whose material lies
+//!   against the chart normal — concave extrude walls, revolve's
+//!   bore/cone/sphere/torus bands, and the under-side annulus that
+//!   rides with them. Every such wall is curved or rides on a curved
+//!   body, so before M5 PR 13 no `.F.` could reach the emitter; with
+//!   the curved arms landed it does, and the planar goldens are
+//!   nevertheless byte-unchanged (no planar-only body at rest mints a
+//!   reversed face).
 //! - An edge's certified carrier parameter runs `start(he_plus) →
 //!   end(he_plus)` (the M2 forward contract on `Edge::he_plus`), so
 //!   every `EDGE_CURVE` has `same_sense = .T.` with its vertices taken
@@ -74,6 +135,12 @@
 //!   normal and rings clockwise (interior-left), which is precisely
 //!   STEP's convention for `FACE_OUTER_BOUND`/`FACE_BOUND` with
 //!   orientation `.T.` — the stored direction is emitted unchanged.
+//!   This holds for either face sense and the flag is never flipped:
+//!   the schema *composes* a bound's orientation with the owning
+//!   face's `same_sense`, so with the sense already emitted above, a
+//!   second flip here would double-count it. Shell volumes are read
+//!   from these same windings and are sense-invariant by derivation
+//!   for the same reason (`volume.rs` module docs).
 //!
 //! # Solids, shells, and voids
 //!
@@ -97,6 +164,18 @@
 //! validity plus the +V invariant own a lone shell's orientation, and
 //! the classification gate exists only to tell a multi-shell solid's
 //! shells apart.
+//!
+//! The classifier's closed forms are **planar only** and did not grow
+//! at M5 PR 13, so it is now narrower than the emitter: a MULTI-shell
+//! solid carrying curved geometry refuses
+//! ([`StepExportError::CurvedShellClassification`]) even though every
+//! one of its faces has a printer. The reduction the classifier
+//! performs is a planarity identity with no closed-form curved
+//! counterpart, and its output is a material-vs-void sign — the one
+//! place an approximation would be a silent lie rather than a
+//! roundoff. Single-shell curved solids — every curved body at rest
+//! today bar S12's two-stub `boss ∖ plate` complement — never reach it
+//! and export normally.
 //!
 //! # Determinism (D9)
 //!
@@ -155,17 +234,24 @@ pub enum StepExportError {
         /// Which string field was being quoted (static description).
         context: &'static str,
     },
-    /// A face's surface has no printer in the M4 analytic subset
-    /// (planes only; M5 adds the curved arms). Typed refusal, never a
-    /// B-spline approximation.
+    /// A face's surface has no printer in the analytic subset. Since
+    /// M5 PR 13 the subset is every ELEMENTARY_SURFACE the kernel has
+    /// (plane, cylinder, cone, sphere, torus), so the live cases are
+    /// the mvfs "no description yet" NURBS placeholder and a described
+    /// NURBS surface (the loft-assembly frontier — no body at rest
+    /// carries a NURBS face). Typed refusal, never a B-spline
+    /// approximation of an analytic surface.
     UnsupportedSurface {
         /// The face whose surface is out of subset.
         face: FaceKey,
         /// The surface variant's name.
         kind: &'static str,
     },
-    /// An edge's certified carrier has no printer in the M4 analytic
-    /// subset (lines only; M5 adds circles/NURBS).
+    /// An edge's certified carrier has no printer. Since M5 PR 13
+    /// every `Curve3` kind prints (line, circle, ellipse, NURBS), so
+    /// the one live case is the "no description yet" NURBS carrier
+    /// placeholder — the curve-side twin of the surface placeholder,
+    /// a mid-surgery fact rather than a subset boundary.
     UnsupportedCurve {
         /// The edge whose carrier is out of subset.
         edge: EdgeKey,
@@ -212,6 +298,23 @@ pub enum StepExportError {
         /// The computed signed volume (m³).
         volume: f64,
     },
+    /// A **multi-shell** solid contains a shell whose geometry leaves
+    /// the outward/void classifier's closed forms (planes bounded by
+    /// lines). The emitter itself handles the curved subset — this is
+    /// the classifier alone: the divergence-theorem reduction in
+    /// `volume.rs` is exact per planar face and has no curved-face
+    /// counterpart yet, and guessing a shell's sign would silently
+    /// decide material-vs-void. Single-shell solids never reach it, so
+    /// curved bodies export normally; only a curved solid with two or
+    /// more shells refuses.
+    CurvedShellClassification {
+        /// The shell that could not be classified.
+        shell: ShellKey,
+        /// The face whose geometry left the closed forms.
+        face: FaceKey,
+        /// What that face carries (surface or carrier variant name).
+        kind: &'static str,
+    },
     /// An explicit [`StepOptions::uncertainty_m`] is not finite and
     /// strictly positive.
     InvalidUncertainty {
@@ -244,13 +347,13 @@ impl fmt::Display for StepExportError {
             ),
             Self::UnsupportedSurface { face, kind } => write!(
                 f,
-                "step export: face {face:?}'s surface ({kind}) has no printer in the M4 \
-                 analytic subset (planes only; M5 grows it)"
+                "step export: face {face:?}'s surface ({kind}) has no printer in the \
+                 analytic subset (every elementary surface prints; NURBS faces do not)"
             ),
             Self::UnsupportedCurve { edge, kind } => write!(
                 f,
-                "step export: edge {edge:?}'s carrier ({kind}) has no printer in the M4 \
-                 analytic subset (lines only; M5 grows it)"
+                "step export: edge {edge:?}'s carrier ({kind}) has no printer in the \
+                 analytic subset (every described carrier prints; a placeholder does not)"
             ),
             Self::NullScaffoldEdge { edge } => write!(
                 f,
@@ -276,6 +379,14 @@ impl fmt::Display for StepExportError {
                 f,
                 "step export: shell {shell:?} of a multi-shell solid has signed volume \
                  {volume} m\u{b3} — outward/void classification is indeterminate"
+            ),
+            Self::CurvedShellClassification { shell, face, kind } => write!(
+                f,
+                "step export: shell {shell:?} of a multi-shell solid carries face \
+                 {face:?} ({kind}) — the outward/void classifier's divergence-theorem \
+                 closed forms cover planes bounded by lines only, and a guessed sign \
+                 would silently decide material vs void; refusing (the emitter itself \
+                 exports this geometry — single-shell curved solids are unaffected)"
             ),
             Self::InvalidUncertainty { value } => write!(
                 f,

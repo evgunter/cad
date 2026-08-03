@@ -453,6 +453,16 @@ pub(super) fn sweep_loop<T: Decide>(
         if j == 0 {
             first_top = Some(mef.he_plus);
         }
+        // The honest orientation bit (M5 S11): a wall whose material
+        // lies against its revolution surface's chart normal (bore
+        // cylinder, inward cone, under-side plane annulus, concave
+        // sphere/torus band) is attached `sense: false` — classified
+        // from the profile's stored winding structure
+        // (`WallClass::Wall::sense`); attached here because `mef`
+        // cannot know the material side.
+        if cls.walls[j].sense() == Some(false) {
+            body.set_face_sense(mef.face, false)?;
+        }
         faces.push(Some(mef.face));
         tops.push(Some(mef.edge));
     }

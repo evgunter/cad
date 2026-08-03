@@ -143,7 +143,7 @@ impl<T: Real> SketchSegment<T> {
                 let unit = chord / len;
                 let n = Vec2::new(-unit.y, unit.x); // left normal
                 let mid = a.lerp(b, half);
-                let apothem = len * (T::one() - bulge * bulge) / (four * bulge);
+                let apothem = len * (T::one() - bulge.powi(2)) / (four * bulge);
                 let center = mid + n * apothem;
                 let theta = four * bulge.atan();
                 let (sin, cos) = (s * theta).sin_cos();
@@ -297,6 +297,31 @@ pub enum EdgeGeometry<T: Real> {
         /// the traversed arc and winding between the endpoints.
         /// Constructors mint it by evaluating the carrier at the
         /// interval midpoint (for straight chords: the chord midpoint).
+        witness: Point3<T>,
+    },
+    /// Intrinsic, one differential order up (D2 as sharpened per
+    /// CURVED-DESIGN OQ7; M5 PR 9): the connected component of the
+    /// TANGENTIAL contact locus of S₁ and S₂ selected by `witness` —
+    /// surfaces coincident and normal-parallel *along* the locus,
+    /// separating quadratically *transverse* to it (relative
+    /// transverse normal curvature bounded away from zero — the jet
+    /// system's IFT denominator, enforced at certification as the
+    /// second-order margin). No stored contact-order field: order-k
+    /// contact beyond k = 1 is out of scope at M5 (D2's note records
+    /// the generalization). Fillet trimlines (M5 PR 12) STORE this
+    /// variant; at PR 9 it is minted by classification of the C5
+    /// table's tangent arms — never by marching (the SSI σ₂ band
+    /// refuses toward this variant instead of desingularizing).
+    TangentIntersection {
+        /// The first surface (one of the edge's two adjacent faces'
+        /// surfaces — coherence checked by the tier-3 validator).
+        s1: SurfaceKey,
+        /// The second surface.
+        s2: SurfaceKey,
+        /// A point on the intended component of the tangency locus —
+        /// and, by the certification contract, **the edge's
+        /// mid-parameter point** (the same S2 pin as
+        /// [`EdgeGeometry::Intersection`]'s witness).
         witness: Point3<T>,
     },
     /// Conventional: a pushforward of a sketch entity under a sweep map

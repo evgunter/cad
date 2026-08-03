@@ -1,0 +1,15 @@
+# FreeCAD/OCC import expectations for washer.step (M5 PR 13 curved
+# corpus). Counts are what OCC reports after import; the volume is the
+# EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
+# annulus r in [1,2], height 1: pi*(4-1)*1 m^3
+#
+# Kernel census is 4/8/4 and OCC keeps it exactly: each full-2pi wall
+# is one face whose single loop uses its seam edge TWICE with opposite
+# ORIENTED_EDGE flags -- exactly STEP's seam encoding, accepted with no
+# pcurve and no healing.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=4
+EXPECT_EDGES=8
+EXPECT_VERTICES=4
+EXPECT_VOLUME_MM3=9424777960.769379

@@ -26,7 +26,10 @@ use geom_core::Sign;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use topo::{Body, ContactRecords};
 
-use crate::{az, bodies, bool_bodies, crosslap, cutaway, heatsink, letterforms, projectbox};
+use crate::{
+    az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms,
+    projectbox, rocker,
+};
 
 /// One probed body: label, body, declared contacts if it is a boolean
 /// result (selects the 3′ gate, exactly as in `run_body`).
@@ -114,6 +117,33 @@ pub fn run(out: Option<String>) {
         vec![plain("sheave", bodies::sheave().0)]
     });
     sweep(s, t, u, "chute", || vec![plain("chute", bodies::chute().0)]);
+    // The fillet gates are reified K-funnel predicates (S2's seven),
+    // so the rocker's six filleted corners get their own sweep group.
+    sweep(s, t, u, "rocker", || {
+        vec![plain("rocker", rocker::rocker())]
+    });
+    // The PR 11 flip: the tilted cut joined the standard ladder, so
+    // its quadrature-lane predicates (props_quad_*) record here too.
+    sweep(s, t, u, "tiltedcut", || {
+        let (above, below) = curvedcut::build::<Probe>();
+        vec![
+            plain("tiltedcut_above", above),
+            plain("tiltedcut_below", below),
+        ]
+    });
+    sweep(s, t, u, "bossplate", || {
+        // Contact-free transverse curved boolean: plain tier 3 (the 3′
+        // census is exact-on-planar; see the stop's routing note).
+        let bb = bossplate::build::<Probe>();
+        let contact_free = bb.contacts.vv.is_empty()
+            && bb.contacts.a_on_b.is_empty()
+            && bb.contacts.b_on_a.is_empty();
+        vec![if contact_free {
+            plain("bossplate", bb.body)
+        } else {
+            seamed("bossplate", bb)
+        }]
+    });
     sweep(s, t, u, "die", || vec![seamed("die", bool_bodies::die().0)]);
     sweep(s, t, u, "table", || {
         vec![seamed("table", bool_bodies::table().0)]

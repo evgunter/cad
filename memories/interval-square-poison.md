@@ -42,3 +42,9 @@ certification/predicate paths. Bit-identity caveat (PR 4 NIT-1): the f64 and
 Dual VALUE channels are unconditionally bit-identical under this rewrite,
 but the Dual DERIVATIVE channel is not (subnormal/overflow witnesses exist);
 tangents never decide (D8), so this is doc-scope only.
+
+**Enforced by CI** (M5, after the fourth occurrence): the `discipline` job's
+"interval-square powi(2) allowlist" step in `.github/workflows/ci.yml` greps
+`crates/*/src` for `x * x` self-products outside the ratified allowlist
+(scalar impls, D9-pinned mat.rs, f64-only svd/lsq/jet/march/system) — convert
+to `powi(2)` or ratify the file into that allowlist.

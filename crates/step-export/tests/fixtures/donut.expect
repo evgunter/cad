@@ -1,0 +1,12 @@
+# FreeCAD/OCC import expectations for donut.step (M5 PR 13 curved
+# corpus). Counts are what OCC reports after import; the volume is the
+# EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
+# ring torus R=2 r=0.5: 2*pi^2*R*r^2 = pi^2 m^3
+#
+# Kernel census is 2/4/2 and OCC keeps it: the torus's two seam meridians are ordinary (non-degenerate) edges.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=2
+EXPECT_EDGES=4
+EXPECT_VERTICES=2
+EXPECT_VOLUME_MM3=9869604401.089357

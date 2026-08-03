@@ -22,7 +22,9 @@
 //!    `he1 == he2` case — raised vertex, `ExtrudedPoint` description),
 //!    then one side-quad `mef` per segment (the new edge is the **top
 //!    rim**, `PlacedSegment` at the translated placement; the new face
-//!    is the side wall, plane or cylinder), the last `mef` closing
+//!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
+//!    attached `sense: false`, M5 S11: its material lies outside the
+//!    carrier, against the chart normal), the last `mef` closing
 //!    against the first top rim. The original loop survives raised —
 //!    the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
@@ -322,6 +324,21 @@ struct SweptSeg<T: Real> {
     canonical_vertex: usize,
     /// Canonical index of the segment (for error reporting).
     canonical_segment: usize,
+    /// The wall face's orientation sense (M5 S11): `false` iff the
+    /// segment's wall has its material AGAINST the cylinder's chart
+    /// normal — exactly the concave arcs. Exact stored structure, not
+    /// a numeric decision: the profile's canonical winding is
+    /// material-left (outers counterclockwise, holes clockwise), and
+    /// an arc's center lies left of its chord traversal iff its turn
+    /// is `Positive` — so material sits inside the carrier (chart
+    /// normal outward = away from material, sense `true`) iff the
+    /// **canonical** turn is `Positive`, and outside it (concave —
+    /// chart normal into material, sense `false`) iff `Negative`.
+    /// Concavity is a property of the 2-D region against the carrier
+    /// circle alone, so the extrusion direction (the swept reversal)
+    /// never enters. Line walls are Newell-outward by construction:
+    /// always `true`.
+    wall_sense: bool,
 }
 
 /// Builds the swept traversal of one canonical loop: forward, or
@@ -354,6 +371,7 @@ fn swept_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<SweptS
                 },
                 canonical_vertex: (n - j) % n,
                 canonical_segment: n - 1 - j,
+                wall_sense: wall_sense_of(s),
             });
         }
     } else {
@@ -376,10 +394,23 @@ fn swept_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<SweptS
                 },
                 canonical_vertex: j,
                 canonical_segment: j,
+                wall_sense: wall_sense_of(s),
             });
         }
     }
     out
+}
+
+/// The wall sense of one CANONICAL segment ([`SweptSeg::wall_sense`]):
+/// `false` iff it is a concave arc (canonical turn `Negative`). Reads
+/// the stored classification only — `Zero` is unreachable for
+/// classified arcs (a zero turn classified as a line); kept total by
+/// taking the convex arm, the [`turn_axis`] posture.
+fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
+    match s.kind {
+        SegmentKind::Line => true,
+        SegmentKind::Arc { turn, .. } => matches!(turn, Sign::Positive | Sign::Zero),
+    }
 }
 
 impl<T: Real> SweptSeg<T> {
@@ -942,6 +973,17 @@ fn sweep_loop<T: Decide>(
         if j == 0 {
             first_top = Some(mef.he_plus);
         }
+        // The honest orientation bit (M5 S11): a concave arc's wall
+        // has its material OUTSIDE the carrier cylinder, so the chart
+        // normal (unconditionally the outward radial) points into the
+        // solid and the face's sense is `false`. Decided at
+        // classification time from the profile's stored winding
+        // ([`SweptSeg::wall_sense`]); attached here because `mef`
+        // cannot know the material side (it sees chords, not the
+        // profile).
+        if !segs[j].wall_sense {
+            body.set_face_sense(mef.face, false)?;
+        }
         faces.push(mef.face);
         top_rims.push(mef.edge);
     }
@@ -991,7 +1033,49 @@ fn sweep_loop<T: Decide>(
                 };
                 body.set_edge_curve(struts[j].edge, spec)?;
             }
-            Ok(DihedralClass::Smooth) => {}
+            Ok(DihedralClass::Smooth) => {
+                // OQ7's must-carry, applied at construction (M5 PR 9):
+                // a definitely-smooth join whose SECOND-ORDER
+                // separation is definite is a jet-determinate tangency
+                // (the surfaces determine the locus — the fillet-grade
+                // line–arc profile join), upgraded to
+                // `TangentIntersection` exactly as the transverse arm
+                // upgrades to `Intersection`. A zero-side second order
+                // (G2/under-determined) keeps the conventional
+                // description BY THE PREDICATE; in-band escalates as
+                // the same typed sliver (F6).
+                let jet = geom_brep::tangent_jet(&s_prev, &s_next, mid, w);
+                let arm = geom_brep::curvature_lever_arm(&s_prev, mid)
+                    .min(geom_brep::curvature_lever_arm(&s_next, mid))
+                    .min(w_norm);
+                let margin = jet.kappa_rel.abs() * arm.powi(2) * T::from_f64(0.5);
+                match geom_core::k_stats::decide("tangent_second_order", margin, band) {
+                    Ok(geom_core::Sign::Positive) => {
+                        let spec = EdgeCurveSpec {
+                            description: EdgeGeometry::TangentIntersection {
+                                s1: k_prev,
+                                s2: k_next,
+                                witness: mid,
+                            },
+                            carrier: Curve3::Line {
+                                origin: qs[j],
+                                dir: w.normalize(),
+                            },
+                            param_start: T::zero(),
+                            param_end: w_norm,
+                        };
+                        body.set_edge_curve(struts[j].edge, spec)?;
+                    }
+                    Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {}
+                    Err(source) => {
+                        return Err(ExtrudeError::SliverJoin {
+                            loop_index,
+                            vertex_index: segs[j].canonical_vertex,
+                            source,
+                        });
+                    }
+                }
+            }
             Err(source) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,

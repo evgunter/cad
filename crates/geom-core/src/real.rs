@@ -361,6 +361,42 @@ pub trait Real:
 /// remains a [`Decide`](crate::predicate::Decide) call site; boxes
 /// only ever prune.
 ///
+/// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
+/// `topo::props`'s certified-quadrature plumbing joins the compound
+/// allowlist. The quadrature lane simultaneously decides (its
+/// `props_quad_*` funnel margins) and reads brackets into the C9 ring
+/// (certification substrate), so `T: Decide + Bounds` is its honest
+/// signature; the split from bracket-free scalars (duals) is STATIC —
+/// `topo::props::PropsQuadLane`'s explicit per-scalar impls are the
+/// only entry, and the dual impl instantiates none of it.
+///
+/// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
+/// the PR 11 precedent; retroactive Evan review per the self-merge
+/// convention):** the
+/// **fillet-validity battery** — `sweep::fillet::battery` and the
+/// assembly it licenses, `sweep::fillet::build` — joins the compound
+/// allowlist. It is the same class as the quadrature seam on both
+/// counts. It simultaneously decides (its six `fillet3_*` funnel
+/// margins) and CONSUMES ENCLOSURES: the quantities it classifies are
+/// certified metric bounds — a support's sup-normal-curvature hull
+/// through `curvature_lever_arm`, a blend's setback bound off the
+/// analytic arm — and every refusal reports the offending margin as an
+/// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
+/// its honest signature.
+///
+/// What differs from PR 11 is only the SPLIT, and it differs because
+/// there is nothing to split: no dual-scalar path can reach this code.
+/// [`Bounds`] is implemented for `f64`, the interval scalar, and the
+/// telemetry probe — never for [`Dual`](crate::Dual), which has no
+/// bracket to offer — and the one production caller
+/// (`editor_core::eval`'s fillet wiring) already sits beneath an
+/// evaluation service whose own signature carries `Bounds` and which
+/// instantiates at `f64` and `Interval` only. A `PropsQuadLane`-style
+/// static lane split would therefore have had an EMPTY refusing side:
+/// a dual impl that refuses a call no dual scalar can make. The seam
+/// is ratified instead, and the day a dual lane wants fillets is the
+/// day the static split earns its keep.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

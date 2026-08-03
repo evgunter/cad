@@ -981,6 +981,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::RingIsOuter { r#loop: ring });
         }
         let shell = old_face_data.shell;
+        let (inherit_surface, inherit_sense) = (old_face_data.surface, old_face_data.sense);
         if !self.shells.contains_key(shell) {
             return Err(EulerOpError::StaleKey {
                 key: EntityId::Shell(shell),
@@ -992,9 +993,20 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): surface (for New), face.
-        let surface = self.mint_face_surface(surface, old_face_data.surface);
+        let surface = self.mint_face_surface(surface, inherit_surface);
+        // Parent-sense inheritance (M5 S12, the same rule as `mef`'s
+        // `mint_loop_and_face`): a ring promoted onto the OLD FACE'S
+        // surface is a region of that same face, so it carries the same
+        // material side; a `New`/foreign `Shared` surface is a different
+        // region and keeps the mint's `true`.
+        //
+        // `surface != inherit_surface || inherit_sense` is the terser
+        // spelling of `mef`'s `if surface == inherit_surface {
+        // inherit_sense } else { true }` (euler.rs) — same truth table,
+        // written inline because there is a single `Face` literal here.
         let face = self.add_face(
             Face {
+                sense: surface != inherit_surface || inherit_sense,
                 surface,
                 outer: ring,
                 rings: vec![],
@@ -1802,6 +1814,7 @@ mod tests {
         edge_data.he_minus = he2;
         let face = body.add_face(
             Face {
+                sense: true,
                 surface,
                 outer,
                 rings: vec![ring],

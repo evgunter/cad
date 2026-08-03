@@ -25,6 +25,19 @@ use crate::dihedral::decide;
 /// faces before calling). Dispatches on the surface kind; `band` is
 /// the run's linear band, built once at operation entry.
 ///
+/// `sense_sign` is the face's `±1` orientation sense (M5 S10,
+/// `topo::Face::sense_sign`). It is **deliberately not applied to
+/// every term**: `A⃗` and the rim-derived `s_f` are recovered from the
+/// face's STORED LOOP TRAVERSAL, which the interior-left rule already
+/// ties to the outward normal — `revert` reverses loops and flips
+/// `sense` together, so multiplying those terms by the sense would
+/// double-count and negate the volume twice. `sense_sign` is consumed
+/// at exactly one place: the **rimless** sphere band, whose boundary
+/// carries no rim to derive `s_f` from and which previously hardcoded
+/// `s_f = +1` on the assumption that sweeps emit outward shells only.
+/// That is the one orientation fact in this module the boundary does
+/// not encode, so it is the one the bit must supply.
+///
 /// # Errors
 ///
 /// [`PropsError`] — unimplemented kinds, out-of-inventory boundary
@@ -32,6 +45,7 @@ use crate::dihedral::decide;
 pub fn curved_face<T: Decide>(
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
+    sense_sign: T,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     match *surface {
@@ -55,7 +69,7 @@ pub fn curved_face<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere(center, radius, axis, outer, band),
+        } => sphere(center, radius, axis, outer, sense_sign, band),
         Surface::Torus {
             center,
             axis,
@@ -158,15 +172,42 @@ struct Rim<T: Real> {
 /// Check all rims agree on `Δu`, metered by `arm` (meters); returns
 /// the face's `Δu`.
 fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, PropsError> {
-    let Some(first) = rims.first() else {
+    if rims.is_empty() {
         return Err(PropsError::NotIsoRectangle {
             what: "curved face without a rim (non-sphere)",
         });
-    };
-    for rim in &rims[1..] {
-        require_zero("props_du_consistent", (rim.dt - first.dt) * arm, band)?;
     }
-    Ok(first.dt)
+    // Group arcs by (rim LEVEL, traversal direction) first (M5 PR 9):
+    // a re-merged or boolean-cut wall's rim legitimately arrives as
+    // SEVERAL arcs per level (a rim run of two arcs after a strut
+    // kev), so the face's Δu is the per-group SUM of spans, required
+    // consistent ACROSS groups — the pre-PR-9 first-arc rule silently
+    // undercounted multi-arc rims. Direction joins the key so the
+    // degenerate zero-extent patch (both rims one level, opposite
+    // traversal) keeps its M2 verdict downstream.
+    let mut groups: Vec<(T, T, T, T)> = Vec::new(); // (lvl0, lvl1, d_u, dt sum)
+    for rim in rims {
+        let mut placed = false;
+        for g in &mut groups {
+            let same0 = classify("props_rim_level_group", (rim.level.0 - g.0) * arm, band)?;
+            let same1 = classify("props_rim_level_group", (rim.level.1 - g.1) * arm, band)?;
+            let same_dir =
+                classify("props_rim_dir_group", (rim.d_u - g.2) * arm, band)? == Sign::Zero;
+            if same0 == Sign::Zero && same1 == Sign::Zero && same_dir {
+                g.3 = g.3 + rim.dt;
+                placed = true;
+                break;
+            }
+        }
+        if !placed {
+            groups.push((rim.level.0, rim.level.1, rim.d_u, rim.dt));
+        }
+    }
+    let total = groups[0].3;
+    for g in &groups[1..] {
+        require_zero("props_du_consistent", (g.3 - total) * arm, band)?;
+    }
+    Ok(total)
 }
 
 /// `s_f` for a linearly-leveled surface (cylinder/cone/sphere): from
@@ -250,12 +291,16 @@ fn cylinder<T: Decide>(
                 });
                 levels.push(v);
             }
-            // An ellipse arc on a wall boundary (a curved-boolean cut,
-            // M5 PR 5) breaks the iso-rectangle patch shape this pass
-            // requires — typed refusal until the PR 11 quadrature lane.
+            // An ellipse arc on a wall boundary (a curved cut, M5
+            // PR 5) breaks the iso-rectangle patch shape THIS pass
+            // requires. The PR 11 quadrature lane handles it — but it
+            // needs the body's stored pcurves, so it lives one layer
+            // up (`topo::mass_properties` routes conic-trimmed
+            // cylinder faces there BEFORE this closed form runs); a
+            // direct key-free call keeps the typed refusal.
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cylinder boundary carries an ellipse arc (curved cut; the quadrature lane lands at M5 PR 11)",
+                    what: "cylinder boundary carries an ellipse arc (curved cut) — route                            through topo::mass_properties, whose PR 11 quadrature lane                            consumes the stored pcurves this key-free pass cannot see",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
@@ -352,7 +397,7 @@ fn cone<T: Decide>(
             }
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (curved cut; the quadrature lane lands at M5 PR 11)",
+                    what: "cone boundary carries an ellipse arc (curved cut) — cone-chart                            pcurves do not mint yet, so the PR 11 quadrature lane has                            nothing to consume here; they arrive with their consumers",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
@@ -392,14 +437,23 @@ fn cone<T: Decide>(
 ///
 /// A face with **no rims** is the two-band construction (M2 PR 5's
 /// axis-touching full revolve): its meridians are verified coplanar
-/// and `Δu = π` **by construction**; `s_f = +1` because M2 sweeps emit
-/// single outward shells only (voids arrive with booleans, M3) — a
-/// rimless band with inward orientation is unrepresentable at rest.
+/// and `Δu = π` **by construction**. Its `s_f` is the **only** flux
+/// sign in this module that the boundary does not encode — with no rim
+/// there is no traversal to read it off, and a rimless band's two
+/// meridians are traversed the same way whichever side is material.
+/// Before M5 S10 it was hardcoded `+1`, justified by "M2 sweeps emit
+/// single outward shells only, so a rimless band with inward
+/// orientation is unrepresentable at rest". S10 makes that
+/// representable — `Face::sense` is exactly the missing bit — so the
+/// hardcode becomes `s_f = sense_sign`. Identical for every face this
+/// build mints (all `sense: true`); the difference is that an inward
+/// rimless band is no longer silently metered as outward.
 fn sphere<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     edges: &[LoopEdge<T>],
+    sense_sign: T,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
@@ -471,7 +525,9 @@ fn sphere<T: Decide>(
             require_zero("props_band_coplanar", n.cross(first).norm() * radius, band)?;
         }
         du = T::pi();
-        s_f = T::one();
+        // The one orientation fact no rim encodes (see the fn docs):
+        // the face's sense IS `s_f` here, not a cross-check of it.
+        s_f = sense_sign;
     } else {
         du = du_of_rims(&rims, radius, band)?;
         s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;
@@ -655,7 +711,7 @@ fn torus<T: Decide>(
     let area = minor * du * (major * dv + minor * (s1 - s0));
     let k = minor
         * du
-        * ((major * major + minor * minor) * (s1 - s0)
+        * ((major.powi(2) + minor.powi(2)) * (s1 - s0)
             + major * minor * dv
             + (major * minor * half) * (dv + s1 * c1 - s0 * c0));
     let va = loop_vector_area(edges, center)?;

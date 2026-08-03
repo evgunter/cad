@@ -21,11 +21,44 @@ become a kernel dependency.
 cd demos/tour
 cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.json
 cd ..
-./render.sh                     # FreeCAD headless (or matplotlib fallback), then montage
+./render.sh                     # kernel-tessellation montage (renders/montage.png)
+./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ```
 
 Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
-`demos/renders/*.png` (tracked — one per scene plus `montage.png`).
+`demos/renders/*.png` (tracked — one per scene plus `montage.png`),
+`demos/renders-freecad/*.png` (tracked — the montage cells plus
+`montage-freecad.png`).
+
+## The two montages (#159)
+
+The tour ships **two montage sheets** with identical grids, captions,
+scene order, and cameras (both read `scenes.json`) — cell-for-cell
+comparable, differing ONLY in whose tessellation is on screen:
+
+- `renders/montage.png` — **the kernel's own facets**. Every cell
+  renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
+  tessellation lane exactly as the kernel emitted it (flat-shaded
+  chords on curved walls and all).
+- `renders-freecad/montage-freecad.png` — **the FreeCAD/OCC reference**
+  (banner on the sheet says so). Every cell is FreeCAD importing the
+  body's OWN AP214 STEP export and letting OCC re-tessellate the
+  B-rep — export → OCC import → render, the F6 lane dogfooded
+  end-to-end.
+
+Reading a disagreement: the STEP lane is the reference rendering of
+the *analytic surfaces the kernel claims to have exported*, and the
+kernel lane is what our own tessellator makes of the same bodies — so
+a cell-level mismatch is a visual differential with exactly two
+suspect pools. Coarse-but-faithful shape (visible facets, correct
+silhouette) is the expected gap: chordal, inscribed tessellation vs
+OCC's finer default deflection. Wrong GEOMETRY in a cell pair —
+missing walls, displaced features, a silhouette that differs beyond
+faceting — means either our tessellator or our STEP writer is lying
+about the same body, and which cell is wrong tells you which. A
+STEP-lane cell can also be a labeled placeholder naming an import/
+render failure (per-scene `freecadcmd` with a timeout; one bad scene
+costs one cell, never the sheet).
 
 ## The stops
 
@@ -36,6 +69,9 @@ Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
+| `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; standalone render |
+| `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
+| `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
 | `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
 | `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
@@ -77,38 +113,74 @@ from `topo::mass_properties`, and cross-checks the tessellation's
 signed volume. Boolean scenes assert exact (dyadic / closed-form)
 volume oracles after EVERY op.
 
+**Staged bodies are RETIRED** (M5 PR 11): `tiltedcut` was the only
+one, gated behind `curvedcut::pin_frontier`'s three
+retire-on-closure panics — all three lanes landed (tier 3's volume
+row, certified mass properties, trimmed tessellation), the pins
+fired, and the stop joined the standard ladder per their own
+instructions. The pattern (pin the honest refusal, name the PR that
+flips it) remains available for the next frontier; `skinned.rs`
+still carries a narration-level pin of the loft-solid frontier.
+
 The tour's coda feeds a self-intersecting (bowtie) profile to
 `Profile::validate` and prints the typed rejection — the fail-loud
 contract, demonstrated rather than claimed.
 
 ## The STEP lane (#88)
 
-Every scene body attempts an AP214 STEP export beside its STL. The
-in-house writer's analytic subset is planes/lines today, so curved
-bodies (bracket, plate, vase, sheave, chute) refuse **typed**
-(`UnsupportedSurface`/`UnsupportedCurve` — the M5 arms), and the tour
-narrates the refusal. All-planar bodies (die, table, silhouettes,
-cross-lap, project box, cutaway halves, heat sinks) export STEP.
+Every scene body exports an AP214 STEP file beside its STL — **all 26
+of them since M5 PR 13**, where the in-house writer's analytic subset
+grew from planes/lines to the whole elementary-surface vocabulary
+(`PLANE`, `CYLINDRICAL_`, `CONICAL_`, `SPHERICAL_`, `TOROIDAL_SURFACE`)
+with `LINE`/`CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS` carriers.
+Every arm is an **exact native entity**: a cylinder leaves as a
+cylinder, never as a spline approximation of one.
+
+Nine tour bodies are curved (bracket, plate, vase, sheave, chute,
+rocker, bossplate, and the two tiltedcut halves); six of them carry
+`same_sense = .F.` faces, the concave-wall bit S11 introduced. All nine
+import into FreeCAD 1.1.2 as valid single-solid shapes whose volumes
+agree with the kernel's own tessellation to within faceting error.
+
+Two typed refusals remain as named frontiers, and no tour body is in
+either: a NURBS **face** (which the loft-assembly unit mints) and a
+multi-shell **curved** solid (whose outward/void classification has no
+closed form yet). The tour still fails loud if a body it expects to
+export does not.
 
 ## Renderers
 
-`render.sh` prefers **headless FreeCAD** (`freecadcmd`,
-`QT_QPA_PLATFORM=offscreen`, no display/Xvfb): one session imports the
-tour's OWN STEP exports — every montage panel of a planar body
-dogfoods the F6 lane end-to-end (export → OCC import → render) — and
-falls back to STL mesh import for the curved bodies. Set `FREECADCMD`
-to override the binary location. All scenes render in one warm
-document with per-scene visibility toggling (per-scene document
-cycling races the offscreen view-provider setup — observed as blank
-frames/hangs). freecadcmd's Qt teardown can crash AFTER a successful
-pass, so `render.sh` keys on the `renders/.freecad_ok` sentinel, not
-the exit status.
+`render.sh` (kernel lane) prefers **headless FreeCAD** (`freecadcmd`,
+`QT_QPA_PLATFORM=offscreen`, no display/Xvfb) importing the tour's STL
+meshes — the facets on screen are the kernel's own tessellation
+regardless of renderer. (Before the #159 split this lane preferred
+STEP imports; once M5 PR 13 made every body export STEP that would
+have turned the "kernel" montage 100% OCC, so the STL source is now
+unconditional and the STEP imports live in the `--freecad` lane.)
+Set `FREECADCMD` to override the binary location. All scenes render
+in one warm document with per-scene visibility toggling (per-scene
+document cycling races the offscreen view-provider setup — observed
+as blank frames/hangs). freecadcmd's Qt teardown can crash AFTER a
+successful pass, so `render.sh` keys on the `renders/.freecad_ok`
+sentinel, not the exit status.
 
-`render.py` is the zero-dependency fallback (numpy + matplotlib, pure
-CPU, demo-local venv): binary-STL parsing, flat shading, exact
-backface culling (guaranteed by tier 3's +V invariant) — and the lane
-that draws OUR tessellation (FreeCAD re-tessellates from the B-rep;
-the STL lane in CI keeps mesh coverage either way).
+`render.sh --freecad` (STEP lane) runs **one `freecadcmd` process per
+scene** under `timeout` (`FREECAD_SCENE_TIMEOUT`, default 300 s) —
+bulk imports have stalled before, and per-scene isolation means a
+stall or import failure costs one cell: the failure reason lands in
+`renders-freecad/<scene>.fail.txt` (full log under
+`out/freecad-logs/`) and `compose_montage.py` draws a labeled
+placeholder cell naming it — never a silent gap. This lane has no
+matplotlib fallback: its whole point is the OCC reference render, so
+a missing `freecadcmd` is a loud exit.
 
-`compose_montage.py` builds `montage.png` from the per-scene PNGs in
-`scenes.json` order with captions, for both render paths.
+`render.py` is the zero-dependency fallback for the kernel lane
+(numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,
+flat shading, exact backface culling (guaranteed by tier 3's +V
+invariant) — the same kernel facets, drawn without FreeCAD (the STL
+lane in CI keeps mesh coverage either way).
+
+`compose_montage.py` builds the montage sheet from the per-scene PNGs
+in `scenes.json` order with captions, for every render path;
+`--montage=NAME` / `--banner=TEXT` give the STEP lane its own filename
+and provenance banner on the same grid.

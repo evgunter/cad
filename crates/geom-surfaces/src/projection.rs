@@ -260,7 +260,7 @@ impl NurbsSurface<f64> {
             let a = j.du.dot(j.du) + j.duu.dot(r);
             let b = j.du.dot(j.dv) + j.duv.dot(r);
             let d = j.dv.dot(j.dv) + j.dvv.dot(r);
-            let det = a * d - b * b;
+            let det = a * d - b.powi(2);
             let step_u = -(d * fu - b * fv) / det;
             let step_v = -(a * fv - b * fu) / det;
             if !step_u.is_finite() || !step_v.is_finite() {

@@ -1043,7 +1043,145 @@ pub fn chart_pcurve<T: Decide>(
             }
         }
         Surface::Cone { .. } => Err(PcurveCertifyError::UnsupportedChart { chart: "cone" }),
-        Surface::Sphere { .. } => Err(PcurveCertifyError::UnsupportedChart { chart: "sphere" }),
+        // The sphere chart (M5 S13): closed forms for exactly the two
+        // azimuth-affine circle classes the die-pips lane consumes —
+        // POLAR circles (carrier plane ⊥ the polar axis: azimuth
+        // `α + β·t`, polar constant) and MERIDIAN-class great circles
+        // (carrier plane contains the polar axis: azimuth constant,
+        // polar `δ + σ·t`). Everything else on a sphere chart is
+        // azimuth-NON-harmonic and refuses typed — never fitted (C5).
+        //
+        // Consumed UNCERTIFIED by selection-time window derivation only
+        // (`run_azimuth_window`'s documented posture): sphere charts
+        // still mint no caches and `run_pcurve_checks` still refuses
+        // the chart. The meridian arm's polar channel is the principal
+        // branch (v ∈ [−π/2, π/2], pole endpoints included); an arc
+        // whose interior crosses a pole leaves the branch and its `.y`
+        // channel is NOT a chart image there — the azimuth channel
+        // (all any consumer of this arm reads) stays exact.
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => {
+            // Structural carrier gate: only circles lie on a sphere.
+            if !matches!(carrier, Curve3::Circle { .. }) {
+                return Err(PcurveCertifyError::UnsupportedCarrier);
+            }
+            let cv = axis.cross(u_ref);
+            let w = form.c - center;
+            let (aa, ba, wa) = (form.a.dot(axis), form.b.dot(axis), w.dot(axis));
+            let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+            let (a_r, b_r, w_r) = (radial(form.a), radial(form.b), radial(w));
+            let esc = |cause| PcurveCertifyError::Escalated {
+                check: PcurveCheck::ChartWinding,
+                sample: 0,
+                cause,
+            };
+            // Branch-stabilized azimuth (M5 S13): atan2's cut sits on
+            // the negative-x axis, and an interval y touching zero
+            // there (a seam meridian's angle-π copy) explodes the
+            // enclosure to a full period even though every consumer
+            // reads azimuth mod τ. On a definitely-negative-x frame
+            // the same angle is atan2(−y, −x) + π. The frame trilean
+            // chooses between two identical formulas; degenerate and
+            // in-band arms keep the direct one (tie-break, D9).
+            let stable_az = |y: T, x: T| -> T {
+                match decide("pcurve_sphere_chart_frame", x, band) {
+                    Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
+                    Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
+                }
+            };
+            // Which class: does the carrier plane contain the polar
+            // axis' direction? (Metered in meters at the chart radius.)
+            match decide("pcurve_sphere_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)? {
+                Sign::Zero => {
+                    // POLAR-circle class: a,b ⊥ axis. On the sphere the
+                    // center then sits on the axis (its radial part is
+                    // zero) — checked, not assumed.
+                    match decide("pcurve_sphere_chart_centered", w_r.norm(), band).map_err(esc)? {
+                        Sign::Zero => {}
+                        Sign::Positive | Sign::Negative => {
+                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                        }
+                    }
+                    let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
+                    let orient = a_r.cross(b_r).dot(axis);
+                    let beta = match decide("pcurve_chart_orientation", orient / radius, band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        Sign::Zero => T::zero(),
+                    };
+                    let polar = (wa / radius).asin();
+                    Ok(Pcurve::Harmonic {
+                        p0: Point2::new(alpha, polar),
+                        pa: Vec2::new(T::zero(), T::zero()),
+                        pb: Vec2::new(T::zero(), T::zero()),
+                        pl: Vec2::new(beta, T::zero()),
+                    })
+                }
+                Sign::Positive | Sign::Negative => {
+                    // MERIDIAN class: the carrier plane must contain the
+                    // axis (its own axis ⊥ polar) and be centered.
+                    let coax = form.a.cross(form.b).dot(axis) / radius;
+                    match decide("pcurve_sphere_chart_meridian", coax, band).map_err(esc)? {
+                        Sign::Zero => {}
+                        Sign::Positive | Sign::Negative => {
+                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                        }
+                    }
+                    match decide("pcurve_sphere_chart_centered", w.norm(), band).map_err(esc)? {
+                        Sign::Zero => {}
+                        Sign::Positive | Sign::Negative => {
+                            return Err(PcurveCertifyError::UnsupportedCarrier);
+                        }
+                    }
+                    // v(t) = σ·t + δ with sin δ = aa/r, cos δ = ‖a_r‖/r
+                    // (principal branch), and the constant azimuth
+                    // direction d̂ read off whichever radial part is
+                    // structurally nonzero.
+                    let delta = aa.atan2(a_r.norm());
+                    let use_a = match decide("pcurve_sphere_chart_pole_frame", a_r.norm(), band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive | Sign::Negative => true,
+                        Sign::Zero => false,
+                    };
+                    let d_hat = if use_a {
+                        a_r / a_r.norm()
+                    } else {
+                        b_r / b_r.norm()
+                    };
+                    // σ: the polar rate at t = 0 is v′(0) = σ, and
+                    // e′(0)·axis = ba, with e·axis = r·sin v ⇒
+                    // ba = r·cos δ·σ. At a pole start (cos δ = 0) the
+                    // radial consistency b_r = −σ·sin δ·r·d̂ decides
+                    // instead. Both margins metered in meters.
+                    let sigma_margin = if use_a {
+                        ba
+                    } else {
+                        T::zero() - b_r.dot(d_hat) * aa / radius
+                    };
+                    let sigma = match decide("pcurve_sphere_chart_polar_rate", sigma_margin, band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                    };
+                    let alpha = stable_az(d_hat.dot(cv), d_hat.dot(u_ref));
+                    Ok(Pcurve::Harmonic {
+                        p0: Point2::new(alpha, delta),
+                        pa: Vec2::new(T::zero(), T::zero()),
+                        pb: Vec2::new(T::zero(), T::zero()),
+                        pl: Vec2::new(T::zero(), sigma),
+                    })
+                }
+            }
+        }
         Surface::Torus { .. } => Err(PcurveCertifyError::UnsupportedChart { chart: "torus" }),
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
             chart: "Nurbs (representable-unimplemented)",
@@ -1451,6 +1589,9 @@ mod tests {
     /// arriving PR — never a silent fallback (C5).
     #[test]
     fn frontier_charts_refuse_typed() {
+        // CONSTRUCTION arm, flipped from the sphere-chart refusal pin
+        // (M5 S13; the S9 pattern): the equator on its own sphere
+        // chart is the closed-form azimuth-linear image u = t, v = 0.
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: 1.0,
@@ -1463,10 +1604,33 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let err = chart_pcurve(&carrier, &sphere, band()).unwrap_err();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &sphere, band()).unwrap();
+        assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);
+        assert!((pl.x - 1.0).abs() < 1e-15 && pl.y.abs() < 1e-15);
+        assert!(pa.x.abs() < 1e-15 && pa.y.abs() < 1e-15);
+        assert!(pb.x.abs() < 1e-15 && pb.y.abs() < 1e-15);
+        // What stays refused on the sphere chart, TYPED: a tilted
+        // small circle's azimuth is non-harmonic — never fitted (C5).
+        let tilt = 0.6_f64;
+        let tilted = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+            radius: 1.0,
+            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+        };
+        let err = chart_pcurve(&tilted, &sphere, band()).unwrap_err();
+        assert!(matches!(err, PcurveCertifyError::UnsupportedCarrier));
+        // And the cone chart keeps the frontier refusal verbatim.
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let err = chart_pcurve(&carrier, &cone, band()).unwrap_err();
         assert!(matches!(
             err,
-            PcurveCertifyError::UnsupportedChart { chart: "sphere" }
+            PcurveCertifyError::UnsupportedChart { chart: "cone" }
         ));
         assert!(err.to_string().contains("PR 7"));
     }

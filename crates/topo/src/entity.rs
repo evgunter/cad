@@ -231,11 +231,44 @@ pub struct Shell {
 /// (GWB keeps `flout` as a member of `floops`), so "every loop owned
 /// exactly once across all faces, counting outer and rings" is a plain
 /// partition check with no self-overlap special case.
+///
+/// **Orientation sense** (M5 S10, ratified as option (a) over
+/// `Surface::Reversed` / NURBS conversion / negative-radius spheres):
+/// the face's *outward normal* is its surface's chart normal times the
+/// sign of [`Face::sense`]. Before S10 the outward normal simply WAS
+/// the chart normal, which left `revert` with nothing to write on a
+/// curved face — the analytic chart normals are outward for either sign
+/// of the radius (cyl/cone/torus: odd in r) or outward exactly under
+/// the ratified `radius > 0` convention (sphere: even in r). The bit
+/// moves the reversal into topology, where it is exact structure and
+/// never a numeric decide.
 #[derive(Clone, Debug)]
 pub struct Face {
     /// The surface this face is a region of (D2: faces reference
     /// surfaces).
     pub surface: SurfaceKey,
+    /// Orientation sense: `true` iff the material side agrees with the
+    /// surface's chart normal (i.e. the face's outward normal is `+n`);
+    /// `false` iff it is reversed (outward normal `-n`).
+    ///
+    /// **Writers (M5 S11).** The Euler operators mint `sense: true`
+    /// (the material side is not op-level knowledge — `mef` sees two
+    /// chords, not the profile); constructors attach the honest bit
+    /// through [`crate::Body::set_face_sense`] wherever the chart
+    /// normal points into material, decided from the profile's stored
+    /// winding/turn structure, never numerically: extrude's concave
+    /// arc walls, and a revolve's inward walls (bore cylinder, inward
+    /// cone, under-side plane annulus, concave sphere/torus band). The
+    /// remaining writer-to-be is curved [`crate::Body::revert`] (the
+    /// follow-on unit), which flips every face of a body at once.
+    /// Consumers are audited and threaded as of S10; the test-only
+    /// door [`crate::Body::flipped_face_sense_for_tests`] exercises
+    /// the *incoherent* single-face flip.
+    ///
+    /// STEP alignment: this is exactly `advanced_face.same_sense`
+    /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes
+    /// directly rather than deriving.
+    pub sense: bool,
     /// The outer boundary loop (see the type docs: a maintained
     /// designation). Not a member of `rings`.
     pub outer: LoopKey,
@@ -246,6 +279,23 @@ pub struct Face {
     /// Back-pointer to the owning shell (validated against
     /// [`Shell::faces`]).
     pub shell: ShellKey,
+}
+
+impl Face {
+    /// The face's **outward-normal sign**: `+1` when [`Face::sense`] is
+    /// `true` (material side agrees with the surface's chart normal),
+    /// `-1` when it is `false`. The face's outward normal at a point is
+    /// `sense_sign() * chart_normal(u, v)`.
+    ///
+    /// Exact structure, not a numeric decision: the sign is *selected*
+    /// by a `bool`, so no comparison, no tolerance, and nothing for the
+    /// k-lint to flag. `Interval` instantiations get an exact `±1`
+    /// (`Real::one()` is exact in every backend), so a sense flip is a
+    /// bitwise sign change, never a widening.
+    #[must_use]
+    pub fn sense_sign<T: geom_core::Real>(&self) -> T {
+        if self.sense { T::one() } else { -T::one() }
+    }
 }
 
 /// The boundary state of a loop: a genuine cycle of half-edges, or the

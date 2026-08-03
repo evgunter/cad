@@ -39,9 +39,13 @@ fn route_inventory() {
         (Plane, Plane, Rung::Closed, true),
         (Plane, Cylinder, Rung::Conic, true),
         (Plane, Cone, Rung::Conic, true),
-        (Plane, Sphere, Rung::Closed, false),
+        // M5 S13 retired this arm: the closed-form Circle
+        // (plane_sphere_section — the die-pips join lane's row).
+        (Plane, Sphere, Rung::Closed, true),
         (Plane, Torus, Rung::General, false),
-        (Plane, Nurbs, Rung::General, false),
+        // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
+        // PR 7 plus the tensor-composite sup bound for limb 2.
+        (Plane, Nurbs, Rung::General, true),
         (Cylinder, Cylinder, Rung::Conic, true),
         (Cylinder, Cone, Rung::General, false),
         // M5 PR 7 retired this arm: the ℝ³ implicit-pair march, all
@@ -782,4 +786,109 @@ fn pn_axis_normal_in_band_escalates() {
         panic!("expected escalation, got {err:?}");
     };
     assert_eq!(diag.predicate, Some("pn_axis_normal"));
+}
+
+// ---------------------------------------------------------------------
+// plane × sphere (M5 S13 — the die-pips row)
+// ---------------------------------------------------------------------
+
+fn sphere_at(c: Point3<f64>, r: f64) -> Surface<f64> {
+    Surface::Sphere {
+        center: c,
+        radius: r,
+        axis: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// The definite cut is the exact Circle — center at the sphere
+/// center's plane foot, radius √(r² − s²), axis the plane normal —
+/// and the residual is identically zero in ℝ against BOTH surfaces,
+/// attacked with a tilted plane (the review charter's angle).
+#[test]
+fn plane_sphere_cut_is_the_exact_circle_zero_residual() {
+    use geom_brep::intersect::{PlaneSphereSection, plane_sphere_section};
+    let sph = sphere_at(Point3::new(1.0, 2.0, 3.0), 2.0);
+    // Deliberately tilted: normal nowhere near a chart axis.
+    let n = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.5, 1.0, 2.0),
+        normal: n,
+        u_ref: Vec3::new(2.0, 2.0, 1.0) / 3.0,
+    };
+    let s = plane_sphere_section(&plane, &sph, band()).unwrap();
+    let PlaneSphereSection::Circle(c) = s else {
+        panic!("expected the circle, got {s:?}");
+    };
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        ..
+    } = c
+    else {
+        panic!("carrier is a circle");
+    };
+    let gap = (Point3::new(1.0, 2.0, 3.0) - plane_origin(&plane)).dot(n);
+    assert!((radius - (4.0 - gap * gap).sqrt()).abs() < 1e-12);
+    assert!(axis.dot(n) > 0.999_999);
+    assert!(implicit_residual(&plane, center).abs() < 1e-12);
+    for k in 0..17 {
+        let p = c.eval(0.37 * k as f64);
+        assert!(
+            implicit_residual(&plane, p).abs() < 1e-12,
+            "plane residual at sample {k}"
+        );
+        assert!(
+            implicit_residual(&sph, p).abs() < 1e-12,
+            "sphere residual at sample {k}"
+        );
+    }
+}
+
+fn plane_origin(p: &Surface<f64>) -> Point3<f64> {
+    let Surface::Plane { origin, .. } = p else {
+        panic!("plane")
+    };
+    *origin
+}
+
+/// The `ps_center_gap` trilean trio: definite cut / exact tangency
+/// (a POINT, classification data — C7, never a carrier) / definite
+/// empty — and the in-band twin of all three escalates typed (F6),
+/// the two-tolerance pair on one named predicate.
+#[test]
+fn plane_sphere_gap_trilean_trio() {
+    use geom_brep::intersect::{PlaneSphereSection, plane_sphere_section};
+    let sph = sphere_at(Point3::new(0.0, 0.0, 0.0), 1.0);
+    let plane_z = |z: f64| Surface::Plane {
+        origin: Point3::new(10.0, -3.0, z),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    // Definite cut.
+    assert!(matches!(
+        plane_sphere_section(&plane_z(0.25), &sph, band()).unwrap(),
+        PlaneSphereSection::Circle(_)
+    ));
+    // Exact tangency: the point, at the pole.
+    let s = plane_sphere_section(&plane_z(1.0), &sph, band()).unwrap();
+    let PlaneSphereSection::TangentPoint(p) = s else {
+        panic!("expected the tangent point, got {s:?}");
+    };
+    assert!(p.x.abs() < 1e-15 && p.y.abs() < 1e-15 && (p.z - 1.0).abs() < 1e-15);
+    // Definite empty.
+    assert!(matches!(
+        plane_sphere_section(&plane_z(1.5), &sph, band()).unwrap(),
+        PlaneSphereSection::Empty
+    ));
+    // In-band: |s| = r + 3ε — neither tangent nor clear; escalated.
+    let err = plane_sphere_section(&plane_z(1.0 + 3.0 * eps()), &sph, band())
+        .expect_err("in-band gap must escalate");
+    let SectionError::Escalated(_) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    // Wrong-lane kinds refuse typed.
+    let err = plane_sphere_section(&sph, &sph, band()).expect_err("wrong lane");
+    assert!(matches!(err, SectionError::WrongLane { .. }));
 }

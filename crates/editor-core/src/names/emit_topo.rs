@@ -28,7 +28,23 @@ struct Side<'a, T: Decide> {
     half: SplitHalf,
 }
 
-/// The operand-face plane (result carriers are the N2 references).
+/// The operand-face plane, **oriented outward** (result carriers are
+/// the N2 references).
+///
+/// S10 CATEGORY A: the returned normal is the face's outward normal,
+/// `Face::sense_sign() · chart_normal`, not the raw chart normal.
+/// Every consumer uses the direction as an *oriented reference* whose
+/// sign lands in a stable name — [`side_of_face`] turns it into a
+/// `Qualifier::SideOf` verdict vector, and `n_a × n_b` orients the
+/// carrier [`order_along`] ranks fragments along
+/// (`Qualifier::OrderAlong`). Reading the chart normal raw would let a
+/// sense flip silently swap Positive↔Negative and reverse every rank,
+/// renaming fragments that did not move: an N4 covariance break, since
+/// a face's orientation sense is part of the geometry names are
+/// covariant *with*, not a private encoding detail the naming layer
+/// may ignore. The sign is exact structure (a `bool` selecting `±1`),
+/// so no new numeric decision enters here, and every face this build
+/// mints has `sense: true` — the multiply is `· 1` and no name moves.
 fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<T>), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let face = body
@@ -38,7 +54,7 @@ fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<
         .get_surface(face.surface)
         .ok_or_else(|| bug("face_plane: dangling surface"))?
     {
-        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal)),
+        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal * face.sense_sign())),
         _ => Err(bug("face_plane: non-planar carrier in planar pipeline")),
     }
 }
@@ -876,6 +892,14 @@ fn name_boolean_edges<T: Decide>(
         // Collinear chain: order along the pair's intersection line,
         // oriented n_a × n_b (the carriers' own orientations, A side
         // first — descent decides which is which, never list order).
+        //
+        // The SIGN of `dir` is load-bearing, not just its axis:
+        // `edge_extent` projects onto it and `order_along` ranks by
+        // that signed parameter, so negating `dir` reverses every
+        // `OrderAlong` rank and renames the whole chain. Hence
+        // `face_plane` returns OUTWARD normals (S10 category A): the
+        // orientation of this line is a fact about the two faces'
+        // material sides, and it must move only when they do.
         let faces = inc
             .edge_faces
             .get(&edges[0])
@@ -1299,6 +1323,11 @@ fn name_split_faces<T: Decide>(
         }
         // Same-side multiplicity: order along the parent's section
         // line, oriented n_parent × n_tool (both recipe-covariant).
+        // Sign-dependent, as in the seam-chain case above: ranks
+        // reverse with `dir`. `n_parent` is the parent face's OUTWARD
+        // normal (S10 category A, via `face_plane`); `tool_normal` is
+        // the split plane's own oriented normal, a recipe parameter
+        // carrying no face sense.
         let (_, n_parent) = face_plane(target_body, root)?;
         let dir = n_parent.cross(tool_normal);
         let body = members

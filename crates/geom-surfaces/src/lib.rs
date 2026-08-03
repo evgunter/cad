@@ -903,7 +903,7 @@ mod tests {
                     Surface::Sphere { radius, .. } => d.norm() - radius,
                     Surface::Torus { major_radius, minor_radius, .. } => {
                         let dr = rho - major_radius;
-                        (dr * dr + along * along).sqrt() - minor_radius
+                        (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
                     }
                     Surface::Nurbs(_) => 0.0,
                 };
@@ -1212,7 +1212,7 @@ mod tests {
             };
             for (uu, vv) in [(0.0, 0.0), (0.7, 0.4), (-3.0, 1.2), (100.0, -0.9)] {
                 let p = sphere.eval(Interval::from_f64(uu), Interval::from_f64(vv));
-                let res = (p - center).norm_squared() - r * r;
+                let res = (p - center).norm_squared() - r.powi(2);
                 assert!(contains(res, 0.0), "sphere residual at ({uu}, {vv})");
                 assert!(res.hi() - res.lo() < 1e-12);
             }
@@ -1231,7 +1231,7 @@ mod tests {
                 let p = cyl.eval(Interval::from_f64(uu), Interval::from_f64(vv));
                 let d = p - origin;
                 let rho2 = d.norm_squared() - d.dot(axis).powi(2);
-                let res = rho2 - r * r;
+                let res = rho2 - r.powi(2);
                 assert!(contains(res, 0.0), "cylinder residual at ({uu}, {vv})");
             }
         }

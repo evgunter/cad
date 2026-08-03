@@ -78,7 +78,7 @@ use super::ops::{
     merge_rows, remap_carried, remap_contacts, volume_backstop,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
-use super::reduce::{face_plane, face_source};
+use super::reduce::{face_plane, face_plane_source};
 use super::zip::{ZipReport, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
@@ -466,9 +466,15 @@ fn verify_declared_pairs<T: Decide>(
         let pb = face_plane(b, fb).ok_or(BooleanError::ClassificationInvariant {
             what: "REST lane: declared B face lost its plane",
         })?;
+        // Oriented sources (S10): the descriptions being compared are
+        // the two faces' OUTWARD normals, so rung 1's `orient` tags
+        // must carry the face senses too — REST contact is precisely
+        // the SameOpposite verdict, and a same-source pair whose only
+        // difference IS the sense bit is exactly such a contact.
+        let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
         let id = PlaneIdentity {
-            s1: face_source(a, fa),
-            s2: face_source(b, fb),
+            s1: ga.as_ref(),
+            s2: gb.as_ref(),
             declared: true,
         };
         // Verification arm: 1 m — the declared rung contradicts only

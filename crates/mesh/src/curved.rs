@@ -87,6 +87,19 @@ pub(crate) fn tessellate_curved(
         let n = &polygon[(i + 1) % polygon.len()];
         area2 += e.u * n.v - n.u * e.v;
     }
+    // S10 CATEGORY B — do NOT multiply by the face's `sense_sign`.
+    // `area2` is the UV shoelace of the boundary walk, so its sign is
+    // derived entirely from the loop's STORED TRAVERSAL order, which
+    // interior-left already ties to the face's outward normal: the
+    // polygon runs CCW in the chart's UV plane iff the outward normal
+    // agrees with the chart normal, i.e. iff `sense`. A reversed face
+    // therefore lands here with a negative `area2` and flips, which is
+    // exactly right. `revert` reverses the loops AND flips `sense`
+    // together, so multiplying would double-count the reversal and
+    // emit inward-wound triangles. (The one place the sense IS read on
+    // this path is the pole-to-pole band's azimuth in `walk` — that
+    // reads a DIRECTION in the chart frame, not a winding, and the two
+    // reads do not overlap.)
     let flip = area2 < 0.0;
 
     // Grid steps per kind (module docs).

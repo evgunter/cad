@@ -196,7 +196,7 @@ pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
-pub use props::{MassProperties, MassPropsError, mass_properties};
+pub use props::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
@@ -209,6 +209,6 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
-    CensusContact, StaleDeclaration, ValidationError, validate, validate_closed,
-    validate_geometric, validate_pseudomanifold,
+    CensusContact, ContactMark, StaleDeclaration, ValidationError, contact_marks, validate,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };

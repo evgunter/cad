@@ -1531,6 +1531,1448 @@ draw (byte 172, coin 1) = (fable, opus) → PR 7b = FABLE (slot 1),
 OPUS remainder owed to the next unit (PR 10 or S4). Two cargo
 lanes = at cap; reviews stagger behind implementations.
 
+## PR 10 (2026-08-01): sweeps/lofts as definitional feature nodes; schema v2
+
+Branch `ev/m5-pr10-sweeps-lofts`. Spec `docs/M5-PR10-SPEC.md`
+(binding). Shipped §1 (the `Loft`/`Sweep` node vocabulary), §2
+(the §10.3/§10.4 definitional geometry) and §4 (the schema-v2
+clean break) in full; §3/§5's SOLID is frontier-blocked and the
+refusal is pinned, not skipped.
+
+**Schema v2, as landed.** `SCHEMA_VERSION = 2`. The migration
+chain became a real (empty) step TABLE, `migration_step(from) ->
+Option<MigrationStep>`, so "no step exists" is one fact in one
+place; the loader walks it for AVAILABILITY before it parses a
+byte of body, and a gap raises the new typed
+`PersistError::SchemaTooOld { found, supported, missing }`. Its
+message names all three and ends on the one shared
+`REGENERATE_RECOURSE` carrier, composed exactly once (version
+comparison is exact integer arithmetic, so the arm has no in-band
+twin and the two-tolerance discipline explicitly does not apply —
+stated in the docs so the omission reads as a decision).
+`PersistError` gained a full `Display`/`Error` impl on the way.
+The single in-tree v1 file (`tests/golden/v1_golden.cad`) was
+REGENERATED as `v2_golden.cad` and the v1 bytes were KEPT — as
+the refusal fixture, because a break nobody can demonstrate is a
+break nobody can trust.
+
+**The geometry.** `sweep::skin` (numbered deviation 1: it lives
+in `sweep`, not `geom-surfaces`, because `geom-surfaces`
+deliberately does not depend on `geom-curves`). Exact analytic →
+NURBS section conversion (lines degree 1; arcs the standard
+rational quadratic split into quarter-turn sub-arcs — the carrier
+circle, not a fit of it); §5.5 degree elevation + §5.3 knot
+merging for compatibility; §10.3 skinning as ONE homogeneous ℝ⁴
+collocation solve through the new
+`geom_curves::fit::interpolate_columns` (all columns as
+simultaneous right-hand sides, so they cannot drift relative to
+each other); §10.4 by instantiate-and-skin with a path-FOLLOWING
+frame that refuses typed on a reversing tangent. Structure
+selection is `f64` and the produced surface lifts to any scalar
+(`lift_surface`) — Q8 says the control bits ARE the definition,
+so every lane encloses the same surface.
+
+**The frontier (numbered deviation 2).** §3 asks the lofted body
+to validate at tier 3. It cannot at this PR's merge time and the
+blocker is not this PR's geometry: `topo`'s tier-3 check 1
+refuses `Surface::Nurbs` BY KIND (`UncertifiableSurface`) and
+`geom_brep::EdgeCurve::certify` refuses NURBS carriers and
+NURBS-naming descriptions as `Unimplemented`. That flip is PR 9's
+charter, verbatim (`docs/M5-PR9-SPEC.md:36`: "`EdgeCurve::
+certify`'s Nurbs-carrier refusal FLIPS — this PR mints the
+kernel's first rung-3 edges at rest"), and PR 10's own spec says
+it does not depend on PR 9. So the node BUILDS its definitional
+walls and then refuses
+`NodeErrorKind::CurvedSolidFrontier { what }` — a named
+sub-frontier on the `RestZipUnsupported` precedent — and
+`sweep/tests/m5_pr10_frontier.rs` DEMONSTRATES the blocker on a
+real tier-3-valid extrusion with one wall's surface swapped for a
+real skinned NURBS. Consequences: shape (iii)'s loft-body row,
+the plane-CUT-of-loft row, the Band 4 corpus row and the render
+all move to the PR that closes the frontier; the corpus tally's
+`NODE_KINDS` gained `Loft`/`Sweep` so they report at ZERO rather
+than reading as covered. The demo stop
+(`demos/tour/src/skinned.rs`) narrates and MEASURES the walls,
+then pins the frontier with a retire-on-closure panic carrying
+the flip instructions — the `curvedcut` pattern.
+
+### PR 10 fix pass (2026-08-01)
+
+Review APPROVE-WITH-FIX-PASS, 1 MAJ / 4 MIN / 4 NOTE, rubric 5/4/4.
+The math held under independent attack: the skinning matched a
+closed-form rational loft BETWEEN sections, Eq. 10.8 matched an
+independent derivation exactly (including the cross-row average and
+the pinned-row abstention), the schema break survived all eight header
+attacks, and Interval containment held on a dense grid over both loft
+and swept walls. All four reviewer probe files were ADOPTED into the
+PR (`review_m5_pr10*.rs`, 21 rows) and extended.
+
+**MAJOR-1, the Sweep node's dead lane.** `wire_sweep` carried a
+single-segment path lane that CANNOT run: a `Node::Sweep`'s path
+operand is a profile, a validated profile's loop is closed, and a
+closed chain has ≥ 2 segments — even the minimal two-vertex loop is
+two half-turn arcs. The reviewer's executed witness refused on both a
+rectangle path and that minimal circle. Ruled: collapse rather than
+invent expressibility. The node now runs every RECIPE door (both
+structural slots, both operands) and then refuses ONE arm naming a
+joined-path composition lane — no PR number, because none is
+scheduled to build one. `sweep::sweep_geometry` stays live and
+exercised through the library API, the demo stop and the acceptance
+suites; it is the NODE lane that is gated.
+
+**MIN-1, dead error arms.** `SkinError::Escalated` was never
+constructible — this module makes no banded decisions, every
+comparison in it is exact-`f64` structure selection (C6) — so it was
+DELETED rather than advertised. `DegenerateSection`'s docs now say
+where the banded half of its user situation actually lives
+(`profile::validate`'s `vertex_separation` /
+`segment_straightness` / `arc_diameter_clearance`, one layer up) and
+why it still names that door's recourse. `OpenClosedMixed` was wired
+GENUINELY: `loft_geometry` now compares chain closure per loop across
+sections and refuses when they disagree, with the loop index and the
+expected closure in the payload. Reachable at the library door (a raw
+`SectionSegments` chain can be open) though not at the recipe layer;
+rows for both orientations.
+
+**MIN-2, the tangent claim.** "A reversing tangent refuses typed" was
+false in float: at an exact half-turn `|t₀ × t₁|` evaluates to
+≈ 1.2e-16, so the anti-parallel arm does not fire and the frame is
+built from an ill-conditioned axis. Doc and log now claim only what is
+true — a VANISHING tangent refuses — and the knife edge carries a C6
+comment. No band was asserted: `sin` is a dimensionless sine, not a
+length, and converting it needs a lever arm this construction does not
+have (D4 ¶1 forbids inventing one). Two rows pin the executed
+behaviour, and the half-turn row FAILS LOUDLY the day a real angular
+predicate lands.
+
+**MIN-3/MIN-4.** Spec §2's numbered note on dense-collocation size
+limits landed as deviation 5 (below). `interpolate_columns`'s ragged
+rows got a shaped `FitError::RaggedRows { row, width, found }` instead
+of widths stuffed into `ParamCountMismatch`'s parameter/point fields.
+
+**NOTE.** The break's honest edge is now stated in `persist`'s module
+docs and pinned: v2 changed the VOCABULARY, not the wire format, so a
+hand-edited `schema: 2` header over a v1 body loads. Inherent to a
+break with no format change; not a gap the door can close.
+
+**Deviations, complete (3–5 backfilled).** 1: `skin` lives in `sweep`,
+not `geom-surfaces` (which deliberately does not depend on
+`geom-curves`). 2: no tier-3 loft body; the frontier is pinned and
+demonstrated. 3: the construction is `f64`-structure + `T`-lift, not
+`T`-generic — fitting is `f64`-only across this codebase by design and
+Q8 makes the control bits data, so "evaluation generic over `Real`"
+means evaluation, not construction. 4: the Sweep NODE is fully
+frontier-gated (was: "single-segment paths only" — retracted at the
+fix pass as unreachable). 5: the §10.3 solve is DENSE — `k × k` in the
+section count, `O(k³)` plus `O(k²·n)` substitutions, no banded solver
+because PR 4's stack provides none; realistic lofts sit at `k` in the
+single digits to low tens where this is unmeasurable, and banding
+starts to matter around `k` in the high hundreds (M7 scattered-data
+territory). The matrix IS banded at half-bandwidth `q`, so the upgrade
+is a solver swap behind the same entry.
+
+**Post-merge correction.** PR 9 (#152) merged during this fix pass and
+partially opened the NURBS-carrier door — `EdgeCurve::certify` now
+accepts a NURBS carrier under an `Intersection`/`TangentIntersection`
+description of two ANALYTIC surfaces. Tier 3's `Surface::Nurbs` KIND
+gate is untouched, and NURBS-naming descriptions plus NURBS carriers
+under CONVENTIONAL descriptions — exactly a loft's iso-parameter seams
+— still refuse. Both frontier messages were rewritten to that truth
+rather than left to describe a main that no longer exists.
+
+## PR 9c (2026-08-01): the banked curved-boolean completions — item 1's
+## containment/pierce half lands; items 2–6 return executed blockers
+
+Binding spec: `docs/M5-PR9C-SPEC.md` (six banked lanes). Branch
+`ev/m5-pr9c-completions` from #151/#152's merged main (2c17686).
+
+**Landed.** The SPHERE containment/pierce doors of
+`topo::boolean::point_in_solid` (spec item 1's second half). `face_geo`
+resolved `{Plane, Cylinder}` only; a sphere operand could not be
+classified at all, which is the door the cylinder×sphere arm stands on.
+The arm covers the CLOSED sphere class and says so structurally: the
+faces sharing one sphere surface must close on each other (every
+boundary edge's mate lands on a face of the same surface), which makes
+their union the whole chart and removes the need for a per-face chart
+trim. That is exactly what the M5 inventory mints — the `ball`
+acceptance's V2 E2 F2, two half-bands on ONE sphere key joined along
+the seam meridian and its angle-π copy — and it is why a per-FACE
+fullness test (the first design, "every boundary edge is this face's
+own `Seam`") was wrong: no M5 body has such a face. Arms act only for
+the group's representative face, so one sphere folds exactly one
+crossing pair per ray; a per-face arm would fold the same root twice
+and tie itself into a permanent graze.
+
+Predicates added (K funnel, metres): `bool_ray_sphere_disc` — the
+ray/sphere discriminant metered as a length (`disc / 2r`; `√disc` is
+the half-chord). Zero ⇒ tangent ray ⇒ graze/retry; Negative ⇒ definite
+miss. The outward sign at each root needs NO second predicate:
+`d·(p − c)/r = (w·d + t)/r = ±√disc/r`, so the near root enters and the
+far root exits, read off the discriminant already decided definite. The
+boundary pre-pass reuses `bool_point_in_solid_plane` on the linearized
+radial residual `(|q − c|² − r²)/2r`, the same metre-valued form the
+cylinder arm and the certification layer classify. Both squares go
+through `powi(2)` (interval-square-poison rule — these straddle zero on
+a probe near the wall).
+
+`PointInSolidError::PartialSphereFace` is the new typed refusal, and it
+is RE-PINNED as its own construction row (the S9 flip pattern): a
+partial revolve caps the sphere band with planar fan walls, the group
+stops closing, and the door refuses rather than guessing where the trim
+runs. Its message carries the two-tolerance shape for a DEFINITE arm —
+it states that the arm is structural (an exact-`f64` scan of arena keys
+and mate adjacency, C6), has no in-band twin, does not move with ε, and
+names the recourse.
+
+**Deviations (numbered, with the executed blocker).**
+
+1. **Item 1's fitted-chord join lane is NOT landed.** Only the
+   containment/pierce doors are. The germ-pair join dispatch
+   (`boolean/join.rs:402`) wires exactly one arm, `(Plane, Cylinder)`,
+   through `JoinLane::BoolPlanar` with an azimuth window from
+   `face_azimuth_window`. A cyl×sphere arm needs its own window analog,
+   and the blocker under it is deviation 2: fitted carriers have no
+   closed-form chart image, so `chart_pcurve` — which
+   `run_azimuth_window` calls per run edge — refuses them, and there is
+   no stored pcurve to read instead until `Pcurve::Fitted` exists.
+
+2. **Item 2 (`Pcurve::Fitted`) is blocked on the SSI enclosure
+   machinery being `f64`-only.** The storage half is small (the
+   `Copy`-drop ripple is ~35 sites: `pcurve_cache.rs` 24, `topo/body.rs`
+   7, `topo/pcurves.rs` 2) and the sampled-residual limb
+   (`|S(P(tᵢ)) − C(tᵢ)|`) is already generic over `T`. What is not: the
+   BETWEEN-SAMPLES envelope. `PcurveCache::recertify` must RE-DERIVE the
+   whole certificate at rest — never trust the stored one — and for a
+   fitted pcurve the only honest envelope is the C2.2 hull bound the
+   spec names, which is computed by `ssi::enclose`/`ssi::certify`. Those
+   are `f64`-only by type (`Box3` is built on `Point3<f64>`;
+   `NurbsSurface::project` is `impl NurbsSurface<f64>`). Admitting
+   `Pcurve::Fitted` therefore requires first lifting the SSI enclosure
+   stack to `T: Real`, or accepting an f64-only certification lane that
+   silently dies in the Interval lane. Neither is a PR 9c edit; sized as
+   its own unit.
+
+3. **Item 3 (curved revert) is blocked on there being NO representation
+   for an orientation-reversed curved surface.** This is the deepest of
+   the five and it is not a sizing miss — it is a contract gap. A face's
+   outward normal IS its surface's chart normal (`topo::Face` carries no
+   sense flag), and the per-kind statement is (SCOPED at the fix pass by
+   the review's F1 — the first draft's blanket "always outward" was
+   FALSE for the sphere):
+
+   - **Cylinder, cone, torus**: the chart normal is ODD in the radius
+     (`∂u × ∂v = r·radial(u)` for the cylinder, analogously for the
+     other two), so it is OUTWARD for either sign — a negative radius
+     moves the point to `radial(u+π)` and the normal with it. Negating
+     `axis` flips `v_ref = axis × u_ref` too and merely reparameterizes
+     `u ↦ −u`. Nothing to write.
+   - **Sphere**: `∂u × ∂v = r²·cos v·n̂` is EVEN in the radius. The
+     reviewer's executed probe: `Sphere { radius: -1.0, .. }` evaluates
+     with an INWARD chart normal, while a cylinder at `r = −1` stays
+     outward. So a negative-radius sphere IS a de facto reversed sphere.
+     It is REJECTED as a representation rather than adopted: it violates
+     the variant's ratified `radius > 0` convention, and every consumer
+     that meters a sphere residual by `2r` reads the sign backwards —
+     including this very unit's `point_in_solid` sphere arm, whose
+     boundary residual `(|q−c|² − r²)/2r` and `bool_ray_sphere_disc`
+     metering both divide by `2r` (a definite miss would read as a hit).
+
+   The conclusion is unchanged: under the current contracts `revert` has
+   nothing it may write on a cylinder, cone, sphere or torus. Three
+   candidate designs, all
+   ratification-scope: (a) a `sense` field on `topo::Face` — 82 `Face {`
+   literals plus every consumer that asks "which way is out" (mesh,
+   step-export where STEP's `advanced_face.same_sense` is the natural
+   home, certify, boolean classification, props, validate); (b) a
+   `Surface::Reversed(Arc<Surface>)` wrapper — 66 files match on
+   `Surface::` and every exhaustive match breaks, and it is a D3 closed-
+   enum change; (c) convert reverted curved surfaces to NURBS with
+   reversed parameterization — loses analytic identity, forces a pcurve
+   re-mint onto a different chart, and would hand PR 12's die pips a
+   NURBS dimple face. A fourth option surfaced and was REJECTED by the
+   review: (d) adopt the negative-radius sphere as the reversed form —
+   it is the only reversal the enum can already express, and it is still
+   wrong, for the convention and `2r`-metering reasons above. The
+   `CurvedOpUnsupported` front door therefore STAYS, and PR 12's curved
+   subtract stays gated. Recommendation: (a), discussed with Evan before
+   any code.
+
+4. **Item 4 (cyl×cyl equal-radius germs) not landed** — same blocker
+   as deviation 1: the join dispatch's `(a_s, b_s)` fallthrough refuses
+   typed and the equal-radius ellipse pair needs its own two-cylinder
+   window story in `JoinLane`. `geom_brep::intersect`'s classification
+   arm (`intersect.rs:241`, `:658`) is live; the TOPOLOGY side is the
+   missing half.
+
+5. **Item 5 (edge×NURBS-face sweep layer) not landed**, and item 6
+   depends on it, so the shape-(iii) cut-loft row stays pinned refused.
+
+6. **Item 6 (the loft/sweep body assembly) is blocked at tier-3 check
+   7, the +V invariant.** The assembly design was executed to the point
+   of the blocker and is recorded here so the next unit does not
+   re-derive it. (i) The topology is extrude's, with different geometry:
+   `LoftGeometry.walls[loop][segment]` are the wall surfaces, cap rims
+   are section 0 / section k−1's segment curves, struts are the walls'
+   `u = const` iso-curves. (ii) Cap-wall edges need NOTHING new: the
+   wall's `v = 0` iso IS the placed sketch segment (degree elevation and
+   knot refinement are exact), so the carrier stays `Curve3::Line`/
+   `Circle` under `MappedCurve::PlacedSegment` and certifies today.
+   (iii) Wall-wall seams are the genuinely new class; they cannot go
+   through `Intersection` with a widened `resolve()` as the spec
+   sketched, because `implicit_residual(Nurbs)` and
+   `curvature_lever_arm(Nurbs)` are poison and a foot-point gradient is
+   `f64`-only — so `classify_dihedral` cannot run. The workable shape is
+   a new `EdgeGeometry::IsoCurve { surface, u, v0, v1 }` (Copy-
+   preserving, resolves through the surface arena) whose residual is the
+   genuinely metric `|carrier(t) − S(u, v0 + (v1−v0)t)|` at the CERT
+   schedule, with adjacency read as `surface ∈ {fs_plus, fs_minus}`, and
+   tier-3 check 4 exempt BY KIND for Nurbs-adjacent edges (the `Seam`
+   exemption idiom; a definitional wall junction's contact class is the
+   profile's declared corner structure, Q8/C11, not a derived one). (iv)
+   What none of that fixes: `validate_geometric` check 7 calls
+   `mass_properties`, which routes a Nurbs face to
+   `geom_brep::props::curved_face` → `PropsError::Unimplemented` →
+   `ValidationError::VolumeUncomputable`. NURBS-patch flux needs
+   surface quadrature (PR 11), and the AREA half has no closed form at
+   all for a rational patch. So a loft body cannot be tier-3 valid in
+   this build no matter how well the assembly is written, and shipping
+   the assembly without it would replace one honest frontier with a body
+   that fails validation — strictly worse than PR 10's pinned refusal.
+   `wire_loft`'s `CurvedSolidFrontier` therefore STAYS, and shape (iii)'s
+   loft-body row stays pinned.
+
+**Spec-vs-code correction.** The spec says the tier-3 Nurbs kind
+refusal is "duplicated in `tier3_local_checks` AND
+`tier3_local_checks_marked` — flip BOTH". There is only ONE copy:
+`tier3_local_checks` (validate.rs:1512) delegates to
+`tier3_local_checks_marked` (:1546), which holds the single check-1
+loop. Nothing to flip twice.
+
+**Battery.** Touched crates `topo` + `sweep`, default ε: 42 + 39 green
+result lines, 0 failures. Interval lane (`topo/interval`,
+`sweep/interval`): 81 green result lines, 0 failures. `cargo fmt --all
+--check` clean; `clippy --all-targets` clean on both crates in both
+feature sets. Interval-square tripwire self-check on the diff: no
+`x * x` on a generic scalar (both new squares are `powi(2)`).
+
+**Message hygiene (the PR 10 fix-pass rule applied to ourselves).**
+Three in-code frontiers said "banked as M5 PR 9c". PR 9c has now run,
+so leaving them would be a promise describing a main that no longer
+exists. All three were rewritten to the executed finding and PINNED by
+acceptance rows: `RevertError::UnsupportedSurface` now carries the
+"not merely unimplemented" PROOF (the chart normal of every
+axisymmetric variant is always outward, and neither an axis flip nor a
+negative radius moves it); `BooleanError::CurvedOpUnsupported` quotes
+that finding so a caller who never touches `revert` still learns why
+curved subtract is gated; `CurvedBooleanUnsupported` names what PR 9c
+did land (the sphere half of the containment/pierce door) and what it
+did not (the fitted-chord join lane, behind `Pcurve::Fitted`);
+`LOFT_FRONTIER` names the +V/quadrature door behind the description
+doors it used to stop at. The die-pips shape (a sphere bitten out of a
+slab) is exercised as a SMOKE row in `m5_pr9c_sphere_doors.rs` and
+pinned at its typed front-door refusal — the honest form of "ahead of
+PR 12" when the op itself is gated.
+
+
+### PR 9c fix pass (2026-08-01)
+
+Review verdict: APPROVE-WITH-FIX-PASS. The sphere group-arm design was
+verified sound (the clopen-coverage argument holds for any face count),
+the double-fold claim was EXECUTED-CONFIRMED (a scratch de-guarded
+variant dies `RayExhausted`), the `disc / 2r` metering was D4-endorsed,
+and the boundary pre-pass was checked correct at both the seam and the
+poles. All five blocker proofs confirmed. Zero landed-code MAJORs
+outside the proof TEXT.
+
+**F1 (MAJOR, proof text).** The outward-normal proof's negative-radius
+leg is false for the sphere — `∂u × ∂v = r²·cos v·n̂` is EVEN in `r`.
+Every pinned copy (revert.rs docs + `Display`, `boolean/mod.rs`
+`CurvedOpUnsupported` docs + `Display`, deviation 3 above) is now scoped
+per kind, and option (d) — adopting the negative-radius sphere as the
+reversed form — is recorded as REJECTED with its two reasons. The
+acceptance row was flipped from asserting `"always outward"` to
+asserting the corrected per-kind text AND the ABSENCE of the overclaim,
+so the first draft's statement cannot come back.
+
+**F2 (MINOR).** `boolean/reduce.rs`'s NURBS-wall pre-refusal still said
+the crossing layer was "banked as M5 PR 9c". Rewritten to the executed
+finding: PR 9c was that unit and did NOT land it, because the residual
+sides a crossing layer needs (`implicit_residual`, `classify_dihedral`)
+are poison on a NURBS surface and the only non-poison substitute is a
+foot-point projection that exists at `f64` only.
+
+**F3 (MINOR).** The sphere arm's comment claimed it metered `disc` by
+`2r` "exactly as the cylinder arm meters its own"; the cylinder arm
+divides by `(2r)²`, which is dimensionless. The comment now states that
+the sphere's length-dimensioned form is the D4-honest one and FLAGS the
+cylinder arm for normalization by a unit that can re-pin its margins —
+deliberately not changed here, since the PR 9 acceptance rows pin them.
+
+**F4 (NOTEs, both taken).** A tangent-schedule-ray row (zero
+discriminant ⇒ graze ⇒ the retry schedule answers, never a parity
+guess) and a two-ball MULTI-SHELL row. The latter builds its body with
+the live curved UNION of two disjoint balls, so it pins the group
+rule across SURFACES *and* pins the new arm driving the boolean's own
+no-intersection containment fallback — not just a direct query.
+
+## S10 (2026-08-02): face orientation sense — the ratified fix for PR 9c
+## deviation 3 (`Face::sense`), the consumer audit, and one live defect
+
+Evan ruled option **(a)** — a `sense: bool` on `topo::Face` — over
+(b) `Surface::Reversed`, (c) NURBS conversion, and (d) negative-radius
+spheres. The ruling was the sign-off for the DESIGN.md D1 amendment,
+which is in this PR: a face's outward normal is `sense_sign · n_chart`,
+orientation reversal is exact structure (never a decide), the bit IS
+STEP's `advanced_face.same_sense`, and persistence is untouched
+(bodies re-derive; `serde` appears in exactly one crate manifest,
+`editor-core`, and the save is the recipe).
+
+**Scope discipline.** S10 is the contract plus the consumer audit.
+Wiring `revert` to flip the bit is the follow-on unit, so `revert` and
+the boolean front door keep their typed refusals — with messages
+rewritten from "unrepresentable" to "the representation gap is closed,
+the WIRING is not".
+
+**The audit's governing distinction** (this is the reviewable claim):
+orientation is now stored in TWO places, and they must not both be
+applied. *Chart reads* — a site that takes a surface's chart normal and
+calls it the face's outward normal — get `× sense_sign`; the chart is
+the only encoding there. *Winding-derived* sites — loop vector areas,
+Newell/shoelace sums over stored traversal, emitted triangle order —
+already carry the orientation, because `revert` reverses loops AND
+flips `sense` in the same step; multiplying those by the bit would
+negate the volume twice. The bit enters a winding-derived layer at
+exactly one kind of site: where there is no winding to derive from (the
+rimless sphere band's hardcoded `s_f = +1`, the tessellator's
+"assumes outward-oriented shells"). The AGREEMENT of the two encodings
+is a tier-3 obligation — the validator's loop-role winding check is now
+the S10 gate, and a body whose bit disagrees with its winding is
+inside-out and refused.
+
+**Deviation 1 (MAJOR, returned, not fixed).** The spec's premise —
+"at M5 every constructor mints material-agrees-with-chart faces" — is
+FALSE, and was false before S10. `extrude` mints a cylinder wall per
+arc segment, and a cylinder's chart normal is unconditionally the
+radially-outward radial; for a **concave** arc the material lies
+OUTSIDE that cylinder, so the face's true sense is `false` while this
+build stamps `true`. Executed consequence: `point_in_solid`'s cylinder
+door reads the chart-outward radial as outward, so on the
+`review_m2_pr4` mixed-turn-arc fixture it reports `In` throughout the
+notch the concave arc cuts (true boundary at `x = 1` is
+`y = 2.5 − √2 ≈ 1.086`; the door does not turn over until `y ≈ 1.5`).
+Both halves are pinned as `finding_concave_arc_wall_sense_is_wrong_today`
+in `crates/sweep/tests/m5_s10_face_sense.rs`. This is NOT improvised
+away here: fixing it means the sweep constructors must mint
+`sense: false` on concave arc walls, which changes behaviour across the
+boolean layer and is its own unit. It is a **required predecessor of
+the revert-wiring unit** — reverting a body whose senses are already
+wrong flips a lie into another lie.
+
+**Deviation 2 (minor, count).** The spec estimated ~82 `Face { … }`
+literals; the actual population is 24 (the looser grep that produced 82
+also matches `MassPropsError::Face`, `EulerOpError::NotSameFace`, and
+the other error variants named `*Face`).
+
+## S11 (2026-08-02): concave/inward walls mint `sense: false` — the
+## S10 deviation-1 fix; the pellet-swallow union dies here
+
+Merge-priority unit (S9/du_of_rims precedent): until this PR, main
+misreported containment on concave notches AND revolve bores, and the
+public `union` silently swallowed a disjoint pellet placed in a notch
+(volume 3.000 for 3.008, one shell for two, no refusal). Required
+predecessor of the revert wiring.
+
+**The criterion, exact structure only.** The profile's canonical
+winding is material-left (outers CCW, holes CW), so a wall's material
+side is the left of its canonical traversal. Extrude: an arc's carrier
+center lies left iff its stored turn is `Positive`, and the cylinder
+chart normal is unconditionally the outward radial ⇒ **wall sense =
+(canonical turn == Positive)**; concavity is a property of the 2-D
+region against the carrier circle, so the swept reversal never enters.
+Revolve, derived in the (r, z) frame (orientation-preserving, r ≥ 0):
+sphere/torus walls take the same turn-sign rule; cylinder AND cone
+walls take **sense = (canonical Δz > 0)** (the cone's nappe dependence
+algebraically collapses to the axial sign); plane annuli (chart normal
+fixed at `+a₃`) take **sense = (canonical Δr < 0)**. All signs come
+from the named `axis_line_radial`/`axis_line_axial` decide funnel —
+the cylinder arm now decides `axis_line_axial` too. Attachment is the
+new constructor-facing door `Body::set_face_sense` (the mint cannot
+know the material side; the mirror of `set_face_surface`).
+
+**Widened scope (deviation).** The audit found revolve's line walls
+carried the same defect class: bore cylinders, inward cones, and the
+UNDER-side plane annulus. The annulus claim is **at-rest class
+membership** — its chart normal (`+a₃`) points into material — not an
+executed door witness: the containment ray schedule never decides
+through that face (review probes on main read `Out` from below), and
+the executed misreports on main were the notch, the hole plate, and
+the bore. Note the annulus is also invisible to tier-3 check 6, whose
+loop-role gate is line-bounded-planar only: an arc-bounded reversed
+planar face passes at rest, so the constructor criterion is the ONLY
+guard there.
+
+**Rows.** The two S10 `finding_*` rows flipped to construction rows
+(door reads `Out` through the notch; `union` keeps the pellet: 3.008,
+two shells). New per-wall-kind acceptance in
+`crates/sweep/tests/m5_s11_concave_sense.rs` (+ interval twin), the
+watertight/convergence rows in `crates/mesh/tests/`, and the first
+real `.F.` emission + typed-refusal rows in `crates/step-export/tests/
+m5_s11_same_sense.rs` (the planar-only writer cannot yet carry a
+curved reversed wall — the spec'd same_sense e2e lands with the
+exporter's curved arms). Pre-existing, sense-independent door
+limitations pinned typed: full-period wall trims
+(`bool_wall_trim_period`) and rimmed sphere bands
+(`PartialSphereFace`).
+
+**Banked hazard (review MIN-1).** Boolean splitting's `mef` re-mints
+stamp `sense: true`, so splitting a reversed face would silently reset
+the bit; unreachable today (curved lanes refuse typed first) and
+pinned by the adopted guard
+`review_s11_adv::adv_touching_union_with_reversed_faces_refuses_typed`.
+The parent-sense inheritance fix MUST land with the unit that makes
+those splits reachable. Recorded at `Body::set_face_sense` and the
+`splitting/join.rs` mint site.
+
+**Review.** Blinded adversarial review: APPROVE, 0 MAJOR / 2 MINOR /
+3 NOTE (rubric 5/5/4); the criterion survived all six adversarial
+constructions unmodified (mixed hole arcs, fillet-cornered eye slot as
+outer and hole, per-carrier downward invariance, reversed authoring,
+bore-groove torus, touching-union guard — adopted verbatim); merge-base
+reproductions confirmed for bore, hole plate, and pellet.
+
+## S12 (2026-08-02): curved `revert` is wired — the sense flip, the
+## split-fragment inheritance, and curved ∖/∩ live on the cylinder class
+
+The unit S10 and S11 were predecessors of. S10 ratified `Face::sense`
+and threaded the consumers; S11 made the constructors write honest bits;
+S12 makes `revert` FLIP them, makes splitting's re-mints INHERIT them,
+and narrows the wholesale curved subtract/intersect front door.
+
+**(a) The revert arm, and the design call inside it.** Two encodings
+exist for "this face's outward normal is negated": negate the `Plane`'s
+stored normal (M3's arm), or flip the face's `sense` bit (S10's). S12
+keeps BOTH and makes them **exclusive by surface kind** — planes take
+the first, every other class takes the second — so each face is flipped
+exactly once. The alternative (flip every face's bit, touch no surface)
+is the more uniform statement and is what D1's amendment reads most
+naturally as; it was rejected on the RISK that a reverted planar operand
+would reach `merge_coplanar_faces`, `plane_eq` and the sector tables with
+unchanged normals and `sense: false` for the first time, where any
+consumer S10's audit missed would silently read the wrong side.
+**Corrected at the fix pass (review MIN-1): that risk did not
+materialize.** The reviewer IMPLEMENTED the uniform flip and ran the
+pinned planar lanes — 310/310 topo lib rows plus every M3
+boolean/surgery suite, the A∖B ≡ A∩revert(B) oracle included — ALL
+GREEN. So the split is **chosen for bit-for-bit planar conservatism**
+(no pin was willing to move without a design conversation first), not
+forced by moving pins; the evidence says both encodings work, and the
+one that leaves M3's planar behaviour byte-identical is the one a revert
+unit is entitled to ship. The chosen split confines the new encoding to
+the faces that never had one. `RevertError::UnsupportedSurface` is RETIRED — the flip is uniform
+across cylinder/cone/sphere/torus/NURBS, so no per-class residue is left
+inside `revert` — and its parity record (PR 9c's ODD/EVEN-in-the-radius
+finding, F1-scoped) is kept as prose on the enum rather than as an
+unreachable variant.
+
+**(b) Split-fragment sense inheritance** (the S11 banked hazard, fixed
+in the same PR that makes the splits reachable, as S11 required).
+`mef`'s `mint_loop_and_face` and `mfkrh` now take the new face's bit
+from the OLD FACE when the new face lands on the old face's surface KEY,
+and keep minting `true` otherwise (a `New`/foreign `Shared` surface is a
+different region — the caller attaches the honest bit, as the sweep
+constructors do). Exact structure: key equality, no numeric compare, and
+`mef` gains no material-side knowledge it does not have. Executed as
+load-bearing: with the inheritance disabled, the mixed-sense split row's
+∩ arm comes back with every wall fragment `sense: true`.
+
+**(c) The front door, narrowed per class (C12.1), not retired
+wholesale.** ∖ and ∩ are open on operands whose faces are `Plane` or
+`Cylinder`; `Sphere`/`Cone`/`Torus`/NURBS still refuse
+`CurvedOpUnsupported`, with the message rewritten from "revert has no
+representation" to the blocker that actually remains — the germ-pair
+join dispatch wires exactly one arm, `(Plane, Cylinder)` (PR 9c
+deviation 1), behind which sit `Pcurve::Fitted` (deviation 2) and the
+edge×NURBS crossing layer (deviation 5).
+
+**What went live, with volumes** (all tier-3, both sweep strategies
+bit-identical): blind hole `plate(3×3×0.8) ∖ boss(r 0.35, z 0.3→1.3)` =
+7.00757744996763 = 7.2 − πr²/2, on the 3-arc AND 2-arc authorings;
+through hole = 6.89212391994820; the complement `boss ∖ plate` = two
+shells, 0.15393804002590; `plate ∩ boss` = 0.19242255003237 with
+`V(A∖B) + V(A∩B) = V(A)`; and the mixed-sense trio on the S11 notched
+plate (∪ 9.56438055098077, ∖ 7.96438055098077, ∩ 0.64292036732051),
+each exact against the closed form, each keeping a `sense: false`
+fragment of the split concave wall.
+
+**Deviation 1 (numbered, executed, NOT fixed here) — the containment
+fallback is vertex-probed, so it is unsound for curved boundaries, and
+∪ is wrong today because of it.** A unit ball half-buried in a 4×4×1
+slab pokes out of both faces, but its only two vertices are the revolve
+poles, which sit inside; no crossings are found for the sphere class,
+the pipeline falls through to per-shell vertex-in-solid containment, and
+the ball is classified as wholly contained. `union` therefore meters
+16.0 where the truth is 17.30899693899575. **Reproduced on the merge
+base** (3ef715e) by the same call, so it predates S12 and no part of
+this unit touches that path (∪ was never behind the curved door; the
+ball's bits are `sense: true` in both builds). S12's response is the one
+this unit is entitled to: refuse the class up front for the two ops it
+is OPENING, rather than let them inherit a silent wrong answer, and pin
+the ∪ defect as `finding_sphere_class_containment_fallback_is_wrong_today`
+(asserting the WRONG value on purpose, so the fix fails it loudly).
+Re-cutting the containment fallback — the honest fix is a curved-extent
+test, not a vertex probe — is its own unit and is what the die-pips
+class waits on together with the join lane.
+
+**Deviation 2 (scope, minor).** The unit's acceptance was specified for
+`crates/topo/tests/m5_s12_curved_revert.rs`; it lives in
+`crates/sweep/tests/m5_s12_curved_ops.rs` instead, because `topo` has no
+dev-dependency on `sweep` and therefore cannot build a body with an
+analytic surface at all. The topo-side row is the in-module construction
+row on the `Nurbs`-surfaced `ops_cube` (the exact fixture that used to
+refuse).
+
+**Rows flipped from refusal pins to construction rows** (the S9
+pattern): `revert::revert_refuses_non_plane_surfaces` →
+`revert_flips_sense_on_non_plane_faces_instead_of_refusing`;
+`review_m3_pr1_sweep::revert_curved_body_refuses_typed` →
+`revert_curved_body_reverts_via_the_sense_bit` (which keeps the whole M3
+contract — operand untouched, tier-2 valid, tier-3 exactly
+`NegativeVolume`, bit-negated volume, bitwise involution and
+determinism — on a curved body);
+`m5_pr9c_sphere_doors::curved_revert_refusal_states_the_wiring_blocker`
+→ `curved_revert_reverts_the_ball_instead_of_refusing` (the sphere chart
+is untouched and its `radius > 0` survives, which is what the parity
+finding demanded);
+`review_m5_pr9_boss_probe::my_boss_subtract_makes_a_blind_hole_honestly`
+→ the same name, now an audited construction row (volume, tier 3,
+intrinsic seam arcs, pcurve coverage) plus the ∩ twin and additivity.
+`m5_pr9c_sphere_doors::curved_subtract_front_door_quotes_the_same_finding`
+→ `the_die_pips_shape_still_refuses_at_the_narrowed_per_class_door`: the
+die-pips row STAYS a refusal pin, honestly, at a door that now names the
+join lane instead of `revert`.
+
+**The S11 guard row's fate.** `review_s11_adv::adv_touching_union_with_
+reversed_faces_refuses_typed` still REFUSES (its washer/box pair takes
+the annulus-touching door, which S12 does not open), so it stays green
+as a refusal — but its panic-on-answer is stale now that inheritance is
+implemented, so the row was re-aimed: an answer is AUDITED against the
+additive closed form instead of rejected. The mixed-sense split S12
+genuinely made reachable is pinned with exact volumes in the S12 suite.
+
+**Battery.** Touched crates `topo` + `sweep`, default ε; new rows also
+at the Interval band. `cargo fmt --all --check` clean; `clippy
+--all-targets` clean on both crates. Interval-square tripwire on the
+diff: no squares added at all (`powi(2)` rule vacuous here — the unit
+adds a `bool` negation, a key equality and an arena scan, and decides
+nothing numerically).
+
+## PR 13 (2026-08-02): the curved STEP subset — conics and elementary
+## surfaces as EXACT native AP214 entities, and the corpus that proves
+## an outside reader reconstructs them
+
+Plan line 13. The writer's two closed matches grew from
+`Plane`/`Line` to the whole kernel geometry vocabulary. **Every arm is
+a native entity, and every arm is exact**, which is the entire reason
+this writer is in-house:
+
+| kernel | AP214 | exactness |
+|---|---|---|
+| `Plane` | `PLANE` | identity (M4) |
+| `Cylinder` | `CYLINDRICAL_SURFACE` | identity |
+| `Cone` | `CONICAL_SURFACE`, apex placement + `radius = 0` | identity as a LOCUS; `v` differs by cos α |
+| `Sphere` | `SPHERICAL_SURFACE` | identity |
+| `Torus` | `TOROIDAL_SURFACE` | identity |
+| `Line` | `LINE` | identity (M4) |
+| `Circle` | `CIRCLE` | identity |
+| `Ellipse` | `ELLIPSE` | identity |
+| `Nurbs` (curve) | `B_SPLINE_CURVE_WITH_KNOTS`, rational complex instance when weighted | structure for structure |
+
+"Identity" is literal and tested: each kernel frame `(origin, axis,
+u_ref)` is ISO 10303-42's `axis2_placement_3d` field for field, so the
+two PARAMETERIZATIONS agree, not merely the point sets. The acceptance
+suite compares emitted reals with the body's stored reals using `==`
+(the float printer round-trips to identical bits), so a renormalized
+axis, a rotated seam, or a cone placement offset down the axis — all
+of which import perfectly — fail.
+
+**The conic question the spec asked, answered: native, never the
+rational-quadratic form.** CURVED-DESIGN keeps the NURBS Book §7.3–7.4
+form (shape factor `k = w₀w₂/w₁²`) as the declared export/tessellation
+form for conics, and it IS exact. But AP214 has `CIRCLE` and `ELLIPSE`,
+so taking that road would be an equally exact and strictly worse
+encoding: it discards the axes and centre every reader consumes,
+reparameterizes for nothing, and trades five reals for a
+control/weight/knot triple. The infinite-control-point machinery for
+arcs ≥ 180° (§7.4) never comes up. Both kernel conic rungs are native.
+There is no curve kind in the kernel that NEEDS the rational form.
+
+**Two deviations from the spec, numbered.**
+
+1. **`B_SPLINE_SURFACE_WITH_KNOTS` is not implemented; `Surface::Nurbs`
+   still refuses typed.** The spec lists it under writer growth but
+   also puts "NURBS FACES at rest" out of scope and hands them to the
+   loft-assembly unit. No body at rest carries a NURBS face, so the arm
+   would have been an untested code path guarded by nothing. The
+   refusal message now distinguishes the mvfs "no description yet"
+   placeholder from a described NURBS surface and names the unit that
+   brings the entity. The CURVE arm *is* implemented (the entity is
+   part of the named subset and its record text is pinned in
+   `writer.rs`'s unit tests, rational and non-rational, including the
+   exact-equality knot run-length encoding) even though no at-rest body
+   carries a NURBS carrier either — the difference is that a rung-3
+   SSI carrier is a thing the kernel already MINTS, just not through a
+   public constructor.
+2. **The outward/void classifier did not grow curved closed forms.** It
+   is now NARROWER than the emitter: a MULTI-shell solid carrying
+   curved geometry refuses, even though every one of its faces has a
+   printer. Its divergence-theorem reduction (`p·n̂` constant over a
+   face) is a planarity identity with no closed-form curved
+   counterpart, and its output is a material-vs-void SIGN — the one
+   place an approximation is a silent lie rather than a roundoff. The
+   refusal got its own variant, `CurvedShellClassification`, whose
+   message says the emitter is fine and the classifier is not; the old
+   behaviour would have reported `UnsupportedSurface`, which is now
+   false. Only S12's two-stub `boss ∖ plate` complement is affected —
+   every other curved body at rest is single-shell.
+
+**The corpus, and what FreeCAD said.** Seven fixtures joined the three
+planar ones, chosen so every new arm has a body behind it:
+`cut_cylinder` (the only `Ellipse`), `boss_union` (curved boolean),
+`notched` (the S11 concave wall), `washer` (genus 1, two `.F.` faces,
+full-2π seam encoding), `ball`, `cone`, `donut`. All ten import into
+FreeCAD 1.1.2 as valid solids. **The volumes are not approximately
+right, they are exactly right**: every one agrees with the closed-form
+analytic value to ≤ 4e-15 relative — because the surfaces crossed the
+wire as surfaces, not as facets. OCC keeps the kernel's topology
+exactly on five of the seven; on `ball` and `cone` it ADDS degenerate
+pole/apex edges (2→6 and 6→8) that its own face model requires, with
+faces, vertices and volume unchanged. The `.expect` sidecars carry the
+analytic volume and say which counts are OCC normalisation. CI's
+`step-import` job globs the fixture directory, so all seven are hosted
+with no workflow edit.
+
+**The S11 row flipped, as its doc comment instructed.**
+`m5_s11_same_sense`'s row 2 was written as a typed-refusal pin with an
+explicit instruction for what to become once the curved arms landed.
+The notched body now exports with exactly one `.F.` `ADVANCED_FACE` —
+and the row resolves that face's surface reference and demands a
+`CYLINDRICAL_SURFACE`, of which the body has TWO (one convex, one
+concave), so flipping the wrong wall or both fails.
+
+**Orientation: the composition rule, and FreeCAD's measured
+blindness.** With `.F.` faces finally reaching the emitter, the S10
+review's rule became testable on real output. Two pins aim straight at
+the double-composition bug: every bound orientation is `.T.` on every
+fixture including the reversed ones, and every `.F.` face's surface
+axis equals the body's stored CHART normal bitwise (a writer that
+negated the axis instead — the other half of the same bug — fails).
+
+The external oracle cannot arbitrate this. `revert(ball)` and
+`revert(washer)` — genuinely inside-out solids, every face `.F.` —
+import as `valid: True` with the SAME positive volumes as the
+un-reverted bodies. OCC's ShapeHealing rectifies silently, exactly as
+M4's review found on `cube.step`. The plan anticipated the fallback
+("else pin the emitted text"), so the text is pinned, and the
+orientation oracle gained a **curved-agnostic** companion to the
+planar signed-volume walk: **edge-use coherence** — in a coherently
+oriented closed shell every edge is traversed once in each direction,
+counting the whole shell's loops. That is the same boundary-winding
+datum the volume oracle reads, stated locally, and it needs no
+planarity. It is pinned on all ten fixtures with per-shell edge counts,
+and it has three controls: a double-composed face (INCOHERENT — this is
+the row FreeCAD would otherwise have owned), one inverted curved face
+(INCOHERENT), and a uniformly reversed shell (COHERENT — said out loud
+so the oracle's scope is not overclaimed; that case belongs to the
+volume oracles).
+
+**ε.** Exports are exact structure. The only ε-dependent byte in the
+whole document is the `UNCERTAINTY_MEASURE_WITH_UNIT` value, pinned by
+a row that exports the washer at two tolerances a thousand-fold apart
+and asserts the texts differ in exactly one line. Every other row
+compares emitted floats to the body's own stored floats and never reads
+a distance. The one new refusal arm is reached by a type-level match
+before any arithmetic, and is run at two tolerances to check that
+rather than assert it; the ambient axis is CI's `CAD_EPS` matrix.
+
+**The demo tour.** All 26 bodies now export STEP (nine of them curved,
+six carrying `.F.` faces); the narrated curved refusals are gone and
+`step_expected` is true everywhere, so a refusal anywhere in the tour
+is now a hard failure. All nine curved exports import into FreeCAD as
+valid single solids, and their OCC volumes agree with the kernel's own
+STL tessellation to within faceting error (3e-4 to 1.4e-2 relative,
+signed the way inscribed/circumscribed faceting predicts) — an
+independent end-to-end check that OCC reconstructed OUR solid rather
+than a healed neighbour.
+
+**One walk-order trap, banked.** The suites that match emitted records
+against kernel entities must walk the WRITER's traversal, not
+`Body::faces()`/`Body::edges()`. Arena order coincides with the walk on
+simple extrusions and diverges on boolean results, so a helper using
+arena order silently compares the wrong pairs on precisely the most
+interesting bodies — it was caught only because `boss_union` failed
+while every swept primitive passed. `common::walk_order` mirrors the
+documented traversal and says this in its doc comment.
+
+**Battery.** `step-export` at default ε: lib 8, `export` 14,
+`m5_pr13_curved` 11, `m5_s11_same_sense` 2, `orientation_oracle` 6 —
+41 rows, all green. Planar goldens byte-UNCHANGED (no planar-only body
+at rest mints a reversed face, so the S10/S11 wiring costs the M4
+fixtures nothing). `scripts/check_step.sh` green on all ten fixtures
+locally with `REQUIRE_FREECAD=1`. Demo tour built and run end to end.
+`cargo fmt --all` clean; `clippy --all-targets` clean.
+
+### PR 13 fix pass (2026-08-02)
+
+Review: APPROVE, 0 major / 2 minor / 3 notes; every attack absorbed.
+Two of the reviewer's own findings are worth banking beyond the items.
+First, FreeCAD was proven blind even to **double composition** (not
+just to a uniform inversion), independently reproduced — so the
+edge-use-coherence oracle is the only working guard on that axis, which
+raises the stakes on keeping its negative controls. Second, the
+rational complex-instance record was validated end-to-end by splicing
+it into a wireframe and importing it, which is a check this PR did not
+have and now does.
+
+**F1 (MIN-1).** `m5_pr13_curved.rs`'s NURBS-frontier row contained a
+loop that iterated the edges and did nothing. It now asserts the
+kernel-level fact the text-level `B_SPLINE` grep only implies: every
+carrier of every corpus body is line/circle/ellipse and every surface
+is non-`Nurbs`, so the claim is "the bodies do not have them", not
+"the text does not mention them".
+
+**F2 (MIN-2).** The DESCRIBED-NURBS-surface refusal message was dead by
+construction (no body at rest carries a NURBS face) and therefore
+untested. `NurbsSurface::new` is public and validating, so a described
+bilinear patch is constructible in a unit test even though it cannot be
+attached to a face by any public constructor: the two `Surface::Nurbs`
+states are now pinned to their two different messages, and to being
+different from each other.
+
+**F3 (NOTE-1).** The orientation-oracle header said the cone's reversed
+faces were "the cone's two faces", implying the conical bands. Wrong:
+both `CONICAL_SURFACE` faces write `.T.`, and the two `.F.` faces are
+the PLANAR base-disc halves. Corrected, with the general shape of S11's
+rule stated — the reversed face is whichever one has material against
+its chart normal, and on a revolved solid the under-side cap is such a
+face even though it is flat. (`lib.rs` already had it right.)
+
+**F4, three reviewer probes adopted.**
+
+- **The wireframe splice** (`tests/fixtures/nurbs_wireframe.step` +
+  `.probe.py`). A `GEOMETRIC_CURVE_SET` document carrying the writer's
+  `RATIONAL_B_SPLINE_CURVE` complex instance verbatim — the Eq. 7.33
+  exact quarter circle, weights (1, 1/√2, 1). It is the arm's ONLY
+  reader-level validation before the loft-assembly unit, since no body
+  at rest produces the record. OCC returns a RATIONAL degree-2 B-spline
+  with **bit-identical weights**, and every one of 1001 sampled points
+  sits on the unit circle to **3.4e-16 relative** (arc length π/2 to
+  1 ulp) — better than the reviewer's 2.3e-13 measurement, and four
+  orders tighter than any non-rational approximation of a conic could
+  reach, which is what makes the check discriminating. A reader that
+  parsed the record but dropped the weights would trace the control
+  polygon's parabola and miss by ~8%.
+  `check_step.sh` grew a **generic** hook for this: any
+  `<fixture>.probe.py` beside a `.step` runs under the same
+  interpreter with `$STEP_FILE` set, for geometric facts the generic
+  count/volume checks cannot state. A Rust row asserts the spliced
+  record is byte-identical to `writer.rs`'s pin, so emitter and fixture
+  cannot drift apart.
+- **A3, the same_sense-only corruption**, adopted as a documented
+  KNOWN BLIND SPOT rather than a fix. Flipping only the
+  `ADVANCED_FACE` flags leaves every winding untouched, so edge-use
+  coherence reads green — correctly, since it is a statement about
+  traversal directions. FreeCAD is blind to it too, measured: the
+  corrupted `notched.step` imports `valid: True` with 6/12/8 and
+  volume 3000000000.0 mm³, every figure identical to the honest file.
+  So this lie has no external witness at all, and the only guard is
+  the kernel-side identity `same_sense == Face::sense` asserted PER
+  FACE in `m5_pr13_curved.rs` — which is why that row compares faces
+  rather than counting `.F.`s. Recorded so the gap is stated instead
+  of discovered.
+- **The arena-vs-walk divergence probe**, adopted as a `walk_order`
+  regression guard. It pins both halves of the trap: the two orders
+  DIVERGE on `boss_union` (a boolean result) and AGREE on `washer` (a
+  swept primitive), same multiset either way. The agreement half is the
+  point — a suite built only on primitives passes with the bug in
+  place.
+
+**Battery after the fix pass.** `step-export` default ε: lib 9,
+`export` 14, `m5_pr13_curved` 13, `m5_s11_same_sense` 2,
+`orientation_oracle` 7 = **45 rows**, all green. `check_step.sh` 11/11
+(the ten corpus fixtures plus the wireframe, whose geometric probe runs
+inside the same job). `fmt --all --check` and `clippy --all-targets`
+clean.
+
+## S4 (2026-08-02): save/load shared-validator consolidation — the
+## convention-2 migration note discharged
+
+Non-gating hygiene (plan R4/S4; DESIGN engineering convention 2's
+migration note, banked at the M4 exit sweep). PR 6's shipped doors
+were sweep-style mirrors: the save door ran `first_non_finite` +
+`first_bad_joint`, the load door ran `validate_snapshot` plus a
+SECOND joint-bounds implementation inside `wire.rs`'s deserializer,
+and the structural invariants ran at load only — so an in-crate bug
+corrupting a `pub(crate)` field (ε = 0.0, a mangled `order`) could
+still save an unloadable file, exactly the shape MAJ-1 was.
+
+**What changed** (`crates/editor-core/src/persist/`):
+
+- `check::validate_document(snapshot, edits)` is the ONE shared
+  validator: float walk → joint walk → structural invariants (the
+  save door's historical precedence, so every pinned refusal keeps
+  its arm). `save` and `load` both call it — save on the in-memory
+  document before a byte is written, load on the parsed document
+  before replay. The three walks it composes went private.
+- The mirrored joint-BOUNDS arm in `wire.rs`'s deserializer is
+  retired; range is a document property and now refuses through the
+  shared validator on BOTH doors with the same typed diagnostics
+  (`TangentJointOutOfRange` naming the node — better than the old
+  Parse line/column). The canonical-set rule (strictly increasing)
+  stays in `wire.rs`: in-memory joint lists are set-semantic, so
+  canonicity is the wire's own load-only residue, alongside
+  parse/position errors and serializer failure. Log replayability
+  stays shared structurally (both doors replay through `apply`).
+- Pins: `m4_pr6_refusal.rs`'s out-of-range-at-load row re-pinned to
+  the shared typed arm; a new unit row in `check.rs` pins the closed
+  hole — ε = 0.0 (finite, past the float walk) and an `order` entry
+  with no node now refuse AT SAVE with the load door's own
+  `Snapshot(...)` arms, where before they wrote unloadable files.
+
+**Battery.** editor-core full suite green at default ε; the
+persistence rows (`m4_pr6_roundtrip`/`floats`/`golden`/`refusal`/
+`review_probes`, `m5_pr10_schema_v2`, `review_m5_pr10_schema`) green
+at 1e-6 AND 1e-12 (byte-goldens untouched — the change adds refusal
+paths only, no byte of any save moved). fmt + clippy clean. DESIGN
+convention 2's migration note updated to DISCHARGED in place (the
+convention itself stays PROPOSED-8c — awaiting sign-off; only its
+migration note is spent).
+
+(S4 review note, orchestrator-applied: one direction-dependent
+refusal remains BY DESIGN — a valid-but-different doc.epsilon
+saves fine and refuses at same-process load with
+ToleranceConflict; ε reconciliation is process state, not a
+document property, and a fresh process loads it clean. Recorded
+so a future symmetry sweep does not re-litigate it.)
+
+## S13 (2026-08-02): the die-pips enablers — the containment-fallback
+## re-cut and the plane×sphere germ arm; slab ∖ ball is GREEN
+
+Branch `ev/m5-s13-pips-enablers` per `docs/M5-S13-SPEC.md` (binding).
+**Premise verified first**: `geom_brep::intersect::route(Plane, Sphere)`
+was `Rung::Closed, implemented: false` — the pair's locus is the exact
+closed-form Circle, never a fitted chord, so the cyl×sphere fitted-chord
+lane (PR 9c dev 1) is NOT on the pips' path. The arm is now implemented
+(`plane_sphere_section`, one `ps_center_gap` trilean; tangency is a
+POINT, classification data, C7) and the route row flipped.
+
+**§1, the containment-fallback re-cut.** `boolean_op_recut` runs the
+curved-EXTENT scan (`sphere_extent_scan`) before any vertex is probed at
+the no-crossings fallback: every closed sphere group's true extent
+(center ± r, the PR 9c group discipline; certified boxes from PR 9's
+`boxes.rs` for everything box-shaped) is consulted against every face of
+the other operand. Certified-disjoint pairs proceed to the (now
+witness-only) vertex probe; a definite ESCAPE through a plane face — the
+S12 finding's poking-but-not-crossing shape — re-cuts the operand and
+re-enters the pipeline exactly once; everything uncertifiable refuses
+typed (`FallbackExtentUnsupported`: tangency, trimmed sphere groups,
+cylinder-near-sphere, sphere×sphere overlap, boundary-grazing circles).
+**The re-cut is a rigid re-chart**: the escaping group's shell is
+carved, rotated about the sphere's own center so the polar axis lands on
+the escape normal (the same point set — a sphere is rotation-invariant
+about its center; the rotation is built ALGEBRAICALLY, Rodrigues with
+the angle eliminated, so Interval enclosures stay exact), and grafted
+back; the ordinary crossing layer then finds the section circles through
+the seam meridians and the §2 germ arm joins them. NURBS is RE-GATED at
+the fallback (`NurbsExtentUnsupported`, naming the lift blocker:
+`implicit_residual` poison, f64-only `NurbsSurface::project`) and pinned
+in-module on the Nurbs-surfaced `ops_cube` pair, so a future NURBS
+constructor inherits a typed door, not the vertex-probe silence.
+
+**§2, the plane×sphere germ arm.** The join dispatch's
+`(Plane, Sphere)` arms ride the PR 9 lanes verbatim: the sphere side
+takes `JoinLane::Split` (chord_spec's new sphere lane — polar sections
+only, guarded by `split_sphere_section_polar`; tilted residual
+configurations refuse typed), the plane side takes
+`JoinLane::BoolPlanar` with the sphere wall and the wall face's azimuth
+window; `germ_section_frame` classifies the pair to the circle frame for
+the arc-aware facing test. The sphere chart gained exactly the
+closed-form pcurve classes the lane consumes (`chart_pcurve`: polar
+circles and meridian-class great circles; everything else refuses typed
+— sphere charts still mint no caches). `run_azimuth_window` gained the
+ORIENTED POLE-JUNCTION branch pin: at a pole the chart carries no
+azimuth continuity and the two-band ball's meridians sit exactly half a
+period apart — a knife-edge the old nearest-branch floor tie-broke into
+handing BOTH bands the same window; the loop's own orientation (azimuth
+advances through the south pole, returns through the north, sense
+flips it) carries the missing bit exactly.
+
+**The rows.** The S12 finding row FLIPPED to construction
+(`finding_row_flipped_containment_fallback_now_sees_the_curved_extent`):
+∪(slab, half-buried ball) = 16 + 2·cap = **17.30899693899575**, ONE
+shell (derived: both caps join the slab boundary through their seam
+circles), tier-3, both sweep strategies bit-identical, and BRACKETED at
+Interval. The die-pip door pin flipped
+(`the_die_pip_sphere_shape_now_cuts_at_the_opened_door`): ∖ = 16 −
+11π/12 with the cavity wall `sense: false` (the S12 audited-answer arm
+live), ∩ = 11π/12, additive. The smoke suite `m5_s13_pips.rs`:
+`die_pip_subtract_is_green` (16 − cap volume, one shell, reversed pip
+wall, exact seam Circle arcs with a CERTIFIED plane-chart pcurve),
+the ∩-cap twin + additivity, the TWO-pip row (a two-shell ball operand
+assembled by the scan, each group re-cut about its own escape normal,
+two sphere surfaces in the result), the band-scaled in-band extent
+escalation row (placement derived from the resolved band), the
+certified-disjoint/contained whole-shell rows, and the sphere×sphere
+overlap refusal. Interval twins in `m5_s13_pips_interval.rs` +
+the S12 interval door row flipped to a definite sphere ∖ with a tight
+enclosure. PR 9c's smoke shape re-pinned at its real doors
+(`the_die_pips_shape_now_stops_typed_at_its_own_tangency`: its seam
+great circle is COPLANAR with the bottom face — `split_conic_crossing_
+root` escalates F6 before the fallback). The sphere-chart pcurve
+refusal pin flipped to the equator's closed form (tilted circles and
+cone charts keep typed refusals). The per-class ∖/∩ door admits Sphere;
+cone/torus/NURBS keep it, message updated.
+
+**Deviations (numbered).**
+1. The spec's §1 "extent test answers or refuses" cannot CONSTRUCT the
+   flipped rows by whole-shell classification (no valid B-rep of a
+   poking union exists without cutting faces), and the natural-chart
+   fixtures have NO edge crossings at all; the re-cut is realized as
+   the rigid re-chart + one re-entry described above. Consequence: a
+   re-cut result's naming/provenance rows reference the re-cut clone's
+   lineage, not the caller's original keys (same posture as the
+   fallback's carve today); documented at `boolean_op_recut`.
+2. `boxes.rs::face_box` gained the sphere arm (center ± r): the vertex
+   hull was NOT a superset for sphere faces, so realized-lane pruning
+   could lose sphere events (found while wiring the re-run; the
+   conservative direction).
+3. Three Interval-representation repairs in shared lanes, each a
+   choice between mathematically identical formulas behind a named
+   frame trilean (degenerate/in-band arms are deterministic
+   tie-breaks, D9 — no downstream VERDICT moves; cross-version f64
+   bits of derived root/azimuth parameters MAY differ, while
+   within-run D9 replay and realized/idealized strategy identity are
+   preserved, and no pin captures cross-version bits — reviewer
+   confirmed): branch-stabilized
+   `atan2` at the chart seam's angle-π copy (`stable_azimuth` in the
+   S9 chord lanes, `stable_az` in the sphere chart arm,
+   `split_conic_phase_frame` in the conic-root phase), the CENTRED +
+   two-anchor conic-root interiority (each reduction anchor has one
+   degenerate point; they coincide only on a full-period span, which
+   keeps its honest escalation), and the algebraic re-cut rotation.
+4. The two-pip fixture assembles its two-ball operand in the REALIZED
+   lane only and places pips ≥ ~2.07 from every slab corner: the
+   idealized sweep EXAMINES all pairs, and conic-edge×curved-face plus
+   the span-length clearance dip are the pre-existing PR 9 pierce
+   frontier — typed, not this unit's.
+5. `pcurve_of` on sphere-face half-edges now derives the closed form
+   for the two supported classes instead of refusing (consequence of
+   the `chart_pcurve` arm; mint-nothing posture unchanged).
+
+**What still refuses, named**: cyl×sphere germ chords (PR 9c dev 1,
+behind `Pcurve::Fitted`/the SSI lift), sphere×sphere seams, cone/torus
+operands, NURBS (re-gated), tangent/coplanar contact configurations,
+non-polar residual sections, and a re-cut that surfaces no crossings
+(loud invariant).
+
+**Battery.** Touched crates `geom-brep` + `topo` + `sweep`, full
+default-ε suites green (topo lib 311; sweep 50 test binaries; geom-brep
+16) and the sweep Interval feature battery green (S13 twins + all
+existing interval suites). `cargo fmt --all --check` clean; `clippy
+--all-targets` clean on all three crates. Interval-square tripwire on
+the diff: no `x*x` squares added; the one new sqrt operand is the
+product of two factors certified positive by the preceding trilean
+(`(r − |s|)(r + |s|)`, documented at the site).
+
+**Fix pass (review verdict: one MAJOR, fixed).**
+- **F1 (MAJOR)**: the extent scan kept only the FIRST escape normal, so
+  ONE group poking two NON-PARALLEL faces re-charted for one and — with
+  crossings then existing, the loud re-entry invariant never refiring —
+  silently dropped the second cap (reviewer's witness: 16 + cap_top
+  exactly, tier-3 valid). Ruled fix: collect EVERY definite escape
+  normal per group; unless all are parallel under the named
+  `bool_sphere_escape_parallel` trilean (metered at the group radius;
+  antiparallel = same direction, so the finding row's top+bottom pair
+  keeps its green), refuse typed `FallbackExtentUnsupported` naming the
+  multi-escape configuration. Multi-chart re-cutting banks as an
+  extension. Pinned both strategies as
+  `probe_two_nonparallel_escapes_refuse_typed`.
+- **F2**: the scan's trimmed-group and cylinder-near-sphere arms gained
+  direct rows (a pip RESULT as a second-op operand; a ball inside a
+  cylinder wall's certified box with all edge pairs box-clear). The
+  near-boundary and sphere-nested arms are documented as
+  defense-in-depth: both are structurally shadowed by the REDUCE-stage
+  pierce frontier (a circle crossing a boundary edge means that edge
+  passes within r of the center — the same inequality; a nested ball's
+  edges always sit inside the outer sphere's face box), pinned at their
+  actual doors in the adopted probes.
+- **F3**: deviation 3's claim scoped to VERDICTS (cross-version f64
+  parameter bits may differ; within-run D9 replay and strategy identity
+  preserved; no pin captures cross-version bits — reviewer confirmed).
+- **F4**: the parallel/coplanar conic class is routed structurally in
+  `conic_plane_crossing_roots` (`split_conic_plane_parallel`: endpoint
+  treatment only — the M3 coplanar rule) instead of falling into the
+  graze arm's 0/0 phase and escalating on an Invalid margin; the PR 9c
+  smoke shape now reaches the scan and refuses TYPED at its real
+  geometry (exact tangency to the top face), re-pinned.
+- **F5**: the reviewer's probes adopted as `m5_s13_review_probes.rs`
+  (probes 3/7 pinned at the doors that actually fire, with the
+  shadowing documented; merge-base evidence recorded as history notes —
+  the dev-2 face-box hazard was CONFIRMED LIVE ON MAIN: the realized
+  BVH pruned dir-1 pierce candidates and a fin×ball union answered as
+  if disjoint, a silent self-overlapping body).
+
+## PR 12 — fillets: the validity battery, the analytic blends, the die
+
+**Scope call, recorded (spec §Scope, ratified at #161)**: no
+canal-surface lane. `FilletError::SpineUnsupported` names it as the
+front door that does not exist yet, and a fixture reaches that text.
+
+**Naming: `fillet3_*`, a NEW K family.** Not an extension of S2's
+`fillet_*`, on two grounds. (i) `ProfileError`'s escalated arm
+dispatches its recourse sentence by matching
+`Indeterminate::predicate` against the S2 names, so a shared prefix
+routes a 3-D escalation into a 2-D recourse sentence at the first
+collision. (ii) The K-report's per-family buckets would fuse two
+unrelated corpora — 2-D leg setbacks over a `LoopBuilder` and 3-D
+curvature headroom over a `Body` — which is exactly the separation the
+K funnel exists to keep.
+
+**The six predicates** (C8's binding order), each a named Q1 trilean
+whose margin is a LENGTH at a named lever arm:
+
+1. `fillet3_radius_headroom` — `(1 − r·κ_max)·r`, arm `r`, per support
+   per sample. A plane's unbounded curvature arm saturates at `r`.
+2. `fillet3_face_clearance` — `gap − setback_here − setback_there`,
+   swept over every PAIR of boundary edges of every support face. A
+   single-edge extent test would pass `r < L` on a face that two
+   opposite blends at `r > L/2` erase between them. **It is a screen,
+   and its name says so** (fix pass F1): subtracting two setbacks from
+   one straight-line gap is EXACT when the two edges face each other
+   (opposed inward normals — every box, every prism's opposite cap
+   edges) and CONSERVATIVE when they meet at an angle. The reviewer's
+   witness is a unit hexagonal prism, refused from `r = 0.5` although
+   its cap survives to the apothem `0.866`. The arm was reclassified
+   rather than left asserting a false definite: it now reports "cannot
+   certify that this face survives", never "consumes the face
+   entirely", and it stays conservative in the one direction the
+   ordering claim depends on — it cannot pass a request whose support
+   face really is consumed.
+3. `fillet3_spine_regularity` — `(1 − r·κ_spine)·r`, arm `r`. A
+   different curvature from (1): the SPINE's, not the supports'. For a
+   circular rim spine it IS the ring-torus condition `s > r`, so the
+   torus constructor's degenerate case is refused before the surface
+   exists.
+4. `fillet3_chain_g1`, gated by `fillet3_chain_arm` — `sin θ · arm`,
+   with the dihedral classifier's own collapsed-arm gate.
+5. `fillet3_convexity_sign` — `((n_a × n_b)·τ̂)·arm`, positive =
+   convex. Well-defined: swapping the two faces also reverses the
+   traversal, and the triple product is invariant under doing both.
+6. `fillet3_corner_independence` — `|det(n₁,n₂,n₃)|·r`.
+
+**The ordering claim, made structural rather than promised.** The
+review charter's attack is "a fixture that passes the battery but
+fails in construction". Three things close that door: the battery
+resolves each link's analytic ARM first and refuses typed on any
+support pair the arms do not cover (so the constructor cannot meet an
+unconsidered case); the setbacks predicate 2 refuses on are returned
+BY the same functions the constructor calls (no second copy of the
+geometry to drift); and the junction/termination rule is purely
+structural — a vertex where exactly TWO requested links meet is a
+junction (predicate 4), anything else is a termination (predicate 6).
+So filleting all twelve box edges yields twelve one-link open chains
+at eight trihedral corners, and a pip rim yields one closed chain,
+with no geometric decision anywhere in the walk.
+
+**The jet certificate grew a circle arm (geom-brep).** The die's corner
+trimlines are CIRCLES, and PR 9's span bounds covered only `Line`
+carriers — `upgrade.rs` even said so, calling the circle-carrier
+tangent certificate "the lane's next retirement, not this PR's". PR 12
+takes it, with a proof rather than a constant: `κ_rel` and the implicit
+residual are isometry invariants, so a carrier motion that is a
+symmetry flow of both surfaces cannot move them. In the coaxial configuration
+both span bounds are EXACTLY zero (the Killing-field deviation
+vanishes in both group directions), and a configuration that misses
+coaxiality pays continuously rather than through a gate. The LINE arm
+is byte-for-byte unchanged.
+
+**The theorem, corrected (fix pass F3).** The unit first claimed that
+circle tangency between two distinct elementary surfaces of revolution
+FORCES the coaxial configuration. That is false, and the reviewer
+built the counterexample: a sphere centred on a torus's SPINE is
+tangent to the torus along a whole MERIDIAN (minor) circle, whose axis
+is perpendicular to the torus's. The class is real, jet-determinate,
+and inside the lane — and executing it shows the honest outcome rather
+than a hole: the deviation is large, so the bounds are large, and
+certification refuses LOUDLY (`ResidualExceeded { TangentHull }`)
+instead of certifying a bound it never established. What survives is a
+narrower claim, and it is the one the code now makes: the
+configurations this kernel MINTS on a circle carrier are coaxial, and
+those certify at zero cost. The residual risk is named — tier 3's
+must-carry could demand an intrinsic description on a meridian-tangent
+edge that this arm cannot certify (in-lane but uncertifiable) — and it
+is latent, because no constructor mints that configuration. The
+no-gate/no-hole claim carries that caveat; the counterexample is
+adopted as `review_pr12_meridian_probe.rs` and pins the scope.
+
+Two consequences landed with it, both flips of pins that were correct
+when written:
+- `m5_pr9_tangent.rs`'s out-of-lane row was exactly the plane–torus
+  coaxial circle. It is kept and flipped, with its history; the
+  out-of-lane row moves to a cone partner (still uncertified).
+- `revolve` now stores `TangentIntersection` on a jet-DETERMINATE
+  latitude join, deciding it with the SAME `tangent_second_order`
+  predicate tier 3's must-carry reads — so the demanded set and the
+  stored set stay one set. Under-determined joins (κ_rel at zero) and
+  in-band ones keep the conventional description exactly as tier 3
+  exempts them: the upgrade is an enrichment, never a new refusal.
+
+**Blend arms landed**: plane–plane → cylinder (straight spine, setback
+`r·tan(φ/2)`); plane–sphere rim → torus (circular spine,
+`s² = a² + 2r(R − c)`, so the blend widens the FLAT face — which is
+what makes it a fillet and not a gouge); trihedral vertex → sphere
+octant. The octant rests on one structural fact, pinned: the corner
+ball's centre lies ON every incident blend cylinder's axis and both
+have radius `r`, so sphere and cylinder are tangent along a full
+circle with `κ_rel = 1/r`. Cone arms: not reached by the die or any
+fixture, refused typed. Sense comes from the stored convexity verdict
+(`Convexity::blend_sense`), never from a sampled normal.
+
+**THE DIE.** Two bodies, honestly, because at M5 they do not compose.
+- *The blank* — a unit cube, all twelve edges blended at r = 0.12: 26
+  faces / 48 edges / 24 vertices, tiers 1–3 green, volume AND surface
+  area on their closed forms to 1e-9 relative with a zero enclosure
+  pad, watertight under `check_mesh`, all 12·4 + 8·3 blend/corner
+  boundary edges carrying `TangentIntersection`, STEP exported and
+  FreeCAD-imported (valid, 26 faces, volume within 2.6e-7 relative),
+  in the tour and in the PR 13 fixture corpus as `filleted_die` — the
+  first fixture with plane AND cylinder AND sphere faces in one solid,
+  all exact, no B-splines.
+- *The pips* — 21 spherical dimples on all six faces of a sharp cube,
+  cut in ONE certified group operation, tier-3 valid, volume on its
+  closed form, watertight, exported and imported. Two facts had to be
+  got right and each was a typed refusal until it was: cutting the
+  pips one at a time presents a TRIMMED sphere face as the next
+  operand (S13's closed-group discipline refuses it), and charting a
+  pip ball with a tilted pole makes the plane×sphere section non-polar
+  (the split-join's azimuth-anchored arc-side rule refuses it).
+
+**Deviations, numbered.**
+1. *The blank and the pips do not compose.* Both orderings fail, at two
+   DIFFERENT pre-existing frontiers, and both are pinned as rows
+   (`deviation_1_the_blank_and_the_pips_do_not_compose_yet`): fillet →
+   pip refuses because there is **no definite-miss certificate for a
+   conic carrier against a curved face**, so it stops at the curved
+   pierce door (point-in-face trim containment on a curved chart, plus
+   the ring insertion behind it — the M5 envelope's named frontier).
+   That arm is unconditional, NOT a clearance verdict: the reviewer
+   measured the true clearance of the named pair at 1.6 cm (fix pass
+   F4). Pip → fillet hits the assembly front door, because the twelve
+   box edges are no longer EVERY edge of the body and the rebuild does
+   not carry a face's RINGS through. The reviewer independently tried
+   every reordering and reproduced BOTH doors; the review sizes the
+   in-place edge-blend surgery that would close them at ONE reviewed
+   unit (about the scale of `build.rs`) and recommends
+   accept-two-piece + bank, which goes to Evan.
+2. *The pip-rim torus fillets are not assembled.* The ARM is landed and
+   pinned against its closed forms, including both trimlines' tangency
+   and their second-order separations (`1/r` against the flat face,
+   `1/R + 1/r` against the pip sphere), and the battery accepts a real
+   pip rim as a CLOSED chain on that arm. What is missing is the
+   in-place surgery that replaces a rim edge with a torus band inside
+   an existing body — the same banked unit deviation 1's second door
+   names.
+3. *The corner octant's chart admits only trihedra that HAVE an
+   admitting edge — now genuinely, after fix pass F2.* `props`'s
+   closed-form inventory needs a face's rims axis-parallel; a spherical
+   triangle admits such a chart exactly when the THIRD support's normal
+   is parallel to the chosen incident edge. The code stated that
+   criterion and then picked whichever incident edge came first in link
+   order, so the true boundary was "cube-like, or lucky edge order" —
+   the reviewer's hexagonal prism satisfies the criterion at every
+   vertex and lost tier 3 on a corner face anyway. The pick is now
+   order-free (minimise `|n_c × axis|` over the three candidates), so
+   it finds the admitting edge whenever one exists, and the boundary is
+   what it always claimed to be: genuinely OBLIQUE trihedra only. Those
+   build through tiers 1–2 and then report `VolumeUncomputable` — a gap
+   in the props inventory (a spherical-triangle form, or quadrature
+   extended to sphere faces), not in the body. Pinned by
+   `f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable`,
+   with the hexagonal and irregular-pentagonal prisms pinned tier-3
+   valid beside it.
+5. *The clearance screen is conservative by direction* (fix pass F1 —
+   the arm is honest about it, but it is still a gap). Tightening it to
+   the true "does this face survive" question needs the inward-offset
+   polygon's feasibility: a linear program over the face's own
+   boundary, not the same setback algebra. Pinned on both sides by
+   `f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`.
+6. *A meridian-tangent circle is in-lane but uncertifiable* (fix pass
+   F3, above). Closing it needs a meridian-aware bound or a lane
+   predicate that can see the configuration. Latent: no constructor
+   mints it, and the refusal is loud.
+4. *The dual montage landed mid-flight and was folded in.* Both die
+   stops carry `montage: true`, and both montage lanes
+   (`compose_montage.py` for the kernel renderer, `--freecad` for the
+   OCC/STEP one) select their cells from `scenes.json` by exactly that
+   flag on the SAME grid — so the die renders in BOTH sheets with no
+   further wiring, which is the acceptance the spec asked for.
+
+**Band-4 corpus (fix pass F5).** The unit first shipped with no corpus
+rows at all — a silent scope gap the review caught. It now has a
+`Node::Fillet { target, radius }` recipe node (edge selection
+deliberately absent: the assembly's front door is "every edge", so a
+whole-body request needs no stable edge names and cannot go stale
+under a parameter edit) and two documents, `die_fillet` and
+`die_pips`. **One of them is registered.** `die_pips` joins
+`documents()` and gets the standard rows for free — evaluation at
+every CI ε row and under `interval`, the D6.1 persistence round-trip,
+the latency table, and the PR 8 realized-vs-idealized differential.
+`die_fillet` does NOT, and the reason is a defect this pass found
+rather than a judgement call: the fillet battery's clearance screen
+seeds its pair gap with `T::from_f64(f64::INFINITY)` and folds the
+sampled distances in with `min`. At `f64` that sentinel is ordinary;
+at the certified `Interval` scalar `from_f64` poisons non-reals, so
+`±∞` embeds as NaI, NaI absorbs through `min`, and the margin reaching
+`decide` is NaN — `Escalated { site: Chain, predicate:
+"fillet3_face_clearance", margin: Invalid }`. It fires for every
+request with at least one non-adjacent boundary-edge pair, i.e. every
+prism, i.e. every fillet the recipe layer can express, so the op has
+never run at `Interval` and no fillet document can sit in a registry
+whose membership means the Interval lane. Rather than red that lane,
+or teach it to skip a document, `die_fillet` sits beside the registry
+with `Fillet` listed in `NODE_KINDS` at zero coverage (the
+`Loft`/`Sweep` mechanism) and every standard row reproduced by hand in
+`m5_pr12_fillet_node.rs` — green build, tier 1 + closed, 26 faces,
+both closed forms metered, the bump cone, the persistence round-trip,
+a typed refusal on an inadmissible radius, and the Interval refusal
+pinned EXACTLY so it fails the moment the sentinel goes. The fix is
+one line in `sweep/src/fillet/battery.rs` (seed the gap from the first
+sampled pair), owned by the sweep lane; registering the document after
+it is one line in `documents()` plus deleting one `FRONTIER_UNCOVERED`
+entry. Two further things are recorded rather than smoothed over:
+both documents carry `pin: None`, because the rounded-box and
+spherical-cap oracles are π-valued and `MassPin` is asserted with `==`
+against an exact value (the `cut_cylinder`/`boss_union` precedent — a
+pin there would pin `f64` rounding of a transcendental, not the
+geometry), and the sweep unit is what meters those closed forms at a
+stated relative tolerance. And `die_pips` carries ONE pip, not
+twenty-one: the 21-shell tool is not corpus-expressible at M5, because
+the recipe layer's only multi-shell assembly is `Boolean(Union)`,
+which on two disjoint balls evaluates green under the production
+realized strategy and refuses typed under the idealized one — so the
+document works inside that frontier instead of around it, and says so.
+Its ball's meridian is likewise split at an equator vertex, because
+the revolve name emitter refuses an all-on-axis loop; both costs are
+written down at the site with the condition for deleting them.
+
+**Gate fixes (two jobs red on #166).**
+
+*The `Bounds` compound-bound tripwire* fired on the two fillet files.
+Ruled under the PR 11 lane-split precedent, and the check it turns on
+came back negative: **no dual-scalar path can reach the fillet
+constructor.** `Bounds` is implemented for `f64`, the interval scalar
+and the telemetry probe — never for `Dual`, which has no bracket to
+offer — and the one production caller (`editor_core::eval`'s fillet
+wiring) sits beneath `evaluate<T>`, whose own signature already
+carries `Bounds` and which instantiates at `f64`/`Interval` only. A
+`PropsQuadLane`-style static split would therefore have had an EMPTY
+refusing side: a dual impl refusing a call no dual scalar can make. So
+the seam is RATIFIED rather than split — both allowlists (the hosted
+step and `scripts/ci-local.sh`) and the `real.rs` scope-rule paragraph
+now carry it, with the grounds: the battery's margins are certified
+metric quantities (sup-κ curvature hulls, blend setback bounds)
+reported as `f64` payloads, i.e. enclosure consumers of exactly the
+quadrature's class. The day a dual lane wants fillets is the day the
+static split earns its keep.
+
+*The k-lint job's process exited 1* — a crash, not an advisory
+finding — and chasing it found a real defect rather than a harness
+problem. The clearance screen seeded its gap with
+`T::from_f64(f64::INFINITY)`. At `f64` that is a harmless sentinel; at
+the certified interval scalar it is the ill-formed interval, NaI
+absorbs through `min`, and every clearance margin downstream of it
+escalated `Invalid`. The whole fillet op was therefore outside the
+Interval lane, `die_fillet` had to sit BESIDE the corpus registry
+instead of in it, and — the consequence the gate actually surfaced —
+the `fillet3_*` family recorded **zero** samples in the K corpus: a
+new predicate family with no telemetry at all. Seeding the gap from
+the first sampled pair fixes all three at once. `die_fillet` is now a
+registered corpus document, `node Fillet` is off `FRONTIER_UNCOVERED`,
+the latency baseline gained its row (refreshed on a verified-quiet
+machine — load 0.86, no cargo or rustc running — and reproducing every
+pre-existing row within ±40%), and the family records 348 samples
+across five of its six predicates at ε = 1e-9. The sixth,
+`fillet3_chain_g1`, records zero BY CONSTRUCTION and correctly: a box's
+twelve chains are one-link open chains, so they have no junctions for
+it to judge.
+
+**Battery.** Touched crates at default ε: `sweep` (all binaries),
+`geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all),
+`editor-core` (all 54 binaries at `f64` — 258 rows — and the whole
+`--features interval` lane, with `die_pips` registered and
+`die_fillet` carried by `m5_pr12_fillet_node.rs`). The latency
+baseline was re-measured whole on a verified-quiet machine; a second
+attempt under a parallel lane read 20-30× higher and was discarded,
+which is recorded in the baseline's own provenance along with the
+still-unresolved 2026-07-25/26-vs-MIN-3 gap this run lands on the
+other side of. The demo tour's ε-regression battery (the ×3ε rows) is
+green.
+New rows: 9 battery + 13 refusal/trio + 7 blend + 3 die-body + 3 die =
+35, plus 3 in `geom-brep`. `cargo fmt --all` clean; clippy clean on the
+touched crates. The demo tour runs green end to end and exports both
+die bodies; `scripts/check_step.sh` passes the whole fixture corpus
+under FreeCAD 1.1.2 including the new row. Interval-square tripwire on
+the diff, stated correctly (fix pass F6): every square added under
+`crates/*/src/` is `powi(2)`. The TEST files do contain `x*x` forms —
+closed-form oracles evaluated at `f64`, where the poison hazard the
+tripwire guards against does not arise — and the earlier blanket "no
+`x*x` on the diff" line overstated it.
+
+## CI build-once (2026-08-03): compile per MODE, not per eps row —
+## nextest archives fan the test matrix out from two builds (#167)
+
+Evan's ask ("compile the code for each mode, then shard the tests —
+the actual testing part is getting kind of long"), landed as #167.
+The eps rows ran BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is
+runtime env — so `test` + `multi-eps` (1e-6/1e-12) + the interval
+job's second run were redundant compiles: on main run 30790436745,
+~8.5–9.5 min of each ~12 min row was compile; execution ~3 min.
+
+**Shape**: `build` / `build-interval` (the only two build graphs)
+each run `cargo nextest archive` under the existing ci-filter scope
+and upload the archive; `test` (eps = default/1e-6/1e-12) and
+`test-interval` (default/1e-6) download and only execute. The named
+interval obligations (D6.1 persistence, D1 corpus) stay visible as
+`-E binary_id(...)` steps. Intra-row `--partition count:*/2`
+sharding was adopted on MEASURED numbers, not by default: the
+first #167 run (30838077811) put the default-eps legs at ~5.9-6.1
+min of execution — over the ~5 min bar — with a flat slow-test
+tail (worst single test 14 s of 1989), which a count partition
+splits evenly; the eps'd legs (3.4-4.3 min) ride along for
+uniformity. ci-local runs rows unsharded (same union).
+
+**nextest**: pinned 0.9.140 (2026-07-05 — ~4 weeks old at adoption,
+past the 2-week age rule; dev/CI-only, official get.nexte.st
+prebuilt, no third-party action). Semantics audit: process-per-test
+(safer for the tolerance OnceLock), per-test capture (layout only),
+and NO DOC-TESTS — the workspace has real doctests incl.
+compile_fail blocks, so both build jobs keep `cargo test --doc` and
+ci-local gained matching rows. The 2026-07-29 row-16 verdict
+("nextest = runner swap + doc-test loss") is not overturned: the
+filter stays the hand-rolled walk; nextest is adopted for the
+archive/fan-out property, with the doc-test loss paid explicitly.
+
+**ci-local.sh** mirrors runner + row semantics per KEEP IN SYNC
+(nextest rows, doc-test rows, same eps env); build-once is automatic
+locally via the shared target/ — the header says the mirror is about
+filter/row semantics, not artifacts. Untouched per scope: corpus /
+persistence / latency / step-import / watertight / k-lint /
+discipline / clippy / fmt jobs.
+
+**Private-repo quota guards**: test binaries link with
+CARGO_PROFILE_TEST_STRIP=debuginfo in the build jobs only; archives
+are retention-days 1 and a green run deletes its own (failed runs
+keep them so re-runs need no rebuild).
+
 **PR 7b implementation COMPLETE (2026-07-31, 7be02c7, pushed) —
 the EXIT GATE is MET: shape (iii) substrate row GREEN** at
 1e-6/1e-9/1e-12 + Interval, all three limbs, bit-replay.

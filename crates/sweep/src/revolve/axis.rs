@@ -174,13 +174,25 @@ pub(super) struct VertexClass<T: Real> {
 
 /// A segment's wall class in swept order: `OnAxis` (no wall), or the
 /// surface of revolution it sweeps as sketch-level data
-/// ([`WallKind`], placed into 3-space by `surfaces::wall_surface`).
+/// ([`WallKind`], placed into 3-space by `surfaces::wall_surface`)
+/// plus the wall face's orientation sense (M5 S11).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum WallClass<T: Real> {
     /// A line segment on the axis: sweeps to nothing.
     OnAxis,
     /// An off-axis segment: sweeps this surface of revolution.
-    Wall(WallKind<T>),
+    Wall {
+        /// The classified surface of revolution.
+        kind: WallKind<T>,
+        /// The wall face's orientation sense (`topo::Face::sense`,
+        /// M5 S11): `false` iff the material lies AGAINST the placed
+        /// surface's chart normal. Derived from the profile's stored
+        /// winding structure in the meridian half-plane (material is
+        /// left of the canonical traversal; the profile lives at
+        /// r ≥ 0 — see `classify_segment`), never from sampled
+        /// normals.
+        sense: bool,
+    },
 }
 
 impl<T: Real> WallClass<T> {
@@ -188,7 +200,15 @@ impl<T: Real> WallClass<T> {
     pub(super) fn kind(&self) -> Option<&WallKind<T>> {
         match self {
             WallClass::OnAxis => None,
-            WallClass::Wall(k) => Some(k),
+            WallClass::Wall { kind, .. } => Some(kind),
+        }
+    }
+
+    /// The wall face's orientation sense, if the segment sweeps one.
+    pub(super) fn sense(&self) -> Option<bool> {
+        match self {
+            WallClass::OnAxis => None,
+            WallClass::Wall { sense, .. } => Some(*sense),
         }
     }
 }
@@ -248,6 +268,7 @@ pub(super) fn classify_loop<T: Decide>(
     segs: &[SweptSeg<T>],
     frame: &AxisFrame<T>,
     loop_index: usize,
+    reverse: bool,
     band: Band,
 ) -> Result<LoopClasses<T>, RevolveError> {
     let n = segs.len();
@@ -275,18 +296,59 @@ pub(super) fn classify_loop<T: Decide>(
     let mut walls = Vec::with_capacity(n);
     for (j, s) in segs.iter().enumerate() {
         let (va, vb) = (&verts[j], &verts[(j + 1) % n]);
-        walls.push(classify_segment(s, va, vb, frame, loop_index, band)?);
+        walls.push(classify_segment(
+            s, va, vb, frame, loop_index, reverse, band,
+        )?);
     }
     Ok(LoopClasses { verts, walls })
 }
 
-/// Classifies one swept segment against the axis (file docs).
+/// Classifies one swept segment against the axis (file docs), and
+/// derives its wall face's orientation sense (M5 S11).
+///
+/// **The sense derivation** (exact stored structure, never sampled
+/// normals). Work in the meridian half-plane with frame coordinates
+/// `(r, z)` — an orientation-preserving image of the sketch plane
+/// (`ê_r = d̂ rotated −90°`, so `(ê_r, d̂)` is right-handed) with the
+/// profile at `r ≥ 0`. The profile's canonical winding is
+/// material-left (outers counterclockwise, holes clockwise), so the
+/// material side of a wall segment is the LEFT of its canonical
+/// traversal; the swept traversal (reversed for θ > 0) only relabels
+/// the same stored signs, undone here via `reverse`. Every placed
+/// revolution surface's chart normal points AWAY from the axis at
+/// physical points (cylinder/cone: the outward radial family —
+/// including the cone's far nappe, whose physical points sit at
+/// azimuth u+π; sphere/torus: outward from the on-meridian center),
+/// or along `+a₃` for plane annuli. `sense` is `true` iff the chart
+/// normal points away from the material:
+///
+/// - **Cylinder & cone** (chart normal away from the axis,
+///   ⊥ generator): material is at smaller radius exactly when the
+///   canonical traversal climbs, so `sense = (canonical Δz > 0)` —
+///   for the cone this is nappe-independent (the normal's meridian
+///   form is `(cos α, −s_z·sin α)` with `s_z` the nappe side, and the
+///   algebra collapses to the axial sign; the cylinder is the α → 0
+///   case).
+/// - **Plane annulus** (chart normal `+a₃`, i.e. `+z`): material is
+///   above exactly when the canonical traversal runs outward, so
+///   `sense = (canonical Δr < 0)`.
+/// - **Sphere & torus** (chart normal away from the on-meridian
+///   carrier center): the center lies left of the traversal iff the
+///   canonical turn is `Positive` (a counterclockwise arc curves
+///   around its center), so `sense = (canonical turn == Positive)` —
+///   the same concave-arc criterion as extrude's cylinder walls.
+///
+/// Unreachable `Zero` signs (a degenerate segment survives to here
+/// only as a kernel bug) keep the convex/outward arm, `sense: true` —
+/// the `turn_axis` totality posture.
+#[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
 fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
     va: &VertexClass<T>,
     vb: &VertexClass<T>,
     frame: &AxisFrame<T>,
     loop_index: usize,
+    reverse: bool,
     band: Band,
 ) -> Result<WallClass<T>, RevolveError> {
     let escalated = |source| RevolveError::SliverAxisClearance {
@@ -294,6 +356,9 @@ fn classify_segment<T: Decide>(
         segment_index: s.canonical_segment,
         source,
     };
+    // A stored sign in the CANONICAL basis: the swept reversal negated
+    // chord deltas and flipped turns, so `reverse` undoes it exactly.
+    let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
     match s.kind {
         SweptKind::Line => {
             if va.pinned && vb.pinned {
@@ -302,29 +367,44 @@ fn classify_segment<T: Decide>(
             // Radial and axial deltas of the chord (meters).
             let dr = vb.r - va.r;
             let dz = frame.axial(s.b) - frame.axial(s.a);
-            if matches!(
-                decide("axis_line_radial", dr, band).map_err(escalated)?,
-                Sign::Zero
-            ) {
-                return Ok(WallClass::Wall(WallKind::Cylinder { radius: va.r }));
+            let sr = decide("axis_line_radial", dr, band).map_err(escalated)?;
+            let sz = decide("axis_line_axial", dz, band).map_err(escalated)?;
+            // Line walls' sense (doc above): cylinder and cone read
+            // the canonical axial direction, the plane annulus the
+            // canonical radial one.
+            if matches!(sr, Sign::Zero) {
+                return Ok(WallClass::Wall {
+                    kind: WallKind::Cylinder { radius: va.r },
+                    sense: !matches!(canonical(sz), Sign::Negative),
+                });
             }
-            if matches!(
-                decide("axis_line_axial", dz, band).map_err(escalated)?,
-                Sign::Zero
-            ) {
-                return Ok(WallClass::Wall(WallKind::Plane));
+            if matches!(sz, Sign::Zero) {
+                return Ok(WallClass::Wall {
+                    kind: WallKind::Plane,
+                    sense: !matches!(canonical(sr), Sign::Positive),
+                });
             }
             // Oblique: the generator crosses the axis at the affine
             // zero of r along the chord (r is linear on a line).
             let sstar = (T::zero() - va.r) / dr;
             let apex_sk = s.a + (s.b - s.a) * sstar;
             let half_angle = (dr.abs() / dz.abs()).atan();
-            Ok(WallClass::Wall(WallKind::Cone {
-                apex_sk,
-                half_angle,
-            }))
+            Ok(WallClass::Wall {
+                kind: WallKind::Cone {
+                    apex_sk,
+                    half_angle,
+                },
+                sense: !matches!(canonical(sz), Sign::Negative),
+            })
         }
-        SweptKind::Arc { center, radius, .. } => {
+        SweptKind::Arc {
+            center,
+            radius,
+            turn,
+        } => {
+            // Arc walls' sense (doc above): the carrier center is on
+            // the material side iff the canonical turn is Positive.
+            let sense = !matches!(canonical(turn), Sign::Negative);
             let rc = frame.r(center);
             match decide("axis_arc_center", rc, band).map_err(escalated)? {
                 Sign::Zero => {
@@ -355,20 +435,26 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    Ok(WallClass::Wall(WallKind::Sphere {
-                        center_sk: center,
-                        radius,
-                    }))
+                    Ok(WallClass::Wall {
+                        kind: WallKind::Sphere {
+                            center_sk: center,
+                            radius,
+                        },
+                        sense,
+                    })
                 }
                 Sign::Positive => {
                     // Ring-torus clearance: the tube must stay
                     // definitely clear of the axis (D3 convention).
                     match decide("axis_arc_clearance", rc - radius, band).map_err(escalated)? {
-                        Sign::Positive => Ok(WallClass::Wall(WallKind::Torus {
-                            center_sk: center,
-                            major: rc,
-                            minor: radius,
-                        })),
+                        Sign::Positive => Ok(WallClass::Wall {
+                            kind: WallKind::Torus {
+                                center_sk: center,
+                                major: rc,
+                                minor: radius,
+                            },
+                            sense,
+                        }),
                         Sign::Zero | Sign::Negative => Err(RevolveError::UnsupportedToroid {
                             loop_index,
                             segment_index: s.canonical_segment,

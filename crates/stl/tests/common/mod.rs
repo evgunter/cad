@@ -50,7 +50,86 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
         // into a non-watertight STL. Here so that the EXTERNAL admesh
         // gate covers the class too, not only our own checker.
         ("az_intersect", az_intersect(), 1e-2),
+        // M5 PR 11: the trimmed-face lane's acceptance shapes under the
+        // external admesh gate — the tiltedcut halves (conic-trimmed
+        // cylinder walls) and boss∪plate (the first transverse curved
+        // boolean; curved-planar shared seam arcs).
+        ("tiltedcut_above", tiltedcut().0, 1e-2),
+        ("tiltedcut_below", tiltedcut().1, 1e-2),
+        ("boss_plate", boss_plate(), 1e-2),
     ]
+}
+
+/// M5 shape (i): a cylinder split by a tilted plane through the
+/// mid-height axis point (exact `Ellipse` section carriers; the walls
+/// tessellate through the PR 11 trimmed lane).
+pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: p2(-1.0, 0.0),
+            bulge: 1.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 1.0,
+        },
+    ]);
+    let cylinder = extrude(&validated(vec![lp]), Extrusion::Distance(2.5))
+        .unwrap()
+        .body;
+    let phi: f64 = 0.3;
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.0, 1.25),
+        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
+    };
+    let result = split(&cylinder, &plane).unwrap();
+    let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
+        panic!("both sides carry material");
+    };
+    (above.clone(), below.clone())
+}
+
+/// M5 shape (ii): cylinder boss ∪ plate — the boss's three 120° wall
+/// arcs pierce the plate's top face; the seam is three exact circle
+/// arcs shared between the protruding walls and the ringed top face.
+pub fn boss_plate() -> Body<f64> {
+    use geom_core::Affine3;
+    let plate_loop = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
+    let plate = extrude(&validated(vec![plate_loop]), Extrusion::Distance(1.0))
+        .unwrap()
+        .body;
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th = deg.to_radians();
+        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
+    };
+    let boss_loop = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: at(0.0),
+            bulge: b120,
+        },
+        ProfileVertex {
+            pos: at(120.0),
+            bulge: b120,
+        },
+        ProfileVertex {
+            pos: at(240.0),
+            bulge: b120,
+        },
+    ]);
+    let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let boss_profile = Profile::new(sketch, vec![boss_loop])
+        .validate(Tolerance::get())
+        .unwrap();
+    let boss = extrude(&boss_profile, Extrusion::Distance(1.2))
+        .unwrap()
+        .body;
+    let out = topo::union(&plate, &boss).unwrap();
+    match out {
+        BooleanResult::Body(bb) => bb.body,
+        other => panic!("the boss union yields a body, got {other:?}"),
+    }
 }
 
 /// A (counter-hole variant) × Z, the issue-#93 acceptance body: four

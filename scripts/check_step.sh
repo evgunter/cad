@@ -4,7 +4,10 @@
 # system imports every committed fixture and we assert validity plus
 # exact topology counts and volume (expectations live in the
 # per-fixture .expect sidecars; the fixtures themselves are byte-golden
-# against the writer via the cargo test suite).
+# against the writer via the cargo test suite). A fixture may also carry
+# a sibling <fixture>.probe.py, run under the same interpreter with
+# $STEP_FILE set, for geometric facts the generic count/volume checks
+# cannot state.
 #
 # Usage: scripts/check_step.sh [dir-with-step-files]
 #   (default: crates/step-export/tests/fixtures)
@@ -52,6 +55,18 @@ for f in "${files[@]}"; do
     if ! env $(grep -E '^EXPECT_[A-Z0-9_]+=' "$expect" | xargs) STEP_FILE="$f" \
         "$freecadcmd" "$repo_root/scripts/step_import_check.py"; then
         fail=1
+    fi
+    # Optional per-fixture geometric probe: a sibling <fixture>.probe.py
+    # runs under the same interpreter with $STEP_FILE set. Counts and
+    # volume are generic; a probe is for facts only that fixture can
+    # state (e.g. nurbs_wireframe's: OCC must reconstruct the rational
+    # record's exact conic, weights honoured).
+    probe="${f%.step}.probe.py"
+    if [ -f "$probe" ]; then
+        if ! STEP_FILE="$f" "$freecadcmd" "$probe"; then
+            echo "FAIL($f): geometric probe $probe" >&2
+            fail=1
+        fi
     fi
 done
 exit $fail

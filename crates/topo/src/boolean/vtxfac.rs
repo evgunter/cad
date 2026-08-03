@@ -94,7 +94,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Entries = the bounds in orbit order (entry k = sector k's END
     // bound: real chord or subdivision bisector), classed against the
-    // pierced face's plane via the F3 primitive.
+    // pierced face's plane via the F3 primitive. `plane.normal` is the
+    // pierced face's OUTWARD normal (S10, threaded by `face_plane`) —
+    // In/Out here is a material verdict and reads backwards off a
+    // chart normal on a reversed face.
     let mut entries = Vec::with_capacity(n);
     for s in &sectors {
         entries.push(Entry {
@@ -112,14 +115,32 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             Ok(_) => continue,
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
-        let sector_plane =
-            face_plane(piercing_body, s.face).ok_or(BooleanError::ClassificationInvariant {
-                what: "sector face lost its plane",
-            })?;
+        // A CURVED sector whose local normal is plane-parallel at the
+        // pierce point is a tangent (touching) contact — the M5
+        // envelope's typed frontier (C7/OQ5: no curved coplanar-lump
+        // arm exists; touching curved configurations refuse).
+        let Some(sector_plane) = face_plane(piercing_body, s.face) else {
+            let kind = piercing_body
+                .get_face(s.face)
+                .and_then(|f| piercing_body.get_surface(f.surface))
+                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: piercing,
+                face: s.face,
+                kind,
+            });
+        };
         let pierced_op = piercing.other();
+        // Oriented sources (S10): `sector_plane` and `plane` are both
+        // OUTWARD normals, so rung 1's syntactic Same± verdict has to
+        // see the face senses as well as the surfaces' `orient` tags.
+        let (g1, g2) = (
+            super::reduce::face_plane_source(piercing_body, s.face),
+            super::reduce::face_plane_source(pierced_body, contact.face),
+        );
         let id = super::PlaneIdentity {
-            s1: super::reduce::face_source(piercing_body, s.face),
-            s2: super::reduce::face_source(pierced_body, contact.face),
+            s1: g1.as_ref(),
+            s2: g2.as_ref(),
             declared: declared.contains(piercing, s.face, pierced_op, contact.face),
         };
         let rel = match super::oriented_plane_eq(&sector_plane, &plane, id, s.arm, band) {
@@ -417,6 +438,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 /// intersection direction of the transition sector's face plane with
 /// the pierced plane, signed to lie within the sector (grazes count —
 /// an on-edge germ IS a bound). Ambiguity refuses loudly.
+///
+/// Sense-invariant given its sources (S10): the cross product names a
+/// LINE and `within` picks the ray, so neither normal's sign survives
+/// into the answer. Both arrive oriented already — `s.normal` from
+/// `sectors::sector_face`, `plane_normal` from `reduce::face_plane` —
+/// and neither is multiplied again here.
 fn pierce_germ_dir<T: Decide>(
     s: &super::sectors::BoolSector<T>,
     plane_normal: geom_core::Vec3<T>,
