@@ -2420,3 +2420,11 @@ unloadable-by-construction is closed); wire.rs mirror retired;
 one pinned row re-typed (Parse → the shared TangentJointOutOfRange
 — better diagnostics, the mirror the note named). Light review
 next.
+
+**S4 review APPROVE (no fix pass), PR OPENED as #162 with the
+ToleranceConflict designed-residue note orchestrator-applied.**
+The hole was reproduced BOTH ends at merge base; the shared
+validate_document closes unloadable-by-construction; residue
+audit clean; no byte moved. A/B row 39 = S4 (fable, S: APPROVE
+0/0, 5/4/5). Combined watcher armed on #160+#162; PR 12
+dispatches (opus, block-18 remainder) when #160 lands.
