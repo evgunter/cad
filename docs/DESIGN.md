@@ -899,9 +899,14 @@ ratified; each earned by a concrete M4 incident):**
    analogue). Earned: PR 6 review MAJ-1 — a NaN with all-ones bits
    walked past the save doors and produced an unloadable file; the
    fix-pass sweep then found two MORE save-side holes beyond the
-   reported one (#112). Migration note: PR 6's shipped doors are
-   sweep-style mirrors; consolidating them into the shared
-   validator is banked M5-adjacent hygiene, not a re-open of #112.
+   reported one (#112). Migration note DISCHARGED (M5 S4): both
+   doors now invoke the ONE shared validator
+   (`persist::check::validate_document` — float walk, joint walk,
+   structural invariants); the wire keeps only the genuinely
+   load-only residue (parse/position errors, the canonical-set
+   rule), and the save-refuses-what-load-refuses closure is pinned
+   at the unit level (a structurally invalid in-memory document
+   refuses at save with the load door's own arm).
 3. **Full-matrix watcher floors.** Any merge-gating checks watcher
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the

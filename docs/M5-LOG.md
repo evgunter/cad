@@ -2402,3 +2402,47 @@ face even though it is flat. (`lib.rs` already had it right.)
 (the ten corpus fixtures plus the wireframe, whose geometric probe runs
 inside the same job). `fmt --all --check` and `clippy --all-targets`
 clean.
+
+## S4 (2026-08-02): save/load shared-validator consolidation — the
+## convention-2 migration note discharged
+
+Non-gating hygiene (plan R4/S4; DESIGN engineering convention 2's
+migration note, banked at the M4 exit sweep). PR 6's shipped doors
+were sweep-style mirrors: the save door ran `first_non_finite` +
+`first_bad_joint`, the load door ran `validate_snapshot` plus a
+SECOND joint-bounds implementation inside `wire.rs`'s deserializer,
+and the structural invariants ran at load only — so an in-crate bug
+corrupting a `pub(crate)` field (ε = 0.0, a mangled `order`) could
+still save an unloadable file, exactly the shape MAJ-1 was.
+
+**What changed** (`crates/editor-core/src/persist/`):
+
+- `check::validate_document(snapshot, edits)` is the ONE shared
+  validator: float walk → joint walk → structural invariants (the
+  save door's historical precedence, so every pinned refusal keeps
+  its arm). `save` and `load` both call it — save on the in-memory
+  document before a byte is written, load on the parsed document
+  before replay. The three walks it composes went private.
+- The mirrored joint-BOUNDS arm in `wire.rs`'s deserializer is
+  retired; range is a document property and now refuses through the
+  shared validator on BOTH doors with the same typed diagnostics
+  (`TangentJointOutOfRange` naming the node — better than the old
+  Parse line/column). The canonical-set rule (strictly increasing)
+  stays in `wire.rs`: in-memory joint lists are set-semantic, so
+  canonicity is the wire's own load-only residue, alongside
+  parse/position errors and serializer failure. Log replayability
+  stays shared structurally (both doors replay through `apply`).
+- Pins: `m4_pr6_refusal.rs`'s out-of-range-at-load row re-pinned to
+  the shared typed arm; a new unit row in `check.rs` pins the closed
+  hole — ε = 0.0 (finite, past the float walk) and an `order` entry
+  with no node now refuse AT SAVE with the load door's own
+  `Snapshot(...)` arms, where before they wrote unloadable files.
+
+**Battery.** editor-core full suite green at default ε; the
+persistence rows (`m4_pr6_roundtrip`/`floats`/`golden`/`refusal`/
+`review_probes`, `m5_pr10_schema_v2`, `review_m5_pr10_schema`) green
+at 1e-6 AND 1e-12 (byte-goldens untouched — the change adds refusal
+paths only, no byte of any save moved). fmt + clippy clean. DESIGN
+convention 2's migration note updated to DISCHARGED in place (the
+convention itself stays PROPOSED-8c — awaiting sign-off; only its
+migration note is spent).

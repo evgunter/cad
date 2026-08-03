@@ -323,8 +323,26 @@ fn tangent_joint_doors_refuse_typed_at_load() {
     let text = save(&doc, &[]).expect("save");
     let needle = "\"tangent_joints\": [\n                1\n              ]";
     assert!(text.contains(needle), "fixture must contain the joint");
+    // Out of range: a DOCUMENT property, so it refuses through the
+    // shared validator with the save door's own typed diagnostics
+    // (convention 2 — one validator, both doors), naming the node.
+    let out_of_range = text.replace(
+        needle,
+        "\"tangent_joints\": [\n                9\n              ]",
+    );
+    assert_ne!(out_of_range, text);
+    match load(&out_of_range) {
+        Err(PersistError::TangentJointOutOfRange {
+            site: editor_core::persist::JointSite::Profile { node },
+            loop_index: 0,
+            joint: 9,
+            vertex_count: 5,
+        }) => assert_eq!(node, RecipeNodeId(0)),
+        other => panic!("out-of-range joint must refuse typed at load, got {other:?}"),
+    }
+    // Non-canonical lists: the WIRE's own rule (in-memory joints are
+    // set-semantic) — load-only by nature, refused at parse.
     for (bad, expect) in [
-        ("[\n                9\n              ]", "out of range"),
         (
             "[\n                1, 1\n              ]",
             "strictly increasing",
