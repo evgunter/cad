@@ -14,7 +14,7 @@ bifurcation theory; SE(3)).
 record unchanged):* the W-CONTRACTS landed at M4 PR 4 (#96) — witness
 datum in recipes, typed error surface, purity boundary, solver
 contracts as DATA ONLY (the W5 solved-assignment slot exists and stays
-empty); the solver itself remains M6-era as designed. ERROR-DESIGN.md
+empty); the solver itself remains M8-era as designed. ERROR-DESIGN.md
 (ratified 2026-07-27, #110) composes with W1–W9 as this doc
 anticipated.
 
@@ -25,7 +25,7 @@ bifurcation = typed error with distance-to-singularity margin;
 witness refreshes at committed sketch edits; interval replay runs
 interval-Newton contraction seeded from the f64 witness. This doc
 pins the mechanism those sentences left open. Implementation is
-M6-era (sketch solver); M4 needs the contracts (witness datum in
+M8-era (sketch solver); M4 needs the contracts (witness datum in
 recipes, error types, purity boundary) — that is why this doc
 precedes M4-PLAN.
 
@@ -154,7 +154,7 @@ WitnessBifurcation {
   through a sketch node; the verdict-vector diff machinery attaches
   the flipping `solver_branch_margin` instance (shared with the
   SetTolerance audit, as ratified).
-- Constructive upgrades (M6-era, recorded not promised): the
+- Constructive upgrades (M8-era, recorded not promised): the
   Moore–Spence bordered system makes the fold point itself the
   solution of a regular square system — so distance-to-fold in
   parameter space can be computed and even certified when we want
@@ -164,7 +164,7 @@ WitnessBifurcation {
 - K telemetry: `solver_branch_margin` is the first genuinely
   ill-conditioned predicate family the K funnel will see (T6) —
   K-REPORT's "K rarely binds" evidence is all well-conditioned
-  construction; the M6 corpus must re-examine K here.
+  construction; the M8 corpus must re-examine K here.
 
 ## W4 — Witness update policy: commits only, repair explicit (proposed)
 
@@ -238,7 +238,7 @@ gate:
 
 ## W7 — ezpz audit criteria and the fallback (proposed)
 
-The Q3 adoption decision (ezpz at M6) gets its bit-identity audit
+The Q3 adoption decision (ezpz at M8) gets its bit-identity audit
 criteria pinned now: (i) libm-only transcendentals (no platform
 `std::f64` drift), (ii) no iteration order derived from hash maps or
 pointer identity, (iii) bit-identical solve results across two
@@ -275,7 +275,7 @@ proof obligation, lit §5/§7.5).
 
 The two-layer DOF diagnosis is ratified: layer 1 (combinatorial
 DOF/decomposition analysis — exact, float-free; no Rust DCM exists,
-ours to build at M6) is NOT this doc. Interface assumption recorded:
+ours to build at M8) is NOT this doc. Interface assumption recorded:
 the decomposition plan is a pure function of the constraint graph
 (generic, parameter-independent — DR-planning's own property), so
 layer-1 outputs may key caches but never consult coordinates;
@@ -341,13 +341,13 @@ cases concentrate at (a) genuinely near-degenerate geometry, where
 asking is honest, and (b) large typed jumps in root-crowded sketches.
 Wall-mode drags eliminate the drag-borne cases by construction. The
 honest quantitative answer is empirical and the instrument is already
-built: `solver_branch_margin` sits in the k_stats funnel, so the M6
+built: `solver_branch_margin` sits in the k_stats funnel, so the M8
 corpus measures exactly this distribution (the T6 obligation — the
 first genuinely ill-conditioned predicate family K will see).
 
 ## Open after this doc
 
-- The M6 implementation surface: operator choice (Krawczyk vs
+- The M8 implementation surface: operator choice (Krawczyk vs
   Hansen–Sengupta by cost profile), the ε-inflation schedule
   constants, bordered-system fold localization, the layer-1
   decomposition design, and the mate-solver mechanism (W8's proof
@@ -357,4 +357,4 @@ first genuinely ill-conditioned predicate family K will see).
   territory, revisit with editor-core experience.
 - The chamber-map upgrade (precomputed parameter-range intervals per
   van der Meiden — closed-form fold distances for decomposable
-  steps) as a cheap early-warning margin — banked as an M6 option.
+  steps) as a cheap early-warning margin — banked as an M8 option.

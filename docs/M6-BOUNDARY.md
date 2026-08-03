@@ -1,9 +1,38 @@
 # The M5→M6 boundary: banked units + three roadmap questions (design conversation)
 
-Status: DRAFT for Evan's review. Two decisions requested (§1, §2);
-the technical analysis in §3 rides whichever home §2 picks. A 👍
-on the PR is enough to ratify the recommendations as written;
-comment to fork any of them.
+**STATUS: AMENDED AND SUPERSEDED IN PART (M5 PR 14 exit sweep,
+2026-08-03). The body below is the record as ratified at #161 and is
+NOT rewritten; read it through these amendments.**
+
+1. **The milestone numbers changed** (Evan, PR #169 comment
+   5171303851). Where this document says "M6 is the
+   error-propagation MVP … a different axis entirely", that
+   milestone is now **M8**. **M6** is a NEW milestone — the
+   main-path curved completions — and it is precisely the home this
+   document argued did not exist for the banked units. So §1's
+   recommendation ("M5-adjacent, immediately post-exit") is
+   satisfied by construction: the banked units ARE M6 now, rather
+   than sitting between milestones. **M7 is STEP adoption only.**
+2. **The sequence this document recorded is amended** to: M5 exit →
+   **M6** (SSI generic-`T` lift → loft/sweep body assembly, which
+   also owns completing pcurve certification on the analytic charts
+   → in-place edge-blend composition surgery → cyl×sphere germ
+   chords / NURBS extent lift) → **M7** (STEP adoption) → **M8**
+   (error propagation). The **composition-surgery** unit — which did
+   not exist when this document was written — is sequenced EARLY in
+   M6 by Evan's approval of acceptance shape (v)'s piecewise exit
+   (PR #169 comment 5171351203: "i approve sequencing it soon in the
+   new M6").
+3. **The census / declared-contact design doc moves to M6**, not M7
+   (Evan, same ruling: "we shouldn't fold any core work like ball
+   and socket into M7; M7 should stay as just adopting STEP files").
+   It is design-only work at M6; curved REST contact's
+   implementation is not scheduled by this amendment.
+
+Original status line, as written: DRAFT for Evan's review. Two
+decisions requested (§1, §2); the technical analysis in §3 rides
+whichever home §2 picks. A 👍 on the PR is enough to ratify the
+recommendations as written; comment to fork any of them.
 
 ## 1. The three banked geometry units — where do they run?
 

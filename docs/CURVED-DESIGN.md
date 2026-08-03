@@ -23,6 +23,27 @@ sharply bimodal margins, K = 10 unpressured on the analytic kernel).
 The post-ratification obligations listed above remain open for M5
 planning.
 
+*IMPLEMENTATION STATUS SUPERSEDED (M5 PR 14 exit sweep, 2026-08-03).*
+The paragraph above is kept as the record of what was true at M4's
+close; it is no longer true. **M5 is complete** — see DESIGN.md's
+roadmap M5 line and `docs/M5-EXIT-WALK.md` for what shipped, what is
+banked by name, and what is carried. Two consequences for reading
+THIS document. (1) **Every "inari" / "LGPL quarantine" reference
+below — including C9's heading, C9's decided note, and T2 — is
+HISTORICAL.** The transition allowance C9 granted was never needed:
+M5 PR 1 (#127, 2026-07-28) swapped the kernel's interval backend to
+the in-house `interval-transcendentals` crate and removed inari and
+its LGPL stack from the tree entirely (Cargo.lock zero hits,
+dev-dependencies included), so there was no quarantine boundary left
+to redraw — it was retired by REMOVAL, and issue #4's exit condition
+is met that way. The "quarantine boundary-text update" obligation is
+DISCHARGED; DESIGN.md carries the tombstone and the crate-table
+history. (2) The C1–C12 decisions remain this doc's ratified design
+record, but several were implemented with recorded deviations and
+several frontiers moved. Implementation truth lives in
+`docs/M5-LOG.md` and the exit walk; where they disagree, the log
+wins.
+
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
 obligation and fillet-validity-is-reified-predicates); M3-PLAN F5 (the
@@ -381,13 +402,13 @@ never topology. Pinning the discipline's boundary explicitly:
   structure.) This keeps the naming pillar airtight: the name table
   is a function of recipe structure + verdicts (N4), and cache shape
   is in neither.
-- Under M6 interval replay the fitted structure transfers with the
+- Under M8 interval replay the fitted structure transfers with the
   body (lineage-scoped keys; content-keyed transfer applies — the
   cache is keyed by the bit-content of its inputs), and the interval
   lane certifies residuals over the parameter box; an indeterminate
   certificate joins the subdivision-driver posture like every other
   interval refusal. Refitting per sub-box is an *optimization*
-  decision for M6, never a semantic one.
+  decision for M8, never a semantic one.
 
 **Alternative considered:** make the fitting loop's convergence tests
 trilean and replay the whole fit at every T — rejected: it manufactures
@@ -482,7 +503,7 @@ practice, p. 343).
   convex↔concave mid-edge has no constant-radius rolling-ball blend
   — trilean per sample, escalate on flip), corner configuration
   (enumerated; see scope). Every one is a Q1 trilean through k_stats
-  from birth, which is what lets M6 certify fillet validity over a
+  from birth, which is what lets M8 certify fillet validity over a
   parameter box (the banked payoff, restated not re-argued).
 - **Blend surface representation, analytic-first (D3 payoff)**: the
   constant-radius rolling ball over analytic supports lands on
@@ -944,7 +965,7 @@ could have reintroduced it mid-milestone is closed.)*
 
 **T2 — Interval quarantine vs certification on the default path.**
 The `interval` feature's LGPL quarantine (issue #4, crate table) was
-scoped when interval arithmetic was an M6 replay lane. C2/C3 make
+scoped when interval arithmetic was an M8 replay lane. C2/C3 make
 enclosures load-bearing for default-build validation of curved
 bodies. C9 resolves it structurally (ring-only in-house type); the
 flag stands in case Evan prefers a different resolution, because

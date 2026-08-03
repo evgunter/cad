@@ -1,5 +1,13 @@
 # Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-M6 design doc)
 
+**MILESTONE STATUS (2026-08-03 renumbering, Evan on PR #169 comment
+5171303851): this document targets M8.** Error propagation moved
+behind STEP adoption, so the old M6 was renamed M8 and M6 became the
+main-path curved completions. **Every "M6" in this document's body
+below is HISTORICAL and means "the error-propagation milestone" —
+read it as M8.** Nothing about the design changed; only the number
+did. The title's "pre-M6" is kept as written for the same reason.
+
 Status: **RATIFIED (Evan, PR #110, merged 2026-07-27 — 👍 on the
 round-2 sign-off comment).** E1–E11 as revised are the M6
 error-propagation contract seed. Design history: Round 2

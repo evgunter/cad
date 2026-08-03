@@ -25,7 +25,7 @@ of the library product. D8 did the philosophical work already — *the
 recipe is data*; the extension is: **changes to the recipe are data
 too.**
 
-1. **Kernel** (M0–M7): `build(params) → solid`. Unchanged.
+1. **Kernel** (M0–M8): `build(params) → solid`. Unchanged.
 2. **`editor-core`** (headless, no rendering dependency; slotted into
    DESIGN.md's crate table between `model` and `viewer`):
    - **The document is a value**: recipe DAG (D8) + document metadata
@@ -178,7 +178,7 @@ solver output demoted to witness; kernel certifies; interval replay
 runs interval-Newton **contraction seeded from the f64 witness**
 (existence/uniqueness in a box) instead of interval-solving from
 scratch. Mechanism details (contraction specifics, the margin
-predicate's exact form) are M4/M6 design work under this committed
+predicate's exact form) are M4/M8 design work under this committed
 direction. Concrete audit item: ezpz (Q3) must satisfy bit-identity
 (libm-only math, no hash-order effects) if its f64 path runs inside
 `build`. Mechanism note carried up from M2 PR 3's adversarial
