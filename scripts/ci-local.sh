@@ -46,6 +46,9 @@
 # (nextest, process-per-test), same row set (incl. the explicit doc-test
 # rows: nextest does not run doc-tests), same eps env — NOT about
 # archives/artifacts, which are hosted plumbing with no local analogue.
+# Hosted additionally splits each eps row into two --partition count
+# shards for wall-clock fan-out; the shards' union is exactly the row,
+# so the unsharded rows here gate the same test set.
 #
 # Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).

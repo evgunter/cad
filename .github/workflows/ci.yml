@@ -331,19 +331,23 @@ jobs:
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
         env:
           CARGO_PROFILE_TEST_STRIP: debuginfo
-      # Doc-tests DO NOT run under nextest (upstream design): this step
-      # keeps them gated. The workspace has real doctests, including
-      # compile_fail blocks that only the doctest runner exercises.
-      - name: doc-tests
-        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+      # Upload right after the archive (the run legs still wait on the
+      # whole job via `needs`): if a later step fails, the archive is
+      # already up, so the failure can be investigated / re-run without
+      # rebuilding.
       - uses: actions/upload-artifact@v4
         with:
           name: nextest-default
           path: nextest-default.tar.zst
           retention-days: 1
+      # Doc-tests DO NOT run under nextest (upstream design): this step
+      # keeps them gated. The workspace has real doctests, including
+      # compile_fail blocks that only the doctest runner exercises.
+      - name: doc-tests
+        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
 
   test:
-    name: test (eps = ${{ matrix.eps }})
+    name: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: [filter, build]
     if: needs.filter.outputs.run_build == 'true'
@@ -355,16 +359,19 @@ jobs:
       # variable genuinely UNSET (an empty CAD_TOLERANCE_EPS is a parse
       # error by design — tolerance.rs multi-ε contract — so the
       # assignment rides the run line as a shell prefix, not `env:`).
-      # All three rows execute the SAME archived binaries: eps is runtime
-      # env, which is the whole point of building once.
+      # All rows execute the SAME archived binaries: eps is runtime env,
+      # which is the whole point of building once.
+      #
+      # 2-way intra-row sharding (--partition count:*/2), adopted on
+      # MEASURED numbers (#167 run 30838077811): unsharded, the
+      # default-eps legs executed in ~5.9-6.1 min — over the ~5 min bar —
+      # with a flat slow-test tail (worst single test 14 s of 1989), so a
+      # count partition splits evenly. The two shards' union is exactly
+      # the row (nextest partitions the run list deterministically); a
+      # failure still names its eps row in the leg name.
       matrix:
-        include:
-          - eps: default
-            set_eps: ""
-          - eps: 1e-6
-            set_eps: "CAD_TOLERANCE_EPS=1e-6"
-          - eps: 1e-12
-            set_eps: "CAD_TOLERANCE_EPS=1e-12"
+        eps: ["default", "1e-6", "1e-12"]
+        shard: [1, 2]
     env:
       # Nothing compiles here: cargo only dispatches to cargo-nextest,
       # which runs prebuilt binaries out of the archive — keep the job
@@ -381,8 +388,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: nextest-default
+      # The eps assignment is an inline shell prefix (empty for the
+      # `default` leg — see the matrix comment on why not `env:`).
       - name: run archived tests
-        run: ${{ matrix.set_eps }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap .
+        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
 
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval
@@ -419,25 +428,29 @@ jobs:
           key: interval
       - name: install cargo-nextest (pinned, official prebuilt)
         run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
-      # This job owns the interval feature's clippy pass (the default
-      # clippy job deliberately skips --all-features).
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
+      # Archive first, upload immediately (the legs still wait on the
+      # whole job via `needs`; the early upload means a clippy/doc-test
+      # failure leaves the archive available for investigation). This job
+      # is the run's critical path (measured on #167): keep it lean.
       # Same strip rationale as the default build job (CI-only link knob,
       # artifact quota; symbols survive).
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
         env:
           CARGO_PROFILE_TEST_STRIP: debuginfo
-      - name: doc-tests (interval)
-        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
       - uses: actions/upload-artifact@v4
         with:
           name: nextest-interval
           path: nextest-interval.tar.zst
           retention-days: 1
+      # This job owns the interval feature's clippy pass (the default
+      # clippy job deliberately skips --all-features).
+      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
+      - name: doc-tests (interval)
+        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
 
   test-interval:
-    name: test (interval, eps = ${{ matrix.eps }})
+    name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: [filter, build-interval]
     if: needs.filter.outputs.run_build == 'true'
@@ -446,13 +459,12 @@ jobs:
       # One multi-ε row at interval type (D4 ¶1): the interval band test
       # re-derives every assertion from the run's ε, so the 1e-6 row
       # genuinely exercises a different band. Same archive both rows —
-      # eps is runtime env. `default` = env unset (see the `test` matrix).
+      # eps is runtime env. `default` = env unset, and 2-way sharding —
+      # see the `test` matrix comments (the unsharded interval default
+      # leg measured 6.1 min of execution, the run's slowest).
       matrix:
-        include:
-          - eps: default
-            set_eps: ""
-          - eps: 1e-6
-            set_eps: "CAD_TOLERANCE_EPS=1e-6"
+        eps: ["default", "1e-6"]
+        shard: [1, 2]
     env:
       # Nothing compiles here (see the `test` job).
       RUSTUP_TOOLCHAIN: stable
@@ -464,20 +476,20 @@ jobs:
         with:
           name: nextest-interval
       - name: run archived tests (interval)
-        run: ${{ matrix.set_eps }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap .
+        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
-      # run above; named here so the obligation is visible). Default-eps
-      # leg only, mirroring the pre-archive job, which ran it once with
-      # no eps env.
+      # run above; named here so the obligation is visible). One leg only
+      # (default eps, shard 1), mirroring the pre-archive job, which ran
+      # it once with no eps env.
       - name: persistence save/load/replay-identity (interval)
-        if: matrix.eps == 'default' && needs.filter.outputs.run_editor_core == 'true'
+        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
         run: cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::m4_pr6_roundtrip_interval)'
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
-        if: matrix.eps == 'default' && needs.filter.outputs.run_editor_core == 'true'
+        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
         run: cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::m4_pr8_corpus_interval)'
 
   # The archives exist only to ferry binaries from the build jobs to the

@@ -2942,9 +2942,13 @@ each run `cargo nextest archive` under the existing ci-filter scope
 and upload the archive; `test` (eps = default/1e-6/1e-12) and
 `test-interval` (default/1e-6) download and only execute. The named
 interval obligations (D6.1 persistence, D1 corpus) stay visible as
-`-E binary_id(...)` steps. NO intra-row `--partition` sharding:
-~3 min/row from the archive is under the ~5 min bar — measured
-first, skipped deliberately.
+`-E binary_id(...)` steps. Intra-row `--partition count:*/2`
+sharding was adopted on MEASURED numbers, not by default: the
+first #167 run (30838077811) put the default-eps legs at ~5.9-6.1
+min of execution — over the ~5 min bar — with a flat slow-test
+tail (worst single test 14 s of 1989), which a count partition
+splits evenly; the eps'd legs (3.4-4.3 min) ride along for
+uniformity. ci-local runs rows unsharded (same union).
 
 **nextest**: pinned 0.9.140 (2026-07-05 — ~4 weeks old at adoption,
 past the 2-week age rule; dev/CI-only, official get.nexte.st
