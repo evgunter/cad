@@ -2348,3 +2348,20 @@ Prevention pinned in model-ab-experiment.md (briefs now ban the
 trailer in lane commits; pushed leaks = STOP and report).
 Light review next when a slot frees; the unit's PR sequences
 after S13's (shared demo files unlikely but fold anyway).
+
+**S13 review returned (2026-08-02): FIX PASS REQUIRED — 1 MAJ
+(new, executed): the multi-normal escape hole** — a ball poking
+two NON-parallel faces drops the second cap silently (16.06218
+vs 16.06254, tier-3 valid; all pinned fixtures poked parallel
+faces so the suite was blind). RULED: minimal honest fix —
+collect all escape normals, refuse typed unless parallel;
+multi-re-chart banks. **Dev 2 CONFIRMED as main-is-wrong #4:
+the realized BVH pruned pierce candidates the idealized lane
+refuses (flat vertex-hull face_box through the seam plane) —
+silent self-overlapping union on merge base; the branch's
+center±r fix is correct.** No moved pins (full batteries both
+lanes); cross-version f64 root bits differ (verdicts-only
+caveat to dev 3, doc item); germ exactness held at 10k samples;
+pole algebra re-derived. Fix pass DISPATCHED (F1 refusal + probe-
+9 pin; three uncovered scan arms; doc scoping; probe adoptions).
+PR opens at completion — then PR 12 dispatches.
