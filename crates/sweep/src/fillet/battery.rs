@@ -1046,12 +1046,24 @@ fn consumption_sweep<T: Decide + Bounds>(
                 if shares_vertex(body, *ei, *ej) {
                     continue;
                 }
-                let mut gap = T::from_f64(f64::INFINITY);
-                for a in pi {
-                    for b in pj {
-                        gap = gap.min((*b - *a).norm());
-                    }
-                }
+                // The closest approach of the two sampled boundaries.
+                // Seeded from the FIRST real pair, never from an
+                // infinite sentinel: at the certified scalar an
+                // infinity is the ill-formed interval (NaI), NaI
+                // absorbs through `min`, and every clearance margin
+                // downstream of it escalates `Invalid` — which is what
+                // kept the whole fillet op out of the Interval lane
+                // (and its `fillet3_*` family out of the K corpus)
+                // until the gate caught it. There is always a first
+                // pair here: both sample vectors are non-empty by
+                // construction (`CHAIN_SAMPLES` ≥ 1).
+                let mut pairs = pi
+                    .iter()
+                    .flat_map(|a| pj.iter().map(move |b| (*b - *a).norm()));
+                let Some(first) = pairs.next() else {
+                    continue;
+                };
+                let gap = pairs.fold(first, T::min);
                 face_clearance(face, gap, look(*ei, face), look(*ej, face), band)?;
             }
         }

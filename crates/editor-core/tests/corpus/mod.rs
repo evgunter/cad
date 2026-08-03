@@ -127,6 +127,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
+        die_fillet::document(),
         die_pips::document(),
         // `die_fillet::document()` is NOT here, and its module docs say
         // why: the fillet battery's clearance screen seeds a gap with

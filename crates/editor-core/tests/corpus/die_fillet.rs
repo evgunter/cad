@@ -60,11 +60,10 @@
 //! with `==` against an EXACT oracle, and a π-valued expression is not
 //! a dyadic value — a pin here would be pinning `f64` rounding of a
 //! transcendental, not the geometry. So the pin is `None` on purpose
-//! (the `cut_cylinder` / `boss_union` precedent), and the shape's
-//! closed-form volume and area are metered — at a relative tolerance,
-//! honestly — by the sweep unit's own acceptance row. What this
-//! document pins is validity (tier 1 + closed, run by
-//! `m4_pr8_corpus.rs`) at every ε row and under Interval.
+//! (the `cut_cylinder` / `boss_union` precedent). Both forms ARE
+//! metered, at a stated relative tolerance, by
+//! `m5_pr12_fillet_node.rs`'s `f64` row alongside validity (tier 1 +
+//! closed) and the face count.
 
 use editor_core::{DocEdit, Node, ProfileDesc, SlotId};
 use geom_core::Point2;

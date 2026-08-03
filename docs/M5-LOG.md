@@ -2822,9 +2822,33 @@ rows at all — a silent scope gap the review caught. It now has a
 deliberately absent: the assembly's front door is "every edge", so a
 whole-body request needs no stable edge names and cannot go stale
 under a parameter edit) and two documents, `die_fillet` and
-`die_pips`, which get the standard rows for free — evaluation at every
-CI ε row and under `interval`, the D6.1 persistence round-trip, and
-the latency table. Two things are recorded rather than smoothed over:
+`die_pips`. **One of them is registered.** `die_pips` joins
+`documents()` and gets the standard rows for free — evaluation at
+every CI ε row and under `interval`, the D6.1 persistence round-trip,
+the latency table, and the PR 8 realized-vs-idealized differential.
+`die_fillet` does NOT, and the reason is a defect this pass found
+rather than a judgement call: the fillet battery's clearance screen
+seeds its pair gap with `T::from_f64(f64::INFINITY)` and folds the
+sampled distances in with `min`. At `f64` that sentinel is ordinary;
+at the certified `Interval` scalar `from_f64` poisons non-reals, so
+`±∞` embeds as NaI, NaI absorbs through `min`, and the margin reaching
+`decide` is NaN — `Escalated { site: Chain, predicate:
+"fillet3_face_clearance", margin: Invalid }`. It fires for every
+request with at least one non-adjacent boundary-edge pair, i.e. every
+prism, i.e. every fillet the recipe layer can express, so the op has
+never run at `Interval` and no fillet document can sit in a registry
+whose membership means the Interval lane. Rather than red that lane,
+or teach it to skip a document, `die_fillet` sits beside the registry
+with `Fillet` listed in `NODE_KINDS` at zero coverage (the
+`Loft`/`Sweep` mechanism) and every standard row reproduced by hand in
+`m5_pr12_fillet_node.rs` — green build, tier 1 + closed, 26 faces,
+both closed forms metered, the bump cone, the persistence round-trip,
+a typed refusal on an inadmissible radius, and the Interval refusal
+pinned EXACTLY so it fails the moment the sentinel goes. The fix is
+one line in `sweep/src/fillet/battery.rs` (seed the gap from the first
+sampled pair), owned by the sweep lane; registering the document after
+it is one line in `documents()` plus deleting one `FRONTIER_UNCOVERED`
+entry. Two further things are recorded rather than smoothed over:
 both documents carry `pin: None`, because the rounded-box and
 spherical-cap oracles are π-valued and `MassPin` is asserted with `==`
 against an exact value (the `cut_cylinder`/`boss_union` precedent — a
@@ -2842,8 +2866,15 @@ written down at the site with the condition for deleting them.
 
 **Battery.** Touched crates at default ε: `sweep` (all binaries),
 `geom-brep` (all binaries), `topo` (lib, 311), `step-export` (all),
-`editor-core` (all 53 binaries, with the two new corpus documents).
-The demo tour's ε-regression battery (the ×3ε rows) is green.
+`editor-core` (all 54 binaries at `f64` — 258 rows — and the whole
+`--features interval` lane, with `die_pips` registered and
+`die_fillet` carried by `m5_pr12_fillet_node.rs`). The latency
+baseline was re-measured whole on a verified-quiet machine; a second
+attempt under a parallel lane read 20-30× higher and was discarded,
+which is recorded in the baseline's own provenance along with the
+still-unresolved 2026-07-25/26-vs-MIN-3 gap this run lands on the
+other side of. The demo tour's ε-regression battery (the ×3ε rows) is
+green.
 New rows: 9 battery + 13 refusal/trio + 7 blend + 3 die-body + 3 die =
 35, plus 3 in `geom-brep`. `cargo fmt --all` clean; clippy clean on the
 touched crates. The demo tour runs green end to end and exports both

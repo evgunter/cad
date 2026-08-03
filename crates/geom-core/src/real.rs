@@ -370,6 +370,31 @@ pub trait Real:
 /// `topo::props::PropsQuadLane`'s explicit per-scalar impls are the
 /// only entry, and the dual impl instantiates none of it.
 ///
+/// **Ratified extension (M5 PR 12, the same lane ruling):** the
+/// **fillet-validity battery** — `sweep::fillet::battery` and the
+/// assembly it licenses, `sweep::fillet::build` — joins the compound
+/// allowlist. It is the same class as the quadrature seam on both
+/// counts. It simultaneously decides (its six `fillet3_*` funnel
+/// margins) and CONSUMES ENCLOSURES: the quantities it classifies are
+/// certified metric bounds — a support's sup-normal-curvature hull
+/// through `curvature_lever_arm`, a blend's setback bound off the
+/// analytic arm — and every refusal reports the offending margin as an
+/// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
+/// its honest signature.
+///
+/// What differs from PR 11 is only the SPLIT, and it differs because
+/// there is nothing to split: no dual-scalar path can reach this code.
+/// [`Bounds`] is implemented for `f64`, the interval scalar, and the
+/// telemetry probe — never for [`Dual`](crate::Dual), which has no
+/// bracket to offer — and the one production caller
+/// (`editor_core::eval`'s fillet wiring) already sits beneath an
+/// evaluation service whose own signature carries `Bounds` and which
+/// instantiates at `f64` and `Interval` only. A `PropsQuadLane`-style
+/// static lane split would therefore have had an EMPTY refusing side:
+/// a dual impl that refuses a call no dual scalar can make. The seam
+/// is ratified instead, and the day a dual lane wants fillets is the
+/// day the static split earns its keep.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

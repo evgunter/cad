@@ -178,7 +178,7 @@ fn vocabulary_coverage_is_total() {
     // The exemption is EXACT and retires itself: the moment a corpus
     // document exercises one, `missing` shrinks and this assertion
     // fires, telling you to delete the entry.
-    const FRONTIER_UNCOVERED: [&str; 3] = ["node Loft", "node Sweep", "node Fillet"];
+    const FRONTIER_UNCOVERED: [&str; 2] = ["node Loft", "node Sweep"];
     let still_missing: Vec<&String> = missing
         .iter()
         .filter(|m| !FRONTIER_UNCOVERED.contains(&m.as_str()))

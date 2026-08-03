@@ -181,51 +181,36 @@ fn an_inadmissible_radius_fails_the_node_typed() {
     assert!(ev.value(head).is_none(), "no value on a failed fillet");
 }
 
-/// **The Interval blocker, pinned EXACTLY** (see
-/// `corpus/die_fillet.rs`'s module docs): the battery's clearance
-/// screen seeds its gap with `T::from_f64(f64::INFINITY)`, which is
-/// NaI at the certified interval scalar and absorbs through `min`, so
-/// the margin reaching `decide` is NaN.
+/// **The Interval lane, GREEN** — and the row records why it took a
+/// gate to get here.
 ///
-/// This row asserts the CURRENT refusal, deliberately. It is the
-/// executable form of "die_fillet is not in the corpus registry", and
-/// it FAILS — telling you to register the document and delete the
-/// `Fillet` entry from `m4_pr8_corpus.rs`'s `FRONTIER_UNCOVERED` — the
-/// moment `sweep/src/fillet/battery.rs` seeds that gap from the first
-/// sampled pair instead of ±∞.
+/// HISTORY: the battery's clearance screen seeded its gap with
+/// `T::from_f64(f64::INFINITY)`. That is NaI at the certified interval
+/// scalar, NaI absorbs through `min`, and the margin reaching `decide`
+/// was NaN — so `fillet3_face_clearance` escalated `Invalid` for every
+/// prism, the whole fillet op was outside the Interval lane, and
+/// `die_fillet` had to sit BESIDE the corpus registry rather than in
+/// it. The consequence the CI gate surfaced is the one that matters:
+/// a `fillet3_*` family that records ZERO samples in the K corpus,
+/// which is a new predicate family with no telemetry at all.
+///
+/// The fix is to seed the gap from the first sampled pair instead of
+/// from a sentinel. This row is now the green assertion, and the
+/// registry membership beside it (`corpus::documents()`) is what
+/// carries the standard Interval, persistence and latency rows.
 #[cfg(feature = "interval")]
 #[test]
-fn the_interval_lane_still_refuses_on_the_infinity_gap_sentinel() {
-    use editor_core::{NodeErrorKind, NodeResult};
+fn the_interval_lane_evaluates_the_fillet_green() {
+    use editor_core::NodeResult;
     use geom_core::Interval;
 
     let d = die_fillet::document();
-    let head = d.result.expect("head");
     let ev = eval::<Interval>(&d.doc);
-    let Some(NodeResult::Failed(e)) = ev.nodes.get(&head) else {
-        panic!(
-            "die_fillet now evaluates at Interval — REGISTER IT: add \
-             `die_fillet::document()` to corpus::documents() and drop \
-             \"node Fillet\" from m4_pr8_corpus.rs's FRONTIER_UNCOVERED"
-        );
-    };
-    let NodeErrorKind::Fillet(inner) = &e.kind else {
-        panic!("expected the fillet arm, got {:?}", e.kind);
-    };
-    let text = format!("{inner:?}");
-    assert!(
-        text.contains("fillet3_face_clearance") && text.contains("Invalid"),
-        "the blocker is the NaI gap sentinel poisoning the clearance \
-         margin; this refusal is something else and needs its own \
-         diagnosis: {text}"
-    );
-    // The upstream nodes are scalar-clean: only the fillet is blocked.
     for &id in &ev.order {
-        if id != head {
-            assert!(
-                matches!(ev.nodes.get(&id), Some(NodeResult::Ok(_))),
-                "node {id:?} should be green at Interval"
-            );
-        }
+        assert!(
+            matches!(ev.nodes.get(&id), Some(NodeResult::Ok(_))),
+            "node {id:?} must be green at Interval — got {:?}",
+            ev.nodes.get(&id)
+        );
     }
 }
