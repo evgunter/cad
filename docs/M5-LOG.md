@@ -2620,3 +2620,45 @@ product of two factors certified positive by the preceding trilean
   the dev-2 face-box hazard was CONFIRMED LIVE ON MAIN: the realized
   BVH pruned dir-1 pierce candidates and a fin×ball union answered as
   if disjoint, a silent self-overlapping body).
+
+## CI build-once (2026-08-03): compile per MODE, not per eps row —
+## nextest archives fan the test matrix out from two builds (#167)
+
+Evan's ask ("compile the code for each mode, then shard the tests —
+the actual testing part is getting kind of long"), landed as #167.
+The eps rows ran BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is
+runtime env — so `test` + `multi-eps` (1e-6/1e-12) + the interval
+job's second run were redundant compiles: on main run 30790436745,
+~8.5–9.5 min of each ~12 min row was compile; execution ~3 min.
+
+**Shape**: `build` / `build-interval` (the only two build graphs)
+each run `cargo nextest archive` under the existing ci-filter scope
+and upload the archive; `test` (eps = default/1e-6/1e-12) and
+`test-interval` (default/1e-6) download and only execute. The named
+interval obligations (D6.1 persistence, D1 corpus) stay visible as
+`-E binary_id(...)` steps. NO intra-row `--partition` sharding:
+~3 min/row from the archive is under the ~5 min bar — measured
+first, skipped deliberately.
+
+**nextest**: pinned 0.9.140 (2026-07-05 — ~4 weeks old at adoption,
+past the 2-week age rule; dev/CI-only, official get.nexte.st
+prebuilt, no third-party action). Semantics audit: process-per-test
+(safer for the tolerance OnceLock), per-test capture (layout only),
+and NO DOC-TESTS — the workspace has real doctests incl.
+compile_fail blocks, so both build jobs keep `cargo test --doc` and
+ci-local gained matching rows. The 2026-07-29 row-16 verdict
+("nextest = runner swap + doc-test loss") is not overturned: the
+filter stays the hand-rolled walk; nextest is adopted for the
+archive/fan-out property, with the doc-test loss paid explicitly.
+
+**ci-local.sh** mirrors runner + row semantics per KEEP IN SYNC
+(nextest rows, doc-test rows, same eps env); build-once is automatic
+locally via the shared target/ — the header says the mirror is about
+filter/row semantics, not artifacts. Untouched per scope: corpus /
+persistence / latency / step-import / watertight / k-lint /
+discipline / clippy / fmt jobs.
+
+**Private-repo quota guards**: test binaries link with
+CARGO_PROFILE_TEST_STRIP=debuginfo in the build jobs only; archives
+are retention-days 1 and a green run deletes its own (failed runs
+keep them so re-runs need no rebuild).
