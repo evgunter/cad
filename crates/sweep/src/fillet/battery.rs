@@ -631,7 +631,7 @@ fn classify_arm<T: Bounds>(
 /// with no geometric decision taken anywhere in the walk.
 fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     let mut inc: Vec<(VertexKey, Vec<usize>)> = Vec::new();
-    let mut bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| {
+    let bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| {
         match inc.iter_mut().find(|(k, _)| *k == v) {
             Some((_, xs)) => xs.push(i),
             None => inc.push((v, vec![i])),
