@@ -29,8 +29,23 @@
 # at the end, nonzero exit if any row failed.
 #
 # Prereqs beyond the Rust toolchain: admesh (watertight row; apt or built
-# from source — 0.98.4+). Nothing here needs a C toolchain: the `interval`
-# feature's backend is the in-repo, pure-Rust `interval-transcendentals`.
+# from source — 0.98.4+) and cargo-nextest (test rows; pinned 0.9.140 to
+# match hosted — `cargo install cargo-nextest --locked --version 0.9.140`
+# or the prebuilt from https://get.nexte.st/0.9.140/linux). Nothing here
+# needs a C toolchain: the `interval` feature's backend is the in-repo,
+# pure-Rust `interval-transcendentals`.
+#
+# BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
+# test binaries once per feature graph (`build` / `build-interval`, via
+# `cargo nextest archive`) and fans the eps rows out over the archived
+# binaries — CAD_TOLERANCE_EPS is runtime env, so the eps rows were
+# recompiling bit-identical binaries. LOCALLY that build-once property is
+# automatic: every row shares the one target/ dir, so the first test row
+# compiles and the rest reuse. The mirror below is therefore about the
+# FILTER and ROW SEMANTICS staying identical to hosted — same runner
+# (nextest, process-per-test), same row set (incl. the explicit doc-test
+# rows: nextest does not run doc-tests), same eps env — NOT about
+# archives/artifacts, which are hosted plumbing with no local analogue.
 #
 # Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
@@ -174,10 +189,30 @@ step_import() {
 # $SCOPE is the filter's package scope: `--workspace` in tier `all`, an
 # explicit `-p <closure>` list in tier `closure`. Unquoted on purpose —
 # it must word-split into cargo arguments.
+#
+# The test rows run under nextest to match hosted exactly (process-per-
+# test semantics can differ from `cargo test`'s in-process threads); the
+# doc-test rows stay on `cargo test --doc` because nextest never runs
+# doc-tests. Fail loud, not fall back: a cargo-test fallback would gate
+# on different semantics than hosted.
+nextest_check() {
+  command -v cargo-nextest >/dev/null && return 0
+  echo "ERROR: cargo-nextest not installed (hosted CI pins 0.9.140):"
+  echo "  cargo install cargo-nextest --locked --version 0.9.140"
+  return 1
+}
 # shellcheck disable=SC2086
-test_eps() { CAD_TOLERANCE_EPS="$1" cargo test $SCOPE; }
+test_default() { nextest_check && cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
-interval_eps() { CAD_TOLERANCE_EPS=1e-6 cargo test $SCOPE --features interval; }
+test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
+# shellcheck disable=SC2086
+doc_tests() { cargo test --doc $SCOPE; }
+# shellcheck disable=SC2086
+interval_tests() { nextest_check && cargo nextest run $SCOPE --features interval; }
+# shellcheck disable=SC2086
+interval_eps() { nextest_check && CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval; }
+# shellcheck disable=SC2086
+interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 
 # M4 PR 6 spec D6: the three persistence obligations as NAMED rows
 # (also covered by the workspace rows; named = attributable).
@@ -190,7 +225,9 @@ persist_roundtrip() {
 }
 persist_eps_diff() { cargo test -p editor-core --test m4_pr6_eps_diff; }
 persist_refusal() { cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key; }
-persist_interval() { cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval; }
+# Mirrors the named step in hosted's test-interval job (which runs it
+# out of the interval archive by binary_id).
+persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::m4_pr6_roundtrip_interval)'; }
 
 # M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
 # the workspace rows; named = attributable).
@@ -200,7 +237,7 @@ corpus_eps() {
     CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr8_corpus -- --nocapture || return 1
   done
 }
-corpus_interval() { cargo test -p editor-core --features interval --test m4_pr8_corpus_interval; }
+corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::m4_pr8_corpus_interval)'; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
 # per-document table and diffs the committed baseline. NOT A GATE on any
@@ -259,18 +296,21 @@ klint_advisory() {
 run_row "discipline (evaluation-code)" discipline
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
-run_row "test"                         cargo test $SCOPE
-# ε battery {1e-6, 1e-12} (Evan's ruling, 2026-07-30). The two rows
-# straddle the compiled default three orders either side; the default
-# itself — DEFAULT_EPS = 1e-9, geom-core/src/tolerance.rs — is what the
-# unparameterized `test` row above runs, so the retired `eps = 1e-9` row
-# was a re-run of that row rather than a third band. Mirror of ci.yml's
-# `multi-eps` matrix; keep the two in sync.
+# ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
+# env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
+# src/tolerance.rs — three orders either side. Mirror of ci.yml's `test`
+# matrix over the default archive; the first row compiles, the eps rows
+# reuse target/ (build-once is automatic locally — see the header).
+run_row "test (eps = default)"         test_default
 run_row "test (eps = 1e-6)"            test_eps 1e-6
 run_row "test (eps = 1e-12)"           test_eps 1e-12
+# Doc-tests: nextest never runs them; hosted keeps them in the build
+# jobs, this script as their own rows.
+run_row "doc-tests"                    doc_tests
 run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --features interval -- -D warnings
-run_row "test (interval)"              cargo test $SCOPE --features interval
+run_row "test (interval)"              interval_tests
 run_row "test (interval, eps = 1e-6)"  interval_eps
+run_row "doc-tests (interval)"         interval_doc_tests
 # Root package editor-core (persistence D6.*, band 4 corpus D1, latency D2).
 run_row_if "$RUN_EDITOR_CORE" "persist save/load/replay (D6.1)" persist_roundtrip
 run_row_if "$RUN_EDITOR_CORE" "persist eps-diff golden (D6.2)"  persist_eps_diff

@@ -9,6 +9,31 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
+# for each mode, then shard the tests"). The eps test rows run
+# BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is read at RUNTIME
+# (geom-core/src/tolerance.rs), never at compile time — so compiling the
+# workspace once per eps row was pure redundancy (measured ~8.5-9.5 min of
+# each row's ~12 min was compile; execution is ~3 min). Only the
+# `interval` feature is a different build graph. So: two BUILD jobs
+# (`build`, `build-interval`), each `cargo nextest archive` + artifact
+# upload, and thin RUN jobs that download the archive and only execute.
+#
+# cargo-nextest is the archive/run vehicle, PINNED here (single source of
+# truth for the version): 0.9.140, published 2026-07-05 — ~4 weeks old at
+# adoption (2026-08-03), past the 2-week dependency-age rule; a dev/CI
+# tool only, never in any shipped build graph. Install is the official
+# get.nexte.st prebuilt at the pinned URL — no third-party action.
+# Nextest semantics vs `cargo test`, audited at adoption:
+#   * process-per-test — strictly safer for the tolerance OnceLock
+#     (every test gets a fresh global; nothing relied on shared init);
+#   * per-test output capture — only affects log layout;
+#   * DOC-TESTS DO NOT RUN under nextest — the workspace has real
+#     doctests (incl. compile_fail blocks only the doctest runner
+#     exercises), so each build job keeps a `cargo test --doc` step.
+env:
+  NEXTEST_VERSION: "0.9.140"
+
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
 # rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
@@ -260,8 +285,11 @@ jobs:
       # `-p <closure>` list in tier `closure`.
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
-  test:
-    name: test
+  # BUILD job, default features (see the build-once header comment above
+  # the `env:` block). Compiles the scoped test binaries exactly once and
+  # publishes them as a nextest archive; the `test` matrix below only RUNS.
+  build:
+    name: build + archive (default)
     runs-on: ubuntu-latest
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
@@ -274,13 +302,79 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # Scoped by the filter (`--workspace` or `-p <closure>`). Plain
-      # `cargo test` on purpose: it runs doc-tests, which a nextest-based
-      # runner would silently drop.
-      - run: cargo test ${{ needs.filter.outputs.cargo_scope }}
+      - name: install cargo-nextest (pinned, official prebuilt)
+        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+      # Scoped by the filter (`--workspace` or `-p <closure>`), same as the
+      # per-row `cargo test` this replaces: the archive CONTAINS exactly
+      # the closure's test binaries, so the run rows need no re-scoping.
+      # CARGO_PROFILE_TEST_STRIP=debuginfo is a CI-ONLY link knob: the
+      # test executables are almost all DWARF, and the artifact quota on
+      # this private repo is small (500 MB). Symbol names survive
+      # (backtraces keep function names, lose line numbers); local builds
+      # and the local gate are untouched.
+      - name: build test binaries + archive
+        run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
+        env:
+          CARGO_PROFILE_TEST_STRIP: debuginfo
+      # Doc-tests DO NOT run under nextest (upstream design): this step
+      # keeps them gated. The workspace has real doctests, including
+      # compile_fail blocks that only the doctest runner exercises.
+      - name: doc-tests
+        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-default
+          path: nextest-default.tar.zst
+          retention-days: 1
 
-  interval:
-    name: test (interval)
+  test:
+    name: test (eps = ${{ matrix.eps }})
+    runs-on: ubuntu-latest
+    needs: [filter, build]
+    if: needs.filter.outputs.run_build == 'true'
+    strategy:
+      fail-fast: false
+      # THE BATTERY IS {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30):
+      # the two env rows straddle the compiled default (DEFAULT_EPS =
+      # 1e-9) three orders either side; the `default` row runs with the
+      # variable genuinely UNSET (an empty CAD_TOLERANCE_EPS is a parse
+      # error by design — tolerance.rs multi-ε contract — so the
+      # assignment rides the run line as a shell prefix, not `env:`).
+      # All three rows execute the SAME archived binaries: eps is runtime
+      # env, which is the whole point of building once.
+      matrix:
+        include:
+          - eps: default
+            set_eps: ""
+          - eps: 1e-6
+            set_eps: "CAD_TOLERANCE_EPS=1e-6"
+          - eps: 1e-12
+            set_eps: "CAD_TOLERANCE_EPS=1e-12"
+    env:
+      # Nothing compiles here: cargo only dispatches to cargo-nextest,
+      # which runs prebuilt binaries out of the archive — keep the job
+      # off the pinned-toolchain download (same trick as `filter`).
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      # Checkout is still needed: tests read committed fixtures, and
+      # --workspace-remap points nextest's per-test cwd at this tree.
+      # Runner workspace paths are identical across jobs, so build-time
+      # env!("CARGO_MANIFEST_DIR") paths resolve here too.
+      - uses: actions/checkout@v4
+      - name: install cargo-nextest (pinned, official prebuilt)
+        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-default
+      - name: run archived tests
+        run: ${{ matrix.set_eps }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap .
+
+  # BUILD job, interval features — the ONE genuinely different build
+  # graph in the matrix. Owns the interval clippy pass and the interval
+  # doc-tests (both need this graph compiled anyway), then archives the
+  # test binaries for the `test-interval` matrix below.
+  build-interval:
+    name: build + archive (interval)
     runs-on: ubuntu-latest
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
@@ -308,28 +402,93 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
+      - name: install cargo-nextest (pinned, official prebuilt)
+        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
       # This job owns the interval feature's clippy pass (the default
       # clippy job deliberately skips --all-features).
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
-      - run: cargo test ${{ needs.filter.outputs.cargo_scope }} --features interval
-      # One multi-ε row at interval type (D4 ¶1): the interval band test
-      # re-derives every assertion from the run's ε, so this genuinely
-      # exercises a different band.
-      - run: cargo test ${{ needs.filter.outputs.cargo_scope }} --features interval
+      # Same strip rationale as the default build job (CI-only link knob,
+      # artifact quota; symbols survive).
+      - name: build test binaries + archive (interval)
+        run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
         env:
-          CAD_TOLERANCE_EPS: 1e-6
-      # M4 PR 6 D6.1, Interval member: the save/load/replay-identity
-      # row at the certified interval scalar (also inside the full
-      # workspace runs above; named here so the obligation is visible).
+          CARGO_PROFILE_TEST_STRIP: debuginfo
+      - name: doc-tests (interval)
+        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-interval
+          path: nextest-interval.tar.zst
+          retention-days: 1
+
+  test-interval:
+    name: test (interval, eps = ${{ matrix.eps }})
+    runs-on: ubuntu-latest
+    needs: [filter, build-interval]
+    if: needs.filter.outputs.run_build == 'true'
+    strategy:
+      fail-fast: false
+      # One multi-ε row at interval type (D4 ¶1): the interval band test
+      # re-derives every assertion from the run's ε, so the 1e-6 row
+      # genuinely exercises a different band. Same archive both rows —
+      # eps is runtime env. `default` = env unset (see the `test` matrix).
+      matrix:
+        include:
+          - eps: default
+            set_eps: ""
+          - eps: 1e-6
+            set_eps: "CAD_TOLERANCE_EPS=1e-6"
+    env:
+      # Nothing compiles here (see the `test` job).
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: install cargo-nextest (pinned, official prebuilt)
+        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-interval
+      - name: run archived tests (interval)
+        run: ${{ matrix.set_eps }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap .
+      # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
+      # at the certified interval scalar (already inside the full archive
+      # run above; named here so the obligation is visible). Default-eps
+      # leg only, mirroring the pre-archive job, which ran it once with
+      # no eps env.
       - name: persistence save/load/replay-identity (interval)
-        if: needs.filter.outputs.run_editor_core == 'true'
-        run: cargo test -p editor-core --features interval --test m4_pr6_roundtrip_interval
+        if: matrix.eps == 'default' && needs.filter.outputs.run_editor_core == 'true'
+        run: cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::m4_pr6_roundtrip_interval)'
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
-      # at the certified interval scalar (also inside the full workspace
-      # runs above; named here so the obligation is visible).
+      # at the certified interval scalar (also inside the archive run
+      # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
-        if: needs.filter.outputs.run_editor_core == 'true'
-        run: cargo test -p editor-core --features interval --test m4_pr8_corpus_interval
+        if: matrix.eps == 'default' && needs.filter.outputs.run_editor_core == 'true'
+        run: cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::m4_pr8_corpus_interval)'
+
+  # The archives exist only to ferry binaries from the build jobs to the
+  # run legs; on a fully green run they have no further use, and this
+  # private repo's artifact quota is small (500 MB, and the Actions
+  # budget has been exhausted before). retention-days: 1 already caps
+  # stragglers; this deletes the happy-path bulk immediately. On a FAILED
+  # run the artifacts are deliberately kept (retention window) so failed
+  # legs can be re-run without rebuilding.
+  cleanup-archives:
+    name: delete nextest archives (green run)
+    runs-on: ubuntu-latest
+    needs: [test, test-interval]
+    if: success()
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for name in nextest-default nextest-interval; do
+            for id in $(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+                          -q ".artifacts[] | select(.name==\"$name\") | .id"); do
+              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
+            done
+          done
 
   interval-backend:
     name: interval backend crate
@@ -439,30 +598,11 @@ jobs:
       - name: freecad import check (validity, counts, volume)
         run: REQUIRE_FREECAD=1 FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" scripts/check_step.sh
 
-  multi-eps:
-    name: test (eps = ${{ matrix.eps }})
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_build == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        eps: ["1e-6", "1e-12"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # D4 ¶1: run the suite at several ε values to smoke out
-      # tolerance-sensitive algorithms. CAD_TOLERANCE_EPS is wired to
-      # Tolerance initialization (geom-core/src/tolerance.rs).
-      # THE BATTERY IS {1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
-      # rows straddle the compiled default three orders either side, and
-      # the default itself — DEFAULT_EPS = 1e-9 — is what the
-      # unparameterized `test` job runs, so the retired 1e-9 row was a
-      # byte-for-byte re-run of that job, not a third band.
-      - run: cargo test ${{ needs.filter.outputs.cargo_scope }}
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+  # (The former standalone `multi-eps` job is FOLDED into the `test`
+  # matrix above: its 1e-6/1e-12 rows and the old unparameterized `test`
+  # job were three compilations of bit-identical binaries; they are now
+  # three run-only legs over one archive. D4 ¶1's multi-ε obligation is
+  # unchanged — same three eps bands, same scoped test set.)
 
   # M4 PR 6 spec D6: the three persistence obligations as NAMED gates
   # (they also run inside the workspace rows; naming them keeps the
