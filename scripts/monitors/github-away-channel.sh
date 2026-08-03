@@ -30,13 +30,15 @@ while true; do
   fi
   gh api "repos/$REPO/issues/comments?sort=created&direction=desc&since=$last&per_page=20" --jq '.[] | "COMMENT \(.html_url) [\(.user.login)]: \(.body[0:400] | gsub("\n"; " · "))"' 2>/dev/null
   if [ -s "$WATCHLIST" ]; then
-    while IFS=$'\t' read -r cid label; do
+    # whitespace-separated (id label) — tab OR space; a space-written
+    # entry once silently broke reaction detection (2026-07-29)
+    while read -r cid label; do
       [ -n "$cid" ] || continue
       r=$(gh api "repos/$REPO/issues/comments/$cid/reactions" --jq '[.[] | select(.content=="+1")] | length' 2>/dev/null)
       if [ -z "${r:-}" ]; then r=$(gh api "repos/$REPO/pulls/comments/$cid/reactions" --jq '[.[] | select(.content=="+1")] | length' 2>/dev/null); fi
       if [ "${r:-0}" -gt 0 ] 2>/dev/null; then
         echo "REACTION 👍 on watched comment $cid ($label)"
-        sed -i "/^$cid\t/d" "$WATCHLIST"
+        sed -i "/^$cid[[:space:]]/d; /^$cid$/d" "$WATCHLIST"
       fi
     done < "$WATCHLIST"
   fi
