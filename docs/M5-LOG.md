@@ -2557,3 +2557,13 @@ branches archived as tags per the merge-only convention
 (archive/m5-state-predecessor-orchestrator,
 archive/m5-pr7b-review-probes-v1) and deleted. Remote is now:
 main + ev/m5-pr12-fillets (live PR) + the orchestrator branch.
+
+**scripts/fmt-all.sh (2026-08-03, Evan's suggestion after the
+sub-workspace fmt miss cost two gate round-trips):** rustfmt
+every workspace, DISCOVERED by Cargo.lock (root, demos/tour,
+interval-transcendentals, tools/k-lint); --check mode for
+pre-push, ~9s cold. Deployment: implementer/fix-pass briefs now
+say "scripts/fmt-all.sh --check before every push" (replacing
+the per-workspace fmt lines — subagents clone fresh, so the
+brief is the channel that reaches them; a core.hooksPath
+pre-push hook is available for human clones if wanted).
