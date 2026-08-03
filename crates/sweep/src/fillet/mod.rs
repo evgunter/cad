@@ -20,7 +20,7 @@
 //! its units, and its lever arm:
 //!
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
-//! 2. [`battery::face_consumption`] — `fillet3_face_consumption`
+//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_closure`] — `fillet3_chain_g1`
 //! 5. [`battery::convexity_sign`] — `fillet3_convexity_sign`
@@ -177,9 +177,14 @@ impl fmt::Display for CornerConfig {
 /// and escalated arms so the text can never drift apart).
 pub const FILLET3_RADIUS_RECOURSE: &str =
     "reduce the fillet radius, or blend a support with more curvature headroom";
-/// The recourse for a blend that would eat a whole support face.
-pub const FILLET3_CONSUMPTION_RECOURSE: &str =
-    "reduce the fillet radius, or enlarge the support face the blend would consume";
+/// The recourse for a support face whose survival the clearance screen
+/// cannot certify.
+pub const FILLET3_CLEARANCE_RECOURSE: &str =
+    "reduce the fillet radius, or enlarge the support face whose clearance is uncertified";
+/// The recourse for an edge whose supports are tangent — there is no
+/// wedge to blend, at any radius.
+pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a tangential join has no wedge \
+     for a rolling ball at any radius";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
@@ -227,15 +232,41 @@ pub enum FilletError {
         /// The blend radius, meters — the lever arm.
         radius: f64,
     },
-    /// **Predicate 2**: the blend's trimline would fall off the far
-    /// side of a support face — the blend consumes the face entirely.
-    FaceConsumed {
-        /// The face the blend would consume.
+    /// **Predicate 2**: two boundary features of a support face are
+    /// closer than their two blends' setbacks, so this screen cannot
+    /// certify that the face survives.
+    ///
+    /// **This is a screen, not a verdict** (fix pass F1). It is
+    /// conservative BY DIRECTION: it compares a straight-line gap
+    /// against two setbacks that in general eat along different
+    /// directions, so a face whose boundary edges meet at an angle can
+    /// be refused here while a direction-aware test would admit it.
+    /// The reviewer's witness is a unit hexagonal prism, which this
+    /// refuses from `r = 0.5` although its cap survives to the apothem
+    /// `0.866` (pinned in `review_pr12_probes.rs`). The screen is kept
+    /// because it never goes the other way — it cannot pass a request
+    /// whose face really is consumed, which is the direction the
+    /// ordering claim depends on — and the error says what it tests
+    /// rather than asserting the stronger fact.
+    FaceClearanceUncertified {
+        /// The face whose survival is uncertified.
         face: FaceKey,
-        /// `extent − setback`, meters.
+        /// `gap − setback_here − setback_there`, meters.
         margin: f64,
-        /// The face's transverse extent from the chain, meters.
-        extent: f64,
+        /// The straight-line gap between the two boundary features,
+        /// meters.
+        gap: f64,
+    },
+    /// **Predicate 5, the zero arm**: the two supports share a tangent
+    /// plane along the edge, so the dihedral has no wedge and there is
+    /// no side for a rolling ball to sit in. Distinct from
+    /// [`FilletError::ConvexitySignFlip`] (fix pass F6): a tangential
+    /// edge does not disagree with the chain's convexity, it HAS none.
+    TangentialEdge {
+        /// The edge with no wedge.
+        edge: EdgeKey,
+        /// `((n_a × n_b)·τ̂)·arm`, meters — definitely zero here.
+        margin: f64,
     },
     /// **Predicate 3**: the spine (the rolling-ball centre locus, an
     /// offset locus) folds on itself at this radius.
@@ -347,15 +378,18 @@ impl fmt::Display for FilletError {
                  {face:?} — margin {margin} m at lever arm {radius} m; \
                  {FILLET3_RADIUS_RECOURSE}"
             ),
-            Self::FaceConsumed {
-                face,
-                margin,
-                extent,
-            } => write!(
+            Self::FaceClearanceUncertified { face, margin, gap } => write!(
                 f,
-                "fillet: the blend would consume support face {face:?} entirely — \
-                 transverse extent {extent} m, margin {margin} m; \
-                 {FILLET3_CONSUMPTION_RECOURSE}"
+                "fillet: the clearance screen cannot certify that support face {face:?} \
+                 survives — two of its boundary features are {gap} m apart and their \
+                 blends set back further than that, margin {margin} m. The screen is \
+                 conservative by direction and does not assert the face IS consumed; \
+                 {FILLET3_CLEARANCE_RECOURSE}"
+            ),
+            Self::TangentialEdge { edge, margin } => write!(
+                f,
+                "fillet: edge {edge:?} joins its supports tangentially — the dihedral has \
+                 no wedge (margin {margin} m); {FILLET3_TANGENTIAL_RECOURSE}"
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
@@ -397,12 +431,24 @@ impl fmt::Display for FilletError {
             Self::Escalated { site, source } => {
                 let recourse = match source.predicate {
                     Some("fillet3_radius_headroom") => FILLET3_RADIUS_RECOURSE,
-                    Some("fillet3_face_consumption") => FILLET3_CONSUMPTION_RECOURSE,
+                    Some("fillet3_face_clearance") => FILLET3_CLEARANCE_RECOURSE,
                     Some("fillet3_spine_regularity") => FILLET3_SPINE_RECOURSE,
                     Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
                     Some("fillet3_convexity_sign") => FILLET3_CONVEXITY_RECOURSE,
                     Some("fillet3_corner_independence") => FILLET3_CORNER_RECOURSE,
-                    _ => FILLET3_RADIUS_RECOURSE,
+                    // Fix pass F6: an escalation from a predicate this
+                    // match does not know is a MISSING recourse, and
+                    // saying so is the honest answer — emitting the
+                    // radius sentence would hand the user an action
+                    // that has nothing to do with what escalated.
+                    other => {
+                        return write!(
+                            f,
+                            "fillet at {site:?}: {source} — no recourse is recorded for \
+                             predicate {other:?}; this is a gap in the error table, not \
+                             advice to act on"
+                        );
+                    }
                 };
                 write!(f, "fillet at {site:?}: {source} — {recourse}")
             }

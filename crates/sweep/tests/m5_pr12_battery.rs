@@ -235,7 +235,7 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
 }
 
 // ---------------------------------------------------------------------
-// Predicate 2 — fillet3_face_consumption.
+// Predicate 2 — fillet3_face_clearance (the conservative screen).
 // ---------------------------------------------------------------------
 
 /// A 1 × 1 × 1 box at radius 0.6: each face's two OPPOSITE edges set
@@ -243,7 +243,7 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
 /// the row a single-edge extent test would wrongly pass (`0.6 < 1.0`)
 /// — the predicate sweeps PAIRS.
 #[test]
-fn p2_face_consumption_refuses_when_two_blends_meet_across_a_face() {
+fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     let body = boxy(1.0, 1.0, 1.0);
     let req = FilletRequest {
         body: &body,
@@ -251,9 +251,14 @@ fn p2_face_consumption_refuses_when_two_blends_meet_across_a_face() {
         radius: 0.6,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::FaceConsumed { margin, extent, .. }) => {
+        Err(e @ FilletError::FaceClearanceUncertified { margin, gap, .. }) => {
             assert!(margin < 0.0);
-            assert!((extent - 1.0).abs() < 1e-9, "the gap is the box side");
+            assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
+            // The box's opposite cap edges are PARALLEL with opposed
+            // inward normals, which is exactly the configuration in
+            // which the screen is EXACT — so here it really does mean
+            // the face is consumed, and the row says which case it is.
+            assert!(format!("{e}").contains("cannot certify"));
         }
         other => panic!("expected a face-consumption refusal, got {other:?}"),
     }
@@ -262,7 +267,7 @@ fn p2_face_consumption_refuses_when_two_blends_meet_across_a_face() {
 /// The same box at radius 0.45 passes: `1.0 − 0.45 − 0.45 = 0.1 > 0`.
 /// The pair sweep is a real inequality, not a blanket refusal.
 #[test]
-fn p2_face_consumption_passes_just_under_the_half_side() {
+fn p2_face_clearance_passes_just_under_the_half_side() {
     let body = boxy(1.0, 1.0, 1.0);
     let req = FilletRequest {
         body: &body,

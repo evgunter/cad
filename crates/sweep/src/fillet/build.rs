@@ -348,23 +348,53 @@ impl<T: Decide + Bounds> Plan<T> {
             // the pole. The turn from the first support's foot to the
             // second gives the axis its sign (so `u` sweeps forward
             // from the seam) and the first foot IS the seam.
-            let e0 = links
-                .iter()
-                .find(|l| l.start == v || l.end == v)
-                .ok_or_else(|| unsupported("a vertex has no requested edge"))?;
-            let (Some(n_a), Some(n_b)) = (outward_of(body, e0.face_a), outward_of(body, e0.face_b))
-            else {
-                return Err(unsupported(
-                    "a corner's first edge has a non-planar support",
-                ));
-            };
+            //
+            // **Which incident edge (fix pass F2).** The criterion is
+            // the one the paragraph above states, so it is the one
+            // the code must apply: among the three incident edges,
+            // take the edge whose chart axis `n_a × n_b` the THIRD
+            // support's normal is parallel to. Picking the first
+            // incident edge in link order instead — as this did until
+            // the reviewer's hexagonal prism caught it — satisfies the
+            // criterion only when every choice happens to satisfy it
+            // (a cube) or when the arena order is lucky, and silently
+            // costs tier 3 on a corner face of every other prism that
+            // DOES admit the chart. The pick below is order-free: it
+            // minimizes `|n_c × axis|` over the three candidates, so
+            // it finds the admitting edge whenever one exists and
+            // degrades to "no chart admits this trihedron" (the
+            // genuinely oblique case) only when none does.
+            let mut best: Option<(f64, Vec3<T>, Vec3<T>)> = None;
+            for l in links.iter().filter(|l| l.start == v || l.end == v) {
+                let (Some(n_a), Some(n_b)) =
+                    (outward_of(body, l.face_a), outward_of(body, l.face_b))
+                else {
+                    return Err(unsupported("a corner edge has a non-planar support"));
+                };
+                let axis = n_a.cross(n_b).normalize();
+                // The third support of the corner — the one this edge
+                // does not touch. `faces` is the vertex's three, so
+                // the complement is a single face.
+                let Some(&f_c) = faces.iter().find(|f| **f != l.face_a && **f != l.face_b) else {
+                    continue;
+                };
+                let Some(n_c) = outward_of(body, f_c) else {
+                    return Err(unsupported("a corner edge has a non-planar support"));
+                };
+                let score = n_c.cross(axis).norm().lo().abs();
+                if best.as_ref().is_none_or(|(s, _, _)| score < *s) {
+                    best = Some((score, n_a, axis));
+                }
+            }
+            let (_, n_a, axis) =
+                best.ok_or_else(|| unsupported("a vertex has no requested edge"))?;
             corners.push((
                 v,
                 ball.center,
                 Surface::Sphere {
                     center: ball.center,
                     radius,
-                    axis: n_a.cross(n_b).normalize(),
+                    axis,
                     u_ref: n_a,
                 },
             ));

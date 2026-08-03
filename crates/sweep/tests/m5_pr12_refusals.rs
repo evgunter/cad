@@ -12,7 +12,7 @@
 use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{
-    FilletRequest, chain_g1, convexity_at, corner_config, face_consumption, run_battery,
+    FilletRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
 use sweep::fillet::{CornerConfig, FilletError, FilletSite, RunOutPolicy};
@@ -240,7 +240,7 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
         radius: 0.05,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::ConvexitySignFlip { margin, .. }) => {
+        Err(FilletError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a smooth split has an exactly-zero wedge");
         }
         other => panic!("expected a zero-wedge refusal, got {other:?}"),
@@ -368,14 +368,17 @@ fn trio_spine_regularity() {
 }
 
 #[test]
-fn trio_face_consumption() {
+fn trio_face_clearance() {
     let body = boxy();
     let (f, _, _) = keys(&body);
     let b = band();
-    let definite = face_consumption(f, 1.0, 0.8, 0.8, b).unwrap_err();
-    let exact = face_consumption(f, 1.0, 0.5, 0.5, b).unwrap_err();
-    assert!(matches!(exact, FilletError::FaceConsumed { .. }));
-    let escalated = face_consumption(f, 1.0, 0.5, 0.5 - in_band(), b).unwrap_err();
+    let definite = face_clearance(f, 1.0, 0.8, 0.8, b).unwrap_err();
+    let exact = face_clearance(f, 1.0, 0.5, 0.5, b).unwrap_err();
+    assert!(matches!(
+        exact,
+        FilletError::FaceClearanceUncertified { .. }
+    ));
+    let escalated = face_clearance(f, 1.0, 0.5, 0.5 - in_band(), b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "enlarge the support face");
 }
 
@@ -448,7 +451,10 @@ fn trio_convexity_sign() {
         b,
     )
     .unwrap_err();
-    assert!(matches!(flat, FilletError::ConvexitySignFlip { .. }));
+    // Fix pass F6: a tangential edge gets its OWN situation, not a
+    // convexity DISAGREEMENT with a chain verdict that was never taken.
+    assert!(matches!(flat, FilletError::TangentialEdge { .. }));
+    assert!(format!("{flat}").contains("no wedge"));
     // In band.
     let escalated = convexity_at(
         Vec3::new(1.0, 0.0, 0.0),
@@ -526,7 +532,8 @@ fn every_recourse_sentence_is_reachable_from_both_arms() {
     let _ = p;
     for s in [
         sweep::fillet::FILLET3_RADIUS_RECOURSE,
-        sweep::fillet::FILLET3_CONSUMPTION_RECOURSE,
+        sweep::fillet::FILLET3_CLEARANCE_RECOURSE,
+        sweep::fillet::FILLET3_TANGENTIAL_RECOURSE,
         sweep::fillet::FILLET3_SPINE_RECOURSE,
         sweep::fillet::FILLET3_CHAIN_RECOURSE,
         sweep::fillet::FILLET3_CONVEXITY_RECOURSE,

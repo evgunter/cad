@@ -331,12 +331,13 @@ pub fn convexity_at<T: Decide + Bounds>(
         Sign::Positive => Ok((Convexity::Convex, margin)),
         Sign::Negative => Ok((Convexity::Concave, margin)),
         // A tangential edge: the supports share a tangent plane, so
-        // there is no wedge to roll a ball into. Reported as the
-        // convexity situation it is, with the margin as data.
-        Sign::Zero => Err(FilletError::ConvexitySignFlip {
+        // there is no wedge to roll a ball into. Its own situation and
+        // its own error (fix pass F6) — it does not DISAGREE with the
+        // chain's convexity, it has none, and reporting it as a "flip"
+        // handed the reader a chain verdict that was never taken.
+        Sign::Zero => Err(FilletError::TangentialEdge {
             edge,
             margin: margin.lo(),
-            chain: Convexity::Convex,
         }),
     }
 }
@@ -465,28 +466,48 @@ pub fn corner_config<T: Decide + Bounds>(
 // Predicate 2 — face consumption.
 // ---------------------------------------------------------------
 
-/// **`fillet3_face_consumption`** — does every support face survive
-/// the blend?
+/// **`fillet3_face_clearance`** — a conservative screen on whether
+/// every support face survives the blend.
 ///
 /// Margin: `gap − setback_here − setback_there` in METERS, where
 /// `gap` is the Euclidean distance between two boundary features of
 /// one support face and each `setback` is that feature's trimline
 /// displacement — zero for a boundary the request does not blend.
-/// The predicate runs over every pair of boundary edges of every
-/// support face, so a face with FOUR blended edges (every planar face
-/// of the die) is judged against all six pairs, not only against the
-/// nearest non-blended neighbour. That is what makes "the blend must
-/// not consume a face entirely" a real statement: a single-edge test
-/// would happily pass `r < L` on a face that two opposite blends at
-/// `r > L/2` erase between them.
+/// The screen runs over every PAIR of boundary edges of every support
+/// face, so a face with four blended edges (every planar face of the
+/// die) is judged against all six pairs, not only against the nearest
+/// non-blended neighbour. That is what stops the obvious hole: a
+/// single-edge test happily passes `r < L` on a face that two opposite
+/// blends at `r > L/2` erase between them.
+///
+/// # What this arm does NOT claim (fix pass F1)
+///
+/// It is a **screen**, and its name and its error say so. The two
+/// setbacks are subtracted from ONE straight-line gap, which is exact
+/// when the two boundary edges face each other (parallel, opposed
+/// inward normals — the box, and every prism's opposite cap edges) and
+/// CONSERVATIVE when they meet at an angle, because each blend then
+/// eats along its own inward normal rather than along the gap. The
+/// reviewer's witness is a unit hexagonal prism: this refuses from
+/// `r = 0.5` although the cap survives to the apothem `0.866`.
+///
+/// The screen is kept in that shape deliberately. Its error is worded
+/// as "cannot certify" rather than "consumes", so no false fact is
+/// asserted as a definite verdict; and it is conservative in the ONE
+/// direction the ordering claim depends on — it cannot pass a request
+/// whose support face really is consumed. Tightening it needs the
+/// inward-offset polygon's feasibility (a linear program over the
+/// face's own boundary, not the same setback algebra), which is
+/// recorded as a numbered deviation rather than guessed at here.
 ///
 /// The setbacks come from [`super::blend`] — the same functions the
 /// constructor calls.
 ///
 /// # Errors
 ///
-/// [`FilletError::FaceConsumed`] / [`FilletError::Escalated`].
-pub fn face_consumption<T: Decide + Bounds>(
+/// [`FilletError::FaceClearanceUncertified`] /
+/// [`FilletError::Escalated`].
+pub fn face_clearance<T: Decide + Bounds>(
     face: FaceKey,
     gap: T,
     setback_here: T,
@@ -494,12 +515,12 @@ pub fn face_consumption<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let margin = gap - setback_here - setback_there;
-    match decide("fillet3_face_consumption", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
+    match decide("fillet3_face_clearance", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
         Sign::Positive => Ok(()),
-        _ => Err(FilletError::FaceConsumed {
+        _ => Err(FilletError::FaceClearanceUncertified {
             face,
             margin: margin.lo(),
-            extent: gap.lo(),
+            gap: gap.lo(),
         }),
     }
 }
@@ -764,8 +785,9 @@ pub fn run_battery<T: Decide + Bounds>(
         }
     }
 
-    // --- 2. face consumption, over every pair of boundary edges of
-    // every support face the request touches.
+    // --- 2. face clearance (the conservative screen — see
+    // `face_clearance`), over every pair of boundary edges of every
+    // support face the request touches.
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link.
@@ -1011,7 +1033,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                         gap = gap.min((*b - *a).norm());
                     }
                 }
-                face_consumption(face, gap, look(*ei, face), look(*ej, face), band)?;
+                face_clearance(face, gap, look(*ei, face), look(*ej, face), band)?;
             }
         }
     }

@@ -118,16 +118,42 @@ pub struct TangentSpanBounds<T: Real> {
 ///   kernel constructs, and the line arm's bounds are left byte-for
 ///   -byte unchanged so PR 9's certificates do not move.
 ///
-/// **Why a circle admits `Torus` when a line does not**: two distinct
-/// elementary surfaces of revolution that are tangent along a whole
-/// CIRCLE are necessarily *coaxial with the circle* (the circle's
-/// axis is a common axis of revolution, and its centre lies on it) —
-/// there is no other configuration in the vocabulary. The circle-arm
+/// **Why a circle admits `Torus` when a line does not**: the
+/// configurations this kernel MINTS on a circle carrier — a fillet
+/// corner ball against its edge cylinders, a rim blend's torus
+/// against its flat face and its pip sphere, a revolve's latitude
+/// join — are all **coaxial**: the circle's axis is a common axis of
+/// revolution of both surfaces and its centre lies on that axis. The
 /// bounds below are written so that the coaxial configuration makes
-/// every one of them exactly zero **by equivariance**, and so that a
-/// configuration that misses coaxiality pays for the miss
-/// continuously (there is no gate, so no "demanded but not
-/// certifiable" hole).
+/// every one of them exactly zero **by equivariance** (`κ_rel` and
+/// the implicit residual are isometry invariants, and a coaxial
+/// circle's motion is a symmetry flow of both surfaces), and so that
+/// a configuration that misses coaxiality pays for the miss
+/// continuously rather than through a gate.
+///
+/// **The scope of that claim, stated exactly (fix pass F3).** An
+/// earlier draft of this comment asserted that circle tangency
+/// between two distinct elementary surfaces of revolution FORCES the
+/// coaxial configuration. That is false, and the reviewer's
+/// counterexample is in `tests/review_pr12_meridian_probe.rs`: a
+/// sphere centred on a torus's spine circle is tangent to the torus
+/// along a whole MERIDIAN (minor) circle, whose axis is
+/// perpendicular to the torus's, not parallel to it. The class is
+/// real, it is jet-determinate, and it is INSIDE this lane.
+///
+/// What actually happens there is the honest outcome and not a hole:
+/// the deviation measured below is large, so the span bounds are
+/// large, and certification refuses LOUDLY
+/// (`ResidualExceeded { TangentHull }`) instead of certifying
+/// something it has not bounded. The residual risk is therefore
+/// narrow and named: tier 3's must-carry could demand an intrinsic
+/// description on such an edge while this arm cannot certify it —
+/// **in-lane but uncertifiable**. No constructor in the kernel mints
+/// that configuration today (the fillet arms produce coaxial contact
+/// circles; revolve's joins are coaxial latitude circles), so the
+/// class is latent; closing it needs either a meridian-aware bound or
+/// a lane predicate that can see the configuration, and that is
+/// recorded as a numbered deviation rather than papered over here.
 pub fn tangent_certificate_lane<T: Real>(
     carrier: &Curve3<T>,
     s1: &Surface<T>,
