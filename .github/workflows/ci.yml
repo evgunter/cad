@@ -58,6 +58,15 @@ concurrency:
 #     (CARGO_PROFILE_TEST_STRIP=debuginfo, kept below for the 500 MB
 #     artifact quota). Stripping already forfeited line numbers, so this
 #     loses nothing CI had; function names in backtraces survive.
+#
+#   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive):
+#     default build compile step   514 s -> 389 s  (-24%)
+#     interval build compile step  618 s -> 495 s  (-20%)
+#   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
+#   standard GitHub-hosted for a private repo; the Bazel report's "4 vCPU"
+#   was wrong). That is why 261 independent link/codegen units are so
+#   expensive here, and why item 1 (collapsing 249 test crates into ~12)
+#   is still the big one.
 #   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
 #     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
 #     GitHub-hosted larger runners require an ORGANIZATION on Team or
