@@ -151,6 +151,17 @@ discipline() {
   # the only caller sits under editor-core's already-Bounds-bounded
   # `evaluate<T>`. A `PropsQuadLane`-style static split would have had
   # an empty refusing side.
+  #
+  # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the M6-2
+  # SSI generic-T lift: the rung-3 certificate simultaneously DECIDES
+  # (its `ssi_*` funnel margins) and reads brackets into the C9 ring
+  # (its hull/tube limbs ARE ring enclosures), so `Decide + Bounds` is
+  # its honest signature — the same class as the quadrature seam. The
+  # split is NOT empty here and is written: `PcurveFittedLane` has
+  # certified impls for f64/Probe/Interval and a refusing one for
+  # `Dual`. `ssi/enclose.rs` is deliberately NOT listed — it needs no
+  # decision, so it takes the sole-bound `T: Bounds` the rule allows
+  # everywhere.
   local bhits
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -159,7 +170,8 @@ discipline() {
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' \
-    | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
+    | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
+    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"

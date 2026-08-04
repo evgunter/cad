@@ -451,7 +451,7 @@ fn displaced(curve: &NurbsCurve3<f64>, i: usize, d: f64) -> NurbsCurve3<f64> {
         .expect("structure unchanged")
 }
 
-fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertificate, SsiError> {
+fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertificate<f64>, SsiError> {
     let (s, c) = (sphere(), threaded_cylinder());
     ssi::certify_rung3(
         carrier,

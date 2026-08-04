@@ -184,11 +184,16 @@ pub const SSI_MAX_FIT_SAMPLES: usize = 1200;
 
 /// An operand of a rung-3 intersection, tagged by which certificate
 /// machinery its limbs use.
-pub enum SsiOperand<'a> {
+///
+/// Generic since M6-2: the *tracing* of a branch is `f64` by design
+/// (untrusted candidate generation — `jet`/`march`/`system` stay
+/// `f64`-only), but *certifying* one is the consumer's own scalar, and
+/// a body at rest holds `Surface<T>`.
+pub enum SsiOperand<'a, T: geom_core::Real> {
     /// An analytic surface: implicit residuals and `compose` hulls.
-    Analytic(&'a Surface<f64>),
+    Analytic(&'a Surface<T>),
     /// A NURBS surface: certified foot points and chart hulls.
-    Nurbs(&'a NurbsSurface<f64>),
+    Nurbs(&'a NurbsSurface<T>),
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
@@ -441,7 +446,7 @@ pub struct SsiBranch {
     pub end: BranchEnd,
     /// The three-limb certificate. An `SsiBranch` cannot be built
     /// without one.
-    pub certificate: SsiCertificate,
+    pub certificate: SsiCertificate<f64>,
     /// The witness, `carrier(mid)` — unchanged from M2
     /// (`WitnessMidpoint`; S2 stays discharged).
     pub witness: Point3<f64>,
@@ -1036,16 +1041,16 @@ pub fn trace_plane_nurbs_uncertified(
 ///
 /// As [`certify::certify_branch`].
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub fn certify_rung3(
-    carrier: &NurbsCurve3<f64>,
-    pcurve_b: Option<&NurbsCurve2<f64>>,
-    a: &SsiOperand<'_>,
-    b: &SsiOperand<'_>,
-    arm: f64,
+pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds>(
+    carrier: &NurbsCurve3<T>,
+    pcurve_b: Option<&NurbsCurve2<T>>,
+    a: &SsiOperand<'_, T>,
+    b: &SsiOperand<'_, T>,
+    arm: T,
     extent: f64,
     eps: f64,
     band: Band,
-) -> Result<SsiCertificate, SsiError> {
+) -> Result<SsiCertificate<T>, SsiError> {
     certify::certify_branch(carrier, pcurve_b, a, b, arm, extent, eps, band)
 }
 

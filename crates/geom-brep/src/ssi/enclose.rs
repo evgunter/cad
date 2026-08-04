@@ -41,8 +41,27 @@
 //! (unsupported kind, malformed net, zero-touching divisor) yields
 //! [`RingInterval::poison`], which fails every downstream test. There is
 //! no path here that narrows an enclosure on a value branch.
+//!
+//! # The M6-2 seam: generic scalars in, ring out
+//!
+//! [`Box3`] stays a **C9-ring object** — its fields are
+//! [`RingInterval`]s, and `RingInterval` deliberately does not implement
+//! `Real` (`geom_core::real`'s `Enclosure` rationale), so there is no
+//! "`Box3<T>`" to want. What M6-2 lifted is the **seam**: every
+//! constructor and entry point here now takes the caller's own scalar
+//! and crosses into the ring through its bracket
+//! ([`geom_core::Bounds`]), instead of demanding `f64` operands and
+//! walling the whole certificate off the interval lane (M5-LOG PR 9c
+//! deviation 2).
+//!
+//! The bound is the **sole-bound `T: Bounds`** the discipline reserves
+//! for certification code: an operand enters as `[lo, hi]` and every
+//! subsequent operation is ring arithmetic, so a widened operand widens
+//! the enclosure — which can only cost a refusal. At `f64` the bracket
+//! is the value, so this lane's numbers are what they were, up to the
+//! ring's outward rounding of the pad itself.
 
-use geom_core::{Point3, RingInterval, Vec3};
+use geom_core::{Bounds, Point3, RingInterval, Vec3};
 use geom_surfaces::{NurbsSurface, Surface};
 
 /// An axis-aligned ring box in ℝ³.
@@ -57,21 +76,23 @@ pub(crate) struct Box3 {
 }
 
 impl Box3 {
-    /// The box `[cx−r, cx+r] × …` around `c`.
-    pub(crate) fn around(c: Point3<f64>, r: f64) -> Self {
+    /// The box `[cx−r, cx+r] × …` around `c` — the caller's scalar
+    /// crosses into the ring here (module docs' seam).
+    pub(crate) fn around<T: Bounds>(c: Point3<T>, r: T) -> Self {
+        let g = pad_interval(r);
         Self {
-            x: RingInterval::from_bounds(c.x - r, c.x + r),
-            y: RingInterval::from_bounds(c.y - r, c.y + r),
-            z: RingInterval::from_bounds(c.z - r, c.z + r),
+            x: ring(c.x) + g,
+            y: ring(c.y) + g,
+            z: ring(c.z) + g,
         }
     }
 
     /// The box spanned by two corners (componentwise hull).
-    pub(crate) fn between(a: Point3<f64>, b: Point3<f64>) -> Self {
+    pub(crate) fn between<T: Bounds>(a: Point3<T>, b: Point3<T>) -> Self {
         Self {
-            x: RingInterval::hull(RingInterval::point(a.x), RingInterval::point(b.x)),
-            y: RingInterval::hull(RingInterval::point(a.y), RingInterval::point(b.y)),
-            z: RingInterval::hull(RingInterval::point(a.z), RingInterval::point(b.z)),
+            x: RingInterval::hull(ring(a.x), ring(b.x)),
+            y: RingInterval::hull(ring(a.y), ring(b.y)),
+            z: RingInterval::hull(ring(a.z), ring(b.z)),
         }
     }
 
@@ -85,8 +106,8 @@ impl Box3 {
     }
 
     /// Grow every side by `r` (the certified tube radius).
-    pub(crate) fn pad(self, r: f64) -> Self {
-        let g = RingInterval::from_bounds(-r, r);
+    pub(crate) fn pad<T: Bounds>(self, r: T) -> Self {
+        let g = pad_interval(r);
         Self {
             x: self.x + g,
             y: self.y + g,
@@ -151,8 +172,28 @@ impl Box3 {
     }
 }
 
-fn ring(v: f64) -> RingInterval {
-    RingInterval::point(v)
+/// **The seam** (module docs): one scalar's bracket, as a ring
+/// enclosure. At `f64` this is `RingInterval::point`; at the interval
+/// scalar it carries the whole enclosure in, so nothing downstream can
+/// narrow what the caller could not.
+fn ring<T: Bounds>(v: T) -> RingInterval {
+    RingInterval::from_bounds(v.lo(), v.hi())
+}
+
+/// A symmetric pad of magnitude `r` — `[−r⁺, r⁺]` taken at the
+/// bracket's UPPER end, because a pad is a widening and the sound
+/// direction for a widening is the largest value the operand could
+/// stand for.
+///
+/// Poison, and a bracket whose upper end is negative, yield poison
+/// through [`RingInterval::from_bounds`] (`−hi ≤ hi` fails), which then
+/// fails every downstream test rather than shrinking a box. Stated
+/// precisely because the weaker claim is the true one: a bracket that
+/// merely STRADDLES zero has `hi ≥ 0` and pads by its upper end, which
+/// is sound — it is only an entirely-negative radius that poisons.
+fn pad_interval<T: Bounds>(r: T) -> RingInterval {
+    let hi = r.hi();
+    RingInterval::from_bounds(-hi, hi)
 }
 
 fn dot3(a: [RingInterval; 3], b: [RingInterval; 3]) -> RingInterval {
@@ -168,11 +209,11 @@ fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     ]
 }
 
-fn constv(v: Vec3<f64>) -> [RingInterval; 3] {
+fn constv<T: Bounds>(v: Vec3<T>) -> [RingInterval; 3] {
     [ring(v.x), ring(v.y), ring(v.z)]
 }
 
-fn subp(b: Box3, p: Point3<f64>) -> [RingInterval; 3] {
+fn subp<T: Bounds>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
     [b.x - ring(p.x), b.y - ring(p.y), b.z - ring(p.z)]
 }
 
@@ -197,11 +238,15 @@ fn norm_sq(q: [RingInterval; 3]) -> RingInterval {
 /// wanted to would have to land that conversion first, which is
 /// exactly the per-arm retirement rule (C12.1). [`Surface::Nurbs`] has
 /// no implicit form at all.
-pub(crate) fn implicit_enclosure(surface: &Surface<f64>, b: Box3) -> RingInterval {
+pub(crate) fn implicit_enclosure<T: Bounds>(surface: &Surface<T>, b: Box3) -> RingInterval {
+    let two = RingInterval::point(2.0);
     match *surface {
         Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
         Surface::Sphere { center, radius, .. } => {
-            (norm_sq(subp(b, center)) - ring(radius.powi(2))) / ring(2.0 * radius)
+            // `sqr`, never `ring(radius) * ring(radius)`: the radius
+            // enclosure is one operand, and squaring it as two
+            // independent ones widens it (the interval-square rule).
+            (norm_sq(subp(b, center)) - ring(radius).sqr()) / (two * ring(radius))
         }
         Surface::Cylinder {
             origin,
@@ -226,7 +271,7 @@ pub(crate) fn implicit_enclosure(surface: &Surface<f64>, b: Box3) -> RingInterva
             // cancellation inside one expression, and for an
             // axis-aligned cylinder it is exact.
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
-            (norm_sq(w) - ring(radius.powi(2))) / ring(2.0 * radius)
+            (norm_sq(w) - ring(radius).sqr()) / (two * ring(radius))
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => RingInterval::poison(),
     }
@@ -235,7 +280,10 @@ pub(crate) fn implicit_enclosure(surface: &Surface<f64>, b: Box3) -> RingInterva
 /// The enclosure of `∇f` ([`crate::implicit::implicit_gradient`]) over
 /// `b`. Same kind coverage and same reasons as
 /// [`implicit_enclosure`].
-pub(crate) fn implicit_gradient_enclosure(surface: &Surface<f64>, b: Box3) -> [RingInterval; 3] {
+pub(crate) fn implicit_gradient_enclosure<T: Bounds>(
+    surface: &Surface<T>,
+    b: Box3,
+) -> [RingInterval; 3] {
     let poison = [RingInterval::poison(); 3];
     match *surface {
         Surface::Plane { normal, .. } => constv(normal),
@@ -270,11 +318,11 @@ pub(crate) fn implicit_gradient_enclosure(surface: &Surface<f64>, b: Box3) -> [R
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: one arc, and therefore exactly one
 /// component to select.
-pub(crate) fn graph_margin(
-    s1: &Surface<f64>,
-    s2: &Surface<f64>,
+pub(crate) fn graph_margin<T: Bounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
     b: Box3,
-    e: Vec3<f64>,
+    e: Vec3<T>,
 ) -> RingInterval {
     let g1 = implicit_gradient_enclosure(s1, b);
     let g2 = implicit_gradient_enclosure(s2, b);
@@ -291,13 +339,13 @@ pub(crate) fn graph_margin(
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
 /// goes through the homogeneous quotient rule.
-pub(crate) struct NurbsBoxes<'a> {
-    surface: &'a NurbsSurface<f64>,
+pub(crate) struct NurbsBoxes<'a, T: Bounds> {
+    surface: &'a NurbsSurface<T>,
 }
 
-impl<'a> NurbsBoxes<'a> {
+impl<'a, T: Bounds> NurbsBoxes<'a, T> {
     /// Wrap a surface.
-    pub(crate) fn new(surface: &'a NurbsSurface<f64>) -> Self {
+    pub(crate) fn new(surface: &'a NurbsSurface<T>) -> Self {
         Self { surface }
     }
 
@@ -394,9 +442,13 @@ impl<'a> NurbsBoxes<'a> {
                 else {
                     return (poison_box(), RingInterval::poison(), RingInterval::poison());
                 };
-                // Homogeneous coefficients A = w·P.
-                let a0 = [ring(w0 * p0.x), ring(w0 * p0.y), ring(w0 * p0.z)];
-                let a1 = [ring(w1 * p1.x), ring(w1 * p1.y), ring(w1 * p1.z)];
+                // Homogeneous coefficients A = w·P. The weight is `f64`
+                // structure and the control point is the caller's
+                // scalar, so the product is formed IN THE RING — the
+                // seam, not a collapse.
+                let (rw0, rw1) = (ring(w0), ring(w1));
+                let a0 = [rw0 * ring(p0.x), rw0 * ring(p0.y), rw0 * ring(p0.z)];
+                let a1 = [rw1 * ring(p1.x), rw1 * ring(p1.y), rw1 * ring(p1.z)];
                 let (deg, span_lo, span_hi) = if along_u {
                     let Some((&lo, &hi)) = ku.get(iu + 1).zip(ku.get(iu + pu + 1)) else {
                         return (poison_box(), RingInterval::poison(), RingInterval::poison());
@@ -502,7 +554,19 @@ impl<'a> NurbsBoxes<'a> {
         let vm = 0.5 * (v0 + v1);
         let hu = 0.5 * (u1 - u0);
         let hv = 0.5 * (v1 - v0);
-        let c = self.surface.eval(um, vm);
+        // The midpoint evaluation is the only EVALUATION in this
+        // module, and it happens at the caller's scalar and then
+        // crosses the seam — so a widened control net widens the box
+        // rather than being silently collapsed.
+        // `eval_in_span` at the midpoint's own span rather than `eval`:
+        // the parameter is a thin `f64` structure value, so its span is
+        // unique and no `SpanLocate` hull is needed.
+        let c = self.surface.eval_in_span(
+            self.surface.knots_u().find_span(um),
+            self.surface.knots_v().find_span(vm),
+            T::from_f64(um),
+            T::from_f64(vm),
+        );
         let du = self.deriv_box(u0, u1, v0, v1, true);
         let dv = self.deriv_box(u0, u1, v0, v1, false);
         let ru = RingInterval::from_bounds(-hu, hu);

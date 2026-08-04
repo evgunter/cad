@@ -251,7 +251,7 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
     // future curved boolean cannot lose caches silently. ----
     for (k, cache) in src.pcurves.iter() {
         let dk = *half_edges.get(k).ok_or_else(corrupt)?;
-        dst.pcurves.insert(dk, *cache);
+        dst.pcurves.insert(dk, cache.clone());
     }
 
     // ---- Description surface-key remap (M3 PR 5, the extrude-operand

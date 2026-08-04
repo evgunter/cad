@@ -95,7 +95,9 @@
 //! but an op that starts mutating already-minted bodies must either
 //! clear the map or re-mint, and should say which in its own docs.
 
-use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
+use geom_brep::{
+    ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
+};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Real, Sign};
@@ -228,7 +230,7 @@ pub fn pcurve_of<T: Decide>(
     band: Band,
 ) -> Result<Pcurve<T>, PcurveMintError> {
     if let Some(cache) = body.pcurve(half_edge) {
-        return Ok(*cache.pcurve());
+        return Ok(cache.pcurve().clone());
     }
     let (carrier, _, _) = half_edge_carrier(body, half_edge)?;
     let surface = half_edge_surface(body, half_edge)?;
@@ -250,6 +252,44 @@ fn half_edge_carrier<T: Decide>(
     };
     let (t0, t1) = curve.params();
     Ok((curve.carrier().clone(), t0, t1))
+}
+
+/// The **mate operand** a fitted (rung-3) pcurve's certificate needs:
+/// the other surface of the pair whose intersection minted the carrier
+/// (`geom_brep::PcurveCache::certify_fitted` — the uniqueness tube is a
+/// statement about the PAIR, so one surface cannot produce one).
+///
+/// It is read from the edge's **intensional description**, not from the
+/// topology, and that is the D2 answer rather than a convenience: the
+/// description is what is authoritative about which two surfaces the
+/// locus belongs to (`EdgeGeometry::Intersection { s1, s2 }` names them
+/// by key), while "the face across the edge" is a derived fact that a
+/// mid-construction body, a spur edge or a seam can perfectly well have
+/// wrong. Re-read from the body at rest, never stored with the cache,
+/// so it cannot drift from the body's own geometry.
+///
+/// `None` when the edge is not an intersection edge, or when the face's
+/// own surface is neither of the pair — both of which the fitted lane
+/// then refuses typed rather than inventing a second operand.
+fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Surface<T>> {
+    let he = body.get_half_edge(half_edge)?;
+    let edge = body.get_edge(he.edge)?;
+    let CurveGeom::Certified(curve) = body.get_curve_geom(edge.curve)? else {
+        return None;
+    };
+    let geom_brep::EdgeGeometry::Intersection { s1, s2, .. } = *curve.description() else {
+        return None;
+    };
+    let lp = body.get_loop(he.parent_loop)?;
+    let own = body.get_face(lp.face)?.surface;
+    let other = if own == s1 {
+        s2
+    } else if own == s2 {
+        s1
+    } else {
+        return None;
+    };
+    body.get_surface(other).cloned()
 }
 
 /// The surface of the face `half_edge` bounds.
@@ -385,11 +425,23 @@ fn mint_face<T: Decide>(
     };
     for w in walked {
         let (carrier, _, _) = half_edge_carrier(body, w.half_edge)?;
-        let cache = PcurveCache::certify(w.pcurve, w.t0, w.t1, &carrier, &surface, window, band)
-            .map_err(|error| PcurveMintError::Certify {
-                half_edge: w.half_edge,
-                error,
-            })?;
+        // The minting lane produces closed-form images only, so it goes
+        // through the `Decide`-scalar door: a `Pcurve::Harmonic`
+        // certifies an algebraic identity in which no second surface
+        // takes part, and a dual body mints them perfectly well.
+        let cache = PcurveCache::certify(
+            w.pcurve.clone(),
+            w.t0,
+            w.t1,
+            &carrier,
+            &surface,
+            window,
+            band,
+        )
+        .map_err(|error| PcurveMintError::Certify {
+            half_edge: w.half_edge,
+            error,
+        })?;
         body.pcurves.insert(w.half_edge, cache);
     }
     Ok(())
@@ -438,7 +490,13 @@ fn walk_loop<T: Decide>(
                 let raw = base.eval(entry_t);
                 let half = T::from_f64(0.5);
                 let k = ((prev.x - raw.x) / tau + half).floor();
-                base.shift_branch(k, tau)
+                // The impossible-rebuild arm (see `Pcurve::shift_branch`)
+                // surfaces as a corrupt-body finding rather than being
+                // swallowed into an unshifted branch.
+                let Some(shifted) = base.shift_branch(k, tau) else {
+                    return Err(PcurveMintError::Corrupt);
+                };
+                shifted
             }
         };
         // Certified continuity: the entry point meets the predecessor's
@@ -514,7 +572,7 @@ fn walk_loop<T: Decide>(
 /// empty when the body is clean. Bodies with no stored caches (every
 /// all-planar body, and every body built before a curved face existed)
 /// produce no findings — absence is not a defect.
-pub fn validate_pcurves<T: Decide>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
+pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
     let mut findings = Vec::new();
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
@@ -601,7 +659,9 @@ pub fn validate_pcurves<T: Decide>(body: &Body<T>, band: Band) -> Vec<PcurveMint
                         continue;
                     }
                 };
-                if let Err(error) = cache.recertify(&carrier, &surface, window, band) {
+                let mate = mate_surface(body, he);
+                if let Err(error) = cache.recertify(&carrier, &surface, mate.as_ref(), window, band)
+                {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,
