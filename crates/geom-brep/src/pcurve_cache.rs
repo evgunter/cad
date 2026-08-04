@@ -1865,7 +1865,9 @@ mod tests {
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let Pcurve::Harmonic { p0, pa, pb, pl } = p;
+        let Pcurve::Harmonic { p0, pa, pb, pl } = p else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert!(p0.x.abs() < 1e-15, "azimuth anchored at the major axis");
         assert!((p0.y - h).abs() < 1e-15);
         assert!((pl.x - 1.0).abs() < 1e-15, "one azimuth turn per period");
@@ -1905,7 +1907,9 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let Pcurve::Harmonic { p0, pa, pb, pl } = p;
+        let Pcurve::Harmonic { p0, pa, pb, pl } = p else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert!(p0.x.abs() < 1e-15 && (p0.y - h).abs() < 1e-15);
         assert!(pa.y.abs() < 1e-15 && pb.y.abs() < 1e-15 && pl.y.abs() < 1e-15);
         assert!((pl.x - 1.0).abs() < 1e-15);
@@ -1927,7 +1931,9 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let Pcurve::Harmonic { pl, .. } = p;
+        let Pcurve::Harmonic { pl, .. } = p else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert!((pl.x + 1.0).abs() < 1e-15);
         PcurveCache::certify(p, 0.0, FRAC_PI_2, &carrier, &cyl, wide_window(), band()).unwrap();
     }
@@ -1945,7 +1951,9 @@ mod tests {
             dir: Vec3::unit_z(),
         };
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let Pcurve::Harmonic { p0, pa, pb, pl } = p;
+        let Pcurve::Harmonic { p0, pa, pb, pl } = p else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);
         assert!(pa.x.abs() < 1e-15 && pb.x.abs() < 1e-15 && pl.x.abs() < 1e-15);
         assert!((pl.y - 1.0).abs() < 1e-15);
@@ -1966,8 +1974,13 @@ mod tests {
         };
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let wrapped = base.shift_branch(1.0, TAU);
-        let Pcurve::Harmonic { p0: a, .. } = base;
-        let Pcurve::Harmonic { p0: b, .. } = wrapped;
+        let wrapped_for_shift = wrapped.clone();
+        let Pcurve::Harmonic { p0: a, .. } = base else {
+            panic!("the closed-form lane stores harmonic images")
+        };
+        let Pcurve::Harmonic { p0: b, .. } = wrapped else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert!((b.x - a.x - TAU).abs() < 1e-15, "different chart curves");
         // Both certify against the same carrier and the same surface —
         // the chart is periodic, so both branches map to the same locus.
@@ -1984,7 +1997,7 @@ mod tests {
             v_min: -1.0,
             v_max: 2.0,
         };
-        PcurveCache::certify(wrapped, 0.0, 1.0, &carrier, &cyl, w2, band()).unwrap();
+        PcurveCache::certify(wrapped_for_shift, 0.0, 1.0, &carrier, &cyl, w2, band()).unwrap();
         // And each escapes the OTHER face's window — typed, not silent.
         assert!(matches!(
             PcurveCache::certify(wrapped, 0.0, 1.0, &carrier, &cyl, w, band()),
@@ -2026,7 +2039,9 @@ mod tests {
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
         let good = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let Pcurve::Harmonic { p0, pa, pb, pl } = good;
+        let Pcurve::Harmonic { p0, pa, pb, pl } = good else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         let nudge = 1e-3;
         let corruptions = [
             Pcurve::Harmonic {
@@ -2070,7 +2085,9 @@ mod tests {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         // A deliberately imperfect pcurve, so the envelope is not a
         // degenerate zero.
         let bad = Pcurve::Harmonic {
@@ -2124,7 +2141,9 @@ mod tests {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         // δ·r just inside the Zero band at the default ε = 1e-9; the
         // drift residual r·δ·t peaks at ~0.94e-9 at the last schedule
         // sample, so the 9-sample limb passes as well.
@@ -2136,7 +2155,7 @@ mod tests {
             pl: Vec2::new(pl.x + delta, pl.y),
         };
         let Ok(cache) =
-            PcurveCache::certify(drifted, 0.0, PI, &carrier, &cyl, wide_window(), band())
+            PcurveCache::certify(drifted.clone(), 0.0, PI, &carrier, &cyl, wide_window(), band())
         else {
             // At a tighter ε row the snap does not admit it at all —
             // also honest, and nothing left to check.
@@ -2168,7 +2187,9 @@ mod tests {
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let Pcurve::Harmonic { pa, pb, pl, .. } = p;
+        let Pcurve::Harmonic { pa, pb, pl, .. } = p else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert_eq!((pa.x, pb.x), (0.0, 0.0));
         assert_eq!(pl.x, 1.0);
         let cache =
@@ -2185,7 +2206,9 @@ mod tests {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         let d = 1e-4;
         let combos = [
             (d, -d, 0.0, 0.0),
@@ -2232,7 +2255,9 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &sphere, band()).unwrap();
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &sphere, band()).unwrap() else {
+            panic!("the closed-form lane stores harmonic images")
+        };
         assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);
         assert!((pl.x - 1.0).abs() < 1e-15 && pl.y.abs() < 1e-15);
         assert!(pa.x.abs() < 1e-15 && pa.y.abs() < 1e-15);

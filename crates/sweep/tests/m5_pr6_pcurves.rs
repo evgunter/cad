@@ -159,7 +159,10 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
             1,
             "exactly one side of a section edge is a cylinder face"
         );
-        let Pcurve::Harmonic { pa, pb, pl, .. } = *above.pcurve(stored[0]).unwrap().pcurve();
+        let Pcurve::Harmonic { pa, pb, pl, .. } = *above.pcurve(stored[0]).unwrap().pcurve()
+        else {
+            panic!("the minting lane stores closed-form images")
+        };
         // The sinusoid graph: azimuth affine with unit winding, height
         // harmonic. This is the tilted-section chart image, exactly.
         assert!((pl.x.abs() - 1.0).abs() < 1e-12);
@@ -204,8 +207,12 @@ fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
             continue;
         }
         found += 1;
-        let Pcurve::Harmonic { p0: pa, .. } = *a.pcurve();
-        let Pcurve::Harmonic { p0: pb, .. } = *b.pcurve();
+        let Pcurve::Harmonic { p0: pa, .. } = *a.pcurve() else {
+            panic!("the minting lane stores closed-form images")
+        };
+        let Pcurve::Harmonic { p0: pb, .. } = *b.pcurve() else {
+            panic!("the minting lane stores closed-form images")
+        };
         let gap = (pa.x - pb.x).abs();
         assert!(
             (gap - TAU).abs() < 1e-9,
@@ -273,7 +280,9 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     let band = Band::linear().unwrap();
     let (he, _) = prism.half_edges().next().unwrap();
     let derived = topo::pcurve_of(&prism, he, band).unwrap();
-    let Pcurve::Harmonic { pa, pb, .. } = derived;
+    let Pcurve::Harmonic { pa, pb, .. } = derived else {
+        panic!("chart_pcurve derives closed-form images")
+    };
     assert!(
         pa.x.abs() + pa.y.abs() + pb.x.abs() + pb.y.abs() < 1e-15,
         "a line in a plane chart is a chart line"
@@ -380,7 +389,7 @@ fn a_cache_certified_against_another_edge_fails_the_tier_gate() {
             (params_a.0 - cb.0).abs() + (params_a.1 - cb.1).abs() > 1e-3
         })
         .expect("two half-edges with different carrier intervals");
-    let donor = *above.pcurve(a).unwrap();
+    let donor = above.pcurve(a).unwrap().clone();
     above.attach_pcurve(b, donor);
     let findings = topo::pcurves::validate_pcurves(&above, Band::linear().unwrap());
     assert!(!findings.is_empty(), "the swap must be caught");
