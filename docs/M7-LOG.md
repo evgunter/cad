@@ -61,3 +61,35 @@ contract section and relayed. (5) wild licensed STEP files inside
 the subset as a late demo corpus — plan unit 4, deferrable. All
 three docs amended; implementer messaged mid-flight (no
 acceptance-row changes).
+
+**M7-1 implementation COMPLETE (2026-08-04): PR #183 open, all
+six acceptance rows reported green (8/8 nextest), ONE numbered
+deviation, blinded adversarial review DISPATCHED.** Headline
+measurement: the first re-export is byte-identical to the
+COMMITTED fixture for **all 14/14** solid fixtures (row 2 only
+required the second export to fix-point the first). Deviation 1:
+five sidecars' EXPECT_EDGES record OCC's post-import
+normalisation (pole edges, seam splits), not the kernel census —
+resolved by asserting the kernel census quoted from the sidecars'
+own comments; no fixture/sidecar touched; sidecar KERNEL_* fields
+suggested as a design conversation. Architecture: hand-rolled
+Part-21 parser (~350 lines, zero new deps; step-export enters as
+dev-dependency oracle only); rotation-system Euler assembly
+(σ(u)=next(mate(u)) fan orbits, mev/mef/mekr + ring_move/kfmrh
+genus, strut+kemr hole-planting, strut+kev anchor rotation) with
+a loop-cycle verification pass; file-order fixed-point discipline
+(Shell::faces + Cycle::first); D7 adoption ladder
+Intersection→TangentIntersection / Seam→MappedCurve with
+structured (candidate, refusal) errors per Evan's remedy
+directive; then mint_pcurves. Notable discovered facts: the
+tangent gate accepts the full circular-trimline class (its
+refusal text still names the M5 line-only class — stale, banked);
+kev's unconditional Cycle::first re-anchor is the public
+loop-rotation door (deserves a topo pin someday); STEP cannot
+carry solid grouping (kiss_assembly imports 2 solids / 2 shells,
+matching its sidecar). Impl ~441k tokens, ~1.9h wall. Review
+assigned attacks: byte-identity provenance (anti-laundering),
+deviation-1 adjudication, adoption-ladder corruption probes,
+rotation-system stress (genus, permuted-order files), volume
+tolerance teeth, same_sense flip fidelity, refusal coverage,
+ε_in. Slot 2 → m7-import-review lane.
