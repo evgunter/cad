@@ -204,6 +204,20 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
             "die_pips",
             &["PLANE", "SPHERICAL_SURFACE", "CIRCLE", "LINE"],
         ),
+        // The M6 globe-lily unit: a sphere ZONE (neither pole on the
+        // face) meeting a CONE across an exact circle, capped by two
+        // planar discs -- three elementary kinds on one revolve, and
+        // the cone is a genuine frustum rather than an apex fan.
+        (
+            "lily_lantern",
+            &[
+                "PLANE",
+                "SPHERICAL_SURFACE",
+                "CONICAL_SURFACE",
+                "CIRCLE",
+                "LINE",
+            ],
+        ),
         // The M6 composed die (unit 1's surgery): the blank's three
         // kinds PLUS the rim-fillet tori — four elementary surface
         // kinds in one solid, every carrier a line or a circle, none
@@ -478,11 +492,16 @@ fn every_bound_orientation_is_true_even_on_reversed_faces() {
         }
     }
     // The corpus really does contain reversed faces, so the row above
-    // is not vacuous: 89 = notched 1 + washer 2 + cone 2 (the
+    // is not vacuous: 91 = notched 1 + washer 2 + cone 2 (the
     // original five) + die_pips 21·2 (each pip's two sense:false
     // half-band walls, S11 discipline) + the M6 composed die's 21·2
-    // (the same half-caps, carried through the surgery).
-    assert_eq!(reversed_seen, 89, "the corpus's reversed faces");
+    // (the same half-caps, carried through the surgery) + the globe
+    // lily's lantern 2 (its MOUTH disc's two half-bands: a revolve
+    // mints both cap planes on the profile plane's own +y normal, so
+    // the cap facing −y opposes the solid's outward normal and the
+    // one facing +y agrees — exactly one of the two caps reverses,
+    // and each cap is two half-bands).
+    assert_eq!(reversed_seen, 91, "the corpus's reversed faces");
 }
 
 /// **Anti-double-composition pin B: a reversed face exports its TRUE
@@ -532,8 +551,9 @@ fn a_reversed_face_keeps_its_chart_axis() {
         }
     }
     assert_eq!(
-        checked, 89,
-        "all 89 reversed faces checked (5 original + die_pips' 42 + the composed die's 42)"
+        checked, 91,
+        "all 91 reversed faces checked (5 original + die_pips' 42 + the composed \
+         die's 42 + the lily lantern's 2)"
     );
 }
 
