@@ -21,6 +21,7 @@ use geom_surfaces::Surface;
 
 use crate::error::StepImportError;
 use crate::chart;
+use crate::normalize;
 use crate::geometry;
 use crate::parse::{Instance, Record, StepFile, Value};
 use crate::units::{self, UnitKind};
@@ -71,6 +72,10 @@ pub(crate) struct SolidSpec {
 /// One `ADVANCED_FACE`.
 #[derive(Debug)]
 pub(crate) struct FaceSpec {
+    /// The `ADVANCED_FACE` entity instance this face came from (a
+    /// normalization's minted faces keep the id of the face they
+    /// replace, so a reported census mapping names a real record).
+    pub(crate) id: u64,
     /// The mapped kernel surface, field for field.
     pub(crate) surface: Surface<f64>,
     /// `same_sense`, honored verbatim as [`topo::Face::sense`].
@@ -759,6 +764,7 @@ impl<'a> Resolver<'a> {
         // face's outer cycle and the rest as its rings, in order).
         loops.swap(0, outer);
         Ok(vec![FaceSpec {
+            id,
             surface,
             sense,
             loops,
@@ -999,6 +1005,7 @@ impl<'a> Resolver<'a> {
         let through_seam = meridian(v_ref)?;
 
         let lune = |a: u64, a_fwd: bool, b: u64, b_fwd: bool| FaceSpec {
+            id,
             surface: surface.clone(),
             sense,
             loops: vec![LoopSpec {
@@ -1264,12 +1271,20 @@ impl<'a> Resolver<'a> {
                 });
             }
         }
-        Ok(SolidSpec {
+        let mut solid = SolidSpec {
             id,
             faces,
             edges,
             vertices,
-        })
+        };
+        // The reported structure normalizations for periodic faces the
+        // kernel cannot represent as stated (Leg C).
+        normalize::normalize_shell(
+            &mut solid,
+            &mut || self.mint_id(),
+            &mut self.normalizations.borrow_mut(),
+        )?;
+        Ok(solid)
     }
 
     /// A `GEOMETRIC_CURVE_SET`'s curves, in set order.

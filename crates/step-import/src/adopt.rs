@@ -373,6 +373,7 @@ fn adopt_edges(
         // The candidate descriptions, in preference order (module
         // docs: intrinsic before conventional).
         let mut candidates: Vec<(AdoptionCandidate, EdgeGeometry<f64>)> = Vec::new();
+        let mut conventional = true;
         if fs_plus != fs_minus {
             candidates.push((
                 AdoptionCandidate::Intersection,
@@ -390,6 +391,31 @@ fn adopt_edges(
                     witness,
                 },
             ));
+            // The conventional rung, for distinct surface RECORDS that
+            // describe **the same locus** (M7-2): a boolean union's
+            // re-tiled flat side arrives as two coplanar PLANE records
+            // with different origins, so the importer's bitwise key
+            // sharing cannot merge them and the edge between them is
+            // neither a transverse intersection nor a tangency with a
+            // second-order margin — the kernel's own gate says so in
+            // its refusal ("the surfaces under-determine the locus
+            // there — a G2 conventional join keeps its MappedCurve
+            // description BY THIS PREDICATE, D2's split"), and this
+            // rung follows that instruction.
+            //
+            // The condition is COINCIDENCE, tested on the surfaces'
+            // own fields at the ambient tolerance — not "the intrinsic
+            // rungs failed". A conventional self-description certifies
+            // against nothing but itself, so offering it wherever an
+            // intersection refuses would make the ladder vacuous: a
+            // face pointed at the WRONG surface would sail through.
+            // Under coincidence the two records describe one surface,
+            // which is exactly the same-surface case the `else` branch
+            // below already treats conventionally.
+            conventional = coincident_surfaces(
+                body.get_surface(fs_plus),
+                body.get_surface(fs_minus),
+            );
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -406,14 +432,15 @@ fn adopt_edges(
                     EdgeGeometry::Seam { surface: fs_plus },
                 ));
             }
-            if let Some(mapped) =
+        }
+        if conventional
+            && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1)
-            {
-                candidates.push((
-                    AdoptionCandidate::MappedCurve,
-                    EdgeGeometry::MappedCurve(mapped),
-                ));
-            }
+        {
+            candidates.push((
+                AdoptionCandidate::MappedCurve,
+                EdgeGeometry::MappedCurve(mapped),
+            ));
         }
 
         let mut attempts = Vec::new();
@@ -473,5 +500,38 @@ fn mapped_self_description(
             angle: t1 - t0,
         }),
         Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+    }
+}
+
+/// Whether two distinct surface records describe **the same locus** at
+/// the ambient tolerance (module docs' conventional rung).
+///
+/// Only the plane case is decided here, because only the plane case is
+/// measured: a boolean union re-tiles a flat side into several coplanar
+/// `PLANE` records with different origins. Any other pair answers
+/// `false` — the conventional rung is then not offered, and the edge
+/// must earn an intrinsic description or refuse typed, which is the
+/// conservative direction.
+fn coincident_surfaces(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
+    let eps = geom_core::Tolerance::get().eps;
+    match (s1, s2) {
+        (
+            Some(&Surface::Plane {
+                origin: o1,
+                normal: n1,
+                ..
+            }),
+            Some(&Surface::Plane {
+                origin: o2,
+                normal: n2,
+                ..
+            }),
+        ) => {
+            // Parallel normals (either orientation — a face's material
+            // side is its `sense`, not its surface record's normal),
+            // and one plane's origin on the other.
+            n1.cross(n2).norm() <= eps && (o2 - o1).dot(n1).abs() <= eps
+        }
+        _ => false,
     }
 }

@@ -72,6 +72,7 @@ mod chart;
 mod entities;
 mod error;
 mod geometry;
+mod normalize;
 mod parse;
 pub mod tolerance;
 mod units;
@@ -103,6 +104,22 @@ pub enum NormalizationKind {
     /// canonical splitting of it — the same 2 faces / 2 edges / 2
     /// vertices a natively revolved ball carries.
     EdgeFreeSphere,
+    /// A **cone with a degenerate apex**: Open CASCADE never splits a
+    /// periodic face, so a full cone's lateral side arrives as one
+    /// `ADVANCED_FACE` whose seam generator ends at the apex — a
+    /// vertex with a single incident edge, which `topo`'s tier-2
+    /// validity calls construction scaffolding, because in a finished
+    /// solid that is what it is. Re-minted as the kernel's own two
+    /// lateral half-faces, joined by a second generator half a turn
+    /// round the cone's axis.
+    DegenerateApexCone,
+    /// A **whole torus in one face**: the file's single face wraps the
+    /// full period in BOTH chart directions (the fundamental-polygon
+    /// square, two curves each used twice). The topology closes, but
+    /// the face is not a chart iso-rectangle and its closed-form
+    /// divergence contribution comes back with the wrong sign.
+    /// Re-minted as the kernel's own two half-faces.
+    FullPeriodTorus,
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
