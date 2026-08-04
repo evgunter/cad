@@ -1822,6 +1822,11 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // and Nurbs-adjacent edges likewise (flip B above): no jet is
         // derivable from a poison implicit form, so they carry
         // `Unmarked`.
+        // The two `Unmarked` arms are deliberately separate branches
+        // (not `nurbs_adjacent || escalated`): one is an exemption BY
+        // KIND, the other an escalation already reported — same mark,
+        // different reasons, and the reader should see both.
+        #[allow(clippy::if_same_then_else)]
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
         } else if escalated {
