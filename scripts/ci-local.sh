@@ -50,6 +50,17 @@
 # shards for wall-clock fan-out; the shards' union is exactly the row,
 # so the unsharded rows here gate the same test set.
 #
+# NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
+# RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
+# line-tables-only. Those are hosted-runner throughput knobs — they cut
+# the cost of the 261 test-binary links, they do not change which targets
+# compile or which tests run, so the local gate proves the same thing
+# without them. Mirroring them here would be actively wrong: it would
+# change local developer defaults (a system `mold`, and thinner local
+# debuginfo than a debugging session wants), and gate.sh unsets RUSTFLAGS
+# on purpose to keep its warm target/ from re-fingerprinting. See the
+# LINK/DEBUGINFO note at the top of ci.yml for the measurement.
+#
 # Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
 set -u
