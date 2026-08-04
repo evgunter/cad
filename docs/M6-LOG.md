@@ -368,3 +368,30 @@ cargo; diff was yml+sh only). One GHA flake noted (download-
 artifact hang, cancelled+rerun clean) — watch, unrelated.
 Evan told on #173. Phase B (249→~12 collapse) still HELD for a
 cargo-lane slot; stale #167 watchlist entry cleared.
+
+**Globe lily COMPLETE (2026-08-04): PR #175 open, 27/27 green,
+adversarial review dispatched into the freed lane slot.** Eight
+closed analytic solids (torus-segment stem turtle, two
+truncated-zone lanterns with cone mouths, three extruded two-arc
+crescent leaves), every one through the full ladder; sheets grown
+to 18 cells both lanes; lily_lantern STEP fixture = the corpus's
+first no-pole spherical face (degenerate-edge normalisation 0 —
+the control for that pin); reversed-face pin 89→91 with
+derivation; +10,462 K-probe samples; `wall_probes` pins seven
+refusals LIVE. **The fourteen walls** (full list = PR #175
+description): findings 1-2 (tangent curved contacts — G1 tube
+unions, flower∪stem) corroborate UNIT 4; finding 6 (bare revolve
+un-filletable: seam meridian TangentialEdge margin 0 — no
+booleans needed) independently corroborates UNIT 5; findings 8-10
+(no sweep/loft Body door, no taper, no petal membrane)
+corroborate UNIT 3. New API-ergonomics items for later triage:
+revolve axis in sketch coords with SILENT placement risk (11),
+unchecked frame orthonormality (12), tessellation δ budgeted per
+body by ring radius not feature size — stem 76k triangles vs
+lantern 2.3k at 0.53% volume error, visible in the render (13),
+no near-tangency distance query (14). Positive: analytic export
+round-trips with kernel censuses unchanged (no OCC
+normalisation), volumes to ≤1.4e-14 of closed forms. Phase B
+STILL held — it restructures test crates across every crate and
+would conflict with BOTH open lanes; it dispatches only after
+M6-2 and the lily merge.
