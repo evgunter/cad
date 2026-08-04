@@ -386,6 +386,7 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{infer_outer, uv_of};
     use geom_core::{Point3, Vec3};

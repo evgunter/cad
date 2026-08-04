@@ -147,9 +147,16 @@ pub(crate) struct Resolver<'a> {
     /// millimeters. EVERY length the resolver reads passes through
     /// [`Resolver::as_length`].
     length_scale: f64,
-    /// ε_in in kernel meters — the file's scaled declared uncertainty,
-    /// the floor of every interpretation budget the resolver spends
-    /// ([`crate::tolerance`]).
+    /// ε_in in kernel meters — the file's declared uncertainty, scaled
+    /// with every other length. This is THE interpretation budget: D7's
+    /// input tolerance, one number per file, spent by every gate that
+    /// has to decide what the file means. Print truncation (Open
+    /// CASCADE's 12–13 significant digits) is ~1e-12 RELATIVE, so it
+    /// stays far under this absolute budget for any part smaller than
+    /// about 100 m; a model large enough to invert that comparison
+    /// fails adoption TYPED, with the residual in the refusal, and the
+    /// remedy is the per-call ε_in override — D7's own remedy path,
+    /// not a hole this reader papers over with a per-literal budget.
     eps_in: f64,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
@@ -748,15 +755,7 @@ impl<'a> Resolver<'a> {
         }
         // The edge-free closed face: one VERTEX_LOOP and nothing else.
         if bound_specs.iter().any(|b| b.vertex_loop.is_some()) {
-            return self.edge_free_face(
-                id,
-                surface,
-                surface_id,
-                sense,
-                &bound_specs,
-                edges,
-                vertices,
-            );
+            return self.edge_free_face(id, surface, sense, &bound_specs, edges, vertices);
         }
 
         let mut loops: Vec<LoopSpec> = bound_specs
@@ -864,37 +863,6 @@ impl<'a> Resolver<'a> {
         Ok(out)
     }
 
-    /// The sum of every numeric literal's print-precision term in one
-    /// instance's own records, as a LENGTH budget in kernel meters
-    /// (the parser keeps each token's printed text — [`crate::tolerance`]).
-    /// Non-length literals in the same record can only widen the budget
-    /// conservatively, which is the safe direction for a gate.
-    fn instance_length_eps(&self, id: u64) -> f64 {
-        let Some(instance) = self.file.data.get(&id) else {
-            return self.eps_in;
-        };
-        fn walk(value: &Value, acc: &mut f64, scale: f64) {
-            match value {
-                Value::Number(raw) => {
-                    *acc = acc.max(crate::tolerance::print_half_ulp(raw) * scale);
-                }
-                Value::List(items) | Value::Typed(_, items) => {
-                    for v in items {
-                        walk(v, acc, scale);
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut acc = self.eps_in;
-        for (_, args) in &instance.records {
-            for v in args {
-                walk(v, &mut acc, self.length_scale);
-            }
-        }
-        acc
-    }
-
     /// **The edge-free closed face** (M7-2 Leg C): a whole sphere
     /// arrives as one `ADVANCED_FACE` whose only bound is a
     /// `VERTEX_LOOP` — Open CASCADE drops the seam and both degenerate
@@ -923,7 +891,6 @@ impl<'a> Resolver<'a> {
         &self,
         id: u64,
         surface: Surface<f64>,
-        surface_id: u64,
         sense: bool,
         bounds: &[BoundSpec],
         edges: &mut BTreeMap<u64, EdgeSpec>,
@@ -957,12 +924,9 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
-        // The budget: ε_in, widened only by what the sphere record's
-        // and the vertex point's own printed text can support.
-        let eps = self
-            .instance_length_eps(surface_id)
-            .max(self.instance_length_eps(vertex_id))
-            .max(self.eps_in);
+        // The budget is ε_in — the file's own declared uncertainty,
+        // scaled into kernel metres (D7's rule, unchanged).
+        let eps = self.eps_in;
         let p = self.vertex(id, vertex_id)?;
         if ((p - center).norm() - radius).abs() > eps {
             return Err(StepImportError::Topology {
@@ -981,9 +945,9 @@ impl<'a> Resolver<'a> {
         // axis ∓v_ref and reference direction the sphere's own axis
         // starts AT the north pole (angle 0) and reaches the south at
         // angle π, sweeping through u = π and u = 0 respectively.
-        let v_ref = axis.cross(u_ref);
-        let north = center + axis * radius;
-        let south = center - axis * radius;
+        let v_ref = geometry::plus_zero(axis.cross(u_ref));
+        let north = geometry::plus_zero_point(center + axis * radius);
+        let south = geometry::plus_zero_point(center - axis * radius);
         let (nv, sv) = (self.mint_id(), self.mint_id());
         vertices.insert(nv, north);
         vertices.insert(sv, south);
@@ -991,7 +955,7 @@ impl<'a> Resolver<'a> {
             let eid = self.mint_id();
             let carrier = Curve3::Circle {
                 center,
-                axis: circle_axis,
+                axis: geometry::plus_zero(circle_axis),
                 radius,
                 u_ref: axis,
             };
@@ -1547,18 +1511,14 @@ fn check_assembly_transforms(r: &Resolver<'_>, file: &StepFile) -> Result<(), St
             };
             let a = r.placement(tid, as_ref(tid, from_ref, texpected)?)?;
             let b = r.placement(tid, as_ref(tid, to_ref, texpected)?)?;
-            // Identity at the file's own interpretation budget: the
-            // origins coincide within ε_in (a length), and the two
-            // direction fields coincide within what their printed
-            // text supports (dimensionless — a direction ratio is not
-            // a length, so ε_in does not apply to it and only the
-            // print-precision term does).
-            let dir_eps = r
-                .instance_length_eps(as_ref(tid, from_ref, texpected)?)
-                .max(r.instance_length_eps(as_ref(tid, to_ref, texpected)?));
+            // Identity at ε_in: the origins coincide within the
+            // file's own declared uncertainty, and so do the two
+            // direction fields (dimensionless, but ε_in is the one
+            // budget this importer spends and a unit vector's slack is
+            // bounded by it just as tightly).
             let identity = (a.0 - b.0).norm() <= r.eps_in
-                && (a.1 - b.1).norm() <= dir_eps
-                && (a.2 - b.2).norm() <= dir_eps;
+                && (a.1 - b.1).norm() <= r.eps_in
+                && (a.2 - b.2).norm() <= r.eps_in;
             if !identity {
                 return Err(StepImportError::Structure {
                     id: tid,

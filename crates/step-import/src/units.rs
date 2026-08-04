@@ -91,6 +91,7 @@ pub(crate) fn si_unit_kind(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{PREFIX_FACTORS, UnitKind, prefix_factor, si_unit_kind};
 

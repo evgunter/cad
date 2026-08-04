@@ -57,7 +57,10 @@ use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 /// Rotates `w` a half turn about the unit direction `axis` — the exact
 /// f64 identity `2(w·â)â − w`, with no trigonometry to round.
 fn half_turn(w: Vec3<f64>, axis: Vec3<f64>) -> Vec3<f64> {
-    axis * (2.0 * w.dot(axis)) - w
+    // `plus_zero`: a half turn negates exact zeros into `−0.0`, and a
+    // minted field carrying one would cost the adoption pass its
+    // fixed point over a printed sign (`geometry::plus_zero`).
+    crate::geometry::plus_zero(axis * (2.0 * w.dot(axis)) - w)
 }
 
 /// A carrier rotated a half turn about `(origin, axis)` — the copy of
@@ -69,7 +72,8 @@ fn half_turn_curve(
     origin: Point3<f64>,
     axis: Vec3<f64>,
 ) -> Option<Curve3<f64>> {
-    let point = |p: Point3<f64>| origin + half_turn(p - origin, axis);
+    let point =
+        |p: Point3<f64>| crate::geometry::plus_zero_point(origin + half_turn(p - origin, axis));
     match *carrier {
         Curve3::Line { origin: o, dir } => Some(Curve3::Line {
             origin: point(o),
@@ -461,7 +465,7 @@ fn full_torus(
     // vertex sits at its angle 0. Built from the vertex the file's own
     // meridian produced, so it cannot drift off the locus.
     let v1 = solid.vertices[&mid_v];
-    let c1 = center + axis * ((v1 - center).dot(axis));
+    let c1 = crate::geometry::plus_zero_point(center + axis * ((v1 - center).dot(axis)));
     let spoke = v1 - c1;
     let radius = spoke.norm();
     if !(radius.is_finite() && radius > 0.0) {
@@ -472,7 +476,7 @@ fn full_torus(
         center: c1,
         axis: rim_axis,
         radius,
-        u_ref: spoke * radius.recip(),
+        u_ref: crate::geometry::plus_zero(spoke * radius.recip()),
     };
     let Ok((t0, t1)) = crate::geometry::endpoint_params(rim_id, &carrier, v1, v1, true) else {
         return;

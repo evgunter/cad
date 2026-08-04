@@ -74,7 +74,6 @@ mod error;
 mod geometry;
 mod normalize;
 mod parse;
-pub mod tolerance;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
