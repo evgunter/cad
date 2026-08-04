@@ -187,10 +187,9 @@ fn as_real(id: u64, value: &Value, expected: &'static str) -> Result<f64, StepIm
 /// `value` as a nonnegative integer (degrees, multiplicities).
 fn as_usize(id: u64, value: &Value, expected: &'static str) -> Result<usize, StepImportError> {
     match value {
-        Value::Number(raw) => raw.parse().map_err(|_| StepImportError::MalformedRecord {
-            id,
-            expected,
-        }),
+        Value::Number(raw) => raw
+            .parse()
+            .map_err(|_| StepImportError::MalformedRecord { id, expected }),
         _ => Err(StepImportError::MalformedRecord { id, expected }),
     }
 }
@@ -311,8 +310,7 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (origin, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let (origin, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cylinder {
                     origin,
                     axis,
@@ -331,8 +329,7 @@ impl<'a> Resolver<'a> {
                 // fixed cos α factor) has nothing to act on in this
                 // subset: no trim parameters or pcurves cross the
                 // wire, and the surface LOCUS fields are identical.
-                let expected =
-                    "CONICAL_SURFACE(name, #placement, 0.0, semi_angle) — the apex \
+                let expected = "CONICAL_SURFACE(name, #placement, 0.0, semi_angle) — the apex \
                      placement (radius = 0.0) is the exported subset";
                 let [_, placement, radius, semi_angle] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
@@ -340,8 +337,7 @@ impl<'a> Resolver<'a> {
                 if as_real(id, radius, expected)? != 0.0 {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 }
-                let (apex, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let (apex, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cone {
                     apex,
                     axis,
@@ -354,8 +350,7 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
                     center,
                     radius: as_real(id, radius, expected)?,
@@ -368,8 +363,7 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Torus {
                     center,
                     axis,
@@ -436,8 +430,7 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Curve3::Circle {
                     center,
                     axis,
@@ -450,8 +443,7 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Curve3::Ellipse {
                     center,
                     axis,
@@ -500,7 +492,9 @@ impl<'a> Resolver<'a> {
                 "B_SPLINE_CURVE" => base = Some(args),
                 "B_SPLINE_CURVE_WITH_KNOTS" => with_knots = Some(args),
                 "RATIONAL_B_SPLINE_CURVE" => rational = Some(args),
-                "BOUNDED_CURVE" | "CURVE" | "GEOMETRIC_REPRESENTATION_ITEM"
+                "BOUNDED_CURVE"
+                | "CURVE"
+                | "GEOMETRIC_REPRESENTATION_ITEM"
                 | "REPRESENTATION_ITEM" => {}
                 other => {
                     return Err(StepImportError::UnsupportedEntity {
@@ -754,8 +748,7 @@ impl<'a> Resolver<'a> {
         let carrier = self.curve(id, as_ref(id, curve_ref, expected)?)?;
         let p_start = vertices[&start];
         let p_end = vertices[&end];
-        let (t0, t1) =
-            geometry::endpoint_params(id, &carrier, p_start, p_end, start == end)?;
+        let (t0, t1) = geometry::endpoint_params(id, &carrier, p_start, p_end, start == end)?;
         Ok(EdgeSpec {
             start,
             end,

@@ -319,9 +319,7 @@ impl<'a> Builder<'a> {
             // `dying` is the outer of `keep`'s own face, so `keep` is
             // one of its rings: promote `keep` to a fresh face, then
             // fall through to the cross-face demotion below.
-            self.body
-                .mfkrh_plug(keep)
-                .map_err(Self::op_err(edge_id))?;
+            self.body.mfkrh_plug(keep).map_err(Self::op_err(edge_id))?;
             return self.make_ring_of(edge_id, keep, dying);
         }
         if dying_is_outer {
@@ -667,15 +665,14 @@ impl<'a> Builder<'a> {
     /// loops distinct. Assembly cannot silently produce a different
     /// complex.
     fn verify(&self, solid_id: u64) -> Result<(), StepImportError> {
-        let defect = |what| StepImportError::Topology {
-            id: solid_id,
-            what,
-        };
+        let defect = |what| StepImportError::Topology { id: solid_id, what };
         let mut seen_loops = Vec::new();
         for seq in &self.target.loops {
             let expected: Vec<HalfEdgeKey> = seq
                 .iter()
-                .map(|&u| self.use_he[u].ok_or(defect("internal: an unrealized use survived assembly")))
+                .map(|&u| {
+                    self.use_he[u].ok_or(defect("internal: an unrealized use survived assembly"))
+                })
                 .collect::<Result<_, _>>()?;
             let actual = self
                 .body
@@ -735,14 +732,15 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
         match root {
             Some(v) => v,
             None => {
-                let (&first, _) = target
-                    .edge_uses
-                    .iter()
-                    .next()
-                    .ok_or(StepImportError::Topology {
-                        id: solid.id,
-                        what: "a shell with no edges",
-                    })?;
+                let (&first, _) =
+                    target
+                        .edge_uses
+                        .iter()
+                        .next()
+                        .ok_or(StepImportError::Topology {
+                            id: solid.id,
+                            what: "a shell with no edges",
+                        })?;
                 solid.edges[&first].start
             }
         }
@@ -807,7 +805,10 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
 /// `MANIFOLD_SOLID_BREP`, then the body-wide pcurve re-mint (the
 /// kernel's own cache machinery — cylinder charts mint, other charts
 /// stay derive-on-demand, exactly a native body's state).
-pub(crate) fn build_body(solids: &[SolidSpec], _model: &Model) -> Result<Body<f64>, StepImportError> {
+pub(crate) fn build_body(
+    solids: &[SolidSpec],
+    _model: &Model,
+) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
     for solid in solids {
         assemble_solid(&mut body, solid)?;

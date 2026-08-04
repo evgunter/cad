@@ -311,9 +311,13 @@ fn adopt_edges(
                     EdgeGeometry::Seam { surface: fs_plus },
                 ));
             }
-            if let Some(mapped) = mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1)
+            if let Some(mapped) =
+                mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1)
             {
-                candidates.push((AdoptionCandidate::MappedCurve, EdgeGeometry::MappedCurve(mapped)));
+                candidates.push((
+                    AdoptionCandidate::MappedCurve,
+                    EdgeGeometry::MappedCurve(mapped),
+                ));
             }
         }
 

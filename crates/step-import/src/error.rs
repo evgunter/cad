@@ -209,10 +209,9 @@ impl fmt::Display for StepImportError {
             Self::Topology { id, what } => {
                 write!(f, "step import: entity #{id}: {what}")
             }
-            Self::Assembly { id, source } => write!(
-                f,
-                "step import: assembling entity #{id}: {source}"
-            ),
+            Self::Assembly { id, source } => {
+                write!(f, "step import: assembling entity #{id}: {source}")
+            }
             Self::Adoption { id, attempts } => {
                 write!(
                     f,
@@ -227,7 +226,10 @@ impl fmt::Display for StepImportError {
                 Ok(())
             }
             Self::Pcurves { source } => {
-                write!(f, "step import: pcurve re-mint on the adopted body: {source}")
+                write!(
+                    f,
+                    "step import: pcurve re-mint on the adopted body: {source}"
+                )
             }
         }
     }

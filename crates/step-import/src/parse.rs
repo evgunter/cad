@@ -97,8 +97,7 @@ impl<'a> Cursor<'a> {
                         if self.text[self.pos] == b'\n' {
                             self.line += 1;
                         }
-                        if self.text[self.pos] == b'*'
-                            && self.text.get(self.pos + 1) == Some(&b'/')
+                        if self.text[self.pos] == b'*' && self.text.get(self.pos + 1) == Some(&b'/')
                         {
                             self.pos += 2;
                             break;
@@ -133,7 +132,11 @@ impl<'a> Cursor<'a> {
         self.skip_ws();
         let start = self.pos;
         while let Some(c) = self.peek() {
-            if c.is_ascii_uppercase() || c == b'_' || c == b'-' || (c.is_ascii_digit() && self.pos > start) {
+            if c.is_ascii_uppercase()
+                || c == b'_'
+                || c == b'-'
+                || (c.is_ascii_digit() && self.pos > start)
+            {
                 self.pos += 1;
             } else {
                 break;
@@ -235,7 +238,12 @@ impl<'a> Cursor<'a> {
                 let start = self.pos;
                 self.pos += 1;
                 while self.peek().is_some_and(|c| {
-                    c.is_ascii_digit() || c == b'.' || c == b'E' || c == b'e' || c == b'+' || c == b'-'
+                    c.is_ascii_digit()
+                        || c == b'.'
+                        || c == b'E'
+                        || c == b'e'
+                        || c == b'+'
+                        || c == b'-'
                 }) {
                     self.pos += 1;
                 }
