@@ -34,17 +34,29 @@
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
+//!
+//! **What "exact" claims, precisely** (review NOTE-1). It claims the
+//! surface KIND: a stem wall is a `Surface::Torus`, not a spline fit of
+//! one, and it exports as `TOROIDAL_SURFACE`. It does NOT claim that
+//! every stored PARAMETER is the authored decimal — `revolve`
+//! reconstructs a tube radius from the profile's bulge arcs rather than
+//! carrying the authored number through, so `lily_stem`'s stored
+//! `minor_radius` is 0.05999999999999961, some 3.9e-16 (56 ulps) below
+//! the authored 0.060. That is float reconstruction of a derived
+//! quantity, not approximation of a shape, and it is not chased here.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
+use geom_brep::SurfaceKind;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tolerance, Vec2, Vec3};
 use profile::{
     ArcSweep, LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile,
 };
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::Body;
+use sweep::fillet::FilletError;
+use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -422,9 +434,10 @@ pub fn stops() -> Vec<Stop> {
         "{} bodies, each a closed analytic solid: 3 torus-segment stem \
          tubes (partial revolves of a circle about a distant axis), 2 \
          sphere-zone lanterns with conical mouths, 3 extruded crescent \
-         leaves. Nothing is approximated — the walls are torus, sphere, \
-         cone and plane exactly. Nothing is JOINED either: see the \
-         wall probes.",
+         leaves. No wall is approximated — the surface KINDS are torus, \
+         sphere, cone and plane exactly (stored parameters are float \
+         reconstructions; see the module docs). Nothing is JOINED \
+         either: see the wall probes.",
         pieces.len()
     );
     vec![Stop {
@@ -471,12 +484,35 @@ fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
         .body
 }
 
-/// Prints one probe line, asserting that the wall is still standing.
-/// A probe that unexpectedly SUCCEEDS panics with instructions: the
-/// `curvedcut::pin_frontier` contract, applied to a demo's wish list.
-fn wall<T, E: core::fmt::Debug>(n: u32, what: &str, outcome: Result<T, E>, retire: &str) {
+/// Prints one probe line, asserting that the wall is still standing —
+/// and that it is still THE SAME wall.
+///
+/// `pinned` names the exact refusal this probe claims: the variant and,
+/// where the payload carries the geometric content of the claim, its
+/// fields. Three outcomes, three meanings (the `skinned::narration`
+/// shape):
+///
+/// - the pinned refusal → narrate it, the findings-list entry holds;
+/// - a DIFFERENT refusal → panic. Err-ness alone is not the claim: a
+///   probe that only pinned "some error" would stay green while the
+///   frontier moved underneath it, and the findings list would quietly
+///   become fiction (review MINOR-1);
+/// - success → panic with instructions, the `curvedcut::pin_frontier`
+///   retire-on-closure contract.
+fn wall<T, E: core::fmt::Debug>(
+    n: u32,
+    what: &str,
+    outcome: Result<T, E>,
+    pinned: impl FnOnce(&E) -> bool,
+    retire: &str,
+) {
     match outcome {
-        Err(e) => println!("   wall {n} — {what}: REFUSED TYPED, {e:?}"),
+        Err(e) if pinned(&e) => println!("   wall {n} — {what}: REFUSED TYPED, {e:?}"),
+        Err(e) => panic!(
+            "wall {n} ({what}) still refuses, but NOT with the refusal it pins \
+             ({e:?}) — the wall MOVED. Re-derive this probe AND its findings-list \
+             entry before trusting either."
+        ),
         Ok(_) => panic!(
             "wall {n} ({what}) NO LONGER REFUSES — the lily can now say this. \
              Retire the probe and {retire}"
@@ -506,6 +542,18 @@ pub fn wall_probes<S: Scalar>() {
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch),
+        // The KIND is the claim: the refusal names a TORUS face, i.e.
+        // the tangent tube walls, not the coincident planar discs.
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::A,
+                    kind: SurfaceKind::Torus,
+                    ..
+                }
+            )
+        },
         "make the stem a single body",
     );
 
@@ -516,6 +564,16 @@ pub fn wall_probes<S: Scalar>() {
         2,
         "weld the lantern onto the arch (torus tube x sphere zone)",
         topo::union(lant, arch),
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    ..
+                }
+            )
+        },
         "join flower to stem and drop the set-back trick",
     );
 
@@ -534,6 +592,7 @@ pub fn wall_probes<S: Scalar>() {
         3,
         "sweep a leaf back out of its own plane (oblique extrusion)",
         extrude(&leafp, Extrusion::Vector(v3::<S>(0.0, 0.3, 0.04))),
+        |e| matches!(e, ExtrudeError::ObliqueExtrusion),
         "give the leaves a swept-back set",
     );
 
@@ -549,6 +608,9 @@ pub fn wall_probes<S: Scalar>() {
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
         topo::transform_rigid(lant, &stretch),
+        // The NAMED predicate matters: a unit-norm failure on the
+        // scaled column, not a determinant or orthogonality failure.
+        |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
         "model buds as spheroids",
     );
 
@@ -567,6 +629,9 @@ pub fn wall_probes<S: Scalar>() {
         5,
         "mirror a leaf across the plant's plane (improper isometry)",
         topo::transform_rigid(by("lily_leaf_a"), &mirror),
+        // A reflection's columns ARE unit and orthogonal; only the
+        // determinant catches it, and that is the whole point.
+        |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
         "author leaves once and mirror them",
     );
 
@@ -584,6 +649,9 @@ pub fn wall_probes<S: Scalar>() {
             S::from_f64(0.02),
             geom_core::Band::linear().expect("band"),
         ),
+        // margin EXACTLY zero is the finding: a co-surface seam
+        // meridian, not a near-tangency that a tolerance could split.
+        |e| matches!(e, FilletError::TangentialEdge { margin, .. } if *margin == 0.0),
         "soften the tepal-tip rim",
     );
 
@@ -594,6 +662,16 @@ pub fn wall_probes<S: Scalar>() {
         7,
         "carve a tepal seam into the lantern (sphere x sphere subtract)",
         topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16)),
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedOpUnsupported {
+                    op: BooleanOp::Subtract,
+                    operand: Operand::A,
+                    ..
+                }
+            )
+        },
         "give the lanterns their three tepal seams",
     );
     println!(
@@ -677,12 +755,12 @@ mod review_probes {
     /// algebra, computed outside this codebase — NOT lifted from
     /// [`Turtle`]): world (x, z) of the two stem joints and the unit
     /// tangents there.
-    const P1: (f64, f64) = (-0.36408072716606288, 1.87303296707956);
-    const T1: (f64, f64) = (-0.37460659341591201, 0.92718385456678742);
+    const P1: (f64, f64) = (-0.3640807271660629, 1.87303296707956);
+    const T1: (f64, f64) = (-0.374606593415912, 0.9271838545667874);
     const P2: (f64, f64) = (-2.4599453279967154, 1.2322628544225218);
-    const T2: (f64, f64) = (0.20791169081775934, -0.97814760073380558);
-    const T3: (f64, f64) = (0.17364817766693053, -0.98480775301220802);
-    const SPHERE1_C: (f64, f64) = (-2.3934135869350324, 0.91925562218770396);
+    const T2: (f64, f64) = (0.20791169081775934, -0.9781476007338056);
+    const T3: (f64, f64) = (0.17364817766693053, -0.984807753012208);
+    const SPHERE1_C: (f64, f64) = (-2.3934135869350324, 0.919255622187704);
     const SPHERE2_C: (f64, f64) = (-0.9512338661211347, 1.2295604347374214);
 
     /// A cap plane of `b` passes through world point `p` (xz-plane)
@@ -726,7 +804,7 @@ mod review_probes {
         );
         let (c2, _, big_r2, r2, _) = torus(arch);
         assert!((c2.x - -1.3839829671895292).abs() < 1e-12);
-        assert!((c2.z - 1.4609657143220569).abs() < 1e-12);
+        assert!((c2.z - 1.460965714322057).abs() < 1e-12);
         assert!((big_r2 - 1.1).abs() < 1e-12 && (r2 - 0.052).abs() < 1e-12);
         let (_, _, big_r3, r3, _) = torus(pedicel);
         assert!((big_r3 - 0.42).abs() < 1e-12 && (r3 - 0.032).abs() < 1e-12);

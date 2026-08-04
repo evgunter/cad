@@ -16,6 +16,10 @@ geom-core = { path = "../../crates/geom-core" }
 profile = { path = "../../crates/profile" }
 sweep = { path = "../../crates/sweep" }
 geom-surfaces = { path = "../../crates/geom-surfaces" }
+# `SurfaceKind` is the payload of `topo::BooleanError::CurvedBooleanUnsupported`
+# but `topo` does not re-export it, so a consumer that wants to MATCH on
+# which surface kind refused must reach for geom-brep itself (findings 15).
+geom-brep = { path = "../../crates/geom-brep" }
 geom-curves = { path = "../../crates/geom-curves" }
 topo = { path = "../../crates/topo" }
 mesh = { path = "../../crates/mesh" }

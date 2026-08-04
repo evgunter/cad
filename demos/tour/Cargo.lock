@@ -51,6 +51,7 @@ name = "demo-tour"
 version = "0.1.0"
 dependencies = [
  "editor-core",
+ "geom-brep",
  "geom-core",
  "geom-curves",
  "geom-surfaces",
