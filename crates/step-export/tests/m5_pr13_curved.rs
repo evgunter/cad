@@ -509,7 +509,10 @@ fn a_reversed_face_keeps_its_chart_axis() {
             );
         }
     }
-    assert_eq!(checked, 47, "all 47 reversed faces checked (5 original + 42 pip walls)");
+    assert_eq!(
+        checked, 47,
+        "all 47 reversed faces checked (5 original + 42 pip walls)"
+    );
 }
 
 /// **The S12 revert row.** `Body::revert` reverses the loops AND flips
