@@ -35,3 +35,23 @@ row: M6-curation (opus, S, APPROVE 0-findings).** Lanes
 cleaned. Sole open lane: M6-1 surgery (the composed die).
 Evan-notify: the surgery lane will fold this merge (die_pips
 fixture + sheet rosters touch its tour-stop work).
+
+**M6-1 surgery COMPLETE (2026-08-04, 031ca25): THE COMPOSED
+DIE EXISTS** — every verb of the old shape-(v) criterion on ONE
+body (129V/195E/89F, 21 rings; Pappus-derived closed-form
+volume at zero pad; watertight; STEP byte-golden;
+FreeCAD-valid; sheet cell 17 both montages). Rider TAKEN:
+circle_residual_extremes + bool_circle_curved_clearance —
+nested spheres now ANSWER, the predicted strategy divergence
+RETIRED, door A marched to its real frontier
+(PartialSphereFace). Discoveries: revolve-seam half-caps forced
+the meridian-split design; props' ring-free law forced the
+donut-style Seam slit + chart re-seam; **the composed die is
+corpus-INEXPRESSIBLE (dev 1): Node::Fillet is every-edge and
+pipped bodies carry co-surface cap meridians (TangentialEdge at
+margin exactly 0) — the recipe-layer edge-SELECTION vocabulary
+(banked N4 emitter) becomes an M6 unit candidate.** New
+predicate fillet3_ring_clearance (trio pinned). **Full
+adversarial review DISPATCHED** (independent Pappus
+re-derivation; Euler choreography attack; Seam-slit legality
+probe; rider falsification; merge-base divergence check).
