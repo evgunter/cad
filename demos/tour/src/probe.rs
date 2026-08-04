@@ -27,7 +27,7 @@ use geom_core::k_stats::{self, Probe, SampleOutcome};
 use topo::{Body, ContactRecords};
 
 use crate::{
-    az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms,
+    az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms, lily,
     projectbox, rocker,
 };
 
@@ -184,6 +184,21 @@ pub fn run(out: Option<String>) {
             .enumerate()
             .map(|(i, bb)| seamed(&format!("heatsink_{}", [5, 7, 9][i]), bb))
             .collect()
+    });
+    // The globe lily: the only PARTIAL revolve of an off-axis CLOSED
+    // loop in the corpus (torus segments), plus doubly-truncated
+    // sphere zones and two-arc crescent extrusions.
+    sweep(s, t, u, "lily", || {
+        lily::plant::<Probe>()
+            .into_iter()
+            .map(|piece| plain(piece.name, piece.body))
+            .collect()
+    });
+    // Refusal-path samples again (the M2 K report's standing gap): the
+    // lily's seven walls all refuse, and their margins record here.
+    sweep(s, t, u, "lily_walls", || {
+        lily::wall_probes::<Probe>();
+        Vec::new()
     });
     sweep(s, t, u, "finale_bowtie", || {
         // Refusal-path samples: the bowtie profile is REFUSED typed —

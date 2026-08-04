@@ -201,8 +201,8 @@ fn lantern<S: Scalar>(
     lip_r: f64,
     lip_drop: f64,
 ) -> Body<S> {
-    let r_top = (globe * globe - top * top).sqrt();
-    let r_mouth = (globe * globe - mouth * mouth).sqrt();
+    let r_top = (globe.powi(2) - top.powi(2)).sqrt();
+    let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
     let t_mouth = top + mouth;
     let t_end = t_mouth + lip_drop;
     // Sketch frame: origin at the attachment point, v along the
@@ -243,7 +243,7 @@ fn leaf<S: Scalar>(
     thick: f64,
 ) -> Body<S> {
     let nrm = |(x, y, z): (f64, f64, f64)| {
-        let l = (x * x + y * y + z * z).sqrt();
+        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
         (x / l, y / l, z / l)
     };
     let d = nrm(dir);
