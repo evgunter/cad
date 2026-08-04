@@ -41,7 +41,8 @@ pub(crate) fn endpoint_params(
             }
             let t0 = (p_start - *origin).dot(*dir);
             let t1 = (p_end - *origin).dot(*dir);
-            if !(t1 > t0) {
+            // partial_cmp: a NaN projection must refuse too.
+            if t1.partial_cmp(&t0) != Some(std::cmp::Ordering::Greater) {
                 return Err(StepImportError::Topology {
                     id,
                     what: "a LINE edge whose end projects at or before its start — \

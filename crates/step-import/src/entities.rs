@@ -23,6 +23,10 @@ use crate::error::StepImportError;
 use crate::geometry;
 use crate::parse::{Instance, Record, StepFile, Value};
 
+/// A resolved `AXIS2_PLACEMENT_3D`: `(origin, axis, u_ref)` — the
+/// kernel frame, field for field.
+type Frame = (Point3<f64>, Vec3<f64>, Vec3<f64>);
+
 /// A resolved model: the shape content plus the file's declared
 /// uncertainty (D7's ε_in default).
 #[derive(Debug)]
@@ -262,11 +266,7 @@ impl<'a> Resolver<'a> {
     /// schema allows `$` axis/ref_direction; the subset does not (the
     /// writer always emits the full frame) — defaulted axes would be a
     /// re-derivation, refused rather than guessed.
-    fn placement(
-        &self,
-        from: u64,
-        id: u64,
-    ) -> Result<(Point3<f64>, Vec3<f64>, Vec3<f64>), StepImportError> {
+    fn placement(&self, from: u64, id: u64) -> Result<Frame, StepImportError> {
         let args = self.simple(from, id, "AXIS2_PLACEMENT_3D")?;
         let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
                         with all three references present (the exported subset)";
@@ -697,9 +697,9 @@ impl<'a> Resolver<'a> {
             };
             let edge_id = as_ref(oe_id, edge_ref, oexpected)?;
             let forward = as_bool(oe_id, orientation, oexpected)?;
-            if !edges.contains_key(&edge_id) {
+            if let std::collections::btree_map::Entry::Vacant(slot) = edges.entry(edge_id) {
                 let spec = self.edge(oe_id, edge_id, vertices)?;
-                edges.insert(edge_id, spec);
+                slot.insert(spec);
             }
             uses.push(EdgeUse {
                 edge: edge_id,
@@ -740,9 +740,9 @@ impl<'a> Resolver<'a> {
         let start = as_ref(id, start_ref, expected)?;
         let end = as_ref(id, end_ref, expected)?;
         for v in [start, end] {
-            if !vertices.contains_key(&v) {
+            if let std::collections::btree_map::Entry::Vacant(slot) = vertices.entry(v) {
                 let p = self.vertex(id, v)?;
-                vertices.insert(v, p);
+                slot.insert(p);
             }
         }
         let carrier = self.curve(id, as_ref(id, curve_ref, expected)?)?;
@@ -888,21 +888,21 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         if instance.records.iter().any(|(kw, _)| kw == "SI_UNIT") {
             check_unit(id, &instance.records)?;
         }
-        if let [(kw, args)] = instance.records.as_slice() {
-            if kw == "UNCERTAINTY_MEASURE_WITH_UNIT" {
-                let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), \
+        if let [(kw, args)] = instance.records.as_slice()
+            && kw == "UNCERTAINTY_MEASURE_WITH_UNIT"
+        {
+            let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), \
                                 #unit, name, description)";
-                let [Value::Typed(measure, inner), ..] = args.as_slice() else {
-                    return Err(StepImportError::MalformedRecord { id, expected });
-                };
-                if measure != "LENGTH_MEASURE" {
-                    return Err(StepImportError::MalformedRecord { id, expected });
-                }
-                let [value] = inner.as_slice() else {
-                    return Err(StepImportError::MalformedRecord { id, expected });
-                };
-                uncertainty = Some(as_real(id, value, expected)?);
+            let [Value::Typed(measure, inner), ..] = args.as_slice() else {
+                return Err(StepImportError::MalformedRecord { id, expected });
+            };
+            if measure != "LENGTH_MEASURE" {
+                return Err(StepImportError::MalformedRecord { id, expected });
             }
+            let [value] = inner.as_slice() else {
+                return Err(StepImportError::MalformedRecord { id, expected });
+            };
+            uncertainty = Some(as_real(id, value, expected)?);
         }
     }
     let Some(uncertainty_m) = uncertainty else {

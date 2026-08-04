@@ -88,6 +88,11 @@ pub struct ImportOptions {
 }
 
 /// A successful import: what the file's shape representation supports.
+///
+/// The variant sizes differ by design (a whole body vs a curve list);
+/// boxing the body would put an indirection in every consumer of the
+/// common case for no benefit at an import-sized allocation rate.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum StepImport {
     /// The file carried `MANIFOLD_SOLID_BREP`s: a first-class kernel
@@ -140,10 +145,10 @@ impl StepImport {
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
 pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, StepImportError> {
-    if let Some(eps) = options.eps_in {
-        if !(eps.is_finite() && eps > 0.0) {
-            return Err(StepImportError::InvalidEpsOverride { value: eps });
-        }
+    if let Some(eps) = options.eps_in
+        && !(eps.is_finite() && eps > 0.0)
+    {
+        return Err(StepImportError::InvalidEpsOverride { value: eps });
     }
     let file = parse::parse_file(text)?;
     let model = entities::resolve(&file)?;

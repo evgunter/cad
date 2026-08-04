@@ -63,7 +63,7 @@ pub struct Expect {
 /// Parses a `.expect` sidecar's `KEY=value` lines.
 pub fn expect_sidecar(name: &str) -> Expect {
     let text = fixture(name, "expect");
-    let mut get = |key: &str| -> Option<String> {
+    let get = |key: &str| -> Option<String> {
         text.lines()
             .find_map(|l| l.strip_prefix(&format!("{key}=")).map(str::to_owned))
     };

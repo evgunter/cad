@@ -449,7 +449,7 @@ impl<'a> Builder<'a> {
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (VState::Built(v1), VState::Built(v2)) => {
-                let s_f = self.anchor(fwd).ok_or_else(|| StepImportError::Topology {
+                let s_f = self.anchor(fwd).ok_or(StepImportError::Topology {
                     id: edge_id,
                     what: "internal: a built vertex with no built fan anchor",
                 })?;
