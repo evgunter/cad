@@ -35,3 +35,11 @@ difficulty commit): byte 177 → **(fable, opus)** — M7-1 = FABLE;
 opus remainder owed to the next A/B-eligible dispatch (expected:
 M7-2, the FreeCAD-authored foreign corpus). Reviewer blinded as
 always; row recorded AT MERGE.
+
+**M7-1 DISPATCHED (2026-08-04)**: #180 (plan + binding spec +
+this log) self-merged on green; implementer launched on lane
+~/.local/share/cad-work/m7-import, branch ev/m7-import (cargo
+slot 2 claimed in cargo-slots.txt); PR to be HELD for blinded
+adversarial review per standing process. Fence in both the spec
+(§0) and the prompt; report lands at
+~/.local/share/cad-work/m7-1-report.md.
