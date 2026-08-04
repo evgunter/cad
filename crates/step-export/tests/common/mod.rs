@@ -562,7 +562,8 @@ pub fn die_pips() -> Body<f64> {
     let v = Vec3::new;
     let h = L / 2.0;
     // (face value, outward normal, the two in-face axes).
-    let faces: [(u32, Vec3<f64>, Vec3<f64>, Vec3<f64>); 6] = [
+    type Face = (u32, Vec3<f64>, Vec3<f64>, Vec3<f64>);
+    let faces: [Face; 6] = [
         (1, v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
         (6, v(0.0, 0.0, -1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
         (2, v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)),

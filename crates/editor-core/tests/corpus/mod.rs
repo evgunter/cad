@@ -127,7 +127,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
-        // `die_fillet` IS registered (above), as of the PR 12 gate fix
+        // `die_fillet` IS registered, as of the PR 12 gate fix
         // `5c8540f`. It was held out while the fillet battery's
         // clearance screen seeded a gap with
         // `T::from_f64(f64::INFINITY)` — NaI at the Interval scalar,
@@ -136,6 +136,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         // That sentinel is gone; the document runs the Interval lane
         // like every other row. It stays additionally pinned at both
         // scalars by `m5_pr12_fillet_node.rs`.
+        die_fillet::document(),
         die_pips::document(),
     ]
 }
