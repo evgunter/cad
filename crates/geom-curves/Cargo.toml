@@ -1,5 +1,6 @@
 [package]
 name = "geom-curves"
+autotests = false  # tests/all.rs aggregates every suite; see its header
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -30,3 +31,9 @@ curvo = { git = "https://github.com/mattatz/curvo", rev = "47d19d560bf301108804d
 # nalgebra pinned to curvo's own major (its point types are curvo's API
 # surface); dev-only, rides in with the oracle above.
 nalgebra = "0.35"
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

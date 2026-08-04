@@ -67,8 +67,8 @@ use editor_core::{DocEdit, Node, ProfileDesc, SlotId};
 use geom_core::Point2;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
+use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
 
 /// The blank's side, meters (dyadic).
 pub const L: f64 = 1.0;

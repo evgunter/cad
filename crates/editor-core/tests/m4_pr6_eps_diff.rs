@@ -78,8 +78,17 @@ fn child_eps_probe() {
 
 fn spawn_probe(eps: &str, out: &std::path::Path) -> editor_core::VerdictSummary {
     let exe = std::env::current_exe().expect("test exe path");
+    // Self re-exec: name the probe by MODULE PATH, not by bare fn name.
+    // `tests/all.rs` aggregates every suite into one binary, so libtest sees
+    // this probe as `<this_module>::child_eps_probe`. Stripping the leading crate name off
+    // `module_path!()` yields the right filter in the aggregated layout AND in
+    // a standalone one (where `module_path!()` has no `::` at all).
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::child_eps_probe"),
+        None => "child_eps_probe".to_string(),
+    };
     let status = std::process::Command::new(exe)
-        .args(["child_eps_probe", "--exact", "--nocapture"])
+        .args([probe.as_str(), "--exact", "--nocapture"])
         .env("CAD_TOLERANCE_EPS", eps)
         .env(PROBE_OUT, out)
         .status()

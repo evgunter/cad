@@ -1,5 +1,6 @@
 [package]
 name = "geom-surfaces"
+autotests = false  # tests/all.rs aggregates every suite; see its header
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -25,3 +26,9 @@ proptest = { workspace = true }
 # cross-crate consumer program exercising curves and surfaces together;
 # geom-curves is acyclic here (it does not depend on geom-surfaces).
 geom-curves = { path = "../geom-curves" }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

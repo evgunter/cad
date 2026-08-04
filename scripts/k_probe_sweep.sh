@@ -31,7 +31,7 @@ for eps in 1e-6 1e-9 1e-12; do
   merged="$outdir/m4-eps-$eps.csv"
   echo "=== k-probe sweep @ eps=$eps (corpus) ==="
   CAD_TOLERANCE_EPS=$eps CAD_K_REPORT_OUT="$corpus" \
-    cargo test -p editor-core --test m4_pr8_k_probe -- --ignored --nocapture
+    cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_k_probe::
   echo "=== k-probe sweep @ eps=$eps (demo scenes) ==="
   (cd "$root/demos/tour" && CAD_TOLERANCE_EPS=$eps cargo run -- k-probe "$demos")
   # One header, then both bodies — corpus first, demos second.

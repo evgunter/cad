@@ -1,0 +1,169 @@
+//! Aggregated integration-test binary for `editor-core`.
+//!
+//! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
+//! this one binary replaces what were 51 separate test targets. The files
+//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! attributes (`#![cfg(feature = "interval")]` and friends work as
+//! module-level attributes), and its own `mod <helper>;` lines — a
+//! `#[path]` module's child modules resolve against the DIRECTORY
+//! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
+//! its own crate root.
+//!
+//! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
+//! codegen+link — measured at 494 of the 514 s of the workspace build job
+//! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
+//! are small; the per-binary constant was the bill.
+//!
+//! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
+//! below. `autotests = false` in Cargo.toml means a file that is not
+//! listed here does not compile and does not run — `every_suite_file_is_
+//! aggregated` below fails loudly if you forget.
+//!
+//! Test IDs gain a module prefix (`export::round_trip` rather than
+//! `round_trip`, under binary `all` rather than binary `export`); the set
+//! of tests is otherwise identical.
+
+// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
+// loaded once per suite that uses it. That is deliberate — the alternative
+// is editing the suites — and it is what `duplicate_mod` is warning about.
+// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
+// the lint gate for every suite module included below.
+#![allow(clippy::duplicate_mod)]
+
+#[path = "m4_pr1_dims.rs"]
+mod m4_pr1_dims;
+#[path = "m4_pr1_doc.rs"]
+mod m4_pr1_doc;
+#[path = "m4_pr1_eval.rs"]
+mod m4_pr1_eval;
+#[path = "m4_pr1_paths.rs"]
+mod m4_pr1_paths;
+#[path = "m4_pr2_eval.rs"]
+mod m4_pr2_eval;
+#[path = "m4_pr2_eval_interval.rs"]
+mod m4_pr2_eval_interval;
+#[path = "m4_pr2_wire.rs"]
+mod m4_pr2_wire;
+#[path = "m4_pr3_names.rs"]
+mod m4_pr3_names;
+#[path = "m4_pr3_names_bool.rs"]
+mod m4_pr3_names_bool;
+#[path = "m4_pr3_names_ci.rs"]
+mod m4_pr3_names_ci;
+#[path = "m4_pr3_names_interval.rs"]
+mod m4_pr3_names_interval;
+#[path = "m4_pr3_names_rework.rs"]
+mod m4_pr3_names_rework;
+#[path = "m4_pr4_appearance_hook.rs"]
+mod m4_pr4_appearance_hook;
+#[path = "m4_pr4_banked.rs"]
+mod m4_pr4_banked;
+#[path = "m4_pr4_ci.rs"]
+mod m4_pr4_ci;
+#[path = "m4_pr4_diff.rs"]
+mod m4_pr4_diff;
+#[path = "m4_pr4_edits.rs"]
+mod m4_pr4_edits;
+#[path = "m4_pr4_hit.rs"]
+mod m4_pr4_hit;
+#[path = "m4_pr4_interval.rs"]
+mod m4_pr4_interval;
+#[path = "m4_pr4_resolve.rs"]
+mod m4_pr4_resolve;
+#[path = "m4_pr5_declare.rs"]
+mod m4_pr5_declare;
+#[path = "m4_pr6_eps_diff.rs"]
+mod m4_pr6_eps_diff;
+#[path = "m4_pr6_floats.rs"]
+mod m4_pr6_floats;
+#[path = "m4_pr6_golden.rs"]
+mod m4_pr6_golden;
+#[path = "m4_pr6_refusal.rs"]
+mod m4_pr6_refusal;
+#[path = "m4_pr6_review_probes.rs"]
+mod m4_pr6_review_probes;
+#[path = "m4_pr6_roundtrip.rs"]
+mod m4_pr6_roundtrip;
+#[path = "m4_pr6_roundtrip_interval.rs"]
+mod m4_pr6_roundtrip_interval;
+#[path = "m4_pr7_appearance.rs"]
+mod m4_pr7_appearance;
+#[path = "m4_pr7_appearance_interval.rs"]
+mod m4_pr7_appearance_interval;
+#[path = "m4_pr8_corpus.rs"]
+mod m4_pr8_corpus;
+#[path = "m4_pr8_corpus_interval.rs"]
+mod m4_pr8_corpus_interval;
+#[path = "m4_pr8_k_probe.rs"]
+mod m4_pr8_k_probe;
+#[path = "m4_pr8_latency.rs"]
+mod m4_pr8_latency;
+#[path = "m5_pr10_nodes.rs"]
+mod m5_pr10_nodes;
+#[path = "m5_pr10_schema_v2.rs"]
+mod m5_pr10_schema_v2;
+#[path = "m5_pr11_corpus_curved.rs"]
+mod m5_pr11_corpus_curved;
+#[path = "m5_pr12_fillet_node.rs"]
+mod m5_pr12_fillet_node;
+#[path = "m5_pr5_corpus.rs"]
+mod m5_pr5_corpus;
+#[path = "m5_pr6_pcurve_persistence.rs"]
+mod m5_pr6_pcurve_persistence;
+#[path = "m5_pr8_bvh_diff.rs"]
+mod m5_pr8_bvh_diff;
+#[path = "m5_s1_rest_declare.rs"]
+mod m5_s1_rest_declare;
+#[path = "m6_composed_node.rs"]
+mod m6_composed_node;
+#[path = "profile_desc_key.rs"]
+mod profile_desc_key;
+#[path = "review_m4_pr1.rs"]
+mod review_m4_pr1;
+#[path = "review_m4_pr1_die.rs"]
+mod review_m4_pr1_die;
+#[path = "review_m4_pr2.rs"]
+mod review_m4_pr2;
+#[path = "review_m5_pr10_schema.rs"]
+mod review_m5_pr10_schema;
+#[path = "review_m5_pr10_sweep_node.rs"]
+mod review_m5_pr10_sweep_node;
+#[path = "review_m5_pr1_e2e_interval.rs"]
+mod review_m5_pr1_e2e_interval;
+#[path = "review_m5_pr9_doc_probe.rs"]
+mod review_m5_pr9_doc_probe;
+
+/// Guards the `autotests = false` hazard: a suite file added to `tests/`
+/// but not declared above would silently stop being compiled and run.
+#[test]
+// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
+// weaken the lint gate for every suite module included above.
+#[allow(clippy::expect_used)]
+fn every_suite_file_is_aggregated() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let src = include_str!("all.rs");
+    let mut missing: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
+        let path = entry.expect("readable dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .expect("file has a name")
+            .to_string_lossy()
+            .to_string();
+        if name == "all.rs" {
+            continue;
+        }
+        if !src.contains(&format!("#[path = \"{name}\"]")) {
+            missing.push(name);
+        }
+    }
+    missing.sort();
+    assert!(
+        missing.is_empty(),
+        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
+         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
+    );
+}

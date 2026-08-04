@@ -23,6 +23,7 @@ members = [
     "crates/mesh",
     "crates/profile",
     "crates/step-export",
+    "crates/step-import",
     "crates/stl",
     "crates/sweep",
     "crates/topo",
