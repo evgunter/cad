@@ -103,10 +103,7 @@ impl Turtle {
                 turn,
             },
             Self {
-                p: (
-                    center.0 + ring * advanced.0,
-                    center.1 + ring * advanced.1,
-                ),
+                p: (center.0 + ring * advanced.0, center.1 + ring * advanced.1),
                 t: rot(self.t, turn),
             },
         )
@@ -251,11 +248,7 @@ fn leaf<S: Scalar>(
     };
     let d = nrm(dir);
     let dot = up.0 * d.0 + up.1 * d.1 + up.2 * d.2;
-    let v = nrm((
-        up.0 - dot * d.0,
-        up.1 - dot * d.1,
-        up.2 - dot * d.2,
-    ));
+    let v = nrm((up.0 - dot * d.0, up.1 - dot * d.1, up.2 - dot * d.2));
     // n = d x v, the extrusion direction; the frame origin steps back
     // half a thickness so the blade straddles its own mid-surface.
     let n = (
@@ -268,11 +261,7 @@ fn leaf<S: Scalar>(
         base.1 - 0.5 * thick * n.1,
         base.2 - 0.5 * thick * n.2,
     );
-    let plane = SketchPlane::from_frame(
-        pt3(o.0, o.1, o.2),
-        v3(d.0, d.1, d.2),
-        v3(v.0, v.1, v.2),
-    );
+    let plane = SketchPlane::from_frame(pt3(o.0, o.1, o.2), v3(d.0, d.1, d.2), v3(v.0, v.1, v.2));
     let lp = LoopBuilder::start(p2(0.0, 0.0))
         .arc_to_via(p2(0.5 * len, w_out), p2(len, 0.0))
         .close_arc_via(p2(0.5 * len, w_in));
