@@ -235,7 +235,8 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = self.eval_in_span(span_u, span_v, T::from_f64(u), T::from_f64(v)) - p;
+                        let d =
+                            self.eval_in_span(span_u, span_v, T::from_f64(u), T::from_f64(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
