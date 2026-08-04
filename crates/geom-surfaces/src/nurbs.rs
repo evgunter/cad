@@ -774,18 +774,30 @@ impl<T: SpanLocate> NurbsSurface<T> {
     }
 }
 
-impl NurbsSurface<f64> {
+impl<T: geom_core::Bounds> NurbsSurface<T> {
     /// The control net lifted to ring points — the data-in shape of
     /// `geom_core::spline::compose::tensor` (M5 PR 7b): channel `d`,
     /// control index `i` in the row-major `iu·nv + iv` layout, as
-    /// `[x, y, z]` channels of `RingInterval::point` enclosures. Pair
-    /// with [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to
-    /// build a `SurfaceRingData` for composite residual bounds.
+    /// `[x, y, z]` channels of ring enclosures. Pair with
+    /// [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to build a
+    /// `SurfaceRingData` for composite residual bounds.
+    ///
+    /// **The bracket seam (M6-2)** — the surface counterpart of
+    /// `geom_curves::NurbsCurve3::ring_coords`: knots and weights are
+    /// `f64` structure, the control net is the scalar-typed data, and
+    /// it enters the C9 ring through its own bracket. Bitwise the
+    /// `f64`-only form at `f64`.
     pub fn ring_coords(&self) -> Vec<Vec<geom_core::RingInterval>> {
-        let lift = |f: fn(&Point3<f64>) -> f64| -> Vec<geom_core::RingInterval> {
+        let lift = |f: fn(&Point3<T>) -> T| -> Vec<geom_core::RingInterval> {
             self.control
                 .iter()
-                .map(|p| geom_core::RingInterval::point(f(p)))
+                .map(|p| {
+                    let c = f(p);
+                    geom_core::RingInterval::from_bounds(
+                        geom_core::Bounds::lo(c),
+                        geom_core::Bounds::hi(c),
+                    )
+                })
                 .collect()
         };
         vec![lift(|p| p.x), lift(|p| p.y), lift(|p| p.z)]
