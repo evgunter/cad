@@ -561,3 +561,29 @@ gate includes explicit confirmation the hosted interval shards
 run the geom-brep suites. Fix pass = items 1-8 + dev-9
 confirmation; merge on fully green matrix. Evan's instinct
 ("others felt off too") found exactly the two real soft spots.
+
+**M6-2 MERGED as #176 (2026-08-04): WALK ROW 2 IS NON-VACUOUS.**
+Fix pass discharged all 8 items + the dev-9 hosted confirmation
+(interval shards run 17 geom-brep binaries incl. pcurve_conic).
+Item 7 landed at ladder rung (a): the at-rest fixture's carrier
+is now cylinder_sphere_ssi's OWN marched-and-fitted curve
+restricted by split_at (exact knot insertion; PcurveCache
+already stores general [a,b] bounds, so the sub-arcs keep
+natural [0,0.25]/[0.5,0.75] domains — the normalization blocker
+never bit). The chart image stays fixture-interpolated for a
+VERIFIED reason: the ℝ³ implicit lane returns pcurve_a/b = None
+(finish_r3) — no kernel-minted image exists to restrict; the
+scaffold caveat is documented (row re-anchors when the join
+lane lands). MINOR-2 took the typed error (2-line ripple);
+shift_branch answers Option (clippy::panic is denied — the
+louder-than-clone legal form). One self-caught overclaim
+stop-and-reported: the cross-scalar envelope identity assertion
+was falsified by the hosted ε=1e-6 row (the tube ladder's
+extent evaluates at T and can select a different rung) — now
+thinness + on_locus_max dominance with the reason documented.
+Blinding note, resolved: three reachable commits carry the
+harness trailer (two via the main merge = #174's, one the
+reviewer's own probe commit); all 11 implementer commits clean;
+no blinded party still active; no history rewritten. A/B row
+RECORDED AT MERGE (the M5 readout's discipline). Lanes to
+clean; unit 3 next (FABLE, block-21 remainder).
