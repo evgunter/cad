@@ -33,8 +33,8 @@ use editor_core::{
     StableName, WitnessDatum,
 };
 
-use super::{CorpusDoc, Recorder};
 use super::super::fixture::{ang, declare_x_offset_flush, desc, len, scl};
+use super::{CorpusDoc, Recorder};
 
 /// The kitchen-sink corpus document.
 pub fn document() -> CorpusDoc {

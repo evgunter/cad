@@ -38,8 +38,8 @@ use editor_core::{Axis3, BooleanOp, Datum, DocEdit, Node, ProfileDesc, SlotId};
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
-use super::{CorpusDoc, Recorder};
 use super::super::fixture::{ang, len, scl};
+use super::{CorpusDoc, Recorder};
 
 /// The die's side, meters.
 pub const DIE_L: f64 = 1.0;

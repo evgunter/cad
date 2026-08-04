@@ -31,8 +31,8 @@ use editor_core::{Dimension, DocEdit, Expr, Node, ProfileDesc, SlotId};
 use geom_core::Point2;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
-use super::{CorpusDoc, Recorder};
 use super::super::fixture::len;
+use super::{CorpusDoc, Recorder};
 
 /// The declared-tangency corpus document.
 pub fn document() -> CorpusDoc {

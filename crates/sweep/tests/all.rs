@@ -166,7 +166,11 @@ fn every_suite_file_is_aggregated() {
         if path.extension().and_then(|e| e.to_str()) != Some("rs") {
             continue;
         }
-        let name = path.file_name().expect("file has a name").to_string_lossy().to_string();
+        let name = path
+            .file_name()
+            .expect("file has a name")
+            .to_string_lossy()
+            .to_string();
         if name == "all.rs" {
             continue;
         }

@@ -20,8 +20,8 @@
 
 use editor_core::{Dimension, DocEdit, Expr, SlotId};
 
-use super::{CorpusDoc, MassPin};
 use super::super::fixture::die;
+use super::{CorpusDoc, MassPin};
 
 /// The die corpus document.
 pub fn document() -> CorpusDoc {
