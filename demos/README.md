@@ -87,6 +87,7 @@ costs one cell, never the sheet).
 | `crosslap_exploded` | the same joint exploded via `transform_rigid` (re-minted witnesses, #84) |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
+| `lily` | **the globe lily** (*Calochortus albus*, the fairy lantern) — the tour's first ORGANIC subject and a deliberate stress test: eight closed analytic solids (three torus-segment stem tubes from `revolve(Partial)` of a circle about a distant axis, two sphere-zone lanterns with conical mouths from `revolve(Full)`, three extruded two-arc crescent leaves), walked by a turtle so consecutive stem arcs are **G1 by construction**. Nothing is approximated: every wall is torus, sphere, cone or plane exactly. Nothing is JOINED either — the stop is followed by **seven live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a swept leaf, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam) and assert each typed refusal, panicking if one ever retires |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Three committed **shadow proofs** ride beside the montage panels
@@ -163,19 +164,25 @@ contract, demonstrated rather than claimed.
 
 ## The STEP lane (#88)
 
-Every scene body exports an AP214 STEP file beside its STL — **all 26
-of them since M5 PR 13**, where the in-house writer's analytic subset
+Every scene body exports an AP214 STEP file beside its STL — **all 37
+of them since M5 PR 13** (26 at that PR; the M5 PR 12 die pieces, the
+M6 composed die and the globe lily's eight since), where the in-house
+writer's analytic subset
 grew from planes/lines to the whole elementary-surface vocabulary
 (`PLANE`, `CYLINDRICAL_`, `CONICAL_`, `SPHERICAL_`, `TOROIDAL_SURFACE`)
 with `LINE`/`CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS` carriers.
 Every arm is an **exact native entity**: a cylinder leaves as a
 cylinder, never as a spline approximation of one.
 
-Nine tour bodies are curved (bracket, plate, vase, sheave, chute,
-rocker, bossplate, and the two tiltedcut halves); six of them carry
-`same_sense = .F.` faces, the concave-wall bit S11 introduced. All nine
-import into FreeCAD 1.1.2 as valid single-solid shapes whose volumes
-agree with the kernel's own tessellation to within faceting error.
+TWENTY tour bodies now carry a curved surface (bracket, plate, vase,
+sheave, chute, rocker, bossplate, the two tiltedcut halves, the three
+die pieces, and all eight globe-lily bodies); every one of them carries
+`same_sense = .F.` faces, the concave-wall bit S11 introduced. All
+twenty import into FreeCAD 1.1.2 as valid single-solid shapes whose
+volumes agree with the kernel's own tessellation to within faceting
+error. The lily is the widest single-scene spread the writer has been
+asked for: `TOROIDAL_` (stem tubes), `SPHERICAL_` + `CONICAL_`
+(lanterns) and `CYLINDRICAL_` (leaf blades) all in one cell.
 
 Two typed refusals remain as named frontiers, and no tour body is in
 either: a NURBS **face** (which the loft-assembly unit mints) and a
