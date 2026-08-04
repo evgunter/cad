@@ -486,13 +486,19 @@ mod review_fuzz {
     use geom_surfaces::Surface;
 
     fn lcg(state: &mut u64) -> f64 {
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((*state >> 11) as f64) / ((1u64 << 53) as f64)
     }
 
     fn frame(s: &mut u64) -> (Vec3<f64>, Vec3<f64>) {
         let a = Vec3::new(lcg(s) - 0.5, lcg(s) - 0.5, lcg(s) - 0.5).normalize();
-        let h = if a.x.abs() < 0.9 { Vec3::new(1.0, 0.0, 0.0) } else { Vec3::new(0.0, 1.0, 0.0) };
+        let h = if a.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
         let u = a.cross(h).normalize();
         (a, u)
     }
@@ -506,14 +512,43 @@ mod review_fuzz {
         let mut worst: f64 = 0.0;
         for trial in 0..400 {
             let (axis, u_ref) = frame(&mut s);
-            let origin = Point3::new(lcg(&mut s) * 4.0 - 2.0, lcg(&mut s) * 4.0 - 2.0, lcg(&mut s) * 4.0 - 2.0);
+            let origin = Point3::new(
+                lcg(&mut s) * 4.0 - 2.0,
+                lcg(&mut s) * 4.0 - 2.0,
+                lcg(&mut s) * 4.0 - 2.0,
+            );
             let r = 0.2 + lcg(&mut s) * 3.0;
             let kinds: [Surface<f64>; 5] = [
-                Surface::Plane { origin, normal: axis, u_ref },
-                Surface::Cylinder { origin, axis, radius: r, u_ref },
-                Surface::Cone { apex: origin, axis, half_angle: 0.05 + lcg(&mut s) * 1.4, u_ref },
-                Surface::Sphere { center: origin, radius: r, axis, u_ref },
-                Surface::Torus { center: origin, axis, major_radius: r + 1.0, minor_radius: r * 0.3, u_ref },
+                Surface::Plane {
+                    origin,
+                    normal: axis,
+                    u_ref,
+                },
+                Surface::Cylinder {
+                    origin,
+                    axis,
+                    radius: r,
+                    u_ref,
+                },
+                Surface::Cone {
+                    apex: origin,
+                    axis,
+                    half_angle: 0.05 + lcg(&mut s) * 1.4,
+                    u_ref,
+                },
+                Surface::Sphere {
+                    center: origin,
+                    radius: r,
+                    axis,
+                    u_ref,
+                },
+                Surface::Torus {
+                    center: origin,
+                    axis,
+                    major_radius: r + 1.0,
+                    minor_radius: r * 0.3,
+                    u_ref,
+                },
             ];
             for (k, surf) in kinds.iter().enumerate() {
                 // Parameter menu: generic, near-seam, near-pole/apex.
@@ -521,7 +556,11 @@ mod review_fuzz {
                 let vs = match k {
                     1 => [lcg(&mut s) * 4.0 - 2.0, 1e-9, -1e-9],
                     2 => [0.1 + lcg(&mut s) * 2.0, 1e-6, 3.0], // cone: v>0 (import never sees mirror nappe from eval side; also test v<0)
-                    3 => [lcg(&mut s) * 3.0 - 1.5, core::f64::consts::FRAC_PI_2 - 1e-7, -core::f64::consts::FRAC_PI_2 + 1e-7],
+                    3 => [
+                        lcg(&mut s) * 3.0 - 1.5,
+                        core::f64::consts::FRAC_PI_2 - 1e-7,
+                        -core::f64::consts::FRAC_PI_2 + 1e-7,
+                    ],
                     4 => [lcg(&mut s) * 2.0 * pi - pi, pi - 1e-9, 1e-9],
                     _ => [lcg(&mut s) * 4.0 - 2.0, 0.0, 1.0],
                 };
@@ -530,15 +569,21 @@ mod review_fuzz {
                         let p = surf.eval(u, v);
                         let Some(uv) = uv_of(surf, p) else {
                             // Only poles/apex may answer None.
-                            assert!(matches!(surf, Surface::Sphere { .. } | Surface::Cone { .. }),
-                                "t{trial} k{k} ({u},{v}): unexpected None");
+                            assert!(
+                                matches!(surf, Surface::Sphere { .. } | Surface::Cone { .. }),
+                                "t{trial} k{k} ({u},{v}): unexpected None"
+                            );
                             continue;
                         };
                         let back = surf.eval(uv.x, uv.y);
                         let err = (back - p).norm();
                         worst = worst.max(err / (1.0 + (p - origin).norm()));
-                        assert!(err <= 1e-9 * (1.0 + (p - origin).norm()),
-                            "t{trial} k{k} ({u},{v}) -> uv({},{}) err {err:e}", uv.x, uv.y);
+                        assert!(
+                            err <= 1e-9 * (1.0 + (p - origin).norm()),
+                            "t{trial} k{k} ({u},{v}) -> uv({},{}) err {err:e}",
+                            uv.x,
+                            uv.y
+                        );
                     }
                 }
             }
@@ -546,21 +591,30 @@ mod review_fuzz {
         println!("review_fuzz worst rel err: {worst:e}");
         // Cone mirror nappe: eval at v<0 must round-trip too.
         let (axis, u_ref) = frame(&mut s);
-        let cone = Surface::Cone { apex: Point3::new(0.3, -0.2, 0.9), axis, half_angle: 0.6, u_ref };
+        let cone = Surface::Cone {
+            apex: Point3::new(0.3, -0.2, 0.9),
+            axis,
+            half_angle: 0.6,
+            u_ref,
+        };
         for i in 0..200 {
             let u = (f64::from(i) / 200.0) * 2.0 * pi - pi;
             let v = -(0.01 + lcg(&mut s) * 2.0);
             let p = cone.eval(u, v);
             let uv = uv_of(&cone, p).expect("mirror nappe preimage");
             let back = cone.eval(uv.x, uv.y);
-            assert!((back - p).norm() <= 1e-9, "nappe u={u} v={v}: {:?}", (back - p).norm());
+            assert!(
+                (back - p).norm() <= 1e-9,
+                "nappe u={u} v={v}: {:?}",
+                (back - p).norm()
+            );
         }
     }
 }
 
 #[cfg(test)]
 mod review_outerness {
-    use super::{infer_outer, OuternessRefusal};
+    use super::{OuternessRefusal, infer_outer};
     use geom_core::{Point3, Vec3};
     use geom_surfaces::Surface;
 
@@ -576,18 +630,36 @@ mod review_outerness {
         // Rectangle in (u,z), traversed CCW, sampled n per side.
         let mut out = Vec::new();
         let f = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
-        for i in 0..n { let t = i as f64 / n as f64; out.push(f(u0 + (u1-u0)*t, z0)); }
-        for i in 0..n { let t = i as f64 / n as f64; out.push(f(u1, z0 + (z1-z0)*t)); }
-        for i in 0..n { let t = i as f64 / n as f64; out.push(f(u1 - (u1-u0)*t, z1)); }
-        for i in 0..n { let t = i as f64 / n as f64; out.push(f(u0, z1 - (z1-z0)*t)); }
+        for i in 0..n {
+            let t = i as f64 / n as f64;
+            out.push(f(u0 + (u1 - u0) * t, z0));
+        }
+        for i in 0..n {
+            let t = i as f64 / n as f64;
+            out.push(f(u1, z0 + (z1 - z0) * t));
+        }
+        for i in 0..n {
+            let t = i as f64 / n as f64;
+            out.push(f(u1 - (u1 - u0) * t, z1));
+        }
+        for i in 0..n {
+            let t = i as f64 / n as f64;
+            out.push(f(u0, z1 - (z1 - z0) * t));
+        }
         out
     }
     fn lat_ring(sphere_r: f64, lat: f64, n: usize, ccw: bool) -> Vec<Point3<f64>> {
-        (0..n).map(|i| {
-            let u = 2.0 * core::f64::consts::PI * (i as f64) / (n as f64);
-            let u = if ccw { u } else { -u };
-            Point3::new(sphere_r*lat.cos()*u.cos(), sphere_r*lat.cos()*u.sin(), sphere_r*lat.sin())
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let u = 2.0 * core::f64::consts::PI * (i as f64) / (n as f64);
+                let u = if ccw { u } else { -u };
+                Point3::new(
+                    sphere_r * lat.cos() * u.cos(),
+                    sphere_r * lat.cos() * u.sin(),
+                    sphere_r * lat.sin(),
+                )
+            })
+            .collect()
     }
 
     #[test]
@@ -595,45 +667,69 @@ mod review_outerness {
         // 1. UnsupportedChart is nurbs-only: skipped (no nurbs ctor here);
         //    entities.rs routes nurbs faces elsewhere.
         // 2. SeamDependent: a ring encircling the cylinder axis.
-        let wrap: Vec<Point3<f64>> = (0..64).map(|i| {
-            let u = 2.0*core::f64::consts::PI*(i as f64)/64.0;
-            Point3::new(u.cos(), u.sin(), 0.0)
-        }).collect();
+        let wrap: Vec<Point3<f64>> = (0..64)
+            .map(|i| {
+                let u = 2.0 * core::f64::consts::PI * (i as f64) / 64.0;
+                Point3::new(u.cos(), u.sin(), 0.0)
+            })
+            .collect();
         let inner = ring_on_cyl(0.5, 1.0, 0.2, 0.4, 8);
-        assert_eq!(infer_outer(&cyl(), &[wrap, inner.clone()], 1e-10),
-            Err(OuternessRefusal::SeamDependent), "wrap ring");
+        assert_eq!(
+            infer_outer(&cyl(), &[wrap, inner.clone()], 1e-10),
+            Err(OuternessRefusal::SeamDependent),
+            "wrap ring"
+        );
         // 3. UndecidableAtEps: probe ring's first sample within eps of the
         //    candidate's boundary.
         let outer = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
         let touching = ring_on_cyl(0.0 + 1e-12, 1.0, 0.3, 0.6, 8);
-        assert_eq!(infer_outer(&cyl(), &[outer.clone(), touching], 1e-10),
-            Err(OuternessRefusal::UndecidableAtEps), "touching ring");
+        assert_eq!(
+            infer_outer(&cyl(), &[outer.clone(), touching], 1e-10),
+            Err(OuternessRefusal::UndecidableAtEps),
+            "touching ring"
+        );
         // 4. OrientationContradicts: inner ring wound the SAME way.
         let mut inner_same = ring_on_cyl(0.5, 1.0, 0.2, 0.4, 8);
         let outer2 = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
         // same CCW winding as outer => contradiction
-        assert_eq!(infer_outer(&cyl(), &[outer2.clone(), inner_same.clone()], 1e-10),
-            Err(OuternessRefusal::OrientationContradicts), "same-wound inner");
+        assert_eq!(
+            infer_outer(&cyl(), &[outer2.clone(), inner_same.clone()], 1e-10),
+            Err(OuternessRefusal::OrientationContradicts),
+            "same-wound inner"
+        );
         // and reversed is accepted with outer index 0:
         inner_same.reverse();
         assert_eq!(infer_outer(&cyl(), &[outer2, inner_same], 1e-10), Ok(0));
         // 5. NoUniqueOuter: disjoint rings.
         let a = ring_on_cyl(0.0, 0.5, 0.0, 0.5, 8);
         let b = ring_on_cyl(1.0, 1.5, 0.0, 0.5, 8);
-        assert_eq!(infer_outer(&cyl(), &[a, b], 1e-10),
-            Err(OuternessRefusal::NoUniqueOuter), "disjoint");
+        assert_eq!(
+            infer_outer(&cyl(), &[a, b], 1e-10),
+            Err(OuternessRefusal::NoUniqueOuter),
+            "disjoint"
+        );
         // 6. NotOnChart: a ring sample AT the sphere pole.
-        let sph = Surface::Sphere { center: Point3::new(0.0,0.0,0.0), radius: 1.0,
-            axis: Vec3::new(0.0,0.0,1.0), u_ref: Vec3::new(1.0,0.0,0.0) };
+        let sph = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
         let mut polar = lat_ring(1.0, 1.2, 16, true);
         polar[3] = Point3::new(0.0, 0.0, 1.0); // the pole
         let low = lat_ring(1.0, -0.5, 16, false);
-        assert_eq!(infer_outer(&sph, &[polar, low.clone()], 1e-10),
-            Err(OuternessRefusal::NotOnChart), "pole sample");
+        assert_eq!(
+            infer_outer(&sph, &[polar, low.clone()], 1e-10),
+            Err(OuternessRefusal::NotOnChart),
+            "pole sample"
+        );
         // 7. A ring ENCLOSING the pole (full latitude circle) wraps u:
         //    SeamDependent, refused not guessed.
         let cap = lat_ring(1.0, 1.4, 64, true);
-        assert_eq!(infer_outer(&sph, &[cap, low], 1e-10),
-            Err(OuternessRefusal::SeamDependent), "pole-enclosing ring");
+        assert_eq!(
+            infer_outer(&sph, &[cap, low], 1e-10),
+            Err(OuternessRefusal::SeamDependent),
+            "pole-enclosing ring"
+        );
     }
 }
