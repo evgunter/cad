@@ -307,3 +307,36 @@ owed to the next A/B-eligible dispatch (expected: unit 3
 loft/sweep assembly). Spec substrate exploration in flight;
 binding spec precedes dispatch per standing process. The two
 cargo-lane slots are M6-2 + globe-lily.
+
+**M6-2 DISPATCHED (2026-08-04)**: binding spec docs/M6-2-SPEC.md
+merged to main via #173 (docs-only state sync); implementer on
+lane m6-2-ssi-lift, branch ev/m6-ssi-lift, PR held for
+adversarial review.
+
+**Bazel verdict DELIVERED (2026-08-04): NO** (report:
+~/.local/share/cad-work/bazel-verdict-report.md; no builds run).
+The measured case: baseline post-#167 run = 17.6 min wall /
+~79 billed min, wall 100% compile-gated — but dependency caching
+already fully hits (Swatinem, 225 pkgs warm), and **96% of the
+8.6-min build job is the 261 test binaries** (249 declared
+`[[test]]` targets ≈330 lines each, each re-monomorphizing the
+generic kernel and relinking the graph). Bazel would rebuild
+those same actions: touching geom-core invalidates 249/249,
+the mid-tier crates 71%; median PR cache-hit on the expensive
+actions 0–29%. gmp/mpfr is NOT a CI cost (quarantined excluded
+workspace, 0.3–0.5 min). rules_rust pre-1.0 + a third
+hand-mirrored build config = real carrying cost for a cache that
+misses. **Ranked alternatives** (saving ÷ effort): (1) collapse
+249 test crates → ~12 aggregators (−7 min wall, ~−14 billed
+min/run, ~half a day, mechanical; nextest sharding unaffected);
+(2) `CARGO_PROFILE_TEST_DEBUG=line-tables-only` (one line);
+(3) mold/lld; (4) 8-vCPU runner for the two build jobs (billing —
+Evan's call); (5) sccache-GHA (same funnel, same misses); cranelift
+explicitly NOT recommended (D9 bit-identity risk). Disconfirming
+test named: land (1)+(2) and re-measure — if the build job doesn't
+drop 8.6 → ~2.5 min, the 96% measurement was wrong and Bazel
+reopens. **Orchestrator ruling**: alternatives (1)+(2)+(3) are the
+follow-up phase under Evan's add-on (a) (the goal is CI speed;
+same lane, still Opus/A/B-exempt, CI-infra class per rows 16/41
+precedent — validated by hosted-CI timing, not a blinded lane);
+QUEUED until a cargo-lane slot frees. (4) left for Evan.
