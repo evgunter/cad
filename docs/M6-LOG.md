@@ -536,6 +536,17 @@ RIGHT / RIGHT-BUT-MISDOCUMENTED / SHORTCUT / FORK with cost.
 Orchestrator rules per item on its report; forks escalate to
 Evan.
 
+**Phase B UNBLOCKED EARLY (Evan, in-chat, 2026-08-04: start on
+what the live work can't affect).** Scope carve-out replaces the
+blanket hold: collapse every crate EXCEPT those whose test tree
+#176's diff touches (agent computes exclusions from the PR diff;
+expect topo + step-export at least); excluded crates follow in a
+small second PR post-merge. sweep (60 targets) + editor-core
+(51) ≈ 45% of the win, zero overlap. Validation under the pin:
+cargo check --tests per crate + nextest list roster
+reconciliation (count-exact before/after); hosted CI is gate and
+measurement. Branch ev/ci-test-collapse, same agent.
+
 **Design audit RETURNED + RULED (2026-08-04, posted to #176)**:
 7 of 8 audited deviations RIGHT (devs 4/5 explicitly
 anti-shortcuts; dev 1's audit note: the SPEC's split-impl
