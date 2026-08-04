@@ -131,19 +131,43 @@ fn dangling_reference_refuses_named() {
     }
 }
 
-/// Units are read, not assumed: a millimetre-prefixed unit context is
-/// outside the subset and refuses typed (M7-2 owns foreign units).
+/// **The M7-1 prefixed-unit refusal, flipped** (the S9 pattern: a
+/// refusal a later unit retires by building the thing it named). M7-1
+/// refused `SI_UNIT(.MILLI., .METRE.)` typed and said in so many words
+/// that M7-2 owns foreign units; M7-2 Leg A builds the prefix table, so
+/// the same file now IMPORTS — and the assertion the flip owes is that
+/// it imports *scaled*, not merely accepted.
+///
+/// The same cube in millimetres is the same solid a thousand times
+/// smaller in each direction: its certified volume must be 1e-9 of the
+/// metre file's, and the declared uncertainty — a length like any
+/// other — 1e-3 of it.
 #[test]
-fn prefixed_unit_refuses_typed() {
-    let text = fixture("cube", "step").replace(
+fn prefixed_unit_scales_instead_of_refusing() {
+    let metres = fixture("cube", "step");
+    let millimetres = metres.replace(
         "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
         "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI., .METRE.) )",
     );
-    let err = import_step(&text, &ImportOptions::default())
-        .expect_err("a prefixed unit is outside the subset");
+    assert_ne!(metres, millimetres, "the unit record must actually differ");
+    let of = |text: &str| -> (f64, f64) {
+        let import = import_step(text, &ImportOptions::default()).expect("the cube imports");
+        let StepImport::Solid { body, eps_in, .. } = import else {
+            panic!("expected a solid");
+        };
+        (topo::mass_properties(&body).unwrap().volume, eps_in)
+    };
+    let (v_m, eps_m) = of(&metres);
+    let (v_mm, eps_mm) = of(&millimetres);
+    // 1e-9 is exact in binary only up to rounding, so the comparison is
+    // relative and generous by the volume's own accumulated roundoff.
     assert!(
-        matches!(err, StepImportError::UnsupportedUnit { .. }),
-        "expected UnsupportedUnit, got: {err}"
+        (v_mm - v_m * 1e-9).abs() <= 8.0 * f64::EPSILON * v_m * 1e-9,
+        "millimetre cube volume {v_mm} m^3 vs the metre cube's {v_m} m^3 scaled"
+    );
+    assert!(
+        (eps_mm - eps_m * 1e-3).abs() <= f64::EPSILON * eps_m,
+        "declared uncertainty {eps_mm} vs {eps_m} scaled: eps_in is a length too"
     );
 }
 

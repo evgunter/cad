@@ -68,14 +68,63 @@
 
 mod adopt;
 mod assemble;
+mod chart;
 mod entities;
 mod error;
 mod geometry;
 mod parse;
+pub mod tolerance;
+mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 
 use topo::Body;
+
+/// A boundary-graph census: what a region contributes to the body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FaceCensus {
+    /// Faces.
+    pub faces: usize,
+    /// Edges.
+    pub edges: usize,
+    /// Vertices.
+    pub vertices: usize,
+}
+
+/// Which normalization was applied (each one a named, bounded case —
+/// never an open licence to re-mint).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NormalizationKind {
+    /// A **closed face with no edges**: a whole sphere arrives as one
+    /// `ADVANCED_FACE` bounded by a `VERTEX_LOOP` (Open CASCADE drops
+    /// the seam and both degenerate pole edges on export). The kernel's
+    /// half-edge structure cannot represent an edge-free closed face,
+    /// so the locus is adopted whole and the kernel mints its own
+    /// canonical splitting of it — the same 2 faces / 2 edges / 2
+    /// vertices a natively revolved ball carries.
+    EdgeFreeSphere,
+}
+
+/// A **reported structure normalization** (D7 stage-3 repair, in its
+/// letter): the file's locus is fully explained and adopted, but its
+/// boundary-graph tessellation is not representable, so the kernel
+/// re-minted the tessellation and says so — as data, never silently.
+///
+/// Volume and validity are exact as always; what changed is only how
+/// the same surface is cut into faces, edges, and vertices. The census
+/// pair is the mapping a reader needs to reconcile the file's counts
+/// with the imported body's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StructureNormalization {
+    /// The `ADVANCED_FACE` entity instance the file states.
+    pub face: u64,
+    /// What was re-minted.
+    pub kind: NormalizationKind,
+    /// The census the file states for that region.
+    pub file_census: FaceCensus,
+    /// The census the kernel minted in its place.
+    pub kernel_census: FaceCensus,
+}
 
 /// Per-call import options (D7's ε_in override door).
 #[derive(Clone, Debug, Default)]
@@ -108,6 +157,10 @@ pub enum StepImport {
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
         eps_in: f64,
+        /// The structure normalizations the adoption applied, in
+        /// resolution order — empty for a file whose boundary graph the
+        /// kernel represents as stated (every own-corpus file).
+        normalizations: Vec<StructureNormalization>,
     },
     /// The file carried a `GEOMETRIC_CURVE_SET` wireframe and no
     /// solid: the reconstructed carriers, exact. **No body is
@@ -129,6 +182,15 @@ impl StepImport {
     pub fn eps_in(&self) -> f64 {
         match self {
             Self::Solid { eps_in, .. } | Self::Wireframe { eps_in, .. } => *eps_in,
+        }
+    }
+
+    /// The structure normalizations this import applied (empty for a
+    /// wireframe, which has no boundary graph to re-mint).
+    pub fn normalizations(&self) -> &[StructureNormalization] {
+        match self {
+            Self::Solid { normalizations, .. } => normalizations,
+            Self::Wireframe { .. } => &[],
         }
     }
 }
@@ -156,7 +218,11 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
     match model.shape {
         entities::Shape::Solids(ref solids) => {
             let body = assemble::build_body(solids, &model)?;
-            Ok(StepImport::Solid { body, eps_in })
+            Ok(StepImport::Solid {
+                body,
+                eps_in,
+                normalizations: model.normalizations.clone(),
+            })
         }
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
             curves: curves.clone(),

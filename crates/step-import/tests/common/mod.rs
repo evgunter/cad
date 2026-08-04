@@ -134,7 +134,7 @@ pub fn import_fixture(name: &str) -> step_import::StepImport {
 /// The imported solid body, panicking on a wireframe disposition.
 pub fn import_body(name: &str) -> (Body<f64>, f64) {
     match import_fixture(name) {
-        step_import::StepImport::Solid { body, eps_in } => (body, eps_in),
+        step_import::StepImport::Solid { body, eps_in, .. } => (body, eps_in),
         step_import::StepImport::Wireframe { .. } => {
             panic!("{name} imported as a wireframe, expected a solid")
         }

@@ -356,31 +356,60 @@ fn g7_full_truncation_sweep() {
     );
 }
 
-/// G7: non-apex CONICAL_SURFACE (radius != 0) refuses typed.
+/// G7, **flipped by M7-2 Leg C**: a non-apex `CONICAL_SURFACE`
+/// (radius != 0) is no longer a syntactic refusal — it is the only
+/// form Open CASCADE writes, and the apex is derived from it. What
+/// this probe still owes is that the derivation cannot launder a
+/// WRONG cone in: giving the apex-placed cone a base radius of 0.5
+/// while leaving the placement alone moves its apex half a unit, so
+/// the surface no longer explains the file's own edges and the
+/// kernel's certification gates must say so.
+///
+/// The refusal therefore MOVED, from the record reader to the geometry
+/// — which is the honest place for it, since the record is now well
+/// formed and it is the geometry that is wrong.
 #[test]
-fn g7_nonapex_cone_refuses() {
+fn g7_nonapex_cone_derives_but_cannot_launder_a_wrong_apex() {
     let text = fixture("cone", "step").replace(
         "#5 = CONICAL_SURFACE('', #4, 0.0, 0.7853981633974483);",
         "#5 = CONICAL_SURFACE('', #4, 0.5, 0.7853981633974483);",
     );
-    let err = import_text(&text).expect_err("non-apex cone is outside the subset");
-    match err {
-        StepImportError::MalformedRecord { id, .. } => assert_eq!(id, 5),
-        other => panic!("expected MalformedRecord, got: {other}"),
-    }
+    let err = import_text(&text).expect_err("a cone whose apex moved must not import");
+    assert!(
+        matches!(
+            err,
+            StepImportError::Adoption { .. }
+                | StepImportError::Assembly { .. }
+                | StepImportError::Topology { .. }
+        ),
+        "expected a geometric refusal from the kernel's own gates, got: {err}"
+    );
 }
 
-/// G7: a reversed FACE_OUTER_BOUND (.F.) refuses typed.
+/// G7, **flipped by M7-2 Leg B**: a reversed `FACE_OUTER_BOUND` (.F.)
+/// is no longer outside the subset — it is honored as a loop reversal,
+/// because FreeCAD writes 25 of them and 4 measured planar caps prove
+/// the flag is independent of the owning face's `same_sense`.
+///
+/// Honoring it is not the same as ignoring it. Reversing ONE face's
+/// bound in an otherwise consistent cube makes that face traverse its
+/// four edges the other way, so each of them is now used twice in the
+/// SAME direction — no longer a closed oriented 2-manifold. The
+/// refusal stands, at the manifold precondition, naming the edge.
 #[test]
-fn g7_reversed_bound_refuses() {
+fn g7_reversed_bound_is_honored_and_breaks_the_manifold() {
     let text = fixture("cube", "step").replace(
         "#39 = FACE_OUTER_BOUND('', #38, .T.);",
         "#39 = FACE_OUTER_BOUND('', #38, .F.);",
     );
-    let err = import_text(&text).expect_err("a .F. bound is outside the subset");
+    let err = import_text(&text).expect_err("one reversed bound un-closes the shell");
     match err {
-        StepImportError::Topology { id, .. } => assert_eq!(id, 39),
-        other => panic!("expected Topology, got: {other}"),
+        StepImportError::Topology { id, .. } => assert_ne!(
+            id, 39,
+            "the refusal must come from the manifold check on an edge, not from the \
+             bound record (which is now legal)"
+        ),
+        other => panic!("expected Topology naming the doubly-traversed edge, got: {other}"),
     }
 }
 
@@ -466,7 +495,7 @@ fn h8_eps_in_not_consumed() {
     for eps in [1e-30, 1.0] {
         let import = import_step(&text, &ImportOptions { eps_in: Some(eps) })
             .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
-        let StepImport::Solid { body, eps_in } = import else {
+        let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("wireframe?")
         };
         assert_eq!(eps_in, eps);
