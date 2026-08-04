@@ -360,6 +360,15 @@ pub fn transform_rigid<T: Decide>(
             // A seam is defined intrinsically by its (key-stable)
             // surface; the mapped surface carries the whole map.
             EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface: *surface },
+            // An iso-curve likewise: the chart data (u, v-window) is a
+            // parameter-space fact, invariant under a rigid map — the
+            // mapped SURFACE carries the whole map (M6-3).
+            EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
+                surface: *surface,
+                u: *u,
+                v0: *v0,
+                v1: *v1,
+            },
             EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(map_mapped_curve(map, mc)),
         };
         let spec = EdgeCurveSpec {

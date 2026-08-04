@@ -132,6 +132,10 @@ pub enum CertCheck {
     /// Seam: the wrong-side excess `max(0, −w · u_ref)` at a sample
     /// (distinguishes the seam from the antipodal meridian).
     SeamSide,
+    /// IsoCurve: the genuinely metric residual
+    /// `|carrier(tᵢ) − S(u, v(tᵢ))|` at a sample (M6-3; the
+    /// wall–wall-seam class of `docs/M5-LOG.md` PR 9c item 6(iii)).
+    IsoResidual,
 }
 
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
@@ -631,6 +635,22 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 }
                 EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(mc.restrict(s0, s1)),
                 EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface },
+                // The iso description restricts exactly as MappedCurve
+                // does: fixed `u` kept, the `v` window mapped through
+                // the SAME interval fractions the parameter interval
+                // splits at, so the child's affine t↦v map agrees with
+                // the parent's on the shared sub-interval.
+                EdgeGeometry::IsoCurve {
+                    surface,
+                    u,
+                    v0,
+                    v1,
+                } => EdgeGeometry::IsoCurve {
+                    surface,
+                    u,
+                    v0: v0 + (v1 - v0) * s0,
+                    v1: v0 + (v1 - v0) * s1,
+                },
             };
             EdgeCurveSpec {
                 description,
@@ -762,14 +782,19 @@ fn run_checks<T: Decide>(
     // ---- Check 1: implementedness / description well-formedness. ----
     // Rung-3 (`Nurbs`) carriers certify under an `Intersection`
     // description of two ANALYTIC surfaces — the class the curved
-    // boolean zip mints (M5 PR 9, C12.3; the fitted SSI branch). A
-    // `Nurbs` carrier under a conventional description stays refused:
+    // boolean zip mints (M5 PR 9, C12.3; the fitted SSI branch) — and
+    // under an `IsoCurve` description (M6-3: the loft/sweep wall–wall
+    // seam class, whose residual is the genuinely metric
+    // `|C(t) − S(u, v(t))|`). A `Nurbs` carrier under the OTHER
+    // conventional descriptions (`MappedCurve`/`Seam`) stays refused:
     // nothing mints one, and its residual story (a fitted carrier
     // "matching" a mapped source) has no certified meter.
     if matches!(spec.carrier, Curve3::Nurbs(_))
         && !matches!(
             spec.description,
-            EdgeGeometry::Intersection { .. } | EdgeGeometry::TangentIntersection { .. }
+            EdgeGeometry::Intersection { .. }
+                | EdgeGeometry::TangentIntersection { .. }
+                | EdgeGeometry::IsoCurve { .. }
         )
     {
         return Err(CertifyError::Unimplemented);
@@ -777,6 +802,20 @@ fn run_checks<T: Decide>(
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
         if matches!(s, Surface::Nurbs(_)) {
+            return Err(CertifyError::Unimplemented);
+        }
+        Ok(s)
+    };
+    // The iso lane's resolver (M6-3): an `IsoCurve` description names
+    // its surface as the CHART of the residual, so a DESCRIBED
+    // `Surface::Nurbs` is exactly what it evaluates against — admitted
+    // here and nowhere else. The mvfs placeholder (all-poison control)
+    // is not a described surface and keeps refusing.
+    let resolve_iso = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
+        let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
+        if let Surface::Nurbs(ref payload) = s
+            && payload.is_placeholder()
+        {
             return Err(CertifyError::Unimplemented);
         }
         Ok(s)
@@ -794,6 +833,12 @@ fn run_checks<T: Decide>(
         },
         Mapped(crate::edge_geometry::MappedCurve<T>),
         Seam(Surface<T>),
+        Iso {
+            surface: Surface<T>,
+            u: T,
+            v0: T,
+            v1: T,
+        },
     }
     let resolved = match spec.description {
         EdgeGeometry::Intersection { s1, s2, witness } => {
@@ -828,6 +873,12 @@ fn run_checks<T: Decide>(
             }
             Resolved::Seam(s)
         }
+        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => Resolved::Iso {
+            surface: resolve_iso(surface)?,
+            u,
+            v0,
+            v1,
+        },
     };
 
     let mut max_residual = T::zero();
@@ -1081,6 +1132,27 @@ fn run_checks<T: Decide>(
                         &mut max_residual,
                     )?;
                 }
+            }
+            // The iso lane (M6-3): the genuinely metric residual
+            // |C(tᵢ) − S(u, v(tᵢ))| with v affine in the parameter —
+            // the same schedule fraction the Mapped arm uses, so the
+            // stated formula and the evaluated one share their bits.
+            Resolved::Iso {
+                surface,
+                u,
+                v0,
+                v1,
+            } => {
+                let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                let v = *v0 + (*v1 - *v0) * frac;
+                check_residual(
+                    "carrier_on_iso_curve",
+                    CertCheck::IsoResidual,
+                    i,
+                    p.distance(surface.eval(*u, v)),
+                    band,
+                    &mut max_residual,
+                )?;
             }
         }
     }

@@ -283,6 +283,14 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
             geom_brep::EdgeGeometry::Seam { surface } => geom_brep::EdgeGeometry::Seam {
                 surface: *surfaces.get(surface).ok_or_else(corrupt)?,
             },
+            geom_brep::EdgeGeometry::IsoCurve { surface, u, v0, v1 } => {
+                geom_brep::EdgeGeometry::IsoCurve {
+                    surface: *surfaces.get(surface).ok_or_else(corrupt)?,
+                    u,
+                    v0,
+                    v1,
+                }
+            }
             geom_brep::EdgeGeometry::MappedCurve(_) => continue, // no surface keys
         };
         // Endpoints from the (already grafted) owning edge: he_plus

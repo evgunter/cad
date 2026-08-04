@@ -828,6 +828,12 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         !((d1 == s1 && d2 == s2) || (d1 == s2 && d2 == s1))
                     }
                     geom_brep::EdgeGeometry::Seam { surface } => !(surface == s1 && surface == s2),
+                    // The iso description cites ONE adjacent surface
+                    // (its residual chart); stale iff neither side is
+                    // it (the attach-door adjacency rule, M6-3).
+                    geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
+                        !(surface == s1 || surface == s2)
+                    }
                     geom_brep::EdgeGeometry::MappedCurve(_) => false,
                 };
                 if stale {

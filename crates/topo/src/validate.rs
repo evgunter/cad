@@ -1616,6 +1616,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
             }
             geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
+            // Iso adjacency (M6-3, the M5-LOG item 6(iii) rule): the
+            // described chart is ONE of the edge's two adjacent faces'
+            // surfaces — a wall–wall seam is the u-boundary iso of
+            // either wall, and the minted convention names one.
+            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
+                surface == fs_plus || surface == fs_minus
+            }
             geom_brep::EdgeGeometry::MappedCurve(_) => true,
         };
         if !adjacent {
