@@ -279,3 +279,31 @@ projection. A negative lookahead excluding method-call
 continuations (`\1\b(?!\s*\.)` in the grep -P pattern, both
 ci.yml and ci-local.sh) would retire the class; the two named-
 binding restructures stay as they are.)
+
+## Successor orchestrator online (2026-08-04)
+
+Handoff received; #171 (M6-1 surgery) and #172 (briefing) verified
+merged; lanes verified already clean; monitors installed + armed
+(away-channel, disk watchdog, hourly check-in); CPU canary healthy
+(0.75s).
+
+**New Evan instructions at handoff (in-chat, 2026-08-04), both
+A/B-EXEMPT and assigned OPUS by Evan's ruling:**
+(a) **Bazel verdict** — decide whether the project should adopt
+Bazel; if yes, implement it and measure whether it speeds up CI
+(CI time is compilation-dominated). Verdict phase dispatched
+(analysis-only, no builds); implementation waits for a free
+cargo-lane slot and an orchestrator sanity-check of the verdict.
+(b) **Globe lily** — a montage piece, dual-purpose: kernel stress
+test (careful numbered list of inexpressible / bad-API findings —
+expected to be rich, given unit 3 hasn't landed) + creative
+exercise with stylistic judgment encouraged. Lane dispatched
+(ev/m6-globe-lily; PR held for orchestrator review, not
+self-merged).
+
+**M6-2 dispatch prep**: difficulty M logged pre-draw; block-21
+draw byte 59 → (opus, fable): **M6-2 = OPUS**, fable remainder
+owed to the next A/B-eligible dispatch (expected: unit 3
+loft/sweep assembly). Spec substrate exploration in flight;
+binding spec precedes dispatch per standing process. The two
+cargo-lane slots are M6-2 + globe-lily.
