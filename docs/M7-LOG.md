@@ -93,3 +93,34 @@ deviation-1 adjudication, adoption-ladder corruption probes,
 rotation-system stress (genus, permuted-order files), volume
 tolerance teeth, same_sense flip fidelity, refusal coverage,
 ε_in. Slot 2 → m7-import-review lane.
+
+**M7-1 review returned (2026-08-04): APPROVE-WITH-FIXES,
+1 MAJ / 3 MIN / 5 NOTE, deviations 1 reported (verified honest) /
+1 silent, rubric 5/4/4; hosted CI 20/20 green; every assigned
+attack executed.** The headline held: 14/14 byte-identity
+reproduced AND proven un-laundered (perturbed radius flows
+through to re-export with the matching closed-form volume;
+no code path from source text to export). Deviation 1 adjudicated
+HONEST (all five overrides quote the sidecars' own comments
+exactly; only edge counts diverge). Adoption ladder has teeth
+(four corruption classes → structured Adoption errors with
+honest gate reasons; bonus: a tilted GREAT circle legally adopts
+as a different valid body — honest, not a defect). Fixed point
+holds on non-writer-ordered files (reversed DATA, renumbered
+ids). Volume tolerance toothed (1e-7 radius corruption fails the
+row) and both closed-form claims reproduced bit-for-bit.
+MAJ-1 = the silent deviation: CONVERSION_BASED_UNIT length
+contexts import silently as metres (unit check fires only on
+instances containing SI_UNIT; refs unresolved) — the forbidden
+silent-guess class. Fix pass DISPATCHED (inherits the arm):
+MAJ-1 by-resolution unit check + inch-file test; full truncation
+sweep (cap 400/7318 contradicted its own comment); MIN-4's three
+silent drops → typed refusals (2nd curve set, mixed content,
+orphan MSBs); NOTE-5 mojibake arm; 6.00-ulp correction; adopt
+review/m7-1's 19 probes BY MERGE (authorship kept). Fenced
+findings routed to fresh issue #184 (cross-orchestrator channel):
+MIN-3 curved sense flips tier-invisible (kernel-scope — our-tiers
+confirmation of the OCC text-level orientation note; executed on
+washer, volume bit-identical) + NOTE-7 filleted_die.expect
+comment overclaim + the sidecar KERNEL_* fields design
+suggestion. Review ~181k tokens, ~35min wall.
