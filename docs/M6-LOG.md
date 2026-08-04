@@ -607,6 +607,19 @@ interference / cylindrical / G1 tube chains worked; M8
 signed-clearance co-design; OQ5 disposition). Orchestrator
 meta-review then design-conversation PR — WAITS for Evan.
 
+**M6-4 COMPLETE (2026-08-04): CONTACT-DESIGN RATIFIED (Evan 👍
+on #178's affordance comment) and MERGED.** C1–C8 as written
+(one orchestrator meta-review fix before the PR: the identity
+lemma scoped to its true strength — whole-carrier from a shared
+patch for analytic kinds only; per-span for piecewise-rational,
+span-partial coincidence escalates). OQ5 is CLOSED — the
+CURVED-DESIGN OQ5 entry updated with the closure record.
+Unit 4 done in ~5 hours wall from Evan's start-it-now call,
+zero cargo-lane cost (design-only). Fresh from the doc:
+the two-peg demo's vocabulary now exists on paper (waits on
+the C7 join-lane implementation, banked); M8's gap contract
+is pinned.
+
 **M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
 exploration (which read post-#176 origin/main): six legs
 (builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
