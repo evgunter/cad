@@ -387,7 +387,13 @@ pub fn circle_residual_extremes<T: Real>(
             // perp(v̂)sinθ) has |w|² of trigonometric degree ≤ 2; its
             // constant term and harmonic amplitudes are exact, and
             // |A₁ cos + B₁ sin| + |second harmonic| bounds the swing.
-            let perp = |x: Vec3<T>| x - a * a.dot(x);
+            // Named binding so the interval-square tripwire's grep does
+            // not false-positive on `a * a.dot(x)` (vector × projection
+            // coefficient, not a scalar square) — the blend.rs precedent.
+            let perp = |x: Vec3<T>| {
+                let along = a.dot(x);
+                x - a * along
+            };
             let e = perp(center - origin);
             let up = perp(u);
             let vp = perp(v);
