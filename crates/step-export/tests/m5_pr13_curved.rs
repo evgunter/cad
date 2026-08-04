@@ -198,6 +198,12 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 "LINE",
             ],
         ),
+        // The M6 curation addition: 21 spherical dimples in a sharp
+        // cube — planes, sphere caps, and their exact circle rims.
+        (
+            "die_pips",
+            &["PLANE", "SPHERICAL_SURFACE", "CIRCLE", "LINE"],
+        ),
     ];
     for (name, body) in curved_corpus() {
         let text = export(&body, name);
@@ -458,7 +464,9 @@ fn every_bound_orientation_is_true_even_on_reversed_faces() {
     }
     // The corpus really does contain reversed faces, so the row above
     // is not vacuous: notched 1 + washer 2 + cone 2.
-    assert_eq!(reversed_seen, 5, "the corpus's reversed faces");
+    // 47 = notched 1 + washer 2 + cone 2 (the original five) + die_pips
+    // 21·2 (each pip's two sense:false half-band walls, S11 discipline).
+    assert_eq!(reversed_seen, 47, "the corpus's reversed faces");
 }
 
 /// **Anti-double-composition pin B: a reversed face exports its TRUE
@@ -507,7 +515,10 @@ fn a_reversed_face_keeps_its_chart_axis() {
             );
         }
     }
-    assert_eq!(checked, 5, "all five reversed faces checked");
+    assert_eq!(
+        checked, 47,
+        "all 47 reversed faces checked (5 original + 42 pip walls)"
+    );
 }
 
 /// **The S12 revert row.** `Body::revert` reverses the loops AND flips

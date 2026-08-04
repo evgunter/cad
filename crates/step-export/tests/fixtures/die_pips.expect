@@ -1,0 +1,25 @@
+# The M5 PR 12 pipped die, the other half of acceptance shape (v)
+# (added to the CI-gated corpus by the M6 curation unit; M5 exit-walk
+# row 12). A SHARP unit cube with 21 spherical dimples -- the classical
+# layout, face n carrying n pips, opposite faces summing to seven --
+# cut in ONE group subtraction. Six planar faces carrying rings whose
+# carriers are exact circles, and 42 sphere half-bands (two per pip) as
+# the dimple floors.
+#
+# Volume is the EXACT ANALYTIC value in FreeCAD's internal mm^3, not a
+# readback: each ball (r = 0.09) sits r - h = 0.04 outside its face
+# plane, so each dimple removes exactly a spherical cap of height
+# h = 0.05, and V = 1 - 21*pi*h^2*(3r - h)/3 m^3.
+#
+# Kernel census is 48 faces / 96 edges / 71 vertices. OCC reports 138
+# EDGES: on import it ADDS the DEGENERATE pole edge each sphere face
+# needs in its own face model -- the same normalisation ball.expect
+# records, at +2 per pip rather than +4, because a dimple is a cap and
+# only ONE of its two poles survives the cut (21 * 2 = 42; 96 + 42 =
+# 138). Faces, vertices and the volume are unchanged.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=48
+EXPECT_EDGES=138
+EXPECT_VERTICES=71
+EXPECT_VOLUME_MM3=987904868.2836792

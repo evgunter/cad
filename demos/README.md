@@ -40,11 +40,18 @@ comparable, differing ONLY in whose tessellation is on screen:
   renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
   tessellation lane exactly as the kernel emitted it (flat-shaded
   chords on curved walls and all).
-- `renders-freecad/montage-freecad.png` — **the FreeCAD/OCC reference**
-  (banner on the sheet says so). Every cell is FreeCAD importing the
+- `renders-freecad/montage-freecad.png` — **the FreeCAD/OCC reference**.
+  Every cell is FreeCAD importing the
   body's OWN AP214 STEP export and letting OCC re-tessellate the
   B-rep — export → OCC import → render, the F6 lane dogfooded
   end-to-end.
+
+**Both** sheets carry a provenance banner under the title naming whose
+tessellation is on screen and pointing at the other sheet, so the two
+superimpose exactly — cell for cell *and* banner for banner. (The
+kernel sheet's banner is the M6 curation pass; before it, only the
+STEP lane was labelled and the sheets were one text line out of
+register.)
 
 Reading a disagreement: the STEP lane is the reference rendering of
 the *analytic surfaces the kernel claims to have exported*, and the
@@ -64,15 +71,15 @@ costs one cell, never the sheet).
 
 | scene | what it shows |
 | --- | --- |
-| `bracket` | extrude of a polyline + tangent-arc profile (`LoopBuilder`, inner fillet) |
+| `bracket` | extrude of a polyline + tangent-arc profile (`LoopBuilder`, inner fillet); standalone render since the M6 curation pass |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
-| `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; standalone render |
+| `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
 | `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
 | `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
-| `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
+| `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op; standalone render since the M6 curation pass |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
 | `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
 | `silhouette3` | the H×T solid ∩ a blocky **C** prism along +y — intersect-of-intersect, boolean-of-boolean; all C planes axis-aligned yet sharing no carrier with any H/T plane |
@@ -99,6 +106,34 @@ strict subset of the sheave's four) and `wedge` → chute. A×Z
 letterforms were probed and refuse typed today — banked as the
 acceptance fixture for the cookie-cutter role resolver's
 vertex-only-probing gap (#91 comments).
+
+Retired at the **M6 curation pass** — from the SHEET only; every one
+of these keeps its standalone render, its narration, and its
+corpus/latency/STEP roles: the old `die` panel (its unique content is
+21 *sequential* planar subtracts with seamed single-ring pockets, and
+chaining DEPTH is not a visual property — `plate`'s holes already show
+the rings; `diepips` is the sheet's die now) and `bracket` (`rocker`
+covers profile fillets far more comprehensively, six corners across
+the whole line/arc taxonomy, and `diefillet` covers the rolling-ball
+kind). `rocker` joined the sheet in the same pass — its `montage:
+false` was a staging leftover from the demo unit, not a decision.
+
+### Considered and NOT built: a two-peg plate
+
+The obvious next consolidation is to fold `crosslap`/`crosslap_exploded`
+and `plate`/`bossplate` into one two-peg plate shown assembled and
+apart — one cell pair instead of two, more part-like than either.
+It is deliberately **not** built, and the reason is a kernel fact
+rather than a taste call: `crosslap`'s value on the sheet is the
+**S1 planar REST zip** — a glued union across coincident PLANAR
+contact — and a glued peg-in-hole is a *cylindrical* declared
+contact, which the kernel does not have. A two-peg plate built today
+would demonstrate transverse union (`bossplate`'s point already) plus
+free-placement display, and would silently drop the zip the cell
+exists to show. Cylindrical declared contact is the curved-census /
+declared-contact design doc's territory (M6); revisit this
+consolidation when that lands, at which point the merged cell shows
+strictly more than the two it replaces.
 
 ## Validation posture (tier 3′)
 
