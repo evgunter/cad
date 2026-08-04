@@ -19,10 +19,10 @@ use geom_core::{Point3, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
 use geom_surfaces::Surface;
 
-use crate::error::StepImportError;
 use crate::chart;
-use crate::normalize;
+use crate::error::StepImportError;
 use crate::geometry;
+use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
 use crate::units::{self, UnitKind};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
@@ -317,7 +317,6 @@ impl<'a> Resolver<'a> {
         ))
     }
 
-
     /// `DIRECTION('', (x, y, z))` → kernel vector, exact (emitted as
     /// stored — never renormalized here either).
     fn direction(&self, from: u64, id: u64) -> Result<Vec3<f64>, StepImportError> {
@@ -442,7 +441,8 @@ impl<'a> Resolver<'a> {
                 {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 }
-                let (location, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
+                let (location, axis, u_ref) =
+                    self.placement(id, as_ref(id, placement, expected)?)?;
                 let apex = if radius == 0.0 {
                     location
                 } else {
@@ -748,7 +748,15 @@ impl<'a> Resolver<'a> {
         }
         // The edge-free closed face: one VERTEX_LOOP and nothing else.
         if bound_specs.iter().any(|b| b.vertex_loop.is_some()) {
-            return self.edge_free_face(id, surface, surface_id, sense, &bound_specs, edges, vertices);
+            return self.edge_free_face(
+                id,
+                surface,
+                surface_id,
+                sense,
+                &bound_specs,
+                edges,
+                vertices,
+            );
         }
 
         let mut loops: Vec<LoopSpec> = bound_specs
@@ -855,7 +863,6 @@ impl<'a> Resolver<'a> {
         }
         Ok(out)
     }
-
 
     /// The sum of every numeric literal's print-precision term in one
     /// instance's own records, as a LENGTH budget in kernel meters
@@ -1456,7 +1463,10 @@ fn resolve_units_and_uncertainty(
         }
     }
     let scale = length_scale.map_or(1.0, |(_, f)| f);
-    Ok((scale, uncertainty.ok_or(StepImportError::MissingUncertainty)?))
+    Ok((
+        scale,
+        uncertainty.ok_or(StepImportError::MissingUncertainty)?,
+    ))
 }
 
 impl<'a> Resolver<'a> {
@@ -1712,7 +1722,12 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         eps_in: uncertainty_m,
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
-            file.data.keys().next_back().copied().unwrap_or(0).saturating_add(1),
+            file.data
+                .keys()
+                .next_back()
+                .copied()
+                .unwrap_or(0)
+                .saturating_add(1),
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
     };

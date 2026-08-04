@@ -114,7 +114,10 @@ mod tests {
             si_unit_kind(1, None, "METRE", found).unwrap(),
             UnitKind::Length(1.0)
         );
-        assert_eq!(si_unit_kind(1, None, "RADIAN", found).unwrap(), UnitKind::Angle);
+        assert_eq!(
+            si_unit_kind(1, None, "RADIAN", found).unwrap(),
+            UnitKind::Angle
+        );
         assert!(si_unit_kind(1, Some("MILLI"), "RADIAN", found).is_err());
         assert!(si_unit_kind(1, None, "INCH", found).is_err());
     }

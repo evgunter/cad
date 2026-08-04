@@ -219,7 +219,9 @@ fn apex_cone(
         let Surface::Cone { apex, axis, .. } = face.surface else {
             continue;
         };
-        let [lp] = face.loops.as_slice() else { continue };
+        let [lp] = face.loops.as_slice() else {
+            continue;
+        };
         let [a, b, c] = lp.uses.as_slice() else {
             continue;
         };
@@ -240,7 +242,17 @@ fn apex_cone(
         {
             continue;
         }
-        found = Some((fi, apex, axis, seam, circle, *lp.uses.iter().find(|u| u.edge == seam.edge && u.forward != seam.forward).unwrap_or(&seam)));
+        found = Some((
+            fi,
+            apex,
+            axis,
+            seam,
+            circle,
+            *lp.uses
+                .iter()
+                .find(|u| u.edge == seam.edge && u.forward != seam.forward)
+                .unwrap_or(&seam),
+        ));
         break;
     }
     let Some((fi, apex, axis, seam_a, circle_use, seam_b)) = found else {
@@ -400,7 +412,9 @@ fn full_torus(
         let Surface::Torus { center, axis, .. } = face.surface else {
             continue;
         };
-        let [lp] = face.loops.as_slice() else { continue };
+        let [lp] = face.loops.as_slice() else {
+            continue;
+        };
         let [a, b, c, d] = lp.uses.as_slice() else {
             continue;
         };
@@ -495,12 +509,7 @@ fn full_torus(
         sense,
         loops: vec![LoopSpec {
             outer: true,
-            uses: vec![
-                u(rim.edge, s),
-                u(h1, t),
-                u(rim_id, !s),
-                u(h1, !t),
-            ],
+            uses: vec![u(rim.edge, s), u(h1, t), u(rim_id, !s), u(h1, !t)],
         }],
     };
     let face_b = FaceSpec {
@@ -509,12 +518,7 @@ fn full_torus(
         sense,
         loops: vec![LoopSpec {
             outer: true,
-            uses: vec![
-                u(rim_id, s),
-                u(h2, t),
-                u(rim.edge, !s),
-                u(h2, !t),
-            ],
+            uses: vec![u(rim_id, s), u(h2, t), u(rim.edge, !s), u(h2, !t)],
         }],
     };
     solid.faces[fi] = face_a;

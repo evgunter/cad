@@ -412,10 +412,8 @@ fn adopt_edges(
             // Under coincidence the two records describe one surface,
             // which is exactly the same-surface case the `else` branch
             // below already treats conventionally.
-            conventional = coincident_surfaces(
-                body.get_surface(fs_plus),
-                body.get_surface(fs_minus),
-            );
+            conventional =
+                coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus));
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(

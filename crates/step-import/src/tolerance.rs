@@ -64,7 +64,8 @@ pub fn print_half_ulp(literal: &str) -> f64 {
         None => (body, 0),
     };
     let (int_part, frac_part) = mantissa.split_once('.').unwrap_or((mantissa, ""));
-    if !int_part.chars().all(|c| c.is_ascii_digit()) || !frac_part.chars().all(|c| c.is_ascii_digit())
+    if !int_part.chars().all(|c| c.is_ascii_digit())
+        || !frac_part.chars().all(|c| c.is_ascii_digit())
     {
         return 0.0;
     }
@@ -112,8 +113,14 @@ mod tests {
         let slack = print_half_ulp(quarter_pi);
         assert_eq!(slack, 5e-13, "12 significant digits, last place 1e-12");
         let miss = (std::f64::consts::FRAC_PI_4 - quarter_pi.parse::<f64>().unwrap()).abs();
-        assert!(miss <= slack, "the truncation {miss} must fit the budget {slack}");
-        assert!(miss > 1e-13, "and the budget must not be slack for slack's sake");
+        assert!(
+            miss <= slack,
+            "the truncation {miss} must fit the budget {slack}"
+        );
+        assert!(
+            miss > 1e-13,
+            "and the budget must not be slack for slack's sake"
+        );
 
         // cone_trunc.step: semi-angle atan(1/2).
         let atan_half = "0.463647609001";
@@ -126,10 +133,23 @@ mod tests {
     /// survives for them (module docs).
     #[test]
     fn exactly_printed_literals_contribute_no_slack() {
-        for exact in ["0.", "1.", "0.5", "0.25", "2.", "-0.", "1.E-07", "0.463647609"] {
+        for exact in [
+            "0.",
+            "1.",
+            "0.5",
+            "0.25",
+            "2.",
+            "-0.",
+            "1.E-07",
+            "0.463647609",
+        ] {
             assert_eq!(print_half_ulp(exact), 0.0, "{exact} round-trips");
         }
-        assert_eq!(eps_in_eff(1e-10, &["1.", "0.5"]), 1e-10, "ε_in still floors");
+        assert_eq!(
+            eps_in_eff(1e-10, &["1.", "0.5"]),
+            1e-10,
+            "ε_in still floors"
+        );
     }
 
     /// The trig-noise class: 13 significant digits at a tiny exponent

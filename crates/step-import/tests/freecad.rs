@@ -9,7 +9,11 @@ fn triage() {
     for name in common::FREECAD_FIXTURES {
         let text = common::freecad_fixture(name);
         match step_import::import_step(&text, &step_import::ImportOptions::default()) {
-            Ok(step_import::StepImport::Solid { body, eps_in, normalizations }) => {
+            Ok(step_import::StepImport::Solid {
+                body,
+                eps_in,
+                normalizations,
+            }) => {
                 let props = topo::mass_properties(&body);
                 println!(
                     "{name}: OK census {:?} eps_in {eps_in:e} vol {:?} norm {} v1 {:?} v2 {:?} v3 {:?}",

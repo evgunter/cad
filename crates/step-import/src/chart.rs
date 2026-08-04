@@ -295,7 +295,11 @@ pub(crate) fn infer_outer(
             if i == j {
                 continue;
             }
-            let probe = other.poly.first().copied().ok_or(OuternessRefusal::NotOnChart)?;
+            let probe = other
+                .poly
+                .first()
+                .copied()
+                .ok_or(OuternessRefusal::NotOnChart)?;
             if boundary_distance(&candidate.poly, probe) <= tol {
                 return Err(OuternessRefusal::UndecidableAtEps);
             }
@@ -452,7 +456,10 @@ mod tests {
             .iter()
             .map(|&(x, y)| Point3::new(x, y, 0.0))
             .collect();
-        assert_eq!(infer_outer(&plane(), &[outer.clone(), hole.clone()], 1e-9), Ok(0));
+        assert_eq!(
+            infer_outer(&plane(), &[outer.clone(), hole.clone()], 1e-9),
+            Ok(0)
+        );
         assert_eq!(infer_outer(&plane(), &[hole, outer], 1e-9), Ok(1));
     }
 
@@ -463,10 +470,7 @@ mod tests {
             .iter()
             .map(|&(x, y)| Point3::new(x, y, 0.0))
             .collect();
-        let b: Vec<Point3<f64>> = a
-            .iter()
-            .map(|p| Point3::new(p.x + 5.0, p.y, 0.0))
-            .collect();
+        let b: Vec<Point3<f64>> = a.iter().map(|p| Point3::new(p.x + 5.0, p.y, 0.0)).collect();
         assert_eq!(
             infer_outer(&plane(), &[a, b], 1e-9),
             Err(super::OuternessRefusal::NoUniqueOuter)
