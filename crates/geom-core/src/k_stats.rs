@@ -243,6 +243,10 @@ impl Real for Probe {
         Self(Real::abs(self.0))
     }
 
+    fn is_poison(self) -> bool {
+        Real::is_poison(self.0)
+    }
+
     fn powi(self, n: i32) -> Self {
         Self(Real::powi(self.0, n))
     }

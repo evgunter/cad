@@ -128,6 +128,20 @@ pub trait Real:
     /// The absolute value.
     fn abs(self) -> Self;
 
+    /// Is this value the type's **poison** (module docs: NaN at `f64`,
+    /// NaI/empty at the interval scalar, a poisoned value channel at
+    /// the dual scalar)?
+    ///
+    /// This is a *value-channel* question — the one every scalar can
+    /// answer without a bracket — and it exists for **structure
+    /// discrimination**, not for deciding geometry: the first consumer
+    /// is `NurbsSurface::is_placeholder` (M6-3), which must tell the
+    /// all-poison "no description yet" placeholder from a described
+    /// control net at every evaluation scalar. Predicates on real
+    /// margins keep going through `Decide`, whose poison arm carries
+    /// the diagnostic; this method never replaces one.
+    fn is_poison(self) -> bool;
+
     /// Raises `self` to an integer power by exponentiation by squaring;
     /// `n < 0` computes the reciprocal of `self.powi(|n|)`, and `n == 0`
     /// yields [`Real::one`] for every **non-poisoned** input. Poison
@@ -597,6 +611,11 @@ impl Real for f64 {
     /// platform, trivially D9-compliant.
     fn abs(self) -> Self {
         f64::abs(self)
+    }
+
+    /// `f64`'s one poison value is NaN.
+    fn is_poison(self) -> bool {
+        self.is_nan()
     }
 
     /// [`powi_by_squaring`] behind a poison guard: `NaN⁰` is NaN, not 1 —
