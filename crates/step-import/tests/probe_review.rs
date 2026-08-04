@@ -517,3 +517,21 @@ fn a6_unit_edges() {
         Err(e) => println!("a6 micro refused: {e}"),
     }
 }
+
+/// A6: a second, different length scale in one file must refuse.
+#[test]
+fn a6_two_length_scales_refuse() {
+    let orig = fixture("box");
+    let t = orig.replace(
+        "#167 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );",
+        "#167 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.) );",
+    );
+    assert_ne!(t, orig);
+    match import_step(&t, &ImportOptions::default()) {
+        Err(e) => {
+            let s = e.to_string();
+            println!("a6two refused: {}", &s[..s.len().min(120)]);
+        }
+        Ok(_) => println!("a6two LAUNDERED: two length scales accepted"),
+    }
+}
