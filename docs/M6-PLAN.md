@@ -28,6 +28,13 @@ M8 = error propagation (ERROR-DESIGN, renumbered).
    analytic-chart pcurve completion (sphere/cone/torus — walk
    row 4). Closes walk rows 4, 5, 12(a); shape (iii)'s loft body
    and the cut-loft row go green here.
+   *Rider (ratified by Evan 👍, #175 thread, 2026-08-04):*
+   `tube_along_arc(arc, minor_radius)` — a world-coordinate
+   direct tube/torus door storing intent parameters exactly;
+   collapses lily findings 11 (silent sketch-frame placement)
+   and the revolve minor-radius reconstruction drift into one
+   constructor, routed through the same torus-body builder
+   (no semantic fork between doors).
 4. **Census/declared-contact design doc** (DESIGN-ONLY): the OQ5
    deferral + ball-and-socket + interference fits + conformal
    contact (#161 §2, relocated out of M7 per #169). Co-designed

@@ -1,5 +1,7 @@
 # Memory Index
 
+- [Concurrent orchestrators](concurrent-orchestrators.md) — M6 + M7 orchestrators run concurrently on different accounts (Evan 2026-08-04); static 1+1 cargo-slot split via cargo-slots.txt; scope fence; separate watchlists; A/B blocks prefixed per milestone
+
 - [CAD project state](cad-project-state.md) — M0–M5 COMPLETE (35 PRs, exit walk 13/7/0, #89 closed K=10); milestones renumbered M6=main-path/M7=adoption/M8=error-prop; M6 in flight (live status = docs/M6-LOG.md tail); gate = hosted nextest matrix
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants

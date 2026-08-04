@@ -307,3 +307,316 @@ owed to the next A/B-eligible dispatch (expected: unit 3
 loft/sweep assembly). Spec substrate exploration in flight;
 binding spec precedes dispatch per standing process. The two
 cargo-lane slots are M6-2 + globe-lily.
+
+**M6-2 DISPATCHED (2026-08-04)**: binding spec docs/M6-2-SPEC.md
+merged to main via #173 (docs-only state sync); implementer on
+lane m6-2-ssi-lift, branch ev/m6-ssi-lift, PR held for
+adversarial review.
+
+**Bazel verdict DELIVERED (2026-08-04): NO** (report:
+~/.local/share/cad-work/bazel-verdict-report.md; no builds run).
+The measured case: baseline post-#167 run = 17.6 min wall /
+~79 billed min, wall 100% compile-gated — but dependency caching
+already fully hits (Swatinem, 225 pkgs warm), and **96% of the
+8.6-min build job is the 261 test binaries** (249 declared
+`[[test]]` targets ≈330 lines each, each re-monomorphizing the
+generic kernel and relinking the graph). Bazel would rebuild
+those same actions: touching geom-core invalidates 249/249,
+the mid-tier crates 71%; median PR cache-hit on the expensive
+actions 0–29%. gmp/mpfr is NOT a CI cost (quarantined excluded
+workspace, 0.3–0.5 min). rules_rust pre-1.0 + a third
+hand-mirrored build config = real carrying cost for a cache that
+misses. **Ranked alternatives** (saving ÷ effort): (1) collapse
+249 test crates → ~12 aggregators (−7 min wall, ~−14 billed
+min/run, ~half a day, mechanical; nextest sharding unaffected);
+(2) `CARGO_PROFILE_TEST_DEBUG=line-tables-only` (one line);
+(3) mold/lld; (4) 8-vCPU runner for the two build jobs (billing —
+Evan's call); (5) sccache-GHA (same funnel, same misses); cranelift
+explicitly NOT recommended (D9 bit-identity risk). Disconfirming
+test named: land (1)+(2) and re-measure — if the build job doesn't
+drop 8.6 → ~2.5 min, the 96% measurement was wrong and Bazel
+reopens. **Orchestrator ruling**: alternatives (1)+(2)+(3) are the
+follow-up phase under Evan's add-on (a) (the goal is CI speed;
+same lane, still Opus/A/B-exempt, CI-infra class per rows 16/41
+precedent — validated by hosted-CI timing, not a blinded lane);
+QUEUED until a cargo-lane slot frees. (4) left for Evan.
+**Evan APPROVED all four including the bigger runner** (#173
+comment, 2026-08-04: "yes, please go ahead with those including
+the bigger runner"). Split into: Phase A (config-only, no cargo —
+line-tables-only + mold + 8-vCPU on the two build jobs; same
+agent, branch ev/ci-speed-config, PR with before/after CI
+timings, orchestrator merges) dispatched immediately; Phase B
+(the 249→~12 test-crate collapse) held for a free cargo-lane
+slot. Also relayed to the globe-lily lane per Evan's same-thread
+ask: commit+push renders the moment they're generated.
+
+**CI-speed Phase A MERGED as #174 (2026-08-04)**: mold +
+line-tables-only on the two build jobs, job-level env (rust-cache
+hashes CARGO_*/RUST* into its key — step-level knobs would desync
+the fingerprint forever; one cold rebuild paid at merge). Measured
+on the PR's own full-matrix runs: wall 17.6 → 14.2 min (−19%),
+billed ~79 → ~67 (−15%), default-build compile 514 → 320 s warm
+(−38%), interval −20%; same 261-binary archive in and out.
+Item 4 NOT landable: larger runners need an org on Team/Enterprise
+and the repo is User-owned — landed as the BUILD_RUNNER repo
+variable (unset ⇒ ubuntu-latest), with the recorded caveat that
+larger-runner minutes bill SEPARATELY (the report's
+billing-neutral assumption was wrong). Runner is 2 vCPU (not 4 —
+provenance step prints nproc), which RAISES Phase B's expected
+value. Deviation accepted: --no-verify push (fmt hook invokes
+cargo; diff was yml+sh only). One GHA flake noted (download-
+artifact hang, cancelled+rerun clean) — watch, unrelated.
+Evan told on #173. Phase B (249→~12 collapse) still HELD for a
+cargo-lane slot; stale #167 watchlist entry cleared.
+
+**Globe lily COMPLETE (2026-08-04): PR #175 open, 27/27 green,
+adversarial review dispatched into the freed lane slot.** Eight
+closed analytic solids (torus-segment stem turtle, two
+truncated-zone lanterns with cone mouths, three extruded two-arc
+crescent leaves), every one through the full ladder; sheets grown
+to 18 cells both lanes; lily_lantern STEP fixture = the corpus's
+first no-pole spherical face (degenerate-edge normalisation 0 —
+the control for that pin); reversed-face pin 89→91 with
+derivation; +10,462 K-probe samples; `wall_probes` pins seven
+refusals LIVE. **The fourteen walls** (full list = PR #175
+description): findings 1-2 (tangent curved contacts — G1 tube
+unions, flower∪stem) corroborate UNIT 4; finding 6 (bare revolve
+un-filletable: seam meridian TangentialEdge margin 0 — no
+booleans needed) independently corroborates UNIT 5; findings 8-10
+(no sweep/loft Body door, no taper, no petal membrane)
+corroborate UNIT 3. New API-ergonomics items for later triage:
+revolve axis in sketch coords with SILENT placement risk (11),
+unchecked frame orthonormality (12), tessellation δ budgeted per
+body by ring radius not feature size — stem 76k triangles vs
+lantern 2.3k at 0.53% volume error, visible in the render (13),
+no near-tangency distance query (14). Positive: analytic export
+round-trips with kernel censuses unchanged (no OCC
+normalisation), volumes to ≤1.4e-14 of closed forms. Phase B
+STILL held — it restructures test crates across every crate and
+would conflict with BOTH open lanes; it dispatches only after
+M6-2 and the lily merge.
+
+**Lily review returned (2026-08-04): APPROVE-WITH-FIXES,
+0 MAJ / 2 MIN / 4 NOTE — every substantive claim confirmed by
+execution.** Highlights: all 8 closed-form volumes independently
+re-derived (lantern BIT-IDENTICAL; the leaves' apparent 3e-13
+adjudicated to the REVIEWER's formula conditioning — acos- vs
+asin-form — with an fsum'd Simpson oracle; the PR's 1.4e-14 is
+tight and honest); the silent-placement risk (finding 11) proven
+by a mutation witness no existing test catches — the adopted
+stored-geometry G1/placement probe fails loud on it; the seven
+walls fire verbatim at the claimed sites; the 89→91 pin derived
+not fudged; committed renders regenerate pixel-identical.
+MIN-1: `wall()` variant-blind (Err-ness only — drifted refusals
+would stay green); MIN-2: README "every one carries .F." false
+(17 of 20). NOTE-2 is an INHERITED main-side item for the
+orchestrator ledger: committed montage legacy cells 1-8 are not
+reproducible from the committed per-scene PNGs (FreeCAD-rendered
+cells vs matplotlib-fallback files) — identical on main,
+pre-existing. Fix pass dispatched to the implementer lane
+(adopt review/lily probes + MIN-1/2 + NOTEs 1/3 cheap takes).
+
+**CPU PIN LIVE (2026-08-04, caught by the review's NOTE-4,
+confirmed by orchestrator canary: 19.66s vs 0.75s at session
+start)** — the box is at base clock, builds ~20×. Evan notified
+(terminal push + #173 comment; Vantage poke needed). Lanes
+continue, slowly.
+
+**M6-2 implementation COMPLETE (2026-08-04): PR #176 open, all
+six spec-§4 acceptance rows reported MET, NINE numbered
+deviations (none silent), blinded adversarial review
+DISPATCHED** (spec-conformance + rubric; assigned attacks:
+the EnvelopeStatement/OnLocusHull adjudication against the walk
+row's C2 clause, dev 1's f64-Newton-under-Bounds Interval
+semantics, a reviewer-planted second-species corruption, the
+Box3 bracket seam, the Copy-drop ripple, sweep completeness).
+Implementation shape: Box3 lifted at the SEAM under sole-bound
+`T: Bounds` (no allowlist entry needed); projection lifted with
+f64 Newton + T residuals (dev 1); certify closure generic with
+`SsiCertificate<T>`; `Pcurve::Fitted(Arc<NurbsCurve2<T>>)` with
+`PcurveFittedLane` static split (f64/Probe/Interval certified,
+Dual refusing typed) and `PropsQuadLane` gaining it as a
+supertrait (dev 2/3); `EnvelopeStatement` making the
+envelope's claim-form explicit (MapResidual*/OnLocusHull);
+UnsupportedCarrier retired via S9 flip; at-rest row + planted
+wrong-carrier corruption + Interval enclosure row in
+topo/tests/m6_2_fitted_at_rest.rs; vacuity pin renamed to
+no_export_corpus_body_carries_a_nurbs_carrier_or_face.
+Battery targeted under the CPU pin (dev 9; canary 9.7s at the
+time) — hosted CI is the gate.
+
+**M6-2 review returned (2026-08-04): APPROVE-WITH-FIXES,
+1 MAJ / 4 MIN / 5 NOTE, 0 silent deviations (clause-by-clause
+spec diff), all nine reported deviations UPHELD.** The
+adjudications that matter: (1) OnLocusHull is HONEST by the walk
+row's own letter — the row's text cites the SsiCertificate
+machinery whose limb-2 hull bound has been sup|f_S∘C| since M5
+PR 7; the statement enum ADDS honesty. The real residue is now
+PINNED by a reviewer probe: a between-samples image displacement
+(exact basis locality, all 9 schedule samples bit-identical,
+~1e-3 m drift between them) certifies cleanly — the documented
+statement boundary; every current consumer of between-samples
+images refuses typed. (2) Dev 1's f64-midpoint Newton is SOUND:
+certificates claim residuals AT the structural point, evaluated
+at T — widened inputs widen and refuse; never understate; the
+split-impl would have certified nothing extra while breaking
+cross-lane bit-identity of the selected pair. (3) The corruption
+rows have teeth — foreign-arc rejected for the RIGHT reason;
+reviewer's second-species corruption (sub-interval cache, honest
+numbers) caught by the loop-continuity walk, now pinned as the
+net that catches it. MAJ-1 = hosted CI RED on one unused import
+(topo test), which SKIPPED the whole hosted interval matrix —
+row 1's hosted evidence missing; the fix is one line + green
+re-run, but the gate is the gate. Fix pass dispatched (inherits
+the arm): import + header contradiction + dead sentinel arm
+(typed-error preferred) + string continuations + domination-row
+on_locus_max + adopt review/m6-2's three probes.
+**Banked follow-up (pre-existing, M5)**: probe_tube_chart's uv
+pad divides by an UPPER speed bound while its comment claims the
+wide-pad direction — flag from this review, not this PR's to fix.
+
+**Lily MERGED as #175 (2026-08-04).** Fix pass: probes adopted
+by merge (authorship kept); all seven wall pins variant+payload
+strict with three-outcome structure (pinned narrate / MOVED
+panic / retired panic); the fix pass CORRECTED THE REVIEW twice
+with cross-checked methods (the .F. claim is 13/20 — the review
+forgot the four pre-existing zero-carriers; the stored
+minor_radius is 56 ulps off, not 4) and caught an
+excessive_precision clippy red the probes would have hit at the
+gate. NEW finding 15: naming CurvedBooleanUnsupported's payload
+type forced a geom-brep dep in demos/tour — topo does not
+re-export its own error payload types. Findings now FIFTEEN.
+Lanes cleaned (globe-lily 1.9G, lily-review 444M; the review
+lane's modified renders were its NOTE-2 regeneration evidence,
+discarded after checkout). CPU still pinned (canary 21.4s at
+merge). A/B: exempt add-on lane (Evan ruling), no row.
+Ergonomics ledger for triage at the next planning seam:
+findings 11 (silent revolve placement — world-coordinate axis
+or tube_along_arc), 12 (unchecked frame orthonormality),
+13 (tessellation δ budgeted by ring radius not feature size),
+14 (no near-tangency margin query), 15 (error payload
+re-exports).
+
+**tube_along_arc RATIFIED as a unit-3 rider (Evan 👍 on the
+#175 design reply, 2026-08-04)** — plan amended in place.
+Findings 11 + the minor-radius drift close there; ledger items
+12-15 remain for the next planning seam.
+
+**#176 fixture disposition (Evan's design probe on the PR
+thread, 2026-08-04)**: Evan questioned the Leg C
+refit-a-quarter construction. Orchestrator adjudication after
+reading the fixture + APIs: the refit is defensible (public
+doors re-derive everything — fit provenance never enters the
+certificate's trust chain; it reproduces the fit_branch OQ4
+idiom; hands the corruption row its second arc) but NOT the
+best available — SsiBranch already carries its own fitted
+pcurves and split_at/insert_knot exist, so the fixture can
+knot-split the kernel's OWN pair, which is strictly closer to
+the walk row's intent; the current comment's knot-split
+contrast is also wrong (splitting preserves shared
+parameterization; only [0,1] renormalization differs). Added
+to the open fix pass as item 7 (split preferred; refit-kept
+fallback requires the honest comment; certified numbers must
+not move — stop-and-report if they do). The scaffold caveat
+stays documented either way: the row re-anchors to a
+constructor-built body when the banked join lane lands.
+Awaiting Evan's 👍 on the disposition (watchlisted).
+Evan APPROVED the split disposition in comment form and amended
+the fallback ladder: before any refit fallback, consider letting
+the stored fitted parameterization run [0,L] / general [a,b]
+with the bounds stored as data (relayed to the fix pass as the
+middle rung; each descent requires a concrete stated blocker).
+**Evan also asked the fixture question OF ALL NINE deviations**
+("that deviation was the one i was most unsure about, but there
+were others that felt off too") — a read-only design audit is
+DISPATCHED: per deviation, the actually-available alternative
+space (the split_at-discovery pattern), verification of each
+justification's factual claims against the code, verdict
+RIGHT / RIGHT-BUT-MISDOCUMENTED / SHORTCUT / FORK with cost.
+Orchestrator rules per item on its report; forks escalate to
+Evan.
+
+**Phase B UNBLOCKED EARLY (Evan, in-chat, 2026-08-04: start on
+what the live work can't affect).** Scope carve-out replaces the
+blanket hold: collapse every crate EXCEPT those whose test tree
+#176's diff touches (agent computes exclusions from the PR diff;
+expect topo + step-export at least); excluded crates follow in a
+small second PR post-merge. sweep (60 targets) + editor-core
+(51) ≈ 45% of the win, zero overlap. Validation under the pin:
+cargo check --tests per crate + nextest list roster
+reconciliation (count-exact before/after); hosted CI is gate and
+measurement. Branch ev/ci-test-collapse, same agent.
+
+**Design audit RETURNED + RULED (2026-08-04, posted to #176)**:
+7 of 8 audited deviations RIGHT (devs 4/5 explicitly
+anti-shortcuts; dev 1's audit note: the SPEC's split-impl
+suggestion was the inferior ask — Decide has exactly one method
+and Band-routing the structural ε's would add an Indeterminate
+Newton arm and pollute the K census). Two finds: dev 7
+RIGHT-BUT-MISDOCUMENTED ("Copy is load-bearing" asserted, not
+demonstrated — containers are Debug/Clone-only, flows move) →
+fix-pass item 8 (honest doc rewrite or compile witness); dev 9
+scope gap (local battery omitted geom-brep interval row) → merge
+gate includes explicit confirmation the hosted interval shards
+run the geom-brep suites. Fix pass = items 1-8 + dev-9
+confirmation; merge on fully green matrix. Evan's instinct
+("others felt off too") found exactly the two real soft spots.
+
+**M6-2 MERGED as #176 (2026-08-04): WALK ROW 2 IS NON-VACUOUS.**
+Fix pass discharged all 8 items + the dev-9 hosted confirmation
+(interval shards run 17 geom-brep binaries incl. pcurve_conic).
+Item 7 landed at ladder rung (a): the at-rest fixture's carrier
+is now cylinder_sphere_ssi's OWN marched-and-fitted curve
+restricted by split_at (exact knot insertion; PcurveCache
+already stores general [a,b] bounds, so the sub-arcs keep
+natural [0,0.25]/[0.5,0.75] domains — the normalization blocker
+never bit). The chart image stays fixture-interpolated for a
+VERIFIED reason: the ℝ³ implicit lane returns pcurve_a/b = None
+(finish_r3) — no kernel-minted image exists to restrict; the
+scaffold caveat is documented (row re-anchors when the join
+lane lands). MINOR-2 took the typed error (2-line ripple);
+shift_branch answers Option (clippy::panic is denied — the
+louder-than-clone legal form). One self-caught overclaim
+stop-and-reported: the cross-scalar envelope identity assertion
+was falsified by the hosted ε=1e-6 row (the tube ladder's
+extent evaluates at T and can select a different rung) — now
+thinness + on_locus_max dominance with the reason documented.
+Blinding note, resolved: three reachable commits carry the
+harness trailer (two via the main merge = #174's, one the
+reviewer's own probe commit); all 11 implementer commits clean;
+no blinded party still active; no history rewritten. A/B row
+RECORDED AT MERGE (the M5 readout's discipline). Lanes to
+clean; unit 3 next (FABLE, block-21 remainder).
+
+**CONCURRENT M7 ORCHESTRATOR (Evan, in-chat, 2026-08-04)**:
+Evan starts a second orchestrator on another account (this
+account's Fable limit expected today). Protocol ratified in
+chat and recorded in memories/concurrent-orchestrators.md +
+the briefing ~/.local/share/cad-work/handoff-prompt-m7.md:
+static 1+1 cargo-slot split (cargo-slots.txt), M7 scope fence
+(new import crate + tests + M7-PLAN only; export-pin changes
+via design-conversation PR), separate sign-off watchlist, A/B
+continues with M7-prefixed blocks, GitHub as the
+cross-orchestrator channel.
+
+**M6-4 (contact design doc) STARTED EARLY (Evan, in-chat):**
+design-only, no lane — Fable design agent drafting
+docs/CONTACT-DESIGN.md (C-numbered proposals; census by local
+geometry; declared contact as data; ball-and-socket /
+interference / cylindrical / G1 tube chains worked; M8
+signed-clearance co-design; OQ5 disposition). Orchestrator
+meta-review then design-conversation PR — WAITS for Evan.
+
+**M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
+exploration (which read post-#176 origin/main): six legs
+(builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
+two tier-3 flips with the placeholder/described discriminator;
+volume-only flux with rational walls refusing typed — shape
+(iii) is a POLYLINE loft; B_SPLINE_SURFACE_WITH_KNOTS both
+forms; analytic-chart completion routing closed-form-harmonic
+vs Fitted/OnLocusHull per class; tube_along_arc rider with
+bit-exact storage pin). Dispatch (FABLE, block-21 remainder,
+difficulty L logged pre-assignment at task creation) WAITS for
+the ev/ci-test-collapse PR to merge — the collapse is
+restructuring the exact test trees this unit touches, and my
+one cargo slot (under the 1+1 split) is occupied by it.
