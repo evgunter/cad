@@ -1,0 +1,38 @@
+# In-house STEP AP214 analytic-subset IMPORT reader (M7-1; D7 "import
+# is adoption, not admission"). The inverse of `step-export`'s subset:
+# Part 21 substrate, AP214 entity resolution, and Euler-operator
+# topology assembly into first-class kernel bodies. Import layer like
+# `step-export`: f64-only, not scalar-generic (the file is decimal
+# text; f64 is the honest carrier — M7-1 spec §3).
+[package]
+name = "step-import"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards the interval feature so the workspace-wide `--features
+# interval` lane builds uniformly (the reader itself is f64-only; the
+# feature only propagates to dependencies).
+interval = ["topo/interval"]
+
+[dependencies]
+# The reader rebuilds finished kernel bodies: Euler-operator assembly
+# and geometry attachment through `topo`'s public doors, carriers and
+# surfaces from the geometry crates, tolerance machinery from
+# geom-core.
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
+topo = { path = "../topo" }
+
+[dev-dependencies]
+# Round-trip oracle: the committed corpus fixtures are re-exported
+# through the writer and compared (fixed-point row). A normal
+# dependency per the M7-1 spec §0 (dev, reported): nothing in the
+# import path itself consumes the writer.
+step-export = { path = "../step-export" }
