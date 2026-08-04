@@ -263,22 +263,34 @@ fn probe_near_parallel_axis_never_answers_wrong() {
     }
 }
 
-/// PROBE 7 (door corrected in adoption): strictly nested sphere×sphere.
-/// The scan's nested arm is UNREACHABLE for this class: the inner
-/// ball's edges always sit inside the outer sphere's face box (the
-/// whole outer ball), so the sweep examines a conic-edge × curved-face
-/// pair and the pierce frontier fires first — typed, both strategies.
-/// The nested arm stays as defense-in-depth behind that structural
-/// door (a nested pair that somehow produced no examined pairs would
-/// still classify soundly rather than probe vertices blind).
+/// PROBE 7 (door corrected in adoption; FLIPPED at the M6 rider —
+/// history kept per the S9 pattern): strictly nested sphere×sphere.
+///
+/// At M5 the inner ball's circle edges hit the UNCONDITIONAL
+/// conic-carrier pierce arm, so this pinned a typed refusal and the
+/// scan's nested arm sat shadowed behind it as defense-in-depth. The
+/// M6 rider (`bool_circle_curved_clearance`) proves the inner ball's
+/// circles DEFINITELY inside the outer sphere and the outer ball's
+/// circles definitely outside the inner one — no examined pair
+/// survives — so the pair reaches the containment walk, whose
+/// whole-sphere arm (both operands are CLOSED sphere groups) answers
+/// soundly: the union of a ball and a ball nested inside it is the
+/// outer ball. The shadowed arm turned out to be a fully working
+/// door, and this row now pins the ANSWER instead of the mask.
 #[test]
-fn probe_nested_spheres_refuse_typed_at_the_pierce_frontier() {
+fn probe_nested_spheres_union_to_the_outer_ball() {
+    use core::f64::consts::PI;
     let big = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
     let small = ball_at(0.3, Vec3::new(2.0, 2.0, 0.2));
-    let err = topo::union(&big, &small).expect_err("nested spheres meet the pierce frontier");
-    let BooleanError::CurvedPierceUnsupported { .. } = err else {
-        panic!("expected the pierce frontier, got {err:?}");
-    };
+    let out = topo::union(&big, &small).expect("the whole-sphere containment arm answers");
+    let body = &out.body().expect("a body").body;
+    assert_eq!(body.shells().count(), 1, "one shell: the outer ball");
+    let vol = topo::mass_properties(body).unwrap().volume;
+    let want = 4.0 * PI / 3.0;
+    assert!(
+        (vol - want).abs() <= 1e-9 * want,
+        "the union IS the outer ball: {vol} vs {want}"
+    );
 }
 
 /// PROBE 8: dense tilted-plane residual sweep for the C5 circle —

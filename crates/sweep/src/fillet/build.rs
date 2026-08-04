@@ -9,21 +9,24 @@
 //! ("if the battery returns `Ok`, construction cannot fail for a
 //! geometric reason") is kept by construction order, not by hope.
 //!
-//! # The one assembly front door (OQ6's constructive residue)
+//! # The two assembly front doors
 //!
 //! The kernel has no face-soup constructor: bodies come only from
-//! Euler operators. The general in-place edge-blend surgery — split
-//! the supports, retract their boundaries onto the trimlines, stitch
-//! the blend in — is its own reviewed unit, banked. What ships here is
-//! the **whole-body** case that needs no surgery at all, because every
-//! face of the result is minted fresh:
+//! Euler operators. This module ships the **whole-body** rebuild —
+//! every face of the result minted fresh:
 //!
 //! > fillet EVERY edge of a convex, planar-faced, trivalent-vertex
 //! > polyhedron.
 //!
-//! Everything else refuses typed through
-//! [`FilletError::AssemblyUnsupported`], which names that missing
-//! front door (the `FullRevolveHoles` precedent).
+//! Every other admissible request routes to the in-place edge-blend
+//! **composition surgery** ([`super::surgery`], M6 unit 1): split the
+//! supports along the stored trimlines, excise the strips, graft the
+//! blends — which is what carries a face's RINGS through and what
+//! replaces a pip rim with a torus band. The whole-body path is kept
+//! (not subsumed) so its M5 outputs stay bit-preserved. What neither
+//! door covers refuses typed through
+//! [`FilletError::AssemblyUnsupported`], naming the remaining gap
+//! (the `FullRevolveHoles` precedent).
 //!
 //! # The derived result, stated once
 //!
@@ -106,6 +109,10 @@ pub struct Filleted<T: Real> {
     /// The corner faces — the sphere patches, one per original
     /// vertex, in original-vertex order.
     pub corner_faces: Vec<FaceKey>,
+    /// The torus band faces — one per CLOSED chain (the rim blends),
+    /// in first-link-edge order. Empty on the whole-body path, which
+    /// admits no closed chains (M6 surgery unit).
+    pub band_faces: Vec<FaceKey>,
 }
 
 /// **Fillet every edge of a convex, planar-faced, trivalent-vertex
@@ -129,6 +136,18 @@ pub fn fillet_edges<T: Decide + Bounds>(
     radius: T,
     band: Band,
 ) -> Result<Filleted<T>, FilletError> {
+    // A repeated edge is malformed for BOTH doors (the chain walk
+    // would double a link), so it refuses before the battery samples
+    // anything.
+    let mut requested = edges.to_vec();
+    requested.sort_unstable();
+    requested.dedup();
+    if requested.len() != edges.len() {
+        return Err(FilletError::AssemblyUnsupported {
+            detail: "the request repeats an edge",
+        });
+    }
+
     // ---- The ordering contract: verdict first, unchanged. ----
     let request = FilletRequest {
         body,
@@ -137,10 +156,19 @@ pub fn fillet_edges<T: Decide + Bounds>(
     };
     let verdict = run_battery(&request, band)?;
 
-    // ---- Then, and only then, the front-door check. ----
-    let links = whole_body_links(body, edges, &verdict.chains)?;
-    let plan = Plan::derive(body, &links, radius)?;
-    plan.assemble()
+    // ---- Then the front doors: the whole-body rebuild when the
+    // request is exactly that shape (bit-preserved — the M5 path),
+    // otherwise the in-place composition surgery (M6 unit 1). ----
+    match whole_body_links(body, edges, &verdict.chains) {
+        Ok(links) => {
+            let plan = Plan::derive(body, &links, radius)?;
+            plan.assemble()
+        }
+        Err(FilletError::AssemblyUnsupported { .. }) => {
+            super::surgery::fillet_surgery(body, &verdict, band)
+        }
+        Err(other) => Err(other),
+    }
 }
 
 /// The assembly front door, stated as a predicate over the request
@@ -213,7 +241,7 @@ fn whole_body_links<'a, T: Decide>(
 }
 
 /// A face's boundary cycle (outer loop, cycle order).
-fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
+pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
     let f = body.get_face(face)?;
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer)?.boundary else {
         return None;
@@ -222,7 +250,7 @@ fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKe
 }
 
 /// The distinct faces around a vertex, in orbit order.
-fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<FaceKey>> {
+pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<FaceKey>> {
     let he = body.get_vertex(vertex)?.emanating?;
     let mut faces = Vec::new();
     for h in body.vertex_orbit(he)? {
@@ -234,9 +262,55 @@ fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<Face
     Some(faces)
 }
 
+/// The octant's chart pick at one trivalent corner (fix pass F2,
+/// extracted at the M6 surgery unit — one implementation for both
+/// assembly doors). The criterion: the octant is an iso-parameter
+/// rectangle exactly when the chart is aimed along an incident edge
+/// whose axis `n_a × n_b` the THIRD support's normal is parallel to,
+/// so the pick minimizes `|n_c × axis|` over the incident requested
+/// links, ORDER-FREE — it finds the admitting edge whenever one
+/// exists and degrades to "no chart admits this trihedron" (the
+/// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
+/// none does. Returns `(u_ref, axis)` — the seam is the picked
+/// link's first support normal.
+pub(super) fn octant_chart<T: Decide + Bounds>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    faces: &[FaceKey],
+    links: &[&Link<T>],
+) -> Result<(Vec3<T>, Vec3<T>), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let mut best: Option<(f64, Vec3<T>, Vec3<T>)> = None;
+    for l in links
+        .iter()
+        .filter(|l| l.start == vertex || l.end == vertex)
+    {
+        let (Some(n_a), Some(n_b)) = (outward_of(body, l.face_a), outward_of(body, l.face_b))
+        else {
+            return Err(unsupported("a corner edge has a non-planar support"));
+        };
+        let axis = n_a.cross(n_b).normalize();
+        // The third support of the corner — the one this edge does
+        // not touch. `faces` is the vertex's three, so the complement
+        // is a single face.
+        let Some(&f_c) = faces.iter().find(|f| **f != l.face_a && **f != l.face_b) else {
+            continue;
+        };
+        let Some(n_c) = outward_of(body, f_c) else {
+            return Err(unsupported("a corner edge has a non-planar support"));
+        };
+        let score = n_c.cross(axis).norm().lo().abs();
+        if best.as_ref().is_none_or(|(s, _, _)| score < *s) {
+            best = Some((score, n_a, axis));
+        }
+    }
+    let (_, n_a, axis) = best.ok_or_else(|| unsupported("a vertex has no requested edge"))?;
+    Ok((n_a, axis))
+}
+
 /// A planar face's OUTWARD normal: the stored plane normal folded
 /// through the stored sense bit (S10 category A — never sampled).
-fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec3<T>> {
+pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface)? {
         Surface::Plane { normal, .. } => Some(*normal * f.sense_sign::<T>()),
@@ -349,45 +423,11 @@ impl<T: Decide + Bounds> Plan<T> {
             // second gives the axis its sign (so `u` sweeps forward
             // from the seam) and the first foot IS the seam.
             //
-            // **Which incident edge (fix pass F2).** The criterion is
-            // the one the paragraph above states, so it is the one
-            // the code must apply: among the three incident edges,
-            // take the edge whose chart axis `n_a × n_b` the THIRD
-            // support's normal is parallel to. Picking the first
-            // incident edge in link order instead — as this did until
-            // the reviewer's hexagonal prism caught it — satisfies the
-            // criterion only when every choice happens to satisfy it
-            // (a cube) or when the arena order is lucky, and silently
-            // costs tier 3 on a corner face of every other prism that
-            // DOES admit the chart. The pick below is order-free: it
-            // minimizes `|n_c × axis|` over the three candidates, so
-            // it finds the admitting edge whenever one exists and
-            // degrades to "no chart admits this trihedron" (the
-            // genuinely oblique case) only when none does.
-            let mut best: Option<(f64, Vec3<T>, Vec3<T>)> = None;
-            for l in links.iter().filter(|l| l.start == v || l.end == v) {
-                let (Some(n_a), Some(n_b)) =
-                    (outward_of(body, l.face_a), outward_of(body, l.face_b))
-                else {
-                    return Err(unsupported("a corner edge has a non-planar support"));
-                };
-                let axis = n_a.cross(n_b).normalize();
-                // The third support of the corner — the one this edge
-                // does not touch. `faces` is the vertex's three, so
-                // the complement is a single face.
-                let Some(&f_c) = faces.iter().find(|f| **f != l.face_a && **f != l.face_b) else {
-                    continue;
-                };
-                let Some(n_c) = outward_of(body, f_c) else {
-                    return Err(unsupported("a corner edge has a non-planar support"));
-                };
-                let score = n_c.cross(axis).norm().lo().abs();
-                if best.as_ref().is_none_or(|(s, _, _)| score < *s) {
-                    best = Some((score, n_a, axis));
-                }
-            }
-            let (_, n_a, axis) =
-                best.ok_or_else(|| unsupported("a vertex has no requested edge"))?;
+            // **Which incident edge (fix pass F2).** See
+            // [`octant_chart`] — extracted at the M6 surgery unit so
+            // both assembly doors take the SAME order-free pick, with
+            // the arithmetic unchanged.
+            let (u_ref, axis) = octant_chart(body, v, &faces, links)?;
             corners.push((
                 v,
                 ball.center,
@@ -395,7 +435,7 @@ impl<T: Decide + Bounds> Plan<T> {
                     center: ball.center,
                     radius,
                     axis,
-                    u_ref: n_a,
+                    u_ref,
                 },
             ));
         }
@@ -747,6 +787,7 @@ impl<T: Decide + Bounds> Plan<T> {
         Ok(Filleted {
             blend_faces: bucket(FaceKind::Blend),
             corner_faces: bucket(FaceKind::Corner),
+            band_faces: Vec::new(),
             body: state.body,
             solid: seed.solid,
             shell: seed.shell,

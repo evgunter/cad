@@ -1,0 +1,19 @@
+# The M6 composed die: the pipped cube (21 balls, one group cut)
+# filleted IN PLACE — twelve box-edge blends with every pip rim
+# carried through as a ring, then all 21 rims replaced by slit-seamed
+# torus bands. Four elementary surface kinds in one solid (plane,
+# cylinder, sphere, torus), every carrier a line or a circle, meeting
+# along TANGENT trimlines; the bands' slit meridians are Seam edges.
+#
+# Kernel counts are 89 faces / 195 edges / 129 vertices. OCC keeps
+# the faces and vertices and splits periodic carriers at their seams
+# (the filleted_die/ball/donut accounting), so its edge count exceeds
+# the kernel's. The volume is the Pappus closed form
+# (Steiner blank − 21·(cap + rim-torus term)) — FreeCAD's own measure
+# reproduces it to sub-mm³ on a ~0.95 m³ body.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=89
+EXPECT_EDGES=245
+EXPECT_VERTICES=129
+EXPECT_VOLUME_MM3=952914984

@@ -646,15 +646,20 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     Ok(())
 }
 
-/// The curved-face sweep arm (M5 PR 9, C12.1): endpoint sides come
-/// from the linearized implicit residual; a definite miss is PROVEN
-/// (the residual along a line is convex — both-inside means no wall
-/// crossing, both-outside clears through the span minimum); anything
-/// that definitely meets the face refuses typed at the named frontier
-/// door ([`BooleanError::CurvedPierceUnsupported`] — curved
-/// point-in-face containment at boolean classification does not exist
-/// yet), and an in-band clearance escalates (F6, the same margin's
-/// other half). Never a silent fallback.
+/// The curved-face sweep arm (M5 PR 9, C12.1; circle rider M6
+/// unit 1): endpoint sides come from the linearized implicit
+/// residual; a definite miss is PROVEN — for a LINE carrier the
+/// residual is convex (both-inside means no wall crossing,
+/// both-outside clears through the span minimum), and for a CIRCLE
+/// carrier the whole circle's residual range has exact harmonic
+/// bounds ([`geom_brep::circle_residual_extremes`]), so a definitely
+/// one-sided circle clears. Anything that definitely meets the face
+/// refuses typed at the named frontier door
+/// ([`BooleanError::CurvedPierceUnsupported`] — curved point-in-face
+/// containment at boolean classification does not exist yet), and an
+/// in-band clearance escalates (F6, the same margin's other half).
+/// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
+/// silent fallback.
 #[allow(clippy::too_many_arguments)]
 fn curved_face_arm<T: Decide>(
     x: &Body<T>,
@@ -708,10 +713,41 @@ fn curved_face_arm<T: Decide>(
             });
         }
     };
-    // Conic carriers against a curved face have no cheap definite-miss
-    // proof at M5: examined ⇒ the frontier door, typed.
-    if !matches!(curve.carrier(), geom_curves::Curve3::Line { .. }) {
-        return Err(frontier());
+    // Conic carriers (M6 surgery unit, the door-A rider): a CIRCLE
+    // carrier now gets a definite-miss verdict in closed form — its
+    // implicit residual over the WHOLE circle is a degree-≤2
+    // trigonometric polynomial against a sphere/cylinder (the
+    // `circle_span_bounds` harmonic algebra), so the range has exact
+    // amplitude bounds (`geom_brep::circle_residual_extremes`).
+    // Definitely one-sided — the whole circle strictly outside, or
+    // strictly inside — means no wall crossing (margin
+    // `max(lo, −hi)` > 0, meters); anything else keeps the typed
+    // frontier door, and an in-band clearance escalates
+    // (two-tolerance on the new arm, definite ones included). Judging
+    // the FULL circle for an arc is conservative in the safe
+    // direction: it can only send more pairs to the frontier.
+    // Ellipse/NURBS carriers keep the M5 unconditional door.
+    match *curve.carrier() {
+        geom_curves::Curve3::Line { .. } => {}
+        geom_curves::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let Some((lo, hi)) =
+                geom_brep::circle_residual_extremes(&surface, center, axis, radius, u_ref)
+            else {
+                return Err(frontier());
+            };
+            let margin = lo.max(-hi);
+            return match decide("bool_circle_curved_clearance", margin, band) {
+                Ok(Sign::Positive) => Ok(()),
+                Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
+                Err(diag) => Err(BooleanError::Escalated { diag }),
+            };
+        }
+        _ => return Err(frontier()),
     }
     let side = |p: Point3<T>| {
         decide(

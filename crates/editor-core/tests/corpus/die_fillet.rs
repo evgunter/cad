@@ -13,36 +13,34 @@
 //! document: the bump edits the EXTRUDE's distance, the fillet node
 //! recomputes downstream of it, and there is no selection to repair.
 //!
-//! # NOT in the corpus registry (yet), and exactly why
+//! # REGISTERED — and the blocker that once held it out
 //!
-//! This document is written to registry shape — a [`CorpusDoc`] with a
-//! bump, ready for `documents()` — but it is deliberately NOT listed
-//! there, because registry membership carries the INTERVAL lane
-//! (`m4_pr8_corpus_interval.rs`, `m4_pr6_roundtrip_interval.rs`) and
-//! the fillet op does not survive it:
+//! This document is listed in `corpus/mod.rs::documents()`, so it
+//! carries the full registry battery, INTERVAL lane included
+//! (`m4_pr8_corpus_interval.rs`, `m4_pr6_roundtrip_interval.rs`), and
+//! `Fillet` is a COVERED node kind in the vocabulary tally.
 //!
-//! > `battery.rs`'s clearance screen seeds its pair gap with
-//! > `T::from_f64(f64::INFINITY)` and folds the sampled distances in
+//! It spent PR 12 outside that registry, deliberately, because the
+//! fillet op did not survive the Interval lane:
+//!
+//! > `battery.rs`'s clearance screen seeded its pair gap with
+//! > `T::from_f64(f64::INFINITY)` and folded the sampled distances in
 //! > with `min`. At `f64` that sentinel is ordinary; at the certified
 //! > `Interval` scalar `from_f64` POISONS non-reals — `±∞` embeds as
 //! > NaI (`dec: Ill`) — and NaI absorbs through `min`, so the margin
-//! > reaching `decide` is NaN and the op refuses
+//! > reaching `decide` was NaN and the op refused
 //! > `Escalated { site: Chain, predicate: "fillet3_face_clearance",
-//! > margin: Invalid }`. It fires for every request with at least one
+//! > margin: Invalid }`. It fired for every request with at least one
 //! > non-adjacent boundary-edge pair, i.e. every prism, i.e. every
 //! > fillet this recipe layer can express.
 //!
-//! That is a one-line fix in `sweep/src/fillet/battery.rs` (seed the
-//! gap from the first sampled pair instead of ±∞) owned by the sweep
-//! lane, not something to paper over here — a registered document that
-//! reds the Interval lane, or an Interval lane taught to skip a
-//! document, would both be worse than saying so. Both scalars are
-//! PINNED, executed, in `m5_pr12_fillet_node.rs`: the `f64` row asserts
-//! the blank builds and validates, the Interval row asserts the exact
-//! refusal above and fails the moment it stops happening. Registering
-//! this document is then one line in `corpus/mod.rs::documents()` plus
-//! deleting the `Fillet` entry from `m4_pr8_corpus.rs`'s
-//! `FRONTIER_UNCOVERED`.
+//! Holding the document out — rather than registering one that reds
+//! the Interval lane, or teaching that lane to skip a document — kept
+//! the gap stated instead of papered over, and `m5_pr12_fillet_node.rs`
+//! pinned the refusal EXACTLY so it would retire itself. It did: the
+//! gate fix at `5c8540f` seeds the gap from the first sampled pair,
+//! the fillet op joined the certified lane, and this document joined
+//! the registry. That file's Interval row now asserts GREEN.
 //!
 //! # No mass pin
 //!

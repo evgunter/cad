@@ -289,7 +289,14 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "die",
             caption: String::new(),
-            montage: true,
+            // Montage cell RETIRED by the M6 curation unit. Its unique
+            // content is 21 SEQUENTIAL planar subtracts with seamed
+            // single-ring pockets — and chaining DEPTH is not a visual
+            // property; `plate`'s holes already show the rings. The
+            // fixture keeps every other role it has (corpus document,
+            // latency row, STEP golden, standalone render); only the
+            // sheet cell goes. `diepips` is the sheet's die now.
+            montage: false,
             story: "the die: 21 pip pockets across all six faces (opposite faces sum to 7)",
             ops: "extrude 22 boxes -> 21 sequential subtract nodes (Seamed single-ring pockets)",
             delta: 1e-2,

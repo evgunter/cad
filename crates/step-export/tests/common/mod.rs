@@ -426,6 +426,21 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         // plane, cylinder AND sphere faces meeting along TANGENT
         // trimlines, straight ones and circular ones.
         ("filleted_die", filleted_die()),
+        // The OTHER half of PR 12's die, taken by the M6 curation unit
+        // (M5 exit-walk row 12): the pipped cube. Its STEP export was
+        // verified BY HAND only, through the tour's `diepips` render;
+        // here it joins the CI-gated corpus like every other shipped
+        // body. Twenty-one spherical dimples cut in ONE group
+        // operation, so every pip mouth is a ring in a planar face
+        // whose carrier is an exact circle and whose floor is a
+        // sphere patch — the writer's plane-with-many-rings arm and
+        // its curved-ring pairing, on one solid.
+        ("die_pips", die_pips()),
+        // The M6 composed die (unit 1): blank + 21 pips + 21 rim TORUS
+        // bands in ONE body (the composition surgery). Adds the
+        // writer's first fillet-minted TOROIDAL_SURFACEs (slit-seamed
+        // annuli) alongside every kind the blank already carries.
+        ("composed_die", composed_die()),
     ]
 }
 
@@ -452,6 +467,155 @@ pub fn filleted_die() -> Body<f64> {
         .body
 }
 
+/// The M5 PR 12 pipped die: a SHARP unit cube with 21 spherical
+/// dimples — the classical layout, face `n` carrying `n` pips and
+/// opposite faces summing to seven — cut in ONE group subtraction.
+///
+/// Each pip ball has radius 0.09 and is centred 0.09 − 0.05 OUTSIDE
+/// its face plane, so the removed volume is exactly a spherical cap of
+/// height 0.05, and each ball is charted with its POLE along the
+/// cutting face's normal (the split-join's azimuth-anchored arc-side
+/// rule needs a polar section — a tilted chart refuses typed). The
+/// same recipe the tour's `diepips` stop and
+/// `sweep/tests/m5_pr12_die.rs` build, spelled once more here because
+/// the fixture corpus builds through the public API only.
+pub fn die_pips() -> Body<f64> {
+    use core::f64::consts::PI;
+
+    use geom_core::Affine3;
+    use profile::ProfileVertex;
+    use sweep::{Revolution, RevolveAxis, revolve};
+    use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+
+    const L: f64 = 1.0;
+    const PIP_R: f64 = 0.09;
+    const PIP_H: f64 = 0.05;
+    const PIP_D: f64 = 0.22;
+
+    // A radius-PIP_R ball at the origin, poles on the sketch axis.
+    let unit_ball = || -> Body<f64> {
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex {
+                pos: Point2::new(0.0, -PIP_R),
+                bulge: 1.0,
+            },
+            ProfileVertex {
+                pos: Point2::new(0.0, PIP_R),
+                bulge: 0.0,
+            },
+        ]);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tolerance::get())
+            .unwrap();
+        revolve(
+            &vp,
+            RevolveAxis {
+                origin: Point2::new(0.0, 0.0),
+                dir: geom_core::Vec2::new(0.0, 1.0),
+            },
+            Revolution::Full,
+        )
+        .unwrap()
+        .body
+    };
+    // The same ball, rotated so its pole lies along `pole`, then moved
+    // to `c`.
+    let poled = |c: Vec3<f64>, pole: Vec3<f64>| -> Body<f64> {
+        let b = unit_ball();
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let axis = y.cross(pole);
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let placed = if axis.norm() < 1e-12 {
+            if y.dot(pole) > 0.0 {
+                b
+            } else {
+                topo::transform_rigid(
+                    &b,
+                    &Affine3::rotation_about_axis(origin, Vec3::new(1.0, 0.0, 0.0), PI),
+                )
+                .unwrap()
+            }
+        } else {
+            topo::transform_rigid(
+                &b,
+                &Affine3::rotation_about_axis(
+                    origin,
+                    axis.normalize(),
+                    y.dot(pole).clamp(-1.0, 1.0).acos(),
+                ),
+            )
+            .unwrap()
+        };
+        topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
+    };
+    // The classical 2-D pip layout of face value `n`, in units of
+    // PIP_D about the face centre.
+    let layout = |n: u32| -> Vec<(f64, f64)> {
+        let c = vec![(0.0, 0.0)];
+        let diag = vec![(-1.0, -1.0), (1.0, 1.0)];
+        let anti = vec![(-1.0, 1.0), (1.0, -1.0)];
+        let sides = vec![(-1.0, 0.0), (1.0, 0.0)];
+        match n {
+            1 => c,
+            2 => diag,
+            3 => [diag.clone(), c].concat(),
+            4 => [diag.clone(), anti.clone()].concat(),
+            5 => [diag.clone(), anti.clone(), c].concat(),
+            _ => [diag, anti, sides].concat(),
+        }
+    };
+    let v = Vec3::new;
+    let h = L / 2.0;
+    // (face value, outward normal, the two in-face axes).
+    type Face = (u32, Vec3<f64>, Vec3<f64>, Vec3<f64>);
+    let faces: [Face; 6] = [
+        (1, v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
+        (6, v(0.0, 0.0, -1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
+        (2, v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)),
+        (5, v(-1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)),
+        (3, v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+        (4, v(0.0, -1.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+    ];
+    let mut places = Vec::new();
+    for (n, normal, ex, ey) in faces {
+        let base = v(h, h, h) + normal * (h + (PIP_R - PIP_H));
+        for (u, w) in layout(n) {
+            places.push((base + ex * (u * PIP_D) + ey * (w * PIP_D), normal));
+        }
+    }
+    assert_eq!(places.len(), 21, "21 pips, opposite faces summing to 7");
+
+    // One tool of 21 disjoint sphere shells, then ONE subtraction.
+    let mut tool = poled(places[0].0, places[0].1);
+    for (c, n) in &places[1..] {
+        tool = boolean_op_with(
+            BooleanOp::Union,
+            &tool,
+            &poled(*c, *n),
+            &topo::BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+        )
+        .expect("the pip tool assembles")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    }
+    assert_eq!(tool.shells().count(), 21, "21 disjoint sphere shells");
+    boolean_op_with(
+        BooleanOp::Subtract,
+        &brick((0.0, L), (0.0, L), (0.0, L)),
+        &tool,
+        &topo::BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+    )
+    .expect("the pips cut")
+    .body()
+    .expect("a body")
+    .body
+    .clone()
+}
+
 /// Census tuple (faces, edges, vertices) of a body — the kernel-side
 /// oracle the parse-back reconstruction must match.
 pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
@@ -460,4 +624,62 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
         body.edges().count(),
         body.vertices().count(),
     )
+}
+
+/// The M6 composed die (unit 1): [`die_pips`]'s pipped cube filleted
+/// IN PLACE — the twelve box edges blended with every pip rim carried
+/// through as a ring, then all 21 rims replaced by slit-seamed torus
+/// bands. The geometry is `sweep/tests/m6_surgery.rs`'s, constant for
+/// constant (blend r = 0.12, rim r = 0.02).
+pub fn composed_die() -> Body<f64> {
+    use sweep::fillet::build::fillet_edges;
+
+    let tol = Tolerance::get();
+    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
+    let (die_r, rim_r) = (0.12, 0.02);
+    let pipped = die_pips();
+    let box_edges: Vec<topo::EdgeKey> = pipped
+        .edges()
+        .filter(|(_, e)| {
+            pipped
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let blanked = fillet_edges(&pipped, &box_edges, die_r, band)
+        .expect("the box edges blend in place")
+        .body;
+    let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
+        b.get_face(f)
+            .and_then(|fd| b.get_surface(fd.surface))
+            .is_some_and(|s| {
+                if want_plane {
+                    matches!(s, geom_surfaces::Surface::Plane { .. })
+                } else {
+                    matches!(s, geom_surfaces::Surface::Sphere { .. })
+                }
+            })
+    };
+    let rims: Vec<topo::EdgeKey> = blanked
+        .edges()
+        .filter(|(_, e)| {
+            let face_of = |he| {
+                let h = blanked.get_half_edge(he)?;
+                Some(blanked.get_loop(h.parent_loop)?.face)
+            };
+            match (face_of(e.he_plus), face_of(e.he_minus)) {
+                (Some(fa), Some(fb)) => {
+                    (is_kind(&blanked, fa, true) && is_kind(&blanked, fb, false))
+                        || (is_kind(&blanked, fa, false) && is_kind(&blanked, fb, true))
+                }
+                _ => false,
+            }
+        })
+        .map(|(k, _)| k)
+        .collect();
+    fillet_edges(&blanked, &rims, rim_r, band)
+        .expect("the rims blend to torus bands")
+        .body
 }

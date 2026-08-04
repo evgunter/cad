@@ -43,6 +43,7 @@ use topo::Body;
 pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod heatsink;
@@ -127,16 +128,25 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
+        // `die_fillet` IS registered, as of the PR 12 gate fix
+        // `5c8540f`. It was held out while the fillet battery's
+        // clearance screen seeded a gap with
+        // `T::from_f64(f64::INFINITY)` — NaI at the Interval scalar,
+        // so the document was green at `f64` and refused under
+        // `--features interval`, which registry membership requires.
+        // That sentinel is gone; the document runs the Interval lane
+        // like every other row. It stays additionally pinned at both
+        // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
         die_pips::document(),
-        // `die_fillet::document()` is NOT here, and its module docs say
-        // why: the fillet battery's clearance screen seeds a gap with
-        // `T::from_f64(f64::INFINITY)`, which is NaI at the Interval
-        // scalar, so the document is green at `f64` and refuses under
-        // `--features interval` — and registry membership means the
-        // Interval lane. It is pinned, at both scalars, by
-        // `m5_pr12_fillet_node.rs`; registering it is a one-line change
-        // the moment the sentinel goes.
+        // `die_composed::document()` is NOT here, and its module docs
+        // say why: `Node::Fillet` is every-edge BY DESIGN (no stable
+        // edge names to go stale), and every pipped body carries cap
+        // MERIDIAN edges — two half-caps on one sphere, no wedge —
+        // which the battery honestly refuses as `TangentialEdge`. The
+        // composed die needs an edge-selection vocabulary the recipe
+        // layer does not have (the N4 fillet-naming emitter, banked).
+        // Pinned, executed, in `m6_composed_node.rs`.
     ]
 }
 
@@ -194,11 +204,11 @@ pub const NODE_KINDS: [&str; 12] = [
     "Profile",
     "Extrude",
     "Revolve",
-    // M5 PR 12's constant-radius rolling-ball fillet. In the DOMAIN,
-    // at zero coverage, for the same reason `Loft`/`Sweep` are: the
-    // document exists (`die_fillet`) and is green at `f64`, but the op
-    // refuses at the Interval scalar, which registry membership
-    // requires. See `documents()` and `m5_pr12_fillet_node.rs`.
+    // M5 PR 12's constant-radius rolling-ball fillet — COVERED, by
+    // the registered `die_fillet` document (the Interval-scalar
+    // blocker that once held it out of the registry is gone; see
+    // `documents()`). Not an exemption: `Loft`/`Sweep` below still
+    // are.
     "Fillet",
     "Split",
     "Boolean",

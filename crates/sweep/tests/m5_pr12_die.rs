@@ -325,28 +325,33 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **DEVIATION 1, pinned at both of its doors.** The blank and the
-/// pips do not compose at M5, and the two orderings fail at two
-/// DIFFERENT pre-existing frontiers — recorded here as rows so the
-/// next unit inherits the exact blockers rather than a paragraph.
+/// **DEVIATION 1, FLIPPED at both doors** (M6 unit 1 — kept, per the
+/// S9 pattern, as the record of the two frontiers it used to pin;
+/// its M5 name was `deviation_1_the_blank_and_the_pips_do_not_compose_yet`).
 ///
-/// - *Fillet then pip*: the boolean has **no definite-miss certificate
-///   for a conic carrier against a curved face**, so it refuses at the
-///   curved pierce door (point-in-face trim containment on a curved
-///   chart, plus the ring insertion behind it — the M5 envelope's
-///   named frontier). Note what this is NOT (fix pass F4): it is not a
-///   clearance verdict. The reviewer measured the true clearance
-///   between the named pair — a pip ball's seam circle and a corner
-///   blend cylinder — at 1.6 cm; the arm is unconditional for conic
-///   carriers and fires regardless of how far apart they are.
-/// - *Pip then fillet*: the pipped cube is tier-3 valid and all twelve
-///   box edges survive it, but they are no longer EVERY edge of the
-///   body — the assembly front door rebuilds a whole polyhedron and
-///   does not carry a face's RINGS through, which is the in-place
-///   edge-blend surgery banked as its own unit.
+/// - *Fillet then pip* (door A) refused at the curved pierce door
+///   because the conic-carrier arm was UNCONDITIONAL — the reviewer
+///   measured the true clearance of the named pair at 1.6 cm and it
+///   refused anyway (fix pass F4). The M6 rider gives CIRCLE carriers
+///   a definite-miss verdict in closed form
+///   (`bool_circle_curved_clearance`, the `circle_span_bounds`
+///   harmonic algebra), so every far pair now CLEARS and the ordering
+///   marches past the reduce stage entirely — to its REAL frontier:
+///   the containment stage's `PartialSphereFace` door (the blank's
+///   octants are trimmed sphere faces, and the whole-sphere
+///   containment class has no chart-trim extent for them — the M5
+///   PR 9c door, reached honestly instead of masked by an
+///   unconditional arm). Door A is still typed, one stage deeper.
+/// - *Pip then fillet* (door B) refused at the whole-body assembly
+///   door (rings not carried). The in-place composition surgery now
+///   takes it and the ordering COMPOSES: the twelve box edges blend
+///   in place with every pip rim carried through. The full
+///   composed-die ladder (tier 3, closed forms, watertight, rim tori)
+///   lives in `m6_surgery.rs`.
 #[test]
-fn deviation_1_the_blank_and_the_pips_do_not_compose_yet() {
-    // Door A: fillet then pip.
+fn deviation_1_flipped_door_b_composes_door_a_reaches_its_real_frontier() {
+    // Door A: fillet then pip — past the pierce door (the rider),
+    // refusing typed at the containment stage's named frontier.
     let err = boolean_op_with(
         BooleanOp::Subtract,
         &blank(),
@@ -354,14 +359,14 @@ fn deviation_1_the_blank_and_the_pips_do_not_compose_yet() {
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
     )
-    .expect_err("no definite-miss certificate exists for conic carriers at M5");
+    .expect_err("trimmed sphere faces have no containment extent yet");
     let text = format!("{err}");
     assert!(
-        text.contains("curved") && text.contains("does not exist yet"),
-        "the refusal must name the missing door: {text}"
+        text.contains("trimmed") && text.contains("sphere"),
+        "door A's refusal names the partial-sphere containment door, not the pierce          door the rider retired: {text}"
     );
 
-    // Door B: pip then fillet.
+    // Door B: pip then fillet — the surgery composes.
     let cube0 = cube(DIE_L);
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
@@ -370,11 +375,14 @@ fn deviation_1_the_blank_and_the_pips_do_not_compose_yet() {
         .filter(|k| pipped.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
-    let err = fillet_edges(&pipped, &surviving, DIE_R, band())
-        .expect_err("the assembly front door is EVERY edge of the body");
-    let text = format!("{err}");
+    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, band())
+        .expect("the in-place surgery takes the subset request (M6 unit 1)")
+        .body;
+    assert_eq!(topo::validate_geometric(&via_surgery), Ok(()), "tier 3");
+    let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
+    let vb = topo::mass_properties(&via_surgery).unwrap().volume;
     assert!(
-        text.contains("not implemented"),
-        "the refusal must name the banked surgery: {text}"
+        (vb - want).abs() <= 1e-9 * want,
+        "door B volume {vb} vs closed form {want}"
     );
 }
