@@ -122,3 +122,10 @@ derivations, don't relax); the box's CPU can pin at base clock
 after sleep (canary: 10M-iteration python sum ≈0.9s healthy,
 ≈15-19s pinned — Lenovo Vantage fixed it once, no restart
 needed).
+
+(Hygiene note for a lull, 2026-08-04: the interval-square
+tripwire has false-positived twice on `a * a.dot(x)` — vector ×
+projection. A negative lookahead excluding method-call
+continuations (`\1\b(?!\s*\.)` in the grep -P pattern, both
+ci.yml and ci-local.sh) would retire the class; the two named-
+binding restructures stay as they are.)
