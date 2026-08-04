@@ -127,6 +127,127 @@ fn expect(name: &str) -> Expect {
     }
 }
 
+/// The corpus's smallest cylindrical feature radius in kernel metres:
+/// `gen.py`'s `makeFillet(0.25, …)` — 0.25 mm. The bore and the
+/// cylinder wall are twice that; nothing round in the corpus is
+/// smaller.
+const SMALLEST_ROUND_FEATURE_M: f64 = 2.5e-4;
+
+/// The ambient-ε ceiling above which **this corpus is below the
+/// kernel's own tolerance scale**, and the rows that certify it stop
+/// being meaningful.
+///
+/// # The finding (reported, not worked around)
+///
+/// FreeCAD authors in millimetres, so the adopted bodies are about
+/// **1000× smaller** than the kernel's own metre-scale corpus: the
+/// whole cylinder fixture is 1 mm tall and 0.5 mm in radius. The
+/// kernel's ambient ε is an ABSOLUTE length, and so are the K
+/// ambiguity bands around every certification predicate. Raising ε to
+/// 1e-6 m therefore does not make this corpus 1000× easier the way it
+/// does the native one — it makes it 1000× *harder*, because ε is now
+/// a fifth of a percent of the smallest round feature.
+///
+/// What the kernel does about that is exactly right, and is the reason
+/// this is a ceiling and not a bug: it **refuses, typed**, at the
+/// pcurve certification gate ("MapResidual at sample 1 definitely
+/// exceeds the tolerance band"; at 1e-7 the refusal names the
+/// predicate and its band: `pcurve_chart_radial_moving` margin 5e-7
+/// inside `[zero 1e-7, escalate 1e-6]` — "coincident at any precision
+/// you could care about"). Nothing is silently accepted. Measured,
+/// end to end:
+///
+/// | ambient ε | outcome |
+/// |---|---|
+/// | 1e-12, 1e-9 (default), 1e-8 | all 13 import, all three tiers green |
+/// | 1e-7 | the 4 fixtures with cylindrical charts refuse typed; `cone_trunc` imports but its tier-3 check goes red — an **in-band K landing**: `props_rim_level_group` margin 5.590169943747308e-7 inside `Band { zero: 1e-7, escalate: 1e-6 }`, i.e. the cone's own rim-level separation (0.559 mm) sitting exactly where the ambiguity band is at that ε. Reported as a headline finding, never retuned. |
+/// | 1e-6, 1e-5 | the same 4 refuse typed; the other 9 import with all three tiers green |
+///
+/// Only cylinder charts are affected because only cylinder charts
+/// **mint** pcurves today; the other analytic charts are
+/// derive-on-demand and never reach this gate.
+///
+/// The ceiling is set at the finest ε measured to hold the whole
+/// corpus (1e-8 m — 4e-5 of the smallest round feature); the true
+/// boundary lies between there and 1e-7. Above it the certifying rows
+/// **skip loudly** and
+/// [`sub_tolerance_geometry_is_refused_not_silently_imported`] takes
+/// over, pinning the claim that actually matters at any ε: a body the
+/// kernel cannot certify at the ambient tolerance is REFUSED, never
+/// handed out wrong.
+const CORPUS_EPS_CEILING: f64 = 1e-8;
+
+/// Whether the ambient ε is fine enough for this millimetre corpus to
+/// certify; prints a loud skip naming the numbers when it is not.
+fn corpus_scale_gate(row: &str) -> bool {
+    let eps = geom_core::Tolerance::get().eps;
+    if eps <= CORPUS_EPS_CEILING {
+        return true;
+    }
+    println!(
+        "{row}: SKIP — ambient ε {eps:e} m exceeds the ceiling {CORPUS_EPS_CEILING:e} m for a \
+         millimetre-authored corpus (ε is {:.1e} of the smallest round feature, \
+         {SMALLEST_ROUND_FEATURE_M:e} m). The kernel refuses this geometry typed at that \
+         tolerance rather than certifying it; \
+         `sub_tolerance_geometry_is_refused_not_silently_imported` pins that.",
+        eps / SMALLEST_ROUND_FEATURE_M
+    );
+    false
+}
+
+/// **The scale finding's own row, live at every ε.** Whatever the
+/// ambient tolerance, a fixture either imports as a body the kernel's
+/// structural tiers accept, or it refuses TYPED. What must never
+/// happen — and is what a quiet gate-widening would produce — is a
+/// body that imports and is then not a solid.
+///
+/// Below [`CORPUS_EPS_CEILING`] every fixture takes the first arm (the
+/// full rows assert the rest). Above it, at least one must take the
+/// second, or the ceiling is fiction.
+#[test]
+fn sub_tolerance_geometry_is_refused_not_silently_imported() {
+    let eps = geom_core::Tolerance::get().eps;
+    let mut refused = Vec::new();
+    for name in FREECAD_FIXTURES {
+        let text = freecad_fixture(name);
+        match import_step(&text, &ImportOptions::default()) {
+            Ok(StepImport::Solid { body, .. }) => {
+                assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1 at ε {eps:e}");
+                assert_eq!(
+                    topo::validate_closed(&body),
+                    Ok(()),
+                    "{name}: tier 2 at ε {eps:e}"
+                );
+            }
+            Ok(StepImport::Wireframe { .. }) => panic!("{name}: not a wireframe"),
+            Err(e) => {
+                // A refusal is fine; a refusal that says nothing is not.
+                let text = e.to_string();
+                assert!(
+                    text.starts_with("step import:") && text.len() > 40,
+                    "{name}: a refusal must name what it refused: {text}"
+                );
+                refused.push(format!("{name}: {text}"));
+            }
+        }
+    }
+    if eps <= CORPUS_EPS_CEILING {
+        assert!(
+            refused.is_empty(),
+            "at ε {eps:e} the whole corpus must certify, but: {refused:?}"
+        );
+    } else {
+        for r in &refused {
+            println!("sub-tolerance refusal at ε {eps:e} — {r}");
+        }
+        assert!(
+            !refused.is_empty(),
+            "at ε {eps:e} — coarser than the stated ceiling — the millimetre corpus must \
+             hit the kernel's certification gates; if nothing refuses, the ceiling is wrong"
+        );
+    }
+}
+
 /// Imports a FreeCAD fixture, panicking on refusal.
 fn import_freecad(name: &str) -> StepImport {
     let text = freecad_fixture(name);
@@ -159,6 +280,9 @@ fn freecad_body(
 /// validity ladder is green at default ε.
 #[test]
 fn foreign_corpus() {
+    if !corpus_scale_gate("foreign_corpus") {
+        return;
+    }
     for name in FREECAD_FIXTURES {
         let (body, _eps, normalizations) = freecad_body(name);
         let e = expect(name);
@@ -203,6 +327,9 @@ fn foreign_corpus() {
 /// kernel minted in its place. Nothing here is silent.
 #[test]
 fn structure_normalizations_are_reported_with_their_census_mapping() {
+    if !corpus_scale_gate("structure_normalizations") {
+        return;
+    }
     use step_import::{FaceCensus, NormalizationKind};
     let cases = [
         // sphere.step #17: ADVANCED_FACE over the whole sphere, its
@@ -282,6 +409,9 @@ fn structure_normalizations_are_reported_with_their_census_mapping() {
 /// about the foreign dialect survives as a wobble.
 #[test]
 fn cross_dialect_fixed_point() {
+    if !corpus_scale_gate("cross_dialect_fixed_point") {
+        return;
+    }
     for name in FREECAD_FIXTURES {
         let options = step_export::StepOptions {
             product_name: name.to_owned(),
@@ -497,6 +627,9 @@ fn face_bound_orientation_is_honored_independently_of_face_sense() {
 /// bore as outer would make those faces disks instead of annuli.)
 #[test]
 fn outerness_is_inferred_on_the_multi_ring_fixture() {
+    if !corpus_scale_gate("outerness_is_inferred_on_the_multi_ring_fixture") {
+        return;
+    }
     let (body, _, _) = freecad_body("box_hole");
     let cycle_len = |lk: topo::LoopKey| -> usize {
         let Some(topo::LoopBoundary::Cycle { first }) = body.get_loop(lk).map(|l| l.boundary)
@@ -567,6 +700,9 @@ fn ambiguous_outerness_refuses_typed() {
 /// `-0.`, and nothing the importer produces does.
 #[test]
 fn negative_zeros_normalize_at_translation() {
+    if !corpus_scale_gate("negative_zeros_normalize_at_translation") {
+        return;
+    }
     for name in FREECAD_FIXTURES {
         let text = freecad_fixture(name);
         assert!(text.contains("-0."), "{name}: the source dialect has -0.");
@@ -704,6 +840,9 @@ fn refusals_survive_the_dialect_relaxations() {
 /// The per-call override still wins over the file, unchanged from M7-1.
 #[test]
 fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
+    if !corpus_scale_gate("eps_in_is_the_scaled_declaration_and_the_override_wins") {
+        return;
+    }
     for name in FREECAD_FIXTURES {
         let text = freecad_fixture(name);
         assert!(
@@ -742,6 +881,9 @@ fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
 /// that knows nothing about their printed text.
 #[test]
 fn pi_derived_truncation_adopts_under_the_flat_budget() {
+    if !corpus_scale_gate("pi_derived_truncation") {
+        return;
+    }
     for (name, printed, exact) in [
         ("cone_apex", "0.785398163397", std::f64::consts::FRAC_PI_4),
         ("cone_trunc", "0.463647609001", 0.5_f64.atan()),
@@ -783,6 +925,9 @@ fn pi_derived_truncation_adopts_under_the_flat_budget() {
 /// round trip and is untouched.)
 #[test]
 fn freecad_oracle_reads_back_every_reexported_fixture() {
+    if !corpus_scale_gate("freecad_oracle") {
+        return;
+    }
     let freecadcmd = std::env::var("FREECADCMD").unwrap_or_else(|_| {
         format!(
             "{}/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd",
