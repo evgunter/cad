@@ -31,6 +31,59 @@ concurrency:
 #   * DOC-TESTS DO NOT RUN under nextest — the workspace has real
 #     doctests (incl. compile_fail blocks only the doctest runner
 #     exercises), so each build job keeps a `cargo test --doc` step.
+#
+# LINK/DEBUGINFO KNOBS ON THE TWO BUILD JOBS (2026-08-04, from the
+# Bazel-verdict measurement; Evan approved items 2/3/4 of its ranked
+# alternatives). The verdict was NO to Bazel, on this evidence from run
+# 30884593286: the `rebuild latency` job compiles all 10 workspace libs
+# from scratch plus ONE test binary in 20.16 s, while `build + archive`
+# compiles the same libs plus 261 binaries in 8 m 34 s (514 s). So ~494 s
+# (96%) of the build job is the 261 test-binary codegen+link actions,
+# ~1.9 s each. Bazel caches actions; it does not make them cheaper, and
+# the reverse-dep funnel (touching geom-core invalidates 249/249 test
+# binaries; 6 of the last 16 crate-touching merges did exactly that)
+# means the cache would miss anyway. So: attack the per-binary cost.
+#
+#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   261 static links of a ~40-rlib
+#     graph were running on GNU ld. CI-ONLY: it rides the build jobs'
+#     `env:`, NOT .cargo/config.toml, so local builds keep the default
+#     linker. `-fuse-ld=` is a LINK argument, not a codegen flag: it
+#     cannot move rounding or instruction selection, so D9 determinism
+#     and the interval backend are untouched. (scripts/gate.sh's RUSTFLAGS
+#     hazard note is about codegen flags and about a warm local target/
+#     re-fingerprinting; it already unsets RUSTFLAGS, so this cannot leak
+#     into the local gate.)
+#   CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only   CI was emitting
+#     full DWARF across 261 binaries and then throwing it away at link
+#     (CARGO_PROFILE_TEST_STRIP=debuginfo, kept below for the 500 MB
+#     artifact quota). Stripping already forfeited line numbers, so this
+#     loses nothing CI had; function names in backtraces survive.
+#
+#   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive):
+#     default build compile step   514 s -> 389 s  (-24%)
+#     interval build compile step  618 s -> 495 s  (-20%)
+#   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
+#   standard GitHub-hosted for a private repo; the Bazel report's "4 vCPU"
+#   was wrong). That is why 261 independent link/codegen units are so
+#   expensive here, and why item 1 (collapsing 249 test crates into ~12)
+#   is still the big one.
+#   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
+#     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
+#     GitHub-hosted larger runners require an ORGANIZATION on Team or
+#     Enterprise Cloud, and evgunter/cad is a User-owned private repo
+#     (`gh api repos/evgunter/cad --jq .owner.type` ⇒ "User"). Hard-coding
+#     a larger-runner label would fail the build job with "no runner
+#     matching labels" and take the whole gate — and the two build jobs
+#     are the gate's critical path. The variable makes it a one-setting
+#     flip if the repo ever moves under an org. Note also that larger-
+#     runner minutes are billed SEPARATELY from the included-minutes
+#     allowance this repo's change filter exists to protect.
+#
+# NOT MIRRORED into scripts/ci-local.sh, deliberately: these are hosted-
+# runner performance knobs, not gate semantics. No job is added, removed
+# or re-scoped, the same targets are compiled and the same tests run, so
+# the local gate stays byte-for-byte equivalent in what it PROVES. The
+# mirror convention covers the matrix, not the runner's linker.
 env:
   NEXTEST_VERSION: "0.9.140"
 
@@ -305,7 +358,9 @@ jobs:
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
   build:
     name: build + archive (default)
-    runs-on: ubuntu-latest
+    # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
+    # Unset today, so this is `ubuntu-latest` and nothing changes.
+    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
     # Test-speed handling lives in Cargo.toml as per-package opt-level
@@ -313,24 +368,39 @@ jobs:
     # via profile env here was measured net-slower on core-crate PRs
     # (#52/#53 timings) because every push recompiles the changed crate
     # graph at opt 2.
+    #
+    # JOB-LEVEL, not step-level, on purpose: Swatinem/rust-cache hashes
+    # env vars prefixed CARGO_/RUST* into its cache key, and it runs
+    # BEFORE the build step. Step-level knobs (like the CARGO_PROFILE_
+    # TEST_STRIP this replaces) are invisible to it, so cargo's
+    # fingerprint would disagree with the restored cache on every run and
+    # rust-cache would never re-save. Job-level means exactly one cold
+    # rebuild per knob change, then warm forever.
+    env:
+      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
     steps:
       - uses: actions/checkout@v4
+      # mold: this job's cost is 261 static links of a ~40-rlib graph
+      # (measured: 494 of the build step's 514 s is the 261 test
+      # binaries). CI-ONLY — the flag rides RUSTFLAGS in this job's env,
+      # never .cargo/config.toml, so local builds and scripts/ci-local.sh
+      # keep the default linker and need no mirrored row.
+      - name: install mold
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: runner + linker provenance (for perf attribution)
+        run: nproc && free -g | head -2 && mold --version
       - name: install cargo-nextest (pinned, official prebuilt)
         run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
       # Scoped by the filter (`--workspace` or `-p <closure>`), same as the
       # per-row `cargo test` this replaces: the archive CONTAINS exactly
       # the closure's test binaries, so the run rows need no re-scoping.
-      # CARGO_PROFILE_TEST_STRIP=debuginfo is a CI-ONLY link knob: the
-      # test executables are almost all DWARF, and the artifact quota on
-      # this private repo is small (500 MB). Symbol names survive
-      # (backtraces keep function names, lose line numbers); local builds
-      # and the local gate are untouched.
       - name: build test binaries + archive
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
-        env:
-          CARGO_PROFILE_TEST_STRIP: debuginfo
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
       # already up, so the failure can be investigated / re-run without
@@ -399,15 +469,27 @@ jobs:
   # test binaries for the `test-interval` matrix below.
   build-interval:
     name: build + archive (interval)
-    runs-on: ubuntu-latest
+    # Same BUILD_RUNNER variable as the default build job; unset today.
+    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
+    # Same link/debuginfo knobs, same job-level-not-step-level reasoning,
+    # as the default build job — see the LINK/DEBUGINFO note at the top.
+    # This job is the run's critical path (11.9 of the 17.6 min wall on
+    # run 30884593286), so it is the one that most wants them.
+    env:
+      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
     steps:
       - uses: actions/checkout@v4
       # The `interval` feature's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
-      # job installs no system packages and needs no C toolchain:
-      # checkout, toolchain, cache, cargo.
+      # job needs no C toolchain. mold is the one system package, and it
+      # is a linker for the 261 links, not a dependency of the graph.
+      - name: install mold
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
       - uses: dtolnay/rust-toolchain@stable
       # CACHE SEPARATION (verified against the action's source,
       # 2026-07-30): this job builds a DIFFERENT feature set from the
@@ -426,18 +508,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
+      - name: runner + linker provenance (for perf attribution)
+        run: nproc && free -g | head -2 && mold --version
       - name: install cargo-nextest (pinned, official prebuilt)
         run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
       # Archive first, upload immediately (the legs still wait on the
       # whole job via `needs`; the early upload means a clippy/doc-test
       # failure leaves the archive available for investigation). This job
       # is the run's critical path (measured on #167): keep it lean.
-      # Same strip rationale as the default build job (CI-only link knob,
-      # artifact quota; symbols survive).
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
-        env:
-          CARGO_PROFILE_TEST_STRIP: debuginfo
       - uses: actions/upload-artifact@v4
         with:
           name: nextest-interval
