@@ -198,6 +198,12 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 "LINE",
             ],
         ),
+        // The M6 curation addition: 21 spherical dimples in a sharp
+        // cube — planes, sphere caps, and their exact circle rims.
+        (
+            "die_pips",
+            &["PLANE", "SPHERICAL_SURFACE", "CIRCLE", "LINE"],
+        ),
     ];
     for (name, body) in curved_corpus() {
         let text = export(&body, name);
