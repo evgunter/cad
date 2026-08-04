@@ -521,3 +521,17 @@ not move — stop-and-report if they do). The scaffold caveat
 stays documented either way: the row re-anchors to a
 constructor-built body when the banked join lane lands.
 Awaiting Evan's 👍 on the disposition (watchlisted).
+Evan APPROVED the split disposition in comment form and amended
+the fallback ladder: before any refit fallback, consider letting
+the stored fitted parameterization run [0,L] / general [a,b]
+with the bounds stored as data (relayed to the fix pass as the
+middle rung; each descent requires a concrete stated blocker).
+**Evan also asked the fixture question OF ALL NINE deviations**
+("that deviation was the one i was most unsure about, but there
+were others that felt off too") — a read-only design audit is
+DISPATCHED: per deviation, the actually-available alternative
+space (the split_at-discovery pattern), verification of each
+justification's factual claims against the code, verdict
+RIGHT / RIGHT-BUT-MISDOCUMENTED / SHORTCUT / FORK with cost.
+Orchestrator rules per item on its report; forks escalate to
+Evan.
