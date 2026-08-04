@@ -29,17 +29,19 @@ tests read the committed files, staying hermetic without FreeCAD).
   default ε_in, D7's rule unchanged).
 - Parse negative zeros (normalize to +0.0 at translation, stated)
   and 1e-16..1e-32 noise literals.
-- **Interpretation budget (firm design, flagged in the PR):**
-  FreeCAD prints 12–13 significant digits, so pi-derived values
-  miss double-precision identities by ~1e-12 relative — sometimes
-  larger than the scaled declared uncertainty. Adoption gates
-  therefore test against a per-value effective input tolerance:
-  `eps_in_eff(x) = max(eps_in, half-ulp of x's printed decimal)`
-  (the parser knows each literal's printed precision; keep the
-  raw token). This generalizes M7-1's sidecar-literal tolerance
-  treatment; it is data-driven and never widens beyond what the
-  file's own text can support. Exact `==` comparisons remain for
-  values the file prints exactly (dyadics).
+- **Interpretation budget (AMENDED per Evan, #187 comment,
+  2026-08-04 — simplicity wins):** adoption/interpretation gates
+  budget against **ε_in alone** — default = the file's declared
+  uncertainty scaled to metres (1e-10 m here), per-call override
+  unchanged (D7 verbatim). The quantitative ground: FreeCAD's
+  12–13 significant digits put print truncation at ~1e-12·|x|
+  relative, which the 1e-10 m absolute dominates for any part
+  under ~100 m; if a giant model ever exceeds that, adoption
+  fails TYPED with the residual named and the per-call override
+  is the remedy — the fail-loud path, not a widened gate. (The
+  originally-proposed per-literal `eps_in_eff` machinery is
+  dropped as complexity without a driving case.) Exact `==`
+  comparisons remain for the own-dialect (M7-1) paths.
 
 **Leg B — bounds and outerness (gaps 1, 3, 9).**
 - Accept plain FACE_BOUND-only faces. Outerness is an
@@ -48,7 +50,7 @@ tests read the committed files, staying hermetic without FreeCAD).
   projection, take signed area for orientation and ring-in-ring
   containment for outerness; a single bound is outer by
   definition (state it); ambiguity (containment undecidable at
-  eps_in_eff, or periodic wrap making the chart answer
+  eps_in, or periodic wrap making the chart answer
   seam-dependent) refuses typed per D7 — never a guess. Where
   FACE_OUTER_BOUND IS present (our own dialect) it is honored and
   cross-checked against the inference (a mismatch is a typed
@@ -60,7 +62,7 @@ tests read the committed files, staying hermetic without FreeCAD).
 **Leg C — cones and the edge-free sphere (gaps 4, 5, 8).**
 - Accept base-placement cones (the only form OCC writes): derive
   the kernel apex frame from (base origin, axis, radius,
-  semi-angle) — a computation, budgeted at eps_in_eff and pinned
+  semi-angle) — a computation, budgeted at eps_in and pinned
   against the generator's closed forms. The M7-1 apex-form path
   stays (our dialect).
 - VERTEX_LOOP: a full sphere arrives as ONE face, zero edges,
@@ -73,7 +75,7 @@ tests read the committed files, staying hermetic without FreeCAD).
   never silent), volume/validity exact as always. This is D7
   stage-3 repair in its letter: the locus is fully explained; only
   the boundary-graph tessellation is re-minted. The vertex loop's
-  point must lie on the sphere at eps_in_eff (else typed error).
+  point must lie on the sphere at eps_in (else typed error).
 - Seam-unsplit periodic faces (cylinder/cone/torus, seam edge
   doubled inside one EDGE_LOOP, closed circles reusing one
   vertex): the substrate says this matches the importer's existing
@@ -103,7 +105,7 @@ derived from gen.py's dimensions (comment each derivation).
 1. **Foreign-corpus row**: every committed FreeCAD fixture
    imports; validity ladder green at default ε; certified volume
    matches the generator's closed form within quadrature pad +
-   eps_in_eff-propagated budget (derivation in a comment per
+   eps_in-propagated budget (derivation in a comment per
    fixture); censuses match stated expectations, with the sphere
    normalization mapping pinned explicitly (file 1/0/… → kernel
    2/2/2).
@@ -131,8 +133,10 @@ derived from gen.py's dimensions (comment each derivation).
    entity-named (the substrate confirms FreeCAD never emits the
    first three; they remain the subset boundary, not dead code).
 6. **ε_in rows**: scaled declared uncertainty (1e-10 m) read and
-   exposed; per-literal print-precision term exercised on a
-   pi-derived value (cone semi-angle class); override still wins.
+   exposed; a pi-derived-value fixture (cone semi-angle class)
+   adopts cleanly under the DEFAULT ε_in — proving the flat
+   budget absorbs print truncation on the real corpus; override
+   still wins.
 7. **Optional oracle row (loud-skip)**: re-exported FreeCAD
    fixtures validated through the local FreeCAD oracle (the
    check_step.sh admesh pattern, implemented INSIDE
