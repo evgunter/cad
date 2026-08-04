@@ -603,3 +603,219 @@ pub fn wall_probes<S: Scalar>() {
          retire-on-closure pin.)"
     );
 }
+
+// ---------------------------------------------------------------
+// Review probes (PR #175 adversarial review, `review/lily`): the
+// G1/placement claims checked against the STORED geometry, not the
+// construction code, plus the finding-13 tessellation table
+// re-measured. Kept as tests so a silent placement regression
+// (finding 11: sign/handedness errors produce a valid solid in the
+// wrong place) fails loud here — verified to catch a flipped
+// `-spec.turn` in `tube_arc` during the review.
+// ---------------------------------------------------------------
+
+#[cfg(test)]
+mod review_probes {
+    use super::*;
+    use topo::Surface;
+
+    fn pieces() -> Vec<Piece<f64>> {
+        plant::<f64>()
+    }
+
+    fn body<'a>(ps: &'a [Piece<f64>], name: &str) -> &'a Body<f64> {
+        &ps.iter().find(|p| p.name == name).expect("piece").body
+    }
+
+    /// All stored cap planes of a body: (origin, unit normal).
+    fn planes(b: &Body<f64>) -> Vec<(Point3<f64>, Vec3<f64>)> {
+        b.faces()
+            .filter_map(|(_, f)| match b.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The body's single stored torus carrier: (center, axis, R, r, u_ref).
+    fn torus(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) {
+        let mut found = None;
+        for (_, f) in b.faces() {
+            if let Some(Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }) = b.get_surface(f.surface)
+            {
+                let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
+                if let Some(prev) = &found {
+                    // Both torus half-bands must share ONE carrier.
+                    let (pc, pa, pr, pm, _): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
+                    assert!((pc.x - t.0.x).abs() < 1e-15 && (pc.z - t.0.z).abs() < 1e-15);
+                    assert!((pa.y.abs() - t.1.y.abs()).abs() < 1e-15);
+                    assert!((pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15);
+                } else {
+                    found = Some(t);
+                }
+            }
+        }
+        found.expect("a torus wall")
+    }
+
+    fn cross_norm(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
+        let c = (
+            a.y * b.z - a.z * b.y,
+            a.z * b.x - a.x * b.z,
+            a.x * b.y - a.y * b.x,
+        );
+        (c.0 * c.0 + c.1 * c.1 + c.2 * c.2).sqrt()
+    }
+
+    /// Independently re-derived joint data (reviewer's own turtle
+    /// algebra, computed outside this codebase — NOT lifted from
+    /// [`Turtle`]): world (x, z) of the two stem joints and the unit
+    /// tangents there.
+    const P1: (f64, f64) = (-0.36408072716606288, 1.87303296707956);
+    const T1: (f64, f64) = (-0.37460659341591201, 0.92718385456678742);
+    const P2: (f64, f64) = (-2.4599453279967154, 1.2322628544225218);
+    const T2: (f64, f64) = (0.20791169081775934, -0.97814760073380558);
+    const T3: (f64, f64) = (0.17364817766693053, -0.98480775301220802);
+    const SPHERE1_C: (f64, f64) = (-2.3934135869350324, 0.91925562218770396);
+    const SPHERE2_C: (f64, f64) = (-0.9512338661211347, 1.2295604347374214);
+
+    /// A cap plane of `b` passes through world point `p` (xz-plane)
+    /// with normal parallel to `t` — i.e. the tube's end tangent THERE
+    /// is `t`, read off the stored cap, not the turtle.
+    fn assert_cap(b: &Body<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
+        let tv = Vec3::new(t.0, 0.0, t.1);
+        let hit = planes(b).into_iter().any(|(o, n)| {
+            cross_norm(n, tv) < 1e-14
+                && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
+        });
+        assert!(
+            hit,
+            "{what}: no stored cap plane through the joint with the joint tangent"
+        );
+    }
+
+    /// Claim: G1-by-construction, read from STORED geometry. At each
+    /// stem joint both bodies carry a cap plane through the SAME point
+    /// with tangent-parallel normals, and the torus carriers live
+    /// where the reviewer's independent derivation says they must.
+    #[test]
+    fn stem_joints_are_g1_in_the_stored_geometry() {
+        let ps = pieces();
+        let (stem, arch, pedicel) = (
+            body(&ps, "lily_stem"),
+            body(&ps, "lily_arch"),
+            body(&ps, "lily_pedicel"),
+        );
+        let (c, a, big_r, r, u) = torus(stem);
+        assert!((c.x - -5.0).abs() < 1e-12 && c.y.abs() < 1e-15 && c.z.abs() < 1e-12);
+        assert!((a.x.abs() + a.z.abs()) < 1e-15 && (a.y.abs() - 1.0).abs() < 1e-15);
+        // NOTE (review finding): the tube radius is RECONSTRUCTED by
+        // revolve from the profile's bulge arcs, not carried exactly —
+        // stored 0.05999999999999961 (4 ulps off the authored 0.060).
+        assert!((big_r - 5.0).abs() < 1e-12 && (r - 0.060).abs() < 1e-12);
+        // u_ref is the radial to the arc's start: +x for the stem.
+        assert!(
+            cross_norm(u, Vec3::new(1.0, 0.0, 0.0)) < 1e-15,
+            "stem u_ref"
+        );
+        let (c2, _, big_r2, r2, _) = torus(arch);
+        assert!((c2.x - -1.3839829671895292).abs() < 1e-12);
+        assert!((c2.z - 1.4609657143220569).abs() < 1e-12);
+        assert!((big_r2 - 1.1).abs() < 1e-12 && (r2 - 0.052).abs() < 1e-12);
+        let (_, _, big_r3, r3, _) = torus(pedicel);
+        assert!((big_r3 - 0.42).abs() < 1e-12 && (r3 - 0.032).abs() < 1e-12);
+        // Joint 1: stem end / arch start share point P1 and tangent T1.
+        assert_cap(stem, P1, T1, "stem end");
+        assert_cap(arch, P1, T1, "arch start");
+        // Joint 2: arch end at P2 with tangent T2 (the flower hangs here).
+        assert_cap(arch, P2, T2, "arch end");
+        // The fork reuses P1; the pedicel's START tangent is the
+        // authored (cos150, sin150), not T1 — branch, not continuation.
+        assert_cap(
+            pedicel,
+            P1,
+            (f64::cos(deg(150.0)), f64::sin(deg(150.0))),
+            "pedicel start",
+        );
+    }
+
+    /// Claim: the lantern axes ARE the stem tangents and the globes
+    /// sit at attach + top·dir — read off the stored sphere/cone.
+    #[test]
+    fn lantern_axes_are_the_stored_stem_tangents() {
+        let ps = pieces();
+        for (name, t, cen, rad) in [
+            ("lily_lantern", T2, SPHERE1_C, 0.44),
+            ("lily_lantern2", T3, SPHERE2_C, 0.30),
+        ] {
+            let b = body(&ps, name);
+            let tv = Vec3::new(t.0, 0.0, t.1);
+            let mut saw_sphere = false;
+            let mut saw_cone = false;
+            for (_, f) in b.faces() {
+                match b.get_surface(f.surface) {
+                    Some(Surface::Sphere {
+                        center,
+                        radius,
+                        axis,
+                        ..
+                    }) => {
+                        saw_sphere = true;
+                        assert!(
+                            cross_norm(*axis, tv) < 1e-14,
+                            "{name}: sphere axis || tangent"
+                        );
+                        assert!((center.x - cen.0).abs() < 1e-12, "{name} center.x");
+                        assert!(center.y.abs() < 1e-15, "{name} center.y");
+                        assert!((center.z - cen.1).abs() < 1e-12, "{name} center.z");
+                        assert!((radius - rad).abs() < 1e-15, "{name} radius");
+                    }
+                    Some(Surface::Cone { axis, .. }) => {
+                        saw_cone = true;
+                        assert!(
+                            cross_norm(*axis, tv) < 1e-14,
+                            "{name}: cone axis || tangent"
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            assert!(
+                saw_sphere && saw_cone,
+                "{name}: sphere zone + conical pucker"
+            );
+        }
+    }
+
+    /// Finding 13 re-measured: the tessellation table's numbers, plus
+    /// the arch's 136,076, pinned as printed in the PR description.
+    #[test]
+    fn finding_13_tessellation_table_reproduces() {
+        use mesh::validate::{signed_volume, triangle_count};
+        let ps = pieces();
+        let table = [
+            ("lily_stem", 5e-3, 31_612usize),
+            ("lily_stem", 2e-3, 76_436),
+            ("lily_arch", 2e-3, 136_076),
+            ("lily_lantern", 5e-3, 988),
+            ("lily_lantern", 2e-3, 2_348),
+        ];
+        for (name, delta, want) in table {
+            let m = mesh::tessellate(body(&ps, name), delta).expect("tessellate");
+            assert_eq!(triangle_count(&m), want, "{name} @ {delta:e}");
+        }
+        // Lantern volume error at both deltas (1.25% / 0.53% claimed).
+        let exact = 0.36225803729804673;
+        for (delta, lo, hi) in [(5e-3, 0.0120, 0.0130), (2e-3, 0.0050, 0.0056)] {
+            let m = mesh::tessellate(body(&ps, "lily_lantern"), delta).expect("tessellate");
+            let rel = ((signed_volume(&m) - exact) / exact).abs();
+            assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
+        }
+    }
+}
