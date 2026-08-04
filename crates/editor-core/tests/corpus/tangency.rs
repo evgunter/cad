@@ -32,7 +32,7 @@ use geom_core::Point2;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
+use super::super::fixture::len;
 
 /// The declared-tangency corpus document.
 pub fn document() -> CorpusDoc {

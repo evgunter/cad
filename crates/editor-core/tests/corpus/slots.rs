@@ -29,7 +29,7 @@ use editor_core::{
 };
 
 use super::{CorpusDoc, MassPin, Recorder};
-use crate::fixture::{desc, len};
+use super::super::fixture::{desc, len};
 
 /// A cap face name at `node`.
 fn cap(node: RecipeNodeId, end: CapEnd) -> StableName {

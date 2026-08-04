@@ -17,7 +17,7 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
+use super::super::fixture::len;
 
 /// The boss-union corpus document: 3×3×0.8 plate ∪ r = 0.35 three-arc
 /// boss at (1.2, 1.7), sketched at z = 0.3, extruded 1.0 (pokes 0.5

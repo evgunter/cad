@@ -21,7 +21,7 @@
 use editor_core::{Dimension, DocEdit, Expr, SlotId};
 
 use super::{CorpusDoc, MassPin};
-use crate::fixture::die;
+use super::super::fixture::die;
 
 /// The die corpus document.
 pub fn document() -> CorpusDoc {

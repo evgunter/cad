@@ -42,7 +42,7 @@ use editor_core::{
 };
 
 use super::{CorpusDoc, MassPin, Recorder};
-use crate::fixture::{desc, len};
+use super::super::fixture::{desc, len};
 
 /// A face name at `node` for outer-loop segment `seg`.
 fn wall(node: RecipeNodeId, seg: u32) -> StableName {

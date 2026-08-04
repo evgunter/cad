@@ -68,7 +68,7 @@ use geom_core::Point2;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
+use super::super::fixture::len;
 
 /// The blank's side, meters (dyadic).
 pub const L: f64 = 1.0;

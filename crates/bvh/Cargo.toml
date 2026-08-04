@@ -1,5 +1,6 @@
 [package]
 name = "bvh"
+autotests = false  # tests/all.rs aggregates every suite; see its header
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -17,3 +18,9 @@ geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
 proptest = { workspace = true }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

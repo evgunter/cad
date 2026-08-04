@@ -33,7 +33,7 @@ use editor_core::{
 };
 
 use super::{CorpusDoc, MassPin, Recorder};
-use crate::fixture::{ang, desc, len, scl};
+use super::super::fixture::{ang, desc, len, scl};
 
 /// The fin count the document starts at.
 const FINS: i64 = 5;

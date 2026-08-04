@@ -34,7 +34,7 @@ use editor_core::{
 };
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::{ang, declare_x_offset_flush, desc, len, scl};
+use super::super::fixture::{ang, declare_x_offset_flush, desc, len, scl};
 
 /// The kitchen-sink corpus document.
 pub fn document() -> CorpusDoc {
