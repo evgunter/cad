@@ -43,6 +43,7 @@ use topo::Body;
 pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod heatsink;
@@ -138,6 +139,14 @@ pub fn documents() -> Vec<CorpusDoc> {
         // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
         die_pips::document(),
+        // `die_composed::document()` is NOT here, and its module docs
+        // say why: `Node::Fillet` is every-edge BY DESIGN (no stable
+        // edge names to go stale), and every pipped body carries cap
+        // MERIDIAN edges — two half-caps on one sphere, no wedge —
+        // which the battery honestly refuses as `TangentialEdge`. The
+        // composed die needs an edge-selection vocabulary the recipe
+        // layer does not have (the N4 fillet-naming emitter, banked).
+        // Pinned, executed, in `m6_composed_node.rs`.
     ]
 }
 

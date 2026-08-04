@@ -58,8 +58,8 @@ pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use enters::{EntersMaterial, enters_material, enters_material_order2};
 pub use implicit::{
-    curvature_lever_arm, implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature,
-    implicit_residual,
+    circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
     EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,

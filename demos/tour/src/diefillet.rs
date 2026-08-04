@@ -1,7 +1,9 @@
 //! **The die** (M5 PR 12, acceptance shape (v)): constant-radius
 //! rolling-ball fillets, made visible.
 //!
-//! Two stops, because at M5 the die is honestly two bodies:
+//! Three stops. At M5 the die was honestly two bodies; M6's
+//! composition surgery joins them, and the third stop IS the joined
+//! die. The first two stay as the record of the parts:
 //!
 //! - **the blank** — a unit cube with all twelve edges filleted. Six
 //!   shrunk planar faces, twelve quarter-cylinder blends, eight
@@ -16,10 +18,13 @@
 //!   arm), each ball charted with its pole along the face it is cut
 //!   by.
 //!
-//! The two do not compose at M5, at two different named frontiers —
-//! the tour says so out loud rather than shipping a half-die. The
-//! blockers are pinned as rows in
-//! `crates/sweep/tests/m5_pr12_die.rs::deviation_1_*`.
+//! - **the composed die** (M6 unit 1) — the pipped cube's twelve box
+//!   edges blended IN PLACE (the pip rims carried through as rings)
+//!   and all 21 rims replaced by torus bands: one body, tier-3
+//!   certified, closed-form volume, watertight. The M5 frontier rows
+//!   (`deviation_1_*`) are flipped in
+//!   `crates/sweep/tests/m5_pr12_die.rs`; the full ladder lives in
+//!   `crates/sweep/tests/m6_surgery.rs`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,6 +42,8 @@ use crate::{SceneBody, Stop, View};
 
 const L: f64 = 1.0;
 const R: f64 = 0.12;
+/// The pip-rim blend radius (the composed stop's second call).
+const RIM_R: f64 = 0.02;
 const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
@@ -186,6 +193,49 @@ pub fn pipped<S: Scalar>() -> Body<S> {
     .clone()
 }
 
+/// The composed die: pips first (one group cut), then the twelve box
+/// edges in place, then all 21 rims as closed chains in one call.
+pub fn composed<S: Scalar>() -> Body<S> {
+    let pipped = pipped::<S>();
+    let box_edges: Vec<_> = pipped
+        .edges()
+        .filter(|(_, e)| {
+            pipped
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let blanked = fillet_edges(&pipped, &box_edges, S::from_f64(R), band())
+        .expect("the box edges blend in place")
+        .body;
+    let rims: Vec<_> = blanked
+        .edges()
+        .filter(|(_, e)| {
+            let face_kind = |he| {
+                let h = blanked.get_half_edge(he)?;
+                let f = blanked.get_loop(h.parent_loop)?.face;
+                blanked
+                    .get_surface(blanked.get_face(f)?.surface)
+                    .map(|s| match s {
+                        geom_surfaces::Surface::Plane { .. } => 0u8,
+                        geom_surfaces::Surface::Sphere { .. } => 1,
+                        _ => 2,
+                    })
+            };
+            matches!(
+                (face_kind(e.he_plus), face_kind(e.he_minus)),
+                (Some(0), Some(1)) | (Some(1), Some(0))
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    fillet_edges(&blanked, &rims, S::from_f64(RIM_R), band())
+        .expect("the rims blend to torus bands")
+        .body
+}
+
 /// The blank's closed-form volume: core + 6 slabs + 12
 /// quarter-cylinders + 8 octants (which sum to one whole ball).
 fn blank_volume() -> f64 {
@@ -212,6 +262,19 @@ pub fn stops() -> Vec<Stop> {
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = pipped::<f64>();
     let pip_vol = topo::mass_properties(&pipped).unwrap().volume;
+    let composed = composed::<f64>();
+    let comp = topo::mass_properties(&composed).unwrap();
+    assert_eq!(
+        topo::validate_geometric(&composed),
+        Ok(()),
+        "the composed die is tier-3 valid"
+    );
+    let (cf, ce, cv) = (
+        composed.faces().count(),
+        composed.edges().count(),
+        composed.vertices().count(),
+    );
+    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 7, 24 + 21 * 5));
 
     vec![
         Stop {
@@ -253,8 +316,9 @@ pub fn stops() -> Vec<Stop> {
                  next operand, which S13 refuses typed (the extent certificate needs the \
                  closed-group discipline); charting a ball with a tilted pole would make the \
                  plane×sphere section non-polar, which the split-join refuses typed. Doing \
-                 both right makes it one certified operation: V = {pip_vol:.6} m³. The blank \
-                 and the pips do NOT compose at M5 — two named frontiers, pinned as rows"
+                 both right makes it one certified operation: V = {pip_vol:.6} m³. At M5 \
+                 this and the blank were the die's two halves; the next stop is M6's \
+                 composition surgery joining them"
             )),
             view: View {
                 elev: 26.0,
@@ -262,6 +326,36 @@ pub fn stops() -> Vec<Stop> {
                 up: 'z',
             },
             bodies: vec![SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped)],
+        },
+        Stop {
+            name: "diecomposed",
+            caption: "THE COMPOSED DIE (in-place surgery)".to_string(),
+            montage: true,
+            story: "the filleted blank, the 21 pips and the filleted pip rims in ONE body \
+                    — M6's in-place edge-blend composition surgery",
+            ops: "cube ∖ pips, then fillet_edges twice IN PLACE: the twelve box edges \
+                  (faces split along stored trimlines, rings carried through, octant \
+                  corners grafted), then all 21 rims as closed chains → torus bands \
+                  (donut-style slit-seamed annuli)",
+            delta: 5e-3,
+            note: Some(format!(
+                "M5 exited with the die as two bodies pinned at two frontiers; both are \
+                 retired — door B by the surgery, door A by the circle-carrier \
+                 definite-miss rider. The composed body: {cf} faces, {ce} edges, {cv} \
+                 vertices, tier-3 certified, V = {:.6} m³ on the closed form \
+                 (Steiner blank − 21·(cap + rim-torus term)) at zero enclosure pad",
+                comp.volume
+            )),
+            view: View {
+                elev: 26.0,
+                azim: -50.0,
+                up: 'z',
+            },
+            bodies: vec![SceneBody::plain(
+                "diecomposed",
+                [0.85, 0.63, 0.46],
+                composed,
+            )],
         },
     ]
 }

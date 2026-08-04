@@ -161,7 +161,7 @@ jobs:
             | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/sugar\.rs$' \
-            | grep -vE '^crates/sweep/src/fillet/(battery|build)\.rs$' || true)
+            | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
             echo "::error::compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"

@@ -35,13 +35,16 @@
 //!
 //! A corpus document is run through BOTH strategies by
 //! `m5_pr8_bvh_diff.rs`, whose whole claim is that pruning changes
-//! nothing. A ball∪ball tool would break that claim rather than
-//! exercise it — the union only "works" because the tree hides a pair
-//! the predicates refuse on. So this document carries the ONE pip that
-//! needs no union, and the multi-shell tool stays where it is metered
-//! under the production strategy: `sweep/tests/m5_pr12_die.rs`. The
-//! exemption retires itself the moment the conic-carrier arm gets its
-//! definite-miss certificate.
+//! nothing. At M5 a ball∪ball tool would have broken that claim — the
+//! union only "worked" because the tree hid a pair the unconditional
+//! conic arm refused on. **The M6 rider retired that divergence** as
+//! this paragraph predicted it would: `bool_circle_curved_clearance`
+//! proves far circle-vs-curved pairs a definite miss, so the two
+//! strategies agree on disjoint balls again. The document keeps ONE
+//! pip anyway — the multi-ball tool adds twenty nodes and no new
+//! machinery here; the 21-pip die is metered in
+//! `sweep/tests/m6_surgery.rs` and the surgery's own corpus document
+//! is `die_composed`.
 //!
 //! # Two further REPORTED deviations
 //!

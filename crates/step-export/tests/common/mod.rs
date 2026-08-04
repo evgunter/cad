@@ -436,6 +436,11 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         // sphere patch — the writer's plane-with-many-rings arm and
         // its curved-ring pairing, on one solid.
         ("die_pips", die_pips()),
+        // The M6 composed die (unit 1): blank + 21 pips + 21 rim TORUS
+        // bands in ONE body (the composition surgery). Adds the
+        // writer's first fillet-minted TOROIDAL_SURFACEs (slit-seamed
+        // annuli) alongside every kind the blank already carries.
+        ("composed_die", composed_die()),
     ]
 }
 
@@ -619,4 +624,62 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
         body.edges().count(),
         body.vertices().count(),
     )
+}
+
+/// The M6 composed die (unit 1): [`die_pips`]'s pipped cube filleted
+/// IN PLACE — the twelve box edges blended with every pip rim carried
+/// through as a ring, then all 21 rims replaced by slit-seamed torus
+/// bands. The geometry is `sweep/tests/m6_surgery.rs`'s, constant for
+/// constant (blend r = 0.12, rim r = 0.02).
+pub fn composed_die() -> Body<f64> {
+    use sweep::fillet::build::fillet_edges;
+
+    let tol = Tolerance::get();
+    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
+    let (die_r, rim_r) = (0.12, 0.02);
+    let pipped = die_pips();
+    let box_edges: Vec<topo::EdgeKey> = pipped
+        .edges()
+        .filter(|(_, e)| {
+            pipped
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let blanked = fillet_edges(&pipped, &box_edges, die_r, band)
+        .expect("the box edges blend in place")
+        .body;
+    let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
+        b.get_face(f)
+            .and_then(|fd| b.get_surface(fd.surface))
+            .is_some_and(|s| {
+                if want_plane {
+                    matches!(s, geom_surfaces::Surface::Plane { .. })
+                } else {
+                    matches!(s, geom_surfaces::Surface::Sphere { .. })
+                }
+            })
+    };
+    let rims: Vec<topo::EdgeKey> = blanked
+        .edges()
+        .filter(|(_, e)| {
+            let face_of = |he| {
+                let h = blanked.get_half_edge(he)?;
+                Some(blanked.get_loop(h.parent_loop)?.face)
+            };
+            match (face_of(e.he_plus), face_of(e.he_minus)) {
+                (Some(fa), Some(fb)) => {
+                    (is_kind(&blanked, fa, true) && is_kind(&blanked, fb, false))
+                        || (is_kind(&blanked, fa, false) && is_kind(&blanked, fb, true))
+                }
+                _ => false,
+            }
+        })
+        .map(|(k, _)| k)
+        .collect();
+    fillet_edges(&blanked, &rims, rim_r, band)
+        .expect("the rims blend to torus bands")
+        .body
 }

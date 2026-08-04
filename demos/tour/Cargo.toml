@@ -16,6 +16,7 @@ geom-core = { path = "../../crates/geom-core" }
 profile = { path = "../../crates/profile" }
 sweep = { path = "../../crates/sweep" }
 geom-surfaces = { path = "../../crates/geom-surfaces" }
+geom-curves = { path = "../../crates/geom-curves" }
 topo = { path = "../../crates/topo" }
 mesh = { path = "../../crates/mesh" }
 stl = { path = "../../crates/stl" }

@@ -146,7 +146,11 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
     );
 }
 
-/// The assembly front door is exactly one shape, and a subset request
+/// A subset request now routes to the M6 surgery, whose own front
+/// door refuses a partially-requested corner (run-outs) — still
+/// typed, still naming what is not implemented. (History: at M5 this
+/// row pinned the whole-body door's refusal of ANY subset.)
+///
 /// refuses TYPED naming the banked surgery unit — never half-builds.
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
