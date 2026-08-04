@@ -26,3 +26,12 @@ lane's pushes (hook never bypassed); render.sh fallback +
 rm-before-render hazards recorded. **Light review DISPATCHED.**
 Surgery lane still building (the hard unit; checkpoint-push
 nudged).
+
+**Curation MERGED as #170 (2026-08-04): the 16-cell
+superimposable sheets are live; die_pips in the STEP corpus
+(its two corpus-growth pins updated with derivations at the
+gate — the reversed-face count and the exactness table). A/B
+row: M6-curation (opus, S, APPROVE 0-findings).** Lanes
+cleaned. Sole open lane: M6-1 surgery (the composed die).
+Evan-notify: the surgery lane will fold this merge (die_pips
+fixture + sheet rosters touch its tour-stop work).
