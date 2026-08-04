@@ -620,6 +620,25 @@ the two-peg demo's vocabulary now exists on paper (waits on
 the C7 join-lane implementation, banked); M8's gap contract
 is pinned.
 
+**CI-speed effort CLOSED (2026-08-04): #179 MERGED — the
+disconfirming test PASSED.** 251→24 binaries (12 aggregators +
+guards); compile step 514s → 320s (#174) → 88s (#179), inside
+the predicted 90-120s; wall 17.6 → 6.9 min (−61%), billed ~79 →
+~59 (−25%). Roster provably a superset-rename (MISSING=0,
+EXTRA=12 = the per-crate every_suite_file_is_aggregated guards
+answering the autotests=false silent-drop hazard). One CI-caught
+issue (six self-re-exec probes' --exact filters; fixed
+layout-independently via module_path!()); scoped duplicate_mod
+allows in aggregators only; sweep WAS in #176's exclusion set
+(the brief guessed wrong; single-PR fold after #176 merged).
+Wall is no longer compile-gated — remaining billed cost is test
+EXECUTION, out of scope. Lane cleaned; final table on #174.
+
+**M6-3 DISPATCHED (2026-08-04): FABLE (block-21 remainder),
+difficulty L (logged pre-assignment), lane m6-3-loft, branch
+ev/m6-loft-assembly, spec docs/M6-3-SPEC.md; brief carries the
+#179 aggregator-layout note. Slot 1 claimed in cargo-slots.txt.**
+
 **M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
 exploration (which read post-#176 origin/main): six legs
 (builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
