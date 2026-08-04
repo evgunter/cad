@@ -340,3 +340,12 @@ follow-up phase under Evan's add-on (a) (the goal is CI speed;
 same lane, still Opus/A/B-exempt, CI-infra class per rows 16/41
 precedent — validated by hosted-CI timing, not a blinded lane);
 QUEUED until a cargo-lane slot frees. (4) left for Evan.
+**Evan APPROVED all four including the bigger runner** (#173
+comment, 2026-08-04: "yes, please go ahead with those including
+the bigger runner"). Split into: Phase A (config-only, no cargo —
+line-tables-only + mold + 8-vCPU on the two build jobs; same
+agent, branch ev/ci-speed-config, PR with before/after CI
+timings, orchestrator merges) dispatched immediately; Phase B
+(the 249→~12 test-crate collapse) held for a free cargo-lane
+slot. Also relayed to the globe-lily lane per Evan's same-thread
+ask: commit+push renders the moment they're generated.
