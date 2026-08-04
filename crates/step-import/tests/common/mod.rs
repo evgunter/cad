@@ -134,9 +134,40 @@ pub fn import_fixture(name: &str) -> step_import::StepImport {
 /// The imported solid body, panicking on a wireframe disposition.
 pub fn import_body(name: &str) -> (Body<f64>, f64) {
     match import_fixture(name) {
-        step_import::StepImport::Solid { body, eps_in } => (body, eps_in),
+        step_import::StepImport::Solid { body, eps_in, .. } => (body, eps_in),
         step_import::StepImport::Wireframe { .. } => {
             panic!("{name} imported as a wireframe, expected a solid")
         }
     }
+}
+
+/// The committed FreeCAD 1.1.2 corpus (M7-2), in generator order.
+pub const FREECAD_FIXTURES: [&str; 13] = [
+    "box",
+    "cylinder",
+    "cone_trunc",
+    "cone_apex",
+    "sphere",
+    "torus",
+    "box_hole",
+    "fuse_boxes",
+    "box_fillet_edge",
+    "box_fillet_corner",
+    "compound_two",
+    "box_importexport",
+    "twobody_importexport",
+];
+
+/// A committed FreeCAD fixture's text.
+pub fn freecad_fixture(name: &str) -> String {
+    let path: PathBuf = [
+        env!("CARGO_MANIFEST_DIR"),
+        "tests",
+        "fixtures",
+        "freecad",
+        &format!("{name}.step"),
+    ]
+    .iter()
+    .collect();
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"))
 }
