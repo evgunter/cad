@@ -101,8 +101,8 @@ fn in_band_clearance_escalates_through_the_funnel() {
     let delta = 5.0 * tol.eps; // strictly inside [eps, K*eps)
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
     let b = ball_at(1.0, Vec3::new(4.0 + delta, 2.0, 0.0));
-    let err = union(&a, &b, SweepStrategy::Realized)
-        .expect_err("an in-band clearance cannot classify");
+    let err =
+        union(&a, &b, SweepStrategy::Realized).expect_err("an in-band clearance cannot classify");
     match &err {
         BooleanError::Escalated { diag } => {
             assert_eq!(

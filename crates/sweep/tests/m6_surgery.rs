@@ -493,15 +493,19 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         text.contains("not implemented") && text.contains("corner"),
         "the refusal names the run-out gap: {text}"
     );
-    // (b) One rim arc: an OPEN plane–sphere chain has no octant
-    // termination and is not a closed rim.
+    // (b) One rim arc: an OPEN plane–sphere chain terminates at rim
+    // vertices whose third edge is the cap MERIDIAN — a sphere–sphere
+    // support pair no arm covers — so the BATTERY's corner classifier
+    // refuses first, naming the run-out policy that would handle it.
+    // The refusal is one door earlier than the surgery's own front
+    // door, and that is the honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
     let err = fillet_edges(&pipped, &rims[..1], RIM_R, band())
-        .expect_err("an open plane–sphere chain has no surgery arm");
+        .expect_err("an open rim arc has no classifiable termination");
     let text = format!("{err}");
     assert!(
-        text.contains("plane") && text.contains("not"),
-        "the refusal names the arm gap: {text}"
+        text.contains("run-out") && text.contains("not implemented"),
+        "the refusal names the run-out gap: {text}"
     );
 }
 

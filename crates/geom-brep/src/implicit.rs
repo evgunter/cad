@@ -391,9 +391,11 @@ pub fn circle_residual_extremes<T: Real>(
             let e = perp(center - origin);
             let up = perp(u);
             let vp = perp(v);
-            let c0 = e.norm_squared() + radius.powi(2) * (up.norm_squared() + vp.norm_squared()) / two;
+            let c0 =
+                e.norm_squared() + radius.powi(2) * (up.norm_squared() + vp.norm_squared()) / two;
             let a1 = two * radius * amp(e.dot(up), e.dot(vp));
-            let a2 = radius.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
+            let a2 =
+                radius.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
             Some((
                 (c0 - a1 - a2 - r.powi(2)) / (two * r),
                 (c0 + a1 + a2 - r.powi(2)) / (two * r),
