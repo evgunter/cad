@@ -55,3 +55,70 @@ predicate fillet3_ring_clearance (trio pinned). **Full
 adversarial review DISPATCHED** (independent Pappus
 re-derivation; Euler choreography attack; Seam-slit legality
 probe; rider falsification; merge-base divergence check).
+
+## HANDOFF SEAM (2026-08-04): successor orchestrator briefing
+
+Predecessor (cad-implement-m5-7plus session) hands off at the
+M6-unit-1 seam by Evan's request. State at handoff: M5 COMPLETE
+(35 PRs, exit walk 13/7/0, #89 closed at K=10 permanent); M6
+open with unit 1 (the composed die) merged or merging (check
+gh pr list), curation merged (#170); NOTHING else in flight;
+all clones deletable after verifying push-clean (clean-lanes.sh).
+
+**Immediate work order:**
+1. Verify the M6-1 surgery PR merged; clean its lanes
+   (m6-surgery, m6-surgery-review) via scripts/clean-lanes.sh.
+2. Dispatch M6-2: the SSI generic-T lift (M6-PLAN unit 2;
+   blocker map = PR 9c dev 2 + the S13 NURBS re-gate; its
+   acceptance owns the non-vacuous fitted-cache row). Block-21
+   A/B draw; difficulty logged FIRST.
+3. Then per plan order: loft/sweep assembly (unit 3, carries
+   the analytic-chart pcurves + NURBS-face STEP + shape (iii)
+   completion), edge-selection fillet vocabulary (unit 5 — the
+   N4 emitter substrate; makes the composed die persistable),
+   census/contact design doc (unit 4, design-only), hygiene
+   items as lulls (k-lint floor refresh, canary-gated latency
+   refresh, internal-tangency fixture).
+
+**Standing process (verbatim-binding; sources in memories/ and
+the M5/M6 logs):** one implementer + one blinded adversarial
+reviewer + one fix pass; binding specs/contracts BEFORE
+dispatch; OUTPUT DISCIPLINE headers; the foreground clause +
+"THAT NOTIFICATION WILL NEVER ARRIVE" + blocking-is-fine-
+parking-is-not; cwd-reset guard every prompt AND resume;
+scripts/new-lane.sh for clones (activates the pre-push
+fmt-all hook); iteration-speed local scope (memories/
+local-battery-scope.md — no CI mimicry; sweep-shaped units get
+the lighter scope); reviewer local runs = unique-signal only,
+pins ride the gate; push-per-unit (checkpoint-push on long
+builds); NO Co-Authored-By trailers in lane commits (blinding);
+watchers carry the CONFLICTING guard (a conflicted PR gets NO
+check runs — silent); mergeable never left UNKNOWN; A/B blocked
+pairs, difficulty logged pre-draw, blinded reviewers, fix pass
+inherits the arm (docs/MODEL-AB-LOG.md; block-20 consumed;
+block-21 next); state-sync PRs at seams; two cargo lanes max;
+monitors armed at session start (scripts/monitors/ — install
+then run from ~/.local/share/cad-work/monitors/; the watchlist
+parser fix is IN, entries are whitespace-separated); hourly
+sweeps check working-tree mtimes AND cargo/freecadcmd before
+nudging; disk watch (~30G/lane); S9 flip pattern for retired
+refusals; two-tolerance INCLUDING definite arms; powi(2)
+tripwire + Bounds allowlist live in the discipline job.
+
+**Open with Evan:** Q9 (name), #131 (cusps), the PATHS
+cusp-variant split; the I1-I3 long-term ideas parked in
+docs/LONGTERM-IDEAS.md (I1(0) = the #89 sliver lint).
+
+**Watch out for:** usage-limit outages (#8-#13 this epoch; the
+recovery ladder = resume-from-transcript with commit-first
+instructions; if a transcript is GONE, fresh finisher per
+memories/resume-vs-fresh-subagent.md — happened once at the
+surgery fix pass); waiter-parking (5 catches this session —
+the sweep+nudge net holds); away-channel self-echoes (your own
+comments come back — not Evan); consultations go to a FRESH
+issue/PR, never a merged-PR thread; corpus-growth pins (new
+fixtures legitimately move corpus-wide counts — update with
+derivations, don't relax); the box's CPU can pin at base clock
+after sleep (canary: 10M-iteration python sum ≈0.9s healthy,
+≈15-19s pinned — Lenovo Vantage fixed it once, no restart
+needed).
