@@ -19,9 +19,12 @@
 //! Cylinder charts only — the one chart whose pcurves mint today (the
 //! tiltedcut walls; every split cylinder wall). Conic trims on
 //! cone/sphere/torus charts refuse typed naming that frontier (their
-//! pcurves arrive with their consumers); B-spline trims without a
-//! stored cache name the loft-assembly storage variant. Neither is
-//! constructible at rest today.
+//! pcurves arrive with their consumers). A **fitted** (rung-3) chart
+//! image also refuses typed here, and since M6-2 that refusal is a
+//! genuine one rather than a statement about an absent variant:
+//! `Pcurve::Fitted` exists and reaches bodies at rest, but the
+//! trim-loop walk reads a closed-form image and the spline image's
+//! tessellation consumer is the loft-assembly unit.
 //!
 //! # The grid-on-constraint retry (the T-junction attack)
 //!
@@ -364,8 +367,7 @@ fn trim_polygon(
             return Err(TessellateError::UnsupportedCurve {
                 edge: he.edge,
                 note: "trimmed face half-edge carries no stored pcurve cache — caches \
-                       mint in the split/boolean pipelines (the B-spline storage \
-                       variant arrives with the loft assembly unit)",
+                       mint in the split/boolean pipelines",
             });
         };
         // Trim-loop tessellation walks a chart image's closed form; a

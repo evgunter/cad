@@ -546,8 +546,7 @@ mod quad_lane {
             let Some(cache) = body.pcurve(*he) else {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "curved-cut face half-edge carries no stored pcurve cache — \
-                           caches mint in the split/boolean pipelines (the B-spline \
-                           storage variant arrives with the loft assembly unit)",
+                           caches mint in the split/boolean pipelines",
                 });
             };
             // The certified quadrature lane reads a chart image
