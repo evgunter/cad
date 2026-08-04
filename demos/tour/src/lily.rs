@@ -449,3 +449,153 @@ pub fn stops() -> Vec<Stop> {
             .collect(),
     }]
 }
+
+// ---------------------------------------------------------------
+// The wall probes
+// ---------------------------------------------------------------
+
+/// A full sphere of radius `r` about `c` (in the world xz-plane at
+/// y = 0), as a revolve of a half-disc whose diameter lies on the
+/// axis — the shape a tepal seam would be carved with.
+fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
+    let plane = SketchPlane::from_frame(pt3(c.0, 0.0, c.1), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, 1.0));
+    let lp = LoopBuilder::start(p2(0.0, -r))
+        .arc_to_center(p2(0.0, r), p2(0.0, 0.0), ArcSweep::Ccw)
+        .close();
+    revolve(&validated(plane, vec![lp]), sketch_axis(), Revolution::Full)
+        .expect("probe ball revolves")
+        .body
+}
+
+/// Prints one probe line, asserting that the wall is still standing.
+/// A probe that unexpectedly SUCCEEDS panics with instructions: the
+/// `curvedcut::pin_frontier` contract, applied to a demo's wish list.
+fn wall<T, E: core::fmt::Debug>(n: u32, what: &str, outcome: Result<T, E>, retire: &str) {
+    match outcome {
+        Err(e) => println!("   wall {n} — {what}: REFUSED TYPED, {e:?}"),
+        Ok(_) => panic!(
+            "wall {n} ({what}) NO LONGER REFUSES — the lily can now say this. \
+             Retire the probe and {retire}"
+        ),
+    }
+}
+
+/// The lily's frontier, run live: every shape the plant WANTED and the
+/// kernel would not state, attempted for real and pinned by its own
+/// typed refusal.
+pub fn wall_probes<S: Scalar>() {
+    println!("\n-- the lily's walls: what a plant asks for that the kernel will not say --");
+    let pieces = plant::<S>();
+    let by = |name: &str| -> &Body<S> {
+        &pieces
+            .iter()
+            .find(|p| p.name == name)
+            .expect("named lily piece")
+            .body
+    };
+    let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+
+    // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
+    //    an exact coincident planar contact, the crosslap mate — so
+    //    the glue is the M5 S1 declared REST zip if it reaches it.
+    wall(
+        1,
+        "glue the two stem arcs into one stem (declared coincident-planar mate)",
+        crate::booleans::try_union_declared(stem, arch),
+        "make the stem a single body",
+    );
+
+    // 2. The flower grows OUT OF the pedicel. That weld is a
+    //    transverse curved boolean between a torus tube and a sphere
+    //    zone: the SSI the kernel has no closed form for.
+    wall(
+        2,
+        "weld the lantern onto the arch (torus tube x sphere zone)",
+        topo::union(lant, arch),
+        "join flower to stem and drop the set-back trick",
+    );
+
+    // 3. Real leaves sweep back out of their own plane. An extrusion
+    //    along anything but the sketch normal is oblique, and oblique
+    //    extrusion is deferred past M2.
+    let leafp = {
+        let plane =
+            SketchPlane::from_frame(pt3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+        let lp = LoopBuilder::start(p2(0.0, 0.0))
+            .arc_to_via(p2(0.5, 0.12), p2(1.0, 0.0))
+            .close_arc_via(p2(0.5, 0.02));
+        validated(plane, vec![lp])
+    };
+    wall(
+        3,
+        "sweep a leaf back out of its own plane (oblique extrusion)",
+        extrude(&leafp, Extrusion::Vector(v3::<S>(0.0, 0.3, 0.04))),
+        "give the leaves a swept-back set",
+    );
+
+    // 4. A bud is an OVOID, not a ball: a sphere scaled along its own
+    //    axis. There is no ellipsoid surface and no non-uniform map —
+    //    `transform_rigid` is the only body map, and it decides
+    //    rigidity rather than trusting it.
+    let stretch = Affine3::from_parts(
+        Mat3::from_cols(v3::<S>(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
+        v3(0.0, 0.0, 0.0),
+    );
+    wall(
+        4,
+        "stretch a lantern into an ovoid bud (non-uniform scale)",
+        topo::transform_rigid(lant, &stretch),
+        "model buds as spheroids",
+    );
+
+    // 5. The three leaves are hand-placed because there is no mirror:
+    //    a reflection is improper, and the rigidity predicate decides
+    //    the determinant, not just the column norms.
+    let mirror = Affine3::from_parts(
+        Mat3::from_cols(
+            v3::<S>(1.0, 0.0, 0.0),
+            v3(0.0, -1.0, 0.0),
+            v3(0.0, 0.0, 1.0),
+        ),
+        v3(0.0, 0.0, 0.0),
+    );
+    wall(
+        5,
+        "mirror a leaf across the plant's plane (improper isometry)",
+        topo::transform_rigid(by("lily_leaf_a"), &mirror),
+        "author leaves once and mirror them",
+    );
+
+    // 6. The lantern's mouth is a hard circle where the sphere zone
+    //    meets the conical pucker. A rolling ball would soften it —
+    //    but `fillet_edges` is the whole-body door on a convex,
+    //    planar-faced, trivalent polyhedron.
+    let rim: Vec<topo::EdgeKey> = lant.edges().map(|(k, _)| k).collect();
+    wall(
+        6,
+        "roll a ball along the lantern's mouth rim (fillet a curved body)",
+        sweep::fillet::fillet_edges(
+            lant,
+            &rim,
+            S::from_f64(0.02),
+            geom_core::Band::linear().expect("band"),
+        ),
+        "soften the tepal-tip rim",
+    );
+
+    // 7. The lantern is THREE tepals fused, and their seams are
+    //    longitudinal grooves. Carving one means a sphere-on-sphere
+    //    subtract — the curved-on-curved boolean.
+    wall(
+        7,
+        "carve a tepal seam into the lantern (sphere x sphere subtract)",
+        topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16)),
+        "give the lanterns their three tepal seams",
+    );
+    println!(
+        "   (walls 8-10 are ABSENCES, not refusals, so they cannot be probed at \
+         runtime: no general-path sweep body, no tapering sweep, and no loft/skin \
+         body assembly — `skinned::narration` already carries the last one's \
+         retire-on-closure pin.)"
+    );
+}
