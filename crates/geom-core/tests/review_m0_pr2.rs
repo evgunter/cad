@@ -430,7 +430,16 @@ fn tolerance_child(mode: &str) {
 fn probe(mode: &str, env: &[(&str, &str)]) {
     let exe = std::env::current_exe().expect("test binary path");
     let mut cmd = std::process::Command::new(exe);
-    cmd.args([TEST_NAME, "--exact"])
+    // Self re-exec: name the probe by MODULE PATH, not by bare fn name.
+    // `tests/all.rs` aggregates every suite into one binary, so libtest sees
+    // this probe as `<this_module>::tolerance_state_machine_cross_process`. Stripping the leading crate name off
+    // `module_path!()` yields the right filter in the aggregated layout AND in
+    // a standalone one (where `module_path!()` has no `::` at all).
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::{TEST_NAME}"),
+        None => TEST_NAME.to_string(),
+    };
+    cmd.args([probe.as_str(), "--exact"])
         .env_remove(ENV_EPS) // full control, even under the CI eps matrix
         .env(CHILD_MODE, mode);
     for (k, v) in env {
