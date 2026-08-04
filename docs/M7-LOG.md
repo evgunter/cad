@@ -30,5 +30,8 @@ metres (`.expect` volumes are mm³ — ×1e-9).
 own-corpus round-trip) logged **L** BEFORE the draw — new crate
 with a Part-21 parser, an Euler-op assembly algorithm over the
 full entity subset (incl. composed_die's 89 faces, 42 reversed),
-D7 adoption, and a six-row acceptance suite. Draw recorded below
-after the difficulty line was committed in this file's history.
+D7 adoption, and a six-row acceptance suite. Draw (after the
+difficulty commit): byte 177 → **(fable, opus)** — M7-1 = FABLE;
+opus remainder owed to the next A/B-eligible dispatch (expected:
+M7-2, the FreeCAD-authored foreign corpus). Reviewer blinded as
+always; row recorded AT MERGE.
