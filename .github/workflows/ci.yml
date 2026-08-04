@@ -59,7 +59,10 @@ concurrency:
 #     artifact quota). Stripping already forfeited line numbers, so this
 #     loses nothing CI had; function names in backtraces survive.
 #
-#   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive):
+#   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive;
+#   PR #177 then collapsed 251 of those 263 binaries into 12 aggregators —
+#   see any crates/*/tests/all.rs header — so the per-binary constant now
+#   multiplies 24 binaries, not 263):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
 #   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
@@ -450,6 +453,19 @@ jobs:
       # count partition splits evenly. The two shards' union is exactly
       # the row (nextest partitions the run list deterministically); a
       # failure still names its eps row in the leg name.
+      #
+      # STILL TRUE after the #177 test-binary collapse, and worth stating
+      # because the shape changed: nextest's count partition is applied
+      # WITHIN each binary, so 263 mostly-tiny binaries became 24 larger
+      # ones. The union is still exactly the row and the split is still
+      # even — a 2044-test row splits more evenly across 24 binaries than
+      # it did across 263, not less. Test IDs gained a module prefix
+      # (`all m4_pr8_corpus::foo` where it was `m4_pr8_corpus foo`); the
+      # eps rows never named a binary, so nothing here needed rewriting.
+      # The rows that DID name one (persistence / corpus / rebuild-latency
+      # / k-lint) now select by `--test all -- <module>::` or by a nextest
+      # `test(/^<module>::/)` expression, verified to match the old
+      # per-binary test counts exactly.
       matrix:
         eps: ["default", "1e-6", "1e-12"]
         shard: [1, 2]
@@ -575,13 +591,13 @@ jobs:
       # it once with no eps env.
       - name: persistence save/load/replay-identity (interval)
         if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::m4_pr6_roundtrip_interval)'
+        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'"
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
         if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::m4_pr8_corpus_interval)'
+        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'"
 
   # The archives exist only to ferry binaries from the build jobs to the
   # run legs; on a fully green run they have no further use, and this
@@ -744,20 +760,20 @@ jobs:
       # D6.1 save/load/replay-identity + the D2 float property row +
       # the committed golden v1 fixture (byte-exact freeze tripwire).
       - name: save/load/replay-identity (D6.1) + float bits (D2) + golden v1
-        run: cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats --test m4_pr6_golden
+        run: "cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden::"
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
       # D6.2 ε-change diff (cross-process, goldened): the two probe
       # children pin their OWN ε values — the matrix ε only hosts the
       # orchestrating parent.
       - name: eps-change diff goldened (D6.2)
-        run: cargo test -p editor-core --test m4_pr6_eps_diff
+        run: "cargo test -p editor-core --test all -- m4_pr6_eps_diff::"
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
       # D6.3 schema-version / corrupt-file refusal + the adopted
       # adversarial probe suite (review pins) + token key-space pins.
       - name: schema + corruption refusal (D6.3) + review probes
-        run: cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key
+        run: "cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key::"
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
 
@@ -780,7 +796,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: per-document full-rebuild + incremental-recompute table
-        run: cargo test -p editor-core --test m4_pr8_latency -- --nocapture
+        run: "cargo test -p editor-core --test all -- --nocapture m4_pr8_latency::"
 
   # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
   # inside the workspace rows; naming it keeps the milestone's
@@ -801,7 +817,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: evaluation, exact mass pins, counted reuse, vocabulary totality
-        run: cargo test -p editor-core --test m4_pr8_corpus -- --nocapture
+        run: "cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus::"
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
 

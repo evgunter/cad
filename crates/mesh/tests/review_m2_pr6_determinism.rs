@@ -73,8 +73,17 @@ fn survives_eps_row_bitwise_independence() {
     let exe = std::env::current_exe().unwrap();
     let mut hashes = Vec::new();
     for row in ["1e-6", "1e-9", "1e-12"] {
+        // Self re-exec: name the probe by MODULE PATH, not by bare fn name.
+        // `tests/all.rs` aggregates every suite into one binary, so libtest
+        // sees this probe as `<this_module>::print_dump_hashes`. Stripping the leading
+        // crate name off `module_path!()` gives the right filter in the
+        // aggregated layout AND in a standalone one (no `::` at all).
+        let probe = match module_path!().split_once("::") {
+            Some((_, m)) => format!("{m}::print_dump_hashes"),
+            None => "print_dump_hashes".to_string(),
+        };
         let out = std::process::Command::new(&exe)
-            .args(["print_dump_hashes", "--ignored", "--exact", "--nocapture"])
+            .args([probe.as_str(), "--ignored", "--exact", "--nocapture"])
             .env("CAD_TOLERANCE_EPS", row)
             .output()
             .unwrap();

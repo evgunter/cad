@@ -30,6 +30,12 @@ Data ambiguous at ε_in fails with a typed ambiguity error; the
 unhealable fail loudly, naming entities (D4 ¶5). Feature
 recognition is a non-goal.
 
+*Design consideration (Evan, #180 comment, 2026-08-04):* the
+adoption machinery will likely be reused to offer GUI users the
+appropriate **remedy** instead of an error — refusal types carry
+structured data (entity, failed interpretation, what would be
+needed), so a future remedy flow never parses messages.
+
 ## First slice: import what we export
 
 The export corpus (14 solid fixtures + `nurbs_wireframe` under
@@ -66,6 +72,12 @@ inverse problem actually lives.
    genuine stage-1 recognition (foreign NURBS within ε_in of an
    analytic surface, promoted); the healing ladder beyond what
    M7-2's corpus forces.
+4. **Wild corpus (late; may defer past the slice — Evan, #180
+   comment, 2026-08-04)**: suitably-licensed STEP files found in
+   the wild that fall inside the supported subset (no NURBS), as
+   a demonstration that import works on files nobody here
+   authored. Sequenced near the end of the work, and deferrable
+   until the underlying kernel support is more mature.
 
 ## K telemetry (standing, #89)
 

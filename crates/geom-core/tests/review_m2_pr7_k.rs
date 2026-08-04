@@ -31,7 +31,16 @@ fn print_k_flip_probe() {
 fn run_probe(env: &[(&str, &str)]) -> String {
     let exe = std::env::current_exe().unwrap();
     let mut cmd = std::process::Command::new(&exe);
-    cmd.args(["print_k_flip_probe", "--ignored", "--exact", "--nocapture"]);
+    // Self re-exec: name the probe by MODULE PATH, not by bare fn name.
+    // `tests/all.rs` aggregates every suite into one binary, so libtest sees
+    // this probe as `<this_module>::print_k_flip_probe`. Stripping the leading crate name off
+    // `module_path!()` yields the right filter in the aggregated layout AND in
+    // a standalone one (where `module_path!()` has no `::` at all).
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::print_k_flip_probe"),
+        None => "print_k_flip_probe".to_string(),
+    };
+    cmd.args([probe.as_str(), "--ignored", "--exact", "--nocapture"]);
     for (k, v) in env {
         cmd.env(k, v);
     }

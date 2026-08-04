@@ -860,6 +860,20 @@ as recommended — the census stays exact-on-planar through M5; curved
 boolean results that touch refuse typed at the 3′ gate; the curved
 coincidence census waits for its own design doc.
 
+**CLOSED (Evan 👍, PR #178, 2026-08-04):** the design doc the
+deferral waited for exists and is RATIFIED —
+`docs/CONTACT-DESIGN.md`, proposals C1–C8 (the pair-germ census,
+the structural-only conformality boundary with the
+correctly-scoped identity lemma, CurveContact/PatchContact
+records, the Rest/Tangent/Fit declaration vocabulary with
+per-class verification tables, the signed gap co-designed for
+M8, interference-fit semantics, the join-lane target, and the
+disposition itself). Ratification changes no verdict on any body
+(CONTACT-DESIGN C8's invariant); implementation is sequenced
+separately (banked past M6 unless M7 adoption pulls it). The
+refusal-text migration named in CONTACT-DESIGN C8 rides any
+touching PR.
+
 **OQ6 — Fillet scope box.** Closed smooth chains + three-convex-edge
 sphere corner, everything else `FilletCornerUnsupported` (C8's
 recommendation)? Or narrower (closed chains only)? And which run-out

@@ -53,7 +53,7 @@ pub mod slots;
 pub mod table;
 pub mod tangency;
 
-pub use crate::fixture::Recorder;
+pub use super::fixture::Recorder;
 
 /// An exact mass-property oracle (dyadic dimensions only — see each
 /// document's derivation comment).

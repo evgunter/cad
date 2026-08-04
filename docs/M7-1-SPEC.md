@@ -42,9 +42,16 @@ to identical bits (`crates/step-export/src/real.rs`), so exact
 `==` comparisons downstream are legitimate. Errors are typed and
 name the offending entity id/line: malformed syntax, dangling
 references, unsupported entity types. No panics (`clippy::panic`
-is denied in production code). Prefer a hand-rolled parser for
-this subset; if you adopt a dependency instead, it must satisfy
-the ~2-week release-age policy and be reported as a deviation.
+is denied in production code). The semantic layer is ours by
+necessity, not preference: the F6 spike
+(`references/notes/step-spike-report.md`, main checkout — the
+directory is git-ignored) found no Rust STEP crate with a usable
+AP203/AP214 semantic layer (Evan, #180 comment, 2026-08-04). For
+the Part-21 *syntax* layer, hand-roll or adopt ruststep's
+syntactic parser — decide against that report's findings and
+report the choice; ruststep's parser and truck-stepio's
+`in::Table` are precedented as dev-dependency parse-back oracles
+(both satisfy the ~2-week release-age policy).
 
 **Leg B — AP214 → kernel geometry.** The inverse of the writer's
 identity mapping (`memories/step-curved-subset.md`):
