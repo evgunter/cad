@@ -393,6 +393,7 @@ fn main() {
     for stop in lily::stops() {
         run(&stop);
     }
+    lily::wall_probes::<f64>();
 
     println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
     for stop in curvedcut::stops() {

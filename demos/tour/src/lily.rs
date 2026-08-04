@@ -39,7 +39,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Point2, Point3, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tolerance, Vec2, Vec3};
 use profile::{
     ArcSweep, LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile,
 };
@@ -436,7 +436,11 @@ pub fn stops() -> Vec<Stop> {
                 only, every surface exact",
         ops: "Turtle-walked G1 arc chain -> revolve(Partial) tubes; \
               revolve(Full) sphere-zone lanterns; extrude(two-arc crescent) leaves",
-        delta: 5e-3,
+        // One chord budget for the whole scene is a poor fit here: at
+        // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
+        // costs ~2e5 triangles, because the torus lane spends its
+        // budget on the 5 m RING and not on the tube (findings 9).
+        delta: 2e-3,
         note: Some(note),
         view: View {
             elev: 12.0,
