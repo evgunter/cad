@@ -198,6 +198,21 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 "LINE",
             ],
         ),
+        // The M6 composed die: the blank's three kinds PLUS the
+        // surgery's rim-fillet tori — four elementary surface kinds
+        // in one solid, every carrier a line or a circle, none
+        // approximated.
+        (
+            "composed_die",
+            &[
+                "PLANE",
+                "CYLINDRICAL_SURFACE",
+                "SPHERICAL_SURFACE",
+                "TOROIDAL_SURFACE",
+                "CIRCLE",
+                "LINE",
+            ],
+        ),
     ];
     for (name, body) in curved_corpus() {
         let text = export(&body, name);
@@ -457,8 +472,10 @@ fn every_bound_orientation_is_true_even_on_reversed_faces() {
         }
     }
     // The corpus really does contain reversed faces, so the row above
-    // is not vacuous: notched 1 + washer 2 + cone 2.
-    assert_eq!(reversed_seen, 5, "the corpus's reversed faces");
+    // is not vacuous: notched 1 + washer 2 + cone 2, plus the M6
+    // composed die's 42 pip half-caps (material OUTSIDE each pip
+    // ball, so every cap face carries `sense: false`).
+    assert_eq!(reversed_seen, 47, "the corpus's reversed faces");
 }
 
 /// **Anti-double-composition pin B: a reversed face exports its TRUE
@@ -507,7 +524,10 @@ fn a_reversed_face_keeps_its_chart_axis() {
             );
         }
     }
-    assert_eq!(checked, 5, "all five reversed faces checked");
+    assert_eq!(
+        checked, 47,
+        "all reversed faces checked (5 M5 + the composed die's 42 half-caps)"
+    );
 }
 
 /// **The S12 revert row.** `Body::revert` reverses the loops AND flips

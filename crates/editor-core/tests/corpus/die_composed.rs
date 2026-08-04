@@ -6,22 +6,26 @@
 //! rather than a revolve, and its first body where the fillet's two
 //! assembly doors both stand behind one node.
 //!
-//! `Node::Fillet` targets EVERY edge of its input, so on the pipped
-//! cube the request is the twelve box edges (single-link open chains
-//! → in-place cylinder blends + octant corners) plus the pip's rim
-//! arcs (a closed chain → the torus band replacement). One radius
-//! serves both, which binds it twice: it must clear predicate 1 on
-//! the pip sphere (`r < PIP_R`) and predicate 3's ring-torus
-//! condition (`s > r`). `R = 0.05` sits comfortably inside both, and
-//! survives the bump below (the pip slides; every clearance margin
-//! stays coarse).
+//! # NOT in the corpus registry, and exactly why (M6 unit 1)
+//!
+//! `Node::Fillet` targets EVERY edge of its input BY DESIGN (no
+//! stable edge names to go stale under a bump). On the pipped cube
+//! "every edge" includes the cap's MERIDIAN seam edges — the two
+//! half-cap faces share ONE sphere surface, so a meridian has no
+//! dihedral wedge, and the battery honestly refuses
+//! `FilletError::TangentialEdge` with a zero margin. That refusal is
+//! CORRECT (a co-surface seam cannot be blended at any radius), so
+//! the composed die is not expressible until the recipe layer grows
+//! an edge-SELECTION vocabulary — the N4 fillet-naming emitter,
+//! banked in `eval/wire.rs`'s `wire_fillet` docs. This document is
+//! written to registry shape and sits BESIDE the registry (the M5
+//! `die_fillet` precedent), with the refusal pinned, executed, in
+//! `m6_composed_node.rs`. The surgery's live rows ride
+//! `sweep/tests/m6_surgery.rs` (+ `_interval`) and the demo tour's
+//! `diecomposed` stop instead.
 //!
 //! ONE pip, exactly as `die_pips` and for `die_pips`' documented
-//! reason: the 21-shell tool is a `Boolean(Union)` chain away, and
-//! that union's honesty under BOTH sweep strategies is `die_pips`'
-//! own story. This document exists to put the SURGERY on the standard
-//! rows — every CI ε, the Interval lane, D6.1 persistence, the
-//! latency table, the BVH differential — not to widen the pip count.
+//! reason: this document's subject is the surgery, not the pip count.
 //!
 //! # No mass pin
 //!

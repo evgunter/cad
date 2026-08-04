@@ -29,7 +29,7 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Affine3, Band, Bounds, Interval, Point2, Tolerance, Vec2, Vec3};
+    use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
     use geom_curves::Curve3;
     use geom_surfaces::Surface;
     use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};

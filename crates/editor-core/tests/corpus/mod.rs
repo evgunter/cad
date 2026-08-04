@@ -128,9 +128,16 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
-        die_composed::document(),
         die_fillet::document(),
         die_pips::document(),
+        // `die_composed::document()` is NOT here, and its module docs
+        // say why: `Node::Fillet` is every-edge BY DESIGN (no stable
+        // edge names to go stale), and every pipped body carries cap
+        // MERIDIAN edges — two half-caps on one sphere, no wedge —
+        // which the battery honestly refuses as `TangentialEdge`. The
+        // composed die needs an edge-selection vocabulary the recipe
+        // layer does not have (the N4 fillet-naming emitter, banked).
+        // Pinned, executed, in `m6_composed_node.rs`.
         // `die_fillet::document()` is NOT here, and its module docs say
         // why: the fillet battery's clearance screen seeds a gap with
         // `T::from_f64(f64::INFINITY)`, which is NaI at the Interval
