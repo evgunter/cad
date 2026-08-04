@@ -10,7 +10,8 @@
 //! one, and it is stated at both scalars the lift was for:
 //!
 //! - **`f64`** (this file's outer rows) — the cylinder×sphere fixture's
-//!   small loop, refit into an edge carrier, certified into a body, and
+//!   small loop of the kernel's own traced-and-fitted branch, restricted
+//!   to an edge carrier, certified into a body, and
 //!   its cylinder-chart image stored as a `Pcurve::Fitted` cache whose
 //!   certificate is RE-DERIVED at rest by the tier-3 pcurve pass;
 //! - **`Interval`** (the `certified` module) — the same body at the

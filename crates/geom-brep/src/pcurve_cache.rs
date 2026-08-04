@@ -437,14 +437,21 @@ pub enum PcurveCertifyError {
     /// could drift from the body's own), so a caller that has one must
     /// supply it.
     FittedMateMissing,
-    /// The fitted lane's SSI certificate refused.
+    /// The fitted lane's SSI certificate refused, **flattened to its
+    /// three actionable parts** rather than nested whole.
     ///
-    /// The refusal is carried as its three actionable parts rather than
-    /// nested whole: `SsiError` is not `Copy` (it nests fit and spline
-    /// refusals that are not), and this enum's `Copy` is load-bearing
-    /// across `topo`'s minting pass. Nothing actionable is lost — the
-    /// limb, the reason and the offending margin are exactly what a
-    /// consumer can act on.
+    /// The triple IS the actionable content — which limb, why, and the
+    /// offending margin — which is what a consumer can act on and what
+    /// this module's other refusals carry. Nesting `SsiError` whole
+    /// would additionally have cost this enum its `Copy` (that error
+    /// nests fit and spline refusals which are not `Copy`), rippling
+    /// through `topo::pcurves::PcurveMintError` and its containers for
+    /// no gain in what a caller can do. That is an avoided ripple, not
+    /// a demonstrated dependency: no `src` site is known to exercise
+    /// this enum's `Copy` today — every flow here moves through
+    /// `map_err` — so the honest statement is "the flattened form is
+    /// the right shape and keeps the existing error stack unchanged",
+    /// not "`Copy` is required".
     FittedCertificate {
         /// The SSI limb that refused, when the refusal names one.
         limb: Option<SsiLimb>,
@@ -742,8 +749,11 @@ fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
 }
 
 /// The SSI refusal, reduced to the three parts this module's closed
-/// enum carries (the [`PcurveCertifyError::FittedCertificate`] docs
-/// explain why it is not nested whole).
+/// enum carries — the limb, the reason (including the escalating
+/// predicate's own name) and the offending margin. That triple is the
+/// actionable content; see the
+/// [`PcurveCertifyError::FittedCertificate`] docs for what the
+/// flattening buys and, honestly, what it does not.
 fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     use crate::ssi::SsiError as E;
     let (limb, what, value) = match e {
