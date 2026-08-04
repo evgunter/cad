@@ -254,30 +254,30 @@ interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 persist_roundtrip() {
   local e
   for e in 1e-6 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr6_roundtrip --test m4_pr6_floats --test m4_pr6_golden || return 1
+    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden:: || return 1
   done
 }
-persist_eps_diff() { cargo test -p editor-core --test m4_pr6_eps_diff; }
-persist_refusal() { cargo test -p editor-core --test m4_pr6_refusal --test m4_pr6_review_probes --test profile_desc_key; }
+persist_eps_diff() { cargo test -p editor-core --test all -- m4_pr6_eps_diff::; }
+persist_refusal() { cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key::; }
 # Mirrors the named step in hosted's test-interval job (which runs it
 # out of the interval archive by binary_id).
-persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::m4_pr6_roundtrip_interval)'; }
+persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'; }
 
 # M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
 # the workspace rows; named = attributable).
 corpus_eps() {
   local e
   for e in 1e-6 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test m4_pr8_corpus -- --nocapture || return 1
+    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus:: || return 1
   done
 }
-corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::m4_pr8_corpus_interval)'; }
+corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
 # per-document table and diffs the committed baseline. NOT A GATE on any
 # timing number (the only assertions are the counted-reuse ones).
 # Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
-rebuild_latency() { cargo test -p editor-core --test m4_pr8_latency -- --nocapture; }
+rebuild_latency() { cargo test -p editor-core --test all -- --nocapture m4_pr8_latency::; }
 
 # M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
 # its own workspace, on its DEFAULT feature set — which reaches neither

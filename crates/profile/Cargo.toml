@@ -1,5 +1,6 @@
 [package]
 name = "profile"
+autotests = false  # tests/all.rs aggregates every suite; see its header
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -23,3 +24,9 @@ proptest = { workspace = true }
 # dry-run: it lowers validated arc segments onto geom-curves Circle
 # carriers; geom-curves is acyclic here (it does not depend on profile).
 geom-curves = { path = "../geom-curves" }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"
