@@ -218,3 +218,33 @@ interpretation-space argument = A7); (6) coincident-locus
 MappedCurve rung (A5), 4th test target, 1-ulp cone_apex
 fixed-point exception (A8). Impl ~422k tokens, ~2.6h wall incl.
 the gate-red loop. Slot 2 → m7-2-review lane.
+
+**M7-2 review returned (2026-08-04): APPROVE-WITH-FIXES, 2
+blocking MAJORs (both on adversarial inputs, not the corpus),
+fence clean, no silent deviations — all 11 numbered deviations
+check out.** MAJ-1: the torus normalization is a SYMPTOM-FLIP —
+all four orientation mutations of torus.step import as a
+HALF-EDGE-IDENTICAL body certifying +1.2337e-9 m³ bit-identically
+(full_torus discards the loop's cyclic order; use-multiset is
+reversal-invariant), AND the kernel props torus contribution
+never consumes sense_sign (kernel-scope, fenced — posted as a
+#184 addendum; the sphere re-mint is honest by control, cone_apex
+ruled HONEST-RECONSTRUCTION). MAJ-2: the coincident-locus rung
+certifies surfaces but not the CURVE — an off-plane arc launders
+through as MappedCurve. MINOR: ceiling-skipped tests print
+empty PASS rows (invisible skip). A2 otherwise honest (no gates
+widened, fixtures byte-identical, always-on refusal row real);
+A4 chart fuzz clean at 1.2e-15 worst; A6/A8 clean. **A3: the K
+landing is REAL and unimpeachable** — margin 5.590169943747308e-7
+= √5/4×1e-6 m² exactly, an AREA-dimensioned two-length product,
+quadratic in model scale (metre-twin ≈ 0.559 m²); standard rows
+1e-6/1e-9/1e-12 swept CLEAN corpus-wide — the landing lives only
+at ε=1e-7 between CI rows. **Reported to Evan on #89** (the
+designated trigger, nothing retuned; comment watchlisted for his
+disposition — framed as ε-vs-scale policy evidence, not a K
+argument). Fix pass dispatched (inherits the arm): torus refuses
+typed on inversion/undecidable orientation naming the kernel gap
+(never import wrong); curve certification in the coincident
+rung; ceiling-skips become refusal assertions (every ε row runs
+real content); probes adopted by merge. Review ~169k tokens,
+~48min wall.
