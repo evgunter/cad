@@ -444,3 +444,55 @@ topo/tests/m6_2_fitted_at_rest.rs; vacuity pin renamed to
 no_export_corpus_body_carries_a_nurbs_carrier_or_face.
 Battery targeted under the CPU pin (dev 9; canary 9.7s at the
 time) — hosted CI is the gate.
+
+**M6-2 review returned (2026-08-04): APPROVE-WITH-FIXES,
+1 MAJ / 4 MIN / 5 NOTE, 0 silent deviations (clause-by-clause
+spec diff), all nine reported deviations UPHELD.** The
+adjudications that matter: (1) OnLocusHull is HONEST by the walk
+row's own letter — the row's text cites the SsiCertificate
+machinery whose limb-2 hull bound has been sup|f_S∘C| since M5
+PR 7; the statement enum ADDS honesty. The real residue is now
+PINNED by a reviewer probe: a between-samples image displacement
+(exact basis locality, all 9 schedule samples bit-identical,
+~1e-3 m drift between them) certifies cleanly — the documented
+statement boundary; every current consumer of between-samples
+images refuses typed. (2) Dev 1's f64-midpoint Newton is SOUND:
+certificates claim residuals AT the structural point, evaluated
+at T — widened inputs widen and refuse; never understate; the
+split-impl would have certified nothing extra while breaking
+cross-lane bit-identity of the selected pair. (3) The corruption
+rows have teeth — foreign-arc rejected for the RIGHT reason;
+reviewer's second-species corruption (sub-interval cache, honest
+numbers) caught by the loop-continuity walk, now pinned as the
+net that catches it. MAJ-1 = hosted CI RED on one unused import
+(topo test), which SKIPPED the whole hosted interval matrix —
+row 1's hosted evidence missing; the fix is one line + green
+re-run, but the gate is the gate. Fix pass dispatched (inherits
+the arm): import + header contradiction + dead sentinel arm
+(typed-error preferred) + string continuations + domination-row
+on_locus_max + adopt review/m6-2's three probes.
+**Banked follow-up (pre-existing, M5)**: probe_tube_chart's uv
+pad divides by an UPPER speed bound while its comment claims the
+wide-pad direction — flag from this review, not this PR's to fix.
+
+**Lily MERGED as #175 (2026-08-04).** Fix pass: probes adopted
+by merge (authorship kept); all seven wall pins variant+payload
+strict with three-outcome structure (pinned narrate / MOVED
+panic / retired panic); the fix pass CORRECTED THE REVIEW twice
+with cross-checked methods (the .F. claim is 13/20 — the review
+forgot the four pre-existing zero-carriers; the stored
+minor_radius is 56 ulps off, not 4) and caught an
+excessive_precision clippy red the probes would have hit at the
+gate. NEW finding 15: naming CurvedBooleanUnsupported's payload
+type forced a geom-brep dep in demos/tour — topo does not
+re-export its own error payload types. Findings now FIFTEEN.
+Lanes cleaned (globe-lily 1.9G, lily-review 444M; the review
+lane's modified renders were its NOTE-2 regeneration evidence,
+discarded after checkout). CPU still pinned (canary 21.4s at
+merge). A/B: exempt add-on lane (Evan ruling), no row.
+Ergonomics ledger for triage at the next planning seam:
+findings 11 (silent revolve placement — world-coordinate axis
+or tube_along_arc), 12 (unchecked frame orthonormality),
+13 (tessellation δ budgeted by ring radius not feature size),
+14 (no near-tangency margin query), 15 (error payload
+re-exports).
