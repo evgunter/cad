@@ -1,5 +1,6 @@
-//! **M5 PR 12 fix pass F5 — the `Fillet` recipe node**, and the one
-//! blocker keeping its Band 4 document out of the corpus registry.
+//! **M5 PR 12 fix pass F5 — the `Fillet` recipe node**, and the
+//! blocker that once kept its Band 4 document out of the corpus
+//! registry (retired at `5c8540f`; `die_fillet` is registered now).
 //!
 //! `Node::Fillet` wires
 //! [`sweep::fillet::build::fillet_edges`](sweep::fillet::build::fillet_edges)
@@ -9,11 +10,13 @@
 //! needs no stable edge names and cannot go stale under a parameter
 //! edit — which the bump row below executes rather than asserts.
 //!
-//! The document under test is `corpus/die_fillet.rs`, written to
-//! registry shape but not registered; this file is the standard-row
-//! substitute, and it is deliberately STRICTER than the registry rows
-//! in the one place that matters — it pins the Interval refusal
-//! EXACTLY, so the blocker retires itself.
+//! The document under test is `corpus/die_fillet.rs`. It was written
+//! to registry shape but held out of it while the Interval blocker
+//! stood, and this file was the standard-row substitute — deliberately
+//! STRICTER than the registry rows in the one place that mattered,
+//! pinning the Interval behaviour EXACTLY so the blocker would retire
+//! itself. It did: the row below now asserts the Interval lane GREEN,
+//! and the document carries the ordinary registry rows on top of it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
