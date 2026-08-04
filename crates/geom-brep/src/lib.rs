@@ -45,6 +45,7 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 pub mod newell;
+pub mod nurbs_iso;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
@@ -71,6 +72,7 @@ pub use newell::{NewellError, newell_plane};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
+pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
 pub use pcurve_cache::{
     ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
     PcurveCheck, PcurveFittedLane, chart_pcurve,
