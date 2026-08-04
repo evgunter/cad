@@ -152,3 +152,28 @@ no seam/pole accounting), export side implements after Evan's
 cleaned; slot 2 freed. Next: M7-2 (FreeCAD-authored foreign
 corpus; OPUS block remainder; difficulty logged before
 assignment at spec time).
+
+**M7-2 substrate returned + spec written (2026-08-04)**: FreeCAD
+1.1.2 dialect measured (13 files kept + full box.step walk;
+~/.local/share/cad-work/m7-2-substrate/inventory.md). Headlines:
+mm-prefixed SI units 13/13; NO FACE_OUTER_BOUND ever (outerness
+must be inferred — multi-ring faces geometrically); FACE_BOUND
+.F. is NOT redundant with face sense (4 planar-cap
+counterexamples); cones always base-placed (r≠0; apex form never
+appears); full sphere = ONE edge-free face bounded by a
+VERTEX_LOOP (the genuinely new reconstruction case); periodic
+faces arrive seam-unsplit but with the doubled seam edge our Seam
+rung expects; NO NURBS-where-analytic, no ELLIPSE, no trim
+params, no EDGE_CURVE .F.; 12-13 sig-digit truncation makes
+pi-derived identities tolerance-budgeted, not bitwise.
+docs/M7-2-SPEC.md written with three firm design elaborations
+flagged for Evan: per-literal print-precision budget
+(eps_in_eff = max(ε_in, half-ulp of the printed decimal)),
+kernel-canonical sphere re-split as REPORTED D7 stage-3
+normalization (file 1/0/… → kernel 2/2/2, mapping carried as
+data), chart-based outerness inference with typed ambiguity
+refusal. **A/B: M7-2 difficulty logged L BEFORE assignment**
+(multi-front dialect work: units scaling, outerness, base cones,
+vertex-loop reconstruction, structure roots, the first real
+ε_in-scale interpretation); arm = OPUS (block M7-1 remainder,
+predetermined at the draw). Substrate ~64k tokens, ~10min.
