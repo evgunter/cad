@@ -43,3 +43,21 @@ slot 2 claimed in cargo-slots.txt); PR to be HELD for blinded
 adversarial review per standing process. Fence in both the spec
 (§0) and the prompt; report lands at
 ~/.local/share/cad-work/m7-1-report.md.
+
+**Evan's five notes on #180 (comment, 2026-08-04), dispositions:**
+(1) parser hand-rolling is necessity not preference — the F6
+spike (references/notes/step-spike-report.md) found no usable
+Rust STEP semantic layer; spec §Leg A corrected, and ruststep's
+working *syntactic* layer + truck-stepio's `in::Table` noted as
+precedented dev-dependency oracles. (2) Mäntylä notes
+(references/notes/mantyla-ch9..15) are to be read BEFORE the
+scans — relayed to the implementer with the main-checkout path
+(references/ is git-ignored and absent from lane clones).
+(3) reversed faces: the corpus's `.F.` faces are deliberate
+S10/S11 output, not a bug — no healing now; reaffirmed to the
+implementer. (4) adoption machinery should be reusable for GUI
+remedies — refusals carry structured data, recorded in the plan's
+contract section and relayed. (5) wild licensed STEP files inside
+the subset as a late demo corpus — plan unit 4, deferrable. All
+three docs amended; implementer messaged mid-flight (no
+acceptance-row changes).
