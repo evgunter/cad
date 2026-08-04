@@ -47,7 +47,7 @@ where
         Node::Profile(desc) => Ok((wire_profile(desc)?, names::empty())),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
-        Node::Loft { profiles, .. } => wire_loft(profiles, doc, vals),
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals),
         Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals),
         Node::Fillet { target, .. } => wire_fillet(id, *target, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
@@ -716,48 +716,33 @@ fn wire_pattern<T: Decide>(
 // M5 PR 10: the definitional §10.3/§10.4 nodes
 // ---------------------------------------------------------------------
 
-/// The `&'static str`s [`NodeErrorKind::CurvedSolidFrontier`] names —
-/// the exact doors a NURBS-walled solid is waiting on. Kept as
-/// constants so the acceptance rows assert the SAME text the node
+/// The Sweep node's frontier — the ONE remaining
+/// [`NodeErrorKind::CurvedSolidFrontier`] door (M5 PR 10 fix pass,
+/// review MAJOR-1; narrowed at M6-3 when the loft body landed and the
+/// former `LOFT_FRONTIER` text retired with its frontier). Kept as a
+/// constant so the acceptance rows assert the SAME text the node
 /// produces.
-pub(crate) const LOFT_FRONTIER: &str = "a NURBS-walled solid: tier 3 refuses Surface::Nurbs by KIND \
-     (UncertifiableSurface), and EdgeCurve::certify refuses every \
-     description that NAMES a NURBS surface plus every NURBS carrier \
-     under a CONVENTIONAL description (Unimplemented) — which is \
-     exactly a loft's iso-parameter seams. The curved-boolean lane \
-     opened the NURBS carrier for Intersection descriptions of two \
-     ANALYTIC surfaces only. M5 PR 9c executed the assembly design \
-     against this door and found a HARDER one behind it: tier 3's +V \
-     check (7) computes mass_properties, which routes a NURBS face to \
-     props::curved_face and gets Unimplemented, so the body would fail \
-     validation even with every description accepted — NURBS-patch flux \
-     needs the curved-face quadrature of the tessellation lane, and the \
-     surface-area half has no closed form for a rational patch at all";
-
-/// The Sweep node's frontier, which is STRICTLY WIDER than the loft's
-/// (M5 PR 10 fix pass, review MAJOR-1).
 ///
 /// §10.4's rigid-profile sweep needs the path as ONE curve. The recipe
 /// layer cannot supply one: a `Node::Sweep`'s `path` operand is a
 /// profile, a validated profile's loop is a CLOSED chain, and a closed
 /// chain has two or more segments — even the minimal two-vertex loop is
-/// two half-turn arcs. So there is no recipe-expressible path this PR
-/// can sweep, and the honest node-layer answer is a single refusal
-/// naming what is missing: a joined-path composition lane (no PR is
-/// scheduled to build one). Behind that stands the same NURBS-walled
-/// solid frontier the loft hits.
+/// two half-turn arcs. So there is no recipe-expressible path, and the
+/// honest node-layer answer is a single refusal naming what is
+/// missing: a joined-path composition lane (banked past M6 — the
+/// PR 10 MAJ ruling, reaffirmed by the M6-3 spec §1).
 ///
-/// `sweep::sweep_geometry` itself is live and exercised — through the
-/// library API, the demo stop, and the acceptance suites. It is the
-/// NODE lane that is gated, and it is gated at one door rather than two
-/// so the message cannot imply an expressible case that does not exist.
+/// `sweep::sweep_geometry` AND `sweep::sweep_body` are live and
+/// exercised through the library API; it is only this NODE lane that
+/// is gated, at one door, so the message cannot imply an expressible
+/// case that does not exist.
 pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
      a closed chain of two or more segments, even at the minimal \
      two-vertex circle — while §10.4's rigid-profile sweep needs the \
      path as ONE curve, so every recipe-expressible sweep waits on a \
-     joined-path composition lane; behind it stands the same \
-     NURBS-walled solid frontier the loft hits (tier 3 refuses \
-     Surface::Nurbs by kind, UncertifiableSurface)";
+     joined-path composition lane (banked past M6); the swept BODY \
+     machinery itself is live since M6-3 — sweep::sweep_body at the \
+     library API";
 
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.
@@ -818,7 +803,11 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
     usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
 }
 
+/// The Loft node (M6-3: the frontier flipped to the BUILDER — the
+/// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
+/// rest).
 fn wire_loft<T: Decide>(
+    id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileDesc>,
     vals: &SlotValues<T>,
@@ -826,19 +815,18 @@ fn wire_loft<T: Decide>(
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    for id in profiles {
-        let (chain, place) = section_of(doc, *id)?;
+    for pid in profiles {
+        let (chain, place) = section_of(doc, *pid)?;
         sections.push(chain);
         places.push(place);
     }
-    // The §10.3 construction RUNS: its compatibility door is the one
-    // that refuses a bad loft, and the walls it produces are the
-    // definition (Q8). Only the B-rep assembly is frontier-blocked.
-    let _geometry =
-        sweep::loft_geometry(&sections, &places, v_degree).map_err(NodeErrorKind::Skin)?;
-    Err(NodeErrorKind::CurvedSolidFrontier {
-        what: LOFT_FRONTIER,
-    })
+    let mut built =
+        sweep::loft_body::<T>(&sections, &places, v_degree).map_err(NodeErrorKind::Loft)?;
+    // Eager N4 emission from the builder's own maps, BEFORE the
+    // structural handoff is dropped (the extrude idiom).
+    let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
+    stamp_minted(&mut built.body, id);
+    Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
 
 /// The Sweep node (M5 PR 10 fix pass, review MAJOR-1: ONE honest

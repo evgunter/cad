@@ -1,15 +1,17 @@
-//! M5 PR 10 §3/§5 — the NURBS-wall B-rep frontier, DEMONSTRATED.
+//! M5 PR 10 §3/§5 — the NURBS-wall B-rep frontier, demonstrated and
+//! then **FLIPPED (M6-3, the S9 pattern — history kept)**.
 //!
-//! §3 asks the lofted body to validate at tier 3. It cannot, at this
-//! PR's merge time, and the reason is not a gap in this PR's geometry:
-//! the certification layer refuses every non-analytic surface outright.
-//! These rows pin the refusal so the claim is a demonstration rather
-//! than an assertion, and so the PR that opens the frontier (M5 plan
-//! line 9's curved booleans / line 11's curved tessellation, which own
-//! `implicit`'s NURBS forms) sees exactly which doors it must open.
-//!
-//! Never a silent skip: the walls this PR produces are real, and the
-//! rows below evaluate them.
+//! As written at PR 10, these rows pinned tier 3's by-KIND refusal of
+//! every non-analytic surface, so the PR that opened the frontier
+//! would see exactly which doors it had to open. M6-3 opened them:
+//! check 1 now refuses only the mvfs PLACEHOLDER, a described NURBS
+//! face passes, and the loft BODY assembles tier-3 green
+//! (`m6_loft_body.rs`). The second row below therefore asserts the
+//! POST-flip truth: swapping a real skinned wall onto an extruded box
+//! no longer draws `UncertifiableSurface` — what refuses now is the
+//! honest GEOMETRY (the box's rims do not lie on that wall), which is
+//! exactly the difference between rejecting a KIND and certifying a
+//! surface.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -68,12 +70,16 @@ fn the_loft_produces_one_real_nurbs_wall_per_profile_segment() {
     }
 }
 
-/// A REAL, tier-3-valid solid, with one side wall's surface replaced
-/// by a genuine (non-placeholder) skinned NURBS: tier 3 then refuses
-/// that face outright. Nothing about the wall is wrong — the gate
-/// rejects the KIND.
+/// S9 FLIP (M6-3) of `tier_three_refuses_a_real_nurbs_wall_by_kind`:
+/// the same construction — a tier-3-valid extruded box with one side
+/// wall's surface replaced by a genuine skinned NURBS — now draws NO
+/// `UncertifiableSurface` (check 1 refuses only the placeholder).
+/// Tier 3 still refuses the BODY, for the honest geometric reason:
+/// the box's rim/strut carriers do not lie on the swapped wall, so
+/// re-certification and the +V lane report the mismatch. Kind-refusal
+/// retired; geometry-refusal demonstrated.
 #[test]
-fn tier_three_refuses_a_real_nurbs_wall_by_kind() {
+fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     let profile = Profile::new(
         SketchPlane::xy(),
         vec![ProfileLoop::polygon([
@@ -96,12 +102,11 @@ fn tier_three_refuses_a_real_nurbs_wall_by_kind() {
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
         .expect("the arena takes a real NURBS surface");
 
-    let errors = validate_geometric(&body).expect_err("tier 3 must refuse the NURBS face");
+    let errors = validate_geometric(&body).expect_err("tier 3 must refuse the mismatched geometry");
     assert!(
-        errors.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::UncertifiableSurface { face: f } if *f == face
-        )),
-        "expected UncertifiableSurface on the NURBS face, got {errors:?}"
+        !errors
+            .iter()
+            .any(|e| matches!(e, topo::ValidationError::UncertifiableSurface { .. })),
+        "M6-3 flip A: a described NURBS surface is no longer refused by KIND — got {errors:?}"
     );
 }
