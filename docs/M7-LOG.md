@@ -184,3 +184,37 @@ absent Evan comment); implementer (OPUS) launched on lane
 ~/.local/share/cad-work/m7-2-freecad, branch ev/m7-2-freecad,
 slot 2 claimed; PR to be HELD for blinded adversarial review;
 report lands at ~/.local/share/cad-work/m7-2-report.md.
+
+**Mid-flight (2026-08-04)**: Evan ruled on spec flag 1 (#187
+comment) — flat ε_in replaces the per-literal eps_in_eff budget;
+relayed to the implementer BEFORE the paperwork, spec amended via
+#188 (self-merged; quantified concession: truncation ~1e-12·|x|
+dominated by 1e-10 m under ~100 m; giant-model arm = typed
+refusal + per-call override). Flag 2 approved; flag 3 stands.
+Then hosted CI went RED on the four ε=1e-6 shards (cylinder
+fixture, pcurve MapResidual at re-mint) — signature relayed with
+the mm-scale-vs-absolute-ε lead.
+
+**M7-2 implementation COMPLETE (2026-08-04): PR #189 open, CI
+green after the ε-fix, review DISPATCHED with heavyweight
+adjudications.** Implementer's own headline disclosures:
+(1) TWO structure normalizations beyond the spec's sanctioned
+sphere case (cone_apex ScaffoldingStrutVertex; torus
+NegativeVolume with exact magnitude and INVERTED SIGN) — resolved
+via the sphere mechanism with a stop-worthy question honestly
+asked; review attack A1 adjudicates HONEST-RECONSTRUCTION vs
+SYMPTOM-FLIP vs NEEDS-ESCALATION before I rule. (2) ε=1e-6 root
+cause = mm-scale corpus vs absolute ε (the kernel refused
+CORRECTLY); fix = CORPUS_EPS_CEILING=1e-8 with derivation, loud
+skip above, always-on refused-typed row — attack A2 verifies no
+silent matrix shrink. (3) **FIRST IN-BAND K LANDING of the
+project** (the #89 re-open trigger class): ε=1e-7, cone_trunc,
+props_rim_level_group, margin 5.590169943747308e-7 in
+Band{1e-7, 1e-6} — attack A3 makes the measurement unimpeachable
+BEFORE it goes to Evan; do not retune anything. (4) Four M7-1
+refusal flips (S9 pattern audit = A6); (5) new interpretation
+predicates not routed through Decide/K (spec §3 letter vs D7
+interpretation-space argument = A7); (6) coincident-locus
+MappedCurve rung (A5), 4th test target, 1-ulp cone_apex
+fixed-point exception (A8). Impl ~422k tokens, ~2.6h wall incl.
+the gate-red loop. Slot 2 → m7-2-review lane.
