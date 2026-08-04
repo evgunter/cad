@@ -340,10 +340,10 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 1.0 / (2.0 * radius),
             ))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => Err(
-            "no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root the C9 ring lacks)",
-        ),
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => {
+            Err("no ring-computable meters composite for this surface kind \
+             (cone/torus need a certified root the C9 ring lacks)")
+        }
     }
 }
 

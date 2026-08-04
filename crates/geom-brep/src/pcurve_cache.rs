@@ -740,9 +740,10 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             None,
             // The escalating predicate's own NAME is the actionable
             // part — "which limb's trilean" is what a consumer needs.
-            d.predicate
-                .unwrap_or("a certificate trilean landed in the sliver band (escalate, never \
-                            guess)"),
+            d.predicate.unwrap_or(
+                "a certificate trilean landed in the sliver band (escalate, never \
+                            guess)",
+            ),
             match d.margin {
                 geom_core::predicate::MarginDiag::Value(v) => v,
                 _ => f64::NAN,
@@ -963,8 +964,7 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
         window: ChartWindow<T>,
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate =
-            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band)?;
+        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band)?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
             param_start: t0,
@@ -1519,15 +1519,7 @@ fn run_fitted_checks<T: PcurveFittedLane>(
 
     // ---- Check 3: the schedule, in metres through the map. ----
     let mut max_residual = T::zero();
-    schedule_residuals(
-        &pcurve,
-        t0,
-        t1,
-        carrier,
-        surface,
-        band,
-        &mut max_residual,
-    )?;
+    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
 
     // ---- Check 4: the full C2 certificate, RE-DERIVED. ----
     let Some(ssi) = T::fitted_certificate(spline, image, surface, mate, band)? else {
@@ -2092,7 +2084,8 @@ mod tests {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
             panic!("the closed-form lane stores harmonic images")
         };
         // A deliberately imperfect pcurve, so the envelope is not a
@@ -2148,7 +2141,8 @@ mod tests {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
             panic!("the closed-form lane stores harmonic images")
         };
         // δ·r just inside the Zero band at the default ε = 1e-9; the
@@ -2161,9 +2155,15 @@ mod tests {
             pb,
             pl: Vec2::new(pl.x + delta, pl.y),
         };
-        let Ok(cache) =
-            PcurveCache::certify(drifted.clone(), 0.0, PI, &carrier, &cyl, wide_window(), band())
-        else {
+        let Ok(cache) = PcurveCache::certify(
+            drifted.clone(),
+            0.0,
+            PI,
+            &carrier,
+            &cyl,
+            wide_window(),
+            band(),
+        ) else {
             // At a tighter ε row the snap does not admit it at all —
             // also honest, and nothing left to check.
             return;
@@ -2213,7 +2213,8 @@ mod tests {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
         let cyl = cylinder(r);
         let carrier = tilted_section(r, h, tilt);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
             panic!("the closed-form lane stores harmonic images")
         };
         let d = 1e-4;
@@ -2262,7 +2263,8 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &sphere, band()).unwrap() else {
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &sphere, band()).unwrap()
+        else {
             panic!("the closed-form lane stores harmonic images")
         };
         assert!(p0.x.abs() < 1e-15 && p0.y.abs() < 1e-15);

@@ -207,8 +207,7 @@ pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
     let carrier = Curve3::Nurbs(Arc::new(lift3::<D>(&built.carrier)));
     let image = Arc::new(lift2::<D>(&built.image));
     let (t0, t1) = image.domain();
-    let window = Pcurve::Fitted(Arc::clone(&image))
-        .chart_box(D::from_f64(t0), D::from_f64(t1));
+    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(D::from_f64(t0), D::from_f64(t1));
     PcurveCache::<D>::certify_fitted(
         image,
         D::from_f64(t0),

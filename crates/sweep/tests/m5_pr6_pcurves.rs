@@ -159,8 +159,7 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
             1,
             "exactly one side of a section edge is a cylinder face"
         );
-        let Pcurve::Harmonic { pa, pb, pl, .. } = *above.pcurve(stored[0]).unwrap().pcurve()
-        else {
+        let Pcurve::Harmonic { pa, pb, pl, .. } = *above.pcurve(stored[0]).unwrap().pcurve() else {
             panic!("the minting lane stores closed-form images")
         };
         // The sinusoid graph: azimuth affine with unit winding, height

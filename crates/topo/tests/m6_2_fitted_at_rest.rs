@@ -54,7 +54,10 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 
     // 1. The cache at rest IS fitted — the variant reached a body.
     for he in [built.he_plus, built.he_minus] {
-        let cache = built.body.pcurve(he).expect("both half-edges carry a cache");
+        let cache = built
+            .body
+            .pcurve(he)
+            .expect("both half-edges carry a cache");
         assert!(
             matches!(cache.pcurve(), Pcurve::Fitted(_)),
             "the stored chart image is the fitted (rung-3) variant"
@@ -63,7 +66,9 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
         // 2. The full C2 certificate is present — hull sup-norm AND
         //    uniqueness tube. A schedule-max-only cache is exactly what
         //    this row exists to forbid.
-        let ssi = cert.ssi.expect("a fitted cache carries the SSI certificate");
+        let ssi = cert
+            .ssi
+            .expect("a fitted cache carries the SSI certificate");
         assert!(
             ssi.tube_boxes > 0,
             "the uniqueness tube proved one-arc-ness over a real box chain"
@@ -77,7 +82,10 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
             EnvelopeStatement::OnLocusHull,
             "an analytic chart's fitted envelope is the on-locus hull bound"
         );
-        assert_eq!(cert.envelope, ssi.hull_sup, "the envelope IS the hull bound");
+        assert_eq!(
+            cert.envelope, ssi.hull_sup,
+            "the envelope IS the hull bound"
+        );
         // 3. Both statements are inside the run's band, and they are
         //    SEPARATE numbers (a sampled max is not a sup bound).
         assert!(cert.max_residual <= band.zero(), "sampled max within ε");
@@ -189,7 +197,10 @@ mod certified {
         ] {
             assert!(v.lo() <= v.hi(), "{what}: a well-formed enclosure");
             assert!(v.lo() >= 0.0, "{what}: a magnitude encloses no negatives");
-            assert!(v.hi() <= band.zero(), "{what}: the whole enclosure is within ε");
+            assert!(
+                v.hi() <= band.zero(),
+                "{what}: the whole enclosure is within ε"
+            );
         }
         // The tube's margin is definitely positive at the interval
         // scalar — its LOWER end clears zero, which is the one-arc

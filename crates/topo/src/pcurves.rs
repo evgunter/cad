@@ -438,10 +438,10 @@ fn mint_face<T: Decide>(
             window,
             band,
         )
-            .map_err(|error| PcurveMintError::Certify {
-                half_edge: w.half_edge,
-                error,
-            })?;
+        .map_err(|error| PcurveMintError::Certify {
+            half_edge: w.half_edge,
+            error,
+        })?;
         body.pcurves.insert(w.half_edge, cache);
     }
     Ok(())
