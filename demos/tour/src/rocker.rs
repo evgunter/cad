@@ -221,7 +221,9 @@ pub fn stops() -> Vec<Stop> {
     let note = eye_pick_narration(&profile::<f64>());
     vec![Stop {
         name: "rocker",
-        caption: "rocker plate — every corner filleted (arc legs included)".to_string(),
+        // Short — montage captions share the panel's width, and this
+        // stop became a panel at the M6 curation pass.
+        caption: "rocker plate — every corner filleted".to_string(),
         montage: true,
         story: "rocker plate — SIX filleted corners covering the whole taxonomy: \
                 arc x line (hub blend), line x line (keel knee), line x arc (boss \
