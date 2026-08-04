@@ -184,3 +184,100 @@ absent Evan comment); implementer (OPUS) launched on lane
 ~/.local/share/cad-work/m7-2-freecad, branch ev/m7-2-freecad,
 slot 2 claimed; PR to be HELD for blinded adversarial review;
 report lands at ~/.local/share/cad-work/m7-2-report.md.
+
+**Mid-flight (2026-08-04)**: Evan ruled on spec flag 1 (#187
+comment) — flat ε_in replaces the per-literal eps_in_eff budget;
+relayed to the implementer BEFORE the paperwork, spec amended via
+#188 (self-merged; quantified concession: truncation ~1e-12·|x|
+dominated by 1e-10 m under ~100 m; giant-model arm = typed
+refusal + per-call override). Flag 2 approved; flag 3 stands.
+Then hosted CI went RED on the four ε=1e-6 shards (cylinder
+fixture, pcurve MapResidual at re-mint) — signature relayed with
+the mm-scale-vs-absolute-ε lead.
+
+**M7-2 implementation COMPLETE (2026-08-04): PR #189 open, CI
+green after the ε-fix, review DISPATCHED with heavyweight
+adjudications.** Implementer's own headline disclosures:
+(1) TWO structure normalizations beyond the spec's sanctioned
+sphere case (cone_apex ScaffoldingStrutVertex; torus
+NegativeVolume with exact magnitude and INVERTED SIGN) — resolved
+via the sphere mechanism with a stop-worthy question honestly
+asked; review attack A1 adjudicates HONEST-RECONSTRUCTION vs
+SYMPTOM-FLIP vs NEEDS-ESCALATION before I rule. (2) ε=1e-6 root
+cause = mm-scale corpus vs absolute ε (the kernel refused
+CORRECTLY); fix = CORPUS_EPS_CEILING=1e-8 with derivation, loud
+skip above, always-on refused-typed row — attack A2 verifies no
+silent matrix shrink. (3) **FIRST IN-BAND K LANDING of the
+project** (the #89 re-open trigger class): ε=1e-7, cone_trunc,
+props_rim_level_group, margin 5.590169943747308e-7 in
+Band{1e-7, 1e-6} — attack A3 makes the measurement unimpeachable
+BEFORE it goes to Evan; do not retune anything. (4) Four M7-1
+refusal flips (S9 pattern audit = A6); (5) new interpretation
+predicates not routed through Decide/K (spec §3 letter vs D7
+interpretation-space argument = A7); (6) coincident-locus
+MappedCurve rung (A5), 4th test target, 1-ulp cone_apex
+fixed-point exception (A8). Impl ~422k tokens, ~2.6h wall incl.
+the gate-red loop. Slot 2 → m7-2-review lane.
+
+**M7-2 review returned (2026-08-04): APPROVE-WITH-FIXES, 2
+blocking MAJORs (both on adversarial inputs, not the corpus),
+fence clean, no silent deviations — all 11 numbered deviations
+check out.** MAJ-1: the torus normalization is a SYMPTOM-FLIP —
+all four orientation mutations of torus.step import as a
+HALF-EDGE-IDENTICAL body certifying +1.2337e-9 m³ bit-identically
+(full_torus discards the loop's cyclic order; use-multiset is
+reversal-invariant), AND the kernel props torus contribution
+never consumes sense_sign (kernel-scope, fenced — posted as a
+#184 addendum; the sphere re-mint is honest by control, cone_apex
+ruled HONEST-RECONSTRUCTION). MAJ-2: the coincident-locus rung
+certifies surfaces but not the CURVE — an off-plane arc launders
+through as MappedCurve. MINOR: ceiling-skipped tests print
+empty PASS rows (invisible skip). A2 otherwise honest (no gates
+widened, fixtures byte-identical, always-on refusal row real);
+A4 chart fuzz clean at 1.2e-15 worst; A6/A8 clean. **A3: the K
+landing is REAL and unimpeachable** — margin 5.590169943747308e-7
+= √5/4×1e-6 m² exactly, an AREA-dimensioned two-length product,
+quadratic in model scale (metre-twin ≈ 0.559 m²); standard rows
+1e-6/1e-9/1e-12 swept CLEAN corpus-wide — the landing lives only
+at ε=1e-7 between CI rows. **Reported to Evan on #89** (the
+designated trigger, nothing retuned; comment watchlisted for his
+disposition — framed as ε-vs-scale policy evidence, not a K
+argument). Fix pass dispatched (inherits the arm): torus refuses
+typed on inversion/undecidable orientation naming the kernel gap
+(never import wrong); curve certification in the coincident
+rung; ceiling-skips become refusal assertions (every ε row runs
+real content); probes adopted by merge. Review ~169k tokens,
+~48min wall.
+
+**M7-2 MERGED as #189 (2026-08-04): FOREIGN GEOMETRY IS LIVE.**
+The kernel now adopts FreeCAD 1.1.2 files across the full
+analytic subset. Fix pass discharged all four items with the
+torus fix done right: winding derived from the loop's CYCLIC
+ORDER via mid-quadrant chart sampling; all four orientation
+statements of torus.step behave per ISO (both legal
+right-side-out encodings import to ONE body — pinned; both
+inside-out encodings refuse typed naming the inversion AND the
+kernel props limitation); the judgment call that minted
+half-faces derive winding/sense from the material side (copying
+would falsely refuse ISO's .F./CW legal encoding) is ENDORSED.
+MAJOR-2: carrier_on_surface certifies the curve through the
+shared door; the off-plane plant refuses with Surface1Residual.
+The ceiling-skip fix introduced a principled third arm:
+above-ceiling rows assert the sub-tolerance obligation and
+tier 3 must be Ok OR AN ESCALATION (the kernel declining in
+band), never a definite falsehood — declining vs answering
+falsely, distinguished. Battery green at FIVE ε values
+(default/1e-12/1e-7/1e-6/1e-5); oracle 13/13; hosted
+19 pass / 6 skip (closure filter) / 0 fail. Deviations 11
+reported / 0 silent; a 5th test target noted. Outstanding
+question banked under deviation 9: coincident_surfaces budgets
+its interpretation act bandless at ambient ε (review MIN-3) —
+candidate for the M7 exit walk. A/B row RECORDED AT MERGE
+(opus arm). Kernel-side ledger: props torus sense_sign gap on
+#184 (with the M6 orchestrator's proposed unit strengthened);
+K-landing disposition ask WATCHLISTED on #89. Lanes cleaned
+post-termination (the new sequencing rule held); slot 2 freed.
+M7 first-slice status: BOTH plan units 1-2 SHIPPED same-day;
+remaining M7 = the M6-blocked unit 3 (NURBS faces), the
+KERNEL_* consumer follow-up (blocked on #184's export side),
+and the deferrable wild corpus (unit 4).
