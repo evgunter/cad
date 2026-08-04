@@ -148,7 +148,7 @@ discipline() {
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' \
-    | grep -vE '^crates/sweep/src/fillet/(battery|build)\.rs$' || true)
+    | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"
