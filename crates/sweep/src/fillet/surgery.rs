@@ -81,7 +81,7 @@ use topo::{
 };
 
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::blend::{BlendArm, corner_ball};
+use super::blend::{BlendArm, EdgeBlend, corner_ball};
 use super::build::{Filleted, face_cycle, outward_of, vertex_faces};
 use super::{FilletError, FilletSite, decide};
 
@@ -366,6 +366,10 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    // Likely dead in practice: the battery screens a single rim arc
+    // as a run-out (an open chain at a partially-requested corner)
+    // before a one-link CLOSED chain can reach here — kept as a typed
+    // guard on the closure invariant, not a reachable door.
     if chain.links.len() < 2 {
         return Err(unsupported(
             "a closed chain of fewer than two links (a one-edge rim) is not implemented",
@@ -540,6 +544,46 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
     found.ok_or_else(|| unsupported("a ring has no edges"))
 }
 
+/// A rim link's (plane, sphere) trim circles as `(center, radius)`
+/// pairs, selected by SUPPORT KIND — the [`resolve_rim`] discipline —
+/// never by slot order. `classify_arm` keys `trim_a` to `face_a`, and
+/// `face_a` is whichever support carries `he_plus`: when that is the
+/// SPHERE face, the `(Sphere, Plane)` arm swaps the trims to keep the
+/// face↔trim pairing honest, so `trim_a` is the sphere circle there.
+/// Callers pass `plane_is_a = (link.face_a == plane)`; reading
+/// `trim_a` blind would take the sphere trim for the plane trim on
+/// exactly those links. Pinned by
+/// `tests::trim_selection_is_by_support_kind`.
+#[allow(clippy::type_complexity)]
+fn rim_trim_circles<T: Real>(
+    blend: &EdgeBlend<T>,
+    plane_is_a: bool,
+) -> Result<((Point3<T>, T), (Point3<T>, T)), FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let (plane_trim, sphere_trim) = if plane_is_a {
+        (&blend.trim_a.0, &blend.trim_b.0)
+    } else {
+        (&blend.trim_b.0, &blend.trim_a.0)
+    };
+    let Curve3::Circle {
+        center: pc,
+        radius: pr,
+        ..
+    } = *plane_trim
+    else {
+        return Err(unsupported("a rim blend's plane trimline is not a circle"));
+    };
+    let Curve3::Circle {
+        center: sc,
+        radius: sr,
+        ..
+    } = *sphere_trim
+    else {
+        return Err(unsupported("a rim blend's sphere trimline is not a circle"));
+    };
+    Ok(((pc, pr), (sc, sr)))
+}
+
 /// **`fillet3_ring_clearance`** — decide one ring carry-through
 /// margin (module docs): the exact closed-form clearance between a
 /// support face's ring and a blend trimline, meters. Positive
@@ -554,7 +598,10 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
 /// the same configuration (for a straight edge the two margins are
 /// the same length); this check is the EXACT form of it, and the one
 /// the ring carry-through soundness argument actually rests on —
-/// sampling can overestimate a gap, the closed form cannot.
+/// sampling can overestimate a gap, the closed form cannot. The
+/// refuse arm is therefore FRONT-DOOR-SCREENED by predicate 2: it is
+/// exercised directly by the trio pins, not through `fillet_edges`'
+/// live assemblies.
 ///
 /// # Errors
 ///
@@ -592,11 +639,9 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     let effective = |ring: LoopKey| -> Result<Option<(Point3<T>, T)>, FilletError> {
         for rim in rims {
             if rim.ring == ring {
-                let Curve3::Circle { center, radius, .. } = rim.chain.links[0].blend.trim_a.0
-                else {
-                    return Err(unsupported("a rim blend's trimline is not a circle"));
-                };
-                return Ok(Some((center, radius)));
+                let l0 = &rim.chain.links[0];
+                let (plane_trim, _) = rim_trim_circles(&l0.blend, l0.face_a == rim.plane)?;
+                return Ok(Some(plane_trim));
             }
         }
         Ok(None)
@@ -624,8 +669,16 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     None => ring_circle(body, ring)?,
                 };
                 // The trimline is unbounded within the face, so only
-                // the transverse clearance matters, and `m ⊥ dir` by
-                // the setback construction.
+                // the transverse clearance matters, and `m ⊥ dir`
+                // EXACTLY, not approximately: the battery seeds
+                // `plane_plane_blend` with the carrier evaluated at
+                // `(t0 + t1)/2`, the trim origin is that point
+                // displaced by a combination of the two support
+                // normals (both ⊥ the tangent `dir`), and
+                // `edge_midpoint` below reproduces the SAME
+                // `(t0 + t1)/2` construction on the same stored
+                // carrier — so `origin - mid` is purely transverse by
+                // shared construction, never by cancellation.
                 let _ = dir;
                 let margin = (c - origin).dot(m) - a;
                 ring_clearance(face, margin, band)?;
@@ -635,14 +688,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // (b) Rims: each widened trim circle against the plane face's
     // OTHER rings and its straight outer boundary edges.
     for rim in rims {
-        let Curve3::Circle {
-            center: ci,
-            radius: si,
-            ..
-        } = rim.chain.links[0].blend.trim_a.0
-        else {
-            return Err(unsupported("a rim blend's trimline is not a circle"));
-        };
+        let l0 = &rim.chain.links[0];
+        let ((ci, si), _) = rim_trim_circles(&l0.blend, l0.face_a == rim.plane)?;
         let fd = body
             .get_face(rim.plane)
             .ok_or_else(|| unsupported("a rim's plane support does not resolve"))?;
@@ -657,10 +704,21 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             let margin = (cj - ci).norm() - si - aj;
             ring_clearance(rim.plane, margin, band)?;
         }
-        // Outer boundary: exact for line edges (the blank trimlines /
-        // the sharp box edges); circle outer edges get the same
-        // centre-distance form; anything else is already screened by
-        // predicate 2's sampled sweep and adds nothing exact here.
+        // Outer boundary, scoped honestly: the line arm measures the
+        // INFINITE carrier line, and the circle arm is EXTERNAL
+        // separation (`‖cj − ci‖ − si − aj`) only — no containment
+        // form. Both err in the conservative direction (a false
+        // refusal, never a false pass); the two false-refusal
+        // classes are (1) a trim circle NESTED inside a circular
+        // outer boundary, where the containment margin
+        // `aj − (‖cj − ci‖ + si)` is positive but the external form
+        // reads negative, and (2) a distant line edge whose EXTENSION
+        // passes near the trim circle. Neither occurs on the bodies
+        // this kernel mints today (planar outer boundaries are convex
+        // blank/trimline cycles); a body that hits one refuses
+        // `RingClearance` loudly rather than passing silently.
+        // Anything else is already screened by predicate 2's sampled
+        // sweep and adds nothing exact here.
         let outer = face_cycle(body, rim.plane)
             .ok_or_else(|| unsupported("a rim's plane support has no outer cycle"))?;
         for he in outer {
@@ -975,22 +1033,11 @@ fn rim_phase<T: Decide + Bounds>(
     };
     let mut described: Described<T> = Vec::new();
     let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links.iter().find(|l| l.edge == e) };
-    let Curve3::Circle {
-        center: ca,
-        radius: sa,
-        ..
-    } = rim.chain.links[0].blend.trim_a.0
-    else {
-        return Err(unsupported("a rim blend's plane trimline is not a circle"));
-    };
-    let Curve3::Circle {
-        center: cb,
-        radius: sb,
-        ..
-    } = rim.chain.links[0].blend.trim_b.0
-    else {
-        return Err(unsupported("a rim blend's sphere trimline is not a circle"));
-    };
+    // Selected by support kind, never by slot (`rim_trim_circles`
+    // docs): `trim_a` is the SPHERE trim on any link whose `he_plus`
+    // lies on the cap side.
+    let l0 = &rim.chain.links[0];
+    let ((ca, sa), (cb, sb)) = rim_trim_circles(&l0.blend, l0.face_a == rim.plane)?;
 
     // The rim edges' stored carriers, once.
     let carrier_of = |body: &Body<T>, e: EdgeKey| -> Result<RimCarrier<T>, FilletError> {
@@ -1484,4 +1531,54 @@ fn attach_contact<T: Decide + Bounds>(
         },
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::{Point3, Vec3};
+
+    use super::rim_trim_circles;
+    use crate::fillet::blend::plane_sphere_blend;
+
+    /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.
+    /// `classify_arm`'s `(Sphere, Plane)` arm swaps `trim_a`/`trim_b`
+    /// so the face↔trim pairing holds — a slot-blind read of `trim_a`
+    /// takes the SPHERE circle whenever `he_plus` lies on the cap.
+    /// Both slot orders must read back the SAME (plane, sphere)
+    /// circles bit-for-bit, and the plane circle is the strictly
+    /// wider one (`s` vs `R·s/(R + r)`, the blend's own construction).
+    #[test]
+    fn trim_selection_is_by_support_kind() {
+        // The die's own pip numbers: plane z = 0, pip ball centred
+        // 0.05 below it, R = 0.09, blend r = 0.02.
+        let blend = plane_sphere_blend(
+            Point3::new(0.0_f64, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Point3::new(0.3, -0.2, -0.05),
+            0.09,
+            0.02,
+        );
+        let mut swapped = blend.clone();
+        core::mem::swap(&mut swapped.trim_a, &mut swapped.trim_b);
+        let a = rim_trim_circles(&blend, true).expect("circles");
+        let b = rim_trim_circles(&swapped, false).expect("circles");
+        for ((pa, ra), (pb, rb)) in [(a.0, b.0), (a.1, b.1)] {
+            assert_eq!(pa.x, pb.x);
+            assert_eq!(pa.y, pb.y);
+            assert_eq!(pa.z, pb.z);
+            assert_eq!(ra, rb);
+        }
+        assert!(
+            a.0.1 > a.1.1,
+            "the plane trim is the widened (outer) circle: {} vs {}",
+            a.0.1,
+            a.1.1
+        );
+        // And the blind read on the swapped blend is exactly the bug
+        // the selection retires: it would hand back the sphere trim.
+        let blind = rim_trim_circles(&swapped, true).expect("circles");
+        assert_eq!(blind.0.1, a.1.1, "slot-blind trim_a IS the sphere trim");
+    }
 }
