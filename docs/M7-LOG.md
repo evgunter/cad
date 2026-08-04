@@ -248,3 +248,36 @@ typed on inversion/undecidable orientation naming the kernel gap
 rung; ceiling-skips become refusal assertions (every ε row runs
 real content); probes adopted by merge. Review ~169k tokens,
 ~48min wall.
+
+**M7-2 MERGED as #189 (2026-08-04): FOREIGN GEOMETRY IS LIVE.**
+The kernel now adopts FreeCAD 1.1.2 files across the full
+analytic subset. Fix pass discharged all four items with the
+torus fix done right: winding derived from the loop's CYCLIC
+ORDER via mid-quadrant chart sampling; all four orientation
+statements of torus.step behave per ISO (both legal
+right-side-out encodings import to ONE body — pinned; both
+inside-out encodings refuse typed naming the inversion AND the
+kernel props limitation); the judgment call that minted
+half-faces derive winding/sense from the material side (copying
+would falsely refuse ISO's .F./CW legal encoding) is ENDORSED.
+MAJOR-2: carrier_on_surface certifies the curve through the
+shared door; the off-plane plant refuses with Surface1Residual.
+The ceiling-skip fix introduced a principled third arm:
+above-ceiling rows assert the sub-tolerance obligation and
+tier 3 must be Ok OR AN ESCALATION (the kernel declining in
+band), never a definite falsehood — declining vs answering
+falsely, distinguished. Battery green at FIVE ε values
+(default/1e-12/1e-7/1e-6/1e-5); oracle 13/13; hosted
+19 pass / 6 skip (closure filter) / 0 fail. Deviations 11
+reported / 0 silent; a 5th test target noted. Outstanding
+question banked under deviation 9: coincident_surfaces budgets
+its interpretation act bandless at ambient ε (review MIN-3) —
+candidate for the M7 exit walk. A/B row RECORDED AT MERGE
+(opus arm). Kernel-side ledger: props torus sense_sign gap on
+#184 (with the M6 orchestrator's proposed unit strengthened);
+K-landing disposition ask WATCHLISTED on #89. Lanes cleaned
+post-termination (the new sequencing rule held); slot 2 freed.
+M7 first-slice status: BOTH plan units 1-2 SHIPPED same-day;
+remaining M7 = the M6-blocked unit 3 (NURBS faces), the
+KERNEL_* consumer follow-up (blocked on #184's export side),
+and the deferrable wild corpus (unit 4).
