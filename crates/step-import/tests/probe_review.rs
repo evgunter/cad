@@ -1,4 +1,7 @@
-//! Adversarial review probes for M7-2 (review/m7-2 branch only).
+//! Adversarial review probes for M7-2, adopted by merge from the
+//! `review/m7-2` branch (authorship kept). The two `a1_*torus*` probes
+//! that failed deliberately there now assert the fix.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -70,47 +73,41 @@ fn a3_sweep_all_tiers() {
     }
 }
 
-/// A1: an inside-out torus (face sense flipped) must NOT be laundered
-/// to a positive volume by the FullPeriodTorus normalization.
+/// A1, **resolved**: an inside-out torus (face sense flipped, loop
+/// left alone) is REFUSED typed. The normalization now reads the
+/// loop's cyclic order — the only place a fundamental polygon's
+/// winding lives — instead of its reversal-invariant flag multiset,
+/// so the inversion is detected instead of being minted away.
 #[test]
 fn a1_inside_out_torus_cannot_slip_through() {
     let text = fixture("torus").replace(
         "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
         "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
-        Ok(StepImport::Solid { body, .. }) => {
-            let g = topo::validate_geometric(&body);
-            println!("a1 flipped-sense torus tier3: {g:?}");
-            assert!(
-                g.is_err(),
-                "an inside-out torus certified positive: laundered!"
-            );
-        }
-        Ok(_) => panic!("wireframe"),
-        Err(e) => println!("a1 flipped-sense torus refused: {e}"),
-    }
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("an inside-out torus must not import at all");
+    let text = err.to_string();
+    assert!(
+        text.contains("ORIENTATION-INVERTED") && text.contains("#17"),
+        "the refusal must name the inversion and the face: {text}"
+    );
+    assert!(
+        text.contains("same_sense"),
+        "and the kernel limitation that blocks an honest inverted import: {text}"
+    );
 }
 
-/// A1: same with the loop reversed via FACE_BOUND .F. instead.
+/// A1, **resolved**: the same inversion stated the other way — loop
+/// reversed via `FACE_BOUND .F.`, sense left alone — refuses too.
 #[test]
 fn a1_reversed_bound_torus() {
     let text = fixture("torus").replace(
         "#18 = FACE_BOUND('',#19,.T.);",
         "#18 = FACE_BOUND('',#19,.F.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
-        Ok(StepImport::Solid { body, .. }) => {
-            let g = topo::validate_geometric(&body);
-            println!("a1 reversed-bound torus tier3: {g:?}");
-            assert!(
-                g.is_err(),
-                "reversed-bound torus certified positive: laundered!"
-            );
-        }
-        Ok(_) => panic!("wireframe"),
-        Err(e) => println!("a1 reversed-bound torus refused: {e}"),
-    }
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("a reversed-bound torus is inside out and must not import");
+    assert!(err.to_string().contains("ORIENTATION-INVERTED"), "{err}");
 }
 
 /// A1 control: flip one box face's sense — what does the kernel do
@@ -153,7 +150,10 @@ fn a1_control_sphere_sense_flip() {
     }
 }
 
-/// A1: measure the flipped torus's certified volume directly.
+/// A1, **resolved**: neither single flip reaches a volume at all now —
+/// there is no body to measure, which is the point. (Before the fix
+/// both produced `+1.2337005501361696e-9`, bit-identical to the
+/// correct torus.)
 #[test]
 fn a1_flipped_torus_volume() {
     for (label, from, to) in [
@@ -169,25 +169,22 @@ fn a1_flipped_torus_volume() {
         ),
     ] {
         let text = fixture("torus").replace(from, to);
-        let Ok(StepImport::Solid {
-            body,
-            normalizations,
-            ..
-        }) = import_step(&text, &ImportOptions::default())
-        else {
-            println!("a1vol {label}: refused/other");
-            continue;
-        };
-        let props = topo::mass_properties(&body);
-        println!(
-            "a1vol {label}: norms={} volume={:?}",
-            normalizations.len(),
-            props.map(|p| p.volume)
-        );
+        let err = import_step(&text, &ImportOptions::default())
+            .err()
+            .unwrap_or_else(|| panic!("a1vol {label}: imported, so it was laundered"));
+        println!("a1vol {label}: refused — {err}");
     }
 }
 
-/// A1: consistently inverted torus — sense AND bound both flipped.
+/// A1, **resolved**: the CONSISTENTLY inverted statement — sense AND
+/// bound both flipped — is ISO 10303-42's other legal encoding of the
+/// SAME right-side-out solid, and it must import, not refuse. It does,
+/// with the correct positive volume and a green tier 3.
+///
+/// This is the assertion that keeps the fix from being "refuse
+/// anything unusual": the two encodings that mean a right-side-out
+/// ring both adopt, and the two that mean an inside-out one both
+/// refuse.
 #[test]
 fn a1_double_flipped_torus() {
     let text = fixture("torus")
@@ -199,69 +196,66 @@ fn a1_double_flipped_torus() {
             "#18 = FACE_BOUND('',#19,.T.);",
             "#18 = FACE_BOUND('',#19,.F.);",
         );
-    match import_step(&text, &ImportOptions::default()) {
-        Ok(StepImport::Solid {
-            body,
-            normalizations,
-            ..
-        }) => {
-            let props = topo::mass_properties(&body);
-            println!(
-                "a1 double-flip: norms={} vol={:?} t3={:?}",
-                normalizations.len(),
-                props.map(|p| p.volume),
-                topo::validate_geometric(&body)
-            );
-        }
-        Ok(_) => panic!("wireframe"),
-        Err(e) => println!("a1 double-flip refused: {e}"),
-    }
+    let Ok(StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    }) = import_step(&text, &ImportOptions::default())
+    else {
+        panic!("the equivalent re-encoding of a valid torus must import");
+    };
+    assert_eq!(normalizations.len(), 1, "still one reported normalization");
+    let v = topo::mass_properties(&body).unwrap().volume;
+    assert!(
+        v > 0.0,
+        "a right-side-out ring has positive volume, got {v}"
+    );
+    assert_eq!(topo::validate_geometric(&body), Ok(()), "tier 3");
 }
 
-/// A1: does the imported flipped torus body still carry sense=false?
+/// A1, **resolved**: the original imports; the sense-flip does not.
 #[test]
 fn a1_flipped_torus_body_sense() {
-    for (label, text) in [
-        ("orig", fixture("torus")),
-        (
-            "sense-flip",
-            fixture("torus").replace(
-                "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
-                "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
-            ),
-        ),
-    ] {
-        let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default())
-        else {
-            panic!()
-        };
-        let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-        println!("a1sense {label}: senses={senses:?}");
-    }
+    let Ok(StepImport::Solid { body, .. }) =
+        import_step(&fixture("torus"), &ImportOptions::default())
+    else {
+        panic!("the stated torus imports")
+    };
+    let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
+    println!("a1sense orig: senses={senses:?}");
+    let flipped = fixture("torus").replace(
+        "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
+        "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
+    );
+    assert!(
+        import_step(&flipped, &ImportOptions::default()).is_err(),
+        "the sense-flip has no body to carry a sense at all"
+    );
 }
 
-/// A1: bound-flip torus — body face senses.
+/// A1, **resolved**: the bound-flip torus has no body either.
 #[test]
 fn a1_bound_flip_torus_senses() {
     let text = fixture("torus").replace(
         "#18 = FACE_BOUND('',#19,.T.);",
         "#18 = FACE_BOUND('',#19,.F.);",
     );
-    let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default()) else {
-        panic!()
-    };
-    let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-    println!("a1bf senses={senses:?}");
+    assert!(import_step(&text, &ImportOptions::default()).is_err());
 }
 
-/// A1: is the bound-flip torus body's half-edge structure IDENTICAL to
-/// the original's (reversal lost) or reversed (props blind)?
+/// A1, **resolved** — the finding's own probe, inverted. It used to
+/// show that the bound-flipped torus built a body HALF-EDGE-IDENTICAL
+/// to the original: the reversal had been discarded. Now the
+/// bound-flip has no body at all, and the structure it used to
+/// produce belongs to the file that genuinely means it — the
+/// double-flip re-encoding, whose half-edge signature must equal the
+/// original's because it states the same solid.
 #[test]
 fn a1_torus_halfedge_diff() {
-    let mk = |text: &str| {
+    let sig = |text: &str| {
         let Ok(StepImport::Solid { body, .. }) = import_step(text, &ImportOptions::default())
         else {
-            panic!()
+            panic!("expected a body")
         };
         let mut sig = Vec::new();
         for (_, lp) in body.loops() {
@@ -280,14 +274,40 @@ fn a1_torus_halfedge_diff() {
         }
         sig
     };
-    let orig = mk(&fixture("torus"));
-    let flip = mk(&fixture("torus").replace(
-        "#18 = FACE_BOUND('',#19,.T.);",
-        "#18 = FACE_BOUND('',#19,.F.);",
-    ));
-    println!("a1he orig: {orig:?}");
-    println!("a1he flip: {flip:?}");
-    println!("a1he identical: {}", orig == flip);
+    let orig = sig(&fixture("torus"));
+    let double = sig(&fixture("torus")
+        .replace(
+            "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
+            "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
+        )
+        .replace(
+            "#18 = FACE_BOUND('',#19,.T.);",
+            "#18 = FACE_BOUND('',#19,.F.);",
+        ));
+    assert_eq!(
+        orig, double,
+        "the two legal encodings of one solid must reconstruct to one body"
+    );
+    // And the single flips, which mean the OTHER solid, reach no body.
+    for (from, to) in [
+        (
+            "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
+            "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
+        ),
+        (
+            "#18 = FACE_BOUND('',#19,.T.);",
+            "#18 = FACE_BOUND('',#19,.F.);",
+        ),
+    ] {
+        assert!(
+            import_step(
+                &fixture("torus").replace(from, to),
+                &ImportOptions::default()
+            )
+            .is_err(),
+            "a single flip means an inside-out ring and must refuse"
+        );
+    }
 }
 
 /// A1 control: reversed FACE_BOUND on a box face must be caught.
@@ -390,9 +410,10 @@ fn a1_control_cylinder_sense_flip() {
     }
 }
 
-/// A5(a): edge #206 between COINCIDENT planes replaced by a circular
-/// arc that leaves the plane (endpoints unchanged). If the MappedCurve
-/// rung launders it, the gate's claim is false.
+/// A5, **resolved**: an edge whose carrier leaves the coincident plane
+/// no longer adopts through the conventional rung. The rung now gates
+/// on the CURVE as well as the surface pair, so `import_step` refuses
+/// typed instead of returning a body only tier 3 would catch.
 #[test]
 fn a5_off_locus_arc_between_coincident_planes() {
     let text = fixture("fuse_boxes").replace(
@@ -403,21 +424,14 @@ fn a5_off_locus_arc_between_coincident_planes() {
          #902 = DIRECTION('',(0.,1.,0.));\n\
          #903 = DIRECTION('',(1.,0.,0.));",
     );
-    match import_step(&text, &ImportOptions::default()) {
-        Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(&body).map(|p| p.volume);
-            println!(
-                "a5a LAUNDERED: t3={:?} vol={:?}",
-                topo::validate_geometric(&body),
-                v
-            );
-        }
-        Ok(_) => panic!("wireframe"),
-        Err(e) => {
-            let s = e.to_string();
-            println!("a5a refused: {}", &s[..s.len().min(160)]);
-        }
-    }
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("an off-locus carrier must not adopt as a conventional curve");
+    let s = err.to_string();
+    assert!(
+        s.contains("edge #206") && s.contains("no intensional description certifies"),
+        "expected the typed adoption refusal naming the edge: {s}"
+    );
+    println!("a5a refused: {}", &s[..s.len().min(200)]);
 }
 
 /// A5(b): nearly-coincident distinct planes (1e-8 m apart, 10x eps).

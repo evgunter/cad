@@ -43,6 +43,22 @@
 //! Anything that does not match these shapes exactly is left alone —
 //! this is a bounded repair of two named cases, not a licence to
 //! re-tessellate.
+//!
+//! # Orientation is derived, never minted
+//!
+//! A re-tessellation decides how its new faces are wound, which makes
+//! it the exact place an inside-out solid could be quietly turned
+//! right-side-out. The torus is where that bites: its face is the
+//! fundamental-polygon square `[x, y, x', y']`, whose multiset of
+//! oriented uses is INVARIANT under loop reversal, so the winding
+//! lives only in the cyclic ORDER. [`full_torus`] reads that order —
+//! against `u` and `v` directions sampled through the kernel's own
+//! chart inverse — and cross-checks it against the face's
+//! `same_sense`. The two consistent statements of a right-side-out
+//! ring (`.T.` with a CCW loop, `.F.` with a CW one) both adopt to the
+//! same body; the two inverted ones REFUSE typed. Nothing about the
+//! file's material side is assumed, and nothing is repaired into
+//! existence.
 
 use std::collections::BTreeMap;
 
@@ -187,6 +203,32 @@ fn split_at_midpoint(
     (first, second, mid_v)
 }
 
+/// Whether traversing `carrier` in its increasing parameter raises the
+/// chart coordinate selected by `pick` — the file's own winding, read
+/// off the geometry rather than assumed from a flag.
+///
+/// Sampled a quarter and a fifth of the way along the interval: far
+/// enough from both ends that the sample sits mid-quadrant, and clear
+/// of the chart's own wrap (the seam at |u| = π and the inner equator
+/// at |v| = π), where a finite difference would read a jump as a
+/// direction. `None` when the samples do not invert onto the chart, or
+/// when the step is too small to have a sign — an undecidable winding
+/// is refused by the caller, never guessed.
+fn chart_direction(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    t0: f64,
+    t1: f64,
+    pick: fn(geom_core::Point2<f64>) -> f64,
+) -> Option<bool> {
+    let span = t1 - t0;
+    let at = |f: f64| crate::chart::uv_of(surface, carrier.eval(t0 + span * f)).map(pick);
+    let (lo, hi) = (at(0.25)?, at(0.30)?);
+    // The step covers 5% of a full period, i.e. ~0.31 rad; anything
+    // materially smaller than that is not a reading.
+    ((hi - lo).abs() > 0.1).then_some(hi > lo)
+}
+
 /// Runs both normalizations over one shell (module docs).
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
@@ -194,8 +236,7 @@ pub(crate) fn normalize_shell(
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     apex_cone(solid, mint, sink)?;
-    full_torus(solid, mint, sink);
-    Ok(())
+    full_torus(solid, mint, sink)
 }
 
 /// **The degenerate-apex cone** (module docs): a conical face whose
@@ -410,7 +451,7 @@ fn full_torus(
     solid: &mut SolidSpec,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
-) {
+) -> Result<(), StepImportError> {
     let mut found = None;
     for (fi, face) in solid.faces.iter().enumerate() {
         let Surface::Torus { center, axis, .. } = face.surface else {
@@ -451,12 +492,96 @@ fn full_torus(
         } else {
             continue;
         };
-        found = Some((fi, center, axis, rim, meridian, rim_axis));
+        found = Some((
+            fi, face.id, face.sense, center, axis, rim, meridian, rim_axis,
+        ));
         break;
     }
-    let Some((fi, center, axis, rim, meridian, rim_axis)) = found else {
-        return;
+    let Some((fi, face_entity, sense, center, axis, rim, meridian, rim_axis)) = found else {
+        return Ok(());
     };
+    // ---- The file's winding, derived rather than assumed ----------
+    //
+    // The fundamental polygon `[x, y, x', y']` maps to ITSELF under
+    // loop reversal — reversing the cycle and flipping every flag
+    // permutes the four uses back into the same multiset. So the
+    // per-use `forward` flags alone cannot say which way this face
+    // turns; the winding lives ONLY in the cyclic ORDER, and a
+    // reconstruction that reads the flags and not the order rebuilds an
+    // inside-out torus as a right-side-out one. (That is exactly what
+    // the first cut of this repair did, and why the order is now what
+    // gets read.)
+    //
+    // `p` and `q` are geometric: which traversal of the rim raises u,
+    // which traversal of the meridian raises v — sampled through the
+    // kernel's own chart inverse. The chart's CCW boundary is, in
+    // order, `(rim, +u) (meridian, +v) (rim, −u) (meridian, −v)`, so
+    // the file's cycle is CCW exactly when the use FOLLOWING its `+u`
+    // rim use is the meridian's `+v` one. Every reading that the
+    // geometry does not answer refuses; none is guessed.
+    let surface = solid.faces[fi].surface.clone();
+    let undecidable = || StepImportError::Topology {
+        id: face_entity,
+        what: "a whole-torus face whose winding its own geometry cannot state (a rim or \
+               meridian carrier that does not invert onto the torus chart, or a loop \
+               whose uses do not alternate): the orientation of the re-tessellation \
+               would be a guess, and D7 forbids guessing it",
+    };
+    let (p, q) = {
+        let rim_spec = &solid.edges[&rim.edge];
+        let p = chart_direction(
+            &surface,
+            &rim_spec.carrier,
+            rim_spec.t0,
+            rim_spec.t1,
+            |uv| uv.x,
+        )
+        .ok_or_else(undecidable)?;
+        let mer_spec = &solid.edges[&meridian.edge];
+        let q = chart_direction(
+            &surface,
+            &mer_spec.carrier,
+            mer_spec.t0,
+            mer_spec.t1,
+            |uv| uv.y,
+        )
+        .ok_or_else(undecidable)?;
+        (p, q)
+    };
+    // The cyclic successor of the `+u` rim use.
+    let ccw = {
+        let uses = &solid.faces[fi].loops[0].uses;
+        let plus_u = uses
+            .iter()
+            .position(|u| u.edge == rim.edge && u.forward == p)
+            .ok_or_else(undecidable)?;
+        let successor = uses[(plus_u + 1) % uses.len()];
+        if successor.edge != meridian.edge {
+            return Err(undecidable());
+        }
+        successor.forward == q
+    };
+    // The face's material side: the torus chart normal (∂u × ∂v) points
+    // outward, so the face's own normal is that normal for
+    // `same_sense` and its negation otherwise, and the loop must run
+    // CCW about the FACE normal. Right-side-out is therefore
+    // `sense == ccw`; the two consistent encodings of the same solid
+    // are (`.T.`, CCW) and (`.F.`, CW), and both adopt.
+    if sense != ccw {
+        return Err(StepImportError::Topology {
+            id: face_entity,
+            what: "an ORIENTATION-INVERTED whole-torus face: its stated same_sense and the \
+                   winding of its own fundamental-polygon loop disagree, so the solid it \
+                   describes is inside out. This importer will not re-tessellate it \
+                   right-side-out — that would launder the inversion into a positive \
+                   volume — and it cannot adopt it as stated either: the kernel's \
+                   closed-form torus contribution derives its sign from the face's own \
+                   traversal and never consumes same_sense, so an inverted torus would \
+                   certify green with a positive volume. Refused until the kernel can \
+                   hold an inverted rim-bearing face honestly",
+        });
+    }
+
     // Halving the meridian mints the antipodal profile vertex.
     let (first_m, second_m, mid_v) = split_at_midpoint(solid, meridian.edge, mint);
     // The second rim: the u-circle through that vertex — same axis
@@ -469,7 +594,7 @@ fn full_torus(
     let spoke = v1 - c1;
     let radius = spoke.norm();
     if !(radius.is_finite() && radius > 0.0) {
-        return;
+        return Ok(());
     }
     let rim_id = mint();
     let carrier = Curve3::Circle {
@@ -479,7 +604,7 @@ fn full_torus(
         u_ref: crate::geometry::plus_zero(spoke * radius.recip()),
     };
     let Ok((t0, t1)) = crate::geometry::endpoint_params(rim_id, &carrier, v1, v1, true) else {
-        return;
+        return Ok(());
     };
     solid.edges.insert(
         rim_id,
@@ -491,13 +616,30 @@ fn full_torus(
             t1,
         },
     );
-    let template = &solid.faces[fi];
-    let (surface, sense, face_entity) = (template.surface.clone(), template.sense, template.id);
-    let (s, t) = (rim.forward, meridian.forward);
-    // Traversal order: under orientation `t` the meridian walks its
-    // halves in this order, so `h1` is the half touching the stated
-    // vertex and `h2` the half touching the minted one.
-    let (h1, h2) = if t {
+    // The minted halves are wound `+u` first — CCW about the chart
+    // normal, which for a torus points outward — and described with
+    // `same_sense` true to match. Neither is copied from the file's
+    // face, and both are DERIVED from the material side the check
+    // above established:
+    //
+    // ISO 10303-42 lets one solid be stated two ways, `(.T., CCW)` and
+    // `(.F., CW)`; they are the same material side and both reach here.
+    // The kernel, however, derives a torus face's flux sign from its
+    // TRAVERSAL alone (its closed-form contribution never consumes
+    // `same_sense` — the fenced kernel gap this refusal is written
+    // against), so a `(.F., CW)` re-tessellation would come back with a
+    // negative volume for a right-side-out ring. Minting the outward
+    // convention explicitly is therefore the honest description of the
+    // faces being minted, not a healing of the file's: the file's face
+    // does not survive the re-tessellation, and its replacements get a
+    // description that means what it says. The inverted encodings never
+    // get here at all — they refused above.
+    let rs = p;
+    let sense = true;
+    // Traversal order: under `q` the meridian walks its halves in this
+    // order, so `h1` is the half touching the stated vertex and `h2`
+    // the half touching the minted one.
+    let (h1, h2) = if q {
         (first_m, second_m)
     } else {
         (second_m, first_m)
@@ -513,7 +655,7 @@ fn full_torus(
         sense,
         loops: vec![LoopSpec {
             outer: true,
-            uses: vec![u(rim.edge, s), u(h1, t), u(rim_id, !s), u(h1, !t)],
+            uses: vec![u(rim.edge, rs), u(h1, q), u(rim_id, !rs), u(h1, !q)],
         }],
     };
     let face_b = FaceSpec {
@@ -522,7 +664,7 @@ fn full_torus(
         sense,
         loops: vec![LoopSpec {
             outer: true,
-            uses: vec![u(rim_id, s), u(h2, t), u(rim.edge, !s), u(h2, !t)],
+            uses: vec![u(rim_id, rs), u(h2, q), u(rim.edge, !rs), u(h2, !q)],
         }],
     };
     solid.faces[fi] = face_a;
@@ -541,4 +683,5 @@ fn full_torus(
             vertices: 2,
         },
     });
+    Ok(())
 }

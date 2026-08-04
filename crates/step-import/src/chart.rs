@@ -480,6 +480,7 @@ mod tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_fuzz {
     use super::uv_of;
     use geom_core::{Point3, Vec3};
@@ -613,6 +614,7 @@ mod review_fuzz {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_outerness {
     use super::{OuternessRefusal, infer_outer};
     use geom_core::{Point3, Vec3};

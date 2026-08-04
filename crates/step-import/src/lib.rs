@@ -117,7 +117,15 @@ pub enum NormalizationKind {
     /// square, two curves each used twice). The topology closes, but
     /// the face is not a chart iso-rectangle and its closed-form
     /// divergence contribution comes back with the wrong sign.
-    /// Re-minted as the kernel's own two half-faces.
+    /// Re-minted as the kernel's own two half-faces — but only after
+    /// the face's **winding** is read out of its loop's cyclic order
+    /// (the fundamental polygon's flag multiset is reversal-invariant,
+    /// so the order is the only place the winding lives) and checked
+    /// against its `same_sense`. A torus whose two disagree describes
+    /// an inside-out ring and REFUSES typed: re-tessellating it
+    /// right-side-out would launder the inversion, and adopting it as
+    /// stated is not possible either while the kernel's closed-form
+    /// torus contribution takes its sign from traversal alone.
     FullPeriodTorus,
 }
 

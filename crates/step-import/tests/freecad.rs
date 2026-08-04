@@ -185,47 +185,75 @@ fn corpus_scale_gate(row: &str) -> bool {
         return true;
     }
     println!(
-        "{row}: SKIP — ambient ε {eps:e} m exceeds the ceiling {CORPUS_EPS_CEILING:e} m for a \
+        "{row}: above the ceiling — ambient ε {eps:e} m exceeds {CORPUS_EPS_CEILING:e} m for a \
          millimetre-authored corpus (ε is {:.1e} of the smallest round feature, \
-         {SMALLEST_ROUND_FEATURE_M:e} m). The kernel refuses this geometry typed at that \
-         tolerance rather than certifying it; \
-         `sub_tolerance_geometry_is_refused_not_silently_imported` pins that.",
+         {SMALLEST_ROUND_FEATURE_M:e} m). Asserting the SUB-TOLERANCE obligation instead of \
+         this row's certifying one.",
         eps / SMALLEST_ROUND_FEATURE_M
     );
+    // **Not a no-op.** A row that returns early having asserted nothing
+    // is a green tick for work not done, and a matrix full of those
+    // rots into fiction while still reading as a pass. So above the
+    // ceiling every certifying row asserts the obligation that IS
+    // meaningful there — the corpus meets the kernel's gates and is
+    // REFUSED, typed, rather than certified — and fails if it is not.
+    assert_sub_tolerance_obligation(row);
     false
 }
 
-/// **The scale finding's own row, live at every ε.** Whatever the
-/// ambient tolerance, a fixture either imports as a body the kernel's
-/// structural tiers accept, or it refuses TYPED. What must never
-/// happen — and is what a quiet gate-widening would produce — is a
-/// body that imports and is then not a solid.
+/// The obligation that holds at any ε: every fixture's outcome is
+/// typed, nothing imports that the kernel then calls geometrically
+/// false, and — above the ceiling — at least one fixture actually hits
+/// the certification gates.
 ///
-/// Below [`CORPUS_EPS_CEILING`] every fixture takes the first arm (the
-/// full rows assert the rest). Above it, at least one must take the
-/// second, or the ceiling is fiction.
-#[test]
-fn sub_tolerance_geometry_is_refused_not_silently_imported() {
+/// # What tier 3 is allowed to say
+///
+/// Below the ceiling, `Ok(())`. Above it, `Ok(())` **or an
+/// escalation** — a K in-band / indeterminate classification, which is
+/// the kernel declining to answer at a tolerance too coarse for the
+/// geometry (measured: `cone_trunc` at ε = 1e-7 answers
+/// `VolumeUncomputable` with `props_rim_level_group`'s margin inside
+/// its band). What is never allowed is a DEFINITE geometric falsehood
+/// such as `NegativeVolume`: "cannot compute at this ε" is honest,
+/// "computed, and it is inside out" is a body that should not have
+/// been handed out. This is the row's whole claim, and it is asserted
+/// rather than scoped away.
+fn assert_sub_tolerance_obligation(row: &str) {
     let eps = geom_core::Tolerance::get().eps;
     let mut refused = Vec::new();
     for name in FREECAD_FIXTURES {
-        let text = freecad_fixture(name);
-        match import_step(&text, &ImportOptions::default()) {
+        match import_step(&freecad_fixture(name), &ImportOptions::default()) {
             Ok(StepImport::Solid { body, .. }) => {
-                assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1 at ε {eps:e}");
+                assert_eq!(
+                    topo::validate(&body),
+                    Ok(()),
+                    "{row}/{name}: tier 1 at ε {eps:e}"
+                );
                 assert_eq!(
                     topo::validate_closed(&body),
                     Ok(()),
-                    "{name}: tier 2 at ε {eps:e}"
+                    "{row}/{name}: tier 2 at ε {eps:e}"
                 );
+                if let Err(errs) = topo::validate_geometric(&body) {
+                    assert!(
+                        errs.iter().all(is_escalation),
+                        "{row}/{name}: tier 3 at ε {eps:e} reports a definite geometric \
+                         falsehood, not an escalation — a body like this must never have \
+                         been imported: {errs:?}"
+                    );
+                    println!(
+                        "{row}/{name}: tier 3 declines at ε {eps:e} (in-band escalation, \
+                         not a wrong answer): {errs:?}"
+                    );
+                }
             }
-            Ok(StepImport::Wireframe { .. }) => panic!("{name}: not a wireframe"),
+            Ok(StepImport::Wireframe { .. }) => panic!("{row}/{name}: not a wireframe"),
             Err(e) => {
                 // A refusal is fine; a refusal that says nothing is not.
                 let text = e.to_string();
                 assert!(
                     text.starts_with("step import:") && text.len() > 40,
-                    "{name}: a refusal must name what it refused: {text}"
+                    "{row}/{name}: a refusal must name what it refused: {text}"
                 );
                 refused.push(format!("{name}: {text}"));
             }
@@ -238,7 +266,7 @@ fn sub_tolerance_geometry_is_refused_not_silently_imported() {
         );
     } else {
         for r in &refused {
-            println!("sub-tolerance refusal at ε {eps:e} — {r}");
+            println!("{row}: sub-tolerance refusal at ε {eps:e} — {r}");
         }
         assert!(
             !refused.is_empty(),
@@ -246,6 +274,34 @@ fn sub_tolerance_geometry_is_refused_not_silently_imported() {
              hit the kernel's certification gates; if nothing refuses, the ceiling is wrong"
         );
     }
+}
+
+/// Whether a tier-3 error is the kernel DECLINING to answer (a K
+/// in-band / indeterminate classification) rather than answering
+/// falsely.
+fn is_escalation(e: &topo::ValidationError) -> bool {
+    matches!(
+        e,
+        topo::ValidationError::VolumeUncomputable { .. }
+            | topo::ValidationError::PlanarFaceEscalated { .. }
+            | topo::ValidationError::PlanarBoundaryEscalated { .. }
+            | topo::ValidationError::CensusEscalated { .. }
+    )
+}
+
+/// **The scale finding's own row, live at every ε.** Whatever the
+/// ambient tolerance, a fixture either imports as a body the kernel's
+/// tiers accept — with tier 3 either green or DECLINING in band, never
+/// answering falsely — or it refuses TYPED. What must never
+/// happen — and is what a quiet gate-widening would produce — is a
+/// body that imports and is then not a solid.
+///
+/// Below [`CORPUS_EPS_CEILING`] every fixture takes the first arm (the
+/// full rows assert the rest). Above it, at least one must take the
+/// second, or the ceiling is fiction.
+#[test]
+fn sub_tolerance_geometry_is_refused_not_silently_imported() {
+    assert_sub_tolerance_obligation("sub_tolerance_geometry_is_refused_not_silently_imported");
 }
 
 /// Imports a FreeCAD fixture, panicking on refusal.

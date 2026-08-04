@@ -412,8 +412,25 @@ fn adopt_edges(
             // Under coincidence the two records describe one surface,
             // which is exactly the same-surface case the `else` branch
             // below already treats conventionally.
+            //
+            // Coincidence of the SURFACES is only half the gate. A
+            // conventional self-description certifies against nothing
+            // but itself, so once the rung is offered the carrier is
+            // never checked against anything again — and a carrier that
+            // wanders off the coincident locus adopts cleanly, with the
+            // wrong volume, caught only by a later whole-body tier-3
+            // pass a caller need not run (and `import_step`'s own error
+            // contract promises it will not need to). The rung
+            // therefore requires BOTH: the two records describe one
+            // locus, and this edge's carrier lies on it.
             conventional =
-                coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus));
+                coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
+                    && carrier_on_surface(
+                        body.get_surface(fs_plus),
+                        &spec.carrier,
+                        spec.t0,
+                        spec.t1,
+                    );
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -532,4 +549,38 @@ fn coincident_surfaces(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> 
         }
         _ => false,
     }
+}
+
+/// Whether `carrier` lies ON `surface` over `[t0, t1]` — the locus
+/// check the conventional rung owes (its call site's comment).
+///
+/// Sampled through the same door the kernel's own certification uses:
+/// [`geom_brep::CERT_SAMPLES`] uniform parameters, endpoints included,
+/// each residual measured against the ambient tolerance — the same
+/// count and the same ε the `set_edge_curve` gates spend on their own
+/// residuals, so an edge that passes here has not passed a laxer test
+/// than the intrinsic rungs face.
+///
+/// Only the plane case decides, matching [`coincident_surfaces`]: any
+/// other surface answers `false`, which withholds the rung and leaves
+/// the edge to earn an intrinsic description or refuse typed.
+fn carrier_on_surface(
+    surface: Option<&Surface<f64>>,
+    carrier: &Curve3<f64>,
+    t0: f64,
+    t1: f64,
+) -> bool {
+    let Some(&Surface::Plane { origin, normal, .. }) = surface else {
+        return false;
+    };
+    let eps = geom_core::Tolerance::get().eps;
+    let n = normal.norm();
+    if !(n.is_finite() && n > 0.0) {
+        return false;
+    }
+    (0..geom_brep::CERT_SAMPLES).all(|i| {
+        let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
+        let p = carrier.eval(t0 + (t1 - t0) * f);
+        ((p - origin).dot(normal) / n).abs() <= eps
+    })
 }
