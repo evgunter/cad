@@ -1,0 +1,35 @@
+# The globe lily's LANTERN (M6 globe-lily unit): the nodding fairy
+# lantern's flower, a full revolve whose wall is a sphere ZONE of
+# radius 0.44 truncated at BOTH poles -- 0.40 above the centre (the
+# attachment disc the pedicel enters through) and 0.36 below it --
+# closed by a conical pucker dropping 0.16 to a disc of radius 0.09.
+#
+# Why the corpus wants it: it is the only fixture whose SPHERICAL face
+# carries NEITHER pole, and the only one pairing a sphere zone with a
+# cone across a shared circle. Both halves matter on import.
+#
+# Faces 8 = 2 half-bands x (attachment plane, sphere zone, cone,
+# mouth plane); the axis-touching profile makes a revolve emit two
+# half-bands per wall, meeting on the seam meridian and its pi copy.
+# Edges 14 and vertices 8 are the kernel's own census, UNCHANGED by
+# import: OCC adds a DEGENERATE pole edge for every pole a spherical
+# face actually carries (ball.expect records +4 for the whole sphere,
+# die_pips.expect +2 per cap-shaped dimple), and a doubly-truncated
+# zone carries none. This fixture is therefore the corpus's control
+# for that normalisation: same surface kind, zero added edges.
+#
+# Volume is the EXACT ANALYTIC value in FreeCAD's internal mm^3, not a
+# readback -- the zone integral plus the frustum, with r = 0.44,
+# a = 0.40 (top truncation), b = 0.36 (mouth truncation),
+# R2 = sqrt(r^2 - b^2), rho = 0.09, h = 0.16:
+#   V = pi*[ r^2 (a + b) - (a^3 + b^3)/3 ]  +  pi*h*(R2^2 + R2*rho + rho^2)/3
+#     = 0.36225803729804673 m^3
+# (the same number the demo tour prints for `lily_lantern`, which is
+# this body under a rigid placement -- volume is placement-invariant,
+# so the two lanes cross-check each other).
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=8
+EXPECT_EDGES=14
+EXPECT_VERTICES=8
+EXPECT_VOLUME_MM3=362258037.2980467

@@ -170,6 +170,51 @@ pub fn donut() -> Body<f64> {
         .body
 }
 
+/// The globe lily's **lantern** (the M6 globe-lily demo unit's flower,
+/// re-authored here in the corpus frame): a sphere ZONE of radius 0.44
+/// truncated at BOTH poles — 0.40 above the centre (the attachment
+/// disc the pedicel enters through) and 0.36 below it — closed by a
+/// conical pucker dropping 0.16 to a disc of radius 0.09.
+///
+/// What it adds to the corpus that nothing else has: a spherical face
+/// with NEITHER pole on it. `ball` is a whole sphere (both poles),
+/// `die_pips`' dimples are caps (one pole each) — and OCC normalises
+/// each surviving pole into a DEGENERATE edge on import (+4 and +2
+/// respectively, per those fixtures' sidecars). A doubly-truncated
+/// zone has none, so this is the corpus's one curved fixture whose
+/// FreeCAD edge count equals the kernel's exactly. It is also the only
+/// body pairing a sphere zone with a cone across a shared circle.
+///
+/// Exact volume: the zone integral plus the frustum,
+/// `π[r²(a+b) − (a³+b³)/3] + π·h(R₂² + R₂ρ + ρ²)/3` with r = 0.44,
+/// a = 0.40, b = 0.36, R₂ = √(r²−b²), ρ = 0.09, h = 0.16.
+pub fn lily_lantern() -> Body<f64> {
+    use profile::{ArcSweep, LoopBuilder};
+    use sweep::{Revolution, revolve};
+    let (globe, top, mouth, lip_r, lip_drop): (f64, f64, f64, f64, f64) =
+        (0.44, 0.40, 0.36, 0.09, 0.16);
+    let r_top = (globe.powi(2) - top.powi(2)).sqrt();
+    let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
+    let lp = LoopBuilder::start(Point2::new(0.0, top))
+        .line_to(Point2::new(r_top, top))
+        // The belly, on the globe's own carrier: past the equator, so
+        // the sweep is the CLOCKWISE (descending-angle) one.
+        .arc_to_center(
+            Point2::new(r_mouth, -mouth),
+            Point2::new(0.0, 0.0),
+            ArcSweep::Cw,
+        )
+        .line_to(Point2::new(lip_r, -mouth - lip_drop))
+        .line_to(Point2::new(0.0, -mouth - lip_drop))
+        .close();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    revolve(&profile, revolve_y(), Revolution::Full)
+        .unwrap()
+        .body
+}
+
 /// A revolved washer: the rectangle [1,2]×[0,1] swept fully — genus 1,
 /// two annuli and two full-2π cylinder walls. Its BORE wall and its
 /// under-side annulus both carry `sense: false` (S11), so this is the
@@ -421,6 +466,10 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         ("ball", ball()),
         ("cone", cone()),
         ("donut", donut()),
+        // The M6 globe-lily unit: a doubly-truncated sphere zone meeting
+        // a conical pucker (see `lily_lantern`) — the corpus's first
+        // spherical face with no pole on it.
+        ("lily_lantern", lily_lantern()),
         // The M5 PR 12 fillet set: the die blank carries all five
         // elementary surface kinds' hardest pairing for a writer —
         // plane, cylinder AND sphere faces meeting along TANGENT

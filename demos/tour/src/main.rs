@@ -22,6 +22,7 @@ mod cutaway;
 mod diefillet;
 mod heatsink;
 mod letterforms;
+mod lily;
 mod probe;
 mod projectbox;
 mod rocker;
@@ -387,6 +388,12 @@ fn main() {
     for stop in diefillet::stops() {
         run(&stop);
     }
+
+    println!("\n-- the globe lily (Calochortus albus): a plant, at the kernel's frontier --");
+    for stop in lily::stops() {
+        run(&stop);
+    }
+    lily::wall_probes::<f64>();
 
     println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
     for stop in curvedcut::stops() {
