@@ -314,7 +314,14 @@ fn a_tampered_branch_is_refused_at_rest() {
     let (t0, t1, shifted) = {
         let cache = above.pcurve(victim).unwrap();
         let (t0, t1) = cache.params();
-        (t0, t1, cache.pcurve().shift_branch(1.0, TAU))
+        (
+            t0,
+            t1,
+            cache
+                .pcurve()
+                .shift_branch(1.0, TAU)
+                .expect("a harmonic image always shifts"),
+        )
     };
     let surface = {
         let lp = above.get_half_edge(victim).unwrap().parent_loop;

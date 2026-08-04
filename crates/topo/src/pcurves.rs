@@ -490,7 +490,13 @@ fn walk_loop<T: Decide>(
                 let raw = base.eval(entry_t);
                 let half = T::from_f64(0.5);
                 let k = ((prev.x - raw.x) / tau + half).floor();
-                base.shift_branch(k, tau)
+                // The impossible-rebuild arm (see `Pcurve::shift_branch`)
+                // surfaces as a corrupt-body finding rather than being
+                // swallowed into an unshifted branch.
+                let Some(shifted) = base.shift_branch(k, tau) else {
+                    return Err(PcurveMintError::Corrupt);
+                };
+                shifted
             }
         };
         // Certified continuity: the entry point meets the predecessor's

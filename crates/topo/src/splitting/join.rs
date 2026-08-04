@@ -1770,7 +1770,7 @@ fn run_azimuth_window<T: Decide>(
                         }
                     }
                 }
-                base.shift_branch(k, tau)
+                base.shift_branch(k, tau).ok_or_else(corrupt)?
             }
         };
         let (lo, hi) =

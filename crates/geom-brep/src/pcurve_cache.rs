@@ -304,8 +304,12 @@ impl<T: SpanLocate> Pcurve<T> {
     /// branch freedom a pcurve on a periodic chart has (module docs:
     /// the branch is chosen once, by the face's loop walk, and never
     /// per sample).
-    pub fn shift_branch(&self, k: T, period: T) -> Self {
-        match self {
+    /// `None` only if a fitted image's control net could not be
+    /// re-wrapped with its own knots and weights — structurally
+    /// impossible, and therefore reported rather than swallowed (see
+    /// the arm's note).
+    pub fn shift_branch(&self, k: T, period: T) -> Option<Self> {
+        Some(match self {
             Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
                 p0: Point2::new(p0.x + k * period, p0.y),
                 pa: *pa,
@@ -320,29 +324,26 @@ impl<T: SpanLocate> Pcurve<T> {
             //
             // The rebuild takes the ORIGINAL knots and weights and a
             // control net of the original length, so `NurbsCurve2::new`
-            // validates exactly what it already validated once. It
-            // therefore cannot fail, and this arm says so with a
-            // `panic!` carrying the reason rather than a soft
-            // `self.clone()`: silently returning the UNSHIFTED image
-            // would hand the loop walk a branch it did not ask for,
-            // and "the branch is chosen once and never guessed" is the
-            // whole point of this method (module docs, D4 ¶2 fail-loud).
+            // re-validates exactly what it validated once already and
+            // cannot fail. It is still not swallowed: the failing arm
+            // answers `None`, because silently returning the UNSHIFTED
+            // image would hand the loop walk a branch it did not ask
+            // for, and "the branch is chosen once and never guessed" is
+            // this method's whole point. The kernel never panics
+            // (D4 ¶2), so the impossible case is a typed absence the
+            // caller must handle, not an abort.
             Pcurve::Fitted(image) => {
                 let shifted: Vec<Point2<T>> = image
                     .control()
                     .iter()
                     .map(|p| Point2::new(p.x + k * period, p.y))
                     .collect();
-                match NurbsCurve2::new(image.knots().clone(), shifted, image.weights().to_vec()) {
-                    Ok(c) => Pcurve::Fitted(Arc::new(c)),
-                    Err(e) => panic!(
-                        "shift_branch: re-wrapping a fitted chart image with its own knots \
-                         and weights and an equal-length control net cannot fail, and did: \
-                         {e}"
-                    ),
-                }
+                let rebuilt =
+                    NurbsCurve2::new(image.knots().clone(), shifted, image.weights().to_vec())
+                        .ok()?;
+                Pcurve::Fitted(Arc::new(rebuilt))
             }
-        }
+        })
     }
 }
 
@@ -1995,7 +1996,9 @@ mod tests {
             dir: Vec3::unit_z(),
         };
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let wrapped = base.shift_branch(1.0, TAU);
+        let wrapped = base
+            .shift_branch(1.0, TAU)
+            .expect("a harmonic image always shifts");
         let wrapped_for_shift = wrapped.clone();
         let Pcurve::Harmonic { p0: a, .. } = base else {
             panic!("the closed-form lane stores harmonic images")
