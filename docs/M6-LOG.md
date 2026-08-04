@@ -395,3 +395,29 @@ normalisation), volumes to ≤1.4e-14 of closed forms. Phase B
 STILL held — it restructures test crates across every crate and
 would conflict with BOTH open lanes; it dispatches only after
 M6-2 and the lily merge.
+
+**Lily review returned (2026-08-04): APPROVE-WITH-FIXES,
+0 MAJ / 2 MIN / 4 NOTE — every substantive claim confirmed by
+execution.** Highlights: all 8 closed-form volumes independently
+re-derived (lantern BIT-IDENTICAL; the leaves' apparent 3e-13
+adjudicated to the REVIEWER's formula conditioning — acos- vs
+asin-form — with an fsum'd Simpson oracle; the PR's 1.4e-14 is
+tight and honest); the silent-placement risk (finding 11) proven
+by a mutation witness no existing test catches — the adopted
+stored-geometry G1/placement probe fails loud on it; the seven
+walls fire verbatim at the claimed sites; the 89→91 pin derived
+not fudged; committed renders regenerate pixel-identical.
+MIN-1: `wall()` variant-blind (Err-ness only — drifted refusals
+would stay green); MIN-2: README "every one carries .F." false
+(17 of 20). NOTE-2 is an INHERITED main-side item for the
+orchestrator ledger: committed montage legacy cells 1-8 are not
+reproducible from the committed per-scene PNGs (FreeCAD-rendered
+cells vs matplotlib-fallback files) — identical on main,
+pre-existing. Fix pass dispatched to the implementer lane
+(adopt review/lily probes + MIN-1/2 + NOTEs 1/3 cheap takes).
+
+**CPU PIN LIVE (2026-08-04, caught by the review's NOTE-4,
+confirmed by orchestrator canary: 19.66s vs 0.75s at session
+start)** — the box is at base clock, builds ~20×. Evan notified
+(terminal push + #173 comment; Vantage poke needed). Lanes
+continue, slowly.
