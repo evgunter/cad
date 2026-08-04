@@ -61,3 +61,94 @@ contract section and relayed. (5) wild licensed STEP files inside
 the subset as a late demo corpus — plan unit 4, deferrable. All
 three docs amended; implementer messaged mid-flight (no
 acceptance-row changes).
+
+**M7-1 implementation COMPLETE (2026-08-04): PR #183 open, all
+six acceptance rows reported green (8/8 nextest), ONE numbered
+deviation, blinded adversarial review DISPATCHED.** Headline
+measurement: the first re-export is byte-identical to the
+COMMITTED fixture for **all 14/14** solid fixtures (row 2 only
+required the second export to fix-point the first). Deviation 1:
+five sidecars' EXPECT_EDGES record OCC's post-import
+normalisation (pole edges, seam splits), not the kernel census —
+resolved by asserting the kernel census quoted from the sidecars'
+own comments; no fixture/sidecar touched; sidecar KERNEL_* fields
+suggested as a design conversation. Architecture: hand-rolled
+Part-21 parser (~350 lines, zero new deps; step-export enters as
+dev-dependency oracle only); rotation-system Euler assembly
+(σ(u)=next(mate(u)) fan orbits, mev/mef/mekr + ring_move/kfmrh
+genus, strut+kemr hole-planting, strut+kev anchor rotation) with
+a loop-cycle verification pass; file-order fixed-point discipline
+(Shell::faces + Cycle::first); D7 adoption ladder
+Intersection→TangentIntersection / Seam→MappedCurve with
+structured (candidate, refusal) errors per Evan's remedy
+directive; then mint_pcurves. Notable discovered facts: the
+tangent gate accepts the full circular-trimline class (its
+refusal text still names the M5 line-only class — stale, banked);
+kev's unconditional Cycle::first re-anchor is the public
+loop-rotation door (deserves a topo pin someday); STEP cannot
+carry solid grouping (kiss_assembly imports 2 solids / 2 shells,
+matching its sidecar). Impl ~441k tokens, ~1.9h wall. Review
+assigned attacks: byte-identity provenance (anti-laundering),
+deviation-1 adjudication, adoption-ladder corruption probes,
+rotation-system stress (genus, permuted-order files), volume
+tolerance teeth, same_sense flip fidelity, refusal coverage,
+ε_in. Slot 2 → m7-import-review lane.
+
+**M7-1 review returned (2026-08-04): APPROVE-WITH-FIXES,
+1 MAJ / 3 MIN / 5 NOTE, deviations 1 reported (verified honest) /
+1 silent, rubric 5/4/4; hosted CI 20/20 green; every assigned
+attack executed.** The headline held: 14/14 byte-identity
+reproduced AND proven un-laundered (perturbed radius flows
+through to re-export with the matching closed-form volume;
+no code path from source text to export). Deviation 1 adjudicated
+HONEST (all five overrides quote the sidecars' own comments
+exactly; only edge counts diverge). Adoption ladder has teeth
+(four corruption classes → structured Adoption errors with
+honest gate reasons; bonus: a tilted GREAT circle legally adopts
+as a different valid body — honest, not a defect). Fixed point
+holds on non-writer-ordered files (reversed DATA, renumbered
+ids). Volume tolerance toothed (1e-7 radius corruption fails the
+row) and both closed-form claims reproduced bit-for-bit.
+MAJ-1 = the silent deviation: CONVERSION_BASED_UNIT length
+contexts import silently as metres (unit check fires only on
+instances containing SI_UNIT; refs unresolved) — the forbidden
+silent-guess class. Fix pass DISPATCHED (inherits the arm):
+MAJ-1 by-resolution unit check + inch-file test; full truncation
+sweep (cap 400/7318 contradicted its own comment); MIN-4's three
+silent drops → typed refusals (2nd curve set, mixed content,
+orphan MSBs); NOTE-5 mojibake arm; 6.00-ulp correction; adopt
+review/m7-1's 19 probes BY MERGE (authorship kept). Fenced
+findings routed to fresh issue #184 (cross-orchestrator channel):
+MIN-3 curved sense flips tier-invisible (kernel-scope — our-tiers
+confirmation of the OCC text-level orientation note; executed on
+washer, volume bit-identical) + NOTE-7 filleted_die.expect
+comment overclaim + the sidecar KERNEL_* fields design
+suggestion. Review ~181k tokens, ~35min wall.
+
+**M7-1 MERGED as #183 (2026-08-04): THE KERNEL IMPORTS WHAT IT
+EXPORTS.** Fix pass discharged all six items: units/uncertainty
+checked by RESOLUTION (a subset SI length unit must exist; a
+CONVERSION_BASED_UNIT inch file refuses typed; two distinct
+declared uncertainties refuse as ambiguous); truncation sweep
+runs every strict prefix (7k+ cuts, the only importing cut is
+the trailing-newline one, asserted); the three silent drops are
+typed `Structure` refusals (content resolved from the
+representation structure — orphan MSBs refuse rather than
+guess); string bodies refuse outside the Part-21 basic alphabet
+(mirror of the writer's quoting refusal); 6.00 ulps; the 19
+review probes adopted BY MERGE with authorship kept — plus the
+fix pass caught the reviewer's unit probe being VACUOUS (its
+#93 substitution never matched cube's #155; re-anchored id-free
+and flipped to assert the refusal). Reported deviation from the
+fix instruction, accepted: the probe suite is a third [[test]]
+target, adopted verbatim (the two-target norm binds the
+acceptance layout, not the adopted review surface). Hosted
+27/27; crate suite 28/28. A/B row RECORDED AT MERGE. #184
+exchange settled mid-flight: KERNEL_* sidecar shape locked both
+sides (full-precision KERNEL_VOLUME_MM3; native-census
+semantics with the kiss_assembly solids divergence documented;
+no seam/pole accounting), export side implements after Evan's
+👍, M7's consumer switch-over tracked for a later seam. Lanes
+cleaned; slot 2 freed. Next: M7-2 (FreeCAD-authored foreign
+corpus; OPUS block remainder; difficulty logged before
+assignment at spec time).
