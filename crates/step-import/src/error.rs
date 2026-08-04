@@ -105,6 +105,16 @@ pub enum StepImportError {
     /// The data section declares no usable shape representation (no
     /// `MANIFOLD_SOLID_BREP` and no `GEOMETRIC_CURVE_SET`).
     NothingToImport,
+    /// The data section's shape-representation structure is outside
+    /// the subset: mixed solid+wireframe content, a second curve set,
+    /// or a solid/curve-set no representation references (an orphan —
+    /// refused rather than guessed in or silently dropped).
+    Structure {
+        /// The offending entity instance.
+        id: u64,
+        /// The structural defect (static description).
+        what: &'static str,
+    },
     /// The header/context carries no
     /// `UNCERTAINTY_MEASURE_WITH_UNIT`, so ε_in has no file default
     /// and no override was given.
@@ -194,6 +204,9 @@ impl fmt::Display for StepImportError {
                 "step import: the data section carries no MANIFOLD_SOLID_BREP and no \
                  GEOMETRIC_CURVE_SET — nothing to import",
             ),
+            Self::Structure { id, what } => {
+                write!(f, "step import: entity #{id}: {what}")
+            }
             Self::MissingUncertainty => f.write_str(
                 "step import: no UNCERTAINTY_MEASURE_WITH_UNIT in the representation \
                  context and no per-call override — ε_in has no honest default",

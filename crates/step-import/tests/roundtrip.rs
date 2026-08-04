@@ -33,8 +33,8 @@ fn committed_corpus_row(name: &str) {
     // PER FACE for the closed forms' own rounded accumulation — the
     // volume is a fixed-order sum of per-face contributions, each
     // rounded (exact only on dyadic inputs), so the roundoff budget
-    // scales with the number of summands (die_pips' 48 faces land ~5
-    // ulps off the printed analytic value).
+    // scales with the number of summands (die_pips' 48 faces land a
+    // measured 6.00 ulps off the printed analytic value).
     let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.volume_mm3 * 1e-9;
     let print_precision_m3 = print_precision_mm3(&expect.volume_literal) * 1e-9;

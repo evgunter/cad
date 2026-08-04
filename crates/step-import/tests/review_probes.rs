@@ -401,27 +401,31 @@ fn g7_nonunit_vector_refuses() {
 /// imports, the file's scale has been silently misread as metres.
 #[test]
 fn g7_conversion_based_unit_must_refuse() {
+    // Fix-pass correction: the probe originally anchored on "#93 ="
+    // but cube.step's length unit is #155, so the replacement never
+    // matched and the probe ran on an UNCHANGED cube (vacuously Ok
+    // under both the old and new unit handling). Re-anchored id-free
+    // and asserted for real; the substitution is checked to have
+    // fired so the probe can never go vacuous again.
     let text = fixture("cube", "step").replace(
-        "#93 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) );",
-        "#93 = ( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) );",
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
+        "( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) )",
     );
-    // CONFIRMED FINDING (review): this import SUCCEEDS today — the
-    // unit check only fires on instances containing an SI_UNIT record,
-    // so a conversion-based length unit (with dangling, never-resolved
-    // unit refs #9990/#9991) is silently read as metres. The assert
-    // below pins the buggy behavior so the finding is executable; the
-    // fix direction is to resolve the GLOBAL_UNIT_ASSIGNED_CONTEXT's
-    // unit references and refuse anything that is not the subset's
-    // SI_UNIT form.
-    let result = import_text(&text);
     assert!(
-        result.is_ok(),
-        "behavior changed — if this now refuses, the finding is fixed: {:?}",
-        result.err().map(|e| e.to_string())
+        text.contains("CONVERSION_BASED_UNIT"),
+        "the unit substitution must have fired"
     );
-    println!(
-        "g7 FINDING: conversion-based length unit imported silently as metres \
-         (spec Leg B requires a typed refusal)"
+    // Review finding MAJOR-1, FIXED in the fix pass: the original
+    // probe pinned the then-buggy silent import (the unit check fired
+    // only on instances *containing* an SI_UNIT record, so this
+    // conversion-based context — with dangling unit refs #9990/#9991 —
+    // read as metres). The unit context is now checked by RESOLUTION
+    // of GLOBAL_UNIT_ASSIGNED_CONTEXT (and the uncertainty's #unit),
+    // so the probe asserts the required typed refusal.
+    let err = import_text(&text).expect_err("an inch-unit file must refuse typed");
+    assert!(
+        matches!(err, StepImportError::UnsupportedUnit { .. }),
+        "expected UnsupportedUnit, got: {err}"
     );
 }
 

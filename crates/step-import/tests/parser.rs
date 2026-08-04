@@ -55,6 +55,10 @@ fn minimal_solid_with_surface(surface_record: &str) -> String {
          #5 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) );\n\
          #6 = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.0E-9), #5, \
          'distance_accuracy_value', '');\n\
+         #7 = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) \
+         GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#6)) \
+         GLOBAL_UNIT_ASSIGNED_CONTEXT((#5)) REPRESENTATION_CONTEXT('c', '3D') );\n\
+         #8 = ADVANCED_BREP_SHAPE_REPRESENTATION('', (#4), #7);\n\
          ENDSEC;\nEND-ISO-10303-21;\n"
     )
 }
@@ -81,19 +85,28 @@ fn bspline_surface_refuses_typed() {
 }
 
 /// Row 5(b): truncated / malformed files refuse with typed parse
-/// errors — never panics. Truncation is exercised at every prefix
-/// length of a small real fixture (brute force is cheap here and
-/// leaves no untested cut point).
+/// errors — never panics. Truncation is exercised at **every strict
+/// prefix** of a real fixture (brute force is cheap and leaves no
+/// untested cut point; review MINOR-2 dropped the old 400-byte cap).
+/// The one prefix that legitimately imports is the cut dropping only
+/// the trailing newline — a semantically complete exchange file.
 #[test]
 fn truncations_refuse_without_panicking() {
     let text = fixture("cube", "step");
-    for cut in 0..text.len().min(400) {
+    for cut in 0..text.len() {
         let truncated = &text[..cut];
         let result = import_step(truncated, &ImportOptions::default());
-        assert!(
-            result.is_err(),
-            "a truncated exchange file (cut at {cut}) must refuse"
-        );
+        if cut + 1 == text.len() {
+            assert!(
+                result.is_ok(),
+                "the trailing-newline cut is a complete file"
+            );
+        } else {
+            assert!(
+                result.is_err(),
+                "a truncated exchange file (cut at {cut}) must refuse"
+            );
+        }
     }
     // A structurally malformed record: garbage where a record belongs.
     let garbage = "ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n#1 = ;\nENDSEC;\nEND-ISO-10303-21;\n";
@@ -128,6 +141,26 @@ fn prefixed_unit_refuses_typed() {
     );
     let err = import_step(&text, &ImportOptions::default())
         .expect_err("a prefixed unit is outside the subset");
+    assert!(
+        matches!(err, StepImportError::UnsupportedUnit { .. }),
+        "expected UnsupportedUnit, got: {err}"
+    );
+}
+
+/// Review MAJOR-1's case: a `CONVERSION_BASED_UNIT` length context —
+/// an inch file's normal form, carrying **no** `SI_UNIT` record at
+/// all — must refuse typed. The unit context is checked by
+/// RESOLUTION of `GLOBAL_UNIT_ASSIGNED_CONTEXT` (and the
+/// uncertainty's own `#unit`), so a foreign length unit can never
+/// import silently as metres.
+#[test]
+fn conversion_based_unit_refuses_typed() {
+    let text = fixture("cube", "step").replace(
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
+        "( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) )",
+    );
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("an inch-unit file must refuse, not scale-lie as metres");
     assert!(
         matches!(err, StepImportError::UnsupportedUnit { .. }),
         "expected UnsupportedUnit, got: {err}"

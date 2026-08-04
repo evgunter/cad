@@ -165,7 +165,10 @@ impl<'a> Cursor<'a> {
     }
 
     /// A string literal (after the opening `'`): `''` unescapes to
-    /// `'`, `\\` to `\`.
+    /// `'`, `\\` to `\`. Content is the Part 21 basic alphabet only —
+    /// a raw byte outside 0x20..=0x7E or an undecoded control
+    /// directive (`\S\`, `\X2\…`) refuses typed rather than mangling
+    /// (the writer enforces the mirror-image boundary on export).
     fn string_body(&mut self) -> Result<String, StepImportError> {
         let mut out = String::new();
         loop {
@@ -183,10 +186,21 @@ impl<'a> Cursor<'a> {
                     out.push('\\');
                     self.pos += 2;
                 }
+                Some(b'\\') => {
+                    return Err(self.syntax(
+                        "a doubled backslash (Part 21 string control directives are \
+                         outside the imported subset)",
+                    ));
+                }
                 Some(b'\n') => return Err(self.syntax("a terminated string literal")),
-                Some(c) => {
+                Some(c) if (0x20..=0x7E).contains(&c) => {
                     out.push(c as char);
                     self.pos += 1;
+                }
+                Some(_) => {
+                    return Err(
+                        self.syntax("a Part 21 basic-alphabet string character (0x20..=0x7E)")
+                    );
                 }
                 None => return Err(self.syntax("a terminated string literal")),
             }

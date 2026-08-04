@@ -864,6 +864,232 @@ fn check_unit(id: u64, records: &[Record]) -> Result<(), StepImportError> {
     })
 }
 
+/// True iff `records` is the subset's SI **length** unit (a
+/// `LENGTH_UNIT` composed with `SI_UNIT($, .METRE.)`).
+fn is_si_length(records: &[Record]) -> bool {
+    let metre = records.iter().any(|(kw, args)| {
+        kw == "SI_UNIT"
+            && matches!(args.as_slice(),
+                [Value::Null, Value::Enum(n)] if n == "METRE")
+    });
+    metre && records.iter().any(|(kw, _)| kw == "LENGTH_UNIT")
+}
+
+/// Units and uncertainty **by resolution** (M7-1 review MAJOR-1): the
+/// old presence-scan only fired on instances *containing* an
+/// `SI_UNIT` record, so a `CONVERSION_BASED_UNIT` length context (an
+/// inch/mm file's normal form) imported silently as metres. Now every
+/// `GEOMETRIC_REPRESENTATION_CONTEXT`'s `GLOBAL_UNIT_ASSIGNED_CONTEXT`
+/// references are resolved and each must be a subset-form SI unit
+/// ([`check_unit`]), a subset SI **length** unit must exist among
+/// them, and every declared uncertainty must be a `LENGTH_MEASURE`
+/// over a resolved subset length unit. The presence-scan stays as a
+/// belt (an unreferenced prefixed unit still refuses).
+fn resolve_units_and_uncertainty(
+    r: &Resolver<'_>,
+    file: &StepFile,
+) -> Result<f64, StepImportError> {
+    for (&id, instance) in &file.data {
+        if instance.records.iter().any(|(kw, _)| kw == "SI_UNIT") {
+            check_unit(id, &instance.records)?;
+        }
+    }
+    let mut uncertainty: Option<f64> = None;
+    for (&id, instance) in &file.data {
+        if !instance
+            .records
+            .iter()
+            .any(|(kw, _)| kw == "GEOMETRIC_REPRESENTATION_CONTEXT")
+        {
+            continue;
+        }
+        let mut has_length_unit = false;
+        for (kw, args) in &instance.records {
+            match kw.as_str() {
+                "GLOBAL_UNIT_ASSIGNED_CONTEXT" => {
+                    let expected = "GLOBAL_UNIT_ASSIGNED_CONTEXT((unit references))";
+                    let [units] = args.as_slice() else {
+                        return Err(StepImportError::MalformedRecord { id, expected });
+                    };
+                    for unit in as_list(id, units, expected)? {
+                        let uid = as_ref(id, unit, expected)?;
+                        let unit_instance = r.instance(id, uid)?;
+                        check_unit(uid, &unit_instance.records)?;
+                        if is_si_length(&unit_instance.records) {
+                            has_length_unit = true;
+                        }
+                    }
+                }
+                "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT" => {
+                    let expected = "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((uncertainty references))";
+                    let [list] = args.as_slice() else {
+                        return Err(StepImportError::MalformedRecord { id, expected });
+                    };
+                    for entry in as_list(id, list, expected)? {
+                        let uid = as_ref(id, entry, expected)?;
+                        let value = r.uncertainty_value(id, uid)?;
+                        match uncertainty {
+                            None => uncertainty = Some(value),
+                            Some(prev) if prev.to_bits() == value.to_bits() => {}
+                            Some(_) => {
+                                // Two distinct declared uncertainties
+                                // give ε_in no honest single default —
+                                // ambiguity is a typed refusal (D7).
+                                return Err(StepImportError::MalformedRecord {
+                                    id: uid,
+                                    expected: "a single distance_accuracy_value (multiple \
+                                               distinct declared uncertainties are ambiguous)",
+                                });
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !has_length_unit {
+            return Err(StepImportError::UnsupportedUnit {
+                id,
+                found: "a representation context without a subset SI length unit \
+                        (unprefixed metre)"
+                    .to_owned(),
+            });
+        }
+    }
+    uncertainty.ok_or(StepImportError::MissingUncertainty)
+}
+
+impl<'a> Resolver<'a> {
+    /// One `UNCERTAINTY_MEASURE_WITH_UNIT`, by resolution: the value
+    /// must be a `LENGTH_MEASURE` and its `#unit` must resolve to the
+    /// subset's SI length unit (an uncertainty measured in a foreign
+    /// unit would silently rescale ε_in).
+    fn uncertainty_value(&self, from: u64, id: u64) -> Result<f64, StepImportError> {
+        let args = self.simple(from, id, "UNCERTAINTY_MEASURE_WITH_UNIT")?;
+        let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), #unit, \
+                        name, description)";
+        let [Value::Typed(measure, inner), unit_ref, ..] = args else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        if measure != "LENGTH_MEASURE" {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        }
+        let [value] = inner.as_slice() else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let uid = as_ref(id, unit_ref, expected)?;
+        let unit_instance = self.instance(id, uid)?;
+        check_unit(uid, &unit_instance.records)?;
+        if !is_si_length(&unit_instance.records) {
+            return Err(StepImportError::UnsupportedUnit {
+                id: uid,
+                found: complex_name(&unit_instance.records),
+            });
+        }
+        as_real(id, value, expected)
+    }
+}
+
+/// Shape content **by resolution** (M7-1 review MINOR-4): solids come
+/// from `ADVANCED_BREP_SHAPE_REPRESENTATION` items and the wireframe
+/// from `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION` items —
+/// never from a bare keyword scan — and every `MANIFOLD_SOLID_BREP` /
+/// `GEOMETRIC_CURVE_SET` in the data section must be referenced by
+/// one of them (an orphan is refused rather than guessed to be model
+/// content or silently dropped). Mixed solid+wireframe content and a
+/// second curve set are outside the subset, refused typed.
+fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportError> {
+    let mut solids = Vec::new();
+    let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
+    let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
+    for (&id, instance) in &file.data {
+        let [(kw, args)] = instance.records.as_slice() else {
+            continue;
+        };
+        match kw.as_str() {
+            "ADVANCED_BREP_SHAPE_REPRESENTATION" => {
+                let expected = "ADVANCED_BREP_SHAPE_REPRESENTATION(name, (items), #context)";
+                let [_, items, _] = args.as_slice() else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                for item in as_list(id, items, expected)? {
+                    let item_id = as_ref(id, item, expected)?;
+                    let item_instance = r.instance(id, item_id)?;
+                    match item_instance.records.as_slice() {
+                        [(k, sargs)] if k == "MANIFOLD_SOLID_BREP" => {
+                            referenced.insert(item_id);
+                            solids.push(r.solid(item_id, sargs)?);
+                        }
+                        // The representation's own placement item.
+                        [(k, _)] if k == "AXIS2_PLACEMENT_3D" => {}
+                        records => {
+                            return Err(StepImportError::UnsupportedEntity {
+                                id: item_id,
+                                keyword: complex_name(records),
+                            });
+                        }
+                    }
+                }
+            }
+            "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION" => {
+                let expected = "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION(\
+                                name, (items), #context)";
+                let [_, items, _] = args.as_slice() else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                for item in as_list(id, items, expected)? {
+                    let item_id = as_ref(id, item, expected)?;
+                    let item_instance = r.instance(id, item_id)?;
+                    match item_instance.records.as_slice() {
+                        [(k, sargs)] if k == "GEOMETRIC_CURVE_SET" => {
+                            if wireframe.is_some() {
+                                return Err(StepImportError::Structure {
+                                    id: item_id,
+                                    what: "a second GEOMETRIC_CURVE_SET — the subset \
+                                           carries at most one wireframe",
+                                });
+                            }
+                            referenced.insert(item_id);
+                            wireframe = Some((item_id, r.curve_set(item_id, sargs)?));
+                        }
+                        [(k, _)] if k == "AXIS2_PLACEMENT_3D" => {}
+                        records => {
+                            return Err(StepImportError::UnsupportedEntity {
+                                id: item_id,
+                                keyword: complex_name(records),
+                            });
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    // Orphan check (fail-loud: a shape item no representation
+    // references would otherwise vanish or be guessed into the model).
+    for (&id, instance) in &file.data {
+        if let [(kw, _)] = instance.records.as_slice()
+            && (kw == "MANIFOLD_SOLID_BREP" || kw == "GEOMETRIC_CURVE_SET")
+            && !referenced.contains(&id)
+        {
+            return Err(StepImportError::Structure {
+                id,
+                what: "a solid/curve-set no shape representation references — \
+                       refusing rather than guessing whether it is model content",
+            });
+        }
+    }
+    match (solids.is_empty(), wireframe) {
+        (false, None) => Ok(Shape::Solids(solids)),
+        (true, Some((_, curves))) => Ok(Shape::Wireframe(curves)),
+        (true, None) => Err(StepImportError::NothingToImport),
+        (false, Some((wid, _))) => Err(StepImportError::Structure {
+            id: wid,
+            what: "solid and wireframe content in one file is outside the subset",
+        }),
+    }
+}
+
 /// Resolves the parsed file into a [`Model`] (module docs).
 pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
     let r = Resolver { file };
@@ -879,59 +1105,8 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         });
     }
 
-    // Units and uncertainty: every SI_UNIT record in the data section
-    // must be inside the subset, and the representation context must
-    // declare a length uncertainty (ε_in's file default). Scanned in
-    // id order (deterministic).
-    let mut uncertainty = None;
-    for (&id, instance) in &file.data {
-        if instance.records.iter().any(|(kw, _)| kw == "SI_UNIT") {
-            check_unit(id, &instance.records)?;
-        }
-        if let [(kw, args)] = instance.records.as_slice()
-            && kw == "UNCERTAINTY_MEASURE_WITH_UNIT"
-        {
-            let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), \
-                                #unit, name, description)";
-            let [Value::Typed(measure, inner), ..] = args.as_slice() else {
-                return Err(StepImportError::MalformedRecord { id, expected });
-            };
-            if measure != "LENGTH_MEASURE" {
-                return Err(StepImportError::MalformedRecord { id, expected });
-            }
-            let [value] = inner.as_slice() else {
-                return Err(StepImportError::MalformedRecord { id, expected });
-            };
-            uncertainty = Some(as_real(id, value, expected)?);
-        }
-    }
-    let Some(uncertainty_m) = uncertainty else {
-        return Err(StepImportError::MissingUncertainty);
-    };
-
-    // Shape content: MANIFOLD_SOLID_BREPs (id order — the writer's
-    // emission order), else a GEOMETRIC_CURVE_SET wireframe.
-    let mut solids = Vec::new();
-    let mut curve_set = None;
-    for (&id, instance) in &file.data {
-        if let [(kw, args)] = instance.records.as_slice() {
-            match kw.as_str() {
-                "MANIFOLD_SOLID_BREP" => solids.push(r.solid(id, args)?),
-                "GEOMETRIC_CURVE_SET" if curve_set.is_none() => {
-                    curve_set = Some(r.curve_set(id, args)?);
-                }
-                _ => {}
-            }
-        }
-    }
-    let shape = if solids.is_empty() {
-        match curve_set {
-            Some(curves) => Shape::Wireframe(curves),
-            None => return Err(StepImportError::NothingToImport),
-        }
-    } else {
-        Shape::Solids(solids)
-    };
+    let uncertainty_m = resolve_units_and_uncertainty(&r, file)?;
+    let shape = resolve_shape(&r, file)?;
     Ok(Model {
         uncertainty_m,
         shape,
