@@ -49,8 +49,15 @@ fn a1_perturbed_value_flows_to_reexport() {
         "volume must reflect the parsed radius: {v} vs {expected}"
     );
     let out = export(&body, "ball");
-    assert!(out.contains("1.25"), "re-export must carry the parsed value");
-    assert_ne!(out, fixture("ball", "step"), "must differ from committed text");
+    assert!(
+        out.contains("1.25"),
+        "re-export must carry the parsed value"
+    );
+    assert_ne!(
+        out,
+        fixture("ball", "step"),
+        "must differ from committed text"
+    );
 }
 
 /// A1/E5 teeth: a tiny (1e-7) inconsistency-free radius change must
@@ -114,7 +121,10 @@ fn c3a_rotated_circle_axis_refuses_adoption() {
         StepImportError::Adoption { id, attempts } => {
             assert_eq!(id, 15, "the refusal names the EDGE_CURVE");
             assert!(!attempts.is_empty(), "attempts carried as data");
-            println!("c3a refusals: {}", StepImportError::Adoption { id, attempts });
+            println!(
+                "c3a refusals: {}",
+                StepImportError::Adoption { id, attempts }
+            );
         }
         other => panic!("expected Adoption, got: {other}"),
     }
@@ -190,10 +200,7 @@ fn d4_reversed_data_lines_still_assemble() {
     let (entities, tail) = rest.split_once("ENDSEC;\nEND-ISO").unwrap();
     let mut lines: Vec<&str> = entities.lines().collect();
     lines.reverse();
-    let permuted = format!(
-        "{head}DATA;\n{}\nENDSEC;\nEND-ISO{tail}",
-        lines.join("\n")
-    );
+    let permuted = format!("{head}DATA;\n{}\nENDSEC;\nEND-ISO{tail}", lines.join("\n"));
     let body = solid(&permuted, "reversed die");
     let reference = solid(&text, "die");
     assert_eq!(census(&body), census(&reference));
@@ -206,7 +213,11 @@ fn d4_reversed_data_lines_still_assemble() {
     assert_eq!(e1, e2, "fixed point must hold on a non-writer-ordered file");
     println!(
         "d4 reversed-lines first re-export {} the committed fixture",
-        if e1 == text { "matches" } else { "diverges from" }
+        if e1 == text {
+            "matches"
+        } else {
+            "diverges from"
+        }
     );
 }
 
@@ -237,7 +248,11 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
     assert_eq!(e1, e2, "fixed point must hold on a renumbered file");
     println!(
         "d4 renumbered kiss first re-export {} the committed fixture",
-        if e1 == text { "matches" } else { "diverges from" }
+        if e1 == text {
+            "matches"
+        } else {
+            "diverges from"
+        }
     );
 }
 
@@ -283,10 +298,9 @@ fn f6_reversed_face_unflip_is_not_healed() {
             let out = export(&body, "washer");
             let flipped_back = out.contains(", #5, .F.);");
             let v = topo::mass_properties(&body).unwrap().volume;
-            let v0 =
-                topo::mass_properties(&solid(&fixture("washer", "step"), "washer"))
-                    .unwrap()
-                    .volume;
+            let v0 = topo::mass_properties(&solid(&fixture("washer", "step"), "washer"))
+                .unwrap()
+                .volume;
             // Finding data, not a hard assert: tier-3 detectability of a
             // curved-face sense flip is kernel scope, not import scope.
             println!(
@@ -373,10 +387,8 @@ fn g7_reversed_bound_refuses() {
 /// G7: a non-unit VECTOR magnitude refuses typed, naming the vector.
 #[test]
 fn g7_nonunit_vector_refuses() {
-    let text = fixture("cube", "step").replace(
-        "#12 = VECTOR('', #11, 1.0);",
-        "#12 = VECTOR('', #11, 2.0);",
-    );
+    let text = fixture("cube", "step")
+        .replace("#12 = VECTOR('', #11, 1.0);", "#12 = VECTOR('', #11, 2.0);");
     let err = import_text(&text).expect_err("a non-unit vector is outside the subset");
     match err {
         StepImportError::MalformedRecord { id, .. } => assert_eq!(id, 12),
@@ -421,7 +433,10 @@ fn e5_closed_forms() {
     let filleted = (0.854848 + 0.035136 * pi) * 1e9;
     println!("e5 filleted_die closed form: {filleted:.4} mm³ (sidecar 965231000)");
     assert!((filleted - 965231000.0).abs() < 500.0 + 0.5);
-    assert!((filleted - 965230999.4765).abs() < 0.001, "reported exact form");
+    assert!(
+        (filleted - 965230999.4765).abs() < 0.001,
+        "reported exact form"
+    );
     // die_pips: 1 - 21·π·h²(3r−h)/3, r = 0.09, h = 0.05.
     let (r, h) = (0.09f64, 0.05f64);
     let pips = (1.0 - 21.0 * pi * h * h * (3.0 * r - h) / 3.0) * 1e9;
@@ -452,6 +467,10 @@ fn h8_eps_in_not_consumed() {
         };
         assert_eq!(eps_in, eps);
         let v = topo::mass_properties(&body).unwrap().volume;
-        assert_eq!(v.to_bits(), 1.0f64.to_bits(), "identical body under eps_in {eps}");
+        assert_eq!(
+            v.to_bits(),
+            1.0f64.to_bits(),
+            "identical body under eps_in {eps}"
+        );
     }
 }
