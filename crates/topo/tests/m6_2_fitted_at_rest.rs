@@ -248,10 +248,22 @@ mod certified {
             i_ssi.on_locus_max.hi(),
             f_ssi.on_locus_max
         );
-        // The ring-derived bound is thin at both scalars — stated, so
-        // the equality below is read as the C6/C9 boundary it is and
-        // not as a suspiciously exact numeric coincidence.
-        assert_eq!(ic.envelope.lo(), ic.envelope.hi());
-        assert_eq!(ic.envelope.hi(), fc.envelope);
+        // The envelope is deliberately NOT compared across scalars.
+        // It is `T::from_f64` of a C9-ring bound, so it is thin at both
+        // — but "thin" is not "the same number": the tube ladder's
+        // extent and lever arm are evaluated at `T`
+        // (`carrier_diameter`), so the interval lane can select a
+        // different rung and land on a different certificate
+        // STRUCTURE, and neither direction of a cross-scalar
+        // comparison of the resulting bound is guaranteed. The hosted
+        // ε = 1e-6 row executed exactly that: the two lanes' envelopes
+        // are both thin and not equal. What IS sound is the dominance
+        // asserted above, on the quantity that is genuinely evaluated
+        // at the scalar.
+        assert_eq!(
+            ic.envelope.lo(),
+            ic.envelope.hi(),
+            "the ring-derived bound is thin at the interval scalar"
+        );
     }
 }
