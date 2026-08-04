@@ -421,3 +421,26 @@ confirmed by orchestrator canary: 19.66s vs 0.75s at session
 start)** — the box is at base clock, builds ~20×. Evan notified
 (terminal push + #173 comment; Vantage poke needed). Lanes
 continue, slowly.
+
+**M6-2 implementation COMPLETE (2026-08-04): PR #176 open, all
+six spec-§4 acceptance rows reported MET, NINE numbered
+deviations (none silent), blinded adversarial review
+DISPATCHED** (spec-conformance + rubric; assigned attacks:
+the EnvelopeStatement/OnLocusHull adjudication against the walk
+row's C2 clause, dev 1's f64-Newton-under-Bounds Interval
+semantics, a reviewer-planted second-species corruption, the
+Box3 bracket seam, the Copy-drop ripple, sweep completeness).
+Implementation shape: Box3 lifted at the SEAM under sole-bound
+`T: Bounds` (no allowlist entry needed); projection lifted with
+f64 Newton + T residuals (dev 1); certify closure generic with
+`SsiCertificate<T>`; `Pcurve::Fitted(Arc<NurbsCurve2<T>>)` with
+`PcurveFittedLane` static split (f64/Probe/Interval certified,
+Dual refusing typed) and `PropsQuadLane` gaining it as a
+supertrait (dev 2/3); `EnvelopeStatement` making the
+envelope's claim-form explicit (MapResidual*/OnLocusHull);
+UnsupportedCarrier retired via S9 flip; at-rest row + planted
+wrong-carrier corruption + Interval enclosure row in
+topo/tests/m6_2_fitted_at_rest.rs; vacuity pin renamed to
+no_export_corpus_body_carries_a_nurbs_carrier_or_face.
+Battery targeted under the CPU pin (dev 9; canary 9.7s at the
+time) — hosted CI is the gate.
