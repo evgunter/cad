@@ -349,3 +349,22 @@ timings, orchestrator merges) dispatched immediately; Phase B
 (the 249→~12 test-crate collapse) held for a free cargo-lane
 slot. Also relayed to the globe-lily lane per Evan's same-thread
 ask: commit+push renders the moment they're generated.
+
+**CI-speed Phase A MERGED as #174 (2026-08-04)**: mold +
+line-tables-only on the two build jobs, job-level env (rust-cache
+hashes CARGO_*/RUST* into its key — step-level knobs would desync
+the fingerprint forever; one cold rebuild paid at merge). Measured
+on the PR's own full-matrix runs: wall 17.6 → 14.2 min (−19%),
+billed ~79 → ~67 (−15%), default-build compile 514 → 320 s warm
+(−38%), interval −20%; same 261-binary archive in and out.
+Item 4 NOT landable: larger runners need an org on Team/Enterprise
+and the repo is User-owned — landed as the BUILD_RUNNER repo
+variable (unset ⇒ ubuntu-latest), with the recorded caveat that
+larger-runner minutes bill SEPARATELY (the report's
+billing-neutral assumption was wrong). Runner is 2 vCPU (not 4 —
+provenance step prints nproc), which RAISES Phase B's expected
+value. Deviation accepted: --no-verify push (fmt hook invokes
+cargo; diff was yml+sh only). One GHA flake noted (download-
+artifact hang, cancelled+rerun clean) — watch, unrelated.
+Evan told on #173. Phase B (249→~12 collapse) still HELD for a
+cargo-lane slot; stale #167 watchlist entry cleared.
