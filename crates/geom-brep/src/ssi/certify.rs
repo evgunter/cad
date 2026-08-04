@@ -108,7 +108,7 @@
 
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::spline::hull;
-use geom_core::{Band, Point3, RingInterval, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Point3, Real, RingInterval, Sign, Vec3};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
@@ -166,21 +166,38 @@ pub const SSI_CERT_SPANS: usize = 32;
 
 /// The three-limb certificate of a rung-3 fitted carrier. Every field
 /// is a *bound*, in meters, that the corresponding limb proved.
+///
+/// **Generic since M6-2.** The certificate is carried at the scalar it
+/// was derived at, so an interval-lane body's cache holds enclosures of
+/// its own bounds rather than an `f64` shadow of somebody else's run.
+/// Which fields are genuinely scalar-typed and which are lifted ring or
+/// ladder structure is stated per field — the distinction is the whole
+/// C6/C9 boundary and folding it away would be dishonest.
 #[derive(Clone, Copy, Debug)]
-pub struct SsiCertificate {
+pub struct SsiCertificate<T: Real> {
     /// The fixed sample count of limb 1 ([`CERT_SAMPLES`]).
     pub samples: u32,
     /// Limb 1: the largest on-locus residual over the schedule, in
     /// meters (the sampled max — it steers, it does not certify).
-    pub on_locus_max: f64,
+    /// **Scalar-typed**: evaluated at `T`, so it is an enclosure of the
+    /// residual on the interval lane.
+    pub on_locus_max: T,
     /// Limb 2: the certified **sup-norm** bound over the whole span, in
-    /// meters. This is the number that certifies.
-    pub hull_sup: f64,
-    /// Limb 3: the tube's radius, in meters.
-    pub tube_radius: f64,
+    /// meters. This is the number that certifies. **Ring-derived**: the
+    /// C9 ring produces an `f64` upper bound (that is what a hull bound
+    /// IS), lifted here so consumers band one scalar; at the interval
+    /// scalar it is a thin enclosure of that bound, and the widening of
+    /// a lifted operand has already been paid inside the ring.
+    pub hull_sup: T,
+    /// Limb 3: the tube's radius, in meters. **Ladder structure**
+    /// (C6's `f64` selection lane), lifted for uniformity — no decision
+    /// reads it.
+    pub tube_radius: T,
     /// Limb 3: the smallest certified transversality margin over the
-    /// box chain, in meters — the headroom of the one-arc proof.
-    pub tube_transversality: f64,
+    /// box chain, in meters — the headroom of the one-arc proof. The
+    /// ring's zero-free lower bound times the caller's lever arm, so it
+    /// carries the arm's scalar.
+    pub tube_transversality: T,
     /// Limb 3: how many boxes the chain has.
     pub tube_boxes: u32,
 }
@@ -211,7 +228,7 @@ impl SsiLimb {
 
 /// Refine the carrier so the hull limbs have small spans to work with
 /// (knot refinement is exact in ℝ; the curve is unchanged).
-fn refined(curve: &NurbsCurve3<f64>) -> NurbsCurve3<f64> {
+fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     let (lo, hi) = curve.domain();
     let kv = curve.knots();
     // Already fine enough: refining a carrier that the marcher's step
@@ -233,65 +250,119 @@ fn refined(curve: &NurbsCurve3<f64>) -> NurbsCurve3<f64> {
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
+/// The exact `f64` a structural surface parameter stands for, or `None`
+/// when the scalar's bracket is not a point.
+///
+/// **Why this gate exists (M6-2).** `geom_core`'s [`ImplicitSurface`]
+/// is `f64` STRUCTURE — a polynomial form with `f64` coefficients — and
+/// the composite it drives is only a bound on the surface it actually
+/// describes. Lifting `certify_branch` off `f64` therefore does NOT
+/// make the analytic composite accept a *widened* operand: a cylinder
+/// whose radius is an enclosure is a FAMILY of cylinders, and picking
+/// any representative would certify the carrier against a surface the
+/// body does not have. A thin bracket is exactly the case where the
+/// representative is the surface, so that case is admitted and every
+/// other one refuses typed (`UnsupportedCertificate`, below) — never a
+/// midpoint, never a guess. Retiring the gate means giving the
+/// composite enclosure-valued coefficients, which is a `geom_core`
+/// change with its own unit.
+fn exact<T: Bounds>(v: T) -> Option<f64> {
+    let (lo, hi) = (v.lo(), v.hi());
+    (lo == hi && !lo.is_nan()).then_some(lo)
+}
+
+/// Three coordinates of an exact point, or `None` if any is widened.
+fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
+    Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
+}
+
 /// The `compose` implicit form of an analytic surface, and the exact
 /// factor converting its composite's units to meters.
 ///
-/// `None` for the kinds whose meters form carries a root the ring
-/// cannot take (cone, torus) and for NURBS (no implicit form) — the
-/// caller then routes to the NURBS mechanism or refuses, and never
-/// invents a conversion.
-fn composite_form(s: &Surface<f64>) -> Option<(ImplicitSurface, f64)> {
+/// `Err` names the reason, which the caller turns into an
+/// [`SsiError::UnsupportedCertificate`] verbatim: the kinds whose
+/// meters form carries a root the ring cannot take (cone, torus), NURBS
+/// (no implicit form), and — since M6-2 — an operand whose structural
+/// parameters are not exact at the caller's scalar (see [`exact`]).
+fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &'static str> {
+    const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
+                           scalar — the ring composite's implicit form is f64 structure, and a \
+                           widened operand is a family of surfaces, not the body's surface \
+                           (M6-2: refused rather than represented by a midpoint)";
     match *s {
-        Surface::Plane { origin, normal, .. } => Some((
-            ImplicitSurface::Plane {
-                point: [origin.x, origin.y, origin.z],
-                normal: [normal.x, normal.y, normal.z],
-            },
-            // n·(P − p₀) is already meters for a unit normal.
-            1.0,
-        )),
-        Surface::Sphere { center, radius, .. } => Some((
-            ImplicitSurface::Sphere {
-                center: [center.x, center.y, center.z],
-                radius,
-            },
-            // |P−c|² − R² = 2R · the linearized meters residual, exactly.
-            1.0 / (2.0 * radius),
-        )),
+        Surface::Plane { origin, normal, .. } => {
+            let (Some(point), Some(normal)) = (
+                exact3([origin.x, origin.y, origin.z]),
+                exact3([normal.x, normal.y, normal.z]),
+            ) else {
+                return Err(WIDENED);
+            };
+            Ok((
+                ImplicitSurface::Plane { point, normal },
+                // n·(P − p₀) is already meters for a unit normal.
+                1.0,
+            ))
+        }
+        Surface::Sphere { center, radius, .. } => {
+            let (Some(center), Some(radius)) =
+                (exact3([center.x, center.y, center.z]), exact(radius))
+            else {
+                return Err(WIDENED);
+            };
+            Ok((
+                ImplicitSurface::Sphere { center, radius },
+                // |P−c|² − R² = 2R · the linearized meters residual,
+                // exactly.
+                1.0 / (2.0 * radius),
+            ))
+        }
         Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
-        } => Some((
-            ImplicitSurface::Cylinder {
-                point: [origin.x, origin.y, origin.z],
-                axis: [axis.x, axis.y, axis.z],
-                radius,
-            },
-            // |w|² − R² = 2R · the linearized meters residual, exactly.
-            1.0 / (2.0 * radius),
-        )),
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,
+        } => {
+            let (Some(point), Some(axis), Some(radius)) = (
+                exact3([origin.x, origin.y, origin.z]),
+                exact3([axis.x, axis.y, axis.z]),
+                exact(radius),
+            ) else {
+                return Err(WIDENED);
+            };
+            Ok((
+                ImplicitSurface::Cylinder {
+                    point,
+                    axis,
+                    radius,
+                },
+                // |w|² − R² = 2R · the linearized meters residual,
+                // exactly.
+                1.0 / (2.0 * radius),
+            ))
+        }
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => {
+            Err("no ring-computable meters composite for this surface kind \
+             (cone/torus need a certified root the C9 ring lacks)")
+        }
     }
 }
 
 /// Limb 1 + limb 2 against one **analytic** operand.
-fn analytic_limbs(
-    carrier: &NurbsCurve3<f64>,
-    surface: &Surface<f64>,
+fn analytic_limbs<T: Decide + Bounds>(
+    carrier: &NurbsCurve3<T>,
+    surface: &Surface<T>,
     band: Band,
-) -> Result<(f64, f64), SsiError> {
+) -> Result<(T, T), SsiError> {
     // ---- limb 1: the fixed schedule ----
     let (t0, t1) = carrier.domain();
-    let mut worst = 0.0f64;
+    let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         #[allow(clippy::cast_precision_loss)]
         let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
-        let r = crate::implicit::implicit_residual(surface, carrier.eval(t)).abs();
-        if r > worst {
-            worst = r;
-        }
+        let r = crate::implicit::implicit_residual(surface, carrier.eval(T::from_f64(t))).abs();
+        // `max`, not a `>` branch: the running worst is a scalar-typed
+        // quantity now, and generic evaluation code does not compare.
+        worst = worst.max(r);
         match decide("ssi_on_locus", r, band) {
             // Zero is the affirmative: the residual is zero to
             // tolerance (the `dihedral_wedge` convention).
@@ -299,7 +370,7 @@ fn analytic_limbs(
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(SsiError::CertificateLimb {
                     limb: SsiLimb::OnLocus,
-                    value: r,
+                    value: r.hi(),
                 });
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
@@ -307,12 +378,8 @@ fn analytic_limbs(
     }
 
     // ---- limb 2: the certified hull bound ----
-    let Some((form, to_meters)) = composite_form(surface) else {
-        return Err(SsiError::UnsupportedCertificate {
-            what: "no ring-computable meters composite for this surface kind \
-                   (cone/torus need a certified root the C9 ring lacks)",
-        });
-    };
+    let (form, to_meters) =
+        composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
     let fine = refined(carrier);
     let coords = fine.ring_coords();
     let data = CurveRingData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
@@ -325,12 +392,15 @@ fn analytic_limbs(
             what: "the implicit composite refused the fitted carrier",
         }
     })?;
-    let sup = composite.sup_bound() * to_meters;
+    // The ring answers with an `f64` upper bound — that is what a hull
+    // bound is — and it is lifted here so the limb is banded at the
+    // caller's scalar like every other residual (field docs).
+    let sup = T::from_f64(composite.sup_bound() * to_meters);
     match decide("ssi_hull_sup", sup, band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
-            value: sup,
+            value: sup.hi(),
         }),
         Err(diag) => Err(SsiError::Escalated(diag)),
     }
@@ -338,39 +408,38 @@ fn analytic_limbs(
 
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
 /// pcurve as the parameter map (module docs).
-fn nurbs_limbs(
-    carrier: &NurbsCurve3<f64>,
-    pcurve: &NurbsCurve2<f64>,
-    surface: &NurbsSurface<f64>,
+fn nurbs_limbs<T: Decide + Bounds>(
+    carrier: &NurbsCurve3<T>,
+    pcurve: &NurbsCurve2<T>,
+    surface: &NurbsSurface<T>,
     band: Band,
-) -> Result<(f64, f64), SsiError> {
+) -> Result<(T, T), SsiError> {
     // ---- limb 1: the fixed schedule, through certified foot points --
     let (t0, t1) = carrier.domain();
-    let mut worst = 0.0f64;
+    let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         #[allow(clippy::cast_precision_loss)]
         let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
-        let c = carrier.eval(t);
+        let c = carrier.eval(T::from_f64(t));
         // Warm-start from the trace's own pcurve: the projection is a
         // *check*, and starting it where the trace says the foot is
         // makes a disagreement visible rather than hidden by a global
-        // seeding sweep landing somewhere else.
-        let p = pcurve.eval(t);
-        let proj = surface.project_from_seed(c, p.x, p.y).map_err(|e| {
-            SsiError::FootPointInconclusive {
+        // seeding sweep landing somewhere else. The seed is a
+        // parameter — `f64` structure on both sides of the M6-2 lift.
+        let p = pcurve.eval(T::from_f64(t));
+        let proj = surface
+            .project_from_seed(c, p.x.lo(), p.y.lo())
+            .map_err(|e| SsiError::FootPointInconclusive {
                 t,
                 last_distance: e.last_distance,
-            }
-        })?;
-        if proj.distance > worst {
-            worst = proj.distance;
-        }
+            })?;
+        worst = worst.max(proj.distance);
         match decide("ssi_on_locus_foot", proj.distance, band) {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(SsiError::CertificateLimb {
                     limb: SsiLimb::OnLocus,
-                    value: proj.distance,
+                    value: proj.distance.hi(),
                 });
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
@@ -378,7 +447,7 @@ fn nurbs_limbs(
         // The orthogonality residuals, normalized by the chart speeds
         // so the margin is a length: |S_d·r|/|S_d| is the component of
         // the offset along that parameter line, in meters.
-        let jet = surface.ders(proj.u, proj.v);
+        let jet = surface.ders(T::from_f64(proj.u), T::from_f64(proj.v));
         for (res, speed) in [
             (proj.orthogonality_u, jet.du.norm()),
             (proj.orthogonality_v, jet.dv.norm()),
@@ -389,7 +458,7 @@ fn nurbs_limbs(
                 Ok(Sign::Positive | Sign::Negative) => {
                     return Err(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
-                        value: margin,
+                        value: margin.hi(),
                     });
                 }
                 Err(diag) => return Err(SsiError::Escalated(diag)),
@@ -447,11 +516,16 @@ fn nurbs_limbs(
                    requirement)",
         })?
         .sup_bound();
+    // Unlike the analytic arm, the NURBS arm needs NO exactness gate:
+    // every coefficient of every operand entered the ring through its
+    // own bracket (`ring_coords`), so a widened control net widens the
+    // composite and the bound stays honest.
+    let sup = T::from_f64(sup);
     match decide("ssi_hull_sup_chart", sup, band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
-            value: sup,
+            value: sup.hi(),
         }),
         Err(diag) => Err(SsiError::Escalated(diag)),
     }
@@ -460,7 +534,7 @@ fn nurbs_limbs(
 /// The box chain covering a carrier: one padded box per span of the
 /// refined curve, from the span's control hull (exact containment for a
 /// non-rational curve — the convex-hull property).
-fn box_chain(carrier: &NurbsCurve3<f64>) -> Vec<(Box3, Vec3<f64>)> {
+fn box_chain<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Vec<(Box3, Vec3<T>)> {
     let fine = refined(carrier);
     let coords = fine.ring_coords();
     let kv = fine.knots();
@@ -481,9 +555,17 @@ fn box_chain(carrier: &NurbsCurve3<f64>) -> Vec<(Box3, Vec3<f64>)> {
         // The box's axis: the carrier's own tangent at the span
         // midpoint, normalized. Any direction transverse to the
         // solution set works; this is the natural one.
-        let t = fine.deriv(0.5 * (a + b));
+        //
+        // The `n > 0.0` guard the f64 form carried is GONE rather than
+        // lifted: it is a value branch, which generic evaluation code
+        // may not take (Q1), and it bought nothing. A degenerate span
+        // (zero-length tangent) divided by zero poisons `e`, the graph
+        // margin's ring enclosure poisons with it, and
+        // `zero_free_lower_bound` reports 0 — the same typed refusal
+        // the guarded zero vector produced, reached without a branch.
+        let t = fine.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
-        out.push((bx, if n > 0.0 { t / n } else { t }));
+        out.push((bx, t / n));
     }
     out
 }
@@ -500,10 +582,10 @@ fn box_chain(carrier: &NurbsCurve3<f64>) -> Vec<(Box3, Vec3<f64>)> {
 /// Returns the chain's smallest zero-free margin (dimensionless, the
 /// `sin θ` scale) and the box count; `None` when the chain is broken or
 /// an enclosure poisoned, which is a definite structural refusal.
-fn probe_tube_analytic(
-    chain: &[(Box3, Vec3<f64>)],
-    s1: &Surface<f64>,
-    s2: &Surface<f64>,
+fn probe_tube_analytic<T: Decide + Bounds>(
+    chain: &[(Box3, Vec3<T>)],
+    s1: &Surface<T>,
+    s2: &Surface<T>,
     radius: f64,
 ) -> Option<(f64, u32)> {
     if chain.is_empty() {
@@ -537,10 +619,10 @@ fn probe_tube_analytic(
 /// zero-free enclosure of the component of `∇φ` transverse to the
 /// pcurve's own tangent proves the same thing the ℝ³ form proves: a
 /// graph, hence one arc.
-fn probe_tube_chart(
-    pcurve: &NurbsCurve2<f64>,
-    surface: &NurbsSurface<f64>,
-    normal: Vec3<f64>,
+fn probe_tube_chart<T: Decide + Bounds>(
+    pcurve: &NurbsCurve2<T>,
+    surface: &NurbsSurface<T>,
+    normal: Vec3<T>,
     radius_uv: (f64, f64),
 ) -> Option<(f64, u32)> {
     let kv = pcurve.knots();
@@ -561,20 +643,24 @@ fn probe_tube_chart(
         let du = boxes.deriv_box(u0, u1, v0, v1, true);
         let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         let n = [
-            RingInterval::point(normal.x),
-            RingInterval::point(normal.y),
-            RingInterval::point(normal.z),
+            RingInterval::from_bounds(normal.x.lo(), normal.x.hi()),
+            RingInterval::from_bounds(normal.y.lo(), normal.y.hi()),
+            RingInterval::from_bounds(normal.z.lo(), normal.z.hi()),
         ];
         let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
         let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
-        let t = pcurve.deriv(m);
-        let tn = (t.x * t.x + t.y * t.y).sqrt();
+        // The transverse chart direction is a DIRECTION — structure —
+        // so it is selected through the bracket, exactly as the tube
+        // ladder's radius is. `powi(2)`, never `t.x * t.x`.
+        let t = pcurve.deriv(T::from_f64(m));
+        let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
         if tn.is_nan() || tn <= 0.0 {
             return None;
         }
+        let (tx, ty) = (t.x.hi(), t.y.hi());
         // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
-        let ex = RingInterval::point(-t.y / tn);
-        let ey = RingInterval::point(t.x / tn);
+        let ex = RingInterval::point(-ty / tn);
+        let ey = RingInterval::point(tx / tn);
         // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
         // not yet a margin: multiplying it by a lever arm in metres
         // would give metres² per chart unit (D4 ¶1 forbids exactly
@@ -628,7 +714,7 @@ fn zero_free_lower_bound(i: RingInterval) -> f64 {
 /// (spec §4's second state). Same chain limb 3 proved one-arc-ness on,
 /// so a cell inside one of these boxes is inside a region where the
 /// solution set is exactly the branch already found.
-pub(crate) fn tube_boxes(carrier: &NurbsCurve3<f64>, radius: f64) -> Vec<Box3> {
+pub(crate) fn tube_boxes<T: Decide + Bounds>(carrier: &NurbsCurve3<T>, radius: f64) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
         .map(|(b, _)| b.pad(radius))
@@ -649,18 +735,18 @@ pub(crate) fn tube_boxes(carrier: &NurbsCurve3<f64>, radius: f64) -> Vec<Box3> {
 /// margin is stated over (metres); `extent` is the caller's named
 /// feature extent, which sets the tube ladder's widest rung.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub(crate) fn certify_branch(
-    carrier: &NurbsCurve3<f64>,
-    pcurve_b: Option<&NurbsCurve2<f64>>,
-    a: &SsiOperand<'_>,
-    b: &SsiOperand<'_>,
-    arm: f64,
+pub(crate) fn certify_branch<T: Decide + Bounds>(
+    carrier: &NurbsCurve3<T>,
+    pcurve_b: Option<&NurbsCurve2<T>>,
+    a: &SsiOperand<'_, T>,
+    b: &SsiOperand<'_, T>,
+    arm: T,
     extent: f64,
     eps: f64,
     band: Band,
-) -> Result<SsiCertificate, SsiError> {
-    let mut on_locus = 0.0f64;
-    let mut hull_sup = 0.0f64;
+) -> Result<SsiCertificate<T>, SsiError> {
+    let mut on_locus = T::zero();
+    let mut hull_sup = T::zero();
     for (op, pc) in [(a, None), (b, pcurve_b)] {
         let (l1, l2) = match op {
             SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band)?,
@@ -743,12 +829,15 @@ pub(crate) fn certify_branch(
             value: f64::NAN,
         });
     };
-    let transversality = margin * arm;
+    // The margin is the ring's zero-free lower bound (`f64`, C9); the
+    // lever arm is the caller's scalar, so the product — the number the
+    // trilean classifies — is scalar-typed.
+    let transversality = T::from_f64(margin) * arm;
     match decide("ssi_tube_transversality", transversality, band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => {
             return Err(SsiError::TubeStraddles {
-                margin: transversality,
+                margin: transversality.lo(),
                 boxes,
             });
         }
@@ -758,7 +847,7 @@ pub(crate) fn certify_branch(
         samples: CERT_SAMPLES,
         on_locus_max: on_locus,
         hull_sup,
-        tube_radius: radius,
+        tube_radius: T::from_f64(radius),
         tube_transversality: transversality,
         tube_boxes: boxes,
     })
@@ -766,7 +855,7 @@ pub(crate) fn certify_branch(
 
 /// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
 /// (`WitnessMidpoint`; S2 stays discharged).
-pub(crate) fn witness(carrier: &NurbsCurve3<f64>) -> Point3<f64> {
+pub(crate) fn witness<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Point3<T> {
     let (t0, t1) = carrier.domain();
-    carrier.eval(0.5 * (t0 + t1))
+    carrier.eval(T::from_f64(0.5 * (t0 + t1)))
 }

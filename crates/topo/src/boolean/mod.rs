@@ -528,9 +528,13 @@ pub enum BooleanError {
     ///   re-cut; no longer gated here.
     /// - **Cone / torus**: the germ-pair join dispatch wires
     ///   `(Plane, Cylinder)` and `(Plane, Sphere)` only (PR 9c
-    ///   deviation 1 lineage), and a cyl×sphere fitted-chord window
-    ///   needs `Pcurve::Fitted`, itself blocked on the SSI enclosure
-    ///   stack being `f64`-only (deviation 2).
+    ///   deviation 1 lineage). The cyl×sphere fitted-chord window's
+    ///   blocker MOVED at M6-2: `Pcurve::Fitted` now exists and
+    ///   certifies at rest (the SSI enclosure/certify stack is no
+    ///   longer `f64`-only), so what is left is the JOIN LANE itself —
+    ///   `run_azimuth_window`/`chart_pcurve` have no cyl×sphere window
+    ///   analog, and building one is banked past M6 (M6-PLAN: the
+    ///   windows chase the lift).
     /// - **NURBS**: no edge×NURBS-face crossing layer at all
     ///   (deviation 5), and the fallback's extent test is unwritable
     ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
@@ -560,12 +564,18 @@ pub enum BooleanError {
     /// NURBS face. The extent test is UNWRITABLE for the kind with
     /// what exists — `implicit_residual` is poison on a NURBS surface
     /// and the only foot-point projection
-    /// (`NurbsSurface::project`) is an `impl NurbsSurface<f64>` block,
-    /// so wiring it would kill the Interval lane (the same wall as
-    /// M5-LOG PR 9c deviations 2 and 6). The class is therefore
-    /// RE-GATED at the fallback, explicitly and pinned: a future NURBS
-    /// body constructor inherits this typed refusal, never the
-    /// vertex-probe silence the S12 finding executed.
+    /// (`NurbsSurface::project`) had no lane off `f64`. **Half of that
+    /// is now false**: M6-2 lifted the projection to any
+    /// bracket-carrying scalar (`impl<T: Bounds> NurbsSurface<T>`), so
+    /// the Interval-lane objection is retired. What still blocks the
+    /// extent test is the test ITSELF: `implicit_residual` is poison on
+    /// a NURBS surface, so a certified extent needs a written
+    /// projection-based extent argument — a foot point plus a bound on
+    /// how far the patch can reach past it — which nothing has
+    /// derived. The class stays RE-GATED at the fallback, explicitly
+    /// and pinned: a future NURBS body constructor inherits this typed
+    /// refusal, never the vertex-probe silence the S12 finding
+    /// executed.
     NurbsExtentUnsupported {
         /// The operand carrying the NURBS face.
         operand: Operand,
@@ -707,8 +717,10 @@ impl core::fmt::Display for BooleanError {
                  chord join lane. M5 PR 9c landed the SPHERE half of the curved \
                  containment/pierce door and reported the fitted-chord join lane \
                  still open behind Pcurve::Fitted, whose certification envelope \
-                 needs the SSI enclosure stack lifted off f64 (M5-LOG PR 9c, \
-                 deviations 1-2)",
+                 needed the SSI enclosure stack lifted off f64. That lift LANDED at \
+                 M6-2 and Pcurve::Fitted with it, so the blocker here is now the \
+                 join lane itself — no cyl×sphere azimuth-window analog exists, and \
+                 building one is banked past M6 (M5-LOG PR 9c deviation 1)",
                 kind.name()
             ),
             Self::CurvedPierceUnsupported {
@@ -762,9 +774,10 @@ impl core::fmt::Display for BooleanError {
                  per class, and the blocker is a JOIN lane, not revert: a cone or \
                  torus germ pair has no seam lane at all (M5 PR 9c deviation 1 \
                  lineage — the germ-pair dispatch wires (Plane, Cylinder) and \
-                 (Plane, Sphere) only, and a cyl×sphere fitted-chord window needs \
-                 Pcurve::Fitted, itself blocked on the f64-only SSI enclosure \
-                 stack, deviation 2), and a NURBS face has no crossing layer \
+                 (Plane, Sphere) only, and a cyl×sphere fitted-chord window has no \
+                 window analog to read; Pcurve::Fitted itself LANDED at M6-2, so \
+                 the blocker there is the unwired join lane, banked past M6), and \
+                 a NURBS face has no crossing layer \
                  (deviation 5). The refusal is UP FRONT and structural because the \
                  downstream failure is SILENT, not typed: with no crossings found \
                  the pipeline falls through to vertex-probed containment, and a \
@@ -780,13 +793,16 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean fallback: face {face:?} of operand {operand:?} is NURBS-surfaced \
                  and the no-crossings containment fallback's curved-extent test cannot be \
-                 written for the kind: implicit_residual(Nurbs) is poison and the only \
-                 foot-point projection, NurbsSurface::project, exists at f64 ONLY (an \
-                 impl NurbsSurface<f64> block — the M5-LOG PR 9c deviation 2/6 wall), so \
-                 wiring it would kill the Interval lane. The class is re-gated HERE, \
-                 typed and pinned (M5 S13), so a future NURBS body constructor cannot \
-                 re-open the vertex-probe silence the S12 finding executed. Recourse: \
-                 lift the projection to T: Real, then retire this gate per class"
+                 written for the kind: implicit_residual(Nurbs) is poison, so a certified \
+                 extent would have to be argued through a foot point plus a bound on how \
+                 far the patch reaches past it, and no such argument has been written. \
+                 The projection half of the old blocker is GONE — M6-2 lifted \
+                 NurbsSurface::project off its impl NurbsSurface<f64> block to any \
+                 bracket-carrying scalar, so the Interval lane is no longer the \
+                 obstacle. The class is re-gated HERE, typed and pinned (M5 S13), so a \
+                 future NURBS body constructor cannot re-open the vertex-probe silence \
+                 the S12 finding executed. Recourse: write the NURBS extent test, then \
+                 retire this gate per class"
             ),
             Self::FallbackExtentUnsupported {
                 operand,

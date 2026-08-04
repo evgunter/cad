@@ -334,7 +334,26 @@ fn loop_edges<T: Decide>(
 /// reports `VolumeUncomputable` there. The dual lane validates what is
 /// its business; volume certification is proven by the certified
 /// lanes.
-pub trait PropsQuadLane: Decide {
+///
+/// # Why the pcurve lane rides along (M6-2)
+///
+/// The supertrait is [`geom_brep::PcurveFittedLane`], not bare
+/// [`Decide`], and the bundling is deliberate rather than incidental:
+/// it is **the same split, over the same four scalars, for the same
+/// reason**. A fitted (rung-3) pcurve's between-samples obligation is a
+/// C9-ring hull bound reached through a scalar's bracket, exactly as
+/// the quadrature's flux enclosures are; `f64`, the telemetry probe and
+/// the interval scalar can derive both, and the dual scalar — which has
+/// no bracket to offer, only a derivative — can derive neither and says
+/// so in a refusing impl on each side.
+///
+/// So `T: PropsQuadLane` reads, at every consumer that already writes
+/// it, as **"this scalar can certify a body at rest"**, which is what
+/// every one of them meant. The alternative was to thread a second,
+/// pointwise-identical lane bound through every tier-3 signature and
+/// every generic body helper in the workspace, which would have bought
+/// no additional honesty — the refusing side is the same scalar.
+pub trait PropsQuadLane: Decide + geom_brep::PcurveFittedLane {
     /// The certified flux/area enclosures of a conic-trimmed cylinder
     /// face, or `None` when this scalar has no certified lane.
     ///
@@ -527,11 +546,23 @@ mod quad_lane {
             let Some(cache) = body.pcurve(*he) else {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "curved-cut face half-edge carries no stored pcurve cache — \
-                           caches mint in the split/boolean pipelines (the B-spline \
-                           storage variant arrives with the loft assembly unit)",
+                           caches mint in the split/boolean pipelines",
                 });
             };
-            let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve();
+            // The certified quadrature lane reads a chart image
+            // CHANNEL BY CHANNEL out of its closed form; a fitted
+            // (rung-3) image has no such form, and inventing one would
+            // be a quadrature over a curve nobody bounded. Typed
+            // refusal instead — the NURBS-patch flux door is the
+            // loft/sweep assembly unit's, and this is where it lands.
+            let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve — \
+                           the certified quadrature reads a closed-form chart image's \
+                           four channels, and a spline image has none; the NURBS-patch \
+                           flux door is the loft/sweep assembly unit's",
+                });
+            };
             let (t0, t1) = cache.params();
             // The interval-start vertex: traversal start when forward,
             // traversal end when reversed (`he_plus` start either way).

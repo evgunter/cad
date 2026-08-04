@@ -622,18 +622,33 @@ fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
 // 3. The NURBS carrier arm
 // ==================================================================
 
-/// The `B_SPLINE_CURVE_WITH_KNOTS` arm has **no body at rest behind
-/// it**: the kernel's rung-3 SSI branches are the only mint site for a
-/// `Curve3::Nurbs` carrier, and nothing in `sweep` or `topo`'s public
-/// constructors reaches them (a hand-built scaffold in `topo`'s own
-/// suite is the single certified rung-3 edge in the repo). The arm is
-/// written because the entity is part of the curved subset the plan
-/// names, and it is pinned at the record level in `writer.rs`'s unit
-/// tests — including the rational complex instance and the knot
-/// run-length encoding. This row states the frontier so the absence is
-/// deliberate rather than an oversight: the loft-assembly unit brings
-/// both the first NURBS carriers at rest and the first NURBS FACES,
-/// and `B_SPLINE_SURFACE_WITH_KNOTS` lands with it.
+/// **The successor of `no_body_at_rest_carries_a_nurbs_carrier_or_face`
+/// (flipped at M6-2; the history is this name and this note).**
+///
+/// The retired row pinned a VACUITY positively: that nothing anywhere
+/// reached a rung-3 carrier at rest, which is what made "every fitted
+/// pcurve cache carries the full C2 certificate" a statement about the
+/// empty set. M6-2 lifted the SSI enclosure/certification stack off
+/// `f64` and landed `Pcurve::Fitted`, and
+/// `topo/tests/m6_2_fitted_at_rest.rs` now pins the POSITIVE law: a
+/// cylinder×sphere rung-3 edge reaches a body at rest carrying a fitted
+/// chart image whose hull sup-norm AND uniqueness tube are RE-DERIVED
+/// by the tier-3 pcurve pass, at `f64` and at the interval scalar.
+///
+/// The vacuity is gone, so this row states the narrower claim that was
+/// always the load-bearing one for STEP:
+///
+/// > **No body in the EXPORT CORPUS carries a NURBS carrier or a NURBS
+/// > face**, so the `B_SPLINE_CURVE_WITH_KNOTS` and
+/// > `B_SPLINE_SURFACE_WITH_KNOTS` arms have no end-to-end body behind
+/// > them here; their record-level pins in `writer.rs` — including the
+/// > rational complex instance and the knot run-length encoding — are
+/// > what covers them.
+///
+/// The face half of that frontier moves with the loft-assembly unit,
+/// which brings the first NURBS FACES. The carrier half is now a real
+/// possibility rather than an impossibility, and this row is where a
+/// corpus document that acquired one would be noticed.
 ///
 /// The absence is checked on BOTH sides. At kernel level every carrier
 /// and every surface of every corpus body is named, so the claim is
@@ -641,7 +656,7 @@ fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
 /// mention them"; at text level the `B_SPLINE` grep would still catch a
 /// writer that manufactured a spline out of an analytic carrier.
 #[test]
-fn no_body_at_rest_carries_a_nurbs_carrier_or_face() {
+fn no_export_corpus_body_carries_a_nurbs_carrier_or_face() {
     for (name, body) in common::fixture_corpus() {
         for (edge_key, _) in body.edges() {
             let kind = match common::certified_carrier(&body, edge_key) {
@@ -652,7 +667,9 @@ fn no_body_at_rest_carries_a_nurbs_carrier_or_face() {
             };
             assert_ne!(
                 kind, "nurbs",
-                "{name}: a NURBS carrier reached a body at rest"
+                "{name}: a NURBS carrier reached an EXPORT CORPUS body — the fitted lane is \
+                 live since M6-2, so if this is intended the B_SPLINE_CURVE_WITH_KNOTS \
+                 arm needs its end-to-end row"
             );
             assert!(
                 matches!(kind, "line" | "circle" | "ellipse"),
@@ -663,7 +680,8 @@ fn no_body_at_rest_carries_a_nurbs_carrier_or_face() {
             let surface = body.get_surface(face.surface).expect("surface resolves");
             assert!(
                 !matches!(surface, Surface::Nurbs(_)),
-                "{name}: a NURBS face reached a body at rest"
+                "{name}: a NURBS face reached an EXPORT CORPUS body — \
+                 B_SPLINE_SURFACE_WITH_KNOTS arrives with the loft-assembly unit"
             );
         }
         let text = export(&body, name);
