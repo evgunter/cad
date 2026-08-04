@@ -59,6 +59,7 @@ pub(crate) fn finish(
     asm: &Assembled,
 ) -> Result<(), StepImportError> {
     let face_keys = designate_faces(body, solid, asm)?;
+    rotate_loop_firsts(body, solid, asm)?;
     attach_surfaces(body, solid, &face_keys)?;
     adopt_edges(body, solid, asm)
 }
@@ -118,8 +119,43 @@ fn designate_faces(
             body.mfkrh_plug(lk).map_err(op_err)?;
         }
     }
+    // Re-mint outer faces in FILE order (fixed-point discipline): the
+    // writer walks `Shell::faces` stored order, so the imported
+    // shell's face-list order must BE the file's `CLOSED_SHELL` order
+    // or one adoption pass is not a fixed point of export. Phase A's
+    // transient `mef` partition creates faces in insertion order; this
+    // cycle parks each file face's outer loop as a ring of any other
+    // live face (`kfmrh` — the parked face dies) and immediately
+    // re-promotes it (`mfkrh` — a fresh face APPENDED to the shell's
+    // list), so the surviving outer faces sit in exactly file order.
+    // A single-loop shell's order is trivial and skips the cycle.
+    if asm.target.loops.len() > 1 {
+        for (outer_l, _) in &asm.target.face_loops {
+            let lk = body_loop(body, asm, *outer_l, solid.id)?;
+            let f_cur = owning_face(body, lk, solid.id)?;
+            // Park anchor: the first realized loop living on another
+            // face (deterministic scan; one always exists with ≥ 2
+            // loops, since every face here is single-loop).
+            let mut park = None;
+            for other in 0..asm.target.loops.len() {
+                let ok = body_loop(body, asm, other, solid.id)?;
+                let of = owning_face(body, ok, solid.id)?;
+                if of != f_cur {
+                    park = Some(of);
+                    break;
+                }
+            }
+            let park = park.ok_or(StepImportError::Topology {
+                id: solid.id,
+                what: "internal: no parking face for the face-order re-mint",
+            })?;
+            body.kfmrh(park, f_cur).map_err(op_err)?;
+            body.mfkrh_plug(lk).map_err(op_err)?;
+        }
+    }
     // Designate: each file face's rings become rings of its outer's
-    // face (`kfmrh` demotes the ring's transient face wholesale).
+    // face (`kfmrh` demotes the ring's transient face wholesale),
+    // appended in file ring order — the writer's ring emission order.
     let mut face_keys = Vec::with_capacity(asm.target.face_loops.len());
     for (outer_l, ring_ls) in &asm.target.face_loops {
         let outer_lk = body_loop(body, asm, *outer_l, solid.id)?;
@@ -132,6 +168,65 @@ fn designate_faces(
         face_keys.push(f0);
     }
     Ok(face_keys)
+}
+
+/// Rotates every realized loop's `Cycle::first` to the half-edge of
+/// its file loop's FIRST oriented edge (fixed-point discipline: the
+/// writer emits a loop starting at `Cycle::first`, so the anchor must
+/// be the file's). The rotation is a public-op identity: a scaffold
+/// strut spliced immediately before the target half-edge, then `kev`
+/// — whose documented re-anchor rule sets the survivor loop's
+/// `Cycle::first` to the first survivor after the killed halves,
+/// which is exactly the target.
+fn rotate_loop_firsts(
+    body: &mut Body<f64>,
+    solid: &SolidSpec,
+    asm: &Assembled,
+) -> Result<(), StepImportError> {
+    let op_err = |source| StepImportError::Assembly {
+        id: solid.id,
+        source,
+    };
+    for seq in &asm.target.loops {
+        let t = asm.use_he[seq[0]];
+        let he = body.get_half_edge(t).ok_or(StepImportError::Topology {
+            id: solid.id,
+            what: "internal: a realized half-edge does not resolve in rotation",
+        })?;
+        let current_first = match body
+            .get_loop(he.parent_loop)
+            .ok_or(StepImportError::Topology {
+                id: solid.id,
+                what: "internal: a realized loop does not resolve in rotation",
+            })?
+            .boundary
+        {
+            topo::LoopBoundary::Cycle { first } => first,
+            topo::LoopBoundary::Empty { .. } => {
+                return Err(StepImportError::Topology {
+                    id: solid.id,
+                    what: "internal: an empty loop survived to rotation",
+                });
+            }
+        };
+        if current_first == t {
+            continue;
+        }
+        let start = he.start;
+        let p = *body
+            .get_vertex(start)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(StepImportError::Topology {
+                id: solid.id,
+                what: "internal: a realized vertex does not resolve in rotation",
+            })?;
+        let offset = Point3::new(p.x + 1.0, p.y, p.z);
+        let strut = body
+            .mev_line(topo::MevSite::Fan { he1: t, he2: t }, offset)
+            .map_err(op_err)?;
+        body.kev(strut.he_plus).map_err(op_err)?;
+    }
+    Ok(())
 }
 
 /// A surface's exact structural signature: variant tag + field bits,
