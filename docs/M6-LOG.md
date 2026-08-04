@@ -535,3 +535,18 @@ justification's factual claims against the code, verdict
 RIGHT / RIGHT-BUT-MISDOCUMENTED / SHORTCUT / FORK with cost.
 Orchestrator rules per item on its report; forks escalate to
 Evan.
+
+**Design audit RETURNED + RULED (2026-08-04, posted to #176)**:
+7 of 8 audited deviations RIGHT (devs 4/5 explicitly
+anti-shortcuts; dev 1's audit note: the SPEC's split-impl
+suggestion was the inferior ask — Decide has exactly one method
+and Band-routing the structural ε's would add an Indeterminate
+Newton arm and pollute the K census). Two finds: dev 7
+RIGHT-BUT-MISDOCUMENTED ("Copy is load-bearing" asserted, not
+demonstrated — containers are Debug/Clone-only, flows move) →
+fix-pass item 8 (honest doc rewrite or compile witness); dev 9
+scope gap (local battery omitted geom-brep interval row) → merge
+gate includes explicit confirmation the hosted interval shards
+run the geom-brep suites. Fix pass = items 1-8 + dev-9
+confirmation; merge on fully green matrix. Evan's instinct
+("others felt off too") found exactly the two real soft spots.
