@@ -640,12 +640,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // the SAME interval fractions the parameter interval
                 // splits at, so the child's affine t↦v map agrees with
                 // the parent's on the shared sub-interval.
-                EdgeGeometry::IsoCurve {
-                    surface,
-                    u,
-                    v0,
-                    v1,
-                } => EdgeGeometry::IsoCurve {
+                EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
                     surface,
                     u,
                     v0: v0 + (v1 - v0) * s0,
@@ -1137,12 +1132,7 @@ fn run_checks<T: Decide>(
             // |C(tᵢ) − S(u, v(tᵢ))| with v affine in the parameter —
             // the same schedule fraction the Mapped arm uses, so the
             // stated formula and the evaluated one share their bits.
-            Resolved::Iso {
-                surface,
-                u,
-                v0,
-                v1,
-            } => {
+            Resolved::Iso { surface, u, v0, v1 } => {
                 let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
                 let v = *v0 + (*v1 - *v0) * frac;
                 check_residual(
