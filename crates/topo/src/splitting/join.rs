@@ -47,6 +47,7 @@
 //! here, typed [`SplitJoinError::DegenerateSection`].
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
+use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Point3, Real, Sign};
 use slotmap::SecondaryMap;
 
@@ -1632,8 +1633,18 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// pcurve this lane derives (the PR 6 snap-slack idiom: the term keeps
 /// the statement true if the family ever widens, and costs nothing on
 /// the ship path).
-fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> (T, T) {
-    let Pcurve::Harmonic { pa, pb, .. } = *p;
+///
+/// The closed-form lane only: the join lane reads a chart image's
+/// azimuth through its harmonic amplitudes, and a fitted image has
+/// none. A fitted chart image reaching here would be the cyl×sphere
+/// join window — banked past M6 (M6-PLAN: "chase the lift") — so the
+/// arm answers with the EMPTY range, which hulls to nothing and makes
+/// the caller's window refuse rather than quietly accept a window it
+/// never measured.
+fn chart_azimuth_range<T: SpanLocate>(p: &Pcurve<T>, t0: T, t1: T) -> (T, T) {
+    let Pcurve::Harmonic { pa, pb, .. } = *p else {
+        return (T::one(), -T::one());
+    };
     let amp = pa.x.abs() + pb.x.abs();
     let u0 = p.eval(t0).x;
     let u1 = p.eval(t1).x;
