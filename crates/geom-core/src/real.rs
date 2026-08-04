@@ -399,6 +399,32 @@ pub trait Real:
 /// is ratified instead, and the day a dual lane wants fillets is the
 /// day the static split earns its keep.
 ///
+/// **Extension (M6-2, authorized by `docs/M6-2-SPEC.md` §2 under the
+/// PR 11/PR 12 precedent; retroactive Evan review per the self-merge
+/// convention):** the **SSI rung-3 certificate** —
+/// `geom_brep::ssi` (the `certify_rung3` door),
+/// `geom_brep::ssi::certify` (the three limbs) and
+/// `geom_brep::pcurve_cache`'s fitted lane — joins the compound
+/// allowlist. It is the quadrature seam's class exactly: it
+/// simultaneously DECIDES (its `ssi_on_locus`, `ssi_hull_sup`,
+/// `ssi_tube_transversality`, `pcurve_*` funnel margins) and CONSUMES
+/// ENCLOSURES — limb 2 is a control-hull bound and limb 3 a box-chain
+/// enclosure, both computed in the C9 ring, which is reached from a
+/// scalar only through its bracket. So `T: Decide + Bounds` is the
+/// honest signature.
+///
+/// Two things distinguish it from the PR 12 seam, and both cut toward
+/// ratifying it rather than against. First, the SPLIT is real and is
+/// written: `geom_brep::PcurveFittedLane` has certified impls for
+/// `f64`, [`Probe`](crate::Probe) and the interval scalar and a
+/// **refusing** impl for [`Dual`](crate::Dual) — the `PropsQuadLane`
+/// shape, with a non-empty refusing side, because dual bodies really do
+/// validate and really cannot hold a fitted cache. Second, the
+/// narrowest file set was taken: `geom_brep::ssi::enclose` — the ring
+/// machinery itself — decides nothing and therefore takes the
+/// **sole-bound** `T: Bounds` the rule already allows, and is not
+/// allowlisted.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

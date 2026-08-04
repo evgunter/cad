@@ -148,6 +148,16 @@ jobs:
       # `f64`/`Interval` only. With no dual lane to split, the
       # `PropsQuadLane` static split would have had nothing on its
       # refusing side, so the seam is ratified instead.
+      # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
+      # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
+      # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
+      # C9 ring (its hull and tube limbs ARE ring enclosures), so
+      # `Decide + Bounds` is its honest signature — the same class as
+      # the quadrature seam, and unlike the fillet seam its refusing
+      # side is NOT empty: `PcurveFittedLane` splits f64/Probe/Interval
+      # (certified) from `Dual` (typed refusal, no bracket to offer).
+      # `ssi/enclose.rs` is deliberately absent — it decides nothing, so
+      # it takes the sole-bound `T: Bounds` the rule allows everywhere.
       # Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
@@ -161,6 +171,7 @@ jobs:
             | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/sugar\.rs$' \
+            | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' \
             | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
           if [ -n "$hits" ]; then
             echo "$hits"

@@ -1307,19 +1307,23 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                     }
                     Some(geom_surfaces::Surface::Cylinder { .. }) => {
                         // No exact sphere-vs-cylinder-face certificate
-                        // is wired (the cyl×sphere lane is PR 9c
-                        // deviation 1, behind the SSI generic lift);
-                        // certified boxes prove separation, anything
+                        // is wired: the cyl×sphere lane is PR 9c
+                        // deviation 1, and since M6-2 its blocker is
+                        // the unwired JOIN lane alone — the generic
+                        // lift and Pcurve::Fitted both landed there.
+                        // Certified boxes prove separation, anything
                         // closer refuses typed.
                         if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
                                 what: "the sphere's certified extent meets a cylinder \
-                                       face's box — the cyl×sphere seam lane (fitted \
-                                       chords behind Pcurve::Fitted / the SSI generic \
-                                       lift, PR 9c deviation 1) is not wired, so \
-                                       nearness cannot be classified",
+                                       face's box — the cyl×sphere seam lane is not \
+                                       wired (its fitted-chord window has no azimuth \
+                                       analog; Pcurve::Fitted and the SSI generic lift \
+                                       both landed at M6-2, so what is missing is the \
+                                       join lane itself, banked past M6), so nearness \
+                                       cannot be classified",
                             });
                         }
                     }
@@ -1840,9 +1844,11 @@ mod tests {
 
     /// **The NURBS re-gate, pinned (M5 S13 §1).** The fallback's
     /// curved-extent test is UNWRITABLE for NURBS today
-    /// (`implicit_residual` poison; `NurbsSurface::project` is
-    /// f64-only), so the class is re-gated AT THE FALLBACK with a
-    /// typed refusal naming the lift blocker — a future NURBS body
+    /// (`implicit_residual` is poison there, and no
+    /// projection-based extent argument has been written — the
+    /// `NurbsSurface::project` half of the old blocker retired at
+    /// M6-2's lift), so the class is re-gated AT THE FALLBACK with a
+    /// typed refusal naming its TRUE blocker — a future NURBS body
     /// constructor inherits this door, never the vertex-probe silence
     /// the S12 finding executed. The fixture is the `ops_cube` shape
     /// (every face on the `mvfs` `Nurbs` placeholder surface): two of

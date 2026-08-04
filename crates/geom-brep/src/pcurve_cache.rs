@@ -736,10 +736,17 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             last_distance,
         ),
         E::UnsupportedCertificate { what } => (None, what, f64::NAN),
-        E::Escalated(_) => (
+        E::Escalated(d) => (
             None,
-            "a certificate trilean landed in the sliver band (escalate, never guess)",
-            f64::NAN,
+            // The escalating predicate's own NAME is the actionable
+            // part — "which limb's trilean" is what a consumer needs.
+            d.predicate
+                .unwrap_or("a certificate trilean landed in the sliver band (escalate, never \
+                            guess)"),
+            match d.margin {
+                geom_core::predicate::MarginDiag::Value(v) => v,
+                _ => f64::NAN,
+            },
         ),
         _ => (
             None,

@@ -493,19 +493,32 @@ component-aware E–P form found and corrected in M1 PR 4).**
   containment stage's partial-sphere extent. Run-outs at
   partially-requested corners, junction carry-through and concave
   blends remain the fillet assembly's named refusals.)*
-  **(b) the SSI generic-`T` lift** — `ssi::enclose`/`ssi::certify`
-  and `NurbsSurface::project` are `f64`-only by type, so
-  `Pcurve::Fitted` cannot be admitted without either lifting them to
-  `T: Real` or accepting a certification lane that silently dies in
-  the Interval lane. MAIN-PATH; it gates (d) and (e). **Banked scope
-  addition (M5 PR 14 walk, row 2):** this unit's ACCEPTANCE carries
-  the non-vacuous fitted-cache-at-rest row PR 9's spec asked for and
-  never got — a cylinder×sphere rung-3 body at rest whose cache
-  actually exercises the full C2 certificate. Until then the "every
-  fitted cache carries hull sup-norm + uniqueness tube" invariant is
-  true only VACUOUSLY: no fitted cache reaches any body at rest,
-  positively pinned by
-  `no_body_at_rest_carries_a_nurbs_carrier_or_face`.
+  **(b) the SSI generic-`T` lift — CLOSED (M6-2).**
+  `ssi::enclose`, `ssi::certify`/`certify_rung3` and
+  `NurbsSurface::project` were `f64`-only by type, which is what kept
+  `Pcurve::Fitted` unadmissible. All three are lifted: the enclosure
+  seam takes any bracket-carrying scalar into the C9 ring
+  (`T: Bounds`), the certificate is derived and carried at `T`
+  (`SsiCertificate<T>`, the `Decide + Bounds` seam in
+  `geom-brep/src/ssi/*`), and projection follows the ratified
+  f64-structure + T-payload pattern. `Pcurve::Fitted` landed with a
+  `PcurveFittedLane` static split (the `PropsQuadLane` shape: `f64`,
+  `Probe` and `Interval` derive the certificate, `Dual` refuses typed
+  — a dual carries no bracket). The banked walk-row-2 obligation is
+  discharged: a cylinder×sphere rung-3 edge reaches a body at rest
+  carrying a fitted cache whose full C2 certificate (hull sup-norm +
+  uniqueness tube) is RE-DERIVED at rest, at `f64` and at `Interval`;
+  `no_body_at_rest_carries_a_nurbs_carrier_or_face` flipped to its
+  successor law. What the fitted analytic lane does NOT claim is
+  stated in `EnvelopeStatement::OnLocusHull`: on a periodic analytic
+  chart `S ∘ P` is transcendental, so the ring bounds the carrier's
+  incidence with the surface between samples (plus the uniqueness
+  tube), while the map residual itself is certified at the schedule.
+  Remaining `f64`-only by design: `ssi::jet`/`march`/`system`
+  (untrusted candidate generation) and the analytic composite's
+  implicit form, which is `f64` structure and therefore refuses a
+  WIDENED analytic operand typed rather than picking a representative
+  surface out of the family.
   **(c) loft/sweep body assembly** — the `Loft`/`Sweep` nodes build
   their walls and then refuse `CurvedSolidFrontier`, because tier 3's
   +V check routes a NURBS face to `Unimplemented`: NURBS-patch flux
@@ -527,14 +540,24 @@ component-aware E–P form found and corrected in M1 PR 4).**
   the analytic-chart completion is the sibling half of the same work
   rather than a separate lane.
   **(d) cyl×sphere germ chords** — only `(Plane, Cylinder)` and
-  `(Plane, Sphere)` germ arms are wired; a fitted carrier has no
-  closed-form chart image, so the azimuth-window lane has nothing to
-  read until (b) lands `Pcurve::Fitted`. Sphere×sphere seams, cone
-  and torus operands refuse alongside it.
-  **(e) the NURBS extent lift** — the boolean fallback's curved-extent
+  `(Plane, Sphere)` germ arms are wired. (b) has landed, so the
+  storage half of the blocker is gone: a fitted carrier's chart image
+  now EXISTS as `Pcurve::Fitted` and certifies at rest. What remains
+  is the join lane itself — `run_azimuth_window`/`chart_pcurve` have
+  no cyl×sphere window analog, and `chart_azimuth_range` reads a
+  closed form a spline image does not have (it answers with the empty
+  range, so a window built over one refuses rather than accepts).
+  Banked past M6 by M6-PLAN. Sphere×sphere seams, cone and torus
+  operands refuse alongside it.
+  **(e) the NURBS extent test** — the boolean fallback's curved-extent
   test is re-gated typed (`NurbsExtentUnsupported`) rather than left
-  to vertex-probe silence, naming its blocker: `implicit_residual`
-  is poison at NURBS and the only foot-point projection is f64-only.
+  to vertex-probe silence. Half its old blocker retired at (b): the
+  foot-point projection is no longer `f64`-only, so the Interval-lane
+  objection is gone. The remaining blocker is that the extent
+  ARGUMENT has never been written — `implicit_residual` is poison at
+  NURBS, so a certified extent needs a foot point plus a bound on how
+  far the patch can reach past it, which is a derivation nobody has
+  done. Retiring the gate needs that test, per-arm (C12.1).
   **(f) the canal-surface general blend** — the kernel's first
   APPROXIMATING surface, for fillet chains whose rolling-ball spine
   is neither a line nor a circle (`FilletError::SpineUnsupported`).

@@ -254,18 +254,42 @@ fn half_edge_carrier<T: Decide>(
     Ok((curve.carrier().clone(), t0, t1))
 }
 
-/// The surface of the face on the OTHER side of `half_edge`'s edge —
-/// the **mate operand** a fitted (rung-3) pcurve's certificate needs
-/// (`geom_brep::PcurveCache::certify`: the uniqueness tube is a
-/// statement about the surface pair whose intersection minted the
-/// carrier). Re-read from the body at rest, never stored with the
-/// cache, so it cannot drift from the body's own geometry.
+/// The **mate operand** a fitted (rung-3) pcurve's certificate needs:
+/// the other surface of the pair whose intersection minted the carrier
+/// (`geom_brep::PcurveCache::certify_fitted` — the uniqueness tube is a
+/// statement about the PAIR, so one surface cannot produce one).
 ///
-/// `None` on a boundary half-edge with no mate, which the fitted lane
+/// It is read from the edge's **intensional description**, not from the
+/// topology, and that is the D2 answer rather than a convenience: the
+/// description is what is authoritative about which two surfaces the
+/// locus belongs to (`EdgeGeometry::Intersection { s1, s2 }` names them
+/// by key), while "the face across the edge" is a derived fact that a
+/// mid-construction body, a spur edge or a seam can perfectly well have
+/// wrong. Re-read from the body at rest, never stored with the cache,
+/// so it cannot drift from the body's own geometry.
+///
+/// `None` when the edge is not an intersection edge, or when the face's
+/// own surface is neither of the pair — both of which the fitted lane
 /// then refuses typed rather than inventing a second operand.
 fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Surface<T>> {
-    let mate = body.mate(half_edge)?;
-    half_edge_surface(body, mate).ok()
+    let he = body.get_half_edge(half_edge)?;
+    let edge = body.get_edge(he.edge)?;
+    let CurveGeom::Certified(curve) = body.get_curve_geom(edge.curve)? else {
+        return None;
+    };
+    let geom_brep::EdgeGeometry::Intersection { s1, s2, .. } = *curve.description() else {
+        return None;
+    };
+    let lp = body.get_loop(he.parent_loop)?;
+    let own = body.get_face(lp.face)?.surface;
+    let other = if own == s1 {
+        s2
+    } else if own == s2 {
+        s1
+    } else {
+        return None;
+    };
+    body.get_surface(other).cloned()
 }
 
 /// The surface of the face `half_edge` bounds.
