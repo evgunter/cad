@@ -351,7 +351,11 @@ pub fn stops() -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diecomposed", [0.85, 0.63, 0.46], composed)],
+            bodies: vec![SceneBody::plain(
+                "diecomposed",
+                [0.85, 0.63, 0.46],
+                composed,
+            )],
         },
     ]
 }
