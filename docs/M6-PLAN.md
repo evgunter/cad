@@ -32,7 +32,18 @@ M8 = error propagation (ERROR-DESIGN, renumbered).
    deferral + ball-and-socket + interference fits + conformal
    contact (#161 §2, relocated out of M7 per #169). Co-designed
    with signed clearance as an M8 forward reference.
-5. **Montage curation** (S, parallel anytime): the five banked
+5. **Edge-selection fillet vocabulary** (promoted from the
+   surgery review's dev-1 discovery + Evan's user-API question,
+   2026-08-04): `Node::Fillet` grows a SELECTION payload — a set
+   of STABLE NAMES (never arena keys; the G1 boundary rule),
+   consuming the banked N4 fillet-naming emitter as substrate —
+   so "fillet these edges at r" persists, replays, and matches
+   G3's click-select-feeds-edit-doors model. First consumer: the
+   composed die becomes a REGISTERED corpus document (closing
+   dev 1's inexpressibility). The library door (fillet_edges +
+   strategy-selecting surgery) is already the right shape and is
+   untouched. Separate PR after the surgery lands (Evan).
+6. **Montage curation** (S, parallel anytime): the five banked
    items + die_pips STEP fixture + corpus/mod.rs stale comment.
 
 Also in scope when reached: the k-lint baseline-floor refresh and
