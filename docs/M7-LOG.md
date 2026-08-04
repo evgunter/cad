@@ -177,3 +177,10 @@ refusal. **A/B: M7-2 difficulty logged L BEFORE assignment**
 vertex-loop reconstruction, structure roots, the first real
 ε_in-scale interpretation); arm = OPUS (block M7-1 remainder,
 predetermined at the draw). Substrate ~64k tokens, ~10min.
+
+**M7-2 DISPATCHED (2026-08-04)**: spec merged via #187
+(self-merge; the three design flags stand as firm proposals
+absent Evan comment); implementer (OPUS) launched on lane
+~/.local/share/cad-work/m7-2-freecad, branch ev/m7-2-freecad,
+slot 2 claimed; PR to be HELD for blinded adversarial review;
+report lands at ~/.local/share/cad-work/m7-2-report.md.
