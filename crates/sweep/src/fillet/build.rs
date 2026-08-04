@@ -9,21 +9,24 @@
 //! ("if the battery returns `Ok`, construction cannot fail for a
 //! geometric reason") is kept by construction order, not by hope.
 //!
-//! # The one assembly front door (OQ6's constructive residue)
+//! # The two assembly front doors
 //!
 //! The kernel has no face-soup constructor: bodies come only from
-//! Euler operators. The general in-place edge-blend surgery — split
-//! the supports, retract their boundaries onto the trimlines, stitch
-//! the blend in — is its own reviewed unit, banked. What ships here is
-//! the **whole-body** case that needs no surgery at all, because every
-//! face of the result is minted fresh:
+//! Euler operators. This module ships the **whole-body** rebuild —
+//! every face of the result minted fresh:
 //!
 //! > fillet EVERY edge of a convex, planar-faced, trivalent-vertex
 //! > polyhedron.
 //!
-//! Everything else refuses typed through
-//! [`FilletError::AssemblyUnsupported`], which names that missing
-//! front door (the `FullRevolveHoles` precedent).
+//! Every other admissible request routes to the in-place edge-blend
+//! **composition surgery** ([`super::surgery`], M6 unit 1): split the
+//! supports along the stored trimlines, excise the strips, graft the
+//! blends — which is what carries a face's RINGS through and what
+//! replaces a pip rim with a torus band. The whole-body path is kept
+//! (not subsumed) so its M5 outputs stay bit-preserved. What neither
+//! door covers refuses typed through
+//! [`FilletError::AssemblyUnsupported`], naming the remaining gap
+//! (the `FullRevolveHoles` precedent).
 //!
 //! # The derived result, stated once
 //!

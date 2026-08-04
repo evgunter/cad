@@ -328,6 +328,81 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
     (half_tr.abs() + disc.sqrt()) / g.norm()
 }
 
+/// A conservative enclosure of [`implicit_residual`] over an ENTIRE
+/// circle carrier `C(θ) = center + radius·(û·cosθ + v̂·sinθ)`,
+/// `v̂ = axis × û` — the M6 door-A rider's algebra, shared with
+/// `tangent.rs`'s circle arm: against a **sphere** the composed
+/// squared distance is an EXACT first harmonic in θ; against a
+/// **cylinder** the squared axis distance is a degree-≤2
+/// trigonometric polynomial whose harmonic amplitudes bound its
+/// range. Both enclose (sphere tightly, cylinder conservatively —
+/// slack only ever widens the returned range, which sends more pairs
+/// to the typed frontier, never fewer).
+///
+/// Returns `(lo, hi)` in METERS (the residual's own linearized
+/// units), or `None` for kinds without the closed harmonic form
+/// (cone, torus, NURBS) — the caller keeps its frontier door there.
+/// Total arithmetic: poison in, poison out.
+#[must_use]
+pub fn circle_residual_extremes<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+) -> Option<(T, T)> {
+    let two = T::from_f64(2.0);
+    let u = u_ref;
+    let v = axis.cross(u_ref);
+    let amp = |a: T, b: T| (a.powi(2) + b.powi(2)).sqrt();
+    match *s {
+        Surface::Plane { origin, normal, .. } => {
+            let c0 = (center - origin).dot(normal);
+            let a1 = radius * amp(u.dot(normal), v.dot(normal));
+            Some((c0 - a1, c0 + a1))
+        }
+        Surface::Sphere {
+            center: sc,
+            radius: r,
+            ..
+        } => {
+            // |C(θ) − sc|² = |e|² + R_c² + 2R_c(e·û cosθ + e·v̂ sinθ):
+            // û ⊥ v̂ unit makes the θ-dependence a pure first
+            // harmonic, so the range below is EXACT.
+            let e = center - sc;
+            let c0 = e.norm_squared() + radius.powi(2);
+            let a1 = two * radius * amp(e.dot(u), e.dot(v));
+            Some((
+                (c0 - a1 - r.powi(2)) / (two * r),
+                (c0 + a1 - r.powi(2)) / (two * r),
+            ))
+        }
+        Surface::Cylinder {
+            origin,
+            axis: a,
+            radius: r,
+            ..
+        } => {
+            // The radial part w(θ) = perp(e) + R_c(perp(û)cosθ +
+            // perp(v̂)sinθ) has |w|² of trigonometric degree ≤ 2; its
+            // constant term and harmonic amplitudes are exact, and
+            // |A₁ cos + B₁ sin| + |second harmonic| bounds the swing.
+            let perp = |x: Vec3<T>| x - a * a.dot(x);
+            let e = perp(center - origin);
+            let up = perp(u);
+            let vp = perp(v);
+            let c0 = e.norm_squared() + radius.powi(2) * (up.norm_squared() + vp.norm_squared()) / two;
+            let a1 = two * radius * amp(e.dot(up), e.dot(vp));
+            let a2 = radius.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
+            Some((
+                (c0 - a1 - a2 - r.powi(2)) / (two * r),
+                (c0 + a1 + a2 - r.powi(2)) / (two * r),
+            ))
+        }
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,
+    }
+}
+
 /// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
 /// `w` the radial component of `p` relative to the surface's own
 /// anchor/axis and `v_ref = axis × u_ref` — the pieces the
@@ -529,5 +604,71 @@ mod tests {
         assert!((r - 0.1025).abs() < 1e-12); // (2.1² − 4)/4 exactly
         // Inside is negative.
         assert!(implicit_residual(&s, Point3::new(1.9, 0.0, 0.0)) < 0.0);
+    }
+
+    /// The M6 rider's algebra: the returned range ENCLOSES every
+    /// sampled residual over the circle (all three closed-form
+    /// kinds), and the sphere arm — an exact first harmonic — is
+    /// TIGHT: dense sampling attains both ends to rounding.
+    #[test]
+    fn circle_residual_extremes_enclose_and_the_sphere_arm_is_tight() {
+        let center = Point3::new(0.4, -0.2, 0.7);
+        let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
+        let u_ref = axis.cross(Vec3::unit_z()).normalize();
+        let radius = 0.8;
+        let eval = |t: f64| {
+            let v = axis.cross(u_ref);
+            center + (u_ref * t.cos() + v * t.sin()) * radius
+        };
+        let kinds: Vec<Surface<f64>> = vec![
+            Surface::Plane {
+                origin: Point3::new(0.1, 0.0, 0.0),
+                normal: Vec3::new(0.2, -1.0, 0.4).normalize(),
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Sphere {
+                center: Point3::new(1.5, 0.3, -0.2),
+                radius: 0.9,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Cylinder {
+                origin: Point3::new(-0.5, 1.0, 0.2),
+                axis: Vec3::new(0.3, 0.1, 1.0).normalize(),
+                radius: 0.6,
+                u_ref: Vec3::unit_x(),
+            },
+        ];
+        for s in &kinds {
+            let (lo, hi) =
+                circle_residual_extremes(s, center, axis, radius, u_ref).expect("closed form");
+            let mut seen_lo = f64::INFINITY;
+            let mut seen_hi = f64::NEG_INFINITY;
+            for i in 0..4096 {
+                let t = core::f64::consts::TAU * f64::from(i) / 4096.0;
+                let r = implicit_residual(s, eval(t));
+                assert!(
+                    lo - 1e-12 <= r && r <= hi + 1e-12,
+                    "sample {r} escapes [{lo}, {hi}] on {s:?}"
+                );
+                seen_lo = seen_lo.min(r);
+                seen_hi = seen_hi.max(r);
+            }
+            if matches!(s, Surface::Sphere { .. } | Surface::Plane { .. }) {
+                // First-harmonic arms are EXACT: sampling attains the
+                // bounds to discretization error.
+                assert!((seen_lo - lo).abs() < 1e-5 && (seen_hi - hi).abs() < 1e-5);
+            }
+        }
+        // No closed form for cone/torus/NURBS: the caller keeps its
+        // frontier door.
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        assert!(circle_residual_extremes(&torus, center, axis, radius, u_ref).is_none());
     }
 }

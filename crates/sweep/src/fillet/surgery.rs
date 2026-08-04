@@ -33,14 +33,21 @@
 //! struts and trim `mef`s on both supports carve the two annular
 //! strips (the plane's hole widens from the rim circle to the trim
 //! circle — the fillet eats into the FLAT face, which is what makes it
-//! a fillet and not a gouge), rim-edge `kef`s merge them, strut `kef`s
-//! fuse the pieces around the ring, and the last strut — whose two
-//! halves by then share one loop — dies by `kemr`, which is exactly
-//! what mints the band's second boundary circle as a RING of the band
-//! face. The trim circles' carriers are the rim carrier's own frame
-//! SCALED (same axis, same `u_ref`, same parameter window), so the
-//! band's arcs inherit the rim's seam structure exactly — no `atan2`
-//! reconstruction, no π-arc ambiguity.
+//! a fillet and not a gouge; the sphere side splits its MERIDIAN seam
+//! edges at the trim circle instead of strutting into the cap),
+//! rim-edge `kef`s merge them and strut `kef`s fuse the pieces around
+//! the ring. The band is an annulus and a curved face must be
+//! RING-FREE (`props`' closed-form inventory; the donut's own
+//! representation), so at the closure vertex the last strut dies by a
+//! fan-merging `kev` that leaves one upper meridian remnant as the
+//! band's SLIT — a double-traversed minor-circle `Seam` edge, with
+//! the band's torus chart seamed at that azimuth (certification
+//! demands a seam lie in its surface's `u_ref` half-plane; the chart
+//! reference is conventional data, D2). The trim circles' carriers
+//! are the rim carrier's own frame SCALED (same axis, same `u_ref`,
+//! same parameter window), so the band's arcs inherit the rim's seam
+//! structure exactly — no `atan2` reconstruction, no π-arc
+//! ambiguity.
 //!
 //! # What decides, and what does not
 //!
@@ -533,8 +540,26 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
     found.ok_or_else(|| unsupported("a ring has no edges"))
 }
 
-/// Decide one `fillet3_ring_clearance` margin.
-fn ring_margin<T: Decide + Bounds>(
+/// **`fillet3_ring_clearance`** — decide one ring carry-through
+/// margin (module docs): the exact closed-form clearance between a
+/// support face's ring and a blend trimline, meters. Positive
+/// carries the ring through; zero/negative refuses
+/// [`FilletError::RingClearance`]; an in-band margin escalates with
+/// the SAME recourse (two-tolerance, D4 ¶1 addendum — this arm is
+/// trio-pinned like every `fillet3_*` predicate). Public for exactly
+/// that trio: the margins themselves are derived inside the surgery
+/// from stored trimlines and ring carriers, never sampled.
+///
+/// In practice predicate 2's sampled screen usually fires first on
+/// the same configuration (for a straight edge the two margins are
+/// the same length); this check is the EXACT form of it, and the one
+/// the ring carry-through soundness argument actually rests on —
+/// sampling can overestimate a gap, the closed form cannot.
+///
+/// # Errors
+///
+/// [`FilletError::RingClearance`] / [`FilletError::Escalated`].
+pub fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
     margin: T,
     band: Band,
@@ -603,7 +628,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // the setback construction.
                 let _ = dir;
                 let margin = (c - origin).dot(m) - a;
-                ring_margin(face, margin, band)?;
+                ring_clearance(face, margin, band)?;
             }
         }
     }
@@ -630,7 +655,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 None => ring_circle(body, ring)?,
             };
             let margin = (cj - ci).norm() - si - aj;
-            ring_margin(rim.plane, margin, band)?;
+            ring_clearance(rim.plane, margin, band)?;
         }
         // Outer boundary: exact for line edges (the blank trimlines /
         // the sharp box edges); circle outer edges get the same
@@ -652,11 +677,11 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 Curve3::Line { origin, dir } => {
                     let d = ci - origin;
                     let margin = (d - dir * d.dot(dir)).norm() - si;
-                    ring_margin(rim.plane, margin, band)?;
+                    ring_clearance(rim.plane, margin, band)?;
                 }
                 Curve3::Circle { center, radius, .. } => {
                     let margin = (center - ci).norm() - si - radius;
-                    ring_margin(rim.plane, margin, band)?;
+                    ring_clearance(rim.plane, margin, band)?;
                 }
                 _ => {}
             }

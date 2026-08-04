@@ -426,6 +426,11 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         // plane, cylinder AND sphere faces meeting along TANGENT
         // trimlines, straight ones and circular ones.
         ("filleted_die", filleted_die()),
+        // The M6 composed die: blank + 21 pips + 21 rim TORUS bands
+        // in one body (the composition surgery). Adds the writer's
+        // first fillet-minted TOROIDAL_SURFACEs (slit-seamed annuli)
+        // alongside every kind the blank already carries.
+        ("composed_die", composed_die()),
     ]
 }
 
@@ -460,4 +465,179 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
         body.edges().count(),
         body.vertices().count(),
     )
+}
+
+/// The M6 composed die: the pipped cube (21 balls, one group cut)
+/// filleted IN PLACE — twelve box-edge blends with the rims carried
+/// through as rings, then all 21 rims replaced by torus bands. The
+/// geometry is `sweep/tests/m6_surgery.rs`'s, constant for constant.
+pub fn composed_die() -> Body<f64> {
+    use profile::ProfileVertex;
+    use sweep::fillet::build::fillet_edges;
+    use sweep::{Revolution, RevolveAxis, revolve};
+    use topo::BooleanDeclarations;
+    use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+
+    let tol = Tolerance::get();
+    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
+    let (l, pip_r, pip_h, pip_d, die_r, rim_r) = (1.0, 0.09, 0.05, 0.22, 0.12, 0.02);
+
+    let ball_at = |c: geom_core::Vec3<f64>| -> Body<f64> {
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex {
+                pos: Point2::new(0.0, -pip_r),
+                bulge: 1.0,
+            },
+            ProfileVertex {
+                pos: Point2::new(0.0, pip_r),
+                bulge: 0.0,
+            },
+        ]);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tolerance::get())
+            .unwrap();
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let b = revolve(&vp, axis, Revolution::Full).unwrap().body;
+        topo::transform_rigid(&b, &geom_core::Affine3::translation(c)).unwrap()
+    };
+    let poled = |c: geom_core::Vec3<f64>, pole: geom_core::Vec3<f64>| -> Body<f64> {
+        use core::f64::consts::PI;
+        let b = ball_at(geom_core::Vec3::new(0.0, 0.0, 0.0));
+        let y = geom_core::Vec3::new(0.0, 1.0, 0.0);
+        let rot = y.cross(pole);
+        let origin = geom_core::Point3::new(0.0, 0.0, 0.0);
+        let placed = if rot.norm() < 1e-12 {
+            if y.dot(pole) > 0.0 {
+                b
+            } else {
+                topo::transform_rigid(
+                    &b,
+                    &geom_core::Affine3::rotation_about_axis(
+                        origin,
+                        geom_core::Vec3::new(1.0, 0.0, 0.0),
+                        PI,
+                    ),
+                )
+                .unwrap()
+            }
+        } else {
+            topo::transform_rigid(
+                &b,
+                &geom_core::Affine3::rotation_about_axis(
+                    origin,
+                    rot.normalize(),
+                    y.dot(pole).clamp(-1.0, 1.0).acos(),
+                ),
+            )
+            .unwrap()
+        };
+        topo::transform_rigid(&placed, &geom_core::Affine3::translation(c)).unwrap()
+    };
+
+    let layout = |n: u32| -> Vec<(f64, f64)> {
+        let c = vec![(0.0, 0.0)];
+        let diag = vec![(-1.0, -1.0), (1.0, 1.0)];
+        let anti = vec![(-1.0, 1.0), (1.0, -1.0)];
+        let sides = vec![(-1.0, 0.0), (1.0, 0.0)];
+        match n {
+            1 => c,
+            2 => diag,
+            3 => [diag.clone(), c].concat(),
+            4 => [diag.clone(), anti.clone()].concat(),
+            5 => [diag.clone(), anti.clone(), c].concat(),
+            _ => [diag, anti, sides].concat(),
+        }
+    };
+    let h = l / 2.0;
+    let v = geom_core::Vec3::new;
+    let faces = [
+        (1u32, v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
+        (6, v(0.0, 0.0, -1.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
+        (2, v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)),
+        (5, v(-1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)),
+        (3, v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+        (4, v(0.0, -1.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+    ];
+    let mut places = Vec::new();
+    for (n, normal, ex, ey) in faces {
+        let base = v(h, h, h) + normal * (h + (pip_r - pip_h));
+        for (u, w) in layout(n) {
+            places.push((base + ex * (u * pip_d) + ey * (w * pip_d), normal));
+        }
+    }
+    let mut tool = poled(places[0].0, places[0].1);
+    for (c, n) in &places[1..] {
+        tool = boolean_op_with(
+            BooleanOp::Union,
+            &tool,
+            &poled(*c, *n),
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+        )
+        .expect("the pip tool assembles")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    }
+    let pipped = boolean_op_with(
+        BooleanOp::Subtract,
+        &brick((0.0, l), (0.0, l), (0.0, l)),
+        &tool,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+    )
+    .expect("the pips cut")
+    .body()
+    .expect("a body")
+    .body
+    .clone();
+
+    let box_edges: Vec<topo::EdgeKey> = pipped
+        .edges()
+        .filter(|(_, e)| {
+            pipped
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let blanked = fillet_edges(&pipped, &box_edges, die_r, band)
+        .expect("the box edges blend in place")
+        .body;
+    let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
+        b.get_face(f)
+            .and_then(|fd| b.get_surface(fd.surface))
+            .is_some_and(|s| {
+                if want_plane {
+                    matches!(s, geom_surfaces::Surface::Plane { .. })
+                } else {
+                    matches!(s, geom_surfaces::Surface::Sphere { .. })
+                }
+            })
+    };
+    let rims: Vec<topo::EdgeKey> = blanked
+        .edges()
+        .filter(|(_, e)| {
+            let face_of = |he| {
+                let h = blanked.get_half_edge(he)?;
+                Some(blanked.get_loop(h.parent_loop)?.face)
+            };
+            match (face_of(e.he_plus), face_of(e.he_minus)) {
+                (Some(fa), Some(fb)) => {
+                    (is_kind(&blanked, fa, true) && is_kind(&blanked, fb, false))
+                        || (is_kind(&blanked, fa, false) && is_kind(&blanked, fb, true))
+                }
+                _ => false,
+            }
+        })
+        .map(|(k, _)| k)
+        .collect();
+    fillet_edges(&blanked, &rims, rim_r, band)
+        .expect("the rims blend to torus bands")
+        .body
 }

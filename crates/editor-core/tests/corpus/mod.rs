@@ -43,6 +43,7 @@ use topo::Body;
 pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod heatsink;
@@ -127,6 +128,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         sink::document(),
         cut_cylinder::document(),
         boss::document(),
+        die_composed::document(),
         die_fillet::document(),
         die_pips::document(),
         // `die_fillet::document()` is NOT here, and its module docs say

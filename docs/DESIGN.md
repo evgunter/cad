@@ -482,10 +482,17 @@ component-aware E–P form found and corrected in M1 PR 4).**
   refuses TYPED with a message naming its own blocker, and each is a
   banked unit rather than an open question:
   **(a) composition surgery** — an in-place edge-blend that replaces
-  a rim edge with a blend band inside an existing body. Its absence
-  is why acceptance shape (v) is two bodies; both compose orderings
-  refuse (curved-pierce door / whole-body assembly door). One
-  reviewed unit, banked at the head of the main path.
+  a rim edge with a blend band inside an existing body. *(DISCHARGED
+  at M6 unit 1: `sweep::fillet::surgery` splits support faces along
+  the stored trimlines with rings carried through, grafts blend
+  walls/octants in place, and replaces rim chains with slit-seamed
+  torus bands — the composed die is ONE body. The curved-pierce
+  door's conic arm is now a genuine clearance verdict for CIRCLE
+  carriers (`bool_circle_curved_clearance`); what remains typed
+  there: ellipse/NURBS carriers, crossing circles, and the
+  containment stage's partial-sphere extent. Run-outs at
+  partially-requested corners, junction carry-through and concave
+  blends remain the fillet assembly's named refusals.)*
   **(b) the SSI generic-`T` lift** — `ssi::enclose`/`ssi::certify`
   and `NurbsSurface::project` are `f64`-only by type, so
   `Pcurve::Fitted` cannot be admitted without either lifting them to
@@ -1218,7 +1225,11 @@ precursor of the error-propagation feature.
   fillet at the whole-body assembly front door). The in-place
   edge-blend surgery that closes them is sized at one reviewed unit
   and banked at the head of the main-path queue. Shape (v) is
-  therefore recorded **met piecewise**, not met whole.
+  therefore recorded **met piecewise**, not met whole. *(CLOSED at
+  M6 unit 1: the surgery landed and THE COMPOSED DIE — blank + 21
+  pips + 21 rim tori — is one tier-3 body with a certified
+  closed-form volume; the M5 pin flipped with its history,
+  `m5_pr12_die.rs::deviation_1_flipped_*`.)*
   **Sequencing**: #161 ratified the boundary and the 2026-08-03
   renumbering gave it names — M5 exit → **M6** (SSI generic-`T` lift
   → loft/sweep assembly → composition surgery → analytic-chart

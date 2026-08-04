@@ -407,3 +407,122 @@ fn composed_die() -> Body<f64> {
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
+
+/// **Bit replay (D9)**: the composed die twice in one process, same
+/// volume bits, same entity counts.
+#[test]
+fn the_composed_die_replays_bit_identically() {
+    let a = composed_die();
+    let b = composed_die();
+    let (va, vb) = (
+        topo::mass_properties(&a).unwrap().volume,
+        topo::mass_properties(&b).unwrap().volume,
+    );
+    assert_eq!(va.to_bits(), vb.to_bits(), "volume bits");
+    assert_eq!(
+        (a.vertices().count(), a.edges().count(), a.faces().count()),
+        (b.vertices().count(), b.edges().count(), b.faces().count()),
+    );
+}
+
+/// **K-funnel coverage**: the surgery's one new predicate reaches the
+/// funnel BY NAME during the composed-die construction (the ring
+/// carry-through is decided, not assumed).
+#[test]
+fn ring_clearance_reaches_the_k_funnel_by_name() {
+    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    start_verdict_log();
+    let _die = composed_die();
+    let log = take_verdict_log();
+    assert!(
+        log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
+        "fillet3_ring_clearance never reached the funnel"
+    );
+}
+
+/// **The two-tolerance trio for `fillet3_ring_clearance`** (D4 ¶1
+/// addendum: every arm, definite ones included). The margins are the
+/// exact closed forms the surgery derives; here the decision function
+/// is pinned at its three outcomes, the S2/S9 trio idiom.
+#[test]
+fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
+    use sweep::fillet::surgery::ring_clearance;
+    let (pipped, _) = pipped_and_box_edges();
+    let face = pipped.faces().next().unwrap().0;
+    let tol = Tolerance::get();
+    // Definite pass.
+    ring_clearance(face, 0.05, band()).expect("a definite clearance carries the ring");
+    // Definite refuse, typed with the margin as payload.
+    let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
+    match err {
+        sweep::fillet::FilletError::RingClearance { margin, .. } => {
+            assert!((margin - -0.05).abs() < 1e-15)
+        }
+        other => panic!("expected RingClearance, got {other}"),
+    }
+    let text = ring_clearance(face, -0.05, band()).unwrap_err().to_string();
+    assert!(
+        text.contains("ring") && text.contains("reduce the fillet radius"),
+        "refusal names the situation and the recourse: {text}"
+    );
+    // In band: escalates through the funnel with the SAME recourse.
+    let err = ring_clearance(face, 5.0 * tol.eps, band()).expect_err("in-band escalates");
+    match &err {
+        sweep::fillet::FilletError::Escalated { source, .. } => {
+            assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
+        }
+        other => panic!("expected Escalated, got {other}"),
+    }
+    assert!(
+        err.to_string().contains("reduce the fillet radius"),
+        "the escalated arm shares the definite arm's recourse: {err}"
+    );
+}
+
+/// **The surgery front door refuses typed** at its named gaps: a
+/// partially-requested corner (run-outs), and an open plane–sphere
+/// chain (a rim arc alone is not a closed rim).
+#[test]
+fn the_surgery_front_door_refuses_its_named_gaps() {
+    let (pipped, box_edges) = pipped_and_box_edges();
+    // (a) One box edge: its corners' other edges are not requested.
+    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, band())
+        .expect_err("a partially-requested corner is a run-out, not implemented");
+    let text = format!("{err}");
+    assert!(
+        text.contains("not implemented") && text.contains("corner"),
+        "the refusal names the run-out gap: {text}"
+    );
+    // (b) One rim arc: an OPEN plane–sphere chain has no octant
+    // termination and is not a closed rim.
+    let rims = rim_edges(&pipped);
+    let err = fillet_edges(&pipped, &rims[..1], RIM_R, band())
+        .expect_err("an open plane–sphere chain has no surgery arm");
+    let text = format!("{err}");
+    assert!(
+        text.contains("plane") && text.contains("not"),
+        "the refusal names the arm gap: {text}"
+    );
+}
+
+/// **Ring carry-through, positively**: the shrunk top face of the
+/// box-filleted pipped cube still carries its pip rims as rings — the
+/// same FaceKey, the same ring loops, the S12 sense bit intact.
+#[test]
+fn the_shrunk_faces_keep_their_rings_and_senses() {
+    let (pipped, box_edges) = pipped_and_box_edges();
+    let rings_before: Vec<(topo::FaceKey, usize, bool)> = pipped
+        .faces()
+        .filter(|(_, f)| !f.rings.is_empty())
+        .map(|(k, f)| (k, f.rings.len(), f.sense))
+        .collect();
+    assert_eq!(rings_before.len(), 6, "six pipped faces");
+    let out = fillet_edges(&pipped, &box_edges, DIE_R, band()).expect("the surgery");
+    for (k, n, sense) in rings_before {
+        let f = out.body.get_face(k).expect("the shrunk face keeps its key");
+        assert_eq!(f.rings.len(), n, "ring count carried");
+        assert_eq!(f.sense, sense, "sense bit carried (S12)");
+    }
+    let total: usize = out.body.faces().map(|(_, f)| f.rings.len()).sum();
+    assert_eq!(total, 21, "all 21 pip rims survive as rings");
+}
