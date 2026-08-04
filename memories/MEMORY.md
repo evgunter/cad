@@ -1,6 +1,6 @@
 # Memory Index
 
-- [CAD project state](cad-project-state.md) — DESIGN.md is the ratified contract; M0–M4 COMPLETE, M5 AT EXIT (PR 14 open, waiting on Evan for #89/K + shape (v); live status = docs/M5-LOG.md tail + docs/M5-EXIT-WALK.md); RENUMBERED 2026-08-03: M6 = main-path completions, M7 = STEP adoption only, M8 = error propagation (was M6); merge gate = hosted Actions, gate.sh fallback; references live in the MAIN checkout; name pending (Q9)
+- [CAD project state](cad-project-state.md) — M0–M5 COMPLETE (35 PRs, exit walk 13/7/0, #89 closed K=10); milestones renumbered M6=main-path/M7=adoption/M8=error-prop; M6 in flight (live status = docs/M6-LOG.md tail); gate = hosted nextest matrix
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main
