@@ -22,6 +22,7 @@ mod cutaway;
 mod diefillet;
 mod heatsink;
 mod letterforms;
+mod lily;
 mod probe;
 mod projectbox;
 mod rocker;
@@ -385,6 +386,11 @@ fn main() {
 
     println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
     for stop in diefillet::stops() {
+        run(&stop);
+    }
+
+    println!("\n-- the globe lily (Calochortus albus): a plant, at the kernel's frontier --");
+    for stop in lily::stops() {
         run(&stop);
     }
 
