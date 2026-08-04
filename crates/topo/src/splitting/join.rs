@@ -1634,21 +1634,27 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// the statement true if the family ever widens, and costs nothing on
 /// the ship path).
 ///
-/// The closed-form lane only: the join lane reads a chart image's
-/// azimuth through its harmonic amplitudes, and a fitted image has
-/// none. A fitted chart image reaching here would be the cyl×sphere
-/// join window — banked past M6 (M6-PLAN: "chase the lift") — so the
-/// arm answers with the EMPTY range, which hulls to nothing and makes
-/// the caller's window refuse rather than quietly accept a window it
-/// never measured.
-fn chart_azimuth_range<T: SpanLocate>(p: &Pcurve<T>, t0: T, t1: T) -> (T, T) {
+/// **The closed-form lane only, and it says so with `None`.** The join
+/// lane reads a chart image's azimuth through its harmonic amplitudes;
+/// a fitted (rung-3) image has none, so it gets no answer rather than a
+/// sentinel. A sentinel would be actively wrong here: the caller hulls
+/// with `(a.min(lo), b.max(hi))`, which ABSORBS an inverted range
+/// silently instead of propagating it, so "the empty range makes the
+/// window refuse" would have been false. `None` propagates through the
+/// caller as a typed `SectionInvariant` refusal.
+///
+/// The arm is unreachable today — `chart_pcurve` refuses a `Nurbs`
+/// carrier before a fitted image can reach this function — and it is
+/// written anyway because the cyl×sphere join window (banked past M6,
+/// M6-PLAN: "chase the lift") is exactly what would make it live.
+fn chart_azimuth_range<T: SpanLocate>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
     let Pcurve::Harmonic { pa, pb, .. } = *p else {
-        return (T::one(), -T::one());
+        return None;
     };
     let amp = pa.x.abs() + pb.x.abs();
     let u0 = p.eval(t0).x;
     let u1 = p.eval(t1).x;
-    (u0.min(u1) - amp, u0.max(u1) + amp)
+    Some((u0.min(u1) - amp, u0.max(u1) + amp))
 }
 
 /// The divided face's **azimuth window** on its own chart: the hull of
@@ -1767,7 +1773,13 @@ fn run_azimuth_window<T: Decide>(
                 base.shift_branch(k, tau)
             }
         };
-        let (lo, hi) = chart_azimuth_range(&pcurve, t0, t1);
+        let (lo, hi) =
+            chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
+                face,
+                what: "a run edge's chart image is FITTED (rung-3) — this window rule reads \
+                       a closed-form azimuth, and the fitted-chord join lane is banked past \
+                       M6",
+            })?;
         acc = Some(match acc {
             None => (lo, hi),
             Some((a, b)) => (a.min(lo), b.max(hi)),

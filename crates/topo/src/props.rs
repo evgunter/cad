@@ -557,7 +557,10 @@ mod quad_lane {
             // loft/sweep assembly unit's, and this is where it lands.
             let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve —                            the certified quadrature reads a closed-form chart image's                            four channels, and a spline image has none; the NURBS-patch                            flux door is the loft/sweep assembly unit's",
+                    what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve — \
+                           the certified quadrature reads a closed-form chart image's \
+                           four channels, and a spline image has none; the NURBS-patch \
+                           flux door is the loft/sweep assembly unit's",
                 });
             };
             let (t0, t1) = cache.params();

@@ -183,9 +183,14 @@ fn ring<T: Bounds>(v: T) -> RingInterval {
 /// A symmetric pad of magnitude `r` — `[−r⁺, r⁺]` taken at the
 /// bracket's UPPER end, because a pad is a widening and the sound
 /// direction for a widening is the largest value the operand could
-/// stand for. A negative or poisoned `r` yields poison through
-/// [`RingInterval::from_bounds`], which fails every downstream test
-/// rather than shrinking a box.
+/// stand for.
+///
+/// Poison, and a bracket whose upper end is negative, yield poison
+/// through [`RingInterval::from_bounds`] (`−hi ≤ hi` fails), which then
+/// fails every downstream test rather than shrinking a box. Stated
+/// precisely because the weaker claim is the true one: a bracket that
+/// merely STRADDLES zero has `hi ≥ 0` and pads by its upper end, which
+/// is sound — it is only an entirely-negative radius that poisons.
 fn pad_interval<T: Bounds>(r: T) -> RingInterval {
     let hi = r.hi();
     RingInterval::from_bounds(-hi, hi)

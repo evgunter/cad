@@ -37,7 +37,7 @@
 mod fixture;
 
 use geom_brep::{EnvelopeStatement, Pcurve};
-use geom_core::{Band, Bounds, Tolerance};
+use geom_core::{Band, Tolerance};
 
 /// The full at-rest run at `f64`: build, validate, and read the
 /// certificate the tier-3 pass re-derived.
@@ -219,6 +219,15 @@ mod certified {
     /// The interval certificate is not merely present but HONEST: its
     /// bounds dominate the `f64` lane's, because the same computation
     /// at the interval scalar can only widen.
+    ///
+    /// The quantity compared is deliberately `on_locus_max`, limb 1's
+    /// **evaluated** residual, and not `envelope`: the envelope is the
+    /// C9 ring's own `f64` hull bound lifted through `from_f64`, so it
+    /// is THIN at both scalars and a comparison of it would pass by
+    /// exact equality — a row with no teeth. `on_locus_max` is computed
+    /// by evaluating `implicit_residual` at the scalar, so the interval
+    /// lane genuinely widens it, and dominance there is a real claim
+    /// about the lift.
     #[test]
     fn the_interval_bounds_dominate_the_f64_ones() {
         let (Some(iv), Some(fl)) = (fixture::build::<Interval>(), fixture::build::<f64>()) else {
@@ -227,12 +236,21 @@ mod certified {
         };
         let ic = iv.body.pcurve(iv.he_plus).unwrap().certificate();
         let fc = fl.body.pcurve(fl.he_plus).unwrap().certificate();
-        assert!(
-            ic.envelope.hi() >= fc.envelope,
-            "the interval envelope's upper end dominates the f64 bound \
-             ({} vs {})",
-            ic.envelope.hi(),
-            fc.envelope
+        let (i_ssi, f_ssi) = (
+            ic.ssi.expect("interval certificate"),
+            fc.ssi.expect("f64 certificate"),
         );
+        assert!(
+            i_ssi.on_locus_max.hi() >= f_ssi.on_locus_max,
+            "the interval on-locus residual's upper end dominates the f64 one \
+             ({} vs {})",
+            i_ssi.on_locus_max.hi(),
+            f_ssi.on_locus_max
+        );
+        // The ring-derived bound is thin at both scalars — stated, so
+        // the equality below is read as the C6/C9 boundary it is and
+        // not as a suspiciously exact numeric coincidence.
+        assert_eq!(ic.envelope.lo(), ic.envelope.hi());
+        assert_eq!(ic.envelope.hi(), fc.envelope);
     }
 }

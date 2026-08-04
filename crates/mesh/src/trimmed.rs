@@ -377,7 +377,9 @@ fn trim_polygon(
         let Pcurve::Harmonic { .. } = cache.pcurve() else {
             return Err(TessellateError::UnsupportedCurve {
                 edge: he.edge,
-                note: "trimmed face half-edge carries a FITTED (rung-3) pcurve — the                        trim-loop walk reads a closed-form chart image, and the spline                        image's tessellation consumer is the loft/sweep assembly unit",
+                note: "trimmed face half-edge carries a FITTED (rung-3) pcurve — the \
+                       trim-loop walk reads a closed-form chart image, and the spline \
+                       image's tessellation consumer is the loft/sweep assembly unit",
             });
         };
         let ids = chords.get(&he.edge).ok_or(TessellateError::MissingEntity {

@@ -46,7 +46,18 @@
 //! `|S(P(t)) − C(t)| ≤ ε` — a **3-D displacement in metres** between
 //! the surface-composed pcurve and the carrier cache, on the shared
 //! [`crate::CERT_SAMPLES`] schedule, plus a **between-samples envelope**
-//! that bounds the same displacement over the whole span (below).
+//! whose own statement the certificate NAMES
+//! ([`PcurveCertificate::statement`]), because the two lanes do not
+//! bound the same thing. For the closed-form lane, and for a fitted
+//! image on a NURBS chart, the envelope bounds *that same displacement*
+//! over the whole span. For a fitted image on a periodic ANALYTIC chart
+//! it cannot: `S ∘ P` is transcendental in the pcurve's azimuth channel
+//! and the C9 ring has no transcendentals by construction, so the
+//! between-samples statement there is the carrier's incidence with the
+//! chart's own surface (`sup |f_S(C(t))|`) together with limb 3's
+//! uniqueness tube — [`EnvelopeStatement::OnLocusHull`] carries the
+//! argument, and the displacement itself stays certified at the
+//! schedule.
 //! **No UV-space tolerance appears in any certified statement or in any
 //! message this module emits**: chart steps are implementation dials,
 //! the map's local stretch is the lever arm, and a certification
@@ -305,19 +316,31 @@ impl<T: SpanLocate> Pcurve<T> {
             // translation of its control net in the azimuth channel:
             // exact, structure-preserving, and it moves the branch
             // WITHOUT touching the parameter (the same one-branch
-            // contract the harmonic arm keeps). A malformed rebuild is
-            // impossible — the knots and weights are the originals —
-            // so the fallback keeps the unshifted image, which then
-            // fails loop continuity loudly rather than silently
-            // shifting nothing.
+            // contract the harmonic arm keeps).
+            //
+            // The rebuild takes the ORIGINAL knots and weights and a
+            // control net of the original length, so `NurbsCurve2::new`
+            // validates exactly what it already validated once. It
+            // therefore cannot fail, and this arm says so with a
+            // `panic!` carrying the reason rather than a soft
+            // `self.clone()`: silently returning the UNSHIFTED image
+            // would hand the loop walk a branch it did not ask for,
+            // and "the branch is chosen once and never guessed" is the
+            // whole point of this method (module docs, D4 ¶2 fail-loud).
             Pcurve::Fitted(image) => {
                 let shifted: Vec<Point2<T>> = image
                     .control()
                     .iter()
                     .map(|p| Point2::new(p.x + k * period, p.y))
                     .collect();
-                NurbsCurve2::new(image.knots().clone(), shifted, image.weights().to_vec())
-                    .map_or_else(|_| self.clone(), |c| Pcurve::Fitted(Arc::new(c)))
+                match NurbsCurve2::new(image.knots().clone(), shifted, image.weights().to_vec()) {
+                    Ok(c) => Pcurve::Fitted(Arc::new(c)),
+                    Err(e) => panic!(
+                        "shift_branch: re-wrapping a fitted chart image with its own knots \
+                         and weights and an equal-length control net cannot fail, and did: \
+                         {e}"
+                    ),
+                }
             }
         }
     }
