@@ -124,3 +124,31 @@ confirmation of the OCC text-level orientation note; executed on
 washer, volume bit-identical) + NOTE-7 filleted_die.expect
 comment overclaim + the sidecar KERNEL_* fields design
 suggestion. Review ~181k tokens, ~35min wall.
+
+**M7-1 MERGED as #183 (2026-08-04): THE KERNEL IMPORTS WHAT IT
+EXPORTS.** Fix pass discharged all six items: units/uncertainty
+checked by RESOLUTION (a subset SI length unit must exist; a
+CONVERSION_BASED_UNIT inch file refuses typed; two distinct
+declared uncertainties refuse as ambiguous); truncation sweep
+runs every strict prefix (7k+ cuts, the only importing cut is
+the trailing-newline one, asserted); the three silent drops are
+typed `Structure` refusals (content resolved from the
+representation structure — orphan MSBs refuse rather than
+guess); string bodies refuse outside the Part-21 basic alphabet
+(mirror of the writer's quoting refusal); 6.00 ulps; the 19
+review probes adopted BY MERGE with authorship kept — plus the
+fix pass caught the reviewer's unit probe being VACUOUS (its
+#93 substitution never matched cube's #155; re-anchored id-free
+and flipped to assert the refusal). Reported deviation from the
+fix instruction, accepted: the probe suite is a third [[test]]
+target, adopted verbatim (the two-target norm binds the
+acceptance layout, not the adopted review surface). Hosted
+27/27; crate suite 28/28. A/B row RECORDED AT MERGE. #184
+exchange settled mid-flight: KERNEL_* sidecar shape locked both
+sides (full-precision KERNEL_VOLUME_MM3; native-census
+semantics with the kiss_assembly solids divergence documented;
+no seam/pole accounting), export side implements after Evan's
+👍, M7's consumer switch-over tracked for a later seam. Lanes
+cleaned; slot 2 freed. Next: M7-2 (FreeCAD-authored foreign
+corpus; OPUS block remainder; difficulty logged before
+assignment at spec time).
