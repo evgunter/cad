@@ -587,3 +587,36 @@ reviewer's own probe commit); all 11 implementer commits clean;
 no blinded party still active; no history rewritten. A/B row
 RECORDED AT MERGE (the M5 readout's discipline). Lanes to
 clean; unit 3 next (FABLE, block-21 remainder).
+
+**CONCURRENT M7 ORCHESTRATOR (Evan, in-chat, 2026-08-04)**:
+Evan starts a second orchestrator on another account (this
+account's Fable limit expected today). Protocol ratified in
+chat and recorded in memories/concurrent-orchestrators.md +
+the briefing ~/.local/share/cad-work/handoff-prompt-m7.md:
+static 1+1 cargo-slot split (cargo-slots.txt), M7 scope fence
+(new import crate + tests + M7-PLAN only; export-pin changes
+via design-conversation PR), separate sign-off watchlist, A/B
+continues with M7-prefixed blocks, GitHub as the
+cross-orchestrator channel.
+
+**M6-4 (contact design doc) STARTED EARLY (Evan, in-chat):**
+design-only, no lane — Fable design agent drafting
+docs/CONTACT-DESIGN.md (C-numbered proposals; census by local
+geometry; declared contact as data; ball-and-socket /
+interference / cylindrical / G1 tube chains worked; M8
+signed-clearance co-design; OQ5 disposition). Orchestrator
+meta-review then design-conversation PR — WAITS for Evan.
+
+**M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
+exploration (which read post-#176 origin/main): six legs
+(builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
+two tier-3 flips with the placeholder/described discriminator;
+volume-only flux with rational walls refusing typed — shape
+(iii) is a POLYLINE loft; B_SPLINE_SURFACE_WITH_KNOTS both
+forms; analytic-chart completion routing closed-form-harmonic
+vs Fitted/OnLocusHull per class; tube_along_arc rider with
+bit-exact storage pin). Dispatch (FABLE, block-21 remainder,
+difficulty L logged pre-assignment at task creation) WAITS for
+the ev/ci-test-collapse PR to merge — the collapse is
+restructuring the exact test trees this unit touches, and my
+one cargo slot (under the 1+1 split) is occupied by it.
