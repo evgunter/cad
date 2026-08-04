@@ -496,3 +496,28 @@ or tube_along_arc), 12 (unchecked frame orthonormality),
 13 (tessellation δ budgeted by ring radius not feature size),
 14 (no near-tangency margin query), 15 (error payload
 re-exports).
+
+**tube_along_arc RATIFIED as a unit-3 rider (Evan 👍 on the
+#175 design reply, 2026-08-04)** — plan amended in place.
+Findings 11 + the minor-radius drift close there; ledger items
+12-15 remain for the next planning seam.
+
+**#176 fixture disposition (Evan's design probe on the PR
+thread, 2026-08-04)**: Evan questioned the Leg C
+refit-a-quarter construction. Orchestrator adjudication after
+reading the fixture + APIs: the refit is defensible (public
+doors re-derive everything — fit provenance never enters the
+certificate's trust chain; it reproduces the fit_branch OQ4
+idiom; hands the corruption row its second arc) but NOT the
+best available — SsiBranch already carries its own fitted
+pcurves and split_at/insert_knot exist, so the fixture can
+knot-split the kernel's OWN pair, which is strictly closer to
+the walk row's intent; the current comment's knot-split
+contrast is also wrong (splitting preserves shared
+parameterization; only [0,1] renormalization differs). Added
+to the open fix pass as item 7 (split preferred; refit-kept
+fallback requires the honest comment; certified numbers must
+not move — stop-and-report if they do). The scaffold caveat
+stays documented either way: the row re-anchors to a
+constructor-built body when the banked join lane lands.
+Awaiting Evan's 👍 on the disposition (watchlisted).
