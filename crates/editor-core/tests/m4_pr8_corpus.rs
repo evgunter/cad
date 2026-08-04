@@ -154,13 +154,12 @@ fn vocabulary_coverage_is_total() {
         }
     }
     println!("{report}");
-    // M5 PR 10: `Loft`/`Sweep` joined the vocabulary but CANNOT join
-    // the corpus yet — a corpus document must evaluate to a body, and
-    // a NURBS-walled solid is frontier-blocked
-    // (`NodeErrorKind::CurvedSolidFrontier`; the blocker is
-    // demonstrated in `sweep/tests/m5_pr10_frontier.rs`). They are
-    // listed in `NODE_KINDS` on purpose, so the coverage report shows
-    // them at ZERO instead of their absence reading as coverage.
+    // M6-3: `Loft` is covered (`loft_prism` — the loft body
+    // assembles; the M5 PR 10 frontier retired, S9-flipped in
+    // `sweep/tests/m5_pr10_frontier.rs`). `Sweep` alone remains: its
+    // NODE lane waits on the joined-path composition lane (banked
+    // past M6), listed in `NODE_KINDS` on purpose so the coverage
+    // report shows the ZERO instead of absence reading as coverage.
     //
     // M5 PR 12's `Fillet` was briefly exempt alongside them, for a
     // shallower reason: the fillet battery's clearance screen seeded
@@ -173,7 +172,7 @@ fn vocabulary_coverage_is_total() {
     // The exemption is EXACT and retires itself: the moment a corpus
     // document exercises one, `missing` shrinks and this assertion
     // fires, telling you to delete the entry.
-    const FRONTIER_UNCOVERED: [&str; 2] = ["node Loft", "node Sweep"];
+    const FRONTIER_UNCOVERED: [&str; 1] = ["node Sweep"];
     let still_missing: Vec<&String> = missing
         .iter()
         .filter(|m| !FRONTIER_UNCOVERED.contains(&m.as_str()))

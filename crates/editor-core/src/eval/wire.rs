@@ -820,8 +820,14 @@ fn wire_loft<T: Decide>(
         sections.push(chain);
         places.push(place);
     }
-    let mut built =
-        sweep::loft_body::<T>(&sections, &places, v_degree).map_err(NodeErrorKind::Loft)?;
+    // The geometry/profile doors keep their historical node-error
+    // shapes (the §2 compatibility contract predates the builder);
+    // assembly-proper refusals arrive as the M6-3 `Loft` kind.
+    let mut built = sweep::loft_body::<T>(&sections, &places, v_degree).map_err(|e| match e {
+        sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
+        sweep::LoftError::Profile(p) => NodeErrorKind::Profile(p),
+        other => NodeErrorKind::Loft(other),
+    })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
     // structural handoff is dropped (the extrude idiom).
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;

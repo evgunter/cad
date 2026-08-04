@@ -48,6 +48,7 @@ pub mod die_fillet;
 pub mod die_pips;
 pub mod heatsink;
 pub mod islands;
+pub mod loft_prism;
 pub mod sink;
 pub mod slots;
 pub mod table;
@@ -139,6 +140,12 @@ pub fn documents() -> Vec<CorpusDoc> {
         // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
         die_pips::document(),
+        // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
+        // Band 4 corpus's first NURBS-walled solid. Standard rows
+        // (every ε, interval lane, persistence, latency) for free by
+        // membership; the derived-volume bracket pin lives with the
+        // builder's acceptance suite.
+        loft_prism::document(),
         // `die_composed::document()` is NOT here, and its module docs
         // say why: `Node::Fillet` is every-edge BY DESIGN (no stable
         // edge names to go stale), and every pipped body carries cap
@@ -214,11 +221,12 @@ pub const NODE_KINDS: [&str; 12] = [
     "Boolean",
     "Transform",
     "Pattern",
-    // M5 PR 10's definitional feature nodes. They join the tally's
-    // DOMAIN here; the Band 4 corpus row that exercises them waits on
-    // the NURBS-walled-solid frontier (see
-    // `NodeErrorKind::CurvedSolidFrontier`), so the coverage report
-    // shows them at zero rather than pretending they are covered.
+    // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
+    // M6-3 (the loft body assembles; `loft_prism` is registered).
+    // `Sweep` alone stays at zero: its NODE lane waits on the
+    // joined-path composition lane (banked past M6 — the one
+    // remaining `CurvedSolidFrontier` arm), and the report shows the
+    // zero rather than pretending coverage.
     "Loft",
     "Sweep",
     "Declare",

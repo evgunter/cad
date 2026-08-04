@@ -31,7 +31,7 @@ fn shape_iii_sections() -> (Vec<SectionSegments>, Vec<Affine3<f64>>) {
         ]]
     };
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.5, -1.0), (1.5, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let sections = vec![quad(square), quad(trapezoid), quad(square)];
     let places = vec![
         Affine3::identity(),
@@ -102,4 +102,35 @@ fn face_outer_cycle(body: &topo::Body<f64>, face: &topo::Face) -> Option<Vec<top
         return None;
     };
     body.loop_cycle(first)
+}
+
+/// **The derived closed-form volume** (the corpus `loft_prism`
+/// module docs carry the same derivation): the degree-2 skin through
+/// equal end sections has corner paths `P(v) = S + λ(v)·D` with
+/// `λ = 4v(1−v)` and `z = 2v` exactly; each slice is a trapezoid of
+/// area `4 + 2dλ` with `d = 0.375`, so
+/// `V = 2·∫₀¹ (4 + 0.75·λ) dv = 8 + 0.75·(4/3)·? = 9 m³` exactly
+/// (`∫₀¹ λ = 2/3`; `2·(4 + 0.75·2/3·…)` — spelled out: 2·4 = 8 plus
+/// 2·(2d)·(2/3) = 8d/3·… with d = 0.375 gives exactly 1). The
+/// certified enclosure must BRACKET it, and tightly.
+#[test]
+fn shape_iii_volume_matches_the_derived_closed_form() {
+    let (sections, places) = shape_iii_sections();
+    let lofted = loft_body::<f64>(&sections, &places, 2).expect("loft builds");
+    let m = topo::props::mass_properties(&lofted.body).expect("mass properties");
+    let exact = 9.0;
+    assert!(
+        (m.volume - exact).abs() <= m.volume_pad + 1e-9,
+        "volume {} ± {} must bracket the derived {exact}",
+        m.volume,
+        m.volume_pad
+    );
+    assert!(
+        m.volume_pad < 1e-6,
+        "the exact per-span lane is tight, pad = {}",
+        m.volume_pad
+    );
+    // The caps' closed forms contribute pad-free; the walls' area is
+    // an honest enclosure (positive, finite).
+    assert!(m.surface_area > 0.0 && m.area_pad.is_finite());
 }

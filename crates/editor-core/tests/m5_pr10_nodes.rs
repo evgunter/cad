@@ -226,7 +226,7 @@ fn a_well_formed_loft_evaluates_to_a_body() {
     let (doc, loft, _) = loft_doc();
     let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
     match out.nodes.get(&loft).expect("the node has a result") {
-        NodeResult::Evaluated(v) => {
+        NodeResult::Ok(v) => {
             assert!(
                 matches!(v.payload, editor_core::ValuePayload::Body(_)),
                 "expected a Body payload, got {}",
