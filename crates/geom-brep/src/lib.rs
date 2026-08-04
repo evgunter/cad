@@ -69,10 +69,10 @@ pub use intersect::{
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
+pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
-pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
 pub use pcurve_cache::{
     ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
     PcurveCheck, PcurveFittedLane, chart_pcurve,

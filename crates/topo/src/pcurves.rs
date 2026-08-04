@@ -193,7 +193,7 @@ impl core::fmt::Display for PcurveMintError {
 
 impl std::error::Error for PcurveMintError {}
 
-/// Does this chart kind mint stored caches at M5 (module docs)? A
+/// Does this chart kind mint stored caches (module docs)? A
 /// compile-time routing decision per surface kind, exhaustively
 /// matched — adding a kind is a compiler-guided edit (D3).
 fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
@@ -203,10 +203,20 @@ fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
         Surface::Plane { .. } => false,
         // Frontier charts: no certified closed-form lane yet — their
         // pcurves arrive with the consumers that need them (PR 7/11).
-        Surface::Cone { .. }
-        | Surface::Sphere { .. }
-        | Surface::Torus { .. }
-        | Surface::Nurbs(_) => false,
+        Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => false,
+        // NON-RATIONAL described NURBS charts mint (M6-3): every
+        // loft/sweep wall boundary is an iso-parameter curve whose
+        // chart image is an exact line in UV (`Pcurve::IsoLine`).
+        // The placeholder mints nothing (it is not a described
+        // surface), and RATIONAL walls mint nothing either — the iso
+        // lane's hull bounds are polynomial convexity facts, and a
+        // rational-wall body already refuses tier 3 at the volume
+        // door with recourse text naming the banked rational lane;
+        // minting here would only move that refusal somewhere less
+        // actionable.
+        Surface::Nurbs(payload) => {
+            !payload.is_placeholder() && payload.weights().iter().all(|w| *w == 1.0)
+        }
     }
 }
 
@@ -234,6 +244,11 @@ pub fn pcurve_of<T: Decide>(
     }
     let (carrier, _, _) = half_edge_carrier(body, half_edge)?;
     let surface = half_edge_surface(body, half_edge)?;
+    if matches!(surface, Surface::Nurbs(_)) {
+        // The NURBS chart's images are description-driven (M6-3) —
+        // the iso derivation, not the closed-form harmonic table.
+        return nurbs_iso_derive(body, half_edge, &surface, band);
+    }
     chart_pcurve(&carrier, &surface, band)
         .map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
@@ -309,6 +324,138 @@ fn half_edge_surface<T: Decide>(
         .ok_or(PcurveMintError::Corrupt)
 }
 
+/// The surface KEY of the face `half_edge` bounds (the key twin of
+/// [`half_edge_surface`], for the iso derivation's own-side test).
+fn half_edge_surface_key<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<geom_brep::SurfaceKey, PcurveMintError> {
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let lp = body
+        .get_loop(he.parent_loop)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let face = body.get_face(lp.face).ok_or(PcurveMintError::Corrupt)?;
+    Ok(face.surface)
+}
+
+/// The certified description of `half_edge`'s edge.
+fn half_edge_description<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<geom_brep::EdgeGeometry<T>, PcurveMintError> {
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let edge = body.get_edge(he.edge).ok_or(PcurveMintError::Corrupt)?;
+    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+        return Err(PcurveMintError::Corrupt);
+    };
+    Ok(*curve.description())
+}
+
+/// Derives the **exact iso-line chart image** of `half_edge` on a
+/// described NURBS chart (M6-3) — the NURBS-chart counterpart of
+/// `geom_brep::chart_pcurve`, driven by the edge's INTENSIONAL
+/// description (D2: the description is what is authoritative about
+/// which iso this locus is):
+///
+/// - An [`geom_brep::EdgeGeometry::IsoCurve`] naming THIS face's
+///   surface maps directly: `P(t) = (u, v0 + slope·(t − t0))`.
+/// - An `IsoCurve` naming the OTHER wall maps as this chart's own
+///   `u = 0` or `u = 1` boundary, the side selected by a definite
+///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
+///   full iso lane — a wrong pick fails loudly, never silently.
+/// - A cap–wall rim (`MappedCurve::PlacedSegment`, Line segment) maps
+///   as `(u(t), v)` with `u` affine (`t0 ↦ 0`, `t1 ↦ 1` — the wall's
+///   u IS the segment parameter by construction) and `v ∈ {0, 1}` by
+///   the same endpoint selection.
+/// - Everything else on a NURBS chart refuses typed with the class
+///   named (arc rims: the chart u is the segment's rational-Bézier
+///   parameter, banked with the rational-wall lane).
+fn nurbs_iso_derive<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PcurveMintError> {
+    use geom_core::{Point2, Vec2};
+    let refuse = |what: &'static str| PcurveMintError::Certify {
+        half_edge,
+        error: PcurveCertifyError::IsoUnsupported { what },
+    };
+    let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
+    let span = t1 - t0;
+    // A definite endpoint-side selection: which of the two candidate
+    // chart values places the carrier's START on the surface. The
+    // selection is structure (a two-way pick), the CHECK is the full
+    // iso-lane certification that follows every derivation.
+    let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>| -> Result<T, PcurveMintError> {
+        let start = carrier.eval(t0);
+        for cand in [T::zero(), T::one()] {
+            match decide("pcurve_iso_side", start.distance(eval_at(cand)), band) {
+                Ok(Sign::Zero) => return Ok(cand),
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Err(cause) => {
+                    return Err(PcurveMintError::Escalated { half_edge, cause });
+                }
+            }
+        }
+        Err(refuse(
+            "the carrier's start point lies on neither chart boundary — not a boundary \
+             iso of this face's chart",
+        ))
+    };
+    match half_edge_description(body, half_edge)? {
+        geom_brep::EdgeGeometry::IsoCurve {
+            surface: sk,
+            u,
+            v0,
+            v1,
+        } => {
+            let slope = (v1 - v0) / span;
+            let p0y = v0 - slope * t0;
+            let own = half_edge_surface_key(body, half_edge)?;
+            let x = if sk == own {
+                u
+            } else {
+                // The other wall's side of the seam: this chart's own
+                // u-boundary, selected by the endpoint.
+                side_pick(&|cand| surface.eval(cand, v0))?
+            };
+            Ok(Pcurve::IsoLine {
+                p0: Point2::new(x, p0y),
+                pl: Vec2::new(T::zero(), slope),
+            })
+        }
+        geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::PlacedSegment {
+            segment,
+            ..
+        }) => {
+            if !matches!(segment, geom_brep::SketchSegment::Line { .. }) {
+                return Err(refuse(
+                    "an ARC cap rim on a NURBS chart: the chart's u is the segment's \
+                     rational-Bézier parameter (not the arc angle) — banked with the \
+                     rational-wall lane",
+                ));
+            }
+            let plx = T::one() / span;
+            let p0x = T::zero() - t0 / span;
+            let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand))?;
+            Ok(Pcurve::IsoLine {
+                p0: Point2::new(p0x, v),
+                pl: Vec2::new(plx, T::zero()),
+            })
+        }
+        _ => Err(refuse(
+            "no iso derivation for this description kind on a NURBS chart — only \
+             IsoCurve seams and Line cap rims have exact line images (the trimmed-NURBS \
+             pcurve lane is the cut-loft unit's)",
+        )),
+    }
+}
+
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
 /// forward in the carrier parameter)?
 fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, PcurveMintError> {
@@ -322,6 +469,15 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, Pc
 /// The azimuth lever arm of a chart (metres per radian) — how an
 /// azimuth discrepancy is metered against the linear band (D4 ¶1: no
 /// UV-space tolerance ever reaches ε).
+///
+/// NURBS charts take the unit arm deliberately: the iso lane's loop
+/// corners are EXACT chart values by construction (`0`/`1` boundary
+/// isos meeting cap rims whose affine maps are pinned at `t0 ↦ 0`,
+/// `t1 ↦ 1`), so the continuity margins metered here are exactly zero
+/// on every minted body and the arm never converts a real
+/// displacement. The honest per-chart stretch arm exists
+/// (`geom_brep`'s iso-lane certification uses it); threading it here
+/// would change no decision on any mintable input.
 fn azimuth_arm<T: Real>(surface: &Surface<T>) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } => radius,
@@ -470,11 +626,16 @@ fn walk_loop<T: Decide>(
     let mut first_entry: Option<geom_core::Point2<T>> = None;
     for he in cycle {
         let (carrier, t0, t1) = half_edge_carrier(body, he)?;
-        let base =
+        let base = if matches!(surface, Surface::Nurbs(_)) {
+            // NURBS charts derive from the edge's intensional
+            // description (M6-3) — see `nurbs_iso_derive`.
+            nurbs_iso_derive(body, he, surface, band)?
+        } else {
             chart_pcurve(&carrier, surface, band).map_err(|error| PcurveMintError::Certify {
                 half_edge: he,
                 error,
-            })?;
+            })?
+        };
         let plus = is_plus(body, he)?;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
