@@ -39,9 +39,7 @@ fn every_edge_fillet_on_a_pipped_body_refuses_at_the_cap_meridians() {
     let fillet_node = doc.result.expect("the document names its result");
     let err = match ev.nodes.get(&fillet_node) {
         Some(NodeResult::Failed(e)) => e,
-        other => panic!(
-            "the every-edge fillet must refuse typed at the meridians, got {other:?}"
-        ),
+        other => panic!("the every-edge fillet must refuse typed at the meridians, got {other:?}"),
     };
     match &err.kind {
         NodeErrorKind::Fillet(sweep::fillet::FilletError::TangentialEdge { margin, .. }) => {

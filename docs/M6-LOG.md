@@ -78,8 +78,74 @@ rims carried as rings) → all 21 rims filleted in one call (r = 0.02,
 Pappus over the removed cross-section (triangle minus two circular
 segments, both disks tangent at the sphere-side trim point) — at
 1e-9 relative with `volume_pad == 0`, watertight under `check_mesh`,
-bit-replayed. Deviation 1 is FLIPPED at both doors
-(`m5_pr12_die.rs::deviation_1_flipped_*`, S9 pattern — history kept):
-door B composes via the surgery, door A composes via the rider.
+bit-replayed, and in the CI-gated STEP fixture corpus
+(`composed_die.step` + sidecar: FreeCAD imports it VALID at
+89 faces / 245 edges / 129 vertices, volume 952914984 mm³ —
+FreeCAD's own measure reproduces the Pappus closed form to sub-mm³
+on a ~0.95 m³ body). The tour gains the `diecomposed` stop
+(montage cell 17), green at ×3 ε alongside the two M5 stops it
+joins. Deviation 1 is FLIPPED at both doors
+(`m5_pr12_die.rs::deviation_1_flipped_*`, S9 pattern — history
+kept): door B COMPOSES via the surgery; door A marches past the
+retired pierce arm to its REAL frontier, the containment stage's
+`PartialSphereFace` door (typed, the M5 PR 9c class — the blank's
+octants are trimmed sphere faces with no chart-trim extent). The
+rider also un-shadowed a WORKING door: nested sphere∪sphere now
+answers (union = the outer ball) through the whole-sphere
+containment arm the unconditional pierce refusal used to mask —
+probe 7 flipped to pin the answer instead of the mask.
 
-**Deviations, numbered** — see the PR description for the final list.
+**Deviations, numbered.**
+
+1. *`die_composed` is not corpus-expressible.* `Node::Fillet` is
+   every-edge BY DESIGN, and every pipped body carries co-surface cap
+   MERIDIAN seam edges, which the battery honestly refuses
+   (`TangentialEdge`, margin exactly 0) at any radius. The composed
+   die at the recipe layer needs an edge-SELECTION vocabulary that
+   does not exist — the N4 fillet-naming emitter, banked in
+   `eval/wire.rs::wire_fillet`'s docs since PR 12. The document sits
+   BESIDE the registry (the M5 `die_fillet` precedent) with the
+   refusal pinned executed in
+   `editor-core/tests/m6_composed_node.rs`; the standard
+   corpus/persistence/latency rows for the surgery are therefore
+   BLOCKED on that vocabulary, and the surgery's live rows ride the
+   sweep suites, the interval lane, the STEP fixture corpus and the
+   tour instead.
+2. *Door A composes only to the containment stage.* The rider's
+   definite-miss verdict is real (the far pairs clear; the two sweep
+   strategies re-agree on disjoint balls, retiring the divergence
+   `die_pips`' docs predicted would retire), but blank ∖ pips then
+   refuses typed at `PartialSphereFace` — trimmed sphere faces have
+   no whole-chart containment extent. That door pre-exists (M5
+   PR 9c) and is now reached honestly instead of masked. The
+   composed die COMPOSES via the surgery (door B), which is the
+   unit's mandate.
+3. *Surgery front-door scope*: multi-link open chains (junction
+   carry-through), run-outs at partially-requested corners, concave
+   (material-adding) blends, and non-circle-carried rims refuse
+   typed, each naming its gap. One-edge (single self-loop) rims also
+   refuse (`a closed chain of fewer than two links`).
+4. *Torus/cone/ellipse carriers keep the unconditional pierce door* —
+   the rider covers circle carriers against spheres/cylinders (the
+   closed harmonic forms); the rest still refuse without a clearance
+   verdict, stated in the arm's docs.
+
+**Battery.** Touched crates all green at default ε:
+sweep + topo + geom-brep = 121 test binaries; editor-core
+(m4_pr6_roundtrip / m4_pr8_corpus / m4_pr8_k_probe / m4_pr8_latency /
+m6_composed_node) green after the deregistration; step-export all
+binaries green (byte-golden with the new fixture; the reversed-face
+pins reconciled with #170's die_pips addition at 89 = 5 + 42 + 42).
+New rows: 7 (m6_surgery) + 3 (m6_rider) + 1 + loud-skip
+(m6_surgery_interval) + 1 (m6_composed_node) + 1 (geom-brep
+circle_residual_extremes enclosure/tightness) = 13. Flipped rows: 3
+(deviation 1 renamed with history, S13 probe 7, the die_body subset
+row's context note) + 3 count/table updates in m5_pr13_curved.
+Multi-ε: m6_surgery + m6_rider at 1e-6 AND 1e-12; the interval lane's
+one-pip composed die BRACKETED (enclosure width ≤ 1e-6 m³ around the
+closed form); tour ×3 ε green. `scripts/check_step.sh`: 13/13
+fixtures OK under FreeCAD 1.1.2 (composed_die included). Clippy
+clean on sweep/topo/geom-brep/editor-core/step-export + demos/tour;
+fmt-all clean. Interval-square tripwire: every new `src/` square is
+`powi(2)` (test-file f64 oracles use plain products, per the F6
+scoping).
