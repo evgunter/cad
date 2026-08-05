@@ -127,7 +127,11 @@ fn mm_scale_rim_group_margin_is_the_slant_separation() {
     let scale = 1e-3;
     let (margins, area) = rim_group_margins(scale);
     let expect = 5.0_f64.sqrt() / 2.0 * scale;
-    assert_eq!(margins.len(), 1, "one distinct-level comparison: {margins:?}");
+    assert_eq!(
+        margins.len(),
+        1,
+        "one distinct-level comparison: {margins:?}"
+    );
     let m = margins[0];
     assert!(
         ((m - expect) / expect).abs() < 1e-12,
@@ -143,8 +147,7 @@ fn mm_scale_rim_group_margin_is_the_slant_separation() {
     // Fixture sanity: Area = sin α · Δu · (v_hi² − v_lo²)/2.
     let (sin_a, cos_a) = 0.5_f64.atan().sin_cos();
     let (va, vb) = (scale / cos_a, 2.0 * scale / cos_a);
-    let expect_area =
-        sin_a * core::f64::consts::FRAC_PI_2 * (vb * vb - va * va) / 2.0;
+    let expect_area = sin_a * core::f64::consts::FRAC_PI_2 * (vb * vb - va * va) / 2.0;
     assert!(((area - expect_area) / expect_area).abs() < 1e-12);
 }
 
