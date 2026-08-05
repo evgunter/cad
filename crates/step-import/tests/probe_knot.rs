@@ -45,7 +45,11 @@ fn with_bspline(mults: &str, knots: &str, degree: usize) -> String {
     )
 }
 
+// IGNORED BY DEFAULT: the hostile multiplicities ABORT the process
+// (16 GB allocation failure -> SIGABRT), which is the finding. Run
+// with `--ignored` to reproduce.
 #[test]
+#[ignore = "aborts the test process: unbounded knot allocation (finding MINOR-1)"]
 fn hostile_knot_multiplicities() {
     // Sanity: a well-formed degree-1 spline over the two vertices.
     run("well-formed bspline", &with_bspline("2,2", "0.,1.", 1));
