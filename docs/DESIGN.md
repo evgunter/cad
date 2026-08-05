@@ -4,6 +4,27 @@
 new evidence overturns them; items in [Open questions](#open-questions) are
 under active discussion and get promoted here once ratified.
 
+## Companion documents
+
+Ratified design lives in this document AND in per-topic companions;
+a reader entering here should know all of them exist.
+
+| Document | Status | Scope |
+|---|---|---|
+| `docs/CURVED-DESIGN.md` | RATIFIED (#85) | Curved-geometry program: C1–C12 (locus ladder, certificates, SSI, pcurves, dispatch, fillets, NURBS scope) |
+| `docs/NAMING-DESIGN.md` | RATIFIED (#74) | Persistent naming N1–N7 (derivation-path names, split/merge policy, name table) |
+| `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
+| `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy) |
+| `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
+| `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation banked for v2 profiles-as-programs |
+| `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
+| `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
+| `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
+| `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
+| `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
+| `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
+| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2–F4, F7–F11 |
+
 ## Vision
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the kernel
@@ -866,6 +887,24 @@ applied to error handling. Five commitments:
    body; entities that can't be adopted fail loudly in a typed import
    error.
 
+### D5 (agreed): Persistent topological identity from birth
+
+Every topological entity carries a provenance record from the moment it is
+created: which operation created it, from which inputs ("side face swept
+from sketch edge #3"). This does not solve the topological naming problem —
+the most user-visible unsolved problem in parametric CAD — but recording
+identity at birth is cheap, and retrofitting it onto anonymous entities is
+nearly impossible. The parametric layer (M4) builds its stable references
+on top of this record.
+
+Realized at M1 (PRs #17/#20/#23): provenance is a typed per-operator
+**birth record** — the operator plus its argument keys — carried by
+every entity of all seven topology arenas. Kills remove the record
+together with the entity; survivors keep theirs; reparenting or
+demotion (`ring_move`, `kfmrh`'s loop demotion) is not a re-birth. The
+validator enforces the record bidirectionally: every live entity has
+one, and no record outlives its entity.
+
 ### D6 (agreed): Canonical internal units; typed units at the API boundary
 
 Kernel-internal code is raw `T` in meters/radians by convention — no
@@ -1020,9 +1059,11 @@ already cheap.
 grounds (rounding control, f64, portability) are re-checkable facts,
 and the table is revisited only if they change materially.
 
-**Engineering conventions PROPOSED at the M4 exit sweep
-(PROPOSED-8c — awaiting Evan's sign-off on the 8c PR; NOT yet
-ratified; each earned by a concrete M4 incident):**
+**Engineering conventions RATIFIED at the M4 exit sweep (the 8c PR,
+#119, merged 2026-07-27 with Evan's sign-off — M4-LOG: "THE M4 EXIT
+SWEEP IS RATIFIED", convention 2 sharpened at ratification to his
+structural-shared-validator form; each earned by a concrete M4
+incident):**
 
 1. **Sentinel-free tagged encodings.** Internal byte/key encodings
    never use in-band magic values (sentinel indices, marker floats);
@@ -1090,7 +1131,7 @@ ratified; each earned by a concrete M4 incident):**
 principle, equivariance, distance-only tesselation) sound good to me
 also"):**
 
-5. **Semantic equivariance where it is free — with the premise
+4. **Semantic equivariance where it is free — with the premise
    explicitly UNAUDITED.** Kernel constructions and selection rules
    should commute with rigid motions *and reflections* at the
    semantic level (in ℝ), unless equivariance is provably impossible
@@ -1114,24 +1155,6 @@ also"):**
    Precedent for the documented-residual escape: M5 S8's selection
    ladder, rung 3 — the first knowingly-designed residual.
 
-### D5 (agreed): Persistent topological identity from birth
-
-Every topological entity carries a provenance record from the moment it is
-created: which operation created it, from which inputs ("side face swept
-from sketch edge #3"). This does not solve the topological naming problem —
-the most user-visible unsolved problem in parametric CAD — but recording
-identity at birth is cheap, and retrofitting it onto anonymous entities is
-nearly impossible. The parametric layer (M4) builds its stable references
-on top of this record.
-
-Realized at M1 (PRs #17/#20/#23): provenance is a typed per-operator
-**birth record** — the operator plus its argument keys — carried by
-every entity of all seven topology arenas. Kills remove the record
-together with the entity; survivors keep theirs; reparenting or
-demotion (`ring_move`, `kfmrh`'s loop demotion) is not a re-birth. The
-validator enforces the record bidirectionally: every live entity has
-one, and no record outlives its entity.
-
 ## Layering
 
 Each layer depends only on the layers below it.
@@ -1141,14 +1164,16 @@ Each layer depends only on the layers below it.
 | `geom-core` | Scalar trait (`f64`, intervals, duals), 2-D/3-D points/vectors/transforms (hand-rolled, small, fixed-dim — we control the scalar trait), robust predicates, root finding |
 | `bvh` | *(added M5 PR 8, C10)* Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide (D9). Deliberately BELOW the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom-curves`/`geom-surfaces` |
 | `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
-| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic) |
-| `kernel-ops` | Primitives; extrude/revolve/sweep (build B-reps directly, no booleans needed — hence early); then booleans; then fillets/shell/offset |
-| `model` | Parametric layer: parameter space, feature DAG, persistent naming; later the sketch constraint solver |
-| `mesh` / `interop` | Tessellation, STL export, STEP export (import much harder — deferred) |
-| `editor-core` | *(added 2026-07-19)* Headless document/editor layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
-| `viewer` | Deferred (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
+| `geom-brep` | The B-rep geometry layer: D2's intensional edge descriptions, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches |
+| `profile` | 2-D sketch profiles as data: the bulge-chain `Profile` and its trilean validation |
+| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery (`topo::boolean`) |
+| `sweep` | Solids from validated profiles: extrude, revolve, loft/skin; fillets |
+| `mesh` / `stl` | Tessellation (watertight triangle meshes from B-rep bodies); STL export (binary + ASCII) |
+| `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset — import is LIVE as of M7 (own-corpus byte-identical round-trip, FreeCAD foreign corpus, wild corpus) |
+| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
+| `viewer` | Not yet a crate (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
 
-The API-first discipline falls out of this: layers 1–5 *are* the product,
+The API-first discipline falls out of this: every layer below `viewer` *is* the product,
 exercised entirely by tests and code-driven models (CadQuery/OpenSCAD-style
 usage as acceptance tests). The regression suite is mass-property checks
 (volume/centroid vs. closed forms), watertightness validation, and
@@ -1180,128 +1205,43 @@ precursor of the error-propagation feature.
   verified via exported meshes; demo viewer deferred.)*
 - **M3** — Intersections for analytic pairs; booleans; mass properties.
   *(First useful parts.)*
-- **M4** — Parametric model layer: parameter vector → feature DAG → solid;
-  provenance-based naming; replay. STEP export. *(Done-state recorded at
-  the 8c exit sweep, 2026-07-27 — shipped: `editor-core` recipe substrate
-  + expression sublanguage (#81); scalar-generic evaluation service with
-  memoized result DAG (#83); the naming stack end-to-end — StableName/
-  RolePath + eager tables (#87), resolution + diff engine + Rebind
-  (#96), GeomSource + Declare threading + the #95 recursive naming key
-  (#102); in-house AP214 STEP export with FreeCAD acceptance (#88, #94);
-  StableName-keyed appearance (#92); persistence schema v1 — snapshot +
-  edit log, bit-exact, **frozen** (#112); declared-tangency discipline
-  (#109); join-stage seam-region repairs closing a silently-wrong-volume
-  bug (#108, #113) and watertight CDT tessellation (#116); the Band 4
-  corpus + rebuild-latency reporting lane (#118); K-telemetry + large-K
-  lint in review (8b) at the time of writing. Fork outcomes F1–F8:
-  see "M4 fork outcomes" below.)* The naming layer also
-  **retires production bit-identity coincidence checking** (Evan, #53,
-  2026-07-21; M3 PR 4 / #57/#58): once surfaces carry global identity,
-  the "declared" coincidence rung (M3's bit-fingerprint comparison of
-  descriptions — `merge_coplanar_faces`' declared rung, PR 4's
-  `oriented_plane_eq` via the one sanctioned `Real`-level seam,
-  `geom_core::bit_identity`) becomes a provenance-record lookup; the bit
-  comparison leaves production entirely, surviving at most as a debug
-  assertion that the records and the bits agree. Until then the CI
-  bit-identity tripwires keep **every consumer of the channel
-  acknowledged**: a new consumer must be allowlisted in CI and carry its
-  own retirement-scheduled doc note, and the type-punning plumbing stays
-  confined to the single `bit_identity` seam. The retirement
-  *mechanism* is now ratified (NAMING-DESIGN N6, #74, 2026-07-23):
-  `GeomSource` syntactic recipe-source identity — same source ⇒ same
-  bits by D9, converse deliberately unclaimed. **Retirement EXECUTED
-  (M4 PR 5, #102, 2026-07-25): `bit_identity` is debug-only with an
-  EMPTY production allowlist** (memo.rs retained on its bit-hashing
-  non-consumer justification; tripwires stay armed); the designed
-  consequence, stated honestly (PR 5 review R2): undeclared value-equal
-  flush booleans now refuse typed at the coincidence door — the M3 bit
-  rung was doing real, now-forbidden work; the whole corpus and the
-  demos migrated to declared intent.
-- **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
-  fillets. Design record ratified: `docs/CURVED-DESIGN.md` (#85,
-  2026-07-24). *(Done-state recorded at the PR 14 exit sweep,
-  2026-08-03 — walk: `docs/M5-EXIT-WALK.md`. **Shipped**: the
-  interval-crate swap retiring inari and its LGPL stack from the tree
-  (#127); the C9 interval ring + projection/fitting/LSQ substrate
-  (#130, and PR 4); NURBS substrate parts 1–2; exact `Ellipse`
-  carriers with the C5 dispatch table (#141); SSI marching with the
-  three-limb certificate (#146) and its tensor-compose follow-on
-  (#149); certified pcurve storage in meters, seams with distinct
-  pcurves (#144); the BVH crate + sweep wiring, retiring the M3
-  boolean-sweep quadratic (#135); per-class curved booleans — plane×
-  cylinder, then plane×sphere — with the tangency regime and typed
-  touching refusals (#152, #154, #158, #164); `Loft`/`Sweep`
-  definitional nodes + schema v2 (#151); certified tessellation and
-  quadrature-based mass properties (#157); face-orientation sense
-  fixes (#155, #156); curved AP214 STEP export with FreeCAD
-  acceptance (#159); constant-radius fillets — cylinder bands, torus
-  rims, sphere-octant corners — and the die (#166); side units S1,
-  S2, S4, S6, S7, S8, S9. **The envelope moved, not vanished**: seven
-  units are BANKED by name, with their doors typed and pinned —
-  composition surgery, the SSI generic-`T` lift, loft/sweep body
-  assembly, the canal-surface blend, cyl×sphere germ chords, the
-  NURBS extent lift, and curved REST contact (see the frontier
-  entries below). **Acceptance shape (v), honestly**: the
-  die-with-pips ships as TWO bodies — a fully blended blank and a
-  21-pip die, each tier-3 valid, watertight, and STEP-exported — and
-  they do not compose at M5. Both orderings refuse typed at two
-  different pre-existing frontiers (fillet→pip at the curved-pierce
-  door, which is unconditional and not a clearance verdict; pip→
-  fillet at the whole-body assembly front door). The in-place
-  edge-blend surgery that closes them is sized at one reviewed unit
-  and banked at the head of the main-path queue. Shape (v) is
-  therefore recorded **met piecewise**, not met whole. *(CLOSED at
-  M6 unit 1: the surgery landed and THE COMPOSED DIE — blank + 21
-  pips + 21 rim tori — is one tier-3 body with a certified
-  closed-form volume; the M5 pin flipped with its history,
-  `m5_pr12_die.rs::deviation_1_flipped_*`.)*
-  **Sequencing**: #161 ratified the boundary and the 2026-08-03
-  renumbering gave it names — M5 exit → **M6** (SSI generic-`T` lift
-  → loft/sweep assembly → composition surgery → analytic-chart
-  pcurves, plus the census/declared-contact design doc) → **M7**
-  (STEP adoption only) → **M8** (error propagation, formerly M6).)*
-  Banked M5 openers from the M4 exit (8c, 2026-07-27):
-  **curved STEP subset** (banked planar-only; DISCHARGED at M5 PR 13 —
-  the writer now emits `CYLINDRICAL_`/`CONICAL_`/`SPHERICAL_`/
-  `TOROIDAL_SURFACE` and `CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS`
-  as EXACT native AP214 entities, conics deliberately NOT via the
-  rational-quadratic form the schema makes unnecessary; every demo-tour
-  body exports and imports into FreeCAD, so the narrated curved
-  refusals are gone. Two frontiers remain named: a NURBS FACE, which
-  the loft-assembly unit mints, and the outward/void classification of
-  a MULTI-shell curved solid, whose divergence-theorem reduction is a
-  planarity identity with no closed-form curved counterpart);
-  **arc-leg
-  fillet sugar** (#101 R4 scoped `LoopBuilder::fillet` to line/line
-  corners; arc-leg is the noted follow-up, see #104); **REST-contact
-  join lane** (the crosslap mate is a pure rest contact — M3 envelope
-  frontier, `crosslap_rest.rs` pins both doors; banked at #102 R7);
-  **#89 K-revisit at the M5 exit** — **TAKEN (PR 14, 2026-08-03;
-  K-REPORT "M5 addendum")**: ≈1.76M samples/ε-row over the curved
-  corpus + demos, still zero in-band landings and zero
-  indeterminate/invalid at every ε row, so no candidate K converts
-  any decision. But the surface is no longer FLAT: the ε-coupled
-  quadrature family `props_quad_converged` puts real definite
-  margins at ~1.6e2–8.4e2 × ε, leaving K = 100 only 1.65× of
-  clearance and K = 30 only 5.5×, against K = 10's 16.5×. The
-  outcome is **#89 CLOSED, K = 10 the permanent ratified default**
-  (Evan, PR #169 comment 5171303851, 2026-08-03), with a testable
-  re-open trigger: any corpus showing IN-BAND LANDINGS, whose
-  expected first source is the M7 import corpus. The computed-SSI
-  evidence Finding 4 named still has not arrived (no `ssi_*`
-  predicate samples; M5's curved booleans resolve through exact
-  analytic carriers), and the renumbering puts that corpus at M7 —
-  but three corpora now agree, and the close carries a testable
-  trigger rather than waiting on evidence that keeps not arriving.
-  The `k-lint` advisory row's rule 1 is the standing detector.
-  Two code follow-ups are named and deliberately not taken in the
-  docs-only exit unit: re-deriving the large-K lint's stale
-  `BASELINE_FLOOR_MARGIN` (the M5 distribution sits under it — 102
-  advisory flags per hosted run), and a `Probe` lane that actually
-  reaches the SSI marcher; **interval-crate adoption decision** — the
-  in-house `interval-transcendentals` crate (adoption GREEN-LIT, see crate table) exists as
-  workspace-excluded tooling (#115); adopting it in the kernel's
-  interval lane is an M5-PLAN ratified decision, not a default.
+- **M4** — Parametric model layer: parameter vector → feature DAG →
+  solid; provenance-based naming; replay. STEP export. *(Complete
+  2026-07-27. The shipped-unit list and the fork-outcome record
+  F1–F8 are recorded in `docs/archive/M4-LOG.md` (appendix; relocated from
+  this doc) and `docs/archive/M4-EXIT-WALK.md`.)* Standing design outcome
+  stated here because it still binds: **production bit-identity
+  coincidence checking is RETIRED** (Evan, #53; executed M4 PR 5,
+  #102). The ratified mechanism is NAMING-DESIGN N6 recipe-source
+  identity — `GeomSource`: same source ⇒ same bits by D9, converse
+  deliberately unclaimed. `geom_core::bit_identity` is debug-only
+  with an EMPTY production allowlist (CI tripwires stay armed; a new
+  consumer must be allowlisted and carry a retirement-scheduled doc
+  note; memo.rs retained on its bit-hashing non-consumer
+  justification). Designed consequence, stated honestly: undeclared
+  value-equal flush booleans refuse typed at the coincidence door —
+  declared intent is the supported road.
+- **M5** — NURBS depth (sweeps/lofts); first SSI marching;
+  constant-radius fillets. Design record ratified:
+  `docs/CURVED-DESIGN.md` (#85, 2026-07-24). *(Complete 2026-08-03;
+  the done-state of record is `docs/M5-EXIT-WALK.md`; the
+  shipped-unit list and the acceptance-shape/banked-openers
+  narrative were relocated to that walk's appendix.)* Standing
+  outcomes that still bind: **seven frontier units were BANKED by
+  name with typed, pinned doors** — M6 then closed composition
+  surgery, the SSI generic-`T` lift, and loft/sweep body assembly;
+  still banked: the canal-surface blend, cyl×sphere germ chords, the
+  NURBS extent lift, curved REST contact, and arc-leg fillet sugar
+  (#104). Acceptance shape (v) was recorded met piecewise at M5 and
+  CLOSED at M6 unit 1 (the composed die is one tier-3 body; the M5
+  pin flipped with its history). The #89 K-revisit was TAKEN at the
+  M5 exit and the outcome is **#89 CLOSED, K = 10 permanent** (Evan,
+  PR #169; K-REPORT M5 addendum — and see K-REPORT's M7 addendum for
+  the fired-and-retired landing). The in-house
+  `interval-transcendentals` crate (adoption GREEN-LIT, see crate
+  table) exists as workspace-excluded tooling (#115); adopting it in
+  the kernel's interval lane is an M5-PLAN ratified decision, not a
+  default.
 - **M6** — **the main-path completions** *(new milestone, ratified
   by the 2026-08-03 renumbering — Evan on PR #169, comment
   5171303851: "perhaps the old M6 could be renamed to M8 since we're
@@ -1320,7 +1260,13 @@ precursor of the error-propagation feature.
   same ruling (Evan: "we shouldn't fold any core work like ball and
   socket into M7") — curved REST contact is core kernel work, so its
   design lands with the main path even though its implementation
-  does not.
+  does not. *(Status 2026-08-05 — OPEN, exit walk not yet run
+  (docs/M6-LOG.md status summary): units 1–4 closed — surgery #171,
+  SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN ratified
+  #178. REMAINING: unit 5 (edge-selection fillet vocabulary), unit 6
+  (the ratified curved sense-flip tier gate — Evan on the #184
+  triage), and the k-lint floor + hygiene pickups. Closure awaits
+  Evan's exit-walk ruling.)*
 - **M7** — STEP import as adoption (D7), **and nothing else**:
   analytic surface recognition, edge adoption, healing. Scope
   narrowed by the 2026-08-03 ruling (Evan: "M7 should stay as just
@@ -1342,85 +1288,16 @@ precursor of the error-propagation feature.
   Licensing-hygiene work with no usability payoff is deliberately
   *not* sequenced here — it lives in [Tabled](#tabled-far-future).
 
-### M4 fork outcomes (F1–F8, ratified at the 8c exit sweep, 2026-07-27)
+### M4 fork outcomes (F1–F8)
 
-The forks were recorded and resolved at M4 ratification
-(`docs/M4-PLAN.md`, #80); this is the outcome record — each fork:
-decision, where it landed, notable deviations. Full trail:
-`docs/M4-LOG.md`.
-
-- **F1 (restrictive dimension lattice)** — landed as ratified in
-  `editor-core`'s expression sublanguage (#81): {Length, Angle,
-  Count, Scalar}, dimension-changing products/quotients typed
-  refusals, same-dimension ratios refused in v1. No deviations.
-- **F2 (result-DAG shape)** — landed F2-verbatim (#83):
-  `Evaluation`/`NodeResult`/`NodeValue`, descendants-only poisoning,
-  scalar-generic evaluator, epochs + cancelation in the signature.
-  Notable accepted deviation (Evan, #81 rulings): **`Doc<P>`
-  genericity** — the document type is generic over the profile
-  payload rather than concrete.
-- **F3 (persistence concretes)** — landed as schema v1 (#112):
-  snapshot + edit log, leading integer schema version, explicit
-  migration chain, floats shortest-round-trip, NaN/inf typed refusal
-  at BOTH doors (save-side walls added at the review's symmetry
-  sweep). Format choice (PR-spec latitude, REPORTED): **JSON via
-  serde_json** — ryu floats + tooling; the `float_roundtrip` feature
-  is load-bearing (caught real last-ulp parse drift day one).
-  Metadata (Evan's #92 ask) landed as the **`MetaValue` tree after
-  two D7 rounds with Evan** (final: MetaValue tree, serde-native
-  boundary, v-field convention) rather than opaque bytes.
-  **Schema v2 (M5 PR 10)**: the recipe vocabulary grew `Loft`/`Sweep`
-  and the version bumped as a ratified CLEAN BREAK (Evan, #148) — no
-  migration step was written, a v1 file refuses typed
-  (`PersistError::SchemaTooOld`, naming the regenerate recourse), and
-  the repo's own v1 golden was regenerated once. The kernel is
-  unreleased and every file it has written replays from source, so
-  live compatibility code would have been carried for nobody. The
-  migration MECHANISM stays (an explicit, currently empty step
-  table): D6.3's forward-only rule is unchanged, and the next
-  non-breaking format change adds its step there.
-- **F4 (v1 node vocabulary)** — landed as ratified (#81; Declare
-  live end-to-end at #102); `tangent_joints` joined schema v1 before
-  the freeze (#109 → #112). Revolved-hole sugar stayed deferred.
-  **`Loft`/`Sweep` joined the vocabulary at M5 PR 10** as ORDINARY
-  ops under the same rules (named slots, the structural/continuous
-  divide, refs to existing nodes only) — the Q8 definitional posture
-  is stated in rustdoc at both the node and the surface.
-  Noted gap (demo REPORT, #98): Boolean-of-Pattern is not wireable
-  in F4 — a possible future vocabulary item.
-- **F5 (Declare threading)** — landed at #102: declarations are
-  recipe data on the consuming node, resolved by name through
-  operand tables; the M3 operand-internal-declaration envelope entry
-  is retired (closure corpus certifies declared). **Verified-at-use
-  semantics (ratified wording, PR 5 review F5)**: a false
-  declaration that never meets geometry is a silent no-op;
-  contradiction fires where the lie meets an edge. The designed
-  narrowing (R2) is recorded under the M4 roadmap entry above.
-- **F6 (STEP export)** — decided EARLY per Evan's amendment; spike
-  outcome: **in-house AP214 analytic-subset writer, adopt nothing at
-  runtime** (#88); ruststep/truck-stepio survive as dev-dependency
-  parse-back oracles only. Tail of the story: FreeCAD acceptance
-  discharged locally then hosted (#94); the review added a
-  parse-based **signed-volume text oracle** closing the OCC-healing
-  blind spot (OCC silently rectifies inverted shells); the STEP lane
-  then became the demo RENDER path (#98) and the watertightness
-  gate's second leg alongside admesh (#116). At M5 PR 13 the OCC
-  blind spot was re-measured on CURVED geometry and is unchanged —
-  `revert(ball)` and `revert(washer)`, every face `same_sense = .F.`,
-  import as valid with the same positive volumes as the un-reverted
-  bodies — so the curved orientation acceptance is text-level by
-  necessity: an edge-use-coherence oracle over the emitted Part 21,
-  whose negative control is the double-composition bug itself.
-- **F7 (expression AST + ExprPath)** — landed at #81: no
-  conditionals in v1 (held throughout); ExprPath stable under edits
-  to other expressions. Known caveat carried forward as designed:
-  same-slot ancestor replacement silently re-points stale paths —
-  documented at PR 1, made a binding caveat in the PR 5 spec.
-- **F8 (milestone boundary)** — held: the persisted file IS in M4
-  (schema v1 frozen, #112); the Band 4 corpus landed (#118, 9
-  documents / 174 nodes, coverage asserted) with rebuild latency
-  MEASURED AND REPORTED, not gated — PERF-PLAN stays advisory; the
-  latency rows joined the hosted matrix as reporting.
+Resolved and ratified at the 8c exit sweep (2026-07-27). The
+distilled outcome record — each fork: decision, landing site,
+notable deviations — was relocated to `docs/archive/M4-LOG.md` (appendix,
+2026-08-05); the full trail is M4-LOG/M4-PLAN (#80). Still-live
+outcomes are stated where they bind: the dimension lattice and node
+vocabulary in the M4 roadmap entry and D8, persistence schema rules
+in D6.3/F3's clean-break record, the STEP posture in D7 and the
+crate table.
 
 ## Beyond the kernel: the usability gap
 
@@ -1752,7 +1629,8 @@ persisted decision log**:
   day-one commitment.
 - At `T = f64` predicates are total (margins within K·ε escalate per D4;
   ratified in PR #5 as the *sliver band* — semantically indeterminate
-  even under exact arithmetic, provisional K = 10; K is a policy dial —
+  even under exact arithmetic, K = 10 (permanent ratified default, #89
+  closed); K is a policy dial —
   refusal rate and f64 noise headroom — not a correctness parameter:
   soundness rests on escalate-never-guess, D4 ¶2 certification, and
   interval replay, for any K > 1).
@@ -1813,23 +1691,14 @@ revision).
   with the f64 build). A non-generic `Topology` split was considered
   and rejected (cross-instantiation topology comparison is expressible
   as a plain function because keys don't carry `T`).
-- **K's numeric value: resolved at M2 exit (docs/K-REPORT.md; the M0
-  carry closed).** The M2 multi-ε telemetry (unified recorder in
-  `geom_core::k_stats`, PR 7; 13k+ samples/row at ε ∈ {1e-6, 1e-9,
-  1e-12} across 63 named predicates over the full acceptance pipeline)
-  found margin distributions extremely bimodal — zero-side |m| at
-  rounding scale (≤1e-15), definite-side |m| ≥ 10⁴·ε — with zero
-  escalation-band landings; counterfactually K ∈ {3, 10, 30, 100} are
-  decision-equivalent on this corpus. **K = 10 stays the default**, and
-  (Evan, #41, 2026-07-20) K is now ε-style per-run configuration
-  (`Tolerance.k`, env-overridable, one value per run, never changed
-  mid-run) rather than a compile-time constant — expected to join ε
-  under the banked change-ε/`SetTolerance` principle (per-model
-  persisted, recorded change op) at the document layer. Scope honesty:
-  a native-construction corpus is well-conditioned by design; the
-  discriminating K evidence is expected from D7 import adoption and
-  M3's boolean/SSI predicates, and the recommendation is explicitly
-  revisitable then (a policy dial, not a correctness parameter).
+- **K's numeric value: CLOSED — K = 10 is the permanent ratified
+  default (#89 closed, PR #169; evidence trail in docs/K-REPORT.md
+  and its milestone addenda).** K remains a policy dial, not a
+  correctness parameter, and (Evan, #41, 2026-07-20) is ε-style
+  per-run configuration (`Tolerance.k`, env-overridable, one value
+  per run, never changed mid-run) — expected to join ε under the
+  banked change-ε/`SetTolerance` principle (per-model persisted,
+  recorded change op) at the document layer.
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
@@ -1904,11 +1773,11 @@ placeholder workspace acceptable; pre-publish renames are cheap.
 ### Deferred to their milestones (listed so they don't get lost)
 
 Vertex-geometry taxonomy (M3, when intersections exist); profile/sketch
-input format (M2); the ambiguity constant K's numeric value (M2+ —
-topology is scalar-free and consults no predicate, so M1 generated no
-new evidence; εₐ itself was eliminated by the D4 ¶1 revision of
-2026-07-16 — angular thresholds are derived per predicate); body-level
-serialization beyond the recipe (post-STEP-export). *(Discharged at
+input format (M2); body-level
+serialization beyond the recipe (post-STEP-export). *(Discharged:
+the ambiguity constant K's numeric value — CLOSED, K = 10 permanent,
+#89/docs/K-REPORT.md; εₐ was eliminated by the D4 ¶1 revision of
+2026-07-16 — angular thresholds are derived per predicate.)* *(Discharged at
 M1: orientation/sense conventions and the validator's concrete
 invariant checklist — both ratified into D1.)*
 

@@ -20,7 +20,7 @@ streams beats compromising either.
 the careful writeup in the PR description; merge with a merge commit
 (`gh pr merge --merge`, never `--squash`/`--rebase`). Exception (confirmed
 by Evan): PRs that ratify open design questions in DESIGN.md are design
-conversations per docs/M0-PLAN.md — wait for Evan's sign-off before
+conversations (rule from M0-PLAN, now docs/archive/M0-PLAN.md) — wait for Evan's sign-off before
 merging; routine implementation self-merges. See [[cad-working-style]].
 
 **Push early, push often (added 2026-07-16, M1):** implementer agents

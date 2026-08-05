@@ -1,12 +1,16 @@
 # GUI / Editor Architecture — Design Document
 
-**Status: v0, skeleton.** Companion to `DESIGN.md` (read that first;
-this doc never overrides D1–D9). GUI work is sequenced **after**
-"usable as a library" (DESIGN.md, Beyond the kernel), but the
-decisions here are banked early because they are cheap at design time
-and expensive to retrofit — several constrain M4's recipe/naming
-design, not just the eventual GUI. Same conventions as DESIGN.md:
-decisions marked *agreed* are settled; GQ items are open.
+**Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 all resolved
+and shipped in `editor-core` — see the freshness note; GQ6–GQ7
+deferred to GUI time by design); the GUI layer itself remains
+unbuilt as sequenced.** Companion to
+`DESIGN.md` (read that first; this doc never overrides D1–D9). GUI
+work is sequenced **after** "usable as a library" (DESIGN.md, Beyond
+the kernel), but the decisions here were banked early because they
+are cheap at design time and expensive to retrofit — several
+constrained M4's recipe/naming design, not just the eventual GUI.
+Same conventions as DESIGN.md: decisions marked *agreed* are
+settled.
 
 *Freshness note (M4 8c exit sweep, 2026-07-27):* the middle layer this
 doc banks on is now REAL — `editor-core` exists with the recipe
@@ -136,7 +140,7 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
-## Open questions
+## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6–GQ7 deliberately deferred to GUI time)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
 
