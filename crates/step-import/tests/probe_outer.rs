@@ -19,15 +19,30 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
         "/tests/fixtures/freecad/box_hole.step"
     );
     let base = std::fs::read_to_string(p).unwrap();
-    let StepImport::Solid { body, .. } = import_step(&base, &ImportOptions::default()).unwrap()
-    else {
-        panic!()
-    };
-    let v0 = topo::mass_properties(&body).unwrap().volume;
-    println!("baseline volume {v0}");
+    // `box_hole` is one of the four cylindrical-chart FreeCAD fixtures
+    // that refuse typed above the M7-2 corpus ε ceiling, so above it
+    // there is no baseline to compare against and the probe's question
+    // is unanswerable. What IS answerable at any ε — and is the half
+    // that would actually be dangerous — is that marking every bound
+    // outer never turns a file the kernel refuses into one it accepts.
+    let baseline = import_step(&base, &ImportOptions::default());
     // Mark EVERY bound outer: the hole now claims to be an outer bound.
     let m = base.replace("FACE_BOUND(", "FACE_OUTER_BOUND(");
     assert_ne!(m, base);
+    let Ok(StepImport::Solid { body, .. }) = baseline else {
+        let eps = geom_core::Tolerance::get().eps;
+        println!(
+            "baseline refuses at ambient ε {eps:e}: {:?}",
+            baseline.err()
+        );
+        assert!(
+            import_step(&m, &ImportOptions::default()).is_err(),
+            "the all-outer latitude must not import a file the honest one refuses"
+        );
+        return;
+    };
+    let v0 = topo::mass_properties(&body).unwrap().volume;
+    println!("baseline volume {v0}");
     match import_step(&m, &ImportOptions::default()) {
         Ok(StepImport::Solid { body, .. }) => {
             let t3 = topo::validate_geometric(&body);
