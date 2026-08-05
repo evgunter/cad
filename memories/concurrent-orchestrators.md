@@ -42,3 +42,15 @@ account dies mid-lane, its lanes are resumable only from its own
 session — do not adopt them; report to Evan instead. When one
 milestone finishes, ratify the wind-down of this split explicitly
 (update this memory).
+
+**WOUND DOWN (Evan, in-chat, 2026-08-05): the M6 orchestrator is
+done.** The M7 orchestrator (cad-implement-m7) is sole
+orchestrator: both cargo slots, both watchlists' scope (the
+default signoff-watchlist.txt is retired — new entries go to
+signoff-watchlist-m7.txt), M6-owned files unfenced (M6-LOG etc.
+now maintained by the sole orchestrator). Evan's pickup
+instruction transferred PR #192 (M6-3 partial) explicitly; its
+in-flight unit completes under the standing process with the
+arm the M6 orchestrator assigned (FABLE, block-21 remainder).
+The dead session's agents are unresumable — completion runs as
+FRESH dispatches per [[resume-vs-fresh-subagent]].
