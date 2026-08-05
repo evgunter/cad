@@ -679,7 +679,10 @@ pub fn wall_probes<S: Scalar>() {
          refusal, so it cannot be probed at runtime. Walls 8 and 10 CLOSED with \
          M6-3: `sweep::sweep_body` is the general-path sweep body and \
          `sweep::loft_body` the skin assembly — the loft stop builds one live, \
-         and `skinned::narration`'s retire-on-closure pin fired as designed.)"
+         and `skinned::narration`'s retire-on-closure pin fired as designed. \
+         Wall 10's closure was only PARTIAL until #207: every curved path \
+         refused at assembly on the skin fit's synthesized weight channel, \
+         so the general-path sweep had no successful caller until that fix.)"
     );
 }
 

@@ -736,6 +736,18 @@ fn wire_pattern<T: Decide>(
 /// exercised through the library API; it is only this NODE lane that
 /// is gated, at one door, so the message cannot imply an expressible
 /// case that does not exist.
+///
+/// **Honest correction (#207).** That sentence was written at M6-3 and
+/// was NOT true as written until #207 closed. `sweep_body` with any
+/// CURVED path refused at assembly — the skin fit synthesized a weight
+/// channel for integral sections, the walls came out bitwise rational,
+/// and `nurbs_span_meter` poisoned — so between M6-3 and #207 the
+/// machinery had zero successful curved-path callers anywhere in the
+/// tree, and only the straight-path/uniform-loft slice was exercised.
+/// The claim stands today on a real caller:
+/// `sweep/tests/m7_skin_integral.rs` builds, validates and measures a
+/// quarter-torus elbow, and `step-export/tests/m7_swept_elbow.rs` puts
+/// it on the wire.
 pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
      a closed chain of two or more segments, even at the minimal \
      two-vertex circle — while §10.4's rigid-profile sweep needs the \
