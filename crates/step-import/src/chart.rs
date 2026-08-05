@@ -64,8 +64,12 @@ pub(crate) enum OuternessRefusal {
     /// Containment and orientation disagree: a ring contained in
     /// another turns the same way it does.
     OrientationContradicts,
-    /// The chart is one the closed-form inverse does not cover (a NURBS
-    /// face — the named M7 frontier, which cannot reach here today).
+    /// The chart is one the closed-form inverse does not cover: a
+    /// NURBS face, which has no `uv_of` arm (M7-3 item 6 — the named
+    /// frontier past the imported single-bound loft class; a
+    /// multi-ring NURBS face refuses earlier still, at the
+    /// curved-face ring gate in `entities::face`, so this refusal is
+    /// the stage-1 banked backstop, not the common path).
     UnsupportedChart,
 }
 

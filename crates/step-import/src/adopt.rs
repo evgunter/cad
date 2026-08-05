@@ -294,9 +294,32 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
             &v(u_ref),
         ]
         .concat(),
-        // Unreachable for parsed subset surfaces (resolution refuses
-        // NURBS); a distinct tag keeps the map total anyway.
-        Surface::Nurbs(_) => vec![5u64],
+        // The full structural payload: degrees, knot values, control
+        // bits, weight bits (M7-3). A tag-only arm here was the
+        // silent-wrong-body trap: once NURBS surfaces parse, every
+        // wall in a body would share ONE surface key — four distinct
+        // walls collapsing to one surface, exactly the class of wrong
+        // the dedup exists to prevent — so the signature hashes every
+        // field the record states, like the analytic arms above.
+        // Counts lead each variable-length section so two payloads
+        // with different shapes cannot alias by concatenation.
+        Surface::Nurbs(ref payload) => {
+            let (nu, nv) = payload.control_counts();
+            let mut sig = vec![
+                5u64,
+                payload.knots_u().degree() as u64,
+                payload.knots_v().degree() as u64,
+                payload.knots_u().knots().len() as u64,
+                payload.knots_v().knots().len() as u64,
+                nu as u64,
+                nv as u64,
+            ];
+            sig.extend(payload.knots_u().knots().iter().map(|k| k.to_bits()));
+            sig.extend(payload.knots_v().knots().iter().map(|k| k.to_bits()));
+            sig.extend(payload.control().iter().flat_map(|q| p(*q)));
+            sig.extend(payload.weights().iter().map(|w| w.to_bits()));
+            sig
+        }
     }
 }
 
@@ -374,7 +397,49 @@ fn adopt_edges(
         // docs: intrinsic before conventional).
         let mut candidates: Vec<(AdoptionCandidate, EdgeGeometry<f64>)> = Vec::new();
         let mut conventional = true;
+        let mut nurbs_rim = false;
         if fs_plus != fs_minus {
+            // The IsoCurve rung (M7-3): a NURBS-carried edge between
+            // two described NURBS walls is the loft/sweep wall–wall
+            // seam class — the carrier the writer emitted IS one
+            // wall's `u ∈ {0, 1}` boundary column
+            // (`geom_brep::boundary_iso_u`, a control-net copy), so
+            // the match is BITWISE, sound own-corpus (the printer
+            // round-trips bits; an ε_in-tolerant match is an
+            // M7-2-style widening, not this rung's). Offered FIRST:
+            // it is the description class the native builder stores
+            // (the at-rest preference is the native body's state),
+            // and the intrinsic rungs below cannot certify a Nurbs
+            // resolved surface at all (`geom_brep` check 1 refuses
+            // typed) — they stay on the ladder so a non-matching
+            // edge still reports every attempt. `u = 0` arms lead:
+            // each native seam is minted as its forward wall's
+            // `u = 0` boundary, so the first certifying candidate
+            // reproduces the native description exactly. `v0`/`v1`
+            // are the carrier's own derived interval — its full knot
+            // domain, which the bitwise match pins to the wall's v
+            // domain ([0, 1] for every exported wall).
+            if let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier {
+                for end in [false, true] {
+                    for wall in [fs_plus, fs_minus] {
+                        if let Some(Surface::Nurbs(wp)) = body.get_surface(wall)
+                            && !wp.is_placeholder()
+                            && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
+                            && bitwise_iso_match(nurbs_carrier, &iso)
+                        {
+                            candidates.push((
+                                AdoptionCandidate::IsoCurve,
+                                EdgeGeometry::IsoCurve {
+                                    surface: wall,
+                                    u: if end { 1.0 } else { 0.0 },
+                                    v0: spec.t0,
+                                    v1: spec.t1,
+                                },
+                            ));
+                        }
+                    }
+                }
+            }
             candidates.push((
                 AdoptionCandidate::Intersection,
                 EdgeGeometry::Intersection {
@@ -423,14 +488,66 @@ fn adopt_edges(
             // contract promises it will not need to). The rung
             // therefore requires BOTH: the two records describe one
             // locus, and this edge's carrier lies on it.
-            conventional =
-                coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
+            // **The Nurbs-adjacency exemption (M7-3 item 4)** — the
+            // cap-plane × NURBS-wall rim class, exempt BY KIND
+            // (mirroring tier-3 check 4's flip-B exemption,
+            // `topo::validate`): coincidence is an implicit-form
+            // question and a NURBS wall has no implicit form, so the
+            // gate above can never answer for this pair — while the
+            // class itself is exactly the conventional one (the
+            // wall's `v ∈ {0, 1}` iso IS the placed profile segment;
+            // the loft builder's own rims carry `PlacedSegment`).
+            // What keeps the rung honest here is not this gate but
+            // the pcurve mint the import runs unconditionally: on a
+            // non-rational wall every rim's chart image is derived
+            // and CERTIFIED against the wall (`nurbs_iso_derive`'s
+            // side pick + the iso lane), so a carrier that wanders
+            // off the wall boundary fails the import loudly. A
+            // rational wall mints nothing — exactly the native
+            // rational body's state, whose tier-3 refusal the import
+            // preserves (item 5's Arm B).
+            nurbs_rim = nurbs_plane_pair(body.get_surface(fs_plus), body.get_surface(fs_minus));
+            // The ARC-rim residual gate (M7-3 fix pass, review F1):
+            // BEFORE the conventional rung is offered, an arc rim
+            // must lie on its NURBS wall's own boundary column —
+            // on a rational wall this is the rim's ONLY
+            // certification (gate docs). Failure is its own typed
+            // refusal naming the residual, not a silent rung
+            // withdrawal. LINE rims are endpoint-forced and stay
+            // ungated (gate docs).
+            if nurbs_rim && matches!(spec.carrier, Curve3::Circle { .. }) {
+                let wall =
+                    [fs_plus, fs_minus]
+                        .into_iter()
+                        .find_map(|k| match body.get_surface(k) {
+                            Some(Surface::Nurbs(p)) if !p.is_placeholder() => Some(p.clone()),
+                            _ => None,
+                        });
+                if let Some(wall) = wall {
+                    arc_rim_on_wall_boundary(
+                        wall.as_ref(),
+                        &spec.carrier,
+                        spec.t0,
+                        spec.t1,
+                        p_start,
+                        p_end,
+                    )
+                    .map_err(|residual| {
+                        StepImportError::RimOffWallBoundary {
+                            id: edge_id,
+                            residual,
+                        }
+                    })?;
+                }
+            }
+            conventional = nurbs_rim
+                || (coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
                     && carrier_on_surface(
                         body.get_surface(fs_plus),
                         &spec.carrier,
                         spec.t0,
                         spec.t1,
-                    );
+                    ));
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -450,7 +567,7 @@ fn adopt_edges(
         }
         if conventional
             && let Some(mapped) =
-                mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1)
+                mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
             candidates.push((
                 AdoptionCandidate::MappedCurve,
@@ -494,14 +611,49 @@ fn adopt_edges(
 /// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
 /// and no exported body puts one inside a single surface); the ladder
 /// then reports every refusal typed.
+///
+/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
+/// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
+/// with one root: `PlacedSegment { Line }` is the description CLASS
+/// the native loft builder stores for exactly this edge class, and it
+/// is the shape the NURBS chart's pcurve derivation accepts
+/// (`topo`'s `nurbs_iso_derive` — its `ExtrudedPoint` mint from a
+/// LINE carrier would refuse there, the measured mint blocker; the
+/// alternative, an `ExtrudedPoint` arm in `nurbs_iso_derive` itself,
+/// would widen the kernel's own certification vocabulary to spare
+/// the importer a description it can synthesize exactly). Same class
+/// and same certification surface — but NOT the same payload bits:
+/// the native builder's segment lives in sketch coordinates under the
+/// cap placement, while the synthesized one is the carrier's own
+/// interval on its own axis (`a = (t0, 0)`, `b = (t1, 0)` under a
+/// rigid frame whose x-axis is the carrier direction) — an
+/// equivalent parameterization of the same locus, exact up to the
+/// placement arithmetic (the sketch plane never crosses the STEP
+/// wire, so the native payload is not recoverable; review F5 pinned
+/// the honest statement to class level). Arc rims stay
+/// `RevolvedPoint` in both cases — on a rational wall nothing mints
+/// (the native rational body's own state), and a non-rational wall
+/// has no arc rims to mint (its profile was a polyline). Arc rims on
+/// a rational wall additionally pass the [`arc_rim_on_wall_boundary`]
+/// residual gate BEFORE this rung is offered (review F1).
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,
     p_end: Point3<f64>,
     t0: f64,
     t1: f64,
+    nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
+        Curve3::Line { origin, dir } if nurbs_rim => {
+            line_frame(*origin, *dir).map(|place| MappedCurve::PlacedSegment {
+                segment: geom_brep::SketchSegment::Line {
+                    a: Point2::new(t0, 0.0),
+                    b: Point2::new(t1, 0.0),
+                },
+                place,
+            })
+        }
         Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
@@ -516,6 +668,217 @@ fn mapped_self_description(
         }),
         Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
     }
+}
+
+/// The import-side residual gate for an **ARC rim against its NURBS
+/// wall** (M7-3 fix pass, review F1). On a RATIONAL wall nothing else
+/// ever checks the rim: no pcurve mints (`chart_mints` = false), the
+/// tier-3 dihedral is Nurbs-exempt by kind, and the conventional
+/// `RevolvedPoint` description certifies only against itself — the
+/// review's executed attack (a different circle through the same two
+/// endpoints) imported t1/t2-valid with the verbatim native tier-3
+/// refusal, indistinguishable from a correct body. This gate closes
+/// that hole WITHOUT narrowing Arm B: rational-surface EVALUATION is
+/// exact kernel arithmetic (only the certification/mint lanes refuse
+/// rational payloads), so the wall's own boundary column
+/// (`boundary_iso_v` — the locus the rim claims to be) is sampled at
+/// the certification schedule and metered against the rim circle's
+/// CLOSED-FORM distance, the [`carrier_on_surface`] door pattern with
+/// the roles arranged so every quantity has a closed form (a point's
+/// distance to a rational patch does not; its distance to a circle
+/// does).
+///
+/// Two obligations per sample, both metered in meters at the ambient
+/// tolerance: (a) the boundary sample lies on the circle LOCUS
+/// (`hypot(axial, |radial| − r)`), and (b) its circle angle lies
+/// inside the rim's own parameter interval, the angular deviation
+/// converted by the lever arm `r` (D4 ¶1 — no raw-angle tolerance).
+/// (b) is what refuses the complement-arc variant of the attack (same
+/// locus, wrong arc). The boundary's ENDS must land on the rim's
+/// pinned vertices first (either orientation) — a boundary that does
+/// not even connect them is metered by its endpoint miss.
+///
+/// **LINE rims are deliberately not gated here** (the review's own
+/// verdict, ruled to stand): a line through two pinned vertices is
+/// unique — the carrier locus is endpoint-forced — and on the
+/// non-rational walls of the exportable class the pcurve re-mint
+/// re-certifies every line rim against the wall besides.
+///
+/// `Err` carries the best (smallest) worst-sample deviation over both
+/// boundary candidates, for the typed refusal.
+fn arc_rim_on_wall_boundary(
+    wall: &geom_surfaces::NurbsSurface<f64>,
+    carrier: &Curve3<f64>,
+    t0: f64,
+    t1: f64,
+    p_start: Point3<f64>,
+    p_end: Point3<f64>,
+) -> Result<(), f64> {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = *carrier
+    else {
+        // Only arc rims are gated (doc above); the caller matches
+        // Circle before calling, so this arm is defensive totality.
+        return Ok(());
+    };
+    let eps = geom_core::Tolerance::get().eps;
+    let axis_norm = axis.norm();
+    let u_ref_norm = u_ref.norm();
+    if !(radius.is_finite() && radius > 0.0)
+        || !(axis_norm.is_finite() && axis_norm > 0.0)
+        || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
+    {
+        return Err(f64::INFINITY);
+    }
+    let a_hat = axis / axis_norm;
+    let u_hat = u_ref / u_ref_norm;
+    let v_hat = a_hat.cross(u_hat);
+    let tau = core::f64::consts::TAU;
+    // The angular slack: the ambient band through the lever arm.
+    let slack = eps / radius;
+    let mut best = f64::INFINITY;
+    for end in [false, true] {
+        let Ok(iso) = geom_brep::boundary_iso_v(wall, end) else {
+            continue;
+        };
+        let (d0, d1) = iso.domain();
+        let q0 = iso.eval(d0);
+        let q1 = iso.eval(d1);
+        let ends_match = (q0.distance(p_start) <= eps && q1.distance(p_end) <= eps)
+            || (q0.distance(p_end) <= eps && q1.distance(p_start) <= eps);
+        if !ends_match {
+            let miss = q0
+                .distance(p_start)
+                .min(q0.distance(p_end))
+                .max(q1.distance(p_start).min(q1.distance(p_end)));
+            best = best.min(miss);
+            continue;
+        }
+        let mut worst = 0.0f64;
+        for i in 0..geom_brep::CERT_SAMPLES {
+            let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
+            let q = iso.eval(d0 + (d1 - d0) * f);
+            let w = q - center;
+            // The axial component, bound by name (the tripwire note
+            // in [`line_frame`], same shape).
+            let axial = w.dot(a_hat);
+            let radial = w - a_hat * axial;
+            let ring = (radial.norm() - radius).hypot(axial);
+            let mut theta = w.dot(v_hat).atan2(w.dot(u_hat));
+            if !(ring.is_finite() && theta.is_finite()) {
+                worst = f64::INFINITY;
+                break;
+            }
+            while theta < t0 - slack {
+                theta += tau;
+            }
+            while theta >= t0 - slack + tau {
+                theta -= tau;
+            }
+            let arc_excess = (theta - t1 - slack).max(0.0) * radius;
+            worst = worst.max(ring).max(arc_excess);
+        }
+        if worst <= eps {
+            return Ok(());
+        }
+        best = best.min(worst);
+    }
+    Err(best)
+}
+
+/// One side a described (non-placeholder) NURBS wall, the other a
+/// plane — the cap-rim adjacency the conventional rung's exemption
+/// names (its call site's comment). Any other pairing answers
+/// `false`: the exemption is exactly as wide as the class it serves.
+fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
+    let described_nurbs =
+        |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Nurbs(p)) if !p.is_placeholder());
+    let plane = |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Plane { .. }));
+    (described_nurbs(s1) && plane(s2)) || (plane(s1) && described_nurbs(s2))
+}
+
+/// A rigid frame whose x-axis is the (unit) line direction, placed at
+/// the line's origin — the `PlacedSegment` placement for a
+/// Nurbs-adjacent rim ([`mapped_self_description`]). The y/z columns
+/// complete an orthonormal frame (they never move a segment point —
+/// every sketch point has `y = 0` — but a placement claims rigidity
+/// as conventional data, so honest perpendiculars are minted).
+///
+/// The seed axis is the coordinate axis of the direction's SMALLEST
+/// component magnitude: for a unit-ish direction that axis is at
+/// least `1/√3` from parallel, so the projection step below is always
+/// well-conditioned. The old first-coordinate-axis pick (`|x| < 1.0`)
+/// was executed into a fail-loud violation by the M7-3 review (F2): a
+/// DIRECTION one ulp under unit and x-parallel is kept VERBATIM by
+/// the ε_in direction reader, satisfied `|x| < 1.0`, and minted
+/// `y ∥ dir`, `z = 0` — a det-0 claimed-rigid placement inside a
+/// certified body. Belt and braces on top of the conditioning
+/// argument: a frame that still cannot be completed (non-finite or
+/// zero direction) answers `None`, the conventional rung is WITHHELD,
+/// and the edge refuses typed through the ladder — never a silent
+/// degenerate placement.
+fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<f64>> {
+    let (ax, ay, az) = (dir.x.abs(), dir.y.abs(), dir.z.abs());
+    let candidate = if ax <= ay && ax <= az {
+        geom_core::Vec3::new(1.0, 0.0, 0.0)
+    } else if ay <= az {
+        geom_core::Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        geom_core::Vec3::new(0.0, 0.0, 1.0)
+    };
+    // The projection coefficient, bound by name so the subtraction
+    // reads as "remove the axial part" — and so the expression is not
+    // the `v * v`-shaped text the interval-square tripwire watches
+    // for (there is no square here: `dir` scales a dot of two
+    // DIFFERENT vectors — the `Resolver::placement` precedent,
+    // verbatim).
+    let along = dir.dot(candidate);
+    let perpendicular = candidate - dir * along;
+    let norm = perpendicular.norm();
+    if !(norm.is_finite() && norm > 0.0) {
+        return None;
+    }
+    let y = perpendicular / norm;
+    let z = dir.cross(y);
+    Some(Affine3::from_parts(
+        geom_core::Mat3::from_cols(dir, y, z),
+        origin - Point3::origin(),
+    ))
+}
+
+/// Bitwise equality of a parsed NURBS carrier against a wall's
+/// boundary iso-curve — degree, knot values, control points and
+/// weights all to the bit (the IsoCurve rung's match; its call site's
+/// soundness comment). Weight lengths follow control lengths on both
+/// sides by construction (`NurbsCurve3::new` validates them equal).
+fn bitwise_iso_match(
+    carrier: &geom_curves::NurbsCurve3<f64>,
+    iso: &geom_curves::NurbsCurve3<f64>,
+) -> bool {
+    let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    carrier.knots().degree() == iso.knots().degree()
+        && carrier.knots().knots().len() == iso.knots().knots().len()
+        && carrier
+            .knots()
+            .knots()
+            .iter()
+            .zip(iso.knots().knots())
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+        && carrier.control().len() == iso.control().len()
+        && carrier
+            .control()
+            .iter()
+            .zip(iso.control())
+            .all(|(a, b)| bits3(a) == bits3(b))
+        && carrier
+            .weights()
+            .iter()
+            .zip(iso.weights())
+            .all(|(a, b)| a.to_bits() == b.to_bits())
 }
 
 /// Whether two distinct surface records describe **the same locus** at
@@ -583,4 +946,164 @@ fn carrier_on_surface(
         let p = carrier.eval(t0 + (t1 - t0) * f);
         ((p - origin).dot(normal) / n).abs() <= eps
     })
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable
+)]
+mod tests {
+    use geom_core::spline::KnotVector;
+    use geom_surfaces::NurbsSurface;
+
+    use super::*;
+
+    /// A degree-1×2 loft-wall-shaped surface whose control net is a
+    /// function of `dx` — two nets differing in one control coordinate.
+    fn wall(dx: f64) -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(dx, 0.0, 0.0),
+            Point3::new(dx, 0.0, 1.0),
+            Point3::new(dx, 0.0, 2.0),
+            Point3::new(dx + 1.0, 0.0, 0.0),
+            Point3::new(dx + 1.0, 0.0, 1.0),
+            Point3::new(dx + 1.0, 0.0, 2.0),
+        ];
+        let payload = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        Surface::Nurbs(std::sync::Arc::new(payload))
+    }
+
+    /// **The M7-3 surface_sig pin (spec §1 item 2).** Two DISTINCT
+    /// NURBS walls must get distinct signatures — the tag-only arm
+    /// (`vec![5u64]`) would silently share one surface key across
+    /// every wall of a body (the silent-wrong-body class) — while a
+    /// bitwise-identical record must still share (the dedup that
+    /// restores writer-side key sharing).
+    #[test]
+    fn distinct_nurbs_walls_get_distinct_signatures() {
+        let a = surface_sig(&wall(0.0));
+        let b = surface_sig(&wall(1.0));
+        assert_ne!(a, b, "distinct NURBS walls must not share a surface key");
+        assert_eq!(
+            a,
+            surface_sig(&wall(0.0)),
+            "bitwise-identical NURBS records must share one key"
+        );
+    }
+
+    /// The signature is a function of every stated field family:
+    /// weights and knots move it too, not just control points (a
+    /// rational wall differing only in weights is a different
+    /// surface).
+    #[test]
+    fn weights_and_knots_reach_the_signature() {
+        let base = wall(0.0);
+        let Surface::Nurbs(payload) = &base else {
+            unreachable!()
+        };
+        let mut weights = payload.weights().to_vec();
+        weights[1] = 2.0;
+        let reweighted = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(
+                payload.knots_u().clone(),
+                payload.knots_v().clone(),
+                payload.control().to_vec(),
+                weights,
+            )
+            .unwrap(),
+        ));
+        assert_ne!(surface_sig(&base), surface_sig(&reweighted));
+        let kv3 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let refined = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(
+                payload.knots_u().clone(),
+                kv3,
+                vec![Point3::new(0.0, 0.0, 0.0); 8],
+                vec![1.0; 8],
+            )
+            .unwrap(),
+        ));
+        assert_ne!(surface_sig(&base), surface_sig(&refined));
+    }
+
+    /// REVIEW PROBE (V1): transposed nets — shape (2,3) at degrees
+    /// (1,2) vs shape (3,2) at degrees (2,1) with the identical
+    /// control multiset must not collide.
+    #[test]
+    fn probe_transposed_nets_distinct() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let pts = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 2.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 2.0),
+        ];
+        let a = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku.clone(), kv.clone(), pts.to_vec(), vec![1.0; 6]).unwrap(),
+        ));
+        let transposed = vec![pts[0], pts[3], pts[1], pts[4], pts[2], pts[5]];
+        let b = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(kv, ku, transposed, vec![1.0; 6]).unwrap(),
+        ));
+        assert_ne!(
+            surface_sig(&a),
+            surface_sig(&b),
+            "transposed nets with identical multisets must not collide"
+        );
+    }
+
+    /// REVIEW PROBE (V1): a single interior knot moved, every count
+    /// equal.
+    #[test]
+    fn probe_single_knot_value_distinct() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kva = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kvb = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.625, 1.0, 1.0, 1.0], 2).unwrap();
+        let pts = vec![Point3::new(0.0, 0.0, 0.0); 8];
+        let a = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku.clone(), kva, pts.clone(), vec![1.0; 8]).unwrap(),
+        ));
+        let b = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku, kvb, pts, vec![1.0; 8]).unwrap(),
+        ));
+        assert_ne!(
+            surface_sig(&a),
+            surface_sig(&b),
+            "one knot value apart must not collide"
+        );
+    }
+
+    /// REVIEW PROBE (V1): u/v knot vectors swapped between two square
+    /// nets with equal lengths and degrees — the concatenated knot
+    /// stream carries the same values in a different order.
+    #[test]
+    fn probe_uv_knot_swap_distinct() {
+        let k01 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let k02 = KnotVector::clamped(vec![0.0, 0.0, 2.0, 2.0], 1).unwrap();
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ];
+        let a = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(k01.clone(), k02.clone(), pts.clone(), vec![1.0; 4]).unwrap(),
+        ));
+        let b = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(k02, k01, pts, vec![1.0; 4]).unwrap(),
+        ));
+        assert_ne!(
+            surface_sig(&a),
+            surface_sig(&b),
+            "swapped u/v knot vectors must not collide"
+        );
+    }
 }

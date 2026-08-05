@@ -25,6 +25,10 @@ pub enum AdoptionCandidate {
     TangentIntersection,
     /// The parameterization seam of one closed surface.
     Seam,
+    /// A NURBS wall's own `u ∈ {0, 1}` boundary iso-curve (M7-3): the
+    /// loft/sweep wall–wall seam class, offered when the parsed
+    /// carrier bitwise-matches an adjacent wall's boundary column.
+    IsoCurve,
     /// A conventional mapped-curve self-description (the locus the
     /// surfaces under-determine).
     MappedCurve,
@@ -36,6 +40,7 @@ impl fmt::Display for AdoptionCandidate {
             Self::Intersection => "intersection",
             Self::TangentIntersection => "tangent intersection",
             Self::Seam => "seam",
+            Self::IsoCurve => "boundary iso-curve",
             Self::MappedCurve => "mapped curve",
         })
     }
@@ -82,10 +87,12 @@ pub enum StepImportError {
         expected: &'static str,
     },
     /// An entity type outside the imported subset appears where the
-    /// reader must interpret it. `B_SPLINE_SURFACE_WITH_KNOTS` is the
-    /// named M7 frontier: NURBS *faces* arrive with the loft/sweep
-    /// assembly unit, and their import waits for their export (the S9
-    /// flip pattern retires this refusal when they land).
+    /// reader must interpret it. The subset is what the kernel's own
+    /// writer emits — since M7-3 that includes both
+    /// `B_SPLINE_SURFACE_WITH_KNOTS` arms (the old named M7 frontier,
+    /// retired by the S9 flip exactly as this doc predicted); spline
+    /// sub-types the writer never emits (knots-implied
+    /// `QUASI_UNIFORM_CURVE` and kin) stay here, typed.
     UnsupportedEntity {
         /// The offending entity instance.
         id: u64,
@@ -160,6 +167,23 @@ pub enum StepImportError {
         /// The candidates tried and their refusals, in ladder order.
         attempts: Vec<AdoptionAttempt>,
     },
+    /// An ARC cap rim adjacent to a NURBS wall failed the import-side
+    /// residual gate (M7-3 fix pass, review F1): sampled against the
+    /// wall's own boundary column, the rim's circle does not carry it
+    /// at the ambient tolerance. On a RATIONAL wall this gate IS the
+    /// certification -- nothing else checks the rim there (no pcurve
+    /// mint, dihedral kind-exempt, the conventional description
+    /// certifies only against itself) -- so a rim that fails it is
+    /// refused rather than laundered into a t1/t2-valid body
+    /// indistinguishable from a correct one.
+    RimOffWallBoundary {
+        /// The `EDGE_CURVE` entity instance.
+        id: u64,
+        /// The worst sampled deviation (meters): boundary-sample
+        /// distance to the rim's circle locus, or arc-length excess
+        /// outside the rim's parameter range, whichever is larger.
+        residual: f64,
+    },
     /// Pcurve re-minting refused on the adopted body.
     Pcurves {
         /// The minting pass's error, displayed.
@@ -200,8 +224,9 @@ impl fmt::Display for StepImportError {
             Self::UnsupportedEntity { id, keyword } => write!(
                 f,
                 "step import: entity #{id} ({keyword}) is outside the imported subset \
-                 (the analytic subset the kernel exports; NURBS surfaces arrive with \
-                 the loft/sweep assembly unit and their import follows their export)"
+                 (the subset the kernel exports — elementary analytic surfaces plus \
+                 both B_SPLINE arms with stated knots; knots-implied spline sub-types \
+                 and other foreign vocabulary refuse here, typed)"
             ),
             Self::UnsupportedUnit { id, found } => write!(
                 f,
@@ -247,6 +272,15 @@ impl fmt::Display for StepImportError {
                 }
                 Ok(())
             }
+            Self::RimOffWallBoundary { id, residual } => write!(
+                f,
+                "step import: edge #{id}: an ARC cap rim does not lie on its adjacent \
+                 NURBS wall's boundary — the wall's own boundary column, sampled at the \
+                 certification schedule, deviates from the rim's circle by up to \
+                 {residual:e} m (ambient tolerance exceeded). On a rational wall this \
+                 residual gate is the rim's only certification, so the file is refused \
+                 rather than adopted wrong"
+            ),
             Self::Pcurves { source } => {
                 write!(
                     f,

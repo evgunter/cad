@@ -15,7 +15,11 @@ use std::path::PathBuf;
 use topo::Body;
 
 /// The committed solid corpus, in `fixture_corpus()` file order.
-pub const SOLID_FIXTURES: [&str; 14] = [
+/// `loft_prism` joined at M7-3 (14 → 15): the first NURBS-walled
+/// fixture, whose row-1 exclusion reason — the
+/// `B_SPLINE_SURFACE_WITH_KNOTS` vocabulary refusal — that unit
+/// retired (the S9 flip recorded in `review_k3_probe.rs`).
+pub const SOLID_FIXTURES: [&str; 15] = [
     "cube",
     "die",
     "kiss_assembly",
@@ -30,6 +34,7 @@ pub const SOLID_FIXTURES: [&str; 14] = [
     "filleted_die",
     "die_pips",
     "composed_die",
+    "loft_prism",
 ];
 
 /// A fixture file's text.

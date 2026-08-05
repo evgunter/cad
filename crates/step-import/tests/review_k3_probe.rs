@@ -67,20 +67,25 @@ fn scale_triple(line: &str, s: f64) -> String {
     format!("{pre}('', ({}){post}", scaled.join(", "))
 }
 
-/// K6: loft_prism.step itself (not a synthetic record) must still
-/// refuse TYPED, naming the B-spline surface frontier — the stated
-/// reason for its row-1 exclusion.
+/// K6, **FLIPPED by M7-3** (the S9 pattern; history carried): from
+/// M7-1 until M7-3 this row pinned that `loft_prism.step` itself —
+/// not a synthetic record — refused TYPED naming the
+/// `B_SPLINE_SURFACE_WITH_KNOTS` frontier, the stated reason for its
+/// row-1 exclusion. That exclusion reason is now retired by the very
+/// unit the old pin's message pointed at: the fixture imports as a
+/// first-class solid and sits in `SOLID_FIXTURES` (the full row-1
+/// census/volume/tier obligations run in `roundtrip.rs`; the
+/// NURBS-specific acceptance rows in `nurbs_import.rs`). What this
+/// row keeps: the flip is an ACCEPTANCE, not a silent drift — the
+/// import must produce a solid body, or the flip story is false.
 #[test]
-fn k6_loft_prism_refuses_typed_at_the_nurbs_frontier() {
+fn k6_loft_prism_imports_the_nurbs_frontier_retired() {
     let text = fixture("loft_prism", "step");
     match import_step(&text, &ImportOptions::default()) {
-        Err(e) => {
-            let msg = e.to_string();
-            assert!(
-                msg.contains("B_SPLINE_SURFACE_WITH_KNOTS"),
-                "refusal must name the frontier entity, got: {msg}"
-            );
+        Ok(StepImport::Solid { .. }) => {}
+        Ok(StepImport::Wireframe { .. }) => {
+            panic!("loft_prism must import as a solid, not a wireframe")
         }
-        Ok(_) => panic!("loft_prism imported — the row-1 exclusion reason is GONE"),
+        Err(e) => panic!("loft_prism must import since M7-3 — the flip regressed: {e}"),
     }
 }

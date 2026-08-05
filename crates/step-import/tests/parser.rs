@@ -63,24 +63,39 @@ fn minimal_solid_with_surface(surface_record: &str) -> String {
     )
 }
 
-/// Row 5(a): `B_SPLINE_SURFACE_WITH_KNOTS` refuses, typed, naming the
-/// entity — the named M7 frontier (NURBS faces arrive with the
-/// loft/sweep assembly unit; the S9 flip pattern retires this refusal
-/// when their export lands).
+/// Row 5(a), **FLIPPED by M7-3** (the S9 pattern the original row's
+/// text predicted: "NURBS faces arrive with the loft/sweep assembly
+/// unit" — they did, and their import followed their export; the
+/// acceptance rows live in `roundtrip.rs` and `nurbs_import.rs`).
+/// The M7-1 vocabulary refusal this row pinned is retired, so what
+/// stays pinned is the arm's VALIDATION: a
+/// `B_SPLINE_SURFACE_WITH_KNOTS` whose knot multiplicities do not
+/// sum to ISO 10303-42's `n + d + 1` refuses typed at the same
+/// pre-allocation budget gate the curve twin owns, naming the
+/// surface entity — never a lenient re-interpretation, never a
+/// panic.
 #[test]
-fn bspline_surface_refuses_typed() {
+fn bspline_surface_knot_budget_refuses_typed() {
+    // A resolvable 2×2 net at degree 1×1 whose u-multiplicities sum
+    // to 2 where the budget fixes 4 (2 + 1 + 1).
     let text = minimal_solid_with_surface(
-        "B_SPLINE_SURFACE_WITH_KNOTS('', 1, 1, ((#98)), .UNSPECIFIED., .F., .F., .F., \
-         (2), (2), (0.0), (1.0), .UNSPECIFIED.)",
+        "B_SPLINE_SURFACE_WITH_KNOTS('', 1, 1, ((#97, #98), (#96, #98)), .UNSPECIFIED., \
+         .F., .F., .F., (2), (2), (0.0), (1.0), .UNSPECIFIED.);\n\
+         #96 = CARTESIAN_POINT('', (0.0, 1.0, 0.0));\n\
+         #97 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n\
+         #98 = CARTESIAN_POINT('', (1.0, 0.0, 0.0))",
     );
     let err = import_step(&text, &ImportOptions::default())
-        .expect_err("a NURBS surface is outside the imported subset");
+        .expect_err("a NURBS surface with a broken knot budget must refuse");
     match err {
-        StepImportError::UnsupportedEntity { id, keyword } => {
+        StepImportError::MalformedRecord { id, expected } => {
             assert_eq!(id, 1, "the refusal names the surface entity");
-            assert_eq!(keyword, "B_SPLINE_SURFACE_WITH_KNOTS");
+            assert!(
+                expected.contains("knot multiplicities"),
+                "the refusal is the knot-budget gate, got: {expected}"
+            );
         }
-        other => panic!("expected UnsupportedEntity, got: {other}"),
+        other => panic!("expected MalformedRecord, got: {other}"),
     }
 }
 
