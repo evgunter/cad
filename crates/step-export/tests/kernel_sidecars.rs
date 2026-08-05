@@ -1,10 +1,12 @@
-//! The KERNEL_* sidecar staleness row: every committed `.expect`
-//! sidecar's `KERNEL_SOLIDS` / `KERNEL_SHELLS` / `KERNEL_FACES` /
-//! `KERNEL_EDGES` / `KERNEL_VERTICES` / `KERNEL_VOLUME_MM3` /
-//! `KERNEL_VOLUME_PAD_MM3` fields are asserted against the LIVE kernel
-//! census and certified volume of the source body
-//! (`common::fixture_corpus()` rebuilds them), so the fields can never
-//! rot.
+//! The KERNEL_* sidecar staleness row: every committed SOLID-fixture
+//! `.expect` sidecar's `KERNEL_SOLIDS` / `KERNEL_SHELLS` /
+//! `KERNEL_FACES` / `KERNEL_EDGES` / `KERNEL_VERTICES` /
+//! `KERNEL_VOLUME_MM3` / `KERNEL_VOLUME_PAD_MM3` fields are asserted
+//! against the LIVE kernel census and certified volume of the source
+//! body (`common::fixture_corpus()` rebuilds all 15), so the fields
+//! can never rot. `nurbs_wireframe.expect` carries no KERNEL_* fields
+//! and is out of scope here: a wireframe has no census or volume to
+//! pin, as its own sidecar states.
 //!
 //! Semantics: `KERNEL_*` is the NATIVE body's census — what the kernel
 //! actually has — as opposed to the `EXPECT_*` fields, which record

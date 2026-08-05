@@ -58,6 +58,17 @@ fn committed_corpus_row(name: &str) {
     //   * 2 ulps for the mm³ round-trip: × 1e9 at print time and
     //     × 1e-9 here each round once (neither scale is a power of
     //     two).
+    //
+    // Net effect vs the old (analytic EXPECT + print-precision slop)
+    // budget, MEASURED at default ε (the #199 review): NOT uniformly
+    // tighter. The print-slop term is gone — the structural win — so
+    // the three fixtures it dominated tightened 8e3×–8.3e7×
+    // (filleted_die, composed_die, notched); the other eleven LOOSENED
+    // ~2–3× at the 1e-6 mm³ scale because the native pad now counts
+    // honestly (cut_cylinder's budget 1186 → 2373 mm³). The trade has
+    // teeth both ways: the review's scale-corruption probe
+    // (`review_k3_probe`) shows the new budget catching corruptions
+    // the old slop accepted, at 1600×/8000× margins.
     let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
