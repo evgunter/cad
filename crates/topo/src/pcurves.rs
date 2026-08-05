@@ -786,9 +786,21 @@ fn walk_loop<T: Decide>(
                 let half = T::from_f64(0.5);
                 let twin = sphere_twin(surface, &base);
                 let mut chosen: Option<Pcurve<T>> = None;
+                // A WRONG candidate's escalation is not the loop's
+                // verdict: the base representation of a pole-crossing
+                // sphere pcurve sits π off, which lands its
+                // whole-period rounding EXACTLY on an integer
+                // boundary — at the interval scalar that floor spans
+                // two integers and the continuity margin becomes a
+                // full-period enclosure. The twin still fits exactly.
+                // So escalations are DEFERRED per candidate and
+                // surfaced (first one, deterministically) only when
+                // no candidate fits — single-candidate charts keep
+                // their old escalate-immediately behavior through
+                // exactly that arm.
+                let mut deferred: Option<Indeterminate> = None;
                 let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
-                let n = candidates.len();
-                for (ci, cand) in candidates.into_iter().enumerate() {
+                for cand in candidates {
                     let raw = cand.eval(entry_t);
                     let ku = ((prev.x - raw.x) / tau + half).floor();
                     // The impossible-rebuild arm (see
@@ -811,10 +823,10 @@ fn walk_loop<T: Decide>(
                             Ok(Sign::Zero) => {}
                             Ok(Sign::Positive | Sign::Negative) => fits = false,
                             Err(cause) => {
-                                return Err(PcurveMintError::Escalated {
-                                    half_edge: he,
-                                    cause,
-                                });
+                                fits = false;
+                                if deferred.is_none() {
+                                    deferred = Some(cause);
+                                }
                             }
                         }
                     }
@@ -822,14 +834,19 @@ fn walk_loop<T: Decide>(
                         chosen = Some(shifted);
                         break;
                     }
-                    if ci + 1 == n {
+                }
+                match (chosen, deferred) {
+                    (Some(p), _) => p,
+                    (None, Some(cause)) => {
+                        return Err(PcurveMintError::Escalated {
+                            half_edge: he,
+                            cause,
+                        });
+                    }
+                    (None, None) => {
                         return Err(PcurveMintError::LoopDiscontinuity { half_edge: he });
                     }
                 }
-                let Some(chosen) = chosen else {
-                    return Err(PcurveMintError::LoopDiscontinuity { half_edge: he });
-                };
-                chosen
             }
         };
         let entry = pcurve.eval(entry_t);

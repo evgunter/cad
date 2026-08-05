@@ -2407,6 +2407,22 @@ fn run_iso_checks<T: Decide>(
     })
 }
 
+/// Branch-stabilized azimuth (M5 S13, shared by every chart's
+/// derivation since M6-3): atan2's cut sits on the negative-x axis,
+/// and an interval y touching zero there (a seam meridian's angle-π
+/// copy, or a rim whose start sits ON the seam) explodes the
+/// enclosure to a full period even though every consumer reads
+/// azimuth mod τ. On a definitely-negative-x frame the same angle is
+/// `atan2(−y, −x) + π`. The frame trilean chooses between two
+/// identical formulas; degenerate and in-band arms keep the direct
+/// one (tie-break, D9).
+fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
+    match decide("pcurve_chart_azimuth_frame", x, band) {
+        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
+        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
+    }
+}
+
 /// Derives the **exact closed-form chart image** of `carrier` on
 /// `surface` — the constructor every minted cache goes through, and the
 /// derive-on-demand answer for the faces that store nothing (planar
@@ -2482,9 +2498,19 @@ pub fn chart_pcurve<T: Decide>(
             // near-band-radius cylinder as a meridian, which then
             // failed the residual schedule loudly (the 100ε washer).
             let moving = a_r.norm() + b_r.norm() + l_r.norm();
-            let alpha_const = w_r.dot(cv).atan2(w_r.dot(u_ref));
+            let alpha_const = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
             match decide("pcurve_chart_radial_moving", moving, band) {
-                Ok(Sign::Zero) => Ok(Pcurve::Harmonic {
+                // Zero — AND the in-band arm (Err): a sub-escalation
+                // radial amplitude takes the meridian form as a D9
+                // tie-break (the `stable_azimuth` posture): this is
+                // STRUCTURE selection, not a topological decision —
+                // check 4's envelope is built from the true difference
+                // of forms, so the discarded drift lands in the
+                // certified sup bound and an amplitude that matters
+                // refuses there in metres. (The executed case: a wild
+                // NIST import whose near-meridian line carries a
+                // few-nanometre radial tilt.)
+                Ok(Sign::Zero) | Err(_) => Ok(Pcurve::Harmonic {
                     p0: Point2::new(alpha_const, w.dot(axis)),
                     pa: Vec2::new(T::zero(), form.a.dot(axis)),
                     pb: Vec2::new(T::zero(), form.b.dot(axis)),
@@ -2497,7 +2523,7 @@ pub fn chart_pcurve<T: Decide>(
                     // residual). α is the azimuth of `a_r`; β is the
                     // orientation of (a_r, b_r) against the chart's own
                     // frame, a named trilean metered at the radius.
-                    let alpha = a_r.dot(cv).atan2(a_r.dot(u_ref));
+                    let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide("pcurve_chart_orientation", orient / radius, band) {
                         Ok(Sign::Positive) => T::one(),
@@ -2518,11 +2544,6 @@ pub fn chart_pcurve<T: Decide>(
                         pl: Vec2::new(beta, form.l.dot(axis)),
                     })
                 }
-                Err(cause) => Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::ChartWinding,
-                    sample: 0,
-                    cause,
-                }),
             }
         }
         // The cone chart (M6-3, walk row 4): closed forms for the two
@@ -2579,7 +2600,7 @@ pub fn chart_pcurve<T: Decide>(
                             }
                         };
                     let r_dir = r_ref * h_sign;
-                    let alpha = r_dir.dot(cv).atan2(r_dir.dot(u_ref));
+                    let alpha = stable_azimuth(r_dir.dot(cv), r_dir.dot(u_ref), band);
                     Ok(Pcurve::Harmonic {
                         p0: Point2::new(alpha, h0 / c_ha),
                         pa: Vec2::new(T::zero(), T::zero()),
@@ -2626,7 +2647,7 @@ pub fn chart_pcurve<T: Decide>(
                         Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
                     };
                     let a_dir = a_r * n_sign;
-                    let alpha = a_dir.dot(cv).atan2(a_dir.dot(u_ref));
+                    let alpha = stable_azimuth(a_dir.dot(cv), a_dir.dot(u_ref), band);
                     let orient = a_r.cross(radial(form.b)).dot(axis);
                     // β metered at the rim's own radius — the honest
                     // local lever. The spatial traversal rate equals
@@ -2702,12 +2723,7 @@ pub fn chart_pcurve<T: Decide>(
             // the same angle is atan2(−y, −x) + π. The frame trilean
             // chooses between two identical formulas; degenerate and
             // in-band arms keep the direct one (tie-break, D9).
-            let stable_az = |y: T, x: T| -> T {
-                match decide("pcurve_sphere_chart_frame", x, band) {
-                    Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-                    Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
-                }
-            };
+            let stable_az = |y: T, x: T| -> T { stable_azimuth(y, x, band) };
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
             match decide("pcurve_sphere_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)? {
@@ -2837,7 +2853,7 @@ pub fn chart_pcurve<T: Decide>(
                             return Err(PcurveCertifyError::UnsupportedCarrier);
                         }
                     }
-                    let alpha = a_r.dot(cv).atan2(a_r.dot(u_ref));
+                    let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let rho = a_r.norm();
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide("pcurve_chart_orientation", orient / rho, band)
@@ -2872,7 +2888,7 @@ pub fn chart_pcurve<T: Decide>(
                             return Err(PcurveCertifyError::UnsupportedCarrier);
                         }
                     }
-                    let alpha = w_r.dot(cv).atan2(w_r.dot(u_ref));
+                    let alpha = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
                     let (sa, ca) = alpha.sin_cos();
                     let rad = u_ref * ca + cv * sa;
                     // δ from the t = 0 point's meridional components;
