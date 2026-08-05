@@ -29,13 +29,20 @@
 //!   Plane×Cylinder splitting lane produces, and every carrier that
 //!   lane mints (rim circle, seam/meridian line, tilted-section conic)
 //!   has an exact closed-form cylinder-chart image.
-//! - **Cone / sphere / torus / `Nurbs` charts mint nothing yet.** This
-//!   is a compile-time routing decision per chart kind, permanent until
-//!   a PR moves it — never a runtime fallback (C5). Their faces keep
-//!   derive-on-demand status exactly as planar faces do, and a direct
-//!   [`geom_brep::chart_pcurve`] call on one refuses typed, naming the
-//!   arriving PR. Nothing consumes pcurves on a hot path before PR 11,
-//!   so absence costs nothing today.
+//! - **Cone / sphere / torus charts mint (M6-3, walk row 4).** Their
+//!   closed-form classes (cone rims/rulings; sphere polar/meridian
+//!   circles; torus parallels/meridians) derive and certify exactly as
+//!   the cylinder's; the sphere walk additionally knows the chart's
+//!   involution twin and the pole's zero azimuth lever (see
+//!   [`azimuth_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
+//!   classes refuse typed with the class named — the sphere's general
+//!   circles route through the fitted lane
+//!   ([`geom_brep::PcurveCache::certify_fitted`]), the cone/torus
+//!   oblique classes have no honest route (no ring-computable meters
+//!   composite) and stay refused.
+//! - **Described non-rational NURBS charts mint** their iso lane
+//!   (M6-3, `nurbs_iso_derive`); the placeholder and rational walls
+//!   mint nothing.
 //!
 //! # The one-branch walk (spec §3)
 //!
@@ -201,9 +208,11 @@ fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
         Surface::Cylinder { .. } => true,
         // Planar faces keep M2's derive-on-demand status (C4 verbatim).
         Surface::Plane { .. } => false,
-        // Frontier charts: no certified closed-form lane yet — their
-        // pcurves arrive with the consumers that need them (PR 7/11).
-        Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => false,
+        // The analytic-chart completion (M6-3, walk row 4): cone,
+        // sphere and torus charts certify their closed-form classes
+        // (rim/ruling; polar/meridian; parallel/meridian) and mint
+        // stored caches wherever the pass runs.
+        Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
         // NON-RATIONAL described NURBS charts mint (M6-3): every
         // loft/sweep wall boundary is an iso-parameter curve whose
         // chart image is an exact line in UV (`Pcurve::IsoLine`).
@@ -478,11 +487,130 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, Pc
 /// displacement. The honest per-chart stretch arm exists
 /// (`geom_brep`'s iso-lane certification uses it); threading it here
 /// would change no decision on any mintable input.
-fn azimuth_arm<T: Real>(surface: &Surface<T>) -> T {
+/// The LOCAL azimuth lever arm of a chart at second-parameter value
+/// `v` — the metres an azimuth radian moves the mapped point *at that
+/// latitude*: cylinder `r`, sphere `|r·cos v|`, torus `|R + r·cos v|`,
+/// cone `|v·sin α|`. This is the honest metering for a joint gap
+/// (D4 ¶1): at a sphere pole or a cone apex the lever is exactly
+/// zero, because the chart azimuth genuinely does not move the point
+/// there — a loop meeting itself at a pole has no azimuth-continuity
+/// obligation, and pretending otherwise (a global sup arm) refuses
+/// every octant corner.
+fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } => radius,
+        Surface::Sphere { radius, .. } => (radius * v.cos()).abs(),
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => (major_radius + minor_radius * v.cos()).abs(),
+        Surface::Cone { half_angle, .. } => (v * half_angle.sin()).abs(),
         _ => T::one(),
     }
+}
+
+/// The meridional (second-channel) lever arm where that channel is
+/// itself an angle — sphere `v` (arm `r`), torus `v` (arm `r_minor`).
+/// `None` = the channel is a length and gaps in it are already metres.
+fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
+    match *surface {
+        Surface::Sphere { radius, .. } => Some(radius),
+        Surface::Torus { minor_radius, .. } => Some(minor_radius),
+        _ => None,
+    }
+}
+
+/// A whole-period shift of the MERIDIONAL channel — the `v` twin of
+/// [`geom_brep::Pcurve::shift_branch`], for the charts whose second
+/// parameter is an angle (sphere/torus). Only the harmonic form lives
+/// on those charts; other variants answer themselves unchanged (the
+/// walk never computes a nonzero shift for them).
+fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
+    match pcurve {
+        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+            p0: geom_core::Point2::new(p0.x, p0.y + k * period),
+            pa: *pa,
+            pb: *pb,
+            pl: *pl,
+        },
+        other => other.clone(),
+    }
+}
+
+/// The sphere chart's INVOLUTION twin of a harmonic image:
+/// `S(u + π, π − v) = S(u, v)` holds identically on a sphere chart
+/// (`radial(u+π) = −radial(u)`, `cos(π−v) = −cos v`, `sin(π−v) =
+/// sin v`), so every sphere pcurve has exactly two harmonic
+/// representations and a pole-crossing walk legitimately needs the
+/// OTHER one on the far side — a π azimuth step no whole-period shift
+/// can produce. The torus has no such twin (R > 0 breaks the
+/// symmetry), and neither does the cone (cos α > 0).
+fn sphere_twin<T: Decide>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pcurve<T>> {
+    if !matches!(surface, Surface::Sphere { .. }) {
+        return None;
+    }
+    let Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
+        return None;
+    };
+    let pi = T::pi();
+    Some(Pcurve::Harmonic {
+        p0: geom_core::Point2::new(p0.x + pi, pi - p0.y),
+        pa: geom_core::Vec2::new(pa.x, T::zero() - pa.y),
+        pb: geom_core::Vec2::new(pb.x, T::zero() - pb.y),
+        pl: geom_core::Vec2::new(pl.x, T::zero() - pl.y),
+    })
+}
+
+/// The loop-closure test of a chart walk: does `end` denote the same
+/// chart point as `start`, up to the chart's legitimate wraps?
+///
+/// - Every periodic chart may wrap the azimuth by one whole period
+///   (the seam case).
+/// - Where the second channel is an angle (sphere/torus) it may wrap
+///   by one whole period too (a torus annulus's meridian walk).
+/// - The SPHERE additionally closes through its involution
+///   (`sphere_twin`): a pole-crossing loop's walk legitimately ends on
+///   the twin representation of its start — azimuth off by π (mod τ)
+///   with the polar channel mirrored (`end.y + start.y ≡ π mod τ`).
+///
+/// All margins metered in metres through the channel's lever arm; the
+/// azimuth gap through the LOCAL arm at the meeting point
+/// ([`azimuth_arm`] — zero at a pole, where azimuth means nothing).
+fn loop_closes<T: Decide>(
+    surface: &Surface<T>,
+    start: geom_core::Point2<T>,
+    end: geom_core::Point2<T>,
+    band: Band,
+) -> bool {
+    let arm = azimuth_arm(surface, start.y);
+    let tau = T::tau();
+    let zero = |name: &'static str, m: T| matches!(decide(name, m, band), Ok(Sign::Zero));
+    let wraps = |m: T, a: T, name: &'static str| {
+        [m, m - tau, m + tau].into_iter().any(|c| zero(name, c * a))
+    };
+    let du = end.x - start.x;
+    let dv = end.y - start.y;
+    let direct = match polar_arm(surface) {
+        None => wraps(du, arm, "pcurve_loop_closure") && zero("pcurve_loop_closure_height", dv),
+        Some(v_arm) => {
+            wraps(du, arm, "pcurve_loop_closure") && wraps(dv, v_arm, "pcurve_loop_closure_height")
+        }
+    };
+    if direct {
+        return true;
+    }
+    // The sphere involution arm (the azimuth gap still metered at the
+    // local arm — a pole-closing walk has no azimuth obligation).
+    let (Surface::Sphere { radius, .. }, false) = (surface, direct) else {
+        return false;
+    };
+    let pi = T::pi();
+    let mirrored_u = [du - pi, du + pi]
+        .into_iter()
+        .any(|m| wraps(m, arm, "pcurve_loop_closure"));
+    let sv = end.y + start.y - pi;
+    mirrored_u && wraps(sv, *radius, "pcurve_loop_closure_height")
 }
 
 /// One half-edge's minted chart curve, before certification.
@@ -619,7 +747,6 @@ fn walk_loop<T: Decide>(
         return Ok(());
     };
     let cycle = body.loop_cycle(first).ok_or(PcurveMintError::Corrupt)?;
-    let arm = azimuth_arm(surface);
     let tau = T::tau();
     // The walk's running exit point, in chart coordinates.
     let mut prev_exit: Option<geom_core::Point2<T>> = None;
@@ -638,48 +765,74 @@ fn walk_loop<T: Decide>(
         };
         let plus = is_plus(body, he)?;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+        // Gap metering: azimuth through the chart's lever arm; the
+        // second channel directly where it is a length, through the
+        // polar arm where it is an angle (sphere/torus, M6-3).
+        let v_arm = polar_arm(surface);
+        let v_meter = v_arm.unwrap_or_else(T::one);
         let pcurve = match prev_exit {
             None => base,
             Some(prev) => {
-                // The ONE branch decision of this half-edge: the whole
-                // number of periods that lands its entry on the
-                // predecessor's exit. Exact by construction — the two
-                // chart points denote the SAME vertex, so their azimuths
-                // differ by a whole period — and then CHECKED below, so
-                // a body where it is not exact refuses rather than
-                // snapping to the nearest branch.
-                let raw = base.eval(entry_t);
+                // The ONE branch decision of this half-edge: the
+                // representation (the derivation's own or, on a sphere
+                // chart, its involution twin — `sphere_twin`) and the
+                // whole number of periods per angular channel that
+                // land its entry on the predecessor's exit. Exact by
+                // construction — the two chart points denote the SAME
+                // vertex — and CHECKED here, so a body where no
+                // representation is exact refuses rather than snapping
+                // to the nearest branch. Candidate order (base first)
+                // is fixed: D9.
                 let half = T::from_f64(0.5);
-                let k = ((prev.x - raw.x) / tau + half).floor();
-                // The impossible-rebuild arm (see `Pcurve::shift_branch`)
-                // surfaces as a corrupt-body finding rather than being
-                // swallowed into an unshifted branch.
-                let Some(shifted) = base.shift_branch(k, tau) else {
-                    return Err(PcurveMintError::Corrupt);
-                };
-                shifted
-            }
-        };
-        // Certified continuity: the entry point meets the predecessor's
-        // exit, metered in METRES (azimuth through the chart's lever
-        // arm, height directly).
-        let entry = pcurve.eval(entry_t);
-        if let Some(prev) = prev_exit {
-            for margin in [(entry.x - prev.x) * arm, entry.y - prev.y] {
-                match decide("pcurve_loop_continuity", margin, band) {
-                    Ok(Sign::Zero) => {}
-                    Ok(Sign::Positive | Sign::Negative) => {
+                let twin = sphere_twin(surface, &base);
+                let mut chosen: Option<Pcurve<T>> = None;
+                let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
+                let n = candidates.len();
+                for (ci, cand) in candidates.into_iter().enumerate() {
+                    let raw = cand.eval(entry_t);
+                    let ku = ((prev.x - raw.x) / tau + half).floor();
+                    // The impossible-rebuild arm (see
+                    // `Pcurve::shift_branch`) surfaces as a
+                    // corrupt-body finding rather than being swallowed
+                    // into an unshifted branch.
+                    let Some(mut shifted) = cand.shift_branch(ku, tau) else {
+                        return Err(PcurveMintError::Corrupt);
+                    };
+                    if v_arm.is_some() {
+                        let ry = shifted.eval(entry_t).y;
+                        let kv = ((prev.y - ry) / tau + half).floor();
+                        shifted = shift_polar_branch(&shifted, kv, tau);
+                    }
+                    let entry = shifted.eval(entry_t);
+                    let arm = azimuth_arm(surface, prev.y);
+                    let mut fits = true;
+                    for margin in [(entry.x - prev.x) * arm, (entry.y - prev.y) * v_meter] {
+                        match decide("pcurve_loop_continuity", margin, band) {
+                            Ok(Sign::Zero) => {}
+                            Ok(Sign::Positive | Sign::Negative) => fits = false,
+                            Err(cause) => {
+                                return Err(PcurveMintError::Escalated {
+                                    half_edge: he,
+                                    cause,
+                                });
+                            }
+                        }
+                    }
+                    if fits {
+                        chosen = Some(shifted);
+                        break;
+                    }
+                    if ci + 1 == n {
                         return Err(PcurveMintError::LoopDiscontinuity { half_edge: he });
                     }
-                    Err(cause) => {
-                        return Err(PcurveMintError::Escalated {
-                            half_edge: he,
-                            cause,
-                        });
-                    }
                 }
+                let Some(chosen) = chosen else {
+                    return Err(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                };
+                chosen
             }
-        }
+        };
+        let entry = pcurve.eval(entry_t);
         if first_entry.is_none() {
             first_entry = Some(entry);
         }
@@ -695,18 +848,10 @@ fn walk_loop<T: Decide>(
     // ordinary loop) or one full period around the chart (a loop that
     // wraps the periodic chart — the seam case, where the seam edge's
     // two half-edges take the two branches).
-    if let (Some(start), Some(end)) = (first_entry, prev_exit) {
-        let du = end.x - start.x;
-        let closes = [du, du - tau, du + tau]
-            .into_iter()
-            .any(|m| matches!(decide("pcurve_loop_closure", m * arm, band), Ok(Sign::Zero)));
-        let height_closes = matches!(
-            decide("pcurve_loop_closure_height", end.y - start.y, band),
-            Ok(Sign::Zero)
-        );
-        if !(closes && height_closes) {
-            return Err(PcurveMintError::LoopNotClosed { face });
-        }
+    if let (Some(start), Some(end)) = (first_entry, prev_exit)
+        && !loop_closes(surface, start, end, band)
+    {
+        return Err(PcurveMintError::LoopNotClosed { face });
     }
     Ok(())
 }
@@ -831,8 +976,7 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
             }
         }
         // Pass 3: the one-branch loop continuity of the STORED pcurves.
-        let arm = azimuth_arm(&surface);
-        let tau = T::tau();
+        let v_meter = polar_arm(&surface).unwrap_or_else(T::one);
         for cycle in &cycles {
             let mut prev_exit: Option<geom_core::Point2<T>> = None;
             let mut first_entry: Option<geom_core::Point2<T>> = None;
@@ -851,7 +995,8 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                 let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
                 let entry = cache.pcurve().eval(entry_t);
                 if let Some(prev) = prev_exit {
-                    for margin in [(entry.x - prev.x) * arm, entry.y - prev.y] {
+                    let arm = azimuth_arm(&surface, prev.y);
+                    for margin in [(entry.x - prev.x) * arm, (entry.y - prev.y) * v_meter] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
                             Ok(Sign::Positive | Sign::Negative) => {
@@ -869,18 +1014,10 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                 }
                 prev_exit = Some(cache.pcurve().eval(exit_t));
             }
-            if let (Some(start), Some(end)) = (first_entry, prev_exit) {
-                let du = end.x - start.x;
-                let closes = [du, du - tau, du + tau].into_iter().any(|m| {
-                    matches!(decide("pcurve_loop_closure", m * arm, band), Ok(Sign::Zero))
-                });
-                let height_closes = matches!(
-                    decide("pcurve_loop_closure_height", end.y - start.y, band),
-                    Ok(Sign::Zero)
-                );
-                if !(closes && height_closes) {
-                    findings.push(PcurveMintError::LoopNotClosed { face: face_key });
-                }
+            if let (Some(start), Some(end)) = (first_entry, prev_exit)
+                && !loop_closes(&surface, start, end, band)
+            {
+                findings.push(PcurveMintError::LoopNotClosed { face: face_key });
             }
         }
     }
