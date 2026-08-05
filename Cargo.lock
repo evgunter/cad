@@ -1705,6 +1705,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "step-import"
+version = "0.0.0"
+dependencies = [
+ "geom-brep",
+ "geom-core",
+ "geom-curves",
+ "geom-surfaces",
+ "step-export",
+ "topo",
+]
+
+[[package]]
 name = "stl"
 version = "0.0.0"
 dependencies = [

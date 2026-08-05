@@ -30,6 +30,13 @@ M0 lesson). Dead mngr worktrees belong to other agents — `cargo
 clean` their target/ but leave the checkout for mngr's bookkeeping.
 Sandbox note: the permission classifier may block batch/loop removal
 commands and `kill` — issue `git worktree remove` one per Bash call.
+**Sequencing (learned 2026-08-04, M7-1):** confirm the owning agent
+has actually terminated (its completion notification arrived, or
+TaskStop it after its report is delivered) BEFORE cleaning its lane —
+a lane was deleted out from under a live agent still polling CI after
+its final push. clean-lanes.sh's pushed-clean recheck meant zero loss,
+but the agent had to recover its bearings; the check protects data,
+not running work.
 For agent lanes under `~/.local/share/cad-work/` use
 `scripts/clean-lanes.sh`, which re-checks pushed/clean/no-stash
 immediately before each lane's rm and refuses loudly otherwise:

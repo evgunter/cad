@@ -1,0 +1,220 @@
+//! Acceptance rows 4–6 (M7-1 spec §2): the `nurbs_wireframe`
+//! disposition, the refusal rows (typed, entity-named, no panics),
+//! and the ε_in row.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod common;
+
+use common::fixture;
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+
+/// Row 4: the curve-only fixture parses; the rational quadratic
+/// reconstructs exactly (`==` on control points / knots / weights —
+/// legitimate because the writer's printer round-trips to identical
+/// bits); **no body is claimed**, and the reason is structural: a
+/// `GEOMETRIC_CURVE_SET` wireframe carries no faces, shells, or
+/// solids, so there is nothing a `Body` could honestly represent —
+/// the import result is the `Wireframe` disposition, not a skip.
+#[test]
+fn nurbs_wireframe_disposition() {
+    let text = fixture("nurbs_wireframe", "step");
+    let import = import_step(&text, &ImportOptions::default()).expect("the wireframe imports");
+    let StepImport::Wireframe { curves, eps_in } = import else {
+        panic!("a curve-only file must take the wireframe disposition, not claim a body");
+    };
+    assert_eq!(eps_in, 1e-9, "the file's declared uncertainty");
+    assert_eq!(curves.len(), 1, "one curve in the set");
+    let geom_curves::Curve3::Nurbs(payload) = &curves[0] else {
+        panic!("the curve is the rational quadratic");
+    };
+    // Exact reconstruction: the writer's record pin, inverted.
+    assert_eq!(payload.knots().degree(), 2);
+    assert_eq!(payload.knots().knots(), &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+    let control = payload.control();
+    assert_eq!((control[0].x, control[0].y, control[0].z), (1.0, 0.0, 0.0));
+    assert_eq!((control[1].x, control[1].y, control[1].z), (1.0, 1.0, 0.0));
+    assert_eq!((control[2].x, control[2].y, control[2].z), (0.0, 1.0, 0.0));
+    assert_eq!(
+        payload.weights(),
+        &[1.0, std::f64::consts::FRAC_1_SQRT_2, 1.0]
+    );
+}
+
+/// A minimal hand-authored solid file whose one face carries the
+/// given surface record — the refusal-row scaffold. The face's
+/// surface resolves before its bounds, so the bounds may dangle.
+fn minimal_solid_with_surface(surface_record: &str) -> String {
+    format!(
+        "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''), '2;1');\n\
+         FILE_NAME('t.step', '1970-01-01T00:00:00', (''), (''), 't', '', '');\n\
+         FILE_SCHEMA(('AUTOMOTIVE_DESIGN {{ 1 0 10303 214 1 1 1 1 }}'));\nENDSEC;\nDATA;\n\
+         #1 = {surface_record};\n\
+         #2 = ADVANCED_FACE('', (#99), #1, .T.);\n\
+         #3 = CLOSED_SHELL('', (#2));\n\
+         #4 = MANIFOLD_SOLID_BREP('t', #3);\n\
+         #5 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) );\n\
+         #6 = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.0E-9), #5, \
+         'distance_accuracy_value', '');\n\
+         #7 = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) \
+         GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#6)) \
+         GLOBAL_UNIT_ASSIGNED_CONTEXT((#5)) REPRESENTATION_CONTEXT('c', '3D') );\n\
+         #8 = ADVANCED_BREP_SHAPE_REPRESENTATION('', (#4), #7);\n\
+         ENDSEC;\nEND-ISO-10303-21;\n"
+    )
+}
+
+/// Row 5(a): `B_SPLINE_SURFACE_WITH_KNOTS` refuses, typed, naming the
+/// entity — the named M7 frontier (NURBS faces arrive with the
+/// loft/sweep assembly unit; the S9 flip pattern retires this refusal
+/// when their export lands).
+#[test]
+fn bspline_surface_refuses_typed() {
+    let text = minimal_solid_with_surface(
+        "B_SPLINE_SURFACE_WITH_KNOTS('', 1, 1, ((#98)), .UNSPECIFIED., .F., .F., .F., \
+         (2), (2), (0.0), (1.0), .UNSPECIFIED.)",
+    );
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("a NURBS surface is outside the imported subset");
+    match err {
+        StepImportError::UnsupportedEntity { id, keyword } => {
+            assert_eq!(id, 1, "the refusal names the surface entity");
+            assert_eq!(keyword, "B_SPLINE_SURFACE_WITH_KNOTS");
+        }
+        other => panic!("expected UnsupportedEntity, got: {other}"),
+    }
+}
+
+/// Row 5(b): truncated / malformed files refuse with typed parse
+/// errors — never panics. Truncation is exercised at **every strict
+/// prefix** of a real fixture (brute force is cheap and leaves no
+/// untested cut point; review MINOR-2 dropped the old 400-byte cap).
+/// The one prefix that legitimately imports is the cut dropping only
+/// the trailing newline — a semantically complete exchange file.
+#[test]
+fn truncations_refuse_without_panicking() {
+    let text = fixture("cube", "step");
+    for cut in 0..text.len() {
+        let truncated = &text[..cut];
+        let result = import_step(truncated, &ImportOptions::default());
+        if cut + 1 == text.len() {
+            assert!(
+                result.is_ok(),
+                "the trailing-newline cut is a complete file"
+            );
+        } else {
+            assert!(
+                result.is_err(),
+                "a truncated exchange file (cut at {cut}) must refuse"
+            );
+        }
+    }
+    // A structurally malformed record: garbage where a record belongs.
+    let garbage = "ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n#1 = ;\nENDSEC;\nEND-ISO-10303-21;\n";
+    match import_step(garbage, &ImportOptions::default()) {
+        Err(StepImportError::Syntax { line, .. }) => assert_eq!(line, 5),
+        other => panic!("expected a syntax refusal, got: {other:?}"),
+    }
+}
+
+/// Row 5(c): a dangling entity reference refuses naming both ids.
+#[test]
+fn dangling_reference_refuses_named() {
+    let text =
+        fixture("cube", "step").replace("#13 = LINE('', #10, #12);", "#13 = LINE('', #10, #9999);");
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("a dangling reference must refuse");
+    match err {
+        StepImportError::DanglingReference { from, to } => {
+            assert_eq!((from, to), (13, 9999), "the refusal names both ids");
+        }
+        other => panic!("expected DanglingReference, got: {other}"),
+    }
+}
+
+/// **The M7-1 prefixed-unit refusal, flipped** (the S9 pattern: a
+/// refusal a later unit retires by building the thing it named). M7-1
+/// refused `SI_UNIT(.MILLI., .METRE.)` typed and said in so many words
+/// that M7-2 owns foreign units; M7-2 Leg A builds the prefix table, so
+/// the same file now IMPORTS — and the assertion the flip owes is that
+/// it imports *scaled*, not merely accepted.
+///
+/// The same cube in millimetres is the same solid a thousand times
+/// smaller in each direction: its certified volume must be 1e-9 of the
+/// metre file's, and the declared uncertainty — a length like any
+/// other — 1e-3 of it.
+#[test]
+fn prefixed_unit_scales_instead_of_refusing() {
+    let metres = fixture("cube", "step");
+    let millimetres = metres.replace(
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI., .METRE.) )",
+    );
+    assert_ne!(metres, millimetres, "the unit record must actually differ");
+    let of = |text: &str| -> (f64, f64) {
+        let import = import_step(text, &ImportOptions::default()).expect("the cube imports");
+        let StepImport::Solid { body, eps_in, .. } = import else {
+            panic!("expected a solid");
+        };
+        (topo::mass_properties(&body).unwrap().volume, eps_in)
+    };
+    let (v_m, eps_m) = of(&metres);
+    let (v_mm, eps_mm) = of(&millimetres);
+    // 1e-9 is exact in binary only up to rounding, so the comparison is
+    // relative and generous by the volume's own accumulated roundoff.
+    assert!(
+        (v_mm - v_m * 1e-9).abs() <= 8.0 * f64::EPSILON * v_m * 1e-9,
+        "millimetre cube volume {v_mm} m^3 vs the metre cube's {v_m} m^3 scaled"
+    );
+    assert!(
+        (eps_mm - eps_m * 1e-3).abs() <= f64::EPSILON * eps_m,
+        "declared uncertainty {eps_mm} vs {eps_m} scaled: eps_in is a length too"
+    );
+}
+
+/// Review MAJOR-1's case: a `CONVERSION_BASED_UNIT` length context —
+/// an inch file's normal form, carrying **no** `SI_UNIT` record at
+/// all — must refuse typed. The unit context is checked by
+/// RESOLUTION of `GLOBAL_UNIT_ASSIGNED_CONTEXT` (and the
+/// uncertainty's own `#unit`), so a foreign length unit can never
+/// import silently as metres.
+#[test]
+fn conversion_based_unit_refuses_typed() {
+    let text = fixture("cube", "step").replace(
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
+        "( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) )",
+    );
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("an inch-unit file must refuse, not scale-lie as metres");
+    assert!(
+        matches!(err, StepImportError::UnsupportedUnit { .. }),
+        "expected UnsupportedUnit, got: {err}"
+    );
+}
+
+/// Row 6: the import result exposes the file's declared uncertainty
+/// as ε_in, and the per-call override exists — both on a corpus file.
+#[test]
+fn eps_in_declared_and_overridable() {
+    let text = fixture("cube", "step");
+    let declared = import_step(&text, &ImportOptions::default()).expect("imports");
+    assert_eq!(
+        declared.eps_in(),
+        1e-9,
+        "every corpus file declares the kernel's own ε"
+    );
+    let overridden = import_step(
+        &text,
+        &ImportOptions {
+            eps_in: Some(2.5e-7),
+        },
+    )
+    .expect("imports under an override");
+    assert_eq!(overridden.eps_in(), 2.5e-7, "the per-call override wins");
+    // An invalid override refuses typed before any parsing.
+    let err = import_step(&text, &ImportOptions { eps_in: Some(0.0) })
+        .expect_err("a non-positive override refuses");
+    assert!(matches!(
+        err,
+        StepImportError::InvalidEpsOverride { value } if value == 0.0
+    ));
+}

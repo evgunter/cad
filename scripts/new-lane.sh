@@ -7,6 +7,9 @@
 # clones), and optionally creates the work branch.
 set -euo pipefail
 lane=${1:?usage: new-lane.sh <lane-name> [branch]}
+case "$lane" in
+  */*|~*) echo "new-lane: pass a bare lane NAME (got a path: '$lane') — the clone goes to ~/.local/share/cad-work/<name>/cad" >&2; exit 1;;
+esac
 dir="$HOME/.local/share/cad-work/$lane/cad"
 [ -e "$dir" ] && { echo "new-lane: $dir already exists" >&2; exit 1; }
 git clone git@github.com:evgunter/cad.git "$dir"

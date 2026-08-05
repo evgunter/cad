@@ -5,8 +5,11 @@
 # trimlines (straight ones and circular ones), not transverse ones.
 #
 # OCC splits the periodic corner-arc carriers at their seams, so its
-# edge and vertex counts exceed the kernel's 48/24 — the same
-# accounting the ball and donut fixtures already record.
+# edge count exceeds the kernel's 48 (56 after the seam splits) while
+# the vertex count stays at the kernel's 24 — the same accounting the
+# ball and donut fixtures already record. (Wording fixed per the M7-1
+# import review NOTE-7, issue #184: the old comment overclaimed on
+# vertices.)
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=26
