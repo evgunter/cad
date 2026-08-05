@@ -761,7 +761,12 @@ fn carrier_on_surface(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unreachable)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 mod tests {
     use geom_core::spline::KnotVector;
     use geom_surfaces::NurbsSurface;
