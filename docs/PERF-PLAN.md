@@ -44,7 +44,7 @@ client-side BVH. This lane is entirely GUI-side and GPU-shaped (§3).
 **Per-edit preview (the critical path).** An edit mid-recipe implies:
 re-evaluate downstream features (M4 DAG; today: full rebuild via
 `crates/sweep/src/extrude.rs` / `revolve` Euler-op sequences), then
-booleans/splitting (M3: the edge×face sweep, `docs/M3-PLAN.md` PR 4 —
+booleans/splitting (M3: the edge×face sweep, `docs/archive/M3-PLAN.md` PR 4 —
 **documented quadratic**, deferred deliberately: "Boolean performance
 (BVH/spatial indexing for the edge×face sweep) — correctness first"),
 then re-tessellate changed faces. Ranked by (frequency × cost ×
@@ -389,6 +389,14 @@ developer run to re-check what CI checks better. Recommended shape:
 
 ## 5. Sequencing
 
+*(Historical record — written during M3. Every milestone entry below
+except M8's has since been delivered as described: item 2 and item 3
+are DONE, M4's window and M5's BVH/SSI entries shipped (#135 etc.).
+The one still-undelivered item is the Criterion harness (item 1),
+which remains deferrable by its own terms — no `benches/` exists,
+and the trend only has to predate the first optimization PR that
+needs it.)*
+
 **Now (during M3) — three cheap things, nothing else:**
 
 1. **Criterion benchmark harness — post-merge only, never a PR gate**
@@ -435,8 +443,10 @@ benchmark gates; micro-tuning validators or mass props.
 
 ## 6. Open questions for Evan
 
-- **Q-P1**: Ratify the §3.3 GPU boundary table and §2.2 parallelism
-  idioms into DESIGN.md (D9 addendum), or keep this doc advisory?
+- **Q-P1** — ANSWERED (Evan's sign-off, #49, 2026-07-21; executed at
+  the M3 exit sweep): the §3.3 GPU boundary table and §2.2
+  parallelism idioms are ratified into DESIGN.md as the D9 addendum;
+  this doc stays merged-and-advisory.
 - **Q-P2** — ANSWERED (Evan, #49, 2026-07-21): as recommended —
   selective adoption, CI differential pin, `shadow-exec` opt-in
   ("exactly the kind of thing I was thinking of"); no always-on

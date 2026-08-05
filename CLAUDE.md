@@ -44,8 +44,8 @@ Details: `memories/cad-working-style.md`, `memories/evan-profile.md`.
 
 ## Repo notes
 
-- `references/` (git-ignored) holds book scans (NURBS Book, Mäntylä ch.
-  4–6, Hoffmann complete); they are scans — read pages visually (poppler
+- `references/` (git-ignored) holds book scans (NURBS Book, Mäntylä
+  complete, Hoffmann complete); they are scans — read pages visually (poppler
   is installed).
 - License: dual MIT OR Apache-2.0. Project name: pending (Q9), placeholder
   acceptable.

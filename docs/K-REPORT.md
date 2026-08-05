@@ -1,4 +1,4 @@
-# K report — the ambiguity constant K = 10 under M2's telemetry
+# K report — the ambiguity constant K = 10 (M2 telemetry, with the M3/M4/M5 snapshots, the #89 close, and the M7 addendum)
 
 **Status: FINAL** (M2 PR 7 deliverable; orchestrator-finalized
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
@@ -128,7 +128,8 @@ completely flat across the candidate range on this corpus.
    constructions are a **well-conditioned corpus** — profile-validated
    inputs, sweep-generated geometry, margins the modeler controls.
    The expectation is that the strongest K evidence arrives at **D7
-   import-adoption time** (foreign geometry with real residuals and
+   import-adoption time** (M7 under the 2026-08-03 renumbering;
+   foreign geometry with real residuals and
    near-coincidences not of our making), with M3's booleans/SSI
    (computed intersections) the other pressure source. This report's
    claims are scoped to the native-construction corpus accordingly.
@@ -611,3 +612,59 @@ future corpus can probe alternatives without code changes. Closing
   under the 2026-08-03 renumbering, because that is where the SSI
   generic-`T` lift and the loft assembly land — the units that put
   marched geometry into a body at rest in the first place.
+
+---
+
+## M7 addendum (2026-08-05): the first in-band landing — fired,
+## diagnosed, RETIRED as a dimensional-metering defect
+
+Recorded by the docs-rot unit so this report's record matches what
+happened; the section above is left as written.
+
+**The trigger fired.** During M7-2 (FreeCAD foreign-corpus import,
+#189), the hosted sweep produced the project's FIRST in-band K
+landing: ε = 1e-7, fixture `cone_trunc`, predicate
+`props_rim_level_group`, margin 5.590169943747308e-7 = √5/4 × 1e-6
+— in Band{1e-7, 1e-6}. Verified bit-exact at review (the A3
+attack), reported to Evan on the designated #89 thread with nothing
+retuned.
+
+**The diagnosis.** Evan's probe of the margin's DIMENSION broke the
+case: the margin was an AREA (m², a two-length product, quadratic
+in model scale) where a rim-level comparand should be a LENGTH.
+Root cause in `geom-brep/src/props/curved.rs::du_of_rims`: every
+rim-level comparand was metered by × arm — correct for the
+sphere/torus payloads (sin v / cos v, dimensionless) but WRONG for
+cylinder/cone, whose level v is already a length; the × arm(≈1e-3)
+factor SHRANK a decisively-separated margin into the band (at
+large scale it would inflate instead). The true rim separation on
+`cone_trunc` is ~5.6e-4 m ≈ 5590ε.
+
+**The retirement.** Fixed at PR #197 (RimLevel per-kind metering;
+the fix corrects real verdict flips in both directions). Post-fix
+the landing re-measures at √5/2 mm — length-dimensioned,
+scale-linear, decisively OUT of band; the a3 sweep delta is exactly
+one line. **K = 10 is unmoved and #89 stays closed** — the record
+lives in the #89 thread comments; the follow-on dimensional sweep
+is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
+
+**The caveats this earns, stated for the next landing:**
+1. **An in-band landing can be a dimensional-metering bug rather
+   than K evidence.** The trigger protocol gains a step: before
+   treating a landing as ε-vs-scale or K pressure, check the
+   margin's DIMENSION against the predicate's comparand (the
+   predicate-dimension audit is the checklist). The detector
+   worked — it caught a real bug — but what it caught was not what
+   this report forecast.
+2. **This report's "without anyone re-reading this report" promise
+   half-failed**: the landing surfaced at a non-CI ε row (1e-7,
+   between the standard 1e-6/1e-9/1e-12 rows) during a milestone
+   sweep, not via the k-lint advisory row; and its interpretation
+   required exactly the re-reading the sentence hoped to avoid.
+3. The two "M6 pickup" follow-ups above are hereby re-tagged
+   **UNOWNED pickups** — M6's executed units (1–4) all merged with
+   neither follow-up done, and M6 remains open awaiting Evan's exit
+   walk (the k-lint baseline floor is still the stale M4-era 1.5e-3
+   with ~102 advisory flags/run; the SSI Probe lane still has no
+   owner). The k-lint floor refresh holds a promoted lull-queue
+   spot per M6-LOG's status summary (docs/M6-LOG.md).

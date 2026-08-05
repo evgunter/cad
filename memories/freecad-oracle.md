@@ -1,6 +1,6 @@
 ---
 name: freecad-oracle
-description: FreeCAD 1.1.2 headless is installed at ~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd — the STEP external-import acceptance oracle
+description: FreeCAD 1.1.2 headless is installed at ~/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd — the acceptance oracle for STEP export AND (since M7) the foreign-corpus source + volume oracle for STEP import
 metadata:
   type: reference
 ---
@@ -19,3 +19,9 @@ absent so cargo stays hermetic. Hosted CI's step-import job
 installs its own checksum-verified FreeCAD 1.1.2 AppImage (#94),
 version-matched to this local oracle — keep the versions in sync
 if either side upgrades.
+
+Since M7 it is ALSO the STEP-import oracle: the M7-2 foreign corpus
+is 13 FreeCAD-authored fixtures (mm units, base cones, vertex-loop
+sphere, structure roots) that `crates/step-import` must adopt
+first-class, with FreeCAD's own volumes as the acceptance
+comparison (#189).

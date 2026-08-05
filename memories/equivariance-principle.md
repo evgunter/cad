@@ -1,30 +1,20 @@
 ---
 name: equivariance-principle
-description: Maintain isometry-equivariance (semantic, in ℝ) where it is free; the claim that the kernel currently has no designed asymmetry is unaudited
+description: Pointer — the equivariance rule is ratified engineering convention 4 in docs/DESIGN.md (semantic isometry-equivariance where free; premise UNAUDITED); DESIGN.md is the sole normative source
 metadata:
   type: project
 ---
 
-Evan (2026-07-30, during the S8 fillet-branch ruling): "everything
-is equivariant right now, so maintain that if it's free (if that
-is indeed true)."
+The equivariance principle is a RATIFIED engineering convention and
+its normative statement lives in `docs/DESIGN.md` (engineering
+conventions, convention 4 — ratified at the M5 exit sweep, Evan on
+PR #169). Origin: Evan, 2026-07-30, during the S8 fillet-branch
+ruling. This memory exists only so session-start reading surfaces
+the convention; do not restate or extend the rule here — edit
+DESIGN.md.
 
-Working principle: kernel constructions and selection rules should
-commute with rigid motions AND reflections at the semantic level
-(in ℝ) unless equivariance is provably impossible for the case or
-costs something real. This is about DESIGNED rules (no left-hand
-rules, no absolute-orientation tie-breaks) — not bitwise f64
-equivariance, which D9's fixed evaluation orders already forgo.
-
-**Why:** user geometry has no preferred handedness; a mirrored
-design should behave as the mirror of the original.
-
-**How to apply:** when specing a selection/tie-break/ordering rule,
-prefer intrinsic quantities (arc lengths, distances, angles) over
-enumeration/construction order; where a candidate-swapping symmetry
-makes equivariance impossible, fall back deterministically and
-DOCUMENT the residual (precedent: M5 S8's selection ladder, rung 3
-— the first knowingly-designed residual). The "everything is
-currently equivariant" premise is UNVERIFIED — an audit is banked,
-not assumed; do not cite the kernel as equivariant in docs without
-checking the claim at the site in question.
+Two load-bearing reminders the convention itself carries: the "the
+kernel is currently equivariant" premise is UNVERIFIED (an audit is
+banked, not assumed — never cite the kernel as equivariant without
+checking the site); designed non-equivariant residuals must be
+documented (precedent: M5 S8's selection ladder, rung 3).

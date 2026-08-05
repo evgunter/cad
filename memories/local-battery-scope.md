@@ -37,5 +37,5 @@ the gate find it — that is the whole calculus. Corollaries:
 local scope by asking what failures are LIKELY for this change
 shape and what runs surface them in minutes — write that, and
 say "hosted CI proves the rest." Do not enumerate rules; apply
-the principle. Related: [[resume-vs-fresh-subagent]],
+the principle. Related: [[agent-lane-operations]],
 [[cad-working-style]], [[interval-square-poison]].

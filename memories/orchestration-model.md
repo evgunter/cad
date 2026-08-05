@@ -36,7 +36,7 @@ Evan's standing instructions for implementation work (given at M0 start,
   Evan's preference matters. When unsure which kind a decision is,
   treat it as a fork.
 - **Keep an orchestrator log of design decisions made unilaterally**
-  (M0's is `docs/M0-LOG.md`, L-numbered decisions) and generally maintain
+  (M0's is `docs/archive/M0-LOG.md`, L-numbered decisions) and generally maintain
   state-of-work knowledge in version control.
 - **Before stopping, write down and commit all crucial state** (log
   updates, memories, in-flight branch status) so the next session can
@@ -51,156 +51,37 @@ in-flight state; delegate implementation with detailed specs citing
 DESIGN.md decisions; review subagent output before merging; escalate to
 Evan only at genuine design forks.
 
-**Operational lessons (M0, 2026-07-16):**
-- Background implementer agents sometimes stop while waiting on their
-  *own* background tasks (long builds, clippy) — resume them with a
-  SendMessage nudge telling them to check the task's status and finish
-  in the FOREGROUND; instruct final verification steps to be foreground
-  from the start.
-- One implementer + one adversarial e2e reviewer + one fix pass per PR
-  worked extremely well: reviews that *write and run real consumer
-  programs* caught three correctness bugs code-reading missed
-  (poison-laundering at a certification door, interval enclosure
-  blowup from dependent multiplication, a false key-contract doc).
-  Orchestrator writes the design doc BEFORE the implementer prompt and
-  makes it binding; deviations must be reported, not improvised.
-- Isolated-worktree agents: their branch stays checked out in their
-  worktree after they finish — remove the worktree (or work inside it)
-  before checking the branch out elsewhere; warm build caches in a
-  finished agent's worktree are worth reusing for expensive deps
-  (gmp: user-level ~/.cache/gmp-mpfr-sys survives across worktrees).
-- A persistent gh-polling Monitor for PR comments/reviews/reactions
-  makes phone-review loops with Evan fast; expect it to echo your own
-  gh comments back (same account) — ignore those events.
-- Design-PR conversations move fastest when replies include a firm
-  recommendation, honest counterarguments, and an explicit "a 👍 here
-  is enough to proceed" affordance.
+**Standing operational rules (compressed 2026-08-05 by the docs-rot
+unit; the incident narratives that earned them live in this file's
+git history and the M-logs):**
 
-**Standing session-start checklist (made durable 2026-07-20; the
-M2-LOG snapshots assume it):**
-- Stale-monitor check, corrected (Evan, 2026-07-21): monitor
-  processes do NOT outlast their session. The one observed case of
-  "orphaned pollers" was a same-session continuation — Evan had run
-  the `/clear` slash command, so the "new" orchestrator was the old
-  session with its monitors still legitimately running. A successor
-  created via tmux (fresh session) will never inherit pollers. So:
-  if you may be a post-/clear continuation, check `ps aux | grep -E
-  'gh api|events.jsonl'` and kill/reuse what you find; a fresh tmux
-  orchestrator can skip the hunt. Then arm TWO persistent Monitors:
-  1. **GitHub away-channel (refined by Evan, 2026-07-21)**: poll
-     `gh api` for new issues + all issue/PR comments AND comment
-     REACTIONS on the repo (~60s interval) — Evan may ask questions
-     through comments when not in-session, and he signs off with a
-     👍 reaction ("a 👍 here is enough"), which a comments-only
-     poller cannot see (learned when a #49 sign-off went unnoticed
-     until he commented). Scope per Evan (#56, 2026-07-21): do NOT
-     watch all reactions — only comments you explicitly requested a
-     👍 on. Mechanism: when posting a sign-off-request comment,
-     append its comment ID + label to a watchlist file the monitor
-     reads; the monitor polls exactly those IDs. Expect the monitor
-     to echo your own comments back (same account), ignore those. Outbound direction: status
-     updates aren't wrong but Evan will likely MISS them — he only
-     reviews comments he explicitly asked for, or on a thread he
-     just used to ask a question (earlier sessions treated merged
-     PR #41 as a standing status thread; those posts went unread).
-     **Questions for Evan SHOULD go out via GitHub**: preferred
-     form is a PR editing the relevant design doc to state the
-     question, updated in place with the answer once resolved (the
-     design-conversation-PR pattern); a GitHub issue also works.
-     **NOT comments on merged PRs** (re-learned 2026-08-02: a
-     design fork posted to the merged #148 thread only reached
-     Evan by luck — "i don't scan merged PR comments unless i
-     just asked a question there"; a thread he was recently
-     active in feels like a channel but stops being one the
-     moment his question is answered).
-  2. ~~Usage-limit watch~~ **DROPPED (Evan, 2026-07-23)**: the
-     events.jsonl `rate_limits` percentages don't measure
-     Fable-specific usage — which is the limit that actually gets
-     hit — so the monitor never warned usefully. Don't arm it. The
-     stopping rule stands on its own: commit crucial state at every
-     seam so an unannounced limit-stop loses nothing.
-- On any warning-driven or planned handoff: commit log + memories +
-  in-flight branch status per the stopping rule above.
-
-**Operational lessons (M2, 2026-07-19/20):**
-- **The 64k output-token-per-response limit kills agents that draft
-  whole files in one Write** (or produce runaway derivations
-  in-context). One implementer died 3× before the fix. Bake OUTPUT
-  DISCIPLINE into every spec's header: ≤~150 lines per tool call;
-  skeleton first, one function/test per Edit; split code across
-  several source files; read big files chunked (offset/limit, ≤10-line
-  distillation per chunk); break a growing response with a small tool
-  call; derivations in scratchpad files; reports ≤150 dense lines.
-  If an agent dies to this repeatedly, RESUME may replay the same
-  giant response — kill it and respawn FRESH with the discipline in
-  the spec (the poisoned transcript is the problem).
-- Agents stopping "waiting on gate results" from a background chain
-  may re-stop after a generic nudge — tell them explicitly: kill the
-  chain, run each gate row as a separate SYNCHRONOUS foreground Bash
-  call, read each result before the next.
-- Finished agents can keep firing stale-waiter notifications; TaskStop
-  them once their report is delivered.
-- Convergent independent diagnosis (PR 4's implementer and PR 3's
-  reviewer both finding the interval norm poison) is strong evidence;
-  when two agents propose the same fix, have the second adopt the
-  first's exact patch text to make the stack merge trivial.
-- Mid-flight branch moves: when a reviewed branch gains commits,
-  message the reviewer with precisely what changed and what to
-  re-check; reviewers' executed-witness findings beat implementers'
-  derivations (the powi(2) subnormal case) — record the resolution,
-  scope the doc claim.
-
-**Operational lessons (M1, 2026-07-16):**
-- **Assign reviewers explicit claims to falsify** (not just "review
-  this"): the falsification assignments caught a real doc
-  self-contradiction (PR 4's re-make taxonomy — the "impossible"
-  re-make existed), derived the corrected per-shell E–P invariant that
-  became PR 5's spec, and exhaustively attacked the component pass.
-  Essential for self-merging PRs where the review is the last gate.
-- Reviewer suites are promoted into CI after each fix pass
-  (independent derivations = regression value); details in
-  [[review-and-dependency-policy]].
-- Reference PDFs/notes go in the MAIN checkout's `references/` —
-  git-ignored directories don't propagate across worktrees.
-- Transient API-overload (529) kills background agents mid-task;
-  resume via SendMessage (transcript + worktree survive), with
-  exponential backoff between retries when the overload persists.
-
-**Watchlist-reaction endpoint gotcha (2026-07-24)**: 👍 reactions on
-INLINE PR review comments live under `repos/{r}/pulls/comments/{id}/
-reactions`, NOT `issues/comments/{id}/reactions` — a poller using
-only the issues endpoint silently never fires for inline sign-offs
-(top-level comments work; that asymmetry hid the bug until Evan
-said "added 👍 on your comments!" in prose). The monitor script must
-try the issues endpoint and fall back to the pulls endpoint per
-watched ID.
-
-**Monitor suite is now scripted (2026-07-24, Evan's suggestion)**:
-the session-start monitors live in the repo at `scripts/monitors/`
-(github-away-channel.sh with BOTH reaction endpoints baked in,
-disk-watchdog.sh, hourly-checkin.sh). Session start = install
-(`cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
-an up-to-date checkout) + arm each as a persistent Monitor running
-`bash ~/.local/share/cad-work/monitors/<script>`. Run from the
-installed copies, NOT a checkout (checkouts switch refs/get
-deleted). Sign-off watchlist moved to the persistent path
-`~/.local/share/cad-work/signoff-watchlist.txt` (survives
-sessions). Fix bugs in the repo scripts, re-install, re-arm —
-don't fork inline variants.
-
-**Orchestrator-branch state-sync PRs (Evan, #96 comment,
-2026-07-25)**: the orchestrator branch (logs, specs, memories,
-scripts) must not accumulate a large unmerged delta — open a quick
-docs-only PR to main at pipeline seams (a PR merge, a lane launch)
-so an orchestrator switch never strands state. First one: #97.
-
-**Waiter-parking is endemic (2026-07-25, three lanes in one day)**:
-despite nudges, implementers and reviewers keep arming background
-waiters/monitors for their own build/test completion and then
-stopping — the wake-up loss then stalls the lane until a sweep.
-PREVENTION: every subagent prompt's verification section must say
-verbatim "run every build/battery row as a synchronous FOREGROUND
-Bash call, one at a time, reading each result before the next;
-NEVER arm waiters, monitors, or background chains for your own
-builds/tests". The OUTPUT DISCIPLINE header alone does not prevent
-it.
+- **Session start**: install + arm the scripted monitor suite —
+  `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
+  an up-to-date checkout, then arm each as a persistent Monitor
+  from the INSTALLED copies (checkouts switch refs). The
+  github-away-channel script bakes in both reaction endpoints
+  (issues + pulls — inline-comment 👍s live under the pulls
+  endpoint). Sign-off watchlist path:
+  `~/.local/share/cad-work/signoff-watchlist-m7.txt` (per the
+  sole-orchestrator wind-down). No usage-limit monitor (dropped,
+  Evan 2026-07-23) — the stopping rule covers it.
+- **Channel to Evan**: questions go out via GitHub as
+  design-conversation PRs (edit the doc to state the question,
+  update in place with the answer) or issues — NEVER comments on
+  merged PRs (he doesn't scan them). Watch 👍 reactions only on
+  comments you explicitly requested sign-off on (watchlist file).
+- **State-sync PRs (Evan, #96)**: the orchestrator branch must not
+  accumulate a large unmerged delta — open a docs-only PR to main
+  at every pipeline seam.
+- **Every subagent spec header**: OUTPUT DISCIPLINE (≤~150 lines
+  per tool call, chunked reads, skeleton-first writes, reports
+  ≤150 lines — the 64k output limit kills agents that draft whole
+  files in one Write; a transcript poisoned by it must be respawned
+  FRESH, not resumed) and the verbatim verification sentence: "run
+  every build/battery row as a synchronous FOREGROUND Bash call,
+  one at a time, reading each result before the next; NEVER arm
+  waiters, monitors, or background chains for your own
+  builds/tests" (waiter-parking is endemic without it).
+- **Reviews**: assign reviewers explicit claims to falsify; promote
+  reviewer suites into CI after the fix pass
+  ([[review-and-dependency-policy]]).

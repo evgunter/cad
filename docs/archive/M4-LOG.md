@@ -1892,3 +1892,128 @@ per memories/orchestrator-handoff.md streamlined path; successor
 proceeds on M5-PLAN recommendations without overnight sign-off per
 Evan's explicit authorization above). This orchestrator self-stops
 after capture-verify.
+
+## Appendix (2026-08-05): the M4 fork-outcome record, relocated
+## from DESIGN.md by the docs-rot unit (content unchanged)
+
+### M4 fork outcomes (F1–F8, ratified at the 8c exit sweep, 2026-07-27)
+
+The forks were recorded and resolved at M4 ratification
+(`docs/M4-PLAN.md`, #80); this is the outcome record — each fork:
+decision, where it landed, notable deviations. Full trail:
+`docs/M4-LOG.md`.
+
+- **F1 (restrictive dimension lattice)** — landed as ratified in
+  `editor-core`'s expression sublanguage (#81): {Length, Angle,
+  Count, Scalar}, dimension-changing products/quotients typed
+  refusals, same-dimension ratios refused in v1. No deviations.
+- **F2 (result-DAG shape)** — landed F2-verbatim (#83):
+  `Evaluation`/`NodeResult`/`NodeValue`, descendants-only poisoning,
+  scalar-generic evaluator, epochs + cancelation in the signature.
+  Notable accepted deviation (Evan, #81 rulings): **`Doc<P>`
+  genericity** — the document type is generic over the profile
+  payload rather than concrete.
+- **F3 (persistence concretes)** — landed as schema v1 (#112):
+  snapshot + edit log, leading integer schema version, explicit
+  migration chain, floats shortest-round-trip, NaN/inf typed refusal
+  at BOTH doors (save-side walls added at the review's symmetry
+  sweep). Format choice (PR-spec latitude, REPORTED): **JSON via
+  serde_json** — ryu floats + tooling; the `float_roundtrip` feature
+  is load-bearing (caught real last-ulp parse drift day one).
+  Metadata (Evan's #92 ask) landed as the **`MetaValue` tree after
+  two D7 rounds with Evan** (final: MetaValue tree, serde-native
+  boundary, v-field convention) rather than opaque bytes.
+  **Schema v2 (M5 PR 10)**: the recipe vocabulary grew `Loft`/`Sweep`
+  and the version bumped as a ratified CLEAN BREAK (Evan, #148) — no
+  migration step was written, a v1 file refuses typed
+  (`PersistError::SchemaTooOld`, naming the regenerate recourse), and
+  the repo's own v1 golden was regenerated once. The kernel is
+  unreleased and every file it has written replays from source, so
+  live compatibility code would have been carried for nobody. The
+  migration MECHANISM stays (an explicit, currently empty step
+  table): D6.3's forward-only rule is unchanged, and the next
+  non-breaking format change adds its step there.
+- **F4 (v1 node vocabulary)** — landed as ratified (#81; Declare
+  live end-to-end at #102); `tangent_joints` joined schema v1 before
+  the freeze (#109 → #112). Revolved-hole sugar stayed deferred.
+  **`Loft`/`Sweep` joined the vocabulary at M5 PR 10** as ORDINARY
+  ops under the same rules (named slots, the structural/continuous
+  divide, refs to existing nodes only) — the Q8 definitional posture
+  is stated in rustdoc at both the node and the surface.
+  Noted gap (demo REPORT, #98): Boolean-of-Pattern is not wireable
+  in F4 — a possible future vocabulary item.
+- **F5 (Declare threading)** — landed at #102: declarations are
+  recipe data on the consuming node, resolved by name through
+  operand tables; the M3 operand-internal-declaration envelope entry
+  is retired (closure corpus certifies declared). **Verified-at-use
+  semantics (ratified wording, PR 5 review F5)**: a false
+  declaration that never meets geometry is a silent no-op;
+  contradiction fires where the lie meets an edge. The designed
+  narrowing (R2) is recorded under the M4 roadmap entry above.
+- **F6 (STEP export)** — decided EARLY per Evan's amendment; spike
+  outcome: **in-house AP214 analytic-subset writer, adopt nothing at
+  runtime** (#88); ruststep/truck-stepio survive as dev-dependency
+  parse-back oracles only. Tail of the story: FreeCAD acceptance
+  discharged locally then hosted (#94); the review added a
+  parse-based **signed-volume text oracle** closing the OCC-healing
+  blind spot (OCC silently rectifies inverted shells); the STEP lane
+  then became the demo RENDER path (#98) and the watertightness
+  gate's second leg alongside admesh (#116). At M5 PR 13 the OCC
+  blind spot was re-measured on CURVED geometry and is unchanged —
+  `revert(ball)` and `revert(washer)`, every face `same_sense = .F.`,
+  import as valid with the same positive volumes as the un-reverted
+  bodies — so the curved orientation acceptance is text-level by
+  necessity: an edge-use-coherence oracle over the emitted Part 21,
+  whose negative control is the double-composition bug itself.
+- **F7 (expression AST + ExprPath)** — landed at #81: no
+  conditionals in v1 (held throughout); ExprPath stable under edits
+  to other expressions. Known caveat carried forward as designed:
+  same-slot ancestor replacement silently re-points stale paths —
+  documented at PR 1, made a binding caveat in the PR 5 spec.
+- **F8 (milestone boundary)** — held: the persisted file IS in M4
+  (schema v1 frozen, #112); the Band 4 corpus landed (#118, 9
+  documents / 174 nodes, coverage asserted) with rebuild latency
+  MEASURED AND REPORTED, not gated — PERF-PLAN stays advisory; the
+  latency rows joined the hosted matrix as reporting.
+
+
+## Appendix (2026-08-05): the M4 roadmap done-state bullet as it
+## stood in DESIGN.md before the docs-rot compression (verbatim)
+
+- **M4** — Parametric model layer: parameter vector → feature DAG → solid;
+  provenance-based naming; replay. STEP export. *(Done-state recorded at
+  the 8c exit sweep, 2026-07-27 — shipped: `editor-core` recipe substrate
+  + expression sublanguage (#81); scalar-generic evaluation service with
+  memoized result DAG (#83); the naming stack end-to-end — StableName/
+  RolePath + eager tables (#87), resolution + diff engine + Rebind
+  (#96), GeomSource + Declare threading + the #95 recursive naming key
+  (#102); in-house AP214 STEP export with FreeCAD acceptance (#88, #94);
+  StableName-keyed appearance (#92); persistence schema v1 — snapshot +
+  edit log, bit-exact, **frozen** (#112); declared-tangency discipline
+  (#109); join-stage seam-region repairs closing a silently-wrong-volume
+  bug (#108, #113) and watertight CDT tessellation (#116); the Band 4
+  corpus + rebuild-latency reporting lane (#118); K-telemetry + large-K
+  lint in review (8b) at the time of writing. Fork outcomes F1–F8:
+  see "M4 fork outcomes" below.)* The naming layer also
+  **retires production bit-identity coincidence checking** (Evan, #53,
+  2026-07-21; M3 PR 4 / #57/#58): once surfaces carry global identity,
+  the "declared" coincidence rung (M3's bit-fingerprint comparison of
+  descriptions — `merge_coplanar_faces`' declared rung, PR 4's
+  `oriented_plane_eq` via the one sanctioned `Real`-level seam,
+  `geom_core::bit_identity`) becomes a provenance-record lookup; the bit
+  comparison leaves production entirely, surviving at most as a debug
+  assertion that the records and the bits agree. Until then the CI
+  bit-identity tripwires keep **every consumer of the channel
+  acknowledged**: a new consumer must be allowlisted in CI and carry its
+  own retirement-scheduled doc note, and the type-punning plumbing stays
+  confined to the single `bit_identity` seam. The retirement
+  *mechanism* is now ratified (NAMING-DESIGN N6, #74, 2026-07-23):
+  `GeomSource` syntactic recipe-source identity — same source ⇒ same
+  bits by D9, converse deliberately unclaimed. **Retirement EXECUTED
+  (M4 PR 5, #102, 2026-07-25): `bit_identity` is debug-only with an
+  EMPTY production allowlist** (memo.rs retained on its bit-hashing
+  non-consumer justification; tripwires stay armed); the designed
+  consequence, stated honestly (PR 5 review R2): undeclared value-equal
+  flush booleans now refuse typed at the coincidence door — the M3 bit
+  rung was doing real, now-forbidden work; the whole corpus and the
+  demos migrated to declared intent.

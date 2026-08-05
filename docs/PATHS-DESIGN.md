@@ -1,7 +1,7 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5)
 
-Status: **DRAFT round 13, for Evan's sign-off** (design-conversation
-PR #124; implementation is NOT scheduled — banked for the v2
+Status: **RATIFIED** (design-conversation PR #124, signed off and
+merged 2026-07-29; implementation is NOT scheduled — banked for the v2
 profiles-as-programs work per #104; the ratified doc is the
 deliverable). Designed across twelve review rounds with Evan
 (2026-07-27/29, #104 + the #124 threads); the round-by-round trail
