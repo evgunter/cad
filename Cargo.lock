@@ -1713,6 +1713,7 @@ dependencies = [
  "geom-curves",
  "geom-surfaces",
  "step-export",
+ "sweep",
  "topo",
 ]
 

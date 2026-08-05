@@ -36,3 +36,9 @@ topo = { path = "../topo" }
 # dependency per the M7-1 spec §0 (dev, reported): nothing in the
 # import path itself consumes the writer.
 step-export = { path = "../step-export" }
+# The M7-3 rational-arm row builds its arc_loft NATIVELY (no committed
+# fixture carries a rational wall) and compares the imported body's
+# state -- census, tiers, the identical typed tier-3 refusal --
+# against the source body's. Dev-only, same posture as step-export
+# above.
+sweep = { path = "../sweep" }

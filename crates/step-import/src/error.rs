@@ -25,6 +25,10 @@ pub enum AdoptionCandidate {
     TangentIntersection,
     /// The parameterization seam of one closed surface.
     Seam,
+    /// A NURBS wall's own `u ∈ {0, 1}` boundary iso-curve (M7-3): the
+    /// loft/sweep wall–wall seam class, offered when the parsed
+    /// carrier bitwise-matches an adjacent wall's boundary column.
+    IsoCurve,
     /// A conventional mapped-curve self-description (the locus the
     /// surfaces under-determine).
     MappedCurve,
@@ -36,6 +40,7 @@ impl fmt::Display for AdoptionCandidate {
             Self::Intersection => "intersection",
             Self::TangentIntersection => "tangent intersection",
             Self::Seam => "seam",
+            Self::IsoCurve => "boundary iso-curve",
             Self::MappedCurve => "mapped curve",
         })
     }

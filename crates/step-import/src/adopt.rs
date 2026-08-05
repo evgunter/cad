@@ -397,7 +397,49 @@ fn adopt_edges(
         // docs: intrinsic before conventional).
         let mut candidates: Vec<(AdoptionCandidate, EdgeGeometry<f64>)> = Vec::new();
         let mut conventional = true;
+        let mut nurbs_rim = false;
         if fs_plus != fs_minus {
+            // The IsoCurve rung (M7-3): a NURBS-carried edge between
+            // two described NURBS walls is the loft/sweep wall–wall
+            // seam class — the carrier the writer emitted IS one
+            // wall's `u ∈ {0, 1}` boundary column
+            // (`geom_brep::boundary_iso_u`, a control-net copy), so
+            // the match is BITWISE, sound own-corpus (the printer
+            // round-trips bits; an ε_in-tolerant match is an
+            // M7-2-style widening, not this rung's). Offered FIRST:
+            // it is the description class the native builder stores
+            // (the at-rest preference is the native body's state),
+            // and the intrinsic rungs below cannot certify a Nurbs
+            // resolved surface at all (`geom_brep` check 1 refuses
+            // typed) — they stay on the ladder so a non-matching
+            // edge still reports every attempt. `u = 0` arms lead:
+            // each native seam is minted as its forward wall's
+            // `u = 0` boundary, so the first certifying candidate
+            // reproduces the native description exactly. `v0`/`v1`
+            // are the carrier's own derived interval — its full knot
+            // domain, which the bitwise match pins to the wall's v
+            // domain ([0, 1] for every exported wall).
+            if let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier {
+                for end in [false, true] {
+                    for wall in [fs_plus, fs_minus] {
+                        if let Some(Surface::Nurbs(wp)) = body.get_surface(wall)
+                            && !wp.is_placeholder()
+                            && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
+                            && bitwise_iso_match(nurbs_carrier, &iso)
+                        {
+                            candidates.push((
+                                AdoptionCandidate::IsoCurve,
+                                EdgeGeometry::IsoCurve {
+                                    surface: wall,
+                                    u: if end { 1.0 } else { 0.0 },
+                                    v0: spec.t0,
+                                    v1: spec.t1,
+                                },
+                            ));
+                        }
+                    }
+                }
+            }
             candidates.push((
                 AdoptionCandidate::Intersection,
                 EdgeGeometry::Intersection {
@@ -446,14 +488,33 @@ fn adopt_edges(
             // contract promises it will not need to). The rung
             // therefore requires BOTH: the two records describe one
             // locus, and this edge's carrier lies on it.
-            conventional =
-                coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
+            // **The Nurbs-adjacency exemption (M7-3 item 4)** — the
+            // cap-plane × NURBS-wall rim class, exempt BY KIND
+            // (mirroring tier-3 check 4's flip-B exemption,
+            // `topo::validate`): coincidence is an implicit-form
+            // question and a NURBS wall has no implicit form, so the
+            // gate above can never answer for this pair — while the
+            // class itself is exactly the conventional one (the
+            // wall's `v ∈ {0, 1}` iso IS the placed profile segment;
+            // the loft builder's own rims carry `PlacedSegment`).
+            // What keeps the rung honest here is not this gate but
+            // the pcurve mint the import runs unconditionally: on a
+            // non-rational wall every rim's chart image is derived
+            // and CERTIFIED against the wall (`nurbs_iso_derive`'s
+            // side pick + the iso lane), so a carrier that wanders
+            // off the wall boundary fails the import loudly. A
+            // rational wall mints nothing — exactly the native
+            // rational body's state, whose tier-3 refusal the import
+            // preserves (item 5's Arm B).
+            nurbs_rim = nurbs_plane_pair(body.get_surface(fs_plus), body.get_surface(fs_minus));
+            conventional = nurbs_rim
+                || (coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
                     && carrier_on_surface(
                         body.get_surface(fs_plus),
                         &spec.carrier,
                         spec.t0,
                         spec.t1,
-                    );
+                    ));
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -473,7 +534,7 @@ fn adopt_edges(
         }
         if conventional
             && let Some(mapped) =
-                mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1)
+                mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
             candidates.push((
                 AdoptionCandidate::MappedCurve,
@@ -517,14 +578,41 @@ fn adopt_edges(
 /// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
 /// and no exported body puts one inside a single surface); the ladder
 /// then reports every refusal typed.
+///
+/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
+/// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
+/// with one root: `PlacedSegment { Line }` is the description the
+/// native loft builder stores for exactly this edge class (the
+/// imported body lands in the native description state), and it is
+/// the shape the NURBS chart's pcurve derivation accepts
+/// (`topo`'s `nurbs_iso_derive` — its `ExtrudedPoint` mint from a
+/// LINE carrier would refuse there, the measured mint blocker; the
+/// alternative, an `ExtrudedPoint` arm in `nurbs_iso_derive` itself,
+/// would widen the kernel's own certification vocabulary to spare
+/// the importer a description it can synthesize exactly). The
+/// segment is the carrier's own interval on its own axis
+/// (`a = (t0, 0)`, `b = (t1, 0)` under a rigid frame whose x-axis is
+/// the carrier direction), so the described locus is the carrier's
+/// bit for bit up to the placement arithmetic. Arc rims stay
+/// `RevolvedPoint` in both cases — on a rational wall nothing mints
+/// (the native rational body's own state), and a non-rational wall
+/// has no arc rims to mint (its profile was a polyline).
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,
     p_end: Point3<f64>,
     t0: f64,
     t1: f64,
+    nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
+        Curve3::Line { origin, dir } if nurbs_rim => Some(MappedCurve::PlacedSegment {
+            segment: geom_brep::SketchSegment::Line {
+                a: Point2::new(t0, 0.0),
+                b: Point2::new(t1, 0.0),
+            },
+            place: line_frame(*origin, *dir),
+        }),
         Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
@@ -539,6 +627,65 @@ fn mapped_self_description(
         }),
         Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
     }
+}
+
+/// One side a described (non-placeholder) NURBS wall, the other a
+/// plane — the cap-rim adjacency the conventional rung's exemption
+/// names (its call site's comment). Any other pairing answers
+/// `false`: the exemption is exactly as wide as the class it serves.
+fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
+    let described_nurbs = |s: Option<&Surface<f64>>| {
+        matches!(s, Some(Surface::Nurbs(p)) if !p.is_placeholder())
+    };
+    let plane = |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Plane { .. }));
+    (described_nurbs(s1) && plane(s2)) || (plane(s1) && described_nurbs(s2))
+}
+
+/// A rigid frame whose x-axis is the (unit) line direction, placed at
+/// the line's origin — the `PlacedSegment` placement for a
+/// Nurbs-adjacent rim ([`mapped_self_description`]). The y/z columns
+/// complete an orthonormal frame (they never move a segment point —
+/// every sketch point has `y = 0` — but a placement claims rigidity
+/// as conventional data, so honest perpendiculars are minted, the
+/// same first-coordinate-axis selection the placement reader uses).
+fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Affine3<f64> {
+    let candidate = if dir.x.abs() < 1.0 {
+        geom_core::Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        geom_core::Vec3::new(0.0, 1.0, 0.0)
+    };
+    let perpendicular = candidate - dir * dir.dot(candidate);
+    let y = perpendicular / perpendicular.norm();
+    let z = dir.cross(y);
+    Affine3::from_parts(geom_core::Mat3::from_cols(dir, y, z), origin - Point3::origin())
+}
+
+/// Bitwise equality of a parsed NURBS carrier against a wall's
+/// boundary iso-curve — degree, knot values, control points and
+/// weights all to the bit (the IsoCurve rung's match; its call site's
+/// soundness comment). Weight lengths follow control lengths on both
+/// sides by construction (`NurbsCurve3::new` validates them equal).
+fn bitwise_iso_match(carrier: &geom_curves::NurbsCurve3<f64>, iso: &geom_curves::NurbsCurve3<f64>) -> bool {
+    let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    carrier.knots().degree() == iso.knots().degree()
+        && carrier.knots().knots().len() == iso.knots().knots().len()
+        && carrier
+            .knots()
+            .knots()
+            .iter()
+            .zip(iso.knots().knots())
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+        && carrier.control().len() == iso.control().len()
+        && carrier
+            .control()
+            .iter()
+            .zip(iso.control())
+            .all(|(a, b)| bits3(a) == bits3(b))
+        && carrier
+            .weights()
+            .iter()
+            .zip(iso.weights())
+            .all(|(a, b)| a.to_bits() == b.to_bits())
 }
 
 /// Whether two distinct surface records describe **the same locus** at
