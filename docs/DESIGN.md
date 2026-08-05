@@ -4,6 +4,27 @@
 new evidence overturns them; items in [Open questions](#open-questions) are
 under active discussion and get promoted here once ratified.
 
+## Companion documents
+
+Ratified design lives in this document AND in per-topic companions;
+a reader entering here should know all of them exist.
+
+| Document | Status | Scope |
+|---|---|---|
+| `docs/CURVED-DESIGN.md` | RATIFIED (#85) | Curved-geometry program: C1–C12 (locus ladder, certificates, SSI, pcurves, dispatch, fillets, NURBS scope) |
+| `docs/NAMING-DESIGN.md` | RATIFIED (#74) | Persistent naming N1–N7 (derivation-path names, split/merge policy, name table) |
+| `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
+| `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy) |
+| `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
+| `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation banked for v2 profiles-as-programs |
+| `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
+| `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
+| `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
+| `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
+| `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
+| `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
+| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2–F4, F7–F11 |
+
 ## Vision
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the kernel
@@ -866,6 +887,24 @@ applied to error handling. Five commitments:
    body; entities that can't be adopted fail loudly in a typed import
    error.
 
+### D5 (agreed): Persistent topological identity from birth
+
+Every topological entity carries a provenance record from the moment it is
+created: which operation created it, from which inputs ("side face swept
+from sketch edge #3"). This does not solve the topological naming problem —
+the most user-visible unsolved problem in parametric CAD — but recording
+identity at birth is cheap, and retrofitting it onto anonymous entities is
+nearly impossible. The parametric layer (M4) builds its stable references
+on top of this record.
+
+Realized at M1 (PRs #17/#20/#23): provenance is a typed per-operator
+**birth record** — the operator plus its argument keys — carried by
+every entity of all seven topology arenas. Kills remove the record
+together with the entity; survivors keep theirs; reparenting or
+demotion (`ring_move`, `kfmrh`'s loop demotion) is not a re-birth. The
+validator enforces the record bidirectionally: every live entity has
+one, and no record outlives its entity.
+
 ### D6 (agreed): Canonical internal units; typed units at the API boundary
 
 Kernel-internal code is raw `T` in meters/radians by convention — no
@@ -1020,9 +1059,11 @@ already cheap.
 grounds (rounding control, f64, portability) are re-checkable facts,
 and the table is revisited only if they change materially.
 
-**Engineering conventions PROPOSED at the M4 exit sweep
-(PROPOSED-8c — awaiting Evan's sign-off on the 8c PR; NOT yet
-ratified; each earned by a concrete M4 incident):**
+**Engineering conventions RATIFIED at the M4 exit sweep (the 8c PR,
+#119, merged 2026-07-27 with Evan's sign-off — M4-LOG: "THE M4 EXIT
+SWEEP IS RATIFIED", convention 2 sharpened at ratification to his
+structural-shared-validator form; each earned by a concrete M4
+incident):**
 
 1. **Sentinel-free tagged encodings.** Internal byte/key encodings
    never use in-band magic values (sentinel indices, marker floats);
@@ -1090,7 +1131,7 @@ ratified; each earned by a concrete M4 incident):**
 principle, equivariance, distance-only tesselation) sound good to me
 also"):**
 
-5. **Semantic equivariance where it is free — with the premise
+4. **Semantic equivariance where it is free — with the premise
    explicitly UNAUDITED.** Kernel constructions and selection rules
    should commute with rigid motions *and reflections* at the
    semantic level (in ℝ), unless equivariance is provably impossible
@@ -1114,24 +1155,6 @@ also"):**
    Precedent for the documented-residual escape: M5 S8's selection
    ladder, rung 3 — the first knowingly-designed residual.
 
-### D5 (agreed): Persistent topological identity from birth
-
-Every topological entity carries a provenance record from the moment it is
-created: which operation created it, from which inputs ("side face swept
-from sketch edge #3"). This does not solve the topological naming problem —
-the most user-visible unsolved problem in parametric CAD — but recording
-identity at birth is cheap, and retrofitting it onto anonymous entities is
-nearly impossible. The parametric layer (M4) builds its stable references
-on top of this record.
-
-Realized at M1 (PRs #17/#20/#23): provenance is a typed per-operator
-**birth record** — the operator plus its argument keys — carried by
-every entity of all seven topology arenas. Kills remove the record
-together with the entity; survivors keep theirs; reparenting or
-demotion (`ring_move`, `kfmrh`'s loop demotion) is not a re-birth. The
-validator enforces the record bidirectionally: every live entity has
-one, and no record outlives its entity.
-
 ## Layering
 
 Each layer depends only on the layers below it.
@@ -1141,14 +1164,16 @@ Each layer depends only on the layers below it.
 | `geom-core` | Scalar trait (`f64`, intervals, duals), 2-D/3-D points/vectors/transforms (hand-rolled, small, fixed-dim — we control the scalar trait), robust predicates, root finding |
 | `bvh` | *(added M5 PR 8, C10)* Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide (D9). Deliberately BELOW the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom-curves`/`geom-surfaces` |
 | `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
-| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic) |
-| `kernel-ops` | Primitives; extrude/revolve/sweep (build B-reps directly, no booleans needed — hence early); then booleans; then fillets/shell/offset |
-| `model` | Parametric layer: parameter space, feature DAG, persistent naming; later the sketch constraint solver |
-| `mesh` / `interop` | Tessellation, STL export, STEP export (import much harder — deferred) |
-| `editor-core` | *(added 2026-07-19)* Headless document/editor layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
-| `viewer` | Deferred (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
+| `geom-brep` | The B-rep geometry layer: D2's intensional edge descriptions, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches |
+| `profile` | 2-D sketch profiles as data: the bulge-chain `Profile` and its trilean validation |
+| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery (`topo::boolean`) |
+| `sweep` | Solids from validated profiles: extrude, revolve, loft/skin; fillets |
+| `mesh` / `stl` | Tessellation (watertight triangle meshes from B-rep bodies); STL export (binary + ASCII) |
+| `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset — import is LIVE as of M7 (own-corpus byte-identical round-trip, FreeCAD foreign corpus, wild corpus) |
+| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
+| `viewer` | Not yet a crate (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
 
-The API-first discipline falls out of this: layers 1–5 *are* the product,
+The API-first discipline falls out of this: every layer below `viewer` *is* the product,
 exercised entirely by tests and code-driven models (CadQuery/OpenSCAD-style
 usage as acceptance tests). The regression suite is mass-property checks
 (volume/centroid vs. closed forms), watertightness validation, and
@@ -1236,7 +1261,8 @@ precursor of the error-propagation feature.
   fixes (#155, #156); curved AP214 STEP export with FreeCAD
   acceptance (#159); constant-radius fillets — cylinder bands, torus
   rims, sphere-octant corners — and the die (#166); side units S1,
-  S2, S4, S6, S7, S8, S9. **The envelope moved, not vanished**: seven
+  S2, S4, S6, S7, S8, S9, S10, S11, S12, S13. **The envelope moved,
+  not vanished**: seven
   units are BANKED by name, with their doors typed and pinned —
   composition surgery, the SSI generic-`T` lift, loft/sweep body
   assembly, the canal-surface blend, cyl×sphere germ chords, the
@@ -1320,7 +1346,10 @@ precursor of the error-propagation feature.
   same ruling (Evan: "we shouldn't fold any core work like ball and
   socket into M7") — curved REST contact is core kernel work, so its
   design lands with the main path even though its implementation
-  does not.
+  does not. *(CLOSED 2026-08-05 — M6-LOG's close statement: surgery
+  #171, SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN
+  ratified #178; re-banked: edge-selection fillet vocabulary, the
+  ratified curved sense-flip tier gate, the k-lint floor refresh.)*
 - **M7** — STEP import as adoption (D7), **and nothing else**:
   analytic surface recognition, edge adoption, healing. Scope
   narrowed by the 2026-08-03 ruling (Evan: "M7 should stay as just
@@ -1752,7 +1781,8 @@ persisted decision log**:
   day-one commitment.
 - At `T = f64` predicates are total (margins within K·ε escalate per D4;
   ratified in PR #5 as the *sliver band* — semantically indeterminate
-  even under exact arithmetic, provisional K = 10; K is a policy dial —
+  even under exact arithmetic, K = 10 (permanent ratified default, #89
+  closed); K is a policy dial —
   refusal rate and f64 noise headroom — not a correctness parameter:
   soundness rests on escalate-never-guess, D4 ¶2 certification, and
   interval replay, for any K > 1).
@@ -1813,23 +1843,14 @@ revision).
   with the f64 build). A non-generic `Topology` split was considered
   and rejected (cross-instantiation topology comparison is expressible
   as a plain function because keys don't carry `T`).
-- **K's numeric value: resolved at M2 exit (docs/K-REPORT.md; the M0
-  carry closed).** The M2 multi-ε telemetry (unified recorder in
-  `geom_core::k_stats`, PR 7; 13k+ samples/row at ε ∈ {1e-6, 1e-9,
-  1e-12} across 63 named predicates over the full acceptance pipeline)
-  found margin distributions extremely bimodal — zero-side |m| at
-  rounding scale (≤1e-15), definite-side |m| ≥ 10⁴·ε — with zero
-  escalation-band landings; counterfactually K ∈ {3, 10, 30, 100} are
-  decision-equivalent on this corpus. **K = 10 stays the default**, and
-  (Evan, #41, 2026-07-20) K is now ε-style per-run configuration
-  (`Tolerance.k`, env-overridable, one value per run, never changed
-  mid-run) rather than a compile-time constant — expected to join ε
-  under the banked change-ε/`SetTolerance` principle (per-model
-  persisted, recorded change op) at the document layer. Scope honesty:
-  a native-construction corpus is well-conditioned by design; the
-  discriminating K evidence is expected from D7 import adoption and
-  M3's boolean/SSI predicates, and the recommendation is explicitly
-  revisitable then (a policy dial, not a correctness parameter).
+- **K's numeric value: CLOSED — K = 10 is the permanent ratified
+  default (#89 closed, PR #169; evidence trail in docs/K-REPORT.md
+  and its milestone addenda).** K remains a policy dial, not a
+  correctness parameter, and (Evan, #41, 2026-07-20) is ε-style
+  per-run configuration (`Tolerance.k`, env-overridable, one value
+  per run, never changed mid-run) — expected to join ε under the
+  banked change-ε/`SetTolerance` principle (per-model persisted,
+  recorded change op) at the document layer.
 
 ### Q2: Tolerance model — **resolved**, folded into D4.
 
@@ -1904,11 +1925,11 @@ placeholder workspace acceptable; pre-publish renames are cheap.
 ### Deferred to their milestones (listed so they don't get lost)
 
 Vertex-geometry taxonomy (M3, when intersections exist); profile/sketch
-input format (M2); the ambiguity constant K's numeric value (M2+ —
-topology is scalar-free and consults no predicate, so M1 generated no
-new evidence; εₐ itself was eliminated by the D4 ¶1 revision of
-2026-07-16 — angular thresholds are derived per predicate); body-level
-serialization beyond the recipe (post-STEP-export). *(Discharged at
+input format (M2); body-level
+serialization beyond the recipe (post-STEP-export). *(Discharged:
+the ambiguity constant K's numeric value — CLOSED, K = 10 permanent,
+#89/docs/K-REPORT.md; εₐ was eliminated by the D4 ¶1 revision of
+2026-07-16 — angular thresholds are derived per predicate.)* *(Discharged at
 M1: orientation/sense conventions and the validator's concrete
 invariant checklist — both ratified into D1.)*
 
