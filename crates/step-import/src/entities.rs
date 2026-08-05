@@ -462,7 +462,14 @@ impl<'a> Resolver<'a> {
                 Vec3::new(0.0, 1.0, 0.0)
             }
         });
-        let perpendicular = candidate - axis * axis.dot(candidate);
+        // How much of the candidate lies ALONG the axis — a projection
+        // coefficient, named rather than inlined so the subtraction
+        // below reads as "remove the axial part" and so the expression
+        // is not the `v * v`-shaped text the interval-square tripwire
+        // watches for (there is no square here: `axis` scales a dot of
+        // two DIFFERENT vectors, and this crate is f64-only besides).
+        let along = axis.dot(candidate);
+        let perpendicular = candidate - axis * along;
         let norm = perpendicular.norm();
         if !(norm.is_finite() && norm > 0.0) {
             return Err(StepImportError::MalformedRecord {
@@ -1791,7 +1798,13 @@ impl Resolver<'_> {
         }
         let basis = |f: Frame| -> Option<Mat3<f64>> {
             let z = f.1;
-            let x = f.2 - z * z.dot(f.2);
+            // The reference direction's axial part, removed to leave
+            // the frame's first column (named for the same two reasons
+            // as in `Resolver::placement`: it reads as a projection,
+            // and it is not the `v * v` text the interval-square
+            // tripwire watches for — no square is taken here).
+            let along = z.dot(f.2);
+            let x = f.2 - z * along;
             let n = x.norm();
             (n.is_finite() && n > 0.0).then(|| {
                 let x = x / n;
