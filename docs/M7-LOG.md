@@ -525,3 +525,6 @@ and the kiss_assembly divergence documented; export-suite
 staleness row; check_step ignores; import row-1 consumer swap +
 tolerance tightening — Evan's blanket .expect green light).
 Draw recorded below after this commit.
+Draw: byte 123 → **(opus, fable)** — F3+F4 = OPUS, KERNEL_* =
+FABLE. Both dispatched (lanes f34-dim slot 1, kernel-sidecars
+slot 2); PRs held for blinded review per standing process.
