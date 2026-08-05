@@ -639,7 +639,55 @@ difficulty L (logged pre-assignment), lane m6-3-loft, branch
 ev/m6-loft-assembly, spec docs/M6-3-SPEC.md; brief carries the
 #179 aggregator-layout note. Slot 1 claimed in cargo-slots.txt.**
 
-**M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
+**Fable-limit outage #1 this session (2026-08-04 ~22:20 →
+2026-08-05 ~01:30, ended by Evan's /login).** M6-3 implementer
+killed mid-Leg-D edit; lane push-clean through e680e81 (Legs
+A–C + Band-4 corpus row); resumed from transcript with a
+Leg-D-onward brief. The concurrent-M7 arrangement did its job:
+M7-2 shipped and M7-4 spec'd during the outage. CPU pin FIXED
+during the gap (canary 0.87s).
+
+**Accumulated ratifications during the outage:**
+- **UNIT 6 ADDED (Evan 👍 on the #184 triage): the curved
+  sense-flip tier gate** — sized S-M, sequenced after unit 5
+  (Evan: "no strong opinion on sequencing — do as you see
+  fit"). STRENGTHENED by the M7-2 review addendum on #184: the
+  props torus arm never consumes sense_sign (inside-out torus
+  certifies POSITIVE volume, bit-identical — executed,
+  review/m7-2 a1_* probes). Negative controls available
+  in-tree: step-import's adopted flip probes.
+- **KERNEL_* sidecar fields APPROVED (same 👍)** with the M7
+  orchestrator's three refinements locked on-thread:
+  full-precision KERNEL_VOLUME_MM3 via the round-tripping
+  printer (staleness row asserts bit-exact), KERNEL_* = NATIVE
+  census with the kiss_assembly 1/2-vs-2/2 divergence
+  documented on KERNEL_SOLIDS, no seam/pole accounting. Queued
+  as an S lull unit on my side; M7's consumer switch follows.
+- **THE #89 RE-OPEN TRIGGER FIRED (2026-08-05, reported by the
+  M7 orchestrator per protocol): the project's first IN-BAND
+  LANDING** — fixture cone_trunc (FreeCAD-authored, mm-scale),
+  a props_rim-class predicate, from the M7-2 foreign corpus —
+  exactly the source the K-REPORT predicted. Nothing retuned;
+  Evan owns the re-open decision. M6-side consequence: the
+  stale 1.5e-3 k-lint baseline floor refresh (already a named
+  M6 hygiene pickup) is now LOAD-BEARING for reading the
+  landing's context — promote it up the lull queue.
+
+**FABLE BUDGET NEARLY EXHAUSTED (Evan, in-chat, 2026-08-05):
+wind-down mode.** M6-3 implementer instructed to wrap at the
+nearest coherent seam (finish only mid-flight work, minimal
+battery, push, open an honestly-PARTIAL PR listing unfinished
+legs verbatim, stop — no merge). Its adversarial review is
+DEFERRED until budget returns (reviews stay Fable per protocol;
+the PR sits open, unmerged). Orchestrator entering low-activity:
+monitors stay armed, hourly sweeps continue (cheap), no new
+dispatches, no spec/exploration work. Remaining M6 queue on
+resume: finish M6-3 (remaining legs as a follow-up dispatch) →
+review+merge → unit 5 → unit 6 → KERNEL_* fields (S) → hygiene
+(k-lint floor FIRST — load-bearing for the #89 landing readout —
+then latency refresh, internal-tangency fixture, montage NOTE-2,
+tripwire lookahead) → exit walk. The M7 orchestrator
+(separate account) is unaffected and continues. from the substrate
 exploration (which read post-#176 origin/main): six legs
 (builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
 two tier-3 flips with the placeholder/described discriminator;
@@ -652,6 +700,28 @@ difficulty L logged pre-assignment at task creation) WAITS for
 the ev/ci-test-collapse PR to merge — the collapse is
 restructuring the exact test trees this unit touches, and my
 one cargo slot (under the 1+1 split) is occupied by it.
+
+**M6-3 PARTIAL SEAM REACHED (2026-08-05, PR #192 open, UNMERGED,
+branch dbf9e82): Legs A-C + the Leg-D writer half DONE** — the
+loft/sweep builder (IsoCurve seams, Pcurve::IsoLine +
+MapResidualIsoHull, both tier-3 flips via is_placeholder /
+Seam-idiom exemption, the exact i128-rational Newton-Cotes flux
+door at 0.3s, B_SPLINE_SURFACE both writer arms, Band-4
+loft_prism at V=9 bracket-pinned, tour narration live). NOT
+STARTED (listed verbatim in the PR): Leg D fixture half, Leg E
+(chart completion), Leg F (tube_along_arc), §7 remainder,
+dedicated Interval rows. Six numbered deviations — note dev 1:
+NURBS surface AREA is SUPPLIED (fixed-resolution hull enclosure
+with honest area_pad) because check 7's meter consumes it — the
+spec's own anticipated reportable case; the eventual review
+should attack that enclosure. Dev 3 ReversedStacking refusal;
+dev 6 = the wrap itself. Full battery green at default ε; one
+pre-existing aggregated-binary flake noted (tolerance_init,
+moot under nextest isolation — a #179 follow-up candidate).
+RESUME PLAN: a follow-up dispatch finishes the listed legs on
+this branch (warm lane m6-3-loft held, slot 1 idle), then ONE
+adversarial review covers the whole unit, then merge + A/B row
+(fable, L).
 
 ## SOLE-ORCHESTRATOR PICKUP (2026-08-05)
 
