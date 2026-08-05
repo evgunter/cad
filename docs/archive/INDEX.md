@@ -6,8 +6,8 @@ tag `archive/2026-08-05` laid by the orchestrator on the archiving
 merge). Everything remains greppable and history-following
 (`git mv`). Nothing here is normative: the living contract is
 `docs/DESIGN.md` + the companion design docs it lists; the live
-milestone record is the highest-numbered `docs/M*-PLAN.md` /
-`M*-LOG.md` remaining in `docs/`.
+milestone records remain in `docs/` — M6 (OPEN, closure awaits
+Evan's exit walk) and M7, which ran concurrently.
 
 Format: file — what it was (milestone) — superseded by.
 
@@ -23,8 +23,6 @@ Format: file — what it was (milestone) — superseded by.
 - `M4-EXIT-WALK.md` — M4 exit-criteria walk — done-state summarized in DESIGN.md's M4 bullet.
 - `M5-PLAN.md` — M5 work order — DESIGN.md M5 bullet + M5-EXIT-WALK (kept live in docs/).
 - `M5-LOG.md` (4259 lines) — M5 orchestrator log — M5-EXIT-WALK is the done-state of record.
-- `M6-PLAN.md` — M6 work order (main-path completions) — M6-LOG close statement; re-banked items listed there and in DESIGN.md's M6 bullet.
-- `M6-LOG.md` — M6 orchestrator log, ENDS WITH THE M6 CLOSE STATEMENT (units merged: #171/#176/#192/#178; re-banks: unit 5 fillet vocabulary, the ratified sense-flip gate, the k-lint floor) — cited by DESIGN.md, K-REPORT, CONTACT-DESIGN.
 - `M6-BOUNDARY.md` — the #161 milestone-boundary ruling — paraphrased into DESIGN.md's M6/M7/M8 roadmap bullets (judgment call: archived rather than merged verbatim; flag if any nuance is missed).
 
 ## Per-unit binding specs (superseded by merged code + PR descriptions)

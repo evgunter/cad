@@ -2,7 +2,7 @@
 
 Concurrent-orchestrator arrangement (Evan, 2026-08-04): this log
 belongs to the M7 orchestrator (session cad-implement-m7); the M6
-orchestrator's live record is docs/archive/M6-LOG.md (read, don't touch).
+orchestrator's live record is docs/M6-LOG.md (read, don't touch).
 Protocol: memories/concurrent-orchestrators.md; briefing:
 ~/.local/share/cad-work/handoff-prompt-m7.md.
 

@@ -1,6 +1,6 @@
 # Memory Index
 
-- [CAD project state](cad-project-state.md) — M0–M6 COMPLETE (#89 closed K=10; M6 close statement in M6-LOG); M7 STEP-adoption in flight, units 1/2/4 merged — import is LIVE; live status = highest-numbered M*-LOG tail, never the memory; gate = hosted nextest matrix
+- [CAD project state](cad-project-state.md) — M0–M5 COMPLETE (#89 closed K=10); M6 OPEN with units 1–4 merged (closure = Evan's exit walk; M6-LOG status summary); M7 STEP-adoption concurrent, units 1/2/4 merged — import is LIVE; live status = the M*-LOG tails, never the memory; gate = hosted nextest matrix
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main

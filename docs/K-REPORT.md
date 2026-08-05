@@ -662,8 +662,9 @@ is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
    sweep, not via the k-lint advisory row; and its interpretation
    required exactly the re-reading the sentence hoped to avoid.
 3. The two "M6 pickup" follow-ups above are hereby re-tagged
-   **UNOWNED pickups** — M6 closed with neither done (the k-lint
-   baseline floor is still the stale M4-era 1.5e-3 with ~102
-   advisory flags/run; the SSI Probe lane still has no owner). The
-   k-lint floor refresh holds a promoted lull-queue spot per
-   M6-LOG's close statement (docs/archive/M6-LOG.md).
+   **UNOWNED pickups** — M6's executed units (1–4) all merged with
+   neither follow-up done, and M6 remains open awaiting Evan's exit
+   walk (the k-lint baseline floor is still the stale M4-era 1.5e-3
+   with ~102 advisory flags/run; the SSI Probe lane still has no
+   owner). The k-lint floor refresh holds a promoted lull-queue
+   spot per M6-LOG's status summary (docs/M6-LOG.md).

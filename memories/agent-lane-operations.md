@@ -48,10 +48,12 @@ without a final report.
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list`
 from the main checkout, then SendMessage resumes it. Choose
-**fresh over resume** when the remaining work is small and fully
-specifiable from pushed commits (a resume replays 300–400k tokens
-to do a 1k-token job — Evan, 2026-07-29); resume only when the
-accumulated context is genuinely useful. Prevention: implementers
+**fresh over resume** when the agent has been stalled for over an
+hour AND the remaining work is small and fully specifiable from
+pushed commits (a resume replays 300–400k tokens to do a 1k-token
+job — Evan, 2026-07-29); resume only when the accumulated context
+is genuinely useful (mid-design state, unreported findings,
+unwritten judgment calls). Prevention: implementers
 commit AND push after every coherent unit. **Resume resets cwd to
 the orchestrator worktree**: every resumed command must carry
 `cd <clone> && ...` in the same Bash call, and post-resume battery

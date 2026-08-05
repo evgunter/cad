@@ -1260,10 +1260,13 @@ precursor of the error-propagation feature.
   same ruling (Evan: "we shouldn't fold any core work like ball and
   socket into M7") — curved REST contact is core kernel work, so its
   design lands with the main path even though its implementation
-  does not. *(CLOSED 2026-08-05 — the close statement in docs/archive/M6-LOG.md: surgery
-  #171, SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN
-  ratified #178; re-banked: edge-selection fillet vocabulary, the
-  ratified curved sense-flip tier gate, the k-lint floor refresh.)*
+  does not. *(Status 2026-08-05 — OPEN, exit walk not yet run
+  (docs/M6-LOG.md status summary): units 1–4 closed — surgery #171,
+  SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN ratified
+  #178. REMAINING: unit 5 (edge-selection fillet vocabulary), unit 6
+  (the ratified curved sense-flip tier gate — Evan on the #184
+  triage), and the k-lint floor + hygiene pickups. Closure awaits
+  Evan's exit-walk ruling.)*
 - **M7** — STEP import as adoption (D7), **and nothing else**:
   analytic surface recognition, edge adoption, healing. Scope
   narrowed by the 2026-08-03 ruling (Evan: "M7 should stay as just

@@ -829,27 +829,31 @@ The k-lint floor refresh keeps its promoted lull-queue spot
 (the landing it was to contextualize is now retired by #197,
 but the floor is stale on its own terms).
 
-## M6 CLOSE STATEMENT (2026-08-05, recorded by the docs-rot unit —
-## the audit found the milestone's end otherwise unstated)
+## M6 STATUS SUMMARY (2026-08-05, docs-rot unit; corrected after
+## orchestrator review — an earlier revision of this entry declared
+## M6 closed, which was an overreach: milestone closure is Evan's
+## exit-walk call, not a de-rot side effect. M6 remains OPEN.)
 
-**M6 is CLOSED.** The four executed units all merged: M6-1
-composition surgery — the composed die on ONE body (#171); M6-2 SSI
-generic-`T` lift — walk row 2 non-vacuous (#176); M6-3 loft/sweep
-body assembly — walk row 4 closed, loft/sweep bodies live (#192);
-M6-4 CONTACT-DESIGN ratified and merged (#178). Alongside: montage
-curation (#170), the globe lily (#175), CI-speed phases (#174,
-#179). Work then moved to M7 (STEP import; M7-PLAN/M7-LOG are the
-live milestone record).
+**Units 1–4 are all merged**: M6-1 composition surgery — the
+composed die on ONE body (#171); M6-2 SSI generic-`T` lift — walk
+row 2 non-vacuous (#176); M6-3 loft/sweep body assembly — walk row
+4 closed, loft/sweep bodies live (#192); M6-4 CONTACT-DESIGN
+ratified and merged (#178). Alongside: montage curation (#170), the
+globe lily (#175), CI-speed phases (#174, #179).
 
-**Explicitly RE-BANKED, not silently dropped** (the three items the
-last M6-3 entry left as "M6 remaining"):
+**REMAINING (M6 is not closed; no exit walk has been run):**
 - **Unit 5, edge-selection fillet vocabulary** (`Node::Fillet`
   selection payload of stable names; the composed die as a
-  registered corpus document) — banked as an unowned pickup;
-  ratified ask per M6-PLAN unit 5, unimplemented.
+  registered corpus document) — ratified ask per M6-PLAN unit 5,
+  unimplemented.
 - **Unit 6, the curved sense-flip tier gate** — design RATIFIED
-  (Evan on the #184 triage; see the salvage entry above),
-  sized S-M, sequenced after unit 5; implementation banked with it.
-- **k-lint baseline-floor refresh** — banked hygiene, keeps its
+  (Evan on the #184 triage; see the salvage entry above), sized
+  S-M, sequenced after unit 5; implementation not started.
+- **k-lint baseline-floor refresh + hygiene pickups** — keeps its
   promoted lull-queue spot; the floor is stale on its own terms
   (M4-era 1.5e-3; see K-REPORT's pickup note).
+
+M7 (STEP adoption) runs with its own plan/log; the two milestones'
+records coexist in docs/ because the milestones ran concurrently.
+Closure and any re-banking of the remaining units await Evan's
+exit-walk ruling.
