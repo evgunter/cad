@@ -675,3 +675,30 @@ tube_along_arc rider, §7 sweep incl. the lily.rs stale line,
 §9.3 interval rows); deviations numbered from 7; ONE adversarial
 review of the whole unit follows completion. M7-4's fix pass
 runs concurrently on slot 2.
+
+**M6-3 completion DELIVERED (2026-08-05): PR #192 fully green
+(27/27 on dd4131d), every spec leg + every NOT-started row
+landed; whole-unit blinded review DISPATCHED.** Six red jobs
+root-caused and fixed first (clippy/interval test-side allow;
+quad.rs x*x → powi(2); CARGO_TARGET_TMPDIR create_dir_all at
+both dump sites). Walk row 4's closer landed: cone/sphere/torus
+charts certify and mint closed-form classes; ball/cone/donut +
+die octants carry stored pcurves AT REST; sphere general
+circles via certify_fitted's Circle-carrier rational-chain arm
+(OnLocusHull) pinned f64+Interval. tube_along_arc rider: inputs
+bit-exact (56-ulp drift retired ==), Pappus both scalars.
+Deviations 7-9 (executed blockers): mint-side fitted wiring
+banked (oblique trihedron legally uncached), tour SceneBody
+Stop banked (no NURBS tessellation lane), merge_coplanar_faces
+re-mints. **Discovered + fixed in passing: F5** —
+pcurve_chart_radial_moving's r²-scaled metering (the collision
+that made rim-dim defer it dissolved when this unit rewrote
+pcurve_cache.rs) — the FreeCAD corpus ceiling moved 1e-8 →
+1e-5, table rewritten composed with the rim-dim retirement.
+Banked dimensional unit SHRINKS to F3+F4. Completion ~642k
+tokens, ~7h wall under the pin (incl. one phantom-CI
+misdiagnosis corrected by the sweep — the "unbuilt" pushes had
+built and failed). Review attacks: Leg E derivations + walk
+row 4 falsification, the F5/ceiling composition, dev 1/3/9
+adjudication, cross-unit composition with step-import, the
+two-hands quality-seam probe.
