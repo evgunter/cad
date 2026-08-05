@@ -65,6 +65,47 @@
 //! named M7 frontier), units outside the subset, and geometry the
 //! adoption ladder cannot explain. No panics; no silent guesses; no
 //! lenient re-interpretation.
+//!
+//! # The wild (M7-4; `docs/M7-4-SPEC.md`)
+//!
+//! The subset above is what the writer emits. What translators emit
+//! is a *dialect* of it, and reading files nobody here authored is
+//! the only way to learn which differences are real. `tests/wild/`
+//! holds thirteen license-verified foreign files (see the crate's
+//! `NOTICE`); five widenings came out of them, none of which relaxes
+//! what the reader is willing to BELIEVE:
+//!
+//! - **Lexical** ([`parse`]): a string literal folded across a raw
+//!   newline at column 72 splices back into one word; CRLF; comments
+//!   inside entity records. `\X2\` control directives stay refused.
+//! - **Units** ([`units`], [`entities`]): `CONVERSION_BASED_UNIT`
+//!   resolves through the conversion expression THE FILE states —
+//!   inch and degree both, never a table of what an inch is — and the
+//!   units that govern are the ones the geometry's own context names,
+//!   so a mass-property unit cluster and Open CASCADE's dimensionless
+//!   per-pcurve `GEOMETRIC_REPRESENTATION_CONTEXT(2)` are simply not
+//!   consulted. A file's angle scale reaches the one angle in the
+//!   subset, a cone's `semi_angle`.
+//! - **Directions and vectors**: a `VECTOR` may have any positive
+//!   magnitude and a `DIRECTION` need not be normalized (both are
+//!   ratios per ISO 10303-42); an `AXIS2_PLACEMENT_3D` may leave its
+//!   axis or reference direction unset, and the schema's own
+//!   `build_axes` defaults are read rather than guessed. Fields that
+//!   ARE stated unit and perpendicular are still adopted bit for bit.
+//! - **Assemblies**: one rigid `ITEM_DEFINED_TRANSFORMATION` covering
+//!   all of a file's content places the body through
+//!   [`topo::transform_rigid`]. Per-component placement, and any
+//!   transformation stated as an operator (which can mirror or
+//!   scale), refuse typed.
+//! - **Edge sense**: `EDGE_CURVE` `same_sense` `.F.` composes into the
+//!   half-edge direction; no carrier is ever reversed.
+//!
+//! Two things the wild states that this reader still refuses, both
+//! named at the point of refusal: a curved face carrying rings —
+//! Open CASCADE's seamless periodic band — because `topo` has no
+//! volume construction for one and the body would not be tier-3
+//! valid; and edges the D7 ladder cannot certify, which is the same
+//! refusal it has always been.
 
 mod adopt;
 mod assemble;
@@ -242,6 +283,18 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
     match model.shape {
         entities::Shape::Solids(ref solids) => {
             let body = assemble::build_body(solids, &model)?;
+            // The assembly's placement, through the kernel's own door
+            // (M7-4 Leg D): `transform_rigid` re-checks rigidity with
+            // decided predicates and re-certifies every carrier
+            // against the mapped geometry, so a placed body is as
+            // first-class as an unplaced one — and a map this reader
+            // let through that the kernel will not becomes a typed
+            // refusal, never a silently skewed body.
+            let body = match model.placement {
+                None => body,
+                Some(map) => topo::transform_rigid(&body, &map)
+                    .map_err(|source| StepImportError::Placement { source })?,
+            };
             Ok(StepImport::Solid {
                 body,
                 eps_in,

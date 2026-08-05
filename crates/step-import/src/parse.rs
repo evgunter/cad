@@ -169,6 +169,17 @@ impl<'a> Cursor<'a> {
     /// a raw byte outside 0x20..=0x7E or an undecoded control
     /// directive (`\S\`, `\X2\…`) refuses typed rather than mangling
     /// (the writer enforces the mirror-image boundary on export).
+    ///
+    /// **Wrapped literals (M7-4 Leg A).** ST-Developer folds its output
+    /// at column ~72 wherever it happens to be, including the middle of
+    /// a string, with no continuation character: the record is one
+    /// logical line the writer physically broke. A raw `\n` (or
+    /// `\r\n`) inside a literal is therefore *spliced out* — the two
+    /// halves are one word (`…batt` ⁄ `ery…` is `battery`) — while the
+    /// line counter still advances so later errors keep their true
+    /// line. This is a lexical un-fold, not a decode: no character is
+    /// invented, and every other non-basic byte (a lone `\r`, a raw
+    /// tab, a UTF-8 lead byte) still refuses typed.
     fn string_body(&mut self) -> Result<String, StepImportError> {
         let mut out = String::new();
         loop {
@@ -188,11 +199,21 @@ impl<'a> Cursor<'a> {
                 }
                 Some(b'\\') => {
                     return Err(self.syntax(
-                        "a doubled backslash (Part 21 string control directives are \
-                         outside the imported subset)",
+                        "a doubled backslash (a Part 21 string control directive — \
+                         \\X2\\ / \\X\\ / \\S\\ — is outside the imported subset: \
+                         these encode annotation text the import never consumes, and \
+                         decoding one would put invented characters in a name)",
                     ));
                 }
-                Some(b'\n') => return Err(self.syntax("a terminated string literal")),
+                // The writer's physical fold: spliced out, line counted.
+                Some(b'\r') if self.text.get(self.pos + 1) == Some(&b'\n') => {
+                    self.line += 1;
+                    self.pos += 2;
+                }
+                Some(b'\n') => {
+                    self.line += 1;
+                    self.pos += 1;
+                }
                 Some(c) if (0x20..=0x7E).contains(&c) => {
                     out.push(c as char);
                     self.pos += 1;
@@ -360,4 +381,85 @@ pub(crate) fn parse_file(text: &str) -> Result<StepFile, StepImportError> {
     }
     c.expect("END-ISO-10303-21;", "the 'END-ISO-10303-21;' trailer")?;
     Ok(StepFile { header, data })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Value, parse_file};
+
+    /// A file whose HEADER carries `body` verbatim and whose DATA
+    /// section is empty — the lexical rows need no entities.
+    fn header_only(body: &str) -> String {
+        format!("ISO-10303-21;\nHEADER;\n{body}\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;")
+    }
+
+    /// Leg A: ST-Developer folds a long literal at column ~72 with no
+    /// continuation character. The two halves are one word, and the
+    /// line counter still advances (the `#` after the fold reports
+    /// its true line).
+    #[test]
+    fn a_string_folded_across_a_raw_newline_splices_back_into_one_word() {
+        let file = parse_file(&header_only("FILE_NAME('328 2500mAh batt\nery.step');")).unwrap();
+        assert_eq!(file.header[0].0, "FILE_NAME");
+        assert_eq!(
+            file.header[0].1,
+            [Value::Str("328 2500mAh battery.step".to_owned())]
+        );
+    }
+
+    /// The same fold with NIST's CRLF line endings: `\r\n` is one
+    /// break, not a carriage return inside the word.
+    #[test]
+    fn a_crlf_fold_splices_the_same_way_and_a_lone_cr_still_refuses() {
+        let file = parse_file(&header_only("FILE_NAME('asserted c\r\nonnectivities');")).unwrap();
+        assert_eq!(
+            file.header[0].1,
+            [Value::Str("asserted connectivities".to_owned())]
+        );
+        let lone = parse_file(&header_only("FILE_NAME('asserted c\ronnectivities');"));
+        assert!(
+            lone.unwrap_err()
+                .to_string()
+                .contains("basic-alphabet string character"),
+            "a lone CR is not a fold — it stays outside the basic alphabet"
+        );
+    }
+
+    /// The fold does not swallow the line count: an error after two
+    /// folded literals still names the line it is on.
+    #[test]
+    fn folding_advances_the_line_counter() {
+        let err = parse_file(&header_only("FILE_NAME('a\nb');\nFILE_SCHEMA(@);"))
+            .unwrap_err()
+            .to_string();
+        // Line 1 is the magic, 2 the HEADER keyword, 3 the literal's
+        // first half, 4 its folded tail; the bad record is on 5.
+        assert!(err.contains("line 5"), "got {err}");
+    }
+
+    /// Fusion/ST-Developer annotate each argument slot with a comment
+    /// inside the record; comments are whitespace at every position.
+    #[test]
+    fn comments_inside_an_entity_record_are_whitespace() {
+        let file = parse_file(&header_only(
+            "FILE_NAME(\n/* name */ 'x',\n/* stamp */ 'y');",
+        ))
+        .unwrap();
+        assert_eq!(
+            file.header[0].1,
+            [Value::Str("x".to_owned()), Value::Str("y".to_owned())]
+        );
+    }
+
+    /// `\X2\` stays a typed refusal that names the directive family —
+    /// it encodes annotation text the import never consumes, and
+    /// decoding it would put invented characters in a name.
+    #[test]
+    fn an_x2_control_directive_refuses_typed_naming_the_directive() {
+        let err = parse_file(&header_only(r"FILE_NAME('\X2\30D530A9\X0\');"))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains(r"\X2\"), "got {err}");
+    }
 }
