@@ -82,6 +82,12 @@ for s in json.load(open("out/scenes.json")):
     if [ "$fails" -gt 0 ]; then
         echo "$fails scene(s) fell back to placeholder cells" >&2
     fi
+    # FreeCAD stamps the wall clock into every PNG it writes, so an
+    # unchanged re-render still shows up dirty in `git status`. Drop
+    # those two ancillary chunks (see strip_png_stamps.py) BEFORE the
+    # montage step, so the sheet is composed from the same bytes that
+    # get committed.
+    "$VENV/bin/python" strip_png_stamps.py "$RD"
     exec "$VENV/bin/python" compose_montage.py out "$RD" \
         --montage=montage-freecad.png \
         '--banner=FreeCAD/OCC render — OCC re-tessellation of the kernel'\''s own STEP exports (compare renders/montage.png: the kernel'\''s facets)'
@@ -102,6 +108,10 @@ else
     echo "freecadcmd not found at $FREECADCMD — matplotlib fallback" >&2
     "$VENV/bin/python" render.py out renders
 fi
+
+# Same wall-clock strip as the STEP lane (a no-op after the matplotlib
+# fallback, which stamps nothing).
+"$VENV/bin/python" strip_png_stamps.py renders
 
 # The kernel sheet carries its own provenance banner too, so the two
 # sheets superimpose exactly — cell for cell AND banner for banner.
