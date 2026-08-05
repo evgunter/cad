@@ -12,6 +12,9 @@
 //! without arcs (arc-bearing profiles skin to RATIONAL walls, whose
 //! flux lane is banked — the honest partial, spec §3).
 
+// Panicking is a test's failure mechanism (workspace lint policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::{Affine3, Vec3};
 use sweep::{SectionSegments, SketchSegment, loft_body};
 

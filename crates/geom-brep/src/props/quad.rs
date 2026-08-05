@@ -1625,8 +1625,8 @@ mod tests {
                     du[2] * dv[0] - du[0] * dv[2],
                     du[0] * dv[1] - du[1] * dv[0],
                 ];
-                oracle_flux += (s[0] * cr[0] + s[1] * cr[1] + s[2] * cr[2]) * h * h;
-                oracle_area += (cr[0] * cr[0] + cr[1] * cr[1] + cr[2] * cr[2]).sqrt() * h * h;
+                oracle_flux += (s[0] * cr[0] + s[1] * cr[1] + s[2] * cr[2]) * h.powi(2);
+                oracle_area += (cr[0].powi(2) + cr[1].powi(2) + cr[2].powi(2)).sqrt() * h.powi(2);
             }
         }
         assert!(
