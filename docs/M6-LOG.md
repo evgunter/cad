@@ -702,3 +702,24 @@ built and failed). Review attacks: Leg E derivations + walk
 row 4 falsification, the F5/ceiling composition, dev 1/3/9
 adjudication, cross-unit composition with step-import, the
 two-hands quality-seam probe.
+
+**M6-3 review returned (2026-08-05): APPROVE-WITH-FIXES,
+0 MAJ / 5 MIN / 4 NOTE, rubric 5/4/4, all 9 deviations honest,
+no gate weakened.** Leg E's cone-nappe/sphere-pole/torus algebra
+independently RE-DERIVED BY HAND — all correct (the pole-start
+d̂-flip/σ compensation exact); V=9 re-derived and oracle-exact;
+the 1e-8→1e-5 ceiling move composes correctly (freecad suite
+executed at 1e-6/1e-7 certify + 1e-4 obligation arms); hosted
+27/27 verified. MINORs all honesty/coverage class: two
+error variants shipped untested (reviewer probes now fire
+them), an executed-false comment (pole-crossing meridian arcs
+DO certify), a "does drift" comment measuring 0 ulps, the
+stale F5 audit row, a stale step-import chart-list comment.
+Notable NOTE banked with the PcurveFittedLane item:
+merge_coplanar's re-mint would silently drop FITTED caches on
+a merged fitted-cache body (latent, no current path). Quality
+seam between the two build phases DETECTABLE BUT WEAK: all four
+honesty defects sit in completion-phase scope; the partial's
+files yielded none under the same scrutiny. Light fix pass
+dispatched (inherits fable). Review ~231k tokens, ~2h under
+the pin.
