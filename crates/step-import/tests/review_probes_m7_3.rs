@@ -1,4 +1,10 @@
-//! Adversarial review probes for M7-3 (review/m7-3 branch only).
+//! Adversarial review probes for M7-3 — authored on the review/m7-3
+//! branch, adopted BY MERGE at the fix pass. The two probes that
+//! FAILED BY DESIGN as findings are now regression pins: the F1
+//! rim-off-wall plant asserts the residual-gate refusal
+//! (`probe_arm_b_rim_off_wall_arc`, with its positive control), and
+//! the F2 sub-unit-direction probe asserts every `PlacedSegment`
+//! placement in a certified import is an honest rigid frame.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -184,15 +190,22 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
     }
 }
 
-/// V3/ARM-B boundary: on a RATIONAL wall nothing mints, tier-3 check 4
-/// is kind-exempt, and the conventional rung's coincidence gate is
-/// kind-exempt too — so what, if anything, certifies that an ARC rim
-/// actually lies on its rational wall? Replace the z=0 cap's quarter
-/// arc (center (0,0,0), r = sqrt(2)) with a DIFFERENT circle through
-/// the same two endpoints (center (1-sqrt(24), 0, 0), r = 5). The rim
-/// no longer lies on the wall OR matches the cap's true boundary; an
-/// honest importer must refuse. If it imports t1/t2-valid with the
-/// native t3 refusal text, Arm B has laundered a wrong body.
+/// V3/ARM-B boundary — review F1, **FLIPPED at the fix pass**: on a
+/// RATIONAL wall nothing mints, tier-3 check 4 is kind-exempt, and
+/// the conventional rung's coincidence gate is kind-exempt too, so as
+/// reviewed NOTHING certified an ARC rim against its rational wall —
+/// this probe originally executed exactly that (the mutated file
+/// imported t1/t2-valid with the verbatim native t3 refusal,
+/// indistinguishable from correct). The fix is the import-side
+/// residual gate (`adopt::arc_rim_on_wall_boundary`): the wall's own
+/// boundary column, sampled at the certification schedule, must lie
+/// on the rim's circle within the ambient tolerance. The plant —
+/// the z=0 cap's quarter arc (center ~(0,0,0), r = √2) replaced by a
+/// DIFFERENT circle through the same two endpoints
+/// (center (1−√24, 0, 0), r = 5) — must now REFUSE, typed, naming
+/// the residual. The positive control beside this
+/// ([`probe_arm_b_true_arc_rim_positive_control`]) pins that the
+/// TRUE arc still imports through the same gate.
 #[test]
 fn probe_arm_b_rim_off_wall_arc() {
     let native = native_arc_loft_for_probe();
@@ -251,23 +264,53 @@ fn probe_arm_b_rim_off_wall_arc() {
         .replace(&center_line, &new_center)
         .replace(&circle_line, &new_circle);
     match import(&mutated) {
-        Err(e) => eprintln!("PROBE rim-off-wall arc refused (honest): {e}"),
+        Err(step_import::StepImportError::RimOffWallBoundary { id, residual }) => {
+            eprintln!("PROBE rim-off-wall arc refused typed: edge #{id}, residual {residual:e}");
+            assert!(
+                residual > 1e-3,
+                "the r=5 plant misses the wall boundary by a macroscopic margin, got {residual:e}"
+            );
+        }
+        Err(other) => {
+            panic!("the plant must refuse AT THE RESIDUAL GATE (RimOffWallBoundary), got: {other}")
+        }
         Ok(StepImport::Solid { body, .. }) => {
             let t1 = topo::validate(&body);
             let t2 = topo::validate_closed(&body);
             let t3 = topo::validate_geometric(&body).map(|_| "t3 GREEN");
             panic!(
-                "LAUNDERED: rim-off-wall arc imported as a solid; t1 = {t1:?}, \
-                 t2 = {t2:?}, t3 = {t3:?} — Arm B admitted a rim that lies on \
-                 neither its wall nor the true cap boundary"
+                "LAUNDERED (the F1 hole is back): rim-off-wall arc imported as a solid; \
+                 t1 = {t1:?}, t2 = {t2:?}, t3 = {t3:?}"
             );
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
     }
 }
 
-/// V4: the synthesized descriptions vs the native builder's, payload
-/// by payload (the report claims imported state IS native state).
+/// The positive control beside the flipped F1 plant: the TRUE arc
+/// rim passes the same residual gate and the body imports to the
+/// Arm-B state (t1/t2 valid; the full native-state pin lives in
+/// `nurbs_import.rs`). A gate that refused the genuine body would be
+/// a false alarm, not a certification.
+#[test]
+fn probe_arm_b_true_arc_rim_positive_control() {
+    let native = native_arc_loft_for_probe();
+    let text = step_export::step_string(&native, &step_export::StepOptions::default())
+        .expect("arc loft exports");
+    let body = solid(&text, "true arc loft");
+    assert_eq!(census(&body), census(&native), "census matches the source");
+    assert_eq!(topo::validate(&body), Ok(()), "t1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
+}
+
+/// V4 — review F5's measurement: the synthesized descriptions vs the
+/// native builder's, payload by payload. Seam IsoCurves reproduce the
+/// native payload verbatim (modulo arena keys); rim PlacedSegments
+/// share the CLASS and certification surface but carry an equivalent
+/// carrier-frame parameterization, not the native sketch-coordinate
+/// one (the sketch plane never crosses the wire). The fix pass
+/// corrected the prose to that class-level statement; this probe
+/// keeps the measurement honest.
 #[test]
 fn probe_descriptions_native_vs_imported_bitwise() {
     let native = native_loft_prism();
@@ -308,11 +351,14 @@ fn probe_descriptions_native_vs_imported_bitwise() {
     assert_eq!(n.len(), i.len(), "same number of certified descriptions");
 }
 
-/// V4: every PlacedSegment placement in an imported body should be a
-/// rigid frame (the synthesizer's own doc: "honest perpendiculars").
-/// A sub-unit x-aligned DIRECTION (within eps_in of unit, kept
-/// verbatim) feeds line_frame a dir with |x| < 1 that is still
-/// x-parallel — candidate x-axis, y parallel to dir, z = 0.
+/// V4 — review F2, now a regression pin: every PlacedSegment
+/// placement in an imported body must be a rigid frame (the
+/// synthesizer's own doc: "honest perpendiculars"). A sub-unit
+/// x-aligned DIRECTION (within eps_in of unit, kept verbatim) fed the
+/// OLD `|x| < 1.0` seed pick an x-parallel candidate — y ∥ dir,
+/// z = 0, det-0 claimed-rigid data in a certified body (executed).
+/// The smallest-component seed fix makes this import with an honest
+/// near-unit-determinant frame, which is what the assert now pins.
 #[test]
 fn probe_subunit_x_direction_rim_frame_rigidity() {
     let orig = fixture("loft_prism", "step");
@@ -372,8 +418,14 @@ fn probe_rim_same_sense_flip_is_honest() {
     }
 }
 
-/// V5: the exactly-two-token divergence claim between the first
-/// re-export and the committed fixture.
+/// V5 — review F4, now the corrected pin: the first re-export
+/// diverges from the committed fixture in exactly THREE `-0.0 → 0.0`
+/// component tokens (fixture `#3 = DIRECTION('', (1.0, -0.0, -0.0))`
+/// carries two, `#43 = DIRECTION('', (1.0, -0.0, 0.0))` one) — the
+/// documented `plus_zero` parse-hygiene class, no other divergence —
+/// and the second export is a byte-identical fixed point of the
+/// first. (The original PR prose claimed "exactly 2 tokens";
+/// measured false by this probe, corrected at the fix pass.)
 #[test]
 fn probe_reexport_two_token_divergence() {
     let orig = fixture("loft_prism", "step");
@@ -402,8 +454,8 @@ fn probe_reexport_two_token_divergence() {
     for (i, x, y) in diffs.iter().take(10) {
         eprintln!("  tok {i}: {x} -> {y}");
     }
-    // The claim: exactly two -0.0 -> 0.0 component flips (modulo the
-    // product-name header token, which the writer sets itself).
+    // The corrected claim (F4): exactly three -0.0 -> 0.0 component
+    // flips, and nothing else differs.
     let geo: Vec<_> = diffs
         .iter()
         .filter(|(_, x, _)| x.contains("-0.0"))
@@ -412,6 +464,13 @@ fn probe_reexport_two_token_divergence() {
         "PROBE: {} of the diffs are -0.0 tokens; {} are other",
         geo.len(),
         diffs.len() - geo.len()
+    );
+    assert_eq!(a.len(), b.len(), "token streams stay aligned");
+    assert_eq!(geo.len(), 3, "exactly three -0.0 tokens diverge");
+    assert_eq!(
+        diffs.len(),
+        geo.len(),
+        "no divergence outside the -0.0 class"
     );
     // Second export must be a fixed point of the first.
     let body2 = solid(&out, "first re-export");

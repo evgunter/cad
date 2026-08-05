@@ -507,6 +507,39 @@ fn adopt_edges(
             // rational body's state, whose tier-3 refusal the import
             // preserves (item 5's Arm B).
             nurbs_rim = nurbs_plane_pair(body.get_surface(fs_plus), body.get_surface(fs_minus));
+            // The ARC-rim residual gate (M7-3 fix pass, review F1):
+            // BEFORE the conventional rung is offered, an arc rim
+            // must lie on its NURBS wall's own boundary column —
+            // on a rational wall this is the rim's ONLY
+            // certification (gate docs). Failure is its own typed
+            // refusal naming the residual, not a silent rung
+            // withdrawal. LINE rims are endpoint-forced and stay
+            // ungated (gate docs).
+            if nurbs_rim && matches!(spec.carrier, Curve3::Circle { .. }) {
+                let wall =
+                    [fs_plus, fs_minus]
+                        .into_iter()
+                        .find_map(|k| match body.get_surface(k) {
+                            Some(Surface::Nurbs(p)) if !p.is_placeholder() => Some(p.clone()),
+                            _ => None,
+                        });
+                if let Some(wall) = wall {
+                    arc_rim_on_wall_boundary(
+                        wall.as_ref(),
+                        &spec.carrier,
+                        spec.t0,
+                        spec.t1,
+                        p_start,
+                        p_end,
+                    )
+                    .map_err(|residual| {
+                        StepImportError::RimOffWallBoundary {
+                            id: edge_id,
+                            residual,
+                        }
+                    })?;
+                }
+            }
             conventional = nurbs_rim
                 || (coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
                     && carrier_on_surface(
@@ -581,22 +614,28 @@ fn adopt_edges(
 ///
 /// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
 /// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
-/// with one root: `PlacedSegment { Line }` is the description the
-/// native loft builder stores for exactly this edge class (the
-/// imported body lands in the native description state), and it is
-/// the shape the NURBS chart's pcurve derivation accepts
+/// with one root: `PlacedSegment { Line }` is the description CLASS
+/// the native loft builder stores for exactly this edge class, and it
+/// is the shape the NURBS chart's pcurve derivation accepts
 /// (`topo`'s `nurbs_iso_derive` — its `ExtrudedPoint` mint from a
 /// LINE carrier would refuse there, the measured mint blocker; the
 /// alternative, an `ExtrudedPoint` arm in `nurbs_iso_derive` itself,
 /// would widen the kernel's own certification vocabulary to spare
-/// the importer a description it can synthesize exactly). The
-/// segment is the carrier's own interval on its own axis
-/// (`a = (t0, 0)`, `b = (t1, 0)` under a rigid frame whose x-axis is
-/// the carrier direction), so the described locus is the carrier's
-/// bit for bit up to the placement arithmetic. Arc rims stay
+/// the importer a description it can synthesize exactly). Same class
+/// and same certification surface — but NOT the same payload bits:
+/// the native builder's segment lives in sketch coordinates under the
+/// cap placement, while the synthesized one is the carrier's own
+/// interval on its own axis (`a = (t0, 0)`, `b = (t1, 0)` under a
+/// rigid frame whose x-axis is the carrier direction) — an
+/// equivalent parameterization of the same locus, exact up to the
+/// placement arithmetic (the sketch plane never crosses the STEP
+/// wire, so the native payload is not recoverable; review F5 pinned
+/// the honest statement to class level). Arc rims stay
 /// `RevolvedPoint` in both cases — on a rational wall nothing mints
 /// (the native rational body's own state), and a non-rational wall
-/// has no arc rims to mint (its profile was a polyline).
+/// has no arc rims to mint (its profile was a polyline). Arc rims on
+/// a rational wall additionally pass the [`arc_rim_on_wall_boundary`]
+/// residual gate BEFORE this rung is offered (review F1).
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,
@@ -606,13 +645,15 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line { origin, dir } if nurbs_rim => Some(MappedCurve::PlacedSegment {
-            segment: geom_brep::SketchSegment::Line {
-                a: Point2::new(t0, 0.0),
-                b: Point2::new(t1, 0.0),
-            },
-            place: line_frame(*origin, *dir),
-        }),
+        Curve3::Line { origin, dir } if nurbs_rim => {
+            line_frame(*origin, *dir).map(|place| MappedCurve::PlacedSegment {
+                segment: geom_brep::SketchSegment::Line {
+                    a: Point2::new(t0, 0.0),
+                    b: Point2::new(t1, 0.0),
+                },
+                place,
+            })
+        }
         Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
@@ -627,6 +668,126 @@ fn mapped_self_description(
         }),
         Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
     }
+}
+
+/// The import-side residual gate for an **ARC rim against its NURBS
+/// wall** (M7-3 fix pass, review F1). On a RATIONAL wall nothing else
+/// ever checks the rim: no pcurve mints (`chart_mints` = false), the
+/// tier-3 dihedral is Nurbs-exempt by kind, and the conventional
+/// `RevolvedPoint` description certifies only against itself — the
+/// review's executed attack (a different circle through the same two
+/// endpoints) imported t1/t2-valid with the verbatim native tier-3
+/// refusal, indistinguishable from a correct body. This gate closes
+/// that hole WITHOUT narrowing Arm B: rational-surface EVALUATION is
+/// exact kernel arithmetic (only the certification/mint lanes refuse
+/// rational payloads), so the wall's own boundary column
+/// (`boundary_iso_v` — the locus the rim claims to be) is sampled at
+/// the certification schedule and metered against the rim circle's
+/// CLOSED-FORM distance, the [`carrier_on_surface`] door pattern with
+/// the roles arranged so every quantity has a closed form (a point's
+/// distance to a rational patch does not; its distance to a circle
+/// does).
+///
+/// Two obligations per sample, both metered in meters at the ambient
+/// tolerance: (a) the boundary sample lies on the circle LOCUS
+/// (`hypot(axial, |radial| − r)`), and (b) its circle angle lies
+/// inside the rim's own parameter interval, the angular deviation
+/// converted by the lever arm `r` (D4 ¶1 — no raw-angle tolerance).
+/// (b) is what refuses the complement-arc variant of the attack (same
+/// locus, wrong arc). The boundary's ENDS must land on the rim's
+/// pinned vertices first (either orientation) — a boundary that does
+/// not even connect them is metered by its endpoint miss.
+///
+/// **LINE rims are deliberately not gated here** (the review's own
+/// verdict, ruled to stand): a line through two pinned vertices is
+/// unique — the carrier locus is endpoint-forced — and on the
+/// non-rational walls of the exportable class the pcurve re-mint
+/// re-certifies every line rim against the wall besides.
+///
+/// `Err` carries the best (smallest) worst-sample deviation over both
+/// boundary candidates, for the typed refusal.
+fn arc_rim_on_wall_boundary(
+    wall: &geom_surfaces::NurbsSurface<f64>,
+    carrier: &Curve3<f64>,
+    t0: f64,
+    t1: f64,
+    p_start: Point3<f64>,
+    p_end: Point3<f64>,
+) -> Result<(), f64> {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = *carrier
+    else {
+        // Only arc rims are gated (doc above); the caller matches
+        // Circle before calling, so this arm is defensive totality.
+        return Ok(());
+    };
+    let eps = geom_core::Tolerance::get().eps;
+    let axis_norm = axis.norm();
+    let u_ref_norm = u_ref.norm();
+    if !(radius.is_finite() && radius > 0.0)
+        || !(axis_norm.is_finite() && axis_norm > 0.0)
+        || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
+    {
+        return Err(f64::INFINITY);
+    }
+    let a_hat = axis / axis_norm;
+    let u_hat = u_ref / u_ref_norm;
+    let v_hat = a_hat.cross(u_hat);
+    let tau = core::f64::consts::TAU;
+    // The angular slack: the ambient band through the lever arm.
+    let slack = eps / radius;
+    let mut best = f64::INFINITY;
+    for end in [false, true] {
+        let Ok(iso) = geom_brep::boundary_iso_v(wall, end) else {
+            continue;
+        };
+        let (d0, d1) = iso.domain();
+        let q0 = iso.eval(d0);
+        let q1 = iso.eval(d1);
+        let ends_match = (q0.distance(p_start) <= eps && q1.distance(p_end) <= eps)
+            || (q0.distance(p_end) <= eps && q1.distance(p_start) <= eps);
+        if !ends_match {
+            let miss = q0
+                .distance(p_start)
+                .min(q0.distance(p_end))
+                .max(q1.distance(p_start).min(q1.distance(p_end)));
+            best = best.min(miss);
+            continue;
+        }
+        let mut worst = 0.0f64;
+        for i in 0..geom_brep::CERT_SAMPLES {
+            let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
+            let q = iso.eval(d0 + (d1 - d0) * f);
+            let w = q - center;
+            // The axial component, bound by name (the tripwire note
+            // in [`line_frame`], same shape).
+            let axial = w.dot(a_hat);
+            let radial = w - a_hat * axial;
+            let ring = (radial.norm() - radius).hypot(axial);
+            let mut theta = w.dot(v_hat).atan2(w.dot(u_hat));
+            if !(ring.is_finite() && theta.is_finite()) {
+                worst = f64::INFINITY;
+                break;
+            }
+            while theta < t0 - slack {
+                theta += tau;
+            }
+            while theta >= t0 - slack + tau {
+                theta -= tau;
+            }
+            let arc_excess = (theta - t1 - slack).max(0.0) * radius;
+            worst = worst.max(ring).max(arc_excess);
+        }
+        if worst <= eps {
+            return Ok(());
+        }
+        best = best.min(worst);
+    }
+    Err(best)
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a
@@ -645,21 +806,48 @@ fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> boo
 /// Nurbs-adjacent rim ([`mapped_self_description`]). The y/z columns
 /// complete an orthonormal frame (they never move a segment point —
 /// every sketch point has `y = 0` — but a placement claims rigidity
-/// as conventional data, so honest perpendiculars are minted, the
-/// same first-coordinate-axis selection the placement reader uses).
-fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Affine3<f64> {
-    let candidate = if dir.x.abs() < 1.0 {
+/// as conventional data, so honest perpendiculars are minted).
+///
+/// The seed axis is the coordinate axis of the direction's SMALLEST
+/// component magnitude: for a unit-ish direction that axis is at
+/// least `1/√3` from parallel, so the projection step below is always
+/// well-conditioned. The old first-coordinate-axis pick (`|x| < 1.0`)
+/// was executed into a fail-loud violation by the M7-3 review (F2): a
+/// DIRECTION one ulp under unit and x-parallel is kept VERBATIM by
+/// the ε_in direction reader, satisfied `|x| < 1.0`, and minted
+/// `y ∥ dir`, `z = 0` — a det-0 claimed-rigid placement inside a
+/// certified body. Belt and braces on top of the conditioning
+/// argument: a frame that still cannot be completed (non-finite or
+/// zero direction) answers `None`, the conventional rung is WITHHELD,
+/// and the edge refuses typed through the ladder — never a silent
+/// degenerate placement.
+fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<f64>> {
+    let (ax, ay, az) = (dir.x.abs(), dir.y.abs(), dir.z.abs());
+    let candidate = if ax <= ay && ax <= az {
         geom_core::Vec3::new(1.0, 0.0, 0.0)
-    } else {
+    } else if ay <= az {
         geom_core::Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        geom_core::Vec3::new(0.0, 0.0, 1.0)
     };
-    let perpendicular = candidate - dir * dir.dot(candidate);
-    let y = perpendicular / perpendicular.norm();
+    // The projection coefficient, bound by name so the subtraction
+    // reads as "remove the axial part" — and so the expression is not
+    // the `v * v`-shaped text the interval-square tripwire watches
+    // for (there is no square here: `dir` scales a dot of two
+    // DIFFERENT vectors — the `Resolver::placement` precedent,
+    // verbatim).
+    let along = dir.dot(candidate);
+    let perpendicular = candidate - dir * along;
+    let norm = perpendicular.norm();
+    if !(norm.is_finite() && norm > 0.0) {
+        return None;
+    }
+    let y = perpendicular / norm;
     let z = dir.cross(y);
-    Affine3::from_parts(
+    Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),
         origin - Point3::origin(),
-    )
+    ))
 }
 
 /// Bitwise equality of a parsed NURBS carrier against a wall's
