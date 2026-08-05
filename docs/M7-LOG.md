@@ -353,3 +353,36 @@ is BANKED as the next M7 unit; the two fixtures flip back by
 S9 then. One hosted red at delivery: the interval-square
 tripwire on entities.rs (an x*x) — powi(2) conversion relayed,
 in flight. Impl ~372k tokens, ~1.8h wall.
+
+**Tripwire red resolved (2026-08-05)**: both hits were the KNOWN
+false-positive class (vector × projection, a·a.dot(x)) — third
+occurrence; resolved by the sanctioned named-binding restructure,
+NO allowlist entry; matrix full green 19/0. The negative-lookahead
+pattern fix stays the M6 side's queued hygiene item.
+**Shared-infra fix #194 MERGED**: new-lane.sh refuses path-shaped
+lane args loudly — my own briefs had been passing absolute paths,
+silently nesting clones (why two review-lane clones went
+untrackable); caught by the m7-4 reviewer, no orphans on disk,
+briefs corrected to bare names.
+
+**M7-4 review returned (2026-08-05): APPROVE-WITH-FIXES,
+0 MAJ / 2 MIN / 3 NOTE, rubric 5/4/4, deviations 7/0 silent —
+every headline independently CONFIRMED.** B1: refuse-correct
+ruling CONCURRED (gate bypassed behind an env var:
+RingOnCurvedFace genuinely fires, no cheaper honest arm). B2:
+the ε_in floor is NOT a widened gate (declared uncertainties
+down to 1e-23 m come back unraised; the window binds only the
+test gate's ambient-ε obligations, loud skips + weaker
+obligation outside). B3: duplicate-solid latency CONFIRMED at
+merge-base (silently wrong tier-3-GREEN body); identity rule
+keeps same-placement twins distinct. B4: five mirror-smuggling
+attempts defeated. B5: oracle re-derived digit-for-digit on
+upstream originals; KERNEL counts equal the files' own record
+counts, independently proving the census divergence is OCC's;
+hashes match upstream. B8: 620+ mutations, zero panics/hangs.
+MIN-1 (inherited, in-crate): unbounded knot multiplicity →
+16 GB alloc → SIGABRT (invisible to catch_unwind) — pulled INTO
+the fix pass (the no-panic headline row demands it): parse-time
+knot budget with typed refusal, probe_knot un-ignored. MIN-2:
+one false test comment. Fix pass dispatched (inherits the arm).
+Review ~167k tokens, ~73min wall.
