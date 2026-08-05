@@ -40,7 +40,7 @@ needed), so a future remedy flow never parses messages.
 The export corpus (15 solid fixtures + `nurbs_wireframe` under
 `crates/step-export/tests/fixtures/`) covers the kernel's whole
 geometry vocabulary as **native, exact AP214 entities** (M5 PR 13;
-`memories/step-curved-subset.md`): PLANE / CYLINDRICAL_ / CONICAL_
+`docs/CURVED-DESIGN.md` + the STEP writer identity mapping (M5 PR 13 record)): PLANE / CYLINDRICAL_ / CONICAL_
 / SPHERICAL_ / TOROIDAL_SURFACE surfaces; LINE / CIRCLE / ELLIPSE
 / B_SPLINE_CURVE_WITH_KNOTS carriers. For this subset, D7 stage 1
 (NURBS→analytic recognition) is mostly the identity — the entities
@@ -61,7 +61,7 @@ inverse problem actually lives.
    disposition its geometry supports, stated, not skipped.
 2. **M7-2 — foreign corpus: FreeCAD-authored files** of the same
    entity subset (FreeCAD 1.1.2, the version-matched oracle —
-   `memories/freecad-oracle.md`): the first geometry this kernel
+   `scripts/check_step.sh (the oracle path + version are baked in)`): the first geometry this kernel
    adopts that it did not write. Validity + expected censuses /
    volumes; ε_in exercised for real (OCC's default write
    uncertainty is coarser than kernel ε).
