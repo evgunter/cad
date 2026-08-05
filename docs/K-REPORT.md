@@ -666,4 +666,4 @@ is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
    baseline floor is still the stale M4-era 1.5e-3 with ~102
    advisory flags/run; the SSI Probe lane still has no owner). The
    k-lint floor refresh holds a promoted lull-queue spot per
-   M6-LOG's close statement.
+   M6-LOG's close statement (docs/archive/M6-LOG.md).

@@ -1260,7 +1260,7 @@ precursor of the error-propagation feature.
   same ruling (Evan: "we shouldn't fold any core work like ball and
   socket into M7") — curved REST contact is core kernel work, so its
   design lands with the main path even though its implementation
-  does not. *(CLOSED 2026-08-05 — M6-LOG's close statement: surgery
+  does not. *(CLOSED 2026-08-05 — the close statement in docs/archive/M6-LOG.md: surgery
   #171, SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN
   ratified #178; re-banked: edge-selection fillet vocabulary, the
   ratified curved sense-flip tier gate, the k-lint floor refresh.)*
