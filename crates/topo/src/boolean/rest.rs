@@ -400,8 +400,12 @@ fn enumerate_segments<T: Decide>(
                     Sign::Positive => {}
                     _ => continue,
                 }
-                let f1 = germs[i].dir.dot(chord) / dist;
-                let f2 = germs[j].dir.dot(-chord) / dist;
+                // Facing margins in METRES: unit germ dir · chord =
+                // cos × separation (rim-dimensional audit: the former
+                // `/ dist` compared a bare cosine against the length
+                // band — class (c)).
+                let f1 = germs[i].dir.dot(chord);
+                let f2 = germs[j].dir.dot(-chord);
                 if decide("bool_join_facing", f1, band).map_err(escalate)? != Sign::Positive
                     || decide("bool_join_facing", f2, band).map_err(escalate)? != Sign::Positive
                 {

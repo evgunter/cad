@@ -154,6 +154,30 @@ fn require_rim_incidence<T: Decide>(
     )
 }
 
+/// A rim's iso-level, carrying its own DIMENSION so every grouping
+/// comparand is metered per kind rather than by one uniform
+/// expression. The ratified ε semantics (D4) make every `classify`
+/// comparand a LENGTH — the point deviation the difference induces —
+/// and the level payload's dimension varies by surface kind, so the
+/// metering choice is forced here at the constructor, not left to
+/// convention at the comparison site. (The uniform `× arm` this
+/// replaces turned a cone's already-length level difference into an
+/// AREA — two lengths multiplied — and shrank the mm-scale
+/// `cone_trunc` rim separation into the ε = 1e-7 ambiguity band: the
+/// project's first in-band K landing, #89.)
+#[derive(Clone, Copy)]
+enum RimLevel<T: Real> {
+    /// Cylinder/cone: the level is the axial/slant arc length `v`
+    /// itself, in meters — a difference is ALREADY the point
+    /// deviation and reaches `classify` bare.
+    Length(T),
+    /// Sphere/torus: a dimensionless direction pair — `(sin v, 0)`
+    /// for the sphere, `(sin v, cos v)` for the torus — whose
+    /// componentwise differences need `× arm` (the lever arm, meters)
+    /// to become point deviations.
+    Unit(T, T),
+}
+
 /// A classified rim: signed `u`-traversal direction (`d_u`), parameter
 /// span (`dt`, the face's `Δu` candidate), and its iso-level payload.
 struct Rim<T: Real> {
@@ -162,15 +186,47 @@ struct Rim<T: Real> {
     d_u: T,
     /// Carrier parameter span `t1 − t0` (angle-true; `Δu`).
     dt: T,
-    /// The rim's iso-level: `v` for cylinder/cone, `sin v` for the
-    /// sphere, `(sin v, cos v)` packed for the torus (see call sites).
-    level: (T, T),
+    /// The rim's iso-level, dimension carried by the variant (see
+    /// [`RimLevel`] and the per-surface call sites).
+    level: RimLevel<T>,
     /// Traversal-order endpoint tags.
     tags: (u32, u32),
 }
 
-/// Check all rims agree on `Δu`, metered by `arm` (meters); returns
-/// the face's `Δu`.
+/// Whether two rim levels are coincident, through the funnel: each
+/// margin is the point deviation in meters — bare for [`RimLevel::
+/// Length`] (the difference IS a length), `× arm` for
+/// [`RimLevel::Unit`] (dimensionless components at the lever arm).
+fn same_level<T: Decide>(
+    a: RimLevel<T>,
+    b: RimLevel<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, PropsError> {
+    match (a, b) {
+        (RimLevel::Length(la), RimLevel::Length(lb)) => {
+            Ok(classify("props_rim_level_group", la - lb, band)? == Sign::Zero)
+        }
+        (RimLevel::Unit(sa, ca), RimLevel::Unit(sb, cb)) => {
+            let d0 = classify("props_rim_level_group", (sa - sb) * arm, band)?;
+            let d1 = classify("props_rim_level_group", (ca - cb) * arm, band)?;
+            Ok(d0 == Sign::Zero && d1 == Sign::Zero)
+        }
+        // One surface builds every rim of a face, so mixed kinds are
+        // structurally impossible; a poisoned margin turns it into a
+        // typed escalation rather than a panic (D9).
+        _ => {
+            classify("props_rim_level_group", T::from_f64(f64::NAN), band)?;
+            Ok(false)
+        }
+    }
+}
+
+/// Check all rims agree on `Δu`; returns the face's `Δu`. `arm` is
+/// the azimuthal lever arm (meters), metering the DIMENSIONLESS
+/// margins here (`Unit` level components, the ±1 traversal-direction
+/// difference, the `Δu` angle difference); `Length` level margins are
+/// already meters and never touch it.
 fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, PropsError> {
     if rims.is_empty() {
         return Err(PropsError::NotIsoRectangle {
@@ -185,36 +241,37 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, Props
     // undercounted multi-arc rims. Direction joins the key so the
     // degenerate zero-extent patch (both rims one level, opposite
     // traversal) keeps its M2 verdict downstream.
-    let mut groups: Vec<(T, T, T, T)> = Vec::new(); // (lvl0, lvl1, d_u, dt sum)
+    let mut groups: Vec<(RimLevel<T>, T, T)> = Vec::new(); // (level, d_u, dt sum)
     for rim in rims {
         let mut placed = false;
         for g in &mut groups {
-            let same0 = classify("props_rim_level_group", (rim.level.0 - g.0) * arm, band)?;
-            let same1 = classify("props_rim_level_group", (rim.level.1 - g.1) * arm, band)?;
+            let same = same_level(rim.level, g.0, arm, band)?;
             let same_dir =
-                classify("props_rim_dir_group", (rim.d_u - g.2) * arm, band)? == Sign::Zero;
-            if same0 == Sign::Zero && same1 == Sign::Zero && same_dir {
-                g.3 = g.3 + rim.dt;
+                classify("props_rim_dir_group", (rim.d_u - g.1) * arm, band)? == Sign::Zero;
+            if same && same_dir {
+                g.2 = g.2 + rim.dt;
                 placed = true;
                 break;
             }
         }
         if !placed {
-            groups.push((rim.level.0, rim.level.1, rim.d_u, rim.dt));
+            groups.push((rim.level, rim.d_u, rim.dt));
         }
     }
-    let total = groups[0].3;
+    let total = groups[0].2;
     for g in &groups[1..] {
-        require_zero("props_du_consistent", (g.3 - total) * arm, band)?;
+        require_zero("props_du_consistent", (g.2 - total) * arm, band)?;
     }
     Ok(total)
 }
 
 /// `s_f` for a linearly-leveled surface (cylinder/cone/sphere): from
-/// `rim`'s level and the face's level range, metered by `arm`.
-/// Interior lies toward the opposite extreme; a rim strictly inside
-/// the range cannot happen on an iso-rectangle (the residual would be
-/// the full extent, definite).
+/// `rim`'s level and the face's level range. Interior lies toward the
+/// opposite extreme; a rim strictly inside the range cannot happen on
+/// an iso-rectangle (the residual would be the full extent, definite).
+/// The margin is metered by the level's own dimension ([`RimLevel`]):
+/// bare for `Length` levels (meters already), `× arm` for the
+/// dimensionless `Unit` primary component.
 fn s_f_from_rim<T: Decide>(
     rim: &Rim<T>,
     lo: T,
@@ -222,8 +279,11 @@ fn s_f_from_rim<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<T, PropsError> {
-    let other = lo + hi - rim.level.0;
-    match classify("props_rim_side", (other - rim.level.0) * arm, band)? {
+    let margin = match rim.level {
+        RimLevel::Length(v) => lo + hi - v - v,
+        RimLevel::Unit(s, _) => (lo + hi - s - s) * arm,
+    };
+    match classify("props_rim_side", margin, band)? {
         Sign::Positive => Ok(rim.d_u),
         Sign::Negative => Ok(-rim.d_u),
         Sign::Zero => Err(PropsError::DegenerateFace),
@@ -286,7 +346,8 @@ fn cylinder<T: Decide>(
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
                     dt: e.t1 - e.t0,
-                    level: (v, T::zero()),
+                    // The axial arc length itself — meters.
+                    level: RimLevel::Length(v),
                     tags: (e.start, e.end),
                 });
                 levels.push(v);
@@ -309,7 +370,9 @@ fn cylinder<T: Decide>(
     let du = du_of_rims(&rims, radius, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(hi - lo, band)?;
-    let s_f = s_f_from_rim(&rims[0], lo, hi, T::one(), band)?;
+    // `radius` is the azimuthal lever arm; the rim-side margin itself
+    // is Length-leveled (meters) and never touches it.
+    let s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;
     let area = radius * du * (hi - lo);
     let va = loop_vector_area(edges, origin)?;
     let flux = s_f * (radius * area) + (origin - Point3::origin()).dot(va);
@@ -390,7 +453,8 @@ fn cone<T: Decide>(
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
                     dt: e.t1 - e.t0,
-                    level: (v, T::zero()),
+                    // The signed slant arc length itself — meters.
+                    level: RimLevel::Length(v),
                     tags: (e.start, e.end),
                 });
                 levels.push(v);
@@ -403,10 +467,18 @@ fn cone<T: Decide>(
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }
     }
-    let arm = rims
-        .first()
-        .map(|r| r.level.0.abs() * sin_a)
-        .unwrap_or(T::one());
+    // The azimuthal lever arm: the first rim's own radius `|v|·sin α`
+    // (cone rims are `Length`-leveled, so the arm meters only the
+    // dimensionless direction/Δu margins in `du_of_rims`). The
+    // `T::one()` fallback covers the no-rim case, where `du_of_rims`
+    // refuses before any margin is metered.
+    let arm = match rims.first() {
+        Some(Rim {
+            level: RimLevel::Length(v),
+            ..
+        }) => v.abs() * sin_a,
+        _ => T::one(),
+    };
     let du = du_of_rims(&rims, arm, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(hi - lo, band)?;
@@ -492,7 +564,8 @@ fn sphere<T: Decide>(
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
                     dt: e.t1 - e.t0,
-                    level: (sin_v, T::zero()),
+                    // Dimensionless latitude sine — levered by R.
+                    level: RimLevel::Unit(sin_v, T::zero()),
                     tags: (e.start, e.end),
                 });
                 levels.push(sin_v);
@@ -610,7 +683,8 @@ fn torus<T: Decide>(
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
                     dt: e.t1 - e.t0,
-                    level: (sin_v, cos_v),
+                    // Dimensionless minor-angle direction pair.
+                    level: RimLevel::Unit(sin_v, cos_v),
                     tags: (e.start, e.end),
                 });
             }
@@ -685,7 +759,13 @@ fn torus<T: Decide>(
     };
     // Rim levels must sit at the interval ends.
     for rim in &rims {
-        let (rs, rc) = rim.level;
+        // Torus rims are minted `Unit` a page up; the refusal arm is
+        // structurally unreachable but stays typed, never a panic (D9).
+        let RimLevel::Unit(rs, rc) = rim.level else {
+            return Err(PropsError::NotIsoRectangle {
+                what: "torus rim carries a non-angular level",
+            });
+        };
         // powi(2), not x*x: the interval square is tight and
         // nonnegative, so the sqrt stays fully in-domain even when the
         // difference encloses zero (an x*x interval product has a
@@ -724,4 +804,26 @@ fn torus<T: Decide>(
 fn unreachable_zero<T: Real>() -> (T, T, T, T) {
     let nan = T::from_f64(f64::NAN);
     (nan, nan, nan, nan)
+}
+
+// ADVERSARIAL REVIEW PROBE (authored on branch review/rim-dim,
+// adopted by merge — authorship kept).
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod rim_level_review_probe {
+    use super::*;
+
+    /// The structurally-impossible mixed-kind arm must escalate typed
+    /// (poisoned classify), never panic and never answer false.
+    #[test]
+    fn mixed_kind_levels_escalate_typed() {
+        let band = Band::linear().expect("band");
+        let got = same_level(
+            RimLevel::Length(1.0_f64),
+            RimLevel::Unit(0.5, 0.5),
+            1.0,
+            band,
+        );
+        assert!(got.is_err(), "mixed kinds must poison typed: {got:?}");
+    }
 }

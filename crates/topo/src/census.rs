@@ -663,7 +663,12 @@ fn sweep_edge_edge<T: Decide>(
     for (i, ea) in geo.edges.iter().enumerate() {
         for eb in &geo.edges[i + 1..] {
             let ncross = ea.dir.cross(eb.dir);
-            match gap_is_zero("pm_census_ee_parallel", ncross.norm(), band, errors) {
+            // sin(angle of the unit dirs) × the shorter edge's own
+            // length: the displacement the angular deviation induces
+            // over the edge (a bare sine was a dimensionless comparand
+            // against the length band — rim-dimensional audit, (c)).
+            let arm = ea.len.min(eb.len);
+            match gap_is_zero("pm_census_ee_parallel", ncross.norm() * arm, band, errors) {
                 Some(false) => ee_crossing_lane(ea, eb, ncross, band, errors),
                 Some(true) => ee_collinear_lane(ea, eb, declared, band, errors),
                 None => {}

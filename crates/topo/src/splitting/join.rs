@@ -2247,7 +2247,13 @@ impl<T: Decide> Sweep<T> {
             twice_area = twice_area + excess;
             perimeter = perimeter + (sa * span.abs() - (b - a).norm());
         }
-        let margin = twice_area.abs() / (perimeter * T::from_f64(0.5));
+        // `twice_area` IS 2A (shoelace), so dividing by the full
+        // perimeter yields the documented margin 2·|A|/P — the mean
+        // width in meters. (Rim-dimensional audit: the previous
+        // `/ (perimeter * 0.5)` computed 4·|A|/P, double the
+        // documented spec — dimensionally identical, but the doc is
+        // the contract.)
+        let margin = twice_area.abs() / perimeter;
         match decide("split_section_area", margin, self.band) {
             Ok(Sign::Positive) => Ok(()),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),

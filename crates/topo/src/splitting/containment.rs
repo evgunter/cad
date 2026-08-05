@@ -194,12 +194,28 @@ pub fn point_in_loop<T: Decide>(
         }
     }
 
+    // The loop's own reach from q (evaluation-lane fold): the lever
+    // arm for the probe-direction gate below. A degenerate loop
+    // collapsed onto q gives a zero arm, every schedule member skips,
+    // and the walk ends in the typed `RayExhausted` — fail-loud.
+    let mut extent = T::zero();
+    for p in &points {
+        extent = extent.max((*p - q).norm());
+    }
+
     // Ray parity with the fixed schedule.
     'ray: for r in &SCHEDULE {
         let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
         let n_dot_r = normal.dot(r);
         let d_raw = r - normal * n_dot_r;
-        let arm = d_raw.norm();
+        // sin(schedule member, plane NORMAL) × loop extent — the
+        // member's in-plane fraction |d_raw|/|r|: the SCHEDULE triples
+        // are bare numbers, so the raw projected norm was a
+        // dimensionless comparand against the length band
+        // (rim-dimensional audit, class (c)); the honest margin is
+        // the in-plane displacement the probe direction commands at
+        // the loop's own scale.
+        let arm = d_raw.norm() / r.norm() * extent;
         match decide("point_in_loop_arm", arm, band).map_err(escalate)? {
             Sign::Positive => {}
             _ => continue 'ray, // near-parallel schedule member: skip

@@ -160,7 +160,7 @@ const SMALLEST_ROUND_FEATURE_M: f64 = 2.5e-4;
 /// | ambient ε | outcome |
 /// |---|---|
 /// | 1e-12, 1e-9 (default), 1e-8 | all 13 import, all three tiers green |
-/// | 1e-7 | the 4 fixtures with cylindrical charts refuse typed; `cone_trunc` imports but its tier-3 check goes red — an **in-band K landing**: `props_rim_level_group` margin 5.590169943747308e-7 inside `Band { zero: 1e-7, escalate: 1e-6 }`, i.e. the cone's own rim-level separation (0.559 mm) sitting exactly where the ambiguity band is at that ε. Reported as a headline finding, never retuned. |
+/// | 1e-7 | the 4 fixtures with cylindrical charts refuse typed; the other 9 import with all three tiers green. (History: `cone_trunc`'s tier 3 went red here as the project's first **in-band K landing** — `props_rim_level_group` margin 5.590169943747308e-7 inside `Band { zero: 1e-7, escalate: 1e-6 }`. That margin was DIMENSIONALLY wrong, an area: the cone's slant rim separation √5/2 mm — already a length — multiplied by the 0.5 mm lever arm. The rim-dimensional fix meters it bare; the honest margin ≈1.118e-3 m is decisively out of band, so the landing is RETIRED by correction, not retuned — see `probe_review::a3_cone_trunc_all_tiers_green_at_1e7_landing_retired` and `geom-brep/tests/rim_dim_scale_twins.rs`.) |
 /// | 1e-6, 1e-5 | the same 4 refuse typed; the other 9 import with all three tiers green |
 ///
 /// Only cylinder charts are affected because only cylinder charts
@@ -211,9 +211,11 @@ fn corpus_scale_gate(row: &str) -> bool {
 /// Below the ceiling, `Ok(())`. Above it, `Ok(())` **or an
 /// escalation** — a K in-band / indeterminate classification, which is
 /// the kernel declining to answer at a tolerance too coarse for the
-/// geometry (measured: `cone_trunc` at ε = 1e-7 answers
-/// `VolumeUncomputable` with `props_rim_level_group`'s margin inside
-/// its band). What is never allowed is a DEFINITE geometric falsehood
+/// geometry (the historical instance — `cone_trunc` at ε = 1e-7
+/// answering `VolumeUncomputable` on `props_rim_level_group` — turned
+/// out to be a dimensional-metering defect, since fixed and retired;
+/// the allowance stands for honestly-metered in-band margins). What
+/// is never allowed is a DEFINITE geometric falsehood
 /// such as `NegativeVolume`: "cannot compute at this ε" is honest,
 /// "computed, and it is inside out" is a body that should not have
 /// been handed out. This is the row's whole claim, and it is asserted
