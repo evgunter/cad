@@ -642,3 +642,27 @@ footprint, zero overlap with M7-3's step-import): **difficulty
 logged S BEFORE dispatch** (localized fit-contract fix + two
 door pins + the honest sweep_body doc corrections); arm = OPUS
 (block M7-4 remainder, predetermined at the byte-224 draw).
+
+**M7-3 MERGED as #209 (2026-08-05): M7 UNIT 3 IS CLOSED — the
+kernel imports its NURBS faces.** Both surface arms parse; the
+surface_sig trap fixed (injective under every constructed
+collision); the IsoCurve rung reproduces the native description
+verbatim; rim adoption via synthesized PlacedSegment; ARM B
+landed, blessed by Evan, HOLED by the review (a different circle
+through the same endpoints laundered on rational walls — the
+uncertified-trust class), and REPAIRED to verified-not-trusted:
+the rim residual gate samples the wall's own boundary against
+the closed-form circle distance + lever-armed angular
+containment (the reported role inversion — point-to-rational-
+patch has no closed form; the angular clause kills the
+complement arc). Evan updated on-thread; blessing carried.
+#210 (skinfit) merged the same seam: sweep_body's FIRST
+successful caller; curved sweeps + non-uniform lofts now export
+— a widened exportable class the NEXT M7 seam folds into the
+round-trip corpus (banked: elbow-class fixtures join
+SOLID_FIXTURES; the ratified margin-convention migration opens
+the next block). Watchlist empty; both slots free; lanes clean.
+M7 remaining: the corpus-widening fold, the band-seam unit
+(ftc_11/cq_red_cube flip back), stage-1 recognition (dm1-class),
+exit walk. M6 remaining: unit 5, the ratified sense gate,
+k-lint floor.
