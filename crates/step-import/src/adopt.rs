@@ -842,4 +842,80 @@ mod tests {
         ));
         assert_ne!(surface_sig(&base), surface_sig(&refined));
     }
+
+    /// REVIEW PROBE (V1): transposed nets — shape (2,3) at degrees
+    /// (1,2) vs shape (3,2) at degrees (2,1) with the identical
+    /// control multiset must not collide.
+    #[test]
+    fn probe_transposed_nets_distinct() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let pts = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 2.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 2.0),
+        ];
+        let a = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku.clone(), kv.clone(), pts.to_vec(), vec![1.0; 6]).unwrap(),
+        ));
+        let transposed = vec![pts[0], pts[3], pts[1], pts[4], pts[2], pts[5]];
+        let b = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(kv, ku, transposed, vec![1.0; 6]).unwrap(),
+        ));
+        assert_ne!(
+            surface_sig(&a),
+            surface_sig(&b),
+            "transposed nets with identical multisets must not collide"
+        );
+    }
+
+    /// REVIEW PROBE (V1): a single interior knot moved, every count
+    /// equal.
+    #[test]
+    fn probe_single_knot_value_distinct() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kva = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kvb = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.625, 1.0, 1.0, 1.0], 2).unwrap();
+        let pts = vec![Point3::new(0.0, 0.0, 0.0); 8];
+        let a = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku.clone(), kva, pts.clone(), vec![1.0; 8]).unwrap(),
+        ));
+        let b = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku, kvb, pts, vec![1.0; 8]).unwrap(),
+        ));
+        assert_ne!(
+            surface_sig(&a),
+            surface_sig(&b),
+            "one knot value apart must not collide"
+        );
+    }
+
+    /// REVIEW PROBE (V1): u/v knot vectors swapped between two square
+    /// nets with equal lengths and degrees — the concatenated knot
+    /// stream carries the same values in a different order.
+    #[test]
+    fn probe_uv_knot_swap_distinct() {
+        let k01 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let k02 = KnotVector::clamped(vec![0.0, 0.0, 2.0, 2.0], 1).unwrap();
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ];
+        let a = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(k01.clone(), k02.clone(), pts.clone(), vec![1.0; 4]).unwrap(),
+        ));
+        let b = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(k02, k01, pts, vec![1.0; 4]).unwrap(),
+        ));
+        assert_ne!(
+            surface_sig(&a),
+            surface_sig(&b),
+            "swapped u/v knot vectors must not collide"
+        );
+    }
 }
