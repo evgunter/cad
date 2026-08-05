@@ -1,0 +1,34 @@
+# The M6-3 loft body (R5 shape iii): a three-section POLYLINE loft --
+# squares [-1,1]^2 at z = 0 and z = 2, the trapezoid
+# (-1.375,-1)(1.375,-1)(1,1)(-1,1) at z = 1 -- skinned at v-degree 2.
+# The corpus's first NURBS-walled body: 4 B_SPLINE_SURFACE_WITH_KNOTS
+# walls (non-rational, degree 1x2), 2 planar caps, 4 NURBS seam
+# carriers (the wall-wall corner paths), 8 exact line rims.
+#
+# Census 6/12/8 is the kernel's own (extrude's topology with skinned
+# geometry): 2 caps + 4 walls; 8 cap rims + 4 wall-wall seams; 4+4
+# corners. OCC keeps it -- open (non-closed) B-spline patches import
+# without added seam or degenerate edges.
+#
+# Volume is the EXACT ANALYTIC value in FreeCAD's internal mm^3, not a
+# readback. Derivation (sweep/tests/m6_loft_body.rs module docs): with
+# equal end sections the degree-2 skin through parameters (0, 1/2, 1)
+# is the quadratic Lagrange interpolant, so each corner path is
+# P(v) = S + lambda(v) * D with lambda = 4v(1-v), D = middle - end.
+# The z-channel interpolates (0,1,2) to z = 2v exactly, and each
+# fixed-v slice is a straight-edged trapezoid of area 4 + 2*d*lambda
+# (d = 0.375, the two bottom corners flare by -/+d, top corners fixed):
+#   int_0^1 4v(1-v) dv = 2/3, so
+#   V = int_0^2 A dz = 2 * int_0^1 (4 + 2d*lambda) dv
+#     = 2*(4 + 2d*(2/3)) = 8 + 8d/3 = 8 + 1 = 9 m^3 = 9e9 mm^3 exactly.
+#
+# RTOL stays at the 1e-9 default: OCC measures B-spline walls by
+# numeric quadrature, but these walls are piecewise-POLYNOMIAL ruled
+# patches (degree 1x2), well inside GProp's Gauss order -- the local
+# run reads back 9000000000.0 exactly.
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=6
+EXPECT_EDGES=12
+EXPECT_VERTICES=8
+EXPECT_VOLUME_MM3=9000000000.0

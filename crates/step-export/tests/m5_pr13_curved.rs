@@ -17,14 +17,17 @@
 //!
 //! 1. **The exactness table** — every `Surface`/`Curve3` variant that
 //!    a body at rest carries emits its native entity, with the
-//!    kernel's stored fields reproduced bit-exactly, and NO body emits
-//!    a `B_SPLINE_*` (the conics do not take the rational-quadratic
-//!    road, the analytic surfaces are never approximated).
+//!    kernel's stored fields reproduced bit-exactly, and a body emits
+//!    `B_SPLINE_*` records exactly when its KERNEL geometry is NURBS
+//!    (since M6-3 `loft_prism` genuinely is; every analytic kind still
+//!    refuses the rational-quadratic road, never approximated).
 //! 2. **The `same_sense` composition** — the S10 review's rule (bound
 //!    orientation composes with `same_sense`; never double-compose)
 //!    now that `.F.` faces really reach the emitter, with two pins
 //!    aimed directly at the double-composition bug.
-//! 3. **The NURBS carrier arm**, which no body at rest exercises.
+//! 3. **The NURBS containment pin** — spline geometry appears exactly
+//!    where the kernel put it (loft_prism's 4 walls + 4 seams), and
+//!    nowhere else.
 //! 4. **Determinism and the refusal arms.**
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -233,6 +236,20 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 "LINE",
             ],
         ),
+        // The M6-3 loft: the corpus's first body whose KERNEL geometry
+        // is genuinely NURBS — 4 described non-rational walls and their
+        // 4 seam carriers. For it the spline entities are the native
+        // encoding, not an approximation; the no-B_SPLINE law below is
+        // scoped off it by the body's own kernel state.
+        (
+            "loft_prism",
+            &[
+                "PLANE",
+                "B_SPLINE_SURFACE_WITH_KNOTS",
+                "B_SPLINE_CURVE_WITH_KNOTS",
+                "LINE",
+            ],
+        ),
     ];
     for (name, body) in curved_corpus() {
         let text = export(&body, name);
@@ -247,10 +264,40 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 "{name} must emit {entity}"
             );
         }
-        assert!(
-            !text.contains("B_SPLINE"),
-            "{name} must not smuggle a spline approximation of analytic geometry"
-        );
+        // The no-B_SPLINE law, scoped HONESTLY (M6-3 reshape, second
+        // shape of this assertion): the load-bearing claim is that
+        // ANALYTIC kernel geometry is never approximated as a spline.
+        // Whether a body may emit B_SPLINE is therefore read off the
+        // body's own kernel state, not off a hand-kept list — a fixture
+        // whose faces and carriers are all analytic must emit none, and
+        // a genuinely NURBS-walled body (loft_prism is the first) must
+        // emit exactly as many surface records as it has NURBS faces
+        // (a writer converting splines to fitted analytics would be the
+        // dual smuggle).
+        let nurbs_faces = body
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface).expect("surface resolves"),
+                    Surface::Nurbs(_)
+                )
+            })
+            .count();
+        if nurbs_faces == 0 {
+            assert!(
+                !text.contains("B_SPLINE"),
+                "{name} must not smuggle a spline approximation of analytic geometry"
+            );
+        } else {
+            let emitted = text
+                .lines()
+                .filter(|l| l.contains("B_SPLINE_SURFACE_WITH_KNOTS"))
+                .count();
+            assert_eq!(
+                emitted, nurbs_faces,
+                "{name}: every kernel NURBS face exports natively, none approximated away"
+            );
+        }
         // The refusal doors stay shut on the corpus, too: nothing here
         // is a POLY_LOOP / faceted stand-in either.
         assert!(!text.contains("POLY_LOOP"), "{name}");
@@ -375,7 +422,25 @@ fn emitted_placements_equal_the_kernel_frames_bitwise() {
                     assert_eq!(real(&a[2]), major_radius, "{name} torus major radius");
                     assert_eq!(real(&a[3]), minor_radius, "{name} torus minor radius");
                 }
-                Surface::Nurbs(_) => panic!("{name}: no body at rest carries a NURBS face"),
+                // Since M6-3 the loft walls are NURBS at rest. A spline
+                // record has no AXIS2_PLACEMENT — the frame claim
+                // becomes: every CONTROL POINT is the kernel's, bit for
+                // bit, in the writer's row-major (u-outer) order, and
+                // the degrees are the knot vectors' own.
+                Surface::Nurbs(ref ns) => {
+                    assert_eq!(kw, "B_SPLINE_SURFACE_WITH_KNOTS", "{name}: non-rational");
+                    assert_eq!(real(&a[1]), ns.knots_u().degree() as f64, "{name} u-degree");
+                    assert_eq!(real(&a[2]), ns.knots_v().degree() as f64, "{name} v-degree");
+                    let control_refs = refs(&a[3]);
+                    assert_eq!(control_refs.len(), ns.control().len(), "{name} net size");
+                    for (r, p) in control_refs.iter().zip(ns.control()) {
+                        assert_eq!(
+                            triple(&recs[r]),
+                            [p.x, p.y, p.z],
+                            "{name}: control point bitwise"
+                        );
+                    }
+                }
             }
         }
     }
@@ -500,7 +565,12 @@ fn every_bound_orientation_is_true_even_on_reversed_faces() {
     // mints both cap planes on the profile plane's own +y normal, so
     // the cap facing −y opposes the solid's outward normal and the
     // one facing +y agrees — exactly one of the two caps reverses,
-    // and each cap is two half-bands).
+    // and each cap is two half-bands). The M6-3 loft_prism adds ZERO:
+    // it mirrors extrude's minting (M5-LOG item 6(i)) — the bottom
+    // cap's LOOP is reversed at mint so its plane derives normal-down
+    // (outward), and every skinned wall chart's normal S_u × S_v
+    // follows the material-left traversal (loft.rs module docs,
+    // "Orientation") — so all six faces keep sense = true.
     assert_eq!(reversed_seen, 91, "the corpus's reversed faces");
 }
 
@@ -541,7 +611,11 @@ fn a_reversed_face_keeps_its_chart_axis() {
                 | Surface::Cone { axis, .. }
                 | Surface::Sphere { axis, .. }
                 | Surface::Torus { axis, .. } => axis,
-                Surface::Nurbs(_) => panic!("no NURBS face at rest"),
+                // NURBS faces exist at rest since M6-3 (loft walls) but
+                // none reverses (pin A's derivation) — and a NURBS chart
+                // has no single axis to compare; if a reversed one ever
+                // appears, design its axis-negation pin then.
+                Surface::Nurbs(_) => panic!("a REVERSED NURBS face reached pin B — extend it"),
             };
             assert_eq!(
                 z,
@@ -553,7 +627,8 @@ fn a_reversed_face_keeps_its_chart_axis() {
     assert_eq!(
         checked, 91,
         "all 91 reversed faces checked (5 original + die_pips' 42 + the composed \
-         die's 42 + the lily lantern's 2)"
+         die's 42 + the lily lantern's 2; loft_prism contributes 0 — every face \
+         sense-true, see pin A's derivation)"
     );
 }
 
@@ -635,57 +710,63 @@ fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
 /// chart image whose hull sup-norm AND uniqueness tube are RE-DERIVED
 /// by the tier-3 pcurve pass, at `f64` and at the interval scalar.
 ///
-/// The vacuity is gone, so this row states the narrower claim that was
-/// always the load-bearing one for STEP:
+/// **SECOND flip of this pin's lineage (M6-3; the retired name is
+/// `no_export_corpus_body_carries_a_nurbs_carrier_or_face`).** The
+/// first flip (M6-2, the paragraph above) narrowed the retired at-rest
+/// vacuity to the EXPORT CORPUS; this one retires the corpus absence
+/// itself, BOTH
+/// halves at once: `loft_prism` brought the first NURBS faces (its four
+/// skinned walls) AND the first NURBS carriers (its four wall–wall seam
+/// edges — the seams store the walls' u-boundary control rows, so the
+/// carrier half flipped WITH the face half, not later). The
+/// `B_SPLINE_SURFACE_WITH_KNOTS` and `B_SPLINE_CURVE_WITH_KNOTS` arms
+/// now have an end-to-end body behind them; the record-level pins in
+/// `writer.rs` still own the field-level facts (rational complex
+/// instance, knot run-length encoding).
 ///
-/// > **No body in the EXPORT CORPUS carries a NURBS carrier or a NURBS
-/// > face**, so the `B_SPLINE_CURVE_WITH_KNOTS` and
-/// > `B_SPLINE_SURFACE_WITH_KNOTS` arms have no end-to-end body behind
-/// > them here; their record-level pins in `writer.rs` — including the
-/// > rational complex instance and the knot run-length encoding — are
-/// > what covers them.
-///
-/// The face half of that frontier moves with the loft-assembly unit,
-/// which brings the first NURBS FACES. The carrier half is now a real
-/// possibility rather than an impossibility, and this row is where a
-/// corpus document that acquired one would be noticed.
-///
-/// The absence is checked on BOTH sides. At kernel level every carrier
-/// and every surface of every corpus body is named, so the claim is
-/// "the bodies do not have them" and not merely "the text does not
-/// mention them"; at text level the `B_SPLINE` grep would still catch a
-/// writer that manufactured a spline out of an analytic carrier.
+/// What this row pins now is CONTAINMENT, kernel-side and text-side:
+/// NURBS geometry appears exactly where the kernel put it — on
+/// `loft_prism`, in known counts — and nowhere else. A corpus document
+/// that silently acquired a NURBS carrier (fitted lane, live since
+/// M6-2) or a writer that manufactured a spline out of an analytic
+/// carrier still fails here.
 #[test]
-fn no_export_corpus_body_carries_a_nurbs_carrier_or_face() {
+fn nurbs_geometry_appears_exactly_where_the_kernel_put_it() {
     for (name, body) in common::fixture_corpus() {
-        for (edge_key, _) in body.edges() {
-            let kind = match common::certified_carrier(&body, edge_key) {
-                Curve3::Line { .. } => "line",
-                Curve3::Circle { .. } => "circle",
-                Curve3::Ellipse { .. } => "ellipse",
-                Curve3::Nurbs(_) => "nurbs",
-            };
-            assert_ne!(
-                kind, "nurbs",
-                "{name}: a NURBS carrier reached an EXPORT CORPUS body — the fitted lane is \
-                 live since M6-2, so if this is intended the B_SPLINE_CURVE_WITH_KNOTS \
-                 arm needs its end-to-end row"
-            );
-            assert!(
-                matches!(kind, "line" | "circle" | "ellipse"),
-                "{name}: unexpected carrier {kind}"
-            );
-        }
-        for (_, face) in body.faces() {
-            let surface = body.get_surface(face.surface).expect("surface resolves");
-            assert!(
-                !matches!(surface, Surface::Nurbs(_)),
-                "{name}: a NURBS face reached an EXPORT CORPUS body — \
-                 B_SPLINE_SURFACE_WITH_KNOTS arrives with the loft-assembly unit"
-            );
-        }
+        let nurbs_carriers = body
+            .edges()
+            .filter(|&(edge_key, _)| {
+                matches!(common::certified_carrier(&body, edge_key), Curve3::Nurbs(_))
+            })
+            .count();
+        let nurbs_faces = body
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface).expect("surface resolves"),
+                    Surface::Nurbs(_)
+                )
+            })
+            .count();
+        // loft_prism: 4 skinned walls, 4 seam carriers (the wall–wall
+        // edges; the 8 cap rims stay exact placed lines). Everyone
+        // else: none — a corpus document that acquired one moves this
+        // pin deliberately, with its export row.
+        let (want_faces, want_carriers) = match name {
+            "loft_prism" => (4usize, 4usize),
+            _ => (0, 0),
+        };
+        assert_eq!(
+            (nurbs_faces, nurbs_carriers),
+            (want_faces, want_carriers),
+            "{name}: kernel NURBS census"
+        );
         let text = export(&body, name);
-        assert!(!text.contains("B_SPLINE"), "{name}");
+        assert_eq!(
+            text.contains("B_SPLINE"),
+            want_faces + want_carriers > 0,
+            "{name}: B_SPLINE text tracks the kernel census exactly"
+        );
     }
     // The surface refusal is live and names the frontier.
     let mut skeleton = topo::Body::<f64>::new();
