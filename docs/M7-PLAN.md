@@ -97,3 +97,11 @@ match; FreeCAD-authored files of the same entity subset adopt
 cleanly or fail with the typed errors D7 promises. Anything beyond
 that subset is a typed refusal naming the unsupported entity —
 the S9 flip pattern applies when later units retire refusals.
+
+*Directional note (Evan, #191 comment, 2026-08-05):* the eventual
+goal is for adoption to support **all** of the wild corpus —
+today's refusal fixtures (NURBS faces, trimmed splines) are
+waypoints that flip as the vocabulary grows, potentially after
+applying recommended geometry fixes where the foreign data
+carries slivers (ties to the banked #89 sliver-lint idea,
+LONGTERM-IDEAS I1(0)).
