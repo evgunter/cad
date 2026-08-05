@@ -193,7 +193,14 @@ fn mint_directed<T: Decide>(
     // untouched (a strut's reverse run spans the whole orbit).
     let spike_from_first = if run_fan(sectors, gf.0, gt.0)?.is_empty() {
         let e_dir = anchor_dir(body, sectors[gf.0].he)?;
-        let m = (gf.3 - gt.3).dot(e_dir);
+        // Metered at the shorter sector arm: the germ directions and
+        // `e_dir` are all unit, so the bare dot difference was a
+        // DIMENSIONLESS comparand against the length band
+        // (rim-dimensional audit, class (c)); × arm makes it the
+        // displacement the facing difference induces at the sectors'
+        // own bounding-chord scale.
+        let arm = sectors[gf.0].arm.min(sectors[gt.0].arm);
+        let m = (gf.3 - gt.3).dot(e_dir) * arm;
         match crate::validate::decide("bool_strut_order", m, band) {
             Ok(Sign::Positive) => true,
             Ok(_) => false,

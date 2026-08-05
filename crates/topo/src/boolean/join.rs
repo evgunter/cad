@@ -736,9 +736,12 @@ fn germs_face_each_other<T: Decide>(
     match frame {
         None => {
             let chord = p2 - p1;
-            let dist = chord.norm();
-            let f1 = g1.dir.dot(chord) / dist;
-            let f2 = g2.dir.dot(-chord) / dist;
+            // Facing margins in METRES: unit germ dir · chord = cos ×
+            // separation (rim-dimensional audit: the former `/ dist`
+            // stripped the metres and compared a bare cosine against
+            // the length band — class (c)).
+            let f1 = g1.dir.dot(chord);
+            let f2 = g2.dir.dot(-chord);
             Ok(
                 decide("bool_join_facing", f1, band).map_err(escalate)? == Sign::Positive
                     && decide("bool_join_facing", f2, band).map_err(escalate)? == Sign::Positive,
