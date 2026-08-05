@@ -510,3 +510,18 @@ expectations with the three-outcome structure; scale-invariant
 margins asserted AS invariant (stronger than exemption);
 reviewer probes adopted; sphere pole-degeneracy audit note.
 Review ~154k tokens, ~51min under the pin.
+
+**Post-#192 unblock (2026-08-05): two dispatches staged.**
+A/B block M7-3: difficulty logged BEFORE the draw for both —
+**F3+F4 dimensional unit = M** (retire ops.rs's raw sign_within
+bypass so margins route through the named funnel — its stale
+attribution corrupts K telemetry, the second executed reason;
+fix bool_ring_run_winding's area comparand — in-band on the
+hosted 1e-6 row for real mm booleans; flip the F4 live-signature
+pin; ceiling-table remnant check) and **KERNEL_* sidecar unit =
+S** (15 sidecars gain KERNEL_FACES/EDGES/VERTICES/SOLIDS +
+full-precision KERNEL_VOLUME_MM3 with native-census semantics
+and the kiss_assembly divergence documented; export-suite
+staleness row; check_step ignores; import row-1 consumer swap +
+tolerance tightening — Evan's blanket .expect green light).
+Draw recorded below after this commit.
