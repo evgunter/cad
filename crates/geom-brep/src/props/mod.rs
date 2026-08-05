@@ -201,9 +201,11 @@ pub enum PropsError {
         target_len: f64,
     },
     /// A quadrature input is outside the lane's certified inventory
-    /// (M5 PR 11): a rational pcurve channel, a chart kind whose
-    /// pcurves do not mint yet, a scalar with no certification
-    /// bracket, or a missing stored cache. The payload names the
+    /// (M5 PR 11): a rational pcurve channel, a chart kind without a
+    /// closed-form flux algebra (every analytic chart MINTS pcurves
+    /// since M6-3; only the cylinder and described-NURBS lanes carry
+    /// flux), a scalar with no certification bracket, or a missing
+    /// stored cache. The payload names the
     /// structural fact AND the real blocker (exact structural doors —
     /// no in-band twin exists, stated so the omission of the
     /// two-tolerance shape reads as a decision).

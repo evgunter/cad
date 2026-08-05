@@ -297,20 +297,20 @@ pub enum NodeErrorKind {
     /// open/closed mixing, degenerate sections, an unusable v-degree,
     /// a path whose frame does not exist.
     Skin(SkinError),
-    /// The loft's/sweep's definitional walls were BUILT, and then the
-    /// B-rep layer refused to assemble them into a solid: at this PR's
-    /// merge time nothing certifies a non-analytic surface — tier 3
-    /// rejects `Surface::Nurbs` by KIND
-    /// (`topo::ValidationError::UncertifiableSurface`) and
-    /// `geom_brep::EdgeCurve::certify` refuses NURBS carriers and
-    /// NURBS-naming descriptions as `Unimplemented`.
+    /// The loft BODY assembly refused (M6-3): every door named on
+    /// [`sweep::LoftError`] — geometry, section-profile validation,
+    /// Euler assembly, pcurve mint, stacking orientation.
+    Loft(sweep::LoftError),
+    /// A curved-solid NODE lane whose front door does not exist yet,
+    /// named precisely. Since M6-3 the LOFT body assembles and this
+    /// variant no longer fires for it; what remains is the SWEEP
+    /// node's joined-path composition lane (a recipe path operand is a
+    /// closed profile LOOP, and §10.4 needs ONE curve — banked past
+    /// M6), pinned in `sweep/tests/m5_pr10_frontier.rs`'s flipped
+    /// rows' successor and `editor-core`'s node suites.
     ///
     /// A named sub-frontier, never a laundered catch-all (the
-    /// `RestZipUnsupported` precedent): `what` names the missing front
-    /// door, and the row that pins it lives in
-    /// `sweep/tests/m5_pr10_frontier.rs`. The M5 plan's line 9
-    /// (curved booleans) and line 11 (curved tessellation + props) own
-    /// the NURBS certification forms this waits on.
+    /// `RestZipUnsupported` precedent).
     CurvedSolidFrontier {
         /// The precise missing door.
         what: &'static str,

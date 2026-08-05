@@ -277,6 +277,12 @@ impl Real for Interval {
         Self(self.0.abs())
     }
 
+    /// NaI and the empty interval are both poison (the [`Bounds`]
+    /// convention: neither stands for any real number).
+    fn is_poison(self) -> bool {
+        self.0.is_nai() || self.0.is_empty()
+    }
+
     /// The hull `[⌊lo⌋, ⌊hi⌋]` — floor spans integers ⇒ the hull is the
     /// honest enclosure (containment is the contract; a step function
     /// has no tighter interval image). Decoration per IEEE 1788: a box

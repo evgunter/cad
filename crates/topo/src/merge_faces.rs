@@ -188,6 +188,17 @@ pub enum MergeCoplanarError {
         /// The band construction failure.
         error: BandError,
     },
+    /// The staged result's pcurve RE-MINT refused (M6-3: an input that
+    /// carried stored caches re-mints them on the staged clone before
+    /// commit — the `topo::pcurves` module docs' rule for ops that
+    /// mutate minted bodies; the merged loops' one-branch walks are
+    /// derived fresh, never stitched from the absorbed fragments'
+    /// rows). The body is untouched, exactly as on every other
+    /// variant.
+    Pcurve {
+        /// The mint pass's typed refusal.
+        source: crate::pcurves::PcurveMintError,
+    },
 }
 
 impl core::fmt::Display for MergeCoplanarError {
@@ -244,6 +255,11 @@ impl core::fmt::Display for MergeCoplanarError {
                  pair ({diag})"
             ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
+            Self::Pcurve { source } => write!(
+                f,
+                "merge_coplanar_faces: the staged result's pcurve re-mint refused \
+                 ({source}) — the body is untouched"
+            ),
         }
     }
 }
@@ -498,6 +514,27 @@ impl<T: Decide> Body<T> {
         // ---- Gate: tier-valid after; commit. ----
         if let Err(errors) = validate_closed(&work) {
             return Err(MergeCoplanarError::ResultNotClosed { errors });
+        }
+        // A body that carried stored pcurve caches RE-MINTS them on
+        // the staged result before commit (the `topo::pcurves` module
+        // docs' rule for ops that mutate minted bodies): the merge
+        // rebuilds face loops, and two absorbed fragments' walks were
+        // branch-anchored independently — the merged loop's one-branch
+        // walk must be derived fresh, never stitched from the
+        // fragments' rows. Still on the staged clone, so a mint
+        // refusal keeps the untouched-on-error contract.
+        //
+        // LATENT (named, not reachable by any current path): this is
+        // the CLOSED-FORM mint pass, so a FITTED cache (at rest since
+        // M6-2) on a merged body would come back as the mint pass's
+        // honest-skip — the face legally UNCACHED, its fitted
+        // certificate silently dropped. Same root as the banked
+        // `PcurveFittedLane` mint-wiring item (M6-3 deviation 7);
+        // when the fitted route joins the mint pass, this site
+        // inherits the fix for free.
+        if !self.pcurves.is_empty() {
+            crate::pcurves::mint_pcurves(&mut work)
+                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
         *self = work;
         Ok(outcome)

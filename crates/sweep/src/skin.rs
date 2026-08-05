@@ -932,6 +932,29 @@ pub fn sweep_geometry(
     stations: usize,
     v_degree: usize,
 ) -> Result<LoftGeometry, SkinError> {
+    let places = sweep_places(place, path, stations)?;
+    let sections: Vec<SectionSegments> = core::iter::repeat_n(profile.clone(), stations).collect();
+    loft_geometry(&sections, &places, v_degree)
+}
+
+/// The rigid section placements of a §10.4 path sweep — the
+/// path-following frame of [`sweep_geometry`], factored so the BODY
+/// assembly (M6-3, `crate::loft`) rides the exact same machinery with
+/// no semantic fork. All the docs (and the C6 anti-parallel knife
+/// edge) above apply verbatim: this IS that function's frame, moved.
+///
+/// # Errors
+///
+/// [`SkinError::TooFewSections`] for `stations < 2`,
+/// [`SkinError::PathTangentReversal`] naming the station.
+// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
+// geom-core::spline::algebra note).
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+pub fn sweep_places(
+    place: Affine3<f64>,
+    path: &NurbsCurve3<f64>,
+    stations: usize,
+) -> Result<Vec<Affine3<f64>>, SkinError> {
     if stations < 2 {
         return Err(SkinError::TooFewSections {
             have: stations,
@@ -988,6 +1011,5 @@ pub fn sweep_geometry(
         };
         places.push(Affine3::translation(path.eval(t) - base_point) * turn * place);
     }
-    let sections: Vec<SectionSegments> = core::iter::repeat_n(profile.clone(), stations).collect();
-    loft_geometry(&sections, &places, v_degree)
+    Ok(places)
 }

@@ -519,26 +519,28 @@ component-aware E–P form found and corrected in M1 PR 4).**
   implicit form, which is `f64` structure and therefore refuses a
   WIDENED analytic operand typed rather than picking a representative
   surface out of the family.
-  **(c) loft/sweep body assembly** — the `Loft`/`Sweep` nodes build
-  their walls and then refuse `CurvedSolidFrontier`, because tier 3's
-  +V check routes a NURBS face to `Unimplemented`: NURBS-patch flux
-  needs surface quadrature and the surface-AREA half has no closed
-  form for a rational patch at all. Shipping the assembly without it
-  would replace an honest frontier with a body that fails validation.
-  MAIN-PATH, after (b). This is why acceptance shape (iii) is met at
-  its SUBSTRATE row (a directly-authored NURBS wall cut by a plane,
-  all three limbs, both lanes, bit-replayed — PR 7b/#149) and its
-  full loft BODY is carried. **Banked scope addition (M5 PR 14 walk,
-  row 4):** this unit also owns **completing pcurve certification on
-  the ANALYTIC charts**. Today only Plane and Cylinder charts
-  certify; cone, sphere, torus and NURBS charts mint nothing and
-  refuse `PcurveCertifyError::UnsupportedChart`, so the shipped
-  filleted die's own eight sphere octants carry no stored pcurves at
-  rest — tier 3's "every curved edge at rest carries per-half-edge
-  pcurves" check is really "every cylinder-chart curved edge". The
-  assembly unit must mint pcurves for a NURBS face regardless, so
-  the analytic-chart completion is the sibling half of the same work
-  rather than a separate lane.
+  **(c) loft/sweep body assembly — CLOSED at M6-3.** `Loft`/`Sweep`
+  nodes run `sweep::loft_body`/`sweep_body` (extrude's topology,
+  skinned geometry; `EdgeGeometry::IsoCurve` seams with exact
+  line-in-UV pcurves); tier 3's +V check consumes the exact per-span
+  tensor Newton–Cotes NURBS-patch flux for non-rational walls, and
+  RATIONAL walls (any arc-bearing profile) refuse typed at the
+  weights gate — the surviving frontier is the rational flux/area
+  lane, banked with recourse text. The analytic-chart pcurve
+  completion (walk row 4) landed in the same unit: cone, sphere and
+  torus charts certify and MINT their closed-form classes (cone
+  rims/rulings, sphere polar/meridian circles, torus
+  parallels/meridians — sphere walks know the chart involution and
+  the pole's zero azimuth lever); the sphere's GENERAL circles
+  certify through the fitted door (`certify_fitted`'s Circle-carrier
+  rational-chain arm, `OnLocusHull`), and the ball/cone/donut and
+  the filleted die's eight sphere octants carry stored pcurves at
+  rest. Still open from this line: MINT-side wiring of the fitted
+  general-circle route (the oblique-trihedron octant faces stay
+  legally uncached — the mint pass needs the `PcurveFittedLane`
+  bound on every constructor), and the cone/torus oblique classes,
+  which have no ring-computable meters composite and refuse with the
+  class named.
   **(d) cyl×sphere germ chords** — only `(Plane, Cylinder)` and
   `(Plane, Sphere)` germ arms are wired. (b) has landed, so the
   storage half of the blocker is gone: a fitted carrier's chart image

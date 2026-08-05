@@ -320,13 +320,19 @@ pub enum ValidationError {
         /// The dangling surface reference.
         to: GeomRef,
     },
-    /// Tier 3: a face's surface is the `Nurbs`
-    /// representable-unimplemented placeholder at rest — nothing can be
-    /// certified against it at M2 (`mvfs`'s "no description yet" seed
-    /// state must be replaced via `Body::set_face_surface` before
-    /// rest).
+    /// Tier 3: a face's surface is the `Nurbs` **placeholder** at rest
+    /// — `mvfs`'s all-poison "no description yet" seed state, which
+    /// must be replaced via `Body::set_face_surface` before rest.
+    /// Nothing can be certified against poison.
+    ///
+    /// Since M6-3 this names ONLY the placeholder: a **described**
+    /// NURBS surface (finite control net) is real geometry and passes
+    /// check 1 — its seams certify through the `IsoCurve` lane and its
+    /// volume flux through the quadrature door. The two states used to
+    /// be conflated here; `NurbsSurface::is_placeholder` is the one
+    /// shared discriminator.
     UncertifiableSurface {
-        /// The face with the unimplemented surface kind.
+        /// The face whose surface is the placeholder.
         face: FaceKey,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
@@ -952,8 +958,9 @@ impl fmt::Display for ValidationError {
             }
             Self::UncertifiableSurface { face } => write!(
                 f,
-                "face {face:?}'s surface is the Nurbs representable-unimplemented \
-                 placeholder — uncertifiable at rest (attach the real surface, M2)"
+                "face {face:?}'s surface is the Nurbs PLACEHOLDER (mvfs's all-poison \
+                 'no description yet' state) — uncertifiable at rest; attach the real \
+                 surface. A described NURBS surface passes this check since M6-3"
             ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
@@ -1576,9 +1583,20 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
 
     // ------------------------------------------------------------------
     // Tier 3, check 1: surface implementedness (face-arena order).
+    //
+    // M6-3 flip A: a DESCRIBED NURBS surface (finite control net) is
+    // real geometry — the loft/sweep assembly mints faces on it, its
+    // seams certify through the IsoCurve lane, and its volume flux
+    // goes through the quadrature door — so it passes here. What keeps
+    // refusing is the mvfs PLACEHOLDER (all-poison control points),
+    // which is a mid-surgery "no description yet" fact, never a
+    // certifiable surface. One discriminator, shared:
+    // `NurbsSurface::is_placeholder`.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        if matches!(body.surfaces.get(face.surface), Some(Surface::Nurbs(_))) {
+        if let Some(Surface::Nurbs(payload)) = body.surfaces.get(face.surface)
+            && payload.is_placeholder()
+        {
             errors.push(ValidationError::UncertifiableSurface { face: face_key });
         }
     }
@@ -1616,6 +1634,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
             }
             geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
+            // Iso adjacency (M6-3, the M5-LOG item 6(iii) rule): the
+            // described chart is ONE of the edge's two adjacent faces'
+            // surfaces — a wall–wall seam is the u-boundary iso of
+            // either wall, and the minted convention names one.
+            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
+                surface == fs_plus || surface == fs_minus
+            }
             geom_brep::EdgeGeometry::MappedCurve(_) => true,
         };
         if !adjacent {
@@ -1687,7 +1712,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //    edge's honest extent (`geom_brep::edge_extent` — the carrier
     //    diameter for closed circle carriers, whose chord collapses; M2
     //    PR 3 fix pass, B2 — self-loop edges no longer classify
-    //    vacuously Smooth).
+    //    vacuously Smooth). Exempt BY KIND: `Seam`-described edges
+    //    (as always) and Nurbs-ADJACENT edges (M6-3 flip B — see the
+    //    in-loop note: implicit-form gradients are poison on NURBS,
+    //    and the wall junction's contact class is declared, Q8/C11).
     // 5. Planar-boundary containment (M2 PR 3 fix pass, S3): the same
     //    interior carrier samples are checked against each ADJACENT
     //    face's surface when that surface is a plane — the
@@ -1742,28 +1770,44 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // and exempts the edge (ε-tightening escalates, it never flips
         // valid → invalid), and a mixed sample set is enforced as
         // neither.
+        //
+        // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B —
+        // the `Seam` exemption idiom, one shelf over): implicit-form
+        // gradients are poison on a NURBS surface, so
+        // `classify_dihedral` cannot run there, and no derived contact
+        // class exists to enforce. That is not a gap being papered
+        // over — a definitional wall junction's contact class is the
+        // profile's DECLARED corner structure (Q8/C11,
+        // `docs/M5-LOG.md` PR 9c item 6(iii)), carried by the
+        // conventional `IsoCurve`/`MappedCurve` descriptions the
+        // loft/sweep builder mints; the mark stays `Unmarked` (no
+        // derived verdict, exactly the escalation posture).
+        let nurbs_adjacent =
+            matches!(s_plus, Surface::Nurbs(_)) || matches!(s_minus, Surface::Nurbs(_));
         let mut escalated = false;
         let mut all_transverse = true;
         let mut all_smooth = true;
-        for &p in &samples {
-            match classify_dihedral(s_plus, s_minus, p, extent, band) {
-                Ok(DihedralClass::Transverse) => all_smooth = false,
-                Ok(DihedralClass::Smooth) => all_transverse = false,
-                Err(cause) => {
-                    errors.push(ValidationError::SliverDihedral {
-                        edge: edge_key,
-                        cause,
-                    });
-                    escalated = true;
-                    break;
+        if !nurbs_adjacent {
+            for &p in &samples {
+                match classify_dihedral(s_plus, s_minus, p, extent, band) {
+                    Ok(DihedralClass::Transverse) => all_smooth = false,
+                    Ok(DihedralClass::Smooth) => all_transverse = false,
+                    Err(cause) => {
+                        errors.push(ValidationError::SliverDihedral {
+                            edge: edge_key,
+                            cause,
+                        });
+                        escalated = true;
+                        break;
+                    }
                 }
             }
-        }
-        if !escalated
-            && all_transverse
-            && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-        {
-            errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
+            if !escalated
+                && all_transverse
+                && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+            {
+                errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
+            }
         }
         // The contact MARK (OQ7 level (i), M5 PR 9) and the symmetric
         // must-carry (level (ii)). A definitely-smooth edge descends
@@ -1774,8 +1818,18 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // exempt BY THE PREDICATE); in-band ⇒ SliverDihedral with the
         // `tangent_second_order` cause (F6), which exempts the edge
         // here so ε-tightening never flips valid→invalid through the
-        // must-carry. `Seam` edges are exempt by kind, as always.
-        let mark = if escalated {
+        // must-carry. `Seam` edges are exempt by kind, as always —
+        // and Nurbs-adjacent edges likewise (flip B above): no jet is
+        // derivable from a poison implicit form, so they carry
+        // `Unmarked`.
+        // The two `Unmarked` arms are deliberately separate branches
+        // (not `nurbs_adjacent || escalated`): one is an exemption BY
+        // KIND, the other an escalation already reported — same mark,
+        // different reasons, and the reader should see both.
+        #[allow(clippy::if_same_then_else)]
+        let mark = if nurbs_adjacent {
+            ContactMark::Unmarked
+        } else if escalated {
             ContactMark::Unmarked
         } else if matches!(curve.description(), geom_brep::EdgeGeometry::Seam { .. }) {
             ContactMark::Seam

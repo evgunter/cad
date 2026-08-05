@@ -94,9 +94,10 @@ pub enum TessellateError {
     },
     /// An edge/carrier configuration outside the certified inventory:
     /// a rational or C⁰-kinked B-spline carrier (no hull sagitta), a
-    /// trimmed face on a chart whose pcurves do not mint yet
-    /// (cone/sphere/torus), or a trimmed face missing its stored
-    /// pcurve caches. Since M5 PR 11 the conic-on-cylinder case is a
+    /// trimmed face on a chart whose TRIMMED-TESSELLATION lane is not
+    /// written (cone/sphere/torus — their pcurves mint since M6-3;
+    /// the lane's geometry is still the cylinder chart's), or a
+    /// trimmed face missing its stored pcurve caches. Since M5 PR 11 the conic-on-cylinder case is a
     /// CONSTRUCTION lane (`trimmed`), not a refusal.
     UnsupportedCurve {
         /// The offending edge.

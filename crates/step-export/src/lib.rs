@@ -86,13 +86,12 @@
 //! rungs is everywhere.
 //!
 //! **What still refuses**, typed and named, never silently degraded:
-//! `Surface::Nurbs` ([`StepExportError::UnsupportedSurface`]) — the
-//! mvfs "no description yet" placeholder, and a *described* NURBS
-//! surface, which no body at rest carries: the loft-assembly unit
-//! mints the kernel's first NURBS face and brings
-//! `B_SPLINE_SURFACE_WITH_KNOTS` with it. A NURBS *carrier*
-//! placeholder refuses the same way
-//! ([`StepExportError::UnsupportedCurve`]).
+//! the mvfs "no description yet" NURBS placeholder
+//! ([`StepExportError::UnsupportedSurface`]) — a mid-surgery fact,
+//! never exportable. A DESCRIBED NURBS surface exports natively as
+//! `B_SPLINE_SURFACE_WITH_KNOTS` since M6-3 (the loft walls; the
+//! rational complex instance for weighted nets), and a described
+//! NURBS carrier as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
 //!
 //! # Export only — the round trip is not closed
 //!
@@ -234,13 +233,12 @@ pub enum StepExportError {
         /// Which string field was being quoted (static description).
         context: &'static str,
     },
-    /// A face's surface has no printer in the analytic subset. Since
-    /// M5 PR 13 the subset is every ELEMENTARY_SURFACE the kernel has
-    /// (plane, cylinder, cone, sphere, torus), so the live cases are
-    /// the mvfs "no description yet" NURBS placeholder and a described
-    /// NURBS surface (the loft-assembly frontier — no body at rest
-    /// carries a NURBS face). Typed refusal, never a B-spline
-    /// approximation of an analytic surface.
+    /// A face's surface has no printer. Since M5 PR 13 every
+    /// ELEMENTARY_SURFACE prints (plane, cylinder, cone, sphere,
+    /// torus) and since M6-3 described NURBS surfaces print as
+    /// `B_SPLINE_SURFACE_WITH_KNOTS`, so the one live case is the
+    /// mvfs "no description yet" NURBS placeholder. Typed refusal,
+    /// never a B-spline approximation of an analytic surface.
     UnsupportedSurface {
         /// The face whose surface is out of subset.
         face: FaceKey,

@@ -803,8 +803,11 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
 
 /// Builds the whole body: one kernel solid (one shell) per
 /// `MANIFOLD_SOLID_BREP`, then the body-wide pcurve re-mint (the
-/// kernel's own cache machinery — cylinder charts mint, other charts
-/// stay derive-on-demand, exactly a native body's state).
+/// kernel's own cache machinery — since M6-3 every curved chart
+/// mints: cylinder, cone, sphere, torus and described non-rational
+/// NURBS; plane faces stay derive-on-demand, and a boundary class
+/// outside every derivation route leaves its face honestly uncached
+/// — exactly a native body's state).
 pub(crate) fn build_body(
     solids: &[SolidSpec],
     _model: &Model,

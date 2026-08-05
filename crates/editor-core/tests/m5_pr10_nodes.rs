@@ -7,9 +7,10 @@
 //! round trip that reproduces the document bit-for-bit.
 //!
 //! Evaluation is exercised too — the §10.3/§10.4 construction genuinely
-//! runs — and stops at the named sub-frontier
-//! (`NodeErrorKind::CurvedSolidFrontier`), whose demonstration lives in
-//! `sweep/tests/m5_pr10_frontier.rs`. Never a silent skip.
+//! runs. Since M6-3 the LOFT evaluates to a Body (S9 flip below); the
+//! SWEEP node still stops at its named sub-frontier
+//! (`NodeErrorKind::CurvedSolidFrontier`, the joined-path lane). Never
+//! a silent skip.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -214,19 +215,26 @@ fn with_failure<R>(
     }
 }
 
-/// A well-formed loft reaches the frontier — which means the §10.3
-/// construction ran and SUCCEEDED, and only the B-rep assembly is
-/// missing.
+/// S9 FLIP (M6-3) of `a_well_formed_loft_reaches_the_named_frontier`:
+/// the same document now EVALUATES — the loft frontier is gone
+/// (`wire_loft` runs `sweep::loft_body`, tiers 1–3 green at rest) and
+/// the node yields a Body. The pre-flip row asserted
+/// `CurvedSolidFrontier` naming `Surface::Nurbs`/`Unimplemented`;
+/// that text retired with the frontier.
 #[test]
-fn a_well_formed_loft_reaches_the_named_frontier() {
+fn a_well_formed_loft_evaluates_to_a_body() {
     let (doc, loft, _) = loft_doc();
-    with_failure(&doc, loft, |kind| match kind {
-        NodeErrorKind::CurvedSolidFrontier { what } => {
-            assert!(what.contains("Surface::Nurbs"), "{what}");
-            assert!(what.contains("Unimplemented"), "{what}");
+    let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    match out.nodes.get(&loft).expect("the node has a result") {
+        NodeResult::Ok(v) => {
+            assert!(
+                matches!(v.payload, editor_core::ValuePayload::Body(_)),
+                "expected a Body payload, got {}",
+                v.payload.kind_name()
+            );
         }
-        other => panic!("expected the named frontier, got {other:?}"),
-    });
+        other => panic!("expected the loft to evaluate, got {other:?}"),
+    }
 }
 
 /// A loft whose sections do not correspond refuses with the GEOMETRIC
@@ -307,8 +315,9 @@ fn a_non_profile_input_refuses_typed() {
     });
 }
 
-/// **F1**: the Sweep node's frontier is its OWN arm, wider than the
-/// loft's — no recipe-expressible path exists to sweep, and the
+/// **F1**: the Sweep node's frontier is its OWN arm — since M6-3 the
+/// ONLY `CurvedSolidFrontier` arm (the loft's retired with the body
+/// assembly): no recipe-expressible path exists to sweep, and the
 /// message says why rather than implying a single-segment case the
 /// recipe layer cannot build.
 #[test]

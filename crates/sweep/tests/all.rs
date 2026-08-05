@@ -92,12 +92,18 @@ mod m5_s13_pips;
 mod m5_s13_pips_interval;
 #[path = "m5_s13_review_probes.rs"]
 mod m5_s13_review_probes;
+#[path = "m6_chart_mints.rs"]
+mod m6_chart_mints;
+#[path = "m6_loft_body.rs"]
+mod m6_loft_body;
 #[path = "m6_rider.rs"]
 mod m6_rider;
 #[path = "m6_surgery.rs"]
 mod m6_surgery;
 #[path = "m6_surgery_interval.rs"]
 mod m6_surgery_interval;
+#[path = "m6_tube.rs"]
+mod m6_tube;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
@@ -126,6 +132,8 @@ mod review_m5_pr9_base_props_probe;
 mod review_m5_pr9_boss_probe;
 #[path = "review_m5_pr9_inband_at_rest.rs"]
 mod review_m5_pr9_inband_at_rest;
+#[path = "review_m6_3_loft_probes.rs"]
+mod review_m6_3_loft_probes;
 #[path = "review_m6_surgery_probes.rs"]
 mod review_m6_surgery_probes;
 #[path = "review_pr12_probes.rs"]

@@ -93,6 +93,7 @@ mod axis;
 mod full;
 mod partial;
 mod surfaces;
+pub mod tube;
 mod upgrade;
 
 use core::fmt;
@@ -336,6 +337,10 @@ pub enum RevolveError {
         /// The operator-layer failure.
         source: EulerOpError,
     },
+    /// The final whole-body pcurve mint pass refused (M6-3, walk row
+    /// 4: revolve outputs carry stored certified pcurves at rest,
+    /// exactly as boolean/split/loft outputs do).
+    Pcurve(topo::PcurveMintError),
 }
 
 impl fmt::Display for RevolveError {
@@ -460,6 +465,7 @@ impl fmt::Display for RevolveError {
             ),
             Self::CapPlane { source } => write!(f, "revolve cap plane: {source}"),
             Self::Op { source } => write!(f, "revolve operator step failed: {source}"),
+            Self::Pcurve(source) => write!(f, "revolve pcurve mint pass: {source}"),
         }
     }
 }
@@ -677,11 +683,17 @@ pub fn revolve<T: Decide>(
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
 
-    if full {
+    let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band)
     } else {
         partial::build_partial(&frame, &loops, &classes, theta, reverse, band)
-    }
+    }?;
+    // Final pass (M6-3, walk row 4): every revolve face's chart now
+    // mints — cone/sphere/torus walls exactly as cylinder ones — so a
+    // revolve output carries its stored certified pcurves at rest,
+    // the same posture as boolean/split/loft outputs.
+    topo::mint_pcurves(&mut out.body).map_err(RevolveError::Pcurve)?;
+    Ok(out)
 }
 
 #[cfg(test)]

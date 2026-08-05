@@ -150,32 +150,42 @@ const SMALLEST_ROUND_FEATURE_M: f64 = 2.5e-4;
 ///
 /// What the kernel does about that is exactly right, and is the reason
 /// this is a ceiling and not a bug: it **refuses, typed**, at the
-/// pcurve certification gate ("MapResidual at sample 1 definitely
-/// exceeds the tolerance band"; at 1e-7 the refusal names the
-/// predicate and its band: `pcurve_chart_radial_moving` margin 5e-7
-/// inside `[zero 1e-7, escalate 1e-6]` — "coincident at any precision
-/// you could care about"). Nothing is silently accepted. Measured,
-/// end to end:
+/// certification gates. Nothing is silently accepted.
+///
+/// **Re-measured at M6-3** (walk row 4). The pre-M6-3 table put the
+/// ceiling at 1e-8: the 1e-7/1e-6 refusals came from the
+/// `pcurve_chart_radial_moving` trilean, whose old metering weighted
+/// the radial amplitude BY THE CHART RADIUS — an r²-scaled margin
+/// that landed mm-scale rims in the ambiguity band three decades
+/// early. With the amplitude metered as the displacement it is
+/// (metres), the corpus certifies through 1e-5, and the gates that
+/// finally refuse are the attachment/span trileans at the corpus's
+/// own feature scale. Measured, end to end:
 ///
 /// | ambient ε | outcome |
 /// |---|---|
-/// | 1e-12, 1e-9 (default), 1e-8 | all 13 import, all three tiers green |
-/// | 1e-7 | the 4 fixtures with cylindrical charts refuse typed; the other 9 import with all three tiers green. (History: `cone_trunc`'s tier 3 went red here as the project's first **in-band K landing** — `props_rim_level_group` margin 5.590169943747308e-7 inside `Band { zero: 1e-7, escalate: 1e-6 }`. That margin was DIMENSIONALLY wrong, an area: the cone's slant rim separation √5/2 mm — already a length — multiplied by the 0.5 mm lever arm. The rim-dimensional fix meters it bare; the honest margin ≈1.118e-3 m is decisively out of band, so the landing is RETIRED by correction, not retuned — see `probe_review::a3_cone_trunc_all_tiers_green_at_1e7_landing_retired` and `geom-brep/tests/rim_dim_scale_twins.rs`.) |
-/// | 1e-6, 1e-5 | the same 4 refuse typed; the other 9 import with all three tiers green |
+/// | 1e-12 … 1e-6, 1e-5 | all 13 import, all three tiers green |
+/// | 1e-4 | ε is 40% of the smallest round feature: the corpus refuses typed across the attachment gates (`dihedral_arm`/`dihedral_wedge` in-band on edge certification, `interval_span_forward` on sub-band parameter spans, `tangent_second_order` escalations) — every refusal naming its predicate and band |
 ///
-/// Only cylinder charts are affected because only cylinder charts
-/// **mint** pcurves today; the other analytic charts are
-/// derive-on-demand and never reach this gate.
+/// (History, two retired landings: `cone_trunc`'s tier 3 once went
+/// red at 1e-7 as the project's first **in-band K landing** —
+/// `props_rim_level_group` margin 5.590169943747308e-7, an AREA where
+/// a length belonged; the rim-dimensional fix meters it bare and the
+/// honest ≈1.118e-3 m margin is decisively out of band — see
+/// `probe_review::a3_cone_trunc_all_tiers_green_at_1e7_landing_retired`.
+/// And the pre-M6-3 1e-7/1e-6 cylinder-chart refusals were the
+/// `pcurve_chart_radial_moving` trilean's r²-scaled metering, retired
+/// by the amplitude-in-metres correction above.)
 ///
 /// The ceiling is set at the finest ε measured to hold the whole
-/// corpus (1e-8 m — 4e-5 of the smallest round feature); the true
-/// boundary lies between there and 1e-7. Above it the certifying rows
+/// corpus (1e-5 m — 4% of the smallest round feature); the true
+/// boundary lies between there and 1e-4. Above it the certifying rows
 /// **skip loudly** and
 /// [`sub_tolerance_geometry_is_refused_not_silently_imported`] takes
 /// over, pinning the claim that actually matters at any ε: a body the
 /// kernel cannot certify at the ambient tolerance is REFUSED, never
 /// handed out wrong.
-const CORPUS_EPS_CEILING: f64 = 1e-8;
+const CORPUS_EPS_CEILING: f64 = 1e-5;
 
 /// Whether the ambient ε is fine enough for this millimetre corpus to
 /// certify; prints a loud skip naming the numbers when it is not.
