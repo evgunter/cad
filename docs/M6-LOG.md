@@ -652,3 +652,26 @@ difficulty L logged pre-assignment at task creation) WAITS for
 the ev/ci-test-collapse PR to merge — the collapse is
 restructuring the exact test trees this unit touches, and my
 one cargo slot (under the 1+1 split) is occupied by it.
+
+## SOLE-ORCHESTRATOR PICKUP (2026-08-05)
+
+The M6 orchestrator is done (Evan, in-chat); the M7 orchestrator
+is sole orchestrator and picked up PR #192 per Evan's explicit
+instruction. Split wound down: both cargo slots, M6 files
+unfenced, single watchlist (memories/concurrent-orchestrators.md
+updated). State found: M6-3 partial delivered as #192 (Legs A-C
++ D-writer, 6 numbered deviations, early wrap on a budget call,
+held for review; hosted CI 6 RED: clippy expect() in
+m6_loft_body.rs, discipline job, interval build+archive, shard
+1/2 at all three ε rows) — the M6 session died between the PR
+opening and its log entry, so this is the delivery record.
+COMPLETION DISPATCHED: fresh implementer (the dead session's
+agents are unresumable), FABLE — the arm the M6 orchestrator
+assigned at block-21 (fix pass will inherit it); warm lane
+m6-3-loft reused; brief = fix the 6 reds first (targeted local
+reproduction), then the PR body's NOT-started list verbatim
+(§4 remainder, Leg E analytic-chart completion, Leg F
+tube_along_arc rider, §7 sweep incl. the lily.rs stale line,
+§9.3 interval rows); deviations numbered from 7; ONE adversarial
+review of the whole unit follows completion. M7-4's fix pass
+runs concurrently on slot 2.
