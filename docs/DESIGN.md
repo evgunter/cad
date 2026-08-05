@@ -547,7 +547,15 @@ component-aware E–P form found and corrected in M1 PR 4).**
   tensor Newton–Cotes NURBS-patch flux for non-rational walls, and
   RATIONAL walls (any arc-bearing profile) refuse typed at the
   weights gate — the surviving frontier is the rational flux/area
-  lane, banked with recourse text. The analytic-chart pcurve
+  lane, banked with recourse text. **Honest correction (#207,
+  M7):** "CLOSED at M6-3" overstated the sweep half. Until #207 the
+  skin fit synthesized a weight channel for integral sections, so
+  `sweep_body` with any CURVED path — and `loft_body` with any
+  non-uniform section spacing — produced bitwise-rational walls and
+  refused at `nurbs_span_meter`; the M6-3 closure in fact covered
+  only straight-path sweeps and uniformly spaced lofts. #207 made an
+  integral input skin to exactly-unit weights, and the curved-path
+  sweep gained its first successful caller then. The analytic-chart pcurve
   completion (walk row 4) landed in the same unit: cone, sphere and
   torus charts certify and MINT their closed-form classes (cone
   rims/rulings, sphere polar/meridian circles, torus

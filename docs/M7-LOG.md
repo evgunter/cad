@@ -607,3 +607,30 @@ skin-fit fix, M6 unit 5, or the margin-convention migration if
 #205 ratifies). Spec + substrate ride the next state-sync;
 dispatch now (lane m7-3-import, slot 2; the substrate lane on
 slot 1 is done and cleans at this seam).
+
+**#207 closed: the skin fit stops synthesizing a weight channel
+(2026-08-05).** Root cause confirmed at the source: `skin_on`
+built homogeneous `(w·x, w·y, w·z, w)` rows unconditionally, so
+an INTEGRAL input (all weights bit-exactly 1.0) had its constant
+weight column solved by LU and then divided back out — a
+normalization round-trip that lands off 1.0 by an ulp for most
+parameterizations (measured 1.0000000000000002 /
+0.9999999999999998). Fix: integral input interpolates in
+Cartesian ℝ³ and emits exactly 1.0; the rational lane is
+untouched. NOT a snap — the weight channel is never manufactured,
+and `integral` is decided by `==` on the input's own bits (C6
+structure selection). Bitwise conservative for the uniform case
+(`solve_square` factors once and substitutes each RHS column
+independently; `p.x * 1.0` is `p.x`; the removed divide was by
+exactly 1.0 wherever the old weights were exact) — pinned twice,
+in-suite against the old lane and externally by the unchanged
+`loft_prism` golden fixture. New pins: a quarter-torus elbow
+`sweep_body` (the tree's FIRST successful curved-path caller) —
+tier 1/2/3, Pappus bracket 4e-6 rel at 9 stations with the
+certified pad four orders tighter, exported and reconstructed by
+both Part 21 oracles as NON-rational; and two non-uniformly
+spaced `loft_body`s (z = 0, 1, 3), one with a derived V = 12 m³.
+Honest corrections landed at the three M6-3-era "sweep_body is
+live" claims (DESIGN.md (c), `eval::wire::SWEEP_FRONTIER`, the
+tour's lily narration): the M6-3 closure in fact covered only
+straight-path sweeps and uniformly spaced lofts.

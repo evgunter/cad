@@ -561,11 +561,62 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// one shared collocation solve carries every column, and the
 /// projective divide happens once at the end.
 ///
+/// # No synthesized weight channel (#207)
+///
+/// The homogeneous treatment above is the RATIONAL lane, and it runs
+/// only when the input is rational. When every section is **integral**
+/// — every weight bit-exactly `1.0`, the kernel's own definition of
+/// non-rational (`NurbsCurve::speed_lower_bound`'s test) — the
+/// sections are interpolated in plain Cartesian ℝ³ and the result
+/// carries exactly `1.0` weights.
+///
+/// The two lanes agree exactly in ℝ: with `w ≡ 1` the homogeneous data
+/// IS the Cartesian data, and the weight column's interpolant is the
+/// all-ones control vector by partition of unity (`Σⱼ Nⱼ(u) = 1` at
+/// every parameter, so the collocation system's right-hand side of
+/// ones has the vector of ones as its exact solution). They do NOT
+/// agree in `f64`: solving that column by LU and then dividing every
+/// coordinate through by the result is a normalization ROUND-TRIP, and
+/// it lands off `1.0` by an ulp for most parameterizations — measured
+/// `1.0000000000000002` and `0.9999999999999998` on plain polyline
+/// sections at unevenly spaced stations.
+///
+/// That ulp is not a small error, it is a **change of kind**: a wall
+/// with a non-unit weight is bitwise rational, so the seam carrier
+/// `geom_brep::boundary_iso_u` reads back rational,
+/// `NurbsCurve::speed_lower_bound` returns its documented poison (the
+/// derivative of a rational B-spline is not a convex combination of
+/// any control net), the `nurbs_span_meter` margin is `Invalid`, and
+/// the whole body refuses at assembly. Before this lane existed, that
+/// was the fate of every `sweep_body` with a curved path and every
+/// `loft_body` whose sections were not evenly spaced.
+///
+/// So the fix is a fit-contract fix, not a repair: an integral input
+/// must not be answered with a rational output, and the way to
+/// guarantee that is to never manufacture the weight channel in the
+/// first place — NOT to solve for it and then snap the answer back to
+/// the value it was supposed to have (a silent heal, which would also
+/// leave the control points divided by the pre-snap denominator).
+/// `integral` is decided by `==` on the input's own bits: C6 structure
+/// selection about what the caller handed in, never a predicate, never
+/// a tolerance.
+///
+/// The Cartesian lane is bitwise conservative for the cases that
+/// already worked. `solve_square` factors the matrix once from `a`
+/// alone and substitutes each right-hand-side column independently, so
+/// dropping the weight column cannot move the `x`/`y`/`z` columns; the
+/// row entries themselves are unchanged because `p.x * 1.0` is `p.x`
+/// bit-for-bit; and the final divide it removes was a division by
+/// exactly `1.0` in precisely the cases whose weights came out exact.
+/// A uniformly spaced loft therefore skins to bit-identical walls
+/// (pinned in `tests/m7_skin_integral.rs`).
+///
 /// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
 ///
 /// The collocation system is `k × k` in the SECTION count `k` — not in
-/// the control count — solved by fixed-order LU with `4·n` simultaneous
-/// right-hand sides (`n` = control points per section). Cost is
+/// the control count — solved by fixed-order LU with `4·n` (integral
+/// input: `3·n`) simultaneous right-hand sides (`n` = control points
+/// per section). Cost is
 /// `O(k³)` for the factorization plus `O(k²·n)` for the substitutions;
 /// memory is `O(k² + k·n)`.
 ///
@@ -663,28 +714,53 @@ pub fn skin_on(
             });
         }
     }
-    // Rows of homogeneous data: one row per section, `4·n` wide.
+    // INTEGRAL INPUT ⇒ INTEGRAL OUTPUT, by structure (see the
+    // "no synthesized weight channel" section of these docs): the
+    // kernel's own definition of non-rational is bit-exact unit
+    // weights (`NurbsCurve::speed_lower_bound`'s test), so this is a
+    // structure question about the input, decided by `==` — C6
+    // structure selection, never a predicate.
+    let integral = sections
+        .iter()
+        .all(|c| c.weights().iter().all(|w| *w == 1.0));
+    // Rows of data: one row per section. Homogeneous `(w·x, w·y, w·z,
+    // w)` quadruples (`4·n` wide) for a rational input; plain
+    // Cartesian triples (`3·n` wide) when the input is integral, where
+    // the weight channel carries no information the output does not
+    // already have.
+    let stride = if integral { 3 } else { 4 };
     let rows: Vec<Vec<f64>> = sections
         .iter()
         .map(|c| {
-            let mut row = Vec::with_capacity(4 * n);
+            let mut row = Vec::with_capacity(stride * n);
             for (p, w) in c.control().iter().zip(c.weights()) {
-                row.extend([p.x * w, p.y * w, p.z * w, *w]);
+                if integral {
+                    row.extend([p.x, p.y, p.z]);
+                } else {
+                    row.extend([p.x * w, p.y * w, p.z * w, *w]);
+                }
             }
             row
         })
         .collect();
     let (knots_v, solved) = interpolate_columns(params, v_degree, &rows)?;
     // Un-homogenize into the surface's row-major (u-major) layout:
-    // `idx = iu · nv + iv`, `nv = solved.len()`.
+    // `idx = iu · nv + iv`, `nv = solved.len()`. The integral lane has
+    // nothing to un-homogenize: the solved columns ARE the control
+    // coordinates, and every weight is the exact `1.0` the input had.
     let nv = solved.len();
     let mut control = Vec::with_capacity(n * nv);
     let mut weights = Vec::with_capacity(n * nv);
     for i in 0..n {
         for row in &solved {
-            let (x, y, z, w) = (row[4 * i], row[4 * i + 1], row[4 * i + 2], row[4 * i + 3]);
-            control.push(Point3::new(x / w, y / w, z / w));
-            weights.push(w);
+            if integral {
+                control.push(Point3::new(row[3 * i], row[3 * i + 1], row[3 * i + 2]));
+                weights.push(1.0);
+            } else {
+                let (x, y, z, w) = (row[4 * i], row[4 * i + 1], row[4 * i + 2], row[4 * i + 3]);
+                control.push(Point3::new(x / w, y / w, z / w));
+                weights.push(w);
+            }
         }
     }
     // `NurbsSurface::new` is the `w > 0` door (and the count door).
