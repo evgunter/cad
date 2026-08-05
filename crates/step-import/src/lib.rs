@@ -42,10 +42,12 @@
 //!    honored, not healed, and every edge's intensional description is
 //!    **rebuilt and certified** by the kernel's own gates: intersection
 //!    / tangent-intersection for edges between distinct surfaces, seam
-//!    / conventional mapped-curve for edges inside one surface. Pcurve
-//!    caches re-mint through [`topo::mint_pcurves`] (cylinder charts
-//!    mint; other charts are derive-on-demand, exactly what a natively
-//!    built body carries).
+//!    / conventional mapped-curve for edges inside one surface, the
+//!    boundary iso-curve rung for NURBS wall seams (M7-3). Pcurve
+//!    caches re-mint through [`topo::mint_pcurves`] (every curved
+//!    chart that mints natively mints here — cylinder, cone, sphere,
+//!    torus, described non-rational NURBS; plane faces stay
+//!    derive-on-demand, exactly what a natively built body carries).
 //!
 //! # Two tolerances (D7)
 //!
@@ -61,10 +63,35 @@
 //!
 //! Every refusal is a typed [`StepImportError`] naming the offending
 //! entity id / line: malformed syntax, dangling references,
-//! unsupported entity types (`B_SPLINE_SURFACE_WITH_KNOTS` is the
-//! named M7 frontier), units outside the subset, and geometry the
-//! adoption ladder cannot explain. No panics; no silent guesses; no
-//! lenient re-interpretation.
+//! unsupported entity types, units outside the subset, and geometry
+//! the adoption ladder cannot explain. No panics; no silent guesses;
+//! no lenient re-interpretation.
+//!
+//! # NURBS faces (M7-3)
+//!
+//! Both `B_SPLINE_SURFACE_WITH_KNOTS` arms import — the non-rational
+//! simple record and the `RATIONAL_B_SPLINE_SURFACE` complex
+//! instance — retiring the old named M7 frontier by the S9 flip its
+//! refusal text predicted. Wall–wall seams adopt through the
+//! **IsoCurve rung** (the carrier bitwise-matched against the
+//! adjacent walls' `boundary_iso_u` columns, certified through the
+//! iso residual lane), cap rims through the conventional rung's
+//! Nurbs-adjacency exemption (`PlacedSegment` for line rims — the
+//! native loft's own description class, which is what the NURBS
+//! chart's pcurve mint accepts; `RevolvedPoint` for arc rims on
+//! rational walls, which mint nothing — the native rational body's
+//! own state). Multi-ring NURBS faces keep refusing typed at the
+//! curved-face ring gate (no NURBS chart inversion — stage-1
+//! recognition territory, named there), as do spline sub-types the
+//! writer never emits (knots-implied `QUASI_UNIFORM_CURVE` and kin).
+//!
+//! **Coverage is bounded by what the writer can emit** (#207): the
+//! loft/sweep skin's chord-length fit drifts unit weights on any
+//! curved-path sweep or non-uniformly spaced loft, so those bodies
+//! refuse at BUILD time and no file of them exists to import. The
+//! round-trippable class today is uniformly-spaced lofts: polyline
+//! profiles (non-rational, full tier 3) and arc-bearing profiles
+//! (rational walls — the typed tier-3 limitation below).
 //!
 //! # The wild (M7-4; `docs/M7-4-SPEC.md`)
 //!
@@ -217,7 +244,15 @@ pub enum StepImport {
     /// kiss assembly).
     Solid {
         /// The adopted body — first-class: Euler-built, certified,
-        /// tier-valid at rest.
+        /// tier-valid at rest, **to the tier its native twin
+        /// certifies to** (M7-3, the rational arm's honest
+        /// conditioning): a body whose native construction is tier-3
+        /// valid imports tier-3 valid; a body whose native twin
+        /// refuses tier 3 typed — a rational-walled loft, whose
+        /// volume quadrature names the banked rational lane —
+        /// imports with tiers 1/2 valid and the SAME typed tier-3
+        /// refusal (pinned by test). Nothing imports into a state
+        /// its native twin does not occupy.
         body: Body<f64>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.

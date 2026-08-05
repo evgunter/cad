@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::Surface;
+use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::chart;
 use crate::error::StepImportError;
@@ -488,11 +488,17 @@ impl<'a> Resolver<'a> {
     }
 
     /// An `ADVANCED_FACE`'s surface reference → the kernel surface,
-    /// field for field (the writer's printer table, inverted). Any
-    /// surface type outside the five elementary kinds refuses typed —
-    /// `B_SPLINE_SURFACE_WITH_KNOTS` is the named M7 frontier.
+    /// field for field (the writer's printer table, inverted). Covers
+    /// the five elementary kinds plus the writer's two NURBS arms
+    /// (M7-3): the non-rational simple `B_SPLINE_SURFACE_WITH_KNOTS`
+    /// and the `RATIONAL_B_SPLINE_SURFACE` complex instance — the
+    /// curve twin ([`Self::curve`]/[`Self::rational_bspline`]) one
+    /// dimension up. Anything else refuses typed.
     fn surface(&self, from: u64, id: u64) -> Result<Surface<f64>, StepImportError> {
         let instance = self.instance(from, id)?;
+        if instance.records.len() > 1 {
+            return self.rational_bspline_surface(id, &instance.records);
+        }
         let [(kw, args)] = instance.records.as_slice() else {
             return Err(StepImportError::UnsupportedEntity {
                 id,
@@ -613,11 +619,151 @@ impl<'a> Resolver<'a> {
                     u_ref,
                 })
             }
+            "B_SPLINE_SURFACE_WITH_KNOTS" => {
+                let expected = "B_SPLINE_SURFACE_WITH_KNOTS(name, u_degree, v_degree, \
+                                ((points)), form, u_closed, v_closed, self_intersect, \
+                                (u_mults), (v_mults), (u_knots), (v_knots), spec)";
+                let [
+                    _,
+                    du,
+                    dv,
+                    points,
+                    _,
+                    _,
+                    _,
+                    _,
+                    u_mults,
+                    v_mults,
+                    u_knots,
+                    v_knots,
+                    _,
+                ] = args.as_slice()
+                else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                let (nu, nv, control) = self.control_net(id, points, expected)?;
+                let weights = vec![1.0; control.len()];
+                let ku = self.knot_vector(id, du, u_mults, u_knots, nu, expected)?;
+                let kv = self.knot_vector(id, dv, v_mults, v_knots, nv, expected)?;
+                self.nurbs_surface(id, ku, kv, control, weights)
+            }
             other => Err(StepImportError::UnsupportedEntity {
                 id,
                 keyword: other.to_owned(),
             }),
         }
+    }
+
+    /// The `RATIONAL_B_SPLINE_SURFACE` complex instance (weights ≠ 1):
+    /// components in alphabetical order, the writer's emission —
+    /// degrees and the control net on `B_SPLINE_SURFACE`, knots on
+    /// `B_SPLINE_SURFACE_WITH_KNOTS`, the weight net on
+    /// `RATIONAL_B_SPLINE_SURFACE` ([`Self::rational_bspline`]'s
+    /// layout one dimension up).
+    fn rational_bspline_surface(
+        &self,
+        id: u64,
+        records: &[Record],
+    ) -> Result<Surface<f64>, StepImportError> {
+        let expected = "the RATIONAL_B_SPLINE_SURFACE complex instance (B_SPLINE_SURFACE \
+                        B_SPLINE_SURFACE_WITH_KNOTS BOUNDED_SURFACE \
+                        GEOMETRIC_REPRESENTATION_ITEM RATIONAL_B_SPLINE_SURFACE \
+                        REPRESENTATION_ITEM SURFACE)";
+        let mut base: Option<&[Value]> = None;
+        let mut with_knots: Option<&[Value]> = None;
+        let mut rational: Option<&[Value]> = None;
+        for (kw, args) in records {
+            match kw.as_str() {
+                "B_SPLINE_SURFACE" => base = Some(args),
+                "B_SPLINE_SURFACE_WITH_KNOTS" => with_knots = Some(args),
+                "RATIONAL_B_SPLINE_SURFACE" => rational = Some(args),
+                "BOUNDED_SURFACE"
+                | "SURFACE"
+                | "GEOMETRIC_REPRESENTATION_ITEM"
+                | "REPRESENTATION_ITEM" => {}
+                other => {
+                    return Err(StepImportError::UnsupportedEntity {
+                        id,
+                        keyword: format!("complex-instance component {other}"),
+                    });
+                }
+            }
+        }
+        let (Some(base), Some(wk), Some(rational)) = (base, with_knots, rational) else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let [du, dv, points, _, _, _, _] = base else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let [u_mults, v_mults, u_knots, v_knots, _] = wk else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let [weight_net] = rational else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let (nu, nv, control) = self.control_net(id, points, expected)?;
+        let mut weights = Vec::with_capacity(control.len());
+        for row in as_list(id, weight_net, expected)? {
+            let row = as_list(id, row, expected)?;
+            if row.len() != nv {
+                return Err(StepImportError::MalformedRecord { id, expected });
+            }
+            for w in row {
+                weights.push(as_real(id, w, expected)?);
+            }
+        }
+        if weights.len() != control.len() {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        }
+        let ku = self.knot_vector(id, du, u_mults, u_knots, nu, expected)?;
+        let kv = self.knot_vector(id, dv, v_mults, v_knots, nv, expected)?;
+        self.nurbs_surface(id, ku, kv, control, weights)
+    }
+
+    /// A LIST OF LIST control-net reference → `(nu, nv, points)` in
+    /// the kernel's row-major `iu·nv + iv` layout (outer index u — the
+    /// writer's emission, row for row). Ragged or empty nets refuse.
+    fn control_net(
+        &self,
+        id: u64,
+        points: &Value,
+        expected: &'static str,
+    ) -> Result<(usize, usize, Vec<Point3<f64>>), StepImportError> {
+        let rows = as_list(id, points, expected)?;
+        let mut out = Vec::new();
+        let mut nv = None;
+        for row in rows {
+            let row = as_list(id, row, expected)?;
+            if *nv.get_or_insert(row.len()) != row.len() {
+                return Err(StepImportError::MalformedRecord { id, expected });
+            }
+            for p in row {
+                out.push(self.point(id, as_ref(id, p, expected)?)?);
+            }
+        }
+        match nv {
+            Some(nv) if nv > 0 => Ok((rows.len(), nv, out)),
+            _ => Err(StepImportError::MalformedRecord { id, expected }),
+        }
+    }
+
+    /// A validated kernel NURBS surface from exact components
+    /// ([`Self::nurbs`] one dimension up).
+    fn nurbs_surface(
+        &self,
+        id: u64,
+        knots_u: KnotVector,
+        knots_v: KnotVector,
+        control: Vec<Point3<f64>>,
+        weights: Vec<f64>,
+    ) -> Result<Surface<f64>, StepImportError> {
+        NurbsSurface::new(knots_u, knots_v, control, weights)
+            .map(|payload| Surface::Nurbs(std::sync::Arc::new(payload)))
+            .map_err(|_| StepImportError::MalformedRecord {
+                id,
+                expected: "a structurally valid B-spline surface (control net matching \
+                           the knot vectors' counts, weights positive)",
+            })
     }
 
     /// An `EDGE_CURVE`'s (or curve set's) curve reference → the kernel
@@ -975,6 +1121,15 @@ impl<'a> Resolver<'a> {
         // in `normalize`: split the band into half-faces joined by
         // minted generators at a chosen azimuth. That is a unit of
         // work, not a line, and it is recorded rather than guessed at.
+        //
+        // A multi-ring NURBS face (M7-3) refuses HERE too, and its
+        // frontier is deeper still: outerness inference needs a chart
+        // inversion (`chart::uv_of`) that no NURBS surface has, and
+        // the kernel has no trimmed-NURBS volume construction either
+        // -- wild rational multi-ring faces (dm1-id-214's 11 trim
+        // rings) are stage-1 recognition territory, banked. The
+        // exported class never reaches this gate: every loft wall is
+        // single-bound, outer by definition below.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
             return Err(StepImportError::Topology {
                 id,

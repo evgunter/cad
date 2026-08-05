@@ -44,9 +44,19 @@ const WILD_IMPORTS: [&str; 7] = [
 /// contract being pinned. Each entry is the fixture and the substring
 /// its message must carry — the class, not the prose.
 const WILD_REFUSALS: [(&str, &str); 6] = [
-    // A NURBS face: the named M7 frontier, whose import follows its
-    // export.
-    ("stepcode/dm1-id-214.stp", "B_SPLINE_SURFACE"),
+    // Wild NURBS territory past the M7-3 own-corpus slice. The
+    // B_SPLINE_SURFACE_WITH_KNOTS vocabulary itself imports since
+    // M7-3, so the refusal moved DEEPER (the pinned substring was
+    // re-derived by measurement, not left to drift): the first record
+    // this reader cannot interpret is now `QUASI_UNIFORM_CURVE`
+    // (#667) — a spline sub-type whose knots are implied rather than
+    // stated (36 such records). Behind it stand the rest of this
+    // file's measured distance from the subset: 7/19 RATIONAL
+    // surfaces with multi-span knots, 11 trim rings on faces (no
+    // NURBS `uv_of`), 14 rational edge carriers, and edges that are
+    // no wall's boundary iso — stage-1 recognition / general
+    // adoption, banked.
+    ("stepcode/dm1-id-214.stp", "QUASI_UNIFORM_CURVE"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -316,7 +326,7 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     assert!(any(&|t| t.contains("VECTOR('',#131,10.)")), "Leg C");
     // Leg D: an assembly transform PRESENT — never traversed. The only
     // committed fixture carrying one (`dm1-id-214`) refuses at
-    // `B_SPLINE_SURFACE #660` inside `resolve_shape`, which runs
+    // `QUASI_UNIFORM_CURVE #667` inside `resolve_shape`, which runs
     // strictly before `resolve_assembly_placement`, so this line pins
     // vocabulary and nothing more. That is deviation 1 of the M7-4
     // report rather than an oversight: NO file in the 28-file hunt has
