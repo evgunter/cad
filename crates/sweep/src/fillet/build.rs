@@ -784,11 +784,21 @@ impl<T: Decide + Bounds> Plan<T> {
                 .filter_map(|(i, _)| state.fkey[i])
                 .collect()
         };
+        // Final pass (M6-3, walk row 4): every fillet chart mints —
+        // the quarter-cylinders since M5 PR 6, the corner sphere
+        // octants since the analytic-chart completion — so a
+        // whole-body fillet result carries its stored certified
+        // pcurves at rest, the same posture as the composition
+        // surgery's (`surgery.rs`) and every other constructor's.
+        let mut body = state.body;
+        topo::mint_pcurves(&mut body).map_err(|e| FilletError::Certify {
+            detail: format!("pcurve mint after the whole-body rebuild: {e:?}"),
+        })?;
         Ok(Filleted {
             blend_faces: bucket(FaceKind::Blend),
             corner_faces: bucket(FaceKind::Corner),
             band_faces: Vec::new(),
-            body: state.body,
+            body,
             solid: seed.solid,
             shell: seed.shell,
         })

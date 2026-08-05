@@ -646,9 +646,62 @@ pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError
     body.pcurves.clear();
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for face in faces {
-        mint_face(body, face, band)?;
+        match mint_face(body, face, band) {
+            Ok(()) => {}
+            // A carrier CLASS outside every derivation route (the
+            // executed case: an oblique fillet trihedron's corner
+            // octant, whose boundary circles are GENERAL sphere
+            // circles — neither polar nor meridian relative to the
+            // stored chart axis). The face is honestly NOT COVERED by
+            // the closed-form lane, and an uncached face is a legal
+            // at-rest state ("absence is never a claim" —
+            // `validate_pcurves`); refusing the whole construction
+            // would claim a coverage the lane does not have. The
+            // class's certified route EXISTS (`certify_fitted`'s
+            // Circle-carrier arm, mate from the edge's description);
+            // wiring it into this pass needs the `PcurveFittedLane`
+            // bound on every constructor and is banked with that
+            // ripple. Every OTHER failure — a covered class whose
+            // residuals, envelope, continuity or closure refuse — is
+            // a genuine defect and propagates.
+            Err(PcurveMintError::Certify {
+                error: PcurveCertifyError::UnsupportedCarrier,
+                ..
+            }) => {
+                clear_face_caches(body, face);
+            }
+            Err(e) => return Err(e),
+        }
     }
     Ok(())
+}
+
+/// Drops any caches minted for `face` before its walk refused — a
+/// face outside the lane's coverage stores NOTHING (a half-minted
+/// face is the defect `validate_pcurves` hunts).
+fn clear_face_caches<T: Decide>(body: &mut Body<T>, face: FaceKey) {
+    let Some(face_data) = body.get_face(face) else {
+        return;
+    };
+    let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect();
+    let mut hes: Vec<HalfEdgeKey> = Vec::new();
+    for lk in loops {
+        let Some(lp) = body.get_loop(lk) else {
+            continue;
+        };
+        let crate::entity::LoopBoundary::Cycle { first } = lp.boundary else {
+            continue;
+        };
+        let Some(cycle) = body.loop_cycle(first) else {
+            continue;
+        };
+        hes.extend(cycle);
+    }
+    for he in hes {
+        body.pcurves.remove(he);
+    }
 }
 
 /// Mints the caches of one face (module docs: the two-pass shape — walk
