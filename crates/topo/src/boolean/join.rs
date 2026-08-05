@@ -933,14 +933,38 @@ fn choose_roles<T: Decide>(
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///
-/// Reified (issue #93): the margin is `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
+/// Reified (issue #93): the functional is `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
 /// the plane's Newell functional, twice the run's signed enclosed
-/// area — through the `bool_ring_run_winding` predicate in the
-/// k_stats funnel; `Indeterminate` escalates. Zero is a degenerate
-/// area-free run and a loud desync (the ring lane only closes full
-/// island cycles — slit-growing joins are mekr-lane merges). The
-/// ring lane is planar-scoped like [`point_in_solid`]'s F5 gate: a
-/// non-planar carrier refuses loudly.
+/// area — decided through the `bool_ring_run_winding` predicate in
+/// the k_stats funnel; `Indeterminate` escalates. Zero is a
+/// degenerate area-free run and a loud desync (the ring lane only
+/// closes full island cycles — slit-growing joins are mekr-lane
+/// merges). The ring lane is planar-scoped like [`point_in_solid`]'s
+/// F5 gate: a non-planar carrier refuses loudly.
+///
+/// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
+///
+/// The CANONICAL statement for this predicate's three sites (the other
+/// two are `merge_faces::loop_winding` and `validate`'s tier-3 check 6,
+/// which cross-reference here): the Newell functional is an AREA (m²)
+/// and ε is a point deviation (D4), so the decided margin divides it by
+/// the run's boundary PERIMETER `P`. `2A/P` is the region's MEAN WIDTH
+/// — exactly the deviation the winding sign is about: it is the
+/// distance the boundary would have to move to sweep the enclosed
+/// region away, so a margin above ε says "this ring encloses material
+/// no ε-scale point perturbation can unwind", and one below it says the
+/// ring is thinner than the model's own resolution. Precedents:
+/// `validate`'s `positive_volume` (V/A) and `split_section_area`
+/// (2|A|/P, the same mean width in the splitter).
+///
+/// `P` is the closed region's own boundary: each run half-edge
+/// contributes its arc length (conics: `|Δ|·semi-major` — exact for a
+/// circle, an upper bound for an ellipse, and an over-large `P`
+/// understates the width, i.e. escalates rather than decides), and the
+/// closing chord `end(h2) → p₀` contributes its length. A run whose
+/// perimeter is exactly zero (every vertex coincident, no arcs) poisons
+/// `0/0` and escalates typed rather than reaching the `Zero` desync arm
+/// below — a refusal either way.
 ///
 /// **Orientation (S10)**: the margin multiplies two differently-sourced
 /// signs and needs exactly ONE of them threaded. The Newell sum is
@@ -976,8 +1000,19 @@ fn ring_run_ccw<T: Decide>(
             .and_then(|vd| body.get_point(vd.point).copied())
             .ok_or(desync("run vertex has no point"))
     };
+    let end_point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
+        let v = body
+            .half_edge_end(he)
+            .ok_or(desync("run half no longer resolves"))?;
+        body.get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+            .ok_or(desync("run vertex has no point"))
+    };
     let p0 = point_of(h1)?;
     let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+    // The metering lever (fn docs, audit F4): the closed region's own
+    // boundary length, accumulated edge by edge alongside the area.
+    let mut perimeter = T::zero();
     let mut prev = p0;
     let mut he = h1;
     let mut steps = 0usize;
@@ -989,7 +1024,14 @@ fn ring_run_ccw<T: Decide>(
     // between itself and its chord, `axis · sa·sb·(Δ − sin Δ)` (twice
     // the segment area, matching the cross-sum's 2A convention;
     // signed by traversal, an odd function of Δ).
-    let arc_term = |he: HalfEdgeKey| -> Result<geom_core::Vec3<T>, BooleanError> {
+    //
+    // The same walk yields the half-edge's own BOUNDARY LENGTH (the F4
+    // metering lever): a conic contributes its arc length, everything
+    // else its chord. One curve lookup, both terms.
+    let run_term = |he: HalfEdgeKey| -> Result<(geom_core::Vec3<T>, T), BooleanError> {
+        let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+        let chord =
+            || -> Result<T, BooleanError> { Ok((end_point_of(he)? - point_of(he)?).norm()) };
         let he_data = body
             .get_half_edge(he)
             .ok_or(desync("run half no longer resolves"))?;
@@ -1000,7 +1042,7 @@ fn ring_run_ccw<T: Decide>(
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
         else {
-            return Ok(geom_core::Vec3::new(T::zero(), T::zero(), T::zero()));
+            return Ok((zero, chord()?));
         };
         let (t0, t1) = curve.params();
         let (axis, sa, sb) = match *curve.carrier() {
@@ -1009,14 +1051,18 @@ fn ring_run_ccw<T: Decide>(
                 axis, major, minor, ..
             } => (axis, major, minor),
             geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
-                return Ok(geom_core::Vec3::new(T::zero(), T::zero(), T::zero()));
+                return Ok((zero, chord()?));
             }
         };
         let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
-        Ok(axis * (sa * sb * (span - span.sin())))
+        // `|Δ|·sa` is the circle's exact arc length and the ellipse's
+        // upper bound (fn docs: over-large P escalates, never decides).
+        Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
     };
     loop {
-        newell = newell + arc_term(he)?;
+        let (bulge, len) = run_term(he)?;
+        newell = newell + bulge;
+        perimeter = perimeter + len;
         if he != h1 {
             let p = point_of(he)?;
             newell = newell + (prev - p0).cross(p - p0);
@@ -1034,16 +1080,22 @@ fn ring_run_ccw<T: Decide>(
             return Err(desync("ring-run arc did not close"));
         }
     }
-    let end = body
-        .half_edge_end(h2)
-        .and_then(|v| body.get_vertex(v))
-        .and_then(|vd| body.get_point(vd.point).copied())
-        .ok_or(desync("run end has no point"))?;
+    let end = end_point_of(h2)?;
     newell = newell + (prev - p0).cross(end - p0);
+    // The chord that closes the region (fn docs): the run is open, the
+    // area it decides is not.
+    perimeter = perimeter + (end - p0).norm();
     let escalate = |diag| BooleanError::Escalated { diag };
     // `normal` carries the sense, `newell` carries the traversal: one
     // factor each, never both (fn docs — the double-count hazard).
-    match decide("bool_ring_run_winding", normal.dot(newell), band).map_err(escalate)? {
+    // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
+    match decide(
+        "bool_ring_run_winding",
+        normal.dot(newell) / perimeter,
+        band,
+    )
+    .map_err(escalate)?
+    {
         geom_core::Sign::Positive => Ok(true),
         geom_core::Sign::Negative => Ok(false),
         geom_core::Sign::Zero => Err(desync(

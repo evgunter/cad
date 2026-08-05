@@ -857,6 +857,11 @@ impl<T: Decide> Body<T> {
     /// the boolean join's ring lane decides on). `None` for empty
     /// loops (a lone-vertex ring bounds no area and stays a ring).
     ///
+    /// Dimension (audit F4): the Newell area is metered to a LENGTH by
+    /// the loop's own perimeter — `2A/P`, the region's mean width. The
+    /// derivation, and why this predicate must state it identically at
+    /// all three of its sites, is in `boolean::join::ring_run_ccw`.
+    ///
     /// `normal` must be the face's OUTWARD normal (S10): the caller
     /// multiplies the chart normal by `sense_sign` exactly once, and
     /// the Newell sum here is left alone. That sum is built from the
@@ -904,13 +909,22 @@ impl<T: Decide> Body<T> {
         };
         let p0 = point_of(cycle[0])?;
         let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+        // The F4 metering lever: this cycle's perimeter, accumulated
+        // with the area (line-bounded only, so chords ARE the boundary).
+        let mut perimeter = T::zero();
         let mut prev = p0;
         for &he in &cycle[1..] {
             let p = point_of(he)?;
             newell = newell + (prev - p0).cross(p - p0);
+            perimeter = perimeter + (p - prev).norm();
             prev = p;
         }
-        match crate::validate::decide("bool_ring_run_winding", normal.dot(newell), band) {
+        perimeter = perimeter + (p0 - prev).norm();
+        match crate::validate::decide(
+            "bool_ring_run_winding",
+            normal.dot(newell) / perimeter,
+            band,
+        ) {
             Ok(sign) => Ok(Some(sign)),
             Err(diag) => Err(MergeCoplanarError::Escalated { diag }),
         }

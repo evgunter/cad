@@ -588,9 +588,10 @@ pub(super) fn merge_rows(
 /// inequalities, so no operand-vs-operand comparison is needed.
 ///
 /// Comparison posture: each bound margin is classified through the
-/// certified trilean (`sign_within` against the op's linear band) —
-/// the codebase's only legal comparison (Q1). Only a CERTIFIED
-/// violating sign refuses ([`BooleanError::ResultVolumeImplausible`]);
+/// k_stats funnel (`decide` — the certified trilean against the op's
+/// linear band, under this gate's own predicate name), the codebase's
+/// only legal comparison (Q1). Only a CERTIFIED violating sign
+/// refuses ([`BooleanError::ResultVolumeImplausible`]);
 /// `Zero` and in-band indeterminate margins PASS: on the planar
 /// corpus the flux sums are exact for dyadic fixtures (margin exactly
 /// 0 or macroscopic), and the bug class this backstop guards —
@@ -605,6 +606,32 @@ pub(super) fn merge_rows(
 /// only when its reference operand's volume is certified POSITIVE
 /// (bounded solid); against a complement the set bound is vacuous
 /// and is skipped, never misread as a violation.
+///
+/// # Dimension (audit F3, `docs/predicate-dimension-audit.md`)
+///
+/// The bounds are statements about VOLUMES (m³) but ε is a point
+/// deviation (D4), so each margin is metered to a LENGTH before it is
+/// decided. Displacing a boundary by δ changes the volume it encloses
+/// by ≈ δ·A, so a volume defect `ΔV` between two compared bodies is
+/// explained by a boundary deviation of `ΔV / (A_got + A_bound)` — the
+/// sum of the two bodies' surface areas is the whole boundary that
+/// could have moved, and the quotient is the MEAN BOUNDARY DISPLACEMENT
+/// the bound violation corresponds to. That is what `volume_backstop`
+/// decides. The operand-boundedness question is about one body, so
+/// `volume_backstop_operand` uses that body's own area (`V/A`) —
+/// verbatim the `positive_volume` precedent in `crate::validate`'s
+/// tier-3 check 7. Both quotients are exact zero when the volumes
+/// agree exactly, so the gate's non-strict pass direction is unmoved.
+///
+/// Both gates decide through the k_stats funnel under those names.
+/// They used to call [`Decide::sign_within`] RAW — the kernel's only
+/// funnel bypass — which never set the recorder's current predicate
+/// name, so on the recording lane these volumes were attributed to
+/// whichever predicate decided last (measured in
+/// `topo/tests/rim_dim_boolean_twins.rs` at ε = 1e-12: the
+/// operand/result volume set {1, 1, 3, 8, 8, 16} m³ logged under
+/// certify's `witness_at_mid_parameter`, scaling ×1e-9 — cubic).
+/// Routing through `decide` retires that misattribution.
 pub(super) fn volume_backstop<T: Decide>(
     op: BooleanOp,
     a: &Body<T>,
@@ -620,68 +647,69 @@ pub(super) fn volume_backstop<T: Decide>(
     // iso results — the certified quadrature lane is the at-rest
     // measurement door, and a trimmed face here keeps the historical
     // fail-loud refusal.
-    let vol = |body: &Body<T>| -> Result<T, BooleanError> {
-        Ok(crate::props::mass_properties_closed_form(body, band)
-            .map_err(|_| corrupt())?
-            .volume)
+    // Volume AND surface area: the area is this gate's metering lever
+    // (fn docs, audit F3), read from the same closed-form pass.
+    let props = |body: &Body<T>| -> Result<(T, T), BooleanError> {
+        let p = crate::props::mass_properties_closed_form(body, band).map_err(|_| corrupt())?;
+        Ok((p.volume, p.surface_area))
     };
-    let (va, vb, vr) = (vol(a)?, vol(b)?, vol(result)?);
+    let ((va, aa), (vb, ab), (vr, ar)) = (props(a)?, props(b)?, props(result)?);
     // A bound applies only against a certified-bounded operand
     // (positive flux volume); complement operands (certified negative)
     // make it vacuous. Poison refuses; an in-band operand volume is a
     // degenerate operand — no bound is certifiable from it, skip.
-    let bounded = |v: T| -> Result<bool, BooleanError> {
-        match v.sign_within(band) {
+    // Metered `V/A` — the mean boundary displacement (fn docs).
+    let bounded = |v: T, area: T| -> Result<bool, BooleanError> {
+        match decide("volume_backstop_operand", v / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
             Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
-                Err(BooleanError::Escalated {
-                    diag: diag.with_predicate("volume_backstop"),
-                })
+                Err(BooleanError::Escalated { diag })
             }
             Err(_) => Ok(false),
         }
     };
     // `margin` ≥ 0 (within band) or the bound named by `which` is
     // violated: margin = bound − got for upper bounds, got − bound for
-    // lower bounds.
-    let check = |which: &'static str, margin: T, got: T, bound: T| -> Result<(), BooleanError> {
-        match margin.sign_within(band) {
-            Ok(Sign::Negative) => Err(BooleanError::ResultVolumeImplausible {
-                which,
-                got: format!("{got:?}"),
-                bound: format!("{bound:?}"),
-            }),
-            Ok(Sign::Zero | Sign::Positive) => Ok(()),
-            Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
-                Err(BooleanError::Escalated {
-                    diag: diag.with_predicate("volume_backstop"),
-                })
+    // lower bounds. `lever` is the two compared bodies' summed surface
+    // area, which turns the volume defect into a boundary displacement
+    // (fn docs).
+    let check =
+        |which: &'static str, margin: T, got: T, bound: T, lever: T| -> Result<(), BooleanError> {
+            match decide("volume_backstop", margin / lever, band) {
+                Ok(Sign::Negative) => Err(BooleanError::ResultVolumeImplausible {
+                    which,
+                    got: format!("{got:?}"),
+                    bound: format!("{bound:?}"),
+                }),
+                Ok(Sign::Zero | Sign::Positive) => Ok(()),
+                Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
+                    Err(BooleanError::Escalated { diag })
+                }
+                Err(_) => Ok(()),
             }
-            Err(_) => Ok(()),
-        }
-    };
-    let (ba, bb) = (bounded(va)?, bounded(vb)?);
+        };
+    let (ba, bb) = (bounded(va, aa)?, bounded(vb, ab)?);
     match op {
         BooleanOp::Intersect => {
             if ba {
-                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va)?;
+                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va, aa + ar)?;
             }
             if bb {
-                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb)?;
+                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb, ab + ar)?;
             }
         }
         BooleanOp::Union => {
             if ba {
-                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va)?;
+                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va, aa + ar)?;
             }
             if bb {
-                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb)?;
+                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb, ab + ar)?;
             }
         }
         BooleanOp::Subtract => {
             if ba {
-                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va)?;
+                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va, aa + ar)?;
             }
         }
     }

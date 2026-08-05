@@ -56,19 +56,12 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default()).expect("census");
     let a2 = bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let b2 = bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-    // ε-row honesty (see rim_dim_boolean_twins module docs): on coarse
-    // ε rows this mm pocket subtract refuses on the deferred F4 area
-    // comparand — for this diagnostic printer, tolerate exactly that
-    // signature.
-    match subtract(&a2, &b2) {
-        Ok(_) => {}
-        Err(topo::BooleanError::Escalated { diag })
-            if diag.predicate == Some("bool_ring_run_winding") =>
-        {
-            println!("pocket subtract refused on the F4 signature at this ε row: {diag:?}");
-        }
-        Err(other) => panic!("pocket subtract failed outside the F4 signature: {other:?}"),
-    }
+    // The F4 fix (see rim_dim_boolean_twins module docs) retired this
+    // configuration's in-band refusal on coarse ε rows: the winding is
+    // metered to its mean width, so the mm pocket subtract computes at
+    // every ε. The signature tolerance this printer carried is gone
+    // with it — a refusal here is now a finding.
+    subtract(&a2, &b2).expect("pocket subtract");
     let mut counts: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
     for sample in k_stats::take_samples() {
         let e = counts.entry(sample.predicate).or_default();
