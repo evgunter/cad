@@ -386,3 +386,25 @@ the fix pass (the no-panic headline row demands it): parse-time
 knot budget with typed refusal, probe_knot un-ignored. MIN-2:
 one false test comment. Fix pass dispatched (inherits the arm).
 Review ~167k tokens, ~73min wall.
+
+**M7-4 MERGED as #193 (2026-08-05): THE WILD CORPUS IS LIVE —
+the kernel imports files nobody here authored.** Fix pass
+exceeded its brief: the knot bound is the SCHEMA'S OWN count
+(n+d+1, checked arithmetic BEFORE allocation — one rule covers
+the off-by-one, hostile multiplicities, and usize overflow);
+probe_knot un-ignored with a 5s slowness ceiling AND a
+schema-valid control (hardening that rejects valid curves would
+be a regression in disguise); MIN-2's comment now tells the
+PRESENT-never-traversed truth. Self-caught en route: the adopted
+probes were default-ε-only and went red on the hosted 3-ε
+matrix — converted to honest weaker claims outside the window
+(probe_vol additionally asserts imported ⇒ measurable, exactly
+the state the band refusal exists to prevent). Final: 27/0/0
+FULL matrix (probe adoption widened the change filter — freecad/
+admesh/persistence/corpus/interval rows all ran); 98 tests,
+0 ignored, green at three ε values. A/B row RECORDED AT MERGE
+(opus arm; fable remainder of block M7-2 owed to the next
+M7-eligible dispatch). M7 unit 4 CLOSED; banked: the band-seam
+unit (flips ftc_11 + cq_red_cube back), the KERNEL_* consumer
+switch, unit 3 behind M6-3's completion — which is RUNNING
+(sole-orchestrator pickup, see M6-LOG).
