@@ -460,6 +460,13 @@ impl<T: KinkJacobian> Real for Dual<T> {
         }
     }
 
+    /// The VALUE channel decides (D8: tangents never decide anything —
+    /// a poisoned derivative with a describable value is a poisoned
+    /// *tangent*, not a poisoned number).
+    fn is_poison(self) -> bool {
+        self.value.is_poison()
+    }
+
     /// `(⌊a⌋, floor′(a)·a′)` with the factor from
     /// [`KinkJacobian::floor_jacobian_factor`] (the module-doc step
     /// convention: 0 on plateaus at `f64`, the jump enclosure `[0, +∞]`

@@ -224,7 +224,11 @@ fn mass_properties_impl<T: Decide>(
                         geom_curves::Curve3::Ellipse { .. } | geom_curves::Curve3::Nurbs(_)
                     )
                 });
-                let quad_out = if is_trimmed {
+                // A described NURBS face ALWAYS takes the quadrature
+                // lane (M6-3): its flux has no closed form regardless
+                // of what bounds it, and the patch engine reads the
+                // stored iso pcurves rather than the carriers.
+                let quad_out = if is_trimmed || matches!(surface, Surface::Nurbs(_)) {
                     quad(body, surface, &outer, &hes, band).map_err(wrap)?
                 } else {
                     None
@@ -504,8 +508,11 @@ mod quad_lane {
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
-                what: "B-spline trim carrier on the quadrature lane — its stored pcurve \
-                       variant arrives with the loft assembly unit",
+                what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
+                       the cut-loft class (a loft wall cut by a plane/cylinder), which \
+                       needs the edge×NURBS-face boolean layer (M5 PR 9c item 5, \
+                       banked); described-NURBS faces with iso-line pcurves route to \
+                       the patch engine instead",
             }),
         }
     }
@@ -521,9 +528,11 @@ mod quad_lane {
     }
 
     /// The certified flux/area enclosures of one curved-cut face
-    /// (module docs of `geom_brep::props::quad`): cylinder charts only
-    /// — the one chart whose pcurves mint today; other charts refuse
-    /// typed naming that frontier.
+    /// (module docs of `geom_brep::props::quad`): the cylinder chart's
+    /// closed-form lane plus the described-NURBS patch lane (M6-3);
+    /// cone/sphere/torus charts MINT stored pcurves since M6-3 (walk
+    /// row 4) but their chart-normal flux algebra is not written —
+    /// they refuse typed naming that true blocker.
     pub(super) fn cut_face<T: Decide + Bounds>(
         body: &Body<T>,
         surface: &Surface<T>,
@@ -531,11 +540,17 @@ mod quad_lane {
         hes: &[HalfEdgeKey],
         band: Band,
     ) -> Result<FaceCutBounds, PropsError> {
+        // The NURBS-patch lane (M6-3): a described NURBS face routes
+        // to the patch engine over its stored iso-line pcurves.
+        if let Surface::Nurbs(payload) = surface {
+            return nurbs_face(body, payload, outer, hes, band);
+        }
         let Surface::Cylinder { origin, radius, .. } = surface else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "conic trim on a non-cylinder chart — cone/sphere/torus pcurves do \
-                       not mint yet (they arrive with their consumers); the cylinder lane \
-                       is M5 PR 11's",
+                what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
+                       pcurves since M6-3 (walk row 4), but this lane's chart-normal \
+                       flux algebra is the cylinder chart's (M5 PR 11); the other \
+                       analytic charts' closed-form flux is its own banked lane",
             });
         };
         let eps = Tolerance::get().eps;
@@ -551,16 +566,21 @@ mod quad_lane {
             };
             // The certified quadrature lane reads a chart image
             // CHANNEL BY CHANNEL out of its closed form; a fitted
-            // (rung-3) image has no such form, and inventing one would
-            // be a quadrature over a curve nobody bounded. Typed
-            // refusal instead — the NURBS-patch flux door is the
-            // loft/sweep assembly unit's, and this is where it lands.
+            // (rung-3) image has no such form on an ANALYTIC chart's
+            // Green reduction. Typed refusal — the TRUE remaining
+            // blocker (M6-3 stale-claims sweep): no at-rest body mints
+            // a fitted pcurve on a cylinder chart today (the marched
+            // join windows and the edge×NURBS-face boolean layer are
+            // both banked past M6), and the fitted-boundary Green lane
+            // (`quad::bspline_green_integral`'s remaining consumer)
+            // lands WITH whichever of those first produces one.
             let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve — \
-                           the certified quadrature reads a closed-form chart image's \
-                           four channels, and a spline image has none; the NURBS-patch \
-                           flux door is the loft/sweep assembly unit's",
+                    what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve on an \
+                           analytic chart — its Green-form boundary integral \
+                           (bspline_green_integral) wires up with the construction that \
+                           first mints one at rest (the banked join-window/edge×NURBS-face \
+                           boolean layers); nothing does today",
                 });
             };
             let (t0, t1) = cache.params();
@@ -579,6 +599,175 @@ mod quad_lane {
             });
         }
         quad::cylinder_cut_face::<T>(br(*radius), o_dot_va, &edges, eps, band)
+    }
+
+    /// **The NURBS-patch flux lane** (M6-3 Leg C): certified volume
+    /// flux + area of a described, NON-RATIONAL NURBS face whose
+    /// stored pcurves pin its trim region to an exact axis-aligned UV
+    /// rectangle (every loft/sweep wall — their boundaries are iso
+    /// lines with exact-structure `0`/`1` chart values).
+    ///
+    /// Structure checks are EXACT `f64` (C6: the minted chart values
+    /// are exact by construction; a non-exact or non-rectangular
+    /// boundary refuses typed, naming the trimmed-NURBS lane as the
+    /// cut-loft unit's). The traversal's shoelace sign IS the S10
+    /// orientation input — winding-derived end to end, like the
+    /// cylinder lane; no sense bit is read.
+    fn nurbs_face<T: Decide + Bounds>(
+        body: &Body<T>,
+        payload: &std::sync::Arc<geom_surfaces::NurbsSurface<T>>,
+        outer: &[LoopEdge<T>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+    ) -> Result<FaceCutBounds, PropsError> {
+        if payload.is_placeholder() {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "the mvfs Nurbs placeholder reached the quadrature lane — a \
+                       mid-surgery body has no mass properties (tier 2 refuses it at rest)",
+            });
+        }
+        // The rational gate fires here too (before any geometry), so
+        // the recourse text reaches the +V caller verbatim.
+        if payload.weights().iter().any(|w| *w != 1.0) {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "RATIONAL patch flux (weights != 1): the derivative-grid hulls are \
+                       polynomial convexity facts, and a rational quotient's are not — the \
+                       rational extension (any arc-bearing profile's walls) is BANKED; loft \
+                       with a polyline profile, or wait for the rational-wall unit",
+            });
+        }
+        let eps = Tolerance::get().eps;
+        // Exact-structure read of a T scalar (point bracket required).
+        let exact = |x: RingInterval| -> Result<f64, PropsError> {
+            if x.lo() == x.hi() && x.lo().is_finite() {
+                Ok(x.lo())
+            } else {
+                Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face pcurve endpoint is not exact structure — the \
+                           rectangle-trim certificate needs the minted exact 0/1 chart \
+                           values (trimmed-NURBS regions are the cut-loft unit's)",
+                })
+            }
+        };
+        let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
+        let mut boundary_defect = 0.0f64;
+        let mut perimeter = 0.0f64;
+        for (le, he) in outer.iter().zip(hes) {
+            let Some(cache) = body.pcurve(*he) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "NURBS face half-edge carries no stored pcurve cache — the \
+                           loft assembly mints them; a body that lost its caches must \
+                           re-mint before mass properties",
+                });
+            };
+            let Pcurve::IsoLine { .. } = cache.pcurve() else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a non-iso pcurve — a trimmed \
+                           NURBS region's quadrature is the cut-loft unit's (the \
+                           edge×NURBS-face boolean layer mints those trims)",
+                });
+            };
+            let (t0, t1) = cache.params();
+            let a = cache.pcurve().eval(t0);
+            let b = cache.pcurve().eval(t1);
+            let (ax, ay) = (exact(br(a.x))?, exact(br(a.y))?);
+            let (bx, by) = (exact(br(b.x))?, exact(br(b.y))?);
+            if ax != bx && ay != by {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
+                           outside the rectangle lane (the cut-loft unit's)",
+                });
+            }
+            // Traversal order: the loop walks he_plus-forward edges
+            // start→end and reversed ones end→start.
+            if le.forward {
+                polygon.push((ax, ay));
+            } else {
+                polygon.push((bx, by));
+            }
+            // Metric boundary length bound + the map-residual defect.
+            let len = match &le.carrier {
+                geom_curves::Curve3::Line { dir, .. } => (br(dir.norm()) * br(t1 - t0)).mag(),
+                geom_curves::Curve3::Nurbs(c) => {
+                    let mut l = RingInterval::zero();
+                    for w in c.control().windows(2) {
+                        l = l + br(w[0].distance(w[1]));
+                    }
+                    l.mag()
+                }
+                // Circle/Ellipse boundaries only arise on rational
+                // walls, refused above; kept total via the hull bound
+                // 2πr-ish is unavailable without the kind — refuse.
+                _ => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face boundary carrier outside the polyline-loft \
+                               inventory (conic boundary ⇒ rational wall, refused above)",
+                    });
+                }
+            };
+            perimeter += len;
+            boundary_defect += len * br(cache.certificate().envelope).mag();
+        }
+        // The rectangle certificate: hull of the traversal polygon,
+        // every vertex on a corner, and the shoelace equal to ±the
+        // rectangle area — the sign IS the S10 winding.
+        let (mut u0, mut u1) = (f64::INFINITY, f64::NEG_INFINITY);
+        let (mut v0, mut v1) = (f64::INFINITY, f64::NEG_INFINITY);
+        for &(x, y) in &polygon {
+            u0 = u0.min(x);
+            u1 = u1.max(x);
+            v0 = v0.min(y);
+            v1 = v1.max(y);
+        }
+        let mut shoelace = 0.0f64;
+        for i in 0..polygon.len() {
+            let (xa, ya) = polygon[i];
+            let (xb, yb) = polygon[(i + 1) % polygon.len()];
+            shoelace += xa * yb - xb * ya;
+            if (xa != u0 && xa != u1) && (ya != v0 && ya != v1) {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face boundary vertex sits strictly inside the UV \
+                           rectangle — a re-entrant trim is outside the rectangle lane \
+                           (the cut-loft unit's)",
+                });
+            }
+        }
+        shoelace *= 0.5;
+        let rect_area = (u1 - u0) * (v1 - v0);
+        let winding = if shoelace == rect_area {
+            1.0
+        } else if shoelace == -rect_area {
+            -1.0
+        } else {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
+                       once (shoelace ≠ ±rectangle area) — a trimmed or multiply-wound \
+                       region is outside the rectangle lane (the cut-loft unit's)",
+            });
+        };
+        let control: Vec<quad::RVec3> = payload
+            .control()
+            .iter()
+            .map(|p| [br(p.x), br(p.y), br(p.z)])
+            .collect();
+        let out = quad::nurbs_patch_face::<T>(
+            payload.knots_u(),
+            payload.knots_v(),
+            &control,
+            payload.weights(),
+            (u0, u1, v0, v1),
+            perimeter,
+            boundary_defect,
+            eps,
+            band,
+        )?;
+        // The winding sign carries the S10 orientation into the flux;
+        // the area is unsigned.
+        let flux = if winding < 0.0 { -out.flux } else { out.flux };
+        Ok(FaceCutBounds {
+            flux,
+            area: out.area,
+        })
     }
 
     /// The vertex POINT at a half-edge's carrier-interval start (its

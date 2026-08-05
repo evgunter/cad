@@ -461,7 +461,10 @@ fn cone<T: Decide>(
             }
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (curved cut) — cone-chart                            pcurves do not mint yet, so the PR 11 quadrature lane has                            nothing to consume here; they arrive with their consumers",
+                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — the \
+                           class has no cone-chart image at all (azimuth-non-harmonic, \
+                           M6-3, and no ring-computable fitted certificate either), so \
+                           the quadrature lane has nothing to consume",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),

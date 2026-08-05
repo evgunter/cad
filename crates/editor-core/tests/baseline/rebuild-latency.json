@@ -3,92 +3,99 @@
     "boss_union": {
       "about": "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
       "cone": 2,
-      "full_ms": 13.1,
-      "incremental_ms": 16.98,
+      "full_ms": 21.7,
+      "incremental_ms": 15.44,
       "nodes": 5
     },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
       "cone": 5,
-      "full_ms": 106.0,
-      "incremental_ms": 90.57,
+      "full_ms": 113.3,
+      "incremental_ms": 86.84,
       "nodes": 18
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
       "cone": 3,
-      "full_ms": 122.6,
-      "incremental_ms": 109.37,
+      "full_ms": 123.0,
+      "incremental_ms": 125.74,
       "nodes": 9
     },
     "cut_cylinder": {
       "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
       "cone": 2,
-      "full_ms": 3.1,
-      "incremental_ms": 2.27,
+      "full_ms": 3.2,
+      "incremental_ms": 2.66,
       "nodes": 4
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "cone": 1,
-      "full_ms": 10.5,
-      "incremental_ms": 5.2,
+      "full_ms": 11.2,
+      "incremental_ms": 4.97,
       "nodes": 4
     },
     "die": {
       "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
       "cone": 3,
-      "full_ms": 1067.5,
-      "incremental_ms": 115.54,
+      "full_ms": 1106.1,
+      "incremental_ms": 100.37,
       "nodes": 77
     },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
       "cone": 2,
-      "full_ms": 29.6,
-      "incremental_ms": 32.77,
+      "full_ms": 25.2,
+      "incremental_ms": 32.73,
       "nodes": 3
     },
     "die_pips": {
       "about": "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
       "cone": 2,
-      "full_ms": 9.6,
-      "incremental_ms": 7.41,
+      "full_ms": 11.7,
+      "incremental_ms": 8.68,
       "nodes": 7
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
       "cone": 12,
-      "full_ms": 110.4,
-      "incremental_ms": 94.39,
+      "full_ms": 102.3,
+      "incremental_ms": 100.72,
       "nodes": 15
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
       "cone": 2,
-      "full_ms": 34.9,
-      "incremental_ms": 1.38,
+      "full_ms": 33.0,
+      "incremental_ms": 1.48,
       "nodes": 15
+    },
+    "loft_prism": {
+      "about": "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
+      "cone": 1,
+      "full_ms": 2.5,
+      "incremental_ms": 3.0,
+      "nodes": 4
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
       "cone": 2,
-      "full_ms": 80.0,
-      "incremental_ms": 22.73,
+      "full_ms": 100.6,
+      "incremental_ms": 18.53,
       "nodes": 11
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
       "cone": 2,
-      "full_ms": 190.5,
-      "incremental_ms": 108.53,
+      "full_ms": 147.2,
+      "incremental_ms": 79.6,
       "nodes": 11
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
       "cone": 3,
-      "full_ms": 284.5,
-      "incremental_ms": 177.43,
+      "full_ms": 310.6,
+      "incremental_ms": 201.14,
       "nodes": 14
     }
   },

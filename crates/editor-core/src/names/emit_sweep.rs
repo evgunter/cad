@@ -36,13 +36,51 @@ pub(crate) fn name_extrude<T: Decide>(
     node: RecipeNodeId,
     built: &Extruded<T>,
 ) -> Result<Arc<NameTable>, NamingError> {
-    let body = &built.body;
+    name_swept_topology(
+        node,
+        &built.body,
+        built.top,
+        built.bottom,
+        &built.side_faces,
+        &built.strut_edges,
+    )
+}
+
+/// Names every boundary entity of a loft/sweep body (M6-3): the
+/// Lofted bundle is the Extruded one with seam edges where the struts
+/// were, so the SAME combinatorial zip applies — caps, laterals,
+/// rims, seams-as-lateral-edges, cap vertices, output body.
+pub(crate) fn name_loft<T: Decide>(
+    node: RecipeNodeId,
+    built: &sweep::Lofted<T>,
+) -> Result<Arc<NameTable>, NamingError> {
+    name_swept_topology(
+        node,
+        &built.body,
+        built.top,
+        built.bottom,
+        &built.side_faces,
+        &built.seam_edges,
+    )
+}
+
+/// The shared swept-solid zip (extrude and loft produce the same
+/// combinatorial shape: two caps, per-(loop, segment) walls, per-
+/// (loop, vertex) lateral edges).
+fn name_swept_topology<T: Decide>(
+    node: RecipeNodeId,
+    body: &Body<T>,
+    top: topo::FaceKey,
+    bottom: topo::FaceKey,
+    side_faces: &[Vec<topo::FaceKey>],
+    lateral_edges: &[Vec<EdgeKey>],
+) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
     t.insert(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    for (end, face) in [(CapEnd::Top, built.top), (CapEnd::Bottom, built.bottom)] {
+    for (end, face) in [(CapEnd::Top, top), (CapEnd::Bottom, bottom)] {
         t.insert(
             name1(EntityKind::Face, node, RoleSeg::Cap(end)),
             ent(0, EntityKey::Face(face)),
@@ -51,7 +89,7 @@ pub(crate) fn name_extrude<T: Decide>(
 
     // Laterals + rims, indexed by the emitter's canonical (loop,
     // segment) maps.
-    for (l, segs) in built.side_faces.iter().enumerate() {
+    for (l, segs) in side_faces.iter().enumerate() {
         for (s, &wall) in segs.iter().enumerate() {
             let pe = ProfileEdgeRef {
                 loop_index: ix(l),
@@ -61,7 +99,7 @@ pub(crate) fn name_extrude<T: Decide>(
                 name1(EntityKind::Face, node, RoleSeg::Lateral(pe)),
                 ent(0, EntityKey::Face(wall)),
             )?;
-            for (end, cap) in [(CapEnd::Top, built.top), (CapEnd::Bottom, built.bottom)] {
+            for (end, cap) in [(CapEnd::Top, top), (CapEnd::Bottom, bottom)] {
                 let rim = unique_shared_edge(body, wall, cap)?;
                 t.insert(
                     name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, pe)),
@@ -74,7 +112,7 @@ pub(crate) fn name_extrude<T: Decide>(
     // Struts + cap vertices. Strut `j` joins the walls of segments
     // `j − 1` and `j`; its cap-`end` endpoint is the unique common
     // vertex with the `end` rim of segment `j`.
-    for (l, struts) in built.strut_edges.iter().enumerate() {
+    for (l, struts) in lateral_edges.iter().enumerate() {
         for (j, &strut) in struts.iter().enumerate() {
             let pv = ProfileVertexRef {
                 loop_index: ix(l),
@@ -85,8 +123,8 @@ pub(crate) fn name_extrude<T: Decide>(
                 ent(0, EntityKey::Edge(strut)),
             )?;
             let (s0, s1) = edge_ends(body, strut)?;
-            for (end, cap) in [(CapEnd::Top, built.top), (CapEnd::Bottom, built.bottom)] {
-                let wall = built.side_faces[l][j];
+            for (end, cap) in [(CapEnd::Top, top), (CapEnd::Bottom, bottom)] {
+                let wall = side_faces[l][j];
                 let rim = unique_shared_edge(body, wall, cap)?;
                 let (r0, r1) = edge_ends(body, rim)?;
                 let vtx = common_vertex((s0, s1), (r0, r1)).ok_or(NamingError::Emission {

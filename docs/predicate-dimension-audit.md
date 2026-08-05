@@ -64,7 +64,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | pcurve_cache.rs:1471 | pcurve_trim_containment | chart-param overhang × chart_arms | mixed | FLAG F6 |
 | pcurve_cache.rs:1528 | pcurve_interval_forward (fitted) | NURBS param span × 1 | dimensionless | FLAG F6 |
 | pcurve_cache.rs:1542 | pcurve_azimuth_period (fitted) | rad headroom × u_arm (1 for cone/torus) | mixed | FLAG F6 |
-| pcurve_cache.rs:1664 | pcurve_chart_radial_moving | (Σ m-norms) × radius | **m² AREA** | FLAG F5 |
+| pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
 | pcurve_cache.rs:1759–1829 | pcurve_sphere_chart_* | m-scaled coefficients / rooted | m | OK |
@@ -209,20 +209,25 @@ Flagged, NOT fixed here (dispositions):
   matrix row, pinned as the live F4 signature in
   `rim_dim_boolean_twins.rs`. The banked F4+F5 unit is sequenced
   immediately after the M6-3 merge.
-- **F5** `pcurve_chart_radial_moving` (pcurve_cache.rs:1664):
-  (Σ metre norms) × radius = **AREA** — the exact defect class of this
-  unit's fix, and the margin arithmetic matches the mm-corpus pcurve
-  refusals (5e-7 ≈ 2r·r at r = 0.5 mm): the freecad
-  `CORPUS_EPS_CEILING` refusals at ε ≥ 1e-7 rest partly on an
-  area-dimensioned comparand and may retire when this is metered
-  honestly. pcurve_cache.rs is a loft-assembly collision file and the
-  blast radius (ceiling re-derivation) is its own unit — reported as
-  the headline follow-up.
-- **F6** pcurve chart arms (`chart_arms` v_arm ≡ 1, cone/torus
-  u_arm ≡ 1; fitted-lane `pcurve_interval_forward` bare NURBS span;
-  `pcurves.rs::azimuth_arm` non-cylinder fallback = 1): latent today
-  (only cylinder charts mint pcurves) but silently unmetered the day
-  another chart lands. Same collision files as F5; fold into that unit.
+- **F5** `pcurve_chart_radial_moving` — **FIXED by M6-3** (the
+  loft-assembly unit, PR #192): the amplitude is compared BARE (it is
+  already a displacement in metres; the ×radius factor made it an
+  area). The predicted retirement executed exactly: the freecad
+  `CORPUS_EPS_CEILING` moved 1e-8 → 1e-5 (the 1e-7/1e-6 refusals were
+  this comparand's artifact; at 1e-4 the attachment/span gates refuse
+  at the corpus's true feature scale — table re-measured in
+  step-import/tests/freecad.rs, composing #197's F-row retirement).
+  In-band amplitudes take the meridian arm as a D9 tie-break, the
+  discarded drift carried by check 4's envelope in metres.
+- **F6** pcurve chart arms — **mostly closed by M6-3** alongside the
+  chart completion: `chart_arms` now answers (r, r) for spheres and
+  (R+r, r) for tori, the cone's azimuth arm comes from the
+  containment check's own boxes (`chart_arms_at`, v_sup·sin α), and
+  `pcurves.rs::azimuth_arm` is the LOCAL lever (r·cos v etc. — zero
+  at poles/apex, which the walk exploits). Still bare: the
+  fitted-lane `pcurve_interval_forward` NURBS param span (a
+  reparametrization-sensitive rate) — fold into F7's typed-margin
+  design.
 - **F7** `nurbs_span_meter` (certify.rs:897): a RATE (m/param) gated
   against the linear band — reparametrization-sensitive. Collision
   file (certify.rs); fold into F5's unit or the typed-margin design.

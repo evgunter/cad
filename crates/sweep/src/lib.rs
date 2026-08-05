@@ -121,10 +121,13 @@
 //! every decision under its predicate name.
 
 pub mod extrude;
+pub mod loft;
 pub mod revolve;
 pub mod skin;
 
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
+pub use loft::{LoftError, Lofted, loft_body, sweep_body};
+pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc};
 pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
 // `SketchSegment` is re-exported because `SectionSegments` names it:
 // a caller building loft sections must be able to spell the type
@@ -132,7 +135,7 @@ pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind,
 pub use geom_brep::SketchSegment;
 pub use skin::{
     LoftGeometry, SectionSegments, SkinError, lift_surface, loft_geometry, make_compatible,
-    segment_curve, skin, skin_on, skin_parameters, sweep_geometry,
+    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod fillet;

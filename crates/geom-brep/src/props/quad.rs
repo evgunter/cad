@@ -41,9 +41,9 @@
 //!   free.
 //! - **B-spline** ([`bspline_green_integral`], the general machinery):
 //!   channel hulls and derivative hulls from the control-coefficient
-//!   convexity facts (`geom_core::spline::hull`). Written generally;
-//!   no at-rest construction mints a stored B-spline pcurve yet (the
-//!   loft assembly unit does), so its consumers today are tests.
+//!   convexity facts (`geom_core::spline::hull`). Since M6-3 the loft
+//!   assembly mints stored iso-line pcurves on described NURBS walls
+//!   and the patch flux engine consumes this machinery at rest.
 //!
 //! # The rule and its remainder
 //!
@@ -599,9 +599,10 @@ impl DerivLadder {
 /// smoothness-free first-order hull rule `h·hull(f)` — both sound, so
 /// the total is an enclosure at every resolution.
 ///
-/// No at-rest construction mints a stored B-spline pcurve yet (the
-/// loft assembly unit brings them); rational pcurves refuse typed —
-/// a rational derivative is not a control-coefficient convexity fact.
+/// At-rest B-spline pcurves exist since M6-3 (the loft walls' exact
+/// iso lines; general spline images remain the SSI trace's);
+/// rational pcurves refuse typed — a rational derivative is not a
+/// control-coefficient convexity fact.
 ///
 /// # Errors
 ///
@@ -676,6 +677,695 @@ pub fn bspline_green_integral(
         total = total + pt(h) * fm + f2 * h3_24;
     }
     Ok(total)
+}
+
+// ---------------------------------------------------------------------
+// The NURBS-patch lane (M6-3 Leg C): certified volume flux (+ the
+// area the +V meter consumes) over a full UV-rectangle patch
+// ---------------------------------------------------------------------
+
+/// Initial pieces PER AXIS of the 2-D composite rule (cells = p²).
+const QUAD2_INIT_PIECES: usize = 8;
+/// Refinement rounds before the typed budget refusal (pieces double
+/// per axis per round: ≤ `8·2⁶ = 512` per axis). Fewer rounds than the
+/// 1-D lane because cells grow quadratically; the rule's error is
+/// O(h²), so real patches converge in the first rounds or not at all.
+const QUAD2_MAX_ROUNDS: usize = 6;
+
+/// A ring-bracketed 3-vector (a control point, an enclosure).
+pub type RVec3 = [RingInterval; 3];
+
+fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn rv_dot(a: RVec3, b: RVec3) -> RingInterval {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Sound enclosure of `√x` for a nonnegative-by-construction `x`
+/// (component squares summed): correctly rounded `f64` sqrt widened
+/// one ulp outward; a spurious negative low (impossible here — inputs
+/// go through [`RingInterval::sqr`]) clamps to zero, the safe
+/// direction for a magnitude.
+fn sqrt_enclosure(x: RingInterval) -> RingInterval {
+    if x.is_poison() {
+        return x;
+    }
+    let lo = x.lo().max(0.0).sqrt();
+    let hi = x.hi().max(0.0).sqrt();
+    RingInterval::from_bounds(lo.next_down().max(0.0), hi.next_up())
+}
+
+/// Widens both ends by a nonnegative pad (the honesty-pad fold).
+fn widen(x: RingInterval, pad: f64) -> RingInterval {
+    if x.is_poison() {
+        return x;
+    }
+    RingInterval::from_bounds(x.lo() - pad, x.hi() + pad)
+}
+
+/// How a tensor direction collapses: a thin evaluation, a thin
+/// evaluation of THIS SPAN'S polynomial at an enclosed parameter (the
+/// exact Newton–Cotes lane — the span is located by a strictly
+/// interior point, and the span polynomial is evaluated even at the
+/// span's closed endpoints, which is exactly what integrating that
+/// polynomial over the span wants), or a range hull.
+#[derive(Clone, Copy)]
+enum Collapse<'a> {
+    At(f64),
+    AtSpan {
+        /// A point strictly inside the target span (locates it in
+        /// every derivative knot vector at once — they share
+        /// breakpoints).
+        mid: f64,
+        /// The enclosed evaluation parameter.
+        t: &'a RingInterval,
+    },
+    Over(f64, f64),
+}
+
+/// One direction's knot structure: a real knot vector, or the
+/// degree-0 remnant a derivative ladder bottoms out at (coefficients
+/// are per-span constants over `knots[i]..knots[i+1]` — the parent's
+/// interior knot list, kept so span-LOCAL collapse stays exact; the
+/// 1-D ladder's whole-domain hull would lose the per-span constancy
+/// the Newton–Cotes lane depends on).
+#[derive(Clone)]
+enum Dir {
+    Kv(KnotVector),
+    Const { knots: Vec<f64> },
+}
+
+impl Dir {
+    /// The per-span-constant coefficient index for a point.
+    fn const_index(knots: &[f64], t: f64, count: usize) -> usize {
+        let mut i = 0usize;
+        while i + 1 < count && i + 1 < knots.len() && knots[i + 1] <= t {
+            i += 1;
+        }
+        i
+    }
+}
+
+/// In-span de Boor at an ENCLOSED parameter: evaluates the span's
+/// polynomial (the [`bspline_eval_ring`] recurrence with the span
+/// fixed by the caller and `t` carried as a bracket) — sound for any
+/// `t`, exact-in-kind for the Newton–Cotes nodes, which lie in the
+/// span's closure.
+fn bspline_eval_ring_in_span(
+    kv: &KnotVector,
+    coeffs: &[RingInterval],
+    span: usize,
+    t: RingInterval,
+) -> RingInterval {
+    if coeffs.len() != kv.control_count() {
+        return RingInterval::poison();
+    }
+    let p = kv.degree();
+    let u = kv.knots();
+    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[span - p + j]).collect();
+    for r in 1..=p {
+        for j in (r..=p).rev() {
+            let i = span - p + j;
+            let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
+            let alpha = (t - pt(u[i])) / denom;
+            d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
+        }
+    }
+    d[p]
+}
+
+/// One (possibly derivative-exhausted) tensor grid of a vector
+/// channel triple, row-major `iu·nv + iv` — the 2-D counterpart of
+/// [`DerivLadder`]'s levels: a [`Dir::Const`] direction holds
+/// per-span constants, and a grid that differentiates to nothing at
+/// all is `Option<PatchGrid> = None` (identically zero on knot-free
+/// cells; cells straddling a knot take the smoothness-free
+/// first-order rule, exactly the 1-D lane's argument).
+struct PatchGrid {
+    du: Dir,
+    dv: Dir,
+    nu: usize,
+    nv: usize,
+    ch: [Vec<RingInterval>; 3],
+}
+impl PatchGrid {
+    /// The base grid from a bracketed control net.
+    fn base(kv_u: &KnotVector, kv_v: &KnotVector, control: &[RVec3]) -> Self {
+        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
+        for c in control {
+            for (k, chan) in ch.iter_mut().enumerate() {
+                chan.push(c[k]);
+            }
+        }
+        Self {
+            du: Dir::Kv(kv_u.clone()),
+            dv: Dir::Kv(kv_v.clone()),
+            nu: kv_u.control_count(),
+            nv: kv_v.control_count(),
+            ch,
+        }
+    }
+
+    /// The derivative direction structure of a knot vector: a real
+    /// vector while the degree allows, the per-span-constant remnant
+    /// at degree 0.
+    fn deriv_dir(kv: &KnotVector) -> Dir {
+        match deriv_kv(kv) {
+            Some(k) => Dir::Kv(k),
+            None => Dir::Const {
+                knots: kv.knots()[1..kv.knots().len() - 1].to_vec(),
+            },
+        }
+    }
+
+    /// The u-partial-derivative grid (`None` = identically zero away
+    /// from knots — the ladder's outer-None).
+    fn deriv_u(&self) -> Option<Self> {
+        let Dir::Kv(kv) = &self.du else {
+            return None;
+        };
+        if self.nu < 2 {
+            return None;
+        }
+        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
+        for (k, chan) in ch.iter_mut().enumerate() {
+            let mut grid = vec![RingInterval::zero(); (self.nu - 1) * self.nv];
+            for j in 0..self.nv {
+                let col: Vec<RingInterval> =
+                    (0..self.nu).map(|i| self.ch[k][i * self.nv + j]).collect();
+                let d = derivative_coeffs(kv, &col);
+                for (i, q) in d.iter().enumerate() {
+                    grid[i * self.nv + j] = *q;
+                }
+            }
+            *chan = grid;
+        }
+        Some(Self {
+            du: Self::deriv_dir(kv),
+            dv: self.dv.clone(),
+            nu: self.nu - 1,
+            nv: self.nv,
+            ch,
+        })
+    }
+
+    /// The v-partial-derivative grid.
+    fn deriv_v(&self) -> Option<Self> {
+        let Dir::Kv(kv) = &self.dv else {
+            return None;
+        };
+        if self.nv < 2 {
+            return None;
+        }
+        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
+        for (k, chan) in ch.iter_mut().enumerate() {
+            let mut grid = Vec::with_capacity(self.nu * (self.nv - 1));
+            for i in 0..self.nu {
+                let row = &self.ch[k][i * self.nv..(i + 1) * self.nv];
+                grid.extend(derivative_coeffs(kv, row));
+            }
+            *chan = grid;
+        }
+        Some(Self {
+            du: self.du.clone(),
+            dv: Self::deriv_dir(kv),
+            nu: self.nu,
+            nv: self.nv - 1,
+            ch,
+        })
+    }
+
+    /// One direction's collapse of a coefficient slice.
+    fn collapse_1d(dir: &Dir, coeffs: &[RingInterval], op: Collapse<'_>) -> RingInterval {
+        match (dir, op) {
+            (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
+            (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
+                bspline_eval_ring_in_span(kv, coeffs, kv.find_span(mid), *t)
+            }
+            (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
+            (Dir::Const { knots }, Collapse::At(t)) => {
+                coeffs[Dir::const_index(knots, t, coeffs.len())]
+            }
+            (Dir::Const { knots }, Collapse::AtSpan { mid, .. }) => {
+                coeffs[Dir::const_index(knots, mid, coeffs.len())]
+            }
+            (Dir::Const { knots }, Collapse::Over(lo, hi)) => {
+                let a = Dir::const_index(knots, lo, coeffs.len());
+                let b = Dir::const_index(knots, hi, coeffs.len());
+                let mut acc = coeffs[a];
+                for c in &coeffs[a..=b.max(a)] {
+                    acc = RingInterval::hull(acc, *c);
+                }
+                acc
+            }
+        }
+    }
+
+    /// Collapses one channel: v first (per u-row), then u.
+    fn channel(&self, k: usize, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        let rows: Vec<RingInterval> = (0..self.nu)
+            .map(|i| Self::collapse_1d(&self.dv, &self.ch[k][i * self.nv..(i + 1) * self.nv], v))
+            .collect();
+        Self::collapse_1d(&self.du, &rows, u)
+    }
+
+    /// The vector value/hull of the whole triple.
+    fn vec(&self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
+        [
+            self.channel(0, u, v),
+            self.channel(1, u, v),
+            self.channel(2, u, v),
+        ]
+    }
+}
+
+/// The zero-or-collapse read of an optional (derivative) grid.
+fn grid_vec(g: Option<&PatchGrid>, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
+    match g {
+        Some(g) => g.vec(u, v),
+        None => [
+            RingInterval::zero(),
+            RingInterval::zero(),
+            RingInterval::zero(),
+        ],
+    }
+}
+
+/// Closed Newton–Cotes weights on `[0, 1]` with `m + 1` equally
+/// spaced nodes `j/m`, as EXACT `i128` fractions reduced and then
+/// bracketed outward — no Gaussian trust anywhere: the rule's
+/// algebraic exactness for polynomials of degree ≤ m (m odd; m + 1
+/// for even m) is a theorem, the nodes are rational, and the
+/// enclosure carries only the ring divisions' rounding. `None` when
+/// `m` is outside the supported window (the fraction arithmetic's
+/// `i128` headroom, m ≤ 12 — callers fall back to the composite
+/// rule).
+fn newton_cotes_weights(m: usize) -> Option<Vec<RingInterval>> {
+    if m == 0 || m > 12 {
+        return None;
+    }
+    fn gcd(a: i128, b: i128) -> i128 {
+        let (mut a, mut b) = (a.abs(), b.abs());
+        while b != 0 {
+            let t = a % b;
+            a = b;
+            b = t;
+        }
+        a.max(1)
+    }
+    let mi = m as i128;
+    let mut out = Vec::with_capacity(m + 1);
+    for j in 0..=m {
+        // L_j(x) = Π_{k≠j} (m·x − k) / (j − k): numerator coefficients
+        // by convolution, denominator the exact product.
+        let mut num: Vec<i128> = vec![1];
+        let mut den: i128 = 1;
+        for k in 0..=m {
+            if k == j {
+                continue;
+            }
+            let ki = k as i128;
+            let ji = j as i128;
+            den = den.checked_mul(ji - ki)?;
+            let mut next = vec![0i128; num.len() + 1];
+            for (i, c) in num.iter().enumerate() {
+                next[i + 1] = next[i + 1].checked_add(c.checked_mul(mi)?)?;
+                next[i] = next[i].checked_add(c.checked_mul(-ki)?)?;
+            }
+            num = next;
+        }
+        // ∫₀¹ Σ cᵢ xⁱ dx = Σ cᵢ/(i+1), accumulated as one fraction.
+        let (mut acc_n, mut acc_d): (i128, i128) = (0, 1);
+        for (i, c) in num.iter().enumerate() {
+            let d = (i as i128) + 1;
+            acc_n = acc_n.checked_mul(d)?.checked_add(c.checked_mul(acc_d)?)?;
+            acc_d = acc_d.checked_mul(d)?;
+            let g = gcd(acc_n, acc_d);
+            acc_n /= g;
+            acc_d /= g;
+        }
+        // w_j = acc / den, sign-normalised, bracketed via outward ring
+        // division of exactly-representable integers.
+        let mut w_n = acc_n;
+        let mut w_d = acc_d.checked_mul(den)?;
+        if w_d < 0 {
+            w_n = -w_n;
+            w_d = -w_d;
+        }
+        let g = gcd(w_n, w_d);
+        w_n /= g;
+        w_d /= g;
+        let exact53 = |x: i128| x.abs() < (1i128 << 53);
+        if !exact53(w_n) || !exact53(w_d) {
+            return None;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        out.push(pt(w_n as f64) / pt(w_d as f64));
+    }
+    Some(out)
+}
+
+/// The knot-span intervals of a vector clipped to `[lo, hi]`, each
+/// with a strictly interior locator point.
+fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
+    let mut out = Vec::new();
+    let mut edges: Vec<f64> = vec![lo];
+    for k in kv.knots() {
+        if *k > lo && *k < hi && edges.last().is_none_or(|e| *e != *k) {
+            edges.push(*k);
+        }
+    }
+    edges.push(hi);
+    for w in edges.windows(2) {
+        if w[1] > w[0] {
+            out.push((w[0], w[1], w[0].midpoint(w[1])));
+        }
+    }
+    out
+}
+
+/// **The exact per-span lane** (the primary flux path): on each
+/// knot-span rectangle the integrand `f = S·(S_u×S_v)` is one
+/// polynomial of degree ≤ 3p−1 per direction, so the tensor closed
+/// Newton–Cotes rule of order `3p` integrates it EXACTLY — the whole
+/// enclosure width is the nodes' and weights' ring rounding. `None`
+/// when the rule order leaves the supported window (degree > 4 per
+/// direction), in which case the caller runs the composite rounds.
+fn patch_flux_exact(
+    s: &PatchGrid,
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    rect: (f64, f64, f64, f64),
+) -> Option<RingInterval> {
+    let (u0, u1, v0, v1) = rect;
+    let (mu, mv) = (3 * kv_u.degree(), 3 * kv_v.degree());
+    let (wu, wv) = (newton_cotes_weights(mu)?, newton_cotes_weights(mv)?);
+    let mut flux = RingInterval::zero();
+    for &(au, bu, mid_u) in &clipped_spans(kv_u, u0, u1) {
+        let su_scale = pt(bu) - pt(au);
+        // Node enclosures for this span, u direction.
+        #[allow(clippy::cast_precision_loss)]
+        let nodes_u: Vec<RingInterval> = (0..=mu)
+            .map(|j| pt(au) + su_scale * (pt(j as f64) / pt(mu as f64)))
+            .collect();
+        for &(av, bv, mid_v) in &clipped_spans(kv_v, v0, v1) {
+            let sv_scale = pt(bv) - pt(av);
+            #[allow(clippy::cast_precision_loss)]
+            let nodes_v: Vec<RingInterval> = (0..=mv)
+                .map(|j| pt(av) + sv_scale * (pt(j as f64) / pt(mv as f64)))
+                .collect();
+            let scale = su_scale * sv_scale;
+            let mut acc = RingInterval::zero();
+            for (nu_i, wu_i) in nodes_u.iter().zip(&wu) {
+                let cu = Collapse::AtSpan {
+                    mid: mid_u,
+                    t: nu_i,
+                };
+                let mut row = RingInterval::zero();
+                for (nv_j, wv_j) in nodes_v.iter().zip(&wv) {
+                    let cv = Collapse::AtSpan {
+                        mid: mid_v,
+                        t: nv_j,
+                    };
+                    let fm = rv_dot(
+                        s.vec(cu, cv),
+                        rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv)),
+                    );
+                    row = row + *wv_j * fm;
+                }
+                acc = acc + *wu_i * row;
+            }
+            flux = flux + scale * acc;
+        }
+    }
+    Some(flux)
+}
+
+/// **Certified NURBS-patch contributions** (M6-3 Leg C): the
+/// chart-normal volume flux `∫∫ S·(S_u×S_v) du dv` and the patch area
+/// `∫∫ |S_u×S_v| du dv` of a **non-rational** patch over the exact UV
+/// rectangle `rect = (u0, u1, v0, v1)` — the loft/sweep wall case,
+/// where the face's stored iso-line pcurves pin the trim region to a
+/// rectangle exactly.
+///
+/// The flux rides the 2-D midpoint composite with hull-bounded
+/// second-derivative remainders per axis (module docs' rule, iterated:
+/// `∫∫_cell f ∈ A·f(m) + hull(f_uu)·h_u³h_v/24 + hull(f_vv)·h_u h_v³/24`,
+/// no cross term — the two 1-D remainders compose), with
+///
+/// ```text
+/// f_uu = S_u·(S_uu×S_v) + S·(S_uuu×S_v) + 2·S·(S_uu×S_uv) + S·(S_u×S_uuv)
+/// f_vv = S_v·(S_u×S_vv) + S·(S_uvv×S_v) + 2·S·(S_uv×S_vv) + S·(S_u×S_vvv)
+/// ```
+///
+/// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
+/// straddling an interior knot in either direction take the
+/// smoothness-free first-order rule `A·hull(f)`. The area rides the
+/// first-order hull rule per cell — sound at every resolution,
+/// tightening as O(h) — because the +V gate meters `V/A` and needs an
+/// honest denominator, not a tight one (the RATIONAL area, which has
+/// no such bound at all, refuses upstream with the rational walls).
+///
+/// Honesty pads (both directions accounted): `boundary_defect` is the
+/// caller's `Σ (metric edge length)·(pcurve envelope)` bound on the
+/// metric area between the true trim boundary and the rectangle; it
+/// widens the area directly and the flux through the patch's position
+/// magnitude bound. Exactly zero for minted (exact-in-family) iso
+/// pcurves.
+///
+/// The flux is signed by the CHART normal `S_u×S_v`; the caller owns
+/// the loop-winding sign (S10: winding-derived end to end).
+///
+/// # Errors
+///
+/// [`PropsError`] — rational weights (typed, naming the banked
+/// extension), an escalated funnel decision, a degenerate face, or
+/// the typed [`PropsError::QuadratureBudget`] refusal.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+#[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
+pub fn nurbs_patch_face<T: Decide>(
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    control: &[RVec3],
+    weights: &[f64],
+    rect: (f64, f64, f64, f64),
+    perimeter: f64,
+    boundary_defect: f64,
+    eps: f64,
+    band: Band,
+) -> Result<FaceCutBounds, PropsError> {
+    if weights.iter().any(|w| *w != 1.0) {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "RATIONAL patch flux (weights != 1): the derivative-grid hulls are \
+                   polynomial convexity facts, and a rational quotient's are not — the \
+                   rational extension (any arc-bearing profile's walls) is BANKED; loft \
+                   with a polyline profile, or wait for the rational-wall unit",
+        });
+    }
+    let (u0, u1, v0, v1) = rect;
+    if !(u1 - u0).is_finite() || u1 <= u0 || !(v1 - v0).is_finite() || v1 <= v0 {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "empty or non-finite UV rectangle",
+        });
+    }
+    // The derivative grids, built once (mixed partials commute on
+    // spline nets exactly).
+    let s = PatchGrid::base(kv_u, kv_v, control);
+    let su = s.deriv_u();
+    let sv = s.deriv_v();
+    let suu = su.as_ref().and_then(PatchGrid::deriv_u);
+    let suv = su.as_ref().and_then(PatchGrid::deriv_v);
+    let svv = sv.as_ref().and_then(PatchGrid::deriv_v);
+    let suuu = suu.as_ref().and_then(PatchGrid::deriv_u);
+    let suuv = suu.as_ref().and_then(PatchGrid::deriv_v);
+    let suvv = suv.as_ref().and_then(PatchGrid::deriv_v);
+    let svvv = svv.as_ref().and_then(PatchGrid::deriv_v);
+    let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
+        kv.knots()
+            .iter()
+            .copied()
+            .filter(|k| *k > lo && *k < hi)
+            .collect()
+    };
+    let knots_u = interior(kv_u, u0, u1);
+    let knots_v = interior(kv_v, v0, v1);
+    // Position magnitude bound over the rectangle (the flux pad's
+    // lever): a 1-norm over-bound of the 2-norm suffices — only an
+    // upper bound is consumed.
+    let s_hull = s.vec(Collapse::Over(u0, u1), Collapse::Over(v0, v1));
+    let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
+
+    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
+    let mut pieces = QUAD2_INIT_PIECES;
+    let mut last_width_len = f64::NAN;
+    // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
+    // hull contains every knot-free cell's, so the per-cell remainder
+    // `hull(f_uu)·h³/24` may use it soundly — looser by a constant,
+    // still O(h²), and it turns the per-cell cost from ten grid hulls
+    // into three thin evals; the 866-second debug wall this replaced
+    // is the reason). Cells straddling an interior knot still take a
+    // per-cell first-order hull (the smoothness-free rule needs local
+    // tightness to converge, and such cells vanish under refinement).
+    let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
+    let g_s = s_hull;
+    let g_su = grid_vec(su.as_ref(), over_all.0, over_all.1);
+    let g_sv = grid_vec(sv.as_ref(), over_all.0, over_all.1);
+    let g_suu = grid_vec(suu.as_ref(), over_all.0, over_all.1);
+    let g_suv = grid_vec(suv.as_ref(), over_all.0, over_all.1);
+    let g_svv = grid_vec(svv.as_ref(), over_all.0, over_all.1);
+    let g_f_uu = rv_dot(g_su, rv_cross(g_suu, g_sv))
+        + rv_dot(
+            g_s,
+            rv_cross(grid_vec(suuu.as_ref(), over_all.0, over_all.1), g_sv),
+        )
+        + pt(2.0) * rv_dot(g_s, rv_cross(g_suu, g_suv))
+        + rv_dot(
+            g_s,
+            rv_cross(g_su, grid_vec(suuv.as_ref(), over_all.0, over_all.1)),
+        );
+    let g_f_vv = rv_dot(g_sv, rv_cross(g_su, g_svv))
+        + rv_dot(
+            g_s,
+            rv_cross(grid_vec(suvv.as_ref(), over_all.0, over_all.1), g_sv),
+        )
+        + pt(2.0) * rv_dot(g_s, rv_cross(g_suv, g_svv))
+        + rv_dot(
+            g_s,
+            rv_cross(g_su, grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
+        );
+
+    // AREA: one fixed-resolution pass of the first-order hull rule
+    // (per-cell Su/Sv hulls). The area is a certified DENOMINATOR
+    // (the +V meter and the extent gate), not a convergence-gated
+    // quantity — its honest O(h) width lands in `area_pad`.
+    let area = {
+        let n = 2 * QUAD2_INIT_PIECES;
+        #[allow(clippy::cast_precision_loss)]
+        let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
+        let cell_area = pt(hu) * pt(hv);
+        let mut acc = RingInterval::zero();
+        for iu in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
+            for iv in 0..n {
+                #[allow(clippy::cast_precision_loss)]
+                let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
+                let over = (
+                    Collapse::Over(c_ulo, c_ulo + hu),
+                    Collapse::Over(c_vlo, c_vlo + hv),
+                );
+                let cross_h = rv_cross(
+                    grid_vec(su.as_ref(), over.0, over.1),
+                    grid_vec(sv.as_ref(), over.0, over.1),
+                );
+                let norm_sq = cross_h[0].sqr() + cross_h[1].sqr() + cross_h[2].sqr();
+                acc = acc + cell_area * sqrt_enclosure(norm_sq);
+            }
+        }
+        widen(acc, boundary_defect)
+    };
+
+    // ---- The exact per-span lane first (fn docs): one tensor
+    // Newton–Cotes pass whose enclosure width is ring rounding only.
+    // The composite rounds below are the fallback for degrees outside
+    // the rule window (> 4 per direction). ----
+    if let Some(exact) =
+        patch_flux_exact(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, (u0, u1, v0, v1))
+    {
+        let flux = widen(exact, boundary_defect * p_bound);
+        let lever = (area.lo() + area.hi()) * 0.5;
+        let width_len = flux.width() / (3.0 * lever);
+        if classify_len::<T>("props_quad_converged", target_len - width_len, band)?
+            == Sign::Positive
+        {
+            match classify_len::<T>("props_quad_face_extent", area.lo() / perimeter, band)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
+            }
+            return Ok(FaceCutBounds { flux, area });
+        }
+        // An exact-lane enclosure missing the target can only be pad-
+        // or degeneracy-dominated; refinement cannot do better —
+        // refuse at the budget with the honest width.
+        return Err(PropsError::QuadratureBudget {
+            width_len,
+            target_len,
+        });
+    }
+
+    for round in 0..=QUAD2_MAX_ROUNDS {
+        let mut flux = RingInterval::zero();
+        #[allow(clippy::cast_precision_loss)]
+        let (hu, hv) = ((u1 - u0) / pieces as f64, (v1 - v0) / pieces as f64);
+        let cell_area = pt(hu) * pt(hv);
+        let r_uu = g_f_uu * (pt(hu) * pt(hu).sqr() * pt(hv) / pt(24.0));
+        let r_vv = g_f_vv * (pt(hu) * pt(hv) * pt(hv).sqr() / pt(24.0));
+        for iu in 0..pieces {
+            #[allow(clippy::cast_precision_loss)]
+            let c_ulo = u0 + (u1 - u0) * (iu as f64 / pieces as f64);
+            let c_uhi = c_ulo + hu;
+            let straddle_u = knots_u.iter().any(|k| *k > c_ulo && *k < c_uhi);
+            for iv in 0..pieces {
+                #[allow(clippy::cast_precision_loss)]
+                let c_vlo = v0 + (v1 - v0) * (iv as f64 / pieces as f64);
+                let c_vhi = c_vlo + hv;
+                let straddle = straddle_u || knots_v.iter().any(|k| *k > c_vlo && *k < c_vhi);
+                if straddle {
+                    // Smoothness-free rule across a knot, per-cell
+                    // hulls (local tightness needed here).
+                    let over = (Collapse::Over(c_ulo, c_uhi), Collapse::Over(c_vlo, c_vhi));
+                    let h_s = s.vec(over.0, over.1);
+                    let cross_h = rv_cross(
+                        grid_vec(su.as_ref(), over.0, over.1),
+                        grid_vec(sv.as_ref(), over.0, over.1),
+                    );
+                    flux = flux + cell_area * rv_dot(h_s, cross_h);
+                    continue;
+                }
+                let m = (
+                    Collapse::At(c_ulo + hu * 0.5),
+                    Collapse::At(c_vlo + hv * 0.5),
+                );
+                let fm = rv_dot(
+                    s.vec(m.0, m.1),
+                    rv_cross(
+                        grid_vec(su.as_ref(), m.0, m.1),
+                        grid_vec(sv.as_ref(), m.0, m.1),
+                    ),
+                );
+                flux = flux + cell_area * fm + r_uu + r_vv;
+            }
+        }
+        let flux = widen(flux, boundary_defect * p_bound);
+        // Convergence: the shared mean-boundary-displacement meter.
+        let lever = (area.lo() + area.hi()) * 0.5;
+        let width_len = flux.width() / (3.0 * lever);
+        last_width_len = width_len;
+        if classify_len::<T>("props_quad_converged", target_len - width_len, band)?
+            == Sign::Positive
+        {
+            match classify_len::<T>("props_quad_face_extent", area.lo() / perimeter, band)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
+            }
+            return Ok(FaceCutBounds { flux, area });
+        }
+        if round < QUAD2_MAX_ROUNDS {
+            pieces *= 2;
+        }
+    }
+    Err(PropsError::QuadratureBudget {
+        width_len: last_width_len,
+        target_len,
+    })
 }
 
 #[cfg(test)]
@@ -852,6 +1542,133 @@ mod tests {
             Err(PropsError::QuadratureBudget { .. }) => {}
             other => panic!("expected the typed budget refusal, got {other:?}"),
         }
+    }
+
+    /// The patch lane on the flat unit square at z = 1: `S = (u, v, 1)`
+    /// has `f = S·(S_u×S_v) = 1` and `|S_u×S_v| = 1`, so flux = area
+    /// = 1 exactly; then a genuinely warped bilinear patch is checked
+    /// against a dense midpoint oracle (containment + tightness).
+    #[test]
+    fn nurbs_patch_flux_matches_flat_and_warped_oracles() {
+        let band = Band::linear().unwrap();
+        let eps = Tolerance::get().eps;
+        let kv = KnotVector::unit_segment(1);
+        let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
+        // Row-major iu·nv+iv, nu = nv = 2: [(u0v0), (u0v1), (u1v0), (u1v1)].
+        let flat = [
+            p(0.0, 0.0, 1.0),
+            p(0.0, 1.0, 1.0),
+            p(1.0, 0.0, 1.0),
+            p(1.0, 1.0, 1.0),
+        ];
+        let out = nurbs_patch_face::<f64>(
+            &kv,
+            &kv,
+            &flat,
+            &[1.0; 4],
+            (0.0, 1.0, 0.0, 1.0),
+            4.0,
+            0.0,
+            eps,
+            band,
+        )
+        .unwrap();
+        assert!(out.flux.contains(1.0), "flat flux {:?}", out.flux);
+        assert!(out.area.contains(1.0), "flat area {:?}", out.area);
+        assert!(out.flux.width() < 1e-9, "flux width {}", out.flux.width());
+
+        // Warped: corners lifted unevenly — a ruled quadric patch.
+        let warped = [
+            p(0.0, 0.0, 0.5),
+            p(-0.2, 1.1, 1.0),
+            p(1.3, 0.0, 0.8),
+            p(1.0, 1.0, 2.0),
+        ];
+        let out = nurbs_patch_face::<f64>(
+            &kv,
+            &kv,
+            &warped,
+            &[1.0; 4],
+            (0.0, 1.0, 0.0, 1.0),
+            6.0,
+            0.0,
+            eps,
+            band,
+        )
+        .unwrap();
+        // Dense midpoint oracle on the bilinear closed form.
+        let sv = |u: f64, v: f64| -> [f64; 3] {
+            core::array::from_fn(|k| {
+                let c = [
+                    warped[0][k].lo(),
+                    warped[1][k].lo(),
+                    warped[2][k].lo(),
+                    warped[3][k].lo(),
+                ];
+                (1.0 - u) * ((1.0 - v) * c[0] + v * c[1]) + u * ((1.0 - v) * c[2] + v * c[3])
+            })
+        };
+        let n = 400usize;
+        let (mut oracle_flux, mut oracle_area) = (0.0f64, 0.0f64);
+        let h = 1.0 / n as f64;
+        for i in 0..n {
+            for j in 0..n {
+                let (u, v) = ((i as f64 + 0.5) * h, (j as f64 + 0.5) * h);
+                let s = sv(u, v);
+                let du = core::array::from_fn::<f64, 3, _>(|k| {
+                    (sv(u + 1e-6, v)[k] - sv(u - 1e-6, v)[k]) / 2e-6
+                });
+                let dv = core::array::from_fn::<f64, 3, _>(|k| {
+                    (sv(u, v + 1e-6)[k] - sv(u, v - 1e-6)[k]) / 2e-6
+                });
+                let cr = [
+                    du[1] * dv[2] - du[2] * dv[1],
+                    du[2] * dv[0] - du[0] * dv[2],
+                    du[0] * dv[1] - du[1] * dv[0],
+                ];
+                oracle_flux += (s[0] * cr[0] + s[1] * cr[1] + s[2] * cr[2]) * h.powi(2);
+                oracle_area += (cr[0].powi(2) + cr[1].powi(2) + cr[2].powi(2)).sqrt() * h.powi(2);
+            }
+        }
+        assert!(
+            out.flux.lo() - 1e-4 <= oracle_flux && oracle_flux <= out.flux.hi() + 1e-4,
+            "flux {:?} vs oracle {oracle_flux}",
+            out.flux
+        );
+        assert!(
+            out.area.lo() - 1e-2 <= oracle_area && oracle_area <= out.area.hi() + 1e-2,
+            "area {:?} vs oracle {oracle_area}",
+            out.area
+        );
+    }
+
+    /// The rational gate refuses typed, naming the banked extension.
+    #[test]
+    fn rational_patch_refuses_typed() {
+        let band = Band::linear().unwrap();
+        let kv = KnotVector::unit_segment(1);
+        let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
+        let flat = [
+            p(0.0, 0.0, 1.0),
+            p(0.0, 1.0, 1.0),
+            p(1.0, 0.0, 1.0),
+            p(1.0, 1.0, 1.0),
+        ];
+        let err = nurbs_patch_face::<f64>(
+            &kv,
+            &kv,
+            &flat,
+            &[1.0, 2.0, 1.0, 1.0],
+            (0.0, 1.0, 0.0, 1.0),
+            4.0,
+            0.0,
+            Tolerance::get().eps,
+            band,
+        )
+        .unwrap_err();
+        let text = format!("{err}");
+        assert!(text.contains("RATIONAL patch flux"), "{text}");
+        assert!(text.contains("BANKED"), "{text}");
     }
 
     /// The general B-spline lane on a known integral: u = t (deg 2),

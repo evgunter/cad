@@ -213,6 +213,16 @@ impl<T: Decide> Body<T> {
                     return Err(EulerOpError::DescriptionNotAdjacent { edge });
                 }
             }
+            // The iso description names ONE of the edge's two adjacent
+            // faces' surfaces (M6-3: a wall–wall seam is the u-boundary
+            // iso of either wall; the minted convention picks one, and
+            // adjacency accepts either side — the M5-LOG item 6(iii)
+            // reading).
+            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
+                if surface != fs_plus && surface != fs_minus {
+                    return Err(EulerOpError::DescriptionNotAdjacent { edge });
+                }
+            }
             geom_brep::EdgeGeometry::MappedCurve(_) => {}
         }
 

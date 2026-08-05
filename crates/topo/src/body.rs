@@ -456,15 +456,17 @@ impl<T: Real> Body<T> {
     }
 
     /// The surface keys an edge description references: `Intersection`'s
-    /// two, `Seam`'s one, none for `MappedCurve` (which carries its own
-    /// defining data). Consulted by orphan hygiene and by the
-    /// validator's referential-integrity pass.
+    /// two, `Seam`'s and `IsoCurve`'s one, none for `MappedCurve`
+    /// (which carries its own defining data). Consulted by orphan
+    /// hygiene and by the validator's referential-integrity pass.
     pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
         match curve {
             CurveGeom::Certified(curve) => match *curve.description() {
                 EdgeGeometry::Intersection { s1, s2, .. }
                 | EdgeGeometry::TangentIntersection { s1, s2, .. } => vec![s1, s2],
-                EdgeGeometry::Seam { surface } => vec![surface],
+                EdgeGeometry::Seam { surface } | EdgeGeometry::IsoCurve { surface, .. } => {
+                    vec![surface]
+                }
                 EdgeGeometry::MappedCurve(_) => Vec::new(),
             },
             // Null scaffolding has no description and keeps no surface

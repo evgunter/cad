@@ -675,10 +675,11 @@ pub fn wall_probes<S: Scalar>() {
         "give the lanterns their three tepal seams",
     );
     println!(
-        "   (walls 8-10 are ABSENCES, not refusals, so they cannot be probed at \
-         runtime: no general-path sweep body, no tapering sweep, and no loft/skin \
-         body assembly — `skinned::narration` already carries the last one's \
-         retire-on-closure pin.)"
+        "   (wall 9 — a TAPERING sweep — is the one remaining ABSENCE, not a \
+         refusal, so it cannot be probed at runtime. Walls 8 and 10 CLOSED with \
+         M6-3: `sweep::sweep_body` is the general-path sweep body and \
+         `sweep::loft_body` the skin assembly — the loft stop builds one live, \
+         and `skinned::narration`'s retire-on-closure pin fired as designed.)"
     );
 }
 

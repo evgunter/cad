@@ -65,7 +65,8 @@ fn audit_geometry(body: &Body<f64>) {
                     live_s.push(s1);
                     live_s.push(s2);
                 }
-                geom_brep::EdgeGeometry::Seam { surface } => live_s.push(surface),
+                geom_brep::EdgeGeometry::Seam { surface }
+                | geom_brep::EdgeGeometry::IsoCurve { surface, .. } => live_s.push(surface),
                 geom_brep::EdgeGeometry::MappedCurve(_) => {}
             }
         }

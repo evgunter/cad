@@ -346,6 +346,37 @@ pub enum EdgeGeometry<T: Real> {
         /// The periodic surface whose seam this edge is.
         surface: SurfaceKey,
     },
+    /// Conventional: the `u = const` **iso-parameter curve** of a
+    /// parametric surface — the loft/sweep assembly's wall–wall seam
+    /// class (M6-3; the executed design of `docs/M5-LOG.md` PR 9c
+    /// item 6(iii)).
+    ///
+    /// Why this is its own variant and not an
+    /// [`EdgeGeometry::Intersection`]: a definitional wall junction's
+    /// contact class is the profile's **declared** corner structure
+    /// (Q8/C11), not a derived one — and on a NURBS wall the
+    /// implicit-form machinery (`implicit_residual`,
+    /// `curvature_lever_arm`) is poison anyway, so `classify_dihedral`
+    /// cannot run there. The certified statement is instead the
+    /// genuinely metric residual
+    /// `|C(t) − S(u, v0 + (v1 − v0)·(t − t0)/(t1 − t0))|` at the CERT
+    /// schedule (two-tolerance, definite arms included), and tier-3
+    /// adjacency reads as `surface ∈ {fs_plus, fs_minus}`.
+    ///
+    /// The definitional payoff (M5 PR 10 §3): an iso-curve's pcurve on
+    /// its own chart is an **exact straight line in UV** — no fit
+    /// anywhere.
+    IsoCurve {
+        /// The surface whose iso-curve this edge is (one of the edge's
+        /// two adjacent faces' surfaces — tier-3 coherence).
+        surface: SurfaceKey,
+        /// The fixed `u` parameter of the iso-curve.
+        u: T,
+        /// The `v` value at the edge's `param_start`.
+        v0: T,
+        /// The `v` value at the edge's `param_end`.
+        v1: T,
+    },
 }
 
 #[cfg(test)]

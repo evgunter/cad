@@ -245,12 +245,20 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
         dst.null_faces.insert(dk, mapped);
     }
 
-    // ---- Pcurve caches (M5 PR 6): remapped like provenance. The
-    // boolean lane's operands are gated all-planar, so this is empty in
-    // practice today — carrying it anyway keeps the graft total, so a
-    // future curved boolean cannot lose caches silently. ----
+    // ---- Pcurve caches (M5 PR 6): remapped like provenance. Since
+    // M6-3 every curved chart mints, so operands genuinely carry
+    // caches here — including STALE rows: surgery kills half-edges
+    // without clearing the cache map (the module-docs posture in
+    // `topo::pcurves`), so a reduced operand may hold rows keyed by
+    // half-edges that no longer exist. Those rows are skipped, not
+    // treated as corruption: the row's key not being in the graft's
+    // half-edge walk IS the staleness test (the walk covers every
+    // live half-edge of the grafted solid), and the boolean result's
+    // own final mint pass clears and re-derives every cache anyway. ----
     for (k, cache) in src.pcurves.iter() {
-        let dk = *half_edges.get(k).ok_or_else(corrupt)?;
+        let Some(&dk) = half_edges.get(k) else {
+            continue;
+        };
         dst.pcurves.insert(dk, cache.clone());
     }
 
@@ -283,6 +291,14 @@ pub(super) fn graft_solid<T: geom_core::Decide>(
             geom_brep::EdgeGeometry::Seam { surface } => geom_brep::EdgeGeometry::Seam {
                 surface: *surfaces.get(surface).ok_or_else(corrupt)?,
             },
+            geom_brep::EdgeGeometry::IsoCurve { surface, u, v0, v1 } => {
+                geom_brep::EdgeGeometry::IsoCurve {
+                    surface: *surfaces.get(surface).ok_or_else(corrupt)?,
+                    u,
+                    v0,
+                    v1,
+                }
+            }
             geom_brep::EdgeGeometry::MappedCurve(_) => continue, // no surface keys
         };
         // Endpoints from the (already grafted) owning edge: he_plus

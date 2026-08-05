@@ -1128,8 +1128,12 @@ fn dump_for_cross_profile_diff() {
     } else {
         "release"
     };
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("review-m2-pr4-dump-{profile}.txt"));
+    // CARGO_TARGET_TMPDIR is baked at compile time; the directory itself
+    // is NOT guaranteed to exist on the test runner (nextest archives
+    // don't carry the empty dir) — create it, the repo-wide idiom.
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(dir).unwrap();
+    let path = dir.join(format!("review-m2-pr4-dump-{profile}.txt"));
     std::fs::write(&path, dump(&t)).unwrap();
 }
 

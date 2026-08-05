@@ -490,6 +490,10 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         // writer's first fillet-minted TOROIDAL_SURFACEs (slit-seamed
         // annuli) alongside every kind the blank already carries.
         ("composed_die", composed_die()),
+        // The M6-3 loft assembly: the corpus's first NURBS-walled body
+        // (B_SPLINE_SURFACE_WITH_KNOTS walls, B_SPLINE_CURVE_WITH_KNOTS
+        // seam carriers, planar caps with exact line rims).
+        ("loft_prism", loft_prism()),
     ]
 }
 
@@ -730,5 +734,38 @@ pub fn composed_die() -> Body<f64> {
         .collect();
     fillet_edges(&blanked, &rims, rim_r, band)
         .expect("the rims blend to torus bands")
+        .body
+}
+
+/// The M6-3 loft: R5 shape (iii)'s three-section polyline loft —
+/// squares at z = 0 and z = 2, a non-affine trapezoid at z = 1,
+/// skinned at v-degree 2 (`sweep::loft_body`). The corpus's first
+/// NURBS-walled body: 4 described non-rational NURBS walls, 2 planar
+/// caps, NURBS seam carriers on the 4 wall–wall edges. Same sections
+/// as `sweep/tests/m6_loft_body.rs` (where V = 9 m³ is derived) and
+/// the editor-core corpus document `loft_prism`.
+pub fn loft_prism() -> Body<f64> {
+    let quad = |pts: [(f64, f64); 4]| -> sweep::SectionSegments {
+        let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
+            a: Point2::new(a.0, a.1),
+            b: Point2::new(b.0, b.1),
+        };
+        vec![vec![
+            seg(pts[0], pts[1]),
+            seg(pts[1], pts[2]),
+            seg(pts[2], pts[3]),
+            seg(pts[3], pts[0]),
+        ]]
+    };
+    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let sections = vec![quad(square), quad(trapezoid), quad(square)];
+    let places = vec![
+        geom_core::Affine3::identity(),
+        geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+    ];
+    sweep::loft_body::<f64>(&sections, &places, 2)
+        .expect("shape (iii) loft builds")
         .body
 }

@@ -207,11 +207,11 @@ the widest single-scene spread the writer has been asked for:
 `TOROIDAL_` (stem tubes), `SPHERICAL_` + `CONICAL_` (lanterns) and
 `CYLINDRICAL_` (leaf blades) all in one cell.
 
-Two typed refusals remain as named frontiers, and no tour body is in
-either: a NURBS **face** (which the loft-assembly unit mints) and a
-multi-shell **curved** solid (whose outward/void classification has no
-closed form yet). The tour still fails loud if a body it expects to
-export does not.
+One typed refusal remains as a named frontier, and no tour body is in
+it: a multi-shell **curved** solid (whose outward/void classification
+has no closed form yet). NURBS faces export natively since M6-3 (the
+loft stop's walls ride `B_SPLINE_SURFACE_WITH_KNOTS`). The tour still
+fails loud if a body it expects to export does not.
 
 ## Renderers
 

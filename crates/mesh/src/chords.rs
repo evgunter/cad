@@ -205,7 +205,9 @@ fn nurbs_chord_count(
             edge: ek,
             note: "rational B-spline carrier — a rational second derivative is not a \
                    control-hull convexity fact, and no at-rest construction mints one \
-                   (conics stay exact kinds; the loft assembly unit owns what arrives)",
+                   (conics stay exact kinds; the M6-3 loft's carriers are non-rational \
+                   boundary rows, and arc-bearing profiles refuse at the rational-wall \
+                   gate)",
         });
     }
     let kv = n.knots();

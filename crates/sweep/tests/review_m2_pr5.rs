@@ -1161,8 +1161,11 @@ fn dump_for_cross_profile_diff() {
         all.push_str(&dump(&t));
         all.push_str("----\n");
     }
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("review-m2-pr5-dump-{profile_tag}.txt"));
+    // Same latent order-dependency as review_m2_pr4's dump: the tmpdir
+    // may not exist on the test runner — create it first.
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(dir).unwrap();
+    let path = dir.join(format!("review-m2-pr5-dump-{profile_tag}.txt"));
     std::fs::write(&path, all).unwrap();
 }
 

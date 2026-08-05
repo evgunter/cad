@@ -295,7 +295,7 @@ fn decide<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, 
 /// classification carried through the optional reversal — never
 /// re-decided from scalar data here).
 #[derive(Clone, Copy, Debug)]
-enum SweptKind<T: Real> {
+pub(crate) enum SweptKind<T: Real> {
     Line,
     Arc {
         center: Point2<T>,
@@ -311,19 +311,19 @@ enum SweptKind<T: Real> {
 /// reversed for extrusion along `−n` — crate docs), with its canonical
 /// indices for error reporting.
 #[derive(Clone, Copy, Debug)]
-struct SweptSeg<T: Real> {
+pub(crate) struct SweptSeg<T: Real> {
     /// Start point, sketch coordinates. Vertex `j` of the swept chain
     /// is segment `j`'s start.
-    a: Point2<T>,
+    pub(crate) a: Point2<T>,
     /// End point.
-    b: Point2<T>,
+    pub(crate) b: Point2<T>,
     /// The bulge in swept traversal (negated by reversal).
-    bulge: T,
-    kind: SweptKind<T>,
+    pub(crate) bulge: T,
+    pub(crate) kind: SweptKind<T>,
     /// Canonical index of the start vertex (for error reporting).
-    canonical_vertex: usize,
+    pub(crate) canonical_vertex: usize,
     /// Canonical index of the segment (for error reporting).
-    canonical_segment: usize,
+    pub(crate) canonical_segment: usize,
     /// The wall face's orientation sense (M5 S11): `false` iff the
     /// segment's wall has its material AGAINST the cylinder's chart
     /// normal — exactly the concave arcs. Exact stored structure, not
@@ -338,13 +338,13 @@ struct SweptSeg<T: Real> {
     /// circle alone, so the extrusion direction (the swept reversal)
     /// never enters. Line walls are Newell-outward by construction:
     /// always `true`.
-    wall_sense: bool,
+    pub(crate) wall_sense: bool,
 }
 
 /// Builds the swept traversal of one canonical loop: forward, or
 /// reversed via the profile crate's reversal involution (endpoints
 /// swapped, bulge negated, turn flipped).
-fn swept_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<SweptSeg<T>> {
+pub(crate) fn swept_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<SweptSeg<T>> {
     let segs = lp.segments();
     let n = segs.len();
     let mut out = Vec::with_capacity(n);
@@ -416,7 +416,7 @@ fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
 impl<T: Real> SweptSeg<T> {
     /// The segment as a `geom-brep` sketch segment (the description's
     /// authoritative source data).
-    fn sketch_segment(&self) -> SketchSegment<T> {
+    pub(crate) fn sketch_segment(&self) -> SketchSegment<T> {
         match self.kind {
             SweptKind::Line => SketchSegment::Line {
                 a: self.a,
@@ -449,7 +449,7 @@ fn arc_apex<T: Real>(s: &SweptSeg<T>) -> Point2<T> {
 /// three points and a 2-vertex cap has only two vertices — and they
 /// carry the traversal's winding faithfully (each sits between its
 /// segment's endpoints in loop order).
-fn cap_points<T: Real>(
+pub(crate) fn cap_points<T: Real>(
     segs: &[SweptSeg<T>],
     qs: &[Point3<T>],
     place: Affine3<T>,
@@ -469,7 +469,7 @@ fn cap_points<T: Real>(
 /// description, line/circle carrier per the crate docs' carrier
 /// conventions (arc axis = turn-signed plane normal, span θ =
 /// 4·atan|bulge| from the stored bulge).
-fn rim_spec<T: Real>(
+pub(crate) fn rim_spec<T: Real>(
     seg: &SweptSeg<T>,
     place: Affine3<T>,
     normal: Vec3<T>,
@@ -1274,7 +1274,10 @@ fn upgrade_rim<T: Decide>(
 
 /// Resolves a face's surface key (total: stale keys surface as the
 /// operator-layer typed error).
-fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, ExtrudeError> {
+pub(crate) fn face_surface_key<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<SurfaceKey, ExtrudeError> {
     Ok(body
         .get_face(face)
         .ok_or(EulerOpError::StaleKey {
