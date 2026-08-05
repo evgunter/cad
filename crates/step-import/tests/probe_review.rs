@@ -13,9 +13,18 @@ fn fixture(name: &str) -> String {
     .unwrap()
 }
 
-/// A3: at eps=1e-7 cone_trunc IMPORTS but tier 3 goes red in-band.
+/// A3, **retired** (the #89 in-band landing): at eps=1e-7 cone_trunc
+/// imports AND all three tiers are green. The landing was a
+/// dimensional-metering defect, not a scale/ε fact: `du_of_rims`
+/// metered the cone's rim-level difference — already a slant LENGTH —
+/// by `× arm`, manufacturing an area-dimensioned margin
+/// (5.590169943747308e-7 = separation √5/2 mm × arm 0.5 mm, m²) that
+/// sat inside `Band { 1e-7, 1e-6 }`. Metered honestly (bare), the
+/// margin is the rim separation itself, ≈1.118e-3 m — decisively out
+/// of that band. Scale-linearity of the fixed margin is pinned at
+/// `geom-brep/tests/rim_dim_scale_twins.rs`.
 #[test]
-fn a3_cone_trunc_imports_then_fails_tier3_at_1e7() {
+fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
     let eps = geom_core::Tolerance::get().eps;
     if eps != 1e-7 {
         println!("a3: SKIP (needs CAD_TOLERANCE_EPS=1e-7, have {eps:e})");
@@ -29,7 +38,7 @@ fn a3_cone_trunc_imports_then_fails_tier3_at_1e7() {
     assert_eq!(topo::validate_closed(&body), Ok(()));
     let g = topo::validate_geometric(&body);
     println!("a3 tier3 result: {g:?}");
-    assert!(g.is_err(), "expected the reported in-band tier-3 failure");
+    assert_eq!(g, Ok(()), "the in-band landing is retired: tier 3 is green");
 }
 
 /// A3 sweep: every fixture, all three tiers, report refusals/tier-fails.
