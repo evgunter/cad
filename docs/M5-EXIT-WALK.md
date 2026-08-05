@@ -184,3 +184,95 @@ failure mode the walk exists to prevent.
 
 Name still open (Evan's call; #107 shortlist). M5 did not gate on it,
 and this walk does not either.
+
+## Appendix (2026-08-05): the M5 roadmap done-state bullet as it
+## stood in DESIGN.md before the docs-rot compression (verbatim;
+## note the S-unit list was completed to S10–S13 and the shape-(v)
+## closure annotated at M6 before relocation)
+
+- **M5** — NURBS depth (sweeps/lofts); first SSI marching; constant-radius
+  fillets. Design record ratified: `docs/CURVED-DESIGN.md` (#85,
+  2026-07-24). *(Done-state recorded at the PR 14 exit sweep,
+  2026-08-03 — walk: `docs/M5-EXIT-WALK.md`. **Shipped**: the
+  interval-crate swap retiring inari and its LGPL stack from the tree
+  (#127); the C9 interval ring + projection/fitting/LSQ substrate
+  (#130, and PR 4); NURBS substrate parts 1–2; exact `Ellipse`
+  carriers with the C5 dispatch table (#141); SSI marching with the
+  three-limb certificate (#146) and its tensor-compose follow-on
+  (#149); certified pcurve storage in meters, seams with distinct
+  pcurves (#144); the BVH crate + sweep wiring, retiring the M3
+  boolean-sweep quadratic (#135); per-class curved booleans — plane×
+  cylinder, then plane×sphere — with the tangency regime and typed
+  touching refusals (#152, #154, #158, #164); `Loft`/`Sweep`
+  definitional nodes + schema v2 (#151); certified tessellation and
+  quadrature-based mass properties (#157); face-orientation sense
+  fixes (#155, #156); curved AP214 STEP export with FreeCAD
+  acceptance (#159); constant-radius fillets — cylinder bands, torus
+  rims, sphere-octant corners — and the die (#166); side units S1,
+  S2, S4, S6, S7, S8, S9, S10, S11, S12, S13. **The envelope moved,
+  not vanished**: seven
+  units are BANKED by name, with their doors typed and pinned —
+  composition surgery, the SSI generic-`T` lift, loft/sweep body
+  assembly, the canal-surface blend, cyl×sphere germ chords, the
+  NURBS extent lift, and curved REST contact (see the frontier
+  entries below). **Acceptance shape (v), honestly**: the
+  die-with-pips ships as TWO bodies — a fully blended blank and a
+  21-pip die, each tier-3 valid, watertight, and STEP-exported — and
+  they do not compose at M5. Both orderings refuse typed at two
+  different pre-existing frontiers (fillet→pip at the curved-pierce
+  door, which is unconditional and not a clearance verdict; pip→
+  fillet at the whole-body assembly front door). The in-place
+  edge-blend surgery that closes them is sized at one reviewed unit
+  and banked at the head of the main-path queue. Shape (v) is
+  therefore recorded **met piecewise**, not met whole. *(CLOSED at
+  M6 unit 1: the surgery landed and THE COMPOSED DIE — blank + 21
+  pips + 21 rim tori — is one tier-3 body with a certified
+  closed-form volume; the M5 pin flipped with its history,
+  `m5_pr12_die.rs::deviation_1_flipped_*`.)*
+  **Sequencing**: #161 ratified the boundary and the 2026-08-03
+  renumbering gave it names — M5 exit → **M6** (SSI generic-`T` lift
+  → loft/sweep assembly → composition surgery → analytic-chart
+  pcurves, plus the census/declared-contact design doc) → **M7**
+  (STEP adoption only) → **M8** (error propagation, formerly M6).)*
+  Banked M5 openers from the M4 exit (8c, 2026-07-27):
+  **curved STEP subset** (banked planar-only; DISCHARGED at M5 PR 13 —
+  the writer now emits `CYLINDRICAL_`/`CONICAL_`/`SPHERICAL_`/
+  `TOROIDAL_SURFACE` and `CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS`
+  as EXACT native AP214 entities, conics deliberately NOT via the
+  rational-quadratic form the schema makes unnecessary; every demo-tour
+  body exports and imports into FreeCAD, so the narrated curved
+  refusals are gone. Two frontiers remain named: a NURBS FACE, which
+  the loft-assembly unit mints, and the outward/void classification of
+  a MULTI-shell curved solid, whose divergence-theorem reduction is a
+  planarity identity with no closed-form curved counterpart);
+  **arc-leg
+  fillet sugar** (#101 R4 scoped `LoopBuilder::fillet` to line/line
+  corners; arc-leg is the noted follow-up, see #104); **REST-contact
+  join lane** (the crosslap mate is a pure rest contact — M3 envelope
+  frontier, `crosslap_rest.rs` pins both doors; banked at #102 R7);
+  **#89 K-revisit at the M5 exit** — **TAKEN (PR 14, 2026-08-03;
+  K-REPORT "M5 addendum")**: ≈1.76M samples/ε-row over the curved
+  corpus + demos, still zero in-band landings and zero
+  indeterminate/invalid at every ε row, so no candidate K converts
+  any decision. But the surface is no longer FLAT: the ε-coupled
+  quadrature family `props_quad_converged` puts real definite
+  margins at ~1.6e2–8.4e2 × ε, leaving K = 100 only 1.65× of
+  clearance and K = 30 only 5.5×, against K = 10's 16.5×. The
+  outcome is **#89 CLOSED, K = 10 the permanent ratified default**
+  (Evan, PR #169 comment 5171303851, 2026-08-03), with a testable
+  re-open trigger: any corpus showing IN-BAND LANDINGS, whose
+  expected first source is the M7 import corpus. The computed-SSI
+  evidence Finding 4 named still has not arrived (no `ssi_*`
+  predicate samples; M5's curved booleans resolve through exact
+  analytic carriers), and the renumbering puts that corpus at M7 —
+  but three corpora now agree, and the close carries a testable
+  trigger rather than waiting on evidence that keeps not arriving.
+  The `k-lint` advisory row's rule 1 is the standing detector.
+  Two code follow-ups are named and deliberately not taken in the
+  docs-only exit unit: re-deriving the large-K lint's stale
+  `BASELINE_FLOOR_MARGIN` (the M5 distribution sits under it — 102
+  advisory flags per hosted run), and a `Probe` lane that actually
+  reaches the SSI marcher; **interval-crate adoption decision** — the
+  in-house `interval-transcendentals` crate (adoption GREEN-LIT, see crate table) exists as
+  workspace-excluded tooling (#115); adopting it in the kernel's
+  interval lane is an M5-PLAN ratified decision, not a default.
