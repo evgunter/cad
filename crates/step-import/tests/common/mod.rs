@@ -1,5 +1,6 @@
 //! Shared helpers for the acceptance suites: fixture loading, sidecar
-//! parsing, censuses, and the kernel-vs-OCC count table.
+//! parsing (both the OCC-side `EXPECT_*` and kernel-side `KERNEL_*`
+//! field families), and censuses.
 //!
 //! **Comparison discipline (M7-1 spec §2 row 3):** every comparison in
 //! these suites is counts, certified scalars, or structural
@@ -47,6 +48,16 @@ pub fn fixture(name: &str, ext: &str) -> String {
 }
 
 /// A parsed `.expect` sidecar.
+///
+/// Two censuses live in one sidecar: `EXPECT_*` records what
+/// FreeCAD/OCC *reports after importing* the exported file (degenerate
+/// pole edges added, periodic carriers seam-split — normalisations
+/// that are exactly the healing D7 forbids, so the kernel keeps its
+/// own census), and `KERNEL_*` records the NATIVE body's census plus
+/// its certified volume at FULL precision (the literal is the export
+/// writer's round-tripping float printer's output). The `KERNEL_*`
+/// fields cannot rot: step-export's `tests/kernel_sidecars.rs`
+/// staleness row asserts them against the live kernel every run.
 #[derive(Clone, Debug)]
 pub struct Expect {
     pub solids: usize,
@@ -54,60 +65,38 @@ pub struct Expect {
     pub faces: usize,
     pub edges: usize,
     pub vertices: usize,
-    /// The raw `EXPECT_VOLUME_MM3` literal (for print-precision
-    /// derivation) and its parsed value.
-    pub volume_literal: String,
     pub volume_mm3: f64,
+    pub kernel_solids: usize,
+    pub kernel_shells: usize,
+    pub kernel_faces: usize,
+    pub kernel_edges: usize,
+    pub kernel_vertices: usize,
+    /// Parses back to the exact bits of (native certified volume ×
+    /// 1e9) — the printer's round-trip guarantee.
+    pub kernel_volume_mm3: f64,
 }
 
 /// Parses a `.expect` sidecar's `KEY=value` lines.
 pub fn expect_sidecar(name: &str) -> Expect {
     let text = fixture(name, "expect");
-    let get = |key: &str| -> Option<String> {
+    let get = |key: &str| -> String {
         text.lines()
             .find_map(|l| l.strip_prefix(&format!("{key}=")).map(str::to_owned))
+            .unwrap_or_else(|| panic!("{name}.expect: missing {key}= line"))
     };
-    let volume_literal = get("EXPECT_VOLUME_MM3").expect("volume line");
     Expect {
-        solids: get("EXPECT_SOLIDS").unwrap().parse().unwrap(),
-        shells: get("EXPECT_SHELLS").unwrap().parse().unwrap(),
-        faces: get("EXPECT_FACES").unwrap().parse().unwrap(),
-        edges: get("EXPECT_EDGES").unwrap().parse().unwrap(),
-        vertices: get("EXPECT_VERTICES").unwrap().parse().unwrap(),
-        volume_mm3: volume_literal.parse().unwrap(),
-        volume_literal,
-    }
-}
-
-/// The **kernel** census a faithful import must produce where it
-/// differs from the sidecar's OCC-normalised edge count. The sidecars
-/// record what FreeCAD/OCC *reports after import*, and on five
-/// fixtures OCC adds degenerate pole edges or splits periodic
-/// carriers at seams — normalisations that are exactly the healing D7
-/// forbids, so the kernel keeps its own census. Each entry's kernel
-/// counts are the ones the sidecar's own comments state
-/// (deviation 1 in the M7-1 report). `None` means the sidecar is the
-/// kernel census verbatim.
-pub fn kernel_census_override(name: &str) -> Option<(usize, usize, usize)> {
-    // (faces, edges, vertices)
-    match name {
-        // ball.expect: "Kernel census is 2 faces / 2 edges / 2
-        // vertices. OCC reports 6 EDGES" (+4 degenerate pole edges).
-        "ball" => Some((2, 2, 2)),
-        // cone.expect: "Kernel census is 4 faces / 6 edges / 4
-        // vertices; OCC reports 8 EDGES" (+2 degenerate apex edges).
-        "cone" => Some((4, 6, 4)),
-        // filleted_die.expect: "OCC splits the periodic corner-arc
-        // carriers at their seams, so its edge and vertex counts
-        // exceed the kernel's 48/24".
-        "filleted_die" => Some((26, 48, 24)),
-        // die_pips.expect: "Kernel census is 48 faces / 96 edges / 71
-        // vertices. OCC reports 138 EDGES" (+2 per pip).
-        "die_pips" => Some((48, 96, 71)),
-        // composed_die.expect: "Kernel counts are 89 faces / 195
-        // edges / 129 vertices" (OCC splits periodic carriers).
-        "composed_die" => Some((89, 195, 129)),
-        _ => None,
+        solids: get("EXPECT_SOLIDS").parse().unwrap(),
+        shells: get("EXPECT_SHELLS").parse().unwrap(),
+        faces: get("EXPECT_FACES").parse().unwrap(),
+        edges: get("EXPECT_EDGES").parse().unwrap(),
+        vertices: get("EXPECT_VERTICES").parse().unwrap(),
+        volume_mm3: get("EXPECT_VOLUME_MM3").parse().unwrap(),
+        kernel_solids: get("KERNEL_SOLIDS").parse().unwrap(),
+        kernel_shells: get("KERNEL_SHELLS").parse().unwrap(),
+        kernel_faces: get("KERNEL_FACES").parse().unwrap(),
+        kernel_edges: get("KERNEL_EDGES").parse().unwrap(),
+        kernel_vertices: get("KERNEL_VERTICES").parse().unwrap(),
+        kernel_volume_mm3: get("KERNEL_VOLUME_MM3").parse().unwrap(),
     }
 }
 

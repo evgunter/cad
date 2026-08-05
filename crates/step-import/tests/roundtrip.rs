@@ -6,48 +6,69 @@
 
 mod common;
 
-use common::{
-    SOLID_FIXTURES, census, expect_sidecar, fixture, import_body, kernel_census_override,
-};
+use common::{SOLID_FIXTURES, census, expect_sidecar, fixture, import_body};
 
-/// Row 1 per fixture: census against the sidecar (kernel counts where
-/// the sidecar records OCC normalisation — `kernel_census_override`),
-/// certified volume against `EXPECT_VOLUME_MM3 × 1e-9` m³, and the
-/// validity ladder at default ε.
+/// Row 1 per fixture: census against the sidecar's `KERNEL_*` fields
+/// (the NATIVE census — the `EXPECT_*` counts record OCC's import-side
+/// normalisations, which D7 forbids the kernel to mirror), certified
+/// volume against `KERNEL_VOLUME_MM3 × 1e-9` m³, and the validity
+/// ladder at default ε.
+///
+/// Solids and shells alone come from `EXPECT_*`: STEP cannot state
+/// solid grouping (a `MANIFOLD_SOLID_BREP` is exactly one closed shell
+/// as one solid), so the FILE's solid structure is what a faithful
+/// import reproduces — `kiss_assembly` is natively 1 solid / 2 shells
+/// and imports as the sidecar's 2 / 2, the divergence its comment
+/// documents; `KERNEL_SOLIDS` pins the native side, which no import of
+/// the exported file can reach.
 fn committed_corpus_row(name: &str) {
     let (body, _eps) = import_body(name);
     let expect = expect_sidecar(name);
-    let (faces, edges, vertices) =
-        kernel_census_override(name).unwrap_or((expect.faces, expect.edges, expect.vertices));
     assert_eq!(
         census(&body),
-        (expect.solids, expect.shells, faces, edges, vertices),
+        (
+            expect.solids,
+            expect.shells,
+            expect.kernel_faces,
+            expect.kernel_edges,
+            expect.kernel_vertices
+        ),
         "{name}: census (solids, shells, faces, edges, vertices)"
     );
 
-    // Volume tolerance derivation (spec row 1): the quadrature's own
-    // certified bound is `volume_pad` (zero for closed-form-only
-    // bodies); the sidecar's print precision is half the last
-    // significant printed decimal place of the literal
-    // (`print_precision_mm3`); plus one f64 ulp of the expected value
-    // PER FACE for the closed forms' own rounded accumulation — the
-    // volume is a fixed-order sum of per-face contributions, each
-    // rounded (exact only on dyadic inputs), so the roundoff budget
-    // scales with the number of summands (die_pips' 48 faces land a
-    // measured 6.00 ulps off the printed analytic value).
+    // Volume tolerance derivation (spec row 1): `KERNEL_VOLUME_MM3` is
+    // FULL precision — the committed literal is the export writer's
+    // round-tripping printer's output for (native certified volume ×
+    // 1e9), asserted against the live kernel by step-export's
+    // staleness row — so there is NO print-precision slop term. The
+    // remaining budget is the quadrature pad plus ulp accounting:
+    //   * `volume_pad`, twice: the certified half-width of a
+    //     quadrature volume's enclosure (zero for closed-form-only
+    //     bodies). The native side's pad is not recorded in the
+    //     sidecar, but the printer round-trips every real in the file,
+    //     so the imported body rebuilds bit-identical carriers and its
+    //     own recomputed pad stands in for the native one.
+    //   * `kernel_faces` ulps of the expected value, twice: each side's
+    //     volume is a fixed-order sum of per-face contributions, each
+    //     rounded (exact only on dyadic inputs), and the two sums may
+    //     accumulate in DIFFERENT arena orders (import traversal need
+    //     not match construction order) — so each side sits up to
+    //     `faces` ulps from the exact value.
+    //   * 2 ulps for the mm³ round-trip: × 1e9 at print time and
+    //     × 1e-9 here each round once (neither scale is a power of
+    //     two).
     let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
-    let expected_m3 = expect.volume_mm3 * 1e-9;
-    let print_precision_m3 = print_precision_mm3(&expect.volume_literal) * 1e-9;
-    let ulps = (faces as f64) * (expected_m3.next_up() - expected_m3);
-    let tolerance = props.volume_pad + print_precision_m3 + ulps;
+    let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
+    let ulp = expected_m3.next_up() - expected_m3;
+    let ulps = (2.0 * expect.kernel_faces as f64 + 2.0) * ulp;
+    let tolerance = 2.0 * props.volume_pad + ulps;
     assert!(
         (props.volume - expected_m3).abs() <= tolerance,
-        "{name}: volume {} m³ vs expected {} m³ (tolerance {}: pad {} + print {} + ulps {})",
+        "{name}: volume {} m³ vs native {} m³ (tolerance {}: 2×pad {} + ulps {})",
         props.volume,
         expected_m3,
         tolerance,
         props.volume_pad,
-        print_precision_m3,
         ulps
     );
 
@@ -56,26 +77,6 @@ fn committed_corpus_row(name: &str) {
     assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
     assert_eq!(topo::validate_geometric(&body), Ok(()), "{name}: tier 3");
-}
-
-/// Half the last *significant* printed decimal place of a sidecar
-/// volume literal, in mm³ — the standard significant-figures reading:
-/// `952914984` → 0.5; `4188790204.7863903` → 5e-8; `965231000`
-/// (three non-significant trailing zeros — the filleted die's value
-/// was rounded to the nearest 1000 mm³; the exact value is
-/// ≈965230999.48) → 500; `3000000000.0` → 0.05; exact scientific
-/// forms (`1e9`, `8.75e8`) → 0 (closed-form exact, printed exactly).
-fn print_precision_mm3(literal: &str) -> f64 {
-    if literal.contains(['e', 'E']) {
-        return 0.0;
-    }
-    match literal.split_once('.') {
-        None => {
-            let trailing_zeros = literal.len() - literal.trim_end_matches('0').len();
-            0.5 * 10f64.powi(trailing_zeros as i32)
-        }
-        Some((_, frac)) => 0.5 * 10f64.powi(-(frac.len() as i32)),
-    }
 }
 
 #[test]
