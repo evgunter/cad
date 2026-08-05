@@ -899,6 +899,36 @@ impl<'a> Resolver<'a> {
                 uses: b.uses.clone(),
             })
             .collect();
+        // **A ring on a curved face (M7-4).** The kernel's mass
+        // properties have no construction for one — its curved patches
+        // are swept UV rectangles, and `topo::mass_properties` says so
+        // by name (`RingOnCurvedFace`), which makes tier-3 validity
+        // refuse with it. This crate promises a body that is
+        // tier-valid at rest, so the honest place to stop is here,
+        // naming the face, rather than at the far end holding a body
+        // whose volume nothing can compute.
+        //
+        // What arrives this way is not a hole: it is Open CASCADE's
+        // SEAMLESS periodic face — a cylinder's lateral band, or a
+        // fillet torus's, stated as its two rim circles with no seam
+        // generator between them. The kernel's own writer never emits
+        // one (it splits a periodic face at its seam), and the remedy
+        // is the same family as the sphere/cone/torus re-mints already
+        // in `normalize`: split the band into half-faces joined by
+        // minted generators at a chosen azimuth. That is a unit of
+        // work, not a line, and it is recorded rather than guessed at.
+        if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
+            return Err(StepImportError::Topology {
+                id,
+                what: "a curved ADVANCED_FACE with more than one bound — either an \
+                       interior ring on a curved patch or Open CASCADE's seamless \
+                       periodic band (two rim circles, no seam generator). The kernel \
+                       has no volume construction for a curved face with rings, so \
+                       adopting it would hand back a body that is not tier-3 valid; \
+                       re-minting the band as half-faces is the remedy and is not \
+                       done here",
+            });
+        }
         let outer = self.outer_bound_index(id, &surface, &loops, &bound_specs, edges)?;
         loops[outer].outer = true;
         // The outer bound leads (assembly reads `loops[0]` as the
