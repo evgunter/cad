@@ -104,6 +104,8 @@ mod m6_surgery;
 mod m6_surgery_interval;
 #[path = "m6_tube.rs"]
 mod m6_tube;
+#[path = "m7_skin_integral.rs"]
+mod m7_skin_integral;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
