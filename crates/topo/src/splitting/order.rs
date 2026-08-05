@@ -61,16 +61,23 @@ pub(super) fn exact_band() -> Result<Band, BandError> {
 /// The deterministic in-plane frame `(u, v)` (module docs). Returns
 /// `Err` with the last arm diagnostics only if every schedule member
 /// projects degenerately — unreachable for a unit normal (the three
-/// axes are members).
+/// axes are members). `arm` is the caller's lever arm in meters (the
+/// spread of the points to be ordered): the SCHEDULE triples are bare
+/// numbers, so the projected norm alone would be a dimensionless
+/// comparand against the length band (rim-dimensional audit, class
+/// (c)); the honest margin is `sin(member, plane NORMAL) × arm` (the
+/// member's in-plane fraction `|d|/|r|`) — the in-plane displacement
+/// the frame direction commands at the data's own scale.
 pub(super) fn in_plane_frame<T: Decide>(
     plane: &SplitPlane<T>,
+    arm: T,
     band: Band,
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
     let mut last = None;
     for r in &super::containment::SCHEDULE {
         let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
         let d = r - plane.normal * plane.normal.dot(r);
-        match decide("split_join_frame_arm", d.norm(), band) {
+        match decide("split_join_frame_arm", d.norm() / r.norm() * arm, band) {
             Ok(Sign::Positive) => {
                 let u = d.normalize();
                 return Ok((u, plane.normal.cross(u)));
@@ -130,7 +137,18 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     band: Band,
     exact: Band,
 ) -> Result<Vec<usize>, Indeterminate> {
-    let frame = in_plane_frame(plane, band)?;
+    // Fewer than two points sort trivially — no frame (and no arm)
+    // is needed.
+    if points.len() < 2 {
+        return Ok((0..points.len()).collect());
+    }
+    // The lever arm for the frame gate: the points' own spread from
+    // the plane origin (evaluation-lane fold, meters).
+    let mut arm = T::zero();
+    for p in points {
+        arm = arm.max((*p - plane.origin).norm());
+    }
+    let frame = in_plane_frame(plane, arm, band)?;
     let mut order: Vec<usize> = (0..points.len()).collect();
     for i in 1..order.len() {
         let mut j = i;
@@ -192,7 +210,7 @@ mod tests {
         let band = Band::linear().unwrap();
         let exact = exact_band().unwrap();
         let plane = plane_y1();
-        let frame = in_plane_frame(&plane, band).unwrap();
+        let frame = in_plane_frame(&plane, 1.0, band).unwrap();
         let a = p3(1.0, 1.0, 0.0);
         let b = p3(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
         let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();

@@ -185,8 +185,12 @@ pub fn oriented_plane_eq<T: Decide>(
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
     }
     // Parallel (within band): orientation sign from the normal dot
-    // (definite by construction when the cross is ~0 and both unit).
-    let sign_margin = p1.normal.dot(p2.normal);
+    // (definite by construction when the cross is ~0 and both unit),
+    // metered at the caller's lever arm — a unit·unit cosine is
+    // dimensionless, and the length band wants the displacement the
+    // orientation flip induces at the arm (rim-dimensional audit,
+    // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
+    let sign_margin = p1.normal.dot(p2.normal) * arm;
     let sigma = match decide("bool_plane_orient", sign_margin, band) {
         Ok(Sign::Positive) => T::one(),
         Ok(Sign::Negative) => -T::one(),
@@ -249,7 +253,8 @@ fn declared_rung<T: Decide>(
         // In-band parallelism does not contradict the declaration.
         Err(_) => {}
     }
-    let same_orient = match decide("bool_plane_orient", p1.normal.dot(p2.normal), band) {
+    // Metered at the arm like the undeclared rung (class (c) above).
+    let same_orient = match decide("bool_plane_orient", p1.normal.dot(p2.normal) * arm, band) {
         Ok(Sign::Positive) => true,
         Ok(Sign::Negative) => false,
         Ok(Sign::Zero) => {
