@@ -700,3 +700,25 @@ difficulty L logged pre-assignment at task creation) WAITS for
 the ev/ci-test-collapse PR to merge — the collapse is
 restructuring the exact test trees this unit touches, and my
 one cargo slot (under the 1+1 split) is occupied by it.
+
+**M6-3 PARTIAL SEAM REACHED (2026-08-05, PR #192 open, UNMERGED,
+branch dbf9e82): Legs A-C + the Leg-D writer half DONE** — the
+loft/sweep builder (IsoCurve seams, Pcurve::IsoLine +
+MapResidualIsoHull, both tier-3 flips via is_placeholder /
+Seam-idiom exemption, the exact i128-rational Newton-Cotes flux
+door at 0.3s, B_SPLINE_SURFACE both writer arms, Band-4
+loft_prism at V=9 bracket-pinned, tour narration live). NOT
+STARTED (listed verbatim in the PR): Leg D fixture half, Leg E
+(chart completion), Leg F (tube_along_arc), §7 remainder,
+dedicated Interval rows. Six numbered deviations — note dev 1:
+NURBS surface AREA is SUPPLIED (fixed-resolution hull enclosure
+with honest area_pad) because check 7's meter consumes it — the
+spec's own anticipated reportable case; the eventual review
+should attack that enclosure. Dev 3 ReversedStacking refusal;
+dev 6 = the wrap itself. Full battery green at default ε; one
+pre-existing aggregated-binary flake noted (tolerance_init,
+moot under nextest isolation — a #179 follow-up candidate).
+RESUME PLAN: a follow-up dispatch finishes the listed legs on
+this branch (warm lane m6-3-loft held, slot 1 idle), then ONE
+adversarial review covers the whole unit, then merge + A/B row
+(fable, L).
