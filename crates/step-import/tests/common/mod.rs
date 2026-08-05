@@ -72,8 +72,14 @@ pub struct Expect {
     pub kernel_edges: usize,
     pub kernel_vertices: usize,
     /// Parses back to the exact bits of (native certified volume ×
-    /// 1e9) — the printer's round-trip guarantee.
+    /// 1e9) — the printer's round-trip guarantee. For quadrature
+    /// bodies this is the enclosure MIDPOINT at the corpus's declared
+    /// uncertainty ε = 1e-9 (the enclosure is a function of ambient
+    /// ε); the bracket is `± kernel_volume_pad_mm3`.
     pub kernel_volume_mm3: f64,
+    /// The certified half-width of the native volume enclosure at
+    /// ε = 1e-9, in mm³ — `0.0` for closed-form-only bodies.
+    pub kernel_volume_pad_mm3: f64,
 }
 
 /// Parses a `.expect` sidecar's `KEY=value` lines.
@@ -97,6 +103,7 @@ pub fn expect_sidecar(name: &str) -> Expect {
         kernel_edges: get("KERNEL_EDGES").parse().unwrap(),
         kernel_vertices: get("KERNEL_VERTICES").parse().unwrap(),
         kernel_volume_mm3: get("KERNEL_VOLUME_MM3").parse().unwrap(),
+        kernel_volume_pad_mm3: get("KERNEL_VOLUME_PAD_MM3").parse().unwrap(),
     }
 }
 

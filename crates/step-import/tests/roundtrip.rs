@@ -41,13 +41,14 @@ fn committed_corpus_row(name: &str) {
     // round-tripping printer's output for (native certified volume ×
     // 1e9), asserted against the live kernel by step-export's
     // staleness row — so there is NO print-precision slop term. The
-    // remaining budget is the quadrature pad plus ulp accounting:
-    //   * `volume_pad`, twice: the certified half-width of a
-    //     quadrature volume's enclosure (zero for closed-form-only
-    //     bodies). The native side's pad is not recorded in the
-    //     sidecar, but the printer round-trips every real in the file,
-    //     so the imported body rebuilds bit-identical carriers and its
-    //     own recomputed pad stands in for the native one.
+    // native volume is a certified enclosure `value ± pad` (pad zero
+    // for closed-form-only bodies, and a function of ambient ε for
+    // quadrature bodies — the sidecar records BOTH halves at the
+    // corpus's declared ε = 1e-9), and the imported volume is another
+    // certified enclosure of the SAME true volume at the ambient ε of
+    // this run. Both contain the true value, so the budget is the sum
+    // of the two half-widths — sound at EVERY ε row — plus ulp
+    // accounting:
     //   * `kernel_faces` ulps of the expected value, twice: each side's
     //     volume is a fixed-order sum of per-face contributions, each
     //     rounded (exact only on dyadic inputs), and the two sums may
@@ -59,16 +60,18 @@ fn committed_corpus_row(name: &str) {
     //     two).
     let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
+    let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
     let ulps = (2.0 * expect.kernel_faces as f64 + 2.0) * ulp;
-    let tolerance = 2.0 * props.volume_pad + ulps;
+    let tolerance = props.volume_pad + native_pad_m3 + ulps;
     assert!(
         (props.volume - expected_m3).abs() <= tolerance,
-        "{name}: volume {} m³ vs native {} m³ (tolerance {}: 2×pad {} + ulps {})",
+        "{name}: volume {} m³ vs native {} m³ (tolerance {}: pad {} + native pad {} + ulps {})",
         props.volume,
         expected_m3,
         tolerance,
         props.volume_pad,
+        native_pad_m3,
         ulps
     );
 

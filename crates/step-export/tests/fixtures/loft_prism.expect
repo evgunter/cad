@@ -32,15 +32,19 @@
 # printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
 # these lines against the live kernel). scripts/check_step.sh consumes
 # EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
-# Here the certified volume is a QUADRATURE enclosure midpoint (the
-# NURBS walls have no closed form), so it sits 8e-6 mm^3 off the exact
-# 9e9, inside the enclosure's certified pad.
+# Here the certified volume is a QUADRATURE enclosure (the NURBS walls
+# have no closed form): midpoint ± pad, both FUNCTIONS of ambient ε,
+# pinned at the corpus's declared uncertainty ε = 1e-9 — which is why
+# the midpoint sits 8e-6 mm^3 off the exact 9e9, inside the pad, and
+# why the staleness row byte-pins the pair only at ε = 1e-9 and asserts
+# enclosure overlap at other ε.
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
 KERNEL_FACES=6
 KERNEL_EDGES=12
 KERNEL_VERTICES=8
 KERNEL_VOLUME_MM3=9000000000.000008
+KERNEL_VOLUME_PAD_MM3=0.00010724754417879012
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=6
