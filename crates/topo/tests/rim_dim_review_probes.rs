@@ -28,6 +28,14 @@ const FIXED: &[&str] = &[
     "point_in_loop_arm",
     "split_join_frame_arm",
     "split_section_area",
+    // The F3+F4 unit's sites. `witness_at_mid_parameter` rides along
+    // as the CONTROL: it is not a fixed site, it is the predicate F3's
+    // funnel bypass was stealing attribution from, so its count here is
+    // the before/after evidence.
+    "bool_ring_run_winding",
+    "volume_backstop",
+    "volume_backstop_operand",
+    "witness_at_mid_parameter",
 ];
 
 #[test]
@@ -75,6 +83,33 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
             Some((n, nz)) => println!("FIRED {f}: {n} samples, {nz} nonzero"),
             None => println!("SILENT {f}"),
         }
+    }
+    // The F3 attribution pin (the funnel-bypass retirement). Before the
+    // fix this census read `witness_at_mid_parameter 123 samples, 5
+    // nonzero` and no `volume_backstop*` rows at all: the backstop's
+    // raw `sign_within` left the recorder's name unset, so its VOLUME
+    // margins were filed under whichever predicate had decided last.
+    // Now the volume gates carry their own rows and every remaining
+    // witness sample is a genuine coincident mid-parameter residual —
+    // a nonzero one would mean some margin is riding under this name
+    // again.
+    let witness = counts
+        .get("witness_at_mid_parameter")
+        .copied()
+        .expect("witness_at_mid_parameter fires in these configs");
+    assert_eq!(
+        witness.1, 0,
+        "stale-name attribution is back: {} of {} witness_at_mid_parameter \
+         samples carry a nonzero margin (its own samples are coincident \
+         residuals; nonzero ones belonged to the volume backstop)",
+        witness.1, witness.0
+    );
+    for gate in ["volume_backstop", "volume_backstop_operand"] {
+        assert!(
+            counts.get(gate).is_some_and(|c| c.1 > 0),
+            "{gate}: expected nonzero-margin samples under its OWN name \
+             (the F3 routing pin is vacuous otherwise)"
+        );
     }
 }
 

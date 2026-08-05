@@ -215,7 +215,22 @@ speculative — each row below states what it measured):
   volumes appear under their own names and scale ×1000, and
   `witness_at_mid_parameter`'s decisive list is EMPTY at both scales —
   its real samples are coincident residuals, exactly as the old
-  allowlist comment claimed. No verdict changed anywhere.
+  allowlist comment claimed.
+  **Third executed consequence, found by this unit and NOT previously
+  known: the cubic comparand was silently switching the backstop
+  OFF at mm scale.** `bounded` classified a raw m³ volume against the
+  linear band, so a 2 mm cube's 8e-9 m³ landed inside
+  `Band{1e-9, 1e-8}` at the default ε — indeterminate — and the code
+  reads an indeterminate operand as "not certifiably bounded" and
+  SKIPS its bound. The whole `vol(A∖B) ≤ vol(A)` check was therefore
+  vacuous on that boolean. Measured as a one-line census delta on the
+  twin fixtures (`witness_at_mid_parameter` 123 samples/5 nonzero →
+  118/0, plus `volume_backstop` 2/2 and `volume_backstop_operand` 4/4;
+  every one of the other 49 predicates byte-identical): five volume
+  decisions became six, the sixth being the restored check, which
+  passes. Metered as `V/A` the same operand answers 3.3e-4 m —
+  decisively bounded at every ε in the matrix. No verdict flipped; a
+  gate that had been skipping now runs.
 - **F4** `bool_ring_run_winding` (join.rs, merge_faces.rs,
   validate.rs — one predicate, three sites, all three moved together):
   the Newell AREA is divided by the region's boundary PERIMETER, giving
