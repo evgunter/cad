@@ -171,20 +171,69 @@ fn prefixed_unit_scales_instead_of_refusing() {
     );
 }
 
-/// Review MAJOR-1's case: a `CONVERSION_BASED_UNIT` length context —
-/// an inch file's normal form, carrying **no** `SI_UNIT` record at
-/// all — must refuse typed. The unit context is checked by
-/// RESOLUTION of `GLOBAL_UNIT_ASSIGNED_CONTEXT` (and the
-/// uncertainty's own `#unit`), so a foreign length unit can never
-/// import silently as metres.
+/// **The S9 flip of review MAJOR-1's case (M7-4 Leg B).** A
+/// `CONVERSION_BASED_UNIT` length context — an inch file's normal
+/// form, carrying **no** `SI_UNIT` record on the length at all — used
+/// to refuse typed, because a reader that assumed metres there would
+/// import the part at 1/25.4 scale without saying so. It now
+/// resolves, and the whole content of the flip is WHERE the number
+/// comes from: the conversion expression the file itself states. The
+/// history the refusal was protecting is kept by the second half of
+/// this test — a conversion whose factor is missing, or is not a
+/// length, still refuses typed and names the unit.
 #[test]
-fn conversion_based_unit_refuses_typed() {
-    let text = fixture("cube", "step").replace(
+fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
+    let plain = fixture("cube", "step");
+    let volume = |text: &str| {
+        let StepImport::Solid { body, .. } = import_step(text, &ImportOptions::default()).unwrap()
+        else {
+            panic!("a solid")
+        };
+        topo::mass_properties(&body).unwrap().volume
+    };
+    // The same metre unit, re-declared as an inch OVER that metre.
+    let inch = plain.replace(
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
+        "( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) );\n\
+         #9990 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0254), #9992);\n\
+         #9991 = DIMENSIONAL_EXPONENTS(1., 0., 0., 0., 0., 0., 0.);\n\
+         #9992 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
+    );
+    let ratio = volume(&inch) / volume(&plain);
+    assert!(
+        (ratio - 0.0254_f64.powi(3)).abs() <= 1e-9 * 0.0254_f64.powi(3),
+        "every length scaled by the file's own 0.0254: volume ratio {ratio}"
+    );
+    // A file that declared a DIFFERENT inch would import at ITS
+    // number — the point of reading the expression rather than the
+    // name. (Nothing here ever looks at the string 'INCH'.)
+    let odd = inch.replace("LENGTH_MEASURE(0.0254)", "LENGTH_MEASURE(0.0253)");
+    let ratio = volume(&odd) / volume(&plain);
+    assert!(
+        (ratio - 0.0253_f64.powi(3)).abs() <= 1e-9 * 0.0253_f64.powi(3),
+        "the file's arithmetic, not ours: volume ratio {ratio}"
+    );
+
+    // The history: a conversion factor that is not there is not a
+    // conversion, and neither is one that measures the wrong thing.
+    let dangling = plain.replace(
         "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
         "( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) )",
     );
-    let err = import_step(&text, &ImportOptions::default())
-        .expect_err("an inch-unit file must refuse, not scale-lie as metres");
+    assert!(
+        matches!(
+            import_step(&dangling, &ImportOptions::default()).expect_err("no factor"),
+            StepImportError::DanglingReference { to: 9990, .. }
+        ),
+        "a conversion whose factor entity is missing refuses typed"
+    );
+    let angular = inch.replace(
+        "#9990 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0254), #9992);",
+        "#9990 = PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.0254), #9993);\n\
+         #9993 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($, .RADIAN.) );",
+    );
+    let err = import_step(&angular, &ImportOptions::default())
+        .expect_err("a length declared over an angle is not a length");
     assert!(
         matches!(err, StepImportError::UnsupportedUnit { .. }),
         "expected UnsupportedUnit, got: {err}"

@@ -165,6 +165,15 @@ pub enum StepImportError {
         /// The minting pass's error, displayed.
         source: topo::PcurveMintError,
     },
+    /// The assembly's rigid placement refused at the kernel's own
+    /// [`topo::transform_rigid`] door (M7-4 Leg D): a map this
+    /// reader's ε_in classification let through that the kernel's
+    /// decided predicates would not, or a carrier that failed to
+    /// re-certify against the mapped geometry.
+    Placement {
+        /// The transform op's error, displayed.
+        source: topo::TransformError,
+    },
 }
 
 impl fmt::Display for StepImportError {
@@ -244,6 +253,11 @@ impl fmt::Display for StepImportError {
                     "step import: pcurve re-mint on the adopted body: {source}"
                 )
             }
+            Self::Placement { source } => write!(
+                f,
+                "step import: the assembly's rigid placement of the imported body \
+                 refused at the kernel’s transform door: {source:?}"
+            ),
         }
     }
 }

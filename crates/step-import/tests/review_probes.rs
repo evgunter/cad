@@ -413,29 +413,53 @@ fn g7_reversed_bound_is_honored_and_breaks_the_manifold() {
     }
 }
 
-/// G7: a non-unit VECTOR magnitude refuses typed, naming the vector.
+/// **G7, FLIPPED (M7-4 Leg C).** A non-unit `VECTOR` magnitude used
+/// to refuse typed, naming the vector. The wild made that refusal
+/// untenable — ST-Developer writes `10.` on every line — and it turned
+/// out to cost nothing: no trim parameter crosses the wire, so the
+/// carrier interval is re-derived from the vertices and the magnitude
+/// has nowhere to land. The probe now pins that the rescaled file is
+/// the SAME solid, and that a magnitude which is not a positive scale
+/// still refuses, naming the vector.
 #[test]
-fn g7_nonunit_vector_refuses() {
+fn g7_nonunit_vector_rescales_without_moving_the_solid() {
+    let plain = import_text(&fixture("cube", "step")).expect("the cube imports");
     let text = fixture("cube", "step")
         .replace("#12 = VECTOR('', #11, 1.0);", "#12 = VECTOR('', #11, 2.0);");
-    let err = import_text(&text).expect_err("a non-unit vector is outside the subset");
-    match err {
-        StepImportError::MalformedRecord { id, .. } => assert_eq!(id, 12),
-        other => panic!("expected MalformedRecord naming the VECTOR, got: {other}"),
+    let rescaled = import_text(&text).expect("any positive magnitude imports");
+    let (StepImport::Solid { body: a, .. }, StepImport::Solid { body: b, .. }) =
+        (&plain, &rescaled)
+    else {
+        panic!("both are solids");
+    };
+    assert_eq!(
+        topo::mass_properties(a).unwrap().volume,
+        topo::mass_properties(b).unwrap().volume,
+        "the line's parameter scale is not the line"
+    );
+    for bad in ["0.0", "-2.0"] {
+        let text = fixture("cube", "step").replace(
+            "#12 = VECTOR('', #11, 1.0);",
+            &format!("#12 = VECTOR('', #11, {bad});"),
+        );
+        match import_text(&text).expect_err("a non-positive magnitude describes no line") {
+            StepImportError::MalformedRecord { id, .. } => assert_eq!(id, 12),
+            other => panic!("expected MalformedRecord naming the VECTOR, got: {other}"),
+        }
     }
 }
 
-/// G7/Leg B attack: a length unit declared via CONVERSION_BASED_UNIT
-/// (no SI_UNIT record at all — e.g. an inch file) must refuse; if it
-/// imports, the file's scale has been silently misread as metres.
+/// **G7/Leg B attack, FLIPPED (M7-4 Leg B).** A length unit declared
+/// via `CONVERSION_BASED_UNIT` (no `SI_UNIT` record at all — an inch
+/// file) used to refuse, and the attack it was defending against is
+/// real: if such a file imports at metre scale, the part is silently
+/// 1/25.4 of its stated size. What retires the refusal is not
+/// tolerance for the entity but a resolved factor — so the attack is
+/// re-run here in its sharpest form: a conversion-based context whose
+/// factor entity is MISSING (the original probe's dangling `#9990`)
+/// must still refuse, because there is no number to scale by.
 #[test]
-fn g7_conversion_based_unit_must_refuse() {
-    // Fix-pass correction: the probe originally anchored on "#93 ="
-    // but cube.step's length unit is #155, so the replacement never
-    // matched and the probe ran on an UNCHANGED cube (vacuously Ok
-    // under both the old and new unit handling). Re-anchored id-free
-    // and asserted for real; the substitution is checked to have
-    // fired so the probe can never go vacuous again.
+fn g7_conversion_based_unit_without_a_factor_must_refuse() {
     let text = fixture("cube", "step").replace(
         "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) )",
         "( CONVERSION_BASED_UNIT('INCH', #9990) LENGTH_UNIT() NAMED_UNIT(#9991) )",
@@ -444,17 +468,10 @@ fn g7_conversion_based_unit_must_refuse() {
         text.contains("CONVERSION_BASED_UNIT"),
         "the unit substitution must have fired"
     );
-    // Review finding MAJOR-1, FIXED in the fix pass: the original
-    // probe pinned the then-buggy silent import (the unit check fired
-    // only on instances *containing* an SI_UNIT record, so this
-    // conversion-based context — with dangling unit refs #9990/#9991 —
-    // read as metres). The unit context is now checked by RESOLUTION
-    // of GLOBAL_UNIT_ASSIGNED_CONTEXT (and the uncertainty's #unit),
-    // so the probe asserts the required typed refusal.
-    let err = import_text(&text).expect_err("an inch-unit file must refuse typed");
+    let err = import_text(&text).expect_err("a factorless conversion unit must refuse typed");
     assert!(
-        matches!(err, StepImportError::UnsupportedUnit { .. }),
-        "expected UnsupportedUnit, got: {err}"
+        matches!(err, StepImportError::DanglingReference { to: 9990, .. }),
+        "expected the missing factor to be named, got: {err}"
     );
 }
 
