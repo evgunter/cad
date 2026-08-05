@@ -316,3 +316,10 @@ new geometry classes). Draw (after the difficulty commit):
 byte 114 → **(opus, fable)** — M7-4 = OPUS; fable remainder owed
 to the next eligible dispatch (expected: unit 3 NURBS-face
 import when M6's assembly lands). Hunt ~88k tokens, ~21min.
+
+**M7-4 DISPATCHED (2026-08-05)**: spec merged via #191 (license
+judgment calls flagged; dispatch not blocked on them —
+Evan can veto fixtures by comment); implementer (OPUS) on lane
+~/.local/share/cad-work/m7-4-wild, branch ev/m7-4-wild, slot 2;
+PR to be HELD for blinded review; report at
+~/.local/share/cad-work/m7-4-report.md.
