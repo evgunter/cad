@@ -408,3 +408,25 @@ M7-eligible dispatch). M7 unit 4 CLOSED; banked: the band-seam
 unit (flips ftc_11 + cq_red_cube back), the KERNEL_* consumer
 switch, unit 3 behind M6-3's completion — which is RUNNING
 (sole-orchestrator pickup, see M6-LOG).
+
+**du_of_rims DIMENSIONAL DEFECT diagnosed (2026-08-05, from
+Evan's probe of the #89 landing's area-dimensioned margin)**:
+geom-brep/src/props/curved.rs du_of_rims meters EVERY rim-level
+comparand by × arm, correct for the sphere/torus payloads
+(sin v / cos v, dimensionless) but WRONG for cylinder/cone
+(level = v, already a length) — the classify comparand becomes
+an AREA. Consequence on cone_trunc: the true rim separation is
+~5.6e-4 m ≈ 5590ε — decisively separated — and the ×arm(~1e-3)
+factor SHRANK it into the band; at large scale it would inflate
+instead. The #89 landing is therefore the detector catching a
+dimensional-metering bug, not scale policy evidence — #89
+comment to be corrected honestly. Evan approved the fix
+direction; the typed-margin design conversation (Length-typed
+classify seam with blessed constructor doors) is drafted AFTER
+the audit returns (its findings enumerate the doors). Also
+green-lit in-chat: KERNEL_* sidecar unit ("do whatever you want
+with the .expect files") — sequenced AFTER #192 merges (its
+completion adds the 15th fixture to the same directory).
+**A/B: du_of_rims fix + classify-comparand dimensional audit —
+difficulty M logged BEFORE dispatch; arm = FABLE (block M7-2
+remainder, predetermined at the byte-114 draw).**
