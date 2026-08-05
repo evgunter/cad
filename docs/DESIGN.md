@@ -847,6 +847,57 @@ applied to error handling. Five commitments:
    layer reads ε exactly once (pole vertex identification) and never
    for sizing; display-layer comparisons are deliberately not Q1
    predicates (none decide kernel topology).
+
+   **The margin dimensional convention (PROPOSED 2026-08-05; shaped
+   in-chat with Evan — non-generic erased annotations, his call —
+   from the du_of_rims / F3 / F4 defect family and the
+   predicate-dimension audit).** ε is a length: the maximum
+   deviation from specified geometry at a single point. Four
+   clauses make that semantics structural instead of conventional:
+   (i) **Margins are lengths, by signature.** The `classify`/Band
+   seam takes a `#[repr(transparent)]` `Length<T>` newtype (erased
+   at compile time; NO dimension algebra, no generic dimension
+   parameter — most kernel functions are single-kind per argument,
+   so the annotation is a signature fact, not a genericity layer).
+   The only constructors are blessed doors that make the dimension
+   argument explicit at the call site: a coordinate/parameter
+   difference that IS a length; a dimensionless quantity levered by
+   an arm; a norm; a volume defect over its perturbable boundary
+   area (mean displacement). A site where no door honestly fits is
+   a finding, not a cast. The vector/linalg interior stays bare `T`
+   (annotating `Vec3` ops would recreate the algebra problem); the
+   typed surface is where contracts are single-kind — which is
+   where every observed defect lived.
+   (ii) **No dimensionally-heterogeneous uniform payloads.** A
+   field whose dimension depends on a runtime kind tag (the
+   `Rim.level` shape that hid the ×arm defect) is illegal; kind-
+   dependent data lives in per-kind enum variants with honestly-
+   typed fields (`du_of_rims`' `RimLevel { Length(v), Unit(s,c) }`
+   is the pattern, #197).
+   (iii) **Parameter-space values cross to model space only through
+   per-kind metric doors.** Parameters are irreducibly kind-
+   dependent (axial length on a cylinder, latitude on a sphere) and
+   that is fine while arithmetic stays in parameter space; the
+   defect class is a parameter-space quantity reaching a model-
+   space comparison without the per-kind conversion. A struct
+   carrying parameter-space values ACROSS kind boundaries for
+   uniform consumption is the named smell.
+   (iv) **Inequality gates split sign from magnitude** (the F3/F4
+   fix-pass lesson, #200): a certified sign-certain violation of an
+   inequality is a dimension-free fact and refuses with no ε
+   involved; the banded, ε-scaled comparison governs only the
+   near-zero region where sign is uncertain — and both arms consume
+   the SAME metered comparand, since dividing by a certainly-
+   positive lever cannot move a sign but keeps the recorded margin
+   a length (K-telemetry attribution stays dimensionally honest).
+   Rollout: the classify seam first (every recorded margin becomes
+   `Length<T>` by signature); extension is opportunistic as
+   signatures get touched — no big-bang sweep. The migration ledger
+   is `docs/predicate-dimension-audit.md` (the audited family is
+   already clean by measurement; F12's expression-layer row is the
+   first out-of-family site the newtype would catch at compile
+   time). *Awaits Evan's ratification; a 👍 on the design PR flips
+   this PROPOSED → ratified with citation.*
    **The tessellation criterion is DISTANCE-ONLY (ruled in session
    2026-08-02/03, Evan + orchestrator concur; RATIFIED at the M5 PR
    14 exit sweep — Evan, PR #169 comment 5171303851,

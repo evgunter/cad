@@ -54,7 +54,7 @@ report the choice; ruststep's parser and truck-stepio's
 (both satisfy the ~2-week release-age policy).
 
 **Leg B — AP214 → kernel geometry.** The inverse of the writer's
-identity mapping (`memories/step-curved-subset.md`):
+identity mapping (`docs/CURVED-DESIGN.md` + the STEP writer identity mapping (M5 PR 13 record)):
 
 - Surfaces: PLANE, CYLINDRICAL_, CONICAL_, SPHERICAL_,
   TOROIDAL_SURFACE → the kernel's analytic surfaces;
@@ -123,7 +123,7 @@ test binaries; shared helpers in `tests/common`).
    byte-identical and the divergence classes for the rest.
 3. **Comparison discipline**: rows 1–2 compare counts, certified
    scalars, and structural invariants — never arena order against
-   walk order (`memories/step-curved-subset.md`'s trap: the
+   walk order (`docs/CURVED-DESIGN.md` + the STEP writer identity mapping (M5 PR 13 record)'s trap: the
    writer's traversal diverges from `Body::faces()` order on
    boolean results, which is most of this corpus).
 4. **nurbs_wireframe disposition**: the curve-only fixture
