@@ -294,9 +294,32 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
             &v(u_ref),
         ]
         .concat(),
-        // Unreachable for parsed subset surfaces (resolution refuses
-        // NURBS); a distinct tag keeps the map total anyway.
-        Surface::Nurbs(_) => vec![5u64],
+        // The full structural payload: degrees, knot values, control
+        // bits, weight bits (M7-3). A tag-only arm here was the
+        // silent-wrong-body trap: once NURBS surfaces parse, every
+        // wall in a body would share ONE surface key — four distinct
+        // walls collapsing to one surface, exactly the class of wrong
+        // the dedup exists to prevent — so the signature hashes every
+        // field the record states, like the analytic arms above.
+        // Counts lead each variable-length section so two payloads
+        // with different shapes cannot alias by concatenation.
+        Surface::Nurbs(ref payload) => {
+            let (nu, nv) = payload.control_counts();
+            let mut sig = vec![
+                5u64,
+                payload.knots_u().degree() as u64,
+                payload.knots_v().degree() as u64,
+                payload.knots_u().knots().len() as u64,
+                payload.knots_v().knots().len() as u64,
+                nu as u64,
+                nv as u64,
+            ];
+            sig.extend(payload.knots_u().knots().iter().map(|k| k.to_bits()));
+            sig.extend(payload.knots_v().knots().iter().map(|k| k.to_bits()));
+            sig.extend(payload.control().iter().flat_map(|q| p(*q)));
+            sig.extend(payload.weights().iter().map(|w| w.to_bits()));
+            sig
+        }
     }
 }
 
@@ -583,4 +606,82 @@ fn carrier_on_surface(
         let p = carrier.eval(t0 + (t1 - t0) * f);
         ((p - origin).dot(normal) / n).abs() <= eps
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_core::spline::KnotVector;
+    use geom_surfaces::NurbsSurface;
+
+    use super::*;
+
+    /// A degree-1×2 loft-wall-shaped surface whose control net is a
+    /// function of `dx` — two nets differing in one control coordinate.
+    fn wall(dx: f64) -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(dx, 0.0, 0.0),
+            Point3::new(dx, 0.0, 1.0),
+            Point3::new(dx, 0.0, 2.0),
+            Point3::new(dx + 1.0, 0.0, 0.0),
+            Point3::new(dx + 1.0, 0.0, 1.0),
+            Point3::new(dx + 1.0, 0.0, 2.0),
+        ];
+        let payload = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        Surface::Nurbs(std::sync::Arc::new(payload))
+    }
+
+    /// **The M7-3 surface_sig pin (spec §1 item 2).** Two DISTINCT
+    /// NURBS walls must get distinct signatures — the tag-only arm
+    /// (`vec![5u64]`) would silently share one surface key across
+    /// every wall of a body (the silent-wrong-body class) — while a
+    /// bitwise-identical record must still share (the dedup that
+    /// restores writer-side key sharing).
+    #[test]
+    fn distinct_nurbs_walls_get_distinct_signatures() {
+        let a = surface_sig(&wall(0.0));
+        let b = surface_sig(&wall(1.0));
+        assert_ne!(a, b, "distinct NURBS walls must not share a surface key");
+        assert_eq!(
+            a,
+            surface_sig(&wall(0.0)),
+            "bitwise-identical NURBS records must share one key"
+        );
+    }
+
+    /// The signature is a function of every stated field family:
+    /// weights and knots move it too, not just control points (a
+    /// rational wall differing only in weights is a different
+    /// surface).
+    #[test]
+    fn weights_and_knots_reach_the_signature() {
+        let base = wall(0.0);
+        let Surface::Nurbs(payload) = &base else {
+            unreachable!()
+        };
+        let mut weights = payload.weights().to_vec();
+        weights[1] = 2.0;
+        let reweighted = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(
+                payload.knots_u().clone(),
+                payload.knots_v().clone(),
+                payload.control().to_vec(),
+                weights,
+            )
+            .unwrap(),
+        ));
+        assert_ne!(surface_sig(&base), surface_sig(&reweighted));
+        let kv3 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let refined = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(
+                payload.knots_u().clone(),
+                kv3,
+                vec![Point3::new(0.0, 0.0, 0.0); 8],
+                vec![1.0; 8],
+            )
+            .unwrap(),
+        ));
+        assert_ne!(surface_sig(&base), surface_sig(&refined));
+    }
 }
