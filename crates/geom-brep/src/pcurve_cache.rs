@@ -750,12 +750,26 @@ pub trait PcurveFittedLane: Decide {
     /// The full C2 certificate of a fitted chart image against its
     /// operand pair, or `None` when this scalar has no certified lane.
     ///
+    /// The carrier arrives as the edge's own [`Curve3`] (M6-3): a
+    /// rung-3 `Curve3::Nurbs` feeds the SSI door directly; an exact
+    /// `Curve3::Circle` (the sphere chart's GENERAL-circle class,
+    /// walk row 4) is converted to its locus-exact rational-quadratic
+    /// chain for the certificate limbs — every limb consulted is a
+    /// statement about the LOCUS (on-locus hull, uniqueness tube), so
+    /// the chain's own parameter never enters the certified claim;
+    /// `t0`/`t1` name the traversed angular arc.
+    ///
     /// # Errors
     ///
     /// [`PcurveCertifyError::FittedCertificate`] when the SSI
-    /// certificate itself refuses — never from the "no lane" arm.
+    /// certificate itself refuses, or for a (Circle carrier, NURBS
+    /// operand) pairing — the NURBS limbs are parameter-coupled to a
+    /// traced pcurve a synthetic arc chain does not have. Never from
+    /// the "no lane" arm.
     fn fitted_certificate(
-        carrier: &NurbsCurve3<Self>,
+        carrier: &Curve3<Self>,
+        t0: Self,
+        t1: Self,
         image: &NurbsCurve2<Self>,
         surface: &Surface<Self>,
         mate: &Surface<Self>,
@@ -775,7 +789,9 @@ pub trait PcurveFittedLane: Decide {
 /// stored image to offer, so that pairing refuses typed inside the SSI
 /// door rather than being invented here.
 fn fitted_lane<T: Decide + geom_core::Bounds>(
-    carrier: &NurbsCurve3<T>,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
     image: &NurbsCurve2<T>,
     surface: &Surface<T>,
     mate: &Surface<T>,
@@ -787,6 +803,46 @@ fn fitted_lane<T: Decide + geom_core::Bounds>(
             other => SsiOperand::Analytic(other),
         }
     }
+    // The certificate's carrier spline: a rung-3 carrier IS one; an
+    // exact circle converts to its locus-exact rational-quadratic
+    // chain (trait docs — the limbs are locus statements, so the
+    // chain's rational parameter never enters the claim). The chain
+    // conversion is only honest against ANALYTIC operands: the NURBS
+    // limbs warm-start foot points from the traced pcurve at the SAME
+    // parameter, which a synthetic chain cannot offer.
+    let chain;
+    let spline: &NurbsCurve3<T> = match carrier {
+        Curve3::Nurbs(spline) => spline,
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            if matches!(surface, Surface::Nurbs(_)) || matches!(mate, Surface::Nurbs(_)) {
+                return Err(PcurveCertifyError::FittedCertificate {
+                    limb: None,
+                    what: "a Circle carrier's rational-chain certificate is written for \
+                           analytic operand pairs only (the NURBS limbs are \
+                           parameter-coupled to a traced pcurve)",
+                    value: f64::NAN,
+                });
+            }
+            chain = rational_arc_chain(*center, *axis, *radius, *u_ref, t0, t1).ok_or(
+                PcurveCertifyError::FittedCertificate {
+                    limb: None,
+                    what: "the circle arc's rational-quadratic chain refused to build \
+                           (degenerate span or malformed structure)",
+                    value: f64::NAN,
+                },
+            )?;
+            &chain
+        }
+        Curve3::Line { .. } | Curve3::Ellipse { .. } => {
+            return Err(PcurveCertifyError::UnsupportedCarrier);
+        }
+    };
+    let carrier = spline;
     // The lever arm and the tube ladder's widest rung, both from the
     // OBJECT BEING CERTIFIED rather than passed down a call chain that
     // has no better number: the carrier's own control-net diameter is
@@ -808,6 +864,72 @@ fn fitted_lane<T: Decide + geom_core::Bounds>(
     )
     .map(Some)
     .map_err(ssi_refusal)
+}
+
+/// The **locus-exact rational-quadratic chain** of a circle arc (Book
+/// §7.3): ≤ 90° Bézier segments, middle weight `cos(θ/2)`, middle
+/// point the tangent intersection `center + radial(m)·r/cos(θ/2)`.
+///
+/// The chain's LOCUS is the circle arc exactly (positive weights, the
+/// classic construction); its rational parameter is NOT the angle, so
+/// callers may consult it for locus statements only (the fitted
+/// certificate's on-locus hull and uniqueness tube — trait docs).
+/// Knot structure is `f64` (C6), read from the angular span's bracket
+/// midpoints; control points are exact at `T`. `None` for a
+/// degenerate (non-forward) span — the certificate's own forward-span
+/// check refuses those before this door is consulted.
+fn rational_arc_chain<T: Decide + geom_core::Bounds>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+) -> Option<NurbsCurve3<T>> {
+    let mid = |x: T| 0.5 * (x.lo() + x.hi());
+    let (f0, f1) = (mid(t0), mid(t1));
+    let span = f1 - f0;
+    // NaN-catching by design: only a definitely-forward finite span
+    // builds a chain.
+    if !(span > 0.0 && span.is_finite()) {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = (span / core::f64::consts::FRAC_PI_2).ceil().max(1.0) as usize;
+    let cv = axis.cross(u_ref);
+    let at = |t: f64| -> Point3<T> {
+        let (s, c) = T::from_f64(t).sin_cos();
+        center + (u_ref * c + cv * s) * radius
+    };
+    let seg = span / n as f64;
+    let w_mid = (seg / 2.0).cos();
+    let mut control: Vec<Point3<T>> = Vec::with_capacity(2 * n + 1);
+    let mut weights: Vec<f64> = Vec::with_capacity(2 * n + 1);
+    let mut knots: Vec<f64> = Vec::with_capacity(2 * n + 4);
+    knots.extend([f0, f0, f0]);
+    control.push(at(f0));
+    weights.push(1.0);
+    for i in 0..n {
+        let a = f0 + seg * i as f64;
+        let b = if i + 1 == n {
+            f1
+        } else {
+            f0 + seg * (i + 1) as f64
+        };
+        let m = 0.5 * (a + b);
+        let (s, c) = T::from_f64(m).sin_cos();
+        control.push(center + (u_ref * c + cv * s) * (radius / T::from_f64(w_mid)));
+        weights.push(w_mid);
+        control.push(at(b));
+        weights.push(1.0);
+        if i + 1 == n {
+            knots.extend([b, b, b]);
+        } else {
+            knots.extend([b, b]);
+        }
+    }
+    let kv = geom_core::spline::KnotVector::clamped(knots, 2).ok()?;
+    NurbsCurve3::new(kv, control, weights).ok()
 }
 
 /// The control-net diameter of a carrier, in metres — a convexity fact
@@ -872,13 +994,15 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
 
 impl PcurveFittedLane for f64 {
     fn fitted_certificate(
-        carrier: &NurbsCurve3<Self>,
+        carrier: &Curve3<Self>,
+        t0: Self,
+        t1: Self,
         image: &NurbsCurve2<Self>,
         surface: &Surface<Self>,
         mate: &Surface<Self>,
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, image, surface, mate, band)
+        fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
     fn lane_name() -> &'static str {
@@ -888,13 +1012,15 @@ impl PcurveFittedLane for f64 {
 
 impl PcurveFittedLane for geom_core::Probe {
     fn fitted_certificate(
-        carrier: &NurbsCurve3<Self>,
+        carrier: &Curve3<Self>,
+        t0: Self,
+        t1: Self,
         image: &NurbsCurve2<Self>,
         surface: &Surface<Self>,
         mate: &Surface<Self>,
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, image, surface, mate, band)
+        fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
     fn lane_name() -> &'static str {
@@ -905,13 +1031,15 @@ impl PcurveFittedLane for geom_core::Probe {
 #[cfg(feature = "interval")]
 impl PcurveFittedLane for geom_core::interval::Interval {
     fn fitted_certificate(
-        carrier: &NurbsCurve3<Self>,
+        carrier: &Curve3<Self>,
+        t0: Self,
+        t1: Self,
         image: &NurbsCurve2<Self>,
         surface: &Surface<Self>,
         mate: &Surface<Self>,
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, image, surface, mate, band)
+        fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
     fn lane_name() -> &'static str {
@@ -929,7 +1057,9 @@ where
     geom_core::Dual<T>: Decide,
 {
     fn fitted_certificate(
-        _carrier: &NurbsCurve3<Self>,
+        _carrier: &Curve3<Self>,
+        _t0: Self,
+        _t1: Self,
         _image: &NurbsCurve2<Self>,
         _surface: &Surface<Self>,
         _mate: &Surface<Self>,
@@ -1944,9 +2074,15 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
-    let Curve3::Nurbs(spline) = carrier else {
+    // Rung-3 NURBS carriers feed the SSI door directly; exact CIRCLE
+    // carriers are the sphere chart's general-circle class (M6-3,
+    // walk row 4) and enter through their locus-exact rational chain
+    // inside the lane (trait docs). Lines/ellipses have no fitted
+    // class anywhere — every line and every conic-on-its-own-chart is
+    // a closed-form citizen or a named refusal.
+    if !matches!(carrier, Curve3::Nurbs(_) | Curve3::Circle { .. }) {
         return Err(PcurveCertifyError::UnsupportedCarrier);
-    };
+    }
     let Some(mate) = mate else {
         return Err(PcurveCertifyError::FittedMateMissing);
     };
@@ -1985,7 +2121,7 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
 
     // ---- Check 4: the full C2 certificate, RE-DERIVED. ----
-    let Some(ssi) = T::fitted_certificate(spline, image, surface, mate, band)? else {
+    let Some(ssi) = T::fitted_certificate(carrier, t0, t1, image, surface, mate, band)? else {
         return Err(PcurveCertifyError::FittedLaneUnsupported {
             scalar: T::lane_name(),
         });
