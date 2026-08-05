@@ -429,4 +429,26 @@ with the .expect files") — sequenced AFTER #192 merges (its
 completion adds the 15th fixture to the same directory).
 **A/B: du_of_rims fix + classify-comparand dimensional audit —
 difficulty M logged BEFORE dispatch; arm = FABLE (block M7-2
-remainder, predetermined at the byte-114 draw).**
+remainder, predetermined at the byte-114 draw).** Dispatched on
+lane rim-dim-fix (slot 2), branch ev/rim-dimensional-fix; PR
+held for review. Design-conversation state from the in-chat
+thread: typed margins take Evan's NON-GENERIC shape (concrete
+erased newtypes, no dimension algebra) + Evan's follow-up
+principle candidate — no kind-dependent payloads — sharpened in
+chat to three clauses (Length-typed classify seam; no
+dimensionally-heterogeneous uniform payloads, per-kind enum
+variants instead; parameter-space→model-space crossings only
+through per-kind metric doors). DESIGN.md amendment drafts
+after the audit returns; waits for Evan.
+
+**Side chunk (Evan, in-chat, 2026-08-05): PNG timestamp strip**
+— OPUS by Evan's assignment, NO adversarial review (his call;
+orchestrator sanity-check + merge), A/B-EXEMPT (rows 16/41
+class). FreeCAD's saveImage stamps tEXt Creation Time + zTXt
+Description (MIBA XML CreationDate) into every render; pixels
+bit-identical (Evan-supplied IDAT-decode diagnosis). Unit:
+chunk-strip post-pass in the render pipeline + in-place
+normalization of the committed corpus (metadata-only, so no
+re-render/FreeCAD/cargo — both build slots stay with the live
+units); idempotence + IDAT-identity verification scripted.
+Lane render-stamp, branch ev/render-stamp-strip.
