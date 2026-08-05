@@ -17,10 +17,17 @@ use crate::StepExportError;
 
 /// Formats `value` as a Part 21 real literal (module docs).
 ///
+/// Public because this printer is also the FORMAT DEFINITION for the
+/// full-precision scalar fields in the fixture `.expect` sidecars
+/// (`KERNEL_VOLUME_MM3`): the sidecar staleness suite
+/// (`tests/kernel_sidecars.rs`) asserts the committed literal is
+/// exactly this function's output for the live kernel value, so the
+/// round-trip guarantee above carries over to the sidecars.
+///
 /// # Errors
 ///
 /// [`StepExportError::NonFiniteReal`] when `value` is NaN or ±∞.
-pub(crate) fn fmt_real(value: f64, context: &'static str) -> Result<String, StepExportError> {
+pub fn fmt_real(value: f64, context: &'static str) -> Result<String, StepExportError> {
     if !value.is_finite() {
         return Err(StepExportError::NonFiniteReal { value, context });
     }

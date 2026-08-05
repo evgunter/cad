@@ -52,6 +52,8 @@ for f in "${files[@]}"; do
     # file path travels via $STEP_FILE — a positional path would make
     # freecadcmd import the file a SECOND time as a document (see
     # step_import_check.py's header).
+    # KERNEL_* lines (the native kernel census, consumed by the cargo
+    # suites) do not match the EXPECT_ grep and are ignored here.
     if ! env $(grep -E '^EXPECT_[A-Z0-9_]+=' "$expect" | xargs) STEP_FILE="$f" \
         "$freecadcmd" "$repo_root/scripts/step_import_check.py"; then
         fail=1

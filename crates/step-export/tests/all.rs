@@ -32,12 +32,18 @@
 
 #[path = "export.rs"]
 mod export;
+#[path = "kernel_sidecars.rs"]
+mod kernel_sidecars;
 #[path = "m5_pr13_curved.rs"]
 mod m5_pr13_curved;
 #[path = "m5_s11_same_sense.rs"]
 mod m5_s11_same_sense;
 #[path = "orientation_oracle.rs"]
 mod orientation_oracle;
+#[path = "review_k4_probe.rs"]
+mod review_k4_probe;
+#[path = "review_pad_probe.rs"]
+mod review_pad_probe;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

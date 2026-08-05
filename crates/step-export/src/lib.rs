@@ -213,6 +213,8 @@ mod real;
 mod volume;
 mod writer;
 
+pub use real::fmt_real;
+
 /// Typed export failure (closed enum, D4 ¶3). Every variant names the
 /// offending entity or value — the writer never panics and never
 /// silently degrades output.
