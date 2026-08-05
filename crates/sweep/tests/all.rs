@@ -132,6 +132,8 @@ mod review_m5_pr9_base_props_probe;
 mod review_m5_pr9_boss_probe;
 #[path = "review_m5_pr9_inband_at_rest.rs"]
 mod review_m5_pr9_inband_at_rest;
+#[path = "review_m6_3_loft_probes.rs"]
+mod review_m6_3_loft_probes;
 #[path = "review_m6_surgery_probes.rs"]
 mod review_m6_surgery_probes;
 #[path = "review_pr12_probes.rs"]
