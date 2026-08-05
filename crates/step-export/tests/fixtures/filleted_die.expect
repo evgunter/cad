@@ -10,6 +10,18 @@
 # ball and donut fixtures already record. (Wording fixed per the M7-1
 # import review NOTE-7, issue #184: the old comment overclaimed on
 # vertices.)
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=26
+KERNEL_EDGES=48
+KERNEL_VERTICES=24
+KERNEL_VOLUME_MM3=965230999.476531
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=26

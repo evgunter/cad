@@ -8,6 +8,18 @@
 # in its own face model (2 real seam meridians + 4 degenerate). Faces,
 # vertices and the volume are unchanged -- OCC normalising a pole chart,
 # not a geometry difference.
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=2
+KERNEL_EDGES=2
+KERNEL_VERTICES=2
+KERNEL_VOLUME_MM3=4188790204.7863903
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=2

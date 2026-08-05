@@ -32,6 +32,8 @@
 
 #[path = "export.rs"]
 mod export;
+#[path = "kernel_sidecars.rs"]
+mod kernel_sidecars;
 #[path = "m5_pr13_curved.rs"]
 mod m5_pr13_curved;
 #[path = "m5_s11_same_sense.rs"]

@@ -26,6 +26,21 @@
 # numeric quadrature, but these walls are piecewise-POLYNOMIAL ruled
 # patches (degree 1x2), well inside GProp's Gauss order -- the local
 # run reads back 9000000000.0 exactly.
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+# Here the certified volume is a QUADRATURE enclosure midpoint (the
+# NURBS walls have no closed form), so it sits 8e-6 mm^3 off the exact
+# 9e9, inside the enclosure's certified pad.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=6
+KERNEL_EDGES=12
+KERNEL_VERTICES=8
+KERNEL_VOLUME_MM3=9000000000.000008
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=6

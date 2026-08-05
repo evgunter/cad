@@ -11,6 +11,18 @@
 # the kernel's. The volume is the Pappus closed form
 # (Steiner blank − 21·(cap + rim-torus term)) — FreeCAD's own measure
 # reproduces it to sub-mm³ on a ~0.95 m³ body.
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=89
+KERNEL_EDGES=195
+KERNEL_VERTICES=129
+KERNEL_VOLUME_MM3=952914984.0146472
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=89

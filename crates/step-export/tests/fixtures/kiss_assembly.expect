@@ -1,3 +1,21 @@
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+#
+# KERNEL_SOLIDS=1 vs EXPECT_SOLIDS=2 is a DOCUMENTED divergence, not an
+# error: natively this body is ONE solid carrying TWO kissing shells
+# (both outward), and STEP cannot state that grouping — a
+# MANIFOLD_SOLID_BREP carries exactly one closed shell — so the
+# exported file, and any faithful import of it, has 2 solids / 2
+# shells. The divergence IS the semantics of the two field families.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=2
+KERNEL_FACES=22
+KERNEL_EDGES=48
+KERNEL_VERTICES=32
+KERNEL_VOLUME_MM3=1750000000.0
 EXPECT_SOLIDS=2
 EXPECT_SHELLS=2
 EXPECT_FACES=22
