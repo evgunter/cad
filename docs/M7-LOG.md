@@ -408,3 +408,105 @@ M7-eligible dispatch). M7 unit 4 CLOSED; banked: the band-seam
 unit (flips ftc_11 + cq_red_cube back), the KERNEL_* consumer
 switch, unit 3 behind M6-3's completion — which is RUNNING
 (sole-orchestrator pickup, see M6-LOG).
+
+**du_of_rims DIMENSIONAL DEFECT diagnosed (2026-08-05, from
+Evan's probe of the #89 landing's area-dimensioned margin)**:
+geom-brep/src/props/curved.rs du_of_rims meters EVERY rim-level
+comparand by × arm, correct for the sphere/torus payloads
+(sin v / cos v, dimensionless) but WRONG for cylinder/cone
+(level = v, already a length) — the classify comparand becomes
+an AREA. Consequence on cone_trunc: the true rim separation is
+~5.6e-4 m ≈ 5590ε — decisively separated — and the ×arm(~1e-3)
+factor SHRANK it into the band; at large scale it would inflate
+instead. The #89 landing is therefore the detector catching a
+dimensional-metering bug, not scale policy evidence — #89
+comment to be corrected honestly. Evan approved the fix
+direction; the typed-margin design conversation (Length-typed
+classify seam with blessed constructor doors) is drafted AFTER
+the audit returns (its findings enumerate the doors). Also
+green-lit in-chat: KERNEL_* sidecar unit ("do whatever you want
+with the .expect files") — sequenced AFTER #192 merges (its
+completion adds the 15th fixture to the same directory).
+**A/B: du_of_rims fix + classify-comparand dimensional audit —
+difficulty M logged BEFORE dispatch; arm = FABLE (block M7-2
+remainder, predetermined at the byte-114 draw).** Dispatched on
+lane rim-dim-fix (slot 2), branch ev/rim-dimensional-fix; PR
+held for review. Design-conversation state from the in-chat
+thread: typed margins take Evan's NON-GENERIC shape (concrete
+erased newtypes, no dimension algebra) + Evan's follow-up
+principle candidate — no kind-dependent payloads — sharpened in
+chat to three clauses (Length-typed classify seam; no
+dimensionally-heterogeneous uniform payloads, per-kind enum
+variants instead; parameter-space→model-space crossings only
+through per-kind metric doors). DESIGN.md amendment drafts
+after the audit returns; waits for Evan.
+
+**Side chunk (Evan, in-chat, 2026-08-05): PNG timestamp strip**
+— OPUS by Evan's assignment, NO adversarial review (his call;
+orchestrator sanity-check + merge), A/B-EXEMPT (rows 16/41
+class). FreeCAD's saveImage stamps tEXt Creation Time + zTXt
+Description (MIBA XML CreationDate) into every render; pixels
+bit-identical (Evan-supplied IDAT-decode diagnosis). Unit:
+chunk-strip post-pass in the render pipeline + in-place
+normalization of the committed corpus (metadata-only, so no
+re-render/FreeCAD/cargo — both build slots stay with the live
+units); idempotence + IDAT-identity verification scripted.
+Lane render-stamp, branch ev/render-stamp-strip.
+*(MERGED as #196, 27/27; sanity-checked — surviving chunks are
+the deterministic Author/Software/Title; lane cleaned.)*
+
+**CPU PIN LIVE AGAIN (2026-08-05, canary 18.5s → 43.8s — worst
+recorded)**: Evan terminal-pushed; both live lanes scoped down
+to narrowest-local-signal + hosted-CI-carries-the-matrix; the
+600s tool-timeout hazard relayed. One waiter-park caught on the
+rim-dim lane (parked on its own topo battery), un-parked with
+the standard nudge.
+
+**Rim-dimensional unit COMPLETE (2026-08-05): PR #197 open,
+HELD; review DISPATCHED.** Defect confirmed by execution TWICE
+pre-coding (byte-exact landing reproduction + a native Probe
+twin with the quadratic scale signature); honest correction to
+my briefed number (true slant separation √5/2 mm = 1.118e-3 m —
+my 5.6e-4 had the arm folded in). Fix = RimLevel enum
+(Length(v) | Unit(s,c)) — the per-kind structural shape from
+the design thread; mixed-kind comparisons poison typed.
+Scale-twin pins (pre-fix ratio 1e6 → post-fix exactly 1000);
+the A3 landing pin retired sanctioned. AUDIT: ~120 comparand
+rows (docs/predicate-dimension-audit.md); EIGHT dimensionless
+comparands fixed inline (bool_join_facing ×2, bool_strut_order,
+bool_plane_orient ×2, pm_census_ee_parallel, point_in_loop_arm,
+split_join_frame_arm + split_section_area factor-2); headline
+DEFERRED finding F5: pcurve_chart_radial_moving's comparand is
+an AREA — same class — and may partly underlie the freecad
+CORPUS_EPS_CEILING (not raced: pcurve_cache.rs is an M6-3
+collision file; ceiling re-derivation = own unit, BANKED);
+F2-F11 deferred with dispositions; six notes feed the
+typed-margin design. K delta: exactly one line (the landing
+retires) + one masked false-coincidence retired; nothing else
+moved. Review attacks: the 8 changed decision comparands
+(riskiest surface), grouping-verdict invariance, scale-twin
+re-derivation, audit-coverage independent sweep, F5 basis.
+Impl ~290k tokens, ~3h wall under the pin.
+
+**Rim-dim review returned (2026-08-05): APPROVE-WITH-FIXES,
+1 MAJ / 2 MIN / 5 NOTE, rubric 5/4/4, 7/7 deviations honest.**
+The fix/audit/retirement all HELD — and R1 found the fix
+corrects real VERDICT FLIPS, not just margins (pre-fix silently
+grouped 50ε-separated rims on a small body and spuriously
+refused 0.5ε-coincident rims on a large one; post-fix honest
+both directions). MAJ = the unit's own boolean-twin pin red on
+3 hosted jobs: not ε-row-honest (at 1e-6 the mm twin hits
+deferred F4's in-band area margin — .expect'd success; at 1e-12
+the witness ratio assert fires on scale-invariant margins).
+**F4 PRIORITY UPGRADED by execution**: bool_ring_run_winding's
+area margin lands in Band{1e-6,1e-5} on REAL mm booleans at a
+CI ε row — the banked dimensional unit (F4+F5 + ceiling
+re-derivation) is sequenced IMMEDIATELY after the M6-3 merge.
+R6 also executed the F5 linkage: the freecad cylinder refusal
+at ε=1e-7 IS pcurve_chart_radial_moving, margin 5e-7 = 2r²
+in-band. split_section_area's spec factor confirmed (2A/P; old
+code 4A/P). Fix pass dispatched (inherits fable): per-ε-row pin
+expectations with the three-outcome structure; scale-invariant
+margins asserted AS invariant (stronger than exemption);
+reviewer probes adopted; sphere pole-degeneracy audit note.
+Review ~154k tokens, ~51min under the pin.

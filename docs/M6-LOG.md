@@ -675,3 +675,68 @@ tube_along_arc rider, §7 sweep incl. the lily.rs stale line,
 §9.3 interval rows); deviations numbered from 7; ONE adversarial
 review of the whole unit follows completion. M7-4's fix pass
 runs concurrently on slot 2.
+
+**M6-3 completion DELIVERED (2026-08-05): PR #192 fully green
+(27/27 on dd4131d), every spec leg + every NOT-started row
+landed; whole-unit blinded review DISPATCHED.** Six red jobs
+root-caused and fixed first (clippy/interval test-side allow;
+quad.rs x*x → powi(2); CARGO_TARGET_TMPDIR create_dir_all at
+both dump sites). Walk row 4's closer landed: cone/sphere/torus
+charts certify and mint closed-form classes; ball/cone/donut +
+die octants carry stored pcurves AT REST; sphere general
+circles via certify_fitted's Circle-carrier rational-chain arm
+(OnLocusHull) pinned f64+Interval. tube_along_arc rider: inputs
+bit-exact (56-ulp drift retired ==), Pappus both scalars.
+Deviations 7-9 (executed blockers): mint-side fitted wiring
+banked (oblique trihedron legally uncached), tour SceneBody
+Stop banked (no NURBS tessellation lane), merge_coplanar_faces
+re-mints. **Discovered + fixed in passing: F5** —
+pcurve_chart_radial_moving's r²-scaled metering (the collision
+that made rim-dim defer it dissolved when this unit rewrote
+pcurve_cache.rs) — the FreeCAD corpus ceiling moved 1e-8 →
+1e-5, table rewritten composed with the rim-dim retirement.
+Banked dimensional unit SHRINKS to F3+F4. Completion ~642k
+tokens, ~7h wall under the pin (incl. one phantom-CI
+misdiagnosis corrected by the sweep — the "unbuilt" pushes had
+built and failed). Review attacks: Leg E derivations + walk
+row 4 falsification, the F5/ceiling composition, dev 1/3/9
+adjudication, cross-unit composition with step-import, the
+two-hands quality-seam probe.
+
+**M6-3 review returned (2026-08-05): APPROVE-WITH-FIXES,
+0 MAJ / 5 MIN / 4 NOTE, rubric 5/4/4, all 9 deviations honest,
+no gate weakened.** Leg E's cone-nappe/sphere-pole/torus algebra
+independently RE-DERIVED BY HAND — all correct (the pole-start
+d̂-flip/σ compensation exact); V=9 re-derived and oracle-exact;
+the 1e-8→1e-5 ceiling move composes correctly (freecad suite
+executed at 1e-6/1e-7 certify + 1e-4 obligation arms); hosted
+27/27 verified. MINORs all honesty/coverage class: two
+error variants shipped untested (reviewer probes now fire
+them), an executed-false comment (pole-crossing meridian arcs
+DO certify), a "does drift" comment measuring 0 ulps, the
+stale F5 audit row, a stale step-import chart-list comment.
+Notable NOTE banked with the PcurveFittedLane item:
+merge_coplanar's re-mint would silently drop FITTED caches on
+a merged fitted-cache body (latent, no current path). Quality
+seam between the two build phases DETECTABLE BUT WEAK: all four
+honesty defects sit in completion-phase scope; the partial's
+files yielded none under the same scrutiny. Light fix pass
+dispatched (inherits fable). Review ~231k tokens, ~2h under
+the pin.
+
+**M6-3 MERGED as #192 (2026-08-05): WALK ROW 4 IS CLOSED and
+loft/sweep bodies are LIVE.** Fix pass discharged all items
+(stacking probes adopted by --no-ff merge; the pole-crossing
+comment now tells the demonstrated truth; 0-ulp measurement
+stated; F5 audit row FIXED(M6-3) + the adjacent F6 bullet
+honestly advanced rather than left stale; step-import's chart
+list current; the merge_coplanar fitted-cache hazard named at
+its site). Hosted 27/27 on 427e54d. A/B row RECORDED AT MERGE
+(fable; the partial's tokens are unrecorded with the dead M6
+session). Lanes cleaned (11G freed). M6 remaining: unit 5
+(edge-selection fillet vocabulary), the proposed sense-flip
+unit (#184 item 1, latitude given), hygiene (k-lint floor).
+The merge UNBLOCKS: M7 unit 3 (NURBS-face import — the export
+side now emits B_SPLINE_SURFACE_WITH_KNOTS both arms),
+KERNEL_* sidecars (15 incl. loft_prism), F3+F4 dimensional
+unit, typed-margin design draft.
