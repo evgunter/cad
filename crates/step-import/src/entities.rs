@@ -718,7 +718,7 @@ impl<'a> Resolver<'a> {
                 };
                 let control = self.control_points(id, points, expected)?;
                 let weights = vec![1.0; control.len()];
-                let knots = self.knot_vector(id, degree, mults, knots, expected)?;
+                let knots = self.knot_vector(id, degree, mults, knots, control.len(), expected)?;
                 self.nurbs(id, knots, control, weights)
             }
             other => Err(StepImportError::UnsupportedEntity {
@@ -779,7 +779,7 @@ impl<'a> Resolver<'a> {
         for w in as_list(id, weight_list, expected)? {
             weights.push(as_real(id, w, expected)?);
         }
-        let knots = self.knot_vector(id, degree, mults, knots, expected)?;
+        let knots = self.knot_vector(id, degree, mults, knots, control.len(), expected)?;
         self.nurbs(id, knots, control, weights)
     }
 
@@ -797,15 +797,47 @@ impl<'a> Resolver<'a> {
         Ok(out)
     }
 
+    /// The refusal text for a knot-multiplicity list that does not
+    /// sum to the count ISO 10303-42 fixes ([`Resolver::knot_vector`]).
+    const MULT_BUDGET: &'static str = "knot multiplicities summing to \
+         control_points + degree + 1 — ISO 10303-42's count for a clamped \
+         B-spline. A larger sum describes a different curve, and expanding \
+         it before checking would let the file choose this reader's \
+         allocation size";
+
     /// The `(multiplicities) / (knots)` pair → the kernel's flat
     /// clamped knot vector, exact (run-length decode is the inverse of
     /// the writer's exact-equality encode; no ε enters).
+    ///
+    /// # The multiplicity budget, checked BEFORE the expansion
+    ///
+    /// Run-length decoding means the FILE states how much memory this
+    /// reader is about to allocate, and it is reachable from an
+    /// ordinary `EDGE_CURVE`. `(2000000000, 2000000000)` asks for
+    /// 16 GB, and the allocator's answer to that is `abort` — strictly
+    /// worse than a panic, because no `catch_unwind` can see it, so
+    /// the crate's own "every file comes back with a RESULT" row
+    /// cannot catch the class at all. (Found by the M7-4 review's
+    /// hostile-knot probe; the defect is older than this unit and is
+    /// fixed here because this unit is what made the promise.)
+    ///
+    /// The bound is not an arbitrary cap. ISO 10303-42's
+    /// `b_spline_curve_with_knots` fixes the total exactly: a clamped
+    /// curve of degree `d` over `n` control points has `n + d + 1`
+    /// knots, and that is the whole allocation. A file whose
+    /// multiplicities sum to anything else is not describing this
+    /// curve, whether it overshot by one or by two billion — so one
+    /// typed refusal covers the honest malformation and the hostile
+    /// one alike, and it is reached without allocating anything. The
+    /// running sum is checked arithmetic, because the overflow is
+    /// reachable too.
     fn knot_vector(
         &self,
         id: u64,
         degree: &Value,
         mults: &Value,
         knots: &Value,
+        control_points: usize,
         expected: &'static str,
     ) -> Result<KnotVector, StepImportError> {
         let degree = as_usize(id, degree, expected)?;
@@ -814,7 +846,26 @@ impl<'a> Resolver<'a> {
         if mults.len() != values.len() {
             return Err(StepImportError::MalformedRecord { id, expected });
         }
-        let mut flat = Vec::new();
+        let budget = control_points.saturating_add(degree).saturating_add(1);
+        let mut total: usize = 0;
+        for m in mults {
+            total = match total.checked_add(as_usize(id, m, expected)?) {
+                Some(t) if t <= budget => t,
+                _ => {
+                    return Err(StepImportError::MalformedRecord {
+                        id,
+                        expected: Self::MULT_BUDGET,
+                    });
+                }
+            };
+        }
+        if total != budget {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: Self::MULT_BUDGET,
+            });
+        }
+        let mut flat = Vec::with_capacity(total);
         for (m, v) in mults.iter().zip(values) {
             let m = as_usize(id, m, expected)?;
             let v = as_real(id, v, expected)?;

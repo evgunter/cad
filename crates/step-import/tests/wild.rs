@@ -314,7 +314,16 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     );
     // Leg C: a VECTOR magnitude that is not 1, and non-unit ratios.
     assert!(any(&|t| t.contains("VECTOR('',#131,10.)")), "Leg C");
-    // Leg D: an assembly transform traversed.
+    // Leg D: an assembly transform PRESENT — never traversed. The only
+    // committed fixture carrying one (`dm1-id-214`) refuses at
+    // `B_SPLINE_SURFACE #660` inside `resolve_shape`, which runs
+    // strictly before `resolve_assembly_placement`, so this line pins
+    // vocabulary and nothing more. That is deviation 1 of the M7-4
+    // report rather than an oversight: NO file in the 28-file hunt has
+    // both geometry and a non-identity transform. Leg D's apply path
+    // and both its refusals are exercised on planted mutations of
+    // `twobody_importexport`'s real transforms, in
+    // `freecad.rs::refusals_survive_the_dialect_relaxations` (d).
     assert!(any(&|t| t.contains("ITEM_DEFINED_TRANSFORMATION")), "Leg D");
     // Leg E: an EDGE_CURVE stated against its carrier.
     assert!(

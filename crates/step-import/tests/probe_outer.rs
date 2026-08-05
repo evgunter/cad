@@ -1,5 +1,17 @@
+//! REVIEW PROBE (B7b): does deviation 3(a)'s multi-`FACE_OUTER_BOUND`
+//! latitude eat a REAL hole?
+//!
+//! The importer now lets a face state several bounds outer and breaks
+//! the tie by geometry — and, on a closed periodic band where the
+//! geometry genuinely cannot, by the file's bound order. The attack:
+//! mark EVERY bound outer on `box_hole.step`, whose top face carries an
+//! honest planar ring. If the latitude were too wide the hole would be
+//! read as a second outer boundary and the volume would jump. It does
+//! not: the inference answers, and the volume is unchanged to the bit.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use step_import::{ImportOptions, StepImport, import_step};
+
 #[test]
 fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
     let p = concat!(
