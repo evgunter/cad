@@ -316,3 +316,40 @@ new geometry classes). Draw (after the difficulty commit):
 byte 114 → **(opus, fable)** — M7-4 = OPUS; fable remainder owed
 to the next eligible dispatch (expected: unit 3 NURBS-face
 import when M6's assembly lands). Hunt ~88k tokens, ~21min.
+
+**M7-4 DISPATCHED (2026-08-05)**: spec merged via #191 (license
+judgment calls flagged; dispatch not blocked on them —
+Evan can veto fixtures by comment); implementer (OPUS) on lane
+~/.local/share/cad-work/m7-4-wild, branch ev/m7-4-wild, slot 2;
+PR to be HELD for blinded review; report at
+~/.local/share/cad-work/m7-4-report.md.
+
+**M7-4 implementation COMPLETE (2026-08-05): PR #193 open, 7 of
+13 wild files import first-class (volumes vs oracle 1e-16..1e-13
+rel), 6 refuse typed by name, no-panic row permanent, 7 numbered
+deviations.** Leg E TAKEN with evidence (sg1-c5-214 reaches its
+exact oracle census 16/32/20 only through .F. sense
+composition). Discoveries: a placement pair CANNOT state a
+mirror (ISO's build_axes forces right-handed frames, det=+1
+structurally — the mirror refusal moved to
+CARTESIAN_TRANSFORMATION_OPERATOR_3D where a file can actually
+say it); the ε_in window gained a FLOOR ([1e-10,1e-8] — at
+ε=1e-12 a NIST inch translator's 12-digit truncation exceeds
+the adoption band and ftc_09 refuses, correctly); a LATENT
+M7-2 bug fixed (a solid named by two representations imported
+twice — coincident duplicate solids, 316 faces where the file
+says 158). STOP-AND-REPORT item, orchestrator ruling: OCC never
+splits periodic faces, so lateral bands arrive as two rims with
+NO seam generator → adopted ring-on-curved-patch passes tiers
+1-2 but topo::mass_properties answers RingOnCurvedFace → tier 3
+refuses. The implementer demoted nist_ftc_11 +
+cq_red_cube_blue_cylinder to refusal fixtures rather than ship
+a tier-3-invalid body. RULED CORRECT — StepImport::Solid
+documents tier-validity at rest; shipping an unmeasurable body
+pushes the failure downstream (the D4 anti-pattern). The remedy
+(seam-generator minting for periodic bands — the M7-2 sphere
+re-mint's class, four faces across two chart types in ftc_11)
+is BANKED as the next M7 unit; the two fixtures flip back by
+S9 then. One hosted red at delivery: the interval-square
+tripwire on entities.rs (an x*x) — powi(2) conversion relayed,
+in flight. Impl ~372k tokens, ~1.8h wall.
