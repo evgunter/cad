@@ -30,6 +30,14 @@ Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 `demos/renders-freecad/*.png` (tracked — the montage cells plus
 `montage-freecad.png`).
 
+Both `render.sh` lanes run `strip_png_stamps.py` over the per-scene
+PNGs before composing the montage: FreeCAD's `saveImage` stamps the
+wall clock into every file it writes (a `tEXt` "Creation Time" chunk
+and a `zTXt` "Description" chunk carrying its MIBA XML), which would
+make an unchanged re-render show up dirty in `git status`. Both are
+ancillary chunks — dropping them is lossless, and it makes a dirty
+`git status` after a re-render mean the *pixels* changed.
+
 ## The two montages (#159)
 
 The tour ships **two montage sheets** with identical grids, captions,
