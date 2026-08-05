@@ -1,13 +1,23 @@
 # Opus 5 vs Fable 5 implementation A/B — experiment log
 
 Standing experiment (Evan, in-chat, 2026-07-25, Opus 5 release
-day). Protocol:
+day). This document is the SINGLE normative source of the protocol
+(`memories/model-ab-experiment.md` is a pointer here). Protocol, as
+amended:
 
-- Every IMPLEMENTATION dispatch gets a fair coin flip from
-  /dev/urandom: heads = Opus 5 (`model: "opus"`), tails = Fable 5
-  (session default). Design, specs, adversarial reviews, and
-  fix-pass rulings stay Fable regardless. The fix pass runs as the
+- **Protocol v2 (Evan, 2026-07-25): blocked randomization** — the
+  original per-dispatch fair coin flip (v1, rows 1–10) is
+  superseded. Arms come in opus/fable PAIRS, order shuffled per
+  block from /dev/urandom (block 1 forced (opus, fable) as a
+  recorded balance correction after four consecutive fable draws;
+  random order from block 2); every row from #11 onward records its
+  "block-N draw". Design, specs, adversarial reviews, and fix-pass
+  rulings stay Fable regardless. The fix pass runs as the
   implementer's agent, so it inherits the arm.
+- **Record-at-merge (adopted post-M5 per the readout's
+  recommendation):** the row is recorded AT MERGE, not at
+  next-touch; a missing rubric or silent-deviation count is a merge
+  blocker for the row.
 - Reviewers are BLINDED: implementer model is never named in
   review prompts or in anything the reviewer reads (reports must
   not state it either — orchestrator checks before handing the
@@ -254,6 +264,11 @@ arms and driven by unit scope rather than arm.
   treat a missing rubric or silent-dev count as a merge blocker for
   the row — the cheap discipline that would have prevented every gap
   above.
+
+## Post-M5 rows (M6/M7, from 2026-08-04 — recorded at merge; NOT covered by the M5-close readout above)
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
 | M6-1 | 2026-08-04 | composed die via in-place surgery + circle-clearance rider | M (logged pre-draw) | fable (block-20 draw byte 161 = fable,opus) | PASS 0 MAJ / 2 MIN / 3 NOTE, rubric 5/4.5/5 (volume confirmed 3 independent ways incl. 4e8 MC; rider falsifier clean over 3000 pairs) | 0 (4 numbered, all verified honest) | 5 | 4.5 | 5 | light (2 MINs + probe adoptions, via fresh finisher — transcript lost) | composed die: every verb on ONE body; FreeCAD to 1e-6 mm³; strategy divergence retired; dev 1 = corpus-inexpressibility discovery → M6 unit 5 | (in log) | (in log) |
 | M6-2 | 2026-08-04 | SSI generic-T lift + Pcurve::Fitted + non-vacuous fitted cache at rest | M (logged pre-draw) | OPUS (block-21 draw byte 59 = opus,fable; fable remainder → unit 3) | APPROVE-WITH-FIXES 1/4/5, rubric 4/4/4 (MAJ = one unused import going CI-red, SKIPPING the hosted interval matrix; deep attacks all held: OnLocusHull adjudicated honest by the walk row's own letter, f64-Newton dev sound, reviewer's second-species corruption caught by loop continuity) | 0 (9 numbered; clause-by-clause spec diff; separate owner-requested design audit: 7/8 RIGHT, 1 RIGHT-BUT-MISDOCUMENTED, 1 scope gap — Evan's "felt off" instinct matched exactly the two non-RIGHT verdicts) | 5 | 4 | 4 | moderate+ (8 items + audit doc-fixes + fixture re-anchored to the kernel's own split_at carrier with natural [a,b] domains + one self-caught cross-scalar overclaim stop-and-reported and weakened honestly) | MERGED #176 27/27 incl. interval shards w/ geom-brep confirmed; walk row 2 NON-VACUOUS (full C2 at rest, planted + reviewer corruptions rejected, Interval enclosure row); UnsupportedCarrier retired (S9 flip); 3 review probes adopted | ~437k impl + ~467k fix | ~5.4h impl + ~8.7h fix wall (incl. CI waits, under CPU pin) |
 | M7-1 | 2026-08-04 | step-import crate: Part-21 parser + rotation-system Euler assembly + D7 adoption ladder, own-corpus round-trip | L (logged pre-draw) | fable (block M7-1 draw byte 177 = fable,opus; opus remainder → next eligible) | APPROVE-WITH-FIXES 1/3/5, rubric 5/4/4 (MAJ = silent-unit class: CONVERSION_BASED_UNIT length context imported silently as metres; headline 14/14 first-re-export byte-identity CONFIRMED and proven un-laundered; adoption ladder held all 4 planted corruption classes with honest structured refusals; fixed point held on reordered/renumbered files) | 1 (units — the MAJ; fixed by-resolution) | 5 | 4 | 4 | moderate (by-resolution unit/uncertainty checks + inch-file test; full 7k-cut truncation sweep; 3 silent drops → typed Structure refusals; string-body refusal arm; 6.00-ulp correction; 19 review probes adopted by merge with authorship kept, incl. re-anchoring the reviewer's VACUOUS unit probe — its #93 substitution never matched cube's #155) | MERGED #183 27/27 hosted; 28/28 crate suite (9 acceptance + 19 probes); deviation 1 (sidecar kernel-census overrides) adjudicated honest; fenced findings → #184 | ~441k impl + ~181k review + ~37k fix (resumed segment) | ~1.9h impl + ~0.6h review + ~0.5h fix active |

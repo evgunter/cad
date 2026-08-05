@@ -1,22 +1,27 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M4 COMPLETE, M5 COMPLETE at the PR 14 exit sweep 2026-08-03 (Evan ruled: #89 CLOSED / K=10 permanent, shape (v) accepted piecewise, 3 conventions ratified; walk 13 MET / 7 honest / 0 carried-unowned; live status = docs/M5-LOG.md tail + docs/M5-EXIT-WALK.md); RENUMBERED 2026-08-03: M6 = main-path completions (SSI lift, loft assembly, composition surgery, analytic-chart pcurves, census design doc), M7 = STEP adoption ONLY, M8 = error propagation (was M6); merge gate = hosted Actions, gate.sh fallback (see git-workflow); references live in the MAIN checkout; name pending (Q9)
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M6 COMPLETE (M6 close statement in docs/M6-LOG.md; #89 CLOSED / K=10 permanent), M7 (STEP adoption ONLY) in flight with units 1/2/4 merged; M8 = error propagation next; LIVE STATUS = the highest-numbered docs/M*-LOG.md tail, never this memory; merge gate = hosted Actions; name pending (Q9)
 metadata:
   node_type: memory
   type: project
   originSessionId: 11974b46-1641-48d9-9802-fdf44dcb6927
 ---
 
-**As of 2026-08-04 (the M5→M6 handoff seam):** M0–M5 COMPLETE.
-M5 closed at 35 PRs (#169 = the exit walk: 13 MET / 7
-honesty-recorded / 0 unowned; docs/M5-EXIT-WALK.md). #89 CLOSED:
-K=10 permanent ratified default (re-open = in-band landings;
-k-lint advisory rule 1 is the detector). Milestones RENUMBERED
-(Evan, #169): M6 = main-path completions (docs/M6-PLAN.md,
-assembled from the #161+#169 ratifications), M7 = STEP adoption
-ONLY, M8 = error propagation (ERROR-DESIGN, body still says M6 =
-historical). M6 unit 1 (composed die via in-place surgery) done;
-live status = docs/M6-LOG.md tail, not this memory. Merge gate =
-hosted Actions (nextest build-once/sharded matrix since #167),
-ci-local.sh mirror. References in the MAIN checkout. Name still
-pending (Q9).
+**Rule this memory exists to state: live milestone status is the
+highest-numbered `docs/M*-LOG.md` tail, NOT this file** — this file
+only pins the completed-milestone floor and the standing facts that
+do not churn.
+
+As of 2026-08-05: **M0–M6 COMPLETE.** M5 closed at 35 PRs (#169 =
+the exit walk; docs/M5-EXIT-WALK.md is the done-state of record).
+M6 closed with its four executed units merged (#171 surgery, #176
+SSI lift, #192 loft/sweep assembly, #178 CONTACT-DESIGN ratified)
+and three items explicitly re-banked — see M6-LOG's close
+statement. **M7 (STEP adoption ONLY) is in flight**: units 1/2/4
+merged (#183 own-corpus round-trip, #189 FreeCAD foreign corpus,
+#193 wild corpus); import is LIVE. M8 = error propagation
+(ERROR-DESIGN's body says "M6" = historical pre-renumbering). #89
+CLOSED: K=10 permanent ratified default (docs/K-REPORT.md incl. the
+M7 landing-retraction addendum). Merge gate = hosted Actions
+(nextest build-once/sharded matrix since #167), ci-local.sh mirror.
+References live in the MAIN checkout. Name still pending (Q9).

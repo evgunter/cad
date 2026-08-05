@@ -33,9 +33,10 @@ the thing to carry when pcurves land. Cones use the **apex placement**
 (`radius = 0.0`), legal under 10303-42's `radius >= 0` WHERE rule and
 the encoding that invents no offset constant.
 
-**Two live refusals**, both named frontiers: a NURBS FACE
-(`B_SPLINE_SURFACE_WITH_KNOTS` arrives with the loft-assembly unit,
-which mints the first NURBS face at rest), and
+**One live refusal** (of PR 13's original two: the NURBS-face
+refusal RETIRED at M6-3/#192 — the loft-assembly unit minted NURBS
+faces at rest and the export side now emits
+`B_SPLINE_SURFACE_WITH_KNOTS` on both arms):
 `CurvedShellClassification` — the outward/void classifier for
 MULTI-shell solids never grew curved closed forms, so it is now
 narrower than the emitter. Its divergence-theorem reduction is a
@@ -52,9 +53,10 @@ orientation acceptance is text-level: `orientation_oracle.rs` gained
 **edge-use coherence** (every edge traversed once each way per shell —
 curved-agnostic, needs no planarity), whose negative control is the
 double-composition bug itself. FreeCAD volumes ARE trustworthy for
-magnitude: all ten committed fixtures match their closed-form analytic
-volume to ≤ 4e-15 relative, because surfaces cross the wire as
-surfaces.
+magnitude: the committed fixtures (ten at the PR 13 measurement; the
+corpus is now 15 solids + `nurbs_wireframe`, oracle-checked in CI)
+match their closed-form analytic volume to ≤ 4e-15 relative, because
+surfaces cross the wire as surfaces.
 
 **Trap.** Suites matching emitted records to kernel entities must walk
 the WRITER's traversal (`tests/common/mod.rs::walk_order`), never
