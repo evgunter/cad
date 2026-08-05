@@ -523,6 +523,20 @@ fn cross_dialect_fixed_point() {
 
 /// A FreeCAD fixture's text with one exact substitution applied (the
 /// probe idiom: change one thing, name what it proves).
+/// A body's certified volume in mm³ — the comparable scalar for the
+/// S9 flip rows, where what matters is that two imports describe the
+/// same solid (or a stated multiple of it).
+fn volume_mm3(body: &topo::Body<f64>) -> f64 {
+    topo::mass_properties(body).expect("mass properties").volume * 1e9
+}
+
+/// The least x over a body's points, in mm — the one scalar that
+/// distinguishes a placed body from an unplaced one when every
+/// rigid invariant, by construction, cannot.
+fn min_x_mm(body: &topo::Body<f64>) -> f64 {
+    body.points().fold(f64::INFINITY, |acc, (_, p)| acc.min(p.x)) * 1e3
+}
+
 fn mutated(name: &str, from: &str, to: &str) -> String {
     let text = freecad_fixture(name);
     assert!(
@@ -792,30 +806,85 @@ fn negative_zeros_normalize_at_translation() {
 fn refusals_survive_the_dialect_relaxations() {
     use step_import::StepImportError as E;
 
-    // (a) EDGE_CURVE same_sense .F. — a carrier running against its own
-    // edge. Never emitted by FreeCAD (0 of 100+ measured); planted.
+    // (a) **FLIPPED (M7-4 Leg E).** `EDGE_CURVE` `same_sense` `.F.`
+    // used to refuse: the carrier runs against its own edge, and
+    // reversing a carrier's parameterization would move bits the file
+    // printed. Two wild files surfaced it, one of them an
+    // imports-class target that reaches its oracle census only through
+    // it, so the sense is now COMPOSED into the half-edge direction
+    // instead — nothing about the carrier changes, and the box that
+    // used to refuse here imports with the same census it has when the
+    // same edge is stated `.T.`.
+    let stated = import_step(&freecad_fixture("box"), &ImportOptions::default())
+        .expect("the unmutated box imports");
+    // The same edge, stated from its other end: the vertices swap,
+    // the sense goes `.F.`, and each of the two `ORIENTED_EDGE`s that
+    // use it flips to keep the loops walking the way they did. A
+    // reader that composes the sense correctly cannot tell the two
+    // files apart.
     let probe = mutated(
         "box",
         "#21 = EDGE_CURVE('',#22,#24,#26,.T.);",
-        "#21 = EDGE_CURVE('',#22,#24,#26,.F.);",
+        "#21 = EDGE_CURVE('',#24,#22,#26,.F.);",
+    )
+    .replace(
+        "#20 = ORIENTED_EDGE('',*,*,#21,.F.);",
+        "#20 = ORIENTED_EDGE('',*,*,#21,.T.);",
+    )
+    .replace(
+        "#106 = ORIENTED_EDGE('',*,*,#21,.T.);",
+        "#106 = ORIENTED_EDGE('',*,*,#21,.F.);",
     );
-    match import_step(&probe, &ImportOptions::default()).expect_err("a .F. edge is out of subset") {
-        E::Topology { id, .. } => assert_eq!(id, 21, "the refusal names the EDGE_CURVE"),
-        other => panic!("expected Topology, got: {other}"),
-    }
+    let flipped =
+        import_step(&probe, &ImportOptions::default()).expect("a .F. edge now composes");
+    let (StepImport::Solid { body: a, .. }, StepImport::Solid { body: b, .. }) =
+        (&stated, &flipped)
+    else {
+        panic!("both are solids");
+    };
+    assert_eq!(
+        census(a),
+        census(b),
+        "the same edge said the other way round is the same edge"
+    );
+    assert_eq!(
+        volume_mm3(a),
+        volume_mm3(b),
+        "and the same solid, to the bit"
+    );
 
-    // (b) A non-unit VECTOR magnitude — the line parameter would no
-    // longer be arc length. Always exactly `1.` in the corpus.
+    // (b) **FLIPPED (M7-4 Leg C).** A non-unit `VECTOR` magnitude used
+    // to refuse, because the file's line parameter would no longer be
+    // the kernel's arc length. It still is not — but no trim parameter
+    // crosses the wire, so the interval is re-derived from the two
+    // vertices against the normalized direction, and the magnitude
+    // simply has nowhere to land. ST-Developer writes `10.` on every
+    // line it emits; that is 5 of the 8 imports-class fixtures.
     let probe = mutated(
         "box",
         "#28 = VECTOR('',#29,1.);",
         "#28 = VECTOR('',#29,2.);",
     );
-    match import_step(&probe, &ImportOptions::default())
-        .expect_err("a non-unit vector is out of subset")
-    {
-        E::MalformedRecord { id, .. } => assert_eq!(id, 28, "the refusal names the VECTOR"),
-        other => panic!("expected MalformedRecord, got: {other}"),
+    let rescaled =
+        import_step(&probe, &ImportOptions::default()).expect("any positive magnitude now imports");
+    let StepImport::Solid { body: c, .. } = &rescaled else {
+        panic!("a solid");
+    };
+    assert_eq!(census(a), census(c), "the magnitude changes no topology");
+    assert_eq!(volume_mm3(a), volume_mm3(c), "and moves no geometry");
+    // What still refuses: a magnitude that is not a positive scale.
+    for bad in ["0.", "-1.", "1.E400"] {
+        let probe = mutated(
+            "box",
+            "#28 = VECTOR('',#29,1.);",
+            &format!("#28 = VECTOR('',#29,{bad});"),
+        );
+        match import_step(&probe, &ImportOptions::default())
+            .expect_err("a non-positive magnitude describes no line")
+        {
+            E::MalformedRecord { id, .. } => assert_eq!(id, 28, "the refusal names the VECTOR"),
+            other => panic!("expected MalformedRecord, got: {other}"),
+        }
     }
 
     // (c) B-spline geometry — the named M7 frontier. The corpus has
@@ -830,40 +899,133 @@ fn refusals_survive_the_dialect_relaxations() {
         );
     }
 
-    // (d) A non-identity assembly transform. `twobody_importexport`'s
-    // two components are placed by identity ITEM_DEFINED_TRANSFORMATIONs
-    // (FreeCAD bakes placement into the exported shape); moving one
-    // makes the stated geometry disagree with where the assembly puts
-    // it, and importing it unplaced would silently misposition a body.
+    // (d) **PARTLY FLIPPED (M7-4 Leg D).** A non-identity assembly
+    // transform used to refuse outright. A RIGID one now places the
+    // body through the kernel's own `transform_rigid` door — but only
+    // when it places ALL of the file's content, because placing
+    // components independently is assembly instancing and this crate
+    // has no body graph to hold it. `twobody_importexport` has two
+    // components with one `ITEM_DEFINED_TRANSFORMATION` each, so it
+    // exercises both halves.
     let text = freecad_fixture("twobody_importexport");
     assert!(text.contains("#194 = ITEM_DEFINED_TRANSFORMATION('','',#11,#15);"));
+    assert!(text.contains("#225 = ITEM_DEFINED_TRANSFORMATION('','',#11,#19);"));
+    let unplaced = import_step(&text, &ImportOptions::default()).expect("identity transforms");
+    let StepImport::Solid { body: base, .. } = &unplaced else {
+        panic!("a solid");
+    };
+    // Both components displaced by the same 5 mm: one placement,
+    // applied.
+    let both = |x: &str| {
+        text.replace(
+            "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
+            &format!(
+                "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
+                 #9995 = CARTESIAN_POINT('',({x},0.,0.));"
+            ),
+        )
+        .replace(
+            "#19 = AXIS2_PLACEMENT_3D('',#20,#21,#22);",
+            &format!(
+                "#19 = AXIS2_PLACEMENT_3D('',#9996,#21,#22);\n\
+                 #9996 = CARTESIAN_POINT('',({x},0.,0.));"
+            ),
+        )
+    };
+    let placed = import_step(&both("5."), &ImportOptions::default())
+        .expect("one rigid placement over all of the file's content applies");
+    let StepImport::Solid { body: moved, .. } = &placed else {
+        panic!("a solid");
+    };
+    assert_eq!(
+        census(base),
+        census(moved),
+        "a rigid placement moves a body, it does not re-shape one"
+    );
+    assert!(
+        (volume_mm3(base) - volume_mm3(moved)).abs() <= 1e-9 * volume_mm3(base).abs(),
+        "and volume is a rigid invariant"
+    );
+    assert!(
+        min_x_mm(moved) - min_x_mm(base) > 4.9,
+        "the body actually moved: {} → {}",
+        min_x_mm(base),
+        min_x_mm(moved)
+    );
+    // Only ONE component placed: assembly instancing, still refused.
     let probe = text.replace(
         "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
         "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
          #9995 = CARTESIAN_POINT('',(5.,0.,0.));",
     );
     match import_step(&probe, &ImportOptions::default())
-        .expect_err("a non-identity assembly transform must refuse")
+        .expect_err("per-component placement must refuse")
+    {
+        E::Structure { what, .. } => assert!(
+            what.contains("assembly"),
+            "and says what it is: {what}"
+        ),
+        other => panic!("expected Structure, got: {other}"),
+    }
+    // And a mirror is never a placement. A placement PAIR cannot state
+    // one — ISO 10303-42 builds both frames right-handed whatever their
+    // fields say — so the file has to reach for the operator form to
+    // say it, and that is what refuses, by name.
+    let operator = both("5.").replace(
+        "#194 = ITEM_DEFINED_TRANSFORMATION('','',#11,#15);",
+        "#194 = CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',#13,#14,#12,-1.,$);",
+    );
+    match import_step(&operator, &ImportOptions::default())
+        .expect_err("a mirroring/scaling operator must refuse")
     {
         E::Structure { id, what } => {
             assert_eq!(id, 194, "the refusal names the transform entity");
-            assert!(what.contains("assembly"), "and says what it is: {what}");
+            assert!(what.contains("mirror"), "and says why: {what}");
         }
         other => panic!("expected Structure naming the transform, got: {other}"),
     }
 
-    // (e) A conversion-based length unit (an inch file's normal form —
-    // no SI_UNIT record at all). FreeCAD emits none for an mm-configured
-    // document, so this too is a planted boundary probe.
-    let probe = mutated(
+    // (e) **FLIPPED (M7-4 Leg B).** A conversion-based length unit —
+    // an inch file's normal form, with no `SI_UNIT` record on the
+    // length at all — used to refuse. It now resolves through the
+    // conversion expression THE FILE states: the box's millimetre unit
+    // re-declared as an inch over that same millimetre comes out 25.4×
+    // larger, and the factor comes from the record, not from a table
+    // of what an inch is.
+    let inch = mutated(
         "box",
         "#166 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
-        "#166 = ( CONVERSION_BASED_UNIT('INCH',#9990) LENGTH_UNIT() NAMED_UNIT(#9991) );",
+        "#166 = ( CONVERSION_BASED_UNIT('INCH',#9990) LENGTH_UNIT() NAMED_UNIT(#9991) );\n\
+         #9990 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#9992);\n\
+         #9991 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n\
+         #9992 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
     );
-    match import_step(&probe, &ImportOptions::default())
-        .expect_err("a conversion-based unit must refuse, not scale-lie")
+    let scaled = import_step(&inch, &ImportOptions::default())
+        .expect("a conversion-based unit resolves from the file's own factor");
+    let StepImport::Solid { body: big, .. } = &scaled else {
+        panic!("a solid");
+    };
+    let ratio = volume_mm3(big) / volume_mm3(a);
+    assert!(
+        (ratio - 25.4_f64.powi(3)).abs() <= 1e-6 * 25.4_f64.powi(3),
+        "the file's own 25.4 scaled every length: volume ratio {ratio}"
+    );
+    // What still refuses: a conversion whose factor is not a length.
+    let bogus = mutated(
+        "box",
+        "#166 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
+        "#166 = ( CONVERSION_BASED_UNIT('INCH',#9990) LENGTH_UNIT() NAMED_UNIT(#9991) );\n\
+         #9990 = PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(25.4),#9992);\n\
+         #9991 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n\
+         #9992 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );",
+    );
+    match import_step(&bogus, &ImportOptions::default())
+        .expect_err("a length declared over an angle is not a length")
     {
-        E::UnsupportedUnit { id, .. } => assert_eq!(id, 166, "the refusal names the unit"),
+        E::UnsupportedUnit { id, found } => {
+            assert_eq!(id, 166, "the refusal names the unit");
+            assert!(found.contains("plane angle"), "and both sides: {found}");
+        }
         other => panic!("expected UnsupportedUnit, got: {other}"),
     }
 

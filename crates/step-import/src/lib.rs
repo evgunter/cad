@@ -242,6 +242,18 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
     match model.shape {
         entities::Shape::Solids(ref solids) => {
             let body = assemble::build_body(solids, &model)?;
+            // The assembly's placement, through the kernel's own door
+            // (M7-4 Leg D): `transform_rigid` re-checks rigidity with
+            // decided predicates and re-certifies every carrier
+            // against the mapped geometry, so a placed body is as
+            // first-class as an unplaced one — and a map this reader
+            // let through that the kernel will not becomes a typed
+            // refusal, never a silently skewed body.
+            let body = match model.placement {
+                None => body,
+                Some(map) => topo::transform_rigid(&body, &map)
+                    .map_err(|source| StepImportError::Placement { source })?,
+            };
             Ok(StepImport::Solid {
                 body,
                 eps_in,
