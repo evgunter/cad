@@ -452,3 +452,38 @@ normalization of the committed corpus (metadata-only, so no
 re-render/FreeCAD/cargo — both build slots stay with the live
 units); idempotence + IDAT-identity verification scripted.
 Lane render-stamp, branch ev/render-stamp-strip.
+*(MERGED as #196, 27/27; sanity-checked — surviving chunks are
+the deterministic Author/Software/Title; lane cleaned.)*
+
+**CPU PIN LIVE AGAIN (2026-08-05, canary 18.5s → 43.8s — worst
+recorded)**: Evan terminal-pushed; both live lanes scoped down
+to narrowest-local-signal + hosted-CI-carries-the-matrix; the
+600s tool-timeout hazard relayed. One waiter-park caught on the
+rim-dim lane (parked on its own topo battery), un-parked with
+the standard nudge.
+
+**Rim-dimensional unit COMPLETE (2026-08-05): PR #197 open,
+HELD; review DISPATCHED.** Defect confirmed by execution TWICE
+pre-coding (byte-exact landing reproduction + a native Probe
+twin with the quadratic scale signature); honest correction to
+my briefed number (true slant separation √5/2 mm = 1.118e-3 m —
+my 5.6e-4 had the arm folded in). Fix = RimLevel enum
+(Length(v) | Unit(s,c)) — the per-kind structural shape from
+the design thread; mixed-kind comparisons poison typed.
+Scale-twin pins (pre-fix ratio 1e6 → post-fix exactly 1000);
+the A3 landing pin retired sanctioned. AUDIT: ~120 comparand
+rows (docs/predicate-dimension-audit.md); EIGHT dimensionless
+comparands fixed inline (bool_join_facing ×2, bool_strut_order,
+bool_plane_orient ×2, pm_census_ee_parallel, point_in_loop_arm,
+split_join_frame_arm + split_section_area factor-2); headline
+DEFERRED finding F5: pcurve_chart_radial_moving's comparand is
+an AREA — same class — and may partly underlie the freecad
+CORPUS_EPS_CEILING (not raced: pcurve_cache.rs is an M6-3
+collision file; ceiling re-derivation = own unit, BANKED);
+F2-F11 deferred with dispositions; six notes feed the
+typed-margin design. K delta: exactly one line (the landing
+retires) + one masked false-coincidence retired; nothing else
+moved. Review attacks: the 8 changed decision comparands
+(riskiest surface), grouping-verdict invariance, scale-twin
+re-derivation, audit-coverage independent sweep, F5 basis.
+Impl ~290k tokens, ~3h wall under the pin.
