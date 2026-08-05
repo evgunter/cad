@@ -1,37 +1,25 @@
-//! The loft and the sweep — the tour's DEFINITIONAL stop (M5 PR 10),
-//! narration only.
+//! The loft and the sweep — the tour's DEFINITIONAL stop (M5 PR 10;
+//! frontier closed at M6-3), narration only.
 //!
-//! # Why narration and not a scene
+//! # Why narration and not a scene (updated at M6-3)
 //!
-//! The §10.3 skin and the §10.4 sweep this PR ships are real geometry:
-//! the walls exist, they are exact rational NURBS, and they pass
-//! through their sections to rounding. What does NOT exist yet is a
-//! B-rep SOLID built out of them — tier 3 refuses `Surface::Nurbs` by
-//! kind and `EdgeCurve::certify` refuses NURBS carriers outright, so
-//! there is no body to census, mesh, export, or render. The
-//! certification flip is M5 PR 9's charter (its spec: "`EdgeCurve::
-//! certify`'s Nurbs-carrier refusal FLIPS — this PR mints the kernel's
-//! first rung-3 edges at rest"), and the curved-wall RENDER waits on
-//! PR 11's trimmed-face tessellation regardless.
-//!
-//! So this stop narrates what is TRUE today, measures it, and pins the
-//! frontier with a retire-on-closure panic — the `curvedcut` pattern.
-//! Deliberately not a silent skip: a demo that quietly draws nothing is
-//! how a frontier stops being visible.
-//!
-//! **PR 9/11's flip, in one place.** When a NURBS-walled solid builds,
-//! [`narration`]'s retire panic fires with instructions: replace the
-//! wall measurements with a real `Stop` carrying the lofted body, and
-//! register it in `main`'s ladder next to `curvedcut`.
+//! The §10.3 skin and the §10.4 sweep are real geometry, and since
+//! M6-3 the loft BODY assembles and validates at tier 3 — the
+//! retire-on-closure panic that pinned the old frontier fired as
+//! designed and its narration retired into
+//! [`lofted_solid_narration`], which builds and validates the solid
+//! live. What still keeps this a narration rather than a scene: the
+//! curved-wall RENDER (trimmed-face tessellation of NURBS patches) —
+//! the full `Stop` with a `SceneBody` lands with it (tracked in the
+//! M6-3 PR as the retirement's second half).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
-use geom_surfaces::Surface;
-use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::skin::{SectionSegments, lift_surface, loft_geometry, sweep_geometry};
-use sweep::{Extrusion, SketchSegment, extrude, segment_curve};
-use topo::{FaceSurface, validate_geometric};
+use profile::SketchPlane;
+use sweep::skin::{SectionSegments, loft_geometry, sweep_geometry};
+use sweep::{SketchSegment, segment_curve};
+use topo::validate_geometric;
 
 /// A square-with-an-arc section, scaled by `s`.
 fn chain(s: f64) -> SectionSegments {
@@ -154,45 +142,47 @@ pub fn narration() {
         swept.walls[0].len()
     );
 
-    pin_frontier(&loft);
+    lofted_solid_narration();
 }
 
-/// Retire-on-closure: the day a NURBS-walled face passes tier 3, this
-/// panics with instructions. See the module docs.
-fn pin_frontier(loft: &sweep::LoftGeometry) {
-    let square = Profile::new(
-        SketchPlane::xy(),
-        vec![ProfileLoop::polygon([
-            Point2::new(0.0, 0.0),
-            Point2::new(2.0, 0.0),
-            Point2::new(2.0, 1.0),
-            Point2::new(0.0, 1.0),
-        ])],
-    )
-    .validate(Tolerance::get())
-    .expect("the square validates");
-    let built = extrude(&square, Extrusion::Distance(2.0)).expect("extrudes");
-    let mut body = built.body;
-    let wall = lift_surface::<f64>(&loft.walls[0][1]).expect("lifts");
-    let face = built.side_faces[0][1];
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
-        .expect("the arena takes a real NURBS surface");
-    match validate_geometric(&body) {
-        Err(errors)
-            if errors.iter().any(|e| {
-                matches!(e, topo::ValidationError::UncertifiableSurface { face: f } if *f == face)
-            }) =>
-        {
-            println!(
-                "   frontier, pinned: tier 3 refuses a real NURBS wall by KIND \
-                 (UncertifiableSurface). The certification flip is M5 PR 9's \
-                 charter; the curved-wall RENDER is PR 11's."
-            );
-        }
-        other => panic!(
-            "the NURBS-wall frontier has CLOSED ({other:?}) — retire this narration: \
-             build the lofted solid, make it a real Stop with a SceneBody, and \
-             register it in main's ladder next to curvedcut"
-        ),
-    }
+/// The frontier CLOSED (M6-3) and the retire-on-closure panic that
+/// stood here fired as designed: `sweep::loft_body` assembles the
+/// shape-(iii) solid and it validates at tier 3 — described NURBS
+/// walls pass check 1, the iso seams certify, the patch flux feeds
+/// +V. This narration builds and validates it live; the full render
+/// Stop (SceneBody + registration next to `curvedcut`) is the
+/// follow-up half of the retirement, tracked in the M6-3 PR.
+fn lofted_solid_narration() {
+    let quad = |pts: [(f64, f64); 4]| -> SectionSegments {
+        let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
+            a: Point2::new(a.0, a.1),
+            b: Point2::new(b.0, b.1),
+        };
+        vec![vec![
+            seg(pts[0], pts[1]),
+            seg(pts[1], pts[2]),
+            seg(pts[2], pts[3]),
+            seg(pts[3], pts[0]),
+        ]]
+    };
+    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let sections = vec![quad(square), quad(trapezoid), quad(square)];
+    let places = vec![
+        Affine3::identity(),
+        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+    ];
+    let lofted = sweep::loft_body::<f64>(&sections, &places, 2)
+        .expect("the shape (iii) loft assembles (M6-3)");
+    validate_geometric(&lofted.body).expect("the loft body validates at tier 3");
+    let m = topo::props::mass_properties(&lofted.body).expect("mass properties");
+    println!(
+        "   the frontier CLOSED (M6-3): the shape-(iii) loft BODY assembles and passes \
+         tier 3 — {} faces ({} NURBS walls), volume {:.9} ± {:.2e} m^3 (derived exact: 9)",
+        lofted.body.faces().count(),
+        lofted.side_faces.iter().map(Vec::len).sum::<usize>(),
+        m.volume,
+        m.volume_pad
+    );
 }

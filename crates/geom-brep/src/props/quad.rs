@@ -1036,10 +1036,8 @@ fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
     let mut out = Vec::new();
     let mut edges: Vec<f64> = vec![lo];
     for k in kv.knots() {
-        if *k > lo && *k < hi {
-            if edges.last().is_none_or(|e| *e != *k) {
-                edges.push(*k);
-            }
+        if *k > lo && *k < hi && edges.last().is_none_or(|e| *e != *k) {
+            edges.push(*k);
         }
     }
     edges.push(hi);

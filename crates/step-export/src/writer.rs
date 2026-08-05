@@ -32,18 +32,19 @@ pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
         Surface::Cone { .. } => "cone",
         Surface::Sphere { .. } => "sphere",
         Surface::Torus { .. } => "torus",
-        // The two Nurbs states are told apart: the mvfs "no
-        // description yet" placeholder (all-poison control points) is a
-        // mid-surgery fact, while a described NURBS surface is the loft
-        // -assembly frontier. Both refuse; they refuse for different
-        // reasons and the message says which.
+        // The two Nurbs states are told apart (the shared
+        // `is_placeholder` discriminator, M6-3): the mvfs "no
+        // description yet" placeholder (all-poison control points) is
+        // a mid-surgery fact and REFUSES; a described NURBS surface
+        // exports natively as B_SPLINE_SURFACE_WITH_KNOTS since M6-3
+        // — this name now appears only in messages that classify
+        // kinds (e.g. the multi-shell curved classification), never
+        // as a face-printer refusal.
         Surface::Nurbs(payload) => {
-            if payload.control().iter().all(|p| !p.x.is_finite()) {
+            if payload.is_placeholder() {
                 "nurbs placeholder"
             } else {
-                "nurbs surface (B_SPLINE_SURFACE_WITH_KNOTS export arrives \
-                 with the loft-assembly unit, which mints the first NURBS \
-                 face at rest)"
+                "nurbs surface"
             }
         }
     }
@@ -412,6 +413,82 @@ impl<'a> Writer<'a> {
         }
     }
 
+    /// `B_SPLINE_SURFACE_WITH_KNOTS` for a validated kernel NURBS
+    /// surface (M6-3) — the **non-rational** simple entity when every
+    /// weight is exactly 1.0, otherwise the `RATIONAL_B_SPLINE_SURFACE`
+    /// complex instance (the AND-composition spelled as a
+    /// complex-entity instance with component names in alphabetical
+    /// order — [`Self::b_spline_curve`]'s rule, one dimension up; both
+    /// arms written even though the first corpus body is non-rational,
+    /// the curve writer's precedent, pinned at record level).
+    ///
+    /// Field mapping, all exact, mirroring the curve writer:
+    ///
+    /// - `u_degree`/`v_degree` ← the knot vectors' degrees;
+    ///   `control_points_list` ← LIST OF LIST, outer index u (the
+    ///   kernel's row-major `iu·nv + iv` layout maps row for row).
+    /// - knot pairs ← run-length-encoded by **exact f64 equality**
+    ///   per direction (the kernel's own multiplicity predicate).
+    /// - `surface_form` is `.UNSPECIFIED.`; `u_closed`/`v_closed`/
+    ///   `self_intersect` are `.U.` — the kernel certifies none of
+    ///   those claims for a skinned patch, and `.U.` is the honest
+    ///   LOGICAL the type provides (the curve writer's reasoning,
+    ///   verbatim).
+    /// - `weights_data` (rational arm) ← the stored weights as a LIST
+    ///   OF LIST in the same layout, printed round-trip exact.
+    fn b_spline_surface(
+        &mut self,
+        surface: &geom_surfaces::NurbsSurface<f64>,
+    ) -> Result<u64, StepExportError> {
+        let (nu, nv) = surface.control_counts();
+        let mut rows = Vec::with_capacity(nu);
+        for iu in 0..nu {
+            let mut row = Vec::with_capacity(nv);
+            for iv in 0..nv {
+                row.push(self.cartesian_point(
+                    surface.control()[iu * nv + iv],
+                    "b-spline surface control point",
+                )?);
+            }
+            rows.push(format!("({})", refs(&row)));
+        }
+        let points = rows.join(", ");
+        let (du, dv) = (surface.knots_u().degree(), surface.knots_v().degree());
+        let (u_mults, u_values) =
+            run_length_knots(surface.knots_u().knots(), "b-spline surface u-knot")?;
+        let (v_mults, v_values) =
+            run_length_knots(surface.knots_v().knots(), "b-spline surface v-knot")?;
+        if surface.weights().iter().all(|w| *w == 1.0) {
+            Ok(self.emit(&format!(
+                "B_SPLINE_SURFACE_WITH_KNOTS('', {du}, {dv}, ({points}), .UNSPECIFIED., .U., \
+                 .U., .U., ({u_mults}), ({v_mults}), ({u_values}), ({v_values}), .UNSPECIFIED.)"
+            )))
+        } else {
+            let mut wrows = Vec::with_capacity(nu);
+            for iu in 0..nu {
+                let mut wrow = String::new();
+                for iv in 0..nv {
+                    if iv > 0 {
+                        wrow.push_str(", ");
+                    }
+                    wrow.push_str(&fmt_real(
+                        surface.weights()[iu * nv + iv],
+                        "b-spline surface weight",
+                    )?);
+                }
+                wrows.push(format!("({wrow})"));
+            }
+            let w = wrows.join(", ");
+            Ok(self.emit(&format!(
+                "( B_SPLINE_SURFACE({du}, {dv}, ({points}), .UNSPECIFIED., .U., .U., .U.) \
+                 B_SPLINE_SURFACE_WITH_KNOTS(({u_mults}), ({v_mults}), ({u_values}), \
+                 ({v_values}), .UNSPECIFIED.) BOUNDED_SURFACE() \
+                 GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_SURFACE(({w})) \
+                 REPRESENTATION_ITEM('') SURFACE() )"
+            )))
+        }
+    }
+
     /// `EDGE_LOOP` of `ORIENTED_EDGE`s for one loop, wrapped as
     /// `FACE_OUTER_BOUND` (outer) or `FACE_BOUND` (ring), both with
     /// orientation `.T.`: the stored traversal direction is already
@@ -661,11 +738,20 @@ impl<'a> Writer<'a> {
                     "TOROIDAL_SURFACE('', #{placement}, {major}, {minor})"
                 ))
             }
-            ref other => {
-                return Err(StepExportError::UnsupportedSurface {
-                    face: face_key,
-                    kind: surface_kind(other),
-                });
+            // `b_spline_surface_with_knots` (M6-3, walk row 12): the
+            // described NURBS surface exports natively, mirroring the
+            // curve writer arm for arm — the non-rational simple
+            // entity when every weight is exactly 1.0, otherwise the
+            // `RATIONAL_B_SPLINE_SURFACE` complex instance. The mvfs
+            // PLACEHOLDER keeps refusing (`surface_kind` names it).
+            Surface::Nurbs(ref payload) => {
+                if payload.is_placeholder() {
+                    return Err(StepExportError::UnsupportedSurface {
+                        face: face_key,
+                        kind: surface_kind(surface),
+                    });
+                }
+                self.b_spline_surface(payload)?
             }
         };
         let mut bounds = Vec::with_capacity(1 + rings.len());
@@ -959,44 +1045,69 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
-    /// **The two `Surface::Nurbs` states are told apart.** The mvfs
-    /// placeholder is a mid-surgery fact and says so; a DESCRIBED
-    /// NURBS surface is the loft-assembly frontier and says THAT. No
-    /// body at rest carries the second one — the loft-assembly unit
-    /// mints the kernel's first NURBS face — so without this row the
-    /// message would be dead by construction and could rot into a lie
-    /// unnoticed. It is constructible here because `NurbsSurface::new`
-    /// is public and validating: a bilinear patch with finite control
-    /// points is a perfectly real described surface, it simply cannot
-    /// yet be attached to a face by any public constructor.
+    /// **The two `Surface::Nurbs` states are told apart** (S9-flipped
+    /// at M6-3: the described state used to be a named frontier
+    /// refusal; it now EXPORTS, and this row pins the surface records
+    /// at byte level exactly as the curve rows above pin theirs —
+    /// both arms, the non-rational simple entity and the RATIONAL
+    /// complex instance, even though the first corpus body is
+    /// non-rational: cheap, and it keeps the arm from being dead
+    /// code).
     #[test]
-    fn the_two_nurbs_surface_states_refuse_with_different_messages() {
+    fn the_nurbs_surface_arms_emit_and_the_placeholder_refuses() {
         let placeholder = Surface::<f64>::nurbs_placeholder();
         assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
 
-        let described = Surface::Nurbs(std::sync::Arc::new(
-            geom_surfaces::NurbsSurface::new(
-                KnotVector::unit_segment(1),
-                KnotVector::unit_segment(1),
-                vec![
-                    Point3::new(0.0, 0.0, 0.0),
-                    Point3::new(1.0, 0.0, 0.0),
-                    Point3::new(0.0, 1.0, 0.0),
-                    Point3::new(1.0, 1.0, 0.25),
-                ],
-                vec![1.0; 4],
-            )
-            .expect("a validated bilinear patch"),
-        ));
+        let patch = geom_surfaces::NurbsSurface::new(
+            KnotVector::unit_segment(1),
+            KnotVector::unit_segment(1),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.25),
+            ],
+            vec![1.0; 4],
+        )
+        .expect("a validated bilinear patch");
         assert_eq!(
-            surface_kind(&described),
-            "nurbs surface (B_SPLINE_SURFACE_WITH_KNOTS export arrives \
-             with the loft-assembly unit, which mints the first NURBS \
-             face at rest)"
+            surface_kind(&Surface::Nurbs(patch.clone().into())),
+            "nurbs surface"
         );
-        // The two really are different messages, and the described one
-        // is NOT reached by the poison test the placeholder trips.
-        assert_ne!(surface_kind(&placeholder), surface_kind(&described));
+
+        // Record pins, both arms (the curve pins' idiom).
+        let body = Body::<f64>::new();
+        let mut w = Writer::new(&body);
+        w.b_spline_surface(&patch).expect("non-rational arm emits");
+        assert!(
+            w.data.contains(
+                "B_SPLINE_SURFACE_WITH_KNOTS('', 1, 1, ((#1, #2), (#3, #4)), .UNSPECIFIED., \
+                 .U., .U., .U., (2, 2), (2, 2), (0.0, 1.0), (0.0, 1.0), .UNSPECIFIED.)"
+            ),
+            "non-rational record: {}",
+            w.data
+        );
+
+        let rational = geom_surfaces::NurbsSurface::new(
+            KnotVector::unit_segment(1),
+            KnotVector::unit_segment(1),
+            patch.control().to_vec(),
+            vec![1.0, 2.0, 1.0, 1.0],
+        )
+        .expect("a rational patch");
+        let mut w = Writer::new(&body);
+        w.b_spline_surface(&rational).expect("rational arm emits");
+        assert!(
+            w.data.contains(
+                "( B_SPLINE_SURFACE(1, 1, ((#1, #2), (#3, #4)), .UNSPECIFIED., .U., .U., .U.) \
+                 B_SPLINE_SURFACE_WITH_KNOTS((2, 2), (2, 2), (0.0, 1.0), (0.0, 1.0), \
+                 .UNSPECIFIED.) BOUNDED_SURFACE() GEOMETRIC_REPRESENTATION_ITEM() \
+                 RATIONAL_B_SPLINE_SURFACE(((1.0, 2.0), (1.0, 1.0))) \
+                 REPRESENTATION_ITEM('') SURFACE() )"
+            ),
+            "rational record: {}",
+            w.data
+        );
     }
 
     /// The "no description yet" NURBS carrier refuses typed rather
