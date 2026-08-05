@@ -678,3 +678,8 @@ corpus: elbow-class sweep + non-uniform loft fixtures with
 KERNEL_*-bearing sidecars, byte-golden, check_step oracle rows,
 SOLID_FIXTURES extension; measured feasibility from #209/#210's
 own suites). Draw after this commit.
+Draw: byte 220 → **(fable, opus)** — migration = FABLE, fold =
+OPUS. Both dispatched: lanes margin-migrate (slot 1) +
+corpus-fold (slot 2), disjoint footprints (geom-brep/topo
+classify sites vs sweep tests + fixture corpus). PRs held for
+blinded review per standing process.
