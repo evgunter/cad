@@ -805,3 +805,23 @@ fn unreachable_zero<T: Real>() -> (T, T, T, T) {
     let nan = T::from_f64(f64::NAN);
     (nan, nan, nan, nan)
 }
+
+// ADVERSARIAL REVIEW PROBE (branch review/rim-dim, not for merge).
+#[cfg(test)]
+mod rim_level_review_probe {
+    use super::*;
+
+    /// The structurally-impossible mixed-kind arm must escalate typed
+    /// (poisoned classify), never panic and never answer false.
+    #[test]
+    fn mixed_kind_levels_escalate_typed() {
+        let band = Band::linear().expect("band");
+        let got = same_level(
+            RimLevel::Length(1.0_f64),
+            RimLevel::Unit(0.5, 0.5),
+            1.0,
+            band,
+        );
+        assert!(got.is_err(), "mixed kinds must poison typed: {got:?}");
+    }
+}
