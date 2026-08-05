@@ -601,3 +601,9 @@ nist_ftc_10 premise was stale. **A/B block M7-4: M7-3
 difficulty logged M BEFORE the draw** (per the substrate's
 signal: doors open, work = two design decisions + the sig trap
 + flip bookkeeping). Draw after this commit.
+Draw: byte 224 → **(fable, opus)** — M7-3 = FABLE; opus
+remainder to the next eligible dispatch (candidates: the #207
+skin-fit fix, M6 unit 5, or the margin-convention migration if
+#205 ratifies). Spec + substrate ride the next state-sync;
+dispatch now (lane m7-3-import, slot 2; the substrate lane on
+slot 1 is done and cleans at this seam).
