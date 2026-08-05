@@ -639,6 +639,40 @@ difficulty L (logged pre-assignment), lane m6-3-loft, branch
 ev/m6-loft-assembly, spec docs/M6-3-SPEC.md; brief carries the
 #179 aggregator-layout note. Slot 1 claimed in cargo-slots.txt.**
 
+**Fable-limit outage #1 this session (2026-08-04 ~22:20 →
+2026-08-05 ~01:30, ended by Evan's /login).** M6-3 implementer
+killed mid-Leg-D edit; lane push-clean through e680e81 (Legs
+A–C + Band-4 corpus row); resumed from transcript with a
+Leg-D-onward brief. The concurrent-M7 arrangement did its job:
+M7-2 shipped and M7-4 spec'd during the outage. CPU pin FIXED
+during the gap (canary 0.87s).
+
+**Accumulated ratifications during the outage:**
+- **UNIT 6 ADDED (Evan 👍 on the #184 triage): the curved
+  sense-flip tier gate** — sized S-M, sequenced after unit 5
+  (Evan: "no strong opinion on sequencing — do as you see
+  fit"). STRENGTHENED by the M7-2 review addendum on #184: the
+  props torus arm never consumes sense_sign (inside-out torus
+  certifies POSITIVE volume, bit-identical — executed,
+  review/m7-2 a1_* probes). Negative controls available
+  in-tree: step-import's adopted flip probes.
+- **KERNEL_* sidecar fields APPROVED (same 👍)** with the M7
+  orchestrator's three refinements locked on-thread:
+  full-precision KERNEL_VOLUME_MM3 via the round-tripping
+  printer (staleness row asserts bit-exact), KERNEL_* = NATIVE
+  census with the kiss_assembly 1/2-vs-2/2 divergence
+  documented on KERNEL_SOLIDS, no seam/pole accounting. Queued
+  as an S lull unit on my side; M7's consumer switch follows.
+- **THE #89 RE-OPEN TRIGGER FIRED (2026-08-05, reported by the
+  M7 orchestrator per protocol): the project's first IN-BAND
+  LANDING** — fixture cone_trunc (FreeCAD-authored, mm-scale),
+  a props_rim-class predicate, from the M7-2 foreign corpus —
+  exactly the source the K-REPORT predicted. Nothing retuned;
+  Evan owns the re-open decision. M6-side consequence: the
+  stale 1.5e-3 k-lint baseline floor refresh (already a named
+  M6 hygiene pickup) is now LOAD-BEARING for reading the
+  landing's context — promote it up the lull queue.
+
 **M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
 exploration (which read post-#176 origin/main): six legs
 (builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
