@@ -87,10 +87,12 @@ pub enum StepImportError {
         expected: &'static str,
     },
     /// An entity type outside the imported subset appears where the
-    /// reader must interpret it. `B_SPLINE_SURFACE_WITH_KNOTS` is the
-    /// named M7 frontier: NURBS *faces* arrive with the loft/sweep
-    /// assembly unit, and their import waits for their export (the S9
-    /// flip pattern retires this refusal when they land).
+    /// reader must interpret it. The subset is what the kernel's own
+    /// writer emits — since M7-3 that includes both
+    /// `B_SPLINE_SURFACE_WITH_KNOTS` arms (the old named M7 frontier,
+    /// retired by the S9 flip exactly as this doc predicted); spline
+    /// sub-types the writer never emits (knots-implied
+    /// `QUASI_UNIFORM_CURVE` and kin) stay here, typed.
     UnsupportedEntity {
         /// The offending entity instance.
         id: u64,
@@ -205,8 +207,9 @@ impl fmt::Display for StepImportError {
             Self::UnsupportedEntity { id, keyword } => write!(
                 f,
                 "step import: entity #{id} ({keyword}) is outside the imported subset \
-                 (the analytic subset the kernel exports; NURBS surfaces arrive with \
-                 the loft/sweep assembly unit and their import follows their export)"
+                 (the subset the kernel exports — elementary analytic surfaces plus \
+                 both B_SPLINE arms with stated knots; knots-implied spline sub-types \
+                 and other foreign vocabulary refuse here, typed)"
             ),
             Self::UnsupportedUnit { id, found } => write!(
                 f,

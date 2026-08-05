@@ -634,9 +634,8 @@ fn mapped_self_description(
 /// names (its call site's comment). Any other pairing answers
 /// `false`: the exemption is exactly as wide as the class it serves.
 fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
-    let described_nurbs = |s: Option<&Surface<f64>>| {
-        matches!(s, Some(Surface::Nurbs(p)) if !p.is_placeholder())
-    };
+    let described_nurbs =
+        |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Nurbs(p)) if !p.is_placeholder());
     let plane = |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Plane { .. }));
     (described_nurbs(s1) && plane(s2)) || (plane(s1) && described_nurbs(s2))
 }
@@ -657,7 +656,10 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Affine3<f64> {
     let perpendicular = candidate - dir * dir.dot(candidate);
     let y = perpendicular / perpendicular.norm();
     let z = dir.cross(y);
-    Affine3::from_parts(geom_core::Mat3::from_cols(dir, y, z), origin - Point3::origin())
+    Affine3::from_parts(
+        geom_core::Mat3::from_cols(dir, y, z),
+        origin - Point3::origin(),
+    )
 }
 
 /// Bitwise equality of a parsed NURBS carrier against a wall's
@@ -665,7 +667,10 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Affine3<f64> {
 /// weights all to the bit (the IsoCurve rung's match; its call site's
 /// soundness comment). Weight lengths follow control lengths on both
 /// sides by construction (`NurbsCurve3::new` validates them equal).
-fn bitwise_iso_match(carrier: &geom_curves::NurbsCurve3<f64>, iso: &geom_curves::NurbsCurve3<f64>) -> bool {
+fn bitwise_iso_match(
+    carrier: &geom_curves::NurbsCurve3<f64>,
+    iso: &geom_curves::NurbsCurve3<f64>,
+) -> bool {
     let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
     carrier.knots().degree() == iso.knots().degree()
         && carrier.knots().knots().len() == iso.knots().knots().len()
@@ -756,6 +761,7 @@ fn carrier_on_surface(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unreachable)]
 mod tests {
     use geom_core::spline::KnotVector;
     use geom_surfaces::NurbsSurface;

@@ -623,8 +623,21 @@ impl<'a> Resolver<'a> {
                 let expected = "B_SPLINE_SURFACE_WITH_KNOTS(name, u_degree, v_degree, \
                                 ((points)), form, u_closed, v_closed, self_intersect, \
                                 (u_mults), (v_mults), (u_knots), (v_knots), spec)";
-                let [_, du, dv, points, _, _, _, _, u_mults, v_mults, u_knots, v_knots, _] =
-                    args.as_slice()
+                let [
+                    _,
+                    du,
+                    dv,
+                    points,
+                    _,
+                    _,
+                    _,
+                    _,
+                    u_mults,
+                    v_mults,
+                    u_knots,
+                    v_knots,
+                    _,
+                ] = args.as_slice()
                 else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
@@ -1108,6 +1121,15 @@ impl<'a> Resolver<'a> {
         // in `normalize`: split the band into half-faces joined by
         // minted generators at a chosen azimuth. That is a unit of
         // work, not a line, and it is recorded rather than guessed at.
+        //
+        // A multi-ring NURBS face (M7-3) refuses HERE too, and its
+        // frontier is deeper still: outerness inference needs a chart
+        // inversion (`chart::uv_of`) that no NURBS surface has, and
+        // the kernel has no trimmed-NURBS volume construction either
+        // -- wild rational multi-ring faces (dm1-id-214's 11 trim
+        // rings) are stage-1 recognition territory, banked. The
+        // exported class never reaches this gate: every loft wall is
+        // single-bound, outer by definition below.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
             return Err(StepImportError::Topology {
                 id,
