@@ -74,7 +74,7 @@ by an exclusion certificate rather than an algorithm's diligence**
 (the banked SSI contract). Marching produces candidates; certification
 produces truth; nothing the marcher does is trusted.
 
-## C1 — Intersection-locus representation: a three-rung ladder (proposed)
+## C1 — Intersection-locus representation: a three-rung ladder
 
 What is the carrier cache of an `Intersection` edge between curved
 surfaces? Three rungs, dispatched by surface-kind pair (C5), most
@@ -137,7 +137,7 @@ parabola/hyperbola question is OQ1 (they arise only from plane×cone
 at specific tilts; both are unbounded like `Line`, so bounds-from-
 vertices machinery transfers).
 
-## C2 — The certificate for a fitted curve (proposed)
+## C2 — The certificate for a fitted curve
 
 D4 ¶2 says every derived cache carries a certified residual ≤ ε
 against its description. For M2's closed-form carriers, certification
@@ -200,7 +200,7 @@ default build path (Tension T2) and is unnecessary: the exclusions
 here are polynomial. (iii) *Trust the marcher's step control* —
 rejected on principle; see C3.
 
-## C3 — SSI: march-then-certify; the stepper is untrusted (proposed)
+## C3 — SSI: march-then-certify; the stepper is untrusted
 
 The question the plan asked — "how does a step certify it hasn't
 jumped branches?" — gets inverted: **it doesn't.** No per-step
@@ -275,7 +275,7 @@ point strings). (iii) *Algebraic elimination to a plane curve*
 implicit pairs but degree-explodes past quadrics and sits poorly with
 NURBS; not adopted; the ℝ⁴ trace covers its use case for us.
 
-## C4 — Pcurves: per-half-edge certified caches, certified in meters (proposed)
+## C4 — Pcurves: per-half-edge certified caches, certified in meters
 
 Background restated from D2: a face is a region of its surface's
 (u,v) plane; each boundary edge of that face therefore also has a
@@ -338,7 +338,7 @@ and dihedral mechanism keys off the 3-D carrier, and demoting it
 re-plumbs certified machinery for symmetry's sake. The fork is real
 and cheap to flip pre-implementation; it is listed as OQ4.
 
-## C5 — Dispatch: one total kind-pair table, no runtime fallback (proposed)
+## C5 — Dispatch: one total kind-pair table, no runtime fallback
 
 The M3 face-intersection seam (`splitting::classify` /
 `boolean::reduce`, plane×plane closed-form behind a thin interface —
@@ -376,7 +376,7 @@ case-by-case — rejected; that is exactly the guessed abstraction F5
 banned M3 from building, now buildable against real requirements, and
 the closed-enum table is the ratified D3 shape for it.
 
-## C6 — Fitted-cache structure is an f64-lane artifact; certification is scalar-generic (proposed)
+## C6 — Fitted-cache structure is an f64-lane artifact; certification is scalar-generic
 
 The fitting loop (A9.10: add/remove knots until the bound holds) is
 value-branching in a way Q1's trilean discipline cannot and should
@@ -416,7 +416,7 @@ escalations with no semantic content (a knot-count difference is not a
 topology event), multiplies interval-lane cost by the fit's iteration
 count, and W2's precedent already gives the sound split.
 
-## C7 — `TangencyLocus` and second-order sector classification (proposed)
+## C7 — `TangencyLocus` and second-order sector classification
 
 The second intrinsic variant lands (D2 specified its validity
 predicate in full; this section only mechanizes it):
@@ -480,7 +480,7 @@ predicate in full; this section only mechanizes it):
   configurations are the M5 envelope's typed frontier, exactly as
   boundary-on-boundary seams were M3's.
 
-## C8 — Fillets: reified predicates first, rolling-ball with analytic-first blends (proposed)
+## C8 — Fillets: reified predicates first, rolling-ball with analytic-first blends
 
 Vocabulary (Vida–Martin–Várady pp. 341–345, Figs. 4/6, adopted): the
 **base surfaces** are blended; the blend meets them along
@@ -542,7 +542,7 @@ practice, p. 343).
   names — `RunOutStopAtVertex`, `RunOutFeather`, corner-configuration
   tags — zero constructor surface; see OQ6.)
 
-## C9 — The exclusion arithmetic: hull/ring intervals; inari stays quarantined (proposed)
+## C9 — The exclusion arithmetic: hull/ring intervals; inari stays quarantined
 
 C2/C3/C7's enclosure obligations (exhaustiveness exclusion, sup-norm
 hull bounds, uniqueness tubes) threaten to make interval arithmetic
@@ -618,7 +618,7 @@ additions:
   hulls (convexity again — free and sound). A box is a cache with a
   containment contract, not a tolerance object.
 
-## C11 — NURBS substrate scope (proposed)
+## C11 — NURBS substrate scope
 
 What "NURBS depth" must actually contain, bounded:
 
@@ -652,7 +652,7 @@ What "NURBS depth" must actually contain, bounded:
   loops need (i_overlay stays banked), degree reduction §5.6 (no
   consumer).
 
-## C12 — The refactor inventory: M3/M4 seams touched against real curved requirements (proposed)
+## C12 — The refactor inventory: M3/M4 seams touched against real curved requirements
 
 The F5 inverse commitment promised M5 would refactor the thin
 boundary rather than inherit a guess. The concrete list (each a

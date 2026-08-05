@@ -177,7 +177,7 @@ content-key cached like everything.
   panel, and the document is the right home for design intent
   (E10's assertions).
 
-## E4 — Sensitivity semantics: forward Dual<f64>, one seed per parameter, chamber-local and marked as such (proposed)
+## E4 — Sensitivity semantics: forward Dual<f64>, one seed per parameter, chamber-local and marked as such
 
 **Mechanism**: ∂m/∂pᵢ = evaluate the recipe at `Dual<f64>` with pᵢ
 seeded, others constant; n parameters ⇒ n independent passes (pure
@@ -204,7 +204,7 @@ refusal decisions (E9).
 O(n·build), trivially parallel; both are performance additives
 (E11.4).
 
-## E5 — Stackup deliverable: a typed per-measurement report; certified worst-case gates, RSS is labeled advisory (proposed)
+## E5 — Stackup deliverable: a typed per-measurement report; certified worst-case gates, RSS is labeled advisory
 
 ```
 Stackup {
@@ -234,7 +234,7 @@ Stackup {
   is labeling and ordering, not omission — omit RSS and users
   compute it outside, unlabeled.
 
-## E6 — The subdivision driver and `ParamBoxVerdict` (the M6 build) (proposed)
+## E6 — The subdivision driver and `ParamBoxVerdict` (the M6 build)
 
 M6 builds the Q1-promised driver as an analysis-lane service on
 the `Real`-generic editor-core evaluation service (no parallel path).
@@ -290,7 +290,7 @@ toward* zero by refinement are the first genuinely ill-conditioned
 population K sees; the M6 exit reads the funnel before reaffirming
 K = 10.
 
-## E7 — Clearance & self-intersection: a trichotomy over box × domain; duals accelerate, never decide (proposed)
+## E7 — Clearance & self-intersection: a trichotomy over box × domain; duals accelerate, never decide
 
 For a **certified leaf** (fixed topology), M6 answers two questions:
 global self-intersection-freedom, and `min-clearance ≥ c` for a
@@ -330,7 +330,7 @@ sampling.
 check restricts to a box facet, collapsing a dimension. An
 accelerator only: correctness never depends on it (E9).
 
-## E8 — Composition with the W-contracts: witnesses are fixed document state; walls become priced refusals (proposed)
+## E8 — Composition with the W-contracts: witnesses are fixed document state; walls become priced refusals
 
 - **The analysis lane is read-only.** The driver NEVER writes the
   document: no auto-ReWitness however clean the certificate (W4's
@@ -357,7 +357,7 @@ accelerator only: correctness never depends on it (E9).
     flip in v1; solver walls are its sharpest case.) (`solver_branch_margin` samples from driver runs feed
     E6's k_stats obligation.)
 
-## E9 — Tangent poison never refuses (proposed)
+## E9 — Tangent poison never refuses
 
 Ratified base: decoration-as-poison lives in the value lane;
 `Decide` classifies the value channel only — tangent data does not
@@ -379,7 +379,7 @@ never linearization).
   True, and honest — it still carries the gating certified
   worst-case; the advisory columns degrade loudly, never lie.
 
-## E10 — Reporting & persistence: distributions and assertions persist; verdicts are derived and CI-able (proposed)
+## E10 — Reporting & persistence: distributions and assertions persist; verdicts are derived and CI-able
 
 **Persisted, in-document** (additive F3 migration, one schema step;
 fields named now):
@@ -411,7 +411,7 @@ tested); (3) k_stats funnel rows for driver + solver predicates
 **Open sub-question**: should a failing Assertion gate `build()`?
 v1 says no — assertions report; a gating mode is additive policy.
 
-## E11 — What M6 does NOT do (loud) (proposed)
+## E11 — What M6 does NOT do (loud)
 
 1. **Monte Carlo never gates** *(softened round 3, per Evan:
    "probably fine" is fair once probabilities are on the table)*.

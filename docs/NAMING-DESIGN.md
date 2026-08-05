@@ -58,7 +58,7 @@ exactly as verdict flips, which are the pillar's loud sites. The
 name table depends on nothing else (N4 states this as the invariant
 that CI pins).
 
-## N1 — A stable name is a derivation path (proposed)
+## N1 — A stable name is a derivation path
 
 ```
 StableName<K> = { node: RecipeNodeId, path: RolePath }   // K ∈ {Body, Face, Edge, Vertex}
@@ -95,7 +95,7 @@ RolePath      = [RoleSeg]                                 // op-typed, closed en
   is the sanctioned extension at exactly these seams (Q-i): table
   keys, rebind edits (N6), appearance attachment, hit-test returns.
 
-## N2 — Split discriminators are covariant margined predicates (proposed)
+## N2 — Split discriminators are covariant margined predicates
 
 The split-face problem (lit mode 1): one source, n fragments; history
 supplies no ordering. Value discriminators (indices, (u,v) data) are
@@ -154,7 +154,7 @@ name's spine; geometry enters only as margined predicate verdicts —
 never raw values — so the "geometry tie-breaker" exists but every
 use of it is named, margined, and diffable.
 
-## N3 — Merge policy: names retire into the merge, loudly (proposed)
+## N3 — Merge policy: names retire into the merge, loudly
 
 merge_coplanar_faces (F7) merges only structural/declared-coincident
 faces — by the coincidence ladder those share a recipe source, so:
@@ -195,7 +195,7 @@ always right for appearance-like references, it graduates to a
 ratified opt-in policy via the N5 menu — same convenience as
 auto-follow, without the silent semantics.
 
-## N4 — The name table: eager, per-node, cache-transferable (proposed)
+## N4 — The name table: eager, per-node, cache-transferable
 
 Resolution machinery (Q-b, T3):
 
@@ -232,7 +232,7 @@ Resolution machinery (Q-b, T3):
   evaluation the mesh came from. The GUI still never sees an arena
   key.
 
-## N5 — Typed resolution failure (proposed)
+## N5 — Typed resolution failure
 
 ```
 ResolveError =
@@ -273,7 +273,7 @@ Diagnosis =
   enters as its own ratification with this doc's failure cases as its
   test corpus.
 
-## N6 — Recipe-source identity retires bit_identity (proposed)
+## N6 — Recipe-source identity retires bit_identity
 
 The declared-coincidence rung and the M4 retirement (T2, Q-e):
 
@@ -301,7 +301,7 @@ GeomSource = { node: RecipeNodeId, expr: ExprPath, orient: Or }   // Or ∈ {Id,
   keeps its own allowlist entry with a renamed justification. CI
   tripwires stay until the last production consumer is gone.
 
-## N7 — What the pillar now says, exhaustively (proposed)
+## N7 — What the pillar now says, exhaustively
 
 Topology-change sites, complete for *edits* as well as parameter
 motion (T4): (i) structural parameter change (D8), (ii) reified

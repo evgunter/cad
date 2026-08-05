@@ -1,13 +1,13 @@
 # Contact census & declared contact (pre-implementation design doc)
 
-**Status: DRAFT for design conversation (M6 unit 4, DESIGN-ONLY).**
-This is the design doc OQ5 deferred to ("the curved coincidence census
-waits for its own design doc" — CURVED-DESIGN OQ5, decided Evan #85).
-It proposes resolving OQ5's *design* half; it schedules **no
-implementation** and changes **no behavior** — every refusal named
-below keeps refusing until its unit ships. Contact semantics is
-fundamental-fork territory: nothing here self-merges; a 👍 from Evan
-on the PR ratifies the C-numbered proposals as written. C-numbers are
+**Status: RATIFIED (M6 unit 4, DESIGN-ONLY; Evan's sign-off on
+PR #178, 2026-08-04 — ratification recorded in M6-LOG).** This is the
+design doc OQ5 deferred to ("the curved coincidence census waits for
+its own design doc" — CURVED-DESIGN OQ5, decided Evan #85). It
+resolves OQ5's *design* half; it schedules **no implementation** and
+changes **no behavior** — every refusal named below keeps refusing
+until its unit ships. The C-numbered proposals are ratified as
+written. C-numbers are
 LOCAL to this document; CURVED-DESIGN's C-numbers are always cited
 qualified ("CURVED-DESIGN C7"), never bare.
 
@@ -543,15 +543,16 @@ unions — that is the banked cyl×sphere/germ-chord lane, not contact.
 
 ## C8 — OQ5 disposition and refusal migration
 
-**Proposed to ratify (this doc's C1–C7):** the contact census
+**Ratified (this doc's C1–C7; #178, 2026-08-04):** the contact census
 classification and its invariants (C1); the representation boundary,
 identity lemma, and decision procedure (C2); the record granularities
 (C3); the declaration vocabulary, per-class verification tables,
 storage/replay/persistence semantics, and failure modes (C4); the
 signed-gap object and the M8 contract (C5); interference-fit
 semantics (C6); the join-lane shape as the stated implementation
-target (C7). Ratifying these CLOSES OQ5: the deferral's condition
-("waits for its own design doc") is discharged by this document.
+target (C7). Their ratification CLOSED OQ5: the deferral's condition
+("waits for its own design doc") is discharged by this document
+(CURVED-DESIGN's OQ5 entry records the closure).
 
 **Explicitly still open, with owners:** implementation sequencing
 (banked past M6 — "curved REST" and the joined-path sweep lane per

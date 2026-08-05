@@ -52,7 +52,7 @@ and interval-Newton certificates are how a selection becomes
 *provable*. GQ1 = stored data + certified box; purity makes
 no-hysteresis definitional rather than engineered.
 
-## W1 — The witness is the committed solved assignment (proposed)
+## W1 — The witness is the committed solved assignment
 
 ```
 SketchWitness = the full solved coordinate assignment (f64, raw
@@ -88,7 +88,7 @@ SketchWitness = the full solved coordinate assignment (f64, raw
   bit-exact save/load (ratified persistence discipline applies
   as-is). Units erased before kernel scalars (GQ5).
 
-## W2 — Selection is certification, not search (proposed)
+## W2 — Selection is certification, not search
 
 `solution(constraints, params, witness)` selects the branch by a
 **certified basin test**, never a nearest-root search — there is no
@@ -133,7 +133,7 @@ is fixed-shape by construction. The solver lives where SSI marching
 lives — kernel numeric machinery under D4 certification, OUTSIDE the
 total-by-charter expression language (T5, stated).
 
-## W3 — `WitnessBifurcation`: the typed refusal (proposed)
+## W3 — `WitnessBifurcation`: the typed refusal
 
 ```
 WitnessBifurcation {
@@ -166,7 +166,7 @@ WitnessBifurcation {
   K-REPORT's "K rarely binds" evidence is all well-conditioned
   construction; the M8 corpus must re-examine K here.
 
-## W4 — Witness update policy: commits only, repair explicit (proposed)
+## W4 — Witness update policy: commits only, repair explicit
 
 The stored witness changes at exactly one kind of event: a
 **committed sketch edit** (ratified). Decisions this leaves open,
@@ -208,7 +208,7 @@ now pinned:
 - Undo/redo and `SetTolerance` replays therefore need no special
   cases: the witness is ordinary recorded document state under GQ3.
 
-## W5 — Composition with the result DAG (proposed)
+## W5 — Composition with the result DAG
 
 The sketch node's result value carries the certified solved
 assignment (it is what downstream consumers — profiles, MappedCurves,
@@ -220,7 +220,7 @@ because `solution()` is pure in exactly those three, the cache key
 is the correctness proof, the same argument as everywhere else in
 D9-land.
 
-## W6 — Certification schedule (proposed)
+## W6 — Certification schedule
 
 A check family parallel to `WitnessMidpoint`, at the same kind of
 gate:
@@ -236,7 +236,7 @@ gate:
   Residual evaluation obeys the interval-square hygiene (powi(2),
   never x·x, for possibly-zero quantities).
 
-## W7 — ezpz audit criteria and the fallback (proposed)
+## W7 — ezpz audit criteria and the fallback
 
 The Q3 adoption decision (ezpz at M8) gets its bit-identity audit
 criteria pinned now: (i) libm-only transcendentals (no platform
@@ -254,7 +254,7 @@ makes the solver-engine choice low-stakes: **certification, not the
 iterator, is the contract** (the round-4 "solver output demoted to
 witness" ratification, mechanized).
 
-## W8 — SE(3)/mates: contract verbatim, mechanism per-manifold (proposed)
+## W8 — SE(3)/mates: contract verbatim, mechanism per-manifold
 
 T1 resolved by splitting what GQ4 transfers: the **contract**
 (witness = branch selection; purity; certified selection; typed
