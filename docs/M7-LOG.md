@@ -607,3 +607,11 @@ skin-fit fix, M6 unit 5, or the margin-convention migration if
 #205 ratifies). Spec + substrate ride the next state-sync;
 dispatch now (lane m7-3-import, slot 2; the substrate lane on
 slot 1 is done and cleans at this seam).
+
+**Margin convention RATIFIED (Evan 👍 on #205; flip PR #208).**
+The classify-seam migration is queued as the next block's unit.
+**#207 fix dispatched in parallel** (slot 1; geom-curves/sweep
+footprint, zero overlap with M7-3's step-import): **difficulty
+logged S BEFORE dispatch** (localized fit-contract fix + two
+door pins + the honest sweep_body doc corrections); arm = OPUS
+(block M7-4 remainder, predetermined at the byte-224 draw).
