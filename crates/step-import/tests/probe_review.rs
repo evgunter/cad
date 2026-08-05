@@ -558,3 +558,20 @@ fn a6_two_length_scales_refuse() {
         Ok(_) => println!("a6two LAUNDERED: two length scales accepted"),
     }
 }
+
+/// ADVERSARIAL REVIEW PROBE (branch review/rim-dim): the FULL refusal
+/// error for the cylinder fixture at eps=1e-7 — which predicate the
+/// CORPUS_EPS_CEILING refusals actually rest on (F5 linkage).
+#[test]
+fn review_f5_cylinder_refusal_predicate() {
+    let eps = geom_core::Tolerance::get().eps;
+    if eps != 1e-7 {
+        println!("SKIP (needs 1e-7, have {eps:e})");
+        return;
+    }
+    let got = import_step(&fixture("cylinder"), &ImportOptions::default());
+    match got {
+        Err(e) => println!("FULL REFUSAL: {e:?}"),
+        Ok(_) => println!("IMPORTED (no refusal)"),
+    }
+}

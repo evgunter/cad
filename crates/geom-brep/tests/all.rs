@@ -64,6 +64,8 @@ mod review_m5_pr9_jet_probe;
 mod review_m6_surgery_rider;
 #[path = "review_pr12_meridian_probe.rs"]
 mod review_pr12_meridian_probe;
+#[path = "rim_dim_review_probes.rs"]
+mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
 mod rim_dim_scale_twins;
 
