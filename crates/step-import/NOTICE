@@ -1,0 +1,61 @@
+NOTICE — third-party STEP files in this crate's test corpus
+===========================================================
+
+`tests/fixtures/wild/` holds STEP exchange files that **nobody on this
+project authored**. They are the M7-4 wild corpus: real translator
+output, kept verbatim (the only edit to each file is a provenance
+comment after its `ISO-10303-21;` magic), because their line endings,
+column-72 string folds, unit conventions and dialect quirks are the
+data the import suite tests.
+
+Each file carries its source URL, license and generator in that
+comment. The license texts sit beside the files in each vein
+directory. This notice records the acknowledgements those licenses ask
+for, and the dispositions under which the files are redistributed.
+
+nist/ — NIST MBE PMI Validation and Conformance Testing test cases
+-----------------------------------------------------------------
+  Source: https://www.nist.gov/document/nist-pmi-step-files
+  Produced by the National Institute of Standards and Technology, an
+  agency of the United States Government. Not subject to copyright in
+  the United States; the project page states the test cases, CAD
+  models and STEP files "can be used without any restrictions".
+  Attribution is appreciated and is given here.
+
+  NIST asks that its logo and name not be used to imply endorsement.
+  Nothing in this repository does: these files are test input, and
+  neither NIST nor the U.S. Government endorses, recommends or has any
+  connection with this software.
+
+stepcode/ — files from the STEPcode project's `data/ap214e3/`
+------------------------------------------------------------
+  Source: https://github.com/stepcode/stepcode
+  License: BSD-3-Clause (see stepcode/LICENSE-stepcode.txt).
+  These are historic CAx-IF-lineage AP214 models that the STEPcode
+  repository has redistributed under its own license for many years;
+  the repository license is treated as governing its committed assets.
+  Flagged for review: if that reading is too thin, the affected
+  fixtures are `sg1-c5-214.stp`, `dm1-id-214.stp`, `TAIL_TURBINE.stp`
+  and `io1-cm-214.stp`.
+
+adafruit/ — parts from Adafruit_CAD_Parts
+-----------------------------------------
+  Source: https://github.com/adafruit/Adafruit_CAD_Parts
+  License: MIT (see adafruit/LICENSE-adafruit.txt).
+  Copyright (c) Adafruit Industries.
+
+occ-oss/ — files committed into two Apache-2.0 Python CAD projects
+------------------------------------------------------------------
+  cq_red_cube_blue_cylinder.step
+    Source: https://github.com/CadQuery/cadquery (tests/testdata)
+    License: Apache-2.0 (see occ-oss/LICENSE-cadquery.txt).
+    The file's own header shows an Onshape translation-service path;
+    it is redistributed on the CadQuery maintainers' assertion that
+    the repository license covers its committed test data.
+  b123d_nema17_bracket.step
+    Source: https://github.com/gumyr/build123d (docs)
+    License: Apache-2.0 (see occ-oss/LICENSE-build123d.txt).
+
+Nothing in `tests/fixtures/wild/` is part of the published library; the
+crate's own code remains dual-licensed MIT OR Apache-2.0 with the rest
+of this repository.

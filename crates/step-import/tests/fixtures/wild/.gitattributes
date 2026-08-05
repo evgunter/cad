@@ -1,0 +1,4 @@
+# The wild corpus is verbatim upstream: CRLF line endings and
+# column-72 string folds are the DATA these fixtures test, so git
+# must never normalize them.
+* -text

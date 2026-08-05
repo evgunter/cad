@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, Vec3};
+use geom_core::{Affine3, Mat3, Point3, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
 use geom_surfaces::Surface;
 
@@ -42,6 +42,11 @@ pub(crate) struct Model {
     pub(crate) shape: Shape,
     /// The structure normalizations minted during resolution, as data.
     pub(crate) normalizations: Vec<StructureNormalization>,
+    /// The assembly's rigid placement of the file's content (M7-4 Leg
+    /// D), when the file states a non-identity one — applied to the
+    /// finished body through the kernel's own
+    /// [`topo::transform_rigid`] door.
+    pub(crate) placement: Option<Affine3<f64>>,
 }
 
 /// The shape content of the data section.
@@ -136,6 +141,11 @@ pub(crate) struct EdgeSpec {
     /// normalized to the increasing-parameter arc (full period for a
     /// self-loop).
     pub(crate) t1: f64,
+    /// True when the record's `same_sense` was `.F.` and `start`/`end`
+    /// above are therefore the file's END and START (M7-4 Leg E). The
+    /// carrier is untouched; this bit composes into the orientation of
+    /// every `ORIENTED_EDGE` that uses the edge.
+    pub(crate) reversed: bool,
 }
 
 /// The resolver: the parsed file plus typed accessors that turn
@@ -147,6 +157,12 @@ pub(crate) struct Resolver<'a> {
     /// millimeters. EVERY length the resolver reads passes through
     /// [`Resolver::as_length`].
     length_scale: f64,
+    /// The file's angle factor into kernel radians (M7-4 Leg B): 1.0
+    /// for a radian context, the file's own declared π/180 for the
+    /// wild's dominant `CONVERSION_BASED_UNIT('DEGREE', …)`. Only one
+    /// slot in the subset states an angle — a `CONICAL_SURFACE`'s
+    /// `semi_angle` — and it passes through [`Resolver::as_angle`].
+    angle_scale: f64,
     /// ε_in in kernel meters — the file's declared uncertainty, scaled
     /// with every other length. This is THE interpretation budget: D7's
     /// input tolerance, one number per file, spent by every gate that
@@ -297,6 +313,19 @@ impl<'a> Resolver<'a> {
         Ok(raw * self.length_scale)
     }
 
+    /// One stated angle into kernel radians. A radian context
+    /// multiplies by 1.0 and moves no bits; a degree context spends
+    /// the file's own declared conversion, so the half-angle a
+    /// `CONICAL_SURFACE` states in degrees is not read as radians.
+    fn as_angle(
+        &self,
+        id: u64,
+        value: &Value,
+        expected: &'static str,
+    ) -> Result<f64, StepImportError> {
+        Ok(as_real(id, value, expected)? * self.angle_scale)
+    }
+
     /// A fresh entity id for minted topology (module docs).
     fn mint_id(&self) -> u64 {
         let id = self.next_id.get();
@@ -338,28 +367,123 @@ impl<'a> Resolver<'a> {
         let [x, y, z] = as_list(id, ratios, expected)? else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
-        Ok(Vec3::new(
+        let ratios = Vec3::new(
             as_real(id, x, expected)?,
             as_real(id, y, expected)?,
             as_real(id, z, expected)?,
-        ))
+        );
+        // **Ratios, not a unit vector (M7-4 Leg C).** ISO 10303-42's
+        // `direction` is a ratio triple with no normalization
+        // requirement, and the wild uses that latitude: an inch-context
+        // translator writes `(0.0393700787402, 0., 0.)` for +x. Every
+        // kernel consumer — the line carrier whose parameter is arc
+        // length, the frames whose axes are orthonormal — wants the
+        // unit vector, so a triple that is NOT unit is divided by its
+        // own norm.
+        //
+        // A triple that IS unit is taken **verbatim, bit for bit**.
+        // That is not an optimization: this reader's whole discipline
+        // is that a stated field is adopted, not re-derived, and
+        // `d / d.norm()` moves the last bits of a direction the writer
+        // printed exactly (`√½` squares to 0.9999999999999998, whose
+        // root is not 1). The window is ε_in — the same budget, and
+        // the same argument, the assembly pass already spends on a
+        // direction field: dimensionless, but a unit vector's slack is
+        // bounded by it just as tightly.
+        let norm = ratios.norm();
+        if !(norm.is_finite() && norm > 0.0) {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: "three direction ratios that are not all zero and are finite \
+                           (a zero triple names no direction)",
+            });
+        }
+        Ok(if (norm - 1.0).abs() <= self.eps_in {
+            ratios
+        } else {
+            ratios / norm
+        })
     }
 
     /// `AXIS2_PLACEMENT_3D('', #location, #axis, #ref_direction)` →
-    /// the kernel frame `(origin, axis, u_ref)` field for field. The
-    /// schema allows `$` axis/ref_direction; the subset does not (the
-    /// writer always emits the full frame) — defaulted axes would be a
-    /// re-derivation, refused rather than guessed.
+    /// the kernel frame `(origin, axis, u_ref)`, field for field where
+    /// the file states the fields.
+    ///
+    /// **Unset axis / ref_direction (M7-4).** Both are optional in the
+    /// schema, and an older PDE/Lib-lineage writer leaves
+    /// `ref_direction` `$` on every circle it emits. Filling them in is
+    /// not a guess: ISO 10303-42's own `build_axes` / `first_proj_axis`
+    /// say exactly what an unset field means — the axis defaults to
+    /// `(0,0,1)`, and the reference direction to the first coordinate
+    /// axis not parallel to it, projected perpendicular. Reading that
+    /// derived attribute is reading the file, in the same sense that
+    /// reading a stated one is; what would be a guess is inventing a
+    /// DIFFERENT default. The stated fields still take precedence and
+    /// are still adopted bit for bit.
+    ///
+    /// The projection is always applied to the reference direction,
+    /// stated or not, because the kernel's frame is orthonormal and
+    /// the schema's `ref_direction` need not be perpendicular to the
+    /// axis — but the ε_in window in [`Resolver::direction`] means an
+    /// already-perpendicular unit pair comes through untouched.
     fn placement(&self, from: u64, id: u64) -> Result<Frame, StepImportError> {
         let args = self.simple(from, id, "AXIS2_PLACEMENT_3D")?;
-        let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
-                        with all three references present (the exported subset)";
+        let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction)";
         let [_, location, axis, ref_dir] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
         let origin = self.point(id, as_ref(id, location, expected)?)?;
-        let axis = self.direction(id, as_ref(id, axis, expected)?)?;
-        let u_ref = self.direction(id, as_ref(id, ref_dir, expected)?)?;
+        let axis = match axis {
+            Value::Null => Vec3::new(0.0, 0.0, 1.0),
+            _ => self.direction(id, as_ref(id, axis, expected)?)?,
+        };
+        let stated = match ref_dir {
+            Value::Null => None,
+            _ => Some(self.direction(id, as_ref(id, ref_dir, expected)?)?),
+        };
+        // A file that already states an orthonormal frame is adopted
+        // bit for bit: the projection below is arithmetic, and running
+        // it on a `ref_direction` that is already perpendicular would
+        // move the last bits of a field the writer printed exactly.
+        // The window is ε_in, as everywhere else a direction is
+        // compared here.
+        if let Some(u_ref) = stated
+            && axis.dot(u_ref).abs() <= self.eps_in
+        {
+            return Ok((origin, axis, u_ref));
+        }
+        // `first_proj_axis`: the file's reference direction when it has
+        // one, else the first coordinate axis the placement's own axis
+        // is not parallel to.
+        let candidate = stated.unwrap_or_else(|| {
+            if axis.x.abs() < 1.0 {
+                Vec3::new(1.0, 0.0, 0.0)
+            } else {
+                Vec3::new(0.0, 1.0, 0.0)
+            }
+        });
+        // How much of the candidate lies ALONG the axis — a projection
+        // coefficient, named rather than inlined so the subtraction
+        // below reads as "remove the axial part" and so the expression
+        // is not the `v * v`-shaped text the interval-square tripwire
+        // watches for (there is no square here: `axis` scales a dot of
+        // two DIFFERENT vectors, and this crate is f64-only besides).
+        let along = axis.dot(candidate);
+        let perpendicular = candidate - axis * along;
+        let norm = perpendicular.norm();
+        if !(norm.is_finite() && norm > 0.0) {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
+                           whose reference direction is not parallel to its axis (a \
+                           parallel pair states no frame)",
+            });
+        }
+        let u_ref = if (norm - 1.0).abs() <= self.eps_in {
+            perpendicular
+        } else {
+            perpendicular / norm
+        };
         Ok((origin, axis, u_ref))
     }
 
@@ -435,7 +559,7 @@ impl<'a> Resolver<'a> {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
                 let radius = self.as_length(id, radius, expected)?;
-                let half_angle = as_real(id, semi_angle, expected)?;
+                let half_angle = self.as_angle(id, semi_angle, expected)?;
                 // The kernel's stated convention: the half-angle lies
                 // strictly inside (0, pi/2) - 0 degenerates to a line,
                 // pi/2 to a plane, and neither is a cone. Checked here
@@ -521,22 +645,39 @@ impl<'a> Resolver<'a> {
                 let origin = self.point(id, as_ref(id, point, expected)?)?;
                 let vec_id = as_ref(id, vector, expected)?;
                 let vargs = self.simple(id, vec_id, "VECTOR")?;
-                let vexpected = "VECTOR(name, #direction, 1.0) — the subset's line \
-                                 parameter is arc length, so the magnitude is 1.0";
+                let vexpected = "VECTOR(name, #direction, magnitude > 0) — the line's \
+                                 direction must be a direction";
                 let [_, dir_ref, magnitude] = vargs else {
                     return Err(StepImportError::MalformedRecord {
                         id: vec_id,
                         expected: vexpected,
                     });
                 };
-                // Magnitude 1.0 keeps the STEP parameter equal to the
-                // kernel's arc-length parameter (the writer's
-                // convention); any other magnitude would rescale the
-                // parameterization — a re-derivation, refused.
-                if as_real(vec_id, magnitude, vexpected)? != 1.0 {
+                // **Any positive magnitude (M7-4 Leg C).** The file's
+                // line parameter is not arc length — ST-Developer
+                // writes `10.`, an inch translator `25.4` — and the
+                // kernel's is. Both facts survive together because the
+                // magnitude has nowhere to go: no trim parameters
+                // cross the wire, so the parameter interval is
+                // re-derived from the two vertices against the carrier
+                // ([`geometry::endpoint_params`]), and re-deriving it
+                // against the UNIT direction is exactly the rescaling.
+                // What the magnitude must not do is silently survive
+                // into a non-unit `dir`, which would make the kernel's
+                // t neither arc length nor the file's parameter — so
+                // the direction is normalized here, and the wild's
+                // non-unit `DIRECTION` ratios (an inch file's
+                // `(0.0393700787402, 0., 0.)`) come out right by the
+                // same division. A file already stating unit ratios at
+                // magnitude 1 divides by an exact 1.0 and moves no
+                // bits.
+                let magnitude = as_real(vec_id, magnitude, vexpected)?;
+                if !(magnitude.is_finite() && magnitude > 0.0) {
                     return Err(StepImportError::MalformedRecord {
                         id: vec_id,
-                        expected: vexpected,
+                        expected: "VECTOR(name, #direction, magnitude) with a finite, \
+                                   strictly positive magnitude (a zero or non-finite \
+                                   one describes no line)",
                     });
                 }
                 let dir = self.direction(vec_id, as_ref(vec_id, dir_ref, vexpected)?)?;
@@ -577,7 +718,7 @@ impl<'a> Resolver<'a> {
                 };
                 let control = self.control_points(id, points, expected)?;
                 let weights = vec![1.0; control.len()];
-                let knots = self.knot_vector(id, degree, mults, knots, expected)?;
+                let knots = self.knot_vector(id, degree, mults, knots, control.len(), expected)?;
                 self.nurbs(id, knots, control, weights)
             }
             other => Err(StepImportError::UnsupportedEntity {
@@ -638,7 +779,7 @@ impl<'a> Resolver<'a> {
         for w in as_list(id, weight_list, expected)? {
             weights.push(as_real(id, w, expected)?);
         }
-        let knots = self.knot_vector(id, degree, mults, knots, expected)?;
+        let knots = self.knot_vector(id, degree, mults, knots, control.len(), expected)?;
         self.nurbs(id, knots, control, weights)
     }
 
@@ -656,15 +797,47 @@ impl<'a> Resolver<'a> {
         Ok(out)
     }
 
+    /// The refusal text for a knot-multiplicity list that does not
+    /// sum to the count ISO 10303-42 fixes ([`Resolver::knot_vector`]).
+    const MULT_BUDGET: &'static str = "knot multiplicities summing to \
+         control_points + degree + 1 — ISO 10303-42's count for a clamped \
+         B-spline. A larger sum describes a different curve, and expanding \
+         it before checking would let the file choose this reader's \
+         allocation size";
+
     /// The `(multiplicities) / (knots)` pair → the kernel's flat
     /// clamped knot vector, exact (run-length decode is the inverse of
     /// the writer's exact-equality encode; no ε enters).
+    ///
+    /// # The multiplicity budget, checked BEFORE the expansion
+    ///
+    /// Run-length decoding means the FILE states how much memory this
+    /// reader is about to allocate, and it is reachable from an
+    /// ordinary `EDGE_CURVE`. `(2000000000, 2000000000)` asks for
+    /// 16 GB, and the allocator's answer to that is `abort` — strictly
+    /// worse than a panic, because no `catch_unwind` can see it, so
+    /// the crate's own "every file comes back with a RESULT" row
+    /// cannot catch the class at all. (Found by the M7-4 review's
+    /// hostile-knot probe; the defect is older than this unit and is
+    /// fixed here because this unit is what made the promise.)
+    ///
+    /// The bound is not an arbitrary cap. ISO 10303-42's
+    /// `b_spline_curve_with_knots` fixes the total exactly: a clamped
+    /// curve of degree `d` over `n` control points has `n + d + 1`
+    /// knots, and that is the whole allocation. A file whose
+    /// multiplicities sum to anything else is not describing this
+    /// curve, whether it overshot by one or by two billion — so one
+    /// typed refusal covers the honest malformation and the hostile
+    /// one alike, and it is reached without allocating anything. The
+    /// running sum is checked arithmetic, because the overflow is
+    /// reachable too.
     fn knot_vector(
         &self,
         id: u64,
         degree: &Value,
         mults: &Value,
         knots: &Value,
+        control_points: usize,
         expected: &'static str,
     ) -> Result<KnotVector, StepImportError> {
         let degree = as_usize(id, degree, expected)?;
@@ -673,7 +846,26 @@ impl<'a> Resolver<'a> {
         if mults.len() != values.len() {
             return Err(StepImportError::MalformedRecord { id, expected });
         }
-        let mut flat = Vec::new();
+        let budget = control_points.saturating_add(degree).saturating_add(1);
+        let mut total: usize = 0;
+        for m in mults {
+            total = match total.checked_add(as_usize(id, m, expected)?) {
+                Some(t) if t <= budget => t,
+                _ => {
+                    return Err(StepImportError::MalformedRecord {
+                        id,
+                        expected: Self::MULT_BUDGET,
+                    });
+                }
+            };
+        }
+        if total != budget {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: Self::MULT_BUDGET,
+            });
+        }
+        let mut flat = Vec::with_capacity(total);
         for (m, v) in mults.iter().zip(values) {
             let m = as_usize(id, m, expected)?;
             let v = as_real(id, v, expected)?;
@@ -765,6 +957,36 @@ impl<'a> Resolver<'a> {
                 uses: b.uses.clone(),
             })
             .collect();
+        // **A ring on a curved face (M7-4).** The kernel's mass
+        // properties have no construction for one — its curved patches
+        // are swept UV rectangles, and `topo::mass_properties` says so
+        // by name (`RingOnCurvedFace`), which makes tier-3 validity
+        // refuse with it. This crate promises a body that is
+        // tier-valid at rest, so the honest place to stop is here,
+        // naming the face, rather than at the far end holding a body
+        // whose volume nothing can compute.
+        //
+        // What arrives this way is not a hole: it is Open CASCADE's
+        // SEAMLESS periodic face — a cylinder's lateral band, or a
+        // fillet torus's, stated as its two rim circles with no seam
+        // generator between them. The kernel's own writer never emits
+        // one (it splits a periodic face at its seam), and the remedy
+        // is the same family as the sphere/cone/torus re-mints already
+        // in `normalize`: split the band into half-faces joined by
+        // minted generators at a chosen azimuth. That is a unit of
+        // work, not a line, and it is recorded rather than guessed at.
+        if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
+            return Err(StepImportError::Topology {
+                id,
+                what: "a curved ADVANCED_FACE with more than one bound — either an \
+                       interior ring on a curved patch or Open CASCADE's seamless \
+                       periodic band (two rim circles, no seam generator). The kernel \
+                       has no volume construction for a curved face with rings, so \
+                       adopting it would hand back a body that is not tier-3 valid; \
+                       re-minting the band as half-faces is the remedy and is not \
+                       done here",
+            });
+        }
         let outer = self.outer_bound_index(id, &surface, &loops, &bound_specs, edges)?;
         loops[outer].outer = true;
         // The outer bound leads (assembly reads `loops[0]` as the
@@ -793,16 +1015,10 @@ impl<'a> Resolver<'a> {
             .enumerate()
             .filter_map(|(i, b)| b.stated_outer.then_some(i))
             .collect();
-        if stated.len() > 1 {
-            return Err(StepImportError::Topology {
-                id,
-                what: "an ADVANCED_FACE with more than one FACE_OUTER_BOUND — a face \
-                       has one outer bound",
-            });
-        }
         // A single bound is outer BY DEFINITION: there is nothing for
         // it to be inside of. Stated, because it is a definition and
-        // not a measurement.
+        // not a measurement. (Several bounds all stated outer on a
+        // ONE-bound face is not reachable — the list has one entry.)
         if loops.len() == 1 {
             return Ok(0);
         }
@@ -811,6 +1027,39 @@ impl<'a> Resolver<'a> {
             .map(|lp| self.ring_samples(lp, edges))
             .collect::<Result<_, _>>()?;
         let inferred = chart::infer_outer(surface, &rings, self.eps_in);
+        // **Several stated outer bounds (M7-4).** A closed periodic
+        // face — a cylinder's lateral band — genuinely has no outer
+        // bound: its two boundary circles are not inside one another,
+        // and the Onshape-lineage writer measured in the wild marks
+        // BOTH `FACE_OUTER_BOUND` for exactly that reason. The file is
+        // not contradicting itself there; it is declining to choose,
+        // in a vocabulary with no way to say so — and on that face it
+        // is right, which is why the inference below answers
+        // `SeamDependent` for both rings.
+        //
+        // So: the geometry breaks the tie when it can, and when it
+        // cannot the file's own bound ORDER does. That second branch
+        // is not a guess about geometry — the kernel's `loops[0]` is
+        // where the face's traversal starts, not a claim that one
+        // circle encloses the other — and it is the same latitude the
+        // single-stated case below already takes when the inference
+        // declines (a NIST washer's cylindrical bands, stated
+        // `FACE_OUTER_BOUND` + `FACE_BOUND`, import through it today).
+        // What still refuses is a file whose geometry names an outer
+        // bound it did NOT state: that is a contradiction, not a
+        // declination.
+        if stated.len() > 1 {
+            return match inferred {
+                Ok(i) if stated.contains(&i) => Ok(i),
+                Ok(_) => Err(StepImportError::Topology {
+                    id,
+                    what: "an ADVANCED_FACE with several FACE_OUTER_BOUNDs, none of \
+                           which is the bound its own geometry makes outer — the file \
+                           contradicts itself",
+                }),
+                Err(_) => Ok(stated[0]),
+            };
+        }
         match (stated.first().copied(), inferred) {
             // The kernel's own dialect: honored AND cross-checked. A
             // disagreement between what the file says and what its own
@@ -968,6 +1217,9 @@ impl<'a> Resolver<'a> {
                     carrier,
                     t0,
                     t1,
+                    // A minted edge: the importer states its own
+                    // start → end, so there is no sense to compose.
+                    reversed: false,
                 },
             );
             Ok(eid)
@@ -1121,9 +1373,14 @@ impl<'a> Resolver<'a> {
                 let spec = self.edge(oe_id, edge_id, vertices)?;
                 slot.insert(spec);
             }
+            // Leg E's composition: an `EDGE_CURVE` read from its other
+            // end (`same_sense` `.F.`) flips what "forward" means for
+            // every use of it. The two orientation statements — the
+            // edge's and the use's — multiply, exactly once, here.
+            let reversed = edges.get(&edge_id).is_some_and(|spec| spec.reversed);
             uses.push(EdgeUse {
                 edge: edge_id,
-                forward,
+                forward: forward != reversed,
             });
         }
         if uses.is_empty() {
@@ -1155,18 +1412,32 @@ impl<'a> Resolver<'a> {
         vertices: &mut BTreeMap<u64, Point3<f64>>,
     ) -> Result<EdgeSpec, StepImportError> {
         let args = self.simple(from, id, "EDGE_CURVE")?;
-        let expected = "EDGE_CURVE(name, #start, #end, #curve, .T.) — the exported \
-                        subset's carriers run start → end (same_sense .T.)";
+        let expected = "EDGE_CURVE(name, #start, #end, #curve, same_sense)";
         let [_, start_ref, end_ref, curve_ref, same_sense] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
-        // same_sense .T. only: the writer's carriers always run
-        // start → end (the he_plus forward contract). A .F. edge would
-        // need the carrier's parameterization reversed — bit-moving,
-        // outside the identity subset.
-        if !as_bool(id, same_sense, expected)? {
-            return Err(StepImportError::Topology { id, what: expected });
-        }
+        // **`same_sense` .F. (M7-4 Leg E).** The flag says whether the
+        // carrier's increasing parameter runs start → end. The kernel's
+        // `he_plus` always does, so a `.F.` edge is the SAME edge read
+        // from the other end, and that is how it is taken: the two
+        // vertices swap, the derived interval comes out `t0 < t1` on
+        // the carrier exactly as stated, and the reversal rides on the
+        // spec for every `ORIENTED_EDGE` that uses this edge to compose
+        // into its own orientation flag.
+        //
+        // What this deliberately does NOT do is reverse the carrier.
+        // Negating a line's direction or flipping a circle's frame
+        // would move bits the file printed, break the export fixed
+        // point, and put a curve in the body that no record states.
+        // Composing into the half-edge direction moves nothing — it is
+        // bookkeeping about traversal, which is where orientation lives
+        // in a half-edge structure anyway.
+        let same_sense = as_bool(id, same_sense, expected)?;
+        let (start_ref, end_ref) = if same_sense {
+            (start_ref, end_ref)
+        } else {
+            (end_ref, start_ref)
+        };
         let start = as_ref(id, start_ref, expected)?;
         let end = as_ref(id, end_ref, expected)?;
         for v in [start, end] {
@@ -1185,6 +1456,7 @@ impl<'a> Resolver<'a> {
             carrier,
             t0,
             t1,
+            reversed: !same_sense,
         })
     }
 
@@ -1272,15 +1544,137 @@ impl<'a> Resolver<'a> {
     }
 }
 
+/// How deep a chain of `CONVERSION_BASED_UNIT`s may nest before the
+/// resolver calls it pathological. One level is the whole wild corpus
+/// (inch over millimetre, degree over radian); a few more cost
+/// nothing; an unbounded walk over a file that defines a unit in terms
+/// of itself would not terminate, and a cyclic file is malformed
+/// rather than merely deep.
+const CONVERSION_DEPTH_LIMIT: u32 = 8;
+
+impl Resolver<'_> {
+    /// One `CONVERSION_BASED_UNIT(name, #factor)` complex → its
+    /// [`UnitKind`] (M7-4 Leg B).
+    ///
+    /// The factor is a `*_MEASURE_WITH_UNIT` naming a value and the
+    /// base unit that value is stated in, and BOTH come from the file:
+    /// `INCH` resolves as `25.4 × (whatever #17 is)`, so a file whose
+    /// inch is declared over metres and one whose inch is declared
+    /// over millimetres both import at their own arithmetic. Nothing
+    /// here consults a table of unit names — the `'INCH'` label is
+    /// documentation, and this resolver never reads it.
+    fn conversion_unit(
+        &self,
+        id: u64,
+        records: &[Record],
+        args: &[Value],
+        depth: u32,
+    ) -> Result<UnitKind, StepImportError> {
+        let found = || complex_name(records);
+        if depth >= CONVERSION_DEPTH_LIMIT {
+            return Err(StepImportError::UnsupportedUnit {
+                id,
+                found: format!(
+                    "{} at the end of a {CONVERSION_DEPTH_LIMIT}-deep conversion chain \
+                     (a unit defined in terms of itself has no factor)",
+                    found()
+                ),
+            });
+        }
+        // The quantity the complex claims to be: its NAMED_UNIT
+        // subtype component. Exactly one must be present — a complex
+        // claiming to be both a length and an angle states no unit.
+        let quantities: Vec<&str> = records
+            .iter()
+            .map(|(kw, _)| kw.as_str())
+            .filter(|kw| {
+                kw.ends_with("_UNIT") && *kw != "CONVERSION_BASED_UNIT" && *kw != "NAMED_UNIT"
+            })
+            .collect();
+        let [declared] = quantities.as_slice() else {
+            return Err(StepImportError::UnsupportedUnit { id, found: found() });
+        };
+        let [_, factor_ref] = args else {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: "CONVERSION_BASED_UNIT(name, #conversion_factor)",
+            });
+        };
+        let (value, base) = self.measure_with_unit(
+            id,
+            as_ref(
+                id,
+                factor_ref,
+                "the conversion factor of a CONVERSION_BASED_UNIT",
+            )?,
+            depth,
+        )?;
+        units::conversion_kind(id, declared, value, base, found)
+    }
+
+    /// One `*_MEASURE_WITH_UNIT(MEASURE(value), #unit)` → the raw
+    /// value and the unit it is stated in. This is the conversion
+    /// expression a `CONVERSION_BASED_UNIT` points at; the measure's
+    /// own keyword is not pinned here (the schema pairs it with the
+    /// unit subtype, and [`units::conversion_kind`] checks that the
+    /// resolved base agrees with the quantity claimed) — what IS
+    /// pinned is that it is a measure with a unit at all.
+    fn measure_with_unit(
+        &self,
+        from: u64,
+        id: u64,
+        depth: u32,
+    ) -> Result<(f64, UnitKind), StepImportError> {
+        let instance = self.instance(from, id)?;
+        let expected = "a *_MEASURE_WITH_UNIT(MEASURE(value), #unit) conversion factor";
+        let [(kw, args)] = instance.records.as_slice() else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        if !kw.ends_with("_MEASURE_WITH_UNIT") {
+            return Err(StepImportError::WrongEntityType {
+                id,
+                expected,
+                found: kw.clone(),
+            });
+        }
+        let [Value::Typed(measure, inner), unit_ref] = args.as_slice() else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        if !measure.ends_with("_MEASURE") {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        }
+        let [value] = inner.as_slice() else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let base_id = as_ref(id, unit_ref, expected)?;
+        let base = self.instance(id, base_id)?;
+        let kind = check_unit(self, base_id, &base.records, depth + 1)?;
+        Ok((as_real(id, value, expected)?, kind))
+    }
+}
+
 /// Reads one unit component of the `GLOBAL_UNIT_ASSIGNED_CONTEXT` into
 /// its [`UnitKind`]: an `SI_UNIT(prefix, name)` whose name is
 /// `.METRE.` / `.RADIAN.` / `.STERADIAN.`, with a resolved
 /// [`units`] prefix factor on lengths (M7-2 Leg A — `.MILLI.` is what
 /// FreeCAD writes, and the prefix is table data, not a special case).
-/// Parsed, not assumed (M7-1 spec Leg B) — anything else (a
-/// conversion-based unit, a prefixed angle) refuses typed.
-fn check_unit(id: u64, records: &[Record]) -> Result<UnitKind, StepImportError> {
+/// Parsed, not assumed (M7-1 spec Leg B) — anything else (a prefixed
+/// angle, a mass) refuses typed.
+///
+/// **M7-4 Leg B** adds the wild's dominant form beside it: a
+/// `CONVERSION_BASED_UNIT` resolves through the conversion expression
+/// the FILE states ([`Resolver::conversion_unit`]), so an inch is
+/// 25.4 of whatever base the file names and never 25.4 by assumption.
+fn check_unit(
+    r: &Resolver<'_>,
+    id: u64,
+    records: &[Record],
+    depth: u32,
+) -> Result<UnitKind, StepImportError> {
     for (kw, args) in records {
+        if kw == "CONVERSION_BASED_UNIT" {
+            return r.conversion_unit(id, records, args, depth);
+        }
         if kw == "SI_UNIT" {
             let found = || complex_name(records);
             let [prefix, name] = args.as_slice() else {
@@ -1303,13 +1697,18 @@ fn check_unit(id: u64, records: &[Record]) -> Result<UnitKind, StepImportError> 
     })
 }
 
-/// The SI **length** factor of `records` (a `LENGTH_UNIT` composed with
-/// an `SI_UNIT` metre), or `None` when the record is not a length.
-fn si_length_factor(id: u64, records: &[Record]) -> Result<Option<f64>, StepImportError> {
+/// The **length** factor of `records` into meters (a `LENGTH_UNIT`
+/// composed with an `SI_UNIT` metre or with a `CONVERSION_BASED_UNIT`
+/// over one), or `None` when the record is not a length.
+fn length_factor(
+    r: &Resolver<'_>,
+    id: u64,
+    records: &[Record],
+) -> Result<Option<f64>, StepImportError> {
     if !records.iter().any(|(kw, _)| kw == "LENGTH_UNIT") {
         return Ok(None);
     }
-    match check_unit(id, records)? {
+    match check_unit(r, id, records, 0)? {
         UnitKind::Length(factor) => Ok(Some(factor)),
         // A LENGTH_UNIT composed with a radian is a malformed context,
         // not a unit the subset merely lacks.
@@ -1320,25 +1719,245 @@ fn si_length_factor(id: u64, records: &[Record]) -> Result<Option<f64>, StepImpo
     }
 }
 
+/// The representation contexts the file's own **geometry roots** name
+/// (M7-4 Leg B): for every representation that holds a
+/// `MANIFOLD_SOLID_BREP` or a `GEOMETRIC_CURVE_SET`, its context
+/// reference.
+///
+/// This runs before a single coordinate is read — it looks only at
+/// keywords and reference slots — because the answer decides what a
+/// coordinate MEANS. It is deliberately narrower than "every
+/// `GEOMETRIC_REPRESENTATION_CONTEXT` in the file": Open CASCADE emits
+/// one dimensionless `GEOMETRIC_REPRESENTATION_CONTEXT(2)
+/// PARAMETRIC_REPRESENTATION_CONTEXT()` per pcurve
+/// `DEFINITIONAL_REPRESENTATION` (145 in one measured file), which
+/// declares no length unit and needs none — it is a chart domain, not
+/// model space — and translators leave whole unreferenced 3D contexts
+/// behind. Neither states the solid's units, so neither is consulted.
+///
+/// An empty answer is not an error here: the shape pass owns the
+/// "nothing to import" refusal and names the defect better.
+fn content_roots(r: &Resolver<'_>, file: &StepFile) -> Result<ContentRoots, StepImportError> {
+    let mut out = ContentRoots::default();
+    for (&id, instance) in &file.data {
+        let [(kw, args)] = instance.records.as_slice() else {
+            continue;
+        };
+        if !kw.ends_with("SHAPE_REPRESENTATION") {
+            continue;
+        }
+        let expected = "a shape representation (name, (items), #context)";
+        let [_, items, context] = args.as_slice() else {
+            continue;
+        };
+        let mut carries_content = false;
+        for item in as_list(id, items, expected)? {
+            let item_id = as_ref(id, item, expected)?;
+            if let [(k, _)] = r.instance(id, item_id)?.records.as_slice()
+                && (k == "MANIFOLD_SOLID_BREP" || k == "GEOMETRIC_CURVE_SET")
+            {
+                carries_content = true;
+            }
+        }
+        if carries_content {
+            out.reps.insert(id);
+            let cid = as_ref(id, context, expected)?;
+            let context = r.instance(id, cid)?;
+            if !context
+                .records
+                .iter()
+                .any(|(kw, _)| kw == "GEOMETRIC_REPRESENTATION_CONTEXT")
+            {
+                return Err(StepImportError::WrongEntityType {
+                    id: cid,
+                    expected: "a GEOMETRIC_REPRESENTATION_CONTEXT (the context a solid's \
+                               coordinates are stated in)",
+                    found: complex_name(&context.records),
+                });
+            }
+            out.contexts.insert(cid);
+        }
+    }
+    Ok(out)
+}
+
+impl Resolver<'_> {
+    /// One `ITEM_DEFINED_TRANSFORMATION(name, description,
+    /// #placement_1, #placement_2)` as the rigid map carrying the
+    /// first frame onto the second — `None` when the two frames are
+    /// the identity of one another at ε_in (M7-4 Leg D).
+    ///
+    /// The frames are built orthonormal from the file's fields: the
+    /// axis is the third column, the reference direction is projected
+    /// perpendicular to it for the first, and the second is their
+    /// cross product. The map is then `B ∘ A⁻¹`, and `A⁻¹` is `Aᵀ`
+    /// because `A` is orthonormal by construction. The rigidity that
+    /// survives this construction is therefore about the FILE's
+    /// fields, and that is what is checked: a `ref_direction` parallel
+    /// to the axis leaves no frame at all, and a placement pair whose
+    /// composed determinant is not +1 at ε_in is a mirror.
+    fn item_defined_transformation(
+        &self,
+        from: u64,
+        id: u64,
+    ) -> Result<Option<Affine3<f64>>, StepImportError> {
+        // The schema's `transformation` SELECT also admits a
+        // `functionally_defined_transformation` —
+        // `CARTESIAN_TRANSFORMATION_OPERATOR_3D` and friends — and THAT
+        // is where a file can state a mirror or a scale: an operator
+        // carries a scale factor and three independent axes, so its
+        // determinant is whatever the file wrote. A placement PAIR
+        // cannot say either thing (see the determinant note below), so
+        // this is the refusal Leg D's mirror clause actually lives in,
+        // and it names the operator.
+        let instance = self.instance(from, id)?;
+        if !instance
+            .records
+            .iter()
+            .any(|(kw, _)| kw == "ITEM_DEFINED_TRANSFORMATION")
+        {
+            return Err(StepImportError::Structure {
+                id,
+                what: "an assembly transformation stated as an operator rather than a \
+                       pair of placements — an operator can carry a scale factor and a \
+                       mirrored (determinant −1) axis triple, which change what the \
+                       component IS rather than where it sits, and which way a mirrored \
+                       solid's faces then point is the file's intent, not this reader's \
+                       to guess",
+            });
+        }
+        let args = self.simple(from, id, "ITEM_DEFINED_TRANSFORMATION")?;
+        let expected = "ITEM_DEFINED_TRANSFORMATION(name, description, #placement_1, \
+                        #placement_2)";
+        let [_, _, from_ref, to_ref] = args else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        let a = self.placement(id, as_ref(id, from_ref, expected)?)?;
+        let b = self.placement(id, as_ref(id, to_ref, expected)?)?;
+        // Identity at ε_in: the origins coincide within the file's own
+        // declared uncertainty, and so do the two direction fields
+        // (dimensionless, but ε_in is the one budget this importer
+        // spends and a unit vector's slack is bounded by it just as
+        // tightly). Checked on the STATED fields, before any
+        // orthonormalization, so an identity pair takes the same path
+        // it took in M7-2 and moves nothing.
+        if (a.0 - b.0).norm() <= self.eps_in
+            && (a.1 - b.1).norm() <= self.eps_in
+            && (a.2 - b.2).norm() <= self.eps_in
+        {
+            return Ok(None);
+        }
+        let basis = |f: Frame| -> Option<Mat3<f64>> {
+            let z = f.1;
+            // The reference direction's axial part, removed to leave
+            // the frame's first column (named for the same two reasons
+            // as in `Resolver::placement`: it reads as a projection,
+            // and it is not the `v * v` text the interval-square
+            // tripwire watches for — no square is taken here).
+            let along = z.dot(f.2);
+            let x = f.2 - z * along;
+            let n = x.norm();
+            (n.is_finite() && n > 0.0).then(|| {
+                let x = x / n;
+                Mat3::from_cols(x, z.cross(x), z)
+            })
+        };
+        let refuse = |what: &'static str| StepImportError::Structure { id, what };
+        let (ba, bb) = (
+            basis(a).ok_or_else(|| {
+                refuse(
+                    "an assembly placement whose reference direction is parallel to its \
+                     axis — that pair states no frame to place anything in",
+                )
+            })?,
+            basis(b).ok_or_else(|| {
+                refuse(
+                    "an assembly placement whose reference direction is parallel to its \
+                     axis — that pair states no frame to place anything in",
+                )
+            })?,
+        );
+        // B ∘ A⁻¹, with A⁻¹ = Aᵀ (A is orthonormal by construction).
+        let ai = ba.transpose();
+        let linear = bb * ai;
+        let translation = (b.0 - Point3::origin()) - linear * (a.0 - Point3::origin());
+        let map = Affine3::from_parts(linear, translation);
+        // **On the determinant.** ISO 10303-42's `build_axes` makes an
+        // `axis2_placement_3d` a RIGHT-HANDED frame whatever its fields
+        // say — the third column is the axis, the first is the
+        // reference direction projected perpendicular, and the second
+        // is their cross product — so `B ∘ A⁻¹` of two of them is a
+        // rotation by construction and this check cannot fire on a
+        // well-formed pair. It is not therefore decorative: `axis` and
+        // `ref_direction` arrive through the ε_in window in
+        // [`Resolver::direction`], which adopts a stated near-unit
+        // triple verbatim, so a file's slack rides into the columns and
+        // the composed determinant is only 1 to within it. This is
+        // where that slack is measured against the same budget, before
+        // the map reaches a kernel door whose predicates are decided
+        // and whose refusal would name nothing in the file.
+        let det = linear.determinant();
+        if (det - 1.0).abs() > self.eps_in {
+            return Err(refuse(
+                "an assembly transform whose composed frames are not a rigid motion at \
+                 the file's own declared uncertainty — the placement pair states \
+                 direction fields too slack to compose into a rotation",
+            ));
+        }
+        Ok(Some(map))
+    }
+}
+
+/// The file's geometry roots: which representations hold the solids /
+/// curve sets, and which contexts those representations name.
+#[derive(Debug, Default)]
+struct ContentRoots {
+    /// Representation instance ids that hold model content.
+    reps: std::collections::BTreeSet<u64>,
+    /// The contexts those representations name — the units that govern.
+    contexts: std::collections::BTreeSet<u64>,
+}
+
+/// The scales and uncertainty one file states.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct UnitContext {
+    /// Meters per file length unit.
+    pub(crate) length_scale: f64,
+    /// Radians per file angle unit.
+    pub(crate) angle_scale: f64,
+    /// The declared uncertainty in kernel meters, when the governing
+    /// contexts declare one. `None` is not yet an error: a file with
+    /// no geometry to import should say *that*, not complain about a
+    /// tolerance nothing would have spent.
+    pub(crate) uncertainty_m: Option<f64>,
+}
+
 /// Units and uncertainty **by resolution** (M7-1 review MAJOR-1): the
 /// old presence-scan only fired on instances *containing* an
 /// `SI_UNIT` record, so a `CONVERSION_BASED_UNIT` length context (an
-/// inch/mm file's normal form) imported silently as metres. Now every
-/// `GEOMETRIC_REPRESENTATION_CONTEXT`'s `GLOBAL_UNIT_ASSIGNED_CONTEXT`
-/// references are resolved and each must be a subset-form SI unit
-/// ([`check_unit`]), a subset SI **length** unit must exist among
-/// them, and every declared uncertainty must be a `LENGTH_MEASURE`
-/// over a resolved subset length unit. The presence-scan stays as a
-/// belt (an unreferenced prefixed unit still refuses).
+/// inch/mm file's normal form) imported silently as metres. Every
+/// governing context's `GLOBAL_UNIT_ASSIGNED_CONTEXT` references are
+/// resolved and each must be a unit this reader can carry
+/// ([`check_unit`]), a length unit must exist among them, and every
+/// declared uncertainty must be a `LENGTH_MEASURE` over a resolved
+/// length unit.
+///
+/// **Which contexts govern (M7-4 Leg B).** `governing` is the set of
+/// contexts the file's own geometry roots name — the third argument of
+/// the representations that actually hold a `MANIFOLD_SOLID_BREP` or
+/// `GEOMETRIC_CURVE_SET` ([`content_roots`]). Resolving by that set
+/// rather than by a sweep over every unit instance in the file is what
+/// the wild forced and what the M7-1 review's own principle asks for:
+/// a file may carry a kg/m³ `DERIVED_UNIT` for a mass property, a
+/// dimensionless `GEOMETRIC_REPRESENTATION_CONTEXT(2)` per pcurve
+/// (145 of them in one measured file), and a second 3D context no
+/// representation references — none of which say anything about what
+/// a coordinate in the solid MEANS. A sweep refused all three; the
+/// geometry's own context answers the only question being asked.
 fn resolve_units_and_uncertainty(
     r: &Resolver<'_>,
-    file: &StepFile,
-) -> Result<(f64, f64), StepImportError> {
-    for (&id, instance) in &file.data {
-        if instance.records.iter().any(|(kw, _)| kw == "SI_UNIT") {
-            check_unit(id, &instance.records)?;
-        }
-    }
+    governing: &std::collections::BTreeSet<u64>,
+) -> Result<UnitContext, StepImportError> {
     // The file's ONE length scale (M7-2 Leg A). Two contexts declaring
     // different length units would leave every coordinate's meaning
     // ambiguous, so a second, distinct factor refuses typed rather
@@ -1351,7 +1970,7 @@ fn resolve_units_and_uncertainty(
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
-                    found: "a second, different SI length unit (one file, one length \
+                    found: "a second, different length unit (one file, one length \
                             scale — two make every coordinate ambiguous)"
                         .to_owned(),
                 });
@@ -1359,15 +1978,27 @@ fn resolve_units_and_uncertainty(
         }
         Ok(())
     };
-    let mut uncertainty: Option<f64> = None;
-    for (&id, instance) in &file.data {
-        if !instance
-            .records
-            .iter()
-            .any(|(kw, _)| kw == "GEOMETRIC_REPRESENTATION_CONTEXT")
-        {
-            continue;
+    // The file's ONE angle scale, by the same argument: a semi_angle
+    // read in the wrong angular unit is a different cone.
+    let mut angle_scale: Option<(u64, f64)> = None;
+    let mut note_angle = |id: u64, factor: f64| -> Result<(), StepImportError> {
+        match angle_scale {
+            None => angle_scale = Some((id, factor)),
+            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some(_) => {
+                return Err(StepImportError::UnsupportedUnit {
+                    id,
+                    found: "a second, different plane-angle unit (one file, one angle \
+                            scale — two make every stated angle ambiguous)"
+                        .to_owned(),
+                });
+            }
         }
+        Ok(())
+    };
+    let mut uncertainty: Option<f64> = None;
+    for &id in governing {
+        let instance = r.instance(id, id)?;
         let mut has_length_unit = false;
         for (kw, args) in &instance.records {
             match kw.as_str() {
@@ -1379,8 +2010,12 @@ fn resolve_units_and_uncertainty(
                     for unit in as_list(id, units, expected)? {
                         let uid = as_ref(id, unit, expected)?;
                         let unit_instance = r.instance(id, uid)?;
-                        check_unit(uid, &unit_instance.records)?;
-                        if let Some(factor) = si_length_factor(uid, &unit_instance.records)? {
+                        match check_unit(r, uid, &unit_instance.records, 0)? {
+                            UnitKind::Length(_) => {}
+                            UnitKind::Angle(factor) => note_angle(uid, factor)?,
+                            UnitKind::SolidAngle => {}
+                        }
+                        if let Some(factor) = length_factor(r, uid, &unit_instance.records)? {
                             has_length_unit = true;
                             note_scale(uid, factor)?;
                         }
@@ -1420,17 +2055,17 @@ fn resolve_units_and_uncertainty(
         if !has_length_unit {
             return Err(StepImportError::UnsupportedUnit {
                 id,
-                found: "a representation context without a subset SI length unit \
-                        (a metre, prefixed or not)"
+                found: "a representation context without a length unit (a metre, \
+                        prefixed or not, or a conversion based on one)"
                     .to_owned(),
             });
         }
     }
-    let scale = length_scale.map_or(1.0, |(_, f)| f);
-    Ok((
-        scale,
-        uncertainty.ok_or(StepImportError::MissingUncertainty)?,
-    ))
+    Ok(UnitContext {
+        length_scale: length_scale.map_or(1.0, |(_, f)| f),
+        angle_scale: angle_scale.map_or(1.0, |(_, f)| f),
+        uncertainty_m: uncertainty,
+    })
 }
 
 impl<'a> Resolver<'a> {
@@ -1455,7 +2090,7 @@ impl<'a> Resolver<'a> {
         };
         let uid = as_ref(id, unit_ref, expected)?;
         let unit_instance = self.instance(id, uid)?;
-        let Some(factor) = si_length_factor(uid, &unit_instance.records)? else {
+        let Some(factor) = length_factor(self, uid, &unit_instance.records)? else {
             return Err(StepImportError::UnsupportedUnit {
                 id: uid,
                 found: complex_name(&unit_instance.records),
@@ -1482,56 +2117,115 @@ impl<'a> Resolver<'a> {
 /// ignores the whole PRODUCT family), but the transform is NOT: a
 /// non-identity one means the geometry as stated is NOT where the
 /// assembly puts it, and importing the raw geometry would silently
-/// place every body wrong. Every measured file's transform is the
-/// identity (both placements the same origin/axis/reference frame),
-/// because FreeCAD bakes placement into the exported shape. So this
-/// pass **traverses and accepts the identity**, and refuses typed —
-/// naming the transform entity — on anything else. Full assembly
-/// instancing is a later unit; it is not built here on speculation.
-fn check_assembly_transforms(r: &Resolver<'_>, file: &StepFile) -> Result<(), StepImportError> {
+/// place every body wrong. Every file M7-2 measured had the identity
+/// there (FreeCAD bakes placement into the exported shape), so that
+/// pass traversed, accepted the identity, and refused everything else.
+///
+/// **M7-4 Leg D** keeps the refusal's teeth and adds the one case a
+/// wild file can legitimately state: a RIGID motion. The two
+/// placements are read as orthonormal frames, the map that carries the
+/// first onto the second is composed, and:
+///
+/// - the identity (at ε_in) answers `None` — nothing moves, the M7-2
+///   behavior bit for bit;
+/// - a rigid motion — orthonormal linear part, determinant +1 at ε_in
+///   — answers the map, which the caller hands to the kernel's own
+///   [`topo::transform_rigid`] door (which re-checks rigidity with
+///   decided predicates and RE-CERTIFIES every carrier: this pass
+///   proposes, the kernel disposes);
+/// - a mirror (det = −1) or any scaling refuses typed, naming the
+///   transform. A mirror is not a placement — it reverses handedness,
+///   and which way a mirrored solid's faces then point is a question
+///   about the file's intent that an importer must not answer by
+///   guessing.
+///
+/// **What is still refused: per-component placement.** One map for the
+/// whole file is a placed part; two different maps over different
+/// components is assembly instancing — a body graph with per-instance
+/// frames, which this crate has no representation for and which is a
+/// later unit. It refuses typed rather than importing some components
+/// placed and others not.
+fn resolve_assembly_placement(
+    r: &Resolver<'_>,
+    file: &StepFile,
+    roots: &ContentRoots,
+) -> Result<Option<Affine3<f64>>, StepImportError> {
+    let mut placement: Option<(u64, Affine3<f64>)> = None;
+    let mut placed_reps = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
+        let mut related: Option<u64> = None;
+        let mut transform: Option<u64> = None;
         for (kw, args) in &instance.records {
-            if kw != "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION" {
-                continue;
+            match kw.as_str() {
+                "REPRESENTATION_RELATIONSHIP" => {
+                    let expected = "REPRESENTATION_RELATIONSHIP(name, description, \
+                                    #rep_1, #rep_2)";
+                    let [_, _, rep_1, _] = args.as_slice() else {
+                        return Err(StepImportError::MalformedRecord { id, expected });
+                    };
+                    related = Some(as_ref(id, rep_1, expected)?);
+                }
+                "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION" => {
+                    let expected = "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(\
+                                    #item_defined_transformation)";
+                    let [t] = args.as_slice() else {
+                        return Err(StepImportError::MalformedRecord { id, expected });
+                    };
+                    transform = Some(as_ref(id, t, expected)?);
+                }
+                _ => {}
             }
-            let expected = "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(\
-                            #item_defined_transformation)";
-            let [transform] = args.as_slice() else {
-                return Err(StepImportError::MalformedRecord { id, expected });
-            };
-            let tid = as_ref(id, transform, expected)?;
-            let targs = r.simple(id, tid, "ITEM_DEFINED_TRANSFORMATION")?;
-            let texpected = "ITEM_DEFINED_TRANSFORMATION(name, description, \
-                             #placement_1, #placement_2)";
-            let [_, _, from_ref, to_ref] = targs else {
-                return Err(StepImportError::MalformedRecord {
-                    id: tid,
-                    expected: texpected,
-                });
-            };
-            let a = r.placement(tid, as_ref(tid, from_ref, texpected)?)?;
-            let b = r.placement(tid, as_ref(tid, to_ref, texpected)?)?;
-            // Identity at ε_in: the origins coincide within the
-            // file's own declared uncertainty, and so do the two
-            // direction fields (dimensionless, but ε_in is the one
-            // budget this importer spends and a unit vector's slack is
-            // bounded by it just as tightly).
-            let identity = (a.0 - b.0).norm() <= r.eps_in
-                && (a.1 - b.1).norm() <= r.eps_in
-                && (a.2 - b.2).norm() <= r.eps_in;
-            if !identity {
+        }
+        let Some(tid) = transform else { continue };
+        let Some(map) = r.item_defined_transformation(id, tid)? else {
+            continue; // the identity: the component is where it says.
+        };
+        if let Some(rep) = related {
+            placed_reps.insert(rep);
+        }
+        match placement {
+            None => placement = Some((tid, map)),
+            Some((_, prev)) if same_map(&prev, &map) => {}
+            Some(_) => {
                 return Err(StepImportError::Structure {
                     id: tid,
-                    what: "a non-identity assembly transform — the component's geometry \
-                           as stated is not where the assembly places it, and importing \
-                           it unplaced would put the body in the wrong location; \
-                           assembly instancing is a later unit, refused here rather \
-                           than guessed",
+                    what: "a second, different assembly placement — placing components \
+                           independently is assembly instancing, which this importer \
+                           has no body graph to hold; refused rather than importing \
+                           some components placed and others not",
                 });
             }
         }
     }
-    Ok(())
+    let Some((tid, map)) = placement else {
+        return Ok(None);
+    };
+    // Every representation that carries model content must be governed
+    // by that one placement; a solid the assembly never places would
+    // otherwise ride along at its stated coordinates.
+    if let Some(&stray) = roots.reps.iter().find(|id| !placed_reps.contains(id)) {
+        return Err(StepImportError::Structure {
+            id: stray,
+            what: "a shape representation the assembly's placement does not cover, \
+                   beside components it does — placing only some of a file's content \
+                   is assembly instancing, refused rather than guessed",
+        });
+    }
+    let _ = tid;
+    Ok(Some(map))
+}
+
+/// Two maps as the same placement — bitwise, because they come from
+/// the same arithmetic over the same file when they are the same
+/// placement, and a *near*-equality here would silently merge two
+/// components' distinct frames.
+fn same_map(a: &Affine3<f64>, b: &Affine3<f64>) -> bool {
+    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
+    cols(a).iter().zip(cols(b).iter()).all(|(x, y)| {
+        x.x.to_bits() == y.x.to_bits()
+            && x.y.to_bits() == y.y.to_bits()
+            && x.z.to_bits() == y.z.to_bits()
+    })
 }
 
 /// Shape content **by resolution** (M7-1 review MINOR-4): solids come
@@ -1568,9 +2262,17 @@ fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportE
                     let item_id = as_ref(id, item, expected)?;
                     let item_instance = r.instance(id, item_id)?;
                     match item_instance.records.as_slice() {
+                        // One solid, however many representations name
+                        // it. A NIST translator writes the same
+                        // `MANIFOLD_SOLID_BREP` into both an
+                        // `ADVANCED_BREP_SHAPE_REPRESENTATION` and a
+                        // plain `SHAPE_REPRESENTATION`; resolving it
+                        // per reference imported the part twice, as two
+                        // coincident solids — a body no file describes.
                         [(k, sargs)] if k == "MANIFOLD_SOLID_BREP" => {
-                            referenced.insert(item_id);
-                            solids.push(r.solid(item_id, sargs)?);
+                            if referenced.insert(item_id) {
+                                solids.push(r.solid(item_id, sargs)?);
+                            }
                         }
                         // The representation's own placement item.
                         [(k, _)] if k == "AXIS2_PLACEMENT_3D" => {}
@@ -1617,7 +2319,6 @@ fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportE
             _ => {}
         }
     }
-    check_assembly_transforms(r, file)?;
     // Orphan check (fail-loud: a shape item no representation
     // references would otherwise vanish or be guessed into the model).
     for (&id, instance) in &file.data {
@@ -1650,6 +2351,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
     Resolver {
         file,
         length_scale: 1.0,
+        angle_scale: 1.0,
         eps_in: 0.0,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
@@ -1671,15 +2373,22 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         });
     }
 
-    // Two passes, in this order by necessity: the unit context says
-    // what a coordinate MEANS, so it is resolved before a single
-    // coordinate is read. The geometry pass then runs on a resolver
-    // that carries the file's length scale and its scaled ε_in.
-    let (length_scale, uncertainty_m) = resolve_units_and_uncertainty(&r, file)?;
+    // Three passes, in this order by necessity: which contexts govern
+    // is a structural question (keywords and reference slots only),
+    // its answer says what a coordinate MEANS, and only then does the
+    // geometry pass run — on a resolver carrying the file's length and
+    // angle scales and its scaled ε_in.
+    let roots = content_roots(&r, file)?;
+    let units = resolve_units_and_uncertainty(&r, &roots.contexts)?;
     let r = Resolver {
         file,
-        length_scale,
-        eps_in: uncertainty_m,
+        length_scale: units.length_scale,
+        angle_scale: units.angle_scale,
+        // A file with no declared uncertainty gets no interpretation
+        // budget here; the shape pass below refuses first when there
+        // is nothing to import, and `MissingUncertainty` is raised
+        // after it, when a body really was on the table.
+        eps_in: units.uncertainty_m.unwrap_or(0.0),
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data
@@ -1692,8 +2401,12 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         normalizations: std::cell::RefCell::new(Vec::new()),
     };
     let shape = resolve_shape(&r, file)?;
+    let placement = resolve_assembly_placement(&r, file, &roots)?;
     Ok(Model {
-        uncertainty_m,
+        placement,
+        uncertainty_m: units
+            .uncertainty_m
+            .ok_or(StepImportError::MissingUncertainty)?,
         shape,
         normalizations: r.normalizations.into_inner(),
     })

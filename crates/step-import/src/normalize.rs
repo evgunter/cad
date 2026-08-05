@@ -187,6 +187,9 @@ fn split_at_midpoint(
             carrier: carrier.clone(),
             t0,
             t1: tm,
+            // A minted edge: the importer states its own
+            // start → end, so there is no sense to compose.
+            reversed: false,
         },
     );
     solid.edges.insert(
@@ -197,6 +200,9 @@ fn split_at_midpoint(
             carrier,
             t0: tm,
             t1,
+            // A minted edge: the importer states its own
+            // start → end, so there is no sense to compose.
+            reversed: false,
         },
     );
     solid.edges.remove(&edge);
@@ -338,6 +344,9 @@ fn apex_cone(
             carrier: second_seam,
             t0,
             t1,
+            // A minted edge: the importer states its own
+            // start → end, so there is no sense to compose.
+            reversed: false,
         },
     );
     // Every OTHER loop's use of the base circle becomes its two halves
@@ -614,6 +623,9 @@ fn full_torus(
             carrier,
             t0,
             t1,
+            // A minted edge: the importer states its own
+            // start → end, so there is no sense to compose.
+            reversed: false,
         },
     );
     // The minted halves are wound `+u` first — CCW about the chart
