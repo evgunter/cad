@@ -673,7 +673,21 @@ during the gap (canary 0.87s).
   M6 hygiene pickup) is now LOAD-BEARING for reading the
   landing's context — promote it up the lull queue.
 
-**M6-3 spec WRITTEN (docs/M6-3-SPEC.md)** from the substrate
+**FABLE BUDGET NEARLY EXHAUSTED (Evan, in-chat, 2026-08-05):
+wind-down mode.** M6-3 implementer instructed to wrap at the
+nearest coherent seam (finish only mid-flight work, minimal
+battery, push, open an honestly-PARTIAL PR listing unfinished
+legs verbatim, stop — no merge). Its adversarial review is
+DEFERRED until budget returns (reviews stay Fable per protocol;
+the PR sits open, unmerged). Orchestrator entering low-activity:
+monitors stay armed, hourly sweeps continue (cheap), no new
+dispatches, no spec/exploration work. Remaining M6 queue on
+resume: finish M6-3 (remaining legs as a follow-up dispatch) →
+review+merge → unit 5 → unit 6 → KERNEL_* fields (S) → hygiene
+(k-lint floor FIRST — load-bearing for the #89 landing readout —
+then latency refresh, internal-tangency fixture, montage NOTE-2,
+tripwire lookahead) → exit walk. The M7 orchestrator
+(separate account) is unaffected and continues. from the substrate
 exploration (which read post-#176 origin/main): six legs
 (builder with EdgeGeometry::IsoCurve + exact iso-pcurve lane;
 two tier-3 flips with the placeholder/described discriminator;
