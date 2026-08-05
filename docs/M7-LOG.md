@@ -579,3 +579,31 @@ pre-archive docs/M* paths (small code sweep); the √5/2-vs-√5/4
 numeric cross-check in this log's rim-dim entry. NEXT: M7
 unit 3 substrate (NURBS-face import); typed-margin design
 draft (audit + F3+F4 outcomes now in hand).
+
+**M7-3 substrate returned + spec written (2026-08-05).**
+Measured: loft_prism's 4 non-rational B_SPLINE walls re-export
+byte-identical below the header; NO pcurves cross the wire
+(IsoCurve reconstructed at import); every certification door the
+non-rational case needs is measured OPEN (traversal map with
+file:line in the inventory). HEADLINE ADJACENT FINDING → issue
+#207: sweep_body has ZERO successful callers (skin-fit weight
+drift 1.0+2e-16 → bitwise-rational walls → speed_lower_bound
+poison); only uniformly-spaced lofts export today; kernel fix
+banked. Spec decisions: the surface_sig trap (all-NURBS-share-
+one-key) fixed FIRST with a pin; the IsoCurve adoption rung;
+rim-edge exemption per the Seam idiom; RATIONAL FORK proposed
+firm as ARM B (import-with-typed-limitation — the imported body
+lands in exactly the native state incl. the identical t3
+refusal; refuse-at-import would reproduce the writer/reader
+asymmetry the writer already exhibits) — flagged for Evan in
+the unit PR. dm1-id-214 stays refused (stage-1 territory);
+nist_ftc_10 premise was stale. **A/B block M7-4: M7-3
+difficulty logged M BEFORE the draw** (per the substrate's
+signal: doors open, work = two design decisions + the sig trap
++ flip bookkeeping). Draw after this commit.
+Draw: byte 224 → **(fable, opus)** — M7-3 = FABLE; opus
+remainder to the next eligible dispatch (candidates: the #207
+skin-fit fix, M6 unit 5, or the margin-convention migration if
+#205 ratifies). Spec + substrate ride the next state-sync;
+dispatch now (lane m7-3-import, slot 2; the substrate lane on
+slot 1 is done and cleans at this seam).

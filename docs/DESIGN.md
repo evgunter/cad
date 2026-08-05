@@ -848,7 +848,7 @@ applied to error handling. Five commitments:
    for sizing; display-layer comparisons are deliberately not Q1
    predicates (none decide kernel topology).
 
-   **The margin dimensional convention (PROPOSED 2026-08-05; shaped
+   **The margin dimensional convention (RATIFIED 2026-08-05, Evan 👍 on PR #205 comment 5195787412; shaped
    in-chat with Evan — non-generic erased annotations, his call —
    from the du_of_rims / F3 / F4 defect family and the
    predicate-dimension audit).** ε is a length: the maximum
