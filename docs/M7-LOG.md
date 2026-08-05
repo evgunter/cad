@@ -487,3 +487,26 @@ moved. Review attacks: the 8 changed decision comparands
 (riskiest surface), grouping-verdict invariance, scale-twin
 re-derivation, audit-coverage independent sweep, F5 basis.
 Impl ~290k tokens, ~3h wall under the pin.
+
+**Rim-dim review returned (2026-08-05): APPROVE-WITH-FIXES,
+1 MAJ / 2 MIN / 5 NOTE, rubric 5/4/4, 7/7 deviations honest.**
+The fix/audit/retirement all HELD — and R1 found the fix
+corrects real VERDICT FLIPS, not just margins (pre-fix silently
+grouped 50ε-separated rims on a small body and spuriously
+refused 0.5ε-coincident rims on a large one; post-fix honest
+both directions). MAJ = the unit's own boolean-twin pin red on
+3 hosted jobs: not ε-row-honest (at 1e-6 the mm twin hits
+deferred F4's in-band area margin — .expect'd success; at 1e-12
+the witness ratio assert fires on scale-invariant margins).
+**F4 PRIORITY UPGRADED by execution**: bool_ring_run_winding's
+area margin lands in Band{1e-6,1e-5} on REAL mm booleans at a
+CI ε row — the banked dimensional unit (F4+F5 + ceiling
+re-derivation) is sequenced IMMEDIATELY after the M6-3 merge.
+R6 also executed the F5 linkage: the freecad cylinder refusal
+at ε=1e-7 IS pcurve_chart_radial_moving, margin 5e-7 = 2r²
+in-band. split_section_area's spec factor confirmed (2A/P; old
+code 4A/P). Fix pass dispatched (inherits fable): per-ε-row pin
+expectations with the three-outcome structure; scale-invariant
+margins asserted AS invariant (stronger than exemption);
+reviewer probes adopted; sphere pole-degeneracy audit note.
+Review ~154k tokens, ~51min under the pin.
