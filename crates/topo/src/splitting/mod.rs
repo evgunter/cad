@@ -59,7 +59,11 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
-mod order;
+// `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
+// a shared DEVICE (audit note N6), and the boolean backstop's
+// sign-certainty arm decides against the same one rather than minting
+// a second copy of the constants.
+pub(crate) mod order;
 #[cfg(test)]
 pub(crate) mod reassembly;
 pub mod rules;

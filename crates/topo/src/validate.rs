@@ -1929,7 +1929,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // margin is the Newell functional `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
     // twice the loop's signed enclosed area — through the reified
     // `bool_ring_run_winding` predicate (the same margin the boolean
-    // join's ring lane and the merge role normalization decide on).
+    // join's ring lane and the merge role normalization decide on),
+    // metered to a LENGTH by the loop's perimeter: 2A/P, the region's
+    // mean width (audit F4; derivation at `boolean::join::ring_run_ccw`,
+    // the same discipline as check 7's V/A below).
     // A role inversion passes every volume gate (they are
     // role-invariant) but silently corrupts tessellation/export;
     // this closes that class structurally. Scope: LINE-BOUNDED loops
@@ -1998,14 +2001,22 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 continue; // unreachable on tier-1 input
             };
             let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+            // The F4 metering lever (audit; the derivation and the
+            // three-site coherence statement live at
+            // `boolean::join::ring_run_ccw`): this loop's perimeter,
+            // accumulated with the area. Line-bounded only, so the
+            // chords ARE the boundary.
+            let mut perimeter = T::zero();
             let mut prev = p0;
             for &he in &cycle[1..] {
                 let Some(p) = point_of(he) else {
                     continue;
                 };
                 newell = newell + (prev - p0).cross(p - p0);
+                perimeter = perimeter + (p - prev).norm();
                 prev = p;
             }
+            perimeter = perimeter + (p0 - prev).norm();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -2015,7 +2026,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             } else {
                 Sign::Positive
             };
-            if decide("bool_ring_run_winding", outward.dot(newell), band) == Ok(wrong) {
+            if decide(
+                "bool_ring_run_winding",
+                outward.dot(newell) / perimeter,
+                band,
+            ) == Ok(wrong)
+            {
                 errors.push(ValidationError::LoopRoleInverted {
                     face: face_key,
                     r#loop: l,

@@ -17,8 +17,16 @@ metered a cone's already-length rim-level difference by `× arm`,
 manufacturing an area. This document is the systematic sweep for the
 rest of the family, and the input to the typed-margin (Length-typed
 classify seam) design conversation. Status column: OK (dimension
-verified), FIXED (corrected in this unit), FLAG (defect or concern
-found — disposition in the findings section).
+verified), FIXED (corrected — in the originating rim-dimensional unit
+unless the row names the follow-up unit that did it), FLAG (defect or
+concern found — disposition in the findings section).
+
+**Living document.** A row and its disposition entry must never
+disagree; retiring a finding updates both. Retired so far: F1 plus the
+eight inline class-(c) sites (rim-dimensional unit, #197); F5 and most
+of F6 (M6-3, #192); F3 and F4 (the F3+F4 dimensional unit — F3 was the
+tree's last funnel bypass, so predicate-name attribution in the K
+telemetry is now complete).
 
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
@@ -101,8 +109,10 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/join.rs:575/611/808/822 | bool_join_nearest | point distances / differences | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
-| boolean/join.rs:1043 | bool_ring_run_winding | n̂ · Newell sum | **m² AREA** | FLAG F4 |
-| boolean/ops.rs:634/649 | volume_backstop (raw sign_within — funnel bypass) | flux volume / volume differences | **m³ VOLUME** | FLAG F3 |
+| boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3; was **m³ VOLUME** through a raw `sign_within`) |
+| boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3) |
+| boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -126,14 +136,14 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs:614–746 | pm_census_span_* / ee_gap / ee_span / ee_overlap | span arithmetic (m) | m | OK |
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
-| merge_faces.rs:876 | bool_ring_run_winding | n̂ · Newell sum | **m² AREA** | FLAG F4 |
+| merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
 | pcurves.rs:508–717 | pcurve_loop_continuity / closure(_height) | Δu(rad)×azimuth_arm; Δv (m on cylinder charts) | m | OK today; FLAG F6 (non-cylinder fallback arm = 1) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | transform.rs:155 | transform_rigid_trans_finite_* | t·0 poison probe (0 or NaN by construction) | — | OK |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
 | validate.rs:1795 | tangent_second_order | κ_rel × arm²/2 | m | OK |
-| validate.rs:1964 | bool_ring_run_winding | outward · Newell sum | **m² AREA** | FLAG F4 |
+| validate.rs:2030 | bool_ring_run_winding | (outward · Newell sum) / loop perimeter | m | FIXED (F4) |
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/containment.rs:179/192/219/233 | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
@@ -155,8 +165,17 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
-called directly on volume margins — FLAG F3); everything else routes
-through `k_stats::decide`. Raw ε reads outside decisions: solver
+called directly on volume margins — was FLAG F3, **FIXED**: the gates
+now route through `k_stats::decide` under `volume_backstop_operand`,
+`volume_backstop` and `volume_backstop_violation`). **This audit's
+scope — geom-brep and topo — has no funnel bypass left:** every
+shipped decision in the two crates goes through `k_stats::decide`, so
+every margin the recorder sees is attributed to the predicate that
+actually decided it. The claim is scoped on purpose. One shipped raw
+`sign_within` exists elsewhere in the workspace — `editor-core`'s
+expression evaluator — and is carried below as **F12** rather than
+swept under the headline. Raw ε reads
+outside decisions: solver
 tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
@@ -180,6 +199,83 @@ Fixed in this unit. Live-pin coverage, honestly (review MINOR-2):
 - `bool_strut_order` — CODE-READ + suites-green only; the rare
   germ-fan lane fires in none of the above configs.
 
+Fixed by the **F3+F4 dimensional unit** (the follow-up unit this
+audit's F3/F4 rows banked; both findings were EXECUTED, not
+speculative — each row below states what it measured):
+
+- **F3** `volume_backstop` (ops.rs): the tree's ONE funnel bypass is
+  gone. Both gates decide through `k_stats::decide` — the bound check
+  under `volume_backstop` (margin `ΔV / (A_got + A_bound)`: a boundary
+  displaced by δ moves the volume it encloses by ≈ δ·A, so the summed
+  surface area of the two compared bodies is the whole boundary that
+  could have produced the defect, and the quotient is the mean boundary
+  displacement the violation corresponds to) and the operand-bounded
+  test under `volume_backstop_operand` (`V/A`, verbatim the
+  validate.rs `positive_volume` precedent). Both quotients are exactly
+  zero when the volumes agree exactly, so the gate's non-strict pass
+  direction is unmoved. The attribution defect this closes was measured
+  in `rim_dim_boolean_twins` at ε = 1e-12: the operand/result VOLUME
+  set {1, 1, 3, 8, 8, 16} m³ logged under certify's
+  `witness_at_mid_parameter` (cubic, ×1e-9 between the twins) and
+  perturbing that predicate's sample COUNT (102 vs 103). Post-fix the
+  volumes appear under their own names and scale ×1000, and
+  `witness_at_mid_parameter`'s decisive list is EMPTY at both scales —
+  its real samples are coincident residuals, exactly as the old
+  allowlist comment claimed.
+  **Third executed consequence, found by this unit and NOT previously
+  known: the cubic comparand was silently switching the backstop
+  OFF at mm scale.** `bounded` classified a raw m³ volume against the
+  linear band, so a 2 mm cube's 8e-9 m³ landed inside
+  `Band{1e-9, 1e-8}` at the default ε — indeterminate — and the code
+  reads an indeterminate operand as "not certifiably bounded" and
+  SKIPS its bound. The whole `vol(A∖B) ≤ vol(A)` check was therefore
+  vacuous on that boolean. Measured as a one-line census delta on the
+  twin fixtures (`witness_at_mid_parameter` 123 samples/5 nonzero →
+  118/0, plus `volume_backstop` 2/2 and `volume_backstop_operand` 4/4;
+  every one of the other 49 predicates byte-identical): five volume
+  decisions became six, the sixth being the restored check, which
+  passes. Metered as `V/A` the same operand answers 3.3e-4 m —
+  decisively bounded at every ε in the matrix. No verdict flipped; a
+  gate that had been skipping now runs.
+  **The metering's WEAKENING direction, and the dual-arm answer (#200
+  review MAJ-1).** Metering alone would not have been pure gain:
+  `ΔV/(A_got + A_bound)` shrinks with the bodies' area, so a localized
+  wrong component on a large body meters below ε even while the defect
+  stays macroscopic. Executed by the reviewer: a wrongly-kept 3 mm cube
+  on a 2 m × 2 m × 0.1 m plate is ΔV = 2.7e-8 m³ over ~17.6 m² →
+  1.53e-9 m, inside the default band, where the raw-m³ comparand had
+  refused decisively. Resolution: the backstop asks two questions and
+  only one is about a magnitude. `volume_backstop_violation` decides
+  the SIGN against the **exact bit-hairline band** (`splitting::order`'s
+  device, note N6) — the bound is an inequality, and a sign-certain
+  violation is a dimension-free fact no amount of boundary area can
+  dilute; `volume_backstop` keeps the metered mean displacement against
+  ε for the near-zero region the sign arm leaves open. Both arms
+  consume the same metered comparand, since dividing by a
+  certainly-positive lever cannot move a sign — so the K stream stays
+  length-dimensioned and scale-linear (verified in the twins) while the
+  refusal is scale-free. The gate is now strictly stronger than both
+  its predecessors. Pinned end-to-end by
+  `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
+  (verified red with the sign arm removed) and at band level by the
+  adopted `tests/probe_f34_review.rs`.
+- **F4** `bool_ring_run_winding` (join.rs, merge_faces.rs,
+  validate.rs — one predicate, three sites, all three moved together):
+  the Newell AREA is divided by the region's boundary PERIMETER, giving
+  `2A/P` — the ring's MEAN WIDTH, the distance the boundary would have
+  to move to sweep the enclosed region away, and the same quantity
+  `split_section_area` already meters. The canonical derivation lives
+  at `boolean::join::ring_run_ccw`; the other two sites cross-reference
+  it. In the join's ring-run lane the perimeter is arc-aware (conics
+  contribute `|Δ|·semi-major` — exact for a circle, an upper bound for
+  an ellipse, and an over-large P escalates rather than decides) and
+  includes the chord that closes the open run. This retires an
+  EXECUTED in-band refusal: at ε = 1e-6 the mm pocket-subtract twin
+  refused typed on a 2e-6 m² margin inside Band{1e-6, 1e-5}; the same
+  decisions now carry 5e-4 / 7.5e-4 / 1e-3 m and compute on every ε row
+  in the hosted matrix. `rim_dim_boolean_twins`'s three-outcome F4
+  signature match is deleted, and the predicate is pinned LINEAR.
+
 Flagged, NOT fixed here (dispositions):
 
 - **F2** `solid_contain.rs` ray-caster denominators (675/720/731/753):
@@ -187,28 +283,10 @@ Flagged, NOT fixed here (dispositions):
   in-tree admission earmarking a re-pin unit (PR 9c review F3). One
   coordinated unit should meter all four (the sphere-disc form at :804
   is the model). Reported, deferred to that unit.
-- **F3** `volume_backstop` (ops.rs:634/649): m³ against the linear
-  band AND the only funnel bypass. Needs /surface-area metering (the
-  validate.rs:2014 precedent) + funnel routing. ops.rs is
-  restructured by the in-flight loft-assembly lane — collision,
-  deferred with this note. **Upgraded by execution (fix pass)**: the
-  raw `sign_within` bypass also CORRUPTS K-telemetry attribution — on
-  the recording lane its volume margins log under whatever predicate
-  name the funnel set last (measured in the boolean twins at ε=1e-12:
-  the operand/result volume set {1, 1, 3, 8, 8, 16} m³ recorded under
-  certify's `witness_at_mid_parameter`, scaling ×1e-9 = cubic).
-- **F4** `bool_ring_run_winding` (join.rs:1043, merge_faces.rs:876,
-  validate.rs:1964): Newell AREA against the linear band, three sites,
-  one predicate. validate.rs is a loft-assembly collision file; the
-  predicate must stay coherent across its three sites, so the trio is
-  deferred together (fix shape: divide by the run's perimeter, the
-  validate.rs:2014 precedent). **Priority upgraded (fix pass, per the
-  #197 review)**: on the hosted ε=1e-6 CI row the mm boolean twin's
-  pocket subtract REFUSES in-band on this comparand (margin 2e-6
-  inside Band{1e-6, 1e-5}) — a real mm-scale boolean refusal on a
-  matrix row, pinned as the live F4 signature in
-  `rim_dim_boolean_twins.rs`. The banked F4+F5 unit is sequenced
-  immediately after the M6-3 merge.
+- **F3** — **FIXED by the F3+F4 dimensional unit** (see the fixed
+  list above).
+- **F4** — **FIXED by the F3+F4 dimensional unit** (see the fixed
+  list above).
 - **F5** `pcurve_chart_radial_moving` — **FIXED by M6-3** (the
   loft-assembly unit, PR #192): the amplitude is compared BARE (it is
   already a displacement in metres; the ×radius factor made it an
@@ -229,8 +307,10 @@ Flagged, NOT fixed here (dispositions):
   reparametrization-sensitive rate) — fold into F7's typed-margin
   design.
 - **F7** `nurbs_span_meter` (certify.rs:897): a RATE (m/param) gated
-  against the linear band — reparametrization-sensitive. Collision
-  file (certify.rs); fold into F5's unit or the typed-margin design.
+  against the linear band — reparametrization-sensitive. Fold into the
+  typed-margin design. (The certify.rs collision claim is STALE as of
+  the F3+F4 unit — the loft-assembly lane merged; deferred on its own
+  merits now, not on a file conflict.)
 - **F8** window/cosine family: `bool_between_arc_window` (cosΔ−cos h,
   quadratic near narrow/full windows), `bool_wall_trim` cone term
   (same shape, conservative direction), sphere-wall `split_arc_window`
@@ -242,11 +322,32 @@ Flagged, NOT fixed here (dispositions):
   Arm-policy question for the design conversation.
 - **F10** `transform_rigid_*` (transform.rs:139): dimensionless
   rigidity residuals of the linear map against the metre band; the
-  natural arm is the model/session-box extent. transform.rs is a
-  collision file; deferred with this note.
+  natural arm is the model/session-box extent. (The transform.rs
+  collision claim is STALE as of the F3+F4 unit — the loft-assembly
+  lane merged. Deferred on the arm question alone, which is a design
+  input, not a conflict.)
 - **F11** `tangent_sector_osculation` (rules.rs:174): sagitta model
   κ·L²/2 metered at the WHOLE-FACE extent, squared, and invalid for
   κ·L ≳ 1 — over-refusal direction. Arm-policy question; own unit.
+- **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
+  `editor-core/src/expr.rs:656`: the expression evaluator's door-2
+  finiteness probe is a shipped raw `sign_within` — its own comment
+  calls it "a reified decision" — so it is UNATTRIBUTED in the K
+  telemetry, the same structural defect F3 just retired one crate over.
+  Three things make it a different disposition, not a same-day fix:
+  the comparand is `value · 0`, which is exactly `0` for every finite
+  value and poison otherwise, so it is a **finiteness probe, not a
+  geometric margin** — no dimension, no length, nothing the ε
+  semantics govern; it classifies against a synthetic
+  `Band{1e-100, 1e-50}` where, by that construction, *any* valid band
+  decides identically; and it lives in the expression layer, outside
+  this document's props/predicate sweep (geom-brep + topo). The honest
+  statement is therefore "not a dimensional defect, but an attribution
+  hole": routing it through the funnel would give the recorder a name
+  for it and cost nothing. Deferred to whoever owns the editor layer —
+  NOT fixed here, because a K-telemetry row for the expression
+  evaluator is a scope question for that crate, not a consequence of
+  this audit.
 
 Notes (verified honest, kept for the design conversation):
 
