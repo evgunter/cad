@@ -96,7 +96,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
 | boolean/contain.rs:83–115 | bool_contact_vertex/edge_span/edge | point/span/perpendicular distances | m | OK |
-| boolean/insert.rs:197 | bool_strut_order | (unit germ dir diff)·(unit e_dir) × min sector arm | m | FIXED (was dimensionless) |
+| boolean/insert.rs:197 | bool_strut_order | (unit germ dir diff)·(unit e_dir) × min sector arm | m | FIXED (was dimensionless); verified CODE-READ + suites-green only — the rare germ-fan lane fires in none of the unit's live twin/probe configs (review MINOR-2, stated) |
 | boolean/insert.rs:262 | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm | m | OK |
 | boolean/join.rs:575/611/808/822 | bool_join_nearest | point distances / differences | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
@@ -137,9 +137,9 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/containment.rs:179/192/219/233 | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
-| splitting/containment.rs:203 | point_in_loop_arm | sin(schedule, plane) × loop extent | m | FIXED (was dimensionless schedule norm) |
+| splitting/containment.rs:203 | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/neighborhood.rs:226–324 | split_conic_departure / sector reflex/straight / bisector | tangent×extent projections; sin/cos × arm | m | OK |
-| splitting/order.rs:73 | split_join_frame_arm | sin(schedule, plane) × points' spread | m | FIXED (was dimensionless schedule norm) |
+| splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |
 | splitting/rules.rs:130/149/197 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
 | splitting/rules.rs:174 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
@@ -163,18 +163,22 @@ decision), test fixtures.
 
 ## Findings (dispositions)
 
-Fixed in this unit (each with the shared scale-covariance pin,
-`crates/topo/tests/rim_dim_boolean_twins.rs`, plus the rim twins in
-`crates/geom-brep/tests/rim_dim_scale_twins.rs`):
+Fixed in this unit. Live-pin coverage, honestly (review MINOR-2):
 
 - **F1 (the unit's trigger)** `props_rim_level_group`/`props_rim_side`
   — per-kind metering via the `RimLevel` enum; the #89 in-band landing
-  retired (margin now the true rim separation, scale-linear).
-- `bool_join_facing` (×2 files), `bool_strut_order`,
-  `bool_plane_orient` (×2 rungs), `pm_census_ee_parallel`,
-  `point_in_loop_arm`, `split_join_frame_arm` — bare
-  cosines/sines/dimensionless gates now metered at their named lever
-  arms; `split_section_area` factor-2 aligned to its documented spec.
+  retired (margin now the true rim separation, scale-linear). Pinned
+  by `crates/geom-brep/tests/rim_dim_scale_twins.rs` and the
+  grouping-flip probes (`rim_dim_review_probes.rs`, adopted by merge).
+- `bool_join_facing` (×2 files), `pm_census_ee_parallel`,
+  `point_in_loop_arm` — live in the boolean scale-twin pin
+  (`crates/topo/tests/rim_dim_boolean_twins.rs`).
+- `bool_plane_orient` (×2 rungs), `split_join_frame_arm`,
+  `split_section_area` (factor-2 aligned to its documented spec) —
+  live in the adopted review probes' flush-subtract + oblique-split
+  linearity test (`crates/topo/tests/rim_dim_review_probes.rs`).
+- `bool_strut_order` — CODE-READ + suites-green only; the rare
+  germ-fan lane fires in none of the above configs.
 
 Flagged, NOT fixed here (dispositions):
 
@@ -187,13 +191,24 @@ Flagged, NOT fixed here (dispositions):
   band AND the only funnel bypass. Needs /surface-area metering (the
   validate.rs:2014 precedent) + funnel routing. ops.rs is
   restructured by the in-flight loft-assembly lane — collision,
-  deferred with this note.
+  deferred with this note. **Upgraded by execution (fix pass)**: the
+  raw `sign_within` bypass also CORRUPTS K-telemetry attribution — on
+  the recording lane its volume margins log under whatever predicate
+  name the funnel set last (measured in the boolean twins at ε=1e-12:
+  the operand/result volume set {1, 1, 3, 8, 8, 16} m³ recorded under
+  certify's `witness_at_mid_parameter`, scaling ×1e-9 = cubic).
 - **F4** `bool_ring_run_winding` (join.rs:1043, merge_faces.rs:876,
   validate.rs:1964): Newell AREA against the linear band, three sites,
   one predicate. validate.rs is a loft-assembly collision file; the
   predicate must stay coherent across its three sites, so the trio is
   deferred together (fix shape: divide by the run's perimeter, the
-  validate.rs:2014 precedent).
+  validate.rs:2014 precedent). **Priority upgraded (fix pass, per the
+  #197 review)**: on the hosted ε=1e-6 CI row the mm boolean twin's
+  pocket subtract REFUSES in-band on this comparand (margin 2e-6
+  inside Band{1e-6, 1e-5}) — a real mm-scale boolean refusal on a
+  matrix row, pinned as the live F4 signature in
+  `rim_dim_boolean_twins.rs`. The banked F4+F5 unit is sequenced
+  immediately after the M6-3 merge.
 - **F5** `pcurve_chart_radial_moving` (pcurve_cache.rs:1664):
   (Σ metre norms) × radius = **AREA** — the exact defect class of this
   unit's fix, and the margin arithmetic matches the mm-corpus pcurve
@@ -256,3 +271,13 @@ Notes (verified honest, kept for the design conversation):
 - **N6** `split_join_order_u/v` deliberately classify against the
   bit-level exact band (total-order device), not ε — documented
   contract, excluded from the length rule by design.
+- **N7** (review MINOR-3) The sphere's `Unit(sin v, 0) × R` grouping
+  margin meters the AXIAL separation `R·|Δsin v|`, which degenerates
+  toward the poles (∝ cos v̄ → 0): two distinct near-polar latitude
+  rims can group as coincident although their true point separation is
+  ~`R·Δv`. Dimensionally honest (the margin IS a length, and it is the
+  quantity the area formula consumes), but the LEVER understates the
+   3-D deviation near the poles — the same lever-magnitude family as
+  N1, opposite direction (merges rather than escalates). Cone/cylinder
+  bare levels and the torus two-component pair do not share this.
+  Typed-margin conversation input.

@@ -806,8 +806,10 @@ fn unreachable_zero<T: Real>() -> (T, T, T, T) {
     (nan, nan, nan, nan)
 }
 
-// ADVERSARIAL REVIEW PROBE (branch review/rim-dim, not for merge).
+// ADVERSARIAL REVIEW PROBE (authored on branch review/rim-dim,
+// adopted by merge — authorship kept).
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod rim_level_review_probe {
     use super::*;
 

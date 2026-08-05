@@ -112,10 +112,10 @@ mod review_s1_controls;
 mod review_s1_probes;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
-#[path = "rim_dim_review_probes.rs"]
-mod rim_dim_review_probes;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
+#[path = "rim_dim_review_probes.rs"]
+mod rim_dim_review_probes;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

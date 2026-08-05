@@ -1,6 +1,12 @@
-//! ADVERSARIAL REVIEW PROBE (branch review/rim-dim, not for merge):
-//! which of the audit's FIXED predicates actually fire in the twin
-//! boolean configurations (coverage-vacuity check), with margins.
+//! ADVERSARIAL REVIEW PROBES (authored on branch review/rim-dim,
+//! ADOPTED BY MERGE into the unit — authorship kept): which of the
+//! audit's FIXED predicates actually fire in the twin boolean
+//! configurations (coverage-vacuity check), and the linearity pins
+//! for the sites the twin configs leave silent (flush-face subtract →
+//! `bool_plane_orient`; oblique split → `split_join_frame_arm`,
+//! `split_section_area`). `bool_strut_order` stays SILENT here too —
+//! it is verified by code-read + suites-green only (rare germ-fan
+//! lane), stated in the audit doc's row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -50,7 +56,19 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default()).expect("census");
     let a2 = bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let b2 = bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-    subtract(&a2, &b2).expect("pocket subtract");
+    // ε-row honesty (see rim_dim_boolean_twins module docs): on coarse
+    // ε rows this mm pocket subtract refuses on the deferred F4 area
+    // comparand — for this diagnostic printer, tolerate exactly that
+    // signature.
+    match subtract(&a2, &b2) {
+        Ok(_) => {}
+        Err(topo::BooleanError::Escalated { diag })
+            if diag.predicate == Some("bool_ring_run_winding") =>
+        {
+            println!("pocket subtract refused on the F4 signature at this ε row: {diag:?}");
+        }
+        Err(other) => panic!("pocket subtract failed outside the F4 signature: {other:?}"),
+    }
     let mut counts: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
     for sample in k_stats::take_samples() {
         let e = counts.entry(sample.predicate).or_default();
@@ -114,7 +132,9 @@ fn silent_fixed_predicates_scale_linearly() {
                 SampleOutcome::Definite(Sign::Positive | Sign::Negative)
             ) && sample.margin != 0.0
             {
-                out.entry(sample.predicate).or_default().push(sample.margin.abs());
+                out.entry(sample.predicate)
+                    .or_default()
+                    .push(sample.margin.abs());
             }
         }
         for v in out.values_mut() {
@@ -137,7 +157,10 @@ fn silent_fixed_predicates_scale_linearly() {
                 for (x, y) in a.iter().zip(b) {
                     worst = worst.max((y / x / 1e3 - 1.0).abs());
                 }
-                println!("FIRED {pred}: {} decisive, worst rel dev {worst:.3e}", a.len());
+                println!(
+                    "FIRED {pred}: {} decisive, worst rel dev {worst:.3e}",
+                    a.len()
+                );
                 assert!(worst < 1e-9, "{pred} margins do not scale linearly");
             }
             _ => println!("SILENT {pred} in flush+split configs"),

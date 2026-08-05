@@ -208,8 +208,9 @@ pub fn point_in_loop<T: Decide>(
         let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
         let n_dot_r = normal.dot(r);
         let d_raw = r - normal * n_dot_r;
-        // sin(schedule member, plane) × loop extent: the SCHEDULE
-        // triples are bare numbers, so the raw projected norm was a
+        // sin(schedule member, plane NORMAL) × loop extent — the
+        // member's in-plane fraction |d_raw|/|r|: the SCHEDULE triples
+        // are bare numbers, so the raw projected norm was a
         // dimensionless comparand against the length band
         // (rim-dimensional audit, class (c)); the honest margin is
         // the in-plane displacement the probe direction commands at

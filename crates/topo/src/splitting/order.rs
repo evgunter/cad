@@ -65,9 +65,9 @@ pub(super) fn exact_band() -> Result<Band, BandError> {
 /// spread of the points to be ordered): the SCHEDULE triples are bare
 /// numbers, so the projected norm alone would be a dimensionless
 /// comparand against the length band (rim-dimensional audit, class
-/// (c)); the honest margin is `sin(member, plane) × arm` — the
-/// in-plane displacement the frame direction commands at the data's
-/// own scale.
+/// (c)); the honest margin is `sin(member, plane NORMAL) × arm` (the
+/// member's in-plane fraction `|d|/|r|`) — the in-plane displacement
+/// the frame direction commands at the data's own scale.
 pub(super) fn in_plane_frame<T: Decide>(
     plane: &SplitPlane<T>,
     arm: T,
