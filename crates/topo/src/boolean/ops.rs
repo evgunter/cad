@@ -588,9 +588,10 @@ pub(super) fn merge_rows(
 /// inequalities, so no operand-vs-operand comparison is needed.
 ///
 /// Comparison posture: each bound margin is classified through the
-/// certified trilean (`sign_within` against the op's linear band) —
-/// the codebase's only legal comparison (Q1). Only a CERTIFIED
-/// violating sign refuses ([`BooleanError::ResultVolumeImplausible`]);
+/// k_stats funnel (`decide` — the certified trilean against the op's
+/// linear band, under this gate's own predicate name), the codebase's
+/// only legal comparison (Q1). Only a CERTIFIED violating sign
+/// refuses ([`BooleanError::ResultVolumeImplausible`]);
 /// `Zero` and in-band indeterminate margins PASS: on the planar
 /// corpus the flux sums are exact for dyadic fixtures (margin exactly
 /// 0 or macroscopic), and the bug class this backstop guards —
@@ -605,6 +606,79 @@ pub(super) fn merge_rows(
 /// only when its reference operand's volume is certified POSITIVE
 /// (bounded solid); against a complement the set bound is vacuous
 /// and is skipped, never misread as a violation.
+///
+/// # Dimension (audit F3, `docs/predicate-dimension-audit.md`)
+///
+/// The bounds are statements about VOLUMES (m³) but ε is a point
+/// deviation (D4), so each margin is metered to a LENGTH before it is
+/// decided. Displacing a boundary by δ changes the volume it encloses
+/// by ≈ δ·A, so a volume defect `ΔV` between two compared bodies is
+/// explained by a boundary deviation of `ΔV / (A_got + A_bound)` — the
+/// sum of the two bodies' surface areas is the whole boundary that
+/// could have moved, and the quotient is the MEAN BOUNDARY DISPLACEMENT
+/// the bound violation corresponds to. (Summed, not one body's area:
+/// both boundaries are free to move, so the sum is the honest total
+/// lever. It is also the larger denominator, hence the smaller margin —
+/// the anti-refusal direction, which is why arm 1 below exists.) The
+/// operand-boundedness question is about one body, so
+/// `volume_backstop_operand` uses that body's own area (`V/A`) —
+/// verbatim the `positive_volume` precedent in `crate::validate`'s
+/// tier-3 check 7. Both quotients are exact zero when the volumes
+/// agree exactly, so the gate's non-strict pass direction is unmoved.
+///
+/// ## Two questions, two bands (the #200 review's MAJ-1)
+///
+/// Metering ALONE would have weakened this gate, and the direction is
+/// worth naming: `ΔV/(A_got + A_bound)` shrinks with the bodies' area,
+/// so a localized wrong-component defect on a large body can meter
+/// below ε even though the defect is macroscopic. Executed
+/// (`tests/probe_f34_review.rs`): a wrongly-kept 3 mm cube on a
+/// 2 m × 2 m × 0.1 m plate is ΔV = 2.7e-8 m³ against ~17.6 m² of
+/// boundary — 1.53e-9 m metered, inside the default band, where the
+/// raw-m³ comparand had refused decisively.
+///
+/// The resolution is that the backstop asks TWO different questions and
+/// only one of them is about a magnitude:
+///
+/// 1. **Is the inequality violated?** `vol(A ∖ B) ≤ vol(A)` is an
+///    inequality, so a SIGN-CERTAIN negative margin is a violated bound
+///    — a dimension-free fact, true regardless of how many metres of
+///    boundary the defect is smeared over. This arm decides against the
+///    **exact (bit-hairline) band**, where "certain" means "proven
+///    beyond the enclosure's own width": at `f64` any nonzero negative,
+///    at the interval scalar an enclosure entirely below the hairline
+///    (a straddling enclosure escalates and falls through to arm 2).
+///    No ε enters, so no dimensional claim is made — this is a sign,
+///    not a comparison against a length. Predicate:
+///    `volume_backstop_violation`.
+/// 2. **Is the violation above the model's own resolution?** Only for
+///    the near-zero region arm 1 leaves open, and there ε *is* the
+///    right scale — which is exactly where the metered mean
+///    displacement belongs. Predicate: `volume_backstop`.
+///
+/// Both arms consume the SAME metered comparand. Dividing by a
+/// certainly-positive lever cannot change a sign, so arm 1 certifies
+/// precisely the fact it would have certified on the raw volume, while
+/// the recorded margin stays a length and the K telemetry stays
+/// dimensionally honest (the whole point of F3). The one gap is
+/// arithmetic rather than semantic: a defect small enough that the
+/// quotient underflows to exactly zero (`|ΔV| ≲ 1e-322 m³` at `f64`)
+/// would lose its sign — far below any representable model.
+///
+/// The gate is therefore strictly stronger than BOTH of its
+/// predecessors: it refuses every violation the raw-m³ comparand
+/// refused (arm 1 subsumes it) AND runs on the mm-scale operands the
+/// raw comparand silently skipped (see `bounded`'s note).
+///
+/// Both gates decide through the k_stats funnel under those names.
+/// They used to call [`Decide::sign_within`] RAW — the kernel's only
+/// funnel bypass — which never set the recorder's current predicate
+/// name, so on the recording lane these volumes were attributed to
+/// whichever predicate decided last (measured in
+/// `topo/tests/rim_dim_boolean_twins.rs` at ε = 1e-12: the
+/// operand/result volume set {1, 1, 3, 8, 8, 16} m³ logged under
+/// certify's `witness_at_mid_parameter`, scaling ×1e-9 — cubic).
+/// Routing through `decide` retires that misattribution.
 pub(super) fn volume_backstop<T: Decide>(
     op: BooleanOp,
     a: &Body<T>,
@@ -620,68 +694,99 @@ pub(super) fn volume_backstop<T: Decide>(
     // iso results — the certified quadrature lane is the at-rest
     // measurement door, and a trimmed face here keeps the historical
     // fail-loud refusal.
-    let vol = |body: &Body<T>| -> Result<T, BooleanError> {
-        Ok(crate::props::mass_properties_closed_form(body, band)
-            .map_err(|_| corrupt())?
-            .volume)
+    // Volume AND surface area: the area is this gate's metering lever
+    // (fn docs, audit F3), read from the same closed-form pass.
+    let props = |body: &Body<T>| -> Result<(T, T), BooleanError> {
+        let p = crate::props::mass_properties_closed_form(body, band).map_err(|_| corrupt())?;
+        Ok((p.volume, p.surface_area))
     };
-    let (va, vb, vr) = (vol(a)?, vol(b)?, vol(result)?);
+    // The exact (bit-hairline) band for the sign arm below — the same
+    // device the splitter's total order uses (`splitting::order`, audit
+    // note N6): its open interior holds no representable `f64`, so at
+    // `f64` a sign is certain iff the margin is not exactly zero, and at
+    // the interval scalar an enclosure straddling the hairline escalates
+    // honestly. That IS "proven beyond the enclosure's own width".
+    let exact = crate::splitting::order::exact_band()?;
+    let ((va, aa), (vb, ab), (vr, ar)) = (props(a)?, props(b)?, props(result)?);
     // A bound applies only against a certified-bounded operand
     // (positive flux volume); complement operands (certified negative)
-    // make it vacuous. Poison refuses; an in-band operand volume is a
-    // degenerate operand — no bound is certifiable from it, skip.
-    let bounded = |v: T| -> Result<bool, BooleanError> {
-        match v.sign_within(band) {
+    // make it vacuous. Poison refuses. Metered `V/A` — the operand's
+    // MEAN THICKNESS (fn docs). Surface area is unsigned (props.rs), so
+    // the quotient keeps V's sign and the complement arm is unchanged.
+    // An in-band quotient is an operand thinner than the model's own
+    // resolution — no bound is certifiable from it, skip. (Pre-F3 this
+    // read "an in-band operand VOLUME", and that is exactly the defect
+    // the audit's F3 row records: a raw m³ against the linear band put
+    // ordinary mm-scale operands in the band and switched their bound
+    // checks off. The skip zone survives, now meaning sub-resolution
+    // thickness — which is what it always claimed to mean.)
+    let bounded = |v: T, area: T| -> Result<bool, BooleanError> {
+        match decide("volume_backstop_operand", v / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
             Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
-                Err(BooleanError::Escalated {
-                    diag: diag.with_predicate("volume_backstop"),
-                })
+                Err(BooleanError::Escalated { diag })
             }
             Err(_) => Ok(false),
         }
     };
     // `margin` ≥ 0 (within band) or the bound named by `which` is
     // violated: margin = bound − got for upper bounds, got − bound for
-    // lower bounds.
-    let check = |which: &'static str, margin: T, got: T, bound: T| -> Result<(), BooleanError> {
-        match margin.sign_within(band) {
-            Ok(Sign::Negative) => Err(BooleanError::ResultVolumeImplausible {
+    // lower bounds. `lever` is the two compared bodies' summed surface
+    // area, which turns the volume defect into a boundary displacement
+    // (fn docs). TWO ARMS, in order — see the fn docs' "Two questions,
+    // two bands": the SIGN question (is the inequality violated at all?)
+    // against the exact band, then the MAGNITUDE question (is the
+    // displacement above the model's resolution?) against ε.
+    let check =
+        |which: &'static str, margin: T, got: T, bound: T, lever: T| -> Result<(), BooleanError> {
+            let implausible = || BooleanError::ResultVolumeImplausible {
                 which,
                 got: format!("{got:?}"),
                 bound: format!("{bound:?}"),
-            }),
-            Ok(Sign::Zero | Sign::Positive) => Ok(()),
-            Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
-                Err(BooleanError::Escalated {
-                    diag: diag.with_predicate("volume_backstop"),
-                })
+            };
+            let metered = margin / lever;
+            // Arm 1 — the inequality itself. A sign-certain violation is
+            // a violated bound whatever its size, so nothing about ε
+            // enters here.
+            if decide("volume_backstop_violation", metered, exact) == Ok(Sign::Negative) {
+                return Err(implausible());
             }
-            Err(_) => Ok(()),
-        }
-    };
-    let (ba, bb) = (bounded(va)?, bounded(vb)?);
+            // Arm 2 — the magnitude, for the near-zero region arm 1
+            // leaves open. Unchanged posture: only a certified negative
+            // refuses (unreachable now, since arm 1 subsumes it — kept
+            // as the honest statement of the gate rather than a dead
+            // arm removed), Zero and in-band PASS, poison refuses.
+            match decide("volume_backstop", metered, band) {
+                Ok(Sign::Negative) => Err(implausible()),
+                Ok(Sign::Zero | Sign::Positive) => Ok(()),
+                Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
+                    Err(BooleanError::Escalated { diag })
+                }
+                Err(_) => Ok(()),
+            }
+        };
+    let (ba, bb) = (bounded(va, aa)?, bounded(vb, ab)?);
     match op {
         BooleanOp::Intersect => {
             if ba {
-                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va)?;
+                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va, aa + ar)?;
             }
             if bb {
-                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb)?;
+                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb, ab + ar)?;
             }
         }
         BooleanOp::Union => {
             if ba {
-                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va)?;
+                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va, aa + ar)?;
             }
             if bb {
-                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb)?;
+                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb, ab + ar)?;
             }
         }
         BooleanOp::Subtract => {
             if ba {
-                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va)?;
+                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va, aa + ar)?;
             }
         }
     }
@@ -1846,6 +1951,37 @@ mod tests {
         let rev = quad_prism(&square, 0.5).revert().unwrap();
         volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band).unwrap();
         implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band).unwrap_err());
+    }
+
+    /// **The #200 review's MAJ-1, end to end through the real gate.**
+    /// A wrongly-kept 3 mm cube on a 2 m × 2 m × 0.1 m plate: the
+    /// violation is ΔV = 2.7e-8 m³ spread over ~17.6 m² of boundary, so
+    /// the METERED mean displacement is 1.53e-9 m — inside the default
+    /// `Band{1e-9, 1e-8}`, i.e. exactly the region where a
+    /// magnitude-only gate passes a macroscopic wrong component. The
+    /// sign arm (`volume_backstop_violation`, exact band) certifies the
+    /// inequality is violated regardless, so the gate REFUSES.
+    ///
+    /// This is the pin on the dual-arm structure: delete arm 1 and this
+    /// test goes red while every other row stays green.
+    #[test]
+    fn volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area() {
+        let band = Band::linear().unwrap();
+        let plate_profile = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+        let plate = quad_prism(&plate_profile, 0.1);
+        // The "result" of `plate ∖ tool` that wrongly KEPT a 3 mm cube:
+        // same footprint, 2.7e-8 m³ of extra material (a 6.75e-9 m lift
+        // over the 4 m² footprint — the volume of a 3 mm cube).
+        let kept = 0.003_f64.powi(3);
+        let wrong = quad_prism(&plate_profile, 0.1 + kept / 4.0);
+        let err = volume_backstop(BooleanOp::Subtract, &plate, &plate, &wrong, band).unwrap_err();
+        assert!(
+            matches!(err, BooleanError::ResultVolumeImplausible { .. }),
+            "a macroscopic wrong component must refuse however much \
+             boundary area it is smeared over, got {err:?}"
+        );
+        // The exact-zero pass direction is untouched by the sign arm.
+        volume_backstop(BooleanOp::Subtract, &plate, &plate, &plate, band).unwrap();
     }
 
     /// **The NURBS re-gate, pinned (M5 S13 §1).** The fallback's

@@ -28,6 +28,15 @@ const FIXED: &[&str] = &[
     "point_in_loop_arm",
     "split_join_frame_arm",
     "split_section_area",
+    // The F3+F4 unit's sites. `witness_at_mid_parameter` rides along
+    // as the CONTROL: it is not a fixed site, it is the predicate F3's
+    // funnel bypass was stealing attribution from, so its count here is
+    // the before/after evidence.
+    "bool_ring_run_winding",
+    "volume_backstop",
+    "volume_backstop_violation",
+    "volume_backstop_operand",
+    "witness_at_mid_parameter",
 ];
 
 #[test]
@@ -56,19 +65,12 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default()).expect("census");
     let a2 = bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let b2 = bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-    // ε-row honesty (see rim_dim_boolean_twins module docs): on coarse
-    // ε rows this mm pocket subtract refuses on the deferred F4 area
-    // comparand — for this diagnostic printer, tolerate exactly that
-    // signature.
-    match subtract(&a2, &b2) {
-        Ok(_) => {}
-        Err(topo::BooleanError::Escalated { diag })
-            if diag.predicate == Some("bool_ring_run_winding") =>
-        {
-            println!("pocket subtract refused on the F4 signature at this ε row: {diag:?}");
-        }
-        Err(other) => panic!("pocket subtract failed outside the F4 signature: {other:?}"),
-    }
+    // The F4 fix (see rim_dim_boolean_twins module docs) retired this
+    // configuration's in-band refusal on coarse ε rows: the winding is
+    // metered to its mean width, so the mm pocket subtract computes at
+    // every ε. The signature tolerance this printer carried is gone
+    // with it — a refusal here is now a finding.
+    subtract(&a2, &b2).expect("pocket subtract");
     let mut counts: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
     for sample in k_stats::take_samples() {
         let e = counts.entry(sample.predicate).or_default();
@@ -82,6 +84,51 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
             Some((n, nz)) => println!("FIRED {f}: {n} samples, {nz} nonzero"),
             None => println!("SILENT {f}"),
         }
+    }
+    // The F3 attribution pin (the funnel-bypass retirement). Before the
+    // fix this census read `witness_at_mid_parameter 123 samples, 5
+    // nonzero` and no `volume_backstop*` rows at all: the backstop's
+    // raw `sign_within` left the recorder's name unset, so its VOLUME
+    // margins were filed under whichever predicate had decided last.
+    // Now the volume gates carry their own rows and every remaining
+    // witness sample is a genuine coincident mid-parameter residual —
+    // a nonzero one would mean some margin is riding under this name
+    // again.
+    let witness = counts
+        .get("witness_at_mid_parameter")
+        .copied()
+        .expect("witness_at_mid_parameter fires in these configs");
+    assert_eq!(
+        witness.1, 0,
+        "stale-name attribution is back: {} of {} witness_at_mid_parameter \
+         samples carry a nonzero margin (its own samples are coincident \
+         residuals; nonzero ones belonged to the volume backstop)",
+        witness.1, witness.0
+    );
+    for gate in [
+        "volume_backstop",
+        "volume_backstop_violation",
+        "volume_backstop_operand",
+    ] {
+        assert!(
+            counts.get(gate).is_some_and(|c| c.1 > 0),
+            "{gate}: expected nonzero-margin samples under its OWN name \
+             (the F3 routing pin is vacuous otherwise)"
+        );
+    }
+    // Deviation 2, pinned rather than asserted in prose: the bound check
+    // RUNS on these mm-scale operands. Pre-F3 the raw m³ comparand put
+    // a 2 mm cube's 8e-9 m³ inside the default band, read that as "not
+    // certifiably bounded", and skipped the bound entirely — only 1 of
+    // the 3 mm-scale checks ran. Both arms of both checks must fire now
+    // (2 bound checks × 2 arms = 4 samples, 2 under each name).
+    for arm in ["volume_backstop", "volume_backstop_violation"] {
+        assert_eq!(
+            counts.get(arm).map(|c| c.0),
+            Some(2),
+            "{arm}: both mm-scale bound checks must reach this arm — a \
+             count of 1 is the pre-F3 silent skip coming back"
+        );
     }
 }
 

@@ -153,3 +153,7 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+#[path = "probe_census.rs"]
+mod probe_census;
+#[path = "probe_f34_review.rs"]
+mod probe_f34_review;
