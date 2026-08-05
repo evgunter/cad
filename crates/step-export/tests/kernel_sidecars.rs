@@ -1,9 +1,10 @@
 //! The KERNEL_* sidecar staleness row: every committed `.expect`
 //! sidecar's `KERNEL_SOLIDS` / `KERNEL_SHELLS` / `KERNEL_FACES` /
-//! `KERNEL_EDGES` / `KERNEL_VERTICES` / `KERNEL_VOLUME_MM3` fields are
-//! asserted against the LIVE kernel census and certified volume of the
-//! source body (`common::fixture_corpus()` rebuilds them), so the
-//! fields can never rot.
+//! `KERNEL_EDGES` / `KERNEL_VERTICES` / `KERNEL_VOLUME_MM3` /
+//! `KERNEL_VOLUME_PAD_MM3` fields are asserted against the LIVE kernel
+//! census and certified volume of the source body
+//! (`common::fixture_corpus()` rebuilds them), so the fields can never
+//! rot.
 //!
 //! Semantics: `KERNEL_*` is the NATIVE body's census — what the kernel
 //! actually has — as opposed to the `EXPECT_*` fields, which record
@@ -80,7 +81,10 @@ fn kernel_sidecar_fields_match_live_kernel() {
             ("KERNEL_VERTICES", body.vertices().count().to_string()),
         ];
         if at_corpus_eps {
-            want.push(("KERNEL_VOLUME_MM3", print(props.volume, "KERNEL_VOLUME_MM3")));
+            want.push((
+                "KERNEL_VOLUME_MM3",
+                print(props.volume, "KERNEL_VOLUME_MM3"),
+            ));
             want.push((
                 "KERNEL_VOLUME_PAD_MM3",
                 print(props.volume_pad, "KERNEL_VOLUME_PAD_MM3"),
