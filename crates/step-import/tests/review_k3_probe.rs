@@ -3,6 +3,10 @@
 //! slop, "3000000000.0" -> 0.05 mm^3) ACCEPTS the wrong volume while
 //! the NEW budget (pad + native pad + (2 faces + 2) ulps) catches it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The 1.4142135623730951 literal below is not our approximation of
+// sqrt(2): it is the EXACT token the committed notched.step prints for
+// the circle radius, quoted so the string replacement can find it.
+#![allow(clippy::approx_constant)]
 mod common;
 
 use common::{expect_sidecar, fixture};
