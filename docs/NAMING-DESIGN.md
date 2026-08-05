@@ -10,8 +10,9 @@ resolve) and `references/notes/persistent-naming-litreview.md`
 (15-source mechanism review; taxonomy (a)–(d); failure modes 1–7).
 Citations like [B05] resolve there. This doc answers the inventory's
 open questions Q-a…Q-i; it does NOT cover GQ1 mechanism details
-(queued next), margin-based pre-flip warnings (far-future), or
-assembly pin representation.
+(shipped and ratified separately — `docs/SOLVER-DESIGN.md`, #79),
+margin-based pre-flip warnings (far-future), or assembly pin
+representation.
 
 *IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
 record above unchanged):* N1–N7 are IMPLEMENTED across M4 PRs 3/4/5 —

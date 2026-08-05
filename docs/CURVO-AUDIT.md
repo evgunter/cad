@@ -7,7 +7,7 @@
 - **History**: 836 commits, 2024-04-18 → 2026-06-25, essentially single-author (mattatz 787 + 47
   under his full name). Active and healthy as an upstream.
 
-## Headline correction to DESIGN.md's crate-landscape row
+## Headline correction to DESIGN.md's crate-landscape row (APPLIED — DESIGN.md's row and its Q5 entry both carry this today; kept as the evidence record)
 
 DESIGN.md describes curvo as "excellent active pure-Rust NURBS **incl. SSI** and trimming".
 **curvo has no surface–surface intersection.** `src/intersects/` covers curve–curve,
@@ -127,9 +127,9 @@ rewritten, and the two biggest hoped-for vendoring targets — an A9.10 fitting 
 do not exist in curvo at all (DESIGN.md's landscape row should drop "incl. SSI"; booleans are
 2-D). What survives is real: curvo is a well-built, active, MIT, pure-Rust NURBS library whose
 textbook-faithful evaluation path makes a good independent oracle, and whose curve–curve
-intersection architecture independently corroborates our march-then-certify shape. Proposed Q5
-revision: "resolved — study + dev-dependency test oracle; vendoring rejected by the M5 audit
-(docs/CURVO-AUDIT.md)."
+intersection architecture independently corroborates our march-then-certify shape. Q5
+revision (APPLIED to DESIGN.md — both the Q5 entry and the landscape row): "resolved — study +
+dev-dependency test oracle; vendoring rejected by the M5 audit (docs/CURVO-AUDIT.md)."
 
 ## As a test oracle
 

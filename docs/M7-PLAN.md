@@ -8,14 +8,13 @@ Core kernel work that import happens to *want* belongs to M6, not
 here (#161 §2 relocated the census/declared-contact design work to
 M6 by exactly this rule). M8 = error propagation.
 
-**Concurrency note (2026-08-04):** M7 runs CONCURRENTLY with M6
-under the fence recorded in `memories/concurrent-orchestrators.md`:
-M7 touches only its new import crate + its tests + this plan;
-no step-export edits, no CI-structure changes (append jobs only),
-no M6-owned files. Any round-trip disagreement that tempts a change
-to an export fixture, an `.expect` sidecar, or `check_step.sh`
-semantics goes to a design-conversation PR seen by both
-orchestrators and Evan — never a direct edit.
+**Concurrency note (2026-08-04; the two-orchestrator fence is
+RETIRED — the M6 session wound down 2026-08-05 and the M7
+orchestrator is sole orchestrator, see M6-LOG).** Still standing
+from it: any round-trip disagreement that tempts a change to an
+export fixture, an `.expect` sidecar, or `check_step.sh` semantics
+goes to a design-conversation PR seen by Evan — never a direct
+edit.
 
 ## The contract (D7, restated as obligations)
 
@@ -38,7 +37,7 @@ needed), so a future remedy flow never parses messages.
 
 ## First slice: import what we export
 
-The export corpus (14 solid fixtures + `nurbs_wireframe` under
+The export corpus (15 solid fixtures + `nurbs_wireframe` under
 `crates/step-export/tests/fixtures/`) covers the kernel's whole
 geometry vocabulary as **native, exact AP214 entities** (M5 PR 13;
 `memories/step-curved-subset.md`): PLANE / CYLINDRICAL_ / CONICAL_

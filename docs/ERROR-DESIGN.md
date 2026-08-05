@@ -18,8 +18,8 @@ generic Measure sink; E6 adopts **no-flips v1** (Evan's proposal);
 E11 MC softened to a labeled advisory lane; E11.6 histogram note.
 Post-ratification amendment on record (#110 thread, Evan's
 one-branch-tails observation, 2026-07-27): chamber containment
-added to E2 — committed on the orchestrator branch (10cdaff),
-reaches main with the next state-sync PR.
+added to E2 — long since on main (landed via the state-sync PR
+after 10cdaff).
 
 Third of the pre-M6 docs (NAMING-DESIGN #74, SOLVER-DESIGN #79 are
 the pattern). Grounding: DESIGN.md's M6 roadmap entry and central

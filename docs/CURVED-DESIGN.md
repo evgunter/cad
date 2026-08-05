@@ -10,8 +10,8 @@ obligations (tracked in M4-LOG/M5 planning): the DESIGN.md
 D2-sharpening pass (incl. the TangencyLocus -> TangentIntersection
 rename sweep and the Q5 lean revision), the inari quarantine
 boundary-text update for the transition state, and the
-LGPL-before-publish exit condition. The K = 10 tangent lives in
-issue #89.
+LGPL-before-publish exit condition. The K = 10 tangent was resolved
+at issue #89 (CLOSED — K = 10 permanent; docs/K-REPORT.md).
 
 *IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
 record unchanged):* M5 has not started — nothing here is implemented
