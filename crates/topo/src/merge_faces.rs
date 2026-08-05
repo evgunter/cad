@@ -523,6 +523,15 @@ impl<T: Decide> Body<T> {
         // walk must be derived fresh, never stitched from the
         // fragments' rows. Still on the staged clone, so a mint
         // refusal keeps the untouched-on-error contract.
+        //
+        // LATENT (named, not reachable by any current path): this is
+        // the CLOSED-FORM mint pass, so a FITTED cache (at rest since
+        // M6-2) on a merged body would come back as the mint pass's
+        // honest-skip — the face legally UNCACHED, its fitted
+        // certificate silently dropped. Same root as the banked
+        // `PcurveFittedLane` mint-wiring item (M6-3 deviation 7);
+        // when the fitted route joins the mint pass, this site
+        // inherits the fix for free.
         if !self.pcurves.is_empty() {
             crate::pcurves::mint_pcurves(&mut work)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;

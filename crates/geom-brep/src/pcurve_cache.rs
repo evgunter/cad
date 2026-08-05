@@ -2691,10 +2691,18 @@ pub fn chart_pcurve<T: Decide>(
         //
         // Since M6-3 this arm is CERTIFIED (run_harmonic_checks admits
         // the sphere chart) and sphere faces mint stored caches. The
-        // meridian arm's polar channel is the principal branch
-        // (v ∈ [−π/2, π/2], pole endpoints included); an arc whose
-        // interior crosses a pole leaves the branch, and the residual
-        // schedule refuses it there — the walk never snaps a branch.
+        // meridian arm's DERIVED anchor is the principal branch
+        // (δ = atan2(aa, ‖a_r‖) ∈ [−π/2, π/2]), but the traversed arc
+        // is NOT confined to it: a POLE-CROSSING meridian arc
+        // CERTIFIES — `S(u, v)` extends smoothly past |v| = π/2 (the
+        // chart formula covers the far meridian at the same u), so
+        // the harmonic image is exact over the whole span (executed:
+        // `review_m6_3_chart_probes::probe_pole_crossing_meridian_arc_
+        // certifies`, envelope < 1e-12). What the far side changes is
+        // which REPRESENTATION a loop walk needs: past the pole the
+        // same points also carry the involution twin `(u+π, π−v)`,
+        // and the walk selects between the two by certified
+        // continuity (`topo::pcurves::sphere_twin`) — never snapped.
         Surface::Sphere {
             center,
             radius,

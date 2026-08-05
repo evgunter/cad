@@ -122,9 +122,14 @@ fn tube_minor_radius_is_stored_bit_exact() {
     }
     assert!(tori >= 1, "the tube body stores torus walls");
     // And the revolve door's reconstruction really is the thing this
-    // door retires: its minor may (and on this fixture does) drift by
-    // ulps — asserted as an inequality of DOORS, not a pin on the
-    // drift's size (which is the revolve's own business).
+    // door retires: its minor MAY drift by ulps (the 56-ulp lily
+    // finding's class). Measured on THIS fixture's parameters
+    // (R = 2, r = 0.5) the bulge-1 reconstruction happens to be
+    // exact — 0 ulps (the review's measurement, adopted) — which is
+    // precisely why the retirement is a CONTRACT pin on the tube
+    // door (`==` above), not an inequality against the revolve's
+    // value: the revolve's drift is input-dependent and its size is
+    // the revolve's own business.
     let rev = revolve_donut();
     let rev_minor = rev
         .faces()
