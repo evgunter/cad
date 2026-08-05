@@ -810,3 +810,21 @@ The merge UNBLOCKS: M7 unit 3 (NURBS-face import — the export
 side now emits B_SPLINE_SURFACE_WITH_KNOTS both arms),
 KERNEL_* sidecars (15 incl. loft_prism), F3+F4 dimensional
 unit, typed-margin design draft.
+
+**Stranded-state salvage (2026-08-05, branch-cleanup sweep at
+Evan's ask)**: the dead M6 session's last three commits (71
+M6-LOG lines — the Fable-limit outage record, the accumulated
+ratifications, wind-down mode, and the M6-3 partial seam with
+its resume plan) never reached main; salvaged by chronological
+keep-both merge. STATE CORRECTION the salvage surfaces: **M6
+unit 6 (the curved sense-flip tier gate) is RATIFIED** (Evan 👍
+on the #184 triage during the M6 session's outage — not merely
+sequencing latitude as this log's pickup entries assumed);
+sized S-M, sequenced after unit 5, strengthened by the torus
+addendum, negative controls in-tree. Also confirmed by the
+salvage: the pickup's completion independently followed the
+stranded resume plan (follow-up dispatch on the warm lane →
+one whole-unit review → merge + fable A/B row) to the letter.
+The k-lint floor refresh keeps its promoted lull-queue spot
+(the landing it was to contextualize is now retired by #197,
+but the floor is stale on its own terms).
