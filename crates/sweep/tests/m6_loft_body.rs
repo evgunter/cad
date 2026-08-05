@@ -137,3 +137,69 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // an honest enclosure (positive, finite).
     assert!(m.surface_area > 0.0 && m.area_pad.is_finite());
 }
+
+/// **The cut-loft row (M6-3 §7, the PR 10 §5 contract verbatim):** a
+/// boolean against the loft body refuses TYPED, naming its true
+/// missing layer — the edge×NURBS-face sweep layer of M5 PR 9c item 5
+/// — never a silent skip and never a wrong body.
+#[test]
+fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
+    let (sections, places) = shape_iii_sections();
+    let loft = loft_body::<f64>(&sections, &places, 2)
+        .expect("loft builds")
+        .body;
+    let cutter = {
+        use geom_core::Point2;
+        use profile::{Profile, ProfileLoop, SketchPlane};
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.0, -2.0),
+            Point2::new(2.0, -2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ]);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(geom_core::Tolerance::get())
+            .unwrap();
+        sweep::extrude(&vp, sweep::Extrusion::Distance(3.0))
+            .unwrap()
+            .body
+    };
+    let out = topo::subtract(&loft, &cutter);
+    let err = match out {
+        Err(e) => e,
+        Ok(_) => panic!("the cut-loft boolean cannot succeed before the edge×NURBS-face layer"),
+    };
+    let text = err.to_string();
+    println!("cut-loft refusal: {text}");
+    assert!(
+        text.contains("a NURBS face has no crossing layer"),
+        "the refusal names the true missing layer (the M5 PR 9c item 5 lineage's \
+         edge×NURBS-face crossing layer): {text}"
+    );
+}
+
+/// **§9.3 interval rows:** the loft assembles at the INTERVAL scalar,
+/// tier-3 green (the iso lane's hull bounds and the two flips at a
+/// genuinely enclosure-valued scalar), and the certified volume
+/// ENCLOSURE brackets the derived 9 m³ — asserted enclosure-style,
+/// never by equality.
+#[cfg(feature = "interval")]
+mod certified {
+    use geom_core::interval::Interval;
+
+    use super::*;
+
+    #[test]
+    fn the_loft_body_certifies_and_encloses_nine_at_interval() {
+        let (sections, places) = shape_iii_sections();
+        let lofted =
+            loft_body::<Interval>(&sections, &places, 2).expect("the loft builds at Interval");
+        assert_eq!(topo::validate_geometric(&lofted.body), Ok(()), "tier 3");
+        let m = topo::props::mass_properties(&lofted.body).expect("mass properties");
+        let (lo, hi) = (
+            geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
+        );
+        assert!(lo <= 9.0 && 9.0 <= hi, "9 ∈ [{lo}, {hi}]");
+    }
+}

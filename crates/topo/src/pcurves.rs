@@ -855,7 +855,24 @@ fn walk_loop<T: Decide>(
                 let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
                 for cand in candidates {
                     let raw = cand.eval(entry_t);
-                    let ku = ((prev.x - raw.x) / tau + half).floor();
+                    // An AZIMUTH-FREE joint (a pole / the apex: the
+                    // local azimuth lever is zero in metres) has no
+                    // branch to pick — every azimuth agrees there, and
+                    // the whole-period rounding below would land on an
+                    // integer boundary (the gap need not be a period at
+                    // all), which the interval scalar honestly reports
+                    // as a two-integer floor. Skip the shift; the
+                    // continuity margins still run (and pass, at the
+                    // zero lever), and downstream joints anchor their
+                    // own branches. In-band levers take the same arm —
+                    // a sub-tolerance lever cannot select a branch.
+                    let joint_arm = azimuth_arm(surface, prev.y);
+                    let ku = match decide("pcurve_loop_pole_joint", joint_arm, band) {
+                        Ok(Sign::Zero) | Err(_) => T::zero(),
+                        Ok(Sign::Positive | Sign::Negative) => {
+                            ((prev.x - raw.x) / tau + half).floor()
+                        }
+                    };
                     // The impossible-rebuild arm (see
                     // `Pcurve::shift_branch`) surfaces as a
                     // corrupt-body finding rather than being swallowed

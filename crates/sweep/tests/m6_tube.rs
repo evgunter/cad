@@ -216,3 +216,38 @@ fn tube_window_and_refusal_doors() {
         Err(TubeError::Revolve(_))
     ));
 }
+
+/// **§9.3 interval row:** the tube door at the interval scalar —
+/// build, tier 3, and the Pappus volume bracketed enclosure-style.
+#[cfg(feature = "interval")]
+mod certified {
+    use geom_core::Real;
+    use geom_core::interval::Interval;
+
+    use super::*;
+
+    fn iv(x: f64) -> Interval {
+        <Interval as Real>::from_f64(x)
+    }
+
+    #[test]
+    fn the_tube_donut_certifies_and_encloses_pappus_at_interval() {
+        let t = tube_along_arc::<Interval>(
+            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            iv(R),
+            TubeWindow::Full,
+            iv(MINOR),
+        )
+        .expect("the tube builds at Interval");
+        assert_eq!(topo::validate_geometric(&t.body), Ok(()), "tier 3");
+        let m = topo::props::mass_properties(&t.body).expect("mass properties");
+        let exact = 2.0 * PI * PI * R * MINOR * MINOR;
+        let (lo, hi) = (
+            geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
+        );
+        assert!(lo <= exact && exact <= hi, "Pappus {exact} ∈ [{lo}, {hi}]");
+    }
+}
