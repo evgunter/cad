@@ -467,11 +467,22 @@ fn probe_reexport_two_token_divergence() {
     );
     assert_eq!(a.len(), b.len(), "token streams stay aligned");
     assert_eq!(geo.len(), 3, "exactly three -0.0 tokens diverge");
-    assert_eq!(
-        diffs.len(),
-        geo.len(),
-        "no divergence outside the -0.0 class"
-    );
+    // Outside the -0.0 class the ONE legitimate divergence is the
+    // uncertainty record, and only when the ambient ε differs from
+    // the 1e-9 the committed fixture was written at (roundtrip.rs's
+    // documented posture; the CI matrix runs 1e-6/1e-12 rows).
+    for (i, x, y) in diffs.iter().filter(|(_, x, _)| !x.contains("-0.0")) {
+        assert!(
+            x.contains("1.0E-9") && y.contains("1.0E-"),
+            "token {i}: divergence outside the -0.0 class that is not the \
+             uncertainty record at a non-default ambient ε: {x} -> {y}"
+        );
+        assert_ne!(
+            geom_core::Tolerance::get().eps,
+            1e-9,
+            "at the corpus's own ε the uncertainty record must not diverge"
+        );
+    }
     // Second export must be a fixed point of the first.
     let body2 = solid(&out, "first re-export");
     let out2 = step_export::step_string(&body2, &options).expect("second re-export");
