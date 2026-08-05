@@ -295,3 +295,22 @@ lane; panic/hang = headline; output
 wild-corpus-hunt. Spec + A/B block M7-2 draw (difficulty logged
 FIRST) follow the inventory. Still pending on Evan: the #89
 K-landing disposition (watchlisted).
+
+**Hunt returned + M7-4 spec written (2026-08-05)**: 28 wild
+files, 4 license-verified veins (NIST PD, STEPcode BSD-3,
+Adafruit MIT, cadquery/build123d Apache; KiCad/OCCT/FreeCAD/
+CAx-IF rejected on license). Triage: 0 import as-is, 28/28
+refuse TYPED, ZERO panics/hangs — fail-loud held on every
+foreign file. Blockers are dialect: (1) unit-context tolerance
+17/28 (CONVERSION_BASED_UNIT inch/degree; unreferenced unit
+clusters; unit-less 2D parametric contexts), (2) newline-wrapped
+strings 8/28, (3) VECTOR magnitude ≠ 1 — scratch-surgery proof:
+those three unlock all five Adafruit files with oracle-matching
+censuses. docs/M7-4-SPEC.md written (legs = the ranked unlocks;
+two S9 flips; rigid-transform assemblies; EDGE_CURVE .F. as an
+evidence-gated stretch; 13-fixture committed corpus with
+provenance headers + NOTICE; license judgment calls a/b/c ruled
+and flagged for Evan). **A/B: M7-4 difficulty logged M BEFORE
+the draw** (dialect plumbing + unit vocabulary + transforms; no
+new geometry classes). Draw recorded below after this
+difficulty line's commit. Hunt ~88k tokens, ~21min.
