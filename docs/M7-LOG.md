@@ -312,5 +312,7 @@ evidence-gated stretch; 13-fixture committed corpus with
 provenance headers + NOTICE; license judgment calls a/b/c ruled
 and flagged for Evan). **A/B: M7-4 difficulty logged M BEFORE
 the draw** (dialect plumbing + unit vocabulary + transforms; no
-new geometry classes). Draw recorded below after this
-difficulty line's commit. Hunt ~88k tokens, ~21min.
+new geometry classes). Draw (after the difficulty commit):
+byte 114 → **(opus, fable)** — M7-4 = OPUS; fable remainder owed
+to the next eligible dispatch (expected: unit 3 NURBS-face
+import when M6's assembly lands). Hunt ~88k tokens, ~21min.
