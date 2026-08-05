@@ -1,5 +1,9 @@
 # Opus 5 vs Fable 5 implementation A/B — experiment log
 
+**This is process data (an experiment log), not a design
+reference** — nothing here binds kernel design; it moves out of
+`docs/` when the experiment concludes.
+
 Standing experiment (Evan, in-chat, 2026-07-25, Opus 5 release
 day). This document is the SINGLE normative source of the protocol
 (`memories/model-ab-experiment.md` is a pointer here). Protocol, as
@@ -121,7 +125,7 @@ the readout below.** Both are no-blinded-lane classes — CI
 infrastructure and docs/telemetry respectively — so neither produced
 a blinded review carrying the rubric the experiment compares, and
 neither has a MAJ/MIN/NOTE count that means the same thing as the
-other rows'. They are numbered because `docs/M5-LOG.md` already
+other rows'. They are numbered because `docs/archive/M5-LOG.md` already
 refers to the CI-shard unit as "A/B row 41", and a table that
 silently disagrees with the log about what a row number denotes is
 worse than a table with two clearly-marked non-comparable rows.

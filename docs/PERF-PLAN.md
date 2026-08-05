@@ -44,7 +44,7 @@ client-side BVH. This lane is entirely GUI-side and GPU-shaped (§3).
 **Per-edit preview (the critical path).** An edit mid-recipe implies:
 re-evaluate downstream features (M4 DAG; today: full rebuild via
 `crates/sweep/src/extrude.rs` / `revolve` Euler-op sequences), then
-booleans/splitting (M3: the edge×face sweep, `docs/M3-PLAN.md` PR 4 —
+booleans/splitting (M3: the edge×face sweep, `docs/archive/M3-PLAN.md` PR 4 —
 **documented quadratic**, deferred deliberately: "Boolean performance
 (BVH/spatial indexing for the edge×face sweep) — correctness first"),
 then re-tessellate changed faces. Ranked by (frequency × cost ×

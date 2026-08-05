@@ -1,6 +1,6 @@
 ---
 name: cad-project-state
-description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M6 COMPLETE (M6 close statement in docs/M6-LOG.md; #89 CLOSED / K=10 permanent), M7 (STEP adoption ONLY) in flight with units 1/2/4 merged; M8 = error propagation next; LIVE STATUS = the highest-numbered docs/M*-LOG.md tail, never this memory; merge gate = hosted Actions; name pending (Q9)
+description: Greenfield Rust CAD kernel — DESIGN.md is the authoritative contract; M0–M6 COMPLETE (M6 close statement in docs/archive/M6-LOG.md; #89 CLOSED / K=10 permanent), M7 (STEP adoption ONLY) in flight with units 1/2/4 merged; M8 = error propagation next; LIVE STATUS = the highest-numbered docs/M*-LOG.md tail, never this memory; merge gate = hosted Actions; name pending (Q9)
 metadata:
   node_type: memory
   type: project

@@ -41,7 +41,7 @@ DISCHARGED; DESIGN.md carries the tombstone and the crate-table
 history. (2) The C1–C12 decisions remain this doc's ratified design
 record, but several were implemented with recorded deviations and
 several frontiers moved. Implementation truth lives in
-`docs/M5-LOG.md` and the exit walk; where they disagree, the log
+`docs/archive/M5-LOG.md` and the exit walk; where they disagree, the log
 wins.
 
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
