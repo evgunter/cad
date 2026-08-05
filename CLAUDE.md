@@ -9,8 +9,8 @@ style, fail-loud.
   open questions). Do not re-litigate settled decisions; propose changes
   as revisions to the doc, discussed with Evan first.
 - The current milestone's work order and log — the highest-numbered
-  `docs/M*-PLAN.md` / `docs/M*-LOG.md` (M4 at present); earlier
-  milestones' plans/logs are the historical record.
+  `docs/M*-PLAN.md` / `docs/M*-LOG.md`; earlier milestones' plans/logs
+  are the historical record.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
 
