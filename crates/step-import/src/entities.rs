@@ -1529,7 +1529,9 @@ impl Resolver<'_> {
         let quantities: Vec<&str> = records
             .iter()
             .map(|(kw, _)| kw.as_str())
-            .filter(|kw| kw.ends_with("_UNIT") && *kw != "CONVERSION_BASED_UNIT" && *kw != "NAMED_UNIT")
+            .filter(|kw| {
+                kw.ends_with("_UNIT") && *kw != "CONVERSION_BASED_UNIT" && *kw != "NAMED_UNIT"
+            })
             .collect();
         let [declared] = quantities.as_slice() else {
             return Err(StepImportError::UnsupportedUnit { id, found: found() });
@@ -1540,7 +1542,15 @@ impl Resolver<'_> {
                 expected: "CONVERSION_BASED_UNIT(name, #conversion_factor)",
             });
         };
-        let (value, base) = self.measure_with_unit(id, as_ref(id, factor_ref, "the conversion factor of a CONVERSION_BASED_UNIT")?, depth)?;
+        let (value, base) = self.measure_with_unit(
+            id,
+            as_ref(
+                id,
+                factor_ref,
+                "the conversion factor of a CONVERSION_BASED_UNIT",
+            )?,
+            depth,
+        )?;
         units::conversion_kind(id, declared, value, base, found)
     }
 
@@ -2146,15 +2156,12 @@ fn resolve_assembly_placement(
 /// placement, and a *near*-equality here would silently merge two
 /// components' distinct frames.
 fn same_map(a: &Affine3<f64>, b: &Affine3<f64>) -> bool {
-    let cols = |m: &Affine3<f64>| {
-        [
-            m.linear.c0, m.linear.c1, m.linear.c2, m.translation,
-        ]
-    };
-    cols(a)
-        .iter()
-        .zip(cols(b).iter())
-        .all(|(x, y)| x.x.to_bits() == y.x.to_bits() && x.y.to_bits() == y.y.to_bits() && x.z.to_bits() == y.z.to_bits())
+    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
+    cols(a).iter().zip(cols(b).iter()).all(|(x, y)| {
+        x.x.to_bits() == y.x.to_bits()
+            && x.y.to_bits() == y.y.to_bits()
+            && x.z.to_bits() == y.z.to_bits()
+    })
 }
 
 /// Shape content **by resolution** (M7-1 review MINOR-4): solids come
@@ -2333,7 +2340,9 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
     let placement = resolve_assembly_placement(&r, file, &roots)?;
     Ok(Model {
         placement,
-        uncertainty_m: units.uncertainty_m.ok_or(StepImportError::MissingUncertainty)?,
+        uncertainty_m: units
+            .uncertainty_m
+            .ok_or(StepImportError::MissingUncertainty)?,
         shape,
         normalizations: r.normalizations.into_inner(),
     })

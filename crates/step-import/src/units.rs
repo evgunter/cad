@@ -213,8 +213,14 @@ mod tests {
             UnitKind::Length(25.4 * 1e-3)
         );
         assert_eq!(
-            conversion_kind(1, "PLANE_ANGLE_UNIT", 0.0174532925, UnitKind::Angle(1.0), found)
-                .unwrap(),
+            conversion_kind(
+                1,
+                "PLANE_ANGLE_UNIT",
+                0.0174532925,
+                UnitKind::Angle(1.0),
+                found
+            )
+            .unwrap(),
             UnitKind::Angle(0.0174532925)
         );
         // The identity conversion an Onshape-lineage writer emits for
@@ -244,9 +250,7 @@ mod tests {
         }
         // Nothing reads a solid angle, so a scaled steradian has no
         // consumer to apply its factor: refused, not silently dropped.
-        assert!(
-            conversion_kind(7, "SOLID_ANGLE_UNIT", 2.0, UnitKind::SolidAngle, found).is_err()
-        );
+        assert!(conversion_kind(7, "SOLID_ANGLE_UNIT", 2.0, UnitKind::SolidAngle, found).is_err());
         assert!(
             conversion_kind(7, "MASS_UNIT", 1.0, UnitKind::Length(1.0), found).is_err(),
             "a mass conversion is not a quantity this importer measures"

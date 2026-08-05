@@ -534,7 +534,9 @@ fn volume_mm3(body: &topo::Body<f64>) -> f64 {
 /// distinguishes a placed body from an unplaced one when every
 /// rigid invariant, by construction, cannot.
 fn min_x_mm(body: &topo::Body<f64>) -> f64 {
-    body.points().fold(f64::INFINITY, |acc, (_, p)| acc.min(p.x)) * 1e3
+    body.points()
+        .fold(f64::INFINITY, |acc, (_, p)| acc.min(p.x))
+        * 1e3
 }
 
 fn mutated(name: &str, from: &str, to: &str) -> String {
@@ -835,8 +837,7 @@ fn refusals_survive_the_dialect_relaxations() {
         "#106 = ORIENTED_EDGE('',*,*,#21,.T.);",
         "#106 = ORIENTED_EDGE('',*,*,#21,.F.);",
     );
-    let flipped =
-        import_step(&probe, &ImportOptions::default()).expect("a .F. edge now composes");
+    let flipped = import_step(&probe, &ImportOptions::default()).expect("a .F. edge now composes");
     let (StepImport::Solid { body: a, .. }, StepImport::Solid { body: b, .. }) =
         (&stated, &flipped)
     else {
@@ -961,10 +962,9 @@ fn refusals_survive_the_dialect_relaxations() {
     match import_step(&probe, &ImportOptions::default())
         .expect_err("per-component placement must refuse")
     {
-        E::Structure { what, .. } => assert!(
-            what.contains("assembly"),
-            "and says what it is: {what}"
-        ),
+        E::Structure { what, .. } => {
+            assert!(what.contains("assembly"), "and says what it is: {what}")
+        }
         other => panic!("expected Structure, got: {other}"),
     }
     // And a mirror is never a placement. A placement PAIR cannot state

@@ -52,7 +52,10 @@ const WILD_REFUSALS: [(&str, &str); 6] = [
     // ladder still cannot certify any intensional description for the
     // edge. The refusal is the ladder's own, with every candidate and
     // its residual.
-    ("stepcode/TAIL_TURBINE.stp", "no intensional description certifies"),
+    (
+        "stepcode/TAIL_TURBINE.stp",
+        "no intensional description certifies",
+    ),
     // A `\X2\` string control directive (Japanese annotation text).
     ("stepcode/io1-cm-214.stp", r"\X2\"),
     // Open CASCADE's `SURFACE_CURVE` edge geometry: a curve stated
@@ -64,15 +67,24 @@ const WILD_REFUSALS: [(&str, &str); 6] = [
     // below are otherwise fully in the subset; see
     // `the_periodic_band_refusal_is_a_named_kernel_gap`.
     ("nist/nist_ftc_11_asme1_rb.stp", "curved ADVANCED_FACE"),
-    ("occ-oss/cq_red_cube_blue_cylinder.step", "curved ADVANCED_FACE"),
+    (
+        "occ-oss/cq_red_cube_blue_cylinder.step",
+        "curved ADVANCED_FACE",
+    ),
 ];
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
 /// column-72 string folds included, which is the point).
 fn wild(name: &str) -> String {
-    let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "wild", name]
-        .iter()
-        .collect();
+    let path: PathBuf = [
+        env!("CARGO_MANIFEST_DIR"),
+        "tests",
+        "fixtures",
+        "wild",
+        name,
+    ]
+    .iter()
+    .collect();
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"))
 }
 
@@ -117,7 +129,6 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
         Err(e) => panic!("{name}: {e}"),
     }
 }
-
 
 // ---- The scale window --------------------------------------------
 
@@ -180,10 +191,17 @@ fn wild_scale_gate(row: &str) -> bool {
 fn assert_sub_tolerance_obligation(row: &str) {
     let eps = geom_core::Tolerance::get().eps;
     let mut certified = 0;
-    for name in WILD_IMPORTS.iter().chain(WILD_REFUSALS.iter().map(|(n, _)| n)) {
+    for name in WILD_IMPORTS
+        .iter()
+        .chain(WILD_REFUSALS.iter().map(|(n, _)| n))
+    {
         match import_step(&wild(name), &ImportOptions::default()) {
             Ok(StepImport::Solid { body, .. }) => {
-                assert_eq!(topo::validate(&body), Ok(()), "{row}/{name}: tier 1 at ε {eps:e}");
+                assert_eq!(
+                    topo::validate(&body),
+                    Ok(()),
+                    "{row}/{name}: tier 1 at ε {eps:e}"
+                );
                 assert_eq!(
                     topo::validate_closed(&body),
                     Ok(()),
@@ -286,7 +304,10 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     // Leg B: conversion-based units, and a unit cluster the geometry's
     // context never references.
     assert!(any(&|t| t.contains("CONVERSION_BASED_UNIT")), "Leg B");
-    assert!(any(&|t| t.contains("MASS_UNIT")), "an unreferenced unit kind");
+    assert!(
+        any(&|t| t.contains("MASS_UNIT")),
+        "an unreferenced unit kind"
+    );
     assert!(
         any(&|t| t.contains("PARAMETRIC_REPRESENTATION_CONTEXT")),
         "an OCC 2D-SPACE parametric context"
@@ -296,9 +317,15 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     // Leg D: an assembly transform traversed.
     assert!(any(&|t| t.contains("ITEM_DEFINED_TRANSFORMATION")), "Leg D");
     // Leg E: an EDGE_CURVE stated against its carrier.
-    assert!(any(&|t| t.contains(",.F.) ;") || t.contains(",.F.);")), "Leg E");
+    assert!(
+        any(&|t| t.contains(",.F.) ;") || t.contains(",.F.);")),
+        "Leg E"
+    );
     // And the schema-default placement fields.
-    assert!(any(&|t| t.contains(",$) ;") || t.contains(",$);")), "a defaulted frame");
+    assert!(
+        any(&|t| t.contains(",$) ;") || t.contains(",$);")),
+        "a defaulted frame"
+    );
 }
 
 // ---- Row 2: the cross-dialect fixed point --------------------------
@@ -328,14 +355,21 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         else {
             panic!("{name}: the re-import must be a solid");
         };
-        assert_eq!(census(&body), census(&again), "{name}: census across the wire");
+        assert_eq!(
+            census(&body),
+            census(&again),
+            "{name}: census across the wire"
+        );
         assert_eq!(
             topo::mass_properties(&body).unwrap().volume,
             topo::mass_properties(&again).unwrap().volume,
             "{name}: volume across the wire, to the bit"
         );
         let second = step_export::step_string(&again, &options).unwrap();
-        assert_eq!(first, second, "{name}: the second export must be byte-identical");
+        assert_eq!(
+            first, second,
+            "{name}: the second export must be byte-identical"
+        );
     }
 }
 
@@ -482,7 +516,12 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         "which is ~34 µm, the file's intent: {eps_in}"
     );
 
-    let overridden = import_step(&text, &ImportOptions { eps_in: Some(2.5e-7) })
-        .expect("imports under an override");
+    let overridden = import_step(
+        &text,
+        &ImportOptions {
+            eps_in: Some(2.5e-7),
+        },
+    )
+    .expect("imports under an override");
     assert_eq!(overridden.eps_in(), 2.5e-7, "the per-call override wins");
 }

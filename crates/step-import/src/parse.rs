@@ -442,8 +442,10 @@ mod tests {
     /// inside the record; comments are whitespace at every position.
     #[test]
     fn comments_inside_an_entity_record_are_whitespace() {
-        let file =
-            parse_file(&header_only("FILE_NAME(\n/* name */ 'x',\n/* stamp */ 'y');")).unwrap();
+        let file = parse_file(&header_only(
+            "FILE_NAME(\n/* name */ 'x',\n/* stamp */ 'y');",
+        ))
+        .unwrap();
         assert_eq!(
             file.header[0].1,
             [Value::Str("x".to_owned()), Value::Str("y".to_owned())]
