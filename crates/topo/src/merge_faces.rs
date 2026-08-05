@@ -862,6 +862,18 @@ impl<T: Decide> Body<T> {
     /// derivation, and why this predicate must state it identically at
     /// all three of its sites, is in `boolean::join::ring_run_ccw`.
     ///
+    /// Behaviour change riding with that metering (the unit's
+    /// deviation 1, SECOND site — the join lane's zero-perimeter note
+    /// has the same shape): a cycle whose perimeter is exactly zero —
+    /// every vertex coincident — now divides `0/0`, poisons, and
+    /// escalates typed, where it previously answered `Some(Zero)` and
+    /// let `normalize_merged_roles` read it as "not the positively-wound
+    /// cycle". Empty loops still return `None` earlier, so reaching this
+    /// needs a real cycle of coincident points. The fail-loud direction
+    /// is deliberate: a loop with no extent has no winding to report,
+    /// and refusing typed beats handing back a role decision derived
+    /// from an area and a perimeter that are both nothing.
+    ///
     /// `normal` must be the face's OUTWARD normal (S10): the caller
     /// multiplies the chart normal by `sense_sign` exactly once, and
     /// the Newell sum here is left alone. That sum is built from the

@@ -54,7 +54,7 @@ use crate::validate::decide;
 ///
 /// [`BandError`] is structurally impossible for these constants; typed
 /// through all the same (no panic paths in operator code).
-pub(super) fn exact_band() -> Result<Band, BandError> {
+pub(crate) fn exact_band() -> Result<Band, BandError> {
     Band::new(f64::from_bits(1), f64::from_bits(2))
 }
 

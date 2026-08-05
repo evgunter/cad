@@ -34,6 +34,7 @@ const FIXED: &[&str] = &[
     // the before/after evidence.
     "bool_ring_run_winding",
     "volume_backstop",
+    "volume_backstop_violation",
     "volume_backstop_operand",
     "witness_at_mid_parameter",
 ];
@@ -104,11 +105,29 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
          residuals; nonzero ones belonged to the volume backstop)",
         witness.1, witness.0
     );
-    for gate in ["volume_backstop", "volume_backstop_operand"] {
+    for gate in [
+        "volume_backstop",
+        "volume_backstop_violation",
+        "volume_backstop_operand",
+    ] {
         assert!(
             counts.get(gate).is_some_and(|c| c.1 > 0),
             "{gate}: expected nonzero-margin samples under its OWN name \
              (the F3 routing pin is vacuous otherwise)"
+        );
+    }
+    // Deviation 2, pinned rather than asserted in prose: the bound check
+    // RUNS on these mm-scale operands. Pre-F3 the raw m³ comparand put
+    // a 2 mm cube's 8e-9 m³ inside the default band, read that as "not
+    // certifiably bounded", and skipped the bound entirely — only 1 of
+    // the 3 mm-scale checks ran. Both arms of both checks must fire now
+    // (2 bound checks × 2 arms = 4 samples, 2 under each name).
+    for arm in ["volume_backstop", "volume_backstop_violation"] {
+        assert_eq!(
+            counts.get(arm).map(|c| c.0),
+            Some(2),
+            "{arm}: both mm-scale bound checks must reach this arm — a \
+             count of 1 is the pre-F3 silent skip coming back"
         );
     }
 }

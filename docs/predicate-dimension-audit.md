@@ -110,7 +110,9 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs:663/679 | volume_backstop_operand / volume_backstop | V/A; ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3; was **m³ VOLUME** through the tree's one raw `sign_within`) |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3; was **m³ VOLUME** through a raw `sign_within`) |
+| boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3) |
+| boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -163,12 +165,16 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
-called directly on volume margins — was FLAG F3, **FIXED**: both
-gates now route through `k_stats::decide` under
-`volume_backstop_operand` / `volume_backstop`). **The tree has no
-funnel bypass left** — every shipped decision in geom-brep and topo
-goes through `k_stats::decide`, so every margin the recorder sees is
-attributed to the predicate that actually decided it. Raw ε reads
+called directly on volume margins — was FLAG F3, **FIXED**: the gates
+now route through `k_stats::decide` under `volume_backstop_operand`,
+`volume_backstop` and `volume_backstop_violation`). **This audit's
+scope — geom-brep and topo — has no funnel bypass left:** every
+shipped decision in the two crates goes through `k_stats::decide`, so
+every margin the recorder sees is attributed to the predicate that
+actually decided it. The claim is scoped on purpose. One shipped raw
+`sign_within` exists elsewhere in the workspace — `editor-core`'s
+expression evaluator — and is carried below as **F12** rather than
+swept under the headline. Raw ε reads
 outside decisions: solver
 tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
@@ -231,6 +237,28 @@ speculative — each row below states what it measured):
   passes. Metered as `V/A` the same operand answers 3.3e-4 m —
   decisively bounded at every ε in the matrix. No verdict flipped; a
   gate that had been skipping now runs.
+  **The metering's WEAKENING direction, and the dual-arm answer (#200
+  review MAJ-1).** Metering alone would not have been pure gain:
+  `ΔV/(A_got + A_bound)` shrinks with the bodies' area, so a localized
+  wrong component on a large body meters below ε even while the defect
+  stays macroscopic. Executed by the reviewer: a wrongly-kept 3 mm cube
+  on a 2 m × 2 m × 0.1 m plate is ΔV = 2.7e-8 m³ over ~17.6 m² →
+  1.53e-9 m, inside the default band, where the raw-m³ comparand had
+  refused decisively. Resolution: the backstop asks two questions and
+  only one is about a magnitude. `volume_backstop_violation` decides
+  the SIGN against the **exact bit-hairline band** (`splitting::order`'s
+  device, note N6) — the bound is an inequality, and a sign-certain
+  violation is a dimension-free fact no amount of boundary area can
+  dilute; `volume_backstop` keeps the metered mean displacement against
+  ε for the near-zero region the sign arm leaves open. Both arms
+  consume the same metered comparand, since dividing by a
+  certainly-positive lever cannot move a sign — so the K stream stays
+  length-dimensioned and scale-linear (verified in the twins) while the
+  refusal is scale-free. The gate is now strictly stronger than both
+  its predecessors. Pinned end-to-end by
+  `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
+  (verified red with the sign arm removed) and at band level by the
+  adopted `tests/probe_f34_review.rs`.
 - **F4** `bool_ring_run_winding` (join.rs, merge_faces.rs,
   validate.rs — one predicate, three sites, all three moved together):
   the Newell AREA is divided by the region's boundary PERIMETER, giving
@@ -301,6 +329,25 @@ Flagged, NOT fixed here (dispositions):
 - **F11** `tangent_sector_osculation` (rules.rs:174): sagitta model
   κ·L²/2 metered at the WHOLE-FACE extent, squared, and invalid for
   κ·L ≳ 1 — over-refusal direction. Arm-policy question; own unit.
+- **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
+  `editor-core/src/expr.rs:656`: the expression evaluator's door-2
+  finiteness probe is a shipped raw `sign_within` — its own comment
+  calls it "a reified decision" — so it is UNATTRIBUTED in the K
+  telemetry, the same structural defect F3 just retired one crate over.
+  Three things make it a different disposition, not a same-day fix:
+  the comparand is `value · 0`, which is exactly `0` for every finite
+  value and poison otherwise, so it is a **finiteness probe, not a
+  geometric margin** — no dimension, no length, nothing the ε
+  semantics govern; it classifies against a synthetic
+  `Band{1e-100, 1e-50}` where, by that construction, *any* valid band
+  decides identically; and it lives in the expression layer, outside
+  this document's props/predicate sweep (geom-brep + topo). The honest
+  statement is therefore "not a dimensional defect, but an attribution
+  hole": routing it through the funnel would give the recorder a name
+  for it and cost nothing. Deferred to whoever owns the editor layer —
+  NOT fixed here, because a K-telemetry row for the expression
+  evaluator is a scope question for that crate, not a consequence of
+  this audit.
 
 Notes (verified honest, kept for the design conversation):
 

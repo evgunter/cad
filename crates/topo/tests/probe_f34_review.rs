@@ -1,9 +1,17 @@
-//! Adversarial review probes for the F3+F4 dimensional unit (review/f34).
+//! Adversarial review probes for the F3+F4 dimensional unit (review/f34),
+//! ADOPTED BY MERGE into the unit — authorship kept, conclusions updated
+//! where the fix pass moved them.
 //!
-//! T2: the area-normalized backstop margin can DEMOTE a macroscopic
-//! localized wrong-component defect to indeterminate (pass) on a
-//! large-area body where the old raw-volume comparand refused decisively.
-//! Demonstrated through the kernel's own band semantics.
+//! T2 found the unit's MAJOR: the area-normalized backstop margin
+//! DEMOTES a macroscopic localized wrong-component defect to
+//! indeterminate (pass) on a large-area body, where the old raw-volume
+//! comparand refused decisively. The finding stands exactly as measured
+//! — and the fix pass answered it with the dual-arm gate (a
+//! sign-certain inequality violation refuses through the exact band,
+//! whatever its metered magnitude). This file keeps the reviewer's
+//! demonstration of the demotion AND pins the arm that now catches it;
+//! the end-to-end refusal through the real gate is
+//! `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom_core::{Band, Decide, Sign};
 
@@ -18,7 +26,8 @@ fn t2_wrong_component_hides_behind_large_area() {
     // OLD comparand (raw volume margin): decisively negative -> REFUSED.
     assert_eq!((-dv).sign_within(band), Ok(Sign::Negative));
     // NEW comparand (mean displacement): lands IN BAND -> indeterminate,
-    // and check's `Err(_) => Ok(())` arm PASSES the violation.
+    // so a MAGNITUDE-ONLY gate would take `Err(_) => Ok(())` and PASS
+    // the violation. This is the review's finding, unretouched.
     let metered = -dv / areas; // -1.53e-9
     assert!(
         (-metered) > 1e-9 && (-metered) < 1e-8,
@@ -26,11 +35,30 @@ fn t2_wrong_component_hides_behind_large_area() {
     );
     assert!(
         (metered).sign_within(band).is_err(),
-        "indeterminate -> backstop passes"
+        "indeterminate -> a magnitude-only backstop passes"
     );
     // Smaller wrong component (1 mm cube, 1e-9 m^3): metered margin
-    // 5.7e-11 < band.zero -> certified Zero -> passes as exact.
+    // 5.7e-11 < band.zero -> certified Zero -> would pass as exact.
     assert_eq!((-1e-9 / areas).sign_within(band), Ok(Sign::Zero));
+
+    // THE RESOLUTION (fix pass): the bound is an INEQUALITY, so the
+    // gate also asks the dimension-free question — is the sign certain?
+    // — against the exact bit-hairline band, where no epsilon enters.
+    // Both defects above are decisively negative there, so both refuse.
+    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).expect("exact band");
+    assert_eq!(metered.sign_within(exact), Ok(Sign::Negative));
+    assert_eq!((-1e-9 / areas).sign_within(exact), Ok(Sign::Negative));
+    // And the non-strict pass direction is untouched: an exactly-equal
+    // result is Zero at the hairline, not a violation.
+    assert_eq!(0.0_f64.sign_within(exact), Ok(Sign::Zero));
+    // The sign question is invariant under the positive lever — which
+    // is why arm 1 may consume the metered length and keep the recorded
+    // margin dimensionally honest.
+    assert_eq!(
+        (-dv).sign_within(exact),
+        metered.sign_within(exact),
+        "dividing by a positive area must not move the sign"
+    );
 }
 
 #[test]
