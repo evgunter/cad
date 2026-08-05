@@ -528,3 +528,22 @@ Draw recorded below after this commit.
 Draw: byte 123 → **(opus, fable)** — F3+F4 = OPUS, KERNEL_* =
 FABLE. Both dispatched (lanes f34-dim slot 1, kernel-sidecars
 slot 2); PRs held for blinded review per standing process.
+
+**PLATFORM OUTAGE (2026-08-05): the subagent-write safety
+classifier went unavailable mid-dispatch.** The F3+F4 implementer
+had every mutating tool blocked (~25 attempts); it stopped and
+reported per the rule with the BOTH FIXES FULLY DESIGNED and
+arithmetically pre-checked (F3: volume gates route through the
+named funnel with honest lengths — ΔV/(A_got+A_bound) for the
+backstop check, V/A for the operand gate on the validate.rs
+positive_volume precedent, names volume_backstop /
+volume_backstop_operand; F4: 2A/P mean-width margin at all three
+winding sites, conic perimeter via the fail-loud upper bound;
+pin flips drafted incl. retiring witness_at_mid_parameter's
+KNOWN_NONLINEAR entries as pure F3 stale-name contamination;
+collision rows verified retired — all five remote ev/ branches
+are merged). Zero writes made. Kernel-sidecars lane created with
+some writes landed before/around the outage; not yet reported.
+Recovery plan: re-nudge the F3+F4 lane on the hourly cadence;
+the design note hands off cleanly to a fresh implementer if the
+transcript goes stale. Orchestrator-session tools unaffected.
