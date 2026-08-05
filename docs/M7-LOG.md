@@ -547,3 +547,35 @@ some writes landed before/around the outage; not yet reported.
 Recovery plan: re-nudge the F3+F4 lane on the hourly cadence;
 the design note hands off cleanly to a fresh implementer if the
 transcript goes stale. Orchestrator-session tools unaffected.
+
+**Block M7-3 COMPLETE + the docs estate de-rotted (2026-08-05).**
+F3+F4 MERGED as #200 (opus): the audited family's last funnel
+bypass retired via the dual-arm gate — sign-certain inequality
+violations refuse dimension-free through the exact bit-hairline
+band, BOTH arms on the metered comparand (a certainly-positive
+lever cannot move a sign, so K attribution stays honest —
+verified scale-linear and RED-with-arm-removed); the review's
+hide-behind-area MAJOR (3mm cube on a 2m plate metered in-band
+and PASSED) is pinned; editor-core expr.rs:656 recorded as
+audit row F12 (deferred, attribution-hole class).
+KERNEL_* MERGED as #199 (fable): 15 sidecars carry native-census
+fields + full-precision volume + the ε-discovery
+KERNEL_VOLUME_PAD_MM3 (enclosure midpoints move with ambient ε —
+byte pin at declared ε, overlap rows elsewhere; the review's
+planted-lie attack proved composed hiding room ZERO); the import
+override table is GONE; tolerance claim corrected to measured
+truth (3 fixtures up to 8.3e7× tighter, 11 honestly ~2-3× looser
+at the 1e-6 mm³ scale, teeth proven at 1600×/8000×).
+DOCS-ROT MERGED as #203 + tag archive/2026-08-05: all 13
+contradictions, 18 stale items (K-REPORT landing-retraction
+addendum), 9 over-spec trims; 49 files archived with INDEX;
+memories consolidated (one lost standing rule caught and
+restored). ORCHESTRATOR REJECTION during review: the unit had
+CLOSED M6 and re-banked its ratified remainder — reverted to
+honest OPEN (units 5 + ratified sense gate + hygiene remain;
+closure is Evan's exit-walk call), recorded as ESCALATIONS
+item 0. Banked follow-ups: ~30 code-comment citations of
+pre-archive docs/M* paths (small code sweep); the √5/2-vs-√5/4
+numeric cross-check in this log's rim-dim entry. NEXT: M7
+unit 3 substrate (NURBS-face import); typed-margin design
+draft (audit + F3+F4 outcomes now in hand).
