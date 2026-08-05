@@ -666,3 +666,15 @@ M7 remaining: the corpus-widening fold, the band-seam unit
 (ftc_11/cq_red_cube flip back), stage-1 recognition (dm1-class),
 exit walk. M6 remaining: unit 5, the ratified sense gate,
 k-lint floor.
+
+**Block M7-5 staged (2026-08-05): difficulties logged BEFORE the
+draw.** Unit A — **classify-seam migration = M** (the ratified
+margin convention's clause-(i) rollout: Length<T> erased newtype
+at the classify/Band seam, blessed constructor doors, ~120 sites
+per the audit ledger; mechanical but broad, every touched
+comparand re-argued through a door). Unit B — **corpus-widening
+fold = S** (the #210 exportable class joins the round-trip
+corpus: elbow-class sweep + non-uniform loft fixtures with
+KERNEL_*-bearing sidecars, byte-golden, check_step oracle rows,
+SOLID_FIXTURES extension; measured feasibility from #209/#210's
+own suites). Draw after this commit.
