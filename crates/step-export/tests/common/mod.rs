@@ -447,7 +447,9 @@ pub fn certified_carrier(body: &Body<f64>, edge: topo::EdgeKey) -> &geom_curves:
 /// (which pins them), and `scripts/check_step.sh` (which imports every
 /// `.step` in the directory into FreeCAD/OCC against its hand-authored
 /// `.expect` sidecar — a `.step` WITHOUT a sidecar is a hard failure,
-/// so a row added here needs one written by hand).
+/// so a row added here needs one: the `EXPECT_*` lines written by hand
+/// from the FreeCAD run, the `KERNEL_*` lines from the live kernel —
+/// `tests/kernel_sidecars.rs`'s failure output prints the exact block).
 ///
 /// Order is planar-first then curved, and it is the order the files
 /// were minted in; it has no semantic weight beyond keeping diffs

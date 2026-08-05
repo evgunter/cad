@@ -4,6 +4,25 @@
 # unit cylinder h=2.5 halved by a 0.3 rad tilted plane through the axis midpoint: pi*1.25 m^3
 #
 # OCC keeps the kernel topology exactly (4/6/4).
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+# Here the certified volume is a QUADRATURE enclosure (the tilted cut
+# makes curved-cut faces): midpoint ± pad, both FUNCTIONS of ambient ε,
+# pinned at the corpus's declared uncertainty ε = 1e-9. That is why the
+# midpoint differs from the analytic EXPECT value (inside the pad), and
+# why the staleness row byte-pins the pair only at ε = 1e-9 and asserts
+# enclosure overlap at other ε.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=4
+KERNEL_EDGES=6
+KERNEL_VERTICES=4
+KERNEL_VOLUME_MM3=3926990816.7918763
+KERNEL_VOLUME_PAD_MM3=1186.3604109467
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=4

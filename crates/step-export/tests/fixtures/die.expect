@@ -1,3 +1,15 @@
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=11
+KERNEL_EDGES=24
+KERNEL_VERTICES=16
+KERNEL_VOLUME_MM3=875000000.0
+KERNEL_VOLUME_PAD_MM3=0.0
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=11

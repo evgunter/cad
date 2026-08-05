@@ -76,9 +76,14 @@ fn a1_small_perturbation_breaks_row1_tolerance() {
         );
     let body = solid(&text, "slightly perturbed ball");
     let props = topo::mass_properties(&body).unwrap();
-    let expected: f64 = 4188790204.7863903e-9; // the sidecar, in m³
-    // Row-1 tolerance for ball: pad + print precision (5e-8 mm³) + 2 ulps.
-    let tol = props.volume_pad + 5e-8 * 1e-9 + 2.0 * (expected.next_up() - expected);
+    let expect = common::expect_sidecar("ball");
+    let expected = expect.kernel_volume_mm3 * 1e-9;
+    // Row-1 tolerance for ball (the tightened KERNEL_VOLUME_MM3 form —
+    // roundtrip.rs derives it): pad + native pad + (2×faces + 2) = 6
+    // ulps; no print-precision term, the literal is full precision.
+    let tol = props.volume_pad
+        + expect.kernel_volume_pad_mm3 * 1e-9
+        + 6.0 * (expected.next_up() - expected);
     let dev = (props.volume - expected).abs();
     assert!(
         dev > tol,
