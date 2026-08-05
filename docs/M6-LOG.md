@@ -723,3 +723,20 @@ honesty defects sit in completion-phase scope; the partial's
 files yielded none under the same scrutiny. Light fix pass
 dispatched (inherits fable). Review ~231k tokens, ~2h under
 the pin.
+
+**M6-3 MERGED as #192 (2026-08-05): WALK ROW 4 IS CLOSED and
+loft/sweep bodies are LIVE.** Fix pass discharged all items
+(stacking probes adopted by --no-ff merge; the pole-crossing
+comment now tells the demonstrated truth; 0-ulp measurement
+stated; F5 audit row FIXED(M6-3) + the adjacent F6 bullet
+honestly advanced rather than left stale; step-import's chart
+list current; the merge_coplanar fitted-cache hazard named at
+its site). Hosted 27/27 on 427e54d. A/B row RECORDED AT MERGE
+(fable; the partial's tokens are unrecorded with the dead M6
+session). Lanes cleaned (11G freed). M6 remaining: unit 5
+(edge-selection fillet vocabulary), the proposed sense-flip
+unit (#184 item 1, latitude given), hygiene (k-lint floor).
+The merge UNBLOCKS: M7 unit 3 (NURBS-face import — the export
+side now emits B_SPLINE_SURFACE_WITH_KNOTS both arms),
+KERNEL_* sidecars (15 incl. loft_prism), F3+F4 dimensional
+unit, typed-margin design draft.
