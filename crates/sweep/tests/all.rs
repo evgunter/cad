@@ -100,6 +100,8 @@ mod m6_rider;
 mod m6_surgery;
 #[path = "m6_surgery_interval.rs"]
 mod m6_surgery_interval;
+#[path = "m6_tube.rs"]
+mod m6_tube;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]

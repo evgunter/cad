@@ -49,13 +49,12 @@ struct SceneBody {
     ///
     /// **Since M5 PR 13 this is true for every tour body.** The
     /// writer's subset grew to the whole elementary-surface vocabulary
-    /// plus conic and NURBS carriers, and every shape the tour builds
-    /// is inside it — the curved sweeps and the curved boolean that
-    /// used to be narrated refusals now export like the planar ones.
-    /// The field stays because the two live refusals (a NURBS FACE,
-    /// which the loft-assembly unit brings, and a multi-shell CURVED
-    /// solid, which the outward/void classifier cannot sign) would
-    /// each produce a body the tour must not silently drop.
+    /// plus conic and NURBS carriers, and since M6-3 to described
+    /// NURBS faces (the loft walls) — every shape the tour builds is
+    /// inside it. The field stays because the one live refusal (a
+    /// multi-shell CURVED solid, which the outward/void classifier
+    /// cannot sign) would produce a body the tour must not silently
+    /// drop.
     step_expected: bool,
 }
 
@@ -252,10 +251,10 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
             println!("   [{label}] exported {stl} + {step_name}");
             Some(step_name)
         }
-        // The subset-frontier refusals stay an acceptable CLASS (a
-        // NURBS face awaits the loft-assembly unit; a multi-shell
-        // curved solid awaits a curved outward/void classifier), but
-        // no tour body is in them today — `step_expected` is true
+        // The subset-frontier refusal stays an acceptable CLASS (a
+        // multi-shell curved solid awaits a curved outward/void
+        // classifier; NURBS faces export natively since M6-3), but no
+        // tour body is in it today — `step_expected` is true
         // everywhere, so reaching this arm fails the tour loud. The
         // arm is kept, not deleted: it is what keeps a future curved
         // frontier from being silently dropped from the manifest.

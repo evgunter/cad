@@ -608,15 +608,14 @@ impl<'a> Writer<'a> {
             .ok_or(StepExportError::Corrupt {
                 what: "face surface key does not resolve",
             })?;
-        // The analytic surface printers: every ELEMENTARY_SURFACE of
-        // the kernel's closed enum maps to its exact AP214 twin, the
+        // The surface printers: every ELEMENTARY_SURFACE of the
+        // kernel's closed enum maps to its exact AP214 twin, the
         // kernel frame going in verbatim as the placement (see
-        // [`Self::axis2_placement`]). Exporting analytic carriers AS
-        // analytic entities — never a B-spline approximation — is this
-        // writer's reason to exist (crate docs). `Surface::Nurbs` is
-        // the one remaining refusal: no body at rest carries a NURBS
-        // FACE (the loft-assembly unit mints the first), so the arm is
-        // frontier text, not silent degradation.
+        // [`Self::axis2_placement`]) — never a B-spline approximation
+        // of an analytic kind (crate docs). A DESCRIBED NURBS surface
+        // prints natively since M6-3 (`Self::b_spline_surface`, the
+        // loft walls); the one refusal left is the mvfs placeholder,
+        // a mid-surgery fact rather than a frontier.
         let surface_id = match *surface {
             Surface::Plane {
                 origin,

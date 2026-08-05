@@ -22,9 +22,11 @@
 //! pcurves arrive with their consumers). A **fitted** (rung-3) chart
 //! image also refuses typed here, and since M6-2 that refusal is a
 //! genuine one rather than a statement about an absent variant:
-//! `Pcurve::Fitted` exists and reaches bodies at rest, but the
-//! trim-loop walk reads a closed-form image and the spline image's
-//! tessellation consumer is the loft-assembly unit.
+//! `Pcurve::Fitted` and `Pcurve::IsoLine` exist and reach bodies at
+//! rest (M6-2/M6-3), but the trim-loop walk here reads a closed-form
+//! harmonic image; the spline-image tessellation consumer is the
+//! banked trimmed-NURBS lane (the cut-loft unit's, with the
+//! edge×NURBS-face boolean layer).
 //!
 //! # The grid-on-constraint retry (the T-junction attack)
 //!
@@ -324,9 +326,11 @@ fn trim_frontier(
         if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
-                note: "conic/B-spline trim on a cone/sphere/torus chart — that chart's \
-                       pcurves do not mint yet (they arrive with their consumers); the \
-                       cylinder trimmed lane is live (M5 PR 11)",
+                note: "conic/B-spline trim on a cone/sphere/torus chart — those charts \
+                       mint stored pcurves since M6-3, but this trimmed-face \
+                       tessellation lane's geometry is the cylinder chart's (M5 PR 11); \
+                       the other analytic charts' trimmed lanes are banked with their \
+                       first construction",
             });
         }
     }

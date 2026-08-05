@@ -93,6 +93,7 @@ mod axis;
 mod full;
 mod partial;
 mod surfaces;
+pub mod tube;
 mod upgrade;
 
 use core::fmt;

@@ -508,8 +508,11 @@ mod quad_lane {
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
-                what: "B-spline trim carrier on the quadrature lane — its stored pcurve \
-                       variant arrives with the loft assembly unit",
+                what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
+                       the cut-loft class (a loft wall cut by a plane/cylinder), which \
+                       needs the edge×NURBS-face boolean layer (M5 PR 9c item 5, \
+                       banked); described-NURBS faces with iso-line pcurves route to \
+                       the patch engine instead",
             }),
         }
     }
@@ -525,9 +528,11 @@ mod quad_lane {
     }
 
     /// The certified flux/area enclosures of one curved-cut face
-    /// (module docs of `geom_brep::props::quad`): cylinder charts only
-    /// — the one chart whose pcurves mint today; other charts refuse
-    /// typed naming that frontier.
+    /// (module docs of `geom_brep::props::quad`): the cylinder chart's
+    /// closed-form lane plus the described-NURBS patch lane (M6-3);
+    /// cone/sphere/torus charts MINT stored pcurves since M6-3 (walk
+    /// row 4) but their chart-normal flux algebra is not written —
+    /// they refuse typed naming that true blocker.
     pub(super) fn cut_face<T: Decide + Bounds>(
         body: &Body<T>,
         surface: &Surface<T>,
@@ -542,9 +547,10 @@ mod quad_lane {
         }
         let Surface::Cylinder { origin, radius, .. } = surface else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "conic trim on a non-cylinder chart — cone/sphere/torus pcurves do \
-                       not mint yet (they arrive with their consumers); the cylinder lane \
-                       is M5 PR 11's",
+                what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
+                       pcurves since M6-3 (walk row 4), but this lane's chart-normal \
+                       flux algebra is the cylinder chart's (M5 PR 11); the other \
+                       analytic charts' closed-form flux is its own banked lane",
             });
         };
         let eps = Tolerance::get().eps;

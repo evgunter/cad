@@ -41,9 +41,9 @@
 //!   free.
 //! - **B-spline** ([`bspline_green_integral`], the general machinery):
 //!   channel hulls and derivative hulls from the control-coefficient
-//!   convexity facts (`geom_core::spline::hull`). Written generally;
-//!   no at-rest construction mints a stored B-spline pcurve yet (the
-//!   loft assembly unit does), so its consumers today are tests.
+//!   convexity facts (`geom_core::spline::hull`). Since M6-3 the loft
+//!   assembly mints stored iso-line pcurves on described NURBS walls
+//!   and the patch flux engine consumes this machinery at rest.
 //!
 //! # The rule and its remainder
 //!
@@ -599,9 +599,10 @@ impl DerivLadder {
 /// smoothness-free first-order hull rule `h·hull(f)` — both sound, so
 /// the total is an enclosure at every resolution.
 ///
-/// No at-rest construction mints a stored B-spline pcurve yet (the
-/// loft assembly unit brings them); rational pcurves refuse typed —
-/// a rational derivative is not a control-coefficient convexity fact.
+/// At-rest B-spline pcurves exist since M6-3 (the loft walls' exact
+/// iso lines; general spline images remain the SSI trace's);
+/// rational pcurves refuse typed — a rational derivative is not a
+/// control-coefficient convexity fact.
 ///
 /// # Errors
 ///
