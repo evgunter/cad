@@ -475,7 +475,9 @@ pub enum ValidationError {
     /// whose face sense disagrees with its winding is INSIDE-OUT, and
     /// this is the check that refuses it — nothing else can, since the
     /// signed volume is itself winding-derived and therefore blind to
-    /// a lone `sense` flip. `Zero` and escalated
+    /// a lone `sense` flip. (The analytic curved kinds get the same
+    /// statement from this check's curved arm,
+    /// [`CurvedSenseInverted`] — M6-6.) `Zero` and escalated
     /// windings are exempt (the check-7 posture: an orientation probe,
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
@@ -486,6 +488,39 @@ pub enum ValidationError {
         face: FaceKey,
         /// The loop whose winding disagrees with its role.
         r#loop: LoopKey,
+    },
+    /// Tier 3 (check 6, curved arm — M6-6): a curved face's stored
+    /// [`crate::Face::sense`] bit **definitely disagrees** with the
+    /// material side its own boundary encodes — the
+    /// [`LoopRoleInverted`] sibling for the analytic curved kinds
+    /// (cylinder, cone, rim-bearing sphere, torus). The face's two
+    /// orientation encodings are the S10 `sense` bit and the stored
+    /// outer-loop traversal (interior-left): the flux derivations read
+    /// the material side off the latter
+    /// (`geom_brep::props::boundary_material_sign` — the rim-side /
+    /// meridian-orientation decides), and a face where the two
+    /// encodings disagree is INSIDE-OUT at that face. Tier 3 refuses
+    /// it here, per face, and no volume gate can: the flux is
+    /// traversal-derived, so a lone `sense` flip on a rim-bearing
+    /// curved face is BIT-IDENTICAL in volume (executed truth table,
+    /// M6-6 substrate — washer walls, cone laterals, sphere zones,
+    /// torus bands all certified green before this arm).
+    ///
+    /// The comparison is **combinatorial** — two exact ±1s, no
+    /// comparand, no new margin: the derived side reuses the flux
+    /// lanes' already-length-metered named decides. Posture inherited
+    /// from check 7: only a DEFINITE disagreement refuses; an
+    /// escalated/degenerate/out-of-inventory derivation is exempt, and
+    /// the **rimless** sphere band (whose boundary encodes no side —
+    /// its `s_f` IS the bit) stays exempt as the documented residual.
+    /// S11's honest `sense: false` faces (a washer's bore, a die's
+    /// dimples) PASS: their traversals already place the material on
+    /// the anti-chart-normal side — the gate refuses lone bit flips,
+    /// not concave walls.
+    CurvedSenseInverted {
+        /// The inside-out face: its `sense` bit contradicts the
+        /// material side its boundary traversal encodes.
+        face: FaceKey,
     },
     /// Tier 3: the body's exact-B-rep signed volume is **definitely
     /// negative** — global orientation corruption (the +V invariant,
@@ -1022,6 +1057,13 @@ impl fmt::Display for ValidationError {
                  (the outer loop must wind positively around the outward normal, rings \
                  negatively — the planar region-bounding statement)"
             ),
+            Self::CurvedSenseInverted { face } => write!(
+                f,
+                "face {face:?}: the stored sense bit disagrees with the material side \
+                 the face's own boundary traversal encodes (rim side / meridian \
+                 orientation) — the face is inside-out; the two orientation encodings \
+                 of a curved face must state the same side"
+            ),
             Self::NegativeVolume => f.write_str(
                 "the body's exact-B-rep signed volume is definitely negative — global \
                  orientation corruption (+V invariant; every closed body's outward-oriented \
@@ -1501,9 +1543,13 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
-///   outward normal, line-bounded loops); what remains deferred is
-///   containment against curved surfaces and the region-bounding
-///   statement for arc-bounded planar faces and curved faces.
+///   outward normal, line-bounded loops). The **curved analytic**
+///   kinds' orientation half is covered by check 6's curved arm
+///   (M6-6: boundary material side vs the sense bit); what remains
+///   deferred is containment against curved surfaces and the
+///   region-bounding statement for arc-bounded planar faces and
+///   curved faces, plus the curved arm's documented residuals (the
+///   rimless sphere band, NURBS faces).
 /// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
 ///   `u_ref ⊥ axis`): partially implied by the residual checks (a
 ///   non-unit frame breaks the carrier-vs-description comparisons),
@@ -1956,9 +2002,9 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // refuses it here, per face, and no volume gate can: check 7 is
     // computed from the same loop windings, so an inside-out face is
     // invisible to it (flipping `sense` alone changes no winding and
-    // therefore no volume). This is the only at-rest check that reads
-    // the sense bit as a claim to be falsified rather than as a sign
-    // to be honored.
+    // therefore no volume). Check 6 — this planar arm and the curved
+    // arm below (M6-6) — is where the sense bit is read as a claim to
+    // be falsified rather than as a sign to be honored.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
@@ -2041,6 +2087,64 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     }
 
     // ------------------------------------------------------------------
+    // Tier 3, check 6, CURVED arm (M6-6): the sense-vs-boundary
+    // material-side gate for the analytic curved kinds. The same
+    // statement as the planar arm — the face's two orientation
+    // encodings must agree — but the boundary's encoding is read the
+    // way the flux lanes read it:
+    // `geom_brep::props::boundary_material_sign` re-runs the rim-side
+    // / meridian-orientation sub-derivations (`props_rim_side`,
+    // `props_circle_axis_class`, `props_meridian_orient` — already
+    // length-metered named decides). No new comparand exists: the
+    // final comparison is two exact ±1s, genuinely combinatorial.
+    // Fires BEFORE check 7, which cannot see this defect — the flux is
+    // traversal-derived, so a lone sense flip on a rim-bearing curved
+    // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth
+    // table: washer walls, cone laterals, sphere zones, torus bands
+    // all certified green before this arm), and a whole-body-inverted
+    // washer/cone/donut even keeps its POSITIVE volume (their planar
+    // caps are arc-bounded, exempt from the Newell arm above — this
+    // arm is what refuses those bodies).
+    //
+    // Posture inherited (check 7): only a DEFINITE disagreement
+    // refuses. A failed derivation (escalated classification,
+    // degenerate/out-of-inventory boundary, conic-trimmed faces the
+    // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
+    // corrupt structure is tier 1/2's job, an uncomputable volume is
+    // check 7's. The rimless sphere band returns `Unencoded` (its
+    // boundary encodes no side; the bit is the ONLY encoding) and
+    // stays exempt: the documented residual — a half-flipped rimless
+    // ball meters V = 0, Zero-exempt by the ratified posture, while
+    // the fully-inverted ball is check 7's NegativeVolume.
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        let Some(surface) = body.surfaces.get(face.surface) else {
+            continue; // unreachable on tier-1 input
+        };
+        if matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
+            // Planar: the Newell arm above. NURBS: the quadrature lane
+            // is winding-derived end to end, bit-free by design (S10
+            // module docs) — recorded residual, out of this arm's
+            // scope.
+            continue;
+        }
+        let Ok((outer, _hes)) = crate::props::loop_edges(body, face.outer) else {
+            continue; // derivation exempt (posture above)
+        };
+        match geom_brep::props::boundary_material_sign(surface, &outer, band) {
+            Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
+                // Two exact ±1s: the derived side is definite by
+                // construction, the sense bit is stored — a discrete
+                // comparison, no scalar, no band.
+                if (side == Sign::Positive) != face.sense {
+                    errors.push(ValidationError::CurvedSenseInverted { face: face_key });
+                }
+            }
+            Ok(geom_brep::props::MaterialSign::Unencoded) | Err(_) => {}
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Tier 3, check 7: the +V global orientation invariant (M2 PR 7).
     // Exact-B-rep signed volume, classified through the dimensionally
     // honest margin V / A_total — a *length*: the mean boundary
@@ -2064,9 +2168,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // derived from the stored loop windings and is therefore
     // sense-invariant by derivation. Multiplying anything at this call
     // site would double-count. Note the consequence, which is why
-    // check 6 exists: a lone `sense` flip changes no winding, so the
-    // volume this check reads is BLIND to it — check 7 cannot detect
-    // an inside-out planar face and does not claim to.
+    // check 6 exists (both arms): a lone `sense` flip changes no
+    // winding, so the volume this check reads is BLIND to it — check 7
+    // cannot detect an inside-out planar OR rim-bearing curved face
+    // and does not claim to; its one sense-visible catch is the
+    // rimless sphere band (the s_f the bit supplies), which is exactly
+    // the face the check-6 curved arm must exempt as Unencoded.
     // ------------------------------------------------------------------
     if errors.is_empty() {
         match crate::props::mass_properties_with(body, band) {
