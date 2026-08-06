@@ -18,17 +18,50 @@
 //! nothing upstream, these are bit-identical. This emitter contributes
 //! no independent judgment that could disagree.
 //!
-//! # The two provenance channels, and the totality that closes them
+//! # Both doors, one vocabulary
+//!
+//! This pass serves the composition surgery AND (since M6-5 PR-2) the
+//! whole-body rebuild. The two doors differ only in how a shrunk
+//! SUPPORT face reaches it: the surgery leaves the source face in
+//! place, so it arrives as a survivor (an output key that is also a
+//! source key); the whole-body rebuild mints into a fresh arena, so it
+//! arrives as a [`FilletNaming::supports`] row. Both land on
+//! [`RoleSeg::FromTarget`] of the same upstream name — a name must not
+//! depend on which door built the body, or the same edit would rename
+//! things by changing which door the request falls through.
+//!
+//! # The provenance channels, and the totality that closes them
 //!
 //! An output entity is either a recorded mint or a survivor keeping
 //! its source arena key ([`FilletNaming`]'s module docs). Survivors
 //! take [`RoleSeg::FromTarget`] of their upstream name; mints take
-//! their role. Anything that is neither — a key the surgery minted
-//! without a record — has no upstream name and surfaces as
+//! their role. Anything that is neither — a key minted without a
+//! record — has no upstream name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
-//! around. The final [`check_total`] closes the other direction.
+//! around. The final [`check_total`] closes the other direction, for
+//! both doors alike.
+//!
+//! One guard sits between those two cases, because "keeps its source
+//! arena key" is a claim about NUMBERING, and the whole-body door
+//! rebuilds into a fresh arena whose numbering is unrelated to the
+//! target's. A key can therefore coincide with a source key by
+//! accident. So a would-be survivor whose key the records list as
+//! RETIRED refuses [`NamingError::Emission`]: on that door every
+//! source entity is retired, so any survivor-branch hit there is a
+//! bug, and the retirement list is already in hand to say so.
+//!
+//! **Defense in depth, and honest about it.** No production path
+//! reaches that guard: `Plan::assemble` refuses a slot it never
+//! minted before any record is written, so a dropped record is not a
+//! state this code can be handed today. The guard exists because the
+//! alternative was worse than untested — an unrecorded mint would be
+//! named `FromTarget` of an unrelated entity, and whether that
+//! misnaming got caught depended on whether the real owner of the
+//! name happened to collide at insertion. It was caught by luck; now
+//! it is caught by design. Same posture as `wire_fillet`'s refusal of
+//! `naming: None`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use sweep::fillet::naming::{FilletNaming, RimSide};
@@ -39,10 +72,10 @@ use super::role::{EntityKind, RimSupport, RoleSeg, StableName};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
-/// Names one composition-surgery result.
+/// Names one fillet result, from either assembly door.
 ///
 /// `target` is the fillet's single operand's table (body index 0 —
-/// `body_operand` admits only single-body values), `body` the surgery
+/// `body_operand` admits only single-body values), `body` the fillet
 /// output, `rec` its birth records.
 ///
 /// # Errors
@@ -82,6 +115,11 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
         Ok(())
     };
 
+    // A shrunk support: same role as a surgery survivor, different
+    // channel (module docs).
+    for (f, src) in &rec.supports {
+        put(EntityKey::Face(*f), RoleSeg::FromTarget(b(up_f(*src)?)))?;
+    }
     for (f, e) in &rec.blends {
         put(EntityKey::Face(*f), RoleSeg::BlendFace(b(up_e(*e)?)))?;
     }
@@ -171,11 +209,46 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
         body.vertices()
             .map(|(k, _)| (EntityKind::Vertex, EntityKey::Vertex(k))),
     );
+    // The retired set, as a lookup: a key the fillet RETIRED can never
+    // be a survivor, whatever its arena says.
+    let retired_e: BTreeSet<EdgeKey> = rec.dead.edges.iter().copied().collect();
+    let retired_v: BTreeSet<VertexKey> = rec.dead.vertices.iter().copied().collect();
     for (kind, key) in rows {
         let seg = match minted.get(&key) {
             Some(seg) => seg.clone(),
-            // Not minted: a survivor, keeping its source arena key.
-            None => RoleSeg::FromTarget(b(up(key)?)),
+            // Not minted, so it must be a survivor keeping its source
+            // arena key — UNLESS the records say that key was retired,
+            // in which case the coincidence is not provenance.
+            //
+            // The trapdoor this closes (PR-2 review F-C): the
+            // whole-body door rebuilds into a FRESH arena, so its keys
+            // are drawn from a different numbering than the target's
+            // and can COINCIDE with a source key by accident. An
+            // unrecorded mint would then fall through here, find a
+            // same-numbered source entity, and be named `FromTarget`
+            // of something it has nothing to do with. Today that
+            // misnaming happens to be caught downstream — the real
+            // owner of the name collides and `insert` refuses
+            // `Duplicate` — but only by luck, and luck is not a
+            // guarantee. Every source entity IS retired on that door,
+            // so this check makes the refusal a designed one.
+            None => {
+                let dead = match key {
+                    EntityKey::Edge(k) => retired_e.contains(&k),
+                    EntityKey::Vertex(k) => retired_v.contains(&k),
+                    // Faces are never retired by either door — a
+                    // support shrinks, it does not die — so a face
+                    // key can only be a real survivor.
+                    EntityKey::Face(_) | EntityKey::Body => false,
+                };
+                if dead {
+                    return Err(NamingError::Emission {
+                        what: "an output entity is neither minted nor a survivor: its key was \
+                               recorded as RETIRED, so the match is an arena coincidence",
+                    });
+                }
+                RoleSeg::FromTarget(b(up(key)?))
+            }
         };
         t.insert(name1(kind, node, seg), ent(0, key))?;
     }

@@ -114,6 +114,8 @@ mod m5_pr6_pcurve_persistence;
 mod m5_pr8_bvh_diff;
 #[path = "m5_s1_rest_declare.rs"]
 mod m5_s1_rest_declare;
+#[path = "m6_5_downstream.rs"]
+mod m6_5_downstream;
 #[path = "m6_5_schema_v3.rs"]
 mod m6_5_schema_v3;
 #[path = "m6_5_selection_refusals.rs"]
@@ -136,6 +138,8 @@ mod review_m5_pr10_sweep_node;
 mod review_m5_pr1_e2e_interval;
 #[path = "review_m5_pr9_doc_probe.rs"]
 mod review_m5_pr9_doc_probe;
+#[path = "review_m6_5_pr2_probes.rs"]
+mod review_m6_5_pr2_probes;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
