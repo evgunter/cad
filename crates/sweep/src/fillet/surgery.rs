@@ -83,6 +83,7 @@ use topo::{
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::blend::{BlendArm, EdgeBlend, corner_ball};
 use super::build::{Filleted, face_cycle, outward_of, vertex_faces};
+use super::naming::{FilletNaming, RimSide};
 use super::{FilletError, FilletSite, decide};
 
 /// The one new margin this unit decides (module docs): the exact
@@ -237,12 +238,13 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         .map(|(k, _)| k)
         .ok_or_else(|| unsupported("the body has no shell"))?;
 
+    let mut rec = FilletNaming::default();
     let (blend_faces, corner_faces, mut described) =
-        blank_phase(&mut body, &opens, &corners, radius)?;
+        blank_phase(&mut body, &opens, &corners, radius, &mut rec)?;
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for rim in &rims {
-        let (band_face, band_surface, mut arcs) = rim_phase(&mut body, rim)?;
+        let (band_face, band_surface, mut arcs) = rim_phase(&mut body, rim, &mut rec)?;
         band_faces.push(band_face);
         band_surfaces.push(band_surface);
         described.append(&mut arcs);
@@ -289,6 +291,10 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         "surgery postcondition: the result is not tier-2 valid (kernel bug)",
     );
 
+    rec.dead.edges.sort_unstable();
+    rec.dead.edges.dedup();
+    rec.dead.vertices.sort_unstable();
+    rec.dead.vertices.dedup();
     Ok(Filleted {
         body,
         solid,
@@ -296,6 +302,7 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         blend_faces,
         corner_faces,
         band_faces,
+        naming: Some(rec),
     })
 }
 
@@ -782,6 +789,7 @@ fn blank_phase<T: Decide + Bounds>(
     opens: &[OpenLink<'_, T>],
     corners: &[Corner<T>],
     radius: T,
+    rec: &mut FilletNaming,
 ) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
     let op = |what: &'static str| {
@@ -867,6 +875,7 @@ fn blank_phase<T: Decide + Bounds>(
                 )
                 .map_err(op("strut mev"))?;
             strut_of.push((v, f, created.edge));
+            rec.feet.push((created.vertex, v, f));
             struts.push((created.he_minus, fp));
         }
         let mut first_trim: Option<HalfEdgeKey> = None;
@@ -887,6 +896,10 @@ fn blank_phase<T: Decide + Bounds>(
                 .map_err(op("trimline mef"))?;
             first_trim.get_or_insert(created.he_plus);
             described.push((created.edge, ContactCarrier::TrimLine));
+            // The chord runs foot(start of walk[i]) → foot(start of
+            // walk[i+1]): it parallels walk[i]'s own source edge, in
+            // this support face. Birth data, straight off the plan.
+            rec.trims.push((created.edge, walk[i].2, f));
             strip_half.push((walk[i].2, f, walk[i].0));
         }
     }
@@ -956,6 +969,7 @@ fn blank_phase<T: Decide + Bounds>(
                     radius,
                 },
             ));
+            rec.arcs.push((created.edge, c.vertex, l.edge));
             first_arc.get_or_insert(created.edge);
         }
         // Fuse the three triangles: kef the struts that still separate
@@ -1004,15 +1018,20 @@ fn blank_phase<T: Decide + Bounds>(
             }
             _ => return Err(unsupported("an arc lost a side (kernel bug)")),
         };
+        rec.corners.push((octant, c.vertex));
+        rec.dead.vertices.push(c.vertex);
         corner_faces.push(octant);
     }
 
     let mut blend_faces = Vec::with_capacity(opens.len());
     for o in opens {
-        blend_faces.push(
-            hex_face(body, o.link.edge)
-                .ok_or_else(|| unsupported("a blend face does not resolve"))?,
-        );
+        let f = hex_face(body, o.link.edge)
+            .ok_or_else(|| unsupported("a blend face does not resolve"))?;
+        rec.blends.push((f, o.link.edge));
+        // The source edge was excised across its two strips (the kef
+        // above): it is gone from the result.
+        rec.dead.edges.push(o.link.edge);
+        blend_faces.push(f);
     }
     Ok((blend_faces, corner_faces, described))
 }
@@ -1024,6 +1043,7 @@ fn blank_phase<T: Decide + Bounds>(
 fn rim_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
+    rec: &mut FilletNaming,
 ) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
     let op = |what: &'static str| {
@@ -1106,8 +1126,9 @@ fn rim_phase<T: Decide + Bounds>(
     // sphere trim circle crosses, minting the band's inner vertices
     // on EXISTING geometry rather than strutting into the cap. ----
     let chain_edges: Vec<EdgeKey> = rim.chain.links.iter().map(|l| l.edge).collect();
-    // Per plane-walk position: (rim vertex, upper remnant edge).
-    let mut remnants: Vec<(VertexKey, EdgeKey)> = Vec::with_capacity(n);
+    // Per plane-walk position: (rim vertex, upper remnant edge, the
+    // SOURCE meridian it came from).
+    let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
     for &(_, v, e) in &plane_walk {
         let incident = vertex_edges_of(body, v)
             .ok_or_else(|| unsupported("a rim vertex orbit does not resolve"))?;
@@ -1178,7 +1199,12 @@ fn rim_phase<T: Decide + Bounds>(
         } else {
             created.new_edge
         };
-        remnants.push((v, upper));
+        // Birth data: the split vertex and the LOWER (surviving)
+        // piece are both fragments of this source meridian.
+        rec.meridian_splits.push((created.vertex, m));
+        let lower = if upper == m { created.new_edge } else { m };
+        rec.meridian_remnants.push((lower, m));
+        remnants.push((v, upper, m));
     }
 
     // ---- (3) The plane side: struts to the widened trim circle and
@@ -1201,6 +1227,8 @@ fn rim_phase<T: Decide + Bounds>(
             )
             .map_err(op("rim strut mev"))?;
         struts_p.push((v, created.edge));
+        rec.rim_feet.push((created.vertex, v));
+        rec.dead.vertices.push(v);
         strut_hes.push((created.he_minus, fp));
         ta_carriers.push((curve, t0, t1));
     }
@@ -1224,6 +1252,8 @@ fn rim_phase<T: Decide + Bounds>(
             )
             .map_err(op("rim trim mef"))?;
         first_trim.get_or_insert(created.he_plus);
+        rec.rim_trims
+            .push((created.edge, plane_walk[i].2, RimSide::Plane));
         let (curve, t0, t1) = ta_carriers[i].clone();
         described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
     }
@@ -1258,8 +1288,8 @@ fn rim_phase<T: Decide + Bounds>(
         let (v1, v2) = (walk[(pos + k - 1) % k].1, walk[(pos + 2) % k].1);
         // Both run ends must be meridian split vertices (the half-cap
         // discipline): refuse rather than cut blind.
-        if !remnants.iter().any(|(_, m)| edge_touches(body, *m, v1))
-            || !remnants.iter().any(|(_, m)| edge_touches(body, *m, v2))
+        if !remnants.iter().any(|(_, m, _)| edge_touches(body, *m, v1))
+            || !remnants.iter().any(|(_, m, _)| edge_touches(body, *m, v2))
         {
             return Err(unsupported(
                 "a half-cap's rim arc is not flanked by meridian split points",
@@ -1278,6 +1308,7 @@ fn rim_phase<T: Decide + Bounds>(
             .map_err(op("rim sphere trim mef"))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_plane);
         described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+        rec.rim_trims.push((created.edge, e, RimSide::Sphere));
         tb_edges.push(created.edge);
     }
 
@@ -1286,6 +1317,7 @@ fn rim_phase<T: Decide + Bounds>(
         let half = plane_side_half(body, l, rim.plane)
             .ok_or_else(|| unsupported("a rim half resolves"))?;
         body.kef(half).map_err(op("rim kef"))?;
+        rec.dead.edges.push(l.edge);
     }
 
     // ---- (6) Fuse the pieces around the ring: kef every plane strut
@@ -1301,8 +1333,11 @@ fn rim_phase<T: Decide + Bounds>(
     // (the kev leaves it spanning foot → split point with a stale
     // sphere-meridian carrier; nothing validates between here and
     // there). ----
-    let remnant_at = |v: VertexKey| -> Option<EdgeKey> {
-        remnants.iter().find(|(vv, _)| *vv == v).map(|(_, e)| *e)
+    let remnant_at = |v: VertexKey| -> Option<(EdgeKey, EdgeKey)> {
+        remnants
+            .iter()
+            .find(|(vv, _, _)| *vv == v)
+            .map(|(_, e, m)| (*e, *m))
     };
     let torus = &rim.chain.links[0].blend.surface;
     let Surface::Torus {
@@ -1323,7 +1358,7 @@ fn rim_phase<T: Decide + Bounds>(
     for (idx, (v, sp)) in struts_p.iter().enumerate() {
         let (hp, hm) = halves_of(body, *sp).ok_or_else(|| unsupported("a strut resolves"))?;
         let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
-        let mr = remnant_at(*v).ok_or_else(|| unsupported("a remnant resolves"))?;
+        let (mr, msrc) = remnant_at(*v).ok_or_else(|| unsupported("a remnant resolves"))?;
         if fa.is_some() && fa == fb {
             // The closure vertex. Kill the strut from its FOOT side:
             // the rim vertex dies, and its remaining edge — the upper
@@ -1340,6 +1375,9 @@ fn rim_phase<T: Decide + Bounds>(
             // on the trim circle).
             let fp = strut_hes[idx].1;
             let radial = (fp - ca) / sa;
+            // The slit SURVIVES as the band's own double-traversed
+            // meridian: a birth row, not a death.
+            rec.slits.push((mr, msrc));
             described.push((
                 mr,
                 ContactCarrier::SeamArc {
@@ -1366,6 +1404,7 @@ fn rim_phase<T: Decide + Bounds>(
                 shp
             };
             body.kev(dying).map_err(op("rim kev"))?;
+            rec.dead.edges.push(mr);
         }
     }
 
@@ -1386,6 +1425,9 @@ fn rim_phase<T: Decide + Bounds>(
     };
     let band_surface =
         band_surface.ok_or_else(|| unsupported("a rim closed without a slit (kernel bug)"))?;
+    let mut chain_named: Vec<EdgeKey> = chain_edges.clone();
+    chain_named.sort_unstable();
+    rec.bands.push((band_face, chain_named));
     Ok((band_face, band_surface, described))
 }
 

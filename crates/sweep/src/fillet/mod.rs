@@ -56,6 +56,7 @@
 pub mod battery;
 pub mod blend;
 pub mod build;
+pub mod naming;
 pub mod surgery;
 
 use core::fmt;
@@ -66,6 +67,7 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 pub use battery::{BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery};
 pub use blend::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use build::{Filleted, fillet_edges};
+pub use naming::{FilletNaming, RimSide};
 
 /// The one classification funnel of this module (the crate pattern):
 /// delegates to [`geom_core::k_stats::decide`], which names the
