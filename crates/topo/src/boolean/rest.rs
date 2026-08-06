@@ -69,7 +69,7 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_core::{Band, Bounds, Decide, Sign};
+use geom_core::{Band, Bounds, Decide, Length, Sign};
 use slotmap::SecondaryMap;
 
 use super::combine::graft_solid;
@@ -396,7 +396,7 @@ fn enumerate_segments<T: Decide>(
                 }
                 let chord = germs[j].point - germs[i].point;
                 let dist = chord.norm();
-                match decide("bool_join_nearest", dist, band).map_err(escalate)? {
+                match decide("bool_join_nearest", Length::of(dist), band).map_err(escalate)? {
                     Sign::Positive => {}
                     _ => continue,
                 }
@@ -406,15 +406,19 @@ fn enumerate_segments<T: Decide>(
                 // band — class (c)).
                 let f1 = germs[i].dir.dot(chord);
                 let f2 = germs[j].dir.dot(-chord);
-                if decide("bool_join_facing", f1, band).map_err(escalate)? != Sign::Positive
-                    || decide("bool_join_facing", f2, band).map_err(escalate)? != Sign::Positive
+                if decide("bool_join_facing", Length::of(f1), band).map_err(escalate)?
+                    != Sign::Positive
+                    || decide("bool_join_facing", Length::of(f2), band).map_err(escalate)?
+                        != Sign::Positive
                 {
                     continue;
                 }
                 best = match best {
                     None => Some((dist, i, j)),
                     Some((bd, bi, bj)) => {
-                        match decide("bool_join_nearest", dist - bd, band).map_err(escalate)? {
+                        match decide("bool_join_nearest", Length::of(dist - bd), band)
+                            .map_err(escalate)?
+                        {
                             Sign::Negative => Some((dist, i, j)),
                             _ => Some((bd, bi, bj)),
                         }

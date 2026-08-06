@@ -34,7 +34,7 @@
 //!   ray — Zero would mean a crossing at `q` itself (contradicting the
 //!   boundary pre-pass) ⇒ next ray, escalating if persistent.
 
-use geom_core::{Band, Decide, Indeterminate, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Length, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
@@ -176,20 +176,22 @@ pub fn point_in_loop<T: Decide>(
         // poisons on them, `w·e/0`) — measure the point distance
         // exactly; a certified-short-but-nonzero segment is a genuine
         // sliver and escalates like any in-band comparison.
-        let dist = match decide("point_in_loop_boundary", e.norm(), band).map_err(escalate)? {
-            Sign::Zero => w.norm(),
-            _ => {
-                // Foot parameter clamped to the span — evaluation lane
-                // (no comparison): t = clamp(w·e / e·e, 0, 1) via
-                // min/max.
-                let t = (w.dot(e) / len2).max(T::zero()).min(T::one());
-                let foot = a + e * t;
-                (q - foot).norm()
-            }
-        };
+        let dist =
+            match decide("point_in_loop_boundary", Length::norm3(e), band).map_err(escalate)? {
+                Sign::Zero => w.norm(),
+                _ => {
+                    // Foot parameter clamped to the span — evaluation lane
+                    // (no comparison): t = clamp(w·e / e·e, 0, 1) via
+                    // min/max.
+                    let t = (w.dot(e) / len2).max(T::zero()).min(T::one());
+                    let foot = a + e * t;
+                    (q - foot).norm()
+                }
+            };
         // Zero ⇒ on boundary; Positive (Negative unreachable for a
         // distance) ⇒ strictly off this segment.
-        if decide("point_in_loop_boundary", dist, band).map_err(escalate)? == Sign::Zero {
+        if decide("point_in_loop_boundary", Length::of(dist), band).map_err(escalate)? == Sign::Zero
+        {
             return Ok(LoopContainment::OnBoundary);
         }
     }
@@ -215,7 +217,7 @@ pub fn point_in_loop<T: Decide>(
         // (rim-dimensional audit, class (c)); the honest margin is
         // the in-plane displacement the probe direction commands at
         // the loop's own scale.
-        let arm = d_raw.norm() / r.norm() * extent;
+        let arm = Length::levered(d_raw.norm() / r.norm(), extent);
         match decide("point_in_loop_arm", arm, band).map_err(escalate)? {
             Sign::Positive => {}
             _ => continue 'ray, // near-parallel schedule member: skip
@@ -232,7 +234,7 @@ pub fn point_in_loop<T: Decide>(
             xs.push(w.dot(d));
             let y = w.dot(side_axis);
             ys.push(y);
-            match decide("point_in_loop_side", y, band).map_err(escalate)? {
+            match decide("point_in_loop_side", Length::of(y), band).map_err(escalate)? {
                 Sign::Zero => continue 'ray, // endpoint on the ray line
                 s => sides.push(s),
             }
@@ -245,7 +247,7 @@ pub fn point_in_loop<T: Decide>(
                 continue; // no straddle, no crossing
             }
             // Straddling: the crossing's advance along the ray.
-            let advance = (xs[i] * ys[j] - xs[j] * ys[i]) / (ys[j] - ys[i]);
+            let advance = Length::per_boundary(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
             match decide("point_in_loop_advance", advance, band).map_err(escalate)? {
                 Sign::Positive => crossings += 1,
                 Sign::Negative => {}

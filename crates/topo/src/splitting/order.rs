@@ -43,7 +43,7 @@
 //! order): the sort is stable, and the topological neighbor criterion
 //! disambiguates join partners at coincident positions.
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Point3, Sign, Vec3};
+use geom_core::{Band, BandError, Decide, Indeterminate, Length, Point3, Sign, Vec3};
 
 use super::SplitPlane;
 use crate::validate::decide;
@@ -77,7 +77,11 @@ pub(super) fn in_plane_frame<T: Decide>(
     for r in &super::containment::SCHEDULE {
         let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
         let d = r - plane.normal * plane.normal.dot(r);
-        match decide("split_join_frame_arm", d.norm() / r.norm() * arm, band) {
+        match decide(
+            "split_join_frame_arm",
+            Length::levered(d.norm() / r.norm(), arm),
+            band,
+        ) {
             Ok(Sign::Positive) => {
                 let u = d.normalize();
                 return Ok((u, plane.normal.cross(u)));
@@ -115,7 +119,7 @@ pub(super) fn lex_cmp<T: Decide>(
         ("split_join_order_u", wp.dot(frame.0), wq.dot(frame.0)),
         ("split_join_order_v", wp.dot(frame.1), wq.dot(frame.1)),
     ] {
-        match decide(name, a - b, exact)? {
+        match decide(name, Length::of(a - b), exact)? {
             Sign::Negative => return Ok(Ordering::Less),
             Sign::Positive => return Ok(Ordering::Greater),
             Sign::Zero => {}

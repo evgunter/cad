@@ -94,7 +94,7 @@
 //!   the unforced window. Face-interior and convex-corner crossings
 //!   of the same shape succeed exactly.
 
-use geom_core::{Band, Bounds, Decide, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Length, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
@@ -721,7 +721,11 @@ pub(super) fn volume_backstop<T: Decide>(
     // checks off. The skip zone survives, now meaning sub-resolution
     // thickness — which is what it always claimed to mean.)
     let bounded = |v: T, area: T| -> Result<bool, BooleanError> {
-        match decide("volume_backstop_operand", v / area, band) {
+        match decide(
+            "volume_backstop_operand",
+            Length::per_boundary(v, area),
+            band,
+        ) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
             Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
@@ -745,7 +749,7 @@ pub(super) fn volume_backstop<T: Decide>(
                 got: format!("{got:?}"),
                 bound: format!("{bound:?}"),
             };
-            let metered = margin / lever;
+            let metered = Length::per_boundary(margin, lever);
             // Arm 1 — the inequality itself. A sign-certain violation is
             // a violated bound whatever its size, so nothing about ε
             // enters here.
@@ -1302,7 +1306,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         u_ref,
                     }) => {
                         let s = (center - origin).dot(normal);
-                        match decide("bool_sphere_extent_gap", radius - s.abs(), band)
+                        match decide("bool_sphere_extent_gap", Length::of(radius - s.abs()), band)
                             .map_err(esc)?
                         {
                             // Clear of the whole carrier plane.
@@ -1444,8 +1448,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         ..
                     }) => {
                         let d = (c2 - center).norm();
-                        match decide("bool_sphere_sphere_gap", d - (radius + r2), band)
-                            .map_err(esc)?
+                        match decide(
+                            "bool_sphere_sphere_gap",
+                            Length::of(d - (radius + r2)),
+                            band,
+                        )
+                        .map_err(esc)?
                         {
                             // Definitely separated.
                             Sign::Positive => {}
@@ -1456,8 +1464,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 // seam frontier.
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
-                                match decide("bool_sphere_sphere_nested", big - (d + small), band)
-                                    .map_err(esc)?
+                                match decide(
+                                    "bool_sphere_sphere_nested",
+                                    Length::of(big - (d + small)),
+                                    band,
+                                )
+                                .map_err(esc)?
                                 {
                                     Sign::Positive => {}
                                     Sign::Zero | Sign::Negative => {
@@ -1519,7 +1531,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
-                        align.cross(n).norm() * radius,
+                        Length::levered(align.cross(n).norm(), radius),
                         band,
                     )
                     .map_err(esc)?
@@ -1588,8 +1600,12 @@ fn apply_recuts<T: Decide + Bounds>(
             // layer must have seen, so it refuses loudly instead.
             let cross = r.axis.cross(r.align);
             let sin = cross.norm();
-            match decide("bool_sphere_recut_align", sin * r.radius, band)
-                .map_err(|diag| BooleanError::Escalated { diag })?
+            match decide(
+                "bool_sphere_recut_align",
+                Length::levered(sin, r.radius),
+                band,
+            )
+            .map_err(|diag| BooleanError::Escalated { diag })?
             {
                 Sign::Positive | Sign::Negative => {}
                 Sign::Zero => {

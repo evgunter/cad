@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Length, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -177,7 +177,7 @@ fn band() -> Result<Band, NodeErrorKind> {
 /// Normalizes a direction-valued vector; decided-zero length refuses,
 /// in-band indeterminacy escalates (all through the one door).
 fn unit<T: Decide>(v: Vec3<T>, role: &'static str) -> Result<Vec3<T>, NodeErrorKind> {
-    match decide("eval_direction_norm", v.norm(), band()?) {
+    match decide("eval_direction_norm", Length::norm3(v), band()?) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
         Err(source) => Err(NodeErrorKind::Escalated {
@@ -298,7 +298,7 @@ fn wire_revolve<T: Decide>(
         ("revolve_axis_origin_in_plane", rel.dot(n)),
         ("revolve_axis_dir_in_plane", dir.dot(n)),
     ] {
-        match decide(name, margin, b) {
+        match decide(name, Length::of(margin), b) {
             Ok(Sign::Zero) => {}
             Ok(_) => return Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
             Err(source) => {
@@ -319,7 +319,16 @@ fn wire_revolve<T: Decide>(
     // rules on it (out-of-range partials refuse loudly there).
     let angle = need_scalar(vals, SlotId::RevolveAngle)?;
     let abs_angle = angle.max(-angle);
-    let revolution = match decide("revolve_full_vs_partial", abs_angle - T::tau(), b) {
+    // Ledger row F14 (found by the clause-(i) migration): |θ| − τ is
+    // RADIANS against the linear band — dimensionless; the honest
+    // lever (the profile's radial extent) lives kernel-side. Flagged,
+    // not cast.
+    let revolution = match geom_core::k_stats::decide_flagged(
+        "revolve_full_vs_partial",
+        abs_angle - T::tau(),
+        b,
+        "F14",
+    ) {
         Ok(Sign::Zero) => Revolution::Full,
         Ok(_) => Revolution::Partial(angle),
         Err(source) => {

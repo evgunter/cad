@@ -904,8 +904,13 @@ applied to error handling. Five commitments:
    is `docs/predicate-dimension-audit.md` (the audited family is
    already clean by measurement; F12's expression-layer row is the
    first out-of-family site the newtype would catch at compile
-   time). *Awaits Evan's ratification; a 👍 on the design PR flips
-   this PROPOSED → ratified with citation.*
+   time). *Clause (i) is EXECUTED (the margin-migrate unit):
+   `geom_core::k_stats::decide` takes `Length<T>` by signature, the
+   blessed doors live beside `Band` in `geom-core::predicate`, and
+   the ledger's flagged rows ride the row-keyed
+   `k_stats::decide_flagged` finding lane — visible typed debt, not
+   casts (there is no raw construction door). K-telemetry byte
+   identity over the probe census is the executed acceptance.*
    **The tessellation criterion is DISTANCE-ONLY (ruled in session
    2026-08-02/03, Evan + orchestrator concur; RATIFIED at the M5 PR
    14 exit sweep — Evan, PR #169 comment 5171303851,

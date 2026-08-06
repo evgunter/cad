@@ -28,6 +28,27 @@ of F6 (M6-3, #192); F3 and F4 (the F3+F4 dimensional unit — F3 was the
 tree's last funnel bypass, so predicate-name attribution in the K
 telemetry is now complete).
 
+**Clause-(i) migration (the margin dimensional convention's typed
+seam — executed by the margin-migrate unit).**
+`geom_core::k_stats::decide` now takes a `Length<T>` by signature;
+every call site in the workspace constructs its margin through a
+blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
+`norm3`+`norm2`+`rooted` / `metered` / `per_boundary`), and each row's
+"comparand" column is the door's justification (out-of-ledger crates —
+profile, sweep, editor-core's eval/naming, geom-curves — argue their
+doors inline; their comparands are the same length shapes). Rows whose
+comparand this ledger FLAGS as not-a-length are carried through the
+seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
+— the finding lane: no `Length` is constructed, the row id is a
+compile-time argument at the site, and grepping `decide_flagged`
+enumerates the clause-(i) debt exactly (F2 ×4, F6 ×3 — the fitted/iso
+lane meters and the fitted lane's whole-chart azimuth arm, F7 ×1,
+F10 ×7 rigidity residuals through one loop, F13 ×1, F14 ×1). The
+recorded margin stream is bit-identical by construction (each door
+performs exactly the operation the bare site performed); the
+probe-census diff row is the executed proof. F12 stays OUTSIDE the
+seam by its unchanged disposition (below).
+
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
 `Circle`/`Ellipse` parameters are radians with radii/semi-axes in m;
@@ -76,6 +97,12 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
 | pcurve_cache.rs:1759–1829 | pcurve_sphere_chart_* | m-scaled coefficients / rooted | m | OK |
+| pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit) | m | OK (metered door; added by the clause-(i) migration) |
+| pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m) | m | OK (added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (per_boundary door; added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
+| pcurve_cache.rs (chart derivation) | pcurve_chart_azimuth_frame / sphere_chart_pole_frame / polar & meridional rates | metre projections/norms; rate data metered per the site derivations | m | OK (note N5 family; added by the clause-(i) migration) |
 | props/curved.rs:145/150 | props_rim_axis_parallel / center_on_axis | sin×r_c; perpendicular offset | m | OK |
 | props/curved.rs:208 | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (this unit) |
 | props/curved.rs:211–212 | props_rim_level_group (Unit) | Δ(sin,cos) × arm | m | OK (note N1) |
@@ -138,6 +165,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
 | pcurves.rs:508–717 | pcurve_loop_continuity / closure(_height) | Δu(rad)×azimuth_arm; Δv (m on cylinder charts) | m | OK today; FLAG F6 (non-cylinder fallback arm = 1) |
+| pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | transform.rs:155 | transform_rigid_trans_finite_* | t·0 poison probe (0 or NaN by construction) | — | OK |
@@ -329,6 +357,24 @@ Flagged, NOT fixed here (dispositions):
 - **F11** `tangent_sector_osculation` (rules.rs:174): sagitta model
   κ·L²/2 metered at the WHOLE-FACE extent, squared, and invalid for
   κ·L ≳ 1 — over-refusal direction. Arm-policy question; own unit.
+- **F13** (added by the clause-(i) migration)
+  `geom-brep/pcurve_cache.rs`, the cone chart's ruling lane: the nappe
+  fallback datum `hs = dir·axis` is a **cosine** (the line's direction
+  is unit), classified against the metre band when the anchor height
+  `h0` is coincident-with-zero. The primary datum `h0 = w·axis` IS a
+  length (`of`); the fallback is dimensionless — the N5
+  branch-selection family (it picks a nappe, and the Zero arm refuses
+  typed). Carried as `decide_flagged(.., "F13")`; the honest lever (a
+  slant/extent datum) is a design question for the
+  structure-selection-funnel conversation N5 banks.
+- **F14** (added by the clause-(i) migration)
+  `editor-core/eval/wire.rs` `revolve_full_vs_partial`: `|θ| − τ` is
+  **radians** against the linear band — the full-circle coincidence
+  check runs in the editor before the kernel's own metered
+  `revolve_angle`/`revolve_angle_headroom` gates (which lever at the
+  profile's radial extent, correctly). The honest lever lives
+  kernel-side; duplicating it in the editor is a design question, not
+  a same-day fix. Carried as `decide_flagged(.., "F14")`.
 - **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
   `editor-core/src/expr.rs:656`: the expression evaluator's door-2
   finiteness probe is a shipped raw `sign_within` — its own comment
@@ -347,7 +393,16 @@ Flagged, NOT fixed here (dispositions):
   for it and cost nothing. Deferred to whoever owns the editor layer —
   NOT fixed here, because a K-telemetry row for the expression
   evaluator is a scope question for that crate, not a consequence of
-  this audit.
+  this audit. **Clause-(i) migration note:** re-examined against the
+  door set — no door fits, by the row's own argument: the operand is
+  unit-erased at the expression boundary (GQ5), so `value · 0` has no
+  honest length reading, and wrapping it would launder exactly what
+  this row records. The site stays a raw `sign_within` outside the
+  typed seam (it is not a `decide` call), doubly visible now that the
+  seam admits only `Length<T>`. The attribution hole stands as
+  documented; the funnel routing (which would also push editor verdict
+  rows into the N5 verdict-log channel) remains the editor-layer
+  owner's scope call.
 
 Notes (verified honest, kept for the design conversation):
 

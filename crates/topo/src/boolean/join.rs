@@ -105,7 +105,7 @@
 //! boolean intersection polygons are in general non-planar (§15.7);
 //! degenerate results are netted at the component stage instead.
 
-use geom_core::{Band, Decide};
+use geom_core::{Band, Decide, Length};
 use slotmap::SecondaryMap;
 
 use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
@@ -572,7 +572,7 @@ fn find_match<T: Decide>(
                     let chord = p_e - p_c;
                     let dist = chord.norm();
                     let escalate = |diag| BooleanError::Escalated { diag };
-                    match decide("bool_join_nearest", dist, band).map_err(escalate)? {
+                    match decide("bool_join_nearest", Length::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge
                     }
@@ -608,7 +608,9 @@ fn find_match<T: Decide>(
                     best = match best {
                         None => Some((dist, m)),
                         Some((bd, bm)) => {
-                            match decide("bool_join_nearest", dist - bd, band).map_err(escalate)? {
+                            match decide("bool_join_nearest", Length::of(dist - bd), band)
+                                .map_err(escalate)?
+                            {
                                 Sign::Negative => Some((dist, m)),
                                 _ => Some((bd, bm)),
                             }
@@ -743,15 +745,17 @@ fn germs_face_each_other<T: Decide>(
             let f1 = g1.dir.dot(chord);
             let f2 = g2.dir.dot(-chord);
             Ok(
-                decide("bool_join_facing", f1, band).map_err(escalate)? == Sign::Positive
-                    && decide("bool_join_facing", f2, band).map_err(escalate)? == Sign::Positive,
+                decide("bool_join_facing", Length::of(f1), band).map_err(escalate)?
+                    == Sign::Positive
+                    && decide("bool_join_facing", Length::of(f2), band).map_err(escalate)?
+                        == Sign::Positive,
             )
         }
         Some((center, axis)) => {
             let s1 = axis.dot((p1 - center).cross(g1.dir));
             let s2 = axis.dot((p2 - center).cross(g2.dir));
-            let d1 = decide("bool_join_arc_facing", s1, band).map_err(escalate)?;
-            let d2 = decide("bool_join_arc_facing", s2, band).map_err(escalate)?;
+            let d1 = decide("bool_join_arc_facing", Length::of(s1), band).map_err(escalate)?;
+            let d2 = decide("bool_join_arc_facing", Length::of(s2), band).map_err(escalate)?;
             match (d1, d2) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => Ok(true),
                 (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative) => Ok(false),
@@ -808,7 +812,7 @@ fn loose_partners<T: Decide>(
             let p2 = point_of(g2.he)?;
             let chord = p2 - p;
             let dist = chord.norm();
-            match decide("bool_join_nearest", dist, band).map_err(escalate)? {
+            match decide("bool_join_nearest", Length::of(dist), band).map_err(escalate)? {
                 Sign::Positive => {}
                 _ => continue,
             }
@@ -822,7 +826,9 @@ fn loose_partners<T: Decide>(
             best = match best {
                 None => Some((dist, (j, t))),
                 Some((bd, bm)) => {
-                    match decide("bool_join_nearest", dist - bd, band).map_err(escalate)? {
+                    match decide("bool_join_nearest", Length::of(dist - bd), band)
+                        .map_err(escalate)?
+                    {
                         Sign::Negative => Some((dist, (j, t))),
                         _ => Some((bd, bm)),
                     }
@@ -1091,7 +1097,7 @@ fn ring_run_ccw<T: Decide>(
     // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
     match decide(
         "bool_ring_run_winding",
-        normal.dot(newell) / perimeter,
+        Length::per_boundary(normal.dot(newell), perimeter),
         band,
     )
     .map_err(escalate)?
