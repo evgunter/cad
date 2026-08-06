@@ -138,6 +138,8 @@ mod review_m5_pr10_sweep_node;
 mod review_m5_pr1_e2e_interval;
 #[path = "review_m5_pr9_doc_probe.rs"]
 mod review_m5_pr9_doc_probe;
+#[path = "review_m6_5_pr2_probes.rs"]
+mod review_m6_5_pr2_probes;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
