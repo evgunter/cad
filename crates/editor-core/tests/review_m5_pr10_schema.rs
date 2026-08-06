@@ -23,12 +23,14 @@ fn review_v1_refuses_with_the_exact_message() {
         err,
         PersistError::SchemaTooOld {
             found: 1,
-            supported: 2,
-            missing: 1
+            missing: 1,
+            ..
         }
     ));
     assert!(
-        msg.contains("schema v1 is older than this build reads (supported v2)"),
+        msg.contains(&format!(
+            "schema v1 is older than this build reads (supported v{SCHEMA_VERSION})"
+        )),
         "{msg}"
     );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
@@ -44,15 +46,16 @@ fn review_version_zero_refuses() {
     assert!(matches!(err, PersistError::UnknownSchema { found: 0, .. }));
 }
 
-/// Version 3 (too new): UnknownSchema naming both versions, never
-/// SchemaTooOld, never a body parse.
+/// One past the live version (too new): UnknownSchema naming both
+/// versions, never SchemaTooOld, never a body parse.
 #[test]
 fn review_version_three_is_too_new_even_with_garbage_body() {
-    let text = "schema: 3\n%%% not json %%%\n";
-    let err = load(text).expect_err("v3 must refuse");
+    let next = u64::from(SCHEMA_VERSION) + 1;
+    let text = format!("schema: {next}\n%%% not json %%%\n");
+    let err = load(&text).expect_err("a too-new schema must refuse");
     assert!(
-        matches!(err, PersistError::UnknownSchema { found: 3, newest }
-            if newest == SCHEMA_VERSION),
+        matches!(err, PersistError::UnknownSchema { found, newest }
+            if found == next && newest == SCHEMA_VERSION),
         "{err:?}"
     );
 }
@@ -101,29 +104,38 @@ fn review_v1_header_with_broken_body_is_too_old() {
     ));
 }
 
-/// The CONVERSE: a v2 file with a broken body gets the BODY
+/// The CONVERSE: a LIVE-version file with a broken body gets the BODY
 /// diagnostic (Parse), not a version arm.
 #[test]
 fn review_v2_header_with_broken_body_gets_the_body_diagnostic() {
-    let text = "schema: 2\n{\"snapshot\": [1,2,\n";
+    let text = format!("schema: {SCHEMA_VERSION}\n{{\"snapshot\": [1,2,\n");
+    let text = text.as_str();
     let err = load(text).expect_err("must refuse");
     assert!(matches!(err, PersistError::Parse { .. }), "{err:?}");
 }
 
-/// **The break's honest edge, pinned.** A v2 header over the v1
-/// golden's BODY loads clean — because v1 → v2 changed the recipe
-/// VOCABULARY, not the wire format, so a v1 body is valid v2 JSON.
+/// **The break's honest edge, pinned.** A live-version header over
+/// the v1 golden's BODY loads clean — because neither break changed
+/// the wire FORMAT, only the recipe vocabulary, so an old body is
+/// valid JSON under today's types.
 ///
 /// That is inherent to a version break with no format change, and no
 /// door can close it: the header is the only place the version is
-/// recorded, so a hand-edited header IS a v2 file by definition. It is
-/// not a hole in the version door — the door refuses every file that
-/// still SAYS v1 — and it costs nothing, because a v1 body carries no
-/// construct v2 rejects. Stated so nobody reads the break as stronger
-/// than it is.
+/// recorded, so a hand-edited header IS a live file by definition. It
+/// is not a hole in the version door — the door refuses every file
+/// that still SAYS its old version — and it costs nothing here,
+/// because the v1/v2 goldens carry no construct today rejects. Stated
+/// so nobody reads the break as stronger than it is.
+///
+/// M6-5 sharpens the edge without closing it: a v2 body that DOES
+/// carry a `Fillet` node fails under a v3 header, because the node
+/// now requires `selection` and `deny_unknown_fields` admits no
+/// default. So the hand-edit trick works exactly where the old body
+/// happens to contain nothing the new vocabulary changed — which is a
+/// statement about that file, not about the door.
 #[test]
 fn review_a_hand_edited_v2_header_over_a_v1_body_loads() {
-    let text = format!("schema: 2\n{}", body_of(V1));
+    let text = format!("schema: {SCHEMA_VERSION}\n{}", body_of(V1));
     match load(&text) {
         Ok(_) => {}
         Err(PersistError::ToleranceConflict { .. }) => {
@@ -131,8 +143,8 @@ fn review_a_hand_edited_v2_header_over_a_v1_body_loads() {
             // and replayed, which is the whole claim here.
         }
         Err(e) => panic!(
-            "a v1 body under a v2 header no longer loads ({e:?}) — the format DID change: \
-             say so in the schema docs and give v2 a real migration story"
+            "a v1 body under a live header no longer loads ({e:?}) — the format DID change: \
+             say so in the schema docs and give the bump a real migration story"
         ),
     }
 }

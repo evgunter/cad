@@ -240,22 +240,44 @@ pub enum Node<P> {
         /// must satisfy `1 ≤ degree ≤ stations − 1`.
         v_degree: Expr,
     },
-    /// Constant-radius rolling-ball fillets on EVERY edge of `target`
-    /// (M5 PR 12). Edge selection is deliberately absent: the
-    /// assembly's front door is "every edge of a convex, planar-faced,
-    /// trivalent-vertex polyhedron", so a whole-body request needs no
-    /// stable edge names and cannot go stale under a parameter edit.
+    /// Constant-radius rolling-ball fillets on a SELECTION of
+    /// `target`'s edges (M5 PR 12; the selection is M6-5).
     ///
     /// The op is [`sweep::fillet::build::fillet_edges`] over the
-    /// target body's whole edge arena; anything outside that front
-    /// door is a typed refusal
+    /// resolved selection; anything outside its two assembly front
+    /// doors is a typed refusal
     /// ([`crate::eval::NodeErrorKind::Fillet`]), never a silent
     /// pass-through of the input body.
+    ///
+    /// # The selection FREEZES (ruled, #217)
+    ///
+    /// `selection` is a set of stable names and nothing else — there
+    /// is no "every edge" variant. A click-selection is a
+    /// **commitment**: an upstream edit that adds edges does NOT
+    /// extend it, and an upstream edit that removes a selected edge is
+    /// a typed refusal, not a silent shrink. The growth path is
+    /// [`crate::DocEdit::Rebind`] — an explicit edit, recorded in the
+    /// log like any other. To select everything as of *now*, call
+    /// [`all_edges`](crate::all_edges) and store what it returns; the
+    /// result is a frozen set with the same semantics, not a live
+    /// query.
+    ///
+    /// # Canonical form
+    ///
+    /// The set is stored sorted and deduplicated, so two recipes that
+    /// select the same edges are bit-identical (the content key reads
+    /// the vector in order). [`Node::fillet`] canonicalizes; a loaded
+    /// snapshot is ASSERTED canonical rather than repaired
+    /// ([`crate::persist`]'s strict door — a non-canonical file is a
+    /// corrupt file).
     Fillet {
-        /// The body every edge of which is blended.
+        /// The body whose edges are blended.
         target: RecipeNodeId,
         /// The constant blend radius ([`SlotId::Radius`]).
         radius: Expr,
+        /// The edges to blend, by stable name — canonical (sorted,
+        /// deduplicated), frozen at authoring time.
+        selection: Vec<StableName>,
     },
     /// Split a target body by a tool.
     Split {
@@ -524,7 +546,24 @@ impl<P> Node<P> {
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         match self {
             Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a.node, b.node]).collect(),
+            // The fillet selection references names the same way, and
+            // carries the same N5 carve-out (M6-5).
+            Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
             _ => Vec::new(),
+        }
+    }
+
+    /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
+    /// deduplicated) — the one construction door, so a recipe's bits
+    /// do not depend on the order a user clicked in.
+    pub fn fillet(target: RecipeNodeId, radius: Expr, selection: Vec<StableName>) -> Self {
+        let mut selection = selection;
+        selection.sort();
+        selection.dedup();
+        Node::Fillet {
+            target,
+            radius,
+            selection,
         }
     }
 }

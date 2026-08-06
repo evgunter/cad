@@ -152,7 +152,10 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
 fn a_loft_document_round_trips_bit_identically_at_schema_v2() {
     let (doc, ..) = loft_doc();
     let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text.lines().next(), Some("schema: 2"));
+    assert_eq!(
+        text.lines().next().map(str::to_owned),
+        Some(format!("schema: {}", editor_core::SCHEMA_VERSION))
+    );
     match load(&text) {
         Ok(loaded) => {
             assert!(loaded.snapshot.bit_eq(&doc), "loft snapshot drifted");
@@ -185,7 +188,10 @@ fn a_sweep_document_round_trips_bit_identically_at_schema_v2() {
         },
     );
     let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text.lines().next(), Some("schema: 2"));
+    assert_eq!(
+        text.lines().next().map(str::to_owned),
+        Some(format!("schema: {}", editor_core::SCHEMA_VERSION))
+    );
     match load(&text) {
         Ok(loaded) => {
             assert!(loaded.snapshot.bit_eq(&doc), "sweep snapshot drifted");

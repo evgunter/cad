@@ -417,6 +417,30 @@ pub enum NodeErrorKind {
         /// Whether the names resolved in different operands.
         cross_operand: bool,
     },
+    /// A `Node::Fillet` selection name failed to resolve through the
+    /// TARGET's name table (M6-5) — the same N5 typed trio as
+    /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
+    /// selection is a commitment, so a name that no longer resolves
+    /// refuses loudly instead of silently shrinking the set.
+    FilletSelectionResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A `Node::Fillet` selection named something that is not an EDGE
+    /// of the target (a face, a vertex, the body). The op blends
+    /// edges; a mis-kinded selection is a recipe bug, refused rather
+    /// than reinterpreted.
+    FilletSelectionKind {
+        /// The offending name.
+        name: Box<crate::names::StableName>,
+        /// What it actually denotes.
+        found: crate::names::EntityKind,
+    },
+    /// A `Node::Fillet` selection is EMPTY. A fillet of nothing is not
+    /// the identity — it is an unfinished recipe, refused rather than
+    /// passed through (the fail-loud voice: no op silently returns its
+    /// input).
+    FilletSelectionEmpty,
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -878,6 +902,16 @@ where
                 feed_stable_name(&mut h, b);
             }
         }
+        // The fillet SELECTION is recipe payload, not a slot: two
+        // fillets of the same radius on different edges are different
+        // nodes (M6-5). Canonical order (`Node::fillet`) is what makes
+        // this a set hash rather than an order hash.
+        Node::Fillet { selection, .. } => {
+            h.write_u64(selection.len() as u64);
+            for n in selection {
+                feed_stable_name(&mut h, n);
+            }
+        }
         _ => {}
     }
     // Evaluated slot values, in the node's deterministic slot order.
@@ -959,6 +993,10 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
     let half = |s: SplitHalf| match s {
         SplitHalf::Above => 1u64,
         SplitHalf::Below => 2,
+    };
+    let rim = |s: crate::names::RimSupport| match s {
+        crate::names::RimSupport::Plane => 1u64,
+        crate::names::RimSupport::Curved => 2,
     };
     let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
         h.write_u64(u64::from(e.loop_index));
@@ -1107,6 +1145,63 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(26);
             h.write_u64(u64::from(*i));
             feed_stable_name(h, of);
+        }
+        // The fillet vocabulary (M6-5). Tags continue the one shared
+        // sequence; they are part of the key format version.
+        RoleSeg::FromTarget(n) => {
+            h.write_tag(28);
+            feed_stable_name(h, n);
+        }
+        RoleSeg::BlendFace(n) => {
+            h.write_tag(29);
+            feed_stable_name(h, n);
+        }
+        RoleSeg::CornerFace(n) => {
+            h.write_tag(30);
+            feed_stable_name(h, n);
+        }
+        RoleSeg::TrimEdge { edge, support } => {
+            h.write_tag(31);
+            feed_stable_name(h, edge);
+            feed_stable_name(h, support);
+        }
+        RoleSeg::FootVertex { vertex, support } => {
+            h.write_tag(32);
+            feed_stable_name(h, vertex);
+            feed_stable_name(h, support);
+        }
+        RoleSeg::CornerArc { vertex, edge } => {
+            h.write_tag(33);
+            feed_stable_name(h, vertex);
+            feed_stable_name(h, edge);
+        }
+        RoleSeg::BandFace(names) => {
+            h.write_tag(34);
+            h.write_u64(names.len() as u64);
+            for n in names {
+                feed_stable_name(h, n);
+            }
+        }
+        RoleSeg::BandTrim { edge, support } => {
+            h.write_tag(35);
+            feed_stable_name(h, edge);
+            h.write_u64(rim(*support));
+        }
+        RoleSeg::BandFoot(n) => {
+            h.write_tag(36);
+            feed_stable_name(h, n);
+        }
+        RoleSeg::BandCross(n) => {
+            h.write_tag(37);
+            feed_stable_name(h, n);
+        }
+        RoleSeg::BandCut(n) => {
+            h.write_tag(38);
+            feed_stable_name(h, n);
+        }
+        RoleSeg::BandSlit(n) => {
+            h.write_tag(39);
+            feed_stable_name(h, n);
         }
     }
 }

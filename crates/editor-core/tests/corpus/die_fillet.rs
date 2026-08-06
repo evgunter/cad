@@ -67,7 +67,7 @@ use editor_core::{DocEdit, Node, ProfileDesc, SlotId};
 use geom_core::Point2;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
-use super::super::fixture::len;
+use super::super::fixture::{len, prism_edges};
 use super::{CorpusDoc, Recorder};
 
 /// The blank's side, meters (dyadic).
@@ -99,10 +99,14 @@ pub fn document() -> CorpusDoc {
         profile,
         distance: len(L),
     });
-    let blank = r.insert(Node::Fillet {
-        target: cube,
-        radius: len(R),
-    });
+    // Every edge of the cube, AUTHORED (M6-5): the whole-body
+    // assembly door is still what runs — the selection is exactly the
+    // edge set — but the recipe now STATES that set instead of
+    // meaning "whatever edges exist". The bump stretches the cube
+    // without minting or retiring an edge, so the frozen selection
+    // still resolves, which is what makes this document a covariance
+    // row as well as a shape row.
+    let blank = r.insert(Node::fillet(cube, len(R), prism_edges(cube, 4)));
 
     CorpusDoc {
         name: "die_fillet",

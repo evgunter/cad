@@ -49,7 +49,9 @@ where
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals),
         Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals),
-        Node::Fillet { target, .. } => wire_fillet(id, *target, results, vals),
+        Node::Fillet {
+            target, selection, ..
+        } => wire_fillet(id, *target, selection, doc, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
             wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
@@ -357,48 +359,145 @@ fn wire_revolve<T: Decide>(
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
 
-/// The constant-radius fillet node (M5 PR 12).
+/// **Constant-radius rolling-ball fillets on a SELECTION of the
+/// target's edges** (M5 PR 12; the selection is M6-5).
 ///
-/// The recipe carries NO edge selection (see [`Node::Fillet`]): the op's
-/// front door is "every edge of a convex, planar-faced,
-/// trivalent-vertex polyhedron", so the request is the target body's
-/// whole edge arena, enumerated in arena order — the deterministic
-/// order every derived list in this kernel inherits (D9).
+/// The selection resolves through the TARGET's name table into edge
+/// keys. Resolution failures are the N5 typed trio VERBATIM
+/// ([`NodeErrorKind::FilletSelectionResolve`]) — a selection is a
+/// commitment (`Node::Fillet`'s freeze semantics), so a name that
+/// stopped resolving refuses loudly rather than shrinking the set.
 ///
-/// Failure is a TYPED refusal ([`NodeErrorKind::Fillet`]) carrying the
-/// kernel's own error unaltered, exactly as the split/boolean arms
-/// carry theirs. The input body is never passed through: a fillet that
-/// did not happen must read as a failed node, not as a silently sharp
-/// solid.
+/// Failure of the op itself is a TYPED refusal
+/// ([`NodeErrorKind::Fillet`]) carrying the kernel's own error
+/// unaltered, exactly as the split/boolean arms carry theirs. The
+/// input body is never passed through: a fillet that did not happen
+/// must read as a failed node, not as a silently sharp solid.
 ///
 /// # Naming
 ///
-/// The node emits the EMPTY table. The blend introduces faces, edges
-/// and vertices that no [`RoleSeg`](crate::names::RoleSeg) vocabulary
-/// describes yet, and `Filleted` carries no birth map to name them
-/// from — so there is nothing to emit honestly, and inventing names by
-/// matching is exactly what N4 forbids. The consequence is loud rather
-/// than silent: every downstream reference into a filleted body fails
-/// to resolve, and an appearance record targeting one is a typed loss.
-/// A fillet naming emitter is banked with the in-place edge-blend
-/// surgery it would name.
+/// The composition-surgery door emits a FULL table
+/// ([`names::name_fillet`], M6-5 PR-1): the surgery hands over
+/// per-entity birth records and the emitter translates them, never
+/// matching geometry.
+///
+/// The WHOLE-BODY door (every edge of a convex, planar-faced,
+/// trivalent-vertex polyhedron) still emits the EMPTY table: its
+/// rebuild mints every face fresh and keeps no birth records, so
+/// there is nothing to emit honestly. The consequence is loud rather
+/// than silent — every downstream reference into such a body fails to
+/// resolve, and an appearance record targeting one is a typed loss.
+/// **M6-5 PR-2 closes this**: birth records in `Plan::assemble`, this
+/// arm retires, and the totality check extends to cover it. Until it
+/// lands, this is an honest interim dead end, named as one.
 fn wire_fillet<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     target: RecipeNodeId,
+    selection: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileDesc>,
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
     let body = body_operand(results, target)?;
     let radius = need_scalar(vals, SlotId::Radius)?;
-    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let edges = resolve_selection(selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
         .map_err(NodeErrorKind::Fillet)?;
+    let table = match &filleted.naming {
+        Some(rec) => names::name_fillet(id, target, &target_table, &filleted.body, rec)
+            .map_err(NodeErrorKind::Naming)?,
+        None => names::empty(),
+    };
     let mut out = filleted.body;
     // The blend's own surfaces/curves/points are minted HERE (D1/N6);
     // the supports' pass-through descriptions keep the source they
     // arrived with.
     stamp_minted(&mut out, id);
-    Ok((ValuePayload::Body(Arc::new(out)), names::empty()))
+    Ok((ValuePayload::Body(Arc::new(out)), table))
+}
+
+/// Resolves a fillet's edge selection against the target's name table
+/// (M6-5). Single-operand, so simpler than
+/// [`resolve_declarations`] — but the refusal vocabulary is the SAME
+/// N5 trio, deliberately: the two sites answer the same question.
+///
+/// The returned keys are in TARGET-ARENA order, not selection order,
+/// so the kernel sees the deterministic order every derived list in
+/// this kernel inherits (D9) regardless of how the recipe sorted.
+fn resolve_selection(
+    selection: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileDesc>,
+    target: &NameTable,
+) -> Result<Vec<topo::EdgeKey>, NodeErrorKind> {
+    use crate::names::{EntityKey, Entry};
+    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+
+    if selection.is_empty() {
+        return Err(NodeErrorKind::FilletSelectionEmpty);
+    }
+    let mut keys = Vec::with_capacity(selection.len());
+    for name in selection {
+        // NodeGone first (ids are never reused; below the mint counter
+        // ⇒ deleted, at/above ⇒ foreign) — resolve_declarations' order,
+        // verbatim.
+        if doc.node(name.node).is_none() {
+            let edit = if name.node.0 < doc.next_id {
+                RecipeEditRef::NodeDeleted { node: name.node }
+            } else {
+                RecipeEditRef::ForeignNode { node: name.node }
+            };
+            return Err(NodeErrorKind::FilletSelectionResolve {
+                error: Box::new(ResolveError::NodeGone {
+                    name: name.clone(),
+                    edit,
+                }),
+            });
+        }
+        let ent = match target.lookup(name) {
+            Some(Entry::Unique(ent)) => *ent,
+            Some(Entry::Tied(ents)) => {
+                return Err(NodeErrorKind::FilletSelectionResolve {
+                    error: Box::new(ResolveError::Ambiguous {
+                        name: name.clone(),
+                        candidates: vec![name.clone()],
+                        tie: TieWitness {
+                            node: name.node,
+                            at: name.clone(),
+                            width: ents.len() as u32,
+                        },
+                    }),
+                });
+            }
+            // Absent from the target's table: Vanished, with the
+            // honest single-run fallback diagnosis (no prior run is
+            // consultable mid-evaluation; `NodeChanged` names the
+            // minting node as the disagreement site, not a claim that
+            // an edit happened).
+            None => {
+                return Err(NodeErrorKind::FilletSelectionResolve {
+                    error: Box::new(ResolveError::Vanished {
+                        name: name.clone(),
+                        diagnosis: Diagnosis::RecipeEdit {
+                            edit: RecipeEditRef::NodeChanged { node: name.node },
+                        },
+                        last_good: None,
+                    }),
+                });
+            }
+        };
+        let EntityKey::Edge(k) = ent.key else {
+            return Err(NodeErrorKind::FilletSelectionKind {
+                name: Box::new(name.clone()),
+                found: ent.key.kind(),
+            });
+        };
+        keys.push(k);
+    }
+    // D9 order; the kernel refuses a repeated edge itself, so a
+    // duplicate that survived canonicalization still fails loudly.
+    keys.sort_unstable();
+    Ok(keys)
 }
 
 fn wire_split<T: Decide>(

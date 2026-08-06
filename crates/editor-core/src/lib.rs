@@ -48,8 +48,8 @@ pub use expr::{
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NameTable, NamingError,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RolePath, RoleSeg, SideVerdict, SplitHalf,
-    StableName,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict,
+    SplitHalf, StableName, all_edges,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use persist::{JointSite, NonFiniteSite, SnapshotError};

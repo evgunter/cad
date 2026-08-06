@@ -215,6 +215,13 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
+    /// A `Node::Fillet` selection is not in canonical form (sorted
+    /// and deduplicated) — a corrupt file, refused rather than
+    /// repaired (M6-5).
+    FilletSelectionNotCanonical {
+        /// The offending fillet node.
+        node: RecipeNodeId,
+    },
     /// An id at or beyond the mint counter appears in the document.
     IdBeyondCounter {
         /// The offending id.
@@ -322,6 +329,22 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
                     check_id(*n)?;
                 }
+            }
+        }
+        // The fillet selection (M6-5): the same name-reference id
+        // check, PLUS the canonical-form assertion. `Node::fillet` is
+        // the only construction door and it canonicalizes, so a
+        // non-canonical selection on the wire is a CORRUPT file — it
+        // is refused, never quietly re-sorted (a repair would change
+        // the node's content key behind the caller's back).
+        if let Node::Fillet { selection, .. } = node {
+            for name in selection {
+                for n in derivation_nodes(name) {
+                    check_id(n)?;
+                }
+            }
+            if selection.windows(2).any(|w| w[0] >= w[1]) {
+                return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
             }
         }
     }

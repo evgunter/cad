@@ -101,9 +101,17 @@ pub use check::{JointSite, NonFiniteSite, SnapshotError};
 /// purpose; the chain machinery ([`migration_step`]) stays, carrying
 /// no steps.
 ///
+/// Version 3 is M6-5's **clean break** on the same terms (ruled by
+/// Evan on #217): [`crate::node::Node::Fillet`] grew a required
+/// `selection` field. A v2 fillet meant "every edge", which the new
+/// vocabulary cannot express as data — the equivalent selection
+/// depends on an evaluation the file does not carry — so there is no
+/// honest default to migrate to and none is invented. A v2 file
+/// refuses TYPED with the regenerate recourse, exactly as v1 does.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like this one.
-pub const SCHEMA_VERSION: u32 = 2;
+/// [`migration_step`] entry, or a ratified break like these two.
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -334,10 +342,11 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// body, so a too-old file's diagnostics name the version problem
 /// rather than whatever the stale body happens to parse as.
 ///
-/// **The table is empty, on purpose** (M5 PR 10 §4): 1 → 2 was a
-/// ratified clean break. The mechanism stays because it costs nothing
-/// and D6.3's forward-only rule is unchanged; a future format change
-/// that is NOT a break adds its `n => Some(step_n)` arm here.
+/// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4) and
+/// 2 → 3 (M6-5, ruled #217) were both ratified clean breaks. The
+/// mechanism stays because it costs nothing and D6.3's forward-only
+/// rule is unchanged; a future format change that is NOT a break adds
+/// its `n => Some(step_n)` arm here.
 fn migration_step(from_version: u32) -> Option<MigrationStep> {
     /// `(from_version, step)` pairs — the whole chain, one line each.
     const TABLE: &[(u32, MigrationStep)] = &[];

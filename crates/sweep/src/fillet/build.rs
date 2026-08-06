@@ -113,6 +113,12 @@ pub struct Filleted<T: Real> {
     /// in first-link-edge order. Empty on the whole-body path, which
     /// admits no closed chains (M6 surgery unit).
     pub band_faces: Vec<FaceKey>,
+    /// **Per-entity birth records** (M6-5), when the door that built
+    /// this body keeps them: `Some` on the composition-surgery path,
+    /// `None` on the whole-body path, whose records land in M6-5
+    /// PR-2. A consumer that needs names refuses typed on `None`
+    /// rather than guessing — the honest interim dead end.
+    pub naming: Option<super::naming::FilletNaming>,
 }
 
 /// **Fillet every edge of a convex, planar-faced, trivalent-vertex
@@ -798,6 +804,9 @@ impl<T: Decide + Bounds> Plan<T> {
             blend_faces: bucket(FaceKind::Blend),
             corner_faces: bucket(FaceKind::Corner),
             band_faces: Vec::new(),
+            // M6-5 PR-2: the whole-body door's birth records. Until
+            // then a naming consumer refuses typed rather than guess.
+            naming: None,
             body,
             solid: seed.solid,
             shell: seed.shell,

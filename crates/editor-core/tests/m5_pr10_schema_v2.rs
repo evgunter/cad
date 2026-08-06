@@ -18,13 +18,10 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 
 /// The pre-break bytes, kept verbatim as the refusal fixture.
 const V1: &str = include_str!("golden/v1_golden.cad");
-/// The regenerated live golden.
+/// The v2 bytes — the live golden when this file was written, kept as
+/// the SECOND refusal fixture since M6-5's 2 → 3 break
+/// (`m6_5_schema_v3.rs` pins that one).
 const V2: &str = include_str!("golden/v2_golden.cad");
-
-#[test]
-fn schema_version_is_two() {
-    assert_eq!(SCHEMA_VERSION, 2);
-}
 
 #[test]
 fn the_checked_in_v1_file_is_really_v1() {
@@ -34,7 +31,9 @@ fn the_checked_in_v1_file_is_really_v1() {
 
 /// The break, demonstrated: a v1 file refuses TYPED at the version
 /// door — naming the version found, the version supported, and the
-/// step that does not exist. Nothing is best-effort loaded.
+/// FIRST step that does not exist (1 → 2, even though 2 → 3 is
+/// missing too: the walk reports the earliest gap, which is the one
+/// the user's file actually hit). Nothing is best-effort loaded.
 #[test]
 fn v1_refuses_too_old() {
     match load(V1) {
