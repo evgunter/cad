@@ -368,28 +368,46 @@ fn a1_inside_out_cone_apex() {
                     topo::validate_geometric(&body),
                     v
                 );
+                panic!("a1ca {label}: an inside-out cone_apex must refuse pre-body (M6-6 rider)");
             }
             Ok(_) => panic!("wireframe"),
             Err(e) => {
                 let s = e.to_string();
                 println!("a1ca {label} refused: {}", &s[..s.len().min(110)]);
+                // PINNED (M6-6): the sense flip refuses with the
+                // orientation-inverted diagnosis, pre-body. (The bound
+                // flip already refused structurally — traversal parity
+                // — before the rider; that arm stays a typed refusal.)
+                if label == "sense" {
+                    assert!(
+                        s.contains("ORIENTATION-INVERTED"),
+                        "sense flip must carry the orientation-inverted diagnosis: {s}"
+                    );
+                }
             }
         }
     }
 }
 
-/// A1: sense-flipped cone_apex — do body senses carry the flip?
+/// A1: sense-flipped cone_apex — the body never exists to carry the
+/// flip: since the M6-6 rider the degenerate-apex normalization
+/// cross-checks the stated sense against the loop's derived winding
+/// (the torus pattern) and refuses PRE-BODY.
 #[test]
 fn a1_cone_apex_flip_senses() {
     let text = fixture("cone_apex").replace(
         "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
         "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
     );
-    let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default()) else {
-        panic!()
-    };
-    let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-    println!("a1cas senses={senses:?}");
+    let err = import_step(&text, &ImportOptions::default())
+        .err()
+        .expect("an inside-out cone_apex must refuse pre-body (M6-6 rider)");
+    let s = err.to_string();
+    println!("a1cas refused: {}", &s[..s.len().min(110)]);
+    assert!(
+        s.contains("ORIENTATION-INVERTED") && s.contains("#17"),
+        "the refusal must name the face and the inversion: {s}"
+    );
 }
 
 /// A1 control: sense-flipped cylinder lateral face (no normalization).
@@ -401,22 +419,19 @@ fn a1_control_cylinder_sense_flip() {
         "#17 = ADVANCED_FACE('',(#18),#45,.F.);",
     );
     assert_ne!(text, orig);
-    match import_step(&text, &ImportOptions::default()) {
-        Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(&body).map(|p| p.volume);
-            let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-            println!(
-                "a1cyl imported t3={:?} vol={:?} senses={senses:?}",
-                topo::validate_geometric(&body),
-                v
-            );
-        }
-        Ok(_) => panic!("wireframe"),
-        Err(e) => {
-            let s = e.to_string();
-            println!("a1cyl refused: {}", &s[..s.len().min(110)]);
-        }
-    }
+    // PINNED (M6-6): the live hole this control found — a flipped
+    // cylinder lateral imported tier-3 GREEN with positive volume —
+    // is closed from both sides: the kernel's check-6 curved arm
+    // refuses the body, and the import rider refuses pre-body.
+    let err = import_step(&text, &ImportOptions::default())
+        .err()
+        .expect("an inside-out cylinder wall must refuse pre-body (M6-6 rider)");
+    let s = err.to_string();
+    println!("a1cyl refused: {}", &s[..s.len().min(110)]);
+    assert!(
+        s.contains("ORIENTATION-INVERTED") && s.contains("#17"),
+        "the refusal must name the face and the inversion: {s}"
+    );
 }
 
 /// A5, **resolved**: an edge whose carrier leaves the coincident plane
