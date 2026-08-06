@@ -27,8 +27,14 @@
 //!   `sweep/tests/m6_loft_body.rs`).
 //! - `nonuniform_loft` —
 //!   `step-export/tests/common/mod.rs::nonuniform_loft()` (#210/#207).
-//! - `swept_elbow` — `step-export/tests/common/mod.rs::swept_elbow()`,
-//!   itself `sweep/tests/m7_skin_integral.rs`'s elbow (#210/#207).
+//! - `s_duct` — the one scene that LEADS the corpus rather than
+//!   citing it (the lily precedent; #218 review): the corpus's sweep
+//!   constant, `step-export/tests/common/mod.rs::swept_elbow()`
+//!   (`sweep/tests/m7_skin_integral.rs`'s quarter-arc elbow), is
+//!   revolve-expressible, so the CELL carries an S path no revolve
+//!   can orbit and stands as the fixture candidate for the next
+//!   corpus fold. The elbow remains the tested constant in the mesh
+//!   and sweep suites.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -162,7 +168,7 @@ pub fn narration() {
 
     println!(
         "   the loft/sweep BODIES are scenes now (frontier fully retired): \
-         loft_prism, nonuniform_loft, swept_elbow — see the stops below"
+         loft_prism, nonuniform_loft, s_duct — see the stops below"
     );
 }
 
@@ -191,9 +197,10 @@ const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-
 /// corners flare by ±d, d = 0.375 (`common/mod.rs::PRISM_TRAPEZOID`).
 const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 
-/// The elbow's path radius (`m7_skin_integral.rs::ELBOW_R`).
-const ELBOW_R: f64 = 3.0;
-/// The elbow's profile half-width (`m7_skin_integral.rs::ELBOW_H`).
+/// The S-duct's arc radius (scene-local; the corpus elbow's is
+/// `m7_skin_integral.rs::ELBOW_R` = 3 — see the S-path note below).
+const S_R: f64 = 2.0;
+/// The profile half-width (`m7_skin_integral.rs::ELBOW_H`, shared).
 const ELBOW_H: f64 = 0.25;
 
 /// Section placements: pure translations up the world z-axis
@@ -219,13 +226,20 @@ fn prism_sections() -> Vec<SectionSegments> {
 /// only the section spacing differs, so they share a camera and read
 /// as a pair on the sheet), then the curved-path sweep.
 pub fn stops() -> Vec<Stop> {
-    // Both lofts are 2 m and 3 m tall columns flaring at one height;
-    // the camera looks at the flared −y wall (normal −y, the one the
-    // ±0.375 corners move) across one side wall, so the flare reads
-    // as a bulge in the vertical silhouette rather than head-on.
+    // Both lofts are 2 m and 3 m tall columns flaring in x at one
+    // height, so the story-bearing silhouette is the xz PROFILE: a
+    // near-face-on ±y camera puts the ±x walls edge-on and the flare
+    // becomes a bulge in the outline itself — the prism's peak at
+    // mid-height, the non-uniform's at one third with its long taper —
+    // rather than a shading difference (#218 review: the pair must be
+    // distinct in profile, not shading). 10° of azimuth and elevation
+    // keep a sliver of side wall and top for depth; cos 10° ≈ 0.985,
+    // so the profile stays essentially unforeshortened. Shared by the
+    // pair on purpose (the minimal-pair principle: same camera makes
+    // the difference attributable to the geometry).
     let loft_view = || View {
-        elev: 18.0,
-        azim: -55.0,
+        elev: 10.0,
+        azim: -80.0,
         up: 'z',
     };
 
@@ -236,28 +250,35 @@ pub fn stops() -> Vec<Stop> {
         .expect("the non-uniform loft builds")
         .body;
 
-    // `common/mod.rs::swept_elbow`, constant for constant. The sketch
-    // arc runs (0,0) → (R,R) with bulge = tan(π/8) — a 90° turn; the
-    // placement rotates the sketch plane by −π/2 about the world
-    // y-axis, sending sketch (x, y) to world (0, y, x). The path
-    // therefore leaves the origin with tangent +z and arrives at
-    // (0, 3, 3) with tangent +y, and the identity-placed square
-    // profile (world XY plane) is already normal to its start.
-    let path = segment_curve(
-        0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(ELBOW_R, ELBOW_R),
-            bulge: (core::f64::consts::PI / 8.0).tan(),
-        },
-        Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            -core::f64::consts::FRAC_PI_2,
-        ),
-    )
-    .expect("the elbow path is a well-formed quarter arc");
-    let elbow = sweep::sweep_body::<f64>(
+    // The S path (#218 review): the corpus's quarter-arc elbow is
+    // revolve-expressible — a square swept along ONE planar arc is a
+    // partial revolve's orbit, so its cell demonstrated nothing a
+    // revolve couldn't and sat next to the (deliberately torus-class)
+    // tube cell looking like its sibling. A single-axis revolve can
+    // only bend one way; this path bends BOTH ways: two opposed
+    // quarter arcs of radius R in the world x = 0 plane, sampled at 17
+    // exact points and interpolated at degree 3 (the path is the
+    // cubic interpolant through the S — the sweep machinery consumes
+    // any NurbsCurve3, #210). Tangent runs +z → +y → +z; never
+    // reversed, so the path-following frame is total. The QUARTER-ARC
+    // elbow stays the corpus/suite constant
+    // (step-export/tests/common/mod.rs::swept_elbow,
+    // sweep/tests/m7_skin_integral.rs, mesh/tests/m7_nurbs_trimmed.rs);
+    // this scene LEADS the corpus (the lily precedent) — the S sweep
+    // is a fixture CANDIDATE for the next corpus fold.
+    let s_points: Vec<Point3<f64>> = (0..=8)
+        .map(|k| {
+            let th = core::f64::consts::FRAC_PI_2 * f64::from(k) / 8.0;
+            Point3::new(0.0, S_R * (1.0 - th.cos()), S_R * th.sin())
+        })
+        .chain((1..=8).map(|k| {
+            let ph = core::f64::consts::FRAC_PI_2 * f64::from(k) / 8.0;
+            Point3::new(0.0, S_R + S_R * ph.sin(), 2.0 * S_R - S_R * ph.cos())
+        }))
+        .collect();
+    let path =
+        geom_curves::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
+    let s_duct = sweep::sweep_body::<f64>(
         &quad([
             (-ELBOW_H, -ELBOW_H),
             (ELBOW_H, -ELBOW_H),
@@ -266,13 +287,16 @@ pub fn stops() -> Vec<Stop> {
         ]),
         Affine3::identity(),
         &path,
-        9,
+        13,
         3,
     )
-    .expect("the curved-path sweep body builds")
+    .expect("the S-path sweep body builds")
     .body;
 
-    let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * core::f64::consts::FRAC_PI_2;
+    // Planar path, centroid ON the path, section symmetric about the
+    // path plane: the curvature moment integrates to zero and the
+    // continuum volume is A·L = (2h)²·(2·R·π/2).
+    let a_times_l = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * (2.0 * S_R * core::f64::consts::FRAC_PI_2);
 
     vec![
         Stop {
@@ -334,48 +358,47 @@ pub fn stops() -> Vec<Stop> {
             )],
         },
         Stop {
-            name: "swept_elbow",
-            caption: "swept_elbow (first CURVED-path sweep body)".to_string(),
+            name: "s_duct",
+            caption: "s_duct (a sweep no revolve can orbit)".to_string(),
             montage: true,
-            story: "the tour's first body swept along a CURVED path: a 0.5 m square \
-                    profile carried through a 90-degree arc of radius 3 at nine \
-                    stations, skinned at v-degree 3. The frame is path-following — each \
-                    station turns the profile by the minimal rotation carrying the \
-                    path's start tangent to its own — so the square stays normal to the \
-                    arc all the way round and the four walls are one NURBS patch each",
-            ops: "sweep::sweep_body(square(h = 0.25), quarter arc R = 3, 9 stations, \
-                  v_degree 3)",
-            delta: 3e-3,
+            story: "a 0.5 m square profile swept through an S: two OPPOSED quarter \
+                    arcs of radius 2, 13 stations, v-degree 3. A single-axis revolve \
+                    can only bend one way around its axis — a path whose curvature \
+                    changes sign is the shape class only the sweep machinery reaches, \
+                    and the reversal is in the silhouette itself. The frame is \
+                    path-following (each station turns the profile by the minimal \
+                    rotation carrying the start tangent to its own; on a planar path \
+                    that rotation axis is fixed, so the square never rolls)",
+            ops: "sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
+                  quarter arcs, degree-3 interpolant through 17 exact points), \
+                  13 stations, v_degree 3)",
+            delta: 5e-3,
             note: Some(format!(
-                "the corpus fixture VERBATIM \
-                 (step-export/tests/common/mod.rs::swept_elbow = \
-                 sweep/tests/m7_skin_integral.rs's elbow, #210/#207); sweep_body had \
-                 ZERO successful callers anywhere in the tree before #207 — every \
-                 curved path drove the same synthesized-weight drift the non-uniform \
-                 loft did. The volume claim is CONVERGENCE to Pappus, not equality: \
-                 the stations lie exactly on the quarter torus of square cross-section \
-                 whose Pappus volume is (2h)^2 * R * pi/2 = {pappus:.9} m^3, but the \
-                 walls are the degree-3 interpolation THROUGH nine such stations, so \
-                 the ~4e-6 relative gap is discretization (it fell ~1.8 decades when \
-                 the station count went 5 -> 9) and sits four orders WIDER than the \
-                 certified enclosure pad"
+                "the scene LEADS the corpus (the lily precedent): the round-trip \
+                 corpus's sweep constant stays the revolve-expressible quarter-arc \
+                 elbow (step-export/tests/common/mod.rs::swept_elbow = \
+                 sweep/tests/m7_skin_integral.rs's, also \
+                 mesh/tests/m7_nurbs_trimmed.rs's), and this S sweep is the fixture \
+                 CANDIDATE for the next corpus fold — sweep_body had ZERO successful \
+                 curved-path callers before #207, and #218's review asked for a cell a \
+                 revolve could NOT have produced. The volume expectation is A*L = \
+                 (2h)^2 * 2R * pi/2 = {a_times_l:.9} m^3 (planar path, centroid on \
+                 path, symmetric section: the curvature moment cancels), approached \
+                 through two discretizations — 13 stations and the path interpolant — \
+                 not equalled",
             )),
-            // The elbow lives in the world YZ plane (x is its thin
-            // 0.5 m dimension), so the montage's best angle is the
-            // one that shows all three of what the stop is about:
-            // the arc's turn, the square section, and the walls'
-            // ruling direction. Camera at azim 38 / elev 22 sees the
-            // +y end cap (the profile, head-on-ish), the convex
-            // outer wall along the whole turn, and one side wall in
-            // grazing light — while the start cap (normal −z) hides,
-            // which is what keeps the arc reading as a turn rather
-            // than as a symmetric ribbon.
+            // The S lives in the world x = 0 plane, so the camera sits
+            // near the +x axis: the double bend is the OUTLINE, not a
+            // shading gradient (#218 review — same acceptance as the
+            // loft pair). 15°/12° off pure profile keep the near cap
+            // and one side wall lit for depth; cos 15° ≈ 0.97, the S
+            // stays essentially unforeshortened.
             view: View {
-                elev: 22.0,
-                azim: 38.0,
+                elev: 12.0,
+                azim: 15.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("swept_elbow", [0.72, 0.45, 0.30], elbow)],
+            bodies: vec![SceneBody::plain("s_duct", [0.72, 0.45, 0.30], s_duct)],
         },
     ]
 }
