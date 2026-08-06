@@ -60,10 +60,10 @@ mod review_m5_pr2_scratch;
 mod review_m5_pr2_scratch_hull;
 #[path = "review_m5_pr7_svd.rs"]
 mod review_m5_pr7_svd;
-#[path = "review_margin_probe.rs"]
-mod review_margin_probe;
 #[path = "review_m5_pr7b_tensor.rs"]
 mod review_m5_pr7b_tensor;
+#[path = "review_margin_probe.rs"]
+mod review_margin_probe;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
