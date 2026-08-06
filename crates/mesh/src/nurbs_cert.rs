@@ -441,6 +441,67 @@ mod tests {
         assert!(b.muv >= 0.5 && b.muv < 0.5 + 1e-12);
     }
 
+    /// REVIEW Z2: degree-0 direction refuses typed (if constructible).
+    #[test]
+    fn probe_degree_zero_refuses_typed() {
+        let Ok(kv_u) = KnotVector::clamped(vec![0.0, 1.0], 0) else {
+            // Degree 0 cannot even be described — the gate is upstream.
+            return;
+        };
+        let kv_v = KnotVector::unit_segment(1);
+        let n = kv_u.control_count() * kv_v.control_count();
+        let control = vec![Point3::new(0.0, 0.0, 0.0); n];
+        let s = NurbsSurface::new(kv_u, kv_v, control, vec![1.0; n]).unwrap();
+        match nurbs_face_bound(&s, FaceKey::default()) {
+            Err(TessellateError::UnsupportedNurbsFace { note, .. }) => {
+                assert!(note.contains("degree-0"));
+            }
+            other => panic!("expected typed refusal, got {other:?}"),
+        }
+    }
+
+    /// REVIEW Z2 boundary: interior multiplicity EXACTLY p-1 is C^1 —
+    /// the covered side of the gate — and the hull still dominates a
+    /// dense sample straddling the knot (S_uu jumps there).
+    #[test]
+    fn probe_multiplicity_p_minus_one_is_covered_and_dominated() {
+        for (p_deg, mult) in [(2usize, 1usize), (3, 2)] {
+            let mut knots = vec![0.0; p_deg + 1];
+            knots.extend(std::iter::repeat_n(0.5, mult));
+            knots.extend(vec![1.0; p_deg + 1]);
+            let kv_u = KnotVector::clamped(knots, p_deg).unwrap();
+            let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+            let mut control = Vec::new();
+            for i in 0..nu {
+                for j in 0..nv {
+                    let (x, y) = (i as f64 * 0.6, j as f64 * 0.8);
+                    control.push(Point3::new(x, y, (2.1 * x - 1.3 * y).cos() + 0.4 * x * y));
+                }
+            }
+            let s = NurbsSurface::new(kv_u, kv_v, control, vec![1.0; nu * nv]).unwrap();
+            let b = nurbs_face_bound(&s, FaceKey::default())
+                .expect("multiplicity p-1 is the covered side");
+            let n = 160;
+            let (mut wuu, mut wuv, mut wvv) = (0.0f64, 0.0f64, 0.0f64);
+            for i in 0..=n {
+                for j in 0..=n {
+                    let jet = s.ders(f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+                    wuu = wuu.max(jet.duu.norm());
+                    wuv = wuv.max(jet.duv.norm());
+                    wvv = wvv.max(jet.dvv.norm());
+                }
+            }
+            assert!(
+                wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
+                "deg {p_deg} mult {mult}: sampled ({wuu},{wuv},{wvv}) vs hull ({},{},{})",
+                b.muu,
+                b.muv,
+                b.mvv
+            );
+        }
+    }
+
     /// Rational faces refuse typed — a rational second derivative is
     /// not a hull convexity fact.
     #[test]

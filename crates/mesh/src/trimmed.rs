@@ -350,6 +350,40 @@ pub(crate) fn tessellate_trimmed(
                 } => cert::cert_cylinder(origin, axis, radius, tri),
                 Lane::Nurbs { ref bound } => bound.cert(uv),
             };
+            // REVIEW PROBE (env-gated): per-triangle falsification of
+            // the NURBS certificate — dense barycentric samples of
+            // |S(w) − Π(w)| must be dominated by cert + ε on EVERY
+            // triangle, not in aggregate.
+            if matches!(lane, Lane::Nurbs { .. }) && std::env::var_os("NURBS_PROBE").is_some() {
+                let m = 12usize;
+                for a in 0..=m {
+                    for b in 0..=(m - a) {
+                        #[allow(clippy::cast_precision_loss)]
+                        let (b0, b1) = (a as f64 / m as f64, b as f64 / m as f64);
+                        let b2 = 1.0 - b0 - b1;
+                        let (u, v) = (
+                            b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0],
+                            b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1],
+                        );
+                        let s = surface.eval(u, v);
+                        let pi = Point3::new(
+                            b0 * tri[0].x + b1 * tri[1].x + b2 * tri[2].x,
+                            b0 * tri[0].y + b1 * tri[1].y + b2 * tri[2].y,
+                            b0 * tri[0].z + b1 * tri[1].z + b2 * tri[2].z,
+                        );
+                        let d =
+                            ((s.x - pi.x).powi(2) + (s.y - pi.y).powi(2) + (s.z - pi.z).powi(2))
+                                .sqrt();
+                        assert!(
+                            d <= bound + tol.eps,
+                            "PROBE per-triangle violation: |S-Pi| {d} > cert {bound} + eps {} \
+                             at uv=({u},{v}) tri uv {uv:?}",
+                            tol.eps
+                        );
+                        crate::probe_stats::record(d, bound + tol.eps);
+                    }
+                }
+            }
             // Sticky-NaN accumulation (the curved lane's rule).
             if bound.is_nan() || worst.is_nan() || bound > worst {
                 worst = bound;

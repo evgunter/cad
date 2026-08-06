@@ -48,6 +48,8 @@ mod m5_s11_concave_sense;
 mod m7_nurbs_trimmed;
 #[path = "prisms.rs"]
 mod prisms;
+#[path = "probe_review.rs"]
+mod probe_review;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]
