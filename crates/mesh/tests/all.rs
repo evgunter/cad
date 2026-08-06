@@ -44,6 +44,8 @@ mod m5_pr11_trimmed;
 mod m5_s10_face_sense;
 #[path = "m5_s11_concave_sense.rs"]
 mod m5_s11_concave_sense;
+#[path = "m7_nurbs_trimmed.rs"]
+mod m7_nurbs_trimmed;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "review_m2_pr6_cert_oracle.rs"]
