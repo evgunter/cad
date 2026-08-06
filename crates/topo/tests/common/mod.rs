@@ -442,8 +442,8 @@ pub fn flush_declarations<T: geom_core::Decide>(
     a: &Body<T>,
     b: &Body<T>,
 ) -> topo::BooleanDeclarations {
-    use geom_core::Sign;
-    use geom_core::k_stats::decide;
+    use geom_core::k_stats::{decide, decide_flagged};
+    use geom_core::{Length, Sign};
     let band = Band::linear().unwrap();
     let planes = |body: &Body<T>| -> Vec<(topo::FaceKey, Point3<T>, geom_core::Vec3<T>)> {
         body.faces()
@@ -458,11 +458,24 @@ pub fn flush_declarations<T: geom_core::Decide>(
         for &(fb, ob, nb) in &planes(b) {
             // Parallel? (in-band counts as plausible.)
             let par = na.cross(nb).norm();
-            if matches!(decide("test_flush_parallel", par, band), Ok(Sign::Positive)) {
+            if matches!(
+                decide_flagged(
+                    "test_flush_parallel",
+                    par,
+                    band,
+                    "test fixture: bare sine gate"
+                ),
+                Ok(Sign::Positive)
+            ) {
                 continue;
             }
             // Relative orientation, then the offset in that frame.
-            let sigma = match decide("test_flush_orient", na.dot(nb), band) {
+            let sigma = match decide_flagged(
+                "test_flush_orient",
+                na.dot(nb),
+                band,
+                "test fixture: bare cosine gate",
+            ) {
                 Ok(Sign::Positive) => T::one(),
                 Ok(Sign::Negative) => -T::one(),
                 _ => continue,
@@ -470,7 +483,7 @@ pub fn flush_declarations<T: geom_core::Decide>(
             let da = na.dot(oa - Point3::origin());
             let db = nb.dot(ob - Point3::origin());
             if matches!(
-                decide("test_flush_offset", da - sigma * db, band),
+                decide("test_flush_offset", Length::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
                 decls.coincident_faces.push((fa, fb));

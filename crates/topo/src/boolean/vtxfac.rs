@@ -37,7 +37,7 @@
 //! In side (both witnesses' choice for the split analogue). Flagged in
 //! the PR report for ratification.
 
-use geom_core::{Band, Decide, Sign};
+use geom_core::{Band, Decide, Length, Sign};
 
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
@@ -109,7 +109,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
     for (k, s) in sectors.iter().enumerate() {
-        let m = s.normal.cross(plane.normal).norm() * s.arm;
+        let m = Length::levered(s.normal.cross(plane.normal).norm(), s.arm);
         match decide("bool_sector_coplanar", m, band) {
             Ok(Sign::Zero) => {}
             Ok(_) => continue,
@@ -450,7 +450,7 @@ fn pierce_germ_dir<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
     let int = s.normal.cross(plane_normal);
-    match decide("bool_germ_line", int.norm() * s.arm, band) {
+    match decide("bool_germ_line", Length::levered(int.norm(), s.arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {

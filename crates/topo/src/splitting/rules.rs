@@ -99,7 +99,7 @@
 //! representability outranks the degenerate-piece cosmetic.
 
 use geom_brep::{EntersMaterial, enters_material};
-use geom_core::{Band, Decide, Sign};
+use geom_core::{Band, Decide, Length, Sign};
 
 use super::neighborhood::sector_face;
 use super::{PlaneSide, SectorEntry, SplitPlane, SplitReduceError};
@@ -127,7 +127,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         let extent = face_extent(body, vertex, face)?;
         // Distinct K name from neighborhood.rs's `split_sector_arm`
         // (the shorter-chord arm): this margin is the FACE extent.
-        match decide("split_sector_extent", extent, band) {
+        match decide("split_sector_extent", Length::of(extent), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(sliver(geom_core::Indeterminate {
@@ -145,7 +145,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // coplanar with the split plane, so a parallel local normal is
         // a **tangent contact** — C7 territory, refused typed (never
         // marched into); the arm for that pair moves at M5 PR 9.
-        let parallel_margin = n_face.cross(plane.normal).norm() * extent;
+        let parallel_margin = Length::levered(n_face.cross(plane.normal).norm(), extent);
         match decide("split_sector_coplanar", parallel_margin, band) {
             Ok(Sign::Zero) => {
                 if !is_plane {
@@ -169,8 +169,11 @@ pub(super) fn apply_rule_a<T: Decide>(
                         .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
                         .ok_or_else(corrupt)?;
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
-                    let half = T::from_f64(0.5);
-                    let so_margin = kappa * extent.powi(2) * half;
+                    // Ledger row F11 (unchanged by the clause-(i)
+                    // migration): the sagitta is metered at the
+                    // WHOLE-FACE extent, over-refusal direction —
+                    // arm-policy question, own unit.
+                    let so_margin = Length::sagitta(kappa, extent);
                     match decide("tangent_sector_osculation", so_margin, band) {
                         Ok(Sign::Positive) => continue,
                         Ok(Sign::Zero | Sign::Negative) => {

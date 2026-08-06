@@ -104,7 +104,7 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Indeterminate, Point3, Sign, Vec3};
+use geom_core::{Band, Indeterminate, Length, Point3, Sign, Vec3};
 
 use crate::dihedral::decide;
 
@@ -292,7 +292,7 @@ where
         let (n1, n2) = sys.normals(&x);
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
         let arm = sys.lever_arm(&x).min(ctx.extent);
-        match decide("ssi_transversality_arm", arm, band) {
+        match decide("ssi_transversality_arm", Length::of(arm), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {
                 return Err(SsiError::Escalated(Indeterminate {
@@ -303,9 +303,9 @@ where
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
         }
-        let transversality = sin_theta * arm;
-        if transversality < min_transversality {
-            min_transversality = transversality;
+        let transversality = Length::levered(sin_theta, arm);
+        if transversality.value() < min_transversality {
+            min_transversality = transversality.value();
         }
         match decide("ssi_transversality", transversality, band) {
             Ok(Sign::Positive) => {}
@@ -417,7 +417,7 @@ where
         };
 
         // The stepper must be able to move at this tolerance.
-        match decide("ssi_step_progress", h_meters, band) {
+        match decide("ssi_step_progress", Length::of(h_meters), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {
                 return Err(SsiError::StepCollapsed {
@@ -444,7 +444,7 @@ where
 
         // ---- ssi_branch_open_end ----
         let inside = domain_margin(&next, &ctx, sys, &x);
-        match decide("ssi_branch_open_end", inside, band) {
+        match decide("ssi_branch_open_end", Length::of(inside), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero) => {
                 push_boundary(sys, &mut states, x, next, &ctx);
@@ -475,13 +475,13 @@ where
             left_start = true;
         }
         if left_start {
-            match decide("ssi_closure_return", h_meters - back, band) {
+            match decide("ssi_closure_return", Length::of(h_meters - back), band) {
                 Ok(Sign::Positive) | Ok(Sign::Zero) => {
                     // Returned. Is it a closure or a crossing?
                     let t0 = seed_tangent.unwrap_or(d1);
                     let cos_phi = dot(&d1, &t0).clamp(-1.0, 1.0);
                     let arc = arc_length(sys, &states);
-                    match decide("ssi_closure_tangent", cos_phi * arc, band) {
+                    match decide("ssi_closure_tangent", Length::levered(cos_phi, arc), band) {
                         Ok(Sign::Positive) => {
                             // Close exactly onto the seed. If the last
                             // marched state is already essentially the

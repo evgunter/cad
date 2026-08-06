@@ -23,7 +23,7 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
 use crate::validate::{EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, ProfileError};
@@ -318,7 +318,7 @@ impl<T: Real> LoopBuilder<T> {
         // f64 lies strictly inside it, so f64 classification is total.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
         let fit = |len: T, leg: FilletLeg| -> Result<Sign, ProfileError> {
-            match decide("fillet_leg_fit", len - setback, exact) {
+            match decide("fillet_leg_fit", Length::of(len - setback), exact) {
                 Ok(Sign::Negative) => Err(ProfileError::FilletDoesNotFit {
                     leg,
                     carrier: FilletLegCarrier::Line,
@@ -503,7 +503,9 @@ impl<T: Real> LoopBuilder<T> {
 
         // (1) the lever arm: an angle is nothing without one (D4 ¶1).
         let arm = leg_in.arm.min(leg_out.arm);
-        if decide("fillet_corner_arm", arm, band).map_err(fillet_escalated)? != Sign::Positive {
+        if decide("fillet_corner_arm", Length::of(arm), band).map_err(fillet_escalated)?
+            != Sign::Positive
+        {
             return Err(ProfileError::FilletLegDegenerate {
                 // Diagnostic-channel comparison (naming the leg for the
                 // message), not a geometric decision.
@@ -518,14 +520,14 @@ impl<T: Real> LoopBuilder<T> {
 
         // (2) the corner's turn: its sign is the side both carriers
         // offset toward, so the offset construction never searches.
-        let turn = leg_in.dir.perp_dot(leg_out.dir) * arm;
+        let turn = Length::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
         let sgn = match decide("fillet_corner_turn", turn, band).map_err(fillet_escalated)? {
             Sign::Positive => T::one(),
             Sign::Negative => -T::one(),
             Sign::Zero => {
                 return Err(ProfileError::FilletCornerAlreadyTangent {
                     reversed: leg_in.dir.dot(leg_out.dir).lo() < 0.0,
-                    margin: turn.lo(),
+                    margin: turn.value().lo(),
                     arm: arm.lo(),
                 });
             }
@@ -569,12 +571,16 @@ impl<T: Real> LoopBuilder<T> {
             let t2 = leg_out.tangent_point(center, sgn, radius);
             let sb_in = leg_in.setback(t1, corner);
             let sb_out = leg_out.setback(t2, corner);
-            let reach_in = decide("fillet_leg_reach", sb_in, exact).map_err(fillet_escalated)?;
-            let reach_out = decide("fillet_leg_reach", sb_out, exact).map_err(fillet_escalated)?;
+            let reach_in =
+                decide("fillet_leg_reach", Length::of(sb_in), exact).map_err(fillet_escalated)?;
+            let reach_out =
+                decide("fillet_leg_reach", Length::of(sb_out), exact).map_err(fillet_escalated)?;
             let margin_in = leg_in.len - sb_in;
             let margin_out = leg_out.len - sb_out;
-            let fit_in = decide("fillet_leg_fit", margin_in, exact).map_err(fillet_escalated)?;
-            let fit_out = decide("fillet_leg_fit", margin_out, exact).map_err(fillet_escalated)?;
+            let fit_in =
+                decide("fillet_leg_fit", Length::of(margin_in), exact).map_err(fillet_escalated)?;
+            let fit_out = decide("fillet_leg_fit", Length::of(margin_out), exact)
+                .map_err(fillet_escalated)?;
             let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
             if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
                 surviving.push((
@@ -1035,8 +1041,12 @@ impl<T: Real> Leg<T> {
         let h = (arc.center - on_offset).dot(normal);
         let foot = arc.center - normal * h;
         Ok(
-            match decide("fillet_offset_line_circle", rho.abs() - h.abs(), band)
-                .map_err(fillet_escalated)?
+            match decide(
+                "fillet_offset_line_circle",
+                Length::of(rho.abs() - h.abs()),
+                band,
+            )
+            .map_err(fillet_escalated)?
             {
                 // powi(2)-discipline squares: ρ and h both straddle zero
                 // in general (memories/interval-square-poison.md).
@@ -1078,11 +1088,15 @@ impl<T: Real> ArcCarrier<T> {
         let link = other.center - self.center;
         let dist_squared = link.norm_squared();
         let dist = dist_squared.sqrt();
-        let external = decide("fillet_offset_circles_external", r1 + r2 - dist, band)
-            .map_err(fillet_escalated)?;
+        let external = decide(
+            "fillet_offset_circles_external",
+            Length::of(r1 + r2 - dist),
+            band,
+        )
+        .map_err(fillet_escalated)?;
         let internal = decide(
             "fillet_offset_circles_internal",
-            dist - (r1 - r2).abs(),
+            Length::of(dist - (r1 - r2).abs()),
             band,
         )
         .map_err(fillet_escalated)?;

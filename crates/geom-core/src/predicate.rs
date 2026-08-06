@@ -432,6 +432,165 @@ impl Band {
     }
 }
 
+/// A margin that is a **length** in the kernel's internal metres — the
+/// point deviation from specified geometry — *by signature* (D4's
+/// margin dimensional convention, clause (i), RATIFIED 2026-08-05).
+///
+/// `#[repr(transparent)]` and erased at compile time: **no dimension
+/// algebra, no generic dimension parameter**. Most kernel functions are
+/// single-kind per argument, so the annotation is a signature fact, not
+/// a genericity layer; the vector/linalg interior stays bare `T`. The
+/// typed surface is exactly the classify seam ([`crate::k_stats::decide`]
+/// and each crate's thin funnel wrappers): every margin the K-telemetry
+/// recorder sees is a `Length<T>` by construction.
+///
+/// The only constructors are the blessed doors below. Each door's doc
+/// states the dimensional argument it makes explicit at the call site;
+/// choosing the door IS the site's dimension proof (the per-row
+/// arguments live in `docs/predicate-dimension-audit.md`). A margin no
+/// door honestly fits is a **finding** — a ledger row — never a cast:
+/// there is deliberately no raw construction door.
+///
+/// The doors compute nothing beyond the single operation they name
+/// (a product, a norm, a quotient), so wrapping an existing margin
+/// expression through its door is bit-identical to the bare
+/// expression — the K-telemetry margin stream is unchanged by
+/// construction (the rollout's acceptance).
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct Length<T>(T);
+
+impl<T: crate::real::Real> Length<T> {
+    /// Door: a value that **is** a length already. The dimensional
+    /// argument at the call site is one of: a coordinate or parameter
+    /// difference on an arc-length-parameterized carrier (a line's `t`
+    /// IS metres); a signed projection of a metre vector onto a **unit**
+    /// direction (a plane residual `(p − o)·n̂` is the point's
+    /// coordinate along the normal); a difference, sum, `min`/`max`, or negation of
+    /// quantities that are individually lengths (a radius minus a gap,
+    /// a signed-offset difference, folded curvature arms); a residual
+    /// documented as normalized to metres (`implicit_residual`'s `/2r`
+    /// form); or a distance computed by upstream geometry code whose
+    /// contract states metres. What this door does NOT admit: anything
+    /// whose metres-ness needs a lever, a root, or a quotient — those
+    /// have their own doors, and the operation belongs inside the door.
+    pub fn of(margin: T) -> Self {
+        Self(margin)
+    }
+
+    /// Door: a **dimensionless** quantity levered by an **arm** —
+    /// computes `x · arm`. The dimensional argument: `x` is a pure
+    /// number (a sine or cosine of unit vectors, an angle or angular
+    /// difference in radians, a curvature × length product such as
+    /// `κ·L`), and `arm` is the length lever that converts it to the
+    /// point deviation it implies (D4's θ·r form). The arm names the
+    /// geometry that would move: a radius, an extent, a sector chord, a
+    /// curvature arm. Multiplication is the door's one operation, so
+    /// `levered(x, arm)` is bit-identical to the bare `x * arm`.
+    pub fn levered(x: T, arm: T) -> Self {
+        Self(x * arm)
+    }
+
+    /// Levered door, second-order (sagitta) form: a **relative
+    /// curvature** `κ_rel` (1/m) levered by the **square** of the arm —
+    /// computes `curvature_rel * arm.powi(2) * 0.5`, the sagitta bound
+    /// κ·L²/2. The dimensional argument: the dimensionless quantity is
+    /// the accumulated angle κ·arm, its lever the arm again, and the
+    /// half is exact (a power of two). The op order (`powi(2)`, then
+    /// the half last) is the kernel's canonical osculation shape — the
+    /// interval-square rule requires `powi(2)` — so wrapping the
+    /// shipped sites is bit-identical.
+    pub fn sagitta(curvature_rel: T, arm: T) -> Self {
+        Self(curvature_rel * arm.powi(2) * T::from_f64(0.5))
+    }
+
+    /// Levered door, reciprocal form: a quantity levered by the
+    /// **reciprocal** of the divisor — computes `x / per_length`. The
+    /// dimensional argument is the levered door's with the arm named by
+    /// its reciprocal: dividing a dimensionless `sin θ` by a relative
+    /// curvature (1/m) IS multiplying by the curvature arm (D4 ¶1's
+    /// tangency lever, "normal-parallel within θ ⟺ within ε of the
+    /// locus"); dividing a jet-weighted residual (m²/param) by the
+    /// jet's speed (m/param) IS projecting onto the unit parameter
+    /// direction. Both leave metres. One operation, bit-identical to
+    /// the bare `x / per_length`.
+    pub fn levered_inv(x: T, per_length: T) -> Self {
+        Self(x / per_length)
+    }
+
+    /// Metric door (clause (iii) at the seam): a **parameter-space
+    /// span** crossed to model space by its per-kind **metric rate** —
+    /// computes `span * rate`. The dimensional argument: `span` is in
+    /// the carrier's parameter units and `rate` is the kind's metres
+    /// per parameter unit (a certified speed lower bound, a chart's
+    /// `param_rate`), so the product is the model-space length the span
+    /// subtends. This is the levered door's shape with a rate arm — a
+    /// separate constructor because the argument is clause (iii)'s
+    /// (parameter space crosses to model space only through a per-kind
+    /// metric door), not a dimensionless-times-length one.
+    pub fn metered(span: T, rate: T) -> Self {
+        Self(span * rate)
+    }
+
+    /// Norm door (3-vector form): the Euclidean norm of a
+    /// metre-component vector — computes `v.norm()`. The dimensional
+    /// argument: each component of `v` is a length (a point difference,
+    /// a metre-scaled residual vector), and the Euclidean norm of
+    /// lengths is a length.
+    pub fn norm3(v: crate::linalg::Vec3<T>) -> Self {
+        Self(v.norm())
+    }
+
+    /// Norm door (2-vector form): see [`Length::norm3`]; the same
+    /// argument for planar (sketch-plane) geometry.
+    pub fn norm2(v: crate::linalg::Vec2<T>) -> Self {
+        Self(v.norm())
+    }
+
+    /// Door: an oriented/certified **measure over the lever that
+    /// scales it down to a length** — computes `measure / lever`. The
+    /// dimensional argument: an area (m²) over the boundary length or
+    /// lever that scales it — a ring run's Newell area over its
+    /// perimeter (`2A/P`, the run's mean width), a chart-orientation
+    /// area `a×b·n̂` over its radius, a crossing determinant over its
+    /// straddle height — or a signed volume (m³) over the surface area
+    /// that levers it (`V/A`, a body's mean thickness) — is the point
+    /// displacement the measure subtends at that lever. Exactly zero
+    /// when the measure is exactly zero, so non-strict pass directions
+    /// are unmoved.
+    ///
+    /// What this door deliberately does NOT serve (Evan's #213
+    /// layering ruling): the **consistency backstops** — inequalities
+    /// between integral RESULTS, the `volume_backstop` family. Those
+    /// are outside the length seam by design: they decide on bare `T`
+    /// through the invariant lane
+    /// ([`crate::k_stats::decide_invariant`]), and their firing is a
+    /// kernel-invariant (Corrupt-class) error, not a validity refusal.
+    pub fn over_lever(measure: T, lever: T) -> Self {
+        Self(measure / lever)
+    }
+
+    /// The wrapped margin, for the classify seam and for diagnostics
+    /// (refusal payloads that echo the margin they classified). This is
+    /// an exit, not an entrance: reading the value back does not
+    /// construct a `Length`, so it cannot launder a dimension.
+    pub fn value(self) -> T {
+        self.0
+    }
+}
+
+impl Length<f64> {
+    /// Lifts an `f64`-substrate length to the deciding scalar (the
+    /// certification-substrate idiom: quadrature margins are computed
+    /// in certified `f64` enclosure arithmetic and lifted so every lane
+    /// records identically). Dimension-preserving, **not** a
+    /// construction door — the door was chosen when the `Length<f64>`
+    /// was built.
+    pub fn lift<T: crate::real::Real>(self) -> Length<T> {
+        Length(T::from_f64(self.0))
+    }
+}
+
 /// Diagnostic view of the margin inside an [`Indeterminate`]: what the
 /// classifier saw, in a shape that stays honest across scalar types.
 ///

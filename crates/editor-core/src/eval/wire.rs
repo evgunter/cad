@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Length, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -177,7 +177,7 @@ fn band() -> Result<Band, NodeErrorKind> {
 /// Normalizes a direction-valued vector; decided-zero length refuses,
 /// in-band indeterminacy escalates (all through the one door).
 fn unit<T: Decide>(v: Vec3<T>, role: &'static str) -> Result<Vec3<T>, NodeErrorKind> {
-    match decide("eval_direction_norm", v.norm(), band()?) {
+    match decide("eval_direction_norm", Length::norm3(v), band()?) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
         Err(source) => Err(NodeErrorKind::Escalated {
@@ -294,21 +294,34 @@ fn wire_revolve<T: Decide>(
     );
     let rel = *origin - plane_origin;
     let b = band()?;
-    for (name, margin) in [
-        ("revolve_axis_origin_in_plane", rel.dot(n)),
-        ("revolve_axis_dir_in_plane", dir.dot(n)),
-    ] {
-        match decide(name, margin, b) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
-            Err(source) => {
-                return Err(NodeErrorKind::Escalated {
-                    predicate: name,
-                    source,
-                });
-            }
+    // The two in-plane checks share a verdict shape but NOT a
+    // dimension, so they take separate doors (review of the clause-(i)
+    // rollout, MAJ-1): the origin residual is a metre projection onto
+    // the unit normal (`of`); the direction residual `dir·n̂` is a
+    // unit·unit SINE — dimensionless against the metre band, the
+    // audit's class-(c) shape. Ledger row F15: the honest form is the
+    // sine levered at the profile's radial extent, which lives
+    // kernel-side — that fix is F15's own unit; flagged, not cast.
+    let in_plane = |name: &'static str,
+                    verdict: Result<Sign, geom_core::Indeterminate>|
+     -> Result<(), NodeErrorKind> {
+        match verdict {
+            Ok(Sign::Zero) => Ok(()),
+            Ok(_) => Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
+            Err(source) => Err(NodeErrorKind::Escalated {
+                predicate: name,
+                source,
+            }),
         }
-    }
+    };
+    in_plane(
+        "revolve_axis_origin_in_plane",
+        decide("revolve_axis_origin_in_plane", Length::of(rel.dot(n)), b),
+    )?;
+    in_plane(
+        "revolve_axis_dir_in_plane",
+        geom_core::k_stats::decide_flagged("revolve_axis_dir_in_plane", dir.dot(n), b, "F15"),
+    )?;
     let axis2 = RevolveAxis {
         origin: Point2::new(rel.dot(u), rel.dot(v_axis)),
         dir: Vec2::new(dir.dot(u), dir.dot(v_axis)),
@@ -319,7 +332,16 @@ fn wire_revolve<T: Decide>(
     // rules on it (out-of-range partials refuse loudly there).
     let angle = need_scalar(vals, SlotId::RevolveAngle)?;
     let abs_angle = angle.max(-angle);
-    let revolution = match decide("revolve_full_vs_partial", abs_angle - T::tau(), b) {
+    // Ledger row F14 (found by the clause-(i) migration): |θ| − τ is
+    // RADIANS against the linear band — dimensionless; the honest
+    // lever (the profile's radial extent) lives kernel-side. Flagged,
+    // not cast.
+    let revolution = match geom_core::k_stats::decide_flagged(
+        "revolve_full_vs_partial",
+        abs_angle - T::tau(),
+        b,
+        "F14",
+    ) {
         Ok(Sign::Zero) => Revolution::Full,
         Ok(_) => Revolution::Partial(angle),
         Err(source) => {

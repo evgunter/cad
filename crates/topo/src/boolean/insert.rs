@@ -31,7 +31,7 @@
 //! the `mev_null` fan; an empty span (both germs in one sector) is the
 //! strut/dangling case (`Fan { he, he }` at the next sector's edge).
 
-use geom_core::{Band, Decide, Sign, Vec3};
+use geom_core::{Band, Decide, Length, Sign, Vec3};
 
 use super::sectors::{BoolSector, PairRecord, within};
 use super::{
@@ -200,7 +200,7 @@ fn mint_directed<T: Decide>(
         // displacement the facing difference induces at the sectors'
         // own bounding-chord scale.
         let arm = sectors[gf.0].arm.min(sectors[gt.0].arm);
-        let m = (gf.3 - gt.3).dot(e_dir) * arm;
+        let m = Length::levered((gf.3 - gt.3).dot(e_dir), arm);
         match crate::validate::decide("bool_strut_order", m, band) {
             Ok(Sign::Positive) => true,
             Ok(_) => false,
@@ -266,7 +266,7 @@ fn germ_dir<T: Decide>(
 ) -> Result<Vec3<T>, BooleanError> {
     let int = sa.normal.cross(sb.normal);
     let arm = sa.arm.min(sb.arm);
-    match crate::validate::decide("bool_germ_line", int.norm() * arm, band) {
+    match crate::validate::decide("bool_germ_line", Length::levered(int.norm(), arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {

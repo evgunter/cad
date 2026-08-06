@@ -12,7 +12,7 @@ use geom_brep::{
     edge_extent, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Point3, Real};
+use geom_core::{Band, Decide, Length, Point3, Real};
 use geom_curves::Curve3;
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, SurfaceKey};
 
@@ -204,7 +204,7 @@ fn jet_determinate<T: Decide>(
         let arm = curvature_lever_arm(s1, p)
             .min(curvature_lever_arm(s2, p))
             .min(data.extent);
-        let margin = jet.kappa_rel.abs() * arm.powi(2) * T::from_f64(0.5);
+        let margin = Length::sagitta(jet.kappa_rel.abs(), arm);
         if !matches!(
             super::decide("tangent_second_order", margin, band),
             Ok(geom_core::Sign::Positive)

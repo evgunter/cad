@@ -4,7 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
-use geom_core::{Band, Decide, Sign};
+use geom_core::{Band, Decide, Length, Sign};
 use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
@@ -77,7 +77,7 @@ pub(super) fn classify_vertices<T: Decide>(
         let p = *body
             .get_point(vertex.point)
             .ok_or(SplitReduceError::CorruptOperand { vertex: vertex_key })?;
-        let margin = (p - plane.origin).dot(plane.normal);
+        let margin = Length::of((p - plane.origin).dot(plane.normal));
         let side = match decide("split_vertex_side", margin, band) {
             Ok(Sign::Negative) => PlaneSide::Below,
             Ok(Sign::Positive) => PlaneSide::Above,
@@ -190,13 +190,13 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // coplanar sub-case previously fell through to the graze arm with
     // a 0/0 phase and escalated on an Invalid margin — loud, but
     // shapeless. The in-band twin escalates (F6).
-    match decide("split_conic_plane_parallel", r, band) {
+    match decide("split_conic_plane_parallel", Length::of(r), band) {
         Ok(Sign::Zero) => return Ok(None),
         Ok(Sign::Positive | Sign::Negative) => {}
         Err(diag) => return Ok(Some(Err(diag))),
     }
     // 1. Does the sinusoid reach zero at all — and how many roots?
-    let both_roots = match decide("split_conic_belly_graze", r - d0.abs(), band) {
+    let both_roots = match decide("split_conic_belly_graze", Length::of(r - d0.abs()), band) {
         Ok(Sign::Negative) => return Ok(None),
         Ok(Sign::Positive) => true,
         // Graze: the double root, processed once (processing both
@@ -216,7 +216,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // two mathematically identical formulas, so its degenerate and
     // in-band arms keep the direct formula (a deterministic tie-break,
     // D9 — near a ≈ 0 the cut is far from both).
-    let phi = match decide("split_conic_phase_frame", a, band) {
+    let phi = match decide("split_conic_phase_frame", Length::of(a), band) {
         Ok(Sign::Negative) => (T::zero() - b).atan2(T::zero() - a) + T::pi(),
         Ok(Sign::Positive | Sign::Zero) | Err(_) => b.atan2(a),
     };
@@ -253,7 +253,10 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // SAME margin in a non-degenerate representation, never a second
     // tolerance — and only a double failure escalates (F6).
     let verdict_at = |t: T| -> Result<(bool, T), geom_core::Indeterminate> {
-        for margin in [(t - t0) * meter, (t1 - t) * meter] {
+        for margin in [
+            Length::metered(t - t0, meter),
+            Length::metered(t1 - t, meter),
+        ] {
             match decide("split_conic_crossing_root", margin, band) {
                 Ok(Sign::Positive) => {}
                 // At an endpoint vertex (already swept) or outside
@@ -285,7 +288,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     if roots.len() == 2 {
         match decide(
             "split_conic_root_order",
-            (roots[1] - roots[0]) * meter,
+            Length::metered(roots[1] - roots[0], meter),
             band,
         ) {
             Ok(Sign::Positive) => {}
