@@ -980,7 +980,38 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
-            | RoleSeg::Instance { of: n, .. } => visit(n, partners, f),
+            | RoleSeg::Instance { of: n, .. }
+            // The fillet vocabulary (M6-5): every argument is the
+            // SOURCE entity the blend was born for — derivation, not
+            // discrimination.
+            | RoleSeg::FromTarget(n)
+            | RoleSeg::BlendFace(n)
+            | RoleSeg::CornerFace(n)
+            | RoleSeg::BandTrim { edge: n, .. }
+            | RoleSeg::BandFoot(n)
+            | RoleSeg::BandCross(n)
+            | RoleSeg::BandCut(n)
+            | RoleSeg::BandSlit(n) => visit(n, partners, f),
+            RoleSeg::TrimEdge {
+                edge: a,
+                support: b,
+            }
+            | RoleSeg::FootVertex {
+                vertex: a,
+                support: b,
+            }
+            | RoleSeg::CornerArc {
+                vertex: a,
+                edge: b,
+            } => {
+                visit(a, partners, f);
+                visit(b, partners, f);
+            }
+            RoleSeg::BandFace(names) => {
+                for n in names {
+                    visit(n, partners, f);
+                }
+            }
             RoleSeg::Seam { a, b } => {
                 visit(a, partners, f);
                 visit(b, partners, f);

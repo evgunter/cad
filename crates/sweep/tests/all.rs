@@ -92,6 +92,8 @@ mod m5_s13_pips;
 mod m5_s13_pips_interval;
 #[path = "m5_s13_review_probes.rs"]
 mod m5_s13_review_probes;
+#[path = "m6_5_fillet_naming.rs"]
+mod m6_5_fillet_naming;
 #[path = "m6_chart_mints.rs"]
 mod m6_chart_mints;
 #[path = "m6_loft_body.rs"]

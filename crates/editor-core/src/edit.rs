@@ -283,11 +283,12 @@ pub enum EditError {
     },
     /// Replacing the subtree broke an ancestor's dimension check.
     Dimension(DimensionError),
-    /// A `Declare` payload names a node that does not exist at edit
-    /// time (spec D3 carve-out, ruled): a never-existed id is a TYPO,
-    /// refused at the best-diagnostics door. (A later `DeleteNode`
-    /// stranding a name is ALLOWED — N5 dangling semantics; see
-    /// [`Node::Declare`].)
+    /// A name-referencing payload — a `Declare`'s pairs or a
+    /// `Fillet`'s selection (M6-5) — names a node that does not exist
+    /// at edit time (spec D3 carve-out, ruled): a never-existed id is
+    /// a TYPO, refused at the best-diagnostics door. (A later
+    /// `DeleteNode` stranding a name is ALLOWED — N5 dangling
+    /// semantics; see [`Node::Declare`].)
     DeclareNamesMissingNode {
         /// The name whose node is not live.
         name: StableName,
@@ -581,9 +582,18 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             // must point at LIVE nodes at edit time — a never-existed
             // id is a typo. They are not DAG edges: later deletes may
             // strand them (N5), so this is the ONLY door that checks.
-            if let Node::Declare { pairs } = node {
-                for name in pairs.iter().flat_map(|(a, b)| [a, b]) {
-                    if !new.nodes.contains_key(&name.node) {
+            // (M6-5: a fillet's SELECTION carries name refs under the
+            // same carve-out, so `named_nodes` is the door for both.)
+            for n in node.named_nodes() {
+                if !new.nodes.contains_key(&n) {
+                    let name = match node {
+                        Node::Declare { pairs } => {
+                            pairs.iter().flat_map(|(a, b)| [a, b]).find(|x| x.node == n)
+                        }
+                        Node::Fillet { selection, .. } => selection.iter().find(|x| x.node == n),
+                        _ => None,
+                    };
+                    if let Some(name) = name {
                         return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
                     }
                 }
@@ -715,18 +725,42 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             if from.node.0 >= new.next_id {
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
-            // One-shot rewrite of every EXACT reference (v1 sites:
-            // Declare pairs and appearance-store keys). Zero sites =
-            // nothing to repair, refused.
+            // One-shot rewrite of every EXACT reference (sites:
+            // Declare pairs, fillet selections, appearance-store
+            // keys). Zero sites = nothing to repair, refused.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
-                if let Node::Declare { pairs } = node {
-                    for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
-                        if name == from {
-                            *name = to.clone();
-                            declare_sites += 1;
+                match node {
+                    Node::Declare { pairs } => {
+                        for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
+                            if name == from {
+                                *name = to.clone();
+                                declare_sites += 1;
+                            }
                         }
                     }
+                    // The fillet selection's GROWTH PATH (M6-5,
+                    // ruled #217): a selection freezes, so the only
+                    // way it changes is an explicit Rebind. The
+                    // rewrite re-canonicalizes, because `to` may sort
+                    // elsewhere or already be present — a rebind onto
+                    // an already-selected edge SHRINKS the set by one
+                    // rather than duplicating it.
+                    Node::Fillet { selection, .. } => {
+                        let mut hits = 0usize;
+                        for name in selection.iter_mut() {
+                            if name == from {
+                                *name = to.clone();
+                                hits += 1;
+                            }
+                        }
+                        if hits > 0 {
+                            selection.sort();
+                            selection.dedup();
+                            declare_sites += hits;
+                        }
+                    }
+                    _ => {}
                 }
             }
             // Appearance keys are rebind sites (the attribute rides
@@ -764,10 +798,11 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             }
             EditRecord {
                 minted: None,
-                // Declare payloads changed: content keys move and the
-                // (PR 5) threading consumes the pairs — structural.
-                // An appearance-only rebind is presentation motion:
-                // no content key moves, nothing recomputes.
+                // Declare payloads or fillet selections changed:
+                // content keys move and the threading consumes them
+                // — structural. An appearance-only rebind is
+                // presentation motion: no content key moves, nothing
+                // recomputes.
                 structural: declare_sites > 0,
             }
         }

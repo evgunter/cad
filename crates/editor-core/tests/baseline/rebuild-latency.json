@@ -42,6 +42,13 @@
       "incremental_ms": 100.37,
       "nodes": 77
     },
+    "die_composed": {
+      "about": "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the pip-rim torus band in one body",
+      "cone": 3,
+      "full_ms": 2450.6,
+      "incremental_ms": 1958.17,
+      "nodes": 8
+    },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
       "cone": 2,
@@ -108,7 +115,7 @@
     "portability": "BOX-RELATIVE. Absolute milliseconds do not transfer between machines or load states; only the SHAPE is the signal (relative cost per document, and the full-vs-incremental ratio). Expect large +/-% on the first hosted-CI run and re-refresh from CI when hosted Actions returns.",
     "profile": "cargo test dev profile: opt-level 0 for the kernel crates, opt-level 2 only for spade and mesh (root Cargo.toml). NOT release-representative.",
     "refresh_with": "CAD_LATENCY_BASELINE_REFRESH=1 cargo test -p editor-core --test m4_pr8_latency -- --nocapture",
-    "refreshed_by": "M5 PR 12 fix pass F5 (ev/m5-pr12-fillets), 2026-08-03 - the corpus gained die_pips, so every row was re-measured in one run rather than one row being grafted onto a 2026-07-26 file. ALL ELEVEN pre-existing rows moved by -92% to -98%; that is an environment shift, not a speedup this PR earned - see 'disputed_measurement'. The `documents` block is exactly that run's table, with one hand edit and no re-timing: the run also emitted a `die_fillet` row, and that document was pulled back out of the registry afterwards (it refuses at the Interval scalar - see corpus/die_fillet.rs), so its row was DELETED rather than left behind as a stale key.",
+    "refreshed_by": "M6-5 (ev/m6-5-selection), 2026-08-06 - the corpus gained die_composed, so ONE row was grafted and NOTHING was re-timed. A full refresh was run and DISCARDED: every pre-existing row read 20-25x higher than the committed values (die_fillet full 1001.4 ms vs 25.9 ms), the exact signature 'load_conditions' says means a contended machine (1-minute load 2.85, a parallel review lane active). The die_composed numbers below were measured in that same contended run and are therefore NOT comparable with the rows around them - they exist so the coverage row has its key, not as a datum. Re-refresh the WHOLE file from a verified-quiet machine or hosted CI before reading any cross-row comparison that involves die_composed. M5 PR 12 fix pass F5 (ev/m5-pr12-fillets), 2026-08-03 - the corpus gained die_pips, so every row was re-measured in one run rather than one row being grafted onto a 2026-07-26 file. ALL ELEVEN pre-existing rows moved by -92% to -98%; that is an environment shift, not a speedup this PR earned - see 'disputed_measurement'. The `documents` block is exactly that run's table, with one hand edit and no re-timing: the run also emitted a `die_fillet` row, and that document was pulled back out of the registry afterwards (it refuses at the Interval scalar - see corpus/die_fillet.rs), so its row was DELETED rather than left behind as a stale key.",
     "status": "REPORTING ONLY - measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on these numbers.",
     "what": "Per-document full-rebuild and incremental-recompute wall-clock medians for the M4 PR 8a Band 4 corpus."
   },

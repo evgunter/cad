@@ -146,14 +146,18 @@ pub fn documents() -> Vec<CorpusDoc> {
         // membership; the derived-volume bracket pin lives with the
         // builder's acceptance suite.
         loft_prism::document(),
-        // `die_composed::document()` is NOT here, and its module docs
-        // say why: `Node::Fillet` is every-edge BY DESIGN (no stable
-        // edge names to go stale), and every pipped body carries cap
-        // MERIDIAN edges — two half-caps on one sphere, no wedge —
-        // which the battery honestly refuses as `TangentialEdge`. The
-        // composed die needs an edge-selection vocabulary the recipe
-        // layer does not have (the N4 fillet-naming emitter, banked).
-        // Pinned, executed, in `m6_composed_node.rs`.
+        // `die_composed` (M6 unit 1, registered by M6-5): the
+        // composition surgery as a recipe — box blends, octants and
+        // the pip-rim TORUS BAND behind ONE `Node::Fillet`. It sat
+        // BESIDE this registry for a milestone, with its refusal
+        // pinned: `Node::Fillet` was every-edge, and every pipped body
+        // carries cap MERIDIAN edges (two half-caps on one sphere, no
+        // wedge) the battery honestly refuses `TangentialEdge`. M6-5
+        // gave the node a SELECTION and the surgery a naming emitter,
+        // so the fourteen edges that do have wedges can be named and
+        // the two that do not can be left out. The flipped pin and the
+        // selection's provenance live in `m6_composed_node.rs`.
+        die_composed::document(),
     ]
 }
 
