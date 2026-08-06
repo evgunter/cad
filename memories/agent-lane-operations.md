@@ -73,3 +73,10 @@ sweep checks open PRs' mergeable state, not just lane activity.
 Binary/render conflicts are never hand-picked — take a side,
 regenerate through the pipeline, re-verify the reproducibility
 contract.
+**Substrate-output placement (lesson 2026-08-06):** clean-lanes
+on a substrate dir's PARENT deletes the inventory beside the
+lane (m6-5's inventory was lost this way; the implementer
+re-derived). Substrate outputs and the lane clone must not share
+a parent that gets passed to cleanup — put outputs at
+cad-work/<name>-substrate/ and the clone INSIDE it, then remove
+only the clone subdir at the seam.
