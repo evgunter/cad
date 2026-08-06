@@ -16,17 +16,24 @@
 //!
 //! # Chart scope, stated
 //!
-//! Cylinder charts only — the one chart whose pcurves mint today (the
-//! tiltedcut walls; every split cylinder wall). Conic trims on
+//! Two charts construct here: **cylinder** (M5 PR 11 — the tiltedcut
+//! walls; every split cylinder wall) and, since M7's montage
+//! skin-scenes unit, **described non-rational NURBS** (the loft/sweep
+//! walls — the frontier this header used to call "the banked
+//! trimmed-NURBS lane", now promoted; NURBS faces route here
+//! unconditionally, iso-rectangle or not, because the swept-rectangle
+//! walk has no NURBS chart). The NURBS lane's certificate is the
+//! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
+//! derivation, covered-vs-refused inventory); its boundary pcurves
+//! are the closed-form images (`Harmonic`, `IsoLine` — every
+//! loft/sweep wall boundary stores `IsoLine`). Conic trims on
 //! cone/sphere/torus charts refuse typed naming that frontier (their
-//! pcurves arrive with their consumers). A **fitted** (rung-3) chart
-//! image also refuses typed here, and since M6-2 that refusal is a
-//! genuine one rather than a statement about an absent variant:
-//! `Pcurve::Fitted` and `Pcurve::IsoLine` exist and reach bodies at
-//! rest (M6-2/M6-3), but the trim-loop walk here reads a closed-form
-//! harmonic image; the spline-image tessellation consumer is the
-//! banked trimmed-NURBS lane (the cut-loft unit's, with the
-//! edge×NURBS-face boolean layer).
+//! pcurves mint since M6-3; the trimmed-lane geometry for them is
+//! unwritten). A **fitted** (rung-3) chart image still refuses typed
+//! on every chart: the chord pass has no certified UV chord-step
+//! bound for a fitted image (the boundary-tightening contract in
+//! `crate::chords`), and its first genuine consumer is the
+//! edge×NURBS-face boolean layer (the cut-loft unit).
 //!
 //! # The grid-on-constraint retry (the T-junction attack)
 //!
@@ -60,11 +67,28 @@ use topo::{Body, EdgeKey, FaceKey};
 use crate::cert;
 use crate::chords::{ceil_count, sagitta_angle};
 use crate::curved::Tol;
+use crate::nurbs_cert::{NurbsFaceBound, nurbs_face_bound};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::types::TessellateError;
 
 /// Retry budget for the grid-on-constraint rebuild (module docs).
 const MAX_GRID_RETRIES: usize = 4;
+
+/// The per-chart data of the two constructing lanes (module docs):
+/// which certificate each emitted triangle checks, and which pcurve
+/// forms the trim walk accepts.
+enum Lane {
+    /// The M5 PR 11 cylinder lane (harmonic pcurves, radial-convexity
+    /// certificate).
+    Cylinder {
+        origin: Point3<f64>,
+        axis: geom_core::Vec3<f64>,
+        radius: f64,
+    },
+    /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
+    /// interpolation certificate — `crate::nurbs_cert`).
+    Nurbs { bound: NurbsFaceBound },
+}
 
 /// Does this face's outer loop carry a non-iso trim carrier (conic or
 /// B-spline)? Structural kind test — the C5 dispatch discipline, no
@@ -104,28 +128,45 @@ pub(crate) fn tessellate_trimmed(
     if !face.rings.is_empty() {
         return Err(TessellateError::RingOnCurvedFace { face: fk });
     }
-    let Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        ..
-    } = *surface
-    else {
-        return Err(trim_frontier(body, fk, face.outer)?);
+    let lane = match *surface {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => Lane::Cylinder {
+            origin,
+            axis,
+            radius,
+        },
+        Surface::Nurbs(ref payload) => {
+            if payload.is_placeholder() {
+                // The mvfs "no description yet" state — the historical
+                // refusal, kept for exactly this class (types docs).
+                return Err(TessellateError::UnsupportedSurface { face: fk });
+            }
+            Lane::Nurbs {
+                bound: nurbs_face_bound(payload, fk)?,
+            }
+        }
+        _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
 
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its
     // last point; ids stay the shared 3-D chord ids).
-    let polygon = trim_polygon(body, fk, face.outer, chords, chord_ts)?;
+    let nurbs_chart = matches!(lane, Lane::Nurbs { .. });
+    let polygon = trim_polygon(body, fk, face.outer, chords, chord_ts, nurbs_chart)?;
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
             what: "degenerate trimmed boundary",
         });
     }
 
-    // Grid sizing: sagitta-tight in u, rows every r·hu metres in v
-    // (heuristic; the certificates are the guarantee — crate docs).
+    // Grid sizing (heuristic; the certificates are the guarantee —
+    // crate docs): cylinder — sagitta-tight in u, rows every r·hu
+    // metres in v; NURBS — the Hessian-budget steps (`nurbs_cert`),
+    // shared with the chord pass's boundary tightening.
     let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
     for &(u, v, _) in &polygon {
         u0 = u0.min(u);
@@ -133,9 +174,16 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let hu = sagitta_angle(tol.delta_s, radius);
-    let nu = ceil_count(u1 - u0, hu)?;
-    let nv = ceil_count(v1 - v0, radius * hu)?;
+    let (nu, nv) = match lane {
+        Lane::Cylinder { radius, .. } => {
+            let hu = sagitta_angle(tol.delta_s, radius);
+            (ceil_count(u1 - u0, hu)?, ceil_count(v1 - v0, radius * hu)?)
+        }
+        Lane::Nurbs { ref bound } => {
+            let (hu, hv) = bound.grid_steps(tol.delta_s);
+            (ceil_count(u1 - u0, hu)?, ceil_count(v1 - v0, hv)?)
+        }
+    };
 
     // Grid candidates (row-major, deterministic ids assigned on the
     // FINAL kept set so retries stay deterministic).
@@ -277,8 +325,11 @@ pub(crate) fn tessellate_trimmed(
             }
             let vs = f.vertices();
             let mut ids = [0u32; 3];
+            let mut uv = [[0.0f64; 2]; 3];
             for (k, vtx) in vs.iter().enumerate() {
-                ids[k] = match meta[vtx.fix().index()].2 {
+                let (u, v, slot) = meta[vtx.fix().index()];
+                uv[k] = [u, v];
+                ids[k] = match slot {
                     Slot::Boundary(id) => id,
                     Slot::Grid { i, j } => grid_ids[&(i, j)],
                 };
@@ -291,7 +342,48 @@ pub(crate) fn tessellate_trimmed(
                 positions[ids[1] as usize],
                 positions[ids[2] as usize],
             ];
-            let bound = cert::cert_cylinder(origin, axis, radius, tri);
+            let bound = match lane {
+                Lane::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                } => cert::cert_cylinder(origin, axis, radius, tri),
+                Lane::Nurbs { ref bound } => bound.cert(uv),
+            };
+            // REVIEW PROBE (env-gated): per-triangle falsification of
+            // the NURBS certificate — dense barycentric samples of
+            // |S(w) − Π(w)| must be dominated by cert + ε on EVERY
+            // triangle, not in aggregate.
+            if matches!(lane, Lane::Nurbs { .. }) && crate::probe_stats::armed() {
+                let m = 12usize;
+                for a in 0..=m {
+                    for b in 0..=(m - a) {
+                        #[allow(clippy::cast_precision_loss)]
+                        let (b0, b1) = (a as f64 / m as f64, b as f64 / m as f64);
+                        let b2 = 1.0 - b0 - b1;
+                        let (u, v) = (
+                            b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0],
+                            b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1],
+                        );
+                        let s = surface.eval(u, v);
+                        let pi = Point3::new(
+                            b0 * tri[0].x + b1 * tri[1].x + b2 * tri[2].x,
+                            b0 * tri[0].y + b1 * tri[1].y + b2 * tri[2].y,
+                            b0 * tri[0].z + b1 * tri[1].z + b2 * tri[2].z,
+                        );
+                        let d =
+                            ((s.x - pi.x).powi(2) + (s.y - pi.y).powi(2) + (s.z - pi.z).powi(2))
+                                .sqrt();
+                        assert!(
+                            d <= bound + tol.eps,
+                            "PROBE per-triangle violation: |S-Pi| {d} > cert {bound} + eps {} \
+                             at uv=({u},{v}) tri uv {uv:?}",
+                            tol.eps
+                        );
+                        crate::probe_stats::record(d, bound + tol.eps);
+                    }
+                }
+            }
             // Sticky-NaN accumulation (the curved lane's rule).
             if bound.is_nan() || worst.is_nan() || bound > worst {
                 worst = bound;
@@ -327,10 +419,10 @@ fn trim_frontier(
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
                 note: "conic/B-spline trim on a cone/sphere/torus chart — those charts \
-                       mint stored pcurves since M6-3, but this trimmed-face \
-                       tessellation lane's geometry is the cylinder chart's (M5 PR 11); \
-                       the other analytic charts' trimmed lanes are banked with their \
-                       first construction",
+                       mint stored pcurves since M6-3, but the trimmed-face \
+                       tessellation lanes written are the cylinder chart's (M5 PR 11) \
+                       and the NURBS chart's (M7); the remaining analytic charts' \
+                       trimmed lanes are banked with their first construction",
             });
         }
     }
@@ -342,12 +434,16 @@ fn trim_frontier(
 /// The pcurve-driven UV polygon of the face's outer loop: per
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point).
+/// `nurbs_chart` widens the accepted image forms to `IsoLine` (the
+/// NURBS chart's minted form); `Fitted` refuses typed on every chart
+/// (module docs).
 fn trim_polygon(
     body: &Body<f64>,
     fk: FaceKey,
     lk: topo::LoopKey,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     chord_ts: &HashMap<EdgeKey, Vec<f64>>,
+    nurbs_chart: bool,
 ) -> Result<Vec<(f64, f64, u32)>, TessellateError> {
     let lp = body
         .get_loop(lk)
@@ -374,18 +470,37 @@ fn trim_polygon(
                        mint in the split/boolean pipelines",
             });
         };
-        // Trim-loop tessellation walks a chart image's closed form; a
-        // fitted (rung-3) image is the loft/sweep assembly unit's
-        // consumer, not this one. Typed refusal rather than a silent
-        // straight-line approximation of a spline boundary.
-        let Pcurve::Harmonic { .. } = cache.pcurve() else {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: he.edge,
-                note: "trimmed face half-edge carries a FITTED (rung-3) pcurve — the \
-                       trim-loop walk reads a closed-form chart image, and the spline \
-                       image's tessellation consumer is the loft/sweep assembly unit",
-            });
-        };
+        // Trim-loop tessellation walks a chart image's CLOSED FORM
+        // (module docs): `Harmonic` on every chart, `IsoLine` on the
+        // NURBS chart (its minted form; an `IsoLine` on a cylinder
+        // chart is not minted at rest — the harmonic form with zero
+        // trigonometric channels owns that image). A fitted (rung-3)
+        // image refuses typed on every chart rather than silently
+        // approximating a spline boundary the chord pass could not
+        // have sized (`crate::chords`' boundary-tightening contract).
+        match cache.pcurve() {
+            Pcurve::Harmonic { .. } => {}
+            Pcurve::IsoLine { .. } if nurbs_chart => {}
+            Pcurve::IsoLine { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: he.edge,
+                    note: "trimmed face half-edge carries an ISO-LINE pcurve on an \
+                           analytic chart — analytic charts mint the harmonic form \
+                           for exactly this image, so this cache is not one the \
+                           at-rest mint pass produces",
+                });
+            }
+            Pcurve::Fitted(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: he.edge,
+                    note: "trimmed face half-edge carries a FITTED (rung-3) pcurve — \
+                           the trim walk and the chord pass's boundary tightening \
+                           read closed-form chart images; the fitted image's first \
+                           tessellation consumer is the edge×NURBS-face boolean \
+                           layer (the cut-loft unit)",
+                });
+            }
+        }
         let ids = chords.get(&he.edge).ok_or(TessellateError::MissingEntity {
             what: "edge chords",
         })?;

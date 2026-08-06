@@ -30,7 +30,14 @@
 //! `cos α · ρ_maxᵀ · (1 − cos(Δu/2))` (perpendicular distance to the
 //! generator ray at each point's azimuth; triangle-local max radius, so
 //! apex fans certify tightly); torus — `(3/4)(R + 2r)·L_uv²` (linear
-//! interpolation against the closed-form Hessian bound `R + 2r`). All
+//! interpolation against the closed-form Hessian bound `R + 2r`);
+//! described non-rational NURBS (M7, the trimmed-NURBS lane) — the
+//! same interpolation derivation against a **hull-derived** Hessian
+//! bound (second-derivative control nets by knot differencing, sup by
+//! convexity — the `nurbs_cert` module's anisotropic
+//! `(muu·a_u² + 2·muv·a_u·a_v + mvv·a_v²)/4`); rational or C⁰-creased
+//! NURBS faces refuse typed (partial coverage stated, never an
+//! estimated bound). All
 //! bounds are exact-arithmetic statements about the vertex positions;
 //! two documented additive slacks sit outside them: boundary vertices
 //! lie on certified edge carriers (within the kernel's ε of each
@@ -58,7 +65,8 @@
 //! across rebuilds. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, the adjacent
 //! faces' surface parameters, δ) — adjacent surfaces enter only through
-//! the torus boundary-step requirement, documented on [`chords`].
+//! the torus and trimmed-NURBS boundary-step requirements, documented
+//! on [`chords`].
 //!
 //! # Structure kept, structure dropped
 //!
@@ -158,6 +166,7 @@
 pub mod cert;
 pub mod chords;
 mod curved;
+mod nurbs_cert;
 mod planar;
 mod tessellate;
 mod trimmed;
@@ -167,3 +176,55 @@ pub mod walk;
 
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
+
+/// REVIEW PROBE support (env-gated; dead in normal runs): global
+/// per-triangle certificate headroom stats.
+pub mod probe_stats {
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    /// (worst measured deviation, its cert, max ratio d/cert, count).
+    pub static STATS: Mutex<(f64, f64, f64, u64)> = Mutex::new((0.0, 0.0, 0.0, 0));
+    /// Arms the per-triangle falsifier in `trimmed` (MIN-1 adoption:
+    /// the reviewer's probe promoted from env-gated to the SUITE'S
+    /// guard — the driving test arms it in-process, so it runs
+    /// unconditionally under the hosted gate; under a threaded runner
+    /// arming may also sample concurrent tessellations, which only
+    /// widens coverage).
+    static ARMED: AtomicBool = AtomicBool::new(false);
+    /// Arm/disarm the falsifier.
+    pub fn arm(on: bool) {
+        ARMED.store(on, Ordering::SeqCst);
+    }
+    /// Is the falsifier armed? (Also true when the reviewer's original
+    /// `NURBS_PROBE` env var is set — the manual drive stays usable.)
+    pub fn armed() -> bool {
+        ARMED.load(Ordering::SeqCst) || std::env::var_os("NURBS_PROBE").is_some()
+    }
+    /// Record one sample: measured deviation `d` against its
+    /// triangle's certificate `cert`.
+    pub fn record(d: f64, cert: f64) {
+        let mut s = STATS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if d > s.0 {
+            s.0 = d;
+            s.1 = cert;
+        }
+        if cert > 0.0 {
+            let r = d / cert;
+            if r > s.2 {
+                s.2 = r;
+            }
+        }
+        s.3 += 1;
+    }
+    /// Take-and-reset the accumulated stats.
+    pub fn take() -> (f64, f64, f64, u64) {
+        let mut s = STATS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let out = *s;
+        *s = (0.0, 0.0, 0.0, 0);
+        out
+    }
+}

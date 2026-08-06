@@ -85,12 +85,39 @@ pub enum TessellateError {
         /// The offending value.
         value: f64,
     },
-    /// A face's surface is [`geom_surfaces::Surface::Nurbs`] — the
-    /// unimplemented placeholder has no evaluable description to
-    /// tessellate against (refused, D3 fallback lands at M5).
+    /// A face's surface is the [`geom_surfaces::Surface::Nurbs`]
+    /// **placeholder** (`NurbsSurface::is_placeholder`) — the mvfs "no
+    /// description yet" state has no evaluable description to
+    /// tessellate against.
+    ///
+    /// History (the S9 discipline — a flipped refusal carries its
+    /// record): through M7 this variant refused EVERY `Nurbs` face,
+    /// described or not, as the first dispatch arm of
+    /// [`crate::tessellate`] — the banked trimmed-NURBS frontier that
+    /// `trimmed`'s module docs named. The trimmed-NURBS lane (M7,
+    /// the montage skin-scenes unit) routes described faces through
+    /// `trimmed` with the control-net Hessian certificate; only the
+    /// placeholder still lands here. Described faces OUTSIDE the
+    /// certified inventory refuse [`Self::UnsupportedNurbsFace`]
+    /// instead, naming their class.
     UnsupportedSurface {
         /// The offending face.
         face: FaceKey,
+    },
+    /// A DESCRIBED NURBS face outside the trimmed-NURBS lane's
+    /// certified inventory: a rational surface (a rational second
+    /// derivative is not a control-hull convexity fact — the same
+    /// deliberate absence as the chord pass's rational-carrier
+    /// refusal and `geom_core::spline::hull`'s missing rational
+    /// derivative path), a C⁰-creased direction (interior knot
+    /// multiplicity ≥ degree — the interpolation Taylor bound needs
+    /// C¹), or a degenerate degree-0 direction. Partial coverage
+    /// stated typed beats a dishonest bound (D4).
+    UnsupportedNurbsFace {
+        /// The offending face.
+        face: FaceKey,
+        /// WHICH class refused and the real blocker.
+        note: &'static str,
     },
     /// An edge/carrier configuration outside the certified inventory:
     /// a rational or C⁰-kinked B-spline carrier (no hull sagitta), a

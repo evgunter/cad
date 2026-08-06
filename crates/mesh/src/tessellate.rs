@@ -30,10 +30,11 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 ///
 /// # Errors
 ///
-/// [`TessellateError`] (closed enum): invalid δ, `Nurbs`
-/// surfaces/carriers, rings on curved faces, empty loops, dangling
-/// keys, resolution overflow, certificate failure, CDT insertion
-/// failure.
+/// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
+/// placeholder, described NURBS faces outside the trimmed-NURBS
+/// inventory (rational / C⁰-creased — `nurbs_cert`), unsupported
+/// carriers, rings on curved faces, empty loops, dangling keys,
+/// resolution overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
@@ -90,7 +91,23 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             eps,
         };
         let triangles = match *surface {
-            Surface::Nurbs(_) => return Err(TessellateError::UnsupportedSurface { face: fk }),
+            // Described NURBS faces route through the trimmed lane
+            // unconditionally (M7 — the flip of the historical
+            // first-arm refusal, whose record is on
+            // [`TessellateError::UnsupportedSurface`]): a NURBS face
+            // has no swept-rectangle chart, so the pcurve-driven walk
+            // is its only lane. The placeholder still refuses typed
+            // inside the lane; rational/C⁰ classes refuse
+            // [`TessellateError::UnsupportedNurbsFace`] there too.
+            Surface::Nurbs(_) => crate::trimmed::tessellate_trimmed(
+                body,
+                fk,
+                surface,
+                &chords,
+                &chord_ts,
+                &mut positions,
+                &tol,
+            )?,
             Surface::Plane {
                 origin,
                 normal,

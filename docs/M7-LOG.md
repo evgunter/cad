@@ -768,6 +768,61 @@ carrying the montage completion rider. Remaining ledger:
 band-seam unit, stage-1 recognition, M6 unit 5 + sense gate,
 k-lint floor, exit walks.
 
+**Trimmed-NURBS tessellation lane LANDED (PR #218, ev/mesh-nurbs-lane, HELD for adversarial review):
+the M6-3 frontier's second half — described NURBS faces RENDER.** The
+banked lane `trimmed.rs:28` named is promoted with two consumers. The
+per-triangle certificate is the torus derivation with a HULL-DERIVED
+Hessian (`mesh::nurbs_cert`): second-derivative control nets by knot
+differencing (NURBS Book 3.24 per direction, `derivative_coeffs`
+iterated), sup by tensor-product convexity, anisotropic bound
+(muu·a_u² + 2·muv·a_u·a_v + mvv·a_v²)/4 — never an estimate; grid
+sizing budgets δ_s/2 per axis group and the chord pass grows the
+adjacent-NURBS boundary tightening (the torus pattern, with per-axis
+closed-form pcurve speed bounds — exact |pl| for IsoLine, amplitude
+sums for Harmonic). Covered: described, non-rational, C¹ (degree ≥ 2
+with interior mult ≤ p−1, or degree-1 single-span) — exactly the
+1×2/1×3 loft/sweep wall class. Refused typed, naming the class
+(`UnsupportedNurbsFace`): rational (a rational second derivative is
+not a hull convexity fact — hull's deliberate absence), C⁰ creases,
+degree-0; `Fitted` pcurves refuse on every chart (no certified UV
+chord-step bound; consumer = the edge×NURBS-face boolean layer). The
+tessellate.rs:93 first-arm refusal flips per S9 with its history
+carried on `UnsupportedSurface` (placeholder-only now). Pins: the
+δ+ε promise EXERCISED (coarse/fine δ pair on loft_prism, measured
+max surface→mesh deviation dominated by δ+ε both times, pair
+genuinely ordered); determinism bitwise on the elbow; hull-dominates-
+sampled-Hessian; typed-refusal units. Consumers: (a) the skinned
+SceneBody stop flips — the montage-refresh patch applied verbatim
+(loft_prism / nonuniform_loft / swept_elbow, corpus fixtures cited
+constant-for-constant); (b) montage 19 → 22 cells (31 scenes − 9
+non-montage), README counts refreshed (STEP 41, curved 24; all three
+new bodies 6 `.T.`/0 `.F.` — NURBS walls are authored outward by
+assembly, nothing to reverse), renders on BOTH sheets with no
+placeholder, admesh clean (1 part, 0 defects × 3), clean-re-render
+verified twice through the stripped pipeline. Suites: mesh 73 + sweep
+338 + stl + topo + editor-core all green.
+
+**#218 review revisions (2026-08-06, same lane): the three cells
+re-posed for silhouette legibility.** Evan's two visual findings, both
+structural and both fixed at the geometry/pose level rather than
+shading: (1) the loft minimal pair now shares a near-face-on xz
+PROFILE camera (elev 10 / azim −80) — the flare is in x, so the
+mid-height vs one-third bulge is the outline itself; (2) the sweep
+cell's quarter-arc elbow was revolve-expressible (a square on ONE
+planar arc is a partial revolve's orbit), so the cell becomes
+`s_duct`: two OPPOSED R = 2 quarter arcs, degree-3 interpolant
+through 17 exact points, 13 stations — curvature changes sign, which
+no single-axis revolve can produce, and the S is posed edge-on. The
+quarter-arc elbow REMAINS the corpus/suite constant (common/mod.rs,
+m7_skin_integral, m7_nurbs_trimmed); the scene LEADS the corpus (lily
+precedent) and the S sweep is the fixture candidate for the next
+corpus fold. The tube cell keeps its torus-class shape with the
+README stating that as its point (the door's exactness), the
+not-a-revolve geometry living next door. Operational note: this
+host's render passes contended with a concurrent review-lane FreeCAD
+session (GL-context failures, one matplotlib-fallback near-miss
+caught before commit); re-render serialized behind it.
+
 **M6 unit 5 forks RULED (Evan on #217, 2026-08-06)**: F-a
 Vec-only selections + enumerate-all helper (freeze semantics
 made explicit and accepted — a selection is a commitment;
