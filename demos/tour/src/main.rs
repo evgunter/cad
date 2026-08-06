@@ -406,6 +406,9 @@ fn main() {
     }
 
     skinned::narration();
+    for stop in skinned::stops() {
+        run(&stop);
+    }
 
     println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
     for stop in tube::stops() {

@@ -16,10 +16,23 @@
 //!   steps ≤ its grid step h = √(δ_s/(3(R+2r))); a circle edge's
 //!   carrier parameter *is* the torus chart coordinate along it
 //!   (azimuth for rims, minor angle for meridians), so each adjacent
-//!   torus face adds n ≥ ceil(Δt/h). This is the one place adjacent
-//!   surfaces enter chord counts — chord points remain a pure function
-//!   of (carrier + interval, endpoint points, adjacent surface
-//!   parameters, δ).
+//!   torus face adds n ≥ ceil(Δt/h).
+//! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
+//!   shape with a hull-derived Hessian — a described NURBS face
+//!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
+//!   needs boundary UV steps within the face's own (h_u, h_v); the
+//!   half-edge's stored CLOSED-FORM pcurve (`IsoLine`/`Harmonic`)
+//!   gives per-axis UV speed bounds (s_u, s_v) — exact `|pl|`
+//!   components for the iso line, the amplitude sum for the harmonic
+//!   form — so each adjacent NURBS face adds n ≥ ⌈s_u·Δt/h_u⌉ and
+//!   ⌈s_v·Δt/h_v⌉, on EVERY carrier kind (a straight wall edge is one
+//!   3-D chord but many UV steps). A `Fitted` image has no certified
+//!   speed bound here and refuses typed (the trimmed lane's module
+//!   docs name its consumer).
+//!
+//! These tightenings are the only places adjacent surfaces enter
+//! chord counts — chord points remain a pure function of (carrier +
+//! interval, endpoint points, adjacent surface parameters, δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
 //! (never `carrier(t₀)`, which is only within ε of them) so every
@@ -28,12 +41,15 @@
 
 use std::collections::HashMap;
 
+use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
 use geom_curves::Curve3;
+use geom_surfaces::Surface;
 use topo::{Body, EdgeKey};
 
+use crate::nurbs_cert::nurbs_face_bound;
 use crate::types::TessellateError;
 
 /// Sanity cap on any single count (δ small enough to exceed this would
@@ -117,6 +133,10 @@ pub(crate) fn compute_chords(
     // included) — the trimmed-face lane evaluates pcurves at exactly
     // the chord schedule, so both stay one derivation (M5 PR 11).
     let mut params = HashMap::new();
+    // Per-NURBS-face (h_u, h_v) memo for the adjacent-NURBS
+    // tightening (module docs) — the Hessian hull is a per-face fact,
+    // computed once however many edges the face bounds.
+    let mut nurbs_steps: HashMap<topo::FaceKey, (f64, f64)> = HashMap::new();
     for (ek, edge) in body.edges() {
         let curve = body
             .get_curve_geom(edge.curve)
@@ -162,6 +182,10 @@ pub(crate) fn compute_chords(
             // derivative is not a hull fact; none is minted at rest).
             Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, delta_s, ek)?,
         };
+        // Adjacent-NURBS tightening (module docs), on every carrier
+        // kind — a straight wall edge is one 3-D chord but many UV
+        // steps of the wall's certificate budget.
+        let n = nurbs_tighten(body, ek, span, delta_s, &mut nurbs_steps, n)?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -291,6 +315,88 @@ fn nurbs_chord_count(
     }
     let h = (8.0 * delta_s / m_bound).sqrt();
     ceil_count(span, h)
+}
+
+/// The adjacent-NURBS chord tightening (module docs): for each
+/// adjacent described NURBS face, raise `n` until the edge's UV image
+/// steps fit inside the face's certificate-budget grid steps. The
+/// per-face `(h_u, h_v)` memo (`steps`) keeps the Hessian hull a
+/// once-per-face computation.
+fn nurbs_tighten(
+    body: &Body<f64>,
+    ek: EdgeKey,
+    span: f64,
+    delta_s: f64,
+    steps: &mut HashMap<topo::FaceKey, (f64, f64)>,
+    mut n: usize,
+) -> Result<usize, TessellateError> {
+    let edge = body
+        .get_edge(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
+    for hek in [edge.he_plus, edge.he_minus] {
+        let he = body
+            .get_half_edge(hek)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
+        let lp = body
+            .get_loop(he.parent_loop)
+            .ok_or(TessellateError::MissingEntity {
+                what: "parent loop",
+            })?;
+        let fk = lp.face;
+        let face = body
+            .get_face(fk)
+            .ok_or(TessellateError::MissingEntity { what: "face" })?;
+        let surface = body
+            .get_surface(face.surface)
+            .ok_or(TessellateError::MissingEntity {
+                what: "face surface",
+            })?;
+        let Surface::Nurbs(ref payload) = *surface else {
+            continue;
+        };
+        if payload.is_placeholder() {
+            return Err(TessellateError::UnsupportedSurface { face: fk });
+        }
+        let (hu, hv) = match steps.get(&fk) {
+            Some(&s) => s,
+            None => {
+                let s = nurbs_face_bound(payload, fk)?.grid_steps(delta_s);
+                steps.insert(fk, s);
+                s
+            }
+        };
+        let Some(cache) = body.pcurve(hek) else {
+            return Err(TessellateError::UnsupportedCurve {
+                edge: ek,
+                note: "NURBS-face half-edge carries no stored pcurve cache — caches \
+                       mint at loft/sweep assembly and STEP adoption; without one \
+                       the chord schedule has no certified UV step bound",
+            });
+        };
+        // Per-axis UV speed bounds (module docs): exact for the iso
+        // line, the amplitude sum |pa|+|pb|+|pl| componentwise for the
+        // harmonic form (|P′| = |−pa·sin t + pb·cos t + pl|).
+        let (su, sv) = match cache.pcurve() {
+            Pcurve::IsoLine { pl, .. } => (pl.x.abs(), pl.y.abs()),
+            Pcurve::Harmonic { pa, pb, pl, .. } => (
+                pa.x.abs() + pb.x.abs() + pl.x.abs(),
+                pa.y.abs() + pb.y.abs() + pl.y.abs(),
+            ),
+            Pcurve::Fitted(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a FITTED (rung-3) pcurve — no \
+                           certified UV speed bound is wired for a fitted image's \
+                           chord schedule; its first tessellation consumer is the \
+                           edge×NURBS-face boolean layer (the cut-loft unit)",
+                });
+            }
+        };
+        n = n
+            .max(ceil_count(su * span, hu)?)
+            .max(ceil_count(sv * span, hv)?);
+    }
+    Ok(n)
 }
 
 /// The radius of a circle carrier (caller guarantees the variant).
