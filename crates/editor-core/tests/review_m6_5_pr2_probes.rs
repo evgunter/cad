@@ -17,8 +17,8 @@ use std::collections::BTreeSet;
 
 use corpus::die_composed;
 use editor_core::{
-    CancelToken, CapEnd, Dimension, EntityKind, EvalOptions, Expr, Node, NodeResult,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, CapEnd, Dimension, EntityKind, EvalOptions, Expr, Node, NodeResult, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::prism_edges;
 
@@ -62,10 +62,7 @@ fn p1_whole_body_supports_wrap_exactly_the_targets_face_names() {
             distance: len(1.0),
         },
     );
-    let (doc, blank) = fixture::insert(
-        doc,
-        Node::fillet(cube, len(0.125), prism_edges(cube, 4)),
-    );
+    let (doc, blank) = fixture::insert(doc, Node::fillet(cube, len(0.125), prism_edges(cube, 4)));
     let ev = eval(&doc);
     let table = table_of(&ev, blank);
     let target = table_of(&ev, cube);
@@ -73,7 +70,11 @@ fn p1_whole_body_supports_wrap_exactly_the_targets_face_names() {
     let mut inner: Vec<StableName> = Vec::new();
     for (n, _) in table.iter() {
         if let RoleSeg::FromTarget(up) = n.path.first().expect("a role") {
-            assert_eq!(n.kind, EntityKind::Face, "only supports are FromTarget here");
+            assert_eq!(
+                n.kind,
+                EntityKind::Face,
+                "only supports are FromTarget here"
+            );
             inner.push((**up).clone());
         }
     }
@@ -90,7 +91,10 @@ fn p1_whole_body_supports_wrap_exactly_the_targets_face_names() {
     ]
     .into_iter()
     .collect();
-    assert_eq!(got, expected, "the supports wrap exactly the target's faces");
+    assert_eq!(
+        got, expected,
+        "the supports wrap exactly the target's faces"
+    );
     for up in &inner {
         assert!(
             target.lookup(up).is_some(),
@@ -160,10 +164,7 @@ fn p3_whole_body_totality_holds_for_a_triangular_prism() {
             distance: len(1.0),
         },
     );
-    let (doc, blank) = fixture::insert(
-        doc,
-        Node::fillet(prism, len(0.1), prism_edges(prism, 3)),
-    );
+    let (doc, blank) = fixture::insert(doc, Node::fillet(prism, len(0.1), prism_edges(prism, 3)));
     let ev = eval(&doc);
     let NodeResult::Ok(v) = ev.nodes.get(&blank).expect("the fillet") else {
         panic!(
