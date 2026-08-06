@@ -283,11 +283,12 @@ pub enum EditError {
     },
     /// Replacing the subtree broke an ancestor's dimension check.
     Dimension(DimensionError),
-    /// A `Declare` payload names a node that does not exist at edit
-    /// time (spec D3 carve-out, ruled): a never-existed id is a TYPO,
-    /// refused at the best-diagnostics door. (A later `DeleteNode`
-    /// stranding a name is ALLOWED — N5 dangling semantics; see
-    /// [`Node::Declare`].)
+    /// A name-referencing payload — a `Declare`'s pairs or a
+    /// `Fillet`'s selection (M6-5) — names a node that does not exist
+    /// at edit time (spec D3 carve-out, ruled): a never-existed id is
+    /// a TYPO, refused at the best-diagnostics door. (A later
+    /// `DeleteNode` stranding a name is ALLOWED — N5 dangling
+    /// semantics; see [`Node::Declare`].)
     DeclareNamesMissingNode {
         /// The name whose node is not live.
         name: StableName,
@@ -581,9 +582,18 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             // must point at LIVE nodes at edit time — a never-existed
             // id is a typo. They are not DAG edges: later deletes may
             // strand them (N5), so this is the ONLY door that checks.
-            if let Node::Declare { pairs } = node {
-                for name in pairs.iter().flat_map(|(a, b)| [a, b]) {
-                    if !new.nodes.contains_key(&name.node) {
+            // (M6-5: a fillet's SELECTION carries name refs under the
+            // same carve-out, so `named_nodes` is the door for both.)
+            for n in node.named_nodes() {
+                if !new.nodes.contains_key(&n) {
+                    let name = match node {
+                        Node::Declare { pairs } => {
+                            pairs.iter().flat_map(|(a, b)| [a, b]).find(|x| x.node == n)
+                        }
+                        Node::Fillet { selection, .. } => selection.iter().find(|x| x.node == n),
+                        _ => None,
+                    };
+                    if let Some(name) = name {
                         return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
                     }
                 }

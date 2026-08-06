@@ -4,7 +4,7 @@
 //! fixpoint is BLIND to format drift: rename a field and save/load
 //! stay self-consistent while every existing v1 file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v2_golden.cad`): the fixture document must save to
+//! (`tests/golden/v3_golden.cad`): the fixture document must save to
 //! exactly those bytes, and the bytes must load. Any change to either
 //! is a format change and demands a ratified schema bump + migration
 //! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
@@ -29,8 +29,8 @@ use editor_core::{
 };
 use fixture::{desc, len};
 
-const GOLDEN: &str = include_str!("golden/v2_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v2_golden.cad";
+const GOLDEN: &str = include_str!("golden/v3_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v3_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -150,6 +150,33 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
             },
         },
     );
+    // The v3 shape (M6-5): a `Node::Fillet` with a stored SELECTION,
+    // so the new field's wire bytes — a list of stable names, in
+    // canonical order — are pinned from the day the format carries
+    // them. Node 4. The names are two of the extrude's cap–wall rims,
+    // deliberately handed to `Node::fillet` OUT of order so the golden
+    // also pins that the constructor canonicalizes.
+    let rim = |seg: u32| StableName {
+        kind: EntityKind::Edge,
+        node: editor_core::RecipeNodeId(1),
+        path: vec![RoleSeg::RimEdge(
+            editor_core::CapEnd::Top,
+            editor_core::ProfileEdgeRef {
+                loop_index: 0,
+                segment: seg,
+            },
+        )],
+    };
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::fillet(
+                editor_core::RecipeNodeId(1),
+                len(0.0625),
+                vec![rim(2), rim(0)],
+            ),
+        },
+    );
     let body = StableName {
         kind: EntityKind::Body,
         node: editor_core::RecipeNodeId(1),
@@ -203,7 +230,7 @@ fn golden_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v2 wire bytes drifted from the committed golden — this is a FORMAT \
+        "schema-v3 wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }
