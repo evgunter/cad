@@ -1,0 +1,84 @@
+# The NON-UNIFORM loft (#210, on #207's fix): the corpus's minimal
+# pair with `loft_prism`. The SAME three sections -- squares [-1,1]^2
+# at the ends, the non-affine trapezoid (-1.375,-1)(1.375,-1)(1,1)
+# (-1,1) in the middle -- at the SAME v-degree 2, moved from z = 0,1,2
+# to z = 0,1,**3**. Section spacing 1 : 2 instead of 1 : 1 is the whole
+# difference, and until #207 it was the difference between a body and a
+# refusal: the skin fit synthesized a weight channel whose LU
+# round-trip landed an ulp off 1.0 on exactly this parameterization,
+# making every wall bitwise RATIONAL, poisoning `speed_lower_bound`,
+# and refusing the body at assembly.
+#
+# Census 6/12/8 is `loft_prism`'s (same topology, different placement):
+# 2 planar caps + 4 non-rational B_SPLINE_SURFACE_WITH_KNOTS walls;
+# 8 exact line rims + 4 NURBS wall-wall seams; 4+4 corners. OCC keeps
+# it -- open (non-closed) B-spline patches import without added seam or
+# degenerate edges.
+#
+# ---------------------------------------------------------------- V
+#
+# EXACT ANALYTIC, in FreeCAD's internal mm^3, not a readback.
+#
+# (1) The v-parameterization. `sweep::skin::skin_parameters` averages
+#     the normalized cumulative CHORD lengths over the control rows of
+#     the first strip -- here the bottom edge, whose two rows are
+#     (-1,-1,z) <-> (-1.375,-1,z) and (1,-1,z) <-> (1.375,-1,z). Both
+#     rows travel the same two chords,
+#       sqrt(0.375^2 + 1^2) = sqrt(73)/8   and
+#       sqrt(0.375^2 + 2^2) = sqrt(265)/8,
+#     so the average is exact and the middle parameter is
+#       t = sqrt(73) / (sqrt(73) + sqrt(265)) = 0.34419950074181277,
+#     NOT the 1/3 that the z-spacing alone would suggest -- the flare
+#     lengthens the first chord. (Compare `loft_prism`, where the
+#     symmetric spacing forces t = 1/2 whatever the flare does.)
+#
+# (2) The fit. Three sections at degree 2 give the clamped knot vector
+#     [0,0,0,1,1,1]: one Bezier span, so each corner path is the unique
+#     QUADRATIC through its three section points at parameters
+#     [0, t, 1] -- the Lagrange interpolant, with
+#       L1(v) = v(v-1) / (t(t-1)),   L2(v) = v(v-t) / (1-t).
+#
+# (3) The slices. All four corners share one z-channel, so every fixed-v
+#     slice is planar: z(v) = L1(v) + 3*L2(v), monotone on [0,1]
+#     (z' runs 2.856 -> 3.144). The x-channel is the end value plus
+#     d*L1(v) at the two flaring bottom corners (d = 0.375) and constant
+#     at the two top ones; walls are degree 1 in u, so the slice is the
+#     straight-edged trapezoid of area A(v) = 4 + 2*d*L1(v).
+#
+# (4) The integral. V = int_0^1 A(v) z'(v) dv = 4*(z(1)-z(0)) + 2d*I
+#     with I = int_0^1 L1 z' dv. Writing z' = L1' + 3 L2', the first
+#     term dies exactly: int_0^1 (v^2-v)(2v-1) dv = 0. The second gives
+#     int_0^1 (v^2-v)(2v-t) dv = (t-1)/6, so I = 1/(2 t (1-t)), and
+#       V = 12 + 0.375 / (t(1-t))
+#         = 12.75 + 126.75 / sqrt(19345)      [t(1-t) = ab/(a+b)^2]
+#         = 13.661304680798798 m^3 = 13661304680.798798 mm^3.
+#
+# The kernel's certified midpoint below is 13661304680.798807 -- four
+# ulps away, and 5e-11 of the certified pad. Local FreeCAD reads back
+# 13661304680.7988, so RTOL stays at the 1e-9 default: these walls are
+# piecewise-POLYNOMIAL ruled patches (degree 1x2), well inside GProp's
+# Gauss order, exactly as for `loft_prism`.
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+# The certified volume is a QUADRATURE enclosure (the NURBS walls have
+# no closed form): midpoint +/- pad, both FUNCTIONS of ambient eps,
+# pinned at the corpus's declared uncertainty eps = 1e-9 -- which is why
+# the staleness row byte-pins the pair only at eps = 1e-9 and asserts
+# enclosure overlap at other eps.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=6
+KERNEL_EDGES=12
+KERNEL_VERTICES=8
+KERNEL_VOLUME_MM3=13661304680.798807
+KERNEL_VOLUME_PAD_MM3=0.00016090832370233935
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=6
+EXPECT_EDGES=12
+EXPECT_VERTICES=8
+EXPECT_VOLUME_MM3=13661304680.798798

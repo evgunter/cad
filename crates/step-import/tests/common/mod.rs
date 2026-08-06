@@ -19,7 +19,14 @@ use topo::Body;
 /// fixture, whose row-1 exclusion reason — the
 /// `B_SPLINE_SURFACE_WITH_KNOTS` vocabulary refusal — that unit
 /// retired (the S9 flip recorded in `review_k3_probe.rs`).
-pub const SOLID_FIXTURES: [&str; 15] = [
+///
+/// `nonuniform_loft` and `swept_elbow` joined at the #210 corpus fold
+/// (15 → 17): the exportable class #207's skin-fit fix opened — a loft
+/// whose sections are NON-uniformly spaced, and the tree's first
+/// curved-path `sweep_body`. Both are non-rational NURBS-walled, so
+/// they put M7-3's surface arm, its IsoCurve seam rung and its rim
+/// pcurve re-mint on bodies the writer could not produce until #210.
+pub const SOLID_FIXTURES: [&str; 17] = [
     "cube",
     "die",
     "kiss_assembly",
@@ -35,6 +42,8 @@ pub const SOLID_FIXTURES: [&str; 15] = [
     "die_pips",
     "composed_die",
     "loft_prism",
+    "nonuniform_loft",
+    "swept_elbow",
 ];
 
 /// A fixture file's text.

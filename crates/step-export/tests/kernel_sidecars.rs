@@ -3,7 +3,7 @@
 //! `KERNEL_FACES` / `KERNEL_EDGES` / `KERNEL_VERTICES` /
 //! `KERNEL_VOLUME_MM3` / `KERNEL_VOLUME_PAD_MM3` fields are asserted
 //! against the LIVE kernel census and certified volume of the source
-//! body (`common::fixture_corpus()` rebuilds all 15), so the fields
+//! body (`common::fixture_corpus()` rebuilds all 17), so the fields
 //! can never rot. `nurbs_wireframe.expect` carries no KERNEL_* fields
 //! and is out of scope here: a wireframe has no census or volume to
 //! pin, as its own sidecar states.
@@ -48,7 +48,7 @@ mod common;
 /// fixture-writing call; see `tests/export.rs`'s `export` helper).
 const CORPUS_EPS: f64 = 1e-9;
 
-/// The staleness row (15/15): rebuilds every corpus body and checks
+/// The staleness row (17/17): rebuilds every corpus body and checks
 /// each committed sidecar's KERNEL_* lines against the live values. On
 /// failure the message prints the full expected block per fixture —
 /// paste-ready for regeneration after a deliberate builder change

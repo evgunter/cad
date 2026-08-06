@@ -250,6 +250,31 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 "LINE",
             ],
         ),
+        // The #210 corpus fold: the same native-NURBS vocabulary on the
+        // two bodies #207's skin-fit fix made exportable. Identical rows
+        // to `loft_prism`, and that IS the row's content — a
+        // non-uniformly spaced loft and a curved-path sweep have no new
+        // entity kinds to offer. What they had until #207 was
+        // RATIONAL_B_SPLINE_* records for geometry that is not rational;
+        // that is pinned dead in `m7_swept_elbow.rs`.
+        (
+            "nonuniform_loft",
+            &[
+                "PLANE",
+                "B_SPLINE_SURFACE_WITH_KNOTS",
+                "B_SPLINE_CURVE_WITH_KNOTS",
+                "LINE",
+            ],
+        ),
+        (
+            "swept_elbow",
+            &[
+                "PLANE",
+                "B_SPLINE_SURFACE_WITH_KNOTS",
+                "B_SPLINE_CURVE_WITH_KNOTS",
+                "LINE",
+            ],
+        ),
     ];
     for (name, body) in curved_corpus() {
         let text = export(&body, name);
@@ -725,8 +750,10 @@ fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
 /// instance, knot run-length encoding).
 ///
 /// What this row pins now is CONTAINMENT, kernel-side and text-side:
-/// NURBS geometry appears exactly where the kernel put it — on
-/// `loft_prism`, in known counts — and nowhere else. A corpus document
+/// NURBS geometry appears exactly where the kernel put it — on the
+/// three skinned documents (`loft_prism`, and the #210 fold's
+/// `nonuniform_loft` and `swept_elbow`), in known counts — and nowhere
+/// else. A corpus document
 /// that silently acquired a NURBS carrier (fitted lane, live since
 /// M6-2) or a writer that manufactured a spline out of an analytic
 /// carrier still fails here.
@@ -748,12 +775,13 @@ fn nurbs_geometry_appears_exactly_where_the_kernel_put_it() {
                 )
             })
             .count();
-        // loft_prism: 4 skinned walls, 4 seam carriers (the wall–wall
-        // edges; the 8 cap rims stay exact placed lines). Everyone
-        // else: none — a corpus document that acquired one moves this
-        // pin deliberately, with its export row.
+        // The three NURBS-walled documents — loft_prism and the #210
+        // fold's two — each: 4 skinned walls, 4 seam carriers (the
+        // wall–wall edges; the 8 cap rims stay exact placed lines).
+        // Everyone else: none — a corpus document that acquired one
+        // moves this pin deliberately, with its export row.
         let (want_faces, want_carriers) = match name {
-            "loft_prism" => (4usize, 4usize),
+            "loft_prism" | "nonuniform_loft" | "swept_elbow" => (4usize, 4usize),
             _ => (0, 0),
         };
         assert_eq!(

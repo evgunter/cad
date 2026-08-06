@@ -37,7 +37,7 @@ needed), so a future remedy flow never parses messages.
 
 ## First slice: import what we export
 
-The export corpus (15 solid fixtures + `nurbs_wireframe` under
+The export corpus (17 solid fixtures + `nurbs_wireframe` under
 `crates/step-export/tests/fixtures/`) covers the kernel's whole
 geometry vocabulary as **native, exact AP214 entities** (M5 PR 13;
 `docs/CURVED-DESIGN.md` + the STEP writer identity mapping (M5 PR 13 record)): PLANE / CYLINDRICAL_ / CONICAL_
