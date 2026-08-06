@@ -854,3 +854,23 @@ non-planar path, or continuously varying curvature — measure
 the post-#210 path vocabulary first and demonstrate the
 strongest reachable class); make the loft pair's nonuniformity
 dramatic. Lane montage-v2 (slot 2).
+
+**Montage-v2 delivered (2026-08-06, PR #221 HELD for Evan's
+eyeball; watchlisted).** Item 2's measurement CONCEDED Evan's
+read (the s_duct IS two glued partial revolves — demoted,
+caption honesty-fixed) and produced the real answer: planar
+varying-curvature and sub-half-turn non-planar paths all build
+end-to-end; the new sweep cell is twisted_duct (square along a
+twisted cubic, τ nowhere zero — beyond any revolve gluing);
+profile twist verified unsupported (C11 scope). BANKED FRONTIER:
+helix arcs ≥0.5 turn refuse typed (nurbs_span_meter ParamSpan —
+the corner-path chord meter collapses under near-antipode frame
+roll) — the long-turn sweep lane. Item 3 measured honestly (the
+#218 pair was visually the prism rescaled; the re-spaced pair
+overshoots silhouette-obviously, V = 9.7219 derived, quadrature
+1e-13). One repair: the committed montage carried a stray
+fallback frame from this session's concurrent-renderer accident
+— recomposed from verified cells. Actions outage persists (zero
+runs created; the #220 rerun queued ~4h) — #221 merges on
+Evan's 👍 under the standing waiver, hosted evidence late via
+task-#16's sweep.
