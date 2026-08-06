@@ -327,3 +327,85 @@ fn the_downstream_reference_survives_an_upstream_bump() {
         "a stretch mints no entity, so the fillet's names are unchanged"
     );
 }
+
+// ------------------------------------------------------------------
+// `all_edges`, the whole-body materializer (review F-1).
+// ------------------------------------------------------------------
+
+/// **`all_edges` is what a caller uses to select everything.** The
+/// §0 ruling removed the live "All" variant on purpose: a live "all"
+/// would silently GROW when an upstream edit adds an edge, which is
+/// exactly the staleness a frozen selection exists to prevent. This
+/// helper closes the gap the honest way — evaluate, take the set as it
+/// stands, STORE it — and from that moment it behaves like any other
+/// authored selection.
+///
+/// The row pins the equivalence the corpus depends on: what
+/// `all_edges` hands back for an extruded square IS the set
+/// `die_fillet` authors by hand through `prism_edges`.
+#[test]
+fn all_edges_materializes_exactly_the_authored_whole_body_set() {
+    let doc = ProfileDoc::empty();
+    let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let ev = eval(&doc);
+
+    let materialized = editor_core::all_edges(&ev, cube);
+    let mut authored = prism_edges(cube, 4);
+    authored.sort();
+    assert_eq!(materialized.len(), 12, "a box has twelve edges");
+    assert_eq!(
+        materialized, authored,
+        "`all_edges` and the corpus's authored `prism_edges` agree"
+    );
+    assert!(
+        materialized.windows(2).all(|w| w[0] < w[1]),
+        "canonical, ready for `Node::fillet`"
+    );
+
+    // And it is a MATERIALIZER, not a query: the stored set does not
+    // follow the document. Feeding it to a fillet and then bumping the
+    // extrude leaves the selection exactly as stored.
+    let (doc, blank) = insert(&doc, Node::fillet(cube, len(0.125), materialized.clone()));
+    let bumped = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: cube,
+            slot: editor_core::SlotId::Distance,
+            expr: len(1.25),
+        },
+    )
+    .expect("the bump applies")
+    .doc;
+    let stored = match bumped.node(blank) {
+        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        other => panic!("expected a fillet, got {other:?}"),
+    };
+    assert_eq!(stored, materialized, "the materialized set froze");
+    match eval(&bumped).nodes.get(&blank) {
+        Some(NodeResult::Ok(_)) => {}
+        other => panic!("the frozen whole-body selection must still build, got {other:?}"),
+    }
+}
+
+/// The empty case is handed back as empty rather than guessed at: a
+/// node with no value, no table, or no edges yields no names, and the
+/// FILLET is where that refuses (`FilletSelectionEmpty`) — one door
+/// for the refusal, not two.
+#[test]
+fn all_edges_of_a_nameless_node_is_empty() {
+    let doc = ProfileDoc::empty();
+    let (doc, p) = insert(
+        &doc,
+        Node::Profile(fixture::desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
+    );
+    let ev = eval(&doc);
+    // A profile node has no output body and so an empty table.
+    assert!(editor_core::all_edges(&ev, p).is_empty());
+    // A node that is not in the evaluation at all: also empty.
+    assert!(editor_core::all_edges(&ev, RecipeNodeId(999)).is_empty());
+}

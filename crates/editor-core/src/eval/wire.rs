@@ -430,6 +430,24 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
 /// [`resolve_declarations`] — but the refusal vocabulary is the SAME
 /// N5 trio, deliberately: the two sites answer the same question.
 ///
+/// # Kept in step with [`resolve_declarations`] BY HAND
+///
+/// The ladder below — NodeGone (with the deleted-vs-foreign split)
+/// before lookup, `Entry::Tied` → `Ambiguous` carrying the same
+/// `TieWitness` shape, absent → `Vanished` with the honest
+/// `NodeChanged` fallback and `last_good: None` — is duplicated from
+/// [`resolve_declarations`], not shared with it. That is a deliberate
+/// trade and a standing hazard, so it is written down: the two differ
+/// in ARITY (two operand tables and a side-picking refusal there, one
+/// table and a kind refusal here), and the shared part is small enough
+/// that factoring it would mean a generic over "how to look a name up"
+/// — more indirection than the duplication costs today.
+///
+/// **If you change either ladder, change both.** The pins that would
+/// catch a drift are `m6_5_selection_refusals.rs` (this one) and
+/// `m4_pr5_declare.rs` (that one); they assert the same variants with
+/// the same payload shapes on purpose.
+///
 /// The returned keys are in TARGET-ARENA order, not selection order,
 /// so the kernel sees the deterministic order every derived list in
 /// this kernel inherits (D9) regardless of how the recipe sorted.
@@ -647,6 +665,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
 /// through the operands' name tables") — a name minted elsewhere in
 /// the document is Vanished HERE even if some other node still
 /// carries it.
+///
+/// **Twinned with [`resolve_selection`]** (M6-5): the fillet's
+/// selection resolves through the same N5 ladder, duplicated rather
+/// than shared. See that function's docs for why, and change both
+/// together.
 fn resolve_declarations(
     pairs: &[(names::StableName, names::StableName)],
     doc: &crate::doc::Doc<ProfileDesc>,
