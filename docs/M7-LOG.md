@@ -721,3 +721,6 @@ lanes, renders through the stripped pipeline, cell-count pin;
 the render-stamp unit makes the diff clean). Draw after this
 commit; the block's remainder owed to the next eligible unit
 (candidates: band-seam, stage-1 recognition, M6 unit 5).
+Draw: byte 111 → **(opus, fable)** — montage = OPUS; fable
+remainder to the next eligible dispatch. Dispatched on lane
+montage-refresh (slot 2).
