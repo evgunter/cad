@@ -109,7 +109,7 @@ impl NurbsFaceBound {
     pub fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
         let au = max3(uv[0][0], uv[1][0], uv[2][0]) - min3(uv[0][0], uv[1][0], uv[2][0]);
         let av = max3(uv[0][1], uv[1][1], uv[2][1]) - min3(uv[0][1], uv[1][1], uv[2][1]);
-        0.25 * (self.muu * au * au + 2.0 * self.muv * au * av + self.mvv * av * av)
+        0.25 * (self.muu * au.powi(2) + 2.0 * self.muv * au * av + self.mvv * av.powi(2))
     }
 
     /// The `(h_u, h_v)` UV grid steps for sizing target `delta_s`

@@ -28,7 +28,9 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
-use geom_core::{Affine3, Band, Decide, Indeterminate, Mat3, Point2, Point3, Sign, Vec2, Vec3};
+use geom_core::{
+    Affine3, Band, Decide, Indeterminate, Length, Mat3, Point2, Point3, Sign, Vec2, Vec3,
+};
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptKind, SweptSeg, full, partial};
@@ -139,14 +141,26 @@ pub fn tube_along_arc<T: Decide>(
     let arm = major_radius + minor_radius;
     let esc = |source| TubeError::Escalated { source };
     let unit = |v: Vec3<T>, err: TubeError| -> Result<(), TubeError> {
-        match decide("tube_frame_unit", (v.norm() - T::one()) * arm, band).map_err(esc)? {
+        match decide(
+            "tube_frame_unit",
+            Length::levered(v.norm() - T::one(), arm),
+            band,
+        )
+        .map_err(esc)?
+        {
             Sign::Zero => Ok(()),
             Sign::Positive | Sign::Negative => Err(err),
         }
     };
     unit(axis, TubeError::NonUnitAxis)?;
     unit(u_ref, TubeError::NonUnitURef)?;
-    match decide("tube_frame_orthogonal", axis.dot(u_ref) * arm, band).map_err(esc)? {
+    match decide(
+        "tube_frame_orthogonal",
+        Length::levered(axis.dot(u_ref), arm),
+        band,
+    )
+    .map_err(esc)?
+    {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Err(TubeError::FrameNotOrthogonal),
     }
@@ -156,11 +170,11 @@ pub fn tube_along_arc<T: Decide>(
         TubeWindow::Full => (T::tau(), true),
         TubeWindow::Arc { t0, t1 } => {
             let span = t1 - t0;
-            match decide("tube_window_span", span * arm, band).map_err(esc)? {
+            match decide("tube_window_span", Length::levered(span, arm), band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::DegenerateWindow),
             }
-            let headroom = (T::tau() - span) * arm;
+            let headroom = Length::levered(T::tau() - span, arm);
             match decide("tube_window_headroom", headroom, band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::FullRangeWindow),

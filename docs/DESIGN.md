@@ -871,7 +871,23 @@ applied to error handling. Five commitments:
    argument explicit at the call site: a coordinate/parameter
    difference that IS a length; a dimensionless quantity levered by
    an arm; a norm; a volume defect over its perturbable boundary
-   area (mean displacement). A site where no door honestly fits is
+   area (mean displacement). Three derived doors are named special
+   cases, not new kinds (fix-pass adjudication of the PR #213
+   review's Y2 derivations): the sagitta κ·L²/2 is the levered door
+   applied twice; the reciprocal form x/κ_rel is the levered door at
+   D4 ¶1's own tangency lever 1/κ; a parameter span through its
+   per-kind metric rate is clause (iii) surfacing at the seam. The
+   quotient door is the measure-over-lever form (an area or signed
+   volume over the boundary length / lever / surface area that
+   scales it to the point displacement it subtends: 2A/P, V/A, the
+   chart-orientation a×b·n̂/r). The CONSISTENCY BACKSTOPS are
+   excluded from the seam entirely (Evan's #213 layering ruling):
+   inequalities between integral results — the volume_backstop
+   family — decide on bare T through the invariant lane
+   (`k_stats::decide_invariant`), no Length minted, and a certified
+   violation is a Corrupt-class kernel-invariant error, never a
+   validity refusal. A
+   site where no door honestly fits is
    a finding, not a cast. The vector/linalg interior stays bare `T`
    (annotating `Vec3` ops would recreate the algebra problem); the
    typed surface is where contracts are single-kind — which is
@@ -904,8 +920,13 @@ applied to error handling. Five commitments:
    is `docs/predicate-dimension-audit.md` (the audited family is
    already clean by measurement; F12's expression-layer row is the
    first out-of-family site the newtype would catch at compile
-   time). *Awaits Evan's ratification; a 👍 on the design PR flips
-   this PROPOSED → ratified with citation.*
+   time). *Clause (i) is EXECUTED (the margin-migrate unit):
+   `geom_core::k_stats::decide` takes `Length<T>` by signature, the
+   blessed doors live beside `Band` in `geom-core::predicate`, and
+   the ledger's flagged rows ride the row-keyed
+   `k_stats::decide_flagged` finding lane — visible typed debt, not
+   casts (there is no raw construction door). K-telemetry byte
+   identity over the probe census is the executed acceptance.*
    **The tessellation criterion is DISTANCE-ONLY (ruled in session
    2026-08-02/03, Evan + orchestrator concur; RATIFIED at the M5 PR
    14 exit sweep — Evan, PR #169 comment 5171303851,

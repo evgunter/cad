@@ -19,7 +19,7 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::{Band, Decide, Indeterminate, Point2, Real, Sign, Vec2};
+use geom_core::{Band, Decide, Indeterminate, Length, Point2, Real, Sign, Vec2};
 
 use crate::k_stats::decide;
 
@@ -122,7 +122,7 @@ pub(crate) fn build_seg<T: Decide>(
     band: Band,
 ) -> Result<Seg<T>, SegIssue> {
     let len = a.distance(b);
-    match decide("vertex_separation", len, band).map_err(SegIssue::Escalated)? {
+    match decide("vertex_separation", Length::of(len), band).map_err(SegIssue::Escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SegIssue::Degenerate),
     }
@@ -130,7 +130,13 @@ pub(crate) fn build_seg<T: Decide>(
     let unit = chord / len;
     let half = T::from_f64(0.5);
     let sagitta = len * bulge * half;
-    let kind = match decide("segment_straightness", sagitta, band).map_err(SegIssue::Escalated)? {
+    let kind = match decide(
+        "segment_straightness",
+        Length::levered(bulge * half, len),
+        band,
+    )
+    .map_err(SegIssue::Escalated)?
+    {
         Sign::Zero => SegKind::Line,
         turn => {
             let mid = a.lerp(b, half);
@@ -143,8 +149,12 @@ pub(crate) fn build_seg<T: Decide>(
             let apex = mid - n * sagitta;
             let radius = signed_radius.abs();
             let span_chord = a.distance(apex);
-            match decide("arc_diameter_clearance", radius + radius - span_chord, band)
-                .map_err(SegIssue::Escalated)?
+            match decide(
+                "arc_diameter_clearance",
+                Length::of(radius + radius - span_chord),
+                band,
+            )
+            .map_err(SegIssue::Escalated)?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(SegIssue::NearFull),
@@ -173,7 +183,7 @@ pub(crate) fn build_seg<T: Decide>(
 /// point lies on. Margin: the signed perpendicular distance
 /// perp_dot(û, q − a) (meters; positive = left of the chord direction).
 fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    decide("chord_side", s.unit.perp_dot(q - s.a), band)
+    decide("chord_side", Length::of(s.unit.perp_dot(q - s.a)), band)
 }
 
 /// **`line_span`** — whether a point *known to lie on the carrier line*
@@ -183,7 +193,7 @@ fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, I
 /// outside).
 fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
     let t = (q - s.a).dot(s.unit);
-    decide("line_span", t.min(s.len - t), band)
+    decide("line_span", Length::of(t.min(s.len - t)), band)
 }
 
 /// **`arc_span`** — whether a point *known to lie on the carrier
@@ -206,7 +216,11 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 /// and are discounted only within ε of the actual shared vertex
 /// (`contact_at_shared_vertex` is an uncompressed direct distance).
 fn arc_span<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    decide("arc_span", g.span_chord - q.distance(g.apex), band)
+    decide(
+        "arc_span",
+        Length::of(g.span_chord - q.distance(g.apex)),
+        band,
+    )
 }
 
 /// **`contact_at_shared_vertex`** (and other point-coincidence
@@ -218,7 +232,7 @@ pub(crate) fn coincident<T: Decide>(
     q: Point2<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide(name, p.distance(q), band)
+    decide(name, Length::of(p.distance(q)), band)
 }
 
 /// How the two carriers of a *joint* — adjacent segments at their
@@ -278,12 +292,12 @@ pub(crate) fn joint_tangency<T: Decide>(
         (SegKind::Arc(g1), SegKind::Arc(g2)) => {
             let d = g1.center.distance(g2.center);
             let dr = (g1.radius - g2.radius).abs();
-            match decide("carrier_circles_identity", d + dr, band)? {
+            match decide("carrier_circles_identity", Length::of(d + dr), band)? {
                 Sign::Zero | Sign::Negative => Ok(JointClass::SameCarrier),
                 Sign::Positive => {
                     match decide(
                         "carrier_circles_external",
-                        d - (g1.radius + g2.radius),
+                        Length::of(d - (g1.radius + g2.radius)),
                         band,
                     )? {
                         Sign::Zero => Ok(JointClass::Tangent),
@@ -292,13 +306,16 @@ pub(crate) fn joint_tangency<T: Decide>(
                         // defensively definite non-tangency.
                         Sign::Positive => Ok(JointClass::Transversal),
                         Sign::Negative => {
-                            Ok(match decide("carrier_circles_internal", d - dr, band)? {
-                                Sign::Zero => JointClass::Tangent,
-                                Sign::Positive => JointClass::Transversal,
-                                // Nested carriers: unreachable with a
-                                // shared vertex; defensive.
-                                Sign::Negative => JointClass::Transversal,
-                            })
+                            Ok(
+                                match decide("carrier_circles_internal", Length::of(d - dr), band)?
+                                {
+                                    Sign::Zero => JointClass::Tangent,
+                                    Sign::Positive => JointClass::Transversal,
+                                    // Nested carriers: unreachable with a
+                                    // shared vertex; defensive.
+                                    Sign::Negative => JointClass::Transversal,
+                                },
+                            )
                         }
                     }
                 }
@@ -316,7 +333,7 @@ fn line_circle_joint<T: Decide>(
 ) -> Result<JointClass, Indeterminate> {
     let h = line.unit.perp_dot(g.center - line.a);
     Ok(
-        match decide("carrier_line_circle", g.radius - h.abs(), band)? {
+        match decide("carrier_line_circle", Length::of(g.radius - h.abs()), band)? {
             Sign::Zero => JointClass::Tangent,
             Sign::Positive => JointClass::Transversal,
             // A definitely-disjoint carrier pair cannot share a vertex —
@@ -411,17 +428,19 @@ fn line_line<T: Decide>(
         let td = (s2.b - s1.a).dot(s1.unit);
         let lo = tc.min(td).max(T::zero());
         let hi = tc.max(td).min(s1.len);
-        return Ok(match decide("collinear_overlap", hi - lo, band)? {
-            Sign::Positive => PairOutcome::Overlap,
-            Sign::Zero => {
-                let mid = (lo + hi) * T::from_f64(0.5);
-                PairOutcome::Contacts(vec![Contact {
-                    point: s1.a + s1.unit * mid,
-                    kind: CKind::Touch,
-                }])
-            }
-            Sign::Negative => PairOutcome::Contacts(Vec::new()),
-        });
+        return Ok(
+            match decide("collinear_overlap", Length::of(hi - lo), band)? {
+                Sign::Positive => PairOutcome::Overlap,
+                Sign::Zero => {
+                    let mid = (lo + hi) * T::from_f64(0.5);
+                    PairOutcome::Contacts(vec![Contact {
+                        point: s1.a + s1.unit * mid,
+                        kind: CKind::Touch,
+                    }])
+                }
+                Sign::Negative => PairOutcome::Contacts(Vec::new()),
+            },
+        );
     }
     let o_a = chord_side(s2, s1.a, band)?;
     let o_b = chord_side(s2, s1.b, band)?;
@@ -484,7 +503,7 @@ fn line_arc<T: Decide>(
     let to_center = g.center - line.a;
     let h = line.unit.perp_dot(to_center);
     let mut contacts = Vec::new();
-    match decide("carrier_line_circle", g.radius - h.abs(), band)? {
+    match decide("carrier_line_circle", Length::of(g.radius - h.abs()), band)? {
         Sign::Negative => {}
         Sign::Zero => {
             let foot = line.a + line.unit * to_center.dot(line.unit);
@@ -551,7 +570,7 @@ fn arc_arc<T: Decide>(
     let delta = g2.center - g1.center;
     let d = g1.center.distance(g2.center);
     let dr = (g1.radius - g2.radius).abs();
-    match decide("carrier_circles_identity", d + dr, band)? {
+    match decide("carrier_circles_identity", Length::of(d + dr), band)? {
         Sign::Zero | Sign::Negative => {
             // Cocircular: span overlap on the shared carrier.
             let mut contacts = Vec::new();
@@ -574,7 +593,7 @@ fn arc_arc<T: Decide>(
         Sign::Positive => {
             let mut contacts = Vec::new();
             let sum = g1.radius + g2.radius;
-            match decide("carrier_circles_external", d - sum, band)? {
+            match decide("carrier_circles_external", Length::of(d - sum), band)? {
                 Sign::Positive => {}
                 Sign::Zero => {
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
@@ -583,7 +602,7 @@ fn arc_arc<T: Decide>(
                     push_arc_arc_contact(&mut contacts, g1, g2, q, true, band)?;
                 }
                 Sign::Negative => {
-                    match decide("carrier_circles_internal", d - dr, band)? {
+                    match decide("carrier_circles_internal", Length::of(d - dr), band)? {
                         Sign::Negative => {}
                         Sign::Zero => {
                             // Internally tangent: d = |Δr| and the
@@ -666,7 +685,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     band: Band,
 ) -> Result<usize, Graze> {
     let side = |q: Point2<T>| -> Result<Sign, Graze> {
-        decide("ray_side", dir.perp_dot(q - origin), band).map_err(|_| Graze)
+        decide("ray_side", Length::of(dir.perp_dot(q - origin)), band).map_err(|_| Graze)
     };
     match &seg.kind {
         SegKind::Line => {
@@ -680,7 +699,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     // carrier crossing; count it if strictly ahead.
                     let denom = seg.chord.perp_dot(dir);
                     let s = seg.chord.perp_dot(seg.a - origin) / denom;
-                    match decide("ray_advance", s, band) {
+                    match decide("ray_advance", Length::of(s), band) {
                         Ok(Sign::Positive) => Ok(1),
                         Ok(Sign::Negative) => Ok(0),
                         Ok(Sign::Zero) | Err(_) => Err(Graze),
@@ -691,7 +710,9 @@ pub(crate) fn ray_crossings<T: Decide>(
         SegKind::Arc(g) => {
             let to_center = g.center - origin;
             let h = dir.perp_dot(to_center);
-            match decide("carrier_line_circle", g.radius - h.abs(), band).map_err(|_| Graze)? {
+            match decide("carrier_line_circle", Length::of(g.radius - h.abs()), band)
+                .map_err(|_| Graze)?
+            {
                 Sign::Negative => Ok(0),
                 Sign::Zero => Err(Graze),
                 Sign::Positive => {
@@ -699,7 +720,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     let half = (g.radius.powi(2) - h.powi(2)).sqrt();
                     let mut count = 0;
                     for t in [tc - half, tc + half] {
-                        match decide("ray_advance", t, band) {
+                        match decide("ray_advance", Length::of(t), band) {
                             Ok(Sign::Negative) => {}
                             Ok(Sign::Positive) => {
                                 let q = origin + dir * t;

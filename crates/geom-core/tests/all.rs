@@ -34,6 +34,8 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "flagged_census.rs"]
+mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
 #[path = "m5_pr1_poison_conservation.rs"]
@@ -62,6 +64,8 @@ mod review_m5_pr2_scratch_hull;
 mod review_m5_pr7_svd;
 #[path = "review_m5_pr7b_tensor.rs"]
 mod review_m5_pr7b_tensor;
+#[path = "review_margin_probe.rs"]
+mod review_margin_probe;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
