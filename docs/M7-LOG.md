@@ -893,3 +893,11 @@ Draw: byte 194 → **(fable, opus)** — M6-6 = FABLE; opus
 remainder to the next eligible dispatch. Dispatched on lane
 m6-6-gate (slot 1, replacing the substrate claim; the substrate
 clone cleans per the placement rule — outputs stay).
+
+**Fallback unit ratified (Evan 👍 on #221's affordance):
+difficulty logged S BEFORE dispatch; arm = OPUS (block M7-8
+remainder).** Scope: the matplotlib fallback writes to a
+gitignored renders-preview/ (never the committed paths) + a
+guard asserting committed PNGs carry the FreeCAD signature
+chunks — a fallback frame becomes structurally uncommittable.
+Lane render-guard (slot 2).
