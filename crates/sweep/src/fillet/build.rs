@@ -28,6 +28,17 @@
 //! [`FilletError::AssemblyUnsupported`], naming the remaining gap
 //! (the `FullRevolveHoles` precedent).
 //!
+//! # Naming (M6-5 PR-2)
+//!
+//! Both doors now emit per-entity birth records
+//! ([`super::naming::FilletNaming`]). Here they are read straight off
+//! the [`Plan`] — the same provenance payloads the assembly built
+//! from, paired with the key each plan slot minted — so the records
+//! cannot drift from the construction. This door mints into a FRESH
+//! arena, so it has no survivors: a shrunk support face is a new key
+//! with a `supports` row, where the surgery's shrunk support is the
+//! source key itself. Both name it the same thing.
+//!
 //! # The derived result, stated once
 //!
 //! For a polyhedron with `V` vertices, `E` edges and `F` faces (so
@@ -113,11 +124,16 @@ pub struct Filleted<T: Real> {
     /// in first-link-edge order. Empty on the whole-body path, which
     /// admits no closed chains (M6 surgery unit).
     pub band_faces: Vec<FaceKey>,
-    /// **Per-entity birth records** (M6-5), when the door that built
-    /// this body keeps them: `Some` on the composition-surgery path,
-    /// `None` on the whole-body path, whose records land in M6-5
-    /// PR-2. A consumer that needs names refuses typed on `None`
-    /// rather than guessing — the honest interim dead end.
+    /// **Per-entity birth records** (M6-5): what the fillet minted and
+    /// which source entity each mint was made for.
+    ///
+    /// BOTH doors fill this since PR-2 — the composition surgery
+    /// writes rows as it mutates, the whole-body rebuild reads them
+    /// off its [`Plan`]. The `Option` survives only because
+    /// `Filleted` is public and a future third door would have to say
+    /// so explicitly rather than ship an empty table by default;
+    /// `None` is a kernel bug today and `editor-core` refuses it as
+    /// one, never falling back to unnamed geometry.
     pub naming: Option<super::naming::FilletNaming>,
 }
 
@@ -347,19 +363,47 @@ enum EdgeCarrier<T: Real> {
 struct PlannedEdge<T: Real> {
     /// Its two planned vertices.
     ends: (usize, usize),
-    /// Its carrier kind.
+    /// Its carrier kind (geometry — what the description pass
+    /// rebuilds).
     carrier: EdgeCarrier<T>,
+    /// What it was minted for (provenance — what the naming records
+    /// are written from). Kept apart from `carrier` on purpose: the
+    /// two answer different questions and must be free to differ.
+    origin: EdgeOrigin,
 }
 
-/// What a planned face is a patch of — the result's coverage buckets.
+/// What a planned face is a patch OF — the result's coverage buckets
+/// AND its birth provenance (M6-5 PR-2: the payload is what the
+/// naming records are written from, so the two can never disagree).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FaceKind {
-    /// A shrunk planar support face.
-    Support,
-    /// A quarter-cylinder blend, one per original edge.
-    Blend,
-    /// A sphere patch, one per original vertex.
-    Corner,
+    /// A shrunk planar support face, over the source face it shrinks.
+    Support(FaceKey),
+    /// A quarter-cylinder blend, over the original edge it rounds.
+    Blend(EdgeKey),
+    /// A sphere patch, over the original vertex it rounds.
+    Corner(VertexKey),
+}
+
+/// What a planned EDGE was minted for (M6-5 PR-2).
+#[derive(Clone, Copy, Debug)]
+enum EdgeOrigin {
+    /// A trimline: the source edge blended, and the support it lies
+    /// in (one source edge yields two trimlines).
+    Trim {
+        /// The source edge.
+        edge: EdgeKey,
+        /// The support face.
+        support: FaceKey,
+    },
+    /// A corner arc: the source vertex rounded, and the source edge
+    /// whose blend the arc bounds.
+    Arc {
+        /// The source corner vertex.
+        vertex: VertexKey,
+        /// The source edge.
+        edge: EdgeKey,
+    },
 }
 
 /// One planned face of the result.
@@ -381,8 +425,14 @@ struct PlannedFace<T: Real> {
 /// The complete derived result, before any entity exists.
 struct Plan<T: Real> {
     points: Vec<Point3<T>>,
+    /// Per planned point: the source (corner vertex, support face)
+    /// whose foot it is — parallel to `points` (M6-5 PR-2).
+    point_of: Vec<(VertexKey, FaceKey)>,
     edges: Vec<PlannedEdge<T>>,
     faces: Vec<PlannedFace<T>>,
+    /// Every source entity the rebuild retires — which, on this door,
+    /// is every edge and every vertex of the input (M6-5 PR-2).
+    dead: super::naming::Retired,
     radius: T,
 }
 
@@ -397,6 +447,7 @@ impl<T: Decide + Bounds> Plan<T> {
         // ---- Corner balls, and the new vertices they place. ----
         let mut vindex: Vec<(VertexKey, FaceKey, usize)> = Vec::new();
         let mut points: Vec<Point3<T>> = Vec::new();
+        let mut point_of: Vec<(VertexKey, FaceKey)> = Vec::new();
         let mut corners: Vec<(VertexKey, Point3<T>, Surface<T>)> = Vec::new();
         for (v, _) in body.vertices() {
             let faces = vertex_faces(body, v)
@@ -413,6 +464,7 @@ impl<T: Decide + Bounds> Plan<T> {
             let ball = corner_ball([p; 3], normals, radius, true);
             for (n, &f) in normals.iter().zip(faces.iter()) {
                 vindex.push((v, f, points.len()));
+                point_of.push((v, f));
                 points.push(ball.center + *n * radius);
             }
             // The octant's CHART, chosen so the patch is an
@@ -467,6 +519,10 @@ impl<T: Decide + Bounds> Plan<T> {
                 edges.push(PlannedEdge {
                     ends: (a, b),
                     carrier: EdgeCarrier::Trim,
+                    origin: EdgeOrigin::Trim {
+                        edge: link.edge,
+                        support: face,
+                    },
                 });
             }
         }
@@ -485,6 +541,10 @@ impl<T: Decide + Bounds> Plan<T> {
                 edges.push(PlannedEdge {
                     ends: (a, b),
                     carrier: EdgeCarrier::Arc { center: *center },
+                    origin: EdgeOrigin::Arc {
+                        vertex: *v,
+                        edge: link.edge,
+                    },
                 });
             }
         }
@@ -531,7 +591,7 @@ impl<T: Decide + Bounds> Plan<T> {
                     .ok_or_else(|| unsupported("a face surface does not resolve"))?
                     .clone(),
                 sense: face.sense,
-                kind: FaceKind::Support,
+                kind: FaceKind::Support(fk),
             });
         }
 
@@ -564,7 +624,7 @@ impl<T: Decide + Bounds> Plan<T> {
                 edges: vec![ta, sa, tb, sb],
                 surface: link.blend.surface.clone(),
                 sense: link.convexity.blend_sense(),
-                kind: FaceKind::Blend,
+                kind: FaceKind::Blend(link.edge),
             });
         }
 
@@ -609,14 +669,24 @@ impl<T: Decide + Bounds> Plan<T> {
                 edges: ring,
                 surface: surface.clone(),
                 sense: true,
-                kind: FaceKind::Corner,
+                kind: FaceKind::Corner(*v),
             });
         }
 
         Ok(Self {
             points,
+            point_of,
             edges,
             faces,
+            // The door admits only the every-edge request over a
+            // trivalent polyhedron, and the rebuild lands in a FRESH
+            // arena: every source entity is retired by construction,
+            // so this is a statement of the door's contract, not a
+            // tally kept during mutation.
+            dead: super::naming::Retired {
+                edges: body.edges().map(|(k, _)| k).collect(),
+                vertices: body.vertices().map(|(k, _)| k).collect(),
+            },
             radius,
         })
     }
@@ -782,14 +852,56 @@ impl<T: Decide + Bounds> Plan<T> {
             "fillet postcondition: the result is not tier-2 valid (kernel bug)",
         );
 
-        let bucket = |kind: FaceKind| -> Vec<FaceKey> {
+        let bucket = |want: fn(&FaceKind) -> bool| -> Vec<FaceKey> {
             self.faces
                 .iter()
                 .enumerate()
-                .filter(|(_, f)| f.kind == kind)
+                .filter(|(_, f)| want(&f.kind))
                 .filter_map(|(i, _)| state.fkey[i])
                 .collect()
         };
+
+        // ---- Birth records (M6-5 PR-2). Every row is read off the
+        // PLAN's own provenance — the same payloads the assembly built
+        // from — paired with the key that plan slot minted. Nothing is
+        // recovered afterwards by matching geometry, which is exactly
+        // what N4 forbids; the surgery door's discipline, verbatim.
+        //
+        // This door has no survivors: the rebuild lands in a fresh
+        // arena, so even a shrunk support face is a NEW key and gets
+        // its own `supports` row. The one thing the plan cannot state
+        // is a slot that was never minted — `assemble` has already
+        // refused ("a planned face was never minted") above, so every
+        // `fkey`/`ekey`/`vkey` below resolves. ----
+        let mut rec = super::naming::FilletNaming {
+            dead: self.dead.clone(),
+            ..Default::default()
+        };
+        for (i, planned) in self.faces.iter().enumerate() {
+            let Some(fk) = state.fkey[i] else {
+                return Err(unsupported("a planned face was never minted"));
+            };
+            match planned.kind {
+                FaceKind::Support(src) => rec.supports.push((fk, src)),
+                FaceKind::Blend(src) => rec.blends.push((fk, src)),
+                FaceKind::Corner(src) => rec.corners.push((fk, src)),
+            }
+        }
+        for (i, planned) in self.edges.iter().enumerate() {
+            let Some(ek) = state.ekey[i] else {
+                return Err(unsupported("a planned edge was never minted"));
+            };
+            match planned.origin {
+                EdgeOrigin::Trim { edge, support } => rec.trims.push((ek, edge, support)),
+                EdgeOrigin::Arc { vertex, edge } => rec.arcs.push((ek, vertex, edge)),
+            }
+        }
+        for (i, (v, f)) in self.point_of.iter().enumerate() {
+            let Some(vk) = state.vkey[i] else {
+                return Err(unsupported("a planned vertex was never minted"));
+            };
+            rec.feet.push((vk, *v, *f));
+        }
         // Final pass (M6-3, walk row 4): every fillet chart mints —
         // the quarter-cylinders since M5 PR 6, the corner sphere
         // octants since the analytic-chart completion — so a
@@ -801,12 +913,12 @@ impl<T: Decide + Bounds> Plan<T> {
             detail: format!("pcurve mint after the whole-body rebuild: {e:?}"),
         })?;
         Ok(Filleted {
-            blend_faces: bucket(FaceKind::Blend),
-            corner_faces: bucket(FaceKind::Corner),
+            blend_faces: bucket(|k| matches!(k, FaceKind::Blend(_))),
+            corner_faces: bucket(|k| matches!(k, FaceKind::Corner(_))),
+            // This door admits no closed chains (`whole_body_links`),
+            // so there is no rim to band.
             band_faces: Vec::new(),
-            // M6-5 PR-2: the whole-body door's birth records. Until
-            // then a naming consumer refuses typed rather than guess.
-            naming: None,
+            naming: Some(rec),
             body,
             solid: seed.solid,
             shell: seed.shell,

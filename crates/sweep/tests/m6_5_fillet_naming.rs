@@ -251,7 +251,14 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
         );
     }
 
-    // Every retired source key is really gone.
+    // ---- The identity, BOTH directions (M6-5 PR-2, review F-2).
+    //
+    // PR-1 executed only `output ⊆ source ⊎ minted`. That direction
+    // alone cannot see a source entity destroyed WITHOUT a record: it
+    // leaves no output key to ask about, so nothing downstream ever
+    // gets a chance to refuse. The converse — `(source − retired) ⊆
+    // output` — is what catches it, and it is the only claim in this
+    // file that `Retired` is needed for.
     for e in &rec.dead.edges {
         assert!(out.body.get_edge(*e).is_none(), "a retired edge survived");
     }
@@ -259,6 +266,26 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
         assert!(
             out.body.get_vertex(*v).is_none(),
             "a retired vertex survived"
+        );
+    }
+    for (e, _) in pipped.edges() {
+        assert!(
+            rec.dead.edges.contains(&e) || out.body.get_edge(e).is_some(),
+            "a source edge vanished without a retirement record"
+        );
+    }
+    for (v, _) in pipped.vertices() {
+        assert!(
+            rec.dead.vertices.contains(&v) || out.body.get_vertex(v).is_some(),
+            "a source vertex vanished without a retirement record"
+        );
+    }
+    // Faces are never retired by either door — a support shrinks, it
+    // does not die — so the claim there is total.
+    for (f, _) in pipped.faces() {
+        assert!(
+            out.body.get_face(f).is_some(),
+            "a source face vanished; supports shrink, they do not die"
         );
     }
 }
@@ -286,4 +313,141 @@ fn the_records_have_the_shape_the_surgery_built() {
     assert_eq!(rec.meridian_splits.len(), 2);
     assert_eq!(rec.meridian_remnants.len(), 2);
     assert_eq!(rec.slits.len(), 1, "one slit per band");
+}
+
+// ------------------------------------------------------------------
+// The WHOLE-BODY door (M6-5 PR-2).
+// ------------------------------------------------------------------
+
+/// **The whole-body rebuild keeps records too** — the last naming dead
+/// end in the fillet unit, closed.
+///
+/// The rebuild mints into a FRESH arena, so it has no survivors at
+/// all: every face, edge and vertex of the result is a recorded mint,
+/// and every source entity is retired. The counts are the module's own
+/// derived result for a die (`V=8, E=12, F=6` → 24 / 48 / 26).
+#[test]
+fn the_whole_body_door_records_every_entity_it_mints() {
+    let cube0 = cube(DIE_L);
+    let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
+    let out = fillet_edges(&cube0, &edges, R, band()).expect("the whole-body rebuild");
+    let rec = out
+        .naming
+        .as_ref()
+        .expect("the whole-body door keeps its records");
+
+    assert_eq!(rec.supports.len(), 6, "one shrunk support per source face");
+    assert_eq!(rec.blends.len(), 12, "one blend per source edge");
+    assert_eq!(rec.corners.len(), 8, "one octant per source vertex");
+    assert_eq!(rec.trims.len(), 24, "two trimlines per source edge");
+    assert_eq!(rec.arcs.len(), 24, "three corner arcs per source vertex");
+    assert_eq!(rec.feet.len(), 24, "one foot per (source vertex, support)");
+    // No closed chains reach this door, so no rim row is written.
+    assert!(rec.bands.is_empty() && rec.rim_trims.is_empty());
+    assert!(rec.rim_feet.is_empty() && rec.slits.is_empty());
+    assert!(rec.meridian_splits.is_empty() && rec.meridian_remnants.is_empty());
+
+    // The derived result, stated in `build.rs`'s module docs.
+    assert_eq!(out.body.faces().count(), 26);
+    assert_eq!(out.body.edges().count(), 48);
+    assert_eq!(out.body.vertices().count(), 24);
+
+    // TOTALITY, this door's version: every output entity is recorded
+    // exactly once, and there is no survivor branch to fall back on.
+    let mut f: Vec<_> = rec
+        .supports
+        .iter()
+        .map(|(k, _)| *k)
+        .chain(rec.blends.iter().map(|(k, _)| *k))
+        .chain(rec.corners.iter().map(|(k, _)| *k))
+        .collect();
+    let mut e: Vec<_> = rec
+        .trims
+        .iter()
+        .map(|(k, _, _)| *k)
+        .chain(rec.arcs.iter().map(|(k, _, _)| *k))
+        .collect();
+    let mut v: Vec<_> = rec.feet.iter().map(|(k, _, _)| *k).collect();
+    fn dedup<K: Ord + Copy>(x: &mut Vec<K>) {
+        let n = x.len();
+        x.sort_unstable();
+        x.dedup();
+        assert_eq!(n, x.len(), "a mint was recorded twice");
+    }
+    dedup(&mut f);
+    dedup(&mut e);
+    dedup(&mut v);
+    for (k, _) in out.body.faces() {
+        assert!(f.contains(&k), "an output face has no record");
+    }
+    for (k, _) in out.body.edges() {
+        assert!(e.contains(&k), "an output edge has no record");
+    }
+    for (k, _) in out.body.vertices() {
+        assert!(v.contains(&k), "an output vertex has no record");
+    }
+
+    // Every source entity is retired: a fresh arena keeps nothing.
+    assert_eq!(rec.dead.edges.len(), 12);
+    assert_eq!(rec.dead.vertices.len(), 8);
+    for (k, _) in cube0.edges() {
+        assert!(rec.dead.edges.contains(&k), "a source edge is unaccounted");
+    }
+    for (k, _) in cube0.vertices() {
+        assert!(
+            rec.dead.vertices.contains(&k),
+            "a source vertex is unaccounted"
+        );
+    }
+}
+
+/// **Every record names a LIVE source entity.** A row pointing at a
+/// key the input never had would name something unnameable; the
+/// emitter would refuse `MissingUpstream`, but the bug belongs here.
+#[test]
+fn every_whole_body_record_names_a_source_entity() {
+    let cube0 = cube(DIE_L);
+    let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
+    let out = fillet_edges(&cube0, &edges, R, band()).expect("the whole-body rebuild");
+    let rec = out.naming.as_ref().expect("records");
+    for (_, src) in &rec.supports {
+        assert!(cube0.get_face(*src).is_some(), "a support names no source");
+    }
+    for (_, src) in &rec.blends {
+        assert!(cube0.get_edge(*src).is_some(), "a blend names no source");
+    }
+    for (_, src) in &rec.corners {
+        assert!(
+            cube0.get_vertex(*src).is_some(),
+            "an octant names no source"
+        );
+    }
+    for (_, e, f) in &rec.trims {
+        assert!(cube0.get_edge(*e).is_some() && cube0.get_face(*f).is_some());
+    }
+    for (_, v, f) in &rec.feet {
+        assert!(cube0.get_vertex(*v).is_some() && cube0.get_face(*f).is_some());
+    }
+    for (_, v, e) in &rec.arcs {
+        assert!(cube0.get_vertex(*v).is_some() && cube0.get_edge(*e).is_some());
+    }
+}
+
+/// **The M5 outputs stay bit-preserved.** The whole-body path is kept
+/// (not subsumed) exactly so its geometry does not move; PR-2 adds
+/// records beside it and must not disturb that. Same request, twice:
+/// identical bodies.
+#[test]
+fn recording_does_not_move_the_whole_body_geometry() {
+    let cube0 = cube(DIE_L);
+    let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
+    let a = fillet_edges(&cube0, &edges, R, band()).expect("the rebuild");
+    let b = fillet_edges(&cube0, &edges, R, band()).expect("the rebuild again");
+    assert_eq!(
+        format!("{:?}", a.body),
+        format!("{:?}", b.body),
+        "the whole-body rebuild is deterministic"
+    );
+    assert_eq!(a.blend_faces, b.blend_faces);
+    assert_eq!(a.corner_faces, b.corner_faces);
 }

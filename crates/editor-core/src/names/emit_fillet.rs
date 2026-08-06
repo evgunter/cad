@@ -18,15 +18,28 @@
 //! nothing upstream, these are bit-identical. This emitter contributes
 //! no independent judgment that could disagree.
 //!
-//! # The two provenance channels, and the totality that closes them
+//! # Both doors, one vocabulary
+//!
+//! This pass serves the composition surgery AND (since M6-5 PR-2) the
+//! whole-body rebuild. The two doors differ only in how a shrunk
+//! SUPPORT face reaches it: the surgery leaves the source face in
+//! place, so it arrives as a survivor (an output key that is also a
+//! source key); the whole-body rebuild mints into a fresh arena, so it
+//! arrives as a [`FilletNaming::supports`] row. Both land on
+//! [`RoleSeg::FromTarget`] of the same upstream name — a name must not
+//! depend on which door built the body, or the same edit would rename
+//! things by changing which door the request falls through.
+//!
+//! # The provenance channels, and the totality that closes them
 //!
 //! An output entity is either a recorded mint or a survivor keeping
 //! its source arena key ([`FilletNaming`]'s module docs). Survivors
 //! take [`RoleSeg::FromTarget`] of their upstream name; mints take
-//! their role. Anything that is neither — a key the surgery minted
-//! without a record — has no upstream name and surfaces as
+//! their role. Anything that is neither — a key minted without a
+//! record — has no upstream name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
-//! around. The final [`check_total`] closes the other direction.
+//! around. The final [`check_total`] closes the other direction, for
+//! both doors alike.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -39,10 +52,10 @@ use super::role::{EntityKind, RimSupport, RoleSeg, StableName};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
-/// Names one composition-surgery result.
+/// Names one fillet result, from either assembly door.
 ///
 /// `target` is the fillet's single operand's table (body index 0 —
-/// `body_operand` admits only single-body values), `body` the surgery
+/// `body_operand` admits only single-body values), `body` the fillet
 /// output, `rec` its birth records.
 ///
 /// # Errors
@@ -82,6 +95,11 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
         Ok(())
     };
 
+    // A shrunk support: same role as a surgery survivor, different
+    // channel (module docs).
+    for (f, src) in &rec.supports {
+        put(EntityKey::Face(*f), RoleSeg::FromTarget(b(up_f(*src)?)))?;
+    }
     for (f, e) in &rec.blends {
         put(EntityKey::Face(*f), RoleSeg::BlendFace(b(up_e(*e)?)))?;
     }

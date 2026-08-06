@@ -376,20 +376,20 @@ fn wire_revolve<T: Decide>(
 ///
 /// # Naming
 ///
-/// The composition-surgery door emits a FULL table
-/// ([`names::name_fillet`], M6-5 PR-1): the surgery hands over
-/// per-entity birth records and the emitter translates them, never
-/// matching geometry.
+/// **Both assembly doors emit a FULL table** ([`names::name_fillet`]):
+/// each hands over per-entity birth records and the emitter translates
+/// them, never matching geometry.
 ///
-/// The WHOLE-BODY door (every edge of a convex, planar-faced,
-/// trivalent-vertex polyhedron) still emits the EMPTY table: its
-/// rebuild mints every face fresh and keeps no birth records, so
-/// there is nothing to emit honestly. The consequence is loud rather
-/// than silent — every downstream reference into such a body fails to
-/// resolve, and an appearance record targeting one is a typed loss.
-/// **M6-5 PR-2 closes this**: birth records in `Plan::assemble`, this
-/// arm retires, and the totality check extends to cover it. Until it
-/// lands, this is an honest interim dead end, named as one.
+/// The whole-body door was the milestone's last naming dead end — for
+/// M6-5 PR-1 it emitted the EMPTY table, because its rebuild mints
+/// every face fresh and kept no birth records, so there was nothing to
+/// emit honestly. That was loud rather than silent (every downstream
+/// reference into such a body failed to resolve), and it is now CLOSED
+/// (M6-5 PR-2): `Plan` carries each slot's provenance, `Plan::assemble`
+/// writes the records, and the totality check covers both doors. The
+/// dead end is demonstrably gone — a boolean over a whole-body-filleted
+/// body resolves names through the fillet's table
+/// (`m6_5_downstream.rs`).
 fn wire_fillet<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -404,11 +404,19 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     let edges = resolve_selection(selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
         .map_err(NodeErrorKind::Fillet)?;
-    let table = match &filleted.naming {
-        Some(rec) => names::name_fillet(id, target, &target_table, &filleted.body, rec)
-            .map_err(NodeErrorKind::Naming)?,
-        None => names::empty(),
-    };
+    // Both doors keep records now (M6-5 PR-2), so `None` is a kernel
+    // bug, not a door this layer knows about: refuse loudly rather
+    // than fall back to an empty table, which would silently
+    // resurrect the dead end.
+    let rec =
+        filleted
+            .naming
+            .as_ref()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: "the fillet returned a body with no birth records",
+            }))?;
+    let table = names::name_fillet(id, target, &target_table, &filleted.body, rec)
+        .map_err(NodeErrorKind::Naming)?;
     let mut out = filleted.body;
     // The blend's own surfaces/curves/points are minted HERE (D1/N6);
     // the supports' pass-through descriptions keep the source they
