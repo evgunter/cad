@@ -8,14 +8,33 @@
 //! typed loss — but it was still a dead end: no op could be written
 //! that consumed a filleted body BY NAME.
 //!
-//! This file is the proof it is gone. A boolean over a whole-body-
-//! filleted die resolves names THROUGH the fillet's table: its
-//! `Declare` pairs name faces the fillet minted, the coincidence is
-//! threaded into the kernel, and the boolean's own names carry the
-//! fillet's names inside them (`FromA(FromTarget(Cap(Top)))` and
-//! friends). Nothing here is a fillet test — it is a test that a
-//! fillet result is now ORDINARY: nameable, referenceable, and
-//! composable like any other body.
+//! This file is the proof it is gone — and it is careful about which
+//! part is proved by what.
+//!
+//! **Demonstrated here.** Three production consumers resolve names
+//! through a whole-body fillet's table: the APPEARANCE store lands an
+//! attribute on a blend face the fillet minted, with zero typed
+//! losses; the RESOLVE ladder (M4 PR 4's reference/hit-test door)
+//! answers `Resolved` for every one of the seven roles this door
+//! mints; and a reference SURVIVES an upstream bump that recomputes
+//! the fillet's whole cone. A reference into a filleted body is an
+//! ordinary reference now.
+//!
+//! **NOT demonstrated here, and pinned as such.** A boolean over a
+//! filleted body — the spec's own §5 row — does not run at all. The
+//! kernel's boolean refuses `FallbackExtentUnsupported` on the sphere
+//! OCTANTS every fillet result carries, even against a disjoint
+//! second operand, so the refusal is about the operand's shape and
+//! not about any cut. That frontier predates M6-5 and is untouched by
+//! it; it is pinned executed below
+//! (`a_boolean_over_a_filleted_body_still_meets_the_extent_frontier`)
+//! so it flips the day the extent lane reaches sphere groups. The
+//! naming side is ready and asserted ready — the operand's table is
+//! full — but "the boolean carries the fillet's names" is a claim
+//! this file cannot make, and does not.
+//!
+//! Nothing here is a fillet test: these are tests that a fillet
+//! result is nameable and referenceable like any other body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -433,12 +433,21 @@ fn every_whole_body_record_names_a_source_entity() {
     }
 }
 
-/// **The M5 outputs stay bit-preserved.** The whole-body path is kept
-/// (not subsumed) exactly so its geometry does not move; PR-2 adds
-/// records beside it and must not disturb that. Same request, twice:
+/// **The whole-body rebuild is DETERMINISTIC** — same request, twice,
 /// identical bodies.
+///
+/// Named for what it checks (PR-2 review F-D). It does NOT, and
+/// cannot, check bit-PRESERVATION across the change that added
+/// records: both runs are at the same revision, so a geometry shift
+/// introduced by this PR would move them together and go unseen. That
+/// claim was executed out-of-tree instead — the same whole-body
+/// filleted die fingerprinted at the merge base and at HEAD, byte for
+/// byte identical (`Debug` len 111096, hash 93b185d0c0eacb4a on
+/// both) — which is the right shape for a one-time cross-revision
+/// measurement and the wrong shape for a committed row, since the
+/// fingerprint would rot into a golden nobody blessed.
 #[test]
-fn recording_does_not_move_the_whole_body_geometry() {
+fn the_whole_body_rebuild_is_deterministic() {
     let cube0 = cube(DIE_L);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let a = fillet_edges(&cube0, &edges, R, band()).expect("the rebuild");

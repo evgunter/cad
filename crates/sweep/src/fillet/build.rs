@@ -33,11 +33,32 @@
 //! Both doors now emit per-entity birth records
 //! ([`super::naming::FilletNaming`]). Here they are read straight off
 //! the [`Plan`] — the same provenance payloads the assembly built
-//! from, paired with the key each plan slot minted — so the records
-//! cannot drift from the construction. This door mints into a FRESH
-//! arena, so it has no survivors: a shrunk support face is a new key
-//! with a `supports` row, where the surgery's shrunk support is the
-//! source key itself. Both name it the same thing.
+//! from, paired with the key each plan slot minted. This door mints
+//! into a FRESH arena, so it has no survivors: a shrunk support face
+//! is a new key with a `supports` row, where the surgery's shrunk
+//! support is the source key itself. Both name it the same thing.
+//!
+//! # What the record-writing does and does not guarantee
+//!
+//! Reading the payloads off the plan buys **locality**: the source
+//! entity is stated where the mint is decided, so there is no second
+//! pass that could go looking for it, and nothing is recovered by
+//! matching geometry — which is what N4 forbids and the whole reason
+//! this shape was chosen.
+//!
+//! It does NOT make the binding checkable. The provenance payload in
+//! [`FaceKind`] is consumed by naming ALONE — the coverage buckets
+//! read it blind (`matches!(k, FaceKind::Blend(_))`), and nothing
+//! downstream re-derives which source edge a blend rounds. So a plan
+//! that named the WRONG source — two blends handed each other's edge
+//! — would emit two wrong names silently: the table stays total,
+//! injective, and covariant, and every test in this crate passes.
+//! (Executed by the PR-2 review, exactly so.) The correctness of the
+//! payload rests on it being written at the one site that knows it,
+//! three lines from the geometry it describes; that is a discipline,
+//! not a proof, and it is identical to the surgery door's. Recording
+//! elsewhere would be strictly worse, but it is worth saying plainly
+//! that "birth-derived" bounds how a name can go wrong, not whether.
 //!
 //! # The derived result, stated once
 //!
@@ -866,6 +887,11 @@ impl<T: Decide + Bounds> Plan<T> {
         // from — paired with the key that plan slot minted. Nothing is
         // recovered afterwards by matching geometry, which is exactly
         // what N4 forbids; the surgery door's discipline, verbatim.
+        //
+        // The payloads are trusted, not checked: nothing outside
+        // naming consumes them (module docs). A swapped payload emits
+        // a wrong name silently, so the guard is that each is written
+        // at the site that decided the mint — see `Plan::derive`.
         //
         // This door has no survivors: the rebuild lands in a fresh
         // arena, so even a shrunk support face is a NEW key and gets

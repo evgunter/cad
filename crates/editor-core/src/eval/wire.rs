@@ -386,10 +386,17 @@ fn wire_revolve<T: Decide>(
 /// emit honestly. That was loud rather than silent (every downstream
 /// reference into such a body failed to resolve), and it is now CLOSED
 /// (M6-5 PR-2): `Plan` carries each slot's provenance, `Plan::assemble`
-/// writes the records, and the totality check covers both doors. The
-/// dead end is demonstrably gone — a boolean over a whole-body-filleted
-/// body resolves names through the fillet's table
-/// (`m6_5_downstream.rs`).
+/// writes the records, and the totality check covers both doors.
+///
+/// What that closure is worth, precisely (`m6_5_downstream.rs`): the
+/// appearance store resolves an attribute onto a fillet-minted face,
+/// the resolve ladder answers `Resolved` for every role this door
+/// mints, and such a reference survives an upstream bump. A BOOLEAN
+/// over a filleted body is still not reachable — the kernel refuses
+/// `FallbackExtentUnsupported` on the sphere octants every fillet
+/// result carries, even against a disjoint operand — and that
+/// frontier, which predates M6-5, is pinned executed in the same
+/// file. The naming side is ready; the kernel side is not.
 fn wire_fillet<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     target: RecipeNodeId,

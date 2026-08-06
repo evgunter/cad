@@ -40,8 +40,28 @@
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
 //! around. The final [`check_total`] closes the other direction, for
 //! both doors alike.
+//!
+//! One guard sits between those two cases, because "keeps its source
+//! arena key" is a claim about NUMBERING, and the whole-body door
+//! rebuilds into a fresh arena whose numbering is unrelated to the
+//! target's. A key can therefore coincide with a source key by
+//! accident. So a would-be survivor whose key the records list as
+//! RETIRED refuses [`NamingError::Emission`]: on that door every
+//! source entity is retired, so any survivor-branch hit there is a
+//! bug, and the retirement list is already in hand to say so.
+//!
+//! **Defense in depth, and honest about it.** No production path
+//! reaches that guard: `Plan::assemble` refuses a slot it never
+//! minted before any record is written, so a dropped record is not a
+//! state this code can be handed today. The guard exists because the
+//! alternative was worse than untested — an unrecorded mint would be
+//! named `FromTarget` of an unrelated entity, and whether that
+//! misnaming got caught depended on whether the real owner of the
+//! name happened to collide at insertion. It was caught by luck; now
+//! it is caught by design. Same posture as `wire_fillet`'s refusal of
+//! `naming: None`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use sweep::fillet::naming::{FilletNaming, RimSide};
@@ -189,11 +209,46 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
         body.vertices()
             .map(|(k, _)| (EntityKind::Vertex, EntityKey::Vertex(k))),
     );
+    // The retired set, as a lookup: a key the fillet RETIRED can never
+    // be a survivor, whatever its arena says.
+    let retired_e: BTreeSet<EdgeKey> = rec.dead.edges.iter().copied().collect();
+    let retired_v: BTreeSet<VertexKey> = rec.dead.vertices.iter().copied().collect();
     for (kind, key) in rows {
         let seg = match minted.get(&key) {
             Some(seg) => seg.clone(),
-            // Not minted: a survivor, keeping its source arena key.
-            None => RoleSeg::FromTarget(b(up(key)?)),
+            // Not minted, so it must be a survivor keeping its source
+            // arena key — UNLESS the records say that key was retired,
+            // in which case the coincidence is not provenance.
+            //
+            // The trapdoor this closes (PR-2 review F-C): the
+            // whole-body door rebuilds into a FRESH arena, so its keys
+            // are drawn from a different numbering than the target's
+            // and can COINCIDE with a source key by accident. An
+            // unrecorded mint would then fall through here, find a
+            // same-numbered source entity, and be named `FromTarget`
+            // of something it has nothing to do with. Today that
+            // misnaming happens to be caught downstream — the real
+            // owner of the name collides and `insert` refuses
+            // `Duplicate` — but only by luck, and luck is not a
+            // guarantee. Every source entity IS retired on that door,
+            // so this check makes the refusal a designed one.
+            None => {
+                let dead = match key {
+                    EntityKey::Edge(k) => retired_e.contains(&k),
+                    EntityKey::Vertex(k) => retired_v.contains(&k),
+                    // Faces are never retired by either door — a
+                    // support shrinks, it does not die — so a face
+                    // key can only be a real survivor.
+                    EntityKey::Face(_) | EntityKey::Body => false,
+                };
+                if dead {
+                    return Err(NamingError::Emission {
+                        what: "an output entity is neither minted nor a survivor: its key was \
+                               recorded as RETIRED, so the match is an arena coincidence",
+                    });
+                }
+                RoleSeg::FromTarget(b(up(key)?))
+            }
         };
         t.insert(name1(kind, node, seg), ent(0, key))?;
     }
