@@ -746,3 +746,24 @@ block M7-6 remainder), difficulty logged M pre-dispatch**
 conservative δ promise per D4's tessellation contract; flip
 M6-3 dev 8's banked stop; apply the montage patch as the
 completion rider).
+
+**Classify-seam migration MERGED as #213 (2026-08-06): MARGINS
+ARE LENGTHS BY SIGNATURE, WORKSPACE-WIDE.** The ratified
+convention's clause (i) is structural: ~351 sites through
+blessed doors, no raw construction path, byte-identical
+23394-line census independently reproduced — and the migration
+itself EARNED ITS KEEP by forcing F13/F14 into the open at
+compile time, with the review catching the one laundered sine
+(F15) via an executed scale-blindness probe. Three Evan design
+rounds absorbed mid-unit and each made the convention sharper:
+the door enumeration; consistency-not-accuracy as the
+backstops' stated semantics; then the layering fork — the
+volume backstops now live on a permanent INVARIANT LANE outside
+the seam (bare margins, Corrupt-voiced ResultVolumeImplausible
+with the bug-report affordance, per_boundary deleted), census
+re-proven byte-identical after the restructure. Debt tracked as
+#214 with a test-enforced count. Block M7-5 complete both arms.
+Live: the mesh trimmed-NURBS lane (fable, block M7-6 remainder)
+carrying the montage completion rider. Remaining ledger:
+band-seam unit, stage-1 recognition, M6 unit 5 + sense gate,
+k-lint floor, exit walks.
