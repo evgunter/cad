@@ -6,23 +6,35 @@
 //! rather than a revolve, and its first body where the fillet's two
 //! assembly doors both stand behind one node.
 //!
-//! # NOT in the corpus registry, and exactly why (M6 unit 1)
+//! # Registered by M6-5, and exactly what it took
 //!
-//! `Node::Fillet` targets EVERY edge of its input BY DESIGN (no
-//! stable edge names to go stale under a bump). On the pipped cube
-//! "every edge" includes the cap's MERIDIAN seam edges — the two
-//! half-cap faces share ONE sphere surface, so a meridian has no
-//! dihedral wedge, and the battery honestly refuses
-//! `FilletError::TangentialEdge` with a zero margin. That refusal is
-//! CORRECT (a co-surface seam cannot be blended at any radius), so
-//! the composed die is not expressible until the recipe layer grows
-//! an edge-SELECTION vocabulary — the N4 fillet-naming emitter,
-//! banked in `eval/wire.rs`'s `wire_fillet` docs. This document is
-//! written to registry shape and sits BESIDE the registry (the M5
-//! `die_fillet` precedent), with the refusal pinned, executed, in
-//! `m6_composed_node.rs`. The surgery's live rows ride
-//! `sweep/tests/m6_surgery.rs` (+ `_interval`) and the demo tour's
-//! `diecomposed` stop instead.
+//! For a milestone this document sat BESIDE the registry (the M5
+//! `die_fillet` precedent) with its refusal pinned. `Node::Fillet`
+//! targeted EVERY edge of its input by design — no stable edge names
+//! meant nothing to go stale under a bump — and on a pipped cube
+//! "every edge" includes the cap's MERIDIAN seam edges. Two half-cap
+//! faces share ONE sphere surface, so a meridian has no dihedral
+//! wedge, and the battery honestly refuses
+//! `FilletError::TangentialEdge` at a margin of exactly zero. That
+//! refusal is CORRECT — a co-surface seam cannot be blended at any
+//! radius — so the composed die was not unbuildable, it was
+//! UNSAYABLE.
+//!
+//! M6-5 says it. The node grew a `selection` of stable names, the
+//! composition surgery grew per-entity birth records, and the naming
+//! emitter that reads them turns the result into a full name table.
+//! The selection below is fourteen names — every edge of the target
+//! except the two co-surface meridians — so the refusal is EXCLUDED
+//! rather than loosened, and it is still executed as such in
+//! `m6_composed_node.rs`, which now pins the flip instead of the
+//! blocker.
+//!
+//! ONE `fillet_edges` call carries all of it: the M6-5 spec's F-e
+//! measurement established that twelve open plane–plane chains and one
+//! closed plane–sphere rim go through together
+//! (`sweep/tests/m6_5_fillet_naming.rs`). The surgery's own live rows
+//! still ride `sweep/tests/m6_surgery.rs` (+ `_interval`) and the demo
+//! tour's `diecomposed` stop.
 //!
 //! ONE pip, exactly as `die_pips` and for `die_pips`' documented
 //! reason: this document's subject is the surgery, not the pip count.
@@ -233,8 +245,12 @@ pub fn document() -> CorpusDoc {
         pin: None,
         // D2's incremental probe: slide the pip (die_pips' bump). The
         // cube chain and the master ball are reused; the placement,
-        // the cut and the whole surgery recompute — with no edge
-        // selection to go stale, because `Node::Fillet` is every-edge.
+        // the cut and the whole surgery recompute. The bump mints no
+        // edge and retires none, so the FROZEN selection still
+        // resolves — bit-identically, because every selected name is a
+        // function of the target's names and those do not move. That
+        // is the covariance claim, and `m6_composed_node.rs` executes
+        // it.
         bump: DocEdit::SetParam {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
