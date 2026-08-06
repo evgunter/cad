@@ -767,3 +767,19 @@ Live: the mesh trimmed-NURBS lane (fable, block M7-6 remainder)
 carrying the montage completion rider. Remaining ledger:
 band-seam unit, stage-1 recognition, M6 unit 5 + sense gate,
 k-lint floor, exit walks.
+
+**M6 unit 5 forks RULED (Evan on #217, 2026-08-06)**: F-a
+Vec-only selections + enumerate-all helper (freeze semantics
+made explicit and accepted — a selection is a commitment;
+Rebind is the growth path); F-b v3 clean break (ratified
+precedent); F-c N5-verbatim + Rebind third site; F-d TWO
+sequenced PRs (clean split by consumer: the die's fillet is
+terminal → PR-1 surgery-emitter + vocabulary + node + v3 +
+eval + die registration at M, PR-2 whole-body totality at S);
+F-e measure-first confirmed. Substrate correction on record:
+the "banked N4 emitter" was zero code; the die document
+pre-exists in hold-out shape. **A/B block M7-7: unit-5 PR-1
+difficulty logged M BEFORE the draw.** Also this hour: Evan's
+accidental cancellation disarmed the monitors (re-armed, all
+three) and killed the mesh lane mid-render (resumed;
+delivered as #218, review in flight).
