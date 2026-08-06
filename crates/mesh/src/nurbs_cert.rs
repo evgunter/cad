@@ -441,7 +441,6 @@ mod tests {
         assert!(b.muv >= 0.5 && b.muv < 0.5 + 1e-12);
     }
 
-
     /// REVIEW Z2: degree-0 direction refuses typed (if constructible).
     #[test]
     fn probe_degree_zero_refuses_typed() {
@@ -493,9 +492,13 @@ mod tests {
                     wvv = wvv.max(jet.dvv.norm());
                 }
             }
-            assert!(wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
+            assert!(
+                wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
                 "deg {p_deg} mult {mult}: sampled ({wuu},{wuv},{wvv}) vs hull ({},{},{})",
-                b.muu, b.muv, b.mvv);
+                b.muu,
+                b.muv,
+                b.mvv
+            );
         }
     }
 

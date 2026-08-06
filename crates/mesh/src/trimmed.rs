@@ -371,9 +371,9 @@ pub(crate) fn tessellate_trimmed(
                             b0 * tri[0].y + b1 * tri[1].y + b2 * tri[2].y,
                             b0 * tri[0].z + b1 * tri[1].z + b2 * tri[2].z,
                         );
-                        let d = ((s.x - pi.x).powi(2) + (s.y - pi.y).powi(2)
-                            + (s.z - pi.z).powi(2))
-                        .sqrt();
+                        let d =
+                            ((s.x - pi.x).powi(2) + (s.y - pi.y).powi(2) + (s.z - pi.z).powi(2))
+                                .sqrt();
                         assert!(
                             d <= bound + tol.eps,
                             "PROBE per-triangle violation: |S-Pi| {d} > cert {bound} + eps {} \

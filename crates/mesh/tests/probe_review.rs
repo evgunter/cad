@@ -32,7 +32,9 @@ fn loft_at(zs: &[f64]) -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2).expect("loft builds").body
+    loft_body::<f64>(&sections, &places, 2)
+        .expect("loft builds")
+        .body
 }
 
 fn swept_elbow() -> Body<f64> {
@@ -51,9 +53,15 @@ fn swept_elbow() -> Body<f64> {
         ),
     )
     .expect("arc path");
-    sweep_body::<f64>(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]), Affine3::identity(), &path, 9, 3)
-        .expect("sweep builds")
-        .body
+    sweep_body::<f64>(
+        &quad([(-h, -h), (h, -h), (h, h), (-h, h)]),
+        Affine3::identity(),
+        &path,
+        9,
+        3,
+    )
+    .expect("sweep builds")
+    .body
 }
 
 /// Z1: per-triangle |S - Pi| vs cert on every NURBS triangle of all
@@ -79,7 +87,10 @@ fn z1_per_triangle_certificate_falsification() {
                  (its cert {its_cert:.3e}) max d/cert={max_ratio:.4}",
                 m.patches.iter().map(|p| p.triangles.len()).sum::<usize>(),
             );
-            assert!(max_ratio <= 1.0, "{name}: a triangle's samples exceeded its certificate");
+            assert!(
+                max_ratio <= 1.0,
+                "{name}: a triangle's samples exceeded its certificate"
+            );
         }
     }
 }
