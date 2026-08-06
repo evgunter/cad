@@ -154,7 +154,7 @@ use std::sync::Arc;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::SpanLocate;
-use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{Decide, Indeterminate, Length, Point2, Point3, Real, Sign, Vec2, Vec3};
 use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_surfaces::Surface;
 
@@ -1617,7 +1617,7 @@ fn chart_windings<T: Decide>(
         // The angular channel carries no trigonometric part in this
         // lane.
         for coeff in trig {
-            match decide(affine_name, coeff * arm, band).map_err(esc)? {
+            match decide(affine_name, Length::levered(coeff, arm), band).map_err(esc)? {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(PcurveCertifyError::ChartWindingUnsupported);
@@ -1625,7 +1625,7 @@ fn chart_windings<T: Decide>(
             }
         }
         for candidate in Winding::ALL {
-            match decide(winding_name, (slope - candidate.value()) * arm, band) {
+            match decide(winding_name, Length::levered(slope - candidate.value(), arm), band) {
                 Ok(Sign::Zero) => return Ok(candidate),
                 Ok(Sign::Positive | Sign::Negative) => {}
                 Err(cause) => return Err(esc(cause)),
@@ -1670,11 +1670,11 @@ fn check_residual<T: Decide>(
     name: &'static str,
     check: PcurveCheck,
     sample: u32,
-    residual: T,
+    residual: Length<T>,
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
-    *max_residual = max_residual.max(residual.abs());
+    *max_residual = max_residual.max(residual.value().abs());
     match decide(name, residual, band) {
         Ok(Sign::Zero) => Ok(()),
         Ok(Sign::Positive | Sign::Negative) => {
@@ -1724,7 +1724,7 @@ fn run_harmonic_checks<T: Decide>(
         sample: 0,
         cause,
     };
-    match decide("pcurve_interval_forward", span * rate, band).map_err(span_escalated)? {
+    match decide("pcurve_interval_forward", Length::metered(span, rate), band).map_err(span_escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
@@ -1745,7 +1745,7 @@ fn run_harmonic_checks<T: Decide>(
         }
         for (slope, arm) in gates {
             let extent = (slope * span).abs();
-            let headroom = (T::tau() - extent) * arm;
+            let headroom = Length::levered(T::tau() - extent, arm);
             match decide("pcurve_azimuth_period", headroom, band).map_err(|cause| {
                 PcurveCertifyError::Escalated {
                     check: PcurveCheck::AzimuthPeriod,
@@ -1830,7 +1830,7 @@ fn run_harmonic_checks<T: Decide>(
         "pcurve_envelope",
         PcurveCheck::Envelope,
         0,
-        envelope,
+        Length::of(envelope),
         band,
         &mut envelope_margin,
     )?;
@@ -1999,7 +1999,7 @@ fn schedule_residuals<T: Decide>(
             "pcurve_map_residual",
             PcurveCheck::MapResidual,
             i,
-            mapped.distance(on_carrier),
+            Length::of(mapped.distance(on_carrier)),
             band,
             max_residual,
         )?;
@@ -2021,10 +2021,10 @@ fn trim_containment<T: Decide>(
     let boxed = pcurve.chart_box(t0, t1);
     let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window);
     let escapes = [
-        ((window.u_min - boxed.u_min) * u_arm),
-        ((boxed.u_max - window.u_max) * u_arm),
-        ((window.v_min - boxed.v_min) * v_arm),
-        ((boxed.v_max - window.v_max) * v_arm),
+        Length::metered(window.u_min - boxed.u_min, u_arm),
+        Length::metered(boxed.u_max - window.u_max, u_arm),
+        Length::metered(window.v_min - boxed.v_min, v_arm),
+        Length::metered(boxed.v_max - window.v_max, v_arm),
     ];
     for over in escapes {
         match decide("pcurve_trim_containment", over, band) {
@@ -2090,7 +2090,16 @@ fn run_fitted_checks<T: PcurveFittedLane>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
-    match decide("pcurve_interval_forward", span * param_rate(carrier), band).map_err(|cause| {
+    // Ledger row F6 (fitted lane): a NURBS carrier's `param_rate` is 1 —
+    // the span crosses to the band as a bare, reparametrization-
+    // sensitive parameter quantity. No door fits; flagged, not cast.
+    match geom_core::k_stats::decide_flagged(
+        "pcurve_interval_forward",
+        span * param_rate(carrier),
+        band,
+        "F6",
+    )
+    .map_err(|cause| {
         PcurveCertifyError::Escalated {
             check: PcurveCheck::ParamSpan,
             sample: 0,
@@ -2103,8 +2112,15 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     let boxed = pcurve.chart_box(t0, t1);
     let (u_arm, _) = chart_arms(surface);
     if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
-        let headroom = (T::tau() - (boxed.u_max - boxed.u_min)) * u_arm;
-        match decide("pcurve_azimuth_period", headroom, band).map_err(|cause| {
+        // Ledger row F6: `chart_arms`' whole-chart azimuth arm (1 for
+        // the cone lane) — flagged, not cast.
+        let headroom = geom_core::k_stats::decide_flagged(
+            "pcurve_azimuth_period",
+            (T::tau() - (boxed.u_max - boxed.u_min)) * u_arm,
+            band,
+            "F6",
+        );
+        match headroom.map_err(|cause| {
             PcurveCertifyError::Escalated {
                 check: PcurveCheck::AzimuthPeriod,
                 sample: 0,
@@ -2140,7 +2156,7 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         "pcurve_envelope",
         PcurveCheck::Envelope,
         0,
-        envelope,
+        Length::of(envelope),
         band,
         &mut envelope_margin,
     )?;
@@ -2199,7 +2215,14 @@ fn run_iso_checks<T: Decide>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
-    match decide("pcurve_interval_forward", span * param_rate(carrier), band).map_err(|cause| {
+    // Ledger row F6 (iso lane, same shape as the fitted lane's meter).
+    match geom_core::k_stats::decide_flagged(
+        "pcurve_interval_forward",
+        span * param_rate(carrier),
+        band,
+        "F6",
+    )
+    .map_err(|cause| {
         PcurveCertifyError::Escalated {
             check: PcurveCheck::ParamSpan,
             sample: 0,
@@ -2233,11 +2256,11 @@ fn run_iso_checks<T: Decide>(
         band: Band,
         esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
     ) -> Result<(bool, T), PcurveCertifyError> {
-        if let Sign::Zero = decide("pcurve_iso_boundary", w * arm, band).map_err(esc)? {
+        if let Sign::Zero = decide("pcurve_iso_boundary", Length::metered(w, arm), band).map_err(esc)? {
             return Ok((false, w.abs() * arm + drift));
         }
         if let Sign::Zero =
-            decide("pcurve_iso_boundary", (w - T::one()) * arm, band).map_err(esc)?
+            decide("pcurve_iso_boundary", Length::metered(w - T::one(), arm), band).map_err(esc)?
         {
             return Ok((true, (w - T::one()).abs() * arm + drift));
         }
@@ -2249,8 +2272,8 @@ fn run_iso_checks<T: Decide>(
         })
     }
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
-    let du_extent = pl.x.abs() * span * stretch_u;
-    let dv_extent = pl.y.abs() * span * stretch_v;
+    let du_extent = Length::metered(pl.x.abs() * span, stretch_u);
+    let dv_extent = Length::metered(pl.y.abs() * span, stretch_v);
     let u_moves = !matches!(
         decide("pcurve_iso_axis_u", du_extent, band).map_err(esc)?,
         Sign::Zero
@@ -2280,7 +2303,7 @@ fn run_iso_checks<T: Decide>(
                 });
             }
             let u_start = p0.x + pl.x * t0;
-            let (end, slack_u) = side_of(u_start, stretch_u, du_extent, band, &esc)?;
+            let (end, slack_u) = side_of(u_start, stretch_u, du_extent.value(), band, &esc)?;
             let b = crate::nurbs_iso::boundary_iso_u(payload, end).map_err(|_| {
                 PcurveCertifyError::IsoUnsupported {
                     what: "the chart's boundary row failed to re-wrap as a curve \
@@ -2315,7 +2338,7 @@ fn run_iso_checks<T: Decide>(
             let over = (T::from_f64(d0) - lo)
                 .max(hi - T::from_f64(d1))
                 .max(T::zero());
-            match decide("pcurve_iso_domain", over * stretch_v, band).map_err(esc)? {
+            match decide("pcurve_iso_domain", Length::metered(over, stretch_v), band).map_err(esc)? {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(PcurveCertifyError::IsoUnsupported {
@@ -2339,7 +2362,7 @@ fn run_iso_checks<T: Decide>(
                 });
             };
             let v_start = p0.y + pl.y * t0;
-            let (end, slack_v) = side_of(v_start, stretch_v, dv_extent, band, &esc)?;
+            let (end, slack_v) = side_of(v_start, stretch_v, dv_extent.value(), band, &esc)?;
             let b = crate::nurbs_iso::boundary_iso_v(payload, end).map_err(|_| {
                 PcurveCertifyError::IsoUnsupported {
                     what: "the chart's boundary column failed to re-wrap as a curve \
@@ -2361,7 +2384,7 @@ fn run_iso_checks<T: Decide>(
             let over = (T::from_f64(d0) - u_at_0.min(u_at_1))
                 .max(u_at_0.max(u_at_1) - T::from_f64(d1))
                 .max(T::zero());
-            match decide("pcurve_iso_domain", over * stretch_u, band).map_err(esc)? {
+            match decide("pcurve_iso_domain", Length::metered(over, stretch_u), band).map_err(esc)? {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(PcurveCertifyError::IsoUnsupported {
@@ -2390,7 +2413,7 @@ fn run_iso_checks<T: Decide>(
         "pcurve_envelope",
         PcurveCheck::Envelope,
         0,
-        envelope,
+        Length::of(envelope),
         band,
         &mut envelope_margin,
     )?;
@@ -2417,7 +2440,7 @@ fn run_iso_checks<T: Decide>(
 /// identical formulas; degenerate and in-band arms keep the direct
 /// one (tie-break, D9).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("pcurve_chart_azimuth_frame", x, band) {
+    match decide("pcurve_chart_azimuth_frame", Length::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
         Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
     }
@@ -2499,7 +2522,7 @@ pub fn chart_pcurve<T: Decide>(
             // failed the residual schedule loudly (the 100ε washer).
             let moving = a_r.norm() + b_r.norm() + l_r.norm();
             let alpha_const = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
-            match decide("pcurve_chart_radial_moving", moving, band) {
+            match decide("pcurve_chart_radial_moving", Length::of(moving), band) {
                 // Zero — AND the in-band arm (Err): a sub-escalation
                 // radial amplitude takes the meridian form as a D9
                 // tie-break (the `stable_azimuth` posture): this is
@@ -2525,7 +2548,7 @@ pub fn chart_pcurve<T: Decide>(
                     // frame, a named trilean metered at the radius.
                     let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide("pcurve_chart_orientation", orient / radius, band) {
+                    let beta = match decide("pcurve_chart_orientation", Length::per_boundary(orient, radius), band) {
                         Ok(Sign::Positive) => T::one(),
                         Ok(Sign::Negative) => T::zero() - T::one(),
                         Ok(Sign::Zero) => T::zero(),
@@ -2586,11 +2609,18 @@ pub fn chart_pcurve<T: Decide>(
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let (h0, hs) = (w.dot(axis), dir.dot(axis));
                     let (r_ref, h_sign) =
-                        match decide("pcurve_cone_chart_nappe", h0, band).map_err(esc)? {
+                        match decide("pcurve_cone_chart_nappe", Length::of(h0), band).map_err(esc)? {
                             Sign::Positive => (radial(w), T::one()),
                             Sign::Negative => (radial(w), T::zero() - T::one()),
                             Sign::Zero => {
-                                match decide("pcurve_cone_chart_nappe", hs, band).map_err(esc)? {
+                                match geom_core::k_stats::decide_flagged(
+                                    "pcurve_cone_chart_nappe",
+                                    hs,
+                                    band,
+                                    "F13",
+                                )
+                                .map_err(esc)?
+                                {
                                     Sign::Positive => (radial(dir), T::one()),
                                     Sign::Negative => (radial(dir), T::zero() - T::one()),
                                     Sign::Zero => {
@@ -2615,7 +2645,7 @@ pub fn chart_pcurve<T: Decide>(
                     // Rim class: carrier plane ⊥ axis (a, b axial parts
                     // zero — already metres) and centred on the axis.
                     let (aa, ba) = (form.a.dot(axis), form.b.dot(axis));
-                    match decide("pcurve_cone_chart_axial", aa.abs() + ba.abs(), band)
+                    match decide("pcurve_cone_chart_axial", Length::of(aa.abs() + ba.abs()), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
@@ -2625,7 +2655,7 @@ pub fn chart_pcurve<T: Decide>(
                     }
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let w_r = radial(center - apex);
-                    match decide("pcurve_cone_chart_centered", w_r.norm(), band).map_err(esc)? {
+                    match decide("pcurve_cone_chart_centered", Length::norm3(w_r), band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
@@ -2639,7 +2669,7 @@ pub fn chart_pcurve<T: Decide>(
                     // as the ruling arm, decided on the height.
                     let h = (center - apex).dot(axis);
                     let v0 = h / c_ha;
-                    let n_sign = match decide("pcurve_cone_chart_nappe", h, band).map_err(esc)? {
+                    let n_sign = match decide("pcurve_cone_chart_nappe", Length::of(h), band).map_err(esc)? {
                         Sign::Positive => T::one(),
                         Sign::Negative => T::zero() - T::one(),
                         // An apex-level "rim" is the apex point itself;
@@ -2654,7 +2684,7 @@ pub fn chart_pcurve<T: Decide>(
                     // the chart azimuth rate on either nappe (the +π
                     // offset is constant), so β needs no nappe sign.
                     let rho = a_r.norm();
-                    let beta = match decide("pcurve_chart_orientation", orient / rho, band)
+                    let beta = match decide("pcurve_chart_orientation", Length::per_boundary(orient, rho), band)
                         .map_err(esc)?
                     {
                         Sign::Positive => T::one(),
@@ -2734,12 +2764,12 @@ pub fn chart_pcurve<T: Decide>(
             let stable_az = |y: T, x: T| -> T { stable_azimuth(y, x, band) };
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
-            match decide("pcurve_sphere_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)? {
+            match decide("pcurve_sphere_chart_axial", Length::of(aa.abs() + ba.abs()), band).map_err(esc)? {
                 Sign::Zero => {
                     // POLAR-circle class: a,b ⊥ axis. On the sphere the
                     // center then sits on the axis (its radial part is
                     // zero) — checked, not assumed.
-                    match decide("pcurve_sphere_chart_centered", w_r.norm(), band).map_err(esc)? {
+                    match decide("pcurve_sphere_chart_centered", Length::norm3(w_r), band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
@@ -2747,7 +2777,7 @@ pub fn chart_pcurve<T: Decide>(
                     }
                     let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide("pcurve_chart_orientation", orient / radius, band)
+                    let beta = match decide("pcurve_chart_orientation", Length::per_boundary(orient, radius), band)
                         .map_err(esc)?
                     {
                         Sign::Positive => T::one(),
@@ -2765,14 +2795,14 @@ pub fn chart_pcurve<T: Decide>(
                 Sign::Positive | Sign::Negative => {
                     // MERIDIAN class: the carrier plane must contain the
                     // axis (its own axis ⊥ polar) and be centered.
-                    let coax = form.a.cross(form.b).dot(axis) / radius;
+                    let coax = Length::per_boundary(form.a.cross(form.b).dot(axis), radius);
                     match decide("pcurve_sphere_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
                         }
                     }
-                    match decide("pcurve_sphere_chart_centered", w.norm(), band).map_err(esc)? {
+                    match decide("pcurve_sphere_chart_centered", Length::norm3(w), band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
@@ -2783,7 +2813,7 @@ pub fn chart_pcurve<T: Decide>(
                     // direction d̂ read off whichever radial part is
                     // structurally nonzero.
                     let delta = aa.atan2(a_r.norm());
-                    let use_a = match decide("pcurve_sphere_chart_pole_frame", a_r.norm(), band)
+                    let use_a = match decide("pcurve_sphere_chart_pole_frame", Length::norm3(a_r), band)
                         .map_err(esc)?
                     {
                         Sign::Positive | Sign::Negative => true,
@@ -2804,7 +2834,7 @@ pub fn chart_pcurve<T: Decide>(
                     } else {
                         T::zero() - b_r.dot(d_hat) * aa / radius
                     };
-                    let sigma = match decide("pcurve_sphere_chart_polar_rate", sigma_margin, band)
+                    let sigma = match decide("pcurve_sphere_chart_polar_rate", Length::of(sigma_margin), band)
                         .map_err(esc)?
                     {
                         Sign::Positive => T::one(),
@@ -2852,10 +2882,10 @@ pub fn chart_pcurve<T: Decide>(
             let (a_r, b_r, w_r) = (radial(form.a), radial(form.b), radial(w));
             // Which family: carrier plane ⊥ the axis? (Metres — the
             // axial parts of a and b are displacements.)
-            match decide("pcurve_torus_chart_axial", aa.abs() + ba.abs(), band).map_err(esc)? {
+            match decide("pcurve_torus_chart_axial", Length::of(aa.abs() + ba.abs()), band).map_err(esc)? {
                 Sign::Zero => {
                     // PARALLEL: centred on the axis, checked.
-                    match decide("pcurve_torus_chart_centered", w_r.norm(), band).map_err(esc)? {
+                    match decide("pcurve_torus_chart_centered", Length::norm3(w_r), band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
@@ -2864,7 +2894,7 @@ pub fn chart_pcurve<T: Decide>(
                     let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let rho = a_r.norm();
                     let orient = a_r.cross(b_r).dot(axis);
-                    let beta = match decide("pcurve_chart_orientation", orient / rho, band)
+                    let beta = match decide("pcurve_chart_orientation", Length::per_boundary(orient, rho), band)
                         .map_err(esc)?
                     {
                         Sign::Positive => T::one(),
@@ -2889,7 +2919,7 @@ pub fn chart_pcurve<T: Decide>(
                     // spine (radius R from the axis) — the second is
                     // certified by the residual schedule; the first is
                     // the class gate.
-                    let coax = form.a.cross(form.b).dot(axis) / minor_radius;
+                    let coax = Length::per_boundary(form.a.cross(form.b).dot(axis), minor_radius);
                     match decide("pcurve_torus_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
@@ -2910,7 +2940,7 @@ pub fn chart_pcurve<T: Decide>(
                     let (sd, cd) = delta.sin_cos();
                     let sigma_margin = ba * cd - b_r.dot(rad) * sd;
                     let sigma =
-                        match decide("pcurve_torus_chart_meridional_rate", sigma_margin, band)
+                        match decide("pcurve_torus_chart_meridional_rate", Length::of(sigma_margin), band)
                             .map_err(esc)?
                         {
                             Sign::Positive => T::one(),
