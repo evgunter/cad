@@ -108,7 +108,7 @@
 
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::spline::hull;
-use geom_core::{Band, Bounds, Decide, Point3, Real, RingInterval, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Length, Point3, Real, RingInterval, Sign, Vec3};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
@@ -363,7 +363,7 @@ fn analytic_limbs<T: Decide + Bounds>(
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
-        match decide("ssi_on_locus", r, band) {
+        match decide("ssi_on_locus", Length::of(r), band) {
             // Zero is the affirmative: the residual is zero to
             // tolerance (the `dihedral_wedge` convention).
             Ok(Sign::Zero) => {}
@@ -396,7 +396,7 @@ fn analytic_limbs<T: Decide + Bounds>(
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
     let sup = T::from_f64(composite.sup_bound() * to_meters);
-    match decide("ssi_hull_sup", sup, band) {
+    match decide("ssi_hull_sup", Length::of(sup), band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -434,7 +434,7 @@ fn nurbs_limbs<T: Decide + Bounds>(
                 last_distance: e.last_distance,
             })?;
         worst = worst.max(proj.distance);
-        match decide("ssi_on_locus_foot", proj.distance, band) {
+        match decide("ssi_on_locus_foot", Length::of(proj.distance), band) {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(SsiError::CertificateLimb {
@@ -452,13 +452,13 @@ fn nurbs_limbs<T: Decide + Bounds>(
             (proj.orthogonality_u, jet.du.norm()),
             (proj.orthogonality_v, jet.dv.norm()),
         ] {
-            let margin = res / speed;
+            let margin = Length::levered_inv(res, speed);
             match decide("ssi_foot_orthogonality", margin, band) {
                 Ok(Sign::Zero) => {}
                 Ok(Sign::Positive | Sign::Negative) => {
                     return Err(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
-                        value: margin.hi(),
+                        value: margin.value().hi(),
                     });
                 }
                 Err(diag) => return Err(SsiError::Escalated(diag)),
@@ -521,7 +521,7 @@ fn nurbs_limbs<T: Decide + Bounds>(
     // own bracket (`ring_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
-    match decide("ssi_hull_sup_chart", sup, band) {
+    match decide("ssi_hull_sup_chart", Length::of(sup), band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -832,12 +832,12 @@ pub(crate) fn certify_branch<T: Decide + Bounds>(
     // The margin is the ring's zero-free lower bound (`f64`, C9); the
     // lever arm is the caller's scalar, so the product — the number the
     // trilean classifies — is scalar-typed.
-    let transversality = T::from_f64(margin) * arm;
+    let transversality = Length::levered(T::from_f64(margin), arm);
     match decide("ssi_tube_transversality", transversality, band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => {
             return Err(SsiError::TubeStraddles {
-                margin: transversality.lo(),
+                margin: transversality.value().lo(),
                 boxes,
             });
         }
@@ -848,7 +848,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds>(
         on_locus_max: on_locus,
         hull_sup,
         tube_radius: T::from_f64(radius),
-        tube_transversality: transversality,
+        tube_transversality: transversality.value(),
         tube_boxes: boxes,
     })
 }

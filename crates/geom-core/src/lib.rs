@@ -36,7 +36,7 @@ pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{Affine2, Affine3, Mat2, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
-    IndeterminatePayload, MarginDiag, Sign,
+    IndeterminatePayload, Length, MarginDiag, Sign,
 };
 pub use real::{Bounds, Enclosure, Real};
 pub use ring_interval::RingInterval;

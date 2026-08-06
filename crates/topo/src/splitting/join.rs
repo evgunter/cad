@@ -48,7 +48,7 @@
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Length, Point3, Real, Sign};
 use slotmap::SecondaryMap;
 
 use super::containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -794,7 +794,7 @@ fn chord_spec<T: Decide>(
         // onto the escape-aligned axis, so the ship path is polar.
         match decide(
             "split_sphere_section_polar",
-            axis.cross(*sph_axis).norm() * *sph_r,
+            Length::levered(axis.cross(*sph_axis).norm(), *sph_r),
             band,
         )
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -879,23 +879,26 @@ fn chord_spec<T: Decide>(
                 // whether that is the classified direction or its reverse
                 // is a named trilean (metered in metres), never a raw
                 // comparison; a zero span is a degenerate chord site.
-                let (carrier, s1, s2) =
-                    match decide("split_tangent_chord_forward", (t2 - t1) * len, band)
-                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-                    {
-                        Sign::Positive => (geom_curves::Curve3::Line { origin, dir }, t1, t2),
-                        Sign::Negative => (
-                            geom_curves::Curve3::Line { origin, dir: -dir },
-                            T::zero() - t1,
-                            T::zero() - t2,
-                        ),
-                        Sign::Zero => {
-                            return Err(SplitJoinError::SectionInvariant {
-                                face,
-                                what: "tangent section chord endpoints coincide along the ruling",
-                            });
-                        }
-                    };
+                let (carrier, s1, s2) = match decide(
+                    "split_tangent_chord_forward",
+                    Length::metered(t2 - t1, len),
+                    band,
+                )
+                .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                {
+                    Sign::Positive => (geom_curves::Curve3::Line { origin, dir }, t1, t2),
+                    Sign::Negative => (
+                        geom_curves::Curve3::Line { origin, dir: -dir },
+                        T::zero() - t1,
+                        T::zero() - t2,
+                    ),
+                    Sign::Zero => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face,
+                            what: "tangent section chord endpoints coincide along the ruling",
+                        });
+                    }
+                };
                 let plane_key = match ctx.plane_key {
                     Some(k) => k,
                     None => {
@@ -970,7 +973,7 @@ fn chord_spec<T: Decide>(
     // escalates F6 with that lever arm. Fixed evaluation order, no
     // data-dependent iteration (D9).
     let contains = |margin: T| -> Result<bool, SplitJoinError> {
-        match decide("split_arc_window", margin * r_c, band)
+        match decide("split_arc_window", Length::levered(margin, r_c), band)
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
         {
             Sign::Positive | Sign::Zero => Ok(true),
@@ -1037,8 +1040,12 @@ fn chord_spec<T: Decide>(
     // TiltedEllipse/Rim the table admits (|n̂ₑ · âc| · sₐ is the chart
     // radius); an axis-orthogonal section frame is a ruling case the
     // classification routes elsewhere, refused typed if it arrives.
-    let ccw_is_up = match decide("split_arc_chart_orientation", n_e.dot(a_c) * sa, band)
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    let ccw_is_up = match decide(
+        "split_arc_chart_orientation",
+        Length::levered(n_e.dot(a_c), sa),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
     {
         Sign::Positive => true,
         Sign::Negative => false,
@@ -1260,7 +1267,7 @@ fn bool_planar_chord_spec<T: Decide>(
         };
         match decide(
             "split_sphere_section_polar",
-            axis.cross(a_c).norm() * r_c,
+            Length::levered(axis.cross(a_c).norm(), r_c),
             band,
         )
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -1363,7 +1370,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let tau = T::tau();
     let a1 = chart_az(p1);
     let contains = |margin: T| -> Result<bool, SplitJoinError> {
-        match decide("split_arc_window", margin * r_c, band)
+        match decide("split_arc_window", Length::levered(margin, r_c), band)
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
         {
             Sign::Positive | Sign::Zero => Ok(true),
@@ -1383,8 +1390,12 @@ fn bool_planar_chord_spec<T: Decide>(
     let g = (chart_az(p2) - a1).reduce_periodic(tau);
     let up_in = contains(x1)? && contains(width - x1 - g)?;
     let dn_in = contains(width - x1)? && contains(x1 + g - tau)?;
-    let ccw_is_up = match decide("split_arc_chart_orientation", n_e.dot(a_c) * sa, band)
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    let ccw_is_up = match decide(
+        "split_arc_chart_orientation",
+        Length::levered(n_e.dot(a_c), sa),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
     {
         Sign::Positive => true,
         Sign::Negative => false,
@@ -1545,7 +1556,7 @@ fn between_edge_in_plane<T: Decide>(
             match lane {
                 JoinLane::Planar => Err(corrupt()),
                 JoinLane::Split(ctx) => {
-                    let margin = (mid - ctx.plane.origin).dot(ctx.plane.normal);
+                    let margin = Length::of((mid - ctx.plane.origin).dot(ctx.plane.normal));
                     match decide("split_conic_inplane_mid", margin, band) {
                         Ok(Sign::Zero) => Ok(Some(true)),
                         Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
@@ -1593,7 +1604,10 @@ fn between_edge_in_plane<T: Decide>(
                     let radial = w - *a_c * w.dot(*a_c);
                     let r_hat = radial / radial.norm();
                     let c_h = ((w_max - w_min) * half).cos();
-                    let margin = (r_hat.dot(m_hat) - c_h) * *r_c;
+                    // Ledger row F8 (unchanged): (cosΔ − cos h)·r is
+                    // quadratic in the angular deviation for narrow
+                    // windows; the margin is a length (levered) today.
+                    let margin = Length::levered(r_hat.dot(m_hat) - c_h, *r_c);
                     match decide("bool_between_arc_window", margin, band) {
                         Ok(Sign::Positive) => Ok(Some(true)),
                         Ok(Sign::Negative) => Ok(Some(false)),
@@ -1616,7 +1630,7 @@ fn between_edge_in_plane<T: Decide>(
 /// computation choice between two identical formulas; its degenerate
 /// and in-band arms keep the direct one (deterministic tie-break, D9).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("split_chart_azimuth_frame", x, band) {
+    match decide("split_chart_azimuth_frame", Length::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
         Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
     }
@@ -1747,19 +1761,24 @@ fn run_azimuth_window<T: Decide>(
                     let entry_v = he_data.start;
                     let p = vertex_point(body, entry_v).map_err(|_| corrupt())?;
                     let d = (p - *center).dot(*axis);
-                    match decide("split_sphere_window_pole", *radius - d.abs(), band)
-                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    match decide(
+                        "split_sphere_window_pole",
+                        Length::of(*radius - d.abs()),
+                        band,
+                    )
+                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                     {
                         Sign::Positive => {}
                         Sign::Negative => return Err(corrupt()),
                         Sign::Zero => {
-                            let south = match decide("split_sphere_window_pole_side", d, band)
-                                .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-                            {
-                                Sign::Negative => true,
-                                Sign::Positive => false,
-                                Sign::Zero => return Err(corrupt()),
-                            };
+                            let south =
+                                match decide("split_sphere_window_pole_side", Length::of(d), band)
+                                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                                {
+                                    Sign::Negative => true,
+                                    Sign::Positive => false,
+                                    Sign::Zero => return Err(corrupt()),
+                                };
                             let sense = body.get_face(face).ok_or_else(corrupt)?.sense;
                             let advancing = south == sense;
                             k = if advancing {
@@ -2253,7 +2272,7 @@ impl<T: Decide> Sweep<T> {
         // `/ (perimeter * 0.5)` computed 4·|A|/P, double the
         // documented spec — dimensionally identical, but the doc is
         // the contract.)
-        let margin = twice_area.abs() / perimeter;
+        let margin = Length::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             Ok(Sign::Positive) => Ok(()),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),

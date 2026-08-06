@@ -64,7 +64,7 @@ use geom_brep::{
     classify_dihedral, newell_plane,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Point2, Point3, Real, Sign, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Length, Point2, Point3, Real, Sign, Vec3,
 };
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
@@ -287,7 +287,11 @@ impl From<EulerOpError> for ExtrudeError {
 /// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
 /// for the margin-telemetry recorder, classifies through the
 /// sanctioned [`Decide`] door, and tags any escalation.
-fn decide<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
+fn decide<T: Decide>(
+    name: &'static str,
+    margin: Length<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
 }
 
@@ -572,7 +576,7 @@ fn cosurface<T: Decide>(
             let d = next.b - prev.a;
             let margin = t.perp_dot(d);
             Ok(matches!(
-                decide("side_planes_cosurface", margin, band)?,
+                decide("side_planes_cosurface", Length::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -595,7 +599,7 @@ fn cosurface<T: Decide>(
             // direct — the profile crate's carrier-identity pattern).
             let margin = c1.distance(*c2) + (*r1 - *r2).abs();
             Ok(matches!(
-                decide("side_cylinders_cosurface", margin, band)?,
+                decide("side_cylinders_cosurface", Length::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -638,7 +642,7 @@ pub fn extrude<T: Decide>(
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {
         Extrusion::Distance(d) => {
-            let sign = decide("extrusion_normal_component", d, band)
+            let sign = decide("extrusion_normal_component", Length::of(d), band)
                 .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
             match sign {
                 Sign::Zero => return Err(ExtrudeError::DegenerateExtrusion),
@@ -648,7 +652,7 @@ pub fn extrude<T: Decide>(
         }
         Extrusion::Vector(v) => {
             let nc = v.dot(normal);
-            let sign = decide("extrusion_normal_component", nc, band)
+            let sign = decide("extrusion_normal_component", Length::of(nc), band)
                 .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?;
             let reverse = match sign {
                 Sign::Zero => return Err(ExtrudeError::DegenerateExtrusion),
@@ -657,7 +661,7 @@ pub fn extrude<T: Decide>(
             };
             // In-plane component: must be coincident with zero (normal
             // extrusion only at M2 — crate docs).
-            let in_plane = (v - normal * nc).norm();
+            let in_plane = Length::norm3(v - normal * nc);
             match decide("extrusion_obliquity", in_plane, band)
                 .map_err(|source| ExtrudeError::ExtrusionEscalated { source })?
             {
@@ -1048,7 +1052,7 @@ fn sweep_loop<T: Decide>(
                 let arm = geom_brep::curvature_lever_arm(&s_prev, mid)
                     .min(geom_brep::curvature_lever_arm(&s_next, mid))
                     .min(w_norm);
-                let margin = jet.kappa_rel.abs() * arm.powi(2) * T::from_f64(0.5);
+                let margin = Length::sagitta(jet.kappa_rel.abs(), arm);
                 match geom_core::k_stats::decide("tangent_second_order", margin, band) {
                     Ok(geom_core::Sign::Positive) => {
                         let spec = EdgeCurveSpec {

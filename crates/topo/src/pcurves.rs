@@ -107,7 +107,7 @@ use geom_brep::{
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Decide, Indeterminate, Real, Sign};
+use geom_core::{Decide, Indeterminate, Length, Real, Sign};
 use geom_surfaces::Surface;
 
 use crate::body::Body;
@@ -403,7 +403,11 @@ fn nurbs_iso_derive<T: Decide>(
     let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>| -> Result<T, PcurveMintError> {
         let start = carrier.eval(t0);
         for cand in [T::zero(), T::one()] {
-            match decide("pcurve_iso_side", start.distance(eval_at(cand)), band) {
+            match decide(
+                "pcurve_iso_side",
+                Length::of(start.distance(eval_at(cand))),
+                band,
+            ) {
                 Ok(Sign::Zero) => return Ok(cand),
                 Ok(Sign::Positive | Sign::Negative) => {}
                 Err(cause) => {
@@ -585,14 +589,19 @@ fn loop_closes<T: Decide>(
 ) -> bool {
     let arm = azimuth_arm(surface, start.y);
     let tau = T::tau();
-    let zero = |name: &'static str, m: T| matches!(decide(name, m, band), Ok(Sign::Zero));
+    let zero = |name: &'static str, m: Length<T>| matches!(decide(name, m, band), Ok(Sign::Zero));
     let wraps = |m: T, a: T, name: &'static str| {
-        [m, m - tau, m + tau].into_iter().any(|c| zero(name, c * a))
+        [m, m - tau, m + tau]
+            .into_iter()
+            .any(|c| zero(name, Length::levered(c, a)))
     };
     let du = end.x - start.x;
     let dv = end.y - start.y;
     let direct = match polar_arm(surface) {
-        None => wraps(du, arm, "pcurve_loop_closure") && zero("pcurve_loop_closure_height", dv),
+        None => {
+            wraps(du, arm, "pcurve_loop_closure")
+                && zero("pcurve_loop_closure_height", Length::of(dv))
+        }
         Some(v_arm) => {
             wraps(du, arm, "pcurve_loop_closure") && wraps(dv, v_arm, "pcurve_loop_closure_height")
         }
@@ -867,7 +876,7 @@ fn walk_loop<T: Decide>(
                     // own branches. In-band levers take the same arm —
                     // a sub-tolerance lever cannot select a branch.
                     let joint_arm = azimuth_arm(surface, prev.y);
-                    let ku = match decide("pcurve_loop_pole_joint", joint_arm, band) {
+                    let ku = match decide("pcurve_loop_pole_joint", Length::of(joint_arm), band) {
                         Ok(Sign::Zero) | Err(_) => T::zero(),
                         Ok(Sign::Positive | Sign::Negative) => {
                             ((prev.x - raw.x) / tau + half).floor()
@@ -888,7 +897,10 @@ fn walk_loop<T: Decide>(
                     let entry = shifted.eval(entry_t);
                     let arm = azimuth_arm(surface, prev.y);
                     let mut fits = true;
-                    for margin in [(entry.x - prev.x) * arm, (entry.y - prev.y) * v_meter] {
+                    for margin in [
+                        Length::levered(entry.x - prev.x, arm),
+                        Length::metered(entry.y - prev.y, v_meter),
+                    ] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
                             Ok(Sign::Positive | Sign::Negative) => fits = false,
@@ -1083,7 +1095,10 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                 let entry = cache.pcurve().eval(entry_t);
                 if let Some(prev) = prev_exit {
                     let arm = azimuth_arm(&surface, prev.y);
-                    for margin in [(entry.x - prev.x) * arm, (entry.y - prev.y) * v_meter] {
+                    for margin in [
+                        Length::levered(entry.x - prev.x, arm),
+                        Length::metered(entry.y - prev.y, v_meter),
+                    ] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
                             Ok(Sign::Positive | Sign::Negative) => {

@@ -87,7 +87,7 @@
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
-use geom_core::{Band, Decide, Sign};
+use geom_core::{Band, Decide, Length, Sign};
 
 use super::PropsError;
 
@@ -408,10 +408,10 @@ impl AbsEnclosure for RingInterval {
 /// scalar so every lane (f64 / Probe / Interval) records identically.
 fn classify_len<T: Decide>(
     name: &'static str,
-    margin: f64,
+    margin: Length<f64>,
     band: Band,
 ) -> Result<Sign, PropsError> {
-    geom_core::k_stats::decide(name, T::from_f64(margin), band)
+    geom_core::k_stats::decide(name, margin.lift::<T>(), band)
         .map_err(|cause| PropsError::Escalated { cause })
 }
 
@@ -450,15 +450,22 @@ pub fn cylinder_cut_face<T: Decide>(
         let lever = (area.lo() + area.hi()) * 0.5;
         let width_len = flux.width() / (3.0 * lever);
         last_width_len = width_len;
-        if classify_len::<T>("props_quad_converged", target_len - width_len, band)?
-            == Sign::Positive
+        if classify_len::<T>(
+            "props_quad_converged",
+            Length::of(target_len - width_len),
+            band,
+        )? == Sign::Positive
         {
             // Face-extent gate on the CONVERGED enclosure: the area
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
             // `props_face_extent` lever, quadrature-shaped).
             let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
-            match classify_len::<T>("props_quad_face_extent", area.lo() / perim, band)? {
+            match classify_len::<T>(
+                "props_quad_face_extent",
+                Length::over_lever(area.lo(), perim),
+                band,
+            )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
@@ -1283,10 +1290,17 @@ pub fn nurbs_patch_face<T: Decide>(
         let flux = widen(exact, boundary_defect * p_bound);
         let lever = (area.lo() + area.hi()) * 0.5;
         let width_len = flux.width() / (3.0 * lever);
-        if classify_len::<T>("props_quad_converged", target_len - width_len, band)?
-            == Sign::Positive
+        if classify_len::<T>(
+            "props_quad_converged",
+            Length::of(target_len - width_len),
+            band,
+        )? == Sign::Positive
         {
-            match classify_len::<T>("props_quad_face_extent", area.lo() / perimeter, band)? {
+            match classify_len::<T>(
+                "props_quad_face_extent",
+                Length::over_lever(area.lo(), perimeter),
+                band,
+            )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
@@ -1349,10 +1363,17 @@ pub fn nurbs_patch_face<T: Decide>(
         let lever = (area.lo() + area.hi()) * 0.5;
         let width_len = flux.width() / (3.0 * lever);
         last_width_len = width_len;
-        if classify_len::<T>("props_quad_converged", target_len - width_len, band)?
-            == Sign::Positive
+        if classify_len::<T>(
+            "props_quad_converged",
+            Length::of(target_len - width_len),
+            band,
+        )? == Sign::Positive
         {
-            match classify_len::<T>("props_quad_face_extent", area.lo() / perimeter, band)? {
+            match classify_len::<T>(
+                "props_quad_face_extent",
+                Length::over_lever(area.lo(), perimeter),
+                band,
+            )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }

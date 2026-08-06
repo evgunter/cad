@@ -13,7 +13,7 @@
 //! definite-nonzero consistency residual or an out-of-inventory shape
 //! is a typed [`PropsError`].
 
-use geom_core::{Band, Decide, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Length, Point3, Real, Sign, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
@@ -102,12 +102,20 @@ fn trav<T: Real>(forward: bool) -> T {
 
 /// Funnel wrapper: classify, mapping an escalation to the typed
 /// [`PropsError::Escalated`].
-fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, PropsError> {
+fn classify<T: Decide>(
+    name: &'static str,
+    margin: Length<T>,
+    band: Band,
+) -> Result<Sign, PropsError> {
     decide(name, margin, band).map_err(|cause| PropsError::Escalated { cause })
 }
 
 /// Require a consistency residual to be coincident with zero.
-fn require_zero<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<(), PropsError> {
+fn require_zero<T: Decide>(
+    name: &'static str,
+    margin: Length<T>,
+    band: Band,
+) -> Result<(), PropsError> {
     match classify(name, margin, band)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(PropsError::NotIsoRectangle { what: name }),
@@ -115,7 +123,7 @@ fn require_zero<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<
 }
 
 /// Require a definitely-positive extent (degenerate ⇒ typed error).
-fn require_extent<T: Decide>(margin: T, band: Band) -> Result<(), PropsError> {
+fn require_extent<T: Decide>(margin: Length<T>, band: Band) -> Result<(), PropsError> {
     match classify("props_face_extent", margin, band)? {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(PropsError::DegenerateFace),
@@ -144,12 +152,12 @@ fn require_rim_incidence<T: Decide>(
 ) -> Result<(), PropsError> {
     require_zero(
         "props_rim_axis_parallel",
-        n_c.cross(axis).norm() * r_c,
+        Length::levered(n_c.cross(axis).norm(), r_c),
         band,
     )?;
     require_zero(
         "props_rim_center_on_axis",
-        (w - axis * w.dot(axis)).norm(),
+        Length::norm3(w - axis * w.dot(axis)),
         band,
     )
 }
@@ -205,18 +213,22 @@ fn same_level<T: Decide>(
 ) -> Result<bool, PropsError> {
     match (a, b) {
         (RimLevel::Length(la), RimLevel::Length(lb)) => {
-            Ok(classify("props_rim_level_group", la - lb, band)? == Sign::Zero)
+            Ok(classify("props_rim_level_group", Length::of(la - lb), band)? == Sign::Zero)
         }
         (RimLevel::Unit(sa, ca), RimLevel::Unit(sb, cb)) => {
-            let d0 = classify("props_rim_level_group", (sa - sb) * arm, band)?;
-            let d1 = classify("props_rim_level_group", (ca - cb) * arm, band)?;
+            let d0 = classify("props_rim_level_group", Length::levered(sa - sb, arm), band)?;
+            let d1 = classify("props_rim_level_group", Length::levered(ca - cb, arm), band)?;
             Ok(d0 == Sign::Zero && d1 == Sign::Zero)
         }
         // One surface builds every rim of a face, so mixed kinds are
         // structurally impossible; a poisoned margin turns it into a
         // typed escalation rather than a panic (D9).
         _ => {
-            classify("props_rim_level_group", T::from_f64(f64::NAN), band)?;
+            classify(
+                "props_rim_level_group",
+                Length::of(T::from_f64(f64::NAN)),
+                band,
+            )?;
             Ok(false)
         }
     }
@@ -246,8 +258,11 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, Props
         let mut placed = false;
         for g in &mut groups {
             let same = same_level(rim.level, g.0, arm, band)?;
-            let same_dir =
-                classify("props_rim_dir_group", (rim.d_u - g.1) * arm, band)? == Sign::Zero;
+            let same_dir = classify(
+                "props_rim_dir_group",
+                Length::levered(rim.d_u - g.1, arm),
+                band,
+            )? == Sign::Zero;
             if same && same_dir {
                 g.2 = g.2 + rim.dt;
                 placed = true;
@@ -260,7 +275,11 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, Props
     }
     let total = groups[0].2;
     for g in &groups[1..] {
-        require_zero("props_du_consistent", (g.2 - total) * arm, band)?;
+        require_zero(
+            "props_du_consistent",
+            Length::levered(g.2 - total, arm),
+            band,
+        )?;
     }
     Ok(total)
 }
@@ -280,8 +299,8 @@ fn s_f_from_rim<T: Decide>(
     band: Band,
 ) -> Result<T, PropsError> {
     let margin = match rim.level {
-        RimLevel::Length(v) => lo + hi - v - v,
-        RimLevel::Unit(s, _) => (lo + hi - s - s) * arm,
+        RimLevel::Length(v) => Length::of(lo + hi - v - v),
+        RimLevel::Unit(s, _) => Length::levered(lo + hi - s - s, arm),
     };
     match classify("props_rim_side", margin, band)? {
         Sign::Positive => Ok(rim.d_u),
@@ -312,7 +331,7 @@ fn cylinder<T: Decide>(
             Curve3::Line { dir, .. } => {
                 require_zero(
                     "props_meridian_axial",
-                    dir.cross(axis).norm() * (e.t1 - e.t0),
+                    Length::levered(dir.cross(axis).norm(), e.t1 - e.t0),
                     band,
                 )?;
                 // Incidence: the (certified-axial) line lies on the
@@ -322,7 +341,7 @@ fn cylinder<T: Decide>(
                 let w0 = e.p0() - origin;
                 require_zero(
                     "props_meridian_on_surface",
-                    (w0 - axis * w0.dot(axis)).norm() - radius,
+                    Length::of((w0 - axis * w0.dot(axis)).norm() - radius),
                     band,
                 )?;
                 levels.push((e.p0() - origin).dot(axis));
@@ -334,13 +353,17 @@ fn cylinder<T: Decide>(
                 radius: r_c,
                 ..
             } => {
-                let s = classify("props_circle_axis_class", n_c.dot(axis) * r_c, band)?;
+                let s = classify(
+                    "props_circle_axis_class",
+                    Length::levered(n_c.dot(axis), r_c),
+                    band,
+                )?;
                 if s == Sign::Zero {
                     return Err(PropsError::NotIsoRectangle {
                         what: "cylinder boundary circle is not a rim",
                     });
                 }
-                require_zero("props_rim_fit", r_c - radius, band)?;
+                require_zero("props_rim_fit", Length::of(r_c - radius), band)?;
                 require_rim_incidence(center - origin, n_c, r_c, axis, band)?;
                 let v = (center - origin).dot(axis);
                 rims.push(Rim {
@@ -369,7 +392,7 @@ fn cylinder<T: Decide>(
     }
     let du = du_of_rims(&rims, radius, band)?;
     let (lo, hi) = min_max(&levels)?;
-    require_extent(hi - lo, band)?;
+    require_extent(Length::of(hi - lo), band)?;
     // `radius` is the azimuthal lever arm; the rim-side margin itself
     // is Length-leveled (meters) and never touches it.
     let s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;
@@ -420,7 +443,7 @@ fn cone<T: Decide>(
             Curve3::Line { dir, .. } => {
                 require_zero(
                     "props_meridian_generator",
-                    (dir.dot(axis).abs() - cos_a) * (e.t1 - e.t0),
+                    Length::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
                     band,
                 )?;
                 // Incidence: a line at the generator angle is a
@@ -429,7 +452,7 @@ fn cone<T: Decide>(
                 // unit, so meters directly).
                 require_zero(
                     "props_meridian_apex",
-                    (apex - e.p0()).cross(dir).norm(),
+                    Length::norm3((apex - e.p0()).cross(dir)),
                     band,
                 )?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
@@ -441,14 +464,18 @@ fn cone<T: Decide>(
                 radius: r_c,
                 ..
             } => {
-                let s = classify("props_circle_axis_class", n_c.dot(axis) * r_c, band)?;
+                let s = classify(
+                    "props_circle_axis_class",
+                    Length::levered(n_c.dot(axis), r_c),
+                    band,
+                )?;
                 if s == Sign::Zero {
                     return Err(PropsError::NotIsoRectangle {
                         what: "cone boundary circle is not a rim",
                     });
                 }
                 let v = (center - apex).dot(axis) / cos_a;
-                require_zero("props_rim_fit", r_c - v.abs() * sin_a, band)?;
+                require_zero("props_rim_fit", Length::of(r_c - v.abs() * sin_a), band)?;
                 require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
                 rims.push(Rim {
                     d_u: t_sign::<T>(s) * trav(e.forward),
@@ -484,11 +511,11 @@ fn cone<T: Decide>(
     };
     let du = du_of_rims(&rims, arm, band)?;
     let (lo, hi) = min_max(&levels)?;
-    require_extent(hi - lo, band)?;
+    require_extent(Length::of(hi - lo), band)?;
     // Single-nappe check: definitely-negative low AND definitely-positive
     // high would straddle the apex through both nappes.
-    let s_lo = classify("props_cone_nappe", lo, band)?;
-    let s_hi = classify("props_cone_nappe", hi, band)?;
+    let s_lo = classify("props_cone_nappe", Length::of(lo), band)?;
+    let s_hi = classify("props_cone_nappe", Length::of(hi), band)?;
     if s_lo == Sign::Negative && s_hi == Sign::Positive {
         return Err(PropsError::NappeSpanning);
     }
@@ -549,13 +576,17 @@ fn sphere<T: Decide>(
                 },
             });
         };
-        let s = classify("props_circle_axis_class", n_c.dot(axis) * r_c, band)?;
+        let s = classify(
+            "props_circle_axis_class",
+            Length::levered(n_c.dot(axis), r_c),
+            band,
+        )?;
         match s {
             Sign::Positive | Sign::Negative => {
                 let w = c_c - center;
                 require_zero(
                     "props_rim_fit",
-                    (w.norm_squared() + r_c.powi(2)).sqrt() - radius,
+                    Length::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
                     band,
                 )?;
                 // Incidence: the fit above only fixes ‖w‖; the offset
@@ -578,7 +609,7 @@ fn sphere<T: Decide>(
                 // with the sphere's radius.
                 require_zero(
                     "props_meridian_great",
-                    (c_c - center).norm().max((r_c - radius).abs()),
+                    Length::of((c_c - center).norm().max((r_c - radius).abs())),
                     band,
                 )?;
                 meridian_axes.push(n_c);
@@ -589,7 +620,7 @@ fn sphere<T: Decide>(
     }
     let (du, s_f);
     let (lo, hi) = min_max(&levels)?;
-    require_extent((hi - lo) * radius, band)?;
+    require_extent(Length::levered(hi - lo, radius), band)?;
     if rims.is_empty() {
         // Two-band face (module docs above): meridians coplanar, Δu = π.
         let Some((&first, rest)) = meridian_axes.split_first() else {
@@ -598,7 +629,11 @@ fn sphere<T: Decide>(
             });
         };
         for &n in rest {
-            require_zero("props_band_coplanar", n.cross(first).norm() * radius, band)?;
+            require_zero(
+                "props_band_coplanar",
+                Length::levered(n.cross(first).norm(), radius),
+                band,
+            )?;
         }
         du = T::pi();
         // The one orientation fact no rim encodes (see the fn docs):
@@ -671,7 +706,11 @@ fn torus<T: Decide>(
                 },
             });
         };
-        let s = classify("props_circle_axis_class", n_c.dot(axis) * r_c, band)?;
+        let s = classify(
+            "props_circle_axis_class",
+            Length::levered(n_c.dot(axis), r_c),
+            band,
+        )?;
         match s {
             Sign::Positive | Sign::Negative => {
                 let h = (c_c - center).dot(axis);
@@ -679,7 +718,7 @@ fn torus<T: Decide>(
                 let cos_v = (r_c - major) / minor;
                 require_zero(
                     "props_rim_fit",
-                    ((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one()) * minor,
+                    Length::levered((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(), minor),
                     band,
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
@@ -697,7 +736,7 @@ fn torus<T: Decide>(
                 let rho = (w - axis * h).norm();
                 require_zero(
                     "props_meridian_fit",
-                    (rho - major).abs().max(h.abs()).max((r_c - minor).abs()),
+                    Length::of((rho - major).abs().max(h.abs()).max((r_c - minor).abs())),
                     band,
                 )?;
                 // Incidence: the minor circle's plane must CONTAIN the
@@ -706,7 +745,11 @@ fn torus<T: Decide>(
                 // below only excludes n_c ⊥ τ̂). Margin
                 // `n_c·(w − âh) = (n_c·ρ̂)·ρ`: the tilt metered at the
                 // tube-center distance (lever arm ρ ≈ R, meters).
-                require_zero("props_meridian_plane", n_c.dot(w - axis * h), band)?;
+                require_zero(
+                    "props_meridian_plane",
+                    Length::of(n_c.dot(w - axis * h)),
+                    band,
+                )?;
                 meridians.push(Meridian {
                     n_c,
                     c_c,
@@ -728,7 +771,11 @@ fn torus<T: Decide>(
     let w = m0.c_c - center;
     let rho_hat = (w - axis * w.dot(axis)).normalize();
     let tau = axis.cross(rho_hat);
-    let orient = classify("props_meridian_orient", m0.n_c.dot(tau) * minor, band)?;
+    let orient = classify(
+        "props_meridian_orient",
+        Length::levered(m0.n_c.dot(tau), minor),
+        band,
+    )?;
     if orient == Sign::Zero {
         return Err(PropsError::NotIsoRectangle {
             what: "torus meridian orientation degenerate",
@@ -740,7 +787,7 @@ fn torus<T: Decide>(
     let ha = wa.dot(axis);
     let rho_a = (wa - axis * ha).norm();
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
-    require_extent(m0.dt * minor, band)?;
+    require_extent(Length::levered(m0.dt, minor), band)?;
     let dv = m0.dt;
     // Normalize to the increasing interval [v0, v1]: rotate the anchor
     // latitude by the signed span where needed.
@@ -777,7 +824,7 @@ fn torus<T: Decide>(
         // interval-lane donut).
         let d0 = ((rs - s0).powi(2) + (rc - c0).powi(2)).sqrt();
         let d1 = ((rs - s1).powi(2) + (rc - c1).powi(2)).sqrt();
-        require_zero("props_rim_level", d0.min(d1) * minor, band)?;
+        require_zero("props_rim_level", Length::levered(d0.min(d1), minor), band)?;
     }
     // s_f: the rim topologically adjacent to the anchor endpoint; the
     // interior sweeps from it in the dv_sign direction.

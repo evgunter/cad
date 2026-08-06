@@ -35,7 +35,9 @@
 //!   showing the refusal arrives with no surface allocated.
 
 use geom_brep::EdgeGeometry;
-use geom_core::{Band, Bounds, Decide, Indeterminate, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Bounds, Decide, Indeterminate, Length, MarginDiag, Point3, Real, Sign, Vec3,
+};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -242,7 +244,9 @@ pub fn radius_headroom<T: Decide + Bounds>(
     // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;
-    match decide("fillet3_radius_headroom", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
+    match decide("fillet3_radius_headroom", Length::of(margin), band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::RadiusHeadroom {
             face,
@@ -283,7 +287,9 @@ pub fn spine_regularity<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let margin = radius - radius.powi(2) * spine_curvature;
-    match decide("fillet3_spine_regularity", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
+    match decide("fillet3_spine_regularity", Length::of(margin), band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::SpineIrregular {
             margin: margin.lo(),
@@ -324,12 +330,12 @@ pub fn convexity_at<T: Decide + Bounds>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<(Convexity, T), FilletError> {
-    let margin = n_a.cross(n_b).dot(tau.normalize()) * arm;
+    let margin = Length::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
     let sign = decide("fillet3_convexity_sign", margin, band)
         .map_err(|e| esc(FilletSite::Link { edge }, e))?;
     match sign {
-        Sign::Positive => Ok((Convexity::Convex, margin)),
-        Sign::Negative => Ok((Convexity::Concave, margin)),
+        Sign::Positive => Ok((Convexity::Convex, margin.value())),
+        Sign::Negative => Ok((Convexity::Concave, margin.value())),
         // A tangential edge: the supports share a tangent plane, so
         // there is no wedge to roll a ball into. Its own situation and
         // its own error (fix pass F6) — it does not DISAGREE with the
@@ -337,7 +343,7 @@ pub fn convexity_at<T: Decide + Bounds>(
         // handed the reader a chain verdict that was never taken.
         Sign::Zero => Err(FilletError::TangentialEdge {
             edge,
-            margin: margin.lo(),
+            margin: margin.value().lo(),
         }),
     }
 }
@@ -372,7 +378,7 @@ pub fn chain_g1<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let site = FilletSite::Joint { vertex };
-    match decide("fillet3_chain_arm", arm, band).map_err(|e| esc(site, e))? {
+    match decide("fillet3_chain_arm", Length::of(arm), band).map_err(|e| esc(site, e))? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             return Err(esc(
@@ -386,7 +392,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         }
     }
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
-    let margin = sin_theta * arm;
+    let margin = Length::levered(sin_theta, arm);
     match decide("fillet3_chain_g1", margin, band).map_err(|e| esc(site, e))? {
         // A POSITIVE margin is the failure here (a corner), and a
         // ZERO one the success (tangent continuity) — the inverted
@@ -395,7 +401,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         Sign::Zero => Ok(()),
         _ => Err(FilletError::ChainNotG1 {
             vertex,
-            margin: margin.lo(),
+            margin: margin.value().lo(),
             arm: arm.lo(),
         }),
     }
@@ -454,7 +460,7 @@ pub fn corner_config<T: Decide + Bounds>(
         return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
-    let margin = det.abs() * radius;
+    let margin = Length::levered(det.abs(), radius);
     match decide("fillet3_corner_independence", margin, band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(refuse(CornerConfig::DependentNormals)),
@@ -515,7 +521,9 @@ pub fn face_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let margin = gap - setback_here - setback_there;
-    match decide("fillet3_face_clearance", margin, band).map_err(|e| esc(FilletSite::Chain, e))? {
+    match decide("fillet3_face_clearance", Length::of(margin), band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
         Sign::Positive => Ok(()),
         _ => Err(FilletError::FaceClearanceUncertified {
             face,

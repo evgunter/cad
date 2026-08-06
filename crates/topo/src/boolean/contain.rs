@@ -10,7 +10,7 @@
 //! from the PR 3 ray-parity trilean ([`point_in_loop`]) over the outer
 //! loop and every ring.
 
-use geom_core::{Band, Decide, Indeterminate, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Length, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -79,7 +79,7 @@ pub fn contfp<T: Decide>(
     for &lk in &loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            let margin = (q - *p).norm();
+            let margin = Length::norm3(q - *p);
             match decide("bool_contact_vertex", margin, band) {
                 Ok(Sign::Zero) => return Ok(FaceContainment::OnVertex(*v)),
                 Ok(Sign::Positive) => {}
@@ -102,16 +102,16 @@ pub fn contfp<T: Decide>(
             let s0 = (q - *a).dot(ehat);
             let s1 = len - s0;
             let interior = matches!(
-                decide("bool_contact_edge_span", s0, band),
+                decide("bool_contact_edge_span", Length::of(s0), band),
                 Ok(Sign::Positive)
             ) && matches!(
-                decide("bool_contact_edge_span", s1, band),
+                decide("bool_contact_edge_span", Length::of(s1), band),
                 Ok(Sign::Positive)
             );
             if !interior {
                 continue;
             }
-            let perp = (q - *a).cross(ehat).norm();
+            let perp = Length::norm3((q - *a).cross(ehat));
             match decide("bool_contact_edge", perp, band) {
                 Ok(Sign::Zero) => {
                     let edge = body.get_half_edge(*he).ok_or(ContainError::Corrupt)?.edge;
