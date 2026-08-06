@@ -146,6 +146,8 @@ mod review_pr12_probes;
 mod review_s11_adv;
 #[path = "review_s12_adv.rs"]
 mod review_s12_adv;
+#[path = "review_m6_5_pr2_sweep_probes.rs"]
+mod review_m6_5_pr2_sweep_probes;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
 #[path = "revolve_ball.rs"]
