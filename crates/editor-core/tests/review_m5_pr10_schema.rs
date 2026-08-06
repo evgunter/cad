@@ -9,7 +9,6 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 
 const V1: &str = include_str!("golden/v1_golden.cad");
 const V2: &str = include_str!("golden/v2_golden.cad");
-const V3: &str = include_str!("golden/v3_golden.cad");
 
 fn body_of(text: &str) -> &str {
     text.split_once('\n').unwrap().1
@@ -147,22 +146,5 @@ fn review_a_hand_edited_v2_header_over_a_v1_body_loads() {
             "a v1 body under a live header no longer loads ({e:?}) — the format DID change: \
              say so in the schema docs and give the bump a real migration story"
         ),
-    }
-}
-
-/// The other half of that edge, executed: a v3 header over a body
-/// whose fillet has NO `selection` refuses at the body parse. This is
-/// the concrete reason 2 → 3 has no migration step — the field cannot
-/// be defaulted, so the honest answer is to refuse.
-#[test]
-fn review_a_v2_shaped_fillet_cannot_be_hand_promoted_to_v3() {
-    let stripped = V3
-        .lines()
-        .collect::<Vec<_>>()
-        .join("\n")
-        .replace("\"selection\": [", "\"unselection\": [");
-    match load(&stripped) {
-        Err(PersistError::Parse { .. }) => {}
-        other => panic!("a fillet without its selection must refuse at the body, got {other:?}"),
     }
 }

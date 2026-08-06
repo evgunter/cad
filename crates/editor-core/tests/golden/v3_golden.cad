@@ -1,7 +1,7 @@
 schema: 3
 {
   "snapshot": {
-    "next_id": 5,
+    "next_id": 4,
     "nodes": {
       "0": {
         "Profile": {
@@ -214,57 +214,13 @@ schema: 3
             }
           ]
         }
-      },
-      "4": {
-        "Fillet": {
-          "target": 1,
-          "radius": {
-            "Literal": {
-              "value": 0.0625,
-              "dim": "Length"
-            }
-          },
-          "selection": [
-            {
-              "kind": "Edge",
-              "node": 1,
-              "path": [
-                {
-                  "RimEdge": [
-                    "Top",
-                    {
-                      "loop_index": 0,
-                      "segment": 0
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "kind": "Edge",
-              "node": 1,
-              "path": [
-                {
-                  "RimEdge": [
-                    "Top",
-                    {
-                      "loop_index": 0,
-                      "segment": 2
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
       }
     },
     "order": [
       0,
       1,
       2,
-      3,
-      4
+      3
     ],
     "params": {
       "depth": {

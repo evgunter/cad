@@ -74,28 +74,102 @@ fn too_old_beats_a_broken_body() {
     );
 }
 
-/// The v3 golden carries the new field, and carries it CANONICAL: the
-/// fixture hands `Node::fillet` its two names out of order and the
-/// committed bytes show them sorted. A file whose selection is NOT
-/// canonical is corrupt, and refuses at the shared validator rather
-/// than being quietly re-sorted (which would move the node's content
-/// key behind the caller's back).
+/// **The selection's wire bytes, pinned.** The shared golden
+/// (`m4_pr6_golden.rs`) deliberately carries no fillet — a golden must
+/// EVALUATE green, and a green fillet needs a whole polyhedron of
+/// geometry that golden does not have — so the new field is pinned
+/// here instead, on a minimal document saved through the same door.
+///
+/// Two claims: the field is on the wire under its own key, and it is
+/// on the wire CANONICAL. The fixture hands `Node::fillet` its two
+/// names out of order; the bytes show them sorted.
 #[test]
-fn the_v3_golden_pins_a_canonical_selection() {
-    assert!(V3.contains("\"selection\""), "the v3 bytes carry the field");
-    let first = V3.find("\"segment\": 0").expect("segment 0 present");
-    let second = V3.find("\"segment\": 2").expect("segment 2 present");
-    let sel = V3.find("\"selection\"").expect("the selection block");
-    assert!(sel < first && first < second, "stored in canonical order");
+fn the_selection_reaches_the_wire_canonical() {
+    use editor_core::{
+        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDesc, ProfileDoc, ProfileEdgeRef, RoleSeg,
+        StableName, apply, save,
+    };
 
-    let corrupt = V3.replace("\"segment\": 0", "\"segment\": 9");
+    let square = profile::ProfileLoop::new(
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+            .into_iter()
+            .map(|(x, y)| profile::ProfileVertex {
+                pos: geom_core::Point2::new(x, y),
+                bulge: 0.0,
+            })
+            .collect(),
+    );
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length literal");
+    let mut doc = ProfileDoc::empty();
+    for edit in [
+        DocEdit::InsertNode {
+            node: Node::Profile(ProfileDesc(profile::Profile::new(
+                profile::SketchPlane::xy(),
+                vec![square],
+            ))),
+        },
+        DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: editor_core::RecipeNodeId(0),
+                distance: len(1.0),
+            },
+        },
+    ] {
+        doc = apply(&doc, &edit).expect("the fixture builds").doc;
+    }
+    let rim = |seg: u32| StableName {
+        kind: editor_core::EntityKind::Edge,
+        node: editor_core::RecipeNodeId(1),
+        path: vec![RoleSeg::RimEdge(
+            CapEnd::Top,
+            ProfileEdgeRef {
+                loop_index: 0,
+                segment: seg,
+            },
+        )],
+    };
+    doc = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::fillet(
+                editor_core::RecipeNodeId(1),
+                len(0.0625),
+                vec![rim(2), rim(0)],
+            ),
+        },
+    )
+    .expect("the fillet node inserts")
+    .doc;
+
+    let text = save(&doc, &[]).expect("the fixture saves");
+    assert_eq!(
+        text.lines().next(),
+        Some(&format!("schema: {SCHEMA_VERSION}")[..])
+    );
+    assert!(text.contains("\"selection\""), "the field reaches the wire");
+    let sel = text.find("\"selection\"").expect("the selection block");
+    let zero = text[sel..].find("\"segment\": 0").expect("segment 0");
+    let two = text[sel..].find("\"segment\": 2").expect("segment 2");
+    assert!(zero < two, "stored in canonical order, not authoring order");
+
+    // A non-canonical selection on the wire is a CORRUPT file: refused
+    // at the shared validator, never quietly re-sorted (a repair would
+    // move the node's content key behind the caller's back).
+    let corrupt = text.replacen("\"segment\": 0", "\"segment\": 9", 1);
     match load(&corrupt) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::FilletSelectionNotCanonical {
             ..
         })) => {}
-        // The golden pins ε = 1e-9, so under another ambient row the ε
-        // door could fire first — but it is the LAST door, after the
-        // validator, so a non-canonical file cannot reach it.
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),
+    }
+
+    // And the concrete reason 2 → 3 has NO migration step: a v2-shaped
+    // fillet — one with no `selection` at all — cannot be promoted by
+    // hand, because the field has no default and `deny_unknown_fields`
+    // admits no stand-in. Refusing is the honest answer.
+    let v2_shaped = text.replacen("\"selection\"", "\"unselection\"", 1);
+    match load(&v2_shaped) {
+        Err(PersistError::Parse { .. }) => {}
+        other => panic!("a fillet without its selection must refuse at the body, got {other:?}"),
     }
 }

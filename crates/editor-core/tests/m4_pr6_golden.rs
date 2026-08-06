@@ -150,33 +150,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
             },
         },
     );
-    // The v3 shape (M6-5): a `Node::Fillet` with a stored SELECTION,
-    // so the new field's wire bytes — a list of stable names, in
-    // canonical order — are pinned from the day the format carries
-    // them. Node 4. The names are two of the extrude's cap–wall rims,
-    // deliberately handed to `Node::fillet` OUT of order so the golden
-    // also pins that the constructor canonicalizes.
-    let rim = |seg: u32| StableName {
-        kind: EntityKind::Edge,
-        node: editor_core::RecipeNodeId(1),
-        path: vec![RoleSeg::RimEdge(
-            editor_core::CapEnd::Top,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: seg,
-            },
-        )],
-    };
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::fillet(
-                editor_core::RecipeNodeId(1),
-                len(0.0625),
-                vec![rim(2), rim(0)],
-            ),
-        },
-    );
     let body = StableName {
         kind: EntityKind::Body,
         node: editor_core::RecipeNodeId(1),
