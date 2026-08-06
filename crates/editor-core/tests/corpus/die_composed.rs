@@ -34,11 +34,14 @@
 //! (`sweep/tests/m6_surgery.rs`) meters the composed volume against
 //! its derived closed form at a stated relative tolerance.
 
-use editor_core::{Axis3, BooleanOp, Datum, DocEdit, Node, ProfileDesc, SlotId};
+use editor_core::{
+    Axis3, BooleanOp, CapEnd, Datum, DocEdit, EntityKind, MeridianEnd, Node, ProfileDesc,
+    ProfileEdgeRef, RecipeNodeId, RoleSeg, SlotId, StableName,
+};
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
-use super::super::fixture::{ang, len, scl};
+use super::super::fixture::{ang, len, prism_edges, scl};
 use super::{CorpusDoc, Recorder};
 
 /// The die's side, meters.
@@ -55,6 +58,91 @@ pub const R: f64 = 0.05;
 /// The pip ball's centre coordinate along its face normal (the
 /// `die_pips` geometry, verbatim).
 const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
+
+/// **The selection: fourteen names, each with its provenance.**
+///
+/// The target is the pipped cube (`Node::Boolean::Subtract`), whose
+/// edge table has exactly sixteen rows. The selection is fourteen of
+/// them — everything except the two cavity meridians:
+///
+/// | count | name | what it is |
+/// |---|---|---|
+/// | 8 | `FromA(RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
+/// | 4 | `FromA(LateralEdge(vertex))` | the cube's four vertical struts |
+/// | 2 | `Seam { Cap(Top), Band(0) \| BandPi(0) }` | the PIP RIM — the two arcs the zip minted where the cube's top cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
+/// | *2 excluded* | `FromB(Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
+///
+/// **Why the meridians are excluded, and why this document exists.**
+/// The two half-cap faces of the cavity share ONE sphere surface, so a
+/// meridian between them has no dihedral wedge — nothing to roll a
+/// ball into. `fillet_edges` refuses it `TangentialEdge` at margin
+/// exactly zero, correctly, at any radius. That refusal is what kept
+/// this document out of the registry while `Node::Fillet` meant
+/// "every edge" (`m6_composed_node.rs`, now flipped): the composed die
+/// was not INEXPRESSIBLE, it was unnameable. Fourteen names later it
+/// is neither.
+///
+/// The names are AUTHORED, not queried, because a selection freezes
+/// (`Node::Fillet`'s payload docs). `every_selected_name_is_a_live_
+/// edge_of_the_target` in `m6_composed_node.rs` checks the authored
+/// set against the target's actual table, so a drift in the boolean
+/// emitter fails loudly here rather than silently reselecting.
+pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
+    let at = |seg: RoleSeg| StableName {
+        kind: EntityKind::Edge,
+        node: pipped,
+        path: vec![seg],
+    };
+    let cap_top = StableName {
+        kind: EntityKind::Face,
+        node: cube,
+        path: vec![RoleSeg::Cap(CapEnd::Top)],
+    };
+    let ball_face = |seg: RoleSeg| StableName {
+        kind: EntityKind::Face,
+        node: ball,
+        path: vec![seg],
+    };
+    let lower = ProfileEdgeRef {
+        loop_index: 0,
+        segment: 0,
+    };
+    let mut out: Vec<StableName> = prism_edges(cube, 4)
+        .into_iter()
+        .map(|e| at(RoleSeg::FromA(Box::new(e))))
+        .collect();
+    for band in [RoleSeg::Band(lower), RoleSeg::BandPi(lower)] {
+        out.push(at(RoleSeg::Seam {
+            a: Box::new(cap_top.clone()),
+            b: Box::new(ball_face(band)),
+        }));
+    }
+    out
+}
+
+/// The two cavity meridians — the names the selection deliberately
+/// LEAVES OUT (the co-surface seams). Named here so the pin that
+/// checks the exclusion reads the same list the docs above describe.
+pub fn excluded_meridians(ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
+    [MeridianEnd::Seam, MeridianEnd::Pi]
+        .into_iter()
+        .map(|end| StableName {
+            kind: EntityKind::Edge,
+            node: pipped,
+            path: vec![RoleSeg::FromB(Box::new(StableName {
+                kind: EntityKind::Edge,
+                node: ball,
+                path: vec![RoleSeg::Meridian(
+                    end,
+                    ProfileEdgeRef {
+                        loop_index: 0,
+                        segment: 0,
+                    },
+                )],
+            }))],
+        })
+        .collect()
+}
 
 /// The composed-die corpus document.
 pub fn document() -> CorpusDoc {
@@ -127,10 +215,12 @@ pub fn document() -> CorpusDoc {
         b: pip,
         declare: None,
     });
-    let composed = r.insert(Node::Fillet {
-        target: pipped,
-        radius: len(R),
-    });
+    // The fourteen selected edges — twelve box edges and the pip
+    // rim's two arcs; the cavity meridians are NOT in the set (see
+    // `selection`'s table). One node, one call: the F-e measurement
+    // (M6-5 §0) established that a single `fillet_edges` takes the
+    // twelve open chains and the closed rim together.
+    let composed = r.insert(Node::fillet(pipped, len(R), selection(cube, ball, pipped)));
 
     CorpusDoc {
         name: "die_composed",

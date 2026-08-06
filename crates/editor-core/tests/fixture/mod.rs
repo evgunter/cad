@@ -17,7 +17,7 @@
 
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, ProfileDesc,
-    ProfileDoc, ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName,
+    ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName,
 };
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane};
@@ -315,6 +315,43 @@ pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
         node,
         path: vec![seg],
     }
+}
+
+/// One edge name at a node (authoring shorthand).
+pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![seg],
+    }
+}
+
+/// **The twelve edges of an extruded `n`-gon prism, by name** — the
+/// authoring form of "every edge" for a `Node::Fillet` selection
+/// (M6-5). `n` is the outer loop's segment count; the names are the
+/// extrude emitter's own: a cap–wall rim per (cap end, segment) and a
+/// strut per profile vertex.
+///
+/// Authored, not queried: a selection FREEZES, so a corpus document
+/// states the set it means rather than asking an evaluation.
+pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
+    let mut out = Vec::new();
+    for seg in 0..n {
+        let e = ProfileEdgeRef {
+            loop_index: 0,
+            segment: seg,
+        };
+        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Bottom, e)));
+        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Top, e)));
+        out.push(ename(
+            node,
+            RoleSeg::LateralEdge(ProfileVertexRef {
+                loop_index: 0,
+                vertex: seg,
+            }),
+        ));
+    }
+    out
 }
 
 /// A wall (lateral) role for outer-loop segment `seg`.
