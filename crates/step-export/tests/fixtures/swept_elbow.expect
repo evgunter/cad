@@ -3,7 +3,7 @@
 # than reproduce a closed-form surface.
 #
 # A square profile of half-width h = 0.25 (four lines, unit weights, no
-# arc anywhere) swept along a 90-degree arc of radius R = 3 in the world
+# arc anywhere) swept along a 90° arc of radius R = 3 in the world
 # YZ plane -- 9 stations, skinned at v-degree 3. `sweep::sweep_body`
 # had ZERO successful callers anywhere in the tree before #207: every
 # curved path drives a chord-length station spacing, and the synthesized
@@ -26,16 +26,16 @@
 # The frame `sweep_places` builds for a planar arc is exactly the rigid
 # rotation about the arc's own axis, so the nine STATIONS lie exactly on
 # the quarter torus of square cross-section whose Pappus volume is
-#   A * Rbar * theta = (2h)^2 * R * (pi/2) = 0.375*pi
-#                    = 1.1780972450961724 m^3.
+#   A * Rbar * theta = (2h)^2 * R * (π/2) = 0.375·π
+#                    = 1.1780972450961724 m³.
 # The WALLS, though, are the degree-3 v-interpolation THROUGH those nine
 # stations -- a polynomial approximation of circular motion, not the
 # torus. So the torus is a CONVERGENCE reference, not this body's
 # volume: the measured relative gap is 3.84e-6 at 9 stations and fell
-# from 2.2e-4 at 5 (the #210 convergence pin). The certified enclosure
-# below is 8.19e-5 mm^3 wide -- 7.0e-14 relative, nearly EIGHT orders
-# tighter than that gap -- so nothing here is being absorbed by a loose
-# pad.
+# from 2.2e-4 at 5 (the #210 convergence pin). The certified enclosure's
+# PAD below is 8.19e-5 mm³ -- its HALF-width, 7.0e-14 relative, nearly
+# EIGHT orders tighter than that gap -- so nothing here is being absorbed
+# by a loose pad.
 #
 # EXPECT_VOLUME_MM3 is therefore the kernel's OWN certified midpoint,
 # and the claim this oracle row makes is the one an external oracle can
@@ -45,7 +45,7 @@
 #
 # EXPECT_VOLUME_RTOL = 1e-7 -- the corpus's first non-default RTOL, and
 # the reason is measured, not guessed. Local FreeCAD 1.1.2 reads back
-# 1178101795.21692 mm^3, which is 22.82 mm^3 / 1.94e-8 relative off the
+# 1178101795.21692 mm³, which is 22.82 mm³ / 1.94e-8 relative off the
 # kernel's 1178101772.4005454. That is quadrature disagreement on a
 # degree-3 wall: the divergence integrand over a degree 1x3 patch has
 # v-degree beyond what GProp's default Gauss order integrates exactly,
@@ -60,10 +60,10 @@
 # printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
 # these lines against the live kernel). scripts/check_step.sh consumes
 # EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
-# The certified volume is a QUADRATURE enclosure: midpoint +/- pad, both
-# FUNCTIONS of ambient eps, pinned at the corpus's declared uncertainty
-# eps = 1e-9 -- which is why the staleness row byte-pins the pair only
-# at eps = 1e-9 and asserts enclosure overlap at other eps.
+# The certified volume is a QUADRATURE enclosure: midpoint ± pad, both
+# FUNCTIONS of ambient ε, pinned at the corpus's declared uncertainty
+# ε = 1e-9 -- which is why the staleness row byte-pins the pair only
+# at ε = 1e-9 and asserts enclosure overlap at other ε.
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
 KERNEL_FACES=6

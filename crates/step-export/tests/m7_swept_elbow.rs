@@ -31,11 +31,12 @@ mod common;
 
 use step_export::{StepOptions, step_string};
 
-/// The corpus body: a quarter-torus elbow of square cross-section — a
-/// square profile swept along a 90° arc in the world YZ plane that
-/// starts at the origin with tangent `+z`, 9 stations at v-degree 3.
-/// Constants and derivation live at `common::swept_elbow` and in
-/// `sweep/tests/m7_skin_integral.rs` (the Pappus bracket).
+// The two corpus bodies this suite exports. `swept_elbow` is the
+// quarter-torus elbow — a square profile swept along a 90° arc in the
+// world YZ plane, 9 stations at v-degree 3; `nonuniform_loft` is
+// `loft_prism`'s sections at spacing 1 : 2. Constants and derivations
+// live on the builders in `common`, and in
+// `sweep/tests/m7_skin_integral.rs` (the Pappus bracket).
 use common::{nonuniform_loft, swept_elbow};
 
 fn export(body: &topo::Body<f64>, name: &str) -> String {

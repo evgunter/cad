@@ -17,17 +17,17 @@
 #
 # ---------------------------------------------------------------- V
 #
-# EXACT ANALYTIC, in FreeCAD's internal mm^3, not a readback.
+# EXACT ANALYTIC, in FreeCAD's internal mm³, not a readback.
 #
 # (1) The v-parameterization. `sweep::skin::skin_parameters` averages
 #     the normalized cumulative CHORD lengths over the control rows of
 #     the first strip -- here the bottom edge, whose two rows are
 #     (-1,-1,z) <-> (-1.375,-1,z) and (1,-1,z) <-> (1.375,-1,z). Both
 #     rows travel the same two chords,
-#       sqrt(0.375^2 + 1^2) = sqrt(73)/8   and
-#       sqrt(0.375^2 + 2^2) = sqrt(265)/8,
+#       √(0.375² + 1²) = √73/8   and
+#       √(0.375² + 2²) = √265/8,
 #     so the average is exact and the middle parameter is
-#       t = sqrt(73) / (sqrt(73) + sqrt(265)) = 0.34419950074181277,
+#       t = √73 / (√73 + √265) = 0.34419950074181277,
 #     NOT the 1/3 that the z-spacing alone would suggest -- the flare
 #     lengthens the first chord. (Compare `loft_prism`, where the
 #     symmetric spacing forces t = 1/2 whatever the flare does.)
@@ -50,11 +50,13 @@
 #     term dies exactly: int_0^1 (v^2-v)(2v-1) dv = 0. The second gives
 #     int_0^1 (v^2-v)(2v-t) dv = (t-1)/6, so I = 1/(2 t (1-t)), and
 #       V = 12 + 0.375 / (t(1-t))
-#         = 12.75 + 126.75 / sqrt(19345)      [t(1-t) = ab/(a+b)^2]
-#         = 13.661304680798798 m^3 = 13661304680.798798 mm^3.
+#         = 12.75 + 126.75 / √19345      [t(1-t) = ab/(a+b)^2]
+#         = 13.661304680798798 m³ = 13661304680.798798 mm³.
 #
-# The kernel's certified midpoint below is 13661304680.798807 -- four
-# ulps away, and 5e-11 of the certified pad. Local FreeCAD reads back
+# The kernel's certified midpoint below is 13661304680.798807 -- FIVE
+# ulps away (9.54e-6 mm³), which is 5.93e-2 of the certified pad: the
+# analytic value sits inside the certified enclosure with 16.9x margin
+# -- comfortably, but not by decades. Local FreeCAD reads back
 # 13661304680.7988, so RTOL stays at the 1e-9 default: these walls are
 # piecewise-POLYNOMIAL ruled patches (degree 1x2), well inside GProp's
 # Gauss order, exactly as for `loft_prism`.
@@ -65,10 +67,10 @@
 # these lines against the live kernel). scripts/check_step.sh consumes
 # EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
 # The certified volume is a QUADRATURE enclosure (the NURBS walls have
-# no closed form): midpoint +/- pad, both FUNCTIONS of ambient eps,
-# pinned at the corpus's declared uncertainty eps = 1e-9 -- which is why
-# the staleness row byte-pins the pair only at eps = 1e-9 and asserts
-# enclosure overlap at other eps.
+# no closed form): midpoint ± pad, both FUNCTIONS of ambient ε,
+# pinned at the corpus's declared uncertainty ε = 1e-9 -- which is why
+# the staleness row byte-pins the pair only at ε = 1e-9 and asserts
+# enclosure overlap at other ε.
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
 KERNEL_FACES=6

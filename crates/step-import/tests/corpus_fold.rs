@@ -44,6 +44,26 @@ use common::{fixture, import_body};
 /// in. Pinning the number keeps the class from quietly growing.
 const FOLD_FIXTURES: [(&str, usize); 2] = [("nonuniform_loft", 3), ("swept_elbow", 3)];
 
+/// Is this divergent token pair the `plus_zero` class, EXACTLY?
+///
+/// The numeral must be `-0.0` on the committed side and `0.0` on the
+/// re-exported side — matched whole, after splitting off the Part 21
+/// punctuation that closes the enclosing list (`,`, `)`, `;`), which
+/// must itself be unchanged. A substring test would have been exact on
+/// today's corpus (all six divergent tokens are bare `-0.0` plus
+/// punctuation) and would silently absorb a future `-0.05` at a
+/// divergent position — the class-laundering this suite exists to
+/// forbid, one level down.
+fn is_plus_zero(committed: &str, reexported: &str) -> bool {
+    let split = |t: &str| -> (String, String) {
+        let numeral = t.trim_end_matches([',', ')', ';']);
+        (numeral.to_owned(), t[numeral.len()..].to_owned())
+    };
+    let (x, x_tail) = split(committed);
+    let (y, y_tail) = split(reexported);
+    x == "-0.0" && y == "0.0" && x_tail == y_tail
+}
+
 #[test]
 fn the_folds_committed_byte_divergence_stays_in_the_named_classes() {
     for (name, want_minus_zero) in FOLD_FIXTURES {
@@ -71,7 +91,7 @@ fn the_folds_committed_byte_divergence_stays_in_the_named_classes() {
             .filter(|(_, (x, y))| x != y)
             .map(|(i, (x, y))| (i, x, y))
             .collect();
-        let minus_zero = diffs.iter().filter(|(_, x, _)| x.contains("-0.0")).count();
+        let minus_zero = diffs.iter().filter(|(_, x, y)| is_plus_zero(x, y)).count();
         eprintln!(
             "{name}: {} tokens, {} differing pairs — {minus_zero} in the -0.0 class, \
              {} outside it",
@@ -87,7 +107,7 @@ fn the_folds_committed_byte_divergence_stays_in_the_named_classes() {
             minus_zero, want_minus_zero,
             "{name}: the -0.0 parse-hygiene class changed size"
         );
-        for (i, x, y) in diffs.iter().filter(|(_, x, _)| !x.contains("-0.0")) {
+        for (i, x, y) in diffs.iter().filter(|(_, x, y)| !is_plus_zero(x, y)) {
             assert!(
                 x.contains("1.0E-9") && y.contains("1.0E-"),
                 "{name} token {i}: a divergence outside every NAMED class — \

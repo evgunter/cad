@@ -795,17 +795,37 @@ fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
 }
 
 /// **The non-uniform loft (#210 / #207).** [`loft_prism`]'s own three
-/// sections, re-placed at z = 0, 1, **3** — spacing 1 : 2, so the
-/// chord-length v-parameterization is `[0, ⅓, 1]` instead of the
-/// uniform `[0, ½, 1]`. That single change is the whole fixture: until
-/// #207 the skin fit synthesized a weight channel whose LU round-trip
-/// landed an ulp off 1.0 on exactly this parameterization, making the
-/// walls bitwise RATIONAL and the body refuse at assembly. This is the
-/// corpus's minimal pair with `loft_prism` — same sections, same
-/// degree, same builder, non-uniform spacing.
+/// sections, re-placed at z = 0, 1, **3** — spacing 1 : 2 instead of
+/// 1 : 1. That single change is the whole fixture: until #207 the skin
+/// fit synthesized a weight channel whose LU round-trip landed an ulp
+/// off 1.0 on exactly this parameterization, making the walls bitwise
+/// RATIONAL and the body refuse at assembly. This is the corpus's
+/// minimal pair with `loft_prism` — same sections, same degree, same
+/// builder, non-uniform spacing.
 ///
-/// Derived volume **V = 13.6875 m³**; see the `.expect` sidecar for the
-/// derivation.
+/// **The v-parameterization is NOT `[0, ⅓, 1]`.** `skin_parameters`
+/// averages cumulative **chord** lengths, not z-spacings, and the
+/// trapezoid's ±0.375 flare lengthens the first chord: both rows of the
+/// first strip travel `√(0.375² + 1²) = √73/8` then
+/// `√(0.375² + 2²) = √265/8`, so the average is exact and the middle
+/// parameter is
+///
+/// ```text
+/// t = √73 / (√73 + √265) = 0.34419950074181277
+/// ```
+///
+/// The naive `⅓` would put the volume at 13.6875 m³ — out by 1.9e-3
+/// relative, 1.6e8 times the certified pad. Carrying the real `t`
+/// through the quadratic Lagrange fit (one Bézier span; slices are
+/// planar trapezoids of area `4 + 2d·L1(v)`, d = 0.375) gives
+///
+/// ```text
+/// V = 12 + 0.375 / (t(1 − t)) = 12.75 + 126.75/√19345
+///   = 13.661304680798798 m³
+/// ```
+///
+/// which is the derived volume. The `.expect` sidecar carries the
+/// integration step by step and pins it against the kernel.
 pub fn nonuniform_loft() -> Body<f64> {
     let sections = vec![
         quad(PRISM_SQUARE),
