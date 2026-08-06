@@ -28,6 +28,7 @@ mod projectbox;
 mod rocker;
 mod scalar;
 mod skinned;
+mod tube;
 
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use topo::{Body, ContactRecords};
@@ -405,6 +406,11 @@ fn main() {
     }
 
     skinned::narration();
+
+    println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
+    for stop in tube::stops() {
+        run(&stop);
+    }
 
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
     for stop in bool_bodies::stops() {
