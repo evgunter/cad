@@ -889,3 +889,7 @@ length-metered named decides). Coexist-not-subsume ruled for
 the import torus refusal. No forks. **A/B block M7-8: M6-6
 difficulty logged LOW-M BEFORE the draw.** Draw after this
 commit.
+Draw: byte 194 → **(fable, opus)** — M6-6 = FABLE; opus
+remainder to the next eligible dispatch. Dispatched on lane
+m6-6-gate (slot 1, replacing the substrate claim; the substrate
+clone cleans per the placement rule — outputs stay).
