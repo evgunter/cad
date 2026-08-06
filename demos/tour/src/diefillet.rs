@@ -280,7 +280,13 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
-            montage: true,
+            // Standalone since the montage-v2 curation (Evan, #218
+            // follow-up): the two PARTIAL dice — the blank and the
+            // pipped cube — are interesting for how they work (the
+            // battery, the closed-group cut), but without that context
+            // they read as near-duplicates of the composed die, which
+            // remains the sheet's die. Scenes and narration stay alive.
+            montage: false,
             story: "every edge of a cube blended at one radius — twelve quarter-cylinders \
                     and eight sphere-octant corners",
             ops: "fillet_edges(cube, all 12 edges, r = 0.12): battery first, then \
@@ -305,7 +311,8 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "diepips",
             caption: "the die's pips (one group cut)".to_string(),
-            montage: true,
+            // Standalone with `diefillet` (see the note there).
+            montage: false,
             story: "21 spherical dimples on six faces, subtracted as a single 21-shell \
                     operand",
             ops: "cube ∖ (21 disjoint balls): S13's closed-group extent arm, each ball \
