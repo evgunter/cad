@@ -667,6 +667,35 @@ M7 remaining: the corpus-widening fold, the band-seam unit
 exit walk. M6 remaining: unit 5, the ratified sense gate,
 k-lint floor.
 
+**Corpus-widening fold LANDED (PR TBD, 2026-08-05): the #210 class
+is in the round-trip corpus.** Two committed fixtures, byte-golden
+against the writer with hand-authored `.expect` sidecars carrying
+both the FreeCAD/OCC reading and the full `KERNEL_*` block:
+`nonuniform_loft` (`loft_prism`'s sections at z = 0, 1, **3** — the
+minimal pair, isolating the section spacing that used to poison)
+and `swept_elbow` (the quarter-torus sweep, `sweep_body`'s first
+caller now its first FIXTURE). Corpus 15 → 17 everywhere:
+`fixture_corpus`, the staleness row (17/17), the exactness /
+NURBS-containment / K4-literal tables, `SOLID_FIXTURES`,
+check_step.sh (18 files green locally, FreeCAD 1.1.2).
+Both derivations are CLOSED FORM where one exists: the non-uniform
+loft's V = 12.75 + 126.75/√19345 = 13.661304680798798 m³ falls out
+of the chord-length middle parameter t = √73/(√73+√265), and the
+kernel's certified midpoint sits 4 ulps away. The elbow has NO
+closed form (the walls interpolate nine stations of circular
+motion), so its EXPECT volume is the kernel's own certified value
+and the oracle row states the claim an oracle can make — two
+independent systems measure the SAME solid — at the corpus's first
+non-default `EXPECT_VOLUME_RTOL` (1e-7, from a measured 1.94e-8
+quadrature disagreement on the degree-3 walls). **The elbow's NURBS
+walls went through #209's import machinery on a sweep body for the
+first time with ZERO refusals**: full tier 3, fixed point, and
+committed-byte divergence of exactly 3 tokens on each new fixture,
+all in the documented `-0.0 → 0.0` class — no new class, pinned by
+`step-import/tests/corpus_fold.rs`. No new in-band K landing in
+local runs (the new bodies do not enter the k-probe corpus; hosted
+k-lint stays the detector).
+
 **Block M7-5 staged (2026-08-05): difficulties logged BEFORE the
 draw.** Unit A — **classify-seam migration = M** (the ratified
 margin convention's clause-(i) rollout: Length<T> erased newtype

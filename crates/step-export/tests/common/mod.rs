@@ -496,6 +496,14 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
         // (B_SPLINE_SURFACE_WITH_KNOTS walls, B_SPLINE_CURVE_WITH_KNOTS
         // seam carriers, planar caps with exact line rims).
         ("loft_prism", loft_prism()),
+        // The #210 corpus-widening fold: the exportable class the
+        // #207 skin-fit fix opened. `nonuniform_loft` is
+        // `loft_prism`'s minimal pair (same sections, spacing 1 : 2);
+        // `swept_elbow` is the tree's first curved-path `sweep_body`
+        // and the corpus's first body whose walls approximate rather
+        // than reproduce a closed-form surface.
+        ("nonuniform_loft", nonuniform_loft()),
+        ("swept_elbow", swept_elbow()),
     ]
 }
 
@@ -747,27 +755,131 @@ pub fn composed_die() -> Body<f64> {
 /// as `sweep/tests/m6_loft_body.rs` (where V = 9 m³ is derived) and
 /// the editor-core corpus document `loft_prism`.
 pub fn loft_prism() -> Body<f64> {
-    let quad = |pts: [(f64, f64); 4]| -> sweep::SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
-    };
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let sections = vec![quad(square), quad(trapezoid), quad(square)];
-    let places = vec![
-        geom_core::Affine3::identity(),
-        geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+    let sections = vec![
+        quad(PRISM_SQUARE),
+        quad(PRISM_TRAPEZOID),
+        quad(PRISM_SQUARE),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
         .expect("shape (iii) loft builds")
         .body
+}
+
+/// A closed four-segment polyline section (one loop, four lines) —
+/// the plainest INTEGRAL profile: unit weights, no arc anywhere.
+fn quad(pts: [(f64, f64); 4]) -> sweep::SectionSegments {
+    let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
+        a: Point2::new(a.0, a.1),
+        b: Point2::new(b.0, b.1),
+    };
+    vec![vec![
+        seg(pts[0], pts[1]),
+        seg(pts[1], pts[2]),
+        seg(pts[2], pts[3]),
+        seg(pts[3], pts[0]),
+    ]]
+}
+
+/// The prism loft's end section: the square `[-1, 1]²`.
+const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+/// Its middle section: the NON-AFFINE trapezoid whose two bottom
+/// corners flare by ±d, d = 0.375 — what makes the walls genuinely
+/// curved in v rather than ruled.
+const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// Section placements: pure translations up the world z-axis.
+fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
+    zs.iter()
+        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect()
+}
+
+/// **The non-uniform loft (#210 / #207).** [`loft_prism`]'s own three
+/// sections, re-placed at z = 0, 1, **3** — spacing 1 : 2 instead of
+/// 1 : 1. That single change is the whole fixture: until #207 the skin
+/// fit synthesized a weight channel whose LU round-trip landed an ulp
+/// off 1.0 on exactly this parameterization, making the walls bitwise
+/// RATIONAL and the body refuse at assembly. This is the corpus's
+/// minimal pair with `loft_prism` — same sections, same degree, same
+/// builder, non-uniform spacing.
+///
+/// **The v-parameterization is NOT `[0, ⅓, 1]`.** `skin_parameters`
+/// averages cumulative **chord** lengths, not z-spacings, and the
+/// trapezoid's ±0.375 flare lengthens the first chord: both rows of the
+/// first strip travel `√(0.375² + 1²) = √73/8` then
+/// `√(0.375² + 2²) = √265/8`, so the average is exact and the middle
+/// parameter is
+///
+/// ```text
+/// t = √73 / (√73 + √265) = 0.34419950074181277
+/// ```
+///
+/// The naive `⅓` would put the volume at 13.6875 m³ — out by 1.9e-3
+/// relative, 1.6e8 times the certified pad. Carrying the real `t`
+/// through the quadratic Lagrange fit (one Bézier span; slices are
+/// planar trapezoids of area `4 + 2d·L1(v)`, d = 0.375) gives
+///
+/// ```text
+/// V = 12 + 0.375 / (t(1 − t)) = 12.75 + 126.75/√19345
+///   = 13.661304680798798 m³
+/// ```
+///
+/// which is the derived volume. The `.expect` sidecar carries the
+/// integration step by step and pins it against the kernel.
+pub fn nonuniform_loft() -> Body<f64> {
+    let sections = vec![
+        quad(PRISM_SQUARE),
+        quad(PRISM_TRAPEZOID),
+        quad(PRISM_SQUARE),
+    ];
+    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 3.0]), 2)
+        .expect("the non-uniform loft builds")
+        .body
+}
+
+/// **The swept elbow (#210 / #207): the corpus's first CURVED-PATH
+/// sweep.** A square profile of half-width 0.25 swept along a 90° arc
+/// of radius 3 in the world YZ plane, at 9 stations, skinned at
+/// v-degree 3 (`sweep::sweep_body`). `sweep_body` had zero successful
+/// callers anywhere in the tree before #207: every curved path drove
+/// the same synthesized-weight drift the non-uniform loft did.
+///
+/// Construction is `sweep/tests/m7_skin_integral.rs`'s elbow, constant
+/// for constant (that suite derives the Pappus bracket; the
+/// `step-export` twin in `tests/m7_swept_elbow.rs` pins the wire's
+/// non-rationality). Duplicated across the crate boundary exactly as
+/// [`loft_prism`] duplicates `sweep/tests/m6_loft_body.rs`.
+pub fn swept_elbow() -> Body<f64> {
+    /// Path radius.
+    const R: f64 = 3.0;
+    /// Profile half-width.
+    const H: f64 = 0.25;
+    // The sketch arc runs (0,0) → (R,R) with bulge = tan(θ/4) =
+    // tan(π/8), a 90° turn; the placement rotates the sketch plane by
+    // −π/2 about the world y-axis, sending sketch (x, y) to world
+    // (0, y, x). So the path leaves the origin with tangent +z — the
+    // identity-placed profile (world XY plane) is already normal to it.
+    let path = sweep::skin::segment_curve(
+        0,
+        sweep::SketchSegment::Arc {
+            a: Point2::new(0.0, 0.0),
+            b: Point2::new(R, R),
+            bulge: (core::f64::consts::PI / 8.0).tan(),
+        },
+        geom_core::Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            -core::f64::consts::FRAC_PI_2,
+        ),
+    )
+    .expect("the elbow path is a well-formed quarter arc");
+    sweep::sweep_body::<f64>(
+        &quad([(-H, -H), (H, -H), (H, H), (-H, H)]),
+        geom_core::Affine3::identity(),
+        &path,
+        9,
+        3,
+    )
+    .expect("the curved-path sweep body builds")
+    .body
 }
