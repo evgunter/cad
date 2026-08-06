@@ -695,3 +695,75 @@ all in the documented `-0.0 → 0.0` class — no new class, pinned by
 `step-import/tests/corpus_fold.rs`. No new in-band K landing in
 local runs (the new bodies do not enter the k-probe corpus; hosted
 k-lint stays the detector).
+
+**Block M7-5 staged (2026-08-05): difficulties logged BEFORE the
+draw.** Unit A — **classify-seam migration = M** (the ratified
+margin convention's clause-(i) rollout: Length<T> erased newtype
+at the classify/Band seam, blessed constructor doors, ~120 sites
+per the audit ledger; mechanical but broad, every touched
+comparand re-argued through a door). Unit B — **corpus-widening
+fold = S** (the #210 exportable class joins the round-trip
+corpus: elbow-class sweep + non-uniform loft fixtures with
+KERNEL_*-bearing sidecars, byte-golden, check_step oracle rows,
+SOLID_FIXTURES extension; measured feasibility from #209/#210's
+own suites). Draw after this commit.
+Draw: byte 220 → **(fable, opus)** — migration = FABLE, fold =
+OPUS. Both dispatched: lanes margin-migrate (slot 1) +
+corpus-fold (slot 2), disjoint footprints (geom-brep/topo
+classify sites vs sweep tests + fixture corpus). PRs held for
+blinded review per standing process.
+
+**Block M7-6 staged (2026-08-06): montage refresh (Evan's #212
+ask) — difficulty logged S BEFORE the draw** (scene
+constructions for swept_elbow / nonuniform_loft / loft_prism /
+tube_along_arc in the demos corpus, cells on both montage
+lanes, renders through the stripped pipeline, cell-count pin;
+the render-stamp unit makes the diff clean). Draw after this
+commit; the block's remainder owed to the next eligible unit
+(candidates: band-seam, stage-1 recognition, M6 unit 5).
+Draw: byte 111 → **(opus, fable)** — montage = OPUS; fable
+remainder to the next eligible dispatch. Dispatched on lane
+montage-refresh (slot 2).
+
+**Montage refresh PARTIAL delivered (2026-08-06, PR #215
+merging on green): cell 19 (tube_along_arc, both sheets,
+bit-exact minor_radius assertion executed in the stop; windowed
+tube showing all three intent parameters; clean-re-render
+verified twice). The three NURBS-walled scenes are BLOCKED on
+the mesh crate's trimmed-NURBS tessellation lane** (banked at
+M6-3 dev 8; tessellate.rs:93 refuses Surface::Nurbs ahead of
+trim routing — executed: the tour panics after tiers 1-3 pass,
+only mesh refuses). The agent correctly stopped at the design
+boundary (placeholder cells would break the two-sheet
+cell-for-cell contract); all three scene constructions are
+WRITTEN and saved as
+~/.local/share/cad-work/montage-skin-scenes.patch. **The lane
+now has TWO consumers (the banked tour SceneBody stop + three
+montage cells) — PROMOTED per the banked-until-consumer
+principle: next unit = mesh trimmed-NURBS tessellation (FABLE,
+block M7-6 remainder), difficulty logged M pre-dispatch**
+(route the Nurbs arm to the trimmed lane; the certified-
+conservative δ promise per D4's tessellation contract; flip
+M6-3 dev 8's banked stop; apply the montage patch as the
+completion rider).
+
+**Classify-seam migration MERGED as #213 (2026-08-06): MARGINS
+ARE LENGTHS BY SIGNATURE, WORKSPACE-WIDE.** The ratified
+convention's clause (i) is structural: ~351 sites through
+blessed doors, no raw construction path, byte-identical
+23394-line census independently reproduced — and the migration
+itself EARNED ITS KEEP by forcing F13/F14 into the open at
+compile time, with the review catching the one laundered sine
+(F15) via an executed scale-blindness probe. Three Evan design
+rounds absorbed mid-unit and each made the convention sharper:
+the door enumeration; consistency-not-accuracy as the
+backstops' stated semantics; then the layering fork — the
+volume backstops now live on a permanent INVARIANT LANE outside
+the seam (bare margins, Corrupt-voiced ResultVolumeImplausible
+with the bug-report affordance, per_boundary deleted), census
+re-proven byte-identical after the restructure. Debt tracked as
+#214 with a test-enforced count. Block M7-5 complete both arms.
+Live: the mesh trimmed-NURBS lane (fable, block M7-6 remainder)
+carrying the montage completion rider. Remaining ledger:
+band-seam unit, stage-1 recognition, M6 unit 5 + sense gate,
+k-lint floor, exit walks.
