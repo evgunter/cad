@@ -376,20 +376,27 @@ fn wire_revolve<T: Decide>(
 ///
 /// # Naming
 ///
-/// The composition-surgery door emits a FULL table
-/// ([`names::name_fillet`], M6-5 PR-1): the surgery hands over
-/// per-entity birth records and the emitter translates them, never
-/// matching geometry.
+/// **Both assembly doors emit a FULL table** ([`names::name_fillet`]):
+/// each hands over per-entity birth records and the emitter translates
+/// them, never matching geometry.
 ///
-/// The WHOLE-BODY door (every edge of a convex, planar-faced,
-/// trivalent-vertex polyhedron) still emits the EMPTY table: its
-/// rebuild mints every face fresh and keeps no birth records, so
-/// there is nothing to emit honestly. The consequence is loud rather
-/// than silent — every downstream reference into such a body fails to
-/// resolve, and an appearance record targeting one is a typed loss.
-/// **M6-5 PR-2 closes this**: birth records in `Plan::assemble`, this
-/// arm retires, and the totality check extends to cover it. Until it
-/// lands, this is an honest interim dead end, named as one.
+/// The whole-body door was the milestone's last naming dead end — for
+/// M6-5 PR-1 it emitted the EMPTY table, because its rebuild mints
+/// every face fresh and kept no birth records, so there was nothing to
+/// emit honestly. That was loud rather than silent (every downstream
+/// reference into such a body failed to resolve), and it is now CLOSED
+/// (M6-5 PR-2): `Plan` carries each slot's provenance, `Plan::assemble`
+/// writes the records, and the totality check covers both doors.
+///
+/// What that closure is worth, precisely (`m6_5_downstream.rs`): the
+/// appearance store resolves an attribute onto a fillet-minted face,
+/// the resolve ladder answers `Resolved` for every role this door
+/// mints, and such a reference survives an upstream bump. A BOOLEAN
+/// over a filleted body is still not reachable — the kernel refuses
+/// `FallbackExtentUnsupported` on the sphere octants every fillet
+/// result carries, even against a disjoint operand — and that
+/// frontier, which predates M6-5, is pinned executed in the same
+/// file. The naming side is ready; the kernel side is not.
 fn wire_fillet<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -404,11 +411,19 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     let edges = resolve_selection(selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
         .map_err(NodeErrorKind::Fillet)?;
-    let table = match &filleted.naming {
-        Some(rec) => names::name_fillet(id, target, &target_table, &filleted.body, rec)
-            .map_err(NodeErrorKind::Naming)?,
-        None => names::empty(),
-    };
+    // Both doors keep records now (M6-5 PR-2), so `None` is a kernel
+    // bug, not a door this layer knows about: refuse loudly rather
+    // than fall back to an empty table, which would silently
+    // resurrect the dead end.
+    let rec =
+        filleted
+            .naming
+            .as_ref()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: "the fillet returned a body with no birth records",
+            }))?;
+    let table = names::name_fillet(id, target, &target_table, &filleted.body, rec)
+        .map_err(NodeErrorKind::Naming)?;
     let mut out = filleted.body;
     // The blend's own surfaces/curves/points are minted HERE (D1/N6);
     // the supports' pass-through descriptions keep the source they
@@ -421,6 +436,24 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
 /// (M6-5). Single-operand, so simpler than
 /// [`resolve_declarations`] — but the refusal vocabulary is the SAME
 /// N5 trio, deliberately: the two sites answer the same question.
+///
+/// # Kept in step with [`resolve_declarations`] BY HAND
+///
+/// The ladder below — NodeGone (with the deleted-vs-foreign split)
+/// before lookup, `Entry::Tied` → `Ambiguous` carrying the same
+/// `TieWitness` shape, absent → `Vanished` with the honest
+/// `NodeChanged` fallback and `last_good: None` — is duplicated from
+/// [`resolve_declarations`], not shared with it. That is a deliberate
+/// trade and a standing hazard, so it is written down: the two differ
+/// in ARITY (two operand tables and a side-picking refusal there, one
+/// table and a kind refusal here), and the shared part is small enough
+/// that factoring it would mean a generic over "how to look a name up"
+/// — more indirection than the duplication costs today.
+///
+/// **If you change either ladder, change both.** The pins that would
+/// catch a drift are `m6_5_selection_refusals.rs` (this one) and
+/// `m4_pr5_declare.rs` (that one); they assert the same variants with
+/// the same payload shapes on purpose.
 ///
 /// The returned keys are in TARGET-ARENA order, not selection order,
 /// so the kernel sees the deterministic order every derived list in
@@ -639,6 +672,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
 /// through the operands' name tables") — a name minted elsewhere in
 /// the document is Vanished HERE even if some other node still
 /// carries it.
+///
+/// **Twinned with [`resolve_selection`]** (M6-5): the fillet's
+/// selection resolves through the same N5 ladder, duplicated rather
+/// than shared. See that function's docs for why, and change both
+/// together.
 fn resolve_declarations(
     pairs: &[(names::StableName, names::StableName)],
     doc: &crate::doc::Doc<ProfileDesc>,

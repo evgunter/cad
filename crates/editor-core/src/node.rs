@@ -255,12 +255,28 @@ pub enum Node<P> {
     /// is no "every edge" variant. A click-selection is a
     /// **commitment**: an upstream edit that adds edges does NOT
     /// extend it, and an upstream edit that removes a selected edge is
-    /// a typed refusal, not a silent shrink. The growth path is
-    /// [`crate::DocEdit::Rebind`] — an explicit edit, recorded in the
-    /// log like any other. To select everything as of *now*, call
-    /// [`all_edges`](crate::all_edges) and store what it returns; the
-    /// result is a frozen set with the same semantics, not a live
-    /// query.
+    /// a typed refusal, not a silent shrink. To select everything as
+    /// of *now*, call [`all_edges`](crate::all_edges) and store what
+    /// it returns; the result is a frozen set with the same
+    /// semantics, not a live query.
+    ///
+    /// ## What moves a stored selection, exactly
+    ///
+    /// [`crate::DocEdit::Rebind`] rewrites it — that is the REPAIR
+    /// path, and the honest description of its reach: a rebind is a
+    /// 1:1 `from → to` rewrite followed by re-canonicalization, so it
+    /// can SWAP a name or (when `to` is already selected) SHRINK the
+    /// set by one. It cannot make the set larger. Adding an edge to a
+    /// selection means re-authoring the node with a new set — a
+    /// deliberate act, which is the point of freezing.
+    ///
+    /// Note also that nothing today can quietly widen a selection
+    /// even if it wanted to: the kernel's assembly doors admit only
+    /// the whole-body request or a fully-requested chain set
+    /// (`sweep::fillet`'s front doors), so a partially-grown
+    /// selection refuses typed rather than blending something the
+    /// author never picked. Freeze is enforced structurally, and its
+    /// breaks are loud.
     ///
     /// # Canonical form
     ///
