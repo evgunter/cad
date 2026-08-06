@@ -38,7 +38,7 @@
 //! a single bound is NOT overlap.
 
 use geom_brep::{EntersMaterial, enters_material};
-use geom_core::{Band, Decide, Sign, Vec3};
+use geom_core::{Band, Decide, Length, Sign, Vec3};
 
 use super::reduce::face_plane;
 use super::{BooleanError, Operand, SideCode};
@@ -144,7 +144,7 @@ pub(super) fn build_sectors<T: Decide>(
         let dir_start = chord(next_he)?; // next chord = CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he)?;
         let arm = dir_end.norm().min(dir_start.norm());
-        match decide("bool_sector_arm", arm, band) {
+        match decide("bool_sector_arm", Length::of(arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => return Err(invalid_escalation(band, "bool_sector_arm")),
             Err(diag) => return Err(BooleanError::Escalated { diag }),
@@ -158,12 +158,12 @@ pub(super) fn build_sectors<T: Decide>(
         // both factors change sign and the product does not — applying
         // `sense_sign` here on top of `sector_face`'s would
         // double-count and read every convex corner as reflex.
-        let reflex_margin = u_start.cross(u_end).dot(normal) * arm;
+        let reflex_margin = Length::levered(u_start.cross(u_end).dot(normal), arm);
         let bisec = match decide("bool_sector_reflex", reflex_margin, band) {
             Ok(Sign::Positive) => None,
             Ok(Sign::Negative) => Some(-((u_start + u_end).normalize())),
             Ok(Sign::Zero) | Err(_) => {
-                let straight_margin = u_start.dot(u_end) * arm;
+                let straight_margin = Length::levered(u_start.dot(u_end), arm);
                 match decide("bool_sector_straight", straight_margin, band) {
                     Ok(Sign::Negative) => Some(normal.cross(u_start)),
                     Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(normal.cross(u_start)),
@@ -338,8 +338,8 @@ pub(super) fn within<T: Decide>(
     strict: bool,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let c1 = s.start.cross(dir).dot(s.normal) * s.arm;
-    let c2 = dir.cross(s.end).dot(s.normal) * s.arm;
+    let c1 = Length::levered(s.start.cross(dir).dot(s.normal), s.arm);
+    let c2 = Length::levered(dir.cross(s.end).dot(s.normal), s.arm);
     let t1 =
         decide("bool_sector_within", c1, band).map_err(|diag| BooleanError::Escalated { diag })?;
     let t2 =
@@ -358,13 +358,13 @@ fn parallel_same<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let cross_margin = u.cross(v).norm() * arm;
+    let cross_margin = Length::levered(u.cross(v).norm(), arm);
     match decide("bool_dir_parallel", cross_margin, band) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
         Err(diag) => return Err(BooleanError::Escalated { diag }),
     }
-    match decide("bool_dir_same", u.dot(v) * arm, band) {
+    match decide("bool_dir_same", Length::levered(u.dot(v), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => Err(invalid_escalation(band, "bool_dir_same")),
@@ -405,7 +405,11 @@ pub(super) fn pair_search<T: Decide>(
         for (j, sb) in b_sectors.iter().enumerate() {
             let int = sa.normal.cross(sb.normal);
             let arm = sa.arm.min(sb.arm);
-            let coplanar = match decide("bool_faces_parallel", int.norm() * arm, band) {
+            let coplanar = match decide(
+                "bool_faces_parallel",
+                Length::levered(int.norm(), arm),
+                band,
+            ) {
                 Ok(Sign::Zero) => true,
                 Ok(Sign::Positive) => false,
                 Ok(Sign::Negative) => {

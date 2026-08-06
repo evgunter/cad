@@ -35,7 +35,7 @@
 
 use std::collections::BTreeMap;
 
-use geom_core::{Band, BandError, Decide, Indeterminate};
+use geom_core::{Band, BandError, Decide, Indeterminate, Length};
 use geom_surfaces::Surface;
 use slotmap::SecondaryMap;
 
@@ -934,7 +934,7 @@ impl<T: Decide> Body<T> {
         perimeter = perimeter + (p0 - prev).norm();
         match crate::validate::decide(
             "bool_ring_run_winding",
-            normal.dot(newell) / perimeter,
+            Length::over_lever(normal.dot(newell), perimeter),
             band,
         ) {
             Ok(sign) => Ok(Some(sign)),

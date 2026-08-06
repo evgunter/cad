@@ -28,6 +28,61 @@ of F6 (M6-3, #192); F3 and F4 (the F3+F4 dimensional unit — F3 was the
 tree's last funnel bypass, so predicate-name attribution in the K
 telemetry is now complete).
 
+**Clause-(i) migration (the margin dimensional convention's typed
+seam — executed by the margin-migrate unit).**
+`geom_core::k_stats::decide` now takes a `Length<T>` by signature;
+every call site in the workspace constructs its margin through a
+blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
+`norm3`+`norm2` / `metered` / `over_lever`; an unused `rooted` door
+was dropped at the fix pass — dead surface, and `per_boundary` was
+RENAMED and re-scoped to `over_lever` when Evan's layering ruling moved
+the consistency backstops out of the seam, see below), and each row's
+"comparand" column is the door's justification (out-of-ledger crates —
+profile, sweep, editor-core's eval/naming, geom-curves — argue their
+doors inline; their comparands are the same length shapes). Rows whose
+comparand this ledger FLAGS as not-a-length are carried through the
+seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
+— the finding lane: no `Length` is constructed, the row id is a
+compile-time argument at the site, and grepping `decide_flagged`
+enumerates the clause-(i) debt exactly (F2 ×4, F6 ×3 — the fitted/iso
+lane meters and the fitted lane's whole-chart azimuth arm, F7 ×1,
+F10 ×7 rigidity residuals through one loop, F13 ×1, F14 ×1, F15 ×1 —
+12 shipped sites, tracked as issue #214 and pinned by the census count
+assertion `geom-core/tests/flagged_census.rs`: no new site ships
+without a row here, and the count only moves together with this
+section).
+Composition disclosure (review MIN-2): `Length` deliberately has no
+arithmetic, so a margin whose FINAL op is a plain length
+sum/difference/min/max may carry a lever, root, or quotient INSIDE the
+`of` argument — six shipped sites do (each dimensionally verified, all
+named in the PR #213 census): `props/curved.rs` sphere `props_rim_fit`
+(inline root), cone `props_rim_fit` (inline lever `|v|·sinα`), cylinder
+`props_meridian_on_surface` (inline norm), `fillet/battery.rs`
+`fillet3_radius_headroom` (inline quotient `r²/arm`) and
+`fillet3_spine_regularity` (inline lever `r²·κ`), and
+`pcurve_cache.rs`'s sphere `polar_rate` fallback (inline `·aa/radius`).
+Structural debt to keep named, not a defect: full door-composition
+would need Length arithmetic, which the convention refuses. The
+recorded margin stream is bit-identical by construction (each door
+performs exactly the operation the bare site performed); the
+probe-census diff row is the executed proof. F12 stays OUTSIDE the
+seam by its unchanged disposition (below).
+
+**The invariant lane (Evan's #213 layering ruling).** The consistency
+backstops — `volume_backstop` / `volume_backstop_operand` /
+`volume_backstop_violation`, inequalities between integral RESULTS
+(wrong-component detectors, never accuracy gates) — are outside the
+length seam by design: they decide on bare `T` through
+`k_stats::decide_invariant` (no `Length` minted — not a door, not
+debt), keeping their predicate names and margin values byte-identical
+in the K stream, and a certified violation surfaces as the
+Corrupt-class `ResultVolumeImplausible` ("kernel invariant violated —
+this is a bug", with a report affordance), separated in type and voice
+from every validity refusal. The former `per_boundary` door is renamed
+`over_lever` and re-scoped to the genuine geometric decisions
+(mean-width 2A/P, mean-thickness V/A containment, chart-orientation
+areas, the crossing advance).
+
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
 `Circle`/`Ellipse` parameters are radians with radii/semi-axes in m;
@@ -76,6 +131,12 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
 | pcurve_cache.rs:1759–1829 | pcurve_sphere_chart_* | m-scaled coefficients / rooted | m | OK |
+| pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit) | m | OK (metered door; added by the clause-(i) migration) |
+| pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m) | m | OK (added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
+| pcurve_cache.rs (chart derivation) | pcurve_chart_azimuth_frame / sphere_chart_pole_frame / polar & meridional rates | metre projections/norms at six of the seven frame callers; on the CONE ruling lane's F13 fallback the frame input is a UNIT radial's projection — dimensionless. Tie-break-only either way (N5: the trilean picks between two formulas identical mod τ — verdict-neutral), and that lane is F13-flagged one decision earlier | m (mixed on the F13 lane) | OK as tie-break (N5; row corrected at the clause-(i) fix pass, review MIN-1) |
 | props/curved.rs:145/150 | props_rim_axis_parallel / center_on_axis | sin×r_c; perpendicular offset | m | OK |
 | props/curved.rs:208 | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (this unit) |
 | props/curved.rs:211–212 | props_rim_level_group (Unit) | Δ(sin,cos) × arm | m | OK (note N1) |
@@ -110,9 +171,9 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3; was **m³ VOLUME** through a raw `sign_within`) |
-| boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3) |
-| boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1) |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Evan's #213 layering ruling — bare `T`, outside the length seam by design |
+| boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
+| boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -126,11 +187,11 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
 | boolean/solid_contain.rs:645/655 | bool_point_in_solid_advance/order | ray parameters (m, unit dir) | m | OK |
-| boolean/solid_contain.rs:675 | bool_point_in_solid_denom (plane) | cos(unit,unit), no arm | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:720 | bool_point_in_solid_denom (cylinder) | sin²/2r | **1/m** | FLAG F2 |
-| boolean/solid_contain.rs:731 | bool_ray_cylinder_disc | disc/(2r)² (self-documented, F3 of PR 9c) | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:753 | bool_point_in_solid_denom (sphere) | (unit·radial)/radius | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:804/856 | bool_ray_sphere_disc / at_infinity | disc/2r; volume/area | m | OK |
+| boolean/solid_contain.rs:691 | bool_point_in_solid_denom (plane) | cos(unit,unit), no arm | dimensionless | FLAG F2 |
+| boolean/solid_contain.rs:743 | bool_point_in_solid_denom (cylinder) | sin²/2r | **1/m** | FLAG F2 |
+| boolean/solid_contain.rs:763 | bool_ray_cylinder_disc | disc/(2r)² (self-documented, F3 of PR 9c) | dimensionless | FLAG F2 |
+| boolean/solid_contain.rs:792 | bool_point_in_solid_denom (cylinder hit-outward — the pre-migration row mislabeled it "sphere"; the sphere lane reads outward structurally and its disc is over_lever at :850) | (unit·radial)/radius | dimensionless | FLAG F2 |
+| boolean/solid_contain.rs:850/903 | bool_ray_sphere_disc / at_infinity | disc/2r (over_lever); volume/area (V/A mean thickness, over_lever — a genuine containment decision, not a backstop) | m | OK |
 | boolean/vtxfac.rs:106/113/453 | side_code / bool_sector_coplanar / bool_germ_line | cos/sin × sector arm | m | OK |
 | census.rs:313–599 | pm_census_vv/ve/vf/ef gaps, spans, residuals | point/line/plane distances and spans (unit dirs verified) | m | OK |
 | census.rs:614–746 | pm_census_span_* / ee_gap / ee_span / ee_overlap | span arithmetic (m) | m | OK |
@@ -138,6 +199,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
 | pcurves.rs:508–717 | pcurve_loop_continuity / closure(_height) | Δu(rad)×azimuth_arm; Δv (m on cylinder charts) | m | OK today; FLAG F6 (non-cylinder fallback arm = 1) |
+| pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | transform.rs:155 | transform_rigid_trans_finite_* | t·0 poison probe (0 or NaN by construction) | — | OK |
@@ -278,10 +340,10 @@ speculative — each row below states what it measured):
 
 Flagged, NOT fixed here (dispositions):
 
-- **F2** `solid_contain.rs` ray-caster denominators (675/720/731/753):
+- **F2** `solid_contain.rs` ray-caster denominators (691/743/763/792 — refs refreshed and the fourth site relabeled cylinder hit-outward at the clause-(i) fix pass; the sphere-disc form at :850 is the model and took `over_lever`):
   dimensionless and 1/m comparands. The cylinder-disc site carries an
   in-tree admission earmarking a re-pin unit (PR 9c review F3). One
-  coordinated unit should meter all four (the sphere-disc form at :804
+  coordinated unit should meter all four (the sphere-disc form (now :850)
   is the model). Reported, deferred to that unit.
 - **F3** — **FIXED by the F3+F4 dimensional unit** (see the fixed
   list above).
@@ -329,6 +391,39 @@ Flagged, NOT fixed here (dispositions):
 - **F11** `tangent_sector_osculation` (rules.rs:174): sagitta model
   κ·L²/2 metered at the WHOLE-FACE extent, squared, and invalid for
   κ·L ≳ 1 — over-refusal direction. Arm-policy question; own unit.
+- **F13** (added by the clause-(i) migration)
+  `geom-brep/pcurve_cache.rs`, the cone chart's ruling lane: the nappe
+  fallback datum `hs = dir·axis` is a **cosine** (the line's direction
+  is unit), classified against the metre band when the anchor height
+  `h0` is coincident-with-zero. The primary datum `h0 = w·axis` IS a
+  length (`of`); the fallback is dimensionless — the N5
+  branch-selection family (it picks a nappe, and the Zero arm refuses
+  typed). Carried as `decide_flagged(.., "F13")`; the honest lever (a
+  slant/extent datum) is a design question for the
+  structure-selection-funnel conversation N5 banks.
+- **F15** (added by the clause-(i) fix pass, from the #213 review's
+  MAJ-1 — the review's scale-blindness probe EXECUTED it)
+  `editor-core/eval/wire.rs` `revolve_axis_dir_in_plane`: `dir·n̂` with
+  BOTH vectors unit is a bare **sine** against the metre band — the
+  audit's class-(c) shape, wrapped in `of` by the first migration pass
+  with no argument (the sibling `revolve_axis_origin_in_plane`
+  comparand `rel·n̂` IS metres and keeps `of`). Executed consequence
+  (review probe, adopted on merge as this row's pin,
+  `geom-core/tests/review_margin_probe.rs`): a tilt of θ = 5e-10
+  classifies Zero at every model scale while the induced deviation θ·r
+  crosses the band between a 1 mm and a 10 m profile. The honest form
+  levers the sine at the profile's radial extent, which lives
+  kernel-side (`revolve/mod.rs` computes exactly that arm for
+  `revolve_angle`) — that fix is F15's own unit, byte-identity forbids
+  it here. Carried as `decide_flagged(.., "F15")`.
+- **F14** (added by the clause-(i) migration)
+  `editor-core/eval/wire.rs` `revolve_full_vs_partial`: `|θ| − τ` is
+  **radians** against the linear band — the full-circle coincidence
+  check runs in the editor before the kernel's own metered
+  `revolve_angle`/`revolve_angle_headroom` gates (which lever at the
+  profile's radial extent, correctly). The honest lever lives
+  kernel-side; duplicating it in the editor is a design question, not
+  a same-day fix. Carried as `decide_flagged(.., "F14")`.
 - **F12** (added by the F3+F4 unit, from the #200 review's MIN-3)
   `editor-core/src/expr.rs:656`: the expression evaluator's door-2
   finiteness probe is a shipped raw `sign_within` — its own comment
@@ -347,7 +442,16 @@ Flagged, NOT fixed here (dispositions):
   for it and cost nothing. Deferred to whoever owns the editor layer —
   NOT fixed here, because a K-telemetry row for the expression
   evaluator is a scope question for that crate, not a consequence of
-  this audit.
+  this audit. **Clause-(i) migration note:** re-examined against the
+  door set — no door fits, by the row's own argument: the operand is
+  unit-erased at the expression boundary (GQ5), so `value · 0` has no
+  honest length reading, and wrapping it would launder exactly what
+  this row records. The site stays a raw `sign_within` outside the
+  typed seam (it is not a `decide` call), doubly visible now that the
+  seam admits only `Length<T>`. The attribution hole stands as
+  documented; the funnel routing (which would also push editor verdict
+  rows into the N5 verdict-log channel) remains the editor-layer
+  owner's scope call.
 
 Notes (verified honest, kept for the design conversation):
 

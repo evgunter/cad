@@ -73,7 +73,7 @@
 //! not gates hiding reachable geometry.
 
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Band, Bounds, Decide, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Length, Point3, Real, Sign, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 use topo::{
@@ -611,7 +611,7 @@ pub fn ring_clearance<T: Decide + Bounds>(
     margin: T,
     band: Band,
 ) -> Result<(), FilletError> {
-    match decide(RING_CLEARANCE, margin, band).map_err(|e| FilletError::Escalated {
+    match decide(RING_CLEARANCE, Length::of(margin), band).map_err(|e| FilletError::Escalated {
         site: FilletSite::Chain,
         source: e,
     })? {

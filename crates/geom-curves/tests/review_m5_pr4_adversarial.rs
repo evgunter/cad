@@ -819,7 +819,7 @@ fn f6_loose_tolerance_degenerate_structures() {
 // =====================================================================
 #[test]
 fn f9_e2e_cylinder_fit_project_certify_decide() {
-    use geom_core::k_stats::decide;
+    use geom_core::k_stats::decide_flagged;
     use geom_core::predicate::Band;
     // Known locus: helix-free circle arc on the cylinder x²+y²=1.44
     // (radius 1.2, axis z) at slowly varying z — points ON the cylinder.
@@ -880,7 +880,12 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     let eps = 2.0 * 1.2 * tol * 4.0; // ≈ 9.6e-4 m² working certification band
     let band = Band::new(1e-9, 1e-8).unwrap();
     let margin = eps - hull;
-    let verdict = decide("review_cylinder_residual_within_eps", margin, band);
+    let verdict = decide_flagged(
+        "review_cylinder_residual_within_eps",
+        margin,
+        band,
+        "review fixture: m^2 working band, not a shipped decision",
+    );
     println!("[F9] decide(eps−hull = {margin:.3e}): {verdict:?}");
     assert!(matches!(verdict, Ok(geom_core::predicate::Sign::Positive)));
     // Corrupt one control point (between-samples excursion) and verify
@@ -899,7 +904,12 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
         .unwrap()
         .sup_bound();
     let margin_c = eps - hull_c;
-    let verdict_c = decide("review_cylinder_residual_within_eps", margin_c, band);
+    let verdict_c = decide_flagged(
+        "review_cylinder_residual_within_eps",
+        margin_c,
+        band,
+        "review fixture: m^2 working band, not a shipped decision",
+    );
     println!("[F9] corrupted: hull {hull_c:.3e}, decide {verdict_c:?}");
     assert!(matches!(
         verdict_c,

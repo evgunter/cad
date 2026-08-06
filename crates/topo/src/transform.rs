@@ -54,7 +54,7 @@
 
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Affine3, Decide, Point3, Real, Vec3};
+use geom_core::{Affine3, Decide, Length, Point3, Real, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
@@ -136,7 +136,12 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
         ("transform_rigid_det_plus_one", l.determinant() - one),
     ];
     for (check, margin) in checks {
-        match geom_core::k_stats::decide(check, margin, band) {
+        // Ledger row F10: the rigidity residuals of the linear map are
+        // DIMENSIONLESS (unit-column/orthogonality/det defects) against
+        // the metre band; the natural arm is the model/session-box
+        // extent — an arm-policy question deferred by the row. No door
+        // fits; flagged, not cast.
+        match geom_core::k_stats::decide_flagged(check, margin, band, "F10") {
             Ok(geom_core::Sign::Zero) => {}
             _ => return Err(TransformError::NotRigid { check }),
         }
@@ -146,10 +151,22 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
     // translations). The linear part needs no separate door: NaN/inf
     // entries poison the rigidity margins above and refuse there.
     let t = &map.translation;
-    let finite: [(&'static str, T); 3] = [
-        ("transform_rigid_trans_finite_x", t.x * T::zero()),
-        ("transform_rigid_trans_finite_y", t.y * T::zero()),
-        ("transform_rigid_trans_finite_z", t.z * T::zero()),
+    // The levered door with the ZERO dimensionless factor: each margin
+    // is 0·t_i — the zero length exactly when the component is finite,
+    // poison otherwise (the finiteness probe the module docs state).
+    let finite: [(&'static str, Length<T>); 3] = [
+        (
+            "transform_rigid_trans_finite_x",
+            Length::levered(T::zero(), t.x),
+        ),
+        (
+            "transform_rigid_trans_finite_y",
+            Length::levered(T::zero(), t.y),
+        ),
+        (
+            "transform_rigid_trans_finite_z",
+            Length::levered(T::zero(), t.z),
+        ),
     ];
     for (check, margin) in finite {
         match geom_core::k_stats::decide(check, margin, band) {

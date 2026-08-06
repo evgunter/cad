@@ -9,7 +9,7 @@
 //! meridian (module docs).
 
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
-use geom_core::{Affine3, Band, Decide, Indeterminate, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{Affine3, Band, Decide, Indeterminate, Length, Point2, Point3, Real, Sign, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
@@ -187,7 +187,7 @@ pub(super) fn cosurface<T: Decide>(
             let d = next.b - prev.a;
             let margin = t.perp_dot(d);
             Ok(matches!(
-                decide("wall_lines_cosurface", margin, band)?,
+                decide("wall_lines_cosurface", Length::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -209,7 +209,7 @@ pub(super) fn cosurface<T: Decide>(
             // Margin: center distance plus radius difference (meters).
             let margin = c1.distance(*c2) + (*r1 - *r2).abs();
             Ok(matches!(
-                decide("wall_arcs_cosurface", margin, band)?,
+                decide("wall_arcs_cosurface", Length::of(margin), band)?,
                 Sign::Zero
             ))
         }

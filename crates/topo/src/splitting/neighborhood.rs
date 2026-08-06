@@ -46,7 +46,7 @@
 //! both take the duplicate path — the deliberate, documented posture
 //! for this one predicate (the decisive side verdicts stay strict).
 
-use geom_core::{Band, Decide, Sign, Vec3};
+use geom_core::{Band, Decide, Length, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::rules;
@@ -222,7 +222,7 @@ pub fn classify_neighborhood<T: Decide>(
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
         let class = if let Some((deriv2, speed_sq)) = conic_jet {
-            let margin = dir_a.dot(plane.normal);
+            let margin = Length::of(dir_a.dot(plane.normal));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -272,7 +272,7 @@ pub fn classify_neighborhood<T: Decide>(
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let arm = dir_a.norm().min(dir_b.norm());
-        match decide("split_sector_arm", arm, band) {
+        match decide("split_sector_arm", Length::of(arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(sliver(geom_core::Indeterminate {
@@ -284,7 +284,7 @@ pub fn classify_neighborhood<T: Decide>(
             Err(diag) => return Err(sliver(diag)),
         }
         let (unit_a, unit_b) = (dir_a.normalize(), dir_b.normalize());
-        let reflex_margin = unit_b.cross(unit_a).dot(n_face) * arm;
+        let reflex_margin = Length::levered(unit_b.cross(unit_a).dot(n_face), arm);
         let wide = match decide("split_sector_reflex", reflex_margin, band) {
             Ok(Sign::Positive) => None, // convex: cone argument holds
             // Definite reflex, θ ∈ (π, 2π): −(â + b̂) is the true
@@ -297,7 +297,7 @@ pub fn classify_neighborhood<T: Decide>(
             // and cos cannot both vanish, so this second margin is
             // definite whenever the first is not).
             Ok(Sign::Zero) | Err(_) => {
-                let straight_margin = unit_a.dot(unit_b) * arm;
+                let straight_margin = Length::levered(unit_a.dot(unit_b), arm);
                 match decide("split_sector_straight", straight_margin, band) {
                     // θ ≈ π (straight): 90° into the interior is a
                     // valid subdivision throughout the band.
@@ -320,7 +320,7 @@ pub fn classify_neighborhood<T: Decide>(
             }
         };
         if let Some(bisector) = wide {
-            let margin = bisector.dot(plane.normal) * arm;
+            let margin = Length::levered(bisector.dot(plane.normal), arm);
             let class = match decide("split_bisector_side", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,

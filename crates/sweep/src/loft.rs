@@ -52,7 +52,9 @@ use core::fmt;
 use std::sync::Arc;
 
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, NewellError, newell_plane};
-use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Affine3, Band, BandError, Decide, Indeterminate, Length, Point3, Real, Sign, Vec3,
+};
 use geom_curves::Curve3;
 use geom_surfaces::{NurbsSurface, Surface};
 use profile::{Profile, ProfileError, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
@@ -302,7 +304,7 @@ fn assemble<T: Decide>(
     }
     #[allow(clippy::cast_precision_loss)]
     let margin = d.dot(n_bottom) / T::from_f64(tq[0].len() as f64);
-    match geom_core::k_stats::decide("loft_stacking", margin, band)
+    match geom_core::k_stats::decide("loft_stacking", Length::of(margin), band)
         .map_err(|source| LoftError::StackingEscalated { source })?
     {
         Sign::Positive => {}
