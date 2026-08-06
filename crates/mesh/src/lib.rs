@@ -176,3 +176,31 @@ pub mod walk;
 
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
+
+/// REVIEW PROBE support (env-gated; dead in normal runs): global
+/// per-triangle certificate headroom stats.
+pub mod probe_stats {
+    use std::sync::Mutex;
+    /// (worst measured deviation, its cert, max ratio d/cert, count).
+    pub static STATS: Mutex<(f64, f64, f64, u64)> = Mutex::new((0.0, 0.0, 0.0, 0));
+    pub fn record(d: f64, cert: f64) {
+        let mut s = STATS.lock().unwrap();
+        if d > s.0 {
+            s.0 = d;
+            s.1 = cert;
+        }
+        if cert > 0.0 {
+            let r = d / cert;
+            if r > s.2 {
+                s.2 = r;
+            }
+        }
+        s.3 += 1;
+    }
+    pub fn take() -> (f64, f64, f64, u64) {
+        let mut s = STATS.lock().unwrap();
+        let out = *s;
+        *s = (0.0, 0.0, 0.0, 0);
+        out
+    }
+}
