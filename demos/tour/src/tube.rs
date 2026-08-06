@@ -82,7 +82,12 @@ pub fn stops() -> Vec<Stop> {
     vec![Stop {
         name: "tube_along_arc",
         caption: "tube_along_arc (intent parameters, stored)".to_string(),
-        montage: true,
+        // Standalone since the montage-v2 curation (Evan, #218 follow-up):
+        // the cell's content — bit-exact STORED intent parameters — is
+        // interesting for how it works, not visually; without that context
+        // it reads as one more partial revolve. The scene, its assertions
+        // and its standalone render stay fully alive.
+        montage: false,
         story: "a ring-torus tube built from its INTENT parameters — spine centre at \
                 the origin, spine axis +y, reference direction +x, major radius 2, \
                 minor radius 0.5, traversed over the window [0.25, 1.75] rad. Every \
