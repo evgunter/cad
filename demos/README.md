@@ -44,6 +44,17 @@ The tour ships **two montage sheets** with identical grids, captions,
 scene order, and cameras (both read `scenes.json`) — cell-for-cell
 comparable, differing ONLY in whose tessellation is on screen:
 
+**Cell count: 19 on each sheet** (4 columns × 5 rows, last row short
+by one — `compose_montage.py` derives the row count, nothing is
+hardcoded). The derivation: the tour emits 28 scenes, of which 9 are
+`montage: false` — the four standalone renders kept out of the sheet
+by the #91 revision notes and the M6 curation pass (`bracket`, `die`,
+`silhouette`, `az`), the two under-filled heat-sink variants
+(`heatsink5`, `heatsink7` — the sheet carries only the 9-fin panel),
+and the three shadow proofs (`silhouette3_shadow_{z,x,y}`). 28 − 9 =
+19. The count was 18 at the globe lily; the **montage refresh** adds
+one, `tube_along_arc`.
+
 - `renders/montage.png` — **the kernel's own facets**. Every cell
   renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
   tessellation lane exactly as the kernel emitted it (flat-shaded
@@ -87,6 +98,7 @@ costs one cell, never the sheet).
 | `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
 | `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
 | `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
+| `tube_along_arc` | **the tube door, with its intent parameters on screen** (M6-3 Leg F, the Evan-ratified rider on the #175 thread): a ring-torus tube built from spine centre / axis / reference direction / major radius 2 / window `[0.25, 1.75]` rad / minor radius 0.5 — `sweep/tests/m6_tube.rs`'s wedge, constant for constant. The sheave's groove and the lily's stem tubes already carry torus walls, but both arrive by `revolve`, which RECONSTRUCTS the tube radius from the profile's bulge arcs (the lily drifts 3.9e-16; the review donut drifted 56 ulps). This door stores what it was given: the scene asserts `minor_radius.to_bits() == 0.5f64.to_bits()` on **both** half-tube walls, on the scene body itself. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census (2 walls + 2 caps), sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀); montage panel |
 | `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op; standalone render since the M6 curation pass |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
 | `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
@@ -172,9 +184,10 @@ contract, demonstrated rather than claimed.
 
 ## The STEP lane (#88)
 
-Every scene body exports an AP214 STEP file beside its STL — **all 37
+Every scene body exports an AP214 STEP file beside its STL — **all 38
 of them since M5 PR 13** (26 at that PR; the M5 PR 12 die pieces, the
-M6 composed die and the globe lily's eight since), where the in-house
+M6 composed die, the globe lily's eight and the montage refresh's
+tube-door wedge since), where the in-house
 writer's analytic subset
 grew from planes/lines to the whole elementary-surface vocabulary
 (`PLANE`, `CYLINDRICAL_`, `CONICAL_`, `SPHERICAL_`, `TOROIDAL_SURFACE`)
@@ -182,22 +195,25 @@ with `LINE`/`CIRCLE`/`ELLIPSE`/`B_SPLINE_CURVE_WITH_KNOTS` carriers.
 Every arm is an **exact native entity**: a cylinder leaves as a
 cylinder, never as a spline approximation of one.
 
-TWENTY tour bodies now carry a curved surface (bracket, plate, vase,
+TWENTY-ONE tour bodies now carry a curved surface (bracket, plate, vase,
 sheave, chute, rocker, bossplate, the two tiltedcut halves, the three
-die pieces, and all eight globe-lily bodies). **Thirteen of the twenty**
+die pieces, all eight globe-lily bodies, and the tube-door wedge).
+**Thirteen of the twenty-one**
 carry `same_sense = .F.` faces, the concave-wall bit S11 introduced —
 the original six (bracket 1, plate 4, vase 2, sheave 7, chute 3,
 rocker 7) plus die_pips 42, the composed die 42, each lantern 2 and each
-leaf 1. Seven carry none, and the reason is the same in every case: a
+leaf 1. Eight carry none, and the reason is the same in every case: a
 body with no CONCAVE curved wall has nothing to reverse — bossplate's
 boss bulges outward, diefillet's blends are all convex, the two
-tiltedcut halves are a plain cylinder cut, and the lily's three stem
-tubes are convex tori all the way round. (The lily's lanterns reverse on
+tiltedcut halves are a plain cylinder cut, the lily's three stem
+tubes are convex tori all the way round, and the tube-door wedge is one
+more of those with two plain wedge caps (checked: 4 `.T.`, 0 `.F.`).
+(The lily's lanterns reverse on
 their MOUTH disc, not on a curved wall: a revolve mints both cap planes
 on the profile plane's own +y normal, so exactly one cap opposes the
 solid's outward normal — see `lily_lantern.expect`.)
 
-All twenty import into FreeCAD 1.1.2 as valid single-solid shapes (the
+All twenty-one import into FreeCAD 1.1.2 as valid single-solid shapes (the
 STEP-lane montage draws every one of them from its own AP214 export,
 with no placeholder cells); the lily's eight were additionally checked
 against independent closed forms — Pappus for the torus segments, a
