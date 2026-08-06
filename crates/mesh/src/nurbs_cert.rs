@@ -386,6 +386,16 @@ mod tests {
     }
 
     /// The certificate arithmetic: Q/4 with the box extents.
+    ///
+    /// DEMOTED to a formula FREEZE (MIN-1, the #218 review): this
+    /// mirrors the implementation and can only catch accidental
+    /// edits, tautologically — the review's planted 0.25 → 0.05 cert
+    /// weakening sailed past the aggregate δ+ε pin and died only
+    /// here. The GUARD against under-certification is the empirical
+    /// per-triangle falsifier (`probe_review::z1`, armed through
+    /// `probe_stats::arm`), which kills the same plant on measured
+    /// deviations. Kept as a cheap freeze; never cite it as evidence
+    /// the bound is honest.
     #[test]
     fn cert_is_the_documented_quarter_q() {
         let b = NurbsFaceBound {

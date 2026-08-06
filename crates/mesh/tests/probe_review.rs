@@ -69,10 +69,12 @@ fn swept_elbow() -> Body<f64> {
 /// trimmed.rs (env-gated); here we drive them and print headroom.
 #[test]
 fn z1_per_triangle_certificate_falsification() {
-    assert!(
-        std::env::var_os("NURBS_PROBE").is_some(),
-        "run with NURBS_PROBE=1"
-    );
+    // MIN-1 adoption: the probe is the SUITE'S guard now — it arms
+    // itself (mesh::probe_stats::arm) instead of demanding an env
+    // var, so the hosted gate runs it unconditionally. The planted
+    // 0.25 -> 0.05 cert bug the review used dies HERE, empirically,
+    // not in a formula mirror.
+    mesh::probe_stats::arm(true);
     for (name, body) in [
         ("loft_prism", loft_at(&[0.0, 1.0, 2.0])),
         ("nonuniform_loft", loft_at(&[0.0, 1.0, 3.0])),
@@ -93,6 +95,7 @@ fn z1_per_triangle_certificate_falsification() {
             );
         }
     }
+    mesh::probe_stats::arm(false);
 }
 
 /// Z2 (d'): a NURBS-face half-edge with NO stored pcurve must refuse

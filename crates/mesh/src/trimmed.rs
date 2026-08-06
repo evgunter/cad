@@ -354,7 +354,7 @@ pub(crate) fn tessellate_trimmed(
             // the NURBS certificate — dense barycentric samples of
             // |S(w) − Π(w)| must be dominated by cert + ε on EVERY
             // triangle, not in aggregate.
-            if matches!(lane, Lane::Nurbs { .. }) && std::env::var_os("NURBS_PROBE").is_some() {
+            if matches!(lane, Lane::Nurbs { .. }) && crate::probe_stats::armed() {
                 let m = 12usize;
                 for a in 0..=m {
                     for b in 0..=(m - a) {

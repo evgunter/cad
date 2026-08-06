@@ -34,6 +34,8 @@
 mod errors;
 #[path = "exact_vs_mesh.rs"]
 mod exact_vs_mesh;
+#[path = "fitted_refusals.rs"]
+mod fitted_refusals;
 #[path = "genus.rs"]
 mod genus;
 #[path = "issue111_az_needle.rs"]
