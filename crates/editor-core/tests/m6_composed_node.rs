@@ -298,12 +298,15 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
     }
 }
 
-/// **`Rebind` is the growth path** (the ruling's other half): the
-/// selection does not extend itself, but an explicit rebind rewrites
-/// it — and re-canonicalizes, so rebinding onto an already-selected
-/// edge SHRINKS the set rather than duplicating a name.
+/// **`Rebind` is the repair path, and only that** (the ruling's other
+/// half, stated at its true reach — review F-4). The selection never
+/// moves on its own; an explicit rebind rewrites it 1:1 and
+/// re-canonicalizes, so rebinding onto an already-selected edge
+/// SHRINKS the set rather than duplicating a name. What a rebind
+/// cannot do is make the set LARGER: adding an edge means
+/// re-authoring the node, which is exactly what freezing is for.
 #[test]
-fn rebind_is_the_only_thing_that_moves_a_selection() {
+fn rebind_repairs_a_selection_and_can_never_grow_it() {
     let doc = die_composed::document();
     let (fillet, _) = fillet_and_target(&doc.doc);
     let before = selection_of(&doc.doc, fillet);
@@ -322,4 +325,8 @@ fn rebind_is_the_only_thing_that_moves_a_selection() {
     assert!(!grown.contains(&from), "the old name is gone");
     assert!(grown.contains(&to), "the new name is present exactly once");
     assert!(grown.windows(2).all(|w| w[0] < w[1]), "still canonical");
+    assert!(
+        grown.len() <= before.len(),
+        "a 1:1 rewrite plus dedup can only swap or shrink — never extend"
+    );
 }
