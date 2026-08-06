@@ -783,3 +783,8 @@ difficulty logged M BEFORE the draw.** Also this hour: Evan's
 accidental cancellation disarmed the monitors (re-armed, all
 three) and killed the mesh lane mid-render (resumed;
 delivered as #218, review in flight).
+Draw: byte 19 → **(opus, fable)** — unit-5 PR-1 = OPUS; fable
+remainder to the next eligible dispatch. docs/M6-5-SPEC.md
+written from the substrate + the #217 rulings; dispatched on
+lane m6-5-fillet (slot 1); PR-1 held for review, PR-2 follows
+its merge.
