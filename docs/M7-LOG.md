@@ -843,3 +843,14 @@ remainder to the next eligible dispatch. docs/M6-5-SPEC.md
 written from the substrate + the #217 rulings; dispatched on
 lane m6-5-fillet (slot 1); PR-1 held for review, PR-2 follows
 its merge.
+
+**Montage visual chunk scoped (Evan's #218 follow-up,
+2026-08-06): difficulty logged S BEFORE dispatch; arm = FABLE
+(block M7-7 remainder — unit-5's PR-2 inherited PR-1's opus arm
+as one unit).** Scope: cut tube_along_arc + the two partial-die
+cells from the montage (kept in the demo); replace/augment the
+s_duct with geometry REVOLVES CANNOT DO (torsion via a
+non-planar path, or continuously varying curvature — measure
+the post-#210 path vocabulary first and demonstrate the
+strongest reachable class); make the loft pair's nonuniformity
+dramatic. Lane montage-v2 (slot 2).
