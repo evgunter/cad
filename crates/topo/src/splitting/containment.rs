@@ -247,7 +247,7 @@ pub fn point_in_loop<T: Decide>(
                 continue; // no straddle, no crossing
             }
             // Straddling: the crossing's advance along the ray.
-            let advance = Length::per_boundary(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
+            let advance = Length::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
             match decide("point_in_loop_advance", advance, band).map_err(escalate)? {
                 Sign::Positive => crossings += 1,
                 Sign::Negative => {}

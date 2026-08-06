@@ -720,12 +720,13 @@ pub(super) fn volume_backstop<T: Decide>(
     // ordinary mm-scale operands in the band and switched their bound
     // checks off. The skip zone survives, now meaning sub-resolution
     // thickness — which is what it always claimed to mean.)
+    // The backstops live on the INVARIANT LANE (Evan's #213 layering
+    // ruling): consistency inequalities between integral results are
+    // outside the length seam by design — no door, bare T — and a
+    // certified violation is a kernel invariant failure, not a
+    // validity refusal. Values and predicate names are unchanged.
     let bounded = |v: T, area: T| -> Result<bool, BooleanError> {
-        match decide(
-            "volume_backstop_operand",
-            Length::per_boundary(v, area),
-            band,
-        ) {
+        match geom_core::k_stats::decide_invariant("volume_backstop_operand", v / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
             Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {
@@ -749,11 +750,13 @@ pub(super) fn volume_backstop<T: Decide>(
                 got: format!("{got:?}"),
                 bound: format!("{bound:?}"),
             };
-            let metered = Length::per_boundary(margin, lever);
+            let metered = margin / lever;
             // Arm 1 — the inequality itself. A sign-certain violation is
             // a violated bound whatever its size, so nothing about ε
             // enters here.
-            if decide("volume_backstop_violation", metered, exact) == Ok(Sign::Negative) {
+            if geom_core::k_stats::decide_invariant("volume_backstop_violation", metered, exact)
+                == Ok(Sign::Negative)
+            {
                 return Err(implausible());
             }
             // Arm 2 — the magnitude, for the near-zero region arm 1
@@ -761,7 +764,7 @@ pub(super) fn volume_backstop<T: Decide>(
             // refuses (unreachable now, since arm 1 subsumes it — kept
             // as the honest statement of the gate rather than a dead
             // arm removed), Zero and in-band PASS, poison refuses.
-            match decide("volume_backstop", metered, band) {
+            match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
                 Ok(Sign::Negative) => Err(implausible()),
                 Ok(Sign::Zero | Sign::Positive) => Ok(()),
                 Err(diag) if matches!(diag.margin, MarginDiag::Invalid) => {

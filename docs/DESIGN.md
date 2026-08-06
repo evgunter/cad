@@ -877,9 +877,16 @@ applied to error handling. Five commitments:
    applied twice; the reciprocal form x/κ_rel is the levered door at
    D4 ¶1's own tangency lever 1/κ; a parameter span through its
    per-kind metric rate is clause (iii) surfacing at the seam. The
-   boundary quotient's shipped extension to an oriented area over
-   its lever radius (m²/m at the chart-orientation sites) is a
-   lever-generalized boundary quotient — wording awaits Evan. A
+   quotient door is the measure-over-lever form (an area or signed
+   volume over the boundary length / lever / surface area that
+   scales it to the point displacement it subtends: 2A/P, V/A, the
+   chart-orientation a×b·n̂/r). The CONSISTENCY BACKSTOPS are
+   excluded from the seam entirely (Evan's #213 layering ruling):
+   inequalities between integral results — the volume_backstop
+   family — decide on bare T through the invariant lane
+   (`k_stats::decide_invariant`), no Length minted, and a certified
+   violation is a Corrupt-class kernel-invariant error, never a
+   validity refusal. A
    site where no door honestly fits is
    a finding, not a cast. The vector/linalg interior stays bare `T`
    (annotating `Vec3` ops would recreate the algebra problem); the

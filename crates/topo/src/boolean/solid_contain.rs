@@ -847,7 +847,7 @@ fn cast_ray<T: Decide>(
                 let two_r = T::from_f64(2.0) * radius;
                 match decide(
                     "bool_ray_sphere_disc",
-                    Length::per_boundary(disc, two_r),
+                    Length::over_lever(disc, two_r),
                     band,
                 )
                 .map_err(escalate)?
@@ -902,7 +902,7 @@ fn at_infinity_side<T: Decide>(
             face: faces.first().copied().unwrap_or_default(),
         }
     })?;
-    let margin = Length::per_boundary(props.volume, props.surface_area);
+    let margin = Length::over_lever(props.volume, props.surface_area);
     match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {
             face: faces[0],

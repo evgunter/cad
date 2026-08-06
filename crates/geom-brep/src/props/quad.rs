@@ -463,7 +463,7 @@ pub fn cylinder_cut_face<T: Decide>(
             let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Length::per_boundary(area.lo(), perim),
+                Length::over_lever(area.lo(), perim),
                 band,
             )? {
                 Sign::Positive => {}
@@ -1298,7 +1298,7 @@ pub fn nurbs_patch_face<T: Decide>(
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Length::per_boundary(area.lo(), perimeter),
+                Length::over_lever(area.lo(), perimeter),
                 band,
             )? {
                 Sign::Positive => {}
@@ -1371,7 +1371,7 @@ pub fn nurbs_patch_face<T: Decide>(
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Length::per_boundary(area.lo(), perimeter),
+                Length::over_lever(area.lo(), perimeter),
                 band,
             )? {
                 Sign::Positive => {}

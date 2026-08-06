@@ -2272,7 +2272,7 @@ impl<T: Decide> Sweep<T> {
         // `/ (perimeter * 0.5)` computed 4·|A|/P, double the
         // documented spec — dimensionally identical, but the doc is
         // the contract.)
-        let margin = Length::per_boundary(twice_area.abs(), perimeter);
+        let margin = Length::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             Ok(Sign::Positive) => Ok(()),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),

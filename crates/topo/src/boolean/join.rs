@@ -1097,7 +1097,7 @@ fn ring_run_ccw<T: Decide>(
     // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
     match decide(
         "bool_ring_run_winding",
-        Length::per_boundary(normal.dot(newell), perimeter),
+        Length::over_lever(normal.dot(newell), perimeter),
         band,
     )
     .map_err(escalate)?

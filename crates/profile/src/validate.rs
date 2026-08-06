@@ -1416,7 +1416,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
     let area = twice_area * half;
     decide(
         "loop_orientation",
-        Length::per_boundary(area + area, perimeter),
+        Length::over_lever(area + area, perimeter),
         band,
     )
 }

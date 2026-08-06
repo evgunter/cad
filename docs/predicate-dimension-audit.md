@@ -33,8 +33,10 @@ seam — executed by the margin-migrate unit).**
 `geom_core::k_stats::decide` now takes a `Length<T>` by signature;
 every call site in the workspace constructs its margin through a
 blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
-`norm3`+`norm2` / `metered` / `per_boundary`; an unused `rooted` door
-was dropped at the fix pass — dead surface), and each row's
+`norm3`+`norm2` / `metered` / `over_lever`; an unused `rooted` door
+was dropped at the fix pass — dead surface, and `per_boundary` was
+RENAMED and re-scoped to `over_lever` when Evan's layering ruling moved
+the consistency backstops out of the seam, see below), and each row's
 "comparand" column is the door's justification (out-of-ledger crates —
 profile, sweep, editor-core's eval/naming, geom-curves — argue their
 doors inline; their comparands are the same length shapes). Rows whose
@@ -65,6 +67,21 @@ recorded margin stream is bit-identical by construction (each door
 performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
+
+**The invariant lane (Evan's #213 layering ruling).** The consistency
+backstops — `volume_backstop` / `volume_backstop_operand` /
+`volume_backstop_violation`, inequalities between integral RESULTS
+(wrong-component detectors, never accuracy gates) — are outside the
+length seam by design: they decide on bare `T` through
+`k_stats::decide_invariant` (no `Length` minted — not a door, not
+debt), keeping their predicate names and margin values byte-identical
+in the K stream, and a certified violation surfaces as the
+Corrupt-class `ResultVolumeImplausible` ("kernel invariant violated —
+this is a bug", with a report affordance), separated in type and voice
+from every validity refusal. The former `per_boundary` door is renamed
+`over_lever` and re-scoped to the genuine geometric decisions
+(mean-width 2A/P, mean-thickness V/A containment, chart-orientation
+areas, the crossing advance).
 
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
@@ -117,7 +134,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit) | m | OK (metered door; added by the clause-(i) migration) |
 | pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m) | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
-| pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (per_boundary door; added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_azimuth_frame / sphere_chart_pole_frame / polar & meridional rates | metre projections/norms at six of the seven frame callers; on the CONE ruling lane's F13 fallback the frame input is a UNIT radial's projection — dimensionless. Tie-break-only either way (N5: the trilean picks between two formulas identical mod τ — verdict-neutral), and that lane is F13-flagged one decision earlier | m (mixed on the F13 lane) | OK as tie-break (N5; row corrected at the clause-(i) fix pass, review MIN-1) |
 | props/curved.rs:145/150 | props_rim_axis_parallel / center_on_axis | sin×r_c; perpendicular offset | m | OK |
@@ -154,9 +171,9 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3; was **m³ VOLUME** through a raw `sign_within`) |
-| boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3) |
-| boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1) |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Evan's #213 layering ruling — bare `T`, outside the length seam by design |
+| boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
+| boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -173,8 +190,8 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/solid_contain.rs:691 | bool_point_in_solid_denom (plane) | cos(unit,unit), no arm | dimensionless | FLAG F2 |
 | boolean/solid_contain.rs:743 | bool_point_in_solid_denom (cylinder) | sin²/2r | **1/m** | FLAG F2 |
 | boolean/solid_contain.rs:763 | bool_ray_cylinder_disc | disc/(2r)² (self-documented, F3 of PR 9c) | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:792 | bool_point_in_solid_denom (cylinder hit-outward — the pre-migration row mislabeled it "sphere"; the sphere lane reads outward structurally and its disc is per_boundary at :850) | (unit·radial)/radius | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:850/903 | bool_ray_sphere_disc / at_infinity | disc/2r (per_boundary); volume/area | m | OK |
+| boolean/solid_contain.rs:792 | bool_point_in_solid_denom (cylinder hit-outward — the pre-migration row mislabeled it "sphere"; the sphere lane reads outward structurally and its disc is over_lever at :850) | (unit·radial)/radius | dimensionless | FLAG F2 |
+| boolean/solid_contain.rs:850/903 | bool_ray_sphere_disc / at_infinity | disc/2r (over_lever); volume/area (V/A mean thickness, over_lever — a genuine containment decision, not a backstop) | m | OK |
 | boolean/vtxfac.rs:106/113/453 | side_code / bool_sector_coplanar / bool_germ_line | cos/sin × sector arm | m | OK |
 | census.rs:313–599 | pm_census_vv/ve/vf/ef gaps, spans, residuals | point/line/plane distances and spans (unit dirs verified) | m | OK |
 | census.rs:614–746 | pm_census_span_* / ee_gap / ee_span / ee_overlap | span arithmetic (m) | m | OK |
@@ -323,7 +340,7 @@ speculative — each row below states what it measured):
 
 Flagged, NOT fixed here (dispositions):
 
-- **F2** `solid_contain.rs` ray-caster denominators (691/743/763/792 — refs refreshed and the fourth site relabeled cylinder hit-outward at the clause-(i) fix pass; the sphere-disc form at :850 is the model and took `per_boundary`):
+- **F2** `solid_contain.rs` ray-caster denominators (691/743/763/792 — refs refreshed and the fourth site relabeled cylinder hit-outward at the clause-(i) fix pass; the sphere-disc form at :850 is the model and took `over_lever`):
   dimensionless and 1/m comparands. The cylinder-disc site carries an
   in-tree admission earmarking a re-pin unit (PR 9c review F3). One
   coordinated unit should meter all four (the sphere-disc form (now :850)

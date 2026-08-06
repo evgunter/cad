@@ -934,7 +934,7 @@ impl<T: Decide> Body<T> {
         perimeter = perimeter + (p0 - prev).norm();
         match crate::validate::decide(
             "bool_ring_run_winding",
-            Length::per_boundary(normal.dot(newell), perimeter),
+            Length::over_lever(normal.dot(newell), perimeter),
             band,
         ) {
             Ok(sign) => Ok(Some(sign)),

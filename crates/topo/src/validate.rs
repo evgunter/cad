@@ -2028,7 +2028,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             if decide(
                 "bool_ring_run_winding",
-                Length::per_boundary(outward.dot(newell), perimeter),
+                Length::over_lever(outward.dot(newell), perimeter),
                 band,
             ) == Ok(wrong)
             {
@@ -2082,7 +2082,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 let v_hi = props.volume + T::from_f64(props.volume_pad);
                 if let Ok(Sign::Negative) = decide(
                     "positive_volume",
-                    Length::per_boundary(v_hi, props.surface_area),
+                    Length::over_lever(v_hi, props.surface_area),
                     band,
                 ) {
                     errors.push(ValidationError::NegativeVolume);

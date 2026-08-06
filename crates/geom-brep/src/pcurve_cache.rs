@@ -2560,7 +2560,7 @@ pub fn chart_pcurve<T: Decide>(
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
                         "pcurve_chart_orientation",
-                        Length::per_boundary(orient, radius),
+                        Length::over_lever(orient, radius),
                         band,
                     ) {
                         Ok(Sign::Positive) => T::one(),
@@ -2710,7 +2710,7 @@ pub fn chart_pcurve<T: Decide>(
                     let rho = a_r.norm();
                     let beta = match decide(
                         "pcurve_chart_orientation",
-                        Length::per_boundary(orient, rho),
+                        Length::over_lever(orient, rho),
                         band,
                     )
                     .map_err(esc)?
@@ -2815,7 +2815,7 @@ pub fn chart_pcurve<T: Decide>(
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
                         "pcurve_chart_orientation",
-                        Length::per_boundary(orient, radius),
+                        Length::over_lever(orient, radius),
                         band,
                     )
                     .map_err(esc)?
@@ -2835,7 +2835,7 @@ pub fn chart_pcurve<T: Decide>(
                 Sign::Positive | Sign::Negative => {
                     // MERIDIAN class: the carrier plane must contain the
                     // axis (its own axis ⊥ polar) and be centered.
-                    let coax = Length::per_boundary(form.a.cross(form.b).dot(axis), radius);
+                    let coax = Length::over_lever(form.a.cross(form.b).dot(axis), radius);
                     match decide("pcurve_sphere_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
@@ -2951,7 +2951,7 @@ pub fn chart_pcurve<T: Decide>(
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
                         "pcurve_chart_orientation",
-                        Length::per_boundary(orient, rho),
+                        Length::over_lever(orient, rho),
                         band,
                     )
                     .map_err(esc)?
@@ -2978,7 +2978,7 @@ pub fn chart_pcurve<T: Decide>(
                     // spine (radius R from the axis) — the second is
                     // certified by the residual schedule; the first is
                     // the class gate.
-                    let coax = Length::per_boundary(form.a.cross(form.b).dot(axis), minor_radius);
+                    let coax = Length::over_lever(form.a.cross(form.b).dot(axis), minor_radius);
                     match decide("pcurve_torus_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {

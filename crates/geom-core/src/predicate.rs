@@ -547,24 +547,27 @@ impl<T: crate::real::Real> Length<T> {
         Self(v.norm())
     }
 
-    /// Door: a measure **defect over its perturbable boundary** — the
-    /// F3 precedent — computes `defect / boundary`. The dimensional
-    /// argument: a d-dimensional measure defect (a volume in m³, an
-    /// area in m²) divided by the (d−1)-dimensional measure of the
-    /// boundary whose displacement could have produced it (a surface
-    /// area in m², a perimeter in m) is the **mean boundary
-    /// displacement** — a length. `ΔV/(A_got + A_bound)` (the volume
-    /// backstop) and `2A/P` (a ring run's mean width) are the shipped
-    /// instances; both are exactly zero when the defect is exactly
-    /// zero, so non-strict pass directions are unmoved. The same
-    /// argument covers an oriented area over the lever length that
-    /// scales it (a chart-orientation `a×b·n̂ / r`): m² over m is the
-    /// displacement the area corresponds to at that lever
-    /// (lever-generalized boundary quotient — the ratified text says
-    /// "boundary"; this wording awaits Evan's call, flagged at the
-    /// PR #213 fix pass).
-    pub fn per_boundary(defect: T, boundary: T) -> Self {
-        Self(defect / boundary)
+    /// Door: an oriented/certified **measure over the lever that
+    /// scales it down to a length** — computes `measure / lever`. The
+    /// dimensional argument: an area (m²) over the boundary length or
+    /// lever that scales it — a ring run's Newell area over its
+    /// perimeter (`2A/P`, the run's mean width), a chart-orientation
+    /// area `a×b·n̂` over its radius, a crossing determinant over its
+    /// straddle height — or a signed volume (m³) over the surface area
+    /// that levers it (`V/A`, a body's mean thickness) — is the point
+    /// displacement the measure subtends at that lever. Exactly zero
+    /// when the measure is exactly zero, so non-strict pass directions
+    /// are unmoved.
+    ///
+    /// What this door deliberately does NOT serve (Evan's #213
+    /// layering ruling): the **consistency backstops** — inequalities
+    /// between integral RESULTS, the `volume_backstop` family. Those
+    /// are outside the length seam by design: they decide on bare `T`
+    /// through the invariant lane
+    /// ([`crate::k_stats::decide_invariant`]), and their firing is a
+    /// kernel-invariant (Corrupt-class) error, not a validity refusal.
+    pub fn over_lever(measure: T, lever: T) -> Self {
+        Self(measure / lever)
     }
 
     /// The wrapped margin, for the classify seam and for diagnostics

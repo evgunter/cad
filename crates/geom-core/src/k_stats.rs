@@ -140,6 +140,49 @@ pub fn decide_flagged<T: Decide>(
     outcome
 }
 
+/// The classify seam's **invariant lane** — [`decide`] for the
+/// kernel's **consistency backstops**: inequalities between integral
+/// RESULTS (the `volume_backstop` family — wrong-component detectors),
+/// which are **outside the length seam by design — not a door, not
+/// debt** (Evan's #213 layering ruling). A consistency backstop is
+/// never an accuracy gate: pointwise-ε accuracy is owned upstream, and
+/// a body whose geometry is ε-right everywhere is never refused for
+/// its integral differing at tiny-wiggle scale. Mean displacement is
+/// only the honest UNIT of the check's near-zero (indeterminate) zone,
+/// so the margin stays **bare `T`** — no [`Length`] is minted, keeping
+/// the lane visibly distinct from every geometric decision.
+///
+/// Classification and recording are [`decide`] verbatim (same
+/// recorder, same names, same values — the K stream is unchanged). A
+/// certified violation on this lane is a **kernel invariant** failure:
+/// callers surface it as their Corrupt-class typed error ("this is a
+/// bug", with a report affordance), never as a validity refusal and
+/// never as a panic (the `clippy::panic` denial; the Corrupt
+/// precedent).
+///
+/// # Errors
+///
+/// As [`decide`].
+pub fn decide_invariant<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    CURRENT.with(|c| c.set(name));
+    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    if let Ok(sign) = outcome {
+        VERDICTS.with(|v| {
+            if let Some(log) = v.borrow_mut().as_mut() {
+                log.push(Verdict {
+                    predicate: name,
+                    sign,
+                });
+            }
+        });
+    }
+    outcome
+}
+
 /// One recorded predicate decision: the funnel's static name and the
 /// definite sign it classified to. Scalar-independent by construction
 /// (the N4 invariant's currency: same verdicts ⇒ same names at f64 AND

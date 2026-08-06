@@ -662,9 +662,12 @@ pub enum BooleanError {
     /// A `Seamed` result's volume violates a set-theoretic bound —
     /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
     /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
-    /// `mass_properties` (the review's volume-inequality backstop). A
-    /// certified violation is a wrong-component kernel bug surfaced
-    /// loudly, never a panic.
+    /// `mass_properties` (the review's volume-inequality backstop,
+    /// decided on the INVARIANT LANE — outside the length seam,
+    /// Evan's #213 layering ruling). A certified violation is a
+    /// **kernel invariant** failure — the Corrupt class: a bug in the
+    /// kernel, never in the caller's geometry — surfaced as this typed
+    /// error, never a panic and never a validity refusal.
     ResultVolumeImplausible {
         /// Which inequality failed (e.g. "vol(A ∖ B) ≤ vol(A)").
         which: &'static str,
@@ -933,8 +936,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
-                "boolean op: result volume implausible — {which} violated (got {got}, bound \
-                 {bound}) — wrong-component kernel bug, no such body is returned"
+                "boolean op: kernel invariant violated — this is a bug in the kernel, not in \
+                 your geometry: {which} failed (got {got}, bound {bound}); no such body is \
+                 returned. Please report it, with the model that produced it (the ledger's \
+                 invariant/debt tracking lane — the issue #214 pattern)"
             ),
             Self::UnrepresentableResult => write!(
                 f,
