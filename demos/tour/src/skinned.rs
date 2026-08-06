@@ -207,7 +207,11 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 /// The square/trapezoid/square section stack both loft scenes share —
 /// the minimal pair's shared half.
 fn prism_sections() -> Vec<SectionSegments> {
-    vec![quad(PRISM_SQUARE), quad(PRISM_TRAPEZOID), quad(PRISM_SQUARE)]
+    vec![
+        quad(PRISM_SQUARE),
+        quad(PRISM_TRAPEZOID),
+        quad(PRISM_SQUARE),
+    ]
 }
 
 /// The three skin scenes, in tour order: the two lofts as the
