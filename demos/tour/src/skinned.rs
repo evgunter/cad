@@ -286,7 +286,7 @@ pub fn stops() -> Vec<Stop> {
                     walls are genuinely curved NURBS patches, not ruled strips",
             ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
             delta: 6e-3,
-            note: Some(format!(
+            note: Some(
                 "the corpus fixture VERBATIM (step-export/tests/common/mod.rs::loft_prism, \
                  editor-core/tests/corpus/loft_prism.rs, sweep/tests/m6_loft_body.rs); \
                  volume is DERIVED, not measured: the degree-2 skin through sections at \
@@ -295,7 +295,8 @@ pub fn stops() -> Vec<Stop> {
                  trapezoid of area 4 + 2*d*lambda (d = 0.375) -> \
                  V = 8 + 16d/3 = 9 m^3 exactly; the walls RENDER here through the \
                  trimmed-face NURBS tessellation lane (the M6-3 frontier's second half)"
-            )),
+                    .to_string(),
+            ),
             view: loft_view(),
             bodies: vec![SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism)],
         },
@@ -312,7 +313,7 @@ pub fn stops() -> Vec<Stop> {
                     the body refused at assembly",
             ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/3, v_degree 2)",
             delta: 6e-3,
-            note: Some(format!(
+            note: Some(
                 "the corpus fixture VERBATIM \
                  (step-export/tests/common/mod.rs::nonuniform_loft, #210/#207) — the \
                  minimal pair with loft_prism, shown WITH it and under the same camera. \
@@ -323,7 +324,8 @@ pub fn stops() -> Vec<Stop> {
                  V = 12 + 0.375/(t(1-t)) = 12.75 + 126.75/sqrt(19345) = \
                  13.661304680798798 m^3 (the naive 1/3 would say 13.6875 — out by \
                  1.9e-3 relative, 1.6e8 times the certified pad)"
-            )),
+                    .to_string(),
+            ),
             view: loft_view(),
             bodies: vec![SceneBody::plain(
                 "nonuniform_loft",
