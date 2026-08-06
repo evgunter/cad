@@ -294,21 +294,34 @@ fn wire_revolve<T: Decide>(
     );
     let rel = *origin - plane_origin;
     let b = band()?;
-    for (name, margin) in [
-        ("revolve_axis_origin_in_plane", rel.dot(n)),
-        ("revolve_axis_dir_in_plane", dir.dot(n)),
-    ] {
-        match decide(name, Length::of(margin), b) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
-            Err(source) => {
-                return Err(NodeErrorKind::Escalated {
-                    predicate: name,
-                    source,
-                });
-            }
+    // The two in-plane checks share a verdict shape but NOT a
+    // dimension, so they take separate doors (review of the clause-(i)
+    // rollout, MAJ-1): the origin residual is a metre projection onto
+    // the unit normal (`of`); the direction residual `dir·n̂` is a
+    // unit·unit SINE — dimensionless against the metre band, the
+    // audit's class-(c) shape. Ledger row F15: the honest form is the
+    // sine levered at the profile's radial extent, which lives
+    // kernel-side — that fix is F15's own unit; flagged, not cast.
+    let in_plane = |name: &'static str,
+                    verdict: Result<Sign, geom_core::Indeterminate>|
+     -> Result<(), NodeErrorKind> {
+        match verdict {
+            Ok(Sign::Zero) => Ok(()),
+            Ok(_) => Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
+            Err(source) => Err(NodeErrorKind::Escalated {
+                predicate: name,
+                source,
+            }),
         }
-    }
+    };
+    in_plane(
+        "revolve_axis_origin_in_plane",
+        decide("revolve_axis_origin_in_plane", Length::of(rel.dot(n)), b),
+    )?;
+    in_plane(
+        "revolve_axis_dir_in_plane",
+        geom_core::k_stats::decide_flagged("revolve_axis_dir_in_plane", dir.dot(n), b, "F15"),
+    )?;
     let axis2 = RevolveAxis {
         origin: Point2::new(rel.dot(u), rel.dot(v_axis)),
         dir: Vec2::new(dir.dot(u), dir.dot(v_axis)),

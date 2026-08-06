@@ -547,17 +547,6 @@ impl<T: crate::real::Real> Length<T> {
         Self(v.norm())
     }
 
-    /// Norm door (scalar form): the root of an already-summed **squared
-    /// length** — computes `sq.sqrt()`. The dimensional argument: `sq`
-    /// is a sum or product of exactly two metre factors (a squared fit
-    /// residual, a `(sin,cos)`-chord amplitude times a squared lever),
-    /// so its root is a length. This is the norm door with the
-    /// componentwise sum written at the site; it exists because fit
-    /// residuals accumulate as scalars, not vectors.
-    pub fn rooted(sq: T) -> Self {
-        Self(sq.sqrt())
-    }
-
     /// Door: a measure **defect over its perturbable boundary** — the
     /// F3 precedent — computes `defect / boundary`. The dimensional
     /// argument: a d-dimensional measure defect (a volume in m³, an
@@ -570,7 +559,10 @@ impl<T: crate::real::Real> Length<T> {
     /// zero, so non-strict pass directions are unmoved. The same
     /// argument covers an oriented area over the lever length that
     /// scales it (a chart-orientation `a×b·n̂ / r`): m² over m is the
-    /// displacement the area corresponds to at that lever.
+    /// displacement the area corresponds to at that lever
+    /// (lever-generalized boundary quotient — the ratified text says
+    /// "boundary"; this wording awaits Evan's call, flagged at the
+    /// PR #213 fix pass).
     pub fn per_boundary(defect: T, boundary: T) -> Self {
         Self(defect / boundary)
     }

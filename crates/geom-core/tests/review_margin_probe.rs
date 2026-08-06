@@ -10,6 +10,14 @@
 //! the margin is scale-BLIND — the same tilt classifies identically at
 //! 1 mm and 10 m model scale, while the out-of-plane point deviation
 //! the gate is supposed to bound grows ×10⁴ across the band.
+//!
+//! ADOPTED as ledger row F15's pin (PR #213 fix pass): the shipped
+//! site now rides `decide_flagged(.., "F15")` — the finding lane, no
+//! `Length` constructed — and this probe pins the scale-blindness
+//! F15's own unit will retire (the honest form levers the sine at the
+//! profile's radial extent, kernel-side). The probe replicates the
+//! site's arithmetic locally, so it stays green across that fix too:
+//! it asserts the DEFECT's shape, not the site's door.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::k_stats::decide;

@@ -65,8 +65,8 @@ pub fn try_intersect_declared<S: Scalar>(
 /// intent down. Certification still happens inside the op through
 /// the verified declared rung.
 pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> topo::BooleanDeclarations {
-    use geom_core::Sign;
-    use geom_core::k_stats::decide;
+    use geom_core::k_stats::{decide, decide_flagged};
+    use geom_core::{Length, Sign};
     let band = geom_core::Band::linear().unwrap();
     let planes =
         |body: &Body<S>| -> Vec<(topo::FaceKey, geom_core::Point3<S>, geom_core::Vec3<S>)> {
@@ -83,12 +83,22 @@ pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> topo::BooleanD
     for &(fa, oa, na) in &planes(a) {
         for &(fb, ob, nb) in &planes(b) {
             if matches!(
-                decide("demo_flush_parallel", na.cross(nb).norm(), band),
+                decide_flagged(
+                    "demo_flush_parallel",
+                    na.cross(nb).norm(),
+                    band,
+                    "demo fixture: bare sine gate (the topo test-common declarer's twin)",
+                ),
                 Ok(Sign::Positive)
             ) {
                 continue;
             }
-            let sigma = match decide("demo_flush_orient", na.dot(nb), band) {
+            let sigma = match decide_flagged(
+                "demo_flush_orient",
+                na.dot(nb),
+                band,
+                "demo fixture: bare cosine gate (the topo test-common declarer's twin)",
+            ) {
                 Ok(Sign::Positive) => S::from_f64(1.0),
                 Ok(Sign::Negative) => S::from_f64(-1.0),
                 _ => continue,
@@ -96,7 +106,7 @@ pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> topo::BooleanD
             let da = na.dot(oa - geom_core::Point3::origin());
             let db = nb.dot(ob - geom_core::Point3::origin());
             if matches!(
-                decide("demo_flush_offset", da - sigma * db, band),
+                decide("demo_flush_offset", Length::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
                 decls.coincident_faces.push((fa, fb));

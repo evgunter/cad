@@ -871,7 +871,16 @@ applied to error handling. Five commitments:
    argument explicit at the call site: a coordinate/parameter
    difference that IS a length; a dimensionless quantity levered by
    an arm; a norm; a volume defect over its perturbable boundary
-   area (mean displacement). A site where no door honestly fits is
+   area (mean displacement). Three derived doors are named special
+   cases, not new kinds (fix-pass adjudication of the PR #213
+   review's Y2 derivations): the sagitta κ·L²/2 is the levered door
+   applied twice; the reciprocal form x/κ_rel is the levered door at
+   D4 ¶1's own tangency lever 1/κ; a parameter span through its
+   per-kind metric rate is clause (iii) surfacing at the seam. The
+   boundary quotient's shipped extension to an oriented area over
+   its lever radius (m²/m at the chart-orientation sites) is a
+   lever-generalized boundary quotient — wording awaits Evan. A
+   site where no door honestly fits is
    a finding, not a cast. The vector/linalg interior stays bare `T`
    (annotating `Vec3` ops would recreate the algebra problem); the
    typed surface is where contracts are single-kind — which is
