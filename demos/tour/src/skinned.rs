@@ -1,6 +1,6 @@
 //! The loft and the sweep — the tour's DEFINITIONAL stop (M5 PR 10;
 //! frontier closed at M6-3), narration **and, since the montage
-//! refresh, three scenes**.
+//! refresh, the skin scenes**.
 //!
 //! # The narration's frontier, fully retired
 //!
@@ -15,26 +15,41 @@
 //! MEASURED interpolation claim, the not-ruled claim), which no
 //! render can show.
 //!
-//! # The three scenes ARE the corpus
+//! # The scenes and the corpus (montage-v2 curation)
 //!
-//! Every construction here is a corpus fixture, constant for
-//! constant, so the montage cell and the fixture that guards it are
-//! the same body:
-//!
-//! - `loft_prism` — `step-export/tests/common/mod.rs::loft_prism()`
-//!   (recipe-layer twin: `editor-core/tests/corpus/loft_prism.rs`;
-//!   acceptance + the derived V = 9 m³ bracket:
-//!   `sweep/tests/m6_loft_body.rs`).
-//! - `nonuniform_loft` —
-//!   `step-export/tests/common/mod.rs::nonuniform_loft()` (#210/#207).
-//! - `s_duct` — the one scene that LEADS the corpus rather than
-//!   citing it (the lily precedent; #218 review): the corpus's sweep
-//!   constant, `step-export/tests/common/mod.rs::swept_elbow()`
-//!   (`sweep/tests/m7_skin_integral.rs`'s quarter-arc elbow), is
-//!   revolve-expressible, so the CELL carries an S path no revolve
-//!   can orbit and stands as the fixture candidate for the next
-//!   corpus fold. The elbow remains the tested constant in the mesh
-//!   and sweep suites.
+//! - `loft_prism` — corpus fixture VERBATIM:
+//!   `step-export/tests/common/mod.rs::loft_prism()` (recipe-layer
+//!   twin: `editor-core/tests/corpus/loft_prism.rs`; acceptance + the
+//!   derived V = 9 m³ bracket: `sweep/tests/m6_loft_body.rs`).
+//! - `nonuniform_loft` — since montage-v2 the scene LEADS the corpus
+//!   (the lily/s_duct precedent): the corpus fixture
+//!   (`common/mod.rs::nonuniform_loft()`, #210/#207) keeps its
+//!   z = 0/1/3 spacing, but at that spacing the pair's silhouettes
+//!   are nearly indistinguishable — bulge peak at 48.8% vs 50% of
+//!   height, peak half-width 1.415 vs 1.375, MEASURED (and Evan
+//!   could not see the difference on the #218 sheet, which is the
+//!   review this curation answers). The SCENE re-places the same
+//!   sections at z = 0/0.15/2 — same sections, same total height,
+//!   ONLY the middle placement moves — driving the bulge to
+//!   half-width 1.646 at 32.6% of height: silhouette-obvious.
+//! - `s_duct` — standalone since montage-v2 (Evan, #218 follow-up:
+//!   the S SOLID is two glued partial revolves, shape for shape, so
+//!   as a cell it demonstrated the one-op path, not an unreachable
+//!   shape). Still the fixture candidate for the next corpus fold;
+//!   the corpus's sweep constant remains the quarter-arc
+//!   `common/mod.rs::swept_elbow()`.
+//! - `twisted_duct` — the sweep CELL since montage-v2: the twisted
+//!   cubic (At, Bt², Ct³), the class NO assembly of revolves
+//!   reaches — its torsion is nowhere zero (τ = 12ABC/|r′×r″|²,
+//!   constant numerator), while a revolve's spine is a planar
+//!   circular arc and gluing revolves only concatenates planar arcs.
+//!   Two shadow-proof standalone renders ride beside it
+//!   (`twisted_duct_shadow_{z,y}`, the silhouette3 pattern): the
+//!   z-shadow is a parabola (no inflection), the y-shadow a cubic S
+//!   (one inflection) — parallel projections of a PLANAR curve are
+//!   all affine images of one another, and affine maps preserve
+//!   inflection count, so no planar spine casts both. Fixture
+//!   candidate alongside the S.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -226,17 +241,19 @@ fn prism_sections() -> Vec<SectionSegments> {
 /// only the section spacing differs, so they share a camera and read
 /// as a pair on the sheet), then the curved-path sweep.
 pub fn stops() -> Vec<Stop> {
-    // Both lofts are 2 m and 3 m tall columns flaring in x at one
-    // height, so the story-bearing silhouette is the xz PROFILE: a
-    // near-face-on ±y camera puts the ±x walls edge-on and the flare
-    // becomes a bulge in the outline itself — the prism's peak at
-    // mid-height, the non-uniform's at one third with its long taper —
-    // rather than a shading difference (#218 review: the pair must be
-    // distinct in profile, not shading). 10° of azimuth and elevation
-    // keep a sliver of side wall and top for depth; cos 10° ≈ 0.985,
-    // so the profile stays essentially unforeshortened. Shared by the
-    // pair on purpose (the minimal-pair principle: same camera makes
-    // the difference attributable to the geometry).
+    // Both lofts are 2 m tall columns flaring in x at one height, so
+    // the story-bearing silhouette is the xz PROFILE: a near-face-on
+    // ±y camera puts the ±x walls edge-on and the flare becomes a
+    // bulge in the outline itself — the prism's symmetric peak
+    // (half-width 1.375) at mid-height, the non-uniform's fatter peak
+    // (half-width 1.646, wider than ANY authored section) at 32.6%
+    // with its long upper taper — rather than a shading difference
+    // (#218 review: the pair must be distinct in profile, not
+    // shading). 10° of azimuth and elevation keep a sliver of side
+    // wall and top for depth; cos 10° ≈ 0.985, so the profile stays
+    // essentially unforeshortened. Shared by the pair on purpose (the
+    // minimal-pair principle: same camera makes the difference
+    // attributable to the geometry).
     let loft_view = || View {
         elev: 10.0,
         azim: -80.0,
@@ -246,26 +263,37 @@ pub fn stops() -> Vec<Stop> {
     let prism = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
         .expect("shape (iii) loft builds")
         .body;
-    let nonuniform = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 3.0]), 2)
+    // Montage-v2 spacing: z = 0/0.15/2, not the corpus fixture's
+    // 0/1/3. Measured on the #218 sheet, 0/1/3 was invisible as a
+    // pair member: its bulge peaks at 48.8% of height with half-width
+    // 1.415 vs the prism's 50%/1.375 — the same silhouette, scaled.
+    // Same sections at 0/0.15/2 keep the pair TRULY minimal (same
+    // sections, same height, only the middle placement moves) and
+    // the chord-length parameterization makes the skin overshoot
+    // dramatically (numbers in the stop's note). The corpus fixture
+    // keeps 0/1/3 — this scene now LEADS the corpus, the s_duct/lily
+    // precedent.
+    let nonuniform = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 0.15, 2.0]), 2)
         .expect("the non-uniform loft builds")
         .body;
 
-    // The S path (#218 review): the corpus's quarter-arc elbow is
-    // revolve-expressible — a square swept along ONE planar arc is a
-    // partial revolve's orbit, so its cell demonstrated nothing a
-    // revolve couldn't and sat next to the (deliberately torus-class)
-    // tube cell looking like its sibling. A single-axis revolve can
-    // only bend one way; this path bends BOTH ways: two opposed
-    // quarter arcs of radius R in the world x = 0 plane, sampled at 17
-    // exact points and interpolated at degree 3 (the path is the
-    // cubic interpolant through the S — the sweep machinery consumes
-    // any NurbsCurve3, #210). Tangent runs +z → +y → +z; never
-    // reversed, so the path-following frame is total. The QUARTER-ARC
+    // The S path (#218 review; DEMOTED to standalone at montage-v2):
+    // two opposed quarter arcs of radius R in the world x = 0 plane,
+    // sampled at 17 exact points and interpolated at degree 3 (the
+    // sweep machinery consumes any NurbsCurve3, #210). Tangent runs
+    // +z → +y → +z; never reversed, so the path-following frame is
+    // total. Evan's follow-up question was exactly right, though: as
+    // a SHAPE the S solid is two glued partial revolves (each planar
+    // circular-arc sweep of the square IS a partial revolve's orbit,
+    // and the halves glue at the inflection), so the cell showed a
+    // one-op construction, not an unreachable shape class. The
+    // unreachable class needs a NON-PLANAR spine — `twisted_duct`
+    // below, the sheet's sweep cell since montage-v2. The QUARTER-ARC
     // elbow stays the corpus/suite constant
     // (step-export/tests/common/mod.rs::swept_elbow,
     // sweep/tests/m7_skin_integral.rs, mesh/tests/m7_nurbs_trimmed.rs);
-    // this scene LEADS the corpus (the lily precedent) — the S sweep
-    // is a fixture CANDIDATE for the next corpus fold.
+    // the S sweep remains a fixture CANDIDATE for the next corpus
+    // fold.
     let s_points: Vec<Point3<f64>> = (0..=8)
         .map(|k| {
             let th = core::f64::consts::FRAC_PI_2 * f64::from(k) / 8.0;
@@ -298,7 +326,7 @@ pub fn stops() -> Vec<Stop> {
     // continuum volume is A·L = (2h)²·(2·R·π/2).
     let a_times_l = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * (2.0 * S_R * core::f64::consts::FRAC_PI_2);
 
-    vec![
+    let mut stops = vec![
         Stop {
             name: "loft_prism",
             caption: "loft_prism (3 sections, non-affine middle)".to_string(),
@@ -326,28 +354,37 @@ pub fn stops() -> Vec<Stop> {
         },
         Stop {
             name: "nonuniform_loft",
-            caption: "nonuniform_loft (the minimal pair: z = 0/1/3)".to_string(),
+            caption: "nonuniform_loft (same sections, spacing skewed)".to_string(),
             montage: true,
-            story: "loft_prism's OWN three sections re-placed at z = 0, 1, 3 — spacing \
-                    1 : 2 instead of 1 : 1, and nothing else changed. The flare sits a \
-                    third of the way up instead of at mid-height, and the skin fit's \
-                    synthesized weight channel has to survive a non-uniform \
-                    parameterization: until #207 its LU round-trip landed an ulp off \
-                    1.0 on exactly this input, the walls came out bitwise RATIONAL, and \
-                    the body refused at assembly",
-            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/3, v_degree 2)",
+            story: "loft_prism's OWN three sections, same 2 m height, and ONLY the \
+                    middle placement moved: z = 0, 0.15, 2 instead of 0, 1, 2 — the \
+                    true minimal pair. The degree-2 skin interpolates through the \
+                    crowded spacing and OVERSHOOTS: the wall bulges to half-width \
+                    1.646 — wider than any authored section (the trapezoid stops at \
+                    1.375) — peaking at 32.6% of the height, with a long taper above. \
+                    Same skin-fit lane whose synthesized weight channel used to land \
+                    an ulp off 1.0 on non-uniform spacings and refuse at assembly \
+                    (#207)",
+            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/0.15/2, v_degree 2)",
             delta: 6e-3,
             note: Some(
-                "the corpus fixture VERBATIM \
-                 (step-export/tests/common/mod.rs::nonuniform_loft, #210/#207) — the \
-                 minimal pair with loft_prism, shown WITH it and under the same camera. \
-                 The v-parameterization is NOT [0, 1/3, 1]: skin_parameters averages \
-                 cumulative CHORD lengths, and the trapezoid's flare lengthens the \
-                 first chord, so t = sqrt(73)/(sqrt(73) + sqrt(265)) = \
-                 0.34419950074181277 and the derived volume is \
-                 V = 12 + 0.375/(t(1-t)) = 12.75 + 126.75/sqrt(19345) = \
-                 13.661304680798798 m^3 (the naive 1/3 would say 13.6875 — out by \
-                 1.9e-3 relative, 1.6e8 times the certified pad)"
+                "the scene LEADS the corpus since montage-v2 (the s_duct/lily \
+                 precedent) — the corpus fixture keeps z = 0/1/3 \
+                 (step-export/tests/common/mod.rs::nonuniform_loft, #210/#207), whose \
+                 bulge (peak 48.8% of height, half-width 1.415) is visually the \
+                 prism's silhouette rescaled; MEASURED before this re-spacing. \
+                 Derivation at 0/0.15/2: skin_parameters averages cumulative CHORD \
+                 lengths over the first strip's control rows (the flared bottom \
+                 corners), so t = 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) = \
+                 0.17625368909901809; the corner flare is the quadratic Lagrange \
+                 bump lambda(v) = v(1-v)/(t(1-t)), slice area 4 + 2d*lambda \
+                 (d = 0.375), z(v) the quadratic through (0,0),(t,0.15),(1,2), and \
+                 int v(1-v) z'(v) dv = H/6 for ANY quadratic z, so \
+                 V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)) = 9.721901523222 m^3 \
+                 (quadrature agrees at pad ~1e-13). Peak half-width \
+                 1 + d/(4t(1-t)) = 1.6457 at z(1/2) = 0.6513 = 32.6% of height. A \
+                 naive z-proportional parameterization (t = 0.075) would say \
+                 11.604 m^3 — 19% off: the chord-length choice is load-bearing"
                     .to_string(),
             ),
             view: loft_view(),
@@ -359,16 +396,22 @@ pub fn stops() -> Vec<Stop> {
         },
         Stop {
             name: "s_duct",
-            caption: "s_duct (a sweep no revolve can orbit)".to_string(),
-            montage: true,
+            caption: "s_duct (an S path in ONE sweep op)".to_string(),
+            // Standalone since montage-v2 (Evan, #218 follow-up): the
+            // S SOLID is glued-revolves-expressible, so the honest
+            // not-a-revolve cell is `twisted_duct`; this scene stays
+            // alive as the one-op planar-S construction and the
+            // corpus-fold candidate.
+            montage: false,
             story: "a 0.5 m square profile swept through an S: two OPPOSED quarter \
                     arcs of radius 2, 13 stations, v-degree 3. A single-axis revolve \
-                    can only bend one way around its axis — a path whose curvature \
-                    changes sign is the shape class only the sweep machinery reaches, \
-                    and the reversal is in the silhouette itself. The frame is \
-                    path-following (each station turns the profile by the minimal \
-                    rotation carrying the start tangent to its own; on a planar path \
-                    that rotation axis is fixed, so the square never rolls)",
+                    can only bend one way, so ONE revolve cannot make this — though \
+                    two glued partial revolves could (each planar arc sweep is a \
+                    partial revolve's orbit), which is why the montage's sweep cell \
+                    is now the non-planar twisted_duct. The frame is path-following \
+                    (each station turns the profile by the minimal rotation carrying \
+                    the start tangent to its own; on a planar path that rotation axis \
+                    is fixed, so the square never rolls)",
             ops: "sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
                   quarter arcs, degree-3 interpolant through 17 exact points), \
                   13 stations, v_degree 3)",
@@ -380,8 +423,7 @@ pub fn stops() -> Vec<Stop> {
                  sweep/tests/m7_skin_integral.rs's, also \
                  mesh/tests/m7_nurbs_trimmed.rs's), and this S sweep is the fixture \
                  CANDIDATE for the next corpus fold — sweep_body had ZERO successful \
-                 curved-path callers before #207, and #218's review asked for a cell a \
-                 revolve could NOT have produced. The volume expectation is A*L = \
+                 curved-path callers before #207. The volume expectation is A*L = \
                  (2h)^2 * 2R * pi/2 = {a_times_l:.9} m^3 (planar path, centroid on \
                  path, symmetric section: the curvature moment cancels), approached \
                  through two discretizations — 13 stations and the path interpolant — \
@@ -400,5 +442,167 @@ pub fn stops() -> Vec<Stop> {
             },
             bodies: vec![SceneBody::plain("s_duct", [0.72, 0.45, 0.30], s_duct)],
         },
-    ]
+    ];
+
+    // ---- The twisted duct: the sweep cell (montage-v2) ----------
+    //
+    // The twisted cubic r(t) = (At, Bt², Ct³), t ∈ [−1, 1] — THE
+    // canonical nonzero-torsion curve. τ = 12ABC/|r′×r″|² has a
+    // CONSTANT numerator, so the spine is nowhere-planar: no point
+    // has an osculating plane the curve stays in, and its curvature
+    // varies continuously too (no arc segment anywhere — the path is
+    // the degree-3 interpolant through 33 exact points). A revolve's
+    // spine is a planar circular arc; gluing revolves concatenates
+    // planar arcs — nothing glued from revolves has a spine with
+    // nonzero torsion. MEASURED path-vocabulary context (montage-v2
+    // probe): full helix turns refuse typed today (ReversedStacking
+    // past ~half a turn of position stacking; the corner-path chord
+    // meter — nurbs_span_meter — collapses when the frame's roll
+    // makes a corner path double back), so the twisted cubic, whose
+    // tangent stays within a modest cone of its chord, is the
+    // strongest REACHABLE nonzero-torsion demonstration, and it is
+    // the mathematically definitive one.
+    let (tc_a, tc_b, tc_c) = (2.2, 1.3, 1.5);
+    let cubic_points: Vec<Point3<f64>> = (0..=32)
+        .map(|k| {
+            let t = 2.0f64.mul_add(f64::from(k) / 32.0, -1.0);
+            Point3::new(tc_a * t, tc_b * t * t, tc_c * t * t * t)
+        })
+        .collect();
+    let cubic_path =
+        geom_curves::NurbsCurve3::interpolate(&cubic_points, 3).expect("the cubic interpolates");
+    // Profile plane normal to the start tangent (the same frame
+    // recipe the narration uses).
+    let place = {
+        let (lo, _) = cubic_path.domain();
+        let d = cubic_path.deriv(lo);
+        let n = d / d.norm();
+        let helper = if n.z.abs() < 0.9 {
+            Vec3::unit_z()
+        } else {
+            Vec3::unit_x()
+        };
+        let u = helper.cross(n);
+        let u = u / u.norm();
+        SketchPlane::from_frame(cubic_path.eval(lo), u, n.cross(u)).placement
+    };
+    let twisted = sweep::sweep_body::<f64>(
+        &quad([
+            (-ELBOW_H, -ELBOW_H),
+            (ELBOW_H, -ELBOW_H),
+            (ELBOW_H, ELBOW_H),
+            (-ELBOW_H, ELBOW_H),
+        ]),
+        place,
+        &cubic_path,
+        17,
+        3,
+    )
+    .expect("the twisted-cubic sweep body builds")
+    .body;
+
+    // Continuum volume expectation A·L for ANY normal-section frame
+    // of a centered symmetric profile (the curvature moment cancels
+    // by symmetry and roll about the tangent drops out of the
+    // Jacobian): L here is the interpolant's arc length, computed by
+    // composite Simpson on ‖dC/dt‖ — no elementary closed form for
+    // ∫√(A² + 4B²t² + 9C²t⁴) dt.
+    let interp_len = {
+        let (lo, hi) = cubic_path.domain();
+        let n = 4096;
+        let f = |t: f64| cubic_path.deriv(t).norm();
+        let mut s = f(lo) + f(hi);
+        for i in 1..n {
+            let w = if i % 2 == 1 { 4.0 } else { 2.0 };
+            #[allow(clippy::cast_precision_loss)]
+            let t = ((hi - lo) / n as f64).mul_add(i as f64, lo);
+            s += w * f(t);
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let h = (hi - lo) / n as f64;
+        s * h / 3.0
+    };
+    let tc_al = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * interp_len;
+    let tau0 = 3.0 * tc_c / (tc_a * tc_b);
+
+    let twisted_color = [0.58, 0.42, 0.66];
+    let shadow = |name: &'static str, caption: String, elev: f64, azim: f64| Stop {
+        name,
+        caption,
+        montage: false,
+        story: "shadow proof: the twisted duct viewed straight down one axis — \
+                parallel projections of a PLANAR curve are all affine images of one \
+                another, and affine maps preserve inflection count, so a parabola \
+                (no inflection) down z and a cubic S (one inflection) down y prove \
+                the spine is planar in NO plane",
+        ops: "same body as twisted_duct; axis view",
+        delta: 1e-2,
+        note: None,
+        view: View {
+            elev,
+            azim,
+            up: 'z',
+        },
+        bodies: vec![SceneBody::plain(name, twisted_color, twisted.clone())],
+    };
+
+    stops.push(Stop {
+        name: "twisted_duct",
+        caption: "twisted_duct (nowhere-zero torsion)".to_string(),
+        montage: true,
+        story: "a 0.5 m square swept along the TWISTED CUBIC (2.2t, 1.3t², 1.5t³), \
+                17 stations, v-degree 3 — a spine with nowhere-zero TORSION and \
+                continuously varying curvature, no arc anywhere. A revolve's spine \
+                is a planar circular arc, and gluing revolves only concatenates \
+                planar arcs, so NO assembly of revolves reaches this body — unlike \
+                the planar S (s_duct, standalone), which two glued partial revolves \
+                could fake. The square visibly rolls as the bend plane turns: the \
+                path-following frame carries it through the spine's torsion",
+        ops: "sweep::sweep_body(square(h = 0.25), twisted cubic (At, Bt^2, Ct^3), \
+              A/B/C = 2.2/1.3/1.5, degree-3 interpolant through 33 exact points, \
+              17 stations, v_degree 3)",
+        delta: 5e-3,
+        note: Some(format!(
+            "torsion tau = 12ABC/|r' x r''|^2 — CONSTANT numerator 12ABC = \
+             {:.2}, so tau > 0 everywhere (peak tau(0) = 3C/(AB) = {tau0:.4} \
+             m^-1) — and curvature varies continuously with it; the shadow pair \
+             (twisted_duct_shadow_z: a parabola; twisted_duct_shadow_y: a cubic S) \
+             is the planarity REFUTATION, since parallel projections of a planar \
+             curve are affine images of each other and cannot differ in inflection \
+             count. Volume expectation A*L = {tc_al:.9} m^3 (L by quadrature over \
+             the interpolant; centered symmetric section, so the curvature moment \
+             cancels and frame roll drops out), approached through the two \
+             discretizations, not equalled. Fixture CANDIDATE for the next corpus \
+             fold, beside the S",
+            12.0 * tc_a * tc_b * tc_c
+        )),
+        // The spine's biggest excursion is the cubic S in the xz
+        // plane (down −y) with the parabolic bow in y adding depth;
+        // 25° of azimuth off −y and a low elevation keep BOTH visible
+        // as outline: the S reads directly, and the near end's roll
+        // (the square's ridge lines turning) reads against it.
+        view: View {
+            elev: 14.0,
+            azim: -65.0,
+            up: 'z',
+        },
+        bodies: vec![SceneBody::plain(
+            "twisted_duct",
+            twisted_color,
+            twisted.clone(),
+        )],
+    });
+    stops.push(shadow(
+        "twisted_duct_shadow_z",
+        "z-shadow: a parabola (no inflection)".to_string(),
+        90.0,
+        -90.0,
+    ));
+    stops.push(shadow(
+        "twisted_duct_shadow_y",
+        "y-shadow: a cubic S (one inflection)".to_string(),
+        0.0,
+        -90.0,
+    ));
+    stops
 }
