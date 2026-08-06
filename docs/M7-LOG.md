@@ -874,3 +874,18 @@ fallback frame from this session's concurrent-renderer accident
 runs created; the #220 rerun queued ~4h) — #221 merges on
 Evan's 👍 under the standing waiver, hosted evidence late via
 task-#16's sweep.
+
+**M6-6 substrate returned + spec written (2026-08-06).** The
+executed truth table is STARKER than the ratifying thread knew:
+NO gate catches any single-face curved flip (all four kinds
+bit-identical or Zero-exempt), and fully inside-out
+washer/cone/donut/lily certify GREEN positive — plus a NEW
+executed import gap (cylinder/cone_apex flips import green; the
+torus normalization check has no siblings — now the spec's
+rider). Extension surface clean: one factoring
+(boundary_material_sign) + a curved check-6 arm, combinatorial
+(no comparand — margin convention satisfied by reuse of the
+length-metered named decides). Coexist-not-subsume ruled for
+the import torus refusal. No forks. **A/B block M7-8: M6-6
+difficulty logged LOW-M BEFORE the draw.** Draw after this
+commit.
