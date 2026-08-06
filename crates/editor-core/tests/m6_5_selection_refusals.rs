@@ -310,7 +310,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
                 tie,
             } => {
                 assert_eq!(*name, tied);
-                assert_eq!(candidates.as_slice(), &[tied.clone()]);
+                assert_eq!(candidates.as_slice(), std::slice::from_ref(&tied));
                 assert_eq!(tie.at, tied);
                 assert!(tie.width >= 2, "a tie has at least two candidates");
             }
