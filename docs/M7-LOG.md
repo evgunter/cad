@@ -712,3 +712,12 @@ OPUS. Both dispatched: lanes margin-migrate (slot 1) +
 corpus-fold (slot 2), disjoint footprints (geom-brep/topo
 classify sites vs sweep tests + fixture corpus). PRs held for
 blinded review per standing process.
+
+**Block M7-6 staged (2026-08-06): montage refresh (Evan's #212
+ask) — difficulty logged S BEFORE the draw** (scene
+constructions for swept_elbow / nonuniform_loft / loft_prism /
+tube_along_arc in the demos corpus, cells on both montage
+lanes, renders through the stripped pipeline, cell-count pin;
+the render-stamp unit makes the diff clean). Draw after this
+commit; the block's remainder owed to the next eligible unit
+(candidates: band-seam, stage-1 recognition, M6 unit 5).
