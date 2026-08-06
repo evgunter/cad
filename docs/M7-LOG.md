@@ -801,3 +801,24 @@ assembly, nothing to reverse), renders on BOTH sheets with no
 placeholder, admesh clean (1 part, 0 defects × 3), clean-re-render
 verified twice through the stripped pipeline. Suites: mesh 73 + sweep
 338 + stl + topo + editor-core all green.
+
+**#218 review revisions (2026-08-06, same lane): the three cells
+re-posed for silhouette legibility.** Evan's two visual findings, both
+structural and both fixed at the geometry/pose level rather than
+shading: (1) the loft minimal pair now shares a near-face-on xz
+PROFILE camera (elev 10 / azim −80) — the flare is in x, so the
+mid-height vs one-third bulge is the outline itself; (2) the sweep
+cell's quarter-arc elbow was revolve-expressible (a square on ONE
+planar arc is a partial revolve's orbit), so the cell becomes
+`s_duct`: two OPPOSED R = 2 quarter arcs, degree-3 interpolant
+through 17 exact points, 13 stations — curvature changes sign, which
+no single-axis revolve can produce, and the S is posed edge-on. The
+quarter-arc elbow REMAINS the corpus/suite constant (common/mod.rs,
+m7_skin_integral, m7_nurbs_trimmed); the scene LEADS the corpus (lily
+precedent) and the S sweep is the fixture candidate for the next
+corpus fold. The tube cell keeps its torus-class shape with the
+README stating that as its point (the door's exactness), the
+not-a-revolve geometry living next door. Operational note: this
+host's render passes contended with a concurrent review-lane FreeCAD
+session (GL-context failures, one matplotlib-fallback near-miss
+caught before commit); re-render serialized behind it.

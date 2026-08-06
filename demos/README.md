@@ -55,7 +55,10 @@ and the three shadow proofs (`silhouette3_shadow_{z,x,y}`). 31 − 9 =
 22. The count was 18 at the globe lily; the **montage refresh** added
 `tube_along_arc` (19), and the trimmed-NURBS tessellation lane landed
 the refresh's three blocked NURBS-walled scenes (`loft_prism`,
-`nonuniform_loft`, `swept_elbow` — the skinned stops, 22).
+`nonuniform_loft`, and the sweep cell — the skinned stops, 22). At the
+#218 review the sweep cell became `s_duct`: the corpus's quarter-arc
+elbow is revolve-expressible, so the CELL carries an S no revolve can
+orbit (the elbow stays the corpus/suite constant).
 
 - `renders/montage.png` — **the kernel's own facets**. Every cell
   renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
@@ -100,10 +103,10 @@ costs one cell, never the sheet).
 | `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
 | `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
 | `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
-| `tube_along_arc` | **the tube door, with its intent parameters on screen** (M6-3 Leg F, the Evan-ratified rider on the #175 thread): a ring-torus tube built from spine centre / axis / reference direction / major radius 2 / window `[0.25, 1.75]` rad / minor radius 0.5 — `sweep/tests/m6_tube.rs`'s wedge, constant for constant. The sheave's groove and the lily's stem tubes already carry torus walls, but both arrive by `revolve`, which RECONSTRUCTS the tube radius from the profile's bulge arcs (the lily drifts 3.9e-16; the review donut drifted 56 ulps). This door stores what it was given: the scene asserts `minor_radius.to_bits() == 0.5f64.to_bits()` on **both** half-tube walls, on the scene body itself. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census (2 walls + 2 caps), sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀); montage panel |
+| `tube_along_arc` | **the tube door, with its intent parameters on screen** (M6-3 Leg F, the Evan-ratified rider on the #175 thread): a ring-torus tube built from spine centre / axis / reference direction / major radius 2 / window `[0.25, 1.75]` rad / minor radius 0.5 — `sweep/tests/m6_tube.rs`'s wedge, constant for constant. The sheave's groove and the lily's stem tubes already carry torus walls, but both arrive by `revolve`, which RECONSTRUCTS the tube radius from the profile's bulge arcs (the lily drifts 3.9e-16; the review donut drifted 56 ulps). This door stores what it was given: the scene asserts `minor_radius.to_bits() == 0.5f64.to_bits()` on **both** half-tube walls, on the scene body itself. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census (2 walls + 2 caps), sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀); montage panel. **Torus-class ON PURPOSE** (#218 review): the cell's content is the exactness of the STORED intent parameters, so its resemblance to a partial revolve's output is the point, not a redundancy — the not-a-revolve geometry lives in the neighboring `s_duct` cell |
 | `loft_prism` | **the first NURBS-walled render** (the trimmed-NURBS tessellation lane, M7): R5 shape (iii) — squares at z = 0/2, a NON-AFFINE trapezoid at z = 1, skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. The corpus fixture VERBATIM (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 16d/3 = 9 m³ (d = 0.375); montage panel |
 | `nonuniform_loft` | `loft_prism`'s minimal pair (#210/#207): the SAME sections at z = 0, 1, 3 — only the spacing changes, the input that used to drive the skin fit's weight channel an ulp off 1.0 and refuse at assembly. Shares `loft_prism`'s camera so the pair reads as a pair; derived V = 12.75 + 126.75/√19345 m³ from the chord-length middle parameter; montage panel |
-| `swept_elbow` | **the first CURVED-path sweep body on the sheet** (#210/#207): a 0.5 m square carried through a 90° arc of radius 3 at nine stations, v-degree 3 — walls degree 1×3, one patch each, path-following frame. `sweep/tests/m7_skin_integral.rs`'s elbow, constant for constant; volume CONVERGES to the quarter-torus Pappus value (≈4e-6 relative at nine stations); montage panel |
+| `s_duct` | **the first CURVED-path sweep body on the sheet, posed as a shape no revolve can make** (#210/#207; #218 review): a 0.5 m square swept through an S — two OPPOSED quarter arcs of radius 2 (degree-3 interpolant through 17 exact points), 13 stations, v-degree 3, walls degree 1×3, path-following frame (planar path ⇒ no roll). A single-axis revolve can only bend one way, so the sign change in the path's curvature is visible in the silhouette itself. The scene LEADS the corpus (lily precedent): the round-trip corpus's sweep constant remains the revolve-expressible quarter-arc `swept_elbow` fixture (`step-export/tests/common/mod.rs`, `sweep/tests/m7_skin_integral.rs`, `mesh/tests/m7_nurbs_trimmed.rs`), and the S sweep is the fixture CANDIDATE for the next corpus fold. Volume expectation A·L = (2h)²·2R·π/2 (curvature moment cancels), approached through the two discretizations; montage panel |
 | `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op; standalone render since the M6 curation pass |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
 | `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T (equal letter heights); the NAIVE coincident-plane variant's tier-3′ refusal is narrated (the coincidence ladder made visible); standalone render (the montage carries only the 3-way) |
@@ -183,7 +186,7 @@ instructions. The pattern (pin the honest refusal, name the PR that
 flips it) remains available for the next frontier. `skinned.rs`'s
 narration-level pin of the loft-solid frontier retired the same way:
 the trimmed-NURBS tessellation lane landed and the module's three
-scenes (`loft_prism`, `nonuniform_loft`, `swept_elbow`) joined the
+scenes (`loft_prism`, `nonuniform_loft`, `s_duct`) joined the
 standard ladder — the narration stays as the geometry layer (control
 nets, weights, the measured interpolation claim), which no render can
 show.
@@ -223,8 +226,8 @@ tube-door wedge is one more of those with two plain wedge caps
 different reason: an ANALYTIC chart has a canonical normal the wall may
 oppose, but a NURBS wall's description is authored by the loft/sweep
 assembly itself, outward by construction — there is never anything to
-reverse regardless of concavity (the elbow's inner wall is concave and
-still `.T.`; checked: 6 `.T.`, 0 `.F.` on each of the three).
+reverse regardless of concavity (the s_duct's inner walls are concave
+and still `.T.`; checked: 6 `.T.`, 0 `.F.` on each of the three).
 (The lily's lanterns reverse on
 their MOUTH disc, not on a curved wall: a revolve mints both cap planes
 on the profile plane's own +y normal, so exactly one cap opposes the
