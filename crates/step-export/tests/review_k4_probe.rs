@@ -28,5 +28,5 @@ fn k4_sidecar_volume_literals_round_trip_bit_exact() {
             n += 1;
         }
     }
-    assert_eq!(n, 30, "15 fixtures x 2 literals");
+    assert_eq!(n, 34, "17 fixtures x 2 literals");
 }
