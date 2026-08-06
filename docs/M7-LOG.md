@@ -696,7 +696,7 @@ all in the documented `-0.0 → 0.0` class — no new class, pinned by
 local runs (the new bodies do not enter the k-probe corpus; hosted
 k-lint stays the detector).
 
-**Trimmed-NURBS tessellation lane LANDED (PR TBD, ev/mesh-nurbs-lane):
+**Trimmed-NURBS tessellation lane LANDED (PR #218, ev/mesh-nurbs-lane, HELD for adversarial review):
 the M6-3 frontier's second half — described NURBS faces RENDER.** The
 banked lane `trimmed.rs:28` named is promoted with two consumers. The
 per-triangle certificate is the torus derivation with a HULL-DERIVED
