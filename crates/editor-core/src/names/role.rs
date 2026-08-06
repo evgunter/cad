@@ -203,6 +203,20 @@ pub enum Qualifier {
     },
 }
 
+/// Which support of a rim blend an entity lies on (M6-5). A pair of
+/// structural roles, not a geometric classification: the surgery
+/// knows which support is which from the chain it resolved.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub enum RimSupport {
+    /// The planar support — the face carrying the rim as a ring.
+    Plane,
+    /// The curved support — the cap the rim bounds.
+    Curved,
+}
+
 /// One op-typed role segment (N1; closed enum, spec D2). Grouped by
 /// op; each group versions with its op's contract.
 #[derive(
@@ -331,6 +345,76 @@ pub enum RoleSeg {
         /// The operand vertex the plane passed through.
         of: Box<StableName>,
     },
+
+    // ---- Fillet (M6-5: the composition surgery's vocabulary) ----
+    //
+    // Every segment carries the SOURCE entity's OWN stable name, so a
+    // fillet name composes covariantly under an upstream bump exactly
+    // as the boolean emitter's `FromA`/`Seam` do: the target's names
+    // move, and these move with them, without this emitter deciding
+    // anything about geometry.
+    /// An entity carried through from the fillet's target (argument:
+    /// its name in the target's table) — a shrunk support face, an
+    /// untouched edge, a far vertex. The single-operand analogue of
+    /// [`RoleSeg::FromA`].
+    FromTarget(Box<StableName>),
+    /// The blend face rounding a source edge.
+    BlendFace(Box<StableName>),
+    /// The octant (sphere patch) rounding a source vertex.
+    CornerFace(Box<StableName>),
+    /// A trimline: where a blend meets ONE of its two supports. Both
+    /// arguments are needed — one source edge yields two trimlines,
+    /// discriminated by which support they lie in.
+    TrimEdge {
+        /// The source edge being blended.
+        edge: Box<StableName>,
+        /// The support face the trimline lies in.
+        support: Box<StableName>,
+    },
+    /// A blend foot: where a support's two trimlines meet, retracted
+    /// from a source corner vertex. One source vertex yields one foot
+    /// per incident support.
+    FootVertex {
+        /// The source corner vertex.
+        vertex: Box<StableName>,
+        /// The support face the foot lies in.
+        support: Box<StableName>,
+    },
+    /// A corner arc: where an octant meets one of its three incident
+    /// blends.
+    CornerArc {
+        /// The source corner vertex the octant rounds.
+        vertex: Box<StableName>,
+        /// The source edge whose blend the arc bounds.
+        edge: Box<StableName>,
+    },
+    /// The torus band face rounding a CLOSED chain (argument: the
+    /// chain's source edges as a sorted set — a rim is a cycle with no
+    /// distinguished first edge, so the SET is the covariant identity;
+    /// the N3 [`RoleSeg::Merged`] precedent, same canonical order).
+    BandFace(Vec<StableName>),
+    /// A band trimline on one support (a rim edge yields one per
+    /// side).
+    BandTrim {
+        /// The source rim edge this arc replaces.
+        edge: Box<StableName>,
+        /// Which support the arc lies on.
+        support: RimSupport,
+    },
+    /// A band foot: the planar-support vertex retracted from a source
+    /// rim vertex.
+    BandFoot(Box<StableName>),
+    /// The vertex where the band's curved-side trimline crossed a
+    /// source edge running off the rim (a cap meridian).
+    BandCross(Box<StableName>),
+    /// The surviving piece of a source edge the band's trimline cut
+    /// (the shortened meridian).
+    BandCut(Box<StableName>),
+    /// A band's SLIT: the double-traversed torus meridian that keeps
+    /// the annular band RING-FREE (`sweep::fillet::surgery`'s donut
+    /// representation). Argument: the source edge whose severed piece
+    /// became it.
+    BandSlit(Box<StableName>),
 
     // ---- Pattern ----
     /// Instance `i` of the pattern's master (i is the D8-structural

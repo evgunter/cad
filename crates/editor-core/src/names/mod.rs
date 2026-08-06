@@ -21,6 +21,7 @@
 
 mod discriminate;
 mod emit;
+mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
 mod role;
@@ -28,10 +29,44 @@ mod table;
 
 pub use emit::NamingError;
 pub(crate) use emit::{empty, name_pattern};
+pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
 pub use role::{
-    CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RolePath,
-    RoleSeg, SideVerdict, SplitHalf, StableName,
+    CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
+    RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
 };
 pub use table::{EntityKey, EntityRef, Entry, NameTable};
+
+/// **Every edge name of a node's output body, as of THIS evaluation**
+/// — the materializer for a whole-body fillet selection (M6-5, the
+/// F-a ruling).
+///
+/// [`crate::Node::Fillet`] has no "all edges" variant on purpose: a
+/// selection is a frozen commitment, and a live "all" would silently
+/// grow when an upstream edit adds an edge. This helper closes the gap
+/// the honest way — it hands back the set as it stands, the caller
+/// STORES it, and from then on it behaves like any other selection
+/// (the growth path is [`crate::DocEdit::Rebind`]).
+///
+/// Returns the names in canonical order, ready for
+/// [`crate::Node::fillet`]. Empty if `node` has no value, no table, or
+/// no edges — the fillet node itself refuses an empty selection, so
+/// the emptiness surfaces there rather than here.
+pub fn all_edges<T: geom_core::Decide>(
+    ev: &crate::eval::Evaluation<T>,
+    node: crate::node::RecipeNodeId,
+) -> Vec<StableName> {
+    let Some(crate::eval::NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+        return Vec::new();
+    };
+    let mut out: Vec<StableName> = value
+        .name_table
+        .iter()
+        .filter(|(name, _)| name.kind == EntityKind::Edge)
+        .map(|(name, _)| name.clone())
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}

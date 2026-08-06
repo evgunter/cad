@@ -715,18 +715,42 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             if from.node.0 >= new.next_id {
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
-            // One-shot rewrite of every EXACT reference (v1 sites:
-            // Declare pairs and appearance-store keys). Zero sites =
-            // nothing to repair, refused.
+            // One-shot rewrite of every EXACT reference (sites:
+            // Declare pairs, fillet selections, appearance-store
+            // keys). Zero sites = nothing to repair, refused.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
-                if let Node::Declare { pairs } = node {
-                    for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
-                        if name == from {
-                            *name = to.clone();
-                            declare_sites += 1;
+                match node {
+                    Node::Declare { pairs } => {
+                        for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
+                            if name == from {
+                                *name = to.clone();
+                                declare_sites += 1;
+                            }
                         }
                     }
+                    // The fillet selection's GROWTH PATH (M6-5,
+                    // ruled #217): a selection freezes, so the only
+                    // way it changes is an explicit Rebind. The
+                    // rewrite re-canonicalizes, because `to` may sort
+                    // elsewhere or already be present — a rebind onto
+                    // an already-selected edge SHRINKS the set by one
+                    // rather than duplicating it.
+                    Node::Fillet { selection, .. } => {
+                        let mut hits = 0usize;
+                        for name in selection.iter_mut() {
+                            if name == from {
+                                *name = to.clone();
+                                hits += 1;
+                            }
+                        }
+                        if hits > 0 {
+                            selection.sort();
+                            selection.dedup();
+                            declare_sites += hits;
+                        }
+                    }
+                    _ => {}
                 }
             }
             // Appearance keys are rebind sites (the attribute rides
@@ -764,10 +788,11 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             }
             EditRecord {
                 minted: None,
-                // Declare payloads changed: content keys move and the
-                // (PR 5) threading consumes the pairs — structural.
-                // An appearance-only rebind is presentation motion:
-                // no content key moves, nothing recomputes.
+                // Declare payloads or fillet selections changed:
+                // content keys move and the threading consumes them
+                // — structural. An appearance-only rebind is
+                // presentation motion: no content key moves, nothing
+                // recomputes.
                 structural: declare_sites > 0,
             }
         }
