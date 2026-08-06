@@ -1069,8 +1069,8 @@ fn the_accounting_receipt_is_bounded_and_reported() {
 /// `intersect_table` trio convention, applied to the SSI funnel.
 fn trio(name: &'static str) -> (geom_core::Sign, geom_core::Sign, bool) {
     let b = band();
-    let definite =
-        geom_core::k_stats::decide(name, Length::of(definitely_positive()), b).expect("definitely positive");
+    let definite = geom_core::k_stats::decide(name, Length::of(definitely_positive()), b)
+        .expect("definitely positive");
     let degenerate = geom_core::k_stats::decide(name, Length::of(0.0), b).expect("exactly zero");
     // Between `zero` and `escalate`: the F6 band, placed relative to
     // the band this run resolved (module note on `inside_the_band`).
@@ -1102,8 +1102,12 @@ fn ssi_closure_return_trio() {
     assert_eq!(d, geom_core::Sign::Positive);
     assert_eq!(z, geom_core::Sign::Zero);
     assert!(e);
-    let neg =
-        geom_core::k_stats::decide("ssi_closure_return", Length::of(-definitely_positive()), band()).unwrap();
+    let neg = geom_core::k_stats::decide(
+        "ssi_closure_return",
+        Length::of(-definitely_positive()),
+        band(),
+    )
+    .unwrap();
     assert_eq!(neg, geom_core::Sign::Negative, "still away from the seed");
 }
 
@@ -1129,12 +1133,15 @@ fn the_closure_tangent_arm_that_refuses_a_cusp_or_crossing() {
     // is what a consumer actually sees.
     let b = band();
     let closed =
-        geom_core::k_stats::decide("ssi_closure_tangent", Length::of(definitely_positive()), b).unwrap();
+        geom_core::k_stats::decide("ssi_closure_tangent", Length::of(definitely_positive()), b)
+            .unwrap();
     assert_eq!(closed, geom_core::Sign::Positive, "a genuine closure");
-    let perpendicular = geom_core::k_stats::decide("ssi_closure_tangent", Length::of(0.0), b).unwrap();
+    let perpendicular =
+        geom_core::k_stats::decide("ssi_closure_tangent", Length::of(0.0), b).unwrap();
     assert_eq!(perpendicular, geom_core::Sign::Zero, "a crossing");
     let reversed =
-        geom_core::k_stats::decide("ssi_closure_tangent", Length::of(-definitely_positive()), b).unwrap();
+        geom_core::k_stats::decide("ssi_closure_tangent", Length::of(-definitely_positive()), b)
+            .unwrap();
     assert_eq!(reversed, geom_core::Sign::Negative, "a cusp / retrace");
     // Both non-Positive arms produce this refusal, and it says so.
     let err = SsiError::SelfCrossingLocus {

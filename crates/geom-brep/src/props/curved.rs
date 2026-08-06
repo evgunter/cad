@@ -224,7 +224,11 @@ fn same_level<T: Decide>(
         // structurally impossible; a poisoned margin turns it into a
         // typed escalation rather than a panic (D9).
         _ => {
-            classify("props_rim_level_group", Length::of(T::from_f64(f64::NAN)), band)?;
+            classify(
+                "props_rim_level_group",
+                Length::of(T::from_f64(f64::NAN)),
+                band,
+            )?;
             Ok(false)
         }
     }
@@ -254,8 +258,11 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, Props
         let mut placed = false;
         for g in &mut groups {
             let same = same_level(rim.level, g.0, arm, band)?;
-            let same_dir =
-                classify("props_rim_dir_group", Length::levered(rim.d_u - g.1, arm), band)? == Sign::Zero;
+            let same_dir = classify(
+                "props_rim_dir_group",
+                Length::levered(rim.d_u - g.1, arm),
+                band,
+            )? == Sign::Zero;
             if same && same_dir {
                 g.2 = g.2 + rim.dt;
                 placed = true;
@@ -268,7 +275,11 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, Props
     }
     let total = groups[0].2;
     for g in &groups[1..] {
-        require_zero("props_du_consistent", Length::levered(g.2 - total, arm), band)?;
+        require_zero(
+            "props_du_consistent",
+            Length::levered(g.2 - total, arm),
+            band,
+        )?;
     }
     Ok(total)
 }
@@ -342,7 +353,11 @@ fn cylinder<T: Decide>(
                 radius: r_c,
                 ..
             } => {
-                let s = classify("props_circle_axis_class", Length::levered(n_c.dot(axis), r_c), band)?;
+                let s = classify(
+                    "props_circle_axis_class",
+                    Length::levered(n_c.dot(axis), r_c),
+                    band,
+                )?;
                 if s == Sign::Zero {
                     return Err(PropsError::NotIsoRectangle {
                         what: "cylinder boundary circle is not a rim",
@@ -449,7 +464,11 @@ fn cone<T: Decide>(
                 radius: r_c,
                 ..
             } => {
-                let s = classify("props_circle_axis_class", Length::levered(n_c.dot(axis), r_c), band)?;
+                let s = classify(
+                    "props_circle_axis_class",
+                    Length::levered(n_c.dot(axis), r_c),
+                    band,
+                )?;
                 if s == Sign::Zero {
                     return Err(PropsError::NotIsoRectangle {
                         what: "cone boundary circle is not a rim",
@@ -557,7 +576,11 @@ fn sphere<T: Decide>(
                 },
             });
         };
-        let s = classify("props_circle_axis_class", Length::levered(n_c.dot(axis), r_c), band)?;
+        let s = classify(
+            "props_circle_axis_class",
+            Length::levered(n_c.dot(axis), r_c),
+            band,
+        )?;
         match s {
             Sign::Positive | Sign::Negative => {
                 let w = c_c - center;
@@ -606,7 +629,11 @@ fn sphere<T: Decide>(
             });
         };
         for &n in rest {
-            require_zero("props_band_coplanar", Length::levered(n.cross(first).norm(), radius), band)?;
+            require_zero(
+                "props_band_coplanar",
+                Length::levered(n.cross(first).norm(), radius),
+                band,
+            )?;
         }
         du = T::pi();
         // The one orientation fact no rim encodes (see the fn docs):
@@ -679,7 +706,11 @@ fn torus<T: Decide>(
                 },
             });
         };
-        let s = classify("props_circle_axis_class", Length::levered(n_c.dot(axis), r_c), band)?;
+        let s = classify(
+            "props_circle_axis_class",
+            Length::levered(n_c.dot(axis), r_c),
+            band,
+        )?;
         match s {
             Sign::Positive | Sign::Negative => {
                 let h = (c_c - center).dot(axis);
@@ -714,7 +745,11 @@ fn torus<T: Decide>(
                 // below only excludes n_c ⊥ τ̂). Margin
                 // `n_c·(w − âh) = (n_c·ρ̂)·ρ`: the tilt metered at the
                 // tube-center distance (lever arm ρ ≈ R, meters).
-                require_zero("props_meridian_plane", Length::of(n_c.dot(w - axis * h)), band)?;
+                require_zero(
+                    "props_meridian_plane",
+                    Length::of(n_c.dot(w - axis * h)),
+                    band,
+                )?;
                 meridians.push(Meridian {
                     n_c,
                     c_c,
@@ -736,7 +771,11 @@ fn torus<T: Decide>(
     let w = m0.c_c - center;
     let rho_hat = (w - axis * w.dot(axis)).normalize();
     let tau = axis.cross(rho_hat);
-    let orient = classify("props_meridian_orient", Length::levered(m0.n_c.dot(tau), minor), band)?;
+    let orient = classify(
+        "props_meridian_orient",
+        Length::levered(m0.n_c.dot(tau), minor),
+        band,
+    )?;
     if orient == Sign::Zero {
         return Err(PropsError::NotIsoRectangle {
             what: "torus meridian orientation degenerate",

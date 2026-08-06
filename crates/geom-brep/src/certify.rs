@@ -940,7 +940,9 @@ fn run_checks<T: Decide>(
         // verdict may be fabricated from it — escalate, never guess.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
-            match geom_core::k_stats::decide_flagged("nurbs_span_meter", meter, band, "F7").map_err(span_escalated)? {
+            match geom_core::k_stats::decide_flagged("nurbs_span_meter", meter, band, "F7")
+                .map_err(span_escalated)?
+            {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(span_escalated(Indeterminate {

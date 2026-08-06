@@ -551,7 +551,9 @@ pub fn plane_cylinder_section<T: Decide>(
     };
 
     let c = a.dot(n);
-    match decide("pc_axis_plane_parallel", Length::levered(c, extent), band).map_err(SectionError::Escalated)? {
+    match decide("pc_axis_plane_parallel", Length::levered(c, extent), band)
+        .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {
             // The axis lies in the plane: line pair / tangent / empty
             // by the axis-to-plane gap vs the radius.
@@ -588,7 +590,9 @@ pub fn plane_cylinder_section<T: Decide>(
             let sin_norm = sin_vec.norm();
             let t_star = (q - o).dot(n) / c;
             let center = o + a * t_star;
-            match decide("pc_rim_alignment", Length::levered(sin_norm, r), band).map_err(SectionError::Escalated)? {
+            match decide("pc_rim_alignment", Length::levered(sin_norm, r), band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
                     center,
                     axis: a,
@@ -831,7 +835,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
-    match decide("cc_declared_radius_equality", Length::of(r1 - r2), band).map_err(SectionError::Escalated)? {
+    match decide("cc_declared_radius_equality", Length::of(r1 - r2), band)
+        .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => {
             return Err(SectionError::RadiusDeclarationContradicted);
@@ -840,7 +846,13 @@ pub fn cylinder_cylinder_section<T: Decide>(
 
     let cross = a1.cross(a2);
     let cross_norm = cross.norm();
-    match decide("cc_axes_parallel", Length::levered(cross_norm, extent), band).map_err(SectionError::Escalated)? {
+    match decide(
+        "cc_axes_parallel",
+        Length::levered(cross_norm, extent),
+        band,
+    )
+    .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {
             // Parallel axes: the cross-section is two equal circles at
             // center distance d.
@@ -852,7 +864,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
                 Sign::Positive | Sign::Negative => {}
             }
             let two = T::from_f64(2.0);
-            match decide("cc_parallel_gap", Length::of(two * r1 - d), band).map_err(SectionError::Escalated)? {
+            match decide("cc_parallel_gap", Length::of(two * r1 - d), band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Positive => {
                     let mid = o1 + d_vec * T::from_f64(0.5);
                     let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
@@ -879,7 +893,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
             // Crossing lane: coplanarity (intersecting vs skew).
             let w0 = o2 - o1;
             let gap = w0.dot(cross) / cross_norm;
-            match decide("cc_axes_coplanar", Length::of(gap), band).map_err(SectionError::Escalated)? {
+            match decide("cc_axes_coplanar", Length::of(gap), band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(SectionError::RoutesToGeneralRung {
@@ -1002,8 +1018,8 @@ pub fn plane_cone_section<T: Decide>(
             // Apex lane: generators g(u) = a·cosα + radial(u)·sinα with
             // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s).
             let discr = sin_a * s - cos_a * c.abs();
-            let verdict =
-                decide("pn_apex_section", Length::levered(discr, extent), band).map_err(SectionError::Escalated)?;
+            let verdict = decide("pn_apex_section", Length::levered(discr, extent), band)
+                .map_err(SectionError::Escalated)?;
             match verdict {
                 Sign::Positive | Sign::Zero => {
                     let v_ref = a.cross(cone_u);
@@ -1040,7 +1056,9 @@ pub fn plane_cone_section<T: Decide>(
             // R1 permanent routing.
             let h = (q - apex).dot(a);
             let rim_r = h.abs() * (sin_a / cos_a);
-            match decide("pn_axis_normal", Length::levered(s, rim_r), band).map_err(SectionError::Escalated)? {
+            match decide("pn_axis_normal", Length::levered(s, rim_r), band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
                     center: apex + a * h,
                     axis: a,
