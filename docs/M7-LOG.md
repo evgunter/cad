@@ -724,3 +724,25 @@ commit; the block's remainder owed to the next eligible unit
 Draw: byte 111 → **(opus, fable)** — montage = OPUS; fable
 remainder to the next eligible dispatch. Dispatched on lane
 montage-refresh (slot 2).
+
+**Montage refresh PARTIAL delivered (2026-08-06, PR #215
+merging on green): cell 19 (tube_along_arc, both sheets,
+bit-exact minor_radius assertion executed in the stop; windowed
+tube showing all three intent parameters; clean-re-render
+verified twice). The three NURBS-walled scenes are BLOCKED on
+the mesh crate's trimmed-NURBS tessellation lane** (banked at
+M6-3 dev 8; tessellate.rs:93 refuses Surface::Nurbs ahead of
+trim routing — executed: the tour panics after tiers 1-3 pass,
+only mesh refuses). The agent correctly stopped at the design
+boundary (placeholder cells would break the two-sheet
+cell-for-cell contract); all three scene constructions are
+WRITTEN and saved as
+~/.local/share/cad-work/montage-skin-scenes.patch. **The lane
+now has TWO consumers (the banked tour SceneBody stop + three
+montage cells) — PROMOTED per the banked-until-consumer
+principle: next unit = mesh trimmed-NURBS tessellation (FABLE,
+block M7-6 remainder), difficulty logged M pre-dispatch**
+(route the Nurbs arm to the trimmed lane; the certified-
+conservative δ promise per D4's tessellation contract; flip
+M6-3 dev 8's banked stop; apply the montage patch as the
+completion rider).
