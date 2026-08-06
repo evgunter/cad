@@ -107,6 +107,14 @@ pub fn decide<T: Decide>(
 /// shrinking as the flagged families get their own units, never a
 /// convenience door.
 ///
+/// **Standing rule (the debt lane is tracked as issue #214): no new
+/// `decide_flagged` site ships without a ledger row in
+/// `docs/predicate-dimension-audit.md`.** The census count assertion
+/// (`geom-core/tests/flagged_census.rs`) pins the shipped-site count to
+/// the ledger's inventory, so adding a site without updating both the
+/// ledger and the assertion fails the suite — the rule enforces
+/// itself.
+///
 /// # Errors
 ///
 /// As [`decide`].

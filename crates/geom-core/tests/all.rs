@@ -34,6 +34,8 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "flagged_census.rs"]
+mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
 #[path = "m5_pr1_poison_conservation.rs"]
