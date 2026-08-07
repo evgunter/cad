@@ -44,6 +44,8 @@ mod m6_6_sense_gate;
 mod m7_swept_elbow;
 #[path = "orientation_oracle.rs"]
 mod orientation_oracle;
+#[path = "rev_probe.rs"]
+mod rev_probe;
 #[path = "review_k4_probe.rs"]
 mod review_k4_probe;
 #[path = "review_pad_probe.rs"]
