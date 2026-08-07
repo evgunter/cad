@@ -16,7 +16,10 @@
 # honest (caching investigation, PR #72):
 #
 #   * SERIALIZED: an flock on a global lock file queues concurrent gate
-#     runs. The session-3 70-minute matrix was mostly CPU contention
+#     runs. (Additionally, ci-local.sh now self-acquires BOTH machine
+#     build slots — with-build-slot.sh — so a gate run also excludes
+#     concurrent agent-lane builds, the source of the 3-4x contention
+#     below.) The session-3 70-minute matrix was mostly CPU contention
 #     from concurrent agent builds — identical rows measured 3-4x
 #     faster uncontended. Uncontended warm matrix: ~3.7 min.
 #   * WARM: the runner keeps one persistent target/ at a fixed path.
