@@ -172,11 +172,11 @@
 
 use core::marker::PhantomData;
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Band, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
-use crate::sugar::{LineFilletTrims, line_line_fillet_trims};
-use crate::validate::{FilletLeg, ProfileError};
+use crate::sugar::{LineFilletTrims, TrimRefusal, line_line_fillet_trims};
+use crate::validate::FilletLeg;
 use crate::{ProfileLoop, ProfileVertex};
 
 // ------------------------------------------------------------------
@@ -299,7 +299,7 @@ pub enum NoCornerReason {
 /// The verify layer's own errors ([`ProfileError`]) still apply to the
 /// lowered loop at [`crate::Profile::validate`], unchanged.
 #[derive(Clone, Debug)]
-pub enum PathError {
+pub enum PathError<T: Real> {
     /// §4 item 1: the authored departure is within ε_input of the
     /// incoming TANGENT direction — one refusal, one recourse, for any
     /// sub-ε_input margin: if the tangency is intended, author it
@@ -309,12 +309,12 @@ pub enum PathError {
     /// margin rides along as data; the message never forks on
     /// exactly-on vs in-band.
     JunctionTangent {
-        /// The classified turn margin sin φ · arm, meters (diagnostic
-        /// channel).
-        margin: f64,
+        /// The classified turn margin sin φ · arm, meters (scalar-typed
+        /// payload — data, not a decision).
+        margin: T,
         /// The lever arm (the incoming leg's extent, capped by its
         /// carrier radius), meters.
-        arm: f64,
+        arm: T,
     },
     /// §4 item 1, reverse class: the departure is within ε_input of
     /// the REVERSE of the incoming tangent — a cusp. No declaration
@@ -323,9 +323,9 @@ pub enum PathError {
     /// tabled front door that does not exist yet.
     JunctionCusp {
         /// The classified turn margin sin φ · arm, meters.
-        margin: f64,
+        margin: T,
         /// The lever arm, meters.
-        arm: f64,
+        arm: T,
     },
     /// The overdetermined tangent LINE close (PATHS-DESIGN §2,
     /// closure): direction inherited AND through `Start` — refused
@@ -338,7 +338,7 @@ pub enum PathError {
     /// side 1 and the arc becomes the closer.
     TangentLineClose {
         /// The offending collinearity/turn margin, meters.
-        margin: f64,
+        margin: T,
     },
     /// §4 item 4: the constructed junction joins two segments of the
     /// SAME carrier (collinear line onto line, cocircular arc onto
@@ -350,7 +350,7 @@ pub enum PathError {
         /// The classified identity margin (center distance + radius
         /// difference for circles; perpendicular offset for lines),
         /// meters.
-        margin: f64,
+        margin: T,
     },
     /// The fillet's virtual corner does not exist (see
     /// [`NoCornerReason`]).
@@ -358,7 +358,7 @@ pub enum PathError {
         /// Which structural condition failed.
         reason: NoCornerReason,
         /// The requested radius, meters (diagnostic).
-        radius: f64,
+        radius: T,
     },
     /// A fillet trim would eat a side's anchoring on-path point (the
     /// authored anchor, the incoming ray's origin, or — under a seam
@@ -370,9 +370,9 @@ pub enum PathError {
         /// Which side's anchor the trim would eat.
         side: FilletLeg,
         /// The tangent setback from the corner, meters (diagnostic).
-        setback: f64,
+        setback: T,
         /// The anchored extent available to the trim, meters.
-        available: f64,
+        available: T,
     },
     /// A seam fillet would land on a first side that is not a straight
     /// carrier (the first authored segment is an arc): arc-arrival
@@ -411,28 +411,28 @@ pub enum PathError {
     },
 }
 
-impl core::fmt::Display for PathError {
+impl<T: Real> core::fmt::Display for PathError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin:.3e} m on a {arm:.3e} m arm) — if intended, author it \
+                 (turn margin {margin:?} m on a {arm:?} m arm) — if intended, author it \
                  structurally: .tangent() at an interior junction (exact by construction), or \
                  the tangent-arc / seam-fillet close at the seam; otherwise move the geometry \
                  (or lower the tolerance)"
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
-                "this junction reverses onto the incoming direction (turn margin {margin:.3e} m \
-                 on a {arm:.3e} m arm): a cusp, which the material-wedge invariant refuses in \
+                "this junction reverses onto the incoming direction (turn margin {margin:?} m \
+                 on a {arm:?} m arm): a cusp, which the material-wedge invariant refuses in \
                  any solid built from such a profile — there is no declaration door for cusps \
                  (#131 is the tabled front door that does not exist yet); move the geometry"
             ),
             Self::TangentLineClose { margin } => write!(
                 f,
                 "a tangent LINE close is overdetermined — direction inherited AND through Start \
-                 (margin {margin:.3e} m) — and refuses always, exact collinearity included: \
+                 (margin {margin:?} m) — and refuses always, exact collinearity included: \
                  close with the tangent ARC instead (.tangent().tangent_arc_to(Start)), or \
                  rotate the loop's authoring origin so the straight run is authored forward as \
                  side 1 and the arc becomes the closer"
@@ -440,7 +440,7 @@ impl core::fmt::Display for PathError {
             Self::SameCarrierJunction { margin } => write!(
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
-                 {margin:.3e} m): carrier identity is not tangency (#101) — extend the leg \
+                 {margin:?} m): carrier identity is not tangency (#101) — extend the leg \
                  instead of minting a collinear/cocircular neighbor"
             ),
             Self::NoCornerForFillet { reason, radius } => {
@@ -457,7 +457,7 @@ impl core::fmt::Display for PathError {
                         "the carrier intersection does not lie behind the arrival side's anchor"
                     }
                 };
-                write!(f, "no corner for a radius-{radius:.3e} m fillet: {what}")
+                write!(f, "no corner for a radius-{radius:?} m fillet: {what}")
             }
             Self::AnchorOutsideTrimmedExtent {
                 side,
@@ -466,7 +466,7 @@ impl core::fmt::Display for PathError {
             } => write!(
                 f,
                 "the fillet trim would eat the {side} side's anchoring on-path point: tangent \
-                 setback {setback:.3e} m exceeds the {available:.3e} m the anchor pins — reduce \
+                 setback {setback:?} m exceeds the {available:?} m the anchor pins — reduce \
                  the radius or move the anchor"
             ),
             Self::SeamFilletOntoArc => write!(
@@ -496,7 +496,7 @@ impl core::fmt::Display for PathError {
     }
 }
 
-impl std::error::Error for PathError {}
+impl<T: Real> std::error::Error for PathError<T> {}
 
 // ------------------------------------------------------------------
 // Internal state. Fields are private throughout: binders are the only
@@ -610,7 +610,7 @@ impl<T: Real> Core<T> {
     /// Sets the bulge of the segment leaving the current last vertex —
     /// exactly [`crate::LoopBuilder`]'s `set_leaving_bulge`, plus the
     /// structural first-segment kind pin.
-    fn set_leaving(&mut self, bulge: T, kind: FirstSeg) -> Result<(), PathError> {
+    fn set_leaving(&mut self, bulge: T, kind: FirstSeg) -> Result<(), PathError<T>> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
             self.first_seg = kind;
         }
@@ -626,7 +626,7 @@ impl<T: Real> Core<T> {
     }
 
     /// Appends a straight segment to `p` (LoopBuilder `line_to`).
-    fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError> {
+    fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
         self.verts.push(ProfileVertex {
             pos: p,
@@ -638,7 +638,12 @@ impl<T: Real> Core<T> {
 
     /// Appends an arc segment to `p` with `bulge` (LoopBuilder
     /// `arc_to`), remembering the carrier for identity checks.
-    fn push_arc(&mut self, p: Point2<T>, bulge: T, carrier: ArcData<T>) -> Result<(), PathError> {
+    fn push_arc(
+        &mut self,
+        p: Point2<T>,
+        bulge: T,
+        carrier: ArcData<T>,
+    ) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
         self.verts.push(ProfileVertex {
             pos: p,
@@ -649,7 +654,7 @@ impl<T: Real> Core<T> {
     }
 
     /// The current chain end.
-    fn head(&self) -> Result<Point2<T>, PathError> {
+    fn head(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
             .last()
             .map(|v| v.pos)
@@ -691,7 +696,7 @@ impl<T: Real> Core<T> {
 
 /// The run's linear classification band (ε_input, K·ε_input) from the
 /// global [`Tolerance`].
-fn linear_band() -> Result<Band, PathError> {
+fn linear_band<T: Real>() -> Result<Band, PathError<T>> {
     let tol = Tolerance::get();
     Band::new(tol.eps, tol.k * tol.eps).map_err(PathError::Band)
 }
@@ -725,33 +730,40 @@ fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
 /// against the incoming tangent and its reverse on the incoming leg's
 /// lever arm. `line_close` selects the tangent-line-close refusal
 /// flavor (a Start-targeting straight closer).
-fn junction_check<T: Real + Decide + Bounds>(
+fn junction_check<T: Real + Decide>(
     inc: &Incoming<T>,
     dep: T,
     line_close: bool,
-) -> Result<(), PathError> {
+) -> Result<(), PathError<T>> {
     let band = linear_band()?;
     let u_in = unit(inc.ang);
     let u_dep = unit(dep);
     let turn = u_in.perp_dot(u_dep);
     match decide("path_junction_turn", Length::levered(turn, inc.arm), band) {
         Ok(Sign::Zero) => {
-            let margin = (turn * inc.arm).lo();
-            // Diagnostic-channel comparison (naming the refusal class),
-            // not a geometric decision: the geometric decision was the
-            // Zero above.
-            if u_in.dot(u_dep).lo() < 0.0 {
-                Err(PathError::JunctionCusp {
+            let margin = turn * inc.arm;
+            // Which refusal class — tangent (dep ≈ incoming) or cusp
+            // (dep ≈ reverse)? A decision, so it goes through the
+            // funnel: the alignment cos φ levered by the same arm. A
+            // Zero here means the arm itself is degenerate (both
+            // components sub-ε) — refused as the tangent class, the
+            // recourse that names moving the geometry.
+            let side = decide(
+                "path_junction_side",
+                Length::levered(u_in.dot(u_dep), inc.arm),
+                band,
+            );
+            match side {
+                Ok(Sign::Negative) => Err(PathError::JunctionCusp {
                     margin,
-                    arm: inc.arm.lo(),
-                })
-            } else if line_close {
-                Err(PathError::TangentLineClose { margin })
-            } else {
-                Err(PathError::JunctionTangent {
+                    arm: inc.arm,
+                }),
+                Ok(_) if line_close => Err(PathError::TangentLineClose { margin }),
+                Ok(_) => Err(PathError::JunctionTangent {
                     margin,
-                    arm: inc.arm.lo(),
-                })
+                    arm: inc.arm,
+                }),
+                Err(source) => Err(PathError::Escalated { source }),
             }
         }
         Ok(_) => Ok(()),
@@ -762,17 +774,15 @@ fn junction_check<T: Real + Decide + Bounds>(
 /// §4 item 4: refuses a declared continuation whose constructed
 /// carrier is the incoming carrier itself (cocircular arcs) — the
 /// `carrier_circles_identity` margin d + |Δr| on the linear band.
-fn refuse_identical_carriers<T: Real + Decide + Bounds>(
+fn refuse_identical_carriers<T: Real + Decide>(
     a: &ArcData<T>,
     b: &ArcData<T>,
-) -> Result<(), PathError> {
+) -> Result<(), PathError<T>> {
     let band = linear_band()?;
     let d = (a.center - b.center).norm_squared().sqrt();
     let margin = d + (a.radius - b.radius).abs();
     match decide("path_carrier_identity", Length::of(margin), band) {
-        Ok(Sign::Zero) => Err(PathError::SameCarrierJunction {
-            margin: margin.lo(),
-        }),
+        Ok(Sign::Zero) => Err(PathError::SameCarrierJunction { margin }),
         Ok(_) => Ok(()),
         Err(source) => Err(PathError::Escalated { source }),
     }
@@ -780,26 +790,21 @@ fn refuse_identical_carriers<T: Real + Decide + Bounds>(
 
 /// Maps the shared fillet closed form's refusals into the algebra's
 /// vocabulary: a Negative leg fit here IS the anchor-fit refusal (the
-/// helper is fed the two sides' anchoring extents), an escalation
-/// stays an escalation; anything else the algebra's own gates should
-/// have refused first (backstop).
-fn map_fillet_err(e: ProfileError) -> PathError {
-    match e {
-        ProfileError::FilletDoesNotFit {
+/// helper is fed the two sides' anchoring extents); an escalation
+/// stays an escalation.
+fn map_fillet_err<T: Real>(refusal: TrimRefusal<T>) -> PathError<T> {
+    match refusal {
+        TrimRefusal::DoesNotFit {
             leg,
             setback,
             leg_length,
-            ..
         } => PathError::AnchorOutsideTrimmedExtent {
             side: leg,
             setback,
             available: leg_length,
         },
-        ProfileError::Escalated { source, .. } => PathError::Escalated { source },
-        ProfileError::Band(b) => PathError::Band(b),
-        _ => PathError::OverdeterminedJunction {
-            site: "line_line_fillet_trims",
-        },
+        TrimRefusal::Escalated(source) => PathError::Escalated { source },
+        TrimRefusal::Band(b) => PathError::Band(b),
     }
 }
 
@@ -814,7 +819,7 @@ fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: 
     }
 }
 
-impl<T: Real + Decide + Bounds> Core<T> {
+impl<T: Real + Decide> Core<T> {
     /// Resolves an opened fillet the moment its arrival side is
     /// Directed (PATHS-DESIGN §2: the r-arc tangent to both carriers is
     /// inserted at their implicit virtual corner, trimming both).
@@ -835,7 +840,7 @@ impl<T: Real + Decide + Bounds> Core<T> {
         arr_pos: Point2<T>,
         arr_ang: T,
         seam: bool,
-    ) -> Result<(), PathError> {
+    ) -> Result<(), PathError<T>> {
         let pending = self
             .pending
             .take()
@@ -854,7 +859,7 @@ impl<T: Real + Decide + Bounds> Core<T> {
             Ok(Sign::Zero) => {
                 return Err(PathError::NoCornerForFillet {
                     reason: NoCornerReason::CarriersParallel,
-                    radius: pending.radius.lo(),
+                    radius: pending.radius,
                 });
             }
             Ok(_) => {}
@@ -869,7 +874,7 @@ impl<T: Real + Decide + Bounds> Core<T> {
             Ok(_) => {
                 return Err(PathError::NoCornerForFillet {
                     reason: NoCornerReason::BehindIncomingRay,
-                    radius: pending.radius.lo(),
+                    radius: pending.radius,
                 });
             }
             Err(source) => return Err(PathError::Escalated { source }),
@@ -879,7 +884,7 @@ impl<T: Real + Decide + Bounds> Core<T> {
             Ok(_) => {
                 return Err(PathError::NoCornerForFillet {
                     reason: NoCornerReason::BehindArrivalAnchor,
-                    radius: pending.radius.lo(),
+                    radius: pending.radius,
                 });
             }
             Err(source) => return Err(PathError::Escalated { source }),
@@ -1016,7 +1021,7 @@ impl Open {
     }
 }
 
-impl<T: Real + Decide + Bounds, A: AngMarker> PartialPath<T, NoPos, A> {
+impl<T: Real + Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     /// Adds the position bit (`Open → Point`, `Angle → Directed`) —
     /// written once, generic over the angle slot it does not touch.
     ///
@@ -1026,7 +1031,7 @@ impl<T: Real + Decide + Bounds, A: AngMarker> PartialPath<T, NoPos, A> {
     /// [`PathError`]. On the angle-first entry, this seeds the chain.
     /// `p` is absolute (profile frame), a real on-path point (the
     /// side's anchor).
-    pub fn at(mut self, p: Point2<T>) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError> {
+    pub fn at(mut self, p: Point2<T>) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
         match (self.tip.ang, self.core.pending.is_some()) {
             (Some(theta), true) => {
                 self.core.resolve_fillet(p, theta, false)?;
@@ -1053,7 +1058,7 @@ impl<T: Real + Decide + Bounds, A: AngMarker> PartialPath<T, NoPos, A> {
     }
 }
 
-impl<T: Real + Decide + Bounds, P: PosMarker> PartialPath<T, P, NoAng> {
+impl<T: Real + Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     /// Adds the angle bit wherever it is missing (`Point → Directed`,
     /// `Open → Angle`) — one generic function; the junction check
     /// reads the flavor's optional incoming tangent at runtime.
@@ -1069,7 +1074,7 @@ impl<T: Real + Decide + Bounds, P: PosMarker> PartialPath<T, P, NoAng> {
     /// its fillet arc tangentially by construction; the entry's check
     /// happens at the seam). On a fillet arrival whose position is
     /// already bound, completing the direction resolves the fillet.
-    pub fn angle(mut self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError> {
+    pub fn angle(mut self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
                 junction_check(inc, theta, false)?;
@@ -1087,7 +1092,7 @@ impl<T: Real + Decide + Bounds, P: PosMarker> PartialPath<T, P, NoAng> {
     }
 }
 
-impl<T: Real + Decide + Bounds> PartialPath<T, HasPos<WithIncoming>, NoAng> {
+impl<T: Real + Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// Consumes a **directed point only**: re-uses the incoming end
     /// tangent as the departure — exact by construction, nothing for
     /// verification to contradict — and emits the DECLARED flag on
@@ -1113,7 +1118,7 @@ impl<T: Real + Decide + Bounds> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     pub fn turn(
         mut self,
         delta: T,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError> {
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError<T>> {
         let inc = self.tip.pos.as_ref().and_then(|p| p.incoming).ok_or(
             PathError::UnderdeterminedLeg {
                 site: "turn on a tip without incoming data",
@@ -1131,10 +1136,10 @@ impl<T: Real + Decide + Bounds> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 // Legs (direction-consuming, from Directed) and the fillet.
 // ------------------------------------------------------------------
 
-impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
+impl<T: Real + Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// The bound tip pose (backstopped: unreachable-missing data is a
     /// typed error, never a panic).
-    fn dep(&self) -> Result<(Point2<T>, T), PathError> {
+    fn dep(&self) -> Result<(Point2<T>, T), PathError<T>> {
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "directed tip without a position",
         })?;
@@ -1156,13 +1161,13 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     pub fn line(
         mut self,
         len: T,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError> {
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
         if self.tip.ang_by_tangent
             && let Some(inc) = self.tip.pos.as_ref().and_then(|p| p.incoming.as_ref())
             && inc.carrier.is_none()
         {
-            return Err(PathError::SameCarrierJunction { margin: 0.0 });
+            return Err(PathError::SameCarrierJunction { margin: T::zero() });
         }
         let end = at + unit(ang) * len;
         let head = self.core.head()?;
@@ -1179,7 +1184,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// virtual corner, trimming both — the corner is never authored
     /// (it exists only as the carrier intersection), and authoring a
     /// point then filleting it away is unrepresentable.
-    pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError> {
+    pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
         self.core.pending = Some(PendingFillet {
             origin: at,
@@ -1216,7 +1221,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         &self,
         p: Point2<T>,
         closing: bool,
-    ) -> Result<(T, T, ArcData<T>, T), PathError> {
+    ) -> Result<(T, T, ArcData<T>, T), PathError<T>> {
         let (at, ang) = self.dep()?;
         let d = p - at;
         let u = unit(ang);
@@ -1234,13 +1239,9 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                     match decide("path_collinear_target", Length::of(across), band) {
                         Ok(Sign::Zero) => {
                             return Err(if closing {
-                                PathError::TangentLineClose {
-                                    margin: across.lo(),
-                                }
+                                PathError::TangentLineClose { margin: across }
                             } else {
-                                PathError::SameCarrierJunction {
-                                    margin: across.lo(),
-                                }
+                                PathError::SameCarrierJunction { margin: across }
                             });
                         }
                         Ok(_) => {}
@@ -1258,7 +1259,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     fn tangent_arc_to_point(
         mut self,
         p: Point2<T>,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError> {
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (bulge, end_ang, carrier, chord) = self.tangent_arc_geom(p, false)?;
         self.core.push_arc(p, bulge, carrier)?;
         let arm = carrier.radius.min(chord);
@@ -1268,7 +1269,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         ))
     }
 
-    fn tangent_arc_to_start(mut self) -> Result<ProfileLoop<T>, PathError> {
+    fn tangent_arc_to_start(mut self) -> Result<ProfileLoop<T>, PathError<T>> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
@@ -1295,7 +1296,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 // Point-state verbs (sugar tier: one call each, expands to core).
 // ------------------------------------------------------------------
 
-impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
+impl<T: Real + Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// `.angle(toward target).line(distance)` in one call
     /// (`Point → Point`, also from arrivals): on a directed point the
     /// junction check runs on the computed direction; on a fillet
@@ -1318,7 +1319,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Tgt::arc_from(self, target, bulge)
     }
 
-    fn tip_pos(&self) -> Result<&PosData<T>, PathError> {
+    fn tip_pos(&self) -> Result<&PosData<T>, PathError<T>> {
         self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "point tip without a position",
         })
@@ -1327,7 +1328,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     fn line_to_point(
         mut self,
         p: Point2<T>,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError> {
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let d = p - at;
@@ -1348,7 +1349,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Ok(in_state(self.core, leg_end_tip(p, gamma, arm, None)))
     }
 
-    fn line_to_start(mut self) -> Result<ProfileLoop<T>, PathError> {
+    fn line_to_start(mut self) -> Result<ProfileLoop<T>, PathError<T>> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
@@ -1390,7 +1391,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         mut self,
         p: Point2<T>,
         bulge: T,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError> {
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         if self.core.pending.is_some() {
             return Err(PathError::ArcArrivalFillet);
         }
@@ -1412,7 +1413,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         ))
     }
 
-    fn arc_to_start(mut self, bulge: T) -> Result<ProfileLoop<T>, PathError> {
+    fn arc_to_start(mut self, bulge: T) -> Result<ProfileLoop<T>, PathError<T>> {
         if self.core.pending.is_some() {
             return Err(PathError::ArcArrivalFillet);
         }
@@ -1442,14 +1443,14 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     }
 }
 
-impl<T: Real + Decide + Bounds> PartialPath<T, NoPos, NoAng> {
+impl<T: Real + Decide> PartialPath<T, NoPos, NoAng> {
     /// The combined binder consuming a directed-point VALUE
     /// (`Open → Directed` in one step). [`Start`] is its canonical
     /// argument, and using it is closing: `.angle(θ).fillet(r)
     /// .to(Start)` is the seam fillet — both carriers bound, nothing
     /// pending, loop closed. (Curve-pose arguments — `c.start()` /
     /// `c.end()` — arrive with NURBS legs in v2; see the module docs.)
-    pub fn to(mut self, target: Start) -> Result<ProfileLoop<T>, PathError> {
+    pub fn to(mut self, target: Start) -> Result<ProfileLoop<T>, PathError<T>> {
         let Start = target;
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
@@ -1471,7 +1472,7 @@ impl<T: Real> sealed::Sealed for Point2<T> {}
 
 /// A [`PartialPath::line_to`] target: an authored absolute point, or
 /// [`Start`] (the sharp straight seam). Sealed.
-pub trait LineTarget<T: Real + Decide + Bounds, F: Flavor>: sealed::Sealed {
+pub trait LineTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
     /// A directed point for an interior target; the closed loop for
     /// [`Start`].
     type Out;
@@ -1479,15 +1480,15 @@ pub trait LineTarget<T: Real + Decide + Bounds, F: Flavor>: sealed::Sealed {
     fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self) -> Self::Out;
 }
 
-impl<T: Real + Decide + Bounds, F: Flavor> LineTarget<T, F> for Point2<T> {
-    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError>;
+impl<T: Real + Decide, F: Flavor> LineTarget<T, F> for Point2<T> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self) -> Self::Out {
         path.line_to_point(target)
     }
 }
 
-impl<T: Real + Decide + Bounds, F: Flavor> LineTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError>;
+impl<T: Real + Decide, F: Flavor> LineTarget<T, F> for Start {
+    type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self) -> Self::Out {
         path.line_to_start()
     }
@@ -1495,7 +1496,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> LineTarget<T, F> for Start {
 
 /// A [`PartialPath::arc_to`] target: an authored absolute point, or
 /// [`Start`] (the sharp arc seam). Sealed.
-pub trait ArcTarget<T: Real + Decide + Bounds, F: Flavor>: sealed::Sealed {
+pub trait ArcTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
     /// A directed point for an interior target; the closed loop for
     /// [`Start`].
     type Out;
@@ -1503,15 +1504,15 @@ pub trait ArcTarget<T: Real + Decide + Bounds, F: Flavor>: sealed::Sealed {
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out;
 }
 
-impl<T: Real + Decide + Bounds, F: Flavor> ArcTarget<T, F> for Point2<T> {
-    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError>;
+impl<T: Real + Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out {
         path.arc_to_point(target, bulge)
     }
 }
 
-impl<T: Real + Decide + Bounds, F: Flavor> ArcTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError>;
+impl<T: Real + Decide, F: Flavor> ArcTarget<T, F> for Start {
+    type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
         path.arc_to_start(bulge)
     }
@@ -1519,7 +1520,7 @@ impl<T: Real + Decide + Bounds, F: Flavor> ArcTarget<T, F> for Start {
 
 /// A [`PartialPath::tangent_arc_to`] target: an authored absolute
 /// point, or [`Start`] (the tangent-seam close). Sealed.
-pub trait TangentArcTarget<T: Real + Decide + Bounds, F: Flavor>: sealed::Sealed {
+pub trait TangentArcTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
     /// A directed point for an interior target; the closed loop for
     /// [`Start`].
     type Out;
@@ -1527,15 +1528,15 @@ pub trait TangentArcTarget<T: Real + Decide + Bounds, F: Flavor>: sealed::Sealed
     fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, target: Self) -> Self::Out;
 }
 
-impl<T: Real + Decide + Bounds, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
-    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError>;
+impl<T: Real + Decide, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, target: Self) -> Self::Out {
         path.tangent_arc_to_point(target)
     }
 }
 
-impl<T: Real + Decide + Bounds, F: Flavor> TangentArcTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError>;
+impl<T: Real + Decide, F: Flavor> TangentArcTarget<T, F> for Start {
+    type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, _target: Self) -> Self::Out {
         path.tangent_arc_to_start()
     }

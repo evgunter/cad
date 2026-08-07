@@ -23,7 +23,9 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{
+    Band, BandError, Bounds, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2,
+};
 
 use crate::k_stats::decide;
 use crate::validate::{EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, ProfileError};
@@ -303,7 +305,29 @@ impl<T: Real> LoopBuilder<T> {
     where
         T: Decide + Bounds,
     {
-        let trims = line_line_fillet_trims(self.head(), corner, next, radius)?;
+        // This door owns the bracket-read diagnostics (`.lo()`): the
+        // shared trim helper stays evaluation-only (no `Bounds`) so
+        // the PATHS lowering can call it too (Bounds scope rule).
+        let trims =
+            line_line_fillet_trims(self.head(), corner, next, radius).map_err(|refusal| {
+                match refusal {
+                    TrimRefusal::DoesNotFit {
+                        leg,
+                        setback,
+                        leg_length,
+                    } => ProfileError::FilletDoesNotFit {
+                        leg,
+                        carrier: FilletLegCarrier::Line,
+                        setback: setback.lo(),
+                        leg_length: leg_length.lo(),
+                    },
+                    TrimRefusal::Escalated(source) => ProfileError::Escalated {
+                        site: EscalationSite::Fillet,
+                        source,
+                    },
+                    TrimRefusal::Band(e) => ProfileError::Band(e),
+                }
+            })?;
         let mut chain = self;
         if trims.fit_in == Sign::Positive {
             chain = chain.line_to(trims.t1).declare_tangent();
@@ -676,6 +700,32 @@ pub(crate) struct LineFilletTrims<T: Real> {
     pub fit_out: Sign,
 }
 
+/// A refusal from [`line_line_fillet_trims`], carried at the scalar so
+/// the helper itself needs no bracket read (Bounds scope rule): each
+/// door maps it into its own error vocabulary —
+/// [`LoopBuilder::fillet`] to [`ProfileError`] with `.lo()`
+/// diagnostics (this file is the ratified fillet-gate seam), the PATHS
+/// lowering to `PathError` with scalar payloads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TrimRefusal<T: Real> {
+    /// A Negative `fillet_leg_fit`: the tangent setback exceeds the
+    /// (first, in incoming→outgoing order) overrun leg's extent.
+    DoesNotFit {
+        /// The overrun leg.
+        leg: FilletLeg,
+        /// The tangent setback from the corner along the leg.
+        setback: T,
+        /// The overrun leg's extent.
+        leg_length: T,
+    },
+    /// An in-band or poisoned fit margin (doubled-back corners and
+    /// zero legs land here).
+    Escalated(Indeterminate),
+    /// The exact-order band could not be formed (unreachable for the
+    /// built-in band).
+    Band(BandError),
+}
+
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
 /// docs on [`LoopBuilder::fillet`]), extracted verbatim so the algebra
 /// lowering and the builder door share one code path: with legs
@@ -685,17 +735,13 @@ pub(crate) struct LineFilletTrims<T: Real> {
 ///
 /// # Errors
 ///
-/// Exactly [`LoopBuilder::fillet`]'s: [`ProfileError::FilletDoesNotFit`]
-/// (a Negative fit, incoming leg reported first),
-/// [`ProfileError::Escalated`] at [`EscalationSite::Fillet`] (in-band or
-/// poisoned fit margin — doubled-back corners and zero legs land here),
-/// or [`ProfileError::Band`] (unreachable for the built-in band).
-pub(crate) fn line_line_fillet_trims<T: Real + Decide + Bounds>(
+/// [`TrimRefusal`], mapped by each door — see its docs.
+pub(crate) fn line_line_fillet_trims<T: Real + Decide>(
     head: Point2<T>,
     corner: Point2<T>,
     next: Point2<T>,
     radius: T,
-) -> Result<LineFilletTrims<T>, ProfileError> {
+) -> Result<LineFilletTrims<T>, TrimRefusal<T>> {
     let v1 = corner - head;
     let v2 = next - corner;
     // powi(2)-discipline squares (interval lane: a straddling-zero
@@ -709,20 +755,16 @@ pub(crate) fn line_line_fillet_trims<T: Real + Decide + Bounds>(
     let len2 = v2.norm_squared().sqrt();
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
-    let fit = |len: T, leg: FilletLeg| -> Result<Sign, ProfileError> {
+    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(TrimRefusal::Band)?;
+    let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
         match decide("fillet_leg_fit", Length::of(len - setback), exact) {
-            Ok(Sign::Negative) => Err(ProfileError::FilletDoesNotFit {
+            Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
                 leg,
-                carrier: FilletLegCarrier::Line,
-                setback: setback.lo(),
-                leg_length: len.lo(),
+                setback,
+                leg_length: len,
             }),
             Ok(sign) => Ok(sign),
-            Err(source) => Err(ProfileError::Escalated {
-                site: EscalationSite::Fillet,
-                source,
-            }),
+            Err(source) => Err(TrimRefusal::Escalated(source)),
         }
     };
     let fit_in = fit(len1, FilletLeg::Incoming)?;
