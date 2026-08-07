@@ -736,7 +736,7 @@ pub(crate) enum TrimRefusal<T: Real> {
 /// # Errors
 ///
 /// [`TrimRefusal`], mapped by each door — see its docs.
-pub(crate) fn line_line_fillet_trims<T: Real + Decide>(
+pub(crate) fn line_line_fillet_trims<T: Decide>(
     head: Point2<T>,
     corner: Point2<T>,
     next: Point2<T>,

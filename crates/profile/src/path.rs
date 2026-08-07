@@ -730,7 +730,7 @@ fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
 /// against the incoming tangent and its reverse on the incoming leg's
 /// lever arm. `line_close` selects the tangent-line-close refusal
 /// flavor (a Start-targeting straight closer).
-fn junction_check<T: Real + Decide>(
+fn junction_check<T: Decide>(
     inc: &Incoming<T>,
     dep: T,
     line_close: bool,
@@ -774,7 +774,7 @@ fn junction_check<T: Real + Decide>(
 /// §4 item 4: refuses a declared continuation whose constructed
 /// carrier is the incoming carrier itself (cocircular arcs) — the
 /// `carrier_circles_identity` margin d + |Δr| on the linear band.
-fn refuse_identical_carriers<T: Real + Decide>(
+fn refuse_identical_carriers<T: Decide>(
     a: &ArcData<T>,
     b: &ArcData<T>,
 ) -> Result<(), PathError<T>> {
@@ -819,7 +819,7 @@ fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: 
     }
 }
 
-impl<T: Real + Decide> Core<T> {
+impl<T: Decide> Core<T> {
     /// Resolves an opened fillet the moment its arrival side is
     /// Directed (PATHS-DESIGN §2: the r-arc tangent to both carriers is
     /// inserted at their implicit virtual corner, trimming both).
@@ -1021,7 +1021,7 @@ impl Open {
     }
 }
 
-impl<T: Real + Decide, A: AngMarker> PartialPath<T, NoPos, A> {
+impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     /// Adds the position bit (`Open → Point`, `Angle → Directed`) —
     /// written once, generic over the angle slot it does not touch.
     ///
@@ -1058,7 +1058,7 @@ impl<T: Real + Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     }
 }
 
-impl<T: Real + Decide, P: PosMarker> PartialPath<T, P, NoAng> {
+impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     /// Adds the angle bit wherever it is missing (`Point → Directed`,
     /// `Open → Angle`) — one generic function; the junction check
     /// reads the flavor's optional incoming tangent at runtime.
@@ -1092,7 +1092,7 @@ impl<T: Real + Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     }
 }
 
-impl<T: Real + Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
+impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// Consumes a **directed point only**: re-uses the incoming end
     /// tangent as the departure — exact by construction, nothing for
     /// verification to contradict — and emits the DECLARED flag on
@@ -1136,7 +1136,7 @@ impl<T: Real + Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 // Legs (direction-consuming, from Directed) and the fillet.
 // ------------------------------------------------------------------
 
-impl<T: Real + Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
+impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// The bound tip pose (backstopped: unreachable-missing data is a
     /// typed error, never a panic).
     fn dep(&self) -> Result<(Point2<T>, T), PathError<T>> {
@@ -1296,7 +1296,7 @@ impl<T: Real + Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 // Point-state verbs (sugar tier: one call each, expands to core).
 // ------------------------------------------------------------------
 
-impl<T: Real + Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
+impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// `.angle(toward target).line(distance)` in one call
     /// (`Point → Point`, also from arrivals): on a directed point the
     /// junction check runs on the computed direction; on a fillet
@@ -1443,7 +1443,7 @@ impl<T: Real + Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     }
 }
 
-impl<T: Real + Decide> PartialPath<T, NoPos, NoAng> {
+impl<T: Decide> PartialPath<T, NoPos, NoAng> {
     /// The combined binder consuming a directed-point VALUE
     /// (`Open → Directed` in one step). [`Start`] is its canonical
     /// argument, and using it is closing: `.angle(θ).fillet(r)
@@ -1472,7 +1472,7 @@ impl<T: Real> sealed::Sealed for Point2<T> {}
 
 /// A [`PartialPath::line_to`] target: an authored absolute point, or
 /// [`Start`] (the sharp straight seam). Sealed.
-pub trait LineTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
+pub trait LineTarget<T: Decide, F: Flavor>: sealed::Sealed {
     /// A directed point for an interior target; the closed loop for
     /// [`Start`].
     type Out;
@@ -1480,14 +1480,14 @@ pub trait LineTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
     fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self) -> Self::Out;
 }
 
-impl<T: Real + Decide, F: Flavor> LineTarget<T, F> for Point2<T> {
+impl<T: Decide, F: Flavor> LineTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self) -> Self::Out {
         path.line_to_point(target)
     }
 }
 
-impl<T: Real + Decide, F: Flavor> LineTarget<T, F> for Start {
+impl<T: Decide, F: Flavor> LineTarget<T, F> for Start {
     type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self) -> Self::Out {
         path.line_to_start()
@@ -1496,7 +1496,7 @@ impl<T: Real + Decide, F: Flavor> LineTarget<T, F> for Start {
 
 /// A [`PartialPath::arc_to`] target: an authored absolute point, or
 /// [`Start`] (the sharp arc seam). Sealed.
-pub trait ArcTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
+pub trait ArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
     /// A directed point for an interior target; the closed loop for
     /// [`Start`].
     type Out;
@@ -1504,14 +1504,14 @@ pub trait ArcTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out;
 }
 
-impl<T: Real + Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
+impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out {
         path.arc_to_point(target, bulge)
     }
 }
 
-impl<T: Real + Decide, F: Flavor> ArcTarget<T, F> for Start {
+impl<T: Decide, F: Flavor> ArcTarget<T, F> for Start {
     type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
         path.arc_to_start(bulge)
@@ -1520,7 +1520,7 @@ impl<T: Real + Decide, F: Flavor> ArcTarget<T, F> for Start {
 
 /// A [`PartialPath::tangent_arc_to`] target: an authored absolute
 /// point, or [`Start`] (the tangent-seam close). Sealed.
-pub trait TangentArcTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
+pub trait TangentArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
     /// A directed point for an interior target; the closed loop for
     /// [`Start`].
     type Out;
@@ -1528,14 +1528,14 @@ pub trait TangentArcTarget<T: Real + Decide, F: Flavor>: sealed::Sealed {
     fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, target: Self) -> Self::Out;
 }
 
-impl<T: Real + Decide, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
+impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, target: Self) -> Self::Out {
         path.tangent_arc_to_point(target)
     }
 }
 
-impl<T: Real + Decide, F: Flavor> TangentArcTarget<T, F> for Start {
+impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Start {
     type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, _target: Self) -> Self::Out {
         path.tangent_arc_to_start()
