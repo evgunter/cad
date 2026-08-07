@@ -1,12 +1,24 @@
 # PATHS-DESIGN: the PartialPath authoring algebra (S5)
 
 Status: **RATIFIED** (design-conversation PR #124, signed off and
-merged 2026-07-29; implementation is NOT scheduled — banked for the v2
-profiles-as-programs work per #104; the ratified doc is the
-deliverable). Designed across twelve review rounds with Evan
-(2026-07-27/29, #104 + the #124 threads); the round-by-round trail
-lives in #124 and the M5 log — this document states only the
-resulting design.
+merged 2026-07-29; the ratified doc was the deliverable of that
+conversation). **Implementation is UNSCHEDULED as a sequencing
+choice, not a dependency** — the algebra as specified in §1 is a
+generator-layer surface (D8) that lowers to the existing v1
+document form (segments + declared flags) with no kernel or schema
+change, so it is implementable whenever it is scheduled; nothing
+technical gates it. Its natural slot is an early unit of the
+usable-as-library program (DESIGN.md, Beyond the kernel), where
+path authoring is the user-facing surface. The separate, later
+decision is the v2 profiles-as-programs REPRESENTATION switch
+recorded in #104 (the program becomes the profile's definition and
+derived segments become caches) — that switch wants the algebra
+implemented first, not the other way around. *(Status wording
+clarified 2026-08-06 with Evan; the earlier phrasing read as if
+implementation waited on the v2 work.)* Designed across twelve
+review rounds with Evan (2026-07-27/29, #104 + the #124 threads);
+the round-by-round trail lives in #124 and the M5 log — this
+document states only the resulting design.
 
 Harmonization constraint (ratified context): #101's
 declared-tangency discipline (flags verified-never-trusted,

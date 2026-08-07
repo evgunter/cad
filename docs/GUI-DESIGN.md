@@ -362,14 +362,15 @@ Picking: GPU ID-buffer pass for hover/click exactness + CPU ray-cast
 back-references. Web/wasm is a live strategic option (Zoo and CADmium
 both chose it; pure-Rust `libm` means D9 accidentally made the f64
 lane wasm-friendly; the `interval` feature is not, per issue #4) —
-G1 is deliberately agnostic to it. `rerun` stays the zero-effort
-debug viewer through M5; it is a viewer, not an editor substrate.
+G1 is deliberately agnostic to it. `rerun` served as the
+zero-effort debug viewer through M5 (now closed); as of 2026-08 the
+demo/montage pipeline renders through FreeCAD offscreen, which is a
+corpus oracle, not a viewer or editor-substrate candidate — no
+viewer commitment has been made.
 
-*(Snapshot explicitly dated: M5 has since closed with no viewer
-commitment made — demo/montage rendering today goes through FreeCAD
-offscreen as a corpus oracle, not a viewer candidate; the ezpz and
-toolkit rows are as of 2026-07. Nothing in this snapshot binds —
-the re-survey-first instruction is the decision.)*
+*(Snapshot explicitly dated: the toolkit, ezpz, and wasm rows are
+as of 2026-07 and nothing in this snapshot binds — the
+re-survey-first instruction is the decision.)*
 
 ### GQ7: Selection mechanics
 
