@@ -7,17 +7,32 @@
 //! surface — every error-enum payload included — is nameable from
 //! `pncad` without naming a second crate.
 //!
-//! The proof mechanism is the manifest, not an assertion. `pncad` has
-//! **no dev-dependencies**, so this test binary cannot link a kernel
-//! crate even if someone tried: every path below must resolve through
-//! `pncad::`, or the file does not compile. A closure regression is
-//! therefore a build failure, not a silent weakening.
+//! # How the pin is enforced, precisely
 //!
-//! Nothing here executes geometry. These are compile-level pins:
-//! functions that destructure each cross-crate payload and hand it to
-//! a monomorphic sink whose signature spells the payload's type by
-//! its `pncad` path. If the type stops being nameable, the sink's
-//! signature stops resolving.
+//! An earlier version of this comment claimed the absence of
+//! dev-dependencies made this binary "physically incapable" of naming
+//! a kernel crate. **That was false**, and review falsified it by
+//! execution: adding `use topo as _;` here compiles clean. Cargo
+//! passes `--extern` for a crate's ordinary dependencies to its test
+//! targets as well as its dev-dependencies, so the twelve deps are in
+//! scope here regardless of what the manifest's dev-dependency
+//! section says. An empty dev-dependency list is good hygiene; it is
+//! not an enforcement mechanism, and this file no longer pretends it
+//! is.
+//!
+//! What enforces the pin instead is the guard test at the bottom of
+//! this file: it reads THIS FILE'S OWN SOURCE at compile time and
+//! fails if any kernel crate is named outside a `pncad::` path, or if
+//! any `use` statement has a root other than the façade or the
+//! standard library. That is a source-level check executed as a test,
+//! not a link-level impossibility — honest about its own strength,
+//! and it does catch the exact regression the false claim pretended
+//! to prevent.
+//!
+//! The remaining tests are compile-level pins: functions that
+//! destructure each cross-crate payload and hand it to a monomorphic
+//! sink whose signature spells the payload's type by its façade path.
+//! If a type stops being nameable that way, they stop compiling.
 
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
@@ -171,6 +186,44 @@ fn step_import_payload(e: &StepImportError) {
     }
 }
 
+// The rows a first audit pass missed, added after review. Each was a
+// genuine gap in the AUDIT, not in the property: all three were
+// already nameable, which is why nothing had to change to pin them.
+
+// `ContainError` is the sharpest of the three: it carries a
+// cross-crate `Indeterminate`, and it is re-exported by its own
+// crate's `boolean` module but NOT lifted to that crate's root — so
+// it is reachable only by module path, exactly the shape that made
+// the original leak invisible.
+fn contain_payload(e: &pncad::topo::boolean::ContainError) {
+    if let pncad::topo::boolean::ContainError::Escalated(inner) = e {
+        named::<&pncad::geom_core::Indeterminate>(inner);
+    }
+}
+
+// Defined directly in its crate's root module with no `pub use` line,
+// which is why a re-export-driven scan walked past it.
+fn ellipse_payload(e: &pncad::geom_curves::EllipseInvalid) {
+    if let pncad::geom_curves::EllipseInvalid::Escalated(inner) = e {
+        named::<&pncad::geom_core::Indeterminate>(inner);
+    }
+}
+
+// A public error-adjacent struct carrying a cross-crate refusal.
+fn adoption_payload(a: &pncad::step_import::AdoptionAttempt) {
+    named::<&pncad::topo::EulerOpError>(&a.refusal);
+    named::<&pncad::step_import::AdoptionCandidate>(&a.candidate);
+}
+
+// Two more the audit had wrong rather than missing: the mesh
+// validator's error lives below its crate root, and the surfaces
+// crate does define an error type (the first audit said it defined
+// none).
+fn mesh_validate_and_surface_projection_are_nameable() {
+    named::<Option<&pncad::mesh::validate::MeshError>>(None);
+    named::<Option<&pncad::geom_surfaces::SurfaceProjectionInconclusive>>(None);
+}
+
 // ---------------------------------------------------------------
 // Runtime rows. The compile-level pins above are the real content;
 // these keep the functions live (an unused private fn is a warning,
@@ -207,6 +260,10 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
     named(tessellate_payload as fn(&TessellateError));
     named(step_export_payload as fn(&StepExportError));
     named(step_import_payload as fn(&StepImportError));
+    named(contain_payload as fn(&pncad::topo::boolean::ContainError));
+    named(ellipse_payload as fn(&pncad::geom_curves::EllipseInvalid));
+    named(adoption_payload as fn(&pncad::step_import::AdoptionAttempt));
+    mesh_validate_and_surface_projection_are_nameable();
 }
 
 /// The f64-first seam is exact: `from_f64` embeds without rounding,
@@ -223,20 +280,41 @@ fn the_f64_seam_is_exact() {
     assert_eq!((q.x, q.y), (7.25, -0.0));
 }
 
+/// The validation ladder as the corpus actually walks it.
+///
+/// Tiers 1 and 2 run on every body. Tier 3 and tier 3′ are
+/// **alternatives, not both**: a Boolean result validates as it is,
+/// with the operation's own declared contacts (3′); everything else
+/// goes through the plain geometric gate (3). An earlier version of
+/// this test ran both unconditionally against empty `ContactRecords`,
+/// which happens to pass on an all-planar box and misleads anyone who
+/// copies it — on a curved body the census gate refuses with
+/// `CensusUnsupported`. This mirrors the corpus's real conditional
+/// instead.
+fn ladder(body: &pncad::topo::Body<f64>, contacts: Option<&ContactRecords>) {
+    validate(body).expect("tier 1: structural");
+    validate_closed(body).expect("tier 2: closed solid");
+    match contacts {
+        // 3′ — the Boolean-result path, with the op's declarations.
+        Some(declared) => {
+            validate_pseudomanifold(body, declared).expect("tier 3': declared-contact");
+        }
+        // 3 — everything else.
+        None => validate_geometric(body).expect("tier 3: geometric"),
+    }
+}
+
 /// The whole authoring ladder through the prelude alone: author,
-/// build, validate at all three tiers, measure, tessellate, export.
-/// If any rung needed a second crate, this would not compile.
+/// build, validate, measure, tessellate, export. If any rung needed a
+/// second crate, this would not compile.
 #[test]
 fn the_authoring_ladder_runs_on_one_dependency() {
     let square = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 3.0), p2(0.0, 3.0)]);
     let profile = validated(SketchPlane::<f64>::xy(), vec![square]).expect("profile validates");
     let built = extrude(&profile, Extrusion::Distance(real(0.5))).expect("extrude");
 
-    validate(&built.body).expect("tier 1");
-    validate_closed(&built.body).expect("tier 2");
-    validate_pseudomanifold(&built.body, &ContactRecords::default())
-        .expect("tier 2 (pseudomanifold)");
-    validate_geometric(&built.body).expect("tier 3");
+    // A primitive body: no declared contacts, so the tier-3 arm.
+    ladder(&built.body, None);
 
     let props = mass_properties(&built.body).expect("mass properties");
     assert!(
@@ -254,4 +332,181 @@ fn the_authoring_ladder_runs_on_one_dependency() {
 
     let step = step_string(&built.body, &StepOptions::default()).expect("step");
     assert!(step.starts_with("ISO-10303-21;"));
+}
+
+/// The other arm of the ladder: a Boolean result carries its own
+/// declared contacts and validates at tier 3′ with them. Also the
+/// end-to-end proof that the Boolean vocabulary is prelude-complete.
+#[test]
+fn a_boolean_result_validates_at_tier_3_prime() {
+    // An axis-aligned box [x0,x1]x[y0,y1]x[z0,z1].
+    let slab = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
+        let rect = polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]);
+        let plane = SketchPlane::from_frame(
+            p3::<f64>(0.0, 0.0, z.0),
+            v3(1.0, 0.0, 0.0),
+            v3(0.0, 1.0, 0.0),
+        );
+        let profile = validated(plane, vec![rect]).expect("slab profile");
+        extrude(&profile, Extrusion::Distance(real(z.1 - z.0)))
+            .expect("slab extrude")
+            .body
+    };
+
+    // The post is strictly interior in x and y and pokes out of the
+    // base's top, so the two bodies genuinely interpenetrate and NO
+    // pair of faces is coincident. That matters: the kernel never
+    // infers coincidence from values, so two boxes merely TOUCHING on
+    // a shared plane refuse with `UndeclaredCoincidence` until the
+    // author declares the contact. (An earlier draft of this test did
+    // exactly that and was correctly refused — fail-loud working as
+    // designed. Declared-contact unions are the corpus's own subject;
+    // this test wants the plain seamed path.)
+    let base = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.0)); // 6.0
+    let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0)); // 1.5, of which 0.5 is inside
+
+    let BooleanResult::Body(result) = union(&base, &post).expect("union") else {
+        panic!("the two bodies interpenetrate — the union is a real body");
+    };
+
+    // The tier-3′ arm, with the operation's OWN contacts — not an
+    // empty set. This is what makes 3′ meaningful.
+    ladder(&result.body, Some(&result.contacts));
+
+    let props = mass_properties(&result.body).expect("mass properties");
+    assert!(
+        (props.volume - 7.0).abs() < 1e-12,
+        "6.0 + 1.5 - 0.5 overlap = 7.0, got {}",
+        props.volume
+    );
+}
+
+// ---------------------------------------------------------------
+// The mechanical pin for the closure property (see the module docs
+// for why the manifest is NOT the mechanism).
+// ---------------------------------------------------------------
+
+/// Reads this file's own source and fails if it reaches a kernel
+/// crate by any route other than a `pncad::` path.
+///
+/// Two checks, because there are two ways to name a crate: a `use`
+/// statement (`use topo as _;` — the exact form that falsified the
+/// previous claim, and which has no path separator for a path scan to
+/// catch), and an inline qualified path (a bare kernel crate name
+/// followed by a path separator). The guard is a plain
+/// text scan, deliberately: a parser would be more precise and far
+/// more machinery than a one-file invariant deserves, and a text scan
+/// errs toward false ALARM rather than false confidence — the safe
+/// direction for a guard whose whole job is to not overpromise.
+/// Strips `//` comments so the guard judges CODE, not prose — the
+/// docs above quote the original leak by its real name on purpose,
+/// and documentation naming a thing is not code reaching for it.
+fn code_without_comments(src: &str) -> String {
+    // Written as code points, not character literals: this function's
+    // own source is part of what the guard scans, and a literal quote
+    // here would corrupt the string-state tracking below.
+    const DQUOTE: u8 = 0x22;
+    const BACKSLASH: u8 = 0x5c;
+    const SLASH: u8 = 0x2f;
+
+    let mut out = String::with_capacity(src.len());
+    for line in src.lines() {
+        let b = line.as_bytes();
+        let (mut i, mut in_str, mut cut) = (0usize, false, b.len());
+        while i < b.len() {
+            match b[i] {
+                BACKSLASH if in_str => i += 1,
+                DQUOTE => in_str = !in_str,
+                SLASH if !in_str && b.get(i + 1) == Some(&SLASH) => {
+                    cut = i;
+                    break;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        out.push_str(&line[..cut]);
+        out.push('\n'); // preserved, so reported line numbers stay true
+    }
+    out
+}
+
+#[test]
+fn this_file_reaches_the_kernel_only_through_pncad() {
+    const FACADE: &str = "pncad";
+    let src = code_without_comments(include_str!("all.rs"));
+    let src: &str = &src;
+    // The re-exported crates, plus the one deliberately left interior.
+    const KERNEL: [&str; 13] = [
+        "bvh",
+        "editor_core",
+        "geom_brep",
+        "geom_core",
+        "geom_curves",
+        "geom_surfaces",
+        "mesh",
+        "profile",
+        "step_export",
+        "step_import",
+        "stl",
+        "sweep",
+        "topo",
+    ];
+
+    let mut violations: Vec<String> = Vec::new();
+
+    // Check 1: every `use` statement's root is the façade or std.
+    for (n, line) in src.lines().enumerate() {
+        let t = line.trim_start();
+        let Some(rest) = t.strip_prefix("use ") else {
+            continue;
+        };
+        let root: String = rest
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !matches!(root.as_str(), "pncad" | "std" | "core" | "alloc") {
+            violations.push(format!("line {}: `use {root}` — not the façade", n + 1));
+        }
+    }
+
+    // Check 2: no kernel crate name appears as a path root except
+    // immediately behind the façade's own prefix.
+    let facade_prefix = format!("{FACADE}::");
+    for name in KERNEL {
+        let needle = format!("{name}::");
+        let mut from = 0usize;
+        while let Some(off) = src[from..].find(&needle) {
+            let at = from + off;
+            from = at + needle.len();
+            let before = &src[..at];
+            // Not a path root if it is the tail of a longer identifier
+            // (e.g. `..._mesh::`), and fine if the façade introduces it.
+            let is_root = !before
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric() || c == '_');
+            if is_root && !before.ends_with(&facade_prefix) {
+                let line = before.matches('\n').count() + 1;
+                violations.push(format!("line {line}: `{name}` named outside the façade"));
+            }
+        }
+    }
+
+    // The third route. The needle is assembled at runtime rather than
+    // written as one literal, because this file scans ITSELF: a
+    // contiguous literal would be its own first match. (The guard
+    // caught exactly that on its first run — a fair sign it works.)
+    let extern_decl = ["extern", "crate"].join(" ");
+    assert!(
+        !src.contains(&extern_decl),
+        "an `extern` declaration bypasses both checks above"
+    );
+
+    assert!(
+        violations.is_empty(),
+        "this file must reach the kernel only through `{FACADE}::` — found {} violation(s):\n  {}",
+        violations.len(),
+        violations.join("\n  ")
+    );
 }

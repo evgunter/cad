@@ -52,9 +52,14 @@ topo = { path = "../topo" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra
 # test target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
-# DELIBERATELY no dev-dependencies: the closure tests (§3 of the U1
-# spec) prove that every reachable type is nameable through `pncad`
-# alone, and they can only prove it if no second crate is in scope.
+#
+# No dev-dependencies, as hygiene — NOT as an enforcement mechanism.
+# An earlier comment here claimed an empty dev-dependency list made
+# the closure tests incapable of naming a kernel crate; that is false.
+# Cargo passes `--extern` for the ordinary [dependencies] above to
+# test targets too, so all twelve are in scope in tests/all.rs
+# regardless. What actually enforces the closure property is the
+# self-scanning guard test in that file.
 [[test]]
 name = "all"
 path = "tests/all.rs"

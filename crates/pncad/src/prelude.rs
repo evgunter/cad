@@ -11,8 +11,8 @@
 //! The shape of it follows the user journey the tour documents:
 //!
 //! 1. **Numbers and frames** — points, vectors, transforms,
-//!    tolerance, and the f64-first constructors from
-//!    [`crate::authoring`] so no literal needs `from_f64`.
+//!    tolerance, the decision `Band`, and the f64-first constructors
+//!    from [`crate::authoring`] so no literal needs `from_f64`.
 //! 2. **Author a profile** — loops, sketch planes, `LoopBuilder`.
 //! 3. **Build a body** — extrude, revolve, loft/sweep, fillet.
 //! 4. **Combine** — the Boolean operations and their declarations.
@@ -31,7 +31,12 @@
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
-pub use geom_core::{Affine3, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+// `Band` is here because `fillet_edges` (group 3) takes one: a prelude
+// operation whose arguments are not prelude-constructible is a rung the
+// user cannot start from. The recipe is `Band::linear()` — the run's
+// tolerance ε as the coincidence threshold, K·ε as the escalation
+// threshold — which is what every kernel operation builds internally.
+pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};
 
 // --- 2. Profile authoring -------------------------------------
 pub use profile::{

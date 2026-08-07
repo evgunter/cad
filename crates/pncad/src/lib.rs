@@ -30,8 +30,13 @@
 //!    library than no façade.
 //!
 //! The façade contains no geometry and no numeric behavior of its
-//! own. Every item below is either a re-export or a constructor that
-//! calls exactly one kernel constructor.
+//! own. Every item below is either a re-export or a thin wrapper that
+//! does nothing but call into the kernel: six of the seven seam
+//! functions are a single kernel constructor call, and [`validated`]
+//! is the one two-call form (`Profile::new` then `Profile::validate`)
+//! — the exact pair the demo corpus wrote by hand at every scene.
+//!
+//! [`validated`]: authoring::validated
 //!
 //! # Examples
 //!
