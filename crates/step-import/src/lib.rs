@@ -191,9 +191,10 @@ pub enum NormalizationKind {
     /// so the order is the only place the winding lives) and checked
     /// against its `same_sense`. A torus whose two disagree describes
     /// an inside-out ring and REFUSES typed: re-tessellating it
-    /// right-side-out would launder the inversion, and adopting it as
-    /// stated is not possible either while the kernel's closed-form
-    /// torus contribution takes its sign from traversal alone.
+    /// right-side-out would launder the inversion, and import returns
+    /// certified bodies — the kernel's tier-3 curved sense gate
+    /// (check 6, M6-6) refuses the inside-out face adoption would
+    /// build, so the refusal fires pre-body instead.
     FullPeriodTorus,
 }
 

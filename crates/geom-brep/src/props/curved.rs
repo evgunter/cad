@@ -81,6 +81,127 @@ pub fn curved_face<T: Decide>(
     }
 }
 
+/// The material side a curved face's **boundary traversal** encodes —
+/// [`boundary_material_sign`]'s answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaterialSign {
+    /// The boundary encodes the side: `Sign::Positive` ⇔ the stored
+    /// outer-loop traversal places the material where a `sense: true`
+    /// face's outward normal (`+chart_normal`) claims. Definite
+    /// (`Positive`/`Negative`) by construction: every factor is a
+    /// definite `classify` outcome or a stored traversal bool — the
+    /// `Zero` arms refuse typed before a sign is minted.
+    Encoded(Sign),
+    /// The boundary does not encode the side: the **rimless sphere
+    /// band** (M2 PR 5's axis-touching full revolve), the one analytic
+    /// face whose flux sign the boundary cannot supply — its `s_f` IS
+    /// `Face::sense`, a single encoding with nothing to cross-check
+    /// against (the documented residual of the curved sense gate).
+    Unencoded,
+}
+
+/// The flux derivations' material-side sign, factored public (M6-6):
+/// which side of the chart normal the face's **stored outer-loop
+/// traversal** says the material lies on — the boundary's own encoding
+/// of the orientation fact `Face::sense` (M5 S10) also encodes. Tier
+/// 3's curved check-6 arm compares the two encodings; this fn re-runs
+/// the exact sub-derivations the flux lanes consume ([`s_f_from_rim`]
+/// for cylinder/cone/rim-bearing sphere; anchor-rim traversal × chart
+/// orientation for the torus), through the same already-length-metered
+/// named decides (`props_rim_side`, `props_circle_axis_class`,
+/// `props_meridian_orient`, …) — no new comparand, no new margin.
+///
+/// The derivation is chart-generic: with `n_chart = ∂u × ∂v`, the
+/// interior-left rule makes "traversal direction on the extreme rim"
+/// determine the material side on ANY nappe/latitude — which is why
+/// the cone arm needs no nappe correction (the `v < 0` chart normal
+/// negation and the physical-azimuth reversal cancel).
+///
+/// # Errors
+///
+/// [`PropsError`] exactly as the flux lanes: unimplemented kinds
+/// (NURBS), out-of-inventory boundary shapes (including conic-trimmed
+/// faces the quadrature lane owns), escalated classifications,
+/// degenerate faces. Gating callers MUST treat an error as exempt,
+/// never as disagreement (the check-7 posture).
+pub fn boundary_material_sign<T: Decide>(
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let no_rim = || PropsError::NotIsoRectangle {
+        what: "curved face without a rim (non-sphere)",
+    };
+    match *surface {
+        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+            what: "boundary_material_sign called on a plane (planar orientation is the \
+                   check-6 Newell winding, not a props derivation)",
+        }),
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let (rims, levels) = cylinder_boundary(origin, axis, radius, outer, band)?;
+            let (lo, hi) = min_max(&levels)?;
+            let rim = rims.first().ok_or_else(no_rim)?;
+            Ok(MaterialSign::Encoded(s_f_from_rim(
+                rim, lo, hi, radius, band,
+            )?))
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let (sin_a, cos_a) = half_angle.sin_cos();
+            let (rims, levels) = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            let (lo, hi) = min_max(&levels)?;
+            let arm = cone_arm(&rims, sin_a);
+            let rim = rims.first().ok_or_else(no_rim)?;
+            Ok(MaterialSign::Encoded(s_f_from_rim(rim, lo, hi, arm, band)?))
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
+            let (rims, _meridian_axes, levels) =
+                sphere_boundary(center, radius, axis, outer, band)?;
+            let Some(rim) = rims.first() else {
+                return Ok(MaterialSign::Unencoded);
+            };
+            let (lo, hi) = min_max(&levels)?;
+            Ok(MaterialSign::Encoded(s_f_from_rim(
+                rim, lo, hi, radius, band,
+            )?))
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (rims, meridians) =
+                torus_boundary(center, axis, major_radius, minor_radius, outer, band)?;
+            let m0 = meridians.first().ok_or(PropsError::NotIsoRectangle {
+                what: "torus face without a meridian",
+            })?;
+            let orient = torus_meridian_orient(m0, center, axis, minor_radius, band)?;
+            let rim_a = torus_anchor_rim(&rims, m0)?;
+            Ok(MaterialSign::Encoded(sign_mul(
+                rim_a.d_u_sign,
+                orient.flip(),
+            )))
+        }
+        Surface::Nurbs(_) => Err(PropsError::Unimplemented),
+    }
+}
+
 // ---------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------
@@ -95,9 +216,22 @@ fn t_sign<T: Real>(s: Sign) -> T {
     }
 }
 
-/// ±1 for the loop's traversal direction of an edge.
-fn trav<T: Real>(forward: bool) -> T {
-    if forward { T::one() } else { -T::one() }
+/// The rim's discrete `u`-traversal direction: a definite circle
+/// axis class, reversed when the loop traverses the edge backward.
+/// Definite in ⇒ definite out (`flip` fixes only `Zero`).
+fn rim_dir(s: Sign, forward: bool) -> Sign {
+    if forward { s } else { s.flip() }
+}
+
+/// The product of two discrete signs (`Zero` absorbs — unreachable
+/// here: every producer feeding this is definite, but the arm stays
+/// total rather than panicking, D9).
+fn sign_mul(a: Sign, b: Sign) -> Sign {
+    match b {
+        Sign::Positive => a,
+        Sign::Negative => a.flip(),
+        Sign::Zero => Sign::Zero,
+    }
 }
 
 /// Funnel wrapper: classify, mapping an escalation to the typed
@@ -190,8 +324,16 @@ enum RimLevel<T: Real> {
 /// span (`dt`, the face's `Δu` candidate), and its iso-level payload.
 struct Rim<T: Real> {
     /// ±1: traversal direction in `u` = sign(carrier axis · surface
-    /// axis) × traversal direction.
+    /// axis) × traversal direction. The scalar image of `d_u_sign`
+    /// (`t_sign`), kept as `T` for the margin arithmetic it feeds
+    /// (the `du_of_rims` group keys).
     d_u: T,
+    /// The same traversal direction as a **discrete** definite sign —
+    /// the combinatorial channel [`boundary_material_sign`] reads, so
+    /// the material-side cross-check compares two exact ±1s without
+    /// comparing scalars (both factors are discrete at origin: a
+    /// definite `classify` outcome × the stored traversal bool).
+    d_u_sign: Sign,
     /// Carrier parameter span `t1 − t0` (angle-true; `Δu`).
     dt: T,
     /// The rim's iso-level, dimension carried by the variant (see
@@ -291,20 +433,25 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, Props
 /// The margin is metered by the level's own dimension ([`RimLevel`]):
 /// bare for `Length` levels (meters already), `× arm` for the
 /// dimensionless `Unit` primary component.
+///
+/// Returns the **discrete** sign (definite by construction: a definite
+/// `props_rim_side` outcome × the rim's definite traversal direction);
+/// flux callers scalarize through `t_sign`, the material-side gate
+/// ([`boundary_material_sign`]) consumes it combinatorially.
 fn s_f_from_rim<T: Decide>(
     rim: &Rim<T>,
     lo: T,
     hi: T,
     arm: T,
     band: Band,
-) -> Result<T, PropsError> {
+) -> Result<Sign, PropsError> {
     let margin = match rim.level {
         RimLevel::Length(v) => Length::of(lo + hi - v - v),
         RimLevel::Unit(s, _) => Length::levered(lo + hi - s - s, arm),
     };
     match classify("props_rim_side", margin, band)? {
-        Sign::Positive => Ok(rim.d_u),
-        Sign::Negative => Ok(-rim.d_u),
+        Sign::Positive => Ok(rim.d_u_sign),
+        Sign::Negative => Ok(rim.d_u_sign.flip()),
         Sign::Zero => Err(PropsError::DegenerateFace),
     }
 }
@@ -324,6 +471,29 @@ fn cylinder<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    let (rims, levels) = cylinder_boundary(origin, axis, radius, edges, band)?;
+    let du = du_of_rims(&rims, radius, band)?;
+    let (lo, hi) = min_max(&levels)?;
+    require_extent(Length::of(hi - lo), band)?;
+    // `radius` is the azimuthal lever arm; the rim-side margin itself
+    // is Length-leveled (meters) and never touches it.
+    let s_f = t_sign::<T>(s_f_from_rim(&rims[0], lo, hi, radius, band)?);
+    let area = radius * du * (hi - lo);
+    let va = loop_vector_area(edges, origin)?;
+    let flux = s_f * (radius * area) + (origin - Point3::origin()).dot(va);
+    Ok(FaceContribution { flux, area })
+}
+
+/// Classify a cylinder face's boundary into (rims, iso-levels) — the
+/// shared parse consumed by both the flux closed form and
+/// [`boundary_material_sign`].
+fn cylinder_boundary<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(Vec<Rim<T>>, Vec<T>), PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
@@ -367,7 +537,8 @@ fn cylinder<T: Decide>(
                 require_rim_incidence(center - origin, n_c, r_c, axis, band)?;
                 let v = (center - origin).dot(axis);
                 rims.push(Rim {
-                    d_u: t_sign::<T>(s) * trav(e.forward),
+                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
+                    d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // The axial arc length itself — meters.
                     level: RimLevel::Length(v),
@@ -390,16 +561,7 @@ fn cylinder<T: Decide>(
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }
     }
-    let du = du_of_rims(&rims, radius, band)?;
-    let (lo, hi) = min_max(&levels)?;
-    require_extent(Length::of(hi - lo), band)?;
-    // `radius` is the azimuthal lever arm; the rim-side margin itself
-    // is Length-leveled (meters) and never touches it.
-    let s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;
-    let area = radius * du * (hi - lo);
-    let va = loop_vector_area(edges, origin)?;
-    let flux = s_f * (radius * area) + (origin - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    Ok((rims, levels))
 }
 
 /// Fold a nonempty level list to (min, max).
@@ -436,6 +598,36 @@ fn cone<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (sin_a, cos_a) = half_angle.sin_cos();
+    let (rims, levels) = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
+    let arm = cone_arm(&rims, sin_a);
+    let du = du_of_rims(&rims, arm, band)?;
+    let (lo, hi) = min_max(&levels)?;
+    require_extent(Length::of(hi - lo), band)?;
+    // Single-nappe check: definitely-negative low AND definitely-positive
+    // high would straddle the apex through both nappes.
+    let s_lo = classify("props_cone_nappe", Length::of(lo), band)?;
+    let s_hi = classify("props_cone_nappe", Length::of(hi), band)?;
+    if s_lo == Sign::Negative && s_hi == Sign::Positive {
+        return Err(PropsError::NappeSpanning);
+    }
+    let half = T::from_f64(0.5);
+    let area = sin_a * du * ((hi.powi(2) - lo.powi(2)) * half).abs();
+    let va = loop_vector_area(edges, apex)?;
+    let flux = (apex - Point3::origin()).dot(va);
+    Ok(FaceContribution { flux, area })
+}
+
+/// Classify a cone face's boundary into (rims, signed slant levels) —
+/// the shared parse consumed by both the flux closed form and
+/// [`boundary_material_sign`].
+fn cone_boundary<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(Vec<Rim<T>>, Vec<T>), PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
@@ -478,7 +670,8 @@ fn cone<T: Decide>(
                 require_zero("props_rim_fit", Length::of(r_c - v.abs() * sin_a), band)?;
                 require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
                 rims.push(Rim {
-                    d_u: t_sign::<T>(s) * trav(e.forward),
+                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
+                    d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // The signed slant arc length itself — meters.
                     level: RimLevel::Length(v),
@@ -497,33 +690,22 @@ fn cone<T: Decide>(
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
         }
     }
-    // The azimuthal lever arm: the first rim's own radius `|v|·sin α`
-    // (cone rims are `Length`-leveled, so the arm meters only the
-    // dimensionless direction/Δu margins in `du_of_rims`). The
-    // `T::one()` fallback covers the no-rim case, where `du_of_rims`
-    // refuses before any margin is metered.
-    let arm = match rims.first() {
+    Ok((rims, levels))
+}
+
+/// The cone's azimuthal lever arm: the first rim's own radius
+/// `|v|·sin α` (cone rims are `Length`-leveled, so the arm meters only
+/// the dimensionless direction/Δu margins in `du_of_rims`). The
+/// `T::one()` fallback covers the no-rim case, where `du_of_rims`
+/// refuses before any margin is metered.
+fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
+    match rims.first() {
         Some(Rim {
             level: RimLevel::Length(v),
             ..
         }) => v.abs() * sin_a,
         _ => T::one(),
-    };
-    let du = du_of_rims(&rims, arm, band)?;
-    let (lo, hi) = min_max(&levels)?;
-    require_extent(Length::of(hi - lo), band)?;
-    // Single-nappe check: definitely-negative low AND definitely-positive
-    // high would straddle the apex through both nappes.
-    let s_lo = classify("props_cone_nappe", Length::of(lo), band)?;
-    let s_hi = classify("props_cone_nappe", Length::of(hi), band)?;
-    if s_lo == Sign::Negative && s_hi == Sign::Positive {
-        return Err(PropsError::NappeSpanning);
     }
-    let half = T::from_f64(0.5);
-    let area = sin_a * du * ((hi.powi(2) - lo.powi(2)) * half).abs();
-    let va = loop_vector_area(edges, apex)?;
-    let flux = (apex - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
 }
 
 // ---------------------------------------------------------------------
@@ -558,6 +740,49 @@ fn sphere<T: Decide>(
     sense_sign: T,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    let (rims, meridian_axes, levels) = sphere_boundary(center, radius, axis, edges, band)?;
+    let (du, s_f);
+    let (lo, hi) = min_max(&levels)?;
+    require_extent(Length::levered(hi - lo, radius), band)?;
+    if rims.is_empty() {
+        // Two-band face (module docs above): meridians coplanar, Δu = π.
+        let Some((&first, rest)) = meridian_axes.split_first() else {
+            return Err(PropsError::NotIsoRectangle {
+                what: "sphere face with an empty boundary",
+            });
+        };
+        for &n in rest {
+            require_zero(
+                "props_band_coplanar",
+                Length::levered(n.cross(first).norm(), radius),
+                band,
+            )?;
+        }
+        du = T::pi();
+        // The one orientation fact no rim encodes (see the fn docs):
+        // the face's sense IS `s_f` here, not a cross-check of it.
+        s_f = sense_sign;
+    } else {
+        du = du_of_rims(&rims, radius, band)?;
+        s_f = t_sign::<T>(s_f_from_rim(&rims[0], lo, hi, radius, band)?);
+    }
+    let area = radius.powi(2) * du * (hi - lo);
+    let va = loop_vector_area(edges, center)?;
+    let flux = s_f * (radius * area) + (center - Point3::origin()).dot(va);
+    Ok(FaceContribution { flux, area })
+}
+
+/// Classify a sphere face's boundary into (rims, meridian great-circle
+/// axes, latitude-sine levels) — the shared parse consumed by both the
+/// flux closed form and [`boundary_material_sign`].
+#[allow(clippy::type_complexity)]
+fn sphere_boundary<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(Vec<Rim<T>>, Vec<Vec3<T>>, Vec<T>), PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut meridian_axes: Vec<Vec3<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
@@ -596,7 +821,8 @@ fn sphere<T: Decide>(
                 require_rim_incidence(w, n_c, r_c, axis, band)?;
                 let sin_v = w.dot(axis) / radius;
                 rims.push(Rim {
-                    d_u: t_sign::<T>(s) * trav(e.forward),
+                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
+                    d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless latitude sine — levered by R.
                     level: RimLevel::Unit(sin_v, T::zero()),
@@ -618,35 +844,7 @@ fn sphere<T: Decide>(
             }
         }
     }
-    let (du, s_f);
-    let (lo, hi) = min_max(&levels)?;
-    require_extent(Length::levered(hi - lo, radius), band)?;
-    if rims.is_empty() {
-        // Two-band face (module docs above): meridians coplanar, Δu = π.
-        let Some((&first, rest)) = meridian_axes.split_first() else {
-            return Err(PropsError::NotIsoRectangle {
-                what: "sphere face with an empty boundary",
-            });
-        };
-        for &n in rest {
-            require_zero(
-                "props_band_coplanar",
-                Length::levered(n.cross(first).norm(), radius),
-                band,
-            )?;
-        }
-        du = T::pi();
-        // The one orientation fact no rim encodes (see the fn docs):
-        // the face's sense IS `s_f` here, not a cross-check of it.
-        s_f = sense_sign;
-    } else {
-        du = du_of_rims(&rims, radius, band)?;
-        s_f = s_f_from_rim(&rims[0], lo, hi, radius, band)?;
-    }
-    let area = radius.powi(2) * du * (hi - lo);
-    let va = loop_vector_area(edges, center)?;
-    let flux = s_f * (radius * area) + (center - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    Ok((rims, meridian_axes, levels))
 }
 
 // ---------------------------------------------------------------------
@@ -682,15 +880,98 @@ fn torus<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    struct Meridian<T: Real> {
-        n_c: Vec3<T>,
-        c_c: Point3<T>,
-        dt: T,
-        anchor: Point3<T>,
-        anchor_tag: u32,
+    let (rims, meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
+    let du = du_of_rims(&rims, major, band)?;
+    let Some(m0) = meridians.first() else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "torus face without a meridian",
+        });
+    };
+    let orient = torus_meridian_orient(m0, center, axis, minor, band)?;
+    // Anchor latitude from the meridian's t0 endpoint.
+    let wa = m0.anchor - center;
+    let ha = wa.dot(axis);
+    let rho_a = (wa - axis * ha).norm();
+    let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
+    require_extent(Length::levered(m0.dt, minor), band)?;
+    let dv = m0.dt;
+    // Normalize to the increasing interval [v0, v1]: rotate the anchor
+    // latitude by the signed span where needed.
+    let (sd, cd) = dv.sin_cos();
+    let (s0, c0, s1, c1) = match orient {
+        // orient Negative ⇒ dv/dt = +1: anchor is v0.
+        Sign::Negative => {
+            let s1 = sin_a * cd + cos_a * sd;
+            let c1 = cos_a * cd - sin_a * sd;
+            (sin_a, cos_a, s1, c1)
+        }
+        // orient Positive ⇒ dv/dt = −1: anchor is v1.
+        Sign::Positive => {
+            let s0 = sin_a * cd - cos_a * sd;
+            let c0 = cos_a * cd + sin_a * sd;
+            (s0, c0, sin_a, cos_a)
+        }
+        Sign::Zero => unreachable_zero(),
+    };
+    // Rim levels must sit at the interval ends.
+    for rim in &rims {
+        // Torus rims are minted `Unit` a page up; the refusal arm is
+        // structurally unreachable but stays typed, never a panic (D9).
+        let RimLevel::Unit(rs, rc) = rim.level else {
+            return Err(PropsError::NotIsoRectangle {
+                what: "torus rim carries a non-angular level",
+            });
+        };
+        // powi(2), not x*x: the interval square is tight and
+        // nonnegative, so the sqrt stays fully in-domain even when the
+        // difference encloses zero (an x*x interval product has a
+        // negative lower bound there, and the domain-clamped sqrt's
+        // decoration would poison the margin — found live on the
+        // interval-lane donut).
+        let d0 = ((rs - s0).powi(2) + (rc - c0).powi(2)).sqrt();
+        let d1 = ((rs - s1).powi(2) + (rc - c1).powi(2)).sqrt();
+        require_zero("props_rim_level", Length::levered(d0.min(d1), minor), band)?;
     }
+    // s_f: the rim topologically adjacent to the anchor endpoint; the
+    // interior sweeps from it in the `dv/dt = −orient` direction.
+    let rim_a = torus_anchor_rim(&rims, m0)?;
+    let s_f = t_sign::<T>(sign_mul(rim_a.d_u_sign, orient.flip()));
+    let half = T::from_f64(0.5);
+    let area = minor * du * (major * dv + minor * (s1 - s0));
+    let k = minor
+        * du
+        * ((major.powi(2) + minor.powi(2)) * (s1 - s0)
+            + major * minor * dv
+            + (major * minor * half) * (dv + s1 * c1 - s0 * c0));
+    let va = loop_vector_area(edges, center)?;
+    let flux = s_f * k + (center - Point3::origin()).dot(va);
+    Ok(FaceContribution { flux, area })
+}
+
+/// A torus minor-circle boundary edge (iso-`u` meridian): its carrier
+/// frame, stored parameter span, and traversal-start anchor.
+struct TorusMeridian<T: Real> {
+    n_c: Vec3<T>,
+    c_c: Point3<T>,
+    dt: T,
+    anchor: Point3<T>,
+    anchor_tag: u32,
+}
+
+/// Classify a torus face's boundary into (rims, meridians) — the
+/// shared parse consumed by both the flux closed form and
+/// [`boundary_material_sign`].
+#[allow(clippy::type_complexity)]
+fn torus_boundary<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(Vec<Rim<T>>, Vec<TorusMeridian<T>>), PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
-    let mut meridians: Vec<Meridian<T>> = Vec::new();
+    let mut meridians: Vec<TorusMeridian<T>> = Vec::new();
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -723,7 +1004,8 @@ fn torus<T: Decide>(
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
                 rims.push(Rim {
-                    d_u: t_sign::<T>(s) * trav(e.forward),
+                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
+                    d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless minor-angle direction pair.
                     level: RimLevel::Unit(sin_v, cos_v),
@@ -750,7 +1032,7 @@ fn torus<T: Decide>(
                     Length::of(n_c.dot(w - axis * h)),
                     band,
                 )?;
-                meridians.push(Meridian {
+                meridians.push(TorusMeridian {
                     n_c,
                     c_c,
                     dt: e.t1 - e.t0,
@@ -760,14 +1042,19 @@ fn torus<T: Decide>(
             }
         }
     }
-    let du = du_of_rims(&rims, major, band)?;
-    let Some(m0) = meridians.first() else {
-        return Err(PropsError::NotIsoRectangle {
-            what: "torus face without a meridian",
-        });
-    };
-    // Chart orientation of the anchor meridian: v winds right-handed
-    // about −τ̂ at its minor center.
+    Ok((rims, meridians))
+}
+
+/// Chart orientation of the anchor meridian: `v` winds right-handed
+/// about `−τ̂` at its minor center, so `dv/dt = −orient`. Definite by
+/// construction (the `Zero` arm refuses typed).
+fn torus_meridian_orient<T: Decide>(
+    m0: &TorusMeridian<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    minor: T,
+    band: Band,
+) -> Result<Sign, PropsError> {
     let w = m0.c_c - center;
     let rho_hat = (w - axis * w.dot(axis)).normalize();
     let tau = axis.cross(rho_hat);
@@ -781,72 +1068,21 @@ fn torus<T: Decide>(
             what: "torus meridian orientation degenerate",
         });
     }
-    let dv_sign = -t_sign::<T>(orient);
-    // Anchor latitude from the meridian's t0 endpoint.
-    let wa = m0.anchor - center;
-    let ha = wa.dot(axis);
-    let rho_a = (wa - axis * ha).norm();
-    let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
-    require_extent(Length::levered(m0.dt, minor), band)?;
-    let dv = m0.dt;
-    // Normalize to the increasing interval [v0, v1]: rotate the anchor
-    // latitude by the signed span where needed.
-    let (sd, cd) = dv.sin_cos();
-    let (s0, c0, s1, c1) = match orient {
-        // orient Negative ⇒ dv_sign = +1: anchor is v0.
-        Sign::Negative => {
-            let s1 = sin_a * cd + cos_a * sd;
-            let c1 = cos_a * cd - sin_a * sd;
-            (sin_a, cos_a, s1, c1)
-        }
-        // orient Positive ⇒ dv_sign = −1: anchor is v1.
-        Sign::Positive => {
-            let s0 = sin_a * cd - cos_a * sd;
-            let c0 = cos_a * cd + sin_a * sd;
-            (s0, c0, sin_a, cos_a)
-        }
-        Sign::Zero => unreachable_zero(),
-    };
-    // Rim levels must sit at the interval ends.
-    for rim in &rims {
-        // Torus rims are minted `Unit` a page up; the refusal arm is
-        // structurally unreachable but stays typed, never a panic (D9).
-        let RimLevel::Unit(rs, rc) = rim.level else {
-            return Err(PropsError::NotIsoRectangle {
-                what: "torus rim carries a non-angular level",
-            });
-        };
-        // powi(2), not x*x: the interval square is tight and
-        // nonnegative, so the sqrt stays fully in-domain even when the
-        // difference encloses zero (an x*x interval product has a
-        // negative lower bound there, and the domain-clamped sqrt's
-        // decoration would poison the margin — found live on the
-        // interval-lane donut).
-        let d0 = ((rs - s0).powi(2) + (rc - c0).powi(2)).sqrt();
-        let d1 = ((rs - s1).powi(2) + (rc - c1).powi(2)).sqrt();
-        require_zero("props_rim_level", Length::levered(d0.min(d1), minor), band)?;
-    }
-    // s_f: the rim topologically adjacent to the anchor endpoint; the
-    // interior sweeps from it in the dv_sign direction.
-    let Some(rim_a) = rims
-        .iter()
+    Ok(orient)
+}
+
+/// The rim topologically adjacent to the anchor meridian's `t0`
+/// endpoint — the rim the torus `s_f` derivation reads (the interior
+/// sweeps from it in the `dv/dt` direction).
+fn torus_anchor_rim<'a, T: Real>(
+    rims: &'a [Rim<T>],
+    m0: &TorusMeridian<T>,
+) -> Result<&'a Rim<T>, PropsError> {
+    rims.iter()
         .find(|r| r.tags.0 == m0.anchor_tag || r.tags.1 == m0.anchor_tag)
-    else {
-        return Err(PropsError::NotIsoRectangle {
+        .ok_or(PropsError::NotIsoRectangle {
             what: "torus meridian anchor not on a rim",
-        });
-    };
-    let s_f = rim_a.d_u * dv_sign;
-    let half = T::from_f64(0.5);
-    let area = minor * du * (major * dv + minor * (s1 - s0));
-    let k = minor
-        * du
-        * ((major.powi(2) + minor.powi(2)) * (s1 - s0)
-            + major * minor * dv
-            + (major * minor * half) * (dv + s1 * c1 - s0 * c0));
-    let va = loop_vector_area(edges, center)?;
-    let flux = s_f * k + (center - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+        })
 }
 
 /// Documented-unreachable arm (the caller matched a definite sign);

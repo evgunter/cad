@@ -297,7 +297,16 @@ fn f6_reversed_face_unflip_is_not_healed() {
         "#33 = ADVANCED_FACE('', (#32), #5, .T.);",
     );
     match import_text(&text) {
-        Err(e) => println!("f6 .F.->.T.: typed refusal: {e}"),
+        Err(e) => {
+            println!("f6 .F.->.T.: typed refusal: {e}");
+            // PINNED (M6-6): the un-reversal is not healed — it is
+            // refused pre-body with the orientation-inverted diagnosis
+            // (the import rider's cylinder/cone wall cross-check).
+            assert!(
+                e.to_string().contains("ORIENTATION-INVERTED"),
+                "the refusal must carry the orientation-inverted diagnosis: {e}"
+            );
+        }
         Ok(StepImport::Solid { body, .. }) => {
             let tier3 = topo::validate_geometric(&body);
             let out = export(&body, "washer");

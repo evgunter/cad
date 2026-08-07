@@ -59,6 +59,15 @@
 //! same body; the two inverted ones REFUSE typed. Nothing about the
 //! file's material side is assumed, and nothing is repaired into
 //! existence.
+//!
+//! The M6-6 rider extends the same derived-winding cross-check to the
+//! degenerate-apex cone (inside [`apex_cone`], before its re-mint) and
+//! — read-only — to two-rim cylinder/cone walls ([`wall_inversion`]):
+//! since M6-6 the kernel's tier-3 curved sense gate (check 6,
+//! `CurvedSenseInverted`) refuses the inside-out body such a file
+//! would build, and import returns certified bodies, so the
+//! orientation-inverted diagnosis fires HERE, pre-body, with the
+//! whole-torus refusal's typed story.
 
 use std::collections::BTreeMap;
 
@@ -242,7 +251,96 @@ pub(crate) fn normalize_shell(
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     apex_cone(solid, mint, sink)?;
-    full_torus(solid, mint, sink)
+    full_torus(solid, mint, sink)?;
+    wall_inversion(solid)
+}
+
+/// **The cylinder/cone wall orientation cross-check** (M6-6 rider, the
+/// torus check's pattern, read-only): a lateral face bounded by two
+/// rims whose stated `same_sense` disagrees with the winding of its
+/// own loop describes an inside-out solid. Adoption would carry the
+/// disagreement into a body verbatim (sense and traversal both copied)
+/// and the kernel's tier-3 curved sense gate (check 6,
+/// `CurvedSenseInverted`) would refuse that body — but import returns
+/// certified bodies, so the honest surfacing is the whole-torus
+/// refusal's: typed, PRE-BODY, with the orientation-inverted
+/// diagnosis.
+///
+/// The winding is derived, never assumed, exactly as the torus reads
+/// its fundamental polygon: each rim's chart-`u` direction is sampled
+/// through the kernel's own chart inverse, and the CCW boundary of a
+/// chart rectangle traverses its low-`v` rim in `+u` (the high-`v` one
+/// in `−u`). `sense == ccw` is right-side-out; both ISO encodings
+/// (`.T.` CCW / `.F.` CW) adopt, the two inverted ones refuse. Scope
+/// is bounded to the shape the reading is exact on — a single-loop
+/// cylinder/cone face with exactly two distinct rims, opposite rim
+/// `u`-directions, distinct levels; anything else (one-rim caps,
+/// unreadable charts, partial walls whose rims agree in direction) is
+/// left for the kernel's own ladder — which catches the CIRCLE-rimmed
+/// analytic class from below (executed on a three-rim wall). The
+/// quadrature-owned conic-trimmed class is a RECORDED residual that
+/// slips both layers: an ellipse-trimmed wall has no circle-rim pair
+/// to read here, and the kernel arm exempts its boundary parse — such
+/// flips import and certify green today (executed on the
+/// tilted-section cylinder; closes with the ellipse-rim material-side
+/// encoding).
+fn wall_inversion(solid: &SolidSpec) -> Result<(), StepImportError> {
+    for face in &solid.faces {
+        let (Surface::Cylinder { axis, .. } | Surface::Cone { axis, .. }) = face.surface else {
+            continue;
+        };
+        let [lp] = face.loops.as_slice() else {
+            continue;
+        };
+        // The rims: circle uses whose carrier axis is the surface axis
+        // (the torus check's `> 0.5` structural classifier).
+        let mut rims: Vec<(EdgeUse, f64, bool)> = Vec::new(); // (use, v, raises u)
+        let mut readable = true;
+        for use_ in &lp.uses {
+            let spec = &solid.edges[&use_.edge];
+            let Curve3::Circle { axis: n_c, .. } = spec.carrier else {
+                continue;
+            };
+            if n_c.dot(axis).abs() <= 0.5 {
+                continue;
+            }
+            let Some(p) =
+                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, |uv| uv.x)
+            else {
+                readable = false;
+                break;
+            };
+            let Some(uv) = crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0)) else {
+                readable = false;
+                break;
+            };
+            rims.push((*use_, uv.y, use_.forward == p));
+        }
+        let [(ra, va, ru_a), (rb, vb, ru_b)] = rims.as_slice() else {
+            continue;
+        };
+        // Exact-shape gates: two DISTINCT rims at distinct levels,
+        // traversed in opposite chart-u directions (every coherent
+        // wall rectangle's property — a face outside it is not a clean
+        // reading and is left to the kernel gate).
+        if !readable || ra.edge == rb.edge || va == vb || ru_a == ru_b {
+            continue;
+        }
+        let ccw = if va < vb { *ru_a } else { *ru_b };
+        if face.sense != ccw {
+            return Err(StepImportError::Topology {
+                id: face.id,
+                what: "an ORIENTATION-INVERTED cylinder/cone wall face: its stated same_sense \
+                       and the winding of its own loop (the rims' chart directions against \
+                       their levels) disagree, so the solid it describes is inside out. \
+                       Adoption would copy both encodings verbatim and the kernel's tier-3 \
+                       curved sense gate (check 6) would refuse the built body — import \
+                       returns certified bodies, so the refusal fires here, before any \
+                       body exists",
+            });
+        }
+    }
+    Ok(())
 }
 
 /// **The degenerate-apex cone** (module docs): a conical face whose
@@ -322,6 +420,56 @@ fn apex_cone(
         };
         (base_v, seam_spec.carrier.clone())
     };
+    // ---- Orientation cross-check (M6-6 rider, the torus pattern) --
+    //
+    // The re-mint below copies the file's sense and traversal, so an
+    // inverted description would survive it and build a body the
+    // kernel's tier-3 curved sense gate (check 6, CurvedSenseInverted)
+    // then refuses. Import returns certified bodies, so the honest
+    // story is the torus's: refuse PRE-BODY, with the same
+    // orientation-inverted diagnosis. The winding is derived, never
+    // assumed: which way the base circle's traversal runs in chart `u`
+    // (sampled through the kernel's own chart inverse), crossed with
+    // which side of the apex (`v = 0`) the base rim sits on — the CCW
+    // boundary of the lateral chart region traverses a `v > 0` rim in
+    // `−u` and a `v < 0` rim in `+u`. `sense == ccw` is right-side-out
+    // (both ISO encodings adopt); disagreement refuses. A reading the
+    // geometry does not answer skips the check rather than guessing —
+    // unlike the torus, this mint copies rather than re-orients, so an
+    // unreadable winding leaves a body the kernel gate still judges
+    // (true for this shape: a degenerate-apex cone's boundary is
+    // circle-rimmed, squarely in the kernel arm's analytic class).
+    {
+        let face = &solid.faces[fi];
+        let circle_spec = &solid.edges[&circle_use.edge];
+        let p = chart_direction(
+            &face.surface,
+            &circle_spec.carrier,
+            circle_spec.t0,
+            circle_spec.t1,
+            |uv| uv.x,
+        );
+        let v_b = crate::chart::uv_of(&face.surface, solid.vertices[&base_v]).map(|uv| uv.y);
+        if let (Some(p), Some(v_b)) = (p, v_b)
+            && v_b != 0.0
+        {
+            let ru = circle_use.forward == p;
+            let ccw = ru != (v_b > 0.0);
+            if face.sense != ccw {
+                return Err(StepImportError::Topology {
+                    id: face.id,
+                    what: "an ORIENTATION-INVERTED degenerate-apex cone face: its stated \
+                           same_sense and the winding of its own loop (base-rim chart \
+                           direction against the rim's side of the apex) disagree, so \
+                           the solid it describes is inside out. This importer will not \
+                           re-tessellate it as stated — the kernel's tier-3 curved \
+                           sense gate (check 6) refuses the inside-out face it would \
+                           build — and import returns certified bodies, so the refusal \
+                           fires here, before any body exists",
+                });
+            }
+        }
+    }
     let Some(second_seam) = half_turn_curve(&seam_carrier, apex, axis) else {
         return Ok(());
     };
@@ -583,11 +731,10 @@ fn full_torus(
                    winding of its own fundamental-polygon loop disagree, so the solid it \
                    describes is inside out. This importer will not re-tessellate it \
                    right-side-out — that would launder the inversion into a positive \
-                   volume — and it cannot adopt it as stated either: the kernel's \
-                   closed-form torus contribution derives its sign from the face's own \
-                   traversal and never consumes same_sense, so an inverted torus would \
-                   certify green with a positive volume. Refused until the kernel can \
-                   hold an inverted rim-bearing face honestly",
+                   volume — and it will not adopt it as stated: the kernel's tier-3 \
+                   curved sense gate (check 6, CurvedSenseInverted) refuses an inside-out \
+                   rim-bearing face, and import returns certified bodies, so the refusal \
+                   fires here, before any body exists",
         });
     }
 
@@ -637,10 +784,11 @@ fn full_torus(
     // ISO 10303-42 lets one solid be stated two ways, `(.T., CCW)` and
     // `(.F., CW)`; they are the same material side and both reach here.
     // The kernel, however, derives a torus face's flux sign from its
-    // TRAVERSAL alone (its closed-form contribution never consumes
-    // `same_sense` — the fenced kernel gap this refusal is written
-    // against), so a `(.F., CW)` re-tessellation would come back with a
-    // negative volume for a right-side-out ring. Minting the outward
+    // TRAVERSAL alone (the tier-3 curved sense gate — M6-6 — now
+    // cross-checks the bit against that traversal, but the flux still
+    // reads the traversal), so a `(.F., CW)` re-tessellation would
+    // come back with a negative volume for a right-side-out ring.
+    // Minting the outward
     // convention explicitly is therefore the honest description of the
     // faces being minted, not a healing of the file's: the file's face
     // does not survive the re-tessellation, and its replacements get a

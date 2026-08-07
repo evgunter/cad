@@ -38,10 +38,14 @@ mod kernel_sidecars;
 mod m5_pr13_curved;
 #[path = "m5_s11_same_sense.rs"]
 mod m5_s11_same_sense;
+#[path = "m6_6_sense_gate.rs"]
+mod m6_6_sense_gate;
 #[path = "m7_swept_elbow.rs"]
 mod m7_swept_elbow;
 #[path = "orientation_oracle.rs"]
 mod orientation_oracle;
+#[path = "rev_probe.rs"]
+mod rev_probe;
 #[path = "review_k4_probe.rs"]
 mod review_k4_probe;
 #[path = "review_pad_probe.rs"]
