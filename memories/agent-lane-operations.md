@@ -1,6 +1,6 @@
 ---
 name: agent-lane-operations
-description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories) — lane creation via scripts/new-lane.sh, disk/RAM budgets and cleanup via scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
+description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via scripts/new-lane.sh, machine-wide build concurrency via scripts/with-build-slot.sh flock slots, disk budgets and cleanup via scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
 metadata:
   type: project
 ---
@@ -35,10 +35,33 @@ suspect. Merged-branch worktrees are swept at every pipeline seam
 blocks batch loops). Confirm the OWNING agent has terminated
 before cleaning its lane.
 
-**RAM.** 10 GB WSL2 ceiling (`.wslconfig`, confirmed 2026-07-25):
-at most TWO parallel cargo lanes machine-wide. An OOM-killed test
-shows as a bare "Terminated" single-row FAIL — check what else was
-running and rerun quiet before diagnosing a code bug.
+**RAM / build concurrency (locks since 2026-08-06, replacing the
+soft two-lane convention and the cad-work/cargo-slots.txt
+registry).** 10 GB WSL2 ceiling (`.wslconfig`, confirmed
+2026-07-25). Heavy cargo operations are bounded machine-wide by
+`scripts/with-build-slot.sh` — flock slot files in
+`~/.local/share/cad-work/locks/`. flock releases on process death
+(even SIGKILL/OOM), so dead agents cannot leave stale locks.
+**Width is 1 (a mutex), measured not assumed** — the 2026-08-06
+experiment (PR #230; cad-work/slot-exp-results.md): concurrent
+warm workspace rebuilds 98s pair-wall (-j8) / 111s (-j4) vs 69s
+sequential — concurrency loses ~40% to cache/membw contention,
+and -j caps make it worse (solo -j4 52s vs -j8 33s), so no jobs
+cap either; RAM was never tight (min 5.5 GB avail). Numbers are
+post-laptop-settings-fix (Evan, 2026-08-06 — pre-fix timing
+folklore is stale). CAD_SLOT_WIDTH=2 re-widens if hardware
+changes; batteries then take ALL slots (`-x`) — two concurrent
+batteries are the documented OOM shape. `ci-local.sh` (hence gate.sh) and
+`test-fast.sh` self-acquire, so the standard entry points queue
+automatically; wrap raw `cargo` invocations yourself. Agents
+choose `-n` (grab-or-exit-75, then retry/fall back) vs default
+blocking wait (`-w SECS` caps it) — a blocking wait can eat a Bash
+call's 10-min cap, so briefs should prefer `-n` + retry for long
+queues. The number of ALIVE agents is no longer capped at two —
+only concurrent heavy cargo is; more than two lanes may exist if
+disk allows. An OOM-killed test still shows as a bare "Terminated"
+single-row FAIL — check what else was running and rerun quiet
+before diagnosing a code bug.
 
 **Liveness.** Standing (Evan, 2026-07-24): check every running
 lane at least hourly — arm `hourly-checkin.sh`; lost
