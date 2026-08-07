@@ -30,13 +30,20 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    (`cargo-slots.txt` is RETIRED in place); until the script
    lands on main, the 10 GB / two-parallel-cargo-lanes ceiling is
    enforced by this log's slot line.
+   **SUPERSEDED same night: PR #230 MERGED (2026-08-07 ~00:00)**
+   — `scripts/with-build-slot.sh`, machine-wide flock semaphore,
+   WIDTH 1 (serial builds measured ~40% faster than 2-wide;
+   PR #230 has the numbers). Both running implementers were
+   messaged to wrap every cargo call in it; all future dispatch
+   briefs carry it. Any number of agents may be alive — only
+   their builds queue.
 
 ## Dispatch record
 
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
-| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | dispatched 2026-08-06 |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | dispatched 2026-08-06 |
+| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 delivered: PR #233 OPEN, CI 26/1-skip green (impl ~364k tok, ~4.1h); 11 numbered findings; blinded review in flight (lane lib-u2-review) |
 
 ## Orchestrator decisions (LB-numbered)
 
@@ -53,6 +60,35 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
   (every type reachable through re-exported public error enums is
   importable from the façade) with a compile-level test, not as a
   one-off re-export.
+
+## v2-conversation evidence accumulator
+
+Findings that feed the profiles-as-programs representation draft
+(ruling 3 above); source = the U2 PR-1 implementer report:
+
+- **Stadium/slot profiles are UNAUTHORABLE in the ratified
+  surface** (finding 7): both-sides-tangent closer + parallel
+  carriers — every closure door refuses, and PQ4 blocks mid-carrier
+  seams. Real vocabulary gap, not an implementation artifact.
+- NURBS legs have no v1 representation to lower to (finding 1) —
+  banked for v2 exactly as PATHS-DESIGN anticipated.
+- ε_input plumbing for the algebra's junction checks is
+  unspecified in the doc (finding 2; run-global Tolerance::get()
+  used) — the v2 spec should say where path-authoring tolerance
+  comes from.
+- Fillet-trim canonicalization is anchor-based (finding 10) —
+  defines the bit-identity expectation for PR-2's scene rework
+  (anchor-consistent scenes lower bit-identically; others change
+  SAID not shape and need per-scene care).
+
+## U9 backlog notes (accumulating)
+
+- `MigrationStep`'s `serde_json::Value` payload is the one closure
+  exception a Python binding will actually meet (U1 audit) —
+  decide at U9 whether pncad re-exports serde_json or the payload
+  gets a typed wrapper.
+- `BooleanOp` name collision (topo's in the prelude, editor_core's
+  by path) — revisit if bindings prefer the document-layer one.
 
 ## Resting state (2026-08-06)
 
