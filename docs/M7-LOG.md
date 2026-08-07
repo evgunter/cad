@@ -955,3 +955,14 @@ two conflict-recovery duplicate rows deduped). The M6-6
 residual family now has its tracking issue with per-residual
 flip conditions and sequencing — walk material with named
 owners, none blocking.
+
+**Successor briefing written (2026-08-07):
+~/.local/share/cad-work/handoff-prompt-next.md** — the resting
+state, the ruled runway (k-lint floor → M6 walk → band-seam +
+stage-1 → M7 walk → M8 opens with C7), the standing process
+with every norm learned this session (CONFLICTING-silent-CI,
+bare lane names, substrate placement, terminated-before-clean,
+checkpoint cadence, arm-names-out-of-review-scope), A/B state
+(blocks through M7-8 consumed; M7-9 next), and the first moves.
+This session hands off clean: nothing running, all seams on
+main.
