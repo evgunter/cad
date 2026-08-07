@@ -822,3 +822,130 @@ not-a-revolve geometry living next door. Operational note: this
 host's render passes contended with a concurrent review-lane FreeCAD
 session (GL-context failures, one matplotlib-fallback near-miss
 caught before commit); re-render serialized behind it.
+
+**M6 unit 5 forks RULED (Evan on #217, 2026-08-06)**: F-a
+Vec-only selections + enumerate-all helper (freeze semantics
+made explicit and accepted — a selection is a commitment;
+Rebind is the growth path); F-b v3 clean break (ratified
+precedent); F-c N5-verbatim + Rebind third site; F-d TWO
+sequenced PRs (clean split by consumer: the die's fillet is
+terminal → PR-1 surgery-emitter + vocabulary + node + v3 +
+eval + die registration at M, PR-2 whole-body totality at S);
+F-e measure-first confirmed. Substrate correction on record:
+the "banked N4 emitter" was zero code; the die document
+pre-exists in hold-out shape. **A/B block M7-7: unit-5 PR-1
+difficulty logged M BEFORE the draw.** Also this hour: Evan's
+accidental cancellation disarmed the monitors (re-armed, all
+three) and killed the mesh lane mid-render (resumed;
+delivered as #218, review in flight).
+Draw: byte 19 → **(opus, fable)** — unit-5 PR-1 = OPUS; fable
+remainder to the next eligible dispatch. docs/M6-5-SPEC.md
+written from the substrate + the #217 rulings; dispatched on
+lane m6-5-fillet (slot 1); PR-1 held for review, PR-2 follows
+its merge.
+
+**Montage visual chunk scoped (Evan's #218 follow-up,
+2026-08-06): difficulty logged S BEFORE dispatch; arm = FABLE
+(block M7-7 remainder — unit-5's PR-2 inherited PR-1's opus arm
+as one unit).** Scope: cut tube_along_arc + the two partial-die
+cells from the montage (kept in the demo); replace/augment the
+s_duct with geometry REVOLVES CANNOT DO (torsion via a
+non-planar path, or continuously varying curvature — measure
+the post-#210 path vocabulary first and demonstrate the
+strongest reachable class); make the loft pair's nonuniformity
+dramatic. Lane montage-v2 (slot 2).
+
+**Montage-v2 delivered (2026-08-06, PR #221 HELD for Evan's
+eyeball; watchlisted).** Item 2's measurement CONCEDED Evan's
+read (the s_duct IS two glued partial revolves — demoted,
+caption honesty-fixed) and produced the real answer: planar
+varying-curvature and sub-half-turn non-planar paths all build
+end-to-end; the new sweep cell is twisted_duct (square along a
+twisted cubic, τ nowhere zero — beyond any revolve gluing);
+profile twist verified unsupported (C11 scope). BANKED FRONTIER:
+helix arcs ≥0.5 turn refuse typed (nurbs_span_meter ParamSpan —
+the corner-path chord meter collapses under near-antipode frame
+roll) — the long-turn sweep lane. Item 3 measured honestly (the
+#218 pair was visually the prism rescaled; the re-spaced pair
+overshoots silhouette-obviously, V = 9.7219 derived, quadrature
+1e-13). One repair: the committed montage carried a stray
+fallback frame from this session's concurrent-renderer accident
+— recomposed from verified cells. Actions outage persists (zero
+runs created; the #220 rerun queued ~4h) — #221 merges on
+Evan's 👍 under the standing waiver, hosted evidence late via
+task-#16's sweep.
+
+**M6-6 substrate returned + spec written (2026-08-06).** The
+executed truth table is STARKER than the ratifying thread knew:
+NO gate catches any single-face curved flip (all four kinds
+bit-identical or Zero-exempt), and fully inside-out
+washer/cone/donut/lily certify GREEN positive — plus a NEW
+executed import gap (cylinder/cone_apex flips import green; the
+torus normalization check has no siblings — now the spec's
+rider). Extension surface clean: one factoring
+(boundary_material_sign) + a curved check-6 arm, combinatorial
+(no comparand — margin convention satisfied by reuse of the
+length-metered named decides). Coexist-not-subsume ruled for
+the import torus refusal. No forks. **A/B block M7-8: M6-6
+difficulty logged LOW-M BEFORE the draw.** Draw after this
+commit.
+Draw: byte 194 → **(fable, opus)** — M6-6 = FABLE; opus
+remainder to the next eligible dispatch. Dispatched on lane
+m6-6-gate (slot 1, replacing the substrate claim; the substrate
+clone cleans per the placement rule — outputs stay).
+
+**Fallback unit ratified (Evan 👍 on #221's affordance):
+difficulty logged S BEFORE dispatch; arm = OPUS (block M7-8
+remainder).** Scope: the matplotlib fallback writes to a
+gitignored renders-preview/ (never the committed paths) + a
+guard asserting committed PNGs carry the FreeCAD signature
+chunks — a fallback frame becomes structurally uncommittable.
+Lane render-guard (slot 2).
+
+**C7 placement RULED (Evan 👍, #223 thread, 2026-08-07): option
+(b) — M6 closes at its ratified boundary; the C7 join-lane
+implementation OPENS M8 (the contact design was co-designed
+with M8's signed clearance — the co-design stays load-bearing);
+the lily rebuild rides there. The roadmap through both walks is
+now fully ruled: M6 = unit 6 (in review) + k-lint floor → exit
+walk (closure = Evan's call at the walk, with the 15-row lily
+disposition table as walk evidence); M7 = band-seam + stage-1
+recognition → exit walk; then M8 opens with C7.**
+
+## TIE-UP (2026-08-07, Evan's ask): the resting state
+
+Merged since the last state-sync: #218 (mesh trimmed-NURBS lane
+— NURBS faces render, the empirical per-triangle falsifier
+guards CI), #219+#220 (M6-5 whole — the composed die registered,
+fillet naming total through both doors), #221 (montage-v2 — the
+twisted_duct, curated cells, the conceded s_duct), #224
+(render-guard — fallback frames structurally uncommittable; its
+run confirmed ACTIONS RECOVERED). Filed: #222 (long-turn sweep
+frontier). RULED: C7 opens M8, M6 closes at its ratified
+boundary (Evan 👍). CLEARED: the Actions outage debt — main
+went full-matrix GREEN on the tip containing every waiver-era
+merge. A/B rows all recorded at merge (MESH fable, M6-5 opus,
+MV2 fable, GUARD opus).
+
+**The one open thread**: M6-6 (#223) is in its fix pass (lint
+header + the conic-trim residual recording; the gate itself
+survived every review attack incl. a byte-identical 51-row
+census at three ε). On its green return it merges with its A/B
+row — no re-dispatch needed, the pass is in flight.
+
+**The runway after M6-6 merges (nothing dispatched yet, per the
+tie-up)**: the k-lint baseline-floor refresh (last M6 hygiene) →
+the M6 EXIT WALK (closure = Evan's call; the 15-row lily
+disposition table is walk evidence); M7's band-seam re-mint +
+stage-1 recognition → the M7 EXIT WALK; then M8 opens with the
+C7 join lane + the lily rebuild. Small banked chunks: the
+kernel-lane per-scene render timeout (the FreeCAD deadlock),
+the #214 dimensional-debt riders, #222.
+
+Slots: 1 = m6-6-review lane (cleans at #223's merge), 2 = free.
+Watchlist: empty. Monitors: armed (re-armed post-accident).
+Disk healthy. All logs, A/B rows, and memories committed.
+**Tie-up completion: M6-6 MERGED as #223** (the open thread
+closed itself — fix pass green on the fresh hosted run). M6's
+RATIFIED CONTENT IS DONE. The resting state stands as written
+above, with the runway's first step now the k-lint floor.

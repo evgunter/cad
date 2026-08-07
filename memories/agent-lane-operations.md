@@ -59,3 +59,24 @@ the orchestrator worktree**: every resumed command must carry
 `cd <clone> && ...` in the same Bash call, and post-resume battery
 claims are trusted only after verifying the transcript rows
 carried the cd (green-but-invalid numbers otherwise).
+
+**CONFLICTING = silent CI outage (norm ratified with Evan,
+2026-08-06, from PR #218):** a PR that goes CONFLICTING against
+main runs NO check runs at all — it looks like CI is absent, not
+failing. Standing norm: every implementer brief and PR checklist
+carries "merge origin/main immediately before opening the PR,
+and re-merge whenever main moves while it is open"; after any
+push, confirm checks actually STARTED (`gh pr checks` shows
+rows). Orchestrator side: PR watchers treat CONFLICTING as a
+loud failure (never wait on a conflicted PR), and the hourly
+sweep checks open PRs' mergeable state, not just lane activity.
+Binary/render conflicts are never hand-picked — take a side,
+regenerate through the pipeline, re-verify the reproducibility
+contract.
+**Substrate-output placement (lesson 2026-08-06):** clean-lanes
+on a substrate dir's PARENT deletes the inventory beside the
+lane (m6-5's inventory was lost this way; the implementer
+re-derived). Substrate outputs and the lane clone must not share
+a parent that gets passed to cleanup — put outputs at
+cad-work/<name>-substrate/ and the clone INSIDE it, then remove
+only the clone subdir at the seam.
