@@ -104,6 +104,16 @@ per-MAJOR `silent` flag from the coder is used only descriptively. Noted
 because conflating the two would inflate the metric the protocol weights
 worst.
 
+**Q13 — Charts.** No `node` on this box, so the bundled palette validator
+could not be run. Rather than eyeball it, `palette_check.py`
+reimplements the gate in Python: OKLab ΔE between the two series under
+normal vision and simulated protanopia / deuteranopia / tritanopia
+(Machado 2009 matrices, severity 1.0), plus WCAG contrast against each
+chart surface. The two series (blue = fable, orange = opus) pass every
+gate in both light and dark mode with wide margins (worst CVD ΔE 24.7 vs
+a target of 8; worst contrast 3.12:1 vs a floor of 3). No plotting
+library exists here either, so charts are hand-generated inline SVG.
+
 **Q10 — Priors.** Weakly informative and centred on "no difference":
 arm coefficients get Normal(0, 0.8) on the log-rate scale (a 95% prior
 range of roughly 0.2x–5x, wide relative to any plausible model gap) and

@@ -1,0 +1,52 @@
+v2 quality rows: 45   v2 all rows: 51
+
+== review findings (raw counts, pre-registered metric) ==
+  maj_raw                            n=45  rate_ratio_opus_over_fable med=0.715 [0.364, 1.364] P(>ref)=1.00
+  maj_raw_nb                         n=45  rate_ratio_opus_over_fable med=0.711 [0.341, 1.422] P(>ref)=1.00
+  min_raw                            n=44  rate_ratio_opus_over_fable med=1.091 [0.753, 1.562] P(>ref)=1.00
+  note_raw                           n=42  rate_ratio_opus_over_fable med=0.869 [0.621, 1.218] P(>ref)=1.00
+  findings_total                     n=42  rate_ratio_opus_over_fable med=0.892 [0.701, 1.134] P(>ref)=1.00
+
+== severity-recoded MAJORs (blinded hand-coding) ==
+  maj_conseq_lower                   n=45  rate_ratio_opus_over_fable med=0.534 [0.210, 1.282] P(>ref)=1.00
+  maj_conseq_upper                   n=45  rate_ratio_opus_over_fable med=0.518 [0.222, 1.155] P(>ref)=1.00
+
+== silent deviations (protocol's worst-weighted metric) ==
+  silent_count                       n=43  rate_ratio_opus_over_fable med=0.779 [0.291, 2.031] P(>ref)=1.00
+  silent_any                         n=43  odds_ratio_opus_over_fable med=0.755 [0.165, 3.100] P(>ref)=1.00
+
+== rubric quality ratings (1-5) ==
+  rubric_mean                        n=39  opus_minus_fable med=0.077 [-0.130, 0.279] P(>ref)=0.77
+  rubric_idiom                       n=39  opus_minus_fable med=-0.064 [-0.365, 0.237] P(>ref)=0.33
+  rubric_tests                       n=39  opus_minus_fable med=0.266 [-0.045, 0.576] P(>ref)=0.96
+  rubric_docs                        n=39  opus_minus_fable med=0.024 [-0.363, 0.422] P(>ref)=0.55
+
+== cost ==
+  tok_impl                           n=24  ratio_opus_over_fable med=0.847 [0.681, 1.060] P(>ref)=1.00
+  tok_total                          n=26  ratio_opus_over_fable med=0.715 [0.518, 0.993] P(>ref)=1.00
+  h_impl                             n=19  ratio_opus_over_fable med=0.790 [0.411, 1.498] P(>ref)=1.00
+  h_any                              n=26  ratio_opus_over_fable med=0.631 [0.309, 1.320] P(>ref)=1.00
+
+== fix-pass behaviour (debugging proxy) ==
+  fix_size                           n=42  odds_ratio_bigger_fix_opus med=0.737 [0.250, 2.185] P(>ref)=1.00  !! CHECK: ['cut1']
+  gate_red_any                       n=45  odds_ratio_opus_over_fable med=1.445 [0.362, 5.813] P(>ref)=1.00
+  converged                          n=43  odds_ratio_opus_over_fable med=1.129 [0.300, 4.312] P(>ref)=1.00
+  self_caught                        n=45  odds_ratio_opus_over_fable med=0.888 [0.157, 4.497] P(>ref)=1.00
+
+== does the effect depend on S/M/L? (arm x difficulty) ==
+  maj_by_difficulty                  n=45  opus_in_M med=0.397 [0.138, 1.037] P(>ref)=1.00
+  rubric_by_difficulty               n=39  opus_in_M med=0.274 [-0.015, 0.550] P(>ref)=0.97
+
+== debugger vs designer (character interaction) ==
+  char_maj                           n=45  opus_x_build_new med=1.683 [0.503, 5.650] P(>ref)=1.00
+  char_rubric                        n=39  opus_x_build_new med=0.215 [-0.237, 0.674] P(>ref)=0.82  !! CHECK: ['opus', 'opus_x_build_new']
+  mod_debug_maj                      n=45  interaction med=0.978 [0.463, 1.999] P(>ref)=1.00
+  mod_design_maj                     n=45  interaction med=1.945 [0.778, 4.863] P(>ref)=1.00
+  mod_debug_rubric                   n=39  interaction med=-0.116 [-0.390, 0.157] P(>ref)=0.20
+  mod_design_rubric                  n=39  interaction med=-0.048 [-0.315, 0.210] P(>ref)=0.36
+
+== prior sensitivity on the headline ==
+  maj_prior_half                     n=45  rate_ratio_opus_over_fable med=0.810 [0.479, 1.366] P(>ref)=1.00
+  maj_prior_double                   n=45  rate_ratio_opus_over_fable med=0.683 [0.322, 1.379] P(>ref)=1.00
+
+wrote results.json  (10567.0s)

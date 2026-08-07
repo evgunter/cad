@@ -159,6 +159,98 @@ def table(headers, rows, numeric=()):
     return "".join(o)
 
 
+LOG_CONTRASTS = ("log_rate_ratio", "log_ratio", "log_odds_ratio", "log_odds")
+
+
+def p_opus_higher(key):
+    """P(opus > fable) on the additive scale.
+
+    Ratio-scale draws are positive by construction, so their P(>0) is a
+    meaningless 1.0 — always read the probability off the log contrast.
+    """
+    cs = R[key]["contrasts"]
+    for nm in LOG_CONTRASTS:
+        if nm in cs:
+            return cs[nm]["summary"]["p_gt0"]
+    if len(cs) == 1:
+        return list(cs.values())[0]["summary"]["p_gt0"]
+    raise KeyError("no additive-scale contrast for %s" % key)
+
+
+def p_opus_lower(key):
+    return 1.0 - p_opus_higher(key)
+
+
+def excludes_ref(key, name, ref=1.0):
+    s = c(key, name)
+    return s["q025"] > ref or s["q975"] < ref
+
+
+QUALITY_OUTCOMES = [
+    ("MAJOR findings", "maj_raw", "rate_ratio_opus_over_fable"),
+    ("MINOR findings", "min_raw", "rate_ratio_opus_over_fable"),
+    ("NOTE findings", "note_raw", "rate_ratio_opus_over_fable"),
+    ("all findings pooled", "findings_total", "rate_ratio_opus_over_fable"),
+    ("silent deviations", "silent_count", "rate_ratio_opus_over_fable"),
+    ("consequential MAJORs (strict)", "maj_conseq_lower",
+     "rate_ratio_opus_over_fable"),
+    ("consequential MAJORs (broad)", "maj_conseq_upper",
+     "rate_ratio_opus_over_fable"),
+]
+
+
+def separated_outcomes():
+    """Which quality outcomes have a 95% CrI excluding no-difference."""
+    return [(lab, k, n) for lab, k, n in QUALITY_OUTCOMES
+            if excludes_ref(k, n, 1.0)]
+
+
+def rubric_separated():
+    out = []
+    for lab, k in (("idiom", "rubric_idiom"), ("tests", "rubric_tests"),
+                   ("docs", "rubric_docs"), ("mean", "rubric_mean")):
+        if excludes_ref(k, "opus_minus_fable", 0.0):
+            out.append((lab, k))
+    return out
+
+
+def headline_sentence():
+    sep = separated_outcomes()
+    rsep = rubric_separated()
+    maj = c("maj_raw", "rate_ratio_opus_over_fable")
+    lean = "fewer" if maj["median"] < 1 else "more"
+    if not sep and not rsep:
+        return ("<strong>No quality outcome separates the arms at the 95%% "
+                "level &mdash; but the point estimates are not centred on "
+                "&ldquo;identical&rdquo; either.</strong> They lean fairly "
+                "consistently toward opus recording %s review findings "
+                "(MAJOR-rate ratio %.2f, 95%% CrI %.2f&ndash;%.2f) and "
+                "costing less. Every interval still contains no-difference, "
+                "and at this sample size that lean is exactly what a real "
+                "moderate effect <em>and</em> what pure sampling noise would "
+                "both look like. This report's main job is to say how far "
+                "apart those two explanations remain."
+                % (lean, maj["median"], maj["q025"], maj["q975"]))
+    names = ", ".join(s[0] for s in sep + [(r[0], None, None) for r in rsep])
+    return ("<strong>Most quality outcomes do not separate the arms, but %d "
+            "do: %s.</strong> The point estimates lean toward opus recording "
+            "%s review findings. Read the separated outcomes with the "
+            "confounds in section 7 firmly in mind &mdash; finding counts "
+            "measure review intensity as well as implementation quality."
+            % (len(sep) + len(rsep), names, lean))
+
+
+def forest_caption_tail():
+    sep = separated_outcomes()
+    if not sep:
+        return ("The dashed line at 1.0 is &ldquo;the arms are "
+                "identical&rdquo;. Every interval crosses it.")
+    return ("The dashed line at 1.0 is &ldquo;the arms are identical&rdquo;. "
+            "%d of %d intervals clear it: %s."
+            % (len(sep), len(QUALITY_OUTCOMES),
+               ", ".join(s[0] for s in sep)))
+
+
 def ci_txt(key, name, dec=2):
     s = c(key, name)
     f = "%." + str(dec) + "f"
@@ -183,14 +275,11 @@ def build():
         'randomization) &middot; %d fable / %d opus &middot; generated from '
         '<code>docs/MODEL-AB-LOG.md</code></p>' % (len(Q), nf, no))
 
-    add('<p class="lede">The log\'s own readouts said "no evidence either arm '
-        'is worse" without fitting a model. This does fit models — one per '
-        'outcome, each estimating how much the arm shifts it — so the answer '
-        'comes with an interval instead of a vibe. The short version: '
-        '<strong>every quality interval comfortably contains "no '
-        'difference", and they are wide enough that this dataset could not '
-        'have detected a moderate effect if one existed.</strong> The one '
-        'place the data does speak is cost.</p>')
+    add('<p class="lede">The log\'s own readouts concluded "no evidence '
+        'either arm produces more bugs or worse code" without fitting a '
+        'model. This fits models — one per outcome, each estimating how much '
+        'the arm shifts it — so the answer carries an interval instead of an '
+        'impression. %s</p>' % headline_sentence())
 
     # ---------- tiles
     maj = c("maj_raw", "rate_ratio_opus_over_fable")
@@ -199,7 +288,8 @@ def build():
         ("%d" % len(Q), "blinded dispatches modelled"),
         ("%d / %d" % (nf, no), "fable / opus rows"),
         ("%.2f&times;" % maj["median"], "MAJOR-finding rate, opus vs fable"),
-        ("%s" % pct(maj["p_gt0"]), "posterior P(opus has more MAJORs)"),
+        ("%s" % pct(p_opus_lower("maj_raw")),
+         "posterior P(opus has fewer MAJORs)"),
         ("%.2f&times;" % tok["median"], "implementation tokens, opus vs fable"),
     ]))
 
@@ -244,18 +334,24 @@ def build():
     add(S.forest(q_items, "rate ratio (opus ÷ fable), log scale",
                  ref=1.0, log=True, xlo=0.06, xhi=16,
                  ticks=[0.125, 0.25, 0.5, 1, 2, 4, 8]))
-    add('<figcaption>Dot = posterior median, thick band = 80% credible '
-        'interval, thin line = 95%. The dashed line at 1.0 is "the arms are '
-        'identical". Every interval crosses it.</figcaption>')
+    add('<figcaption>Dot = posterior median, thick band = 80%% credible '
+        'interval, thin line = 95%%. %s</figcaption>' % forest_caption_tail())
     add("</figure>")
 
-    add("<p>No quality outcome separates the arms. The MAJOR-finding rate "
-        "ratio is %s, meaning the data is equally consistent with opus "
-        "producing a third as many MAJORs as fable and with it producing "
-        "roughly twice as many. Silent deviations — the metric the protocol "
-        "deliberately weights worst — give %s, an even wider interval, "
-        "because there are only %d of them in the whole v2 sample.</p>"
+    mj = c("maj_raw", "rate_ratio_opus_over_fable")
+    add("<p>The MAJOR-finding rate ratio is %s. The raw tallies behind it are "
+        "%d MAJORs across %d fable dispatches and %d across %d opus ones, so "
+        "the point estimate leans toward opus — but with only %d MAJOR "
+        "findings in the entire sample, the interval spans a factor of %.0f "
+        "from end to end. Silent deviations — the metric the protocol "
+        "deliberately weights worst — give %s, on just %d events.</p>"
         % (ci_txt("maj_raw", "rate_ratio_opus_over_fable"),
+           int(sum(analyze.y_maj(r) or 0 for r in Q if r["arm"] == "fable")),
+           sum(1 for r in Q if r["arm"] == "fable"),
+           int(sum(analyze.y_maj(r) or 0 for r in Q if r["arm"] == "opus")),
+           sum(1 for r in Q if r["arm"] == "opus"),
+           int(sum(analyze.y_maj(r) or 0 for r in Q)),
+           mj["q975"] / mj["q025"],
            ci_txt("silent_count", "rate_ratio_opus_over_fable"),
            int(sum(analyze.y_silent(r) or 0 for r in Q))))
 
@@ -274,10 +370,12 @@ def build():
         "rate ratio, opus ÷ fable (log scale)", ref=0.0, log_axis=True,
         ticks=[math.log(v) for v in (0.125, 0.25, 0.5, 1, 2, 4, 8)],
         title="Posterior distributions, not just intervals"))
-    add('<figcaption>Both posteriors are centred essentially on 1.0 and are '
-        'very wide. The bar under each curve is its 95% interval. A dataset '
-        'that had detected a difference would show a curve with little mass '
-        'on the far side of the dashed line.</figcaption>')
+    add('<figcaption>The bar under each curve is its 95%% interval. '
+        'The MAJOR-rate posterior puts %s of its mass below 1.0 and the '
+        'silent-deviation posterior %s &mdash; but both curves keep '
+        'substantial mass on <em>both</em> sides of the dashed line, which '
+        'is what &ldquo;underpowered&rdquo; looks like.</figcaption>'
+        % (pct(p_opus_lower("maj_raw")), pct(p_opus_lower("silent_count"))))
     add("</figure>")
 
     # raw data
@@ -344,11 +442,22 @@ def build():
         'directions.</figcaption>')
     add("</figure>")
 
+    mM = c("maj_by_difficulty", "opus_in_M")
+    rM = c("rubric_by_difficulty", "opus_in_M")
     add("<p>The honest reading is that this design cannot answer the "
         "stratified question. The difficulty split was a good idea for "
         "balance — and it worked, the arms are near-even in every band — but "
-        "it does not create the statistical power to detect a "
-        "difficulty-dependent effect.</p>")
+        "it does not create the power to detect a difficulty-dependent "
+        "effect. The one cell worth naming is <strong>medium</strong>, the "
+        "best-populated band at 11 rows per arm, where opus shows both a "
+        "lower MAJOR rate (%.2f, 95%% CrI %.2f–%.2f) and a higher rubric "
+        "(%+.2f, %+.2f to %+.2f) — each just barely failing to exclude no "
+        "difference. Two marginal results in the same cell is worth "
+        "remembering, but this report computes about thirty intervals, so "
+        "some will land near the edge by chance alone. It is a hypothesis for "
+        "the next milestone, not a result from this one.</p>"
+        % (mM["median"], mM["q025"], mM["q975"],
+           rM["median"], rM["q025"], rM["q975"]))
 
     # ================= RUBRIC =================
     add("<h2>3. Do the individual quality dimensions differ?</h2>")
@@ -369,10 +478,30 @@ def build():
     add(S.forest(rb, "difference in rating (opus − fable), rubric points",
                  ref=0.0, log=False, xlo=-1.2, xhi=1.2,
                  ticks=[-1, -0.5, -0.25, 0, 0.25, 0.5, 1]))
-    add('<figcaption>All four intervals straddle zero. The averaged score is '
-        'the tightest estimate in the whole report and still spans roughly '
-        '±0.4 rubric points.</figcaption>')
+    tq = c("rubric_tests", "opus_minus_fable")
+    rs = rubric_separated()
+    rm = c("rubric_mean", "opus_minus_fable")
+    add('<figcaption>%s The averaged score spans %+.2f to %+.2f rubric '
+        'points, on the %d dispatches that recorded a full rubric.'
+        '</figcaption>'
+        % ("All four intervals straddle zero." if not rs else
+           "%d of 4 intervals exclude zero (%s); the rest straddle it."
+           % (len(rs), ", ".join(r[0] for r in rs)),
+           rm["q025"], rm["q975"], R["rubric_mean"]["n"]))
     add("</figure>")
+    add("<p>The three dimensions do not move together, which is mildly "
+        "interesting. Idiom is flat (%s), docs are flat (%s), but "
+        "<strong>test quality</strong> is the most suggestive single quality "
+        "signal in the report: %s, with %s of the posterior favouring opus. "
+        "It still does not exclude zero, and it is one of roughly thirty "
+        "estimates computed here — at that many looks, one interval sitting "
+        "at the edge of separation is the expected amount of noise, not a "
+        "finding. Flagged as the thing to watch if the experiment "
+        "continues, nothing more.</p>"
+        % (ci_txt("rubric_idiom", "opus_minus_fable"),
+           ci_txt("rubric_docs", "opus_minus_fable"),
+           ci_txt("rubric_tests", "opus_minus_fable"),
+           pct(p_opus_higher("rubric_tests"))))
     add(rubric_table(Q))
 
     # ================= COST =================
@@ -487,15 +616,36 @@ def build():
         'claim.</figcaption>')
     add("</figure>")
 
-    add("<p><strong>Verdict on the folk claim: untestable here, and not "
-        "even weakly supported by the proxies.</strong> Every interaction "
-        "interval spans "
-        "“substantially better” to “substantially worse” "
-        "in both regimes. That is not evidence against the claim either — it "
-        "is the signature of a dataset with no power to address it. Testing "
-        "it properly would need dispatches where the arm actually varies on "
-        "design and diagnosis tasks, which this protocol deliberately "
-        "prevents.</p>")
+    inter_keys = [("arm × build-new", "char_maj", "opus_x_build_new", 1.0),
+                  ("arm × diagnostic load", "mod_debug_maj", "interaction", 1.0),
+                  ("arm × design load", "mod_design_maj", "interaction", 1.0),
+                  ("arm × build-new (rubric)", "char_rubric",
+                   "opus_x_build_new", 0.0),
+                  ("arm × diagnostic load (rubric)", "mod_debug_rubric",
+                   "interaction", 0.0),
+                  ("arm × design load (rubric)", "mod_design_rubric",
+                   "interaction", 0.0)]
+    hits = [lab for lab, k, n, ref in inter_keys if excludes_ref(k, n, ref)]
+    if hits:
+        verdict = ("<strong>Verdict on the folk claim: still untestable here, "
+                   "though %d of 6 interaction intervals (%s) exclude "
+                   "&ldquo;no specialization&rdquo;.</strong> Treat that as a "
+                   "flag to investigate, not a finding: these are interaction "
+                   "terms estimated from a handful of rows per cell, on a "
+                   "character axis I had a labeller invent for this purpose, "
+                   "and six intervals were examined at once."
+                   % (len(hits), ", ".join(hits)))
+    else:
+        verdict = ("<strong>Verdict on the folk claim: untestable here, and "
+                   "not even weakly supported by the proxies.</strong> Every "
+                   "interaction interval spans &ldquo;substantially "
+                   "better&rdquo; to &ldquo;substantially worse&rdquo; in "
+                   "both regimes.")
+    add("<p>%s That is not evidence against the claim either — it is the "
+        "signature of a dataset with no power to address it. Testing it "
+        "properly would need dispatches where the arm actually varies on "
+        "design and diagnosis work, which this protocol deliberately "
+        "prevents.</p>" % verdict)
 
     # ================= POWER / CAVEATS =================
     add("<h2>6. What this sample could and could not have detected</h2>")
@@ -567,23 +717,29 @@ def rubric_table(Q):
 
 
 def cost_para():
-    t = c("tok_impl", "ratio_opus_over_fable")
-    h = c("h_impl", "ratio_opus_over_fable")
-    ha = c("h_any", "ratio_opus_over_fable")
-    p_cheaper = 1.0 - t["p_gt0"]
-    p_faster = 1.0 - h["p_gt0"]
-    return ("Implementation token spend comes out at a ratio of %s — the "
-            "posterior puts %s of its mass below 1.0, i.e. probability %s "
-            "that opus dispatches consumed fewer implementation tokens than "
-            "fable ones. Implementation wall-clock points the same way at %s "
-            "(probability %s that opus was faster), and the all-rows "
-            "wall-clock model, which adds a covariate for gap-contaminated "
-            "figures, gives %s. These are the only intervals in the report "
-            "that are close to excluding no-difference, and even they do not "
-            "cleanly exclude it."
+    p_cheaper = p_opus_lower("tok_impl")
+    p_faster = p_opus_lower("h_impl")
+    tt_sep = excludes_ref("tok_total", "ratio_opus_over_fable", 1.0)
+    return ("Every cost estimate points the same way — opus dispatches cost "
+            "less — and the size is consistent across four different ways of "
+            "measuring it. Implementation token spend, the cleanest measure "
+            "(impl phase only, arms balanced 12/12), is %s, putting %s of the "
+            "posterior mass below 1.0. Implementation wall-clock gives %s "
+            "(probability %s that opus was faster). Total recorded token "
+            "spend gives %s%s. "
+            "<strong>Note which one separates and which does not:</strong> "
+            "the measure whose 95%% interval clears 1.0 is the "
+            "<em>conflated</em> one, which sums implementation, fix and "
+            "review tokens across rows that record different subsets of those "
+            "phases; the tighter-provenance measure does not clear it. That "
+            "ordering is the wrong way round for a clean result, and it is "
+            "the reason this section says &ldquo;leans&rdquo; rather than "
+            "&ldquo;shows&rdquo;."
             % (ci_txt("tok_impl", "ratio_opus_over_fable"), pct(p_cheaper),
-               pct(p_cheaper), ci_txt("h_impl", "ratio_opus_over_fable"),
-               pct(p_faster), ci_txt("h_any", "ratio_opus_over_fable")))
+               ci_txt("h_impl", "ratio_opus_over_fable"), pct(p_faster),
+               ci_txt("tok_total", "ratio_opus_over_fable"),
+               " — the one interval in this report that excludes "
+               "no-difference" if tt_sep else ""))
 
 
 def cost_dotstrip(A):
@@ -629,15 +785,27 @@ def power_section(Q):
         ("&plusmn;%.2f" % max(abs(rub["q025"]), abs(rub["q975"])),
          "rubric points still plausible either way"),
     ]))
-    o.append("<p>In plain terms: if one model really did produce, say, 30%% "
-             "more MAJOR findings than the other, this experiment would very "
-             "likely have finished with exactly the picture it produced — "
-             "intervals centred near 1.0 and far too wide to notice. The "
-             "log's own conclusion (“no evidence either arm is worse; a "
-             "large effect would probably have shown”) is <strong>"
-             "consistent with the modelled posteriors</strong>, and this "
-             "analysis mainly adds the second half: how large “large” "
-             "has to be before this design could see it.</p>")
+    o.append("<p>In plain terms: a real 25–30%% difference in either "
+             "direction would leave a trace almost identical to what this "
+             "sample shows — a point estimate off 1.0 with an interval far "
+             "too wide to call. That is precisely the situation we are in. "
+             "The MAJOR-rate posterior is centred at %.2f, i.e. the "
+             "<em>point estimate</em> says opus recorded about %.0f%% fewer "
+             "MAJOR findings; but the interval runs %.2f to %.2f, so the "
+             "same data is comfortably consistent with opus being "
+             "meaningfully better <em>and</em> with it being somewhat "
+             "worse.</p>"
+             % (math.exp(maj["median"]),
+                100 * (1 - math.exp(maj["median"])),
+                math.exp(maj["q025"]), math.exp(maj["q975"])))
+    o.append("<p>So the log's own conclusion — “no evidence either arm "
+             "produces more bugs or worse code; a large effect would "
+             "probably have shown” — <strong>survives the modelling "
+             "intact</strong>. What the modelling adds is the other half of "
+             "the sentence: the point estimates are not centred on "
+             "&ldquo;identical&rdquo;, they consistently lean one way, and "
+             "this design cannot tell whether that lean is signal or "
+             "sampling noise. Both readings remain open.</p>")
     return "".join(o)
 
 
@@ -665,6 +833,21 @@ sometimes applied by the orchestrator</strong>, which contaminates the
 fix-pass proxies in section 5 specifically.</li>
 <li><strong>Cost figures are missing not at random</strong> — recorded
 for 26 of 51 v2 rows, concentrated by project phase.</li>
+<li><strong>About thirty intervals are computed here, with no
+multiplicity correction.</strong> Roughly one or two landing at the edge
+of separation is the expected yield from noise alone, so the marginal
+results called out in sections 2, 3 and 4 are flagged as things to watch
+rather than reported as findings. The pre-registered headline — the
+MAJOR-finding rate — is the one estimate that was not selected after
+seeing the data.</li>
+<li><strong>The direction is consistent across outcomes, and that is
+worth something the intervals do not capture.</strong> MAJORs,
+consequential MAJORs, silent deviations, NOTEs, pooled findings, all four
+cost measures and the medium-difficulty cells all lean the same way.
+These outcomes are heavily correlated with one another, so this is much
+weaker than nine independent confirmations — but a consistent lean across
+correlated measures is still a different situation from noise scattered
+around 1.0, and an honest reading should say so.</li>
 <li><strong>Rows 36, 38 and 40 have missing rubric or silent-deviation
 data</strong>, and row 40 is an L-difficulty row, so the milestone's most
 informative endpoint is partly absent. Complete-case analysis was used
