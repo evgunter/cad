@@ -1549,7 +1549,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   deferred is containment against curved surfaces and the
 ///   region-bounding statement for arc-bounded planar faces and
 ///   curved faces, plus the curved arm's documented residuals (the
-///   rimless sphere band, NURBS faces).
+///   rimless sphere band; NURBS faces; the quadrature-owned
+///   conic-trimmed walls, whose boundary parse refuses typed and is
+///   therefore exempt — such a body's flips, single-face AND
+///   whole-body, certify green today; executed on the tilted-section
+///   cylinder and pinned as residual).
 /// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
 ///   `u_ref ⊥ axis`): partially implied by the residual checks (a
 ///   non-unit frame breaks the carrier-vs-description comparisons),
@@ -2111,7 +2115,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // degenerate/out-of-inventory boundary, conic-trimmed faces the
     // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
     // corrupt structure is tier 1/2's job, an uncomputable volume is
-    // check 7's. The rimless sphere band returns `Unencoded` (its
+    // check 7's. The conic-trim exemption is a RECORDED residual, not
+    // a covered class: an ellipse-trimmed wall has a winding-derived
+    // (bit-free) quadrature flux AND an exempt parse, so its flips —
+    // single-face and whole-body — certify green today (executed on
+    // the tilted-section cylinder, pinned as residual; closes when the
+    // ellipse-rim material-side encoding lands). The rimless sphere
+    // band returns `Unencoded` (its
     // boundary encodes no side; the bit is the ONLY encoding) and
     // stays exempt: the documented residual — a half-flipped rimless
     // ball meters V = 0, Zero-exempt by the ratified posture, while

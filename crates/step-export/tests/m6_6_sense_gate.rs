@@ -16,11 +16,19 @@
 //! green. The rimless sphere band is pinned AS the documented
 //! residual: its boundary encodes no side, so a half-flipped ball
 //! stays exempt (V = 0, Zero-exempt posture) while the fully-flipped
-//! ball remains check 7's `NegativeVolume`.
+//! ball remains check 7's `NegativeVolume`. The QUADRATURE-owned
+//! conic-trimmed class is likewise pinned AS residual (adversarial
+//! review, M2): a wall trimmed by an ellipse rim slips BOTH layers —
+//! the kernel arm exempts on the boundary parse's typed refusal, the
+//! import rider finds no circle-rim pair — so `cut_cylinder`'s flips
+//! (single wall AND whole body) stay green until the ellipse-rim
+//! encoding lands.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
-use common::{ball, cone, cube, die_pips, donut, lily_lantern, notched, washer};
+use common::{ball, cone, cube, cut_cylinder, die_pips, donut, lily_lantern, notched, washer};
 use geom_core::Point2;
 use geom_surfaces::Surface;
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
@@ -287,5 +295,47 @@ fn planar_control_unchanged() {
             .iter()
             .any(|e| matches!(e, ValidationError::CurvedSenseInverted { .. })),
         "the curved arm must not fire on a plane: {errs:?}"
+    );
+}
+
+/// The conic-trim RESIDUAL, pinned as residual (adversarial review M2;
+/// the review's executed counterexample): `cut_cylinder`'s wall is
+/// trimmed by a tilted-section ELLIPSE, so its flux is quadrature-owned
+/// (winding-derived, bit-free) and its boundary parse refuses typed —
+/// the curved arm EXEMPTS it by the inherited posture, and the import
+/// rider finds no circle-rim pair to read. A flipped wall AND the
+/// whole-body inversion therefore certify GREEN with positive volume:
+/// the one corpus body on which the headline defect class survives.
+/// This row flips to a refusal when the ellipse-rim material-side
+/// encoding lands (follow-up unit); until then, green here is the
+/// honest recorded posture, not an accident.
+#[test]
+fn cut_cylinder_conic_trim_residual_stays_green() {
+    let body = cut_cylinder();
+    assert!(
+        validate_geometric(&body).is_ok(),
+        "honest cut_cylinder green"
+    );
+    let walls = faces_where(&body, |s| matches!(s, Surface::Cylinder { .. }));
+    assert!(!walls.is_empty(), "cut_cylinder: trimmed wall present");
+    for &(k, _) in &walls {
+        let flipped = body.flipped_face_sense_for_tests(k).expect("live face key");
+        assert!(
+            validate_geometric(&flipped).is_ok(),
+            "conic-trimmed wall flip is the documented residual: both layers exempt"
+        );
+    }
+    let inverted = flip_all(&body);
+    assert!(
+        validate_geometric(&inverted).is_ok(),
+        "whole-body-inverted cut_cylinder stays green (residual): quadrature volume \
+         is winding-derived and the trimmed wall is exempt"
+    );
+    let v = topo::mass_properties(&inverted)
+        .expect("volume computes")
+        .volume;
+    assert!(
+        v > 0.0,
+        "the inverted body even keeps its positive volume ({v}) — the residual's teeth"
     );
 }

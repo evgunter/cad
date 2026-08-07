@@ -276,7 +276,14 @@ pub(crate) fn normalize_shell(
 /// cylinder/cone face with exactly two distinct rims, opposite rim
 /// `u`-directions, distinct levels; anything else (one-rim caps,
 /// unreadable charts, partial walls whose rims agree in direction) is
-/// left for the kernel's own ladder to judge.
+/// left for the kernel's own ladder — which catches the CIRCLE-rimmed
+/// analytic class from below (executed on a three-rim wall). The
+/// quadrature-owned conic-trimmed class is a RECORDED residual that
+/// slips both layers: an ellipse-trimmed wall has no circle-rim pair
+/// to read here, and the kernel arm exempts its boundary parse — such
+/// flips import and certify green today (executed on the
+/// tilted-section cylinder; closes with the ellipse-rim material-side
+/// encoding).
 fn wall_inversion(solid: &SolidSpec) -> Result<(), StepImportError> {
     for face in &solid.faces {
         let (Surface::Cylinder { axis, .. } | Surface::Cone { axis, .. }) = face.surface else {
@@ -429,7 +436,9 @@ fn apex_cone(
     // (both ISO encodings adopt); disagreement refuses. A reading the
     // geometry does not answer skips the check rather than guessing —
     // unlike the torus, this mint copies rather than re-orients, so an
-    // unreadable winding leaves a body the kernel gate still judges.
+    // unreadable winding leaves a body the kernel gate still judges
+    // (true for this shape: a degenerate-apex cone's boundary is
+    // circle-rimmed, squarely in the kernel arm's analytic class).
     {
         let face = &solid.faces[fi];
         let circle_spec = &solid.edges[&circle_use.edge];
