@@ -830,10 +830,7 @@ impl<T: Real + Decide + Bounds> Core<T> {
             self.declare_last();
         } else if self.last_declared() {
             let adjacent = if pending.by_tangent {
-                pending
-                    .origin_incoming
-                    .as_ref()
-                    .and_then(|inc| inc.carrier)
+                pending.origin_incoming.as_ref().and_then(|inc| inc.carrier)
             } else {
                 self.last_arc
             };
@@ -1042,14 +1039,11 @@ impl<T: Real + Decide + Bounds> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         mut self,
         delta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError> {
-        let inc = self
-            .tip
-            .pos
-            .as_ref()
-            .and_then(|p| p.incoming)
-            .ok_or(PathError::UnderdeterminedLeg {
+        let inc = self.tip.pos.as_ref().and_then(|p| p.incoming).ok_or(
+            PathError::UnderdeterminedLeg {
                 site: "turn on a tip without incoming data",
-            })?;
+            },
+        )?;
         let theta = inc.ang + delta;
         junction_check(&inc, theta, false)?;
         self.tip.ang = Some(theta);
@@ -1084,13 +1078,17 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// (`.tangent().line(len)` after a line) IS the same carrier and
     /// refuses [`PathError::SameCarrierJunction`] — extend the
     /// original leg instead.
-    pub fn line(mut self, len: T) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError> {
+    pub fn line(
+        mut self,
+        len: T,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError> {
         let (at, ang) = self.dep()?;
         if self.tip.ang_by_tangent
             && let Some(inc) = self.tip.pos.as_ref().and_then(|p| p.incoming.as_ref())
-                && inc.carrier.is_none() {
-                    return Err(PathError::SameCarrierJunction { margin: 0.0 });
-                }
+            && inc.carrier.is_none()
+        {
+            return Err(PathError::SameCarrierJunction { margin: 0.0 });
+        }
         let end = at + unit(ang) * len;
         let head = self.core.head()?;
         self.core.push_line(end)?;
@@ -1153,29 +1151,30 @@ impl<T: Real + Decide + Bounds, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let bulge = (delta / T::from_f64(2.0)).tan();
         let carrier = arc_carrier(at, p, bulge);
         if self.tip.ang_by_tangent
-            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref()) {
-                match &inc.carrier {
-                    None => {
-                        let band = linear_band()?;
-                        match decide("path_collinear_target", Length::of(across), band) {
-                            Ok(Sign::Zero) => {
-                                return Err(if closing {
-                                    PathError::TangentLineClose {
-                                        margin: across.lo(),
-                                    }
-                                } else {
-                                    PathError::SameCarrierJunction {
-                                        margin: across.lo(),
-                                    }
-                                });
-                            }
-                            Ok(_) => {}
-                            Err(source) => return Err(PathError::Escalated { source }),
+            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
+        {
+            match &inc.carrier {
+                None => {
+                    let band = linear_band()?;
+                    match decide("path_collinear_target", Length::of(across), band) {
+                        Ok(Sign::Zero) => {
+                            return Err(if closing {
+                                PathError::TangentLineClose {
+                                    margin: across.lo(),
+                                }
+                            } else {
+                                PathError::SameCarrierJunction {
+                                    margin: across.lo(),
+                                }
+                            });
                         }
+                        Ok(_) => {}
+                        Err(source) => return Err(PathError::Escalated { source }),
                     }
-                    Some(prev) => refuse_identical_carriers(prev, &carrier)?,
                 }
+                Some(prev) => refuse_identical_carriers(prev, &carrier)?,
             }
+        }
         let end_ang = ang + delta + delta;
         let chord = d.norm_squared().sqrt();
         Ok((bulge, end_ang, carrier, chord))
