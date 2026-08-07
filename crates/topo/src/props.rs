@@ -270,7 +270,7 @@ fn mass_properties_impl<T: Decide>(
 /// alongside the half-edge keys walked (the PR 11 quadrature lane
 /// reads stored pcurve caches through them).
 #[allow(clippy::type_complexity)]
-fn loop_edges<T: Decide>(
+pub(crate) fn loop_edges<T: Decide>(
     body: &Body<T>,
     lk: LoopKey,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), MassPropsError> {

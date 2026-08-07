@@ -88,7 +88,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 use geom_curves::Curve3;
 
-pub use curved::curved_face;
+pub use curved::{MaterialSign, boundary_material_sign, curved_face};
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of
