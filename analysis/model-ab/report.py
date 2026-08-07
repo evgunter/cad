@@ -225,11 +225,14 @@ def headline_sentence():
                 "&ldquo;identical&rdquo; either.</strong> They lean fairly "
                 "consistently toward opus recording %s review findings "
                 "(MAJOR-rate ratio %.2f, 95%% CrI %.2f&ndash;%.2f) and "
-                "costing less. Every interval still contains no-difference, "
-                "and at this sample size that lean is exactly what a real "
-                "moderate effect <em>and</em> what pure sampling noise would "
-                "both look like. This report's main job is to say how far "
-                "apart those two explanations remain."
+                "costing less. Every interval still contains no-difference. "
+                "And the lean does not survive stratification &mdash; split "
+                "by task difficulty, the direction reverses between the "
+                "medium and large bands (&sect;2) &mdash; which is what "
+                "sampling noise looks like rather than an effect. The "
+                "defensible summary is the log's own, now with numbers "
+                "attached: <em>no demonstrated quality difference, and this "
+                "design could not have detected a moderate one.</em>"
                 % (lean, maj["median"], maj["q025"], maj["q975"]))
     names = ", ".join(s[0] for s in sep + [(r[0], None, None) for r in rsep])
     return ("<strong>Most quality outcomes do not separate the arms, but %d "
@@ -294,7 +297,7 @@ def build():
     ]))
 
     add('<div class="callout"><div class="h">How to read every interval in '
-        'this report</div><p>Each estimate is a posterior median with a 95%% '
+        'this report</div><p>Each estimate is a posterior median with a 95% '
         'credible interval. For rate and cost outcomes the scale is '
         '<em class="q">multiplicative</em>: 1.0 means the arms are identical, '
         '2.0 means opus produces twice the rate, 0.5 means half. For rating '
@@ -306,10 +309,12 @@ def build():
 
     # ================= HEADLINE =================
     add("<h2>1. Is either arm producing worse work?</h2>")
-    add("<p>Six outcomes, each modelled separately with the arm and the "
+    add("<p>Seven outcomes, each modelled separately with the arm and the "
         "pre-logged S/M/L difficulty as predictors. Counts use Poisson "
         "regression on the log-rate scale; the plotted quantity is the rate "
-        "ratio.</p>")
+        "ratio. The last two are the blinded severity recode, fit as a bound "
+        "because the coder marked 9 of 40 MAJORs too thinly described to "
+        "classify.</p>")
 
     q_items = [
         item("MAJOR findings", "maj_raw", "rate_ratio_opus_over_fable",
@@ -452,12 +457,24 @@ def build():
         "best-populated band at 11 rows per arm, where opus shows both a "
         "lower MAJOR rate (%.2f, 95%% CrI %.2f–%.2f) and a higher rubric "
         "(%+.2f, %+.2f to %+.2f) — each just barely failing to exclude no "
-        "difference. Two marginal results in the same cell is worth "
-        "remembering, but this report computes about thirty intervals, so "
-        "some will land near the edge by chance alone. It is a hypothesis for "
-        "the next milestone, not a result from this one.</p>"
+        "difference.</p>"
         % (mM["median"], mM["q025"], mM["q975"],
            rM["median"], rM["q025"], rM["q975"]))
+    mL = c("maj_by_difficulty", "opus_in_L")
+    rL = c("rubric_by_difficulty", "opus_in_L")
+    add('<div class="callout warn"><div class="h">And here is the reason not '
+        'to believe that medium-task result</div><p>The sign does not hold '
+        'across bands. On <strong>large</strong> tasks the same two models '
+        'point the other way — MAJOR rate %.2f (opus <em>worse</em>) and '
+        'rubric %+.2f (opus worse) — while small tasks sit near neutral '
+        '(%.2f and %+.2f). If one model were genuinely better at this work we '
+        'would expect the difficulty bands to at least agree on direction. '
+        'They do not. A pooled lean that dissolves into sign flips when you '
+        'stratify is the classic signature of noise, and it is a real mark '
+        'against reading section 1\'s lean as an effect.</p></div>'
+        % (mL["median"], rL["median"],
+           c("maj_by_difficulty", "opus_in_S")["median"],
+           c("rubric_by_difficulty", "opus_in_S")["median"]))
 
     # ================= RUBRIC =================
     add("<h2>3. Do the individual quality dimensions differ?</h2>")
@@ -505,7 +522,7 @@ def build():
     add(rubric_table(Q))
 
     # ================= COST =================
-    add("<h2>4. Cost: the one place the data does say something</h2>")
+    add("<h2>4. Cost: where the data leans hardest</h2>")
     add("<p>Tokens and wall-clock were recorded for only part of the log — "
         "the M5 readout flagged this as a data-quality failure. But what "
         "survives is <strong>exactly balanced</strong>: 12 opus and 12 fable "
@@ -801,11 +818,27 @@ def power_section(Q):
     o.append("<p>So the log's own conclusion — “no evidence either arm "
              "produces more bugs or worse code; a large effect would "
              "probably have shown” — <strong>survives the modelling "
-             "intact</strong>. What the modelling adds is the other half of "
-             "the sentence: the point estimates are not centred on "
-             "&ldquo;identical&rdquo;, they consistently lean one way, and "
-             "this design cannot tell whether that lean is signal or "
-             "sampling noise. Both readings remain open.</p>")
+             "intact</strong>. What the modelling adds is a sharper "
+             "boundary on it. The pooled point estimates are not centred on "
+             "&ldquo;identical&rdquo;; they lean toward opus. But that lean "
+             "reverses sign when the data is split by difficulty (&sect;2), "
+             "which is the behaviour of noise rather than of an effect, and "
+             "in any case no interval in the quality family clears "
+             "no-difference. The defensible claim remains the negative "
+             "one.</p>")
+    o.append('<div class="callout"><div class="h">If the experiment '
+             'continues, the highest-value change is not more rows</div>'
+             '<p>Reviewer variance is the largest uncontrolled term, and it '
+             'is currently unmeasurable: one orchestrator model reviewed '
+             'every dispatch on both arms, so a finding count confounds how '
+             'well the code was written with how hard that particular review '
+             'looked. Sending a sample of implementations to <em '
+             'class="q">two independent reviewers</em> and recording both '
+             'would let a future readout estimate that variance and divide '
+             'it out. Recording tokens and wall-clock at merge for every '
+             'row — the log already recommends this and then stopped doing '
+             'it — would roughly double the usable n on the one family of '
+             'outcomes that currently leans hardest.</p></div>')
     return "".join(o)
 
 
@@ -820,10 +853,14 @@ orchestrator model reviewed both arms, and the log documents that review
 depth varied a lot between units. Findings counts measure
 <em>review intensity &times; implementation quality</em>, and this
 analysis cannot separate the two factors.</li>
-<li><strong>Difficulty is one orchestrator's pre-flip guess.</strong> The
-log itself notes that unit scope varied by more than an order of
-magnitude inside a single difficulty letter. The blinded labeller's
-independent scope rating agrees with the S/M/L label only loosely.</li>
+<li><strong>Difficulty is one orchestrator's pre-flip guess</strong> — but
+it holds up better than expected. A blinded labeller who never saw the
+S/M/L column rated each unit's scope from its description alone, and
+those ratings correlate with the pre-logged letter at r = 0.86 (mean
+independent rating 2.45 / 3.55 / 4.83 for S / M / L). So the stratifier
+is measuring something real. The log's separate warning still stands
+though: scope varied by more than an order of magnitude <em>inside</em> a
+single letter, so the bands are coarse.</li>
 <li><strong>Outcomes are graded on a subjective 1–5 rubric</strong> by the
 same reviewer that produced the finding counts, so the outcome measures
 are correlated with each other in ways the separate models do not
@@ -840,14 +877,16 @@ results called out in sections 2, 3 and 4 are flagged as things to watch
 rather than reported as findings. The pre-registered headline — the
 MAJOR-finding rate — is the one estimate that was not selected after
 seeing the data.</li>
-<li><strong>The direction is consistent across outcomes, and that is
-worth something the intervals do not capture.</strong> MAJORs,
-consequential MAJORs, silent deviations, NOTEs, pooled findings, all four
-cost measures and the medium-difficulty cells all lean the same way.
-These outcomes are heavily correlated with one another, so this is much
-weaker than nine independent confirmations — but a consistent lean across
-correlated measures is still a different situation from noise scattered
-around 1.0, and an honest reading should say so.</li>
+<li><strong>The pooled lean is real but fragile.</strong> MAJORs,
+consequential MAJORs, silent deviations, NOTEs, pooled findings and all
+four cost measures lean the same way. That is worth noting — but these
+outcomes are heavily correlated (they are largely the same reviews
+counted different ways), so it is far weaker than nine independent
+confirmations. And it does not survive stratification: split by
+difficulty, the medium band favours opus while the large band favours
+fable on both the finding count and the rubric. A direction that
+reverses when you cut the data is the thing you would expect from noise,
+not from a real effect.</li>
 <li><strong>Rows 36, 38 and 40 have missing rubric or silent-deviation
 data</strong>, and row 40 is an L-difficulty row, so the milestone's most
 informative endpoint is partly absent. Complete-case analysis was used
@@ -941,10 +980,26 @@ labellers started. The labellers were instructed not to open the source
 log.</p>
 <p><strong>Sampler.</strong> This machine has no numpy, scipy, pymc or
 pip, so the models are fit by a hand-written componentwise adaptive
-random-walk Metropolis sampler, 4 chains &times; 6000 retained draws.
-<code>validate_sampler.py</code> refits the headline model by
-deterministic 2-D grid quadrature and compares marginals as an
-independent correctness check.</p>
+random-walk Metropolis sampler, 4 chains &times; 6000 retained draws
+(40000 &times; 4 for two models refit to clear the R-hat bar). Because a
+hand-rolled sampler is exactly the kind of thing that can be quietly
+wrong, <code>validate_sampler.py</code> refits the headline model by
+deterministic 601&times;601 grid quadrature of the same posterior and
+compares marginals:</p>
+<table><thead><tr><th>quantity</th><th class="n">grid quadrature</th>
+<th class="n">MCMC sampler</th></tr></thead><tbody>
+<tr><td>posterior mean</td><td class="n">&minus;0.3550</td>
+<td class="n">&minus;0.3658</td></tr>
+<tr><td>2.5%</td><td class="n">&minus;1.0400</td>
+<td class="n">&minus;1.0533</td></tr>
+<tr><td>median</td><td class="n">&minus;0.3500</td>
+<td class="n">&minus;0.3643</td></tr>
+<tr><td>97.5%</td><td class="n">0.3100</td><td class="n">0.3032</td></tr>
+<tr><td>P(coefficient &gt; 0)</td><td class="n">0.1451</td>
+<td class="n">0.1411</td></tr>
+</tbody></table>
+<p>Maximum absolute discrepancy 0.013 &mdash; the sampler agrees with
+exact numerical integration to within Monte Carlo error.</p>
 <p><strong>Reproduce:</strong> <code>python3 analyze.py &amp;&amp;
 python3 report.py</code> from <code>analysis/model-ab/</code>.</p>
 </details>""")

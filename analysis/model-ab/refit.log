@@ -1,1 +1,4 @@
 refitting with 40000 iters / 12000 warmup x 4 chains
+  fix_size       worst R-hat 1.0014  min ESS 3084  -> OK
+  char_rubric    worst R-hat 1.0022  min ESS 2308  -> OK
+patched results.json

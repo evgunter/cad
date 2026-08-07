@@ -1,1 +1,10 @@
 n = 45, total MAJORs = 30
+
+                     grid quadrature      MCMC sampler
+  posterior mean b          -0.3550           -0.3658
+  2.5%                     -1.0400           -1.0533
+  50%                      -0.3500           -0.3643
+  97.5%                     0.3100            0.3032
+  P(b > 0)                   0.1451            0.1411
+
+  max abs discrepancy: 0.0133  -> SAMPLER OK
