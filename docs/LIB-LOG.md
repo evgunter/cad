@@ -42,7 +42,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
-| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | PR #232 OPEN 27/27 green (impl ~158k tok, ~1h); blinded review in flight (lane lib-u1-review) 2026-08-07 |
+| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | PR #232: review APPROVE-WITH-FIXES 0/2/3 (byte-identity of all 89 exports independently reproduced; closure property HELD but its advertised "physically incapable" proof mechanism executed-FALSE → MINOR-1; novel-model prelude test: 3 exits, none to a second crate); rubric 5/3/3; fix pass dispatched to the implementer (incl. orchestrator ruling: Band joins the prelude) |
 | U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 in progress: algebra core + lattice + lowering committed on lib/u2-paths; extracted line_line_fillet_trims from LoopBuilder::fillet (shared closed form, behavior-preserving) |
 
 ## Orchestrator decisions (LB-numbered)
