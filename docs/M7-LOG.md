@@ -901,3 +901,13 @@ gitignored renders-preview/ (never the committed paths) + a
 guard asserting committed PNGs carry the FreeCAD signature
 chunks — a fallback frame becomes structurally uncommittable.
 Lane render-guard (slot 2).
+
+**C7 placement RULED (Evan 👍, #223 thread, 2026-08-07): option
+(b) — M6 closes at its ratified boundary; the C7 join-lane
+implementation OPENS M8 (the contact design was co-designed
+with M8's signed clearance — the co-design stays load-bearing);
+the lily rebuild rides there. The roadmap through both walks is
+now fully ruled: M6 = unit 6 (in review) + k-lint floor → exit
+walk (closure = Evan's call at the walk, with the 15-row lily
+disposition table as walk evidence); M7 = band-seam + stage-1
+recognition → exit walk; then M8 opens with C7.**
