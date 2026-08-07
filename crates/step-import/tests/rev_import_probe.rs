@@ -31,14 +31,20 @@ fn cylinder_three_rim(wall_sense: &str) -> String {
 #106 = ORIENTED_EDGE('',*,*,#103,.F.);
 #107 = ORIENTED_EDGE('',*,*,#102,.F.);
 #73 = PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#7));";
-    let text = text.replace("#73 = PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#7));", extra);
+    let text = text.replace(
+        "#73 = PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#7));",
+        extra,
+    );
     // Wall loop: bottom full circle -> the two arcs.
     let text = text.replace(
         "#19 = EDGE_LOOP('',(#20,#29,#37,#44));",
         "#19 = EDGE_LOOP('',(#20,#29,#104,#105,#44));",
     );
     // Bottom cap loop: reversed traversal of the two arcs.
-    let text = text.replace("#61 = EDGE_LOOP('',(#62));", "#61 = EDGE_LOOP('',(#106,#107));");
+    let text = text.replace(
+        "#61 = EDGE_LOOP('',(#62));",
+        "#61 = EDGE_LOOP('',(#106,#107));",
+    );
     // Wall sense.
     text.replace(
         "#17 = ADVANCED_FACE('',(#18),#45,.T.);",
@@ -55,7 +61,10 @@ fn three_rim_honest_control() {
         Ok(StepImport::Solid { body, .. }) => {
             let t3 = topo::validate_geometric(&body);
             println!("3RIM honest: imported, t3={t3:?}");
-            assert!(t3.is_ok(), "honest three-rim cylinder must be green: {t3:?}");
+            assert!(
+                t3.is_ok(),
+                "honest three-rim cylinder must be green: {t3:?}"
+            );
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => panic!("honest three-rim cylinder must import: {e}"),
@@ -76,10 +85,8 @@ fn three_rim_flipped_wall_layering() {
             println!("3RIM flipped: imported (rider skipped), t3={t3:?}");
             let errs = t3.expect_err("kernel gate must refuse the inverted three-rim wall");
             assert!(
-                errs.iter().any(|e| matches!(
-                    e,
-                    topo::ValidationError::CurvedSenseInverted { .. }
-                )),
+                errs.iter()
+                    .any(|e| matches!(e, topo::ValidationError::CurvedSenseInverted { .. })),
                 "expected CurvedSenseInverted: {errs:?}"
             );
         }
@@ -105,7 +112,10 @@ fn cone_trunc_flipped_wall_refuses() {
         Err(e) => {
             let s = e.to_string();
             println!("CONE_TRUNC flip refused: {}", &s[..s.len().min(110)]);
-            assert!(s.contains("ORIENTATION-INVERTED"), "typed story expected: {s}");
+            assert!(
+                s.contains("ORIENTATION-INVERTED"),
+                "typed story expected: {s}"
+            );
         }
     }
 }
@@ -173,7 +183,10 @@ fn conic_trimmed_flip_slips_both_gates() {
     // Honest control round-trips green.
     match import(&honest_text) {
         Ok(StepImport::Solid { body, .. }) => {
-            assert!(topo::validate_geometric(&body).is_ok(), "honest control green");
+            assert!(
+                topo::validate_geometric(&body).is_ok(),
+                "honest control green"
+            );
         }
         other => panic!("honest cut cylinder must import as solid: {other:?}"),
     }

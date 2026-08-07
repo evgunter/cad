@@ -92,12 +92,7 @@ fn ball_both_single_band_flips_green() {
     let body = common::ball();
     let bands: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(Surface::Sphere { .. })
-            )
-        })
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(bands.len(), 2);
@@ -135,17 +130,26 @@ fn nappe_adversaries() {
     let cases: Vec<(&str, Body<f64>)> = vec![
         ("corpus_cone_apex_up", common::cone()),
         // apex at origin (bottom), base disc on top: material ABOVE apex
-        ("apex_down_cone", revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)], (0.0, 1.0))),
+        (
+            "apex_down_cone",
+            revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)], (0.0, 1.0)),
+        ),
         // flare bore: conical bore whose virtual apex (0,-1) sits BELOW
         // the face (levels on the +axis side if axis is +y)
         (
             "flare_bore",
-            revolved(&[(0.5, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)], (0.0, 1.0)),
+            revolved(
+                &[(0.5, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+                (0.0, 1.0),
+            ),
         ),
         // countersink twin (apex at (0,2), ABOVE the face)
         (
             "countersink",
-            revolved(&[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.5, 1.0)], (0.0, 1.0)),
+            revolved(
+                &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.5, 1.0)],
+                (0.0, 1.0),
+            ),
         ),
     ];
     let mut seen_pos = false;
@@ -179,13 +183,16 @@ fn nappe_adversaries() {
             let flipped = body.flipped_face_sense_for_tests(k).unwrap();
             let errs = validate_geometric(&flipped)
                 .expect_err(&format!("{name}: flipped cone face must refuse"));
-            let named = errs.iter().any(
-                |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == k),
-            );
+            let named = errs
+                .iter()
+                .any(|e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == k));
             println!(
                 "NAPPE {name} cone sense={sense} apex_side(max|d|)={side:+.3} flip named={named}"
             );
-            assert!(named, "{name}: CurvedSenseInverted must name the cone face: {errs:?}");
+            assert!(
+                named,
+                "{name}: CurvedSenseInverted must name the cone face: {errs:?}"
+            );
         }
     }
     assert!(
@@ -200,7 +207,10 @@ fn nappe_adversaries() {
 #[test]
 fn conic_trimmed_wall_flip_probe() {
     let body = common::cut_cylinder();
-    assert!(validate_geometric(&body).is_ok(), "honest cut_cylinder green");
+    assert!(
+        validate_geometric(&body).is_ok(),
+        "honest cut_cylinder green"
+    );
     let walls: Vec<(FaceKey, bool)> = body
         .faces()
         .filter_map(|(k, f)| {
