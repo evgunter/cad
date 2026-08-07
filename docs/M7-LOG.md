@@ -911,3 +911,37 @@ now fully ruled: M6 = unit 6 (in review) + k-lint floor → exit
 walk (closure = Evan's call at the walk, with the 15-row lily
 disposition table as walk evidence); M7 = band-seam + stage-1
 recognition → exit walk; then M8 opens with C7.**
+
+## TIE-UP (2026-08-07, Evan's ask): the resting state
+
+Merged since the last state-sync: #218 (mesh trimmed-NURBS lane
+— NURBS faces render, the empirical per-triangle falsifier
+guards CI), #219+#220 (M6-5 whole — the composed die registered,
+fillet naming total through both doors), #221 (montage-v2 — the
+twisted_duct, curated cells, the conceded s_duct), #224
+(render-guard — fallback frames structurally uncommittable; its
+run confirmed ACTIONS RECOVERED). Filed: #222 (long-turn sweep
+frontier). RULED: C7 opens M8, M6 closes at its ratified
+boundary (Evan 👍). CLEARED: the Actions outage debt — main
+went full-matrix GREEN on the tip containing every waiver-era
+merge. A/B rows all recorded at merge (MESH fable, M6-5 opus,
+MV2 fable, GUARD opus).
+
+**The one open thread**: M6-6 (#223) is in its fix pass (lint
+header + the conic-trim residual recording; the gate itself
+survived every review attack incl. a byte-identical 51-row
+census at three ε). On its green return it merges with its A/B
+row — no re-dispatch needed, the pass is in flight.
+
+**The runway after M6-6 merges (nothing dispatched yet, per the
+tie-up)**: the k-lint baseline-floor refresh (last M6 hygiene) →
+the M6 EXIT WALK (closure = Evan's call; the 15-row lily
+disposition table is walk evidence); M7's band-seam re-mint +
+stage-1 recognition → the M7 EXIT WALK; then M8 opens with the
+C7 join lane + the lily rebuild. Small banked chunks: the
+kernel-lane per-scene render timeout (the FreeCAD deadlock),
+the #214 dimensional-debt riders, #222.
+
+Slots: 1 = m6-6-review lane (cleans at #223's merge), 2 = free.
+Watchlist: empty. Monitors: armed (re-armed post-accident).
+Disk healthy. All logs, A/B rows, and memories committed.
