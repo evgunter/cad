@@ -18,7 +18,7 @@ a reader entering here should know all of them exist.
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation unscheduled by choice (no technical gate — natural slot: the usable-as-library program); the v2 representation switch is a separate later decision |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
-| `docs/LIBRARY-DESIGN.md` | DRAFT (conversation open, 2026-08-06) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, authoring-ergonomics unit ladder |
+| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; units may run parallel with M7 (LQ5) |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
@@ -1373,6 +1373,12 @@ precursor of the error-propagation feature.
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Licensing-hygiene work with no usability payoff is deliberately
   *not* sequenced here — it lives in [Tabled](#tabled-far-future).
+  *(Update 2026-08-06: the library half of the program is designed
+  and RATIFIED as `docs/LIBRARY-DESIGN.md`, and per its LQ5 ruling
+  the "post-M8" label is superseded for that program — its units
+  may start in parallel with M7 where footprints are independent,
+  at Evan's per-unit discretion. GUI work remains sequenced after
+  usable-as-library, unchanged.)*
 
 ### M4 fork outcomes (F1–F8)
 
@@ -1414,7 +1420,11 @@ deliberately deferred to GUI time. The middle layer is no longer
 prospective: `editor-core` is real, and GUI-DESIGN's freshness note
 carries the verified shipped-vs-absent inventory. (GQ4's
 assemblies-are-recipes-of-the-same-formalism commitment is restated
-at Band 3, where it binds.)
+at Band 3, where it binds.) **The library program itself is now
+designed and ratified: `docs/LIBRARY-DESIGN.md`** (L1–L7 — façade,
+document-layer Python bindings, v2-fronted PATHS, the
+authoring-ergonomics unit ladder; per its LQ5 ruling, units may
+start in parallel with M7 where footprints are independent).
 
 ### Band 1 — kernel-side services an interactive client requires
 

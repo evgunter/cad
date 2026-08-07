@@ -1,14 +1,14 @@
 # LIBRARY-DESIGN: the usable-as-a-library program
 
-Status: **DRAFT — Evan's first-round rulings FOLDED IN** (started
-2026-08-06 at Evan's request; direction endorsed and LQ1/LQ2/LQ4/
-LQ5/LQ6 + part of LQ7 ruled in-chat the same day — recorded at §L7;
-the PR carrying this doc still waits for Evan's sign-off to ratify,
-per the standing rule for design conversations). This doc turns
-DESIGN.md's "Beyond the kernel" sequencing item — *"usable as a
-library" ships before any GUI work begins* — from a scoping
-paragraph into a designed program. Proposals are stated firm per
-house style; every one of them is up for pushback.
+Status: **RATIFIED** (design conversation opened 2026-08-06 at
+Evan's request; first-round rulings in-chat the same day, recorded
+at §L7; Evan's sign-off 2026-08-06 in-chat, merged as PR #229).
+Recorded open residue: LQ3 (owned by U4's measured spec) and LQ7's
+tail (wheel cadence, post-release schema/package version coupling —
+deferred to implementation time). This doc turns DESIGN.md's
+"Beyond the kernel" sequencing item — *"usable as a library" ships
+before any GUI work begins* — from a scoping paragraph into a
+designed program.
 
 Evidence base: a code survey of the demo corpus (`demos/tour/`,
 ~5.5k lines, 18 scene modules), the step-export/editor-core test
@@ -72,7 +72,10 @@ Structural facts first:
 - **Bodies exist in triplicate.** Several models live three times —
   tour scene, step-export fixture, editor-core corpus doc — with
   the constants re-typed each time, and the fixtures say so
-  ("constant for constant", "VERBATIM").
+  ("constant for constant", "VERBATIM"). This is an acceptance
+  signal for the program: once U2/U3 land, the triplicates can
+  collapse to one authored source per body; staying triplicated
+  after that is a smell to act on, not a fact of life.
 
 The pain table (file:line into the surveyed tree):
 
