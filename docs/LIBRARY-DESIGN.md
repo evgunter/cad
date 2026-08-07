@@ -1,13 +1,14 @@
 # LIBRARY-DESIGN: the usable-as-a-library program
 
-Status: **DRAFT — design conversation OPEN** (started 2026-08-06 at
-Evan's request; nothing here binds until ratified; the PR carrying
-this doc waits for Evan's sign-off per the standing rule for design
-conversations). This doc turns DESIGN.md's "Beyond the kernel"
-sequencing item — *"usable as a library" ships before any GUI work
-begins* — from a scoping paragraph into a designed program.
-Proposals are stated firm per house style; every one of them is up
-for pushback.
+Status: **DRAFT — Evan's first-round rulings FOLDED IN** (started
+2026-08-06 at Evan's request; direction endorsed and LQ1/LQ2/LQ4/
+LQ5/LQ6 + part of LQ7 ruled in-chat the same day — recorded at §L7;
+the PR carrying this doc still waits for Evan's sign-off to ratify,
+per the standing rule for design conversations). This doc turns
+DESIGN.md's "Beyond the kernel" sequencing item — *"usable as a
+library" ships before any GUI work begins* — from a scoping
+paragraph into a designed program. Proposals are stated firm per
+house style; every one of them is up for pushback.
 
 Evidence base: a code survey of the demo corpus (`demos/tour/`,
 ~5.5k lines, 18 scene modules), the step-export/editor-core test
@@ -121,19 +122,24 @@ literally:
 
 **The load-bearing consequence**: for parametric value to reach
 Python, the document layer must stop being opaque to sketch
-geometry. The ladder:
+geometry. **Ruled (Evan, LQ4): the v2 switch is pulled to the FRONT
+of the program** — Python never ships the opaque-profile
+intermediate state. The front-loaded arc, still two sequenced
+steps:
 
-1. **PATHS v1 (unit U2)**: the algebra implemented as the ratified
-   generator surface, lowering to `Profile` values. Authored-once
-   ergonomics land immediately in both host languages; profiles
-   still enter documents as opaque payloads (F4 unchanged).
-2. **Profiles-as-programs v2 (the #104 recorded commitment)**: the
-   program becomes the profile's definition; sketch coordinates
-   join the expression/dimension layer; the F3 migration lifts v1
-   documents (declared junctions → `.tangent()` calls, fillet arcs
-   → `.fillet(r)` — the flags pin the lift, as PATHS records).
-   This is its own ratification gate mid-program (LQ4), not a
-   prerequisite for shipping useful bindings.
+1. **PATHS implementation (unit U2)**: the algebra implemented as
+   the ratified generator surface, lowering to `Profile` values —
+   authored-once ergonomics land immediately in both host
+   languages.
+2. **Profiles-as-programs v2 (the #104 recorded commitment),
+   immediately after**: the program becomes the profile's
+   definition; sketch coordinates join the expression/dimension
+   layer. Both steps precede U9 — bindings ship against the v2
+   representation from day one. Note the LQ7 ruling's consequence:
+   pre-release, the switch may land as a CLEAN BREAK (the in-repo
+   corpora regenerate); the mechanical v1→program lift PATHS
+   describes (flags pin the constructors) remains available as a
+   tool, not owed as a compatibility promise.
 
 Prerequisite completions the survey surfaced (small, kernel/editor
 side): the Boolean×Pattern payload gap; insert ergonomics (a
@@ -178,15 +184,20 @@ boundary only.**
   f64-first authoring signatures (the `S::from_f64` tax is paid
   once inside the seam; generic instantiation remains the kernel's
   interior). Kills P8.
-- **U2 — PATHS v1 implementation.** The ratified algebra as spec'd,
-  lowering to the v1 form; `LoopBuilder` remains the raw layer it
-  verifies against. Kills the profile-level re-typing class (P4's
-  profile half); makes corner/anchor work structural.
-- **U3 — profile-vocabulary unification.** Loft/sweep sections move
-  to the `ProfileLoop` form (or a shared successor); the
-  double-typed-endpoint `SectionSegments` form and its `==` closure
-  check retire. One profile vocabulary means U2's algebra serves
-  all four body ops. Kernel-side unit; needs its own measured spec.
+- **U2 — PATHS implementation, v2-fronted per LQ4.** The ratified
+  algebra as spec'd, lowering to the v1 form, with the
+  profiles-as-programs representation switch following immediately
+  (§L3's front-loaded arc); `LoopBuilder` remains the raw layer the
+  lowering verifies against. Kills the profile-level re-typing
+  class (P4's profile half); makes corner/anchor work structural.
+- **U3 — profile-vocabulary unification.** RULED (Evan, LQ2):
+  retiring `SectionSegments` as an authoring surface IS the goal —
+  one profile vocabulary, so U2's algebra serves all four body ops;
+  loft/sweep sections move to the `ProfileLoop` form (or the v2
+  program form directly, given LQ4). Whether a vestigial internal
+  lowered form survives inside `sweep` is for this unit's measured
+  spec, not a design commitment. The double-typed-endpoint form and
+  its `==` closure check leave the public surface either way.
 - **U4 — path & placement vocabulary.** Exact 3-D path legs (line,
   arc; the long-turn arc is #222's banked frontier and lands
   there), so P2's sampled quarter-circles become exact values; a
@@ -248,31 +259,41 @@ bindings crate).
   GQ1 audit note generalizes: anything that runs inside evaluation
   satisfies bit-identity).
 
-## L7. Open questions
+## L7. Questions — rulings (Evan, in-chat, 2026-08-06) and what stays open
 
-- **LQ1 — the façade's name**: couples to Q9 (project name).
-  Placeholder crate name acceptable to start, per the standing Q9
-  posture?
-- **LQ2 — U3's shape**: retire `SectionSegments` outright, or keep
-  it as the internal lowered form under a shared authoring type?
-  Needs a measured kernel spec (consumer census exists in the
-  survey).
-- **LQ3 — U4's landing site**: exact path legs as `geom-curves`
-  constructors, `sweep` vocabulary, or both? And does the pose/
-  point-at/mirror family live in `topo::transform` or the façade?
-- **LQ4 — v2 profiles-as-programs timing**: mid-program ratification
-  gate as proposed, or pulled to the program's front so Python
-  never ships the opaque-profile intermediate state?
-- **LQ5 — program vs milestone sequencing**: DESIGN.md places the
-  usability program post-M8. Proposal: this DESIGN CONVERSATION
-  concludes now; implementation units interleave after the M7 exit
-  walk where footprints are disjoint from M8, at Evan's per-unit
-  discretion — the alternative (strict post-M8) stays available.
-- **LQ6 — Python surface breadth at v1**: documents-from-day-one
-  (proposed, per L3) vs an authoring-only first release. The
-  proposal costs the prerequisite completions in L3; the
-  alternative ships sooner and forks the surface temporarily.
-- **LQ7 — distribution/versioning**: wheel cadence; pre-1.0 semver
-  posture; whether persisted-schema versions couple to package
-  versions or stay independent (they are user-visible compatibility
-  promises either way).
+- **LQ1 — the façade's name: RULED.** The façade crate carries the
+  eventual project name — one name for the project and its entry
+  crate (Q9 decides the name itself; placeholder until then, per
+  the standing Q9 posture).
+- **LQ2 — U3's shape: RULED in direction.** Retiring
+  `SectionSegments` as an authoring surface is the goal — Evan's
+  framing: that retirement is what the PATHS program is FOR at the
+  loft/sweep seam. The internal-form residue question goes to U3's
+  measured spec (see U3).
+- **LQ3 — U4's landing site: OPEN** (Evan: unsure). Settle it in
+  U4's own measured spec: exact path legs as `geom-curves`
+  constructors vs `sweep` vocabulary vs both; where the
+  pose/point-at/mirror family lives. Measure-first per house style;
+  the survey's consumer census is the starting evidence.
+- **LQ4 — v2 profiles-as-programs timing: RULED — pulled to the
+  front.** See §L3's front-loaded arc and U2. Python never ships
+  the opaque-profile intermediate state.
+- **LQ5 — sequencing: RULED.** The design conversation concludes
+  now; implementation units may start IN PARALLEL WITH M7 where
+  footprints are independent (not merely after the M7 exit walk),
+  at Evan's per-unit discretion. DESIGN.md's post-M8 placement of
+  the usability program is superseded for this program by this
+  ruling (fold into DESIGN.md at ratification).
+- **LQ6 — Python surface breadth at v1: RULED —
+  documents-from-day-one.** The L3 prerequisite completions are
+  accepted as program scope.
+- **LQ7 — distribution/versioning: RULED in part.** (a) NO
+  backwards-compatibility machinery of any kind before release —
+  no migration chains, no deprecation shims; pre-release breaks are
+  clean breaks (consistent with the persisted-schema clean-break
+  precedent, and with the §L3 note on the v2 switch). (b) Version
+  numbers RESET immediately before release; internal version
+  numbers before that are free to burn. Remaining open, no strong
+  opinion recorded, defer to implementation time: wheel cadence,
+  and whether schema versions couple to package versions
+  post-release.
