@@ -35,10 +35,19 @@ suspect. Merged-branch worktrees are swept at every pipeline seam
 blocks batch loops). Confirm the OWNING agent has terminated
 before cleaning its lane.
 
-**RAM.** 10 GB WSL2 ceiling (`.wslconfig`, confirmed 2026-07-25):
-at most TWO parallel cargo lanes machine-wide. An OOM-killed test
-shows as a bare "Terminated" single-row FAIL — check what else was
-running and rerun quiet before diagnosing a code bug.
+**Build concurrency (updated 2026-08-07, PR #230).** The soft
+"two parallel cargo lanes" convention is REPLACED by real locks:
+wrap every heavy cargo invocation in
+`scripts/with-build-slot.sh -- cargo ...` (machine-wide flock
+semaphore, lockfiles in `~/.local/share/cad-work/locks/`).
+WIDTH IS 1 — measured, not assumed: concurrent pairs lose ~40%
+to cache/memory-bandwidth contention on this 8-core box
+(numbers in PR #230); `CAD_SLOT_WIDTH=2` is the escape hatch if
+hardware changes. Any number of agents may be ALIVE; only their
+builds/batteries queue. Every implementer brief carries the
+wrap instruction. An OOM-killed test still shows as a bare
+"Terminated" single-row FAIL — check what else was running and
+rerun quiet before diagnosing a code bug.
 
 **Liveness.** Standing (Evan, 2026-07-24): check every running
 lane at least hourly — arm `hourly-checkin.sh`; lost
