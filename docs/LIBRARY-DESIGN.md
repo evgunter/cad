@@ -300,3 +300,31 @@ bindings crate).
   opinion recorded, defer to implementation time: wheel cadence,
   and whether schema versions couple to package versions
   post-release.
+
+## L8. Second-round rulings (Evan, in-chat, 2026-08-06, at program start)
+
+Recorded by the program orchestrator; operational detail in
+`docs/LIB-LOG.md`.
+
+- **LQ5 execution — first authorized batch**: U1 and U2 start now,
+  in parallel with the M6/M7 close-out (footprints verified
+  disjoint from that runway). Units past U2 are delegated to
+  orchestrator judgment where footprints are independent; genuine
+  design forks still escalate per the standing model.
+- **Façade placeholder name**: `pncad` until Q9 ratifies the real
+  name. At rename time, grep for `pncad` AND audit `cad`
+  occurrences broadly — many of the latter (workspace paths, repo
+  name, doc prose) should become the real name too.
+- **v2 profiles-as-programs spec timing (§L3 arc, sharpened)**:
+  the representation-switch design conversation is drafted AFTER
+  U2's algebra is implemented and the demo corpus is reworked
+  onto it — the rework is the evidence for what the
+  representation should be (which constructor arguments want
+  expression-layer binding, what the programs actually look like
+  at corpus scale). The §L3 commitment is unchanged: the switch
+  still precedes U9, and Python never ships the opaque-profile
+  intermediate state.
+- **A/B protocol**: library-program implementation dispatches
+  draw from their own LIB-labeled block series in
+  `docs/MODEL-AB-LOG.md`, so the two concurrent orchestrators
+  never consume the same draw.
