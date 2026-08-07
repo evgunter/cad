@@ -945,3 +945,7 @@ the #214 dimensional-debt riders, #222.
 Slots: 1 = m6-6-review lane (cleans at #223's merge), 2 = free.
 Watchlist: empty. Monitors: armed (re-armed post-accident).
 Disk healthy. All logs, A/B rows, and memories committed.
+**Tie-up completion: M6-6 MERGED as #223** (the open thread
+closed itself — fix pass green on the fresh hosted run). M6's
+RATIFIED CONTENT IS DONE. The resting state stands as written
+above, with the runway's first step now the k-lint floor.
