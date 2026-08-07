@@ -13,8 +13,8 @@
 #        scripts/test-fast.sh --workspace --features interval
 #        CAD_TOLERANCE_EPS=1e-9 scripts/test-fast.sh --workspace
 set -euo pipefail
-# Queue through the machine-wide build-slot semaphore (shared slot: two
-# may run at once, CARGO_BUILD_JOBS=4 each). See with-build-slot.sh.
+# Queue through the machine-wide build-slot semaphore (width-1 mutex
+# by default — measured faster than concurrent; see with-build-slot.sh).
 if [ -z "${BUILD_SLOT_HELD:-}" ]; then
   exec "$(dirname "$0")/with-build-slot.sh" -- "$0" "$@"
 fi

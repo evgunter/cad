@@ -39,12 +39,19 @@ before cleaning its lane.
 soft two-lane convention and the cad-work/cargo-slots.txt
 registry).** 10 GB WSL2 ceiling (`.wslconfig`, confirmed
 2026-07-25). Heavy cargo operations are bounded machine-wide by
-`scripts/with-build-slot.sh` — two flock slot files in
+`scripts/with-build-slot.sh` — flock slot files in
 `~/.local/share/cad-work/locks/`. flock releases on process death
 (even SIGKILL/OOM), so dead agents cannot leave stale locks.
-Ordinary builds take ONE slot (two at once, CARGO_BUILD_JOBS=4
-each); full batteries take BOTH (`-x`) — two concurrent batteries
-are the documented OOM shape. `ci-local.sh` (hence gate.sh) and
+**Width is 1 (a mutex), measured not assumed** — the 2026-08-06
+experiment (PR #230; cad-work/slot-exp-results.md): concurrent
+warm workspace rebuilds 98s pair-wall (-j8) / 111s (-j4) vs 69s
+sequential — concurrency loses ~40% to cache/membw contention,
+and -j caps make it worse (solo -j4 52s vs -j8 33s), so no jobs
+cap either; RAM was never tight (min 5.5 GB avail). Numbers are
+post-laptop-settings-fix (Evan, 2026-08-06 — pre-fix timing
+folklore is stale). CAD_SLOT_WIDTH=2 re-widens if hardware
+changes; batteries then take ALL slots (`-x`) — two concurrent
+batteries are the documented OOM shape. `ci-local.sh` (hence gate.sh) and
 `test-fast.sh` self-acquire, so the standard entry points queue
 automatically; wrap raw `cargo` invocations yourself. Agents
 choose `-n` (grab-or-exit-75, then retry/fall back) vs default

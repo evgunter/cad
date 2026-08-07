@@ -4,21 +4,32 @@
 #   scripts/with-build-slot.sh [-x] [-n] [-w SECS] -- <command> [args...]
 #
 # Replaces the soft "two lanes" convention (and the retired
-# cargo-slots.txt registry) with real locks: TWO slot lockfiles under
+# cargo-slots.txt registry) with real locks: slot lockfiles under
 # ~/.local/share/cad-work/locks/ bound the number of concurrent heavy
-# cargo operations machine-wide (10 GB WSL2 RAM ceiling — see
-# memories/agent-lane-operations.md). Any number of agents may be ALIVE;
+# cargo operations machine-wide. Any number of agents may be ALIVE;
 # only their builds/batteries queue here.
 #
+# WIDTH IS 1 BY DEFAULT (a mutex), measured, not assumed: the
+# 2026-08-06 slot experiment (two lanes, warm-deps workspace rebuild
+# after touching geom-core) measured the concurrent pair at 98s wall
+# (-j8 each) and 111s (-j4 each) vs 69s run back-to-back — concurrency
+# LOSES ~40% to cache/memory-bandwidth contention on this 8-core box,
+# and capping jobs makes it worse (solo -j4 52s vs solo -j8 33s), so
+# no CARGO_BUILD_JOBS cap is applied either. RAM was never tight (min
+# MemAvailable 5.5 GB at the worst) — serialization is purely a
+# throughput win, on top of removing the battery-OOM failure mode.
+# Full numbers: ~/.local/share/cad-work/slot-exp-results.md and PR
+# #230. If the hardware changes, re-run the experiment and set
+# CAD_SLOT_WIDTH=2 to re-widen shared mode.
+#
 # Modes:
-#   (default)  acquire ONE slot — ordinary builds / fast test runs.
-#              Two may run at once; each defaults CARGO_BUILD_JOBS=4 so
-#              a concurrent pair shares the 8 cores fairly (override by
-#              exporting CARGO_BUILD_JOBS yourself).
-#   -x         acquire BOTH slots (exclusive) — full batteries and gate
-#              runs. Two concurrent full batteries have OOM-killed tests
-#              before (bare "Terminated" rows); exclusivity is cheaper
-#              than a wasted, misleading run.
+#   (default)  acquire one build slot (with width 1: the mutex) —
+#              ordinary builds / fast test runs.
+#   -x         acquire ALL slots — full batteries and gate runs.
+#              Identical to default at width 1; kept distinct so
+#              batteries stay exclusive if the width is ever raised
+#              (two concurrent batteries are the documented OOM shape:
+#              bare "Terminated" rows).
 #   -n         non-blocking: if the slot(s) are busy, exit 75
 #              (EX_TEMPFAIL) immediately instead of waiting. Agents can
 #              try -n first and fall back to a blocking call — useful
@@ -47,6 +58,9 @@
 set -euo pipefail
 
 LOCK_DIR="${CAD_SLOT_DIR:-$HOME/.local/share/cad-work/locks}"
+# Shared-mode width: how many one-slot holders may run concurrently.
+# 1 (mutex) per the 2026-08-06 experiment — see header. Max 2.
+WIDTH="${CAD_SLOT_WIDTH:-1}"
 MODE=shared
 TRY=0
 WAIT_MAX=0   # 0 = forever
@@ -104,11 +118,12 @@ wait_tick() {
 
 HELD=""
 if [ "$MODE" = shared ]; then
-  # Poll both slots instead of blocking on one: blocking on slot 1
-  # while slot 2 frees first would serialize needlessly.
+  # Poll the slot(s) within WIDTH instead of blocking on one: at
+  # width 2, blocking on slot 1 while slot 2 frees first would
+  # serialize needlessly.
   while :; do
     if try_slot 8; then HELD=1; break; fi
-    if try_slot 9; then HELD=2; break; fi
+    if [ "$WIDTH" -ge 2 ] && try_slot 9; then HELD=2; break; fi
     wait_tick
   done
   note_holder "$HELD" "shared: $*"
@@ -130,10 +145,8 @@ for _ in 1 2 3 4 5 6; do
   sleep 30
 done
 
+# No CARGO_BUILD_JOBS cap: the slot experiment measured -j4 strictly
+# worse both solo (52s vs 33s) and paired — full -j inside the slot,
+# serialization between slots, is the fast configuration.
 export BUILD_SLOT_HELD="$MODE"
-if [ "$MODE" = shared ]; then
-  # Fair CPU split when two shared slots run concurrently (8 cores).
-  # Tuned by the 2026-08-06 slot experiment; override by pre-setting.
-  export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
-fi
 exec "$@"

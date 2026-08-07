@@ -16,7 +16,7 @@
 # honest (caching investigation, PR #72):
 #
 #   * SERIALIZED: an flock on a global lock file queues concurrent gate
-#     runs. (Additionally, ci-local.sh now self-acquires BOTH machine
+#     runs. (Additionally, ci-local.sh now self-acquires ALL machine
 #     build slots — with-build-slot.sh — so a gate run also excludes
 #     concurrent agent-lane builds, the source of the 3-4x contention
 #     below.) The session-3 70-minute matrix was partly CPU
