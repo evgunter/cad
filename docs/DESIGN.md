@@ -18,6 +18,7 @@ a reader entering here should know all of them exist.
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation unscheduled by choice (no technical gate — natural slot: the usable-as-library program); the v2 representation switch is a separate later decision |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
+| `docs/LIBRARY-DESIGN.md` | DRAFT (conversation open, 2026-08-06) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, authoring-ergonomics unit ladder |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
