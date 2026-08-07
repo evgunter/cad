@@ -149,7 +149,7 @@ pub fn stops() -> Vec<Stop> {
         story: "the tilted cut RENDERS (M5 PR 11): the section edges carry an EXACT \
                 ellipse, the cut walls tessellate through the pcurve-driven trimmed \
                 lane, and the volume is a certified quadrature enclosure",
-        ops: "extrude(disc) -> pncad::topo::split(tilted plane); exact Curve3::Ellipse \
+        ops: "extrude(disc) -> topo::split(tilted plane); exact Curve3::Ellipse \
               section carriers (M5 PR 5 shape (i)); pcurve trim loops + certified \
               quadrature (M5 PR 11)",
         delta: 1e-2,

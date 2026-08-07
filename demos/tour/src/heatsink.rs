@@ -29,10 +29,7 @@ use pncad::profile::{Profile, ProfileLoop, SketchPlane};
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2(x: f64, y: f64) -> pncad::geom_core::Point2<f64> {
-    pncad::geom_core::Point2::new(x, y)
-}
+use pncad::authoring::p2;
 
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus

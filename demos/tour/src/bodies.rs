@@ -10,24 +10,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point2, Tolerance, Vec2};
-use pncad::profile::{
-    LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile,
-};
+use pncad::geom_core::{Tolerance, Vec2};
+use pncad::profile::{LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
-
-fn validated<S: Scalar>(loops: Vec<ProfileLoop<S>>) -> ValidatedProfile<S> {
-    Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
-        .expect("profile validation")
-}
+use pncad::authoring::{p2, validated};
 
 fn axis_y<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
@@ -74,9 +63,12 @@ pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
         .line_to(p2(1.0, 3.0))
         .line_to(p2(0.0, 3.0))
         .close();
-    extrude(&validated(vec![lp]), Extrusion::Distance(S::from_f64(0.75)))
-        .expect("extrude bracket")
-        .body
+    extrude(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
+        Extrusion::Distance(S::from_f64(0.75)),
+    )
+    .expect("extrude bracket")
+    .body
 }
 
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
@@ -85,9 +77,12 @@ pub fn plate<S: Scalar>() -> pncad::topo::Body<S> {
     let holes = vec![circle(-1.5, 0.0, 0.7), circle(1.5, 0.0, 0.7)];
     let mut loops = vec![outer];
     loops.extend(holes);
-    extrude(&validated(loops), Extrusion::Distance(S::from_f64(0.6)))
-        .expect("extrude plate")
-        .body
+    extrude(
+        &validated(SketchPlane::xy(), loops).expect("profile validation"),
+        Extrusion::Distance(S::from_f64(0.6)),
+    )
+    .expect("extrude plate")
+    .body
 }
 
 /// Solid vase: an axis-touching profile — conical base, spherical
@@ -105,9 +100,13 @@ pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
         .line_to(p2(0.9, 2.5))
         .line_to(p2(0.0, 2.5))
         .close();
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .expect("revolve vase")
-        .body
+    revolve(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
+        axis_y(),
+        Revolution::Full,
+    )
+    .expect("revolve vase")
+    .body
 }
 
 /// Rope-groove sheave (the donut's AND the pulley's successor): full
@@ -135,9 +134,13 @@ pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
         .line_to(p2(0.9, 1.0))
         .line_to(p2(0.4, 1.0))
         .close();
-    let body: pncad::topo::Body<S> = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .expect("revolve sheave")
-        .body;
+    let body: pncad::topo::Body<S> = revolve(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
+        axis_y(),
+        Revolution::Full,
+    )
+    .expect("revolve sheave")
+    .body;
     // Closed-form volume by Pappus (independent derivation, exact
     // rationals): hub + web + rim annuli + two cone shoulder wedges,
     // minus the revolved half-disc groove:
@@ -194,7 +197,7 @@ pub fn chute<S: Scalar>() -> (pncad::topo::Body<S>, String) {
         p2(1.0, 0.625),
     ]);
     let body: pncad::topo::Body<S> = revolve(
-        &validated(vec![lp]),
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
         axis_y(),
         Revolution::Partial(S::from_f64(3.0 * core::f64::consts::FRAC_PI_2)),
     )

@@ -22,7 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point2, Tolerance};
+use pncad::geom_core::Tolerance;
 use pncad::profile::{
     ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileLoop, SegmentKind, SketchPlane,
     ValidatedProfile,
@@ -31,10 +31,7 @@ use pncad::sweep::{Extrusion, extrude};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
+use pncad::authoring::p2;
 
 fn arc<S: Scalar>(cx: f64, cy: f64) -> FilletLegShape<S> {
     FilletLegShape::Arc {

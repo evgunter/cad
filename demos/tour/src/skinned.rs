@@ -338,7 +338,7 @@ pub fn stops() -> Vec<Stop> {
                     section is NOT an affine image of the squares (affine maps preserve \
                     parallelism; the trapezoid has a non-parallel pair), so the four \
                     walls are genuinely curved NURBS patches, not ruled strips",
-            ops: "pncad::sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
+            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
             delta: 6e-3,
             note: Some(
                 "the corpus fixture VERBATIM (step-export/tests/common/mod.rs::loft_prism, \
@@ -367,7 +367,7 @@ pub fn stops() -> Vec<Stop> {
                     Same skin-fit lane whose synthesized weight channel used to land \
                     an ulp off 1.0 on non-uniform spacings and refuse at assembly \
                     (#207)",
-            ops: "pncad::sweep::loft_body(square, trapezoid, square @ z = 0/0.15/2, v_degree 2)",
+            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/0.15/2, v_degree 2)",
             delta: 6e-3,
             note: Some(
                 "the scene LEADS the corpus since montage-v2 (the s_duct/lily \
@@ -414,7 +414,7 @@ pub fn stops() -> Vec<Stop> {
                     (each station turns the profile by the minimal rotation carrying \
                     the start tangent to its own; on a planar path that rotation axis \
                     is fixed, so the square never rolls)",
-            ops: "pncad::sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
+            ops: "sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
                   quarter arcs, degree-3 interpolant through 17 exact points), \
                   13 stations, v_degree 3)",
             delta: 5e-3,
@@ -560,7 +560,7 @@ pub fn stops() -> Vec<Stop> {
                 the planar S (s_duct, standalone), which two glued partial revolves \
                 could fake. The square visibly rolls as the bend plane turns: the \
                 path-following frame carries it through the spine's torsion",
-        ops: "pncad::sweep::sweep_body(square(h = 0.25), twisted cubic (At, Bt^2, Ct^3), \
+        ops: "sweep::sweep_body(square(h = 0.25), twisted cubic (At, Bt^2, Ct^3), \
               A/B/C = 2.2/1.3/1.5, degree-3 interpolant through 33 exact points, \
               17 stations, v_degree 3)",
         delta: 5e-3,

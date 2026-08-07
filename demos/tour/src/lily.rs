@@ -50,16 +50,15 @@
 use core::f64::consts::PI;
 
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tolerance, Vec2, Vec3};
-use pncad::profile::{
-    ArcSweep, LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile,
-};
+use pncad::geom_core::{Affine3, Mat3, Point3, Vec2, Vec3};
+use pncad::profile::{ArcSweep, LoopBuilder, ProfileLoop, ProfileVertex, SketchPlane};
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::authoring::{p2, validated};
 
 // ---------------------------------------------------------------
 // The turtle: a G1 chain of circular arcs in the world xz-plane.
@@ -134,16 +133,6 @@ fn pt3<S: Scalar>(x: f64, y: f64, z: f64) -> Point3<S> {
     Point3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z))
 }
 
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
-
-fn validated<S: Scalar>(plane: SketchPlane<S>, loops: Vec<ProfileLoop<S>>) -> ValidatedProfile<S> {
-    Profile::new(plane, loops)
-        .validate(Tolerance::get())
-        .expect("lily profile validates")
-}
-
 /// The revolve axis every lily piece uses: the sketch frame's own
 /// origin, along +v. Each builder chooses the FRAME so that this one
 /// axis lands where the piece needs it — the kernel's revolve takes
@@ -184,7 +173,8 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> Body<S> {
         v3(spec.radial.0, 0.0, spec.radial.1),
         v3(0.0, 1.0, 0.0),
     );
-    let profile = validated(plane, vec![circle_loop(spec.ring, 0.0, tube)]);
+    let profile =
+        validated(plane, vec![circle_loop(spec.ring, 0.0, tube)]).expect("lily profile validates");
     revolve(
         &profile,
         sketch_axis(),
@@ -232,9 +222,13 @@ fn lantern<S: Scalar>(
         .line_to(p2(lip_r, t_end))
         .line_to(p2(0.0, t_end))
         .close();
-    revolve(&validated(plane, vec![lp]), sketch_axis(), Revolution::Full)
-        .expect("lantern revolves")
-        .body
+    revolve(
+        &validated(plane, vec![lp]).expect("lily profile validates"),
+        sketch_axis(),
+        Revolution::Full,
+    )
+    .expect("lantern revolves")
+    .body
 }
 
 /// A **lanceolate leaf**: two circular arcs of DIFFERENT radii on the
@@ -278,7 +272,7 @@ fn leaf<S: Scalar>(
         .arc_to_via(p2(0.5 * len, w_out), p2(len, 0.0))
         .close_arc_via(p2(0.5 * len, w_in));
     extrude(
-        &validated(plane, vec![lp]),
+        &validated(plane, vec![lp]).expect("lily profile validates"),
         Extrusion::Distance(S::from_f64(thick)),
     )
     .expect("leaf extrudes")
@@ -479,9 +473,13 @@ fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
     let lp = LoopBuilder::start(p2(0.0, -r))
         .arc_to_center(p2(0.0, r), p2(0.0, 0.0), ArcSweep::Ccw)
         .close();
-    revolve(&validated(plane, vec![lp]), sketch_axis(), Revolution::Full)
-        .expect("probe ball revolves")
-        .body
+    revolve(
+        &validated(plane, vec![lp]).expect("lily profile validates"),
+        sketch_axis(),
+        Revolution::Full,
+    )
+    .expect("probe ball revolves")
+    .body
 }
 
 /// Prints one probe line, asserting that the wall is still standing —
@@ -586,7 +584,7 @@ pub fn wall_probes<S: Scalar>() {
         let lp = LoopBuilder::start(p2(0.0, 0.0))
             .arc_to_via(p2(0.5, 0.12), p2(1.0, 0.0))
             .close_arc_via(p2(0.5, 0.02));
-        validated(plane, vec![lp])
+        validated(plane, vec![lp]).expect("lily profile validates")
     };
     wall(
         3,
@@ -677,8 +675,8 @@ pub fn wall_probes<S: Scalar>() {
     println!(
         "   (wall 9 — a TAPERING sweep — is the one remaining ABSENCE, not a \
          refusal, so it cannot be probed at runtime. Walls 8 and 10 CLOSED with \
-         M6-3: `pncad::sweep::sweep_body` is the general-path sweep body and \
-         `pncad::sweep::loft_body` the skin assembly — the loft stop builds one live, \
+         M6-3: `sweep::sweep_body` is the general-path sweep body and \
+         `sweep::loft_body` the skin assembly — the loft stop builds one live, \
          and `skinned::narration`'s retire-on-closure pin fired as designed. \
          Wall 10's closure was only PARTIAL until #207: every curved path \
          refused at assembly on the skin fit's synthesized weight channel, \

@@ -28,25 +28,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point2, Point3, Tolerance, Vec3};
-use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use pncad::geom_core::{Point3, Vec3};
+use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
 
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
-
-fn validated<S: Scalar>(plane: SketchPlane<S>, poly: &[(f64, f64)]) -> ValidatedProfile<S> {
-    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| p2(x, y)).collect::<Vec<_>>());
-    Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
-        .expect("letterform profile")
-}
+use pncad::authoring::{polygon, validated};
 
 /// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —
 /// covering the full-height T).
@@ -57,7 +47,7 @@ fn h_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
     extrude(
-        &validated(plane, poly),
+        &validated(plane, vec![polygon(poly)]).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(3.5)),
     )
     .expect("extrude H")
@@ -72,7 +62,7 @@ fn t_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
         Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
     extrude(
-        &validated(plane, poly),
+        &validated(plane, vec![polygon(poly)]).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(2.5)),
     )
     .expect("extrude T")
@@ -109,7 +99,7 @@ fn c_prism<S: Scalar>() -> Body<S> {
         (0.1875, 2.0625),
     ];
     extrude(
-        &validated(plane, &poly),
+        &validated(plane, vec![polygon(&poly)]).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(4.0)),
     )
     .expect("extrude C")

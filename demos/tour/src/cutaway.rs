@@ -70,7 +70,7 @@ pub(crate) fn build<S: Scalar>(
 pub fn stops(boxbody: &pncad::topo::Body<f64>) -> Vec<Stop> {
     let ((moved_above, moved_below), (v_above, v_below, v_box, gap)) = build(boxbody);
     let note = format!(
-        "first `pncad::topo::split` in the tour, ON a 15-op boolean result; section plane \
+        "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
          normal (0.75, 0.1875, 1) — tilted, no axis alignment; minted section faces \
          on both sides; halves partition the volume exactly ({v_above:.6} + \
          {v_below:.6} = {v_box:.6}, gap {gap:.1e}); halves then moved apart by \
@@ -82,7 +82,7 @@ pub fn stops(boxbody: &pncad::topo::Body<f64>) -> Vec<Stop> {
         montage: true,
         story: "the project box split by a tilted plane and pulled apart — a \
                 machinist's section pair showing bosses, pockets, and wall sections",
-        ops: "pncad::topo::split(projectbox, tilted plane) -> 2 bodies -> 2 transform nodes",
+        ops: "topo::split(projectbox, tilted plane) -> 2 bodies -> 2 transform nodes",
         delta: 1e-2,
         note: Some(note),
         // Split output is not a boolean result: no declared contacts

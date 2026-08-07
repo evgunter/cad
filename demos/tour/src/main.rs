@@ -440,7 +440,7 @@ fn main() {
     let (box_stop, box_body) = projectbox::stop();
     run(&box_stop);
 
-    println!("\n-- the cutaway (the first `pncad::topo::split` in the tour) --");
+    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
     for stop in cutaway::stops(&box_body) {
         run(&stop);
     }

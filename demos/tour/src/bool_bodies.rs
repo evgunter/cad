@@ -27,10 +27,7 @@ use pncad::topo::{Body, BooleanResultKind};
 use crate::booleans::{Verdict, check, describe, expect_seamed};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2<S: Scalar>(x: f64, y: f64) -> pncad::geom_core::Point2<S> {
-    pncad::geom_core::Point2::new(S::from_f64(x), S::from_f64(y))
-}
+use pncad::authoring::p2;
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
 /// a rectangle on a z-offset xy sketch plane extruded up.

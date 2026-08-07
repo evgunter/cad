@@ -93,7 +93,7 @@ pub fn stops() -> Vec<Stop> {
                 minor radius 0.5, traversed over the window [0.25, 1.75] rad. Every \
                 one of those is visible: the ring's radius, the pipe's radius, and the \
                 window as the gap the two planar wedge caps close",
-        ops: "pncad::sweep::tube_along_arc(origin, +y, +x, R = 2, Arc{t0 = 0.25, t1 = 1.75}, \
+        ops: "sweep::tube_along_arc(origin, +y, +x, R = 2, Arc{t0 = 0.25, t1 = 1.75}, \
               r = 0.5)",
         // The lily's finding 13 in miniature: delta is a CHORD budget
         // spent per RING radius, not per feature size, so a 2 m spine
