@@ -145,3 +145,13 @@ Ruled out in this vein:
 Before ratifying any pick into Q9: re-run the crates.io/GitHub sweep
 (fresh — the 2026-07-23 checks go stale) and a trademark sanity look;
 then DESIGN.md Q9 closes + crate-prefix rename as a mechanical PR.
+
+## Placeholder in use (2026-08-06, Evan-approved)
+
+The library-program façade crate is named **`pncad`** ("pending-name
+CAD") until Q9 ratifies the real name — chosen greppable on purpose.
+At rename time: grep for `pncad`, AND audit `cad` occurrences
+broadly (workspace paths, repo name, doc prose, lane scripts'
+hardcoded clone URL) — Evan's note: many `cad` occurrences should
+ultimately become the real name. Q9 becomes genuinely imminent
+before U9/U10 (wheels + docs are the public-name surface).
