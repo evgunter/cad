@@ -28,7 +28,9 @@ cd ..
 Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 `demos/renders/*.png` (tracked — one per scene plus `montage.png`),
 `demos/renders-freecad/*.png` (tracked — the montage cells plus
-`montage-freecad.png`).
+`montage-freecad.png`), and — only when the kernel lane falls back to
+matplotlib — `demos/renders-preview/renders/*.png` (gitignored; see
+below).
 
 Both `render.sh` lanes run `strip_png_stamps.py` over the per-scene
 PNGs before composing the montage: FreeCAD's `saveImage` stamps the
@@ -37,6 +39,59 @@ and a `zTXt` "Description" chunk carrying its MIBA XML), which would
 make an unchanged re-render show up dirty in `git status`. Both are
 ancillary chunks — dropping them is lossless, and it makes a dirty
 `git status` after a re-render mean the *pixels* changed.
+
+## The matplotlib fallback is uncommittable (#221)
+
+The kernel lane falls back to the numpy+matplotlib STL renderer
+(`render.py`) when FreeCAD is missing or its session does not complete.
+That fallback used to write `renders/` — the same directory FreeCAD
+writes — so a fallback frame was indistinguishable from a real one at
+the filesystem level, and one silently reached a committed montage cell
+(repaired in #221). Two layers now make that structurally impossible:
+
+* **Routing.** The fallback renders into `demos/renders-preview/renders/`
+  — the preview tree mirrors the lane structure and is **gitignored**,
+  so a fallback frame cannot be committed even by `git add -A`. It
+  composes its own sheet there, under a `PREVIEW ONLY` banner, and
+  `render.sh` prints a loud stderr block naming the reason and the
+  destination. Nothing under `renders/` is written on that path — not
+  even `montage.png`, because recomposing the committed sheet from a
+  stale or partial cell set is exactly the silent corruption #221 hit.
+  (`renders-preview/renders-freecad/` never appears: the `--freecad`
+  lane has no fallback by design — its whole point is the OCC reference
+  render — it exits 1 instead.)
+* **Guard.** `check_render_provenance.py` asserts that every committed
+  per-scene PNG under `renders/` and `renders-freecad/` carries
+  FreeCAD's signature `tEXt` chunks (`Author: FreeCAD (…)`, `Software:
+  FreeCAD` — deterministic, so `strip_png_stamps.py` keeps them, unlike
+  the two wall-clock chunks it drops). A matplotlib-authored frame
+  (`Software: Matplotlib …`) in a committed path fails loud, naming the
+  file. Both `render.sh` lanes run it after the stamp strip and
+  **before** composing the montage, so a sheet is never composed from an
+  uncertified cell set; it is also an always-run row in
+  `scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
+  only — no venv, no FreeCAD).
+
+**The montage sheets are exempt, and here is why that is safe.** Both
+sheets (`renders/montage.png`, `renders-freecad/montage-freecad.png`)
+are *composed* by matplotlib on purpose — `compose_montage.py` lays the
+FreeCAD-rendered cells out on a grid with captions and a banner — so
+their `Software: Matplotlib` is correct, not a fallback, and the guard
+cannot demand a FreeCAD signature of them. The exemption is a positive
+assertion rather than a hole: exactly the two known sheet names are
+exempt, and each of them must actually carry the matplotlib signature.
+The sheet's pixels are covered *indirectly*, which is the honest
+statement of the guard's reach — a sheet is only ever composed from the
+cells sitting beside it, and the guard certifies those cells in the same
+pass, immediately before the compose step. What it cannot see is a
+**stale** sheet (cells fixed afterwards without recomposing); that is a
+`git status` / re-render question, and both lanes are byte-reproducible
+after the stamp strip.
+
+`check_render_provenance.py --selftest` is the guard's own test:
+synthetic PNGs (real chunk framing and CRCs, stdlib only) for the good
+cell, the fallback cell, an unstamped cell, a sheet that is not a
+matplotlib composition, and a missing lane directory.
 
 ## The two montages (#159)
 

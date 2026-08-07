@@ -338,6 +338,23 @@ jobs:
             exit 1
           fi
 
+      # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
+      # PNG under demos/renders{,-freecad}/ must carry FreeCAD's
+      # signature tEXt chunks; the two matplotlib-COMPOSED montage
+      # sheets are the only exemption, and are asserted to be exactly
+      # that. A matplotlib fallback frame in a committed path fails
+      # here, naming the file. Stdlib-only python3 — it rides this job
+      # because this is the cheap-tripwire job (no toolchain, no
+      # cargo), and because a render change is never tier `docs`
+      # (demos/** is unscopable ⇒ tier `all`), so run_build gates it
+      # exactly when it can matter. Mirror: ci-local's always-run
+      # "render provenance (demos)" row. The --selftest pass shows the
+      # guard actually fires (synthetic PNGs, no renderer needed).
+      - name: render provenance (demos)
+        run: |
+          python3 demos/check_render_provenance.py --selftest
+          python3 demos/check_render_provenance.py
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest

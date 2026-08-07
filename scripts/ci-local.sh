@@ -204,6 +204,19 @@ discipline() {
   return $rc
 }
 
+# Render provenance (#221 follow-up): every committed per-scene PNG in
+# demos/renders{,-freecad}/ must carry FreeCAD's signature tEXt chunks,
+# so a matplotlib fallback frame in a committed path fails loud instead
+# of riding into a montage cell. Stdlib-only python3 (no venv, no
+# FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
+# a guard that a tier selection can skip is not a guard. Runs its own
+# self-test first (the guard must be shown to fire). Hosted mirror: the
+# `k-lint` job's "demos render provenance" step.
+render_provenance() {
+  python3 demos/check_render_provenance.py --selftest && \
+    python3 demos/check_render_provenance.py
+}
+
 watertight() {
   command -v admesh >/dev/null || { echo "ERROR: admesh not installed (apt admesh, or build 0.98.4+ from source)"; return 1; }
   cargo run -p stl --example export_acceptance -- target/stl-acceptance && \
@@ -328,6 +341,7 @@ klint_advisory() {
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
 run_row "discipline (evaluation-code)" discipline
+run_row "render provenance (demos)"    render_provenance
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
