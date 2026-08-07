@@ -42,7 +42,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
-| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | PR #232: review APPROVE-WITH-FIXES 0/2/3 (byte-identity of all 89 exports independently reproduced; closure property HELD but its advertised "physically incapable" proof mechanism executed-FALSE → MINOR-1; novel-model prelude test: 3 exits, none to a second crate); rubric 5/3/3; fix pass dispatched to the implementer (incl. orchestrator ruling: Band joins the prelude) |
+| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
 | U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 delivered: PR #233 OPEN, CI 26/1-skip green (impl ~364k tok, ~4.1h); 11 numbered findings; blinded review in flight (lane lib-u2-review) |
 
 ## Orchestrator decisions (LB-numbered)
@@ -80,6 +80,15 @@ Findings that feed the profiles-as-programs representation draft
   defines the bit-identity expectation for PR-2's scene rework
   (anchor-consistent scenes lower bit-identically; others change
   SAID not shape and need per-scene care).
+
+## U9 backlog notes (accumulating)
+
+- `MigrationStep`'s `serde_json::Value` payload is the one closure
+  exception a Python binding will actually meet (U1 audit) —
+  decide at U9 whether pncad re-exports serde_json or the payload
+  gets a typed wrapper.
+- `BooleanOp` name collision (topo's in the prelude, editor_core's
+  by path) — revisit if bindings prefer the document-layer one.
 
 ## Resting state (2026-08-06)
 
