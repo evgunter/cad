@@ -342,8 +342,9 @@ constructor dimension-checked, dimension-changing products refused,
 the AST total and finite by charter. The units/display layer is NOT
 built: values are canonical meters/radians, display units are
 punted to free-form metadata, and no expression text parser exists.
-Both land with their first real consumer (round-tripping `25 mm` —
-bindings or GUI), which is when GQ5's remaining half comes due.*
+Both land in the library program (LIBRARY-DESIGN U8 — bindings are
+the first consumer of round-tripping `25 mm`), ahead of any GUI
+need.*
 
 ### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
 
