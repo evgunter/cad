@@ -1340,13 +1340,13 @@ precursor of the error-propagation feature.
   same ruling (Evan: "we shouldn't fold any core work like ball and
   socket into M7") — curved REST contact is core kernel work, so its
   design lands with the main path even though its implementation
-  does not. *(Status 2026-08-05 — OPEN, exit walk not yet run
-  (docs/M6-LOG.md status summary): units 1–4 closed — surgery #171,
-  SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN ratified
-  #178. REMAINING: unit 5 (edge-selection fillet vocabulary), unit 6
-  (the ratified curved sense-flip tier gate — Evan on the #184
-  triage), and the k-lint floor + hygiene pickups. Closure awaits
-  Evan's exit-walk ruling.)*
+  does not. *(Status 2026-08-06 — ratified content DONE, exit walk
+  not yet run (docs/M6-LOG.md): units 1–6 all closed — surgery #171,
+  SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN #178,
+  fillet vocabulary #219/#220, curved sense-flip gate #223.
+  REMAINING: the k-lint baseline floor, then closure at Evan's
+  exit-walk ruling; C7's join-lane implementation opens M8 per the
+  #223-thread placement ruling.)*
 - **M7** — STEP import as adoption (D7), **and nothing else**:
   analytic surface recognition, edge adoption, healing. Scope
   narrowed by the 2026-08-03 ruling (Evan: "M7 should stay as just
@@ -1354,6 +1354,11 @@ precursor of the error-propagation feature.
   *want* belongs to M6, not here. It remains the inverse problem of
   everything above it, and it is where the foreign-geometry corpus
   finally arrives (see #89's re-open trigger in `docs/K-REPORT.md`).
+  *(Status 2026-08-06 (docs/M7-LOG.md): import is LIVE — own
+  round-trip #183, FreeCAD dialect #189, wild corpus #193, NURBS
+  faces #209; the round-trip corpus stands at 17 fixtures.
+  REMAINING: the band-seam re-mint, stage-1 recognition, exit
+  walk.)*
 - **M8** — Error-propagation MVP *(this was **M6** until the
   2026-08-03 renumbering; the number moved, the content did not)*:
   distributions over parameters; dual-number sensitivities of
@@ -1392,79 +1397,74 @@ design documents with D1–D9 rigor before they are plannable —
 flagged individually.)*
 
 **Sequencing stance (agreed 2026-07-19): "usable as a library" ships
-before any GUI work begins.** After M4 the kernel has parametric
-models, mass properties, and STEP export; adding language bindings
+before any GUI work begins.** The kernel has parametric models, mass
+properties, and STEP in both directions; adding language bindings
 (Python — the CadQuery/build123d audience), documentation, and
 feature breadth yields a genuinely usable code-first tool years
 before an interactive application could exist. The GUI is a separate
 layer and effectively a second project of comparable size to the
 kernel (Fornjot's postmortem and Zoo's app-team scale are the
-evidence); its architecture lives in **`docs/GUI-DESIGN.md`** (G1
-three-layer split ratified 2026-07-19: kernel / headless
-`editor-core` / interaction; **ratified**: GQ1 solver-replay
-boundary (witness = authoritative branch selection), GQ2
-per-node-result-DAG, GQ3 persist-all-edits, GQ4 document scope
-(local refs + assembly-era wrapper; **assemblies are recipes of the
-same formalism** — the document boundary is a namespace/versioning
-seam, so GQ1–GQ3, naming, and undo apply to assemblies unchanged;
-binding semantics: Cargo.lock-style pinned-with-explicit-update,
-ratified in direction), GQ5 typed
-quantities in the expression sublanguage (dimension-algebra extent
-banked for M4); GQ6/GQ7 deliberately deferred to GUI time.
-Remaining pre-M4 design work: GQ1 mechanism details — the
-selection-stability/naming design doc is done and ratified,
-`docs/NAMING-DESIGN.md` #74, 2026-07-23).
+evidence); its architecture lives in **`docs/GUI-DESIGN.md`**: the
+G1 three-layer split (kernel / headless `editor-core` / interaction)
+and GQ1–GQ5 are ratified — GQ1's mechanism subsequently ratified in
+full as `docs/SOLVER-DESIGN.md` (#79), the selection-stability/
+naming doc as `docs/NAMING-DESIGN.md` (#74) — with GQ6/GQ7
+deliberately deferred to GUI time. The middle layer is no longer
+prospective: `editor-core` is real, and GUI-DESIGN's freshness note
+carries the verified shipped-vs-absent inventory. (GQ4's
+assemblies-are-recipes-of-the-same-formalism commitment is restated
+at Band 3, where it binds.)
 
 ### Band 1 — kernel-side services an interactive client requires
 
 The "any GUI is a thin client" claim (Vision) is true only if the
-kernel exports these. None are research; all are load-bearing:
+kernel exports these. None are research; all are load-bearing.
+*(Status 2026-08-06, verified against the code: most of this band
+SHIPPED with `editor-core` (M4) and the milestones since; each item
+below records what shipped and what remains.)*
 
-- **Incremental recompute.** "Caching is free — models are values"
-  is true semantically; interactive editing needs it *engineered*:
-  memoized feature-DAG evaluation keyed on input slices, invalidation
-  of only downstream features, partial re-tessellation. Target shape:
-  edit one parameter mid-DAG → new solid at interactive latency. D9
-  determinism is what makes the memo keys well-defined.
-- **Picking back-references (design-now — ratified into M2 PR 6).**
-  Tessellation output carries per-triangle source-`Face` keys and
-  per-boundary-polyline source-`Edge` keys, so a viewport ray hit
-  resolves to a topology entity. Cheap at tessellator-design time,
-  painful retrofit. Spatial indexing (BVH) for hit-testing sits on
-  top, client-side or in `mesh`.
-- **Cancelation and progress.** Long operations (booleans, fillets)
-  need cooperative yield points and progress reporting; pure-value
-  semantics makes abandonment safe, but the yield points must be
-  designed in, not bolted on.
-- **Selection stability across edits** — the user face of D5/M4's
-  persistent naming, and the single most usability-determining piece
-  of parametric CAD: the user fillets edge E, changes a parameter,
-  topology shifts, and E must re-resolve or fail with an actionable
-  typed error. M4's "builds stable references on top of the birth
-  record" sentence is months of work. **Its design doc exists and is
-  ratified: `docs/NAMING-DESIGN.md` (#74, 2026-07-23; N1–N7)** —
-  names are derivation paths resolved by a replay-emitted table, no
-  matching heuristics — meeting the explicit goal that our
-  architecture (D5 birth provenance + D8 recipe node IDs + D9 replay)
-  makes correct resolution *structurally* easy — as much "automatic"
-  as the design can extract. Ratified 2026-07-19 (GUI-DESIGN.md G1): the
-  GUI's selection type and the recipe's entity references are **the
-  same type** (a stable name), so the naming problem is solved once,
-  not twice. Founding pillar ratified 2026-07-19: naming is
+- **Incremental recompute — SHIPPED** (M4, `editor-core::eval`):
+  memoized per-node evaluation keyed on 128-bit content/naming keys
+  (op kind, structural params, evaluated expression bits, upstream
+  keys, ambient ε/K, witness), evaluation epochs, deterministic
+  level-parallel scheduling; a targeted mid-DAG edit recomputes only
+  its downstream cone (pinned: 2 recomputed / 75 reused on the
+  77-node corpus doc). D9 determinism is what makes the memo keys
+  well-defined, as designed. Remaining: partial re-tessellation, and
+  a resident cache service — today the memo is the caller-threaded
+  prior `Evaluation`.
+- **Picking back-references — SHIPPED at both ends; the ray query
+  itself remains.** Tessellation output carries per-patch
+  source-`Face` keys and per-polyline source-`Edge` keys (M2 PR 6,
+  `mesh::FacePatch`/`BoundaryPolyline`), and
+  `editor-core::resolve::hit` inverts a hit entity to its stable
+  name. Remaining: the ray→triangle query and a picking BVH (the
+  `bvh` crate exists but serves boolean candidate generation; it has
+  no ray query) — client-side or in `mesh`, as originally scoped.
+- **Cancelation and progress — cancelation SHIPPED, progress
+  remains.** `CancelToken` yields between nodes/levels; a canceled
+  run returns the completed prefix as a typed outcome. Remaining:
+  progress reporting (nothing exists), and in-op yield points — the
+  granularity is whole-node, so a long single boolean or fillet is
+  still uninterruptible.
+- **Selection stability across edits — SHIPPED** — the user face of
+  D5/M4's persistent naming, and the single most usability-
+  determining piece of parametric CAD. Design ratified as
+  `docs/NAMING-DESIGN.md` (#74; N1–N7 — names are derivation paths
+  resolved by a replay-emitted table, no matching heuristics);
+  shipped in `editor-core` as ONE `StableName` type used by both
+  recipe references and selections (the naming problem solved once,
+  per G1), with resolution, the diagnosis ladder, tombstones, and
+  `Rebind` with suggestion affordances (suggestions are offers,
+  never auto-repair). Founding pillar ratified 2026-07-19: naming is
   localized to reified predicate flips (see Banked principles
   below).
-- **Appearance attributes (contract-now, artifact-at-M4).**
-  Per-face/body display attributes (color, name, visibility) must
-  live somewhere that survives recompute — which means they attach
-  via the same stable-naming machinery, not arena keys (an
-  arena-keyed container would be fake durability: per-lineage keys
-  die on rebuild, and consumers would accumulate against the wrong
-  name kind). The ratified contract (final, 2026-07-20): attributes
-  attach **in the document layer (`editor-core`), keyed by stable
-  names, from M4 — and nowhere, in any form, before that**. No M2
-  placeholder either: the type's only correct home is a crate that
-  doesn't exist until M4-era work, so an early artifact would sit in
-  the wrong layer and model the mistake this contract prevents.
+- **Appearance attributes — SHIPPED as contracted** (#92): per-face/
+  body display attributes live in the document layer keyed by stable
+  names — never arena keys — survive recompute via post-pass
+  resolution against the evaluation's name tables, and report losses
+  loudly (N3/N5 semantics) instead of dropping silently;
+  appearance-only edits recompute zero nodes.
 
 ### Band 2 — the interactive application (a second, kernel-sized project)
 
@@ -1540,8 +1540,10 @@ named.
   policies. Margin-based pre-flip *warnings* ("this reference is
   within K·ε of vanishing") are noted as a natural extension —
   deliberately far-future.
-- **Content-keyed cache transfer** *(key shape lands with M2 PR 6;
-  service at editor-core)*. D9 bit-determinism makes any derived
+- **Content-keyed cache transfer** *(key shape SHIPPED — M2 PR 6
+  mesh back-references, editor-core's 128-bit content/naming keys;
+  a finer-grained per-artifact transfer service remains future)*.
+  D9 bit-determinism makes any derived
   artifact (certified residual, tessellation patch, BVH node) keyed
   by the bit-content of its geometric inputs transferable across
   rebuilds by equality check — the key *is* the correctness proof;
@@ -1575,7 +1577,11 @@ named.
   day one — M8's error-propagation UI rides the same memoization /
   cancelation / per-node-result machinery as f64 rebuilds; no
   parallel path, no retrofit.
-- **ε and persistence** *(rules for the first persisted document)*:
+- **ε and persistence** *(rules for the first persisted document —
+  SHIPPED in editor-core: the document carries its ε, `SetTolerance`
+  is a recorded `DocEdit`, and the verdict-vector diff engine
+  reports exactly which predicates flipped; the assembly
+  ε-disagreement seam awaits assemblies)*:
   a document records the ε it was authored under; the application
   pins the run's ε to the document's; an assembly whose referenced
   documents disagree on ε is a typed error (D4's per-model-ε
@@ -1654,7 +1660,8 @@ named.
   doc requirement); the Band 4 model corpus comes online **at M4**,
   not with the GUI — rebuild latency is an architectural property
   and must be measured while the architecture is still cheap to
-  change.
+  change *(landed as scheduled: editor-core carries a shape corpus
+  plus latency and determinism suites)*.
 
 ### Band 4 — product-grade infrastructure
 

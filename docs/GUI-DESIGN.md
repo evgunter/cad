@@ -1,9 +1,10 @@
 # GUI / Editor Architecture — Design Document
 
-**Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 all resolved
-and shipped in `editor-core` — see the freshness note; GQ6–GQ7
-deferred to GUI time by design); the GUI layer itself remains
-unbuilt as sequenced.** Companion to
+**Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 resolved,
+with the `editor-core` substrate shipped — the freshness note below
+is the verified shipped-vs-absent inventory; GQ6–GQ7 deferred to
+GUI time by design); the GUI layer itself remains unbuilt as
+sequenced.** Companion to
 `DESIGN.md` (read that first; this doc never overrides D1–D9). GUI
 work is sequenced **after** "usable as a library" (DESIGN.md, Beyond
 the kernel), but the decisions here were banked early because they
@@ -12,14 +13,24 @@ constrained M4's recipe/naming design, not just the eventual GUI.
 Same conventions as DESIGN.md: decisions marked *agreed* are
 settled.
 
-*Freshness note (M4 8c exit sweep, 2026-07-27):* the middle layer this
-doc banks on is now REAL — `editor-core` exists with the recipe
-substrate (#81), the GQ2 per-node result DAG + evaluation service
-(#83), one stable-name type with resolution/Rebind (#87/#96/#102),
-GQ3 persist-all-edits as schema v1 (#112), and StableName-keyed
-appearance with the N3/N5 loss semantics (#92). References in the
-body to M4 as future work are historical; the GUI layer itself
-remains unbuilt as sequenced.
+*Freshness note (verified against the code 2026-08-06; supersedes
+the M4 8c note):* the middle layer this doc banks on is REAL —
+`editor-core` ships the recipe substrate (`Doc`/`DocEdit`/pure
+`apply`, #81), the GQ2 per-node result DAG with descendants-only
+poisoning plus memoized incremental evaluation and cooperative
+cancelation (#83), one stable-name type with resolution/diagnosis/
+`Rebind` (#87/#96/#102), GQ3 persist-all-edits — now schema v3
+(v1 #112; clean breaks v2 at M5 PR 10, v3 at M6-5) — StableName-
+keyed appearance with the N3/N5 loss semantics (#92), the
+dimension-checked total expression AST (GQ5's restrictive
+dimension answer), and arena-key→stable-name hit inversion. Still
+ABSENT, so nobody reads more than shipped: progress reporting and
+in-op yield points; ray picking (mesh back-references exist, no
+ray query anywhere); GQ5's units/display layer (values are
+canonical meters/radians; dimension checking only); any
+undo/history type (the substrate makes it cheap; nothing is
+built); and the GUI layer itself, as sequenced. References in the
+body to M4 as future work are historical.
 
 ## G1 (agreed 2026-07-19): Three layers, and the boundary rules
 
@@ -193,6 +204,13 @@ edge witnesses to the mid-parameter point for exactly this reason);
 the sketch-level witness has the same aliasing question and must
 answer it explicitly.
 
+*Mechanism since ratified in full: `docs/SOLVER-DESIGN.md` (#79,
+W1–W9 — including the witness-aliasing answer this note demanded).
+`editor-core` carries the contract types (`WitnessDatum`,
+`BranchCertification`, `WitnessBifurcation`) and the
+`ReWitness`/`ReWitnessBulk` edits; the solver itself remains
+unbuilt as sequenced (M8).*
+
 ### GQ2 (RATIFIED 2026-07-19 round 3): Partial-build semantics — per-node result DAG
 
 `Result<Solid>` is all-or-nothing; a usable tool shows "feature 7
@@ -206,6 +224,13 @@ bodies, sketches, datum geometry — complete normally (Evan's
 addition). Exact API shape is M4 design work; the codomain
 commitment is what is banked here.
 
+*Shipped (verified 2026-08-06): `editor-core::eval` —
+`NodeResult::{Ok, Failed, Poisoned{through}}` per node, failures
+poison descendants only while independent subgraphs complete, plus
+memoized incremental re-evaluation (content/naming keys, epochs)
+and `CancelToken` returning the completed prefix as a typed
+outcome. Progress reporting and in-op yield points remain absent.*
+
 ### GQ3 (RATIFIED 2026-07-19 round 3): All edits persisted in v1
 
 **Ratified**: `DocEdit`s are persisted from the first version —
@@ -214,6 +239,12 @@ removing/disabling persistence later is far easier than adding it
 Banked consequences: the edit schema enters Band 4's versioning
 discipline from the first persisted file; storage shape is
 **snapshot + edit log** (details at editor-core design time).
+
+*Shipped: snapshot + edit log is the on-disk format (`schema: n`
+header + JSON body); save verifies the log replays through `apply`
+before writing, and load replays it after. Schema v1 landed at M4
+PR 6, and the versioning discipline has since carried two ratified
+clean breaks (v2 at M5 PR 10, v3 at M6-5).*
 
 ### GQ4 (RATIFIED 2026-07-19 round 5): Document scope — local refs + wrapper, assemblies in the same formalism
 
@@ -305,6 +336,15 @@ dimension lattice and forbidding dimension-changing operations in
 v1 (D6's "~five quantities, not the SI lattice" stance suggests the
 restrictive answer). Fold into D8 at M4 planning.
 
+*Status (verified 2026-08-06): the restrictive dimension answer
+shipped — `Dimension = Length | Angle | Count | Scalar`, every
+constructor dimension-checked, dimension-changing products refused,
+the AST total and finite by charter. The units/display layer is NOT
+built: values are canonical meters/radians, display units are
+punted to free-form metadata, and no expression text parser exists.
+Both land with their first real consumer (round-tripping `25 mm` —
+bindings or GUI), which is when GQ5's remaining half comes due.*
+
 ### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
 
 Ecosystem snapshot 2026-07 (knowledge dated — re-survey before
@@ -324,6 +364,12 @@ both chose it; pure-Rust `libm` means D9 accidentally made the f64
 lane wasm-friendly; the `interval` feature is not, per issue #4) —
 G1 is deliberately agnostic to it. `rerun` stays the zero-effort
 debug viewer through M5; it is a viewer, not an editor substrate.
+
+*(Snapshot explicitly dated: M5 has since closed with no viewer
+commitment made — demo/montage rendering today goes through FreeCAD
+offscreen as a corpus oracle, not a viewer candidate; the ezpz and
+toolkit rows are as of 2026-07. Nothing in this snapshot binds —
+the re-survey-first instruction is the decision.)*
 
 ### GQ7: Selection mechanics
 
