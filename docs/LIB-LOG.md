@@ -43,7 +43,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
 | U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | PR #232: review APPROVE-WITH-FIXES 0/2/3 (byte-identity of all 89 exports independently reproduced; closure property HELD but its advertised "physically incapable" proof mechanism executed-FALSE → MINOR-1; novel-model prelude test: 3 exits, none to a second crate); rubric 5/3/3; fix pass dispatched to the implementer (incl. orchestrator ruling: Band joins the prelude) |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 in progress: algebra core + lattice + lowering committed on lib/u2-paths; extracted line_line_fillet_trims from LoopBuilder::fillet (shared closed form, behavior-preserving) |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 delivered: PR #233 OPEN, CI 26/1-skip green (impl ~364k tok, ~4.1h); 11 numbered findings; blinded review in flight (lane lib-u2-review) |
 
 ## Orchestrator decisions (LB-numbered)
 
@@ -60,6 +60,26 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
   (every type reachable through re-exported public error enums is
   importable from the façade) with a compile-level test, not as a
   one-off re-export.
+
+## v2-conversation evidence accumulator
+
+Findings that feed the profiles-as-programs representation draft
+(ruling 3 above); source = the U2 PR-1 implementer report:
+
+- **Stadium/slot profiles are UNAUTHORABLE in the ratified
+  surface** (finding 7): both-sides-tangent closer + parallel
+  carriers — every closure door refuses, and PQ4 blocks mid-carrier
+  seams. Real vocabulary gap, not an implementation artifact.
+- NURBS legs have no v1 representation to lower to (finding 1) —
+  banked for v2 exactly as PATHS-DESIGN anticipated.
+- ε_input plumbing for the algebra's junction checks is
+  unspecified in the doc (finding 2; run-global Tolerance::get()
+  used) — the v2 spec should say where path-authoring tolerance
+  comes from.
+- Fillet-trim canonicalization is anchor-based (finding 10) —
+  defines the bit-identity expectation for PR-2's scene rework
+  (anchor-consistent scenes lower bit-identically; others change
+  SAID not shape and need per-scene care).
 
 ## Resting state (2026-08-06)
 
