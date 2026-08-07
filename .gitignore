@@ -4,6 +4,12 @@
 .claude/worktrees
 __pycache__/
 
+# The matplotlib fallback renderer's preview tree (demos/render.sh).
+# It mirrors the committed lane structure — renders-preview/renders/ —
+# and is ignored ON PURPOSE: a fallback frame must be structurally
+# uncommittable (#221; see demos/check_render_provenance.py).
+demos/renders-preview/
+
 # Cargo build artifacts of the workspace-excluded projects
 demos/tour/target/
 tools/k-lint/target/
