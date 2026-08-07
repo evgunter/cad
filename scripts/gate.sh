@@ -16,9 +16,15 @@
 # honest (caching investigation, PR #72):
 #
 #   * SERIALIZED: an flock on a global lock file queues concurrent gate
-#     runs. The session-3 70-minute matrix was mostly CPU contention
-#     from concurrent agent builds — identical rows measured 3-4x
-#     faster uncontended. Uncontended warm matrix: ~3.7 min.
+#     runs. (Additionally, ci-local.sh now self-acquires ALL machine
+#     build slots — with-build-slot.sh — so a gate run also excludes
+#     concurrent agent-lane builds, the source of the 3-4x contention
+#     below.) The session-3 70-minute matrix was partly CPU
+#     contention from concurrent agent builds (identical rows
+#     measured 3-4x faster uncontended) and partly since-fixed
+#     laptop settings (Evan, 2026-08-06) — timing numbers from
+#     before that fix, including the ~3.7 min uncontended warm
+#     matrix, are stale upper bounds.
 #   * WARM: the runner keeps one persistent target/ at a fixed path.
 #     It is a STANDALONE CLONE (origin = GitHub), not a `git worktree`:
 #     a worktree whose parent checkout is an ephemeral mngr worktree

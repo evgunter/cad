@@ -66,6 +66,10 @@
 set -u
 cd "$(dirname "$0")/.."
 
+# Original args, preserved for the build-slot re-exec below (the parse
+# loop consumes "$@").
+ORIG_ARGS=("$@")
+
 # --- change filter: one shared implementation with .github/workflows/ci.yml
 FULL=0
 BASE=""
@@ -112,6 +116,15 @@ if [ "$TIER" = docs ]; then
   echo "=== (hosted CI gates such a PR on the 'docs-only ok' marker job.)"
   echo "=== re-run with --full to force the whole matrix anyway."
   exit 0
+fi
+
+# Anything past here builds and runs tests: take the machine-wide build
+# slots EXCLUSIVELY (a full battery next to another cargo lane is the
+# documented OOM-kill shape — bare "Terminated" rows). Placed after the
+# docs early-exit so docs-only runs never wait on locks; the re-exec'd
+# script re-runs the (cheap) filter, then passes this guard.
+if [ -z "${BUILD_SLOT_HELD:-}" ]; then
+  exec scripts/with-build-slot.sh -x -- scripts/ci-local.sh "${ORIG_ARGS[@]}"
 fi
 
 declare -a NAMES RESULTS

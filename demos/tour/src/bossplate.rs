@@ -22,10 +22,10 @@
 
 use std::collections::HashMap;
 
-use geom_core::{Affine3, Point2, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanBody, BooleanResult, Curve3};
+use pncad::geom_core::{Affine3, Point2, Tolerance, Vec3};
+use pncad::profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -84,7 +84,9 @@ fn boss<S: Scalar>() -> Body<S> {
 /// The union (a seamed boolean body — 3′ validates with its own
 /// declared contacts, like every boolean stop).
 pub fn build<S: Scalar>() -> BooleanBody<S> {
-    match topo::union(&plate::<S>(), &boss::<S>()).expect("the first transverse curved boolean") {
+    match pncad::topo::union(&plate::<S>(), &boss::<S>())
+        .expect("the first transverse curved boolean")
+    {
         BooleanResult::Body(bb) => bb,
         other => panic!("the boss union yields a body, got {other:?}"),
     }
@@ -95,8 +97,8 @@ pub fn build<S: Scalar>() -> BooleanBody<S> {
 /// of exactly TWO triangles — the curved wall's and the ringed top
 /// face's — through the SAME mesh vertex ids.
 fn assert_seam_chords_shared(body: &Body<f64>, delta: f64) -> usize {
-    let mesh = mesh::tessellate(body, delta).expect("boss∪plate tessellates");
-    mesh::validate::check_mesh(&mesh).expect("watertight");
+    let mesh = pncad::mesh::tessellate(body, delta).expect("boss∪plate tessellates");
+    pncad::mesh::validate::check_mesh(&mesh).expect("watertight");
     let mut uses: HashMap<(u32, u32), u32> = HashMap::new();
     for patch in &mesh.patches {
         for t in &patch.triangles {
@@ -139,7 +141,7 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64) -> usize {
 pub fn stops() -> Vec<Stop> {
     let bb = build::<f64>();
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
-    let vol = topo::mass_properties(&bb.body).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&bb.body).unwrap().volume;
     assert!(
         (vol - expect).abs() < 1e-6,
         "vol(plate∪boss) = {vol}, closed form {expect}"

@@ -19,20 +19,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{
+use pncad::editor_core::{
     CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr, Node, PatternKind,
     ProfileDesc, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
 };
-use geom_core::{Point3, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane};
+use pncad::geom_core::{Point3, Vec3};
+use pncad::profile::{Profile, ProfileLoop, SketchPlane};
 
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
-    geom_core::Point2::new(x, y)
-}
+use pncad::authoring::p2;
 
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
@@ -113,7 +110,7 @@ fn build_doc() -> Recipe {
 
 /// Unions the pattern's fin instances into the base — one solid, exact
 /// volume after every union (demo-side; see module docs).
-fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::BooleanBody<S> {
+fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> pncad::topo::BooleanBody<S> {
     let base = match &ev.value(r.base_e).expect("base evaluated").payload {
         ValuePayload::Body(b) => (**b).clone(),
         other => panic!("base payload: {other:?}"),
@@ -125,7 +122,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::Boolea
     assert_eq!(fins.len(), n, "pattern instance count");
     let mut acc = base;
     let mut vol = BASE_VOL;
-    let mut last: Option<topo::BooleanBody<S>> = None;
+    let mut last: Option<pncad::topo::BooleanBody<S>> = None;
     for (i, fin) in fins.iter().enumerate() {
         vol += FIN_GAIN;
         let bb = expect_seamed(
@@ -143,7 +140,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::Boolea
 /// shows (5 → 7 → 9, each re-eval fed the prior as memo), generic —
 /// the Probe sweep records the document-evaluation predicates AND the
 /// union chain at every count.
-pub(crate) fn probe_solids<S: Scalar>() -> Vec<topo::BooleanBody<S>> {
+pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
     let r = build_doc();
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
