@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use topo::BooleanBody;
+use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, try_subtract, try_union};
@@ -29,7 +29,7 @@ use crate::{SceneBody, Stop, View};
 /// same ops); returns the final body and its exact volume.
 pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
-    let outer: topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
+    let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
     let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0));
     let mut vol = 9.0 - 2.5 * 1.5 * 1.25;
     let mut acc: BooleanBody<S> = expect_seamed(
@@ -90,7 +90,7 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
 
 /// The tour stop; returns it with a clone of the final body (the
 /// cutaway stop splits it).
-pub fn stop() -> (Stop, topo::Body<f64>) {
+pub fn stop() -> (Stop, pncad::topo::Body<f64>) {
     let (acc, vol) = build::<f64>();
     let body_for_cutaway = acc.body.clone();
     let note = format!(

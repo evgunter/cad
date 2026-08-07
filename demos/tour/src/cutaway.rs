@@ -1,4 +1,4 @@
-//! The cutaway section (#91 C4): the tour's first `topo::split` — the
+//! The cutaway section (#91 C4): the tour's first `pncad::topo::split` — the
 //! project box (itself a 15-op boolean result) split by a TILTED
 //! plane, both halves validated independently, then translated apart
 //! along the section normal by rigid transforms (re-minted witnesses,
@@ -10,8 +10,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point3, Vec3};
-use topo::splitting::{SplitPart, SplitPlane, split};
+use pncad::geom_core::{Affine3, Point3, Vec3};
+use pncad::topo::splitting::{SplitPart, SplitPlane, split};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -23,8 +23,8 @@ pub(crate) type SectionNumbers = (f64, f64, f64, f64);
 /// The split + explode, generic (the Probe sweep runs the same ops):
 /// returns the two moved halves and the [`SectionNumbers`].
 pub(crate) fn build<S: Scalar>(
-    boxbody: &topo::Body<S>,
-) -> ((topo::Body<S>, topo::Body<S>), SectionNumbers) {
+    boxbody: &pncad::topo::Body<S>,
+) -> ((pncad::topo::Body<S>, pncad::topo::Body<S>), SectionNumbers) {
     // A tilted section plane through the box interior: normal
     // (0.75, 0.1875, 1) — no axis alignment, crosses walls, bosses,
     // and cavity floor.
@@ -39,15 +39,15 @@ pub(crate) fn build<S: Scalar>(
     };
 
     // Volumes: the two halves partition the box exactly.
-    let v_box = topo::mass_properties(boxbody)
+    let v_box = pncad::topo::mass_properties(boxbody)
         .expect("box props")
         .volume
         .f();
-    let v_above = topo::mass_properties(above)
+    let v_above = pncad::topo::mass_properties(above)
         .expect("above props")
         .volume
         .f();
-    let v_below = topo::mass_properties(below)
+    let v_below = pncad::topo::mass_properties(below)
         .expect("below props")
         .volume
         .f();
@@ -60,14 +60,14 @@ pub(crate) fn build<S: Scalar>(
     // Pull the halves apart along the (unnormalized) section normal:
     // rigid transforms re-mint every moved witness (#84).
     let n = normal * (S::from_f64(0.75) / normal.norm());
-    let moved_above =
-        topo::transform_rigid(above, &Affine3::translation(n)).expect("translate above half");
-    let moved_below =
-        topo::transform_rigid(below, &Affine3::translation(-n)).expect("translate below half");
+    let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n))
+        .expect("translate above half");
+    let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n))
+        .expect("translate below half");
     ((moved_above, moved_below), (v_above, v_below, v_box, gap))
 }
 
-pub fn stops(boxbody: &topo::Body<f64>) -> Vec<Stop> {
+pub fn stops(boxbody: &pncad::topo::Body<f64>) -> Vec<Stop> {
     let ((moved_above, moved_below), (v_above, v_below, v_box, gap)) = build(boxbody);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \

@@ -50,17 +50,7 @@ checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 name = "demo-tour"
 version = "0.1.0"
 dependencies = [
- "editor-core",
- "geom-brep",
- "geom-core",
- "geom-curves",
- "geom-surfaces",
- "mesh",
- "profile",
- "step-export",
- "stl",
- "sweep",
- "topo",
+ "pncad",
 ]
 
 [[package]]
@@ -176,6 +166,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "pncad"
+version = "0.0.0"
+dependencies = [
+ "editor-core",
+ "geom-brep",
+ "geom-core",
+ "geom-curves",
+ "geom-surfaces",
+ "mesh",
+ "profile",
+ "step-export",
+ "step-import",
+ "stl",
+ "sweep",
+ "topo",
 ]
 
 [[package]]
@@ -303,6 +311,17 @@ dependencies = [
 name = "step-export"
 version = "0.0.0"
 dependencies = [
+ "geom-core",
+ "geom-curves",
+ "geom-surfaces",
+ "topo",
+]
+
+[[package]]
+name = "step-import"
+version = "0.0.0"
+dependencies = [
+ "geom-brep",
  "geom-core",
  "geom-curves",
  "geom-surfaces",

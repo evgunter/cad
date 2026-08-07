@@ -1,7 +1,7 @@
 # Pre-GUI demo tour. Deliberately OUTSIDE the kernel workspace (the
 # empty [workspace] table below detaches it; the root manifest also
 # lists `demos` in workspace.exclude): viewer/demo tooling must never
-# become a workspace dependency. Builds the kernel crates by path.
+# become a workspace dependency. Builds the kernel by path.
 [package]
 name = "demo-tour"
 version = "0.1.0"
@@ -11,18 +11,13 @@ publish = false
 
 [workspace]
 
+# ONE kernel dependency. The tour is the façade's acceptance corpus
+# (LIB-U1): eighteen scenes, every kernel type they touch reached
+# through `pncad::`, including the error payloads. It used to name
+# eleven crates here — among them `geom-brep`, present for no reason
+# but to spell `SurfaceKind`, the payload of
+# `topo::BooleanError::CurvedBooleanUnsupported` that `topo` does not
+# re-export. The façade's closure property retires that whole class,
+# so the entry is gone rather than commented.
 [dependencies]
-geom-core = { path = "../../crates/geom-core" }
-profile = { path = "../../crates/profile" }
-sweep = { path = "../../crates/sweep" }
-geom-surfaces = { path = "../../crates/geom-surfaces" }
-# `SurfaceKind` is the payload of `topo::BooleanError::CurvedBooleanUnsupported`
-# but `topo` does not re-export it, so a consumer that wants to MATCH on
-# which surface kind refused must reach for geom-brep itself (findings 15).
-geom-brep = { path = "../../crates/geom-brep" }
-geom-curves = { path = "../../crates/geom-curves" }
-topo = { path = "../../crates/topo" }
-mesh = { path = "../../crates/mesh" }
-stl = { path = "../../crates/stl" }
-step-export = { path = "../../crates/step-export" }
-editor-core = { path = "../../crates/editor-core" }
+pncad = { path = "../../crates/pncad" }

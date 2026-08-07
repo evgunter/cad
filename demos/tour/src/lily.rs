@@ -49,17 +49,16 @@
 
 use core::f64::consts::PI;
 
-use geom_brep::SurfaceKind;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tolerance, Vec2, Vec3};
-use profile::{
-    ArcSweep, LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile,
-};
-use sweep::fillet::FilletError;
-use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
+use pncad::geom_brep::SurfaceKind;
+use pncad::geom_core::{Affine3, Mat3, Point3, Vec2, Vec3};
+use pncad::profile::{ArcSweep, LoopBuilder, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::sweep::fillet::FilletError;
+use pncad::sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::authoring::{p2, validated};
 
 // ---------------------------------------------------------------
 // The turtle: a G1 chain of circular arcs in the world xz-plane.
@@ -134,16 +133,6 @@ fn pt3<S: Scalar>(x: f64, y: f64, z: f64) -> Point3<S> {
     Point3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z))
 }
 
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
-
-fn validated<S: Scalar>(plane: SketchPlane<S>, loops: Vec<ProfileLoop<S>>) -> ValidatedProfile<S> {
-    Profile::new(plane, loops)
-        .validate(Tolerance::get())
-        .expect("lily profile validates")
-}
-
 /// The revolve axis every lily piece uses: the sketch frame's own
 /// origin, along +v. Each builder chooses the FRAME so that this one
 /// axis lands where the piece needs it — the kernel's revolve takes
@@ -184,7 +173,8 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> Body<S> {
         v3(spec.radial.0, 0.0, spec.radial.1),
         v3(0.0, 1.0, 0.0),
     );
-    let profile = validated(plane, vec![circle_loop(spec.ring, 0.0, tube)]);
+    let profile =
+        validated(plane, vec![circle_loop(spec.ring, 0.0, tube)]).expect("lily profile validates");
     revolve(
         &profile,
         sketch_axis(),
@@ -232,9 +222,13 @@ fn lantern<S: Scalar>(
         .line_to(p2(lip_r, t_end))
         .line_to(p2(0.0, t_end))
         .close();
-    revolve(&validated(plane, vec![lp]), sketch_axis(), Revolution::Full)
-        .expect("lantern revolves")
-        .body
+    revolve(
+        &validated(plane, vec![lp]).expect("lily profile validates"),
+        sketch_axis(),
+        Revolution::Full,
+    )
+    .expect("lantern revolves")
+    .body
 }
 
 /// A **lanceolate leaf**: two circular arcs of DIFFERENT radii on the
@@ -278,7 +272,7 @@ fn leaf<S: Scalar>(
         .arc_to_via(p2(0.5 * len, w_out), p2(len, 0.0))
         .close_arc_via(p2(0.5 * len, w_in));
     extrude(
-        &validated(plane, vec![lp]),
+        &validated(plane, vec![lp]).expect("lily profile validates"),
         Extrusion::Distance(S::from_f64(thick)),
     )
     .expect("leaf extrudes")
@@ -479,9 +473,13 @@ fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
     let lp = LoopBuilder::start(p2(0.0, -r))
         .arc_to_center(p2(0.0, r), p2(0.0, 0.0), ArcSweep::Ccw)
         .close();
-    revolve(&validated(plane, vec![lp]), sketch_axis(), Revolution::Full)
-        .expect("probe ball revolves")
-        .body
+    revolve(
+        &validated(plane, vec![lp]).expect("lily profile validates"),
+        sketch_axis(),
+        Revolution::Full,
+    )
+    .expect("probe ball revolves")
+    .body
 }
 
 /// Prints one probe line, asserting that the wall is still standing —
@@ -563,7 +561,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         2,
         "weld the lantern onto the arch (torus tube x sphere zone)",
-        topo::union(lant, arch),
+        pncad::topo::union(lant, arch),
         |e| {
             matches!(
                 e,
@@ -586,7 +584,7 @@ pub fn wall_probes<S: Scalar>() {
         let lp = LoopBuilder::start(p2(0.0, 0.0))
             .arc_to_via(p2(0.5, 0.12), p2(1.0, 0.0))
             .close_arc_via(p2(0.5, 0.02));
-        validated(plane, vec![lp])
+        validated(plane, vec![lp]).expect("lily profile validates")
     };
     wall(
         3,
@@ -607,7 +605,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        topo::transform_rigid(lant, &stretch),
+        pncad::topo::transform_rigid(lant, &stretch),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
         |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
@@ -628,7 +626,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         5,
         "mirror a leaf across the plant's plane (improper isometry)",
-        topo::transform_rigid(by("lily_leaf_a"), &mirror),
+        pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror),
         // A reflection's columns ARE unit and orthogonal; only the
         // determinant catches it, and that is the whole point.
         |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
@@ -639,15 +637,15 @@ pub fn wall_probes<S: Scalar>() {
     //    meets the conical pucker. A rolling ball would soften it —
     //    but `fillet_edges` is the whole-body door on a convex,
     //    planar-faced, trivalent polyhedron.
-    let rim: Vec<topo::EdgeKey> = lant.edges().map(|(k, _)| k).collect();
+    let rim: Vec<pncad::topo::EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     wall(
         6,
         "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        sweep::fillet::fillet_edges(
+        pncad::sweep::fillet::fillet_edges(
             lant,
             &rim,
             S::from_f64(0.02),
-            geom_core::Band::linear().expect("band"),
+            pncad::geom_core::Band::linear().expect("band"),
         ),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
@@ -661,7 +659,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         7,
         "carve a tepal seam into the lantern (sphere x sphere subtract)",
-        topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16)),
+        pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16)),
         |e| {
             matches!(
                 e,
@@ -699,7 +697,7 @@ pub fn wall_probes<S: Scalar>() {
 #[cfg(test)]
 mod review_probes {
     use super::*;
-    use topo::Surface;
+    use pncad::topo::Surface;
 
     fn pieces() -> Vec<Piece<f64>> {
         plant::<f64>()
@@ -879,7 +877,7 @@ mod review_probes {
     /// the arch's 136,076, pinned as printed in the PR description.
     #[test]
     fn finding_13_tessellation_table_reproduces() {
-        use mesh::validate::{signed_volume, triangle_count};
+        use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
         let table = [
             ("lily_stem", 5e-3, 31_612usize),
@@ -889,13 +887,13 @@ mod review_probes {
             ("lily_lantern", 2e-3, 2_348),
         ];
         for (name, delta, want) in table {
-            let m = mesh::tessellate(body(&ps, name), delta).expect("tessellate");
+            let m = pncad::mesh::tessellate(body(&ps, name), delta).expect("tessellate");
             assert_eq!(triangle_count(&m), want, "{name} @ {delta:e}");
         }
         // Lantern volume error at both deltas (1.25% / 0.53% claimed).
         let exact = 0.36225803729804673;
         for (delta, lo, hi) in [(5e-3, 0.0120, 0.0130), (2e-3, 0.0050, 0.0056)] {
-            let m = mesh::tessellate(body(&ps, "lily_lantern"), delta).expect("tessellate");
+            let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta).expect("tessellate");
             let rel = ((signed_volume(&m) - exact) / exact).abs();
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
