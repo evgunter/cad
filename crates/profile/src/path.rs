@@ -94,6 +94,81 @@
 //! is OUT (§6): a loop is authored either here or as a raw chain,
 //! never both; there is no path-concatenation operator — repeated
 //! motifs are builder functions over the one chain.
+//!
+//! # Example: the all-rounded square (4 anchors + 4 directions)
+//!
+//! Every anchor mᵢ is a real on-path point (a side midpoint); the
+//! corners are never authored — they exist only as carrier
+//! intersections, and the seam fillet reads exactly like the interior
+//! ones:
+//!
+//! ```
+//! use geom_core::{Point2, Tolerance};
+//! use profile::{Open, Profile, SketchPlane, Start};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (east, north) = (0.0_f64, std::f64::consts::FRAC_PI_2);
+//! let (west, south) = (std::f64::consts::PI, -north);
+//! let r = 0.25;
+//! let square = Open.at(Point2::new(0.0, -1.0)).angle(east)?
+//!     .fillet(r)?.at(Point2::new(1.0, 0.0))?.angle(north)?
+//!     .fillet(r)?.at(Point2::new(0.0, 1.0))?.angle(west)?
+//!     .fillet(r)?.at(Point2::new(-1.0, 0.0))?.angle(south)?
+//!     .fillet(r)?.to(Start)?;
+//! assert_eq!(square.vertices.len(), 8);
+//! assert_eq!(square.tangent_joints.len(), 8);
+//! Profile::new(SketchPlane::xy(), vec![square]).validate(Tolerance::get())?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Off-lattice states are unreachable (compile-fail gallery)
+//!
+//! A second director on a Directed tip is ill-typed:
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::Open;
+//! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap().angle(1.0);
+//! ```
+//!
+//! `.tangent()` on a plain point (no incoming direction to inherit):
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::Open;
+//! let p = Open.at(Point2::new(0.0, 0.0)).tangent();
+//! ```
+//!
+//! A leading `.fillet` / `.tangent()` (the seam's content cannot be
+//! authored from the front):
+//!
+//! ```compile_fail,E0599
+//! use profile::Open;
+//! let p = Open.fillet(0.5);
+//! ```
+//!
+//! Legs cannot depart a half-bound tip:
+//!
+//! ```compile_fail,E0599
+//! use profile::Open;
+//! let p = Open.angle(0.0_f64).line(1.0);
+//! ```
+//!
+//! Use after close (closing verbs consume the path):
+//!
+//! ```compile_fail,E0382
+//! use geom_core::Point2;
+//! use profile::{Open, Start};
+//! let path = Open
+//!     .at(Point2::new(0.0, 0.0))
+//!     .line_to(Point2::new(1.0, 0.0))
+//!     .unwrap()
+//!     .line_to(Point2::new(0.5, 1.0))
+//!     .unwrap();
+//! let done = path.line_to(Start);
+//! let again = path.line_to(Start);
+//! ```
 
 use core::marker::PhantomData;
 
