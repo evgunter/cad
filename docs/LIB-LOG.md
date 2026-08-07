@@ -43,7 +43,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
 | U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 delivered: PR #233 OPEN, CI 26/1-skip green (impl ~364k tok, ~4.1h); 11 numbered findings; blinded review in flight (lane lib-u2-review) |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 #233: review APPROVE-WITH-FIXES 1/1/3, rubric 5/4/5 (extraction verbatim-confirmed at b1781c2; bit-identity held on all new adversarial differentials incl. a confirmed one-ulp finding-10 divergence; 8 further illegal states all E0599; e2e volumes bit-equal; MAJOR-1 = sign domain ungated — negative line(len) after a fillet strands the authored anchor off-path THROUGH validate, a §4-item-3 ratified-text breach; 2 silent devs). Fix pass dispatched. |
 
 ## Orchestrator decisions (LB-numbered)
 
